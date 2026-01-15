@@ -1,0 +1,256 @@
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { Monitor, MonitorSmartphone, Loader2 } from 'lucide-react';
+
+import { Screen } from '@/types/models';
+
+interface Playlist {
+  id: string;
+  name: string;
+}
+
+interface ScreenDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  screen?: Screen | null;
+  onSaved: () => void;
+}
+
+const ASPECT_RATIOS = [
+  { value: '16x9', label: '16x9 (Horizontal)', icon: 'horizontal' },
+  { value: '9x16', label: '9x16 (Vertical)', icon: 'vertical' },
+];
+
+export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDialogProps) {
+  const { user } = useAuth();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [location, setLocation] = useState('');
+  const [resolution, setResolution] = useState('16x9');
+  const [customId, setCustomId] = useState('');
+  const [playlistId, setPlaylistId] = useState<string | null>(null);
+  const [isActive, setIsActive] = useState(true);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchPlaylists = async () => {
+      const { data } = await supabase
+        .from('playlists')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      setPlaylists(data || []);
+    };
+
+    if (open) {
+      fetchPlaylists();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (screen) {
+      setName(screen.name);
+      setDescription(screen.description || '');
+      setLocation(screen.location || '');
+      setResolution(screen.resolution || '16x9');
+      setCustomId(screen.custom_id || '');
+      setPlaylistId(screen.playlist_id);
+      setIsActive(screen.is_active);
+    } else {
+      setName('');
+      setDescription('');
+      setLocation('');
+      setResolution('16x9');
+      setCustomId('');
+      setPlaylistId(null);
+      setIsActive(true);
+    }
+  }, [screen, open]);
+
+  const handleSave = async () => {
+    if (!user) return;
+    if (!name.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    if (!customId.trim()) {
+      toast.error('ID é obrigatório');
+      return;
+    }
+
+    const idRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!idRegex.test(customId)) {
+      toast.error('ID deve conter apenas letras, números, hífens e underscores');
+      return;
+    }
+
+    const orientation = resolution === '16x9' ? 'landscape' : 'portrait';
+
+    setSaving(true);
+    try {
+      if (screen) {
+        const { error } = await supabase
+          .from('screens')
+          .update({
+            name,
+            description: description || null,
+            location: location || null,
+            resolution,
+            orientation,
+            playlist_id: playlistId,
+            is_active: isActive,
+            custom_id: customId,
+          })
+          .eq('id', screen.id);
+        if (error) {
+          if (error.code === '23505') {
+            toast.error('Este ID já está em uso. Escolha outro.');
+            return;
+          }
+          throw error;
+        }
+        toast.success('Tela atualizada!');
+      } else {
+        const { error } = await supabase
+          .from('screens')
+          .insert({
+            name,
+            description: description || null,
+            location: location || null,
+            resolution,
+            orientation,
+            playlist_id: playlistId,
+            is_active: isActive,
+            user_id: user.id,
+            custom_id: customId,
+          });
+        if (error) {
+          if (error.code === '23505') {
+            toast.error('Este ID já está em uso. Escolha outro.');
+            return;
+          }
+          throw error;
+        }
+        toast.success('Tela criada!');
+      }
+      onSaved();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error saving screen:', error);
+      toast.error('Erro ao salvar tela');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="p-6 pb-2 shrink-0">
+          <DialogTitle>{screen ? 'Editar Tela' : 'Nova Tela'}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto p-6 pt-2 custom-scrollbar space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Nome *</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex: Rezepção, Vitrine, Sala de Espera"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="custom_id">ID Personalizado</Label>
+            <Input
+              id="custom_id"
+              value={customId}
+              onChange={(e) => setCustomId(e.target.value)}
+              placeholder="Ex: TELA-01, RECEPCAO-MAIN"
+              className="font-mono uppercase"
+            />
+            <p className="text-xs text-muted-foreground">
+              Identificador único usado na URL do player.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Descrição/Localização</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Onde esta tela está localizada?"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Formato</Label>
+              <Select value={resolution} onValueChange={setResolution}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ASPECT_RATIOS.map(ratio => (
+                    <SelectItem key={ratio.value} value={ratio.value}>
+                      <div className="flex items-center gap-2">
+                        {ratio.icon === 'horizontal' ? <Monitor className="h-4 w-4" /> : <MonitorSmartphone className="h-4 w-4" />}
+                        {ratio.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Playlist Padrão</Label>
+              <Select value={playlistId || 'none'} onValueChange={(v) => setPlaylistId(v === 'none' ? null : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {playlists.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border rounded-lg p-3">
+            <div className="space-y-0.5">
+              <Label>Tela Ativa</Label>
+              <p className="text-sm text-muted-foreground">
+                Se desativada, o player mostrará tela preta
+              </p>
+            </div>
+            <Switch checked={isActive} onCheckedChange={setIsActive} />
+          </div>
+        </div>
+
+        <div className="p-4 border-t bg-background mt-auto flex justify-end gap-2 shrink-0">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
