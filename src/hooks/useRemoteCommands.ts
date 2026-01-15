@@ -35,16 +35,19 @@ export function useRemoteCommands({ screenId }: UseRemoteCommandsProps) {
                         const result = await handleCommand(command);
 
                         // Acknowledge Execution
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         await (supabase.from('remote_commands' as any) as any)
                             .update({
                                 status: 'executed',
                                 executed_at: new Date().toISOString(),
-                                payload: result ? { ...command.payload, ...result } : command.payload
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                payload: result ? { ...(command.payload as any), ...result } : command.payload
                             })
                             .eq('id', command.id);
 
                     } catch (error) {
                         console.error('[RemoteCommands] Failed to execute:', error);
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         await (supabase.from('remote_commands' as any) as any)
                             .update({ status: 'failed' })
                             .eq('id', command.id);
@@ -68,7 +71,7 @@ export function useRemoteCommands({ screenId }: UseRemoteCommandsProps) {
                 // In a browser environment, reboot is effectively a hard reload or redirect
                 // Ideally this would integrate with a native shell (Electron/Tauri)
                 console.log('[RemoteCommands] Rebooting player...');
-                window.location.href = window.location.href;
+                window.location.reload();
                 break;
             case 'screenshot':
                 console.log('[RemoteCommands] Taking screenshot...');

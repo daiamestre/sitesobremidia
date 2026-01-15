@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,23 +19,24 @@ export default function Widgets() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingWidget, setEditingWidget] = useState<Widget | null>(null);
 
-  const fetchWidgets = async () => {
+  const fetchWidgets = useCallback(async () => {
     if (!user) return;
     try {
       const { data, error } = await supabase.from('widgets').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      setWidgets((data as any) || []);
-    } catch (error: any) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setWidgets(data as any || []);
+    } catch (error) {
       console.error('Error fetching widgets:', error);
       toast.error('Erro ao carregar widgets');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchWidgets();
-  }, [user]);
+  }, [fetchWidgets]);
 
   const openDialog = (widget?: Widget) => {
     setEditingWidget(widget || null);
@@ -51,10 +52,12 @@ export default function Widgets() {
       };
 
       if (editingWidget) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await supabase.from('widgets').update(dataToSave as any).eq('id', editingWidget.id);
         if (error) throw error;
         toast.success('Widget atualizado!');
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await supabase.from('widgets').insert(dataToSave as any);
         if (error) throw error;
         toast.success('Widget criado!');
@@ -62,7 +65,7 @@ export default function Widgets() {
 
       setDialogOpen(false);
       fetchWidgets();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving widget:', error);
       toast.error('Erro ao salvar widget');
       throw error; // Re-throw to be caught by form loading state if needed
@@ -76,7 +79,7 @@ export default function Widgets() {
       if (error) throw error;
       toast.success('Widget excluído!');
       fetchWidgets();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting widget:', error);
       toast.error('Erro ao excluir widget');
     }

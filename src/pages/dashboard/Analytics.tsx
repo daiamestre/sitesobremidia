@@ -41,6 +41,7 @@ export default function Analytics() {
 
             // Use explicit casting for table not in generated types yet
             const { count: commandsCount } = await (supabase
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .from('remote_commands' as any) as any)
                 .select('*', { count: 'exact', head: true })
                 .gte('created_at', yesterday.toISOString());

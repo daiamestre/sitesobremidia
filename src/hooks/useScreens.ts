@@ -19,7 +19,7 @@ export function useScreens(userId?: string) {
         if (error) throw error;
 
         const now = new Date();
-        const screensWithStatus = (data || []).map((screen: any) => {
+        const screensWithStatus = (data || []).map((screen) => {
             let status: ScreenStatus = 'offline';
             if (screen.last_ping_at) {
                 const lastPing = new Date(screen.last_ping_at);
@@ -34,7 +34,9 @@ export function useScreens(userId?: string) {
                 ...screen,
                 status,
                 // Ensure playlist is null if relation is empty/null, though supabase usually returns null or object
-                playlist: screen.playlist || null
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                playlist: (screen as any).playlist || null,
+                orientation: screen.orientation as unknown as any // Should be ScreenOrientation but data is typed as any or inferred as string
             };
         });
 
@@ -70,6 +72,7 @@ export function useScreens(userId?: string) {
 
     const commandMutation = useMutation({
         mutationFn: async ({ screenId, command }: { screenId: string, command: RemoteCommandType }) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase.from('remote_commands' as any) as any).insert({
                 screen_id: screenId,
                 command: command,

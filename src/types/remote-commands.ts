@@ -5,7 +5,7 @@ export interface RemoteCommand {
     id: string;
     screen_id: string;
     command: RemoteCommandType;
-    payload?: any;
+    payload?: unknown;
     status: RemoteCommandStatus;
     created_at: string;
     executed_at?: string | null;
