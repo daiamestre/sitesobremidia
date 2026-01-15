@@ -28,7 +28,7 @@ export function usePlayerRealtime({
   onScreenUpdate,
   onScheduleUpdate,
 }: UsePlayerRealtimeProps) {
-  
+
   // Subscrever a mudanças na tela
   useEffect(() => {
     if (!screenId) return;
@@ -46,9 +46,12 @@ export function usePlayerRealtime({
         (payload) => {
           // Ignorar updates gerados pelo próprio ping do player (last_ping_at/updated_at),
           // para não causar re-renderizações constantes durante a reprodução.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const oldRow = (payload as any).old ?? null;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const newRow = (payload as any).new ?? null;
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const strip = (row: any) => {
             if (!row) return row;
             const { last_ping_at, updated_at, ...rest } = row;

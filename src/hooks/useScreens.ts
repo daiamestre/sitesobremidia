@@ -36,7 +36,8 @@ export function useScreens(userId?: string) {
                 // Ensure playlist is null if relation is empty/null, though supabase usually returns null or object
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 playlist: (screen as any).playlist || null,
-                orientation: screen.orientation as unknown as any // Should be ScreenOrientation but data is typed as any or inferred as string
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                orientation: screen.orientation as any
             };
         });
 

@@ -187,6 +187,7 @@ export default function Player() {
     }
 
     return (result.data || [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((item: any) => {
         let contentType: ContentType | null = null;
         if (item.media_id && item.media) contentType = 'media';
@@ -231,10 +232,12 @@ export default function Player() {
     const prev = screenRef.current;
     if (prev && prev.playlist_id === data.playlist_id && prev.orientation === data.orientation) {
       // Soft update (config only)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setScreen(data as any);
       return;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setScreen(data as any);
     if (data.playlist_id) {
       try {
