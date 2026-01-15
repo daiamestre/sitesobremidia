@@ -181,7 +181,17 @@ export function ExternalLinkRenderer({ url, platform, className = '', embedCode 
 
                                                 {/* Foreground Content (Contained) */}
                                                 {post.type === 'video' ? (
-                                                    <video src={post.src} className="relative z-10 w-full h-full object-contain" autoPlay muted loop playsInline />
+                                                    <video
+                                                        key={post.src}
+                                                        src={post.src}
+                                                        className="relative z-10 w-full h-full object-contain"
+                                                        autoPlay
+                                                        muted
+                                                        loop
+                                                        playsInline
+                                                        controls={false}
+                                                        onError={(e) => console.warn('Video playback error:', post.src, e)}
+                                                    />
                                                 ) : (
                                                     <img src={post.src} className="relative z-10 w-full h-full object-contain" alt="Post" />
                                                 )}

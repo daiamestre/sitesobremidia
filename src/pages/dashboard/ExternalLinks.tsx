@@ -604,7 +604,7 @@ export default function ExternalLinks() {
                                     {selectedPostUrls.map((post, idx) => (
                                       <div key={idx} className="relative w-16 h-16 rounded overflow-hidden border bg-black/5">
                                         {post.type === 'video' ? (
-                                          <video src={post.src} className="w-full h-full object-cover opacity-80" />
+                                          <video src={post.src} className="w-full h-full object-cover opacity-80" controls />
                                         ) : (
                                           <img src={post.src} className="w-full h-full object-cover" alt="Post" />
                                         )}

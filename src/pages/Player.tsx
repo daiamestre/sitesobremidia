@@ -429,11 +429,9 @@ export default function Player() {
   // ------------------------------------------
 
   if (loading && items.length === 0) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-white/20 animate-spin" />
-      </div>
-    );
+    // Return black screen instead of loader for "High End Signal" feel
+    // Initial fetch is usually fast enough, or we just wait in black.
+    return <div className="min-h-screen bg-black" />;
   }
 
   if (error) {
