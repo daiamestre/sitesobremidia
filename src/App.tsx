@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { PWAProvider } from "@/components/pwa/PWAProvider";
 import { DashboardLayout } from "./layouts/DashboardLayout";
 import { Loader2 } from "lucide-react";
+import { NativeStatus } from "./components/native/NativeStatus";
 
 // ----------------------------------------------------------------------
 // LAZY LOADS (Code Splitting)
@@ -51,6 +52,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <NativeStatus /> {/* Native Bridge Debug Indicator */}
         <BrowserRouter>
           <PWAProvider>
             <Suspense fallback={<PageLoader />}>
