@@ -2,16 +2,51 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const getStoredConfig = () => {
+  const storedUrl = localStorage.getItem('VITE_SUPABASE_URL');
+  const storedKey = localStorage.getItem('VITE_SUPABASE_PUBLISHABLE_KEY');
+  return {
+    url: storedUrl || import.meta.env.VITE_SUPABASE_URL,
+    key: storedKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  };
+};
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// Safe Initialization
+let supabaseInstance;
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
+try {
+  if (!supabaseConfig.url || !supabaseConfig.key) {
+    console.warn("⚠️ Supabase credentials missing. Initializing Fallback Client (Offline Mode).");
+    // Return a dummy client that doesn't crash but logs errors on usage
+    supabaseInstance = {
+      from: () => ({
+        select: () => Promise.resolve({ data: null, error: { message: "Missing Credentials" } }),
+        insert: () => Promise.resolve({ data: null, error: { message: "Missing Credentials" } }),
+        update: () => Promise.resolve({ data: null, error: { message: "Missing Credentials" } }),
+        delete: () => Promise.resolve({ data: null, error: { message: "Missing Credentials" } }),
+        on: () => ({ subscribe: () => { } }),
+      }),
+      auth: {
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
+      },
+      channel: () => ({
+        on: () => ({ subscribe: () => { } }),
+        subscribe: () => { }
+      })
+    } as any;
+  } else {
+    supabaseInstance = createClient<Database>(supabaseConfig.url, supabaseConfig.key, {
+      auth: {
+        storage: localStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      }
+    });
   }
-});
+} catch (e) {
+  console.error("Critical Error initializing Supabase:", e);
+  supabaseInstance = {} as any;
+}
+
+export const supabase = supabaseInstance;

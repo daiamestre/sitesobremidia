@@ -18,3 +18,13 @@ declare module 'virtual:pwa-register/react' {
     updateServiceWorker: (reloadPage?: boolean) => Promise<void>;
   };
 }
+
+interface Window {
+  NativePlayer?: {
+    getDeviceId(): string;
+    log(message: string): void;
+    getPlayerConfig(): string;
+    showToast(message: string): void;
+    getDeviceStatus(): string; // JSON String
+  };
+}

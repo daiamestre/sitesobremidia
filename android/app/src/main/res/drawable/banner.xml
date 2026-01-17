@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#1e1b4b" /> <!-- Dark Blue Brand Color -->
+            <size android:width="320dp" android:height="180dp"/>
+        </shape>
+    </item>
+    <item android:gravity="center">
+        <!-- Text representation via vector or just a solid shape. 
+             Since we can't easily put text in xml drawable without custom view or bitmap, 
+             we'll just use the icon if available, or just a colored rect. 
+             Ideally we use the launcher icon in the center. -->
+        <bitmap android:src="@mipmap/ic_launcher" android:gravity="center" />
+    </item>
+</layer-list>

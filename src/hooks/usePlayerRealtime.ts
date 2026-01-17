@@ -139,4 +139,22 @@ export function usePlayerRealtime({
       supabase.removeChannel(channel);
     };
   }, [screenId, onScheduleUpdate]);
+
+  // --------------------------------------------------------------------------
+  // POLLING FALLBACK (Reliability)
+  // --------------------------------------------------------------------------
+  // Ensures data stays fresh even if WebSocket connection drops or is blocked.
+  useEffect(() => {
+    if (!screenId && !playlistId) return;
+
+    console.log('[Realtime] Starting Polling Fallback (60s)');
+    const interval = setInterval(() => {
+      console.log('[Realtime] Polling sync...');
+      onScreenUpdate();
+      if (playlistId) onPlaylistUpdate();
+      onScheduleUpdate();
+    }, 60000); // 60 seconds
+
+    return () => clearInterval(interval);
+  }, [screenId, playlistId, onScreenUpdate, onPlaylistUpdate, onScheduleUpdate]);
 }

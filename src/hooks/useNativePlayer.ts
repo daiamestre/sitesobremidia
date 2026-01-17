@@ -24,6 +24,21 @@ export const useNativePlayer = () => {
             showToast: (message: string) => {
                 console.log(`[NativeMock] TOAST: ${message}`);
                 alert(`[Native Toast]: ${message}`);
+            },
+            getDeviceStatus: () => {
+                console.log('[NativeMock] getDeviceStatus called');
+                return JSON.stringify({
+                    deviceId: 'mock-device-id',
+                    overlayGranted: true,
+                    isOnline: true,
+                    manufacturer: 'MockBrand',
+                    model: 'MockModel',
+                    sdk: 33,
+                    widthPixels: window.innerWidth,
+                    heightPixels: window.innerHeight,
+                    density: window.devicePixelRatio,
+                    orientation: window.innerHeight > window.innerWidth ? 'portrait' : 'landscape'
+                });
             }
         };
     }, [isNative]);
@@ -34,5 +49,6 @@ export const useNativePlayer = () => {
         log: bridge.log,
         getPlayerConfig: bridge.getPlayerConfig,
         showToast: bridge.showToast,
+        getDeviceStatus: bridge.getDeviceStatus,
     };
 };

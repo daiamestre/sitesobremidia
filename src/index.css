@@ -111,6 +111,16 @@
     font-family: 'Inter', sans-serif;
   }
 
+  /* Fix: Force full height/width in Portrait to prevent white screen before rotation */
+  @media (orientation: portrait) {
+    body, #root {
+        min-height: 100vh;
+        min-width: 100vw;
+        background-color: black; /* Force black background */
+        overflow: hidden;
+    }
+  }
+
   h1,
   h2,
   h3,

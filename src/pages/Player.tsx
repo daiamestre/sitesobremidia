@@ -13,7 +13,13 @@ import { DualMediaLayer } from '@/components/player/DualMediaLayer';
 import { usePlayerHeartbeat } from '@/hooks/usePlayerHeartbeat';
 import { useOfflineCache } from '@/hooks/useOfflineCache';
 import { useRemoteCommands } from '@/hooks/useRemoteCommands';
+import { useMaintenance } from '@/hooks/useMaintenance';
 import { ExternalLinkRenderer } from '@/components/player/ExternalLinkRenderer';
+import { ScreenScaler } from '@/components/player/ScreenScaler';
+import { DiagnosticOverlay } from '@/components/player/DiagnosticOverlay';
+import { usePlaylistScheduler } from '@/hooks/usePlaylistScheduler';
+import { WidgetDataProvider } from '@/contexts/WidgetDataContext';
+import { useMediaPreloader } from '@/hooks/useMediaPreloader';
 
 
 // ==========================================
@@ -130,10 +136,8 @@ export default function Player() {
     rss: { enabled: false },
   });
 
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const currentItem = items[currentIndex];
 
   // Refs
   const itemsRef = useRef<UnifiedPlaylistItem[]>([]);
@@ -144,6 +148,18 @@ export default function Player() {
   useEffect(() => { screenRef.current = screen; }, [screen]);
 
   usePreventSleep(true);
+
+  // ------------------------------------------
+  // SCHEDULING & PLAYBACK (Moved Up)
+  // ------------------------------------------
+  const {
+    currentIndex,
+    setCurrentIndex,
+    currentItem,
+    isScheduleValid,
+    advance,
+    getNextValidItem
+  } = usePlaylistScheduler(items);
 
   // ------------------------------------------
   // DATA FETCHING
@@ -288,7 +304,8 @@ export default function Player() {
 
   useRemoteCommands({ screenId: screen?.id || '' });
 
-  useRemoteCommands({ screenId: screen?.id || '' });
+  // Weekly Maintenance (Cache Clear)
+  useMaintenance();
 
 
   // ------------------------------------------
@@ -296,70 +313,18 @@ export default function Player() {
   // ------------------------------------------
 
   // ------------------------------------------
-  // SCHEDULING LOGIC
+  // SCHEDULING & PLAYBACK
   // ------------------------------------------
 
-  const isScheduleValid = useCallback((item: UnifiedPlaylistItem) => {
-    // If no schedule set, it's always valid
-    if (!item.start_time && !item.end_time && (!item.days || item.days.length === 0)) return true;
 
-    const now = new Date();
-    const currentDay = now.getDay(); // 0 = Sunday
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-
-    // Check Days
-    if (item.days && item.days.length > 0 && !item.days.includes(currentDay)) return false;
-
-    // Check Time
-    if (item.start_time && item.end_time) {
-      const parseTime = (t: string) => {
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
-      };
-      const start = parseTime(item.start_time);
-      const end = parseTime(item.end_time);
-
-      if (start <= end) {
-        // Normal range (e.g. 08:00 to 18:00)
-        if (currentTime < start || currentTime >= end) return false;
-      } else {
-        // Overnight range (e.g. 22:00 to 06:00)
-        // Valid if after start OR before end
-        if (currentTime < start && currentTime >= end) return false;
-      }
+  // Sync index on playlist load
+  useEffect(() => {
+    // If playlist changed drastically, reset? handled by fetchItems/setItems logic mostly.
+    // Ensure we are pointing to a valid item or 0
+    if (items.length > 0 && !items[currentIndex]) {
+      setCurrentIndex(0);
     }
-
-    return true;
-  }, []);
-
-  const handleNext = useCallback(() => {
-    setItems(currentItems => {
-      if (currentItems.length === 0) return currentItems;
-
-      let nextIndex = (currentIndex + 1) % currentItems.length;
-      let attempts = 0;
-
-      // Find next valid item
-      while (attempts < currentItems.length) {
-        const nextItem = currentItems[nextIndex];
-        if (isScheduleValid(nextItem)) {
-          if (nextIndex !== currentIndex) setCurrentIndex(nextIndex);
-          return currentItems;
-        }
-        nextIndex = (nextIndex + 1) % currentItems.length;
-        attempts++;
-      }
-
-      // No valid items found?
-      // Stay on current if valid, else go to 0 (or stay on placeholder)
-      // Ideally we shouldn't play anything if nothing is valid.
-      // But for now, let's just cycle or stay put.
-      console.warn('[Player] No scheduled content available at this time.');
-      return currentItems;
-    });
-  }, [currentIndex, isScheduleValid]);
-
-
+  }, [items, currentIndex, setCurrentIndex]);
 
   useEffect(() => {
     if (advanceTimeoutRef.current) {
@@ -370,10 +335,7 @@ export default function Player() {
     if (!currentItem) return;
 
     if (items.length === 1 && currentItem.content_type === 'media' && currentItem.media?.file_type === 'video' && isScheduleValid(currentItem)) {
-      // Single Video Loop handled by <video loop> in CSS/DOM if implemented, 
-      // but here we use the MediaRenderer logic which defaults to false loop and calls onFinished.
-      // Special case: we don't set a timeout, we wait for onFinished to re-trigger or just let it loop natively.
-      // Implementation choice: Let native loop handle it if single item.
+      // Single Video Loop handled natively/DualMediaLayer
       return;
     }
 
@@ -396,10 +358,10 @@ export default function Player() {
 
     advanceTimeoutRef.current = setTimeout(() => {
       console.log(`[Player] Auto-advance (${isVideo ? 'Failsafe' : 'Timer'})`);
-      handleNext();
+      advance();
     }, duration * 1000);
 
-  }, [currentItem, items.length, handleNext, isScheduleValid]);
+  }, [currentItem, items.length, advance, isScheduleValid]);
 
   // ------------------------------------------
   // LAYOUT ENGINE (Professional)
@@ -407,13 +369,7 @@ export default function Player() {
 
   // 1. Detect Environment
   const isWindowPortrait = typeof window !== 'undefined' ? window.innerHeight > window.innerWidth : false;
-
-  // 2. Detect Config
   const screenOrientation = screen?.orientation || (isWindowPortrait ? 'portrait' : 'landscape');
-
-  // 3. Calculate Rotation Requirement
-  // Rotation is needed ONLY if the Physical Window assumes Landscape but the Config implies Portrait Mode (Vertical Monitor)
-  const isRotationNeeded = screenOrientation === 'portrait' && !isWindowPortrait;
 
   // 4. Fullscreen Toggle
   const toggleFullscreen = useCallback(() => {
@@ -429,8 +385,6 @@ export default function Player() {
   // ------------------------------------------
 
   if (loading && items.length === 0) {
-    // Return black screen instead of loader for "High End Signal" feel
-    // Initial fetch is usually fast enough, or we just wait in black.
     return <div className="min-h-screen bg-black" />;
   }
 
@@ -439,113 +393,94 @@ export default function Player() {
   }
 
   if (!currentItem) {
-    return <div className="min-h-screen bg-black text-white/40 flex items-center justify-center">Sigage Player Ready</div>;
+    return <div className="min-h-screen bg-black text-white/40 flex items-center justify-center">Signage Player Ready</div>;
   }
 
+  // PRELOADER (Elite Performance)
+  useMediaPreloader(items);
+
+  const targetOrientation = screen?.orientation || 'landscape';
+
   return (
-    <div
-      className="fixed inset-0 bg-black overflow-hidden cursor-none" // cursor-none for production feel
-      onClick={toggleFullscreen}
-    >
-      {/* LOGICAL CONTAINER */}
-      {/* This div is the 'virtual screen'. It is mathematically transformed to fit the physical screen. */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          // DIMENSION SWAPPING MAGIC
-          // If rotation is needed, Width becomes Height (dvh) and Height becomes Width (dvw)
-          width: isRotationNeeded ? '100dvh' : '100dvw',
-          height: isRotationNeeded ? '100dvw' : '100dvh',
-          transform: `translate(-50%, -50%) ${isRotationNeeded ? 'rotate(-90deg)' : 'rotate(0deg)'}`,
-          transformOrigin: 'center center',
-          backgroundColor: '#000',
-          transition: 'transform 0.5s ease-in-out, width 0.5s, height 0.5s'
-        }}
-      >
-        {/* CONTENT LAYER */}
-        {currentItem.content_type === 'media' && currentItem.media && (
-          <DualMediaLayer
-            item={currentItem}
-            nextItem={(() => {
-              let nextIdx = (currentIndex + 1) % items.length;
-              let attempts = 0;
-              while (attempts < items.length) {
-                if (isScheduleValid(items[nextIdx])) return items[nextIdx];
-                nextIdx = (nextIdx + 1) % items.length;
-                attempts++;
-              }
-              return items[(currentIndex + 1) % items.length]; // Fallback
-            })()}
-            onFinished={() => { if (items.length > 1) handleNext(); }}
-            onError={handleNext}
+    <WidgetDataProvider>
+      <ScreenScaler targetOrientation={targetOrientation} mode="STRETCH">
+        <div
+          className="w-full h-full bg-black cursor-none"
+          onClick={toggleFullscreen}
+        >
+          {/* DIAGNOSTIC OVERLAY */}
+          <DiagnosticOverlay
+            screenId={screen?.id}
+            orientation={screen?.orientation || 'Auto'}
           />
-        )}
 
-        {currentItem.content_type === 'widget' && currentItem.widget && (
-          <div className="w-full h-full flex items-center justify-center bg-zinc-900 relative overflow-hidden">
-            {/* Background Gradient for Widgets */}
-            {/* Background Gradient for Widgets - Removed for full clarity */}
-            {/* <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-black opacity-50" /> */}
+          {/* CONTENT LAYER */}
+          {currentItem.content_type === 'media' && currentItem.media && (
+            <DualMediaLayer
+              item={currentItem}
+              nextItem={getNextValidItem(currentIndex, items) || currentItem} // Pass anticipated next
+              onFinished={() => { if (items.length > 1) advance(); }}
+              onError={advance}
+            />
+          )}
 
-            <div className="relative z-10 w-full h-full flex items-center justify-center">
-              {currentItem.widget.widget_type === 'clock' && (
-                <div className="w-full h-full">
-                  <ClockWidget
-                    showDate={currentItem.widget.config.showDate}
-                    showSeconds={currentItem.widget.config.showSeconds}
+          {currentItem.content_type === 'widget' && currentItem.widget && (
+            <div className="w-full h-full flex items-center justify-center bg-zinc-900 relative overflow-hidden">
+              <div className="relative z-10 w-full h-full flex items-center justify-center">
+                {currentItem.widget.widget_type === 'clock' && (
+                  <div className="w-full h-full animate-in fade-in zoom-in duration-500">
+                    <ClockWidget
+                      showDate={currentItem.widget.config.showDate}
+                      showSeconds={currentItem.widget.config.showSeconds}
+                      backgroundImage={
+                        (targetOrientation === 'portrait'
+                          ? currentItem.widget.config.backgroundImagePortrait
+                          : currentItem.widget.config.backgroundImageLandscape)
+                        || currentItem.widget.config.backgroundImage
+                      }
+                    />
+                  </div>
+                )}
+                {currentItem.widget.widget_type === 'weather' && (
+                  <div className="w-full h-full animate-in fade-in zoom-in duration-500">
+                    <WeatherWidget
+                      latitude={currentItem.widget.config.latitude}
+                      longitude={currentItem.widget.config.longitude}
+                      backgroundImage={
+                        (targetOrientation === 'portrait'
+                          ? currentItem.widget.config.backgroundImagePortrait
+                          : currentItem.widget.config.backgroundImageLandscape)
+                        || currentItem.widget.config.backgroundImage
+                      }
+                    />
+                  </div>
+                )}
+                {currentItem.widget.widget_type === 'rss' && (
+                  <RssWidget
+                    feedUrl={currentItem.widget.config.feedUrl}
+                    maxItems={currentItem.widget.config.maxItems}
+                    scrollSpeed={currentItem.widget.config.scrollSpeed}
                     backgroundImage={
-                      (screenOrientation === 'portrait'
+                      (targetOrientation === 'portrait'
                         ? currentItem.widget.config.backgroundImagePortrait
                         : currentItem.widget.config.backgroundImageLandscape)
                       || currentItem.widget.config.backgroundImage
                     }
                   />
-                </div>
-              )}
-              {currentItem.widget.widget_type === 'weather' && (
-                <div className="w-full h-full">
-                  <WeatherWidget
-                    latitude={currentItem.widget.config.latitude}
-                    longitude={currentItem.widget.config.longitude}
-                    backgroundImage={
-                      (screenOrientation === 'portrait'
-                        ? currentItem.widget.config.backgroundImagePortrait
-                        : currentItem.widget.config.backgroundImageLandscape)
-                      || currentItem.widget.config.backgroundImage
-                    }
-                  />
-                </div>
-              )}
-              {currentItem.widget.widget_type === 'rss' && (
-                <RssWidget
-                  feedUrl={currentItem.widget.config.feedUrl}
-                  maxItems={currentItem.widget.config.maxItems}
-                  scrollSpeed={currentItem.widget.config.scrollSpeed}
-                  backgroundImage={
-                    (screenOrientation === 'portrait'
-                      ? currentItem.widget.config.backgroundImagePortrait
-                      : currentItem.widget.config.backgroundImageLandscape)
-                    || currentItem.widget.config.backgroundImage
-                  }
-                />
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentItem.content_type === 'external_link' && currentItem.external_link && (
-          <ExternalLinkRenderer
-            url={currentItem.external_link.url}
-            platform={currentItem.external_link.platform}
-            embedCode={currentItem.external_link.embed_code}
-          />
-        )}
-
-
-
-      </div>
-    </div>
+          {currentItem.content_type === 'external_link' && currentItem.external_link && (
+            <ExternalLinkRenderer
+              url={currentItem.external_link.url}
+              platform={currentItem.external_link.platform}
+              embedCode={currentItem.external_link.embed_code}
+            />
+          )}
+        </div>
+      </ScreenScaler>
+    </WidgetDataProvider>
   );
 }

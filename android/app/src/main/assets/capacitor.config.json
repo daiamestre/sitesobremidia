@@ -1,0 +1,6 @@
+{
+	"appId": "com.sobremidia.player",
+	"appName": "Sobre Midia Player",
+	"webDir": "dist",
+	"bundledWebRuntime": false
+}

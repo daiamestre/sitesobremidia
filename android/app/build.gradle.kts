@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.sobremidia.player"
-        minSdk = 26 // Android 8.0 (Oreo) - Good baseline for modern TV boxes
+        minSdk = 24 // Android 7.0 (Nougat) - Better support for older TV boxes
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
@@ -48,7 +48,7 @@ tasks.register<Copy>("copyWebAssets") {
     }
     
     // Target path in the Android project
-    into(file("src/main/assets/www"))
+    into(file("src/main/assets/public"))
     
     // Ensure this runs before preBuild
     // Note: User must run 'npm run build' manually or we can trigger it. 

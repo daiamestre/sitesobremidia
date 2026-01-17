@@ -46,50 +46,66 @@ const PageLoader = () => (
   </div>
 );
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <NativeStatus /> {/* Native Bridge Debug Indicator */}
-        <BrowserRouter>
-          <PWAProvider>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/install" element={<Install />} />
+import { BootSequence } from "@/components/player/BootSequence";
+import { useState } from "react";
 
-                {/* Player (dashboard preview) */}
-                <Route path="/player" element={<PlayerEntry basePath="/player" />} />
-                <Route path="/player/:screenId" element={<Player />} />
+const App = () => {
+  const [isBootComplete, setIsBootComplete] = useState(false);
 
-                {/* Endereço dedicado (TV/Kiosk) */}
-                <Route path="/tv" element={<PlayerEntry basePath="/tv" />} />
-                <Route path="/tv/:screenId" element={<Player />} />
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          {/* Boot Sequence has been moved inside Router to prevent crash */}
 
-                <Route path="/dashboard" element={<DashboardLayout />}>
-                  <Route index element={<DashboardHome />} />
-                  <Route path="medias" element={<Medias />} />
-                  <Route path="playlists" element={<Playlists />} />
-                  <Route path="screens" element={<Screens />} />
-                  <Route path="widgets" element={<Widgets />} />
-                  <Route path="schedule" element={<Schedule />} />
-                  <Route path="links" element={<ExternalLinks />} />
-                  <Route path="history" element={<History />} />
-                  <Route path="settings" element={<Settings />} />
-                  <Route path="admin/users" element={<AdminUsers />} />
-                  <Route path="analytics" element={<Analytics />} />
-                </Route>
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </PWAProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+          <NativeStatus />
+          <BrowserRouter>
+            {/* Boot Sequence Handler - Now inside Router */}
+            {!isBootComplete && (
+              <BootSequence onComplete={() => setIsBootComplete(true)} />
+            )}
+
+            <div className={!isBootComplete ? "opacity-0 absolute -z-50" : "opacity-100 transition-opacity duration-1000"}>
+              <PWAProvider>
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="/auth" element={<Auth />} />
+                    <Route path="/install" element={<Install />} />
+
+                    {/* Player (dashboard preview) */}
+                    <Route path="/player" element={<PlayerEntry basePath="/player" />} />
+                    <Route path="/player/:screenId" element={<Player />} />
+
+                    {/* Endereço dedicado (TV/Kiosk) */}
+                    <Route path="/tv" element={<PlayerEntry basePath="/tv" />} />
+                    <Route path="/tv/:screenId" element={<Player />} />
+
+                    <Route path="/dashboard" element={<DashboardLayout />}>
+                      <Route index element={<DashboardHome />} />
+                      <Route path="medias" element={<Medias />} />
+                      <Route path="playlists" element={<Playlists />} />
+                      <Route path="screens" element={<Screens />} />
+                      <Route path="widgets" element={<Widgets />} />
+                      <Route path="schedule" element={<Schedule />} />
+                      <Route path="links" element={<ExternalLinks />} />
+                      <Route path="history" element={<History />} />
+                      <Route path="settings" element={<Settings />} />
+                      <Route path="admin/users" element={<AdminUsers />} />
+                      <Route path="analytics" element={<Analytics />} />
+                    </Route>
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+              </PWAProvider>
+            </div>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

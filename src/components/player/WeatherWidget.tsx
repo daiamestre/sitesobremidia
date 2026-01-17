@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Cloud, Sun, CloudRain, CloudSnow, CloudLightning, Wind, Loader2 } from 'lucide-react';
+import { useWidgetData } from '@/contexts/WidgetDataContext';
 
 interface WeatherData {
   temperature: number;
@@ -50,78 +51,49 @@ export function WeatherWidget({
   backgroundImage,
   className = ''
 }: WeatherWidgetProps) {
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { weather, refreshWeather } = useWidgetData();
 
+  // Trigger data fetch on mount (context handles deduplication/polling)
   useEffect(() => {
-    const fetchWeather = async () => {
-      try {
-        // Using Open-Meteo API (free, no API key required)
-        const response = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto`
-        );
+    refreshWeather(latitude, longitude);
+  }, [latitude, longitude, refreshWeather]);
 
-        if (!response.ok) throw new Error('Failed to fetch weather');
-
-        const data = await response.json();
-
-        setWeather({
-          temperature: Math.round(data.current.temperature_2m),
-          weatherCode: data.current.weather_code,
-          windSpeed: Math.round(data.current.wind_speed_10m),
-        });
-        setError(null);
-      } catch (err) {
-        console.error('Weather fetch error:', err);
-        setError('Erro ao carregar clima');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWeather();
-
-    // Refresh every 30 minutes
-    const interval = setInterval(fetchWeather, 30 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [latitude, longitude]);
-
-  if (loading) {
+  if (!weather.loaded && !weather.error) {
     return (
-      <div className={`text-white flex items-center justify-center ${className}`}>
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className={`text-white flex items-center justify-center h-full w-full ${className}`}>
+        <Loader2 className="h-12 w-12 animate-spin text-white/50" />
       </div>
     );
   }
 
-  if (error || !weather) {
-    return null;
+  if (weather.error) {
+    // Silent fail or retry? Keep simple.
+    if (!weather.loaded) return null;
   }
 
   return (
     <div className={`relative flex flex-col items-center justify-center text-white p-6 h-full w-full overflow-hidden ${className}`}>
       {backgroundImage && (
         <>
-          {/* <div className="absolute inset-0 bg-black/40 z-0" /> Removed for 100% visibility */}
           <img
             src={backgroundImage}
             alt="Background"
-            className="absolute inset-0 w-full h-full object-cover -z-10"
-            style={{ objectPosition: 'center' }}
+            className="absolute inset-0 w-full h-full object-cover -z-10 transition-opacity duration-700 opacity-100"
+            style={{ objectPosition: 'center', willChange: 'transform' }} // GPU Hint
           />
         </>
       )}
-      <div className="z-10 flex flex-col items-center gap-6 drop-shadow-md">
-        <div className="scale-[2.5] mb-4">
+
+      {/* Content Container with Glassmorphism for Elite look */}
+      <div className="z-10 flex flex-col items-center gap-6 drop-shadow-2xl animate-in fade-in duration-700 slide-in-from-bottom-4">
+        <div className="scale-[2.5] mb-4 filter drop-shadow-lg">
           {getWeatherIcon(weather.weatherCode)}
         </div>
         <div className="text-center">
-          <p className="text-[8rem] leading-none font-black tracking-tighter">{weather.temperature}°</p>
-          <p className="text-4xl text-white/90 font-bold capitalize mt-2">{getWeatherDescription(weather.weatherCode)}</p>
+          <p className="text-[9rem] leading-none font-black tracking-tighter drop-shadow-xl">{weather.temperature}°</p>
+          <p className="text-5xl text-white/95 font-bold capitalize mt-2 drop-shadow-lg">{getWeatherDescription(weather.weatherCode)}</p>
         </div>
-        <div className="flex items-center gap-3 text-white/90 bg-black/30 px-6 py-2 rounded-full mt-6 backdrop-blur-sm">
+        <div className="flex items-center gap-3 text-white/90 bg-white/10 px-8 py-3 rounded-full mt-8 backdrop-blur-md border border-white/20 shadow-xl">
           <Wind className="h-6 w-6" />
           <span className="text-2xl font-semibold">{weather.windSpeed} km/h</span>
         </div>
