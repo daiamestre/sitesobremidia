@@ -46,10 +46,37 @@ export class ErrorBoundary extends Component<Props, State> {
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error("Uncaught error:", error, errorInfo);
+
+        // TELEMETRY (SRE REQUIREMENT)
+        this.sendTelemetry(error, errorInfo);
+
         // Auto-retry after 30 seconds
         setTimeout(() => {
             this.handleReload();
         }, 30000);
+    }
+
+    private sendTelemetry(error: Error, info: ErrorInfo) {
+        try {
+            // Tentativa de envio para endpoint de diagnóstico
+            // Em produção, isso seria um endpoint real
+            const payload = {
+                timestamp: new Date().toISOString(),
+                error: error.message,
+                stack: error.stack,
+                componentStack: info.componentStack,
+                url: window.location.href,
+                userAgent: navigator.userAgent
+            };
+
+            // Exemplo de envio via Beacon (garante envio mesmo se a página fechar)
+            const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+            navigator.sendBeacon('https://api.sobremidia.com/v1/telemetry/error', blob);
+
+            console.log('[SRE] Erro reportado via Telemetria:', payload);
+        } catch (e) {
+            console.warn('[SRE] Falha ao enviar telemetria:', e);
+        }
     }
 
     private handleReload = () => {
