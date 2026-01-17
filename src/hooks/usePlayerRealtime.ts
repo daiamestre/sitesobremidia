@@ -180,7 +180,7 @@ export function usePlayerRealtime({
 
     console.log('[Realtime] Starting Polling Fallback (60s)');
     const interval = setInterval(() => {
-      console.log('[Realtime] Polling sync...');
+      console.debug('[Realtime] Polling sync...');
       onScreenUpdate();
       if (playlistId) onPlaylistUpdate();
       onScheduleUpdate();

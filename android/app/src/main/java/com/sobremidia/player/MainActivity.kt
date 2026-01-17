@@ -49,6 +49,14 @@ class MainActivity : AppCompatActivity() {
         // checkOverlayPermission() // <-- DISABLED (Causing ANR/Block on Boot)
         hideSystemUI()
 
+        // KIOSK: ACTIVE LOCK TASK (Pinned Mode)
+        // This prevents the user from leaving the app
+        try {
+            startLockTask()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start LockTask", e)
+        }
+
         webView = WebView(this)
         setContentView(webView)
 
@@ -290,11 +298,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         // Signal Watchdog: WE ARE ALIVE
-        /* 
         val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
         intent.action = com.sobremidia.player.service.PlayerService.ACTION_RESUMED
-        startService(intent)
-        */
+        try {
+            startService(intent)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start service (Resume)", e)
+        }
         
         hideSystemUI()
     }
@@ -302,15 +312,17 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         // Signal Watchdog: WE LOST FOCUS - HELP!
-        /*
         val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
         intent.action = com.sobremidia.player.service.PlayerService.ACTION_PAUSED
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
+        try {
+             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start service (Pause)", e)
         }
-        */
     }
 
     private fun checkOverlayPermission() {

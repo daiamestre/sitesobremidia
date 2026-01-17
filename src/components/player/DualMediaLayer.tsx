@@ -58,7 +58,7 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
             return;
         }
 
-        console.log(`[DualMedia] Transitioning to: ${item.id} (Next: ${nextItem?.id})`);
+        console.debug(`[DualMedia] Transitioning to: ${item.id} (Next: ${nextItem?.id})`);
         currentItemIdRef.current = item.id;
 
         // 1. Determine which layer holds the NEW item.
@@ -109,7 +109,7 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
             // Layer A is ACTIVE
             video.currentTime = 0; // Ensure start from 0 (or remove if smooth loop desired, but usually 0)
             const p = video.play();
-            if (p) p.catch(e => console.warn('[Player] Layer A play error:', e));
+            if (p) p.catch(e => handleMediaError('A', e));
         } else {
             // Layer A is RESERVE
             // If it has content, it should be PAUSED but Ready.
@@ -130,7 +130,7 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
         if (activeLayer === 'B') {
             video.currentTime = 0;
             const p = video.play();
-            if (p) p.catch(e => console.warn('[Player] Layer B play error:', e));
+            if (p) p.catch(e => handleMediaError('B', e));
         } else {
             video.pause();
             if (contentB) {
