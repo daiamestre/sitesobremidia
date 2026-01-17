@@ -54,6 +54,11 @@ class MainActivity : AppCompatActivity() {
 
         setupWebView()
         
+        // CRITICAL FIX: Clear Cache to prevent "Stale App" (Old Code) loading
+        webView.clearCache(true)
+        webView.clearHistory()
+        android.webkit.WebStorage.getInstance().deleteAllData()
+        
         // FORCE REDIRECT TO VERCEL IF ENABLED
         if (USE_REMOTE_DEBUG) {
             Log.w("MainActivity", "⚠️ RUNNING IN REMOTE DEBUG MODE: $REMOTE_DEBUG_URL")
@@ -62,18 +67,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Load the React App (Local)
-        try {
-            val assetsList = assets.list("public")
-            if (assetsList != null && assetsList.contains("index.html")) {
-                Log.i("MainActivity", "✅ SUCCESS: Asset found at public/index.html")
-                webView.loadUrl("file:///android_asset/public/index.html")
-            } else {
-                Log.e("MainActivity", "CRITICAL: 'public/index.html' NOT FOUND!")
-                webView.loadData("<html><body style='background:black;color:red;padding:20px'><h1>Falha Fatal</h1><p>Arquivo index.html nao encontrado.</p></body></html>", "text/html", "UTF-8")
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error checking assets", e)
-             webView.loadUrl("file:///android_asset/public/index.html") 
+        // Load the React App
+        if (checkAssetsIntegrity()) {
+            Log.i("MainActivity", "✅ SUCCESS: Asset found at public/index.html")
+            webView.loadUrl("file:///android_asset/public/index.html")
+        } else {
+            Log.e("MainActivity", "CRITICAL: 'public/index.html' NOT FOUND!")
+            showDiagnosticScreen(
+                "ASSET_MISSING",
+                "public/index.html não localizado na raiz de assets",
+                "O arquivo de build não foi gerado corretamente. Execute 'npm run build:android' novamente."
+            )
         }
     }
 
@@ -129,31 +133,117 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // Cancel timer
                 watchdog.removeCallbacks(reloadRunnable)
             }
             
             override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
                 super.onReceivedError(view, request, error)
-                 // If error is fatal, let Watchdog or ErrorBoundary handle, or retry immediately
-                android.util.Log.e("WebView", "Error received: ${error?.description}")
+                // 1. Capture Native WebView Errors
+                val errorCode = error?.errorCode ?: -1
+                val desc = error?.description?.toString() ?: "Unknown Error"
+                val url = request?.url?.toString() ?: "Unknown URL"
+                
+                // Ignore errors for non-main-frame resources (like tracking pixels or images) to avoid false positives
+                if (request?.isForMainFrame == true) {
+                     android.util.Log.e("WebView", "FATAL ERROR: $errorCode - $desc")
+                     
+                     var likelyCause = "Verifique sua conexão com a internet."
+                     if (errorCode == -2) likelyCause = "O dispositivo está offline ou o DNS falhou." // ERR_NAME_NOT_RESOLVED
+                     if (errorCode == -6) likelyCause = "Conexão recusada pelo servidor." // ERR_CONNECTION_REFUSED
+                     if (errorCode == -10) likelyCause = "O protocolo do link não é suportado." // ERR_UNKNOWN_URL_SCHEME
+                     
+                     showDiagnosticScreen(
+                         "WEBVIEW_ERROR ($errorCode)", 
+                         desc, 
+                         likelyCause
+                     )
+                }
             }
 
-            // Fallback for 404 (Deployment Not Found)
+            // 3. Vercel Connection / HTTP Errors
             override fun onReceivedHttpError(
                 view: WebView?, 
                 request: android.webkit.WebResourceRequest?, 
                 errorResponse: android.webkit.WebResourceResponse?
             ) {
                 super.onReceivedHttpError(view, request, errorResponse)
-                val statusCode = errorResponse?.statusCode ?: 0
-                if (statusCode == 404 && USE_REMOTE_DEBUG) {
-                     android.util.Log.w("WebView", "⚠️ 404 Deployment Not Found. Falling back to LOCAL ASSETS.")
-                     view?.post {
-                         view.loadUrl("file:///android_asset/public/index.html")
-                     }
+                
+                if (request?.isForMainFrame == true) {
+                    val statusCode = errorResponse?.statusCode ?: 0
+                    val reason = errorResponse?.reasonPhrase ?: "HTTP Error"
+                    
+                    if (statusCode == 404 && USE_REMOTE_DEBUG) {
+                         android.util.Log.w("WebView", "⚠️ 404 Deployment Not Found. Falling back to LOCAL ASSETS.")
+                         // Fallback logic could go here, but let's show the diagnostic as requested first
+                         showDiagnosticScreen(
+                             "VERCEL_ERROR ($statusCode)",
+                             "Server Error: $reason",
+                             "O endereço $REMOTE_DEBUG_URL retornou 404. Verifique se o deploy na Vercel está com status Ready."
+                         )
+                    } else if (statusCode >= 400) {
+                        showDiagnosticScreen(
+                             "HTTP_ERROR ($statusCode)",
+                             "Server Error: $reason",
+                             "O servidor recusou a conexão. Verifique os logs da Vercel."
+                         )
+                    }
                 }
             }
+        }
+    }
+
+    // 2. Asset Integrity Check
+    private fun checkAssetsIntegrity(): Boolean {
+        try {
+            val assetsList = assets.list("public")
+            if (assetsList != null && assetsList.contains("index.html")) {
+                Log.i("MainActivity", "✅ ASSET_CHECK: index.html found.")
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "ASSET_CHECK_FAIL", e)
+        }
+        return false
+    }
+
+    // 4. Developer Friendly Error Screen
+    private fun showDiagnosticScreen(code: String, technical: String, cause: String) {
+        val html = """
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body { background-color: #000; color: #fff; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+                .icon { font-size: 64px; color: #ef4444; margin-bottom: 20px; }
+                h1 { font-size: 20px; margin-bottom: 30px; font-weight: bold; }
+                .box { background: #18181b; border: 1px solid #ef4444; padding: 20px; border-radius: 8px; max-width: 90%; width: 400px; text-align: left; }
+                .label { color: #ef4444; font-weight: bold; font-size: 10px; margin-bottom: 4px; display: block; letter-spacing: 1px; }
+                .code { color: #fff; font-size: 14px; font-weight: bold; margin-bottom: 12px; display: block; word-break: break-all; }
+                .tech { color: #666; font-size: 11px; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+                .cause-box { margin-top: 10px; }
+                .cause-text { color: #a1a1aa; font-size: 13px; }
+                button { margin-top: 30px; background: #333; color: white; border: 1px solid #555; padding: 10px 20px; border-radius: 4px; font-family: monospace; }
+            </style>
+        </head>
+        <body>
+            <div class="icon">⚠️</div>
+            <h1>O Player encontrou um problema</h1>
+            <div class="box">
+                 <span class="label">DIAGNOSTIC CODE:</span>
+                 <span class="code">$code</span>
+                 <div class="tech">$technical</div>
+                 
+                 <div class="cause-box">
+                    <span class="label" style="color: #fbbf24">CAUSA PROVÁVEL:</span>
+                    <div class="cause-text">$cause</div>
+                 </div>
+            </div>
+            <button onclick="location.reload()">TENTAR NOVAMENTE</button>
+        </body>
+        </html>
+        """
+        runOnUiThread {
+            webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
         }
     }
 
