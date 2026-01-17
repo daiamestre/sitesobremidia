@@ -307,6 +307,9 @@ export default function Player() {
   // Weekly Maintenance (Cache Clear)
   useMaintenance();
 
+  // PRELOADER (Elite Performance)
+  useMediaPreloader(items);
+
 
   // ------------------------------------------
   // PLAYBACK ENGINE
@@ -396,8 +399,7 @@ export default function Player() {
     return <div className="min-h-screen bg-black text-white/40 flex items-center justify-center">Signage Player Ready</div>;
   }
 
-  // PRELOADER (Elite Performance)
-  useMediaPreloader(items);
+  // (Moved up)
 
   const targetOrientation = screen?.orientation || 'landscape';
 
