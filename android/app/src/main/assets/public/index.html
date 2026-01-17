@@ -10,6 +10,11 @@
   <meta name="description" content="Sistema de Digital Signage - Gerencie suas telas e conteúdos" />
   <meta name="author" content="SOBRE MÍDIA" />
 
+  <!-- Anti-Cache Meta Tags to Force Update -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#1e1b4b" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -21,14 +26,14 @@
   <meta name="msapplication-tap-highlight" content="no" />
 
   <!-- iOS Icons -->
-  <link rel="apple-touch-icon" href="./pwa-192x192.png" />
-  <link rel="apple-touch-icon" sizes="192x192" href="./pwa-192x192.png" />
-  <link rel="apple-touch-icon" sizes="512x512" href="./pwa-512x512.png" />
+  <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="/pwa-512x512.png" />
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" sizes="192x192" href="./pwa-192x192.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./pwa-192x192.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./pwa-192x192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/pwa-192x192.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/pwa-192x192.png" />
 
   <!-- Open Graph -->
   <meta property="og:title" content="SOBRE MÍDIA Designer" />
@@ -43,7 +48,7 @@
   <meta name="twitter:image" content="/pwa-512x512.png" />
 
   <!-- iOS Splash Screens -->
-  <link rel="apple-touch-startup-image" href="./pwa-512x512.png" />
+  <link rel="apple-touch-startup-image" href="/pwa-512x512.png" />
 
   <style>
     /* Prevent overscroll/bounce effect on iOS */
@@ -62,6 +67,7 @@
     // GLOBAL ERROR TRAP (Native JS)
     // Catches errors before React loads
     window.onerror = function (msg, url, line, col, error) {
+      // Create error box if it doesn't exist
       var errorBox = document.getElementById('native-error-box');
       if (!errorBox) {
         errorBox = document.createElement('div');
@@ -71,37 +77,48 @@
         errorBox.style.left = '0';
         errorBox.style.width = '100%';
         errorBox.style.height = '100%';
-        errorBox.style.backgroundColor = 'black';
-        errorBox.style.color = 'red';
-        errorBox.style.zIndex = '99999';
+        errorBox.style.backgroundColor = '#1a0505';
+        errorBox.style.color = '#ff4444';
+        errorBox.style.zIndex = '999999';
         errorBox.style.padding = '20px';
         errorBox.style.whiteSpace = 'pre-wrap';
         errorBox.style.fontFamily = 'monospace';
+        errorBox.style.fontSize = '14px';
         errorBox.style.overflow = 'auto';
+        errorBox.style.border = '2px solid red';
+        errorBox.innerHTML = '<h2 style="color:white">CRITICAL STARTUP ERROR</h2>';
         document.body.appendChild(errorBox);
       }
+
       var timestamp = new Date().toLocaleTimeString();
-      errorBox.innerText += '[' + timestamp + '] ' + msg + '\n' + url + ':' + line + '\n' + (error ? error.stack : '') + '\n\n';
-      return false;
+      var safeMsg = msg || 'Unknown Error';
+      var safeUrl = url || 'Unknown URL';
+      var stack = (error && error.stack) ? error.stack : 'No stack trace';
+
+      errorBox.innerHTML += '<div style="border-bottom:1px solid #333; margin-bottom:10px; padding-bottom:10px;">' +
+        '<strong>[' + timestamp + '] ' + safeMsg + '</strong><br>' +
+        '<small>' + safeUrl + ':' + line + ':' + col + '</small><br>' +
+        '<pre style="color:#aaa; background:black; padding:5px; overflow:auto">' + stack + '</pre>' +
+        '</div>';
+
+      return false; // Let default handler run too
     };
 
     // Fix: Fail-safe reload for Portrait loops
     window.addEventListener('load', function () {
       setTimeout(function () {
         var root = document.getElementById('root');
-        if (!root || root.innerHTML.trim() === '') {
+        // Check if root is empty AND no native error is showing
+        if ((!root || root.innerHTML.trim() === '') && !document.getElementById('native-error-box')) {
           console.warn('Watchdog: Root empty, forcing reload...');
-          // Only reload if no native error displayed
-          if (!document.getElementById('native-error-box')) {
-            window.location.reload();
-          }
+          window.location.reload();
         }
-      }, 10000); // Increased grace period
+      }, 10000);
     });
   </script>
-  <script type="module" crossorigin src="./assets/index-BIw4YUGd.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-Dd-3WSmZ.css">
-<link rel="manifest" href="./manifest.webmanifest"></head>
+  <script type="module" crossorigin src="/assets/index-6z-Ddk4U.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-Dd-3WSmZ.css">
+<link rel="manifest" href="/manifest.webmanifest"></head>
 
 <body>
   <div id="root"></div>

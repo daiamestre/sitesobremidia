@@ -20,6 +20,30 @@ export class ErrorBoundary extends Component<Props, State> {
         return { hasError: true, error };
     }
 
+    public componentDidMount() {
+        window.addEventListener("unhandledrejection", this.handlePromiseRejection);
+        window.addEventListener("error", this.handleGlobalError);
+    }
+
+    public componentWillUnmount() {
+        window.removeEventListener("unhandledrejection", this.handlePromiseRejection);
+        window.removeEventListener("error", this.handleGlobalError);
+    }
+
+    private handlePromiseRejection = (event: PromiseRejectionEvent) => {
+        this.setState({
+            hasError: true,
+            error: new Error(`PROMISE REJECTION: ${event.reason?.message || event.reason || "Unknown Rejection"}`)
+        });
+    };
+
+    private handleGlobalError = (event: ErrorEvent) => {
+        this.setState({
+            hasError: true,
+            error: event.error || new Error(`GLOBAL ERROR: ${event.message}`)
+        });
+    };
+
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error("Uncaught error:", error, errorInfo);
         // Auto-retry after 30 seconds
@@ -34,6 +58,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
     public render() {
         if (this.state.hasError) {
+            const errorMsg = this.state.error
+                ? (this.state.error.message || this.state.error.toString())
+                : "Unknown Error (Null state)";
+
             return (
                 <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-white p-8 text-center space-y-8 animate-in fade-in duration-500">
                     {/* Brand Logo */}
@@ -53,18 +81,17 @@ export class ErrorBoundary extends Component<Props, State> {
                     {/* Message */}
                     <div className="space-y-2 max-w-lg">
                         <h2 className="text-2xl font-semibold">O Player encontrou um problema</h2>
+                        <div className="bg-red-900/50 p-6 rounded border border-red-500 w-full text-left overflow-auto max-h-64 my-4">
+                            <p className="text-white font-bold mb-2">ERRO CRÍTICO:</p>
+                            <pre className="text-red-200 font-mono text-sm whitespace-pre-wrap break-all">
+                                {this.state.error ? String(this.state.error) : "Erro Desconhecido (Null)"}
+                                {"\n\nStack:\n"}
+                                {this.state.error?.stack || "No Stack Trace"}
+                            </pre>
+                        </div>
                         <p className="text-zinc-400">
                             O sistema tentará recuperar a conexão automaticamente em instantes.
                         </p>
-                    </div>
-
-                    {/* Tech Details (Hidden by default or subtle) */}
-                    <div className="p-4 bg-zinc-900/50 rounded-lg border border-red-500/20 text-xs text-left font-mono w-full max-w-lg overflow-hidden text-red-400/80">
-                        <p className="mb-2 font-bold text-red-400">DIAGNOSTIC CODE (v2.1 API:{window.navigator.userAgent.includes("Android") ? "Native" : "Web"}):</p>
-                        <pre className="whitespace-pre-wrap text-white text-xs font-mono border p-2 border-zinc-700 bg-black/50">
-                            {this.state.error ? String(this.state.error) : "Erro null"}
-                            {"\nRaw: " + JSON.stringify(this.state.error, Object.getOwnPropertyNames(this.state.error || {}), 2)}
-                        </pre>
                     </div>
 
                     {/* Auto Retry Timer Visualization */}

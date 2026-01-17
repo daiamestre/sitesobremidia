@@ -27,8 +27,8 @@ class MainActivity : AppCompatActivity() {
     // --- DIAGNOSTIC CONFIGURATION ---
     // Remote URL Failed (404). Reverting to LOCAL ASSETS (public/index.html).
     // This ensures the player works even if the website is offline.
-    private val USE_REMOTE_DEBUG = false 
-    private val REMOTE_DEBUG_URL = "https://sobremidiadesigner.vercel.app/" 
+    private val USE_REMOTE_DEBUG = true 
+    private val REMOTE_DEBUG_URL = "https://sitesobremidia.vercel.app" 
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity() {
                           android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         }
 
-        checkOverlayPermission()
+        // checkOverlayPermission() // <-- DISABLED (Causing ANR/Block on Boot)
         hideSystemUI()
 
         webView = WebView(this)
@@ -55,9 +55,10 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         
         // CRITICAL FIX: Clear Cache to prevent "Stale App" (Old Code) loading
-        webView.clearCache(true)
-        webView.clearHistory()
-        android.webkit.WebStorage.getInstance().deleteAllData()
+        // Reduced aggressiveness to avoid main thread freeze
+        webView.clearCache(true) 
+        // webView.clearHistory()
+        // android.webkit.WebStorage.getInstance().deleteAllData()
         
         // FORCE REDIRECT TO VERCEL IF ENABLED
         if (USE_REMOTE_DEBUG) {
@@ -68,6 +69,13 @@ class MainActivity : AppCompatActivity() {
 
         // Load the React App (Local)
         // Load the React App
+        // Load the React App
+        // FORCE LOAD REMOTE URL
+        Log.i("MainActivity", "🚀 Loading Remote URL: $REMOTE_DEBUG_URL")
+        webView.loadUrl(REMOTE_DEBUG_URL)
+        
+        /* 
+        // DISABLE LOCAL LOAD FOR NOW
         if (checkAssetsIntegrity()) {
             Log.i("MainActivity", "✅ SUCCESS: Asset found at public/index.html")
             webView.loadUrl("file:///android_asset/public/index.html")
@@ -79,6 +87,7 @@ class MainActivity : AppCompatActivity() {
                 "O arquivo de build não foi gerado corretamente. Execute 'npm run build:android' novamente."
             )
         }
+        */
     }
 
     private fun setupWebView() {
@@ -87,11 +96,7 @@ class MainActivity : AppCompatActivity() {
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-        }
-        settings.databaseEnabled = true
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
         settings.mediaPlaybackRequiresUserGesture = false
         settings.allowFileAccess = true
@@ -124,8 +129,24 @@ class MainActivity : AppCompatActivity() {
                 webView.reload()
             }
 
+            override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                val message = "SSL Error: " + error?.primaryError
+                Log.e("WebView", message)
+                
+                // FOR DIAGNOSIS ONLY: We proceed to see if it works, BUT we show an alert
+                // In production, you might want to block this, but for debugging the white screen, we need to know.
+                handler?.proceed() 
+                
+                runOnUiThread {
+                    android.widget.Toast.makeText(applicationContext, "⚠️ Certificado SSL Ignorado (Debug)", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                // Visual feedback that we are trying
+                android.widget.Toast.makeText(applicationContext, "🔄 Conectando: $url", android.widget.Toast.LENGTH_SHORT).show()
+                
                 // Start 30s timer
                 watchdog.removeCallbacks(reloadRunnable)
                 watchdog.postDelayed(reloadRunnable, 30000)
@@ -136,6 +157,10 @@ class MainActivity : AppCompatActivity() {
                 watchdog.removeCallbacks(reloadRunnable)
             }
             
+            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                return false // Allow WebView to handle the URL (don't open in Chrome)
+            }
+
             override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
                 super.onReceivedError(view, request, error)
                 // 1. Capture Native WebView Errors
@@ -151,6 +176,7 @@ class MainActivity : AppCompatActivity() {
                      if (errorCode == -2) likelyCause = "O dispositivo está offline ou o DNS falhou." // ERR_NAME_NOT_RESOLVED
                      if (errorCode == -6) likelyCause = "Conexão recusada pelo servidor." // ERR_CONNECTION_REFUSED
                      if (errorCode == -10) likelyCause = "O protocolo do link não é suportado." // ERR_UNKNOWN_URL_SCHEME
+                     if (errorCode == -11) likelyCause = "Certificado SSL inválido ou não confiável." // ERR_SSL_PROTOCOL_ERROR
                      
                      showDiagnosticScreen(
                          "WEBVIEW_ERROR ($errorCode)", 
@@ -264,9 +290,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         // Signal Watchdog: WE ARE ALIVE
+        /* 
         val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
         intent.action = com.sobremidia.player.service.PlayerService.ACTION_RESUMED
         startService(intent)
+        */
         
         hideSystemUI()
     }
@@ -274,6 +302,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         // Signal Watchdog: WE LOST FOCUS - HELP!
+        /*
         val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
         intent.action = com.sobremidia.player.service.PlayerService.ACTION_PAUSED
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -281,6 +310,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             startService(intent)
         }
+        */
     }
 
     private fun checkOverlayPermission() {

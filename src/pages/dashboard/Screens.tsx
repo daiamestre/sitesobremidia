@@ -29,6 +29,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScreenDialog } from '@/components/screens/ScreenDialog';
 import { ScreenScheduleDialog } from '@/components/screens/ScreenScheduleDialog';
+import { ScreenIdBadge } from '@/components/screens/ScreenIdBadge';
 import { useScreens } from '@/hooks/useScreens';
 import { Screen } from '@/types/models';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -46,8 +47,9 @@ export default function Screens() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const handleCopyUrl = (screenId: string) => {
-    const url = `${window.location.origin}/player/${screenId}`;
+  const handleCopyUrl = (screen: Screen) => {
+    const displayId = screen.custom_id || screen.id;
+    const url = `${window.location.origin}/player/${displayId}`;
     navigator.clipboard.writeText(url);
     toast.success('URL copiada para a área de transferência');
   };
@@ -202,11 +204,11 @@ export default function Screens() {
                         <Calendar className="h-4 w-4 mr-2" />
                         Agendar
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleCopyUrl(screen.id)}>
+                      <DropdownMenuItem onClick={() => handleCopyUrl(screen)}>
                         <Copy className="h-4 w-4 mr-2" />
                         Copiar URL
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => window.open(`/player/${screen.id}`, '_blank')}>
+                      <DropdownMenuItem onClick={() => window.open(`/player/${screen.custom_id || screen.id}`, '_blank')}>
                         <ExternalLink className="h-4 w-4 mr-2" />
                         Abrir Player
                       </DropdownMenuItem>
@@ -233,20 +235,23 @@ export default function Screens() {
                   </DropdownMenu>
                 </div>
 
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mt-4 p-3 bg-muted/30 rounded-lg">
-                  <div className="flex flex-col gap-1 w-full">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium uppercase tracking-wider">Playlist Atual</span>
-                      {screen.playlist ? (
-                        <div className="flex items-center gap-1 text-primary">
-                          <Play className="h-3 w-3" />
-                          <span className="font-medium truncate max-w-[120px]">{screen.playlist.name}</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">Nenhuma definida</span>
-                      )}
-                    </div>
+                <div className="flex flex-col gap-2 text-sm text-muted-foreground mt-4 p-3 bg-muted/30 rounded-lg">
+                  {/* Playlist Row */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium uppercase tracking-wider">Playlist Atual</span>
+                    {screen.playlist ? (
+                      <div className="flex items-center gap-1 text-primary">
+                        <Play className="h-3 w-3" />
+                        <span className="font-medium truncate max-w-[120px]">{screen.playlist.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">Nenhuma definida</span>
+                    )}
                   </div>
+
+
+
+
                 </div>
 
                 <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">

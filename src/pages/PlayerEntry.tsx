@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
+import { Loader2, Hash } from "lucide-react";
 
 // Aceita UUID ou custom_id (letras, números, hífens, underscores)
 const UUID_REGEX =
@@ -56,57 +57,89 @@ export default function PlayerEntry({ basePath }: PlayerEntryProps) {
   };
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg glass">
-        <CardHeader className="text-center">
-          <Logo className="justify-center mb-4" size="lg" />
-          <CardTitle className="text-2xl font-display">{title}</CardTitle>
-          <CardDescription>
+    <main className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background effects */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }} />
+
+      <Card className="w-full max-w-lg glass border-white/10 shadow-2xl relative z-10 backdrop-blur-xl bg-black/40">
+        <CardHeader className="text-center pb-2">
+          <Logo className="justify-center mb-6 scale-110" size="lg" />
+          <CardTitle className="text-3xl font-display font-bold tracking-tight text-white">
+            {title}
+          </CardTitle>
+          <CardDescription className="text-zinc-400 mt-2">
             {basePath === "/tv"
-              ? "Use este endereço dedicado no dispositivo (TV/Android Box) e conecte com uma Tela do dashboard."
-              : "Conecte este player a uma Tela do dashboard."}
+              ? "Conecte sua Smart TV ou TV Box ao sistema de sinalização."
+              : "Inicie a reprodução de conteúdos nesta tela."}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+
+        <CardContent className="space-y-6 pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Carregando sessão...</p>
+            <div className="flex flex-col items-center justify-center py-8 space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-zinc-500 animate-pulse">Verificando conexão...</p>
+            </div>
           ) : !user ? (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Para acessar as telas e playlists, faça login com o mesmo usuário do dashboard.
-              </p>
-              <Button className="w-full" onClick={handleLogin}>
-                Entrar
+            <div className="space-y-4 py-4">
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
+                <p className="text-sm text-zinc-300">
+                  Para gerenciar seus dispositivos, acesse sua conta.
+                </p>
+              </div>
+              <Button className="w-full gradient-primary h-12 text-lg font-bold shadow-lg shadow-primary/20" onClick={handleLogin}>
+                Entrar no Painel
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="screen-id">ID da Tela</Label>
-                <Input
-                  id="screen-id"
-                  value={screenId}
-                  onChange={(e) => {
-                    setError(null);
-                    setScreenId(e.target.value);
-                  }}
-                  placeholder="Ex: loja-01 ou minha-tela"
-                  inputMode="text"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <Label htmlFor="screen-id" className="text-zinc-400 font-medium ml-1">
+                  ID de Identificação
+                </Label>
+                <div className="relative group/input">
+                  <Input
+                    id="screen-id"
+                    value={screenId}
+                    onChange={(e) => {
+                      setError(null);
+                      setScreenId(e.target.value.toUpperCase().replace(/\s+/g, '-'));
+                    }}
+                    placeholder="Ex: RECEPCAO-01"
+                    className="h-14 bg-white/5 border-white/10 focus:border-primary/50 text-xl font-mono text-center tracking-widest uppercase transition-all"
+                    inputMode="text"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within/input:text-primary transition-colors">
+                    <Hash className="h-6 w-6" />
+                  </div>
+                </div>
+                <p className="text-center text-[10px] text-zinc-500 uppercase tracking-widest">
+                  Insira o ID que você definiu no Dashboard
+                </p>
               </div>
 
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm text-center animate-in fade-in slide-in-from-top-2">
+                  {error}
+                </div>
+              )}
 
-              <Button className="w-full" onClick={handleConnect}>
-                Conectar e iniciar
+              <Button
+                className="w-full h-14 text-xl font-bold gradient-primary shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                onClick={handleConnect}
+              >
+                Conectar e Iniciar
               </Button>
 
-              <p className="text-xs text-muted-foreground">
-                Dica: no dashboard, vá em <strong>Telas</strong> e clique em <strong>Abrir Player</strong> para testar.
-              </p>
+              <div className="pt-4 border-t border-white/5">
+                <p className="text-xs text-center text-zinc-500">
+                  Precisa de ajuda? Consulte o painel de <strong className="text-zinc-400">Telas</strong> no dashboard.
+                </p>
+              </div>
             </div>
           )}
         </CardContent>

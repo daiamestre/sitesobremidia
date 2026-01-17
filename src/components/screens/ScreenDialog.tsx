@@ -83,6 +83,8 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
       toast.error('Nome é obrigatório');
       return;
     }
+
+    // Validar ID personalizado
     if (!customId.trim()) {
       toast.error('ID é obrigatório');
       return;
@@ -93,6 +95,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
       toast.error('ID deve conter apenas letras, números, hífens e underscores');
       return;
     }
+
 
     const orientation = resolution === '16x9' ? 'landscape' : 'portrait';
 
@@ -161,37 +164,46 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-6 pt-2 custom-scrollbar space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome *</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Rezepção, Vitrine, Sala de Espera"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome da Tela *</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex: Recepção, Vitrine"
+                className="bg-muted/30 border-border/50 focus:border-primary/50 transition-colors"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="custom_id">ID Personalizado *</Label>
+              <div className="relative">
+                <Input
+                  id="custom_id"
+                  value={customId}
+                  onChange={(e) => setCustomId(e.target.value.toUpperCase().replace(/\s+/g, '-'))}
+                  placeholder="Ex: TELA-01"
+                  className="font-mono uppercase bg-muted/30 border-border/50 focus:border-primary/50 transition-colors pr-10"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/30">
+                  <Monitor className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Usado para conectar o player: <code className="text-primary/70">{customId || 'ID'}</code>
+              </p>
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="custom_id">ID Personalizado</Label>
+            <Label htmlFor="location">Localização / Descrição</Label>
             <Input
-              id="custom_id"
-              value={customId}
-              onChange={(e) => setCustomId(e.target.value)}
-              placeholder="Ex: TELA-01, RECEPCAO-MAIN"
-              className="font-mono uppercase"
-            />
-            <p className="text-xs text-muted-foreground">
-              Identificador único usado na URL do player.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Descrição/Localização</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Onde esta tela está localizada?"
+              id="location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Ex: Piso 1, Entrada Principal"
+              className="bg-muted/30 border-border/50"
             />
           </div>
 

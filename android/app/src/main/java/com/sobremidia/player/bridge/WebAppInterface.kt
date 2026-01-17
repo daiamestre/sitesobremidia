@@ -87,4 +87,21 @@ class WebAppInterface(private val context: Context) {
              }
         }
     }
+
+    @JavascriptInterface
+    fun requestOverlayPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(context)) {
+                android.util.Log.i("NativePlayer", "Requesting Overlay Permission via Bridge")
+                val intent = android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:" + context.packageName)
+                )
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } else {
+                showToast("Permissão já concedida!")
+            }
+        }
+    }
 }
