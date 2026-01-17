@@ -291,7 +291,8 @@ class MainActivity : AppCompatActivity() {
                 // Signal Watchdog: WE ARE ALIVE
                 val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
                 intent.action = com.sobremidia.player.service.PlayerService.ACTION_RESUMED
-                startService(intent)
+                // WATCHDOG DISABLED BY USER REQUEST due to Startup Freeze
+                // startService(intent)
             } catch (e: Exception) {
                 Log.e("MainActivity", "SAFE_INIT_FAIL: Could not start Watchdog or Check Overlay", e)
             }
@@ -305,9 +306,9 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
             intent.action = com.sobremidia.player.service.PlayerService.ACTION_PAUSED
              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
+                // startForegroundService(intent)
             } else {
-                startService(intent)
+                // startService(intent)
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "Failed to start service (Pause)", e)
