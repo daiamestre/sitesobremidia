@@ -20,6 +20,7 @@ import { DiagnosticOverlay } from '@/components/player/DiagnosticOverlay';
 import { usePlaylistScheduler } from '@/hooks/usePlaylistScheduler';
 import { WidgetDataProvider } from '@/contexts/WidgetDataContext';
 import { useMediaPreloader } from '@/hooks/useMediaPreloader';
+import { BootSequence } from '@/components/player/BootSequence';
 
 
 // ==========================================
@@ -388,7 +389,12 @@ export default function Player() {
   // ------------------------------------------
 
   if (loading && items.length === 0) {
-    return <div className="min-h-screen bg-black" />;
+    return (
+      <BootSequence
+        onComplete={() => { /* Wait for data loads */ }}
+        redirectOnComplete={false}
+      />
+    );
   }
 
   if (error) {
