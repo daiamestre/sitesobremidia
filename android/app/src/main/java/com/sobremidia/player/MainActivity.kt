@@ -14,7 +14,11 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import com.sobremidia.player.bridge.WebAppInterface
-import com.sobremidia.player.databinding.ActivityMainBinding
+import android.app.AlertDialog
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 
 class MainActivity : AppCompatActivity() {
 
@@ -23,6 +27,8 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        checkOverlayPermission()
         
         // Hide System UI for Fullscreen
         hideSystemUI()
@@ -81,5 +87,23 @@ class MainActivity : AppCompatActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemUI()
+    }
+
+    private fun checkOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("Permissão Necessária")
+                .setMessage("Para funcionar corretamente como player, este aplicativo precisa de permissão para exibir sobreposição a outros aplicativos.\n\nToque em 'Ativar' para ir às configurações e habilitar essa permissão.")
+                .setPositiveButton("Ativar") { _, _ ->
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                    startActivityForResult(intent, 101)
+                }
+                .setNegativeButton("Cancelar", null)
+                .setCancelable(false)
+                .show()
+        }
     }
 }
