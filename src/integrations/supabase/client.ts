@@ -11,6 +11,8 @@ const getStoredConfig = () => {
   };
 };
 
+export const supabaseConfig = getStoredConfig();
+
 // Safe Initialization
 let supabaseInstance;
 
