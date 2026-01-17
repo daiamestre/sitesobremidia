@@ -1,77 +1,110 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    
-    <title>SOBRE MÍDIA Designer</title>
-    <meta name="description" content="Sistema de Digital Signage - Gerencie suas telas e conteúdos" />
-    <meta name="author" content="SOBRE MÍDIA" />
 
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#1e1b4b" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="SOBRE MÍDIA" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="format-detection" content="telephone=no" />
-    <meta name="msapplication-TileColor" content="#1e1b4b" />
-    <meta name="msapplication-tap-highlight" content="no" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
-    <!-- iOS Icons -->
-    <link rel="apple-touch-icon" href="./pwa-192x192.png" />
-    <link rel="apple-touch-icon" sizes="192x192" href="./pwa-192x192.png" />
-    <link rel="apple-touch-icon" sizes="512x512" href="./pwa-512x512.png" />
+  <title>SOBRE MÍDIA Designer</title>
+  <meta name="description" content="Sistema de Digital Signage - Gerencie suas telas e conteúdos" />
+  <meta name="author" content="SOBRE MÍDIA" />
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" sizes="192x192" href="./pwa-192x192.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./pwa-192x192.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="./pwa-192x192.png" />
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#1e1b4b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SOBRE MÍDIA" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="msapplication-TileColor" content="#1e1b4b" />
+  <meta name="msapplication-tap-highlight" content="no" />
 
-    <!-- Open Graph -->
-    <meta property="og:title" content="SOBRE MÍDIA Designer" />
-    <meta property="og:description" content="Sistema de Digital Signage - Gerencie suas telas e conteúdos" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="/pwa-512x512.png" />
+  <!-- iOS Icons -->
+  <link rel="apple-touch-icon" href="./pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="./pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="./pwa-512x512.png" />
 
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="SOBRE MÍDIA Designer" />
-    <meta name="twitter:description" content="Sistema de Digital Signage - Gerencie suas telas e conteúdos" />
-    <meta name="twitter:image" content="/pwa-512x512.png" />
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="192x192" href="./pwa-192x192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./pwa-192x192.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./pwa-192x192.png" />
 
-    <!-- iOS Splash Screens -->
-    <link rel="apple-touch-startup-image" href="./pwa-512x512.png" />
-    
-    <style>
-      /* Prevent overscroll/bounce effect on iOS */
-      html, body {
-        overscroll-behavior: none;
-        -webkit-overflow-scrolling: touch;
+  <!-- Open Graph -->
+  <meta property="og:title" content="SOBRE MÍDIA Designer" />
+  <meta property="og:description" content="Sistema de Digital Signage - Gerencie suas telas e conteúdos" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/pwa-512x512.png" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SOBRE MÍDIA Designer" />
+  <meta name="twitter:description" content="Sistema de Digital Signage - Gerencie suas telas e conteúdos" />
+  <meta name="twitter:image" content="/pwa-512x512.png" />
+
+  <!-- iOS Splash Screens -->
+  <link rel="apple-touch-startup-image" href="./pwa-512x512.png" />
+
+  <style>
+    /* Prevent overscroll/bounce effect on iOS */
+    html,
+    body {
+      overscroll-behavior: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Safe area insets for notched devices */
+    body {
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+  </style>
+  <script>
+    // GLOBAL ERROR TRAP (Native JS)
+    // Catches errors before React loads
+    window.onerror = function (msg, url, line, col, error) {
+      var errorBox = document.getElementById('native-error-box');
+      if (!errorBox) {
+        errorBox = document.createElement('div');
+        errorBox.id = 'native-error-box';
+        errorBox.style.position = 'fixed';
+        errorBox.style.top = '0';
+        errorBox.style.left = '0';
+        errorBox.style.width = '100%';
+        errorBox.style.height = '100%';
+        errorBox.style.backgroundColor = 'black';
+        errorBox.style.color = 'red';
+        errorBox.style.zIndex = '99999';
+        errorBox.style.padding = '20px';
+        errorBox.style.whiteSpace = 'pre-wrap';
+        errorBox.style.fontFamily = 'monospace';
+        errorBox.style.overflow = 'auto';
+        document.body.appendChild(errorBox);
       }
-      
-      /* Safe area insets for notched devices */
-      body {
-        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-      }
-    </style>
-    <script>
-      // Fix: Fail-safe reload for Portrait loops
-      window.addEventListener('load', function() {
-        setTimeout(function() {
-          var root = document.getElementById('root');
-          if (!root || root.innerHTML.trim() === '') {
-            console.warn('Watchdog: Root empty, forcing reload...');
+      var timestamp = new Date().toLocaleTimeString();
+      errorBox.innerText += '[' + timestamp + '] ' + msg + '\n' + url + ':' + line + '\n' + (error ? error.stack : '') + '\n\n';
+      return false;
+    };
+
+    // Fix: Fail-safe reload for Portrait loops
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        var root = document.getElementById('root');
+        if (!root || root.innerHTML.trim() === '') {
+          console.warn('Watchdog: Root empty, forcing reload...');
+          // Only reload if no native error displayed
+          if (!document.getElementById('native-error-box')) {
             window.location.reload();
           }
-        }, 3000); // 3s grace period for slow boxes
-      });
-    </script>
-    <script type="module" crossorigin src="./assets/index-CgsZF8V8.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Dd-3WSmZ.css">
-  <link rel="manifest" href="./manifest.webmanifest"></head>
+        }
+      }, 10000); // Increased grace period
+    });
+  </script>
+  <script type="module" crossorigin src="./assets/index-BPhsty-W.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Dd-3WSmZ.css">
+<link rel="manifest" href="./manifest.webmanifest"></head>
 
-  <body>
-    <div id="root"></div>
-  </body>
+<body>
+  <div id="root"></div>
+</body>
+
 </html>

@@ -2,16 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const getStoredConfig = () => {
-  const storedUrl = localStorage.getItem('VITE_SUPABASE_URL');
-  const storedKey = localStorage.getItem('VITE_SUPABASE_PUBLISHABLE_KEY');
-  return {
-    url: storedUrl || import.meta.env.VITE_SUPABASE_URL,
-    key: storedKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-  };
-};
-
-export const supabaseConfig = getStoredConfig();
+import { supabaseConfig } from '../../supabaseConfig';
 
 // Safe Initialization
 let supabaseInstance;

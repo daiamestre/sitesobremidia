@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Loader2, Wifi, WifiOff, Database, ShieldCheck, ShieldAlert, Monitor, Settings } from "lucide-react";
-import { supabase, supabaseConfig } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
+import { supabaseConfig } from "@/supabaseConfig";
 
 interface DeviceStatus {
     deviceId: string;
