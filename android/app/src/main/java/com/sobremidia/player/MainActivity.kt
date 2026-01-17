@@ -279,27 +279,31 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         
-        // Ensure Overlay Permission for Watchdog
-        checkOverlayPermission()
-
-        // Signal Watchdog: WE ARE ALIVE
-        val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
-        intent.action = com.sobremidia.player.service.PlayerService.ACTION_RESUMED
-        try {
-            startService(intent)
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Failed to start service (Resume)", e)
-        }
-        
         hideSystemUI()
+
+        // SAFE INIT: Delay risky operations to allow UI to render first
+        // This prevents crash loops if the system is sluggish
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            try {
+                // Ensure Overlay Permission for Watchdog
+                checkOverlayPermission()
+
+                // Signal Watchdog: WE ARE ALIVE
+                val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
+                intent.action = com.sobremidia.player.service.PlayerService.ACTION_RESUMED
+                startService(intent)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "SAFE_INIT_FAIL: Could not start Watchdog or Check Overlay", e)
+            }
+        }, 3000) // 3 Seconds Delay
     }
 
     override fun onPause() {
         super.onPause()
         // Signal Watchdog: WE LOST FOCUS - HELP!
-        val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
-        intent.action = com.sobremidia.player.service.PlayerService.ACTION_PAUSED
         try {
+            val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
+            intent.action = com.sobremidia.player.service.PlayerService.ACTION_PAUSED
              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
             } else {
@@ -311,21 +315,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkOverlayPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            AlertDialog.Builder(this)
-                .setTitle("Permissão Necessária")
-                .setMessage("Para funcionar corretamente como player, este aplicativo precisa de permissão para exibir sobreposição a outros aplicativos.\n\nToque em 'Ativar' para ir às configurações e habilitar essa permissão.")
-                .setPositiveButton("Ativar") { _, _ ->
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                    startActivityForResult(intent, 101)
-                }
-                .setNegativeButton("Cancelar", null)
-                .setCancelable(false)
-                .setCancelable(false)
-                .show()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                AlertDialog.Builder(this)
+                    .setTitle("Permissão Necessária")
+                    .setMessage("Para manter o player ativo, precisamos de permissão de sobreposição.\n\nToque em 'Ativar'.")
+                    .setPositiveButton("Ativar") { _, _ ->
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:$packageName")
+                            )
+                            startActivityForResult(intent, 101)
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Failed to open Overlay Settings", e)
+                            android.widget.Toast.makeText(this, "Erro ao abrir configurações.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    .setNegativeButton("Cancelar", null)
+                    .setCancelable(false)
+                    .show()
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to check overlay permission", e)
         }
     }
 
