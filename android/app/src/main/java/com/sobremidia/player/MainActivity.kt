@@ -345,7 +345,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        // Pseudo-Kiosk: Block Back Button
-        super.onBackPressed() // Required by some Android versions, even if blocked logically
+        // KIOSK: Strictly Block Back Button
+        // super.onBackPressed() 
+        Log.d("MainActivity", "🚫 Back Button Blocked (Kiosk Mode)")
     }
 }
