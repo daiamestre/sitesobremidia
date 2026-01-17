@@ -140,6 +140,37 @@ export function usePlayerRealtime({
     };
   }, [screenId, onScheduleUpdate]);
 
+  // Subscrever a mudanças na bilbioteca de mídias (Global)
+  // Se uma mídia for atualizada (ex: arquivo trocado), precismos recarregar a playlist
+  // para pegar a nova URL.
+  useEffect(() => {
+    // Escuta qualquer mudança na tabela medias. 
+    // Idealmente filtraríamos apenas pelas mídias da playlist atual, 
+    // mas como não temos a lista de IDs de mídia fácil aqui, um refresh global é aceitável para segurança.
+    const channel = supabase
+      .channel('public-medias-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'medias',
+        },
+        (payload) => {
+          console.log('[Realtime] Mídia atualizada na biblioteca:', payload);
+          // Debounce ou apenas chamar update
+          onPlaylistUpdate();
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') console.log('[Realtime] Escutando atualizações de mídia');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [onPlaylistUpdate]);
+
   // --------------------------------------------------------------------------
   // POLLING FALLBACK (Reliability)
   // --------------------------------------------------------------------------

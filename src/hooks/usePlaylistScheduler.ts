@@ -1,8 +1,31 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { UnifiedPlaylistItem } from '@/pages/Player';
 
 export function usePlaylistScheduler(items: UnifiedPlaylistItem[]) {
     const [currentIndex, setCurrentIndex] = useState(0);
+    // Track current item ID to restore position on update
+    const currentItemIdRef = useRef<string | null>(null);
+
+    // Sync Ref
+    useEffect(() => {
+        if (items[currentIndex]) {
+            currentItemIdRef.current = items[currentIndex].id;
+        }
+    }, [currentIndex, items]);
+
+    // Smart Recovery on Items Change
+    useEffect(() => {
+        if (items.length === 0) return;
+
+        // If we have a previous item that is still in the new list, jump to it
+        if (currentItemIdRef.current) {
+            const foundIndex = items.findIndex(i => i.id === currentItemIdRef.current);
+            if (foundIndex !== -1 && foundIndex !== currentIndex) {
+                console.log(`[Scheduler] Playlist updated. Restoring position to item ${currentItemIdRef.current} at index ${foundIndex}`);
+                setCurrentIndex(foundIndex);
+            }
+        }
+    }, [items]);
 
     const isScheduleValid = useCallback((item: UnifiedPlaylistItem) => {
         // If no schedule set, it's always valid
