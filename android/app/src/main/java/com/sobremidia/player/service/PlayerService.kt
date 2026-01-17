@@ -35,10 +35,10 @@ class PlayerService : Service() {
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
 
-    // Configuration
-    private val MAX_RETRIES = 3 // Adjusted for Fire OS Stability
-    private val RETRY_INTERVAL_MS = 3000L
-    private val BACKOFF_INTERVAL_MS = 60000L
+    // Configuration for ABSOLUTE PLAYER
+    private val MAX_RETRIES = 999999 // Infinite (Effectively)
+    private val RETRY_INTERVAL_MS = 500L // High-Frequency Polling (500ms)
+    private val BACKOFF_INTERVAL_MS = 1000L // Minimal backoff
 
     private val rescueRunnable = object : Runnable {
         override fun run() {
@@ -59,16 +59,8 @@ class PlayerService : Service() {
             // 3. Schedule next attempt
             retryCount++
             
-            if (retryCount <= MAX_RETRIES) {
-                handler.postDelayed(this, RETRY_INTERVAL_MS)
-            } else {
-                android.util.Log.e("PlayerService", "Max retries reached. Entering Backoff Mode (60s).")
-                // Keep overlay, wait 60s, then restart cycle
-                handler.postDelayed({
-                    retryCount = 0
-                    handler.post(this) // Restart immediately after backoff
-                }, BACKOFF_INTERVAL_MS)
-            }
+            // Absolute Persistence: Never give up, just keep trying
+            handler.postDelayed(this, RETRY_INTERVAL_MS)
         }
     }
 
@@ -86,8 +78,8 @@ class PlayerService : Service() {
                 isAppInForeground = false
                 retryCount = 0
                 handler.removeCallbacks(rescueRunnable)
-                // Relaxed Grace Period: 5 minutes (was 60s) to allow Vercel deploy propagation
-                handler.postDelayed(rescueRunnable, 300000)
+                // Aggressive Protection: 5 seconds grace period (was 5 min)
+                handler.postDelayed(rescueRunnable, 5000)
             }
             ACTION_RESUMED -> {
                 android.util.Log.d("PlayerService", "App Resumed. Stopping Watchdog.")
