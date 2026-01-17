@@ -422,10 +422,11 @@ export default function Player() {
 
   if (!currentItem) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 space-y-8 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-primary/5 rounded-full blur-[150px] animate-pulse" />
+      <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 space-y-8 relative overflow-hidden"
+        style={{ background: 'var(--gradient-primary)' }}>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-white/5 rounded-full blur-[150px] animate-pulse" />
 
-        <Logo className="opacity-20 grayscale" size="lg" />
+        <Logo className="opacity-50 grayscale-0 text-white drop-shadow-lg scale-150" size="lg" />
 
         <div className="text-center space-y-4 relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary animate-pulse">

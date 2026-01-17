@@ -188,7 +188,8 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ onComplete, redirect
     };
 
     return (
-        <div className="fixed inset-0 bg-black flex flex-col items-center justify-center text-white z-50">
+        <div className="fixed inset-0 flex flex-col items-center justify-center text-white z-50"
+            style={{ background: 'var(--gradient-primary)' }}>
 
             <div className="w-full max-w-md p-8 space-y-8">
                 {/* Logo / Brand */}
