@@ -98,8 +98,8 @@ class MainActivity : AppCompatActivity() {
         
         // Cache Strategy: Use disk cache aggressively if offline
         settings.cacheMode = WebSettings.LOAD_DEFAULT 
-        settings.setAppCacheEnabled(true) // Deprecated but useful for legacy WebViews
-        settings.setAppCachePath(applicationContext.cacheDir.absolutePath)
+        // settings.setAppCacheEnabled(true) // Deprecated and removed in recent Android versions
+        // settings.setAppCachePath(applicationContext.cacheDir.absolutePath)
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
         // Native Interface
@@ -214,6 +214,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         // Pseudo-Kiosk: Block Back Button
-        // super.onBackPressed()
+        super.onBackPressed() // Required by some Android versions, even if blocked logically
     }
 }
