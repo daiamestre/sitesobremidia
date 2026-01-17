@@ -46,16 +46,8 @@ class MainActivity : AppCompatActivity() {
                           android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         }
 
-        // checkOverlayPermission() // <-- DISABLED (Causing ANR/Block on Boot)
+        // checkOverlayPermission() // Moved to onResume/onWindowFocusChanged logic to ensure visibility
         hideSystemUI()
-
-        // KIOSK: ACTIVE LOCK TASK (Pinned Mode)
-        // This prevents the user from leaving the app
-        try {
-            startLockTask()
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Failed to start LockTask", e)
-        }
 
         webView = WebView(this)
         setContentView(webView)
@@ -81,21 +73,6 @@ class MainActivity : AppCompatActivity() {
         // FORCE LOAD REMOTE URL
         Log.i("MainActivity", "🚀 Loading Remote URL: $REMOTE_DEBUG_URL")
         webView.loadUrl(REMOTE_DEBUG_URL)
-        
-        /* 
-        // DISABLE LOCAL LOAD FOR NOW
-        if (checkAssetsIntegrity()) {
-            Log.i("MainActivity", "✅ SUCCESS: Asset found at public/index.html")
-            webView.loadUrl("file:///android_asset/public/index.html")
-        } else {
-            Log.e("MainActivity", "CRITICAL: 'public/index.html' NOT FOUND!")
-            showDiagnosticScreen(
-                "ASSET_MISSING",
-                "public/index.html não localizado na raiz de assets",
-                "O arquivo de build não foi gerado corretamente. Execute 'npm run build:android' novamente."
-            )
-        }
-        */
     }
 
     private fun setupWebView() {
@@ -292,11 +269,35 @@ class MainActivity : AppCompatActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemUI()
+        if (hasFocus) {
+            hideSystemUI()
+            
+            // KIOSK: Active Lock Task
+            // Best Practice: Call this here when we know we have focus
+            try {
+                // Check if not already pinned to avoid redundant calls or state errors
+                val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (activityManager.lockTaskModeState == android.app.ActivityManager.LOCK_TASK_MODE_NONE) {
+                        startLockTask()
+                        Log.i("MainActivity", "🔒 Kiosk Mode ACTIVATED")
+                    }
+                } else {
+                    // Older APIs
+                    startLockTask()
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to activate Kiosk Mode", e)
+            }
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        
+        // Ensure Overlay Permission for Watchdog
+        checkOverlayPermission()
+
         // Signal Watchdog: WE ARE ALIVE
         val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
         intent.action = com.sobremidia.player.service.PlayerService.ACTION_RESUMED
