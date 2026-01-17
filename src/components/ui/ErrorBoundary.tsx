@@ -60,8 +60,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
                     {/* Tech Details (Hidden by default or subtle) */}
                     <div className="p-4 bg-zinc-900/50 rounded-lg border border-red-500/20 text-xs text-left font-mono w-full max-w-lg overflow-hidden text-red-400/80">
-                        <p className="mb-2 font-bold text-red-400">DIAGNOSTIC CODE:</p>
-                        <pre className="whitespace-pre-wrap">{this.state.error?.stack || this.state.error?.message || "Unknown Error"}</pre>
+                        <p className="mb-2 font-bold text-red-400">DIAGNOSTIC CODE (v2.1 API:{window.navigator.userAgent.includes("Android") ? "Native" : "Web"}):</p>
+                        <pre className="whitespace-pre-wrap text-white text-xs font-mono border p-2 border-zinc-700 bg-black/50">
+                            {this.state.error ? String(this.state.error) : "Erro null"}
+                            {"\nRaw: " + JSON.stringify(this.state.error, Object.getOwnPropertyNames(this.state.error || {}), 2)}
+                        </pre>
                     </div>
 
                     {/* Auto Retry Timer Visualization */}
