@@ -26,5 +26,6 @@ interface Window {
     getPlayerConfig(): string;
     showToast(message: string): void;
     getDeviceStatus(): string; // JSON String
+    requestOverlayPermission(): void;
   };
 }

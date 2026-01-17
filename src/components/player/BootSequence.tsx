@@ -4,17 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { supabaseConfig } from "@/supabaseConfig";
 import { useNavigate, useLocation } from "react-router-dom";
 
-// EXTEND WINDOW TYPE FOR NATIVE BRIDGE
-declare global {
-    interface Window {
-        NativePlayer?: {
-            getDeviceStatus: () => string;
-            requestOverlayPermission: () => void;
-            getDeviceId: () => string;
-            log: (msg: string) => void;
-        };
-    }
-}
+
 
 interface DeviceStatus {
     deviceId: string;
