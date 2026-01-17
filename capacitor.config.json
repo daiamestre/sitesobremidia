@@ -2,5 +2,12 @@
     "appId": "com.sobremidia.player",
     "appName": "Sobre Midia Player",
     "webDir": "dist",
-    "bundledWebRuntime": false
+    "bundledWebRuntime": false,
+    "server": {
+        "url": "https://sitesobremidia.vercel.app",
+        "cleartext": true,
+        "allowNavigation": [
+            "sitesobremidia.vercel.app"
+        ]
+    }
 }

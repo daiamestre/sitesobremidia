@@ -21,6 +21,7 @@ import { usePlaylistScheduler } from '@/hooks/usePlaylistScheduler';
 import { WidgetDataProvider } from '@/contexts/WidgetDataContext';
 import { useMediaPreloader } from '@/hooks/useMediaPreloader';
 import { BootSequence } from '@/components/player/BootSequence';
+import { Logo } from '@/components/Logo';
 
 
 // ==========================================
@@ -398,11 +399,54 @@ export default function Player() {
   }
 
   if (error) {
-    return <div className="min-h-screen bg-black text-white flex items-center justify-center font-mono">{error}</div>;
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 space-y-6">
+        <div className="w-20 h-20 rounded-full bg-destructive/10 border border-destructive/20 flex items-center justify-center">
+          <Loader2 className="h-10 w-10 text-destructive rotate-45" />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight">{error}</h2>
+          <p className="text-zinc-500 max-w-xs mx-auto">
+            Verifique o ID informado ou a conexão com a internet.
+          </p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-6 py-2 rounded-full border border-white/10 hover:bg-white/5 transition-colors text-sm font-medium"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
   }
 
   if (!currentItem) {
-    return <div className="min-h-screen bg-black text-white/40 flex items-center justify-center">Signage Player Ready</div>;
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 space-y-8 relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-primary/5 rounded-full blur-[150px] animate-pulse" />
+
+        <Logo className="opacity-20 grayscale" size="lg" />
+
+        <div className="text-center space-y-4 relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary animate-pulse">
+            <div className="w-2 h-2 rounded-full bg-primary" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Player Conectado</span>
+          </div>
+
+          <div className="space-y-1">
+            <h2 className="text-3xl font-display font-bold text-white/50">Aguardando Conteúdo</h2>
+            <p className="text-zinc-600 text-sm">Adicione uma playlist a esta tela no dashboard.</p>
+          </div>
+
+          <div className="pt-8 flex flex-col items-center gap-2">
+            <p className="text-[10px] text-zinc-700 uppercase tracking-[0.2em]">Identificação do Terminal</p>
+            <code className="text-sm font-mono text-zinc-500 font-bold bg-white/5 px-4 py-2 rounded-lg border border-white/5">
+              {screen?.custom_id || screen?.id || '---'}
+            </code>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // (Moved up)

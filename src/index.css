@@ -113,11 +113,14 @@
 
   /* Fix: Force full height/width in Portrait to prevent white screen before rotation */
   @media (orientation: portrait) {
-    body, #root {
-        min-height: 100vh;
-        min-width: 100vw;
-        background-color: black; /* Force black background */
-        overflow: hidden;
+
+    body,
+    #root {
+      min-height: 100vh;
+      min-width: 100vw;
+      background-color: black;
+      /* Force black background */
+      overflow: hidden;
     }
   }
 
@@ -596,4 +599,31 @@ body.pwa-standalone {
     /* Optimize for TV aspect ratio */
     contain: layout style paint;
   }
+}
+
+/* ========================================== */
+/* BLINDAGEM VISUAL (ANTI-GAP)               */
+/* ========================================== */
+
+/* Force hide all native controls */
+video::-webkit-media-controls {
+  display: none !important;
+}
+
+video::-webkit-media-controls-enclosure {
+  display: none !important;
+}
+
+/* Ensure video covers screen without gaps */
+video {
+  object-fit: cover;
+  background-color: #000 !important;
+  outline: none;
+  border: none;
+}
+
+/* Solid background for container to avoid white flashes */
+.player-container {
+  background-color: #000;
+  overflow: hidden;
 }

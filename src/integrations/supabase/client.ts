@@ -39,7 +39,31 @@ try {
   }
 } catch (e) {
   console.error("Critical Error initializing Supabase:", e);
-  supabaseInstance = {} as any;
+  // FALLBACK: Return Dummy Client to allow App to render ErrorBoundary instead of crashing hard
+  supabaseInstance = {
+    from: () => ({
+      select: () => Promise.resolve({ data: null, error: { message: "Critical Init Failure" } }),
+      insert: () => Promise.resolve({ data: null, error: { message: "Critical Init Failure" } }),
+      update: () => Promise.resolve({ data: null, error: { message: "Critical Init Failure" } }),
+      delete: () => Promise.resolve({ data: null, error: { message: "Critical Init Failure" } }),
+      on: () => ({ subscribe: () => { } }),
+    }),
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
+      signInWithPassword: () => Promise.resolve({ error: { message: "Offline Mode (Init Failed)" } }),
+    },
+    channel: () => ({
+      on: () => ({ subscribe: () => { } }),
+      subscribe: () => { }
+    }),
+    storage: {
+      from: () => ({
+        getPublicUrl: () => ({ data: { publicUrl: "" } })
+      })
+    }
+  } as any;
 }
 
 export const supabase = supabaseInstance;
