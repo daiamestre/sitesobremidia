@@ -54,9 +54,8 @@ class MainActivity : AppCompatActivity() {
 
         setupWebView()
         
-        // CRITICAL FIX: Clear Cache to prevent "Stale App" (Old Code) loading
-        // Reduced aggressiveness to avoid main thread freeze
-        webView.clearCache(true) 
+        // CRITICAL FIX: CACHE CLEAR DISABLED TO PREVENT ANR (System UI Freeze)
+        // webView.clearCache(true) 
         // webView.clearHistory()
         // android.webkit.WebStorage.getInstance().deleteAllData()
         

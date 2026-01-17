@@ -37,8 +37,8 @@ class PlayerService : Service() {
 
     // Configuration for ABSOLUTE PLAYER
     private val MAX_RETRIES = 999999 // Infinite (Effectively)
-    private val RETRY_INTERVAL_MS = 500L // High-Frequency Polling (500ms)
-    private val BACKOFF_INTERVAL_MS = 1000L // Minimal backoff
+    private val RETRY_INTERVAL_MS = 2000L // Reduced Frequency (2s) to prevent System UI Freeze
+    private val BACKOFF_INTERVAL_MS = 1000L 
 
     private val rescueRunnable = object : Runnable {
         override fun run() {
@@ -78,8 +78,8 @@ class PlayerService : Service() {
                 isAppInForeground = false
                 retryCount = 0
                 handler.removeCallbacks(rescueRunnable)
-                // Aggressive Protection: 5 seconds grace period (was 5 min)
-                handler.postDelayed(rescueRunnable, 5000)
+                // Relaxed Protection: 10 seconds grace period (prevent boot loop)
+                handler.postDelayed(rescueRunnable, 10000)
             }
             ACTION_RESUMED -> {
                 android.util.Log.d("PlayerService", "App Resumed. Stopping Watchdog.")
