@@ -271,24 +271,9 @@ class MainActivity : AppCompatActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
             hideSystemUI()
-            
-            // KIOSK: Active Lock Task
-            // Best Practice: Call this here when we know we have focus
-            try {
-                // Check if not already pinned to avoid redundant calls or state errors
-                val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (activityManager.lockTaskModeState == android.app.ActivityManager.LOCK_TASK_MODE_NONE) {
-                        startLockTask()
-                        Log.i("MainActivity", "🔒 Kiosk Mode ACTIVATED")
-                    }
-                } else {
-                    // Older APIs
-                    startLockTask()
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Failed to activate Kiosk Mode", e)
-            }
+            // KIOSK PINNING REMOVED BY USER REQUEST
+            // startLockTask() caused crash loops on some devices.
+            // Reliance is now solely on Watchdog Service.
         }
     }
 
@@ -346,8 +331,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        // KIOSK: Strictly Block Back Button
+        // Soft Back Block (Watchdog will bring it back anyway)
         // super.onBackPressed() 
-        Log.d("MainActivity", "🚫 Back Button Blocked (Kiosk Mode)")
+        Log.d("MainActivity", "🚫 Back Button Pressed (Handled by Watchdog)")
     }
 }
