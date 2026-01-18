@@ -527,9 +527,6 @@ export default function Player() {
             orientation={screen?.orientation || 'Auto'}
           />
 
-          {/* VISUAL PROOF OF SHIELD */}
-          <OfflineIndicator />
-
           {/* CONTENT LAYER */}
           {currentItem.content_type === 'media' && currentItem.media && (
             <DualMediaLayer
