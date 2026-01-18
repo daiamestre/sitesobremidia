@@ -236,8 +236,13 @@ export default function Player() {
     const isUUID = uuidRegex.test(screenId);
 
     let query = supabase.from('screens').select('id, name, playlist_id, orientation, resolution, widget_config, custom_id');
-    if (isUUID) query = query.eq('id', screenId);
-    else query = query.eq('custom_id', screenId);
+
+    // Normalize ID: If it's a UUID, use as is. If it's a Custom ID, force Uppercase (as saved in DB).
+    if (isUUID) {
+      query = query.eq('id', screenId);
+    } else {
+      query = query.eq('custom_id', screenId.toUpperCase());
+    }
 
     const { data, error } = await query.maybeSingle();
 
