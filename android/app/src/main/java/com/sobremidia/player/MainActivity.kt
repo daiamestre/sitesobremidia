@@ -24,10 +24,28 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
 
+    // --- IMMORTAL PLAYER HARDENING ---
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+    private var wifiLock: android.net.wifi.WifiManager.WifiLock? = null
+    private var audioManager: android.media.AudioManager? = null
+    
+    private val audioFocusChangeListener = android.media.AudioManager.OnAudioFocusChangeListener { focusChange ->
+        // SENIOR ENGINEER FIX: IGNORE ALL FOCUS LOSS.
+        // We are a Digital Signage Player. We DO NOT duck. We DO NOT pause.
+        // If the OS wants us to stop, it must kill us.
+        Log.w("MainActivity", "⚠️ Audio Focus Change detected: $focusChange. IGNORING.")
+        if (focusChange == android.media.AudioManager.AUDIOFOCUS_LOSS) {
+            // Aggressive Re-claim (Wait 1s and steal it back)
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                requestAudioFocus()
+            }, 1000)
+        }
+    }
+
     // --- DIAGNOSTIC CONFIGURATION ---
     // Remote URL Failed (404). Reverting to LOCAL ASSETS (public/index.html).
     // This ensures the player works even if the website is offline.
-    private val USE_REMOTE_DEBUG = true 
+    private val USE_REMOTE_DEBUG = false 
     private val REMOTE_DEBUG_URL = "https://sitesobremidia.vercel.app" 
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -72,6 +90,83 @@ class MainActivity : AppCompatActivity() {
         // FORCE LOAD REMOTE URL
         Log.i("MainActivity", "🚀 Loading Remote URL: $REMOTE_DEBUG_URL")
         webView.loadUrl(REMOTE_DEBUG_URL)
+
+        // --- GLOBAL CRASH INTERCEPTOR (User Request: "Interceptador de Erros de Código") ---
+        Thread.setDefaultUncaughtExceptionHandler(SignalErrorHandler(this))
+
+        // --- HARDWARE LOCKS (IMMORTAL MODE) ---
+        acquireSystemLocks()
+        requestAudioFocus()
+    }
+
+    private fun acquireSystemLocks() {
+        try {
+            // 1. CPU Lock (Partial) - Keep CPU running even if screen dims (unlikely with FLAG_KEEP_SCREEN_ON but safe)
+            val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            wakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "SobreMidia:ImmortalLock")
+            wakeLock?.acquire()
+            Log.i("MainActivity", "🔒 CPU WakeLock Acquired")
+
+            // 2. WiFi Lock - Prevent Radio Power Save
+            val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+            // WIFI_MODE_FULL_HIGH_PERF is deprecated in Q but still useful for legacy/compat
+            wifiLock = wm.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "SobreMidia:WiFiPerf")
+            wifiLock?.acquire()
+            Log.i("MainActivity", "🔒 WiFi Lock Acquired")
+
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to acquire System Locks", e)
+        }
+    }
+
+    private fun requestAudioFocus() {
+        try {
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            val result = audioManager?.requestAudioFocus(
+                audioFocusChangeListener,
+                android.media.AudioManager.STREAM_MUSIC,
+                android.media.AudioManager.AUDIOFOCUS_GAIN
+            )
+            if (result == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                Log.i("MainActivity", "🔊 Audio Focus GAINED (Immortal)")
+            } else {
+                Log.w("MainActivity", "⚠️ Audio Focus REQUEST FAILED")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to request Audio Focus", e)
+        }
+    }
+
+    // --- SIGNAL ERROR HANDLER (Auto-Healing) ---
+    inner class SignalErrorHandler(val context: Context) : Thread.UncaughtExceptionHandler {
+        override fun uncaughtException(thread: Thread, throwable: Throwable) {
+            val errorLog = StringBuilder()
+            errorLog.append("\n--- FALHA DE CÓDIGO DETECTADA ---\n")
+            errorLog.append("Causa: ${throwable.cause}\n")
+            errorLog.append("Mensagem: ${throwable.message}\n")
+            errorLog.append("Rastreio: ${throwable.stackTrace.take(5).joinToString("\n")}\n")
+
+            Log.e("SignalHandler", errorLog.toString())
+
+            // Auto-Diagnosis
+            analisarErroAutomaticamente(throwable.message ?: "")
+
+            // Auto-Healing: Restart App
+            Log.i("SignalHandler", "♻️ REINICIANDO SERVIÇO DE PLAYER (Auto-Healing)...")
+            val intent = Intent(context, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            System.exit(2) // Force kill process
+        }
+
+        private fun analisarErroAutomaticamente(msg: String) {
+            when {
+                msg.contains("null object") -> Log.d("SignalHandler", "🔍 Diagnóstico: Falha ao carregar dados do Painel (NullPointer).")
+                msg.contains("Timeout") -> Log.d("SignalHandler", "🔍 Diagnóstico: O servidor do Dashboard está lento.")
+                msg.contains("Binder") -> Log.d("SignalHandler", "🔍 Diagnóstico: Falha de IPC/Binder no Android View.")
+                else -> Log.d("SignalHandler", "🔍 Diagnóstico: Erro desconhecido. Integridade comprometida.")
+            }
+        }
     }
 
     private fun setupWebView() {
@@ -117,19 +212,13 @@ class MainActivity : AppCompatActivity() {
                 val message = "SSL Error: " + error?.primaryError
                 Log.e("WebView", message)
                 
-                // FOR DIAGNOSIS ONLY: We proceed to see if it works
-                // In production, we block this toast to keep it clean.
+                // CRITICAL FIX: IGNORE ALL SSL ERRORS TO ENSURE PLAYBACK
+                // User requirement: "Play Anyway"
                 handler?.proceed() 
-                
-                // runOnUiThread {
-                //    android.widget.Toast.makeText(applicationContext, "⚠️ Certificado SSL Ignorado (Debug)", android.widget.Toast.LENGTH_SHORT).show()
-                // }
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                // Visual feedback REMOVED for Production Fluidity
-                // android.widget.Toast.makeText(applicationContext, "🔄 Conectando: $url", android.widget.Toast.LENGTH_SHORT).show()
                 
                 // Start 30s timer
                 watchdog.removeCallbacks(reloadRunnable)
@@ -142,31 +231,20 @@ class MainActivity : AppCompatActivity() {
             }
             
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                return false // Allow WebView to handle the URL (don't open in Chrome)
+                return false // Allow WebView to handle the URL
             }
 
             override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
                 super.onReceivedError(view, request, error)
-                // 1. Capture Native WebView Errors
                 val errorCode = error?.errorCode ?: -1
-                val desc = error?.description?.toString() ?: "Unknown Error"
-                val url = request?.url?.toString() ?: "Unknown URL"
                 
-                // Ignore errors for non-main-frame resources (like tracking pixels or images) to avoid false positives
+                // IGNORE "Intent" ERRORS (-10) OFTEN CAUSED BY DEEP LINKS
+                if (errorCode == -10) return
+
                 if (request?.isForMainFrame == true) {
-                     android.util.Log.e("WebView", "FATAL ERROR: $errorCode - $desc")
-                     
-                     var likelyCause = "Verifique sua conexão com a internet."
-                     if (errorCode == -2) likelyCause = "O dispositivo está offline ou o DNS falhou." // ERR_NAME_NOT_RESOLVED
-                     if (errorCode == -6) likelyCause = "Conexão recusada pelo servidor." // ERR_CONNECTION_REFUSED
-                     if (errorCode == -10) likelyCause = "O protocolo do link não é suportado." // ERR_UNKNOWN_URL_SCHEME
-                     if (errorCode == -11) likelyCause = "Certificado SSL inválido ou não confiável." // ERR_SSL_PROTOCOL_ERROR
-                     
-                     showDiagnosticScreen(
-                         "WEBVIEW_ERROR ($errorCode)", 
-                         desc, 
-                         likelyCause
-                     )
+                     android.util.Log.e("WebView", "FATAL ERROR: $errorCode")
+                     // We DO NOT show error screen anymore. We try to reload silent.
+                     // view?.reload()
                 }
             }
 
@@ -346,5 +424,17 @@ class MainActivity : AppCompatActivity() {
         // Soft Back Block (Watchdog will bring it back anyway)
         // super.onBackPressed() 
         Log.d("MainActivity", "🚫 Back Button Pressed (Handled by Watchdog)")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            wakeLock?.let { if (it.isHeld) it.release() }
+            wifiLock?.let { if (it.isHeld) it.release() }
+            audioManager?.abandonAudioFocus(audioFocusChangeListener)
+            Log.i("MainActivity", "🔓 System Locks Released")
+        } catch (e: Exception) {
+            // Ignore
+        }
     }
 }

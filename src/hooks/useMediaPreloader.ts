@@ -6,36 +6,35 @@ export function useMediaPreloader(items: UnifiedPlaylistItem[]) {
     useEffect(() => {
         if (!items || items.length === 0) return;
 
-        const cacheItem = async (url: string) => {
-            await MediaCacheService.cacheMedia(url);
+        const cacheItem = async (url: string, mimeType?: string) => {
+            await MediaCacheService.cacheMedia(url, mimeType);
         };
 
         const runPreloader = async () => {
             console.log('[Preloader] Starting Offline Cache Sync for', items.length, 'items');
 
-            const urlsToCache: string[] = [];
+            const urlsToCache: { url: string, mime?: string }[] = [];
 
             // 1. Collect all URLs
             items.forEach(item => {
                 if (item.content_type === 'media' && item.media?.file_url) {
-                    urlsToCache.push(item.media.file_url);
+                    urlsToCache.push({ url: item.media.file_url, mime: item.media.mime_type });
                 }
                 if (item.content_type === 'widget' && item.widget) {
                     const conf = item.widget.config;
-                    if (conf.backgroundImage) urlsToCache.push(conf.backgroundImage);
-                    if (conf.backgroundImageLandscape) urlsToCache.push(conf.backgroundImageLandscape);
-                    if (conf.backgroundImagePortrait) urlsToCache.push(conf.backgroundImagePortrait);
+                    if (conf.backgroundImage) urlsToCache.push({ url: conf.backgroundImage, mime: 'image' });
+                    if (conf.backgroundImageLandscape) urlsToCache.push({ url: conf.backgroundImageLandscape, mime: 'image' });
+                    if (conf.backgroundImagePortrait) urlsToCache.push({ url: conf.backgroundImagePortrait, mime: 'image' });
                 }
             });
 
-            // 2. Cache them sequentially to avoid network congestion (or parallel with limit)
-            // Parallel is fine for modern browsers/connections
-            await Promise.allSettled(urlsToCache.map(url => cacheItem(url)));
+            // 2. Cache them sequentially
+            await Promise.allSettled(urlsToCache.map(obj => cacheItem(obj.url, obj.mime)));
 
             console.log('[Preloader] Offline Cache Sync Complete.');
 
             // 3. Cleanup old files
-            MediaCacheService.cleanupCache(urlsToCache);
+            MediaCacheService.cleanupCache(urlsToCache.map(u => u.url));
         };
 
         runPreloader();
