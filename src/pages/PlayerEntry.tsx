@@ -8,13 +8,11 @@ import { Logo } from "@/components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, Hash } from "lucide-react";
 
-// Aceita UUID ou custom_id (letras, números, hífens, underscores)
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Custom ID: Letters, Numbers, Hyphens, Underscores (No UUIDs allowed)
 const CUSTOM_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 const isValidScreenId = (value: string) => {
-  return UUID_REGEX.test(value) || CUSTOM_ID_REGEX.test(value);
+  return CUSTOM_ID_REGEX.test(value);
 };
 
 type PlayerEntryProps = {
@@ -43,7 +41,7 @@ export default function PlayerEntry({ basePath }: PlayerEntryProps) {
   const handleConnect = () => {
     const value = screenId.trim();
     if (!isValidScreenId(value)) {
-      setError("ID inválido. Use o ID personalizado da tela (ex: minha-tela-01) ou UUID.");
+      setError("ID inválido. Use apenas letras, números e hífens. (Não use UUID)");
       return;
     }
 
