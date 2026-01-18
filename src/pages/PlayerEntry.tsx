@@ -54,89 +54,90 @@ export default function PlayerEntry({ basePath }: PlayerEntryProps) {
     navigate(`/auth?redirect=${redirect}`);
   };
 
-  <div className="min-h-screen flex items-center justify-center bg-background p-4">
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
-    </div>
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
+      </div>
 
-    <Card className="w-full max-w-md glass animate-fade-in relative z-10">
-      <CardHeader className="text-center">
-        <Logo className="justify-center mb-4" size="lg" />
-        <CardTitle className="text-2xl font-display text-foreground">
-          {title}
-        </CardTitle>
-        <CardDescription className="text-muted-foreground">
-          {basePath === "/tv"
-            ? "Plataforma profissional de Digital Signage"
-            : "Inicie a reprodução de conteúdos nesta tela."}
-        </CardDescription>
-      </CardHeader>
+      <Card className="w-full max-w-md glass animate-fade-in relative z-10">
+        <CardHeader className="text-center">
+          <Logo className="justify-center mb-4" size="lg" />
+          <CardTitle className="text-2xl font-display text-foreground">
+            {title}
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            {basePath === "/tv"
+              ? "Plataforma profissional de Digital Signage"
+              : "Inicie a reprodução de conteúdos nesta tela."}
+          </CardDescription>
+        </CardHeader>
 
-      <CardContent className="space-y-6">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-8 space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground animate-pulse">Verificando conexão...</p>
-          </div>
-        ) : !user ? (
-          <div className="space-y-4">
-            <div className="p-4 rounded-lg bg-card/50 border border-border/50 text-center">
-              <p className="text-sm text-muted-foreground">
-                Para gerenciar seus dispositivos, acesse sua conta.
-              </p>
+        <CardContent className="space-y-6">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-8 space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground animate-pulse">Verificando conexão...</p>
             </div>
-            <Button className="w-full gradient-primary" onClick={handleLogin}>
-              Entrar no Painel
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="screen-id">ID de Identificação</Label>
-              <div className="relative">
-                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="screen-id"
-                  value={screenId}
-                  onChange={(e) => {
-                    setError(null);
-                    setScreenId(e.target.value.toUpperCase().replace(/\s+/g, '-'));
-                  }}
-                  placeholder="Ex: RECEPCAO-01"
-                  className="pl-10 uppercase"
-                  inputMode="text"
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
+          ) : !user ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg bg-card/50 border border-border/50 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Para gerenciar seus dispositivos, acesse sua conta.
+                </p>
               </div>
-            </div>
-
-            {error && (
-              <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm text-center animate-in fade-in slide-in-from-top-2">
-                {error}
-              </div>
-            )}
-
-            <div className="pt-2">
-              <Button
-                className="w-full gradient-primary"
-                onClick={handleConnect}
-              >
-                Conectar
+              <Button className="w-full gradient-primary" onClick={handleLogin}>
+                Entrar no Painel
               </Button>
             </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="screen-id">ID de Identificação</Label>
+                <div className="relative">
+                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="screen-id"
+                    value={screenId}
+                    onChange={(e) => {
+                      setError(null);
+                      setScreenId(e.target.value.toUpperCase().replace(/\s+/g, '-'));
+                    }}
+                    placeholder="Ex: RECEPCAO-01"
+                    className="pl-10 uppercase bg-muted/50 border-input focus:border-primary/50 text-foreground placeholder:text-muted-foreground/50 h-10 transition-all font-medium tracking-wide"
+                    inputMode="text"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
 
-            <div className="pt-2 border-t border-border/50">
-              <p className="text-xs text-center text-muted-foreground">
-                Precisa de ajuda? Consulte o painel de <strong className="text-foreground">Telas</strong> no dashboard.
-              </p>
+              {error && (
+                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm text-center animate-in fade-in slide-in-from-top-2">
+                  {error}
+                </div>
+              )}
+
+              <div className="pt-2">
+                <Button
+                  className="w-full gradient-primary"
+                  onClick={handleConnect}
+                >
+                  Conectar
+                </Button>
+              </div>
+
+              <div className="pt-2 border-t border-border/50">
+                <p className="text-xs text-center text-muted-foreground">
+                  Precisa de ajuda? Consulte o painel de <strong className="text-foreground">Telas</strong> no dashboard.
+                </p>
+              </div>
             </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

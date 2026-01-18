@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { UnifiedPlaylistItem } from '@/pages/Player';
+import { useOfflineMedia } from '@/hooks/useOfflineMedia';
 
 // ==============================================
 // TYPES
@@ -15,15 +16,83 @@ interface DualMediaLayerProps {
 // CONFIG
 // ==============================================
 const CROSSFADE_DURATION_MS = 500; // 500ms fade
-const PRELOAD_OFFSET_SEC = 2; // Start preloading next video this many seconds before end (Not fully utilized in this architecture, we preload immediately)
 
-/*
-  DOUBLE BUFFERING PLAYER ENGINE
-  - Two permanent video layers: Layer A and Layer B.
-  - "Active" layer is visible (opacity 1, z-index 10).
-  - "Reserve" layer is hidden (opacity 0, z-index 0) but LOADED.
-  - When "Advance" happens, we simply swap the Active/Reserve pointers and Fade.
-*/
+// ==============================================
+// SUB-COMPONENTS (Offline Aware)
+// ==============================================
+
+// Wrapper to handle Blob resolution
+const OfflineVideo = ({
+    src,
+    isActive,
+    onEnded,
+    onError,
+    style,
+    videoRef
+}: {
+    src: string;
+    isActive: boolean;
+    onEnded: () => void;
+    onError: (e: any) => void;
+    style: React.CSSProperties;
+    videoRef: React.RefObject<HTMLVideoElement>;
+}) => {
+    // Resolve URL (Cache vs Remote)
+    const offlineSrc = useOfflineMedia(src);
+
+    useEffect(() => {
+        if (isActive && videoRef.current) {
+            // Force play when active
+            // (Logic handled in parent slightly, but safe to reinforce)
+        }
+    }, [isActive, offlineSrc]);
+
+    if (!offlineSrc) return null; // Wait for resolution
+
+    return (
+        <video
+            ref={videoRef}
+            src={offlineSrc}
+            style={style}
+            muted
+            playsInline
+            preload="auto"
+            onEnded={onEnded}
+            onError={onError}
+            controls={false}
+        />
+    );
+};
+
+const OfflineImage = ({
+    src,
+    style,
+    onError
+}: {
+    src: string;
+    style: React.CSSProperties;
+    onError: (e: any) => void;
+}) => {
+    const offlineSrc = useOfflineMedia(src);
+
+    // If we're waiting for the blob, maybe show nothing or a placeholder?
+    // Showing nothing (black bg) is better than a broken image icon.
+    if (!offlineSrc) return <div style={style} />;
+
+    return (
+        <img
+            src={offlineSrc}
+            style={style}
+            alt="media"
+            onError={onError}
+        />
+    );
+};
+
+
+// ==============================================
+// MAIN COMPONENT
+// ==============================================
 
 export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMediaLayerProps) {
     // STATE: Which physical layer is currently showing?
@@ -44,8 +113,6 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
     // SYNC ENGINE
     // ==============================================
 
-    // When the main 'item' prop changes, it means the scheduler has officially advanced.
-    // We need to ensure the visual state matches this new reality.
     useEffect(() => {
         if (!item) return;
 
@@ -62,7 +129,6 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
         currentItemIdRef.current = item.id;
 
         // 1. Determine which layer holds the NEW item.
-        // Ideally, the Reserve layer already has it pre-loaded.
         let newActiveLayer = activeLayer;
 
         if (contentA?.id === item.id) {
@@ -70,8 +136,7 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
         } else if (contentB?.id === item.id) {
             newActiveLayer = 'B';
         } else {
-            // MISS: The new item is in NEITHER layer (e.g. random jump).
-            // Panic load into the reserve layer and switch.
+            // MISS: The new item is in NEITHER layer. Panic load.
             const target = activeLayer === 'A' ? 'B' : 'A';
             if (target === 'A') setContentA(item);
             else setContentB(item);
@@ -87,18 +152,34 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
             if (reserve === 'A') setContentA(nextItem);
             else setContentB(nextItem);
         } else {
-            // Clear if end of playlist
             if (reserve === 'A') setContentA(null);
             else setContentB(null);
         }
 
-    }, [item, nextItem]); // activeLayer, contentA, contentB are implied state, not deps for this trigger
+    }, [item, nextItem]);
 
     // ==============================================
     // PLAYBACK CONTROLLER
     // ==============================================
 
-    // We watch 'activeLayer' and 'contentX' to control Play/Pause
+    /* 
+       NOTE: We use a slight timeout to ensure the DOM has updated with the new 'offlineSrc' 
+       before calling .play(). The OfflineVideo component helps, but the ref might be unstable for a microtask.
+    */
+
+    const playVideo = useCallback((video: HTMLVideoElement) => {
+        video.currentTime = 0;
+        const p = video.play();
+        if (p) p.catch(e => {
+            // Auto-advance on play error (e.g. format not supported)
+            console.error("Play error:", e);
+            // Don't call onError immediately to avoid loops, let the user see black screen? 
+            // Better to skip.
+            if (activeLayer === (video === videoARef.current ? 'A' : 'B')) {
+                onError();
+            }
+        });
+    }, [activeLayer, onError]);
 
     // CONTROL LAYER A
     useEffect(() => {
@@ -106,21 +187,12 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
         if (!video) return;
 
         if (activeLayer === 'A') {
-            // Layer A is ACTIVE
-            video.currentTime = 0; // Ensure start from 0 (or remove if smooth loop desired, but usually 0)
-            const p = video.play();
-            if (p) p.catch(e => handleMediaError('A', e));
+            playVideo(video);
         } else {
-            // Layer A is RESERVE
-            // If it has content, it should be PAUSED but Ready.
-            // If we want "Pre-buffering", we can let it load but keep it paused.
-            // video.pause() is standard.
             video.pause();
-            if (contentA) {
-                video.load(); // Force buffer start
-            }
+            if (contentA) video.load();
         }
-    }, [activeLayer, contentA]);
+    }, [activeLayer, contentA, playVideo]);
 
     // CONTROL LAYER B
     useEffect(() => {
@@ -128,16 +200,12 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
         if (!video) return;
 
         if (activeLayer === 'B') {
-            video.currentTime = 0;
-            const p = video.play();
-            if (p) p.catch(e => handleMediaError('B', e));
+            playVideo(video);
         } else {
             video.pause();
-            if (contentB) {
-                video.load();
-            }
+            if (contentB) video.load();
         }
-    }, [activeLayer, contentB]);
+    }, [activeLayer, contentB, playVideo]);
 
 
     // ==============================================
@@ -145,16 +213,14 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
     // ==============================================
 
     const handleMediaEnd = useCallback(() => {
-        // Only the ACTIVE player should trigger "onFinished"
         onFinished();
     }, [onFinished]);
 
     const handleMediaError = useCallback((layer: 'A' | 'B', e: any) => {
-        // Blindagem: If active layer fails, skip immediately.
         console.error(`[Player] Error in Layer ${layer}:`, e);
         if (layer === activeLayer) {
             console.log('[Player] Skipping corrupted media...');
-            onError(); // Triggers advance
+            onError();
         }
     }, [activeLayer, onError]);
 
@@ -171,34 +237,30 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
             zIndex: isActive ? 10 : 0,
             opacity: isActive ? 1 : 0,
             transition: `opacity ${CROSSFADE_DURATION_MS}ms ease-in-out`,
-            backgroundColor: 'black' // No transparent gaps
+            backgroundColor: 'black'
         };
 
         if (!content || !content.media) return <div style={{ ...style, backgroundColor: 'black' }} />;
 
         if (content.media.file_type === 'video') {
             return (
-                <video
-                    ref={layerId === 'A' ? videoARef : videoBRef}
+                <OfflineVideo
+                    key={content.id} // FORCE REMOUNT IF CONTENT CHANGES
                     src={content.media.file_url}
-                    style={style}
-                    muted
-                    playsInline
-                    preload="auto" // CRITICAL FOR PRE-FETCH
+                    isActive={isActive}
                     onEnded={() => { if (isActive) handleMediaEnd(); }}
                     onError={(e) => handleMediaError(layerId, e)}
-                    // Hide Controls Hard
-                    controls={false}
+                    style={style}
+                    videoRef={layerId === 'A' ? videoARef : videoBRef}
                 />
             );
         }
 
-        // Image Support
         return (
-            <img
+            <OfflineImage
+                key={content.id}
                 src={content.media.file_url}
                 style={style}
-                alt="media"
                 onError={(e) => handleMediaError(layerId, e)}
             />
         );
