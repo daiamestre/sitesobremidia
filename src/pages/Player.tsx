@@ -22,6 +22,7 @@ import { WidgetDataProvider } from '@/contexts/WidgetDataContext';
 import { useMediaPreloader } from '@/hooks/useMediaPreloader';
 import { BootSequence } from '@/components/player/BootSequence';
 import { Logo } from '@/components/Logo';
+import { OfflineIndicator } from '@/components/player/OfflineIndicator';
 
 
 // ==========================================
@@ -469,6 +470,9 @@ export default function Player() {
             screenId={screen?.id}
             orientation={screen?.orientation || 'Auto'}
           />
+
+          {/* VISUAL PROOF OF SHIELD */}
+          <OfflineIndicator />
 
           {/* CONTENT LAYER */}
           {currentItem.content_type === 'media' && currentItem.media && (
