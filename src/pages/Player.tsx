@@ -243,7 +243,9 @@ export default function Player() {
 
     if (error || !data) {
       console.error('[Player] Error fetching screen:', error);
-      setError('Tela não encontrada');
+      console.error('[Player] Error fetching screen:', error);
+      setError(`Tela não encontrada: ${screenId}`);
+      return;
       return;
     }
 
