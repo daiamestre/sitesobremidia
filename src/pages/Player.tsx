@@ -209,21 +209,30 @@ export default function Player() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((item: any) => {
         let contentType: ContentType | null = null;
-        if (item.media_id && item.media) contentType = 'media';
+
+        if (item.media_id && item.media) {
+          if (!item.media.file_url) return null; // Filter empty media
+          contentType = 'media';
+        }
         else if (item.widget_id && item.widget) contentType = 'widget';
         else if (item.external_link_id && item.external_link) contentType = 'external_link';
 
         if (!contentType) return null;
 
+        // ENFORCE USER RULE: 0s Duration -> 10s Default
+        // "obrigação tem que corrigir a midias para ser reproduzida por padrão por 10 segundos"
+        const rawDuration = Number(item.duration) || 0;
+        const effectiveDuration = rawDuration === 0 ? 10 : rawDuration;
+
         return {
           id: item.id,
           position: item.position,
-          duration: item.duration,
+          duration: effectiveDuration, // Applied here
           content_type: contentType,
           media: item.media,
           widget: item.widget,
           external_link: item.external_link,
-          start_time: item.start_time, // ok if undefined
+          start_time: item.start_time,
           end_time: item.end_time,
           days: item.days,
         } as UnifiedPlaylistItem;
@@ -249,7 +258,13 @@ export default function Player() {
       const s = localStorage.getItem(`screen_${screenId}`);
       const i = localStorage.getItem(`items_${screenId}`);
       if (s && i) {
-        return { screen: JSON.parse(s), items: JSON.parse(i) };
+        const parsedItems = JSON.parse(i);
+        // SANITIZE CACHE: Ensure no ghost items exist in cache
+        const validItems = parsedItems.filter((item: any) => {
+          if (item.content_type === 'media' && (!item.media || !item.media.file_url)) return false;
+          return true;
+        });
+        return { screen: JSON.parse(s), items: validItems };
       }
     } catch (e) {
       console.warn('[Persistence] Failed to load config:', e);
@@ -345,17 +360,32 @@ export default function Player() {
   }, [reloadScreenEntry]);
 
   // Realtime
+  const handleScreenUpdate = useCallback(() => {
+    reloadScreenEntry();
+  }, [reloadScreenEntry]);
+
+  const handlePlaylistUpdate = useCallback(async () => {
+    if (screen?.playlist_id) {
+      // Force fetch to ensure fresh data
+      const newItems = await fetchItems(screen.playlist_id);
+      if (JSON.stringify(newItems) !== JSON.stringify(itemsRef.current)) {
+        console.log('[Realtime] Playlist sync applied');
+        setItems(newItems);
+      }
+    }
+  }, [screen?.playlist_id, fetchItems]);
+
+  const handleScheduleUpdate = useCallback(() => {
+    // refresh logic if needed
+    reloadScreenEntry();
+  }, [reloadScreenEntry]);
+
   usePlayerRealtime({
     screenId: screen?.id || '',
     playlistId: screen?.playlist_id || '',
-    onScreenUpdate: reloadScreenEntry,
-    onPlaylistUpdate: async () => {
-      if (screen?.playlist_id) {
-        const newItems = await fetchItems(screen.playlist_id);
-        if (JSON.stringify(newItems) !== JSON.stringify(itemsRef.current)) setItems(newItems);
-      }
-    },
-    onScheduleUpdate: () => { }
+    onScreenUpdate: handleScreenUpdate,
+    onPlaylistUpdate: handlePlaylistUpdate,
+    onScheduleUpdate: handleScheduleUpdate
   });
 
   // PERIODIC SYNC ENFORCEMENT (5 Minutes)
@@ -419,11 +449,23 @@ export default function Player() {
     const isVideo = currentItem.content_type === 'media' && currentItem.media?.file_type === 'video';
 
     // Check validity
+    // Check validity
+    let isStrictDuration = false;
+
     if (!isScheduleValid(currentItem)) {
       console.log('[Player] Current item invalid by schedule, skipping...');
       duration = 0.5; // fast skip
     } else if (isVideo) {
-      duration = (currentItem.duration || MAX_VIDEO_DURATION) + VIDEO_FAILSAFE_BUFFER;
+      if (currentItem.duration && currentItem.duration > 0) {
+        // STRICT DURATION MODE
+        // User explicitly set a time (e.g. 15s). We respect it exactly.
+        duration = currentItem.duration;
+        isStrictDuration = true;
+      } else {
+        // AUTO DURATION MODE
+        // Play until end (with failsafe)
+        duration = (currentItem.duration || MAX_VIDEO_DURATION) + VIDEO_FAILSAFE_BUFFER;
+      }
     } else {
       if (currentItem.content_type === 'widget') duration = currentItem.duration || DEFAULT_WIDGET_DURATION;
       else if (currentItem.content_type === 'external_link') duration = currentItem.duration || DEFAULT_LINK_DURATION;
@@ -433,7 +475,7 @@ export default function Player() {
     duration = Math.max(3, duration);
 
     advanceTimeoutRef.current = setTimeout(() => {
-      console.log(`[Player] Auto-advance (${isVideo ? 'Failsafe' : 'Timer'})`);
+      console.log(`[Player] Auto-advance (${isVideo ? (isStrictDuration ? 'Strict Timer' : 'Failsafe') : 'Timer'})`);
       advance();
     }, duration * 1000);
 
@@ -525,6 +567,9 @@ export default function Player() {
 
   const targetOrientation = screen?.orientation || 'landscape';
 
+  const isVideo = currentItem.content_type === 'media' && currentItem.media?.file_type?.toLowerCase().includes('video');
+  const isStrictVideo = isVideo && (currentItem.duration && currentItem.duration > 0);
+
   return (
     <WidgetDataProvider>
       <ScreenScaler targetOrientation={targetOrientation} mode="STRETCH">
@@ -543,7 +588,12 @@ export default function Player() {
             <DualMediaLayer
               item={currentItem}
               nextItem={getNextValidItem(currentIndex, items) || currentItem} // Pass anticipated next
-              onFinished={() => { if (items.length > 1) advance(); }}
+              onFinished={() => {
+                // IF STRICT MODE: IGNORE NATURAL END. WAIT FOR TIMER.
+                if (!isStrictVideo && items.length > 1) {
+                  advance();
+                }
+              }}
               onError={advance}
             />
           )}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { UnifiedPlaylistItem } from '@/pages/Player';
-import { useOfflineMedia } from '@/hooks/useOfflineMedia';
+import { DirectMediaRenderer } from './DirectMediaRenderer';
 
 // ==============================================
 // TYPES
@@ -15,92 +15,8 @@ interface DualMediaLayerProps {
 // ==============================================
 // CONFIG
 // ==============================================
-const CROSSFADE_DURATION_MS = 500; // 500ms fade
-
-// ==============================================
-// SUB-COMPONENTS (Offline Aware)
-// ==============================================
-
-// Wrapper to handle Blob resolution
-const OfflineVideo = ({
-    src,
-    isActive,
-    onEnded,
-    onError,
-    style,
-    videoRef
-}: {
-    src: string;
-    isActive: boolean;
-    onEnded: () => void;
-    onError: (e: any) => void;
-    style: React.CSSProperties;
-    videoRef: React.RefObject<HTMLVideoElement>;
-}) => {
-    // Resolve URL (Cache vs Remote)
-    const offlineSrc = useOfflineMedia(src);
-
-    // PLAYBACK WATCHDOG: Force Play if Active but Paused
-    useEffect(() => {
-        if (!isActive || !videoRef.current) return;
-
-        const video = videoRef.current;
-        const watchdog = setInterval(() => {
-            if (video.paused && !video.ended && video.readyState > 2) {
-                console.warn('[OfflineVideo] Watchdog: Video paused unexpectedly. Forcing play...');
-                video.muted = true; // Ensure mute
-                video.play().catch(e => console.error('[OfflineVideo] Force play failed:', e));
-            }
-        }, 1000);
-
-        return () => clearInterval(watchdog);
-    }, [isActive, videoRef]);
-
-    if (!offlineSrc) return null; // Wait for resolution
-
-    return (
-        <video
-            ref={videoRef}
-            src={offlineSrc}
-            style={style}
-            muted
-            playsInline
-            preload="auto"
-            onEnded={onEnded}
-            onError={onError}
-            controls={false}
-            // Optimization properties
-            x-webkit-airplay="allow"
-            disablePictureInPicture
-        />
-    );
-};
-
-const OfflineImage = ({
-    src,
-    style,
-    onError
-}: {
-    src: string;
-    style: React.CSSProperties;
-    onError: (e: any) => void;
-}) => {
-    const offlineSrc = useOfflineMedia(src);
-
-    // If we're waiting for the blob, maybe show nothing or a placeholder?
-    // Showing nothing (black bg) is better than a broken image icon.
-    if (!offlineSrc) return <div style={style} />;
-
-    return (
-        <img
-            src={offlineSrc}
-            style={style}
-            alt="media"
-            onError={onError}
-        />
-    );
-};
-
+// Reduced crossfade for snappier transitions on TV boxes
+const CROSSFADE_DURATION_MS = 500;
 
 // ==============================================
 // MAIN COMPONENT
@@ -173,58 +89,24 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
     // ==============================================
     // PLAYBACK CONTROLLER
     // ==============================================
+    // Note: UniversalMediaRenderer handles its own "Force Play" logic internally 
+    // using the aggressive watchdog. We mostly just manage layer visibility here.
 
-    /* 
-       NOTE: We use a slight timeout to ensure the DOM has updated with the new 'offlineSrc' 
-       before calling .play(). The OfflineVideo component helps, but the ref might be unstable for a microtask.
-    */
-
-    const playVideo = useCallback((video: HTMLVideoElement) => {
-        video.currentTime = 0;
-        video.muted = true; // STRICT FORCE MUTE
-        const p = video.play();
-        if (p) p.catch(e => {
-            console.error("Play error:", e);
-            // Retry once with strict mute if NotAllowed
-            if (e.name === 'NotAllowedError') {
-                video.muted = true;
-                video.play().catch(err => {
-                    console.error("Retry failed, skipping:", err);
-                    if (activeLayer === (video === videoARef.current ? 'A' : 'B')) {
-                        onError();
-                    }
-                });
-            } else if (activeLayer === (video === videoARef.current ? 'A' : 'B')) {
-                onError();
-            }
-        });
-    }, [activeLayer, onError]);
-
-    // CONTROL LAYER A
+    // We still keep a high-level pause ensure to stop the background layer
     useEffect(() => {
         const video = videoARef.current;
-        if (!video) return;
-
-        if (activeLayer === 'A') {
-            playVideo(video);
-        } else {
+        if (video && activeLayer !== 'A') {
             video.pause();
-            if (contentA) video.load();
+            // video.currentTime = 0; // Optional: Reset for next time?
         }
-    }, [activeLayer, contentA, playVideo]);
+    }, [activeLayer]);
 
-    // CONTROL LAYER B
     useEffect(() => {
         const video = videoBRef.current;
-        if (!video) return;
-
-        if (activeLayer === 'B') {
-            playVideo(video);
-        } else {
+        if (video && activeLayer !== 'B') {
             video.pause();
-            if (contentB) video.load();
         }
-    }, [activeLayer, contentB, playVideo]);
+    }, [activeLayer]);
 
 
     // ==============================================
@@ -237,9 +119,14 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
 
     const handleMediaError = useCallback((layer: 'A' | 'B', e: any) => {
         console.error(`[Player] Error in Layer ${layer}:`, e);
+
+        // Dispatch diagnostic event
+        const errorMsg = e.message || (e.currentTarget && e.currentTarget.error ? e.currentTarget.error.message : 'Unknown Playback Error');
+        window.dispatchEvent(new CustomEvent('player-media-error', { detail: { message: `L${layer}: ${errorMsg}` } }));
+
         if (layer === activeLayer) {
             console.log('[Player] Skipping corrupted media...');
-            onError();
+            onError(); // Skip
         }
     }, [activeLayer, onError]);
 
@@ -261,26 +148,36 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
 
         if (!content || !content.media) return <div style={{ ...style, backgroundColor: 'black' }} />;
 
-        if (content.media.file_type === 'video') {
-            return (
-                <OfflineVideo
-                    key={content.id} // FORCE REMOUNT IF CONTENT CHANGES
-                    src={content.media.file_url}
-                    isActive={isActive}
-                    onEnded={() => { if (isActive) handleMediaEnd(); }}
-                    onError={(e) => handleMediaError(layerId, e)}
-                    style={style}
-                    videoRef={layerId === 'A' ? videoARef : videoBRef}
-                />
-            );
+        // ROBUSTNESS: Normalize file_type check (handle 'Video', 'VIDEO', 'video/mp4')
+        // AND check file extension for formats like .mov, .mkv which might have missed mime types
+        const fileUrl = content.media.file_url?.toLowerCase() || '';
+        const dbType = content.media.file_type?.toLowerCase() || '';
+
+        const isVideoExtension = /\.(mp4|mov|webm|mkv|avi|m4v|3gp)(\?|$)/i.test(fileUrl);
+        const isVideoMime = dbType.includes('video');
+
+        const isVideo = isVideoMime || isVideoExtension;
+
+        // GUESS MIME TYPE IF MISSING (Crucial for .mov/.mkv support)
+        let effectiveMime = content.media.mime_type;
+        if (isVideo && (!effectiveMime || !effectiveMime.includes('video'))) {
+            if (fileUrl.endsWith('.mov')) effectiveMime = 'video/quicktime';
+            else if (fileUrl.endsWith('.mkv')) effectiveMime = 'video/x-matroska';
+            else if (fileUrl.endsWith('.webm')) effectiveMime = 'video/webm';
+            else effectiveMime = 'video/mp4';
         }
 
         return (
-            <OfflineImage
+            <DirectMediaRenderer
                 key={content.id}
                 src={content.media.file_url}
-                style={style}
+                type={isVideo ? 'video' : 'image'}
+                mimeType={effectiveMime}
+                isActive={isActive}
+                onEnded={() => { if (isActive) handleMediaEnd(); }}
                 onError={(e) => handleMediaError(layerId, e)}
+                style={style}
+                videoRef={layerId === 'A' ? videoARef : videoBRef}
             />
         );
     };
@@ -292,4 +189,3 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
         </div>
     );
 }
-

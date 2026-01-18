@@ -2,6 +2,7 @@
 <network-security-config>
     <domain-config>
         <domain includeSubdomains="true">sitesobremidia.vercel.app</domain>
+        <domain includeSubdomains="true">bhwsybgsyvvhqtkdqozb.supabase.co</domain>
         <trust-anchors>
             <certificates src="system" />
             <certificates src="user" />

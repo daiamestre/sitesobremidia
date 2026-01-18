@@ -627,3 +627,26 @@ video {
   background-color: #000;
   overflow: hidden;
 }
+
+/* [USER-REQUEST] "apague essa tela cinza imediatamente" */
+/* FORCE REMOVAL OF NATIVE CONTROLS AND GRAY BACKGROUND */
+video::-webkit-media-controls {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+video::-webkit-media-controls-enclosure {
+  display: none !important;
+}
+
+video {
+  background-color: #000000 !important;
+  /* Force Black */
+  object-fit: cover !important;
+}
+
+/* Mask the poster/placeholder default gray */
+video[poster] {
+  background-color: #000000 !important;
+  object-fit: cover;
+}
