@@ -232,17 +232,13 @@ export default function Player() {
 
   const reloadScreenEntry = useCallback(async () => {
     if (!screenId) return;
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const isUUID = uuidRegex.test(screenId);
+    // STRICT CUSTOM ID LOGIC
+    // We no longer check for UUID. Everything is treated as a Custom ID (Uppercase).
 
-    let query = supabase.from('screens').select('id, name, playlist_id, orientation, resolution, widget_config, custom_id');
-
-    // Normalize ID: If it's a UUID, use as is. If it's a Custom ID, force Uppercase (as saved in DB).
-    if (isUUID) {
-      query = query.eq('id', screenId);
-    } else {
-      query = query.eq('custom_id', screenId.toUpperCase());
-    }
+    const query = supabase
+      .from('screens')
+      .select('id, name, playlist_id, orientation, resolution, widget_config, custom_id')
+      .eq('custom_id', screenId.toUpperCase());
 
     const { data, error } = await query.maybeSingle();
 
