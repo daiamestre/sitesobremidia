@@ -40,12 +40,21 @@ const OfflineVideo = ({
     // Resolve URL (Cache vs Remote)
     const offlineSrc = useOfflineMedia(src);
 
+    // PLAYBACK WATCHDOG: Force Play if Active but Paused
     useEffect(() => {
-        if (isActive && videoRef.current) {
-            // Force play when active
-            // (Logic handled in parent slightly, but safe to reinforce)
-        }
-    }, [isActive, offlineSrc]);
+        if (!isActive || !videoRef.current) return;
+
+        const video = videoRef.current;
+        const watchdog = setInterval(() => {
+            if (video.paused && !video.ended && video.readyState > 2) {
+                console.warn('[OfflineVideo] Watchdog: Video paused unexpectedly. Forcing play...');
+                video.muted = true; // Ensure mute
+                video.play().catch(e => console.error('[OfflineVideo] Force play failed:', e));
+            }
+        }, 1000);
+
+        return () => clearInterval(watchdog);
+    }, [isActive, videoRef]);
 
     if (!offlineSrc) return null; // Wait for resolution
 
@@ -60,6 +69,9 @@ const OfflineVideo = ({
             onEnded={onEnded}
             onError={onError}
             controls={false}
+            // Optimization properties
+            x-webkit-airplay="allow"
+            disablePictureInPicture
         />
     );
 };
@@ -169,13 +181,20 @@ export function DualMediaLayer({ item, nextItem, onFinished, onError }: DualMedi
 
     const playVideo = useCallback((video: HTMLVideoElement) => {
         video.currentTime = 0;
+        video.muted = true; // STRICT FORCE MUTE
         const p = video.play();
         if (p) p.catch(e => {
-            // Auto-advance on play error (e.g. format not supported)
             console.error("Play error:", e);
-            // Don't call onError immediately to avoid loops, let the user see black screen? 
-            // Better to skip.
-            if (activeLayer === (video === videoARef.current ? 'A' : 'B')) {
+            // Retry once with strict mute if NotAllowed
+            if (e.name === 'NotAllowedError') {
+                video.muted = true;
+                video.play().catch(err => {
+                    console.error("Retry failed, skipping:", err);
+                    if (activeLayer === (video === videoARef.current ? 'A' : 'B')) {
+                        onError();
+                    }
+                });
+            } else if (activeLayer === (video === videoARef.current ? 'A' : 'B')) {
                 onError();
             }
         });
