@@ -319,9 +319,9 @@ class MainActivity : AppCompatActivity() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
                 AlertDialog.Builder(this)
-                    .setTitle("Permissão Necessária")
-                    .setMessage("Para manter o player ativo, precisamos de permissão de sobreposição.\n\nToque em 'Ativar'.")
-                    .setPositiveButton("Ativar") { _, _ ->
+                    .setTitle("🔴 Permissão Obrigatória")
+                    .setMessage("Para o funcionamento correto do Player (Kiosk Mode), a permissão de 'Sobreposição de Tela' é obrigatória.\n\nO aplicativo não funcionará sem ela.\n\nToque em 'ATIVAR' e habilite a permissão para 'SobreMidia Player'.")
+                    .setPositiveButton("ATIVAR AGORA") { _, _ ->
                         try {
                             val intent = Intent(
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -333,8 +333,7 @@ class MainActivity : AppCompatActivity() {
                             android.widget.Toast.makeText(this, "Erro ao abrir configurações.", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
-                    .setNegativeButton("Cancelar", null)
-                    .setCancelable(false)
+                    .setCancelable(false) // User cannot click outside or back to dismiss
                     .show()
             }
         } catch (e: Exception) {
