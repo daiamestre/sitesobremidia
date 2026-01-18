@@ -231,6 +231,32 @@ export default function Player() {
       .filter((i): i is UnifiedPlaylistItem => i !== null);
   }, []);
 
+  // ------------------------------------------
+  // PERSISTENCE HELPERS
+  // ------------------------------------------
+  const saveToCache = (screenData: any, itemsData: any) => {
+    try {
+      localStorage.setItem(`screen_${screenId}`, JSON.stringify(screenData));
+      localStorage.setItem(`items_${screenId}`, JSON.stringify(itemsData));
+      console.log('[Persistence] Config saved to local storage');
+    } catch (e) {
+      console.warn('[Persistence] Failed to save config:', e);
+    }
+  };
+
+  const loadFromCache = (): { screen: ScreenData | null, items: UnifiedPlaylistItem[] } | null => {
+    try {
+      const s = localStorage.getItem(`screen_${screenId}`);
+      const i = localStorage.getItem(`items_${screenId}`);
+      if (s && i) {
+        return { screen: JSON.parse(s), items: JSON.parse(i) };
+      }
+    } catch (e) {
+      console.warn('[Persistence] Failed to load config:', e);
+    }
+    return null;
+  };
+
   const reloadScreenEntry = useCallback(async () => {
     if (!screenId) return;
     // STRICT CUSTOM ID LOGIC
@@ -244,37 +270,60 @@ export default function Player() {
     const { data, error } = await query.maybeSingle();
 
     if (error || !data) {
-      console.error('[Player] Error fetching screen:', error);
-      console.error('[Player] Error fetching screen:', error);
-      setError(`Tela não encontrada: ${screenId}`);
-      return;
+      console.error('[Player] Network fetch failed or screen missing:', error);
+
+      // AUTO-RECOVERY: TRY OFFLINE CACHE
+      const cached = loadFromCache();
+      if (cached) {
+        console.log('⚡ [Offline Shield] Booting from Local Storage');
+        setScreen(cached.screen);
+        setItems(cached.items);
+        setLoading(false);
+        // Do not set 'error' state, let it play!
+        // Maybe show a toast via existing validation?
+        return;
+      }
+
+      setError(`Tela não encontrada ou sem conexão: ${screenId}`);
       return;
     }
 
+    // Success - Compare and Update
     const prev = screenRef.current;
-    if (prev && prev.playlist_id === data.playlist_id && prev.orientation === data.orientation) {
-      // Soft update (config only)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setScreen(data as any);
-      return;
-    }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setScreen(data as any);
+    // Always fetch items if playlist info exists
+    let newItems: UnifiedPlaylistItem[] = [];
     if (data.playlist_id) {
       try {
-        const newItems = await fetchItems(data.playlist_id);
-        setItems(newItems);
-        // Only reset if first load or playlist changed
-        if (!prev || prev.playlist_id !== data.playlist_id) setCurrentIndex(0);
+        newItems = await fetchItems(data.playlist_id);
+        // SAVE TO CACHE ON SUCCESS
+        saveToCache(data, newItems);
       } catch (err) {
-        console.error('[Player] Failed to load playlist items', err);
-        // Don't set global error to allow retry or partial load? No, fail.
-        setError('Erro ao carregar playlist');
+        console.error('[Player] Failed to download playlist, trying cache items...');
+        const cached = loadFromCache();
+        if (cached && cached.items.length > 0) {
+          newItems = cached.items;
+        } else {
+          setError('Erro ao carregar playlist');
+          return;
+        }
       }
+    } else {
+      // Empty playlist, still save screen config
+      saveToCache(data, []);
     }
 
+    // Apply State
+    setScreen(data as any);
+    if (data.playlist_id) itemsRef.current = newItems; // sync ref immediately for safety
+    setItems(newItems);
+
     if (data.widget_config) setWidgetConfig(data.widget_config as WidgetConfig);
+
+    // Initial Index Reset if changed
+    if (!prev || prev.playlist_id !== data.playlist_id) {
+      setCurrentIndex(0);
+    }
 
   }, [screenId, fetchItems]);
 
@@ -283,7 +332,14 @@ export default function Player() {
     reloadScreenEntry()
       .catch(err => {
         console.error('Fatal player error:', err);
-        setError('Erro fatal no player');
+        // One last try at cache in case of catastrophic throw
+        const cached = loadFromCache();
+        if (cached) {
+          setScreen(cached.screen);
+          setItems(cached.items);
+        } else {
+          setError('Erro fatal no player');
+        }
       })
       .finally(() => setLoading(false));
   }, [reloadScreenEntry]);
