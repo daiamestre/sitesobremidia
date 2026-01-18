@@ -255,7 +255,6 @@ export default function Screens() {
                   <div className="flex items-center justify-between group/id border-t border-border/30 pt-3 mt-1">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">ID DO PLAYER</span>
                     <ScreenIdBadge
-                      id={screen.id}
                       customId={screen.custom_id}
                       className="bg-background border-border/50 text-[10px] h-6 px-2"
                     />
