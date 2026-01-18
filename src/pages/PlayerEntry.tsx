@@ -54,6 +54,29 @@ export default function PlayerEntry({ basePath }: PlayerEntryProps) {
     navigate(`/auth?redirect=${redirect}`);
   };
 
+  // MANDATORY LOGIN ENFORCEMENT
+  useEffect(() => {
+    if (!loading && !user) {
+      const redirect = encodeURIComponent(basePath);
+      navigate(`/auth?redirect=${redirect}`, { replace: true });
+    }
+  }, [user, loading, navigate, basePath]);
+
+  // If loading or not logged in (redirecting), show Loader
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Logo size="lg" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground animate-pulse">
+            {loading ? "Carregando..." : "Redirecionando para Login..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -75,67 +98,49 @@ export default function PlayerEntry({ basePath }: PlayerEntryProps) {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-8 space-y-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground animate-pulse">Verificando conexão...</p>
-            </div>
-          ) : !user ? (
-            <div className="space-y-4">
-              <div className="p-4 rounded-lg bg-card/50 border border-border/50 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Para gerenciar seus dispositivos, acesse sua conta.
-                </p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="screen-id">ID de Identificação</Label>
+              <div className="relative">
+                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="screen-id"
+                  value={screenId}
+                  onChange={(e) => {
+                    setError(null);
+                    setScreenId(e.target.value.toUpperCase().replace(/\s+/g, '-'));
+                  }}
+                  placeholder="Ex: RECEPCAO-01"
+                  className="pl-10 uppercase bg-muted/50 border-input focus:border-primary/50 text-foreground placeholder:text-muted-foreground/50 h-10 transition-all font-medium tracking-wide"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
               </div>
-              <Button className="w-full gradient-primary" onClick={handleLogin}>
-                Entrar no Painel
+            </div>
+
+            {error && (
+              <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm text-center animate-in fade-in slide-in-from-top-2">
+                {error}
+              </div>
+            )}
+
+            <div className="pt-2">
+              <Button
+                className="w-full gradient-primary"
+                onClick={handleConnect}
+              >
+                Conectar
               </Button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="screen-id">ID de Identificação</Label>
-                <div className="relative">
-                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="screen-id"
-                    value={screenId}
-                    onChange={(e) => {
-                      setError(null);
-                      setScreenId(e.target.value.toUpperCase().replace(/\s+/g, '-'));
-                    }}
-                    placeholder="Ex: RECEPCAO-01"
-                    className="pl-10 uppercase bg-muted/50 border-input focus:border-primary/50 text-foreground placeholder:text-muted-foreground/50 h-10 transition-all font-medium tracking-wide"
-                    inputMode="text"
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                </div>
-              </div>
 
-              {error && (
-                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm text-center animate-in fade-in slide-in-from-top-2">
-                  {error}
-                </div>
-              )}
-
-              <div className="pt-2">
-                <Button
-                  className="w-full gradient-primary"
-                  onClick={handleConnect}
-                >
-                  Conectar
-                </Button>
-              </div>
-
-              <div className="pt-2 border-t border-border/50">
-                <p className="text-xs text-center text-muted-foreground">
-                  Precisa de ajuda? Consulte o painel de <strong className="text-foreground">Telas</strong> no dashboard.
-                </p>
-              </div>
+            <div className="pt-2 border-t border-border/50">
+              <p className="text-xs text-center text-muted-foreground">
+                Precisa de ajuda? Consulte o painel de <strong className="text-foreground">Telas</strong> no dashboard.
+              </p>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
     </div>
