@@ -10,8 +10,9 @@ interface ScreenIdBadgeProps {
     showHash?: boolean;
 }
 
-export function ScreenIdBadge({ id, customId, className, showHash = true }: ScreenIdBadgeProps) {
-    const displayId = customId || id || "";
+export function ScreenIdBadge({ customId, className, showHash = true }: ScreenIdBadgeProps) {
+    // Strict Custom ID enforcement: Never show UUID
+    const displayId = customId || "SEM ID";
     const isCustom = !!customId;
 
     const handleCopy = (e: React.MouseEvent) => {
