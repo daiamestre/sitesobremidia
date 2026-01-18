@@ -7,15 +7,11 @@ import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 // import { PWAProvider } from "@/components/pwa/PWAProvider"; // CRASH CAUSE: KEEP DISABLED
 import { Loader2 } from "lucide-react";
-import { BootSequence } from "@/components/player/BootSequence";
 import { Sidebar } from "@/components/dashboard/Sidebar";
-
 // LAZY LOADS
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Install = lazy(() => import("./pages/Install"));
-const Player = lazy(() => import("./pages/Player"));
-const PlayerEntry = lazy(() => import("./pages/PlayerEntry"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // DASHBOARD PAGES
@@ -54,9 +50,7 @@ const DashboardLayout = () => {
 };
 
 const App = () => {
-  // v2.24: DASHBOARD RESTORED + NATIVE PLAYER FIXED
-
-  const [isBootComplete, setIsBootComplete] = useState(false);
+  // v3.0: CLEAN SLATE - PLAYER REMOVED
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -65,58 +59,36 @@ const App = () => {
         <Sonner />
 
         <AuthProvider>
-          {/* <PWAProvider> <-- DISABLED TO PREVENT CRASH */}
-
           <BrowserRouter>
+            <div className="animate-in fade-in duration-300">
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  {/* PUBLIC ROUTES */}
+                  <Route path="/" element={<Index />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/install" element={<Install />} />
 
-            {!isBootComplete && (
-              <BootSequence onComplete={(isNative) => {
-                console.log("Boot Complete. Native:", isNative);
-                setIsBootComplete(true);
-              }} />
-            )}
+                  {/* DASHBOARD ROUTES (RESTORED) */}
+                  <Route path="/dashboard" element={<DashboardLayout />}>
+                    <Route index element={<DashboardHome />} />
+                    <Route path="medias" element={<Medias />} />
+                    <Route path="playlists" element={<Playlists />} />
+                    <Route path="screens" element={<Screens />} />
+                    <Route path="widgets" element={<Widgets />} />
+                    <Route path="schedule" element={<Schedule />} />
+                    <Route path="links" element={<ExternalLinks />} />
+                    <Route path="analytics" element={<Analytics />} />
+                    <Route path="history" element={<History />} />
+                    <Route path="settings" element={<Settings />} />
+                    <Route path="admin/users" element={<AdminUsers />} />
+                  </Route>
 
-            {isBootComplete && (
-              <div className="animate-in fade-in duration-300">
-                <Suspense fallback={<PageLoader />}>
-                  <Routes>
-                    {/* PUBLIC ROUTES */}
-                    <Route path="/" element={<Index />} />
-                    <Route path="/auth" element={<Auth />} />
-                    <Route path="/install" element={<Install />} />
-
-                    {/* WEB PLAYER ROUTE */}
-                    <Route path="/player/:screenId" element={<Player />} />
-
-                    {/* NATIVE TV ROUTES */}
-                    <Route path="/tv" element={<PlayerEntry basePath="/tv" />} />
-                    <Route path="/tv/:screenId" element={<Player />} />
-
-                    {/* DASHBOARD ROUTES (RESTORED) */}
-                    <Route path="/dashboard" element={<DashboardLayout />}>
-                      <Route index element={<DashboardHome />} />
-                      <Route path="medias" element={<Medias />} />
-                      <Route path="playlists" element={<Playlists />} />
-                      <Route path="screens" element={<Screens />} />
-                      <Route path="widgets" element={<Widgets />} />
-                      <Route path="schedule" element={<Schedule />} />
-                      <Route path="links" element={<ExternalLinks />} />
-                      <Route path="analytics" element={<Analytics />} />
-                      <Route path="history" element={<History />} />
-                      <Route path="settings" element={<Settings />} />
-                      <Route path="admin/users" element={<AdminUsers />} />
-                    </Route>
-
-                    {/* CATCH ALL */}
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Suspense>
-              </div>
-            )}
-
+                  {/* CATCH ALL */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </div>
           </BrowserRouter>
-
-          {/* </PWAProvider> */}
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
