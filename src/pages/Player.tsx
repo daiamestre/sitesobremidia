@@ -358,6 +358,17 @@ export default function Player() {
     onScheduleUpdate: () => { }
   });
 
+  // PERIODIC SYNC ENFORCEMENT (5 Minutes)
+  // Guarantees updates even if WebSocket fails
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      console.log('[Player] Executing Periodic Sync...');
+      reloadScreenEntry();
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(syncInterval);
+  }, [reloadScreenEntry]);
+
   usePlayerHeartbeat({
     screenId: screen?.id,
     currentItemId: currentItem?.id,
