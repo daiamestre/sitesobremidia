@@ -117,19 +117,19 @@ class MainActivity : AppCompatActivity() {
                 val message = "SSL Error: " + error?.primaryError
                 Log.e("WebView", message)
                 
-                // FOR DIAGNOSIS ONLY: We proceed to see if it works, BUT we show an alert
-                // In production, you might want to block this, but for debugging the white screen, we need to know.
+                // FOR DIAGNOSIS ONLY: We proceed to see if it works
+                // In production, we block this toast to keep it clean.
                 handler?.proceed() 
                 
-                runOnUiThread {
-                    android.widget.Toast.makeText(applicationContext, "⚠️ Certificado SSL Ignorado (Debug)", android.widget.Toast.LENGTH_SHORT).show()
-                }
+                // runOnUiThread {
+                //    android.widget.Toast.makeText(applicationContext, "⚠️ Certificado SSL Ignorado (Debug)", android.widget.Toast.LENGTH_SHORT).show()
+                // }
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                // Visual feedback that we are trying
-                android.widget.Toast.makeText(applicationContext, "🔄 Conectando: $url", android.widget.Toast.LENGTH_SHORT).show()
+                // Visual feedback REMOVED for Production Fluidity
+                // android.widget.Toast.makeText(applicationContext, "🔄 Conectando: $url", android.widget.Toast.LENGTH_SHORT).show()
                 
                 // Start 30s timer
                 watchdog.removeCallbacks(reloadRunnable)
