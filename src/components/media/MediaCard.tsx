@@ -36,6 +36,8 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
   const [isMuted, setIsMuted] = useState(true); // Start muted by default
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  const isVideo = media.file_type?.toLowerCase() === 'video';
+
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (videoRef.current) {
@@ -119,11 +121,11 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
             alt={media.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
-        ) : media.file_type?.toLowerCase() === 'video' ? (
+        ) : isVideo ? (
           <video
             ref={videoRef}
             src={media.file_url}
-            className="w-full h-full object-cover z-10 relative"
+            className="w-full h-full object-cover"
             muted={isMuted}
             loop
             onEnded={() => setIsPlaying(false)}
@@ -136,7 +138,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
         )}
 
         {/* Hidden Generic Hover for Non-Video or when needed */}
-        {media.file_type !== 'video' && (
+        {!isVideo && (
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <Eye className="h-8 w-8 text-white" />
           </div>
@@ -152,21 +154,21 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
           </div>
 
           <div className="flex items-center gap-1">
-            {media.file_type?.toLowerCase() === 'video' && (
+            {isVideo && (
               <>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   size="icon"
-                  className="h-8 w-8 hover:text-primary transition-colors"
+                  className="h-8 w-8 hover:bg-secondary/80 transition-colors"
                   onClick={togglePlay}
                   title={isPlaying ? "Pausar" : "Reproduzir"}
                 >
                   {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   size="icon"
-                  className="h-8 w-8 hover:text-primary transition-colors"
+                  className="h-8 w-8 hover:bg-secondary/80 transition-colors"
                   onClick={toggleMute}
                   title={isMuted ? "Ativar Som" : "Mudo"}
                 >
