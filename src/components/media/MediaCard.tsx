@@ -1,7 +1,8 @@
+import { useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Image, Video, Music, MoreVertical, Trash2, Download, Eye } from 'lucide-react';
+import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Media } from '@/types/models';
@@ -31,6 +32,30 @@ const getFileIcon = (type: string) => {
 };
 
 export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardProps) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true); // Start muted by default
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
   const handleDownload = () => {
     const link = document.createElement('a');
     link.href = media.file_url;
@@ -94,11 +119,14 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
             alt={media.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
-        ) : media.file_type === 'video' ? (
+        ) : media.file_type?.toLowerCase() === 'video' ? (
           <video
+            ref={videoRef}
             src={media.file_url}
-            className="w-full h-full object-cover"
-            muted
+            className="w-full h-full object-cover z-10 relative"
+            muted={isMuted}
+            loop
+            onEnded={() => setIsPlaying(false)}
           />
         ) : (
           <div className="flex flex-col items-center justify-center">
@@ -106,9 +134,13 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
             <span className="text-xs text-muted-foreground mt-2">Áudio</span>
           </div>
         )}
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Eye className="h-8 w-8 text-white" />
-        </div>
+
+        {/* Hidden Generic Hover for Non-Video or when needed */}
+        {media.file_type !== 'video' && (
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <Eye className="h-8 w-8 text-white" />
+          </div>
+        )}
       </div>
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-2">
@@ -118,27 +150,53 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
               {formatFileSize(media.file_size)}
             </p>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onPreview(media)}>
-                <Eye className="h-4 w-4 mr-2" />
-                Visualizar
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Baixar
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDelete(media.id)} className="text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+
+          <div className="flex items-center gap-1">
+            {media.file_type?.toLowerCase() === 'video' && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:text-primary transition-colors"
+                  onClick={togglePlay}
+                  title={isPlaying ? "Pausar" : "Reproduzir"}
+                >
+                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:text-primary transition-colors"
+                  onClick={toggleMute}
+                  title={isMuted ? "Ativar Som" : "Mudo"}
+                >
+                  {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </Button>
+              </>
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onPreview(media)}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Visualizar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onDelete(media.id)} className="text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </CardContent>
     </Card>
