@@ -19,6 +19,7 @@ const DashboardHome = lazy(() => import("./pages/dashboard/DashboardHome"));
 const Medias = lazy(() => import("./pages/dashboard/Medias"));
 const Playlists = lazy(() => import("./pages/dashboard/Playlists"));
 const Screens = lazy(() => import("./pages/dashboard/Screens"));
+const ScreenDetails = lazy(() => import("./pages/dashboard/ScreenDetails"));
 const Widgets = lazy(() => import("./pages/dashboard/Widgets"));
 const Schedule = lazy(() => import("./pages/dashboard/Schedule"));
 const ExternalLinks = lazy(() => import("./pages/dashboard/ExternalLinks"));
@@ -26,6 +27,7 @@ const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
 const History = lazy(() => import("./pages/dashboard/History"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const AdminUsers = lazy(() => import("./pages/dashboard/AdminUsers"));
+const Player = lazy(() => import("./pages/Player"));
 
 
 const queryClient = new QueryClient();
@@ -67,6 +69,8 @@ const App = () => {
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/install" element={<Install />} />
+                  <Route path="/player" element={<Player />} />
+                  <Route path="/player/:screenId" element={<Player />} />
 
                   {/* DASHBOARD ROUTES (RESTORED) */}
                   <Route path="/dashboard" element={<DashboardLayout />}>
@@ -74,6 +78,7 @@ const App = () => {
                     <Route path="medias" element={<Medias />} />
                     <Route path="playlists" element={<Playlists />} />
                     <Route path="screens" element={<Screens />} />
+                    <Route path="screens/:id" element={<ScreenDetails />} />
                     <Route path="widgets" element={<Widgets />} />
                     <Route path="schedule" element={<Schedule />} />
                     <Route path="links" element={<ExternalLinks />} />
