@@ -104,7 +104,14 @@ export const PlayerEngine = () => {
 
             } catch (err: unknown) {
                 console.error("Sync Error:", err);
-                const message = err instanceof Error ? err.message : String(err);
+                console.error("Sync Error:", err);
+                const message = err instanceof Error
+                    ? err.message
+                    : typeof err === 'object' && err !== null && 'message' in err
+                        ? (err as any).message
+                        : typeof err === 'object'
+                            ? JSON.stringify(err)
+                            : String(err);
                 setError(message);
             } finally {
                 setIsLoading(false);
