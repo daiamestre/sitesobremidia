@@ -70,6 +70,8 @@ export const PlayerEngine = () => {
                     media: { file_url: string; file_type: 'video' | 'image' | 'web'; };
                     duration: number
                 }) => {
+                    if (!item.media) return null;
+
                     let finalUrl = item.media.file_url;
 
                     if (finalUrl && !finalUrl.startsWith('http')) {
@@ -94,12 +96,13 @@ export const PlayerEngine = () => {
                     };
                 }));
 
-                console.log("Playlist Ready:", mappedItems);
+                const validItems = mappedItems.filter((i): i is NonNullable<typeof i> => i !== null);
+                console.log("Playlist Ready:", validItems);
 
-                if (mappedItems.length === 0) {
-                    setError("Playlist vazia.");
+                if (validItems.length === 0) {
+                    setError("Playlist vazia (sem mídia válida).");
                 } else {
-                    setPlaylist(mappedItems);
+                    setPlaylist(validItems);
                 }
 
             } catch (err: unknown) {
