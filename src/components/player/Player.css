@@ -1,0 +1,74 @@
+/* Base Player Container */
+.player-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background-color: black;
+    overflow: hidden;
+    cursor: none;
+    /* Kiosk Mode: Hide Cursor */
+}
+
+/* Kiosk Mode: Hide default scrollbars */
+.player-container::-webkit-scrollbar {
+    display: none;
+}
+
+/* Media Layers for Dual Buffering */
+.media-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    /* Standard TV fit */
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+    /* Smooth 1s crossfade */
+    z-index: 1;
+}
+
+/* Active Layer is visible */
+.media-layer.active {
+    opacity: 1;
+    z-index: 2;
+}
+
+/* Ensure videos are black before loading to avoid white flash */
+video {
+    background-color: black;
+}
+
+/* Debug Overlay (Optional, can be hidden in prod) */
+.debug-overlay {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #0f0;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 8px;
+    border-radius: 4px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+/* Start Button Overlay */
+.start-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    cursor: pointer;
+    /* Cursor visible here for interaction */
+}

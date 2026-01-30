@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import "./Player.css"; // High-End Styles
 
 interface MediaItem {
     id: string;
@@ -14,21 +15,23 @@ interface MediaItem {
 export const PlayerEngine = () => {
     const { screenId: routeId } = useParams();
     const [playlist, setPlaylist] = useState<MediaItem[]>([]);
+
+    // Dual Buffer State
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [nextIndex, setNextIndex] = useState(1);
+
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [hasStarted, setHasStarted] = useState(false); // User interaction flag
-    const videoRef = useRef<HTMLVideoElement>(null);
+    const [hasStarted, setHasStarted] = useState(false);
 
-    // --- HARDENING: CODEC CHECK ---
-    // Web Strategy: "Try and Skip". Browsers are good at determining support at runtime.
-    // We only filter if we are 100% sure it's garbage.
+    // Refs for video control
+    const currentVideoRef = useRef<HTMLVideoElement>(null);
+    const nextVideoRef = useRef<HTMLVideoElement>(null);
 
-    // 1. Fetch Playlist & Sign URLs (Parallel)
+    // 1. Fetch Playlist & Sign URLs
     useEffect(() => {
         const fetchPlaylist = async () => {
             try {
-                // Get ID from URL or LocalStorage
                 const params = new URLSearchParams(window.location.search);
                 const screenId = routeId || params.get('screen_id') || localStorage.getItem('saved_screen_id');
 
@@ -38,15 +41,14 @@ export const PlayerEngine = () => {
                     return;
                 }
 
-                // Fetch Screen to get Playlist ID
+                // Fetch Screen
                 const { data: screen, error: screenError } = await supabase
                     .from('screens')
-                    .select('playlist_id')
+                    .select('playlist_id, custom_id')
                     .eq('custom_id', screenId)
                     .single();
 
                 if (screenError || !screen?.playlist_id) {
-                    console.warn("Screen not found.");
                     setError("Tela não encontrada.");
                     setIsLoading(false);
                     return;
@@ -64,25 +66,18 @@ export const PlayerEngine = () => {
 
                 if (itemsError) throw itemsError;
 
-                // RESOLVE SIGNED URLs (Parallel Promise.all)
-                const mappedItems = await Promise.all(items.map(async (item: {
-                    id: string;
-                    media: { file_url: string; file_type: 'video' | 'image' | 'web'; };
-                    duration: number
-                }) => {
+                // Sign URLs
+                const mappedItems = await Promise.all(items.map(async (item: any) => {
                     if (!item.media) return null;
 
                     let finalUrl = item.media.file_url;
 
                     if (finalUrl && !finalUrl.startsWith('http')) {
-                        // Always try to sign relative paths
                         const { data } = await supabase.storage
                             .from('media')
                             .createSignedUrl(finalUrl, 3600);
-
                         if (data?.signedUrl) finalUrl = data.signedUrl;
                         else {
-                            // Fallback public
                             const { data: publicData } = supabase.storage.from('media').getPublicUrl(finalUrl);
                             finalUrl = publicData.publicUrl;
                         }
@@ -91,30 +86,24 @@ export const PlayerEngine = () => {
                     return {
                         id: item.id,
                         url: finalUrl,
-                        type: item.media.file_type,
+                        type: item.media.file_type || 'image',
                         duration: item.duration || 10
                     };
                 }));
 
-                const validItems = mappedItems.filter((i): i is NonNullable<typeof i> => i !== null);
-                console.log("Playlist Ready:", validItems);
+                const validItems = mappedItems.filter((i): i is MediaItem => i !== null);
 
                 if (validItems.length === 0) {
                     setError("Playlist vazia (sem mídia válida).");
                 } else {
                     setPlaylist(validItems);
+                    // Initialize Next Index correctly even if only 1 item
+                    setNextIndex(validItems.length > 1 ? 1 : 0);
                 }
 
             } catch (err: unknown) {
                 console.error("Sync Error:", err);
-                console.error("Sync Error:", err);
-                const message = err instanceof Error
-                    ? err.message
-                    : typeof err === 'object' && err !== null && 'message' in err
-                        ? (err as any).message
-                        : typeof err === 'object'
-                            ? JSON.stringify(err)
-                            : String(err);
+                const message = err instanceof Error ? err.message : String(err);
                 setError(message);
             } finally {
                 setIsLoading(false);
@@ -124,84 +113,55 @@ export const PlayerEngine = () => {
         fetchPlaylist();
     }, [routeId]);
 
-    // 2. Playback Loop & Video Control
-    const nextItem = useCallback(() => {
-        setCurrentIndex((prev) => (prev + 1) % playlist.length);
-    }, [playlist.length]);
+    // 2. Playback Controller
+    const triggerNext = useCallback(() => {
+        const newCurrent = (currentIndex + 1) % playlist.length;
+        const newNext = (newCurrent + 1) % playlist.length;
 
+        setCurrentIndex(newCurrent);
+        setNextIndex(newNext);
+    }, [currentIndex, playlist.length]);
+
+    // 3. Effect to manage Playback Timing for Current Item
     useEffect(() => {
         if (!hasStarted || playlist.length === 0) return;
 
         const currentItem = playlist[currentIndex];
 
-        // Image logic
+        // --- IMAGE LOGIC ---
         if (currentItem.type === 'image') {
+            const durationMs = (currentItem.duration || 10) * 1000;
             const timer = setTimeout(() => {
-                nextItem();
-            }, currentItem.duration * 1000);
+                triggerNext();
+            }, durationMs);
             return () => clearTimeout(timer);
         }
 
-        // Video Logic: Force Play & Watchdog
-        if (currentItem.type === 'video' && videoRef.current) {
-            // Attempt to play immediately
-            const videoEl = videoRef.current;
+        // --- VIDEO LOGIC ---
+        if (currentItem.type === 'video' && currentVideoRef.current) {
+            const videoEl = currentVideoRef.current;
 
-            const startPlay = async () => {
-                try {
-                    await videoEl.play();
-                } catch (e) {
-                    console.warn("Play attempt failed:", e);
-                }
+            // Reset and Play
+            videoEl.currentTime = 0;
+            videoEl.play().catch(e => console.warn("Autoplay blocked:", e));
+
+            // Watchdog for ending (Fail-safe)
+            const onEnded = () => triggerNext();
+            videoEl.addEventListener('ended', onEnded);
+
+            return () => {
+                videoEl.removeEventListener('ended', onEnded);
+                videoEl.pause(); // Stop when switching out
             };
-            startPlay();
-
-            // WATCHDOG: Check for freezing every 1s
-            let lastTime = -1;
-            let stuckCount = 0;
-
-            const watchdog = setInterval(() => {
-                if (!videoEl) return;
-
-                const currentTime = videoEl.currentTime;
-                const isPlaying = !videoEl.paused && !videoEl.ended && videoEl.readyState > 2;
-
-                if (currentTime === lastTime) {
-                    stuckCount++;
-                    console.log(`Video Stuck Check: ${stuckCount}/5`);
-
-                    // Try to kickstart it
-                    if (stuckCount === 2) {
-                        console.log("Kickstarting video...");
-                        videoEl.play().catch(() => { });
-                    }
-
-                    // If stuck for 5 seconds, SKIP
-                    if (stuckCount >= 5) {
-                        console.error("Watchdog: Video frozen, forcing skip.");
-                        toast.error("Vídeo travou. Pulando...");
-                        clearInterval(watchdog);
-                        nextItem();
-                    }
-                } else {
-                    // It's moving, reset counters
-                    stuckCount = 0;
-                    lastTime = currentTime;
-                }
-            }, 1000);
-
-            return () => clearInterval(watchdog);
         }
-    }, [currentIndex, playlist, hasStarted, nextItem]);
 
+    }, [currentIndex, hasStarted, playlist, triggerNext]);
 
     if (isLoading) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0F172A] text-white">
                 <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-                <p>Iniciando Player v3.0.3...</p>
-                <p className="text-xs text-slate-500 mt-2">ID da Rota: {routeId || 'Nenhum'}</p>
-                <p className="text-xs text-slate-500">ID da URL: {new URLSearchParams(window.location.search).get('screen_id') || 'Nenhum'}</p>
+                <p>Carregando Player Pro...</p>
             </div>
         );
     }
@@ -216,67 +176,69 @@ export const PlayerEngine = () => {
         );
     }
 
-    if (playlist.length === 0) return null;
-
-    // START OVERLAY: Forces user interaction to unlock Autoplay for the entire session
     if (!hasStarted) {
         return (
-            <div
-                className="h-screen w-full flex flex-col items-center justify-center bg-black/90 z-50 cursor-pointer"
-                onClick={() => setHasStarted(true)}
-            >
-                <div className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-6 transition-all transform hover:scale-110 shadow-2xl animate-bounce">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-16 h-16 pl-2">
-                        <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
-                    </svg>
+            <div className="start-overlay" onClick={() => setHasStarted(true)}>
+                <div className="bg-indigo-600 rounded-full p-6 animate-bounce shadow-2xl">
+                    <svg className="w-16 h-16 text-white pl-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                 </div>
-                <p className="mt-8 text-white font-bold text-2xl tracking-widest uppercase">
-                    Clique para Iniciar
-                </p>
+                <p className="mt-8 text-white font-bold text-2xl tracking-widest uppercase">Iniciar Apresentação</p>
             </div>
         );
     }
 
-    const currentItem = playlist[currentIndex];
+    // --- DUAL BUFFER RENDERER ---
+    // We strictly render TWO items: Current and Next.
+    // CSS handles opacity/z-index toggling.
 
-    return (
-        <div className="h-screen w-full bg-black overflow-hidden relative cursor-pointer" onClick={() => {
-            // Unlock AudioContext/Autoplay on click (Redundant backup)
-            if (videoRef.current) videoRef.current.play();
-        }}>
-            {/* Media Renderer */}
-            {currentItem.type === 'image' && (
+    // Note: We use "key" to force React to differentiate items, but for performance,
+    // we iterate the playlist and only render if index matches current or next.
+    // Actually, for true gapless, we render *all* items but hide them, OR just render 2.
+    // Rendering 2 is safer for memory.
+
+    const renderItem = (item: MediaItem, index: number, isActive: boolean) => {
+        const isNext = index === nextIndex;
+        // Optimization: Only render if Active, Next, or if playlist has < 3 items (keep meaningful DOM)
+        if (!isActive && !isNext && playlist.length > 2) return null;
+
+        const commonClasses = `media-layer ${isActive ? 'active' : ''}`;
+
+        if (item.type === 'image') {
+            return (
                 <img
-                    src={currentItem.url}
-                    className="w-full h-full object-cover animate-in fade-in duration-500"
-                    alt="Playback"
+                    key={`${item.id}-${index}`}
+                    src={item.url}
+                    className={commonClasses}
+                    alt="slide"
                 />
-            )}
+            );
+        }
 
-            {currentItem.type === 'video' && (
+        if (item.type === 'video') {
+            return (
                 <video
-                    key={currentItem.id} // FORCE RE-MOUNT: Ensures fresh decoder for every video
-                    ref={videoRef}
-                    src={currentItem.url}
-                    className="w-full h-full object-contain"
+                    key={`${item.id}-${index}`}
+                    ref={isActive ? currentVideoRef : (isNext ? nextVideoRef : null)}
+                    src={item.url}
+                    className={commonClasses}
                     muted
                     playsInline
-                    autoPlay
-                    onEnded={nextItem}
-                    onError={(e) => {
-                        const err = e.currentTarget.error;
-                        console.error("Video Object Error:", err);
-                        toast.error(`Erro: ${err?.message || "Código " + err?.code}`);
-                        // Wait 1s and skip
-                        setTimeout(nextItem, 1000);
-                    }}
+                    preload="auto" // Crucial for Gapless
                 />
-            )}
+            );
+        }
+        return null; // Web/Other types can be added here
+    };
 
-            {/* Debug Overlay */}
-            <div className="absolute top-2 right-2 bg-black/50 text-white text-xs p-2 rounded z-50 pointer-events-none">
-                Item {currentIndex + 1}/{playlist.length} <br />
-                Type: {currentItem.type}
+    return (
+        <div className="player-container">
+            {playlist.map((item, idx) => renderItem(item, idx, idx === currentIndex))}
+
+            {/* Minimal Info for Operator */}
+            <div className="debug-overlay">
+                PRO PLAYER v3.1<br />
+                Item: {currentIndex + 1}/{playlist.length}<br />
+                Next: {nextIndex + 1}
             </div>
         </div>
     );
