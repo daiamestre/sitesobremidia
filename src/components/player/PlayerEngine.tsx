@@ -57,7 +57,7 @@ export const PlayerEngine = () => {
                     .from('playlist_items')
                     .select(`
                         id, position, duration,
-                        media:media_id ( file_url, type, duration_seconds )
+                        media:media_id ( file_url, file_type )
                     `)
                     .eq('playlist_id', screen.playlist_id)
                     .order('position');
@@ -67,7 +67,7 @@ export const PlayerEngine = () => {
                 // RESOLVE SIGNED URLs (Parallel Promise.all)
                 const mappedItems = await Promise.all(items.map(async (item: {
                     id: string;
-                    media: { file_url: string; type: 'video' | 'image' | 'web'; duration_seconds: number };
+                    media: { file_url: string; file_type: 'video' | 'image' | 'web'; };
                     duration: number
                 }) => {
                     let finalUrl = item.media.file_url;
@@ -89,8 +89,8 @@ export const PlayerEngine = () => {
                     return {
                         id: item.id,
                         url: finalUrl,
-                        type: item.media.type,
-                        duration: item.duration || item.media.duration_seconds || 10
+                        type: item.media.file_type,
+                        duration: item.duration || 10
                     };
                 }));
 
