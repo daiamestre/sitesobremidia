@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
-      filename: 'sw-v303.js',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
       workbox: {
         cleanupOutdatedCaches: true,
