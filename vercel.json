@@ -1,11 +1,13 @@
 {
     "version": 2,
     "cleanUrls": true,
-    "framework": "vite",
-    "rewrites": [
+    "routes": [
         {
-            "source": "/((?!assets/.*|sw.js|.*\\..*).*)",
-            "destination": "/index.html"
+            "handle": "filesystem"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/index.html"
         }
     ]
 }
