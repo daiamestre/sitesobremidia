@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertCircle, WifiOff } from "lucide-react";
+import { Loader2, AlertCircle, WifiOff, Maximize } from "lucide-react";
 import "./Player.css";
 
 interface MediaItem {
@@ -26,8 +26,8 @@ export const PlayerEngine = () => {
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [hasStarted, setHasStarted] = useState(false);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
+    // REMOVED hasStarted to enable Auto-Play
 
     // -- REFS --
     const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
@@ -74,7 +74,7 @@ export const PlayerEngine = () => {
 
             const { data: screen, error: screenError } = await supabase
                 .from('screens')
-                .select('playlist_id, custom_id')
+                .select('playlist_id, custom_id, orientation, resolution')
                 .eq('custom_id', screenId)
                 .single();
 
@@ -202,7 +202,7 @@ export const PlayerEngine = () => {
 
     // -- 3. MEDIA LIFECYCLE --
     useEffect(() => {
-        if (!hasStarted || playlist.length === 0) return;
+        if (playlist.length === 0) return;
 
         const currentItem = playlist[currentIndex];
 
@@ -252,7 +252,18 @@ export const PlayerEngine = () => {
         const timer = setTimeout(triggerNext, 5000);
         return () => clearTimeout(timer);
 
-    }, [currentIndex, hasStarted, playlist, triggerNext]);
+    }, [currentIndex, playlist, triggerNext]);
+
+    // -- ACTIONS --
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(e => {
+                console.error("Fullscreen blocked:", e);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    };
 
 
     // -- RENDERING --
@@ -276,16 +287,7 @@ export const PlayerEngine = () => {
         );
     }
 
-    if (!hasStarted) {
-        return (
-            <div className="start-overlay" onClick={() => setHasStarted(true)}>
-                <div className="start-button">
-                    <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                </div>
-                <p className="start-text">Toque para Iniciar</p>
-            </div>
-        );
-    }
+    // REMOVED Start Overlay Check - Player renders items immediately
 
     const renderItem = (item: MediaItem, index: number, isActive: boolean) => {
         const isNext = index === nextIndex;
@@ -326,10 +328,10 @@ export const PlayerEngine = () => {
     };
 
     return (
-        <div className="player-container">
+        <div className="player-container" onClick={toggleFullscreen}>
             {playlist.map((item, idx) => renderItem(item, idx, idx === currentIndex))}
             <div className="debug-overlay">
-                v4.0.3 • {currentIndex + 1}/{playlist.length}
+                v4.1.0 • {currentIndex + 1}/{playlist.length}
             </div>
         </div>
     );
