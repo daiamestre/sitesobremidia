@@ -13,14 +13,14 @@ interface MediaItem {
 
 const PLAYLIST_CACHE_KEY = "player_playlist_codemidia";
 const SCREEN_ID_CACHE_KEY = "player_screen_id_codemidia";
-const POLL_INTERVAL_MS = 30000; // Check for updates every 30s
+const POLL_INTERVAL_MS = 30000;
 
 export const PlayerEngine = () => {
     const { screenId: routeId } = useParams();
 
     // -- STATE --
     const [playlist, setPlaylist] = useState<MediaItem[]>([]);
-    const [pendingPlaylist, setPendingPlaylist] = useState<MediaItem[] | null>(null); // For hot-swaps
+    const [pendingPlaylist, setPendingPlaylist] = useState<MediaItem[] | null>(null);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [nextIndex, setNextIndex] = useState(1);
 
@@ -31,6 +31,13 @@ export const PlayerEngine = () => {
 
     // -- REFS --
     const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
+    const playlistRef = useRef<MediaItem[]>([]); // To avoid dependency cycles
+    const lastPlayedIdRef = useRef<string | null>(null); // To prevent restart loop
+
+    // Sync Ref
+    useEffect(() => {
+        playlistRef.current = playlist;
+    }, [playlist]);
 
     // -- HELPER: LOAD FROM CACHE --
     const loadFromCache = useCallback(() => {
@@ -52,6 +59,7 @@ export const PlayerEngine = () => {
     }, []);
 
     // -- 1. SYNC ENGINE (FETCH & PERSIST) --
+    // FIX: Removed 'playlist' from dependency array. Uses playlistRef.
     const fetchPlaylist = useCallback(async (isBackgroundUpdate = false) => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -63,10 +71,8 @@ export const PlayerEngine = () => {
                 return;
             }
 
-            // Save ID for future offline boots
             localStorage.setItem(SCREEN_ID_CACHE_KEY, screenId);
 
-            // Fetch Screen
             const { data: screen, error: screenError } = await supabase
                 .from('screens')
                 .select('playlist_id, custom_id')
@@ -78,7 +84,6 @@ export const PlayerEngine = () => {
                 return;
             }
 
-            // Fetch Items
             const { data: items, error: itemsError } = await supabase
                 .from('playlist_items')
                 .select(`
@@ -90,12 +95,10 @@ export const PlayerEngine = () => {
 
             if (itemsError) throw itemsError;
 
-            // Sign URLs & Map
             const mappedItems = await Promise.all(items.map(async (item: any) => {
                 if (!item.media) return null;
                 let finalUrl = item.media.file_url;
 
-                // Only sign if needed (skip if already full public URL)
                 if (finalUrl && !finalUrl.startsWith('http')) {
                     const { data } = await supabase.storage.from('media').createSignedUrl(finalUrl, 3600);
                     if (data?.signedUrl) finalUrl = data.signedUrl;
@@ -118,18 +121,16 @@ export const PlayerEngine = () => {
             if (validItems.length === 0) {
                 if (!isBackgroundUpdate) setError("Playlist vazia.");
             } else {
-                // PERSIST
                 localStorage.setItem(PLAYLIST_CACHE_KEY, JSON.stringify(validItems));
 
-                // STRATEGY: IF INITIAL LOAD, SET IMMEDIATELY. IF UPDATE, SET PENDING.
                 if (!isBackgroundUpdate) {
                     setPlaylist(validItems);
                     setNextIndex(validItems.length > 1 ? 1 : 0);
                     setError(null);
                 } else {
-                    // Check if different to avoid unnecessary re-renders
-                    if (JSON.stringify(validItems) !== JSON.stringify(playlist)) {
-                        console.log("New playlist update detected. Queued for next loop.");
+                    // Check against Ref, not State
+                    if (JSON.stringify(validItems) !== JSON.stringify(playlistRef.current)) {
+                        console.log("New playlist update detected. Queued.");
                         setPendingPlaylist(validItems);
                     }
                 }
@@ -138,7 +139,6 @@ export const PlayerEngine = () => {
         } catch (err: unknown) {
             console.error("Sync Error:", err);
             if (!isBackgroundUpdate) {
-                // Try cache fallback on error
                 const loaded = loadFromCache();
                 if (!loaded) {
                     const message = err instanceof Error ? err.message : String(err);
@@ -148,18 +148,16 @@ export const PlayerEngine = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [routeId, playlist, loadFromCache]);
+    }, [routeId, loadFromCache]);
 
     // -- INIT & POLLING --
     useEffect(() => {
         fetchPlaylist(false);
 
-        // Background Polling
         const interval = setInterval(() => {
             if (navigator.onLine) fetchPlaylist(true);
         }, POLL_INTERVAL_MS);
 
-        // Network Listeners
         const handleOnline = () => { setIsOffline(false); fetchPlaylist(true); };
         const handleOffline = () => setIsOffline(true);
 
@@ -174,35 +172,28 @@ export const PlayerEngine = () => {
     }, [fetchPlaylist]);
 
 
-    // -- 2. PLAYBACK CONTROLLER (LOOP & HOT-SWAP) --
-    // Must depend on playlist, but be careful with closure staleness if using timers.
-    // Using functional state setPlaylist helps, but here we update indexes.
-
+    // -- 2. PLAYBACK CONTROLLER --
     const triggerNext = useCallback(() => {
         setPlaylist((currentPlaylist) => {
-            // We use 'setPlaylist' just to access the latest state safely, 
-            // but we must be careful not to trigger re-renders if nothing changes.
-            // Actually, we need to read 'currentIndex' too. 
-            // Better to just rely on the 'currentIndex' from scope if dependency array is correct.
-            return currentPlaylist;
+            return currentPlaylist; // Just to get latest if needed
         });
 
-        // NOTE: In this complex state dependent logic, using functional updates for everything is safer
         setCurrentIndex(prevIndex => {
-            const currentLen = playlist.length;
+            const currentP = playlistRef.current;
+            const currentLen = currentP.length;
             if (currentLen === 0) return 0;
 
             // HOT SWAP CHECK
             if (prevIndex >= currentLen - 1) {
-                // End of loop
-                if (pendingPlaylist) {
-                    console.log("Applying pending playlist update...");
-                    setPlaylist(pendingPlaylist);
-                    setPendingPlaylist(null);
-                    // Recalculate Next
-                    setNextIndex(pendingPlaylist.length > 1 ? 1 : 0);
-                    return 0;
-                }
+                setPendingPlaylist(pending => {
+                    if (pending) {
+                        console.log("Applying pending playlist update...");
+                        setPlaylist(pending);
+                        // Note: This transition is abrupt index-wise, but safe
+                        return null;
+                    }
+                    return null;
+                });
             }
 
             const next = (prevIndex + 1) % currentLen;
@@ -210,14 +201,20 @@ export const PlayerEngine = () => {
             return next;
         });
 
-    }, [playlist, pendingPlaylist]);
-
+    }, []);
 
     // -- 3. MEDIA LIFECYCLE (WATCHDOG & ERROR SHIELD) --
     useEffect(() => {
         if (!hasStarted || playlist.length === 0) return;
 
         const currentItem = playlist[currentIndex];
+
+        // FIX: Prevent Infinite Restart Loop
+        // Only run logic if we haven't processed this Item ID yet
+        if (lastPlayedIdRef.current === currentItem.id) {
+            return;
+        }
+        lastPlayedIdRef.current = currentItem.id;
 
         // IMAGE LOGIC
         if (currentItem.type === 'image') {
@@ -230,23 +227,20 @@ export const PlayerEngine = () => {
         const videoEl = videoRefs.current.get(currentIndex);
 
         if (currentItem.type === 'video' && videoEl) {
-            // Reset state
             videoEl.currentTime = 0;
 
-            // Promise-based Play
             const playPromise = videoEl.play();
             if (playPromise !== undefined) {
                 playPromise.catch(error => {
-                    console.warn(`Autoplay blocked or codec error (Item ${currentIndex}):`, error);
-                    // TRY-SKIP LOGIC: Move to next immediately if play fails
+                    console.warn(`Autoplay blocked / codec error:`, error);
                     triggerNext();
                 });
             }
 
             const onEnded = () => triggerNext();
             const onError = (e: any) => {
-                console.error(`Media Error (Item ${currentIndex}):`, e);
-                triggerNext(); // Fail-safe skip
+                console.error(`Media Error:`, e);
+                triggerNext();
             };
 
             videoEl.addEventListener('ended', onEnded);
@@ -255,12 +249,10 @@ export const PlayerEngine = () => {
             return () => {
                 videoEl.removeEventListener('ended', onEnded);
                 videoEl.removeEventListener('error', onError);
-                // Soft pause
-                videoEl.pause();
             };
         }
 
-        // Fallback for unknown types
+        // Fallback
         const timer = setTimeout(triggerNext, 5000);
         return () => clearTimeout(timer);
 
@@ -268,7 +260,6 @@ export const PlayerEngine = () => {
 
 
     // -- RENDERING --
-
     if (isLoading) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0F172A] text-white">
@@ -278,11 +269,9 @@ export const PlayerEngine = () => {
         );
     }
 
-    // Critical Error (No Cache, No Net) OR Empty Playlist
     if (error || playlist.length === 0) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-white p-8 text-center">
-                {/* STANDBY LOGO PLACEHOLDER */}
                 <div className="w-32 h-32 bg-indigo-900 rounded-full flex items-center justify-center mb-6 animate-pulse">
                     <span className="text-4xl font-bold">S</span>
                 </div>
@@ -306,12 +295,10 @@ export const PlayerEngine = () => {
 
     const renderItem = (item: MediaItem, index: number, isActive: boolean) => {
         const isNext = index === nextIndex;
-        // Optimization: Keep DOM light, mostly just 2 items.
+        // Keep active, next, and previous (if possible) or just active/next to avoid heavy DOM
         if (!isActive && !isNext && playlist.length > 2) return null;
 
         const commonClasses = `media-layer ${isActive ? 'active' : ''}`;
-
-        // SAFETY: Handle null item (just in case)
         if (!item) return null;
 
         if (item.type === 'image') {
@@ -321,8 +308,8 @@ export const PlayerEngine = () => {
                     src={item.url}
                     className={commonClasses}
                     alt="slide"
-                    onError={() => { console.error("Image Load Fail"); triggerNext(); }}
-                    style={{ backgroundColor: 'black' }} // Avoid white flash
+                    onError={() => { console.error("Image Fail"); triggerNext(); }}
+                    style={{ backgroundColor: 'black' }}
                 />
             );
         }
@@ -349,13 +336,10 @@ export const PlayerEngine = () => {
     return (
         <div className="player-container">
             {playlist.map((item, idx) => renderItem(item, idx, idx === currentIndex))}
-
-            {/* Enterprise HUD (Hidden in production or via keyboard shortcut) */}
             <div className="debug-overlay">
-                SSM ENTERPRISE v4.0<br />
-                Status: {isOffline ? 'OFFLINE (Cache)' : 'ONLINE'}<br />
-                Item: {currentIndex + 1}/{playlist.length}<br />
-                {pendingPlaylist && <span className="text-yellow-400">Update Queued</span>}
+                SSM PRO v4.0.2 (Fix Loop)<br />
+                Status: {isOffline ? 'OFFLINE' : 'ONLINE'}<br />
+                Item: {currentIndex + 1}/{playlist.length}
             </div>
         </div>
     );
