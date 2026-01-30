@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,7 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScreenDialog } from '@/components/screens/ScreenDialog';
 import { ScreenScheduleDialog } from '@/components/screens/ScreenScheduleDialog';
@@ -39,6 +40,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function Screens() {
   const { user } = useAuth();
   const { screens, loading, fetchScreens, deleteScreen, sendCommand } = useScreens(user?.id);
+  const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -46,6 +48,17 @@ export default function Screens() {
   const [selectedScreen, setSelectedScreen] = useState<Screen | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Helper to check online status based on last ping (threshold: 4 mins)
+  const isScreenOnline = (lastPing?: string | null) => {
+    if (!lastPing) return false;
+    try {
+      const diff = differenceInMinutes(new Date(), new Date(lastPing));
+      return diff < 4;
+    } catch (e) {
+      return false;
+    }
+  };
 
   const handleCopyUrl = (screen: Screen) => {
     const displayId = screen.custom_id || screen.id;
@@ -77,7 +90,7 @@ export default function Screens() {
   );
 
   const activeCount = screens.filter(s => s.is_active).length;
-  const onlineCount = screens.filter(s => s.status === 'online' || s.status === 'playing').length;
+  const onlineCount = screens.filter(s => isScreenOnline(s.last_ping_at)).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -108,12 +121,12 @@ export default function Screens() {
         </Card>
         <Card className="glass">
           <CardContent className="flex items-center gap-4 p-4">
-            <div className="p-3 rounded-lg bg-success/10">
-              <Wifi className="h-6 w-6 text-success" />
+            <div className={`p-3 rounded-lg ${onlineCount > 0 ? 'bg-success/10' : 'bg-muted'}`}>
+              <Wifi className={`h-6 w-6 ${onlineCount > 0 ? 'text-success' : 'text-muted-foreground'}`} />
             </div>
             <div>
               <p className="text-2xl font-bold">{onlineCount}</p>
-              <p className="text-sm text-muted-foreground">Online</p>
+              <p className="text-sm text-muted-foreground">Online Agora</p>
             </div>
           </CardContent>
         </Card>
@@ -169,124 +182,134 @@ export default function Screens() {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredScreens.map(screen => (
-            <Card key={screen.id} className="glass group hover:shadow-lg transition-shadow overflow-hidden border-l-4"
-              style={{ borderLeftColor: screen.status === 'playing' ? '#22c55e' : screen.status === 'online' ? '#3b82f6' : '#ef4444' }}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold truncate">{screen.name}</h3>
-                      {screen.status === 'playing' && <Badge className="bg-green-500 hover:bg-green-600">Reproduzindo</Badge>}
-                      {screen.status === 'online' && <Badge className="bg-blue-500 hover:bg-blue-600">Online</Badge>}
-                      {screen.status === 'offline' && <Badge variant="secondary">Offline</Badge>}
+          {filteredScreens.map(screen => {
+            const isOnline = isScreenOnline(screen.last_ping_at);
+            const statusColor = isOnline
+              ? (screen.status === 'playing' ? '#22c55e' : '#3b82f6')
+              : '#ef4444';
+
+            return (
+              <Card
+                key={screen.id}
+                className="glass group hover:shadow-lg transition-shadow overflow-hidden border-l-4 cursor-pointer"
+                style={{ borderLeftColor: statusColor }}
+                onClick={() => navigate(`/dashboard/screens/${screen.id}`)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold truncate">{screen.name}</h3>
+                        {isOnline ? (
+                          screen.status === 'playing' ? (
+                            <Badge className="bg-green-500 hover:bg-green-600">Reproduzindo</Badge>
+                          ) : (
+                            <Badge className="bg-blue-500 hover:bg-blue-600">Online</Badge>
+                          )
+                        ) : (
+                          <Badge variant="secondary" className="bg-destructive/10 text-destructive hover:bg-destructive/20">Offline</Badge>
+                        )}
+                      </div>
+                      {screen.location && (
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                          <MapPin className="h-3 w-3" />
+                          <span className="truncate">{screen.location}</span>
+                        </div>
+                      )}
                     </div>
-                    {screen.location && (
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                        <MapPin className="h-3 w-3" />
-                        <span className="truncate">{screen.location}</span>
-                      </div>
-                    )}
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEdit(screen)}>
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleSchedule(screen)}>
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Agendar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleCopyUrl(screen)}>
-                        <Copy className="h-4 w-4 mr-2" />
-                        Copiar URL
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => window.open(`/player/${screen.custom_id || screen.id}`, '_blank')}>
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Abrir Player
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => sendCommand(screen.id, 'reload')}
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Recarregar Player
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => sendCommand(screen.id, 'screenshot')}
-                      >
-                        <Camera className="h-4 w-4 mr-2" />
-                        Capturar Tela
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setDeleteId(screen.id)}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Excluir
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                <div className="flex flex-col gap-2 text-sm text-muted-foreground mt-4 p-3 bg-muted/30 rounded-lg">
-                  {/* Playlist Row */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium uppercase tracking-wider">Playlist Atual</span>
-                    {screen.playlist ? (
-                      <div className="flex items-center gap-1 text-primary">
-                        <Play className="h-3 w-3" />
-                        <span className="font-medium truncate max-w-[120px]">{screen.playlist.name}</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">Nenhuma definida</span>
-                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEdit(screen)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleSchedule(screen)}>
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Agendar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleCopyUrl(screen)}>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copiar URL
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => window.open(`/player/${screen.custom_id || screen.id}`, '_blank')}>
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Abrir Player
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => sendCommand(screen.id, 'reload')}
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Recarregar Player
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => sendCommand(screen.id, 'screenshot')}
+                        >
+                          <Camera className="h-4 w-4 mr-2" />
+                          Capturar Tela
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setDeleteId(screen.id)}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
-                  <div className="h-px w-full bg-border/50" />
+                  <div className="flex flex-col gap-2 text-sm text-muted-foreground mt-4 p-3 bg-muted/30 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium uppercase tracking-wider">Playlist Atual</span>
+                      {screen.playlist ? (
+                        <div className="flex items-center gap-1 text-primary">
+                          <Play className="h-3 w-3" />
+                          <span className="font-medium truncate max-w-[120px]">{screen.playlist.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Nenhuma definida</span>
+                      )}
+                    </div>
 
-                  {/* ID Row */}
-                  <div className="flex items-center justify-between group/id border-t border-border/30 pt-3 mt-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">ID DO PLAYER</span>
-                    <ScreenIdBadge
-                      customId={screen.custom_id}
-                      className="bg-background border-border/50 text-[10px] h-6 px-2"
-                    />
+                    <div className="h-px w-full bg-border/50" />
+
+                    <div className="flex items-center justify-between group/id border-t border-border/30 pt-3 mt-1">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">ID DO PLAYER</span>
+                      <ScreenIdBadge
+                        customId={screen.custom_id}
+                        className="bg-background border-border/50 text-[10px] h-6 px-2"
+                      />
+                    </div>
                   </div>
 
-
-
-
-                </div>
-
-                <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    {screen.status !== 'offline' ? (
-                      <Wifi className="h-3 w-3 text-green-500" />
-                    ) : (
-                      <WifiOff className="h-3 w-3" />
-                    )}
-                    <span>
-                      {screen.last_ping_at
-                        ? `Visto ${format(new Date(screen.last_ping_at), "HH:mm", { locale: ptBR })}`
-                        : 'Nunca visto'}
-                    </span>
+                  <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      {isScreenOnline(screen.last_ping_at) ? (
+                        <Wifi className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <WifiOff className="h-3 w-3 text-red-500" />
+                      )}
+                      <span>
+                        {screen.last_ping_at
+                          ? `Visto ${format(new Date(screen.last_ping_at), "HH:mm", { locale: ptBR })}`
+                          : 'Nunca visto'}
+                      </span>
+                    </div>
+                    <span>v{screen.version || '1.0'}</span>
                   </div>
-                  <span>v{screen.version || '1.0'}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      {/* Create/Edit Dialog */}
+      {/* Dialogs */}
       <ScreenDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -294,7 +317,6 @@ export default function Screens() {
         onSaved={fetchScreens}
       />
 
-      {/* Schedule Dialog */}
       {scheduleScreen && (
         <ScreenScheduleDialog
           open={!!scheduleScreen}
@@ -304,8 +326,6 @@ export default function Screens() {
         />
       )}
 
-
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

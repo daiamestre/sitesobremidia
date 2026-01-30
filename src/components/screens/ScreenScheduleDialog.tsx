@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,7 +67,7 @@ export function ScreenScheduleDialog({
   const [newDays, setNewDays] = useState<number[]>([1, 2, 3, 4, 5]); // Weekdays default
   const [newPriority, setNewPriority] = useState(0);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [schedulesRes, playlistsRes] = await Promise.all([
         supabase
@@ -93,14 +93,14 @@ export function ScreenScheduleDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [screenId]);
 
   useEffect(() => {
     if (open) {
       setLoading(true);
       fetchData();
     }
-  }, [open, screenId]);
+  }, [open, fetchData]);
 
   const resetForm = () => {
     setNewName('');

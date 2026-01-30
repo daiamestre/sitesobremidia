@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -36,12 +36,17 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // ROBUST VIDEO DETECTION
-  // We check multiple properties to ensure we catch ANY video file.
+  // --- AGGRESSIVE VIDEO DETECTION ---
+  // If it's NOT an image and NOT audio, assume it's video to be safe.
+  // We double check extensions just in case.
   const isVideo =
-    media.file_type?.toLowerCase() === 'video' ||
-    media.mime_type?.toLowerCase().startsWith('video') ||
-    /\.(mp4|webm|ogg|mov|mkv|avi|m4v)(\?|$)/i.test(media.file_url);
+    (media.file_type && media.file_type.toLowerCase() === 'video') ||
+    (media.mime_type && media.mime_type.toLowerCase().startsWith('video')) ||
+    /\.(mp4|webm|ogg|mov|mkv|avi|m4v)/i.test(media.file_url) || // Regex without end-of-line anchor
+    (!media.file_type && !media.mime_type); // Default fallback for unknown type if not obviously image
+
+  // Force controls to be visible for debugging/verification if ambiguous
+  const showControls = isVideo;
 
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -77,7 +82,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
   if (viewMode === 'list') {
     return (
       <div className="flex items-center gap-4 p-4 rounded-lg bg-card border hover:bg-muted/50 transition-colors">
-        <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex items-center justify-center flex-shrink-0 relative group cursor-pointer" onClick={() => onPreview(media)}>
+        <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex items-center justify-center flex-shrink-0 relative cursor-pointer" onClick={() => onPreview(media)}>
           {/* Thumbnail Logic */}
           {media.file_type === 'image' ? (
             <img src={media.file_url} alt={media.name} className="w-full h-full object-cover" />
@@ -88,8 +93,8 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
           )}
         </div>
 
-        <div className="flex-1 min-w-0 pointer-events-none">
-          <p className="font-medium truncate pointer-events-auto select-text">{media.name}</p>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium truncate">{media.name}</p>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{formatFileSize(media.file_size)}</span>
             <span>•</span>
@@ -97,9 +102,8 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
           </div>
         </div>
 
-        {/* List View Controls (Simplified) */}
-        <div className="flex items-center gap-2">
-          {isVideo && (
+        <div className="flex items-center gap-1">
+          {showControls && (
             <Button variant="ghost" size="icon" onClick={() => onPreview(media)} title="Visualizar/Reproduzir">
               <Play className="h-4 w-4" />
             </Button>
@@ -138,12 +142,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
         className="aspect-video bg-muted/30 flex items-center justify-center cursor-pointer relative overflow-hidden"
         onClick={() => {
           if (!isVideo) onPreview(media);
-          // If video, clicking sends to preview or plays? Let's keep consistent: Click on preview area -> open Preview Dialog
-          // unless playing? No, "Preview Dialog" is better for detailed view.
-          // But user asked to control video BEFORE adding. So maybe toggle play?
-          // Let's stick to: Click Center -> Open Preview (which has full controls).
-          // Footer buttons -> Quick Verify.
-          onPreview(media);
+          else onPreview(media); // Default behavior is preview
         }}
       >
         {media.file_type === 'image' ? (
@@ -162,11 +161,6 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
             playsInline
             // Reset state if video ends naturally
             onEnded={() => setIsPlaying(false)}
-            // If error, it might not be a video or codec issue
-            onError={() => {
-              // console.log("Video load error for:", media.name);
-              // We could set a fallback state here if needed
-            }}
           />
         ) : (
           <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -177,8 +171,13 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
 
         {/* Overlay Icon for non-playing states (Hover) */}
         {!isPlaying && (
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-            <Eye className="h-8 w-8 text-white drop-shadow-lg" />
+          <div className={`absolute inset-0 bg-black/40 ${isVideo ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity flex items-center justify-center backdrop-blur-[1px]`}>
+            {/* Always show Eye for interactions unless playing */}
+            {isVideo ? (
+              <Play className="h-10 w-10 text-white opacity-80 hover:opacity-100 transition-opacity" onClick={togglePlay} />
+            ) : (
+              <Eye className="h-8 w-8 text-white drop-shadow-lg" />
+            )}
           </div>
         )}
       </div>
@@ -196,10 +195,11 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
       </CardContent>
 
       {/* Footer Actions - ALWAYS VISIBLE FOR VIDEOS */}
-      <CardFooter className="p-2 pt-0 flex items-center justify-between border-t border-border/50 bg-muted/20">
+      <CardFooter className="p-2 pt-0 flex items-center justify-between border-t border-border/50 bg-muted/20 min-h-[44px]">
         <div className="flex items-center gap-1">
-          {isVideo ? (
+          {showControls ? (
             <>
+              {/* Primary Control: Play/Pause */}
               <Button
                 variant="ghost"
                 size="icon"
@@ -210,6 +210,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
                 {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
               </Button>
 
+              {/* Volume Control */}
               <Button
                 variant="ghost"
                 size="icon"
@@ -221,10 +222,13 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
               </Button>
             </>
           ) : (
-            // Spacer for non-videos to keep strict alignment if needed, or just nothing.
-            <div className="h-8 w-1" />
+            <span className="text-[10px] text-muted-foreground uppercase px-2 font-medium">
+              {media.file_type || 'Arquivo'}
+            </span>
           )}
         </div>
+
+        <div className="border-l border-border/50 pl-1 ml-1 h-5" />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

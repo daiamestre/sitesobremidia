@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+// Force Vercel rebuild
 import { Widget, WidgetConfig, WidgetType } from '@/types/models';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -73,7 +74,7 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
         setConfig(getDefaultConfig(type));
     };
 
-    const updateConfig = (key: keyof WidgetConfig, value: any) => {
+    const updateConfig = (key: keyof WidgetConfig, value: string | number | boolean | null) => {
         setConfig(prev => ({ ...prev, [key]: value }));
     };
 
@@ -106,9 +107,10 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
             }
 
             toast.success('Imagem carregada com sucesso!');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Upload error:', error);
-            toast.error(`Erro: ${error.message || 'Falha no upload'}`);
+            const errorMessage = error instanceof Error ? error.message : 'Falha no upload';
+            toast.error(`Erro: ${errorMessage}`);
         } finally {
             setUploading(false);
         }

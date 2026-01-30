@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { useNativePlayer } from '../../hooks/useNativePlayer';
+import { useNativePlayer } from '@/hooks/useNativePlayer';
+
+interface PlayerConfig {
+    kioskMode?: boolean;
+    version?: string;
+    [key: string]: unknown;
+}
 
 export const NativeStatus: React.FC = () => {
     const { isNative, getDeviceId, getPlayerConfig, showToast } = useNativePlayer();
-    const [config, setConfig] = useState<any>(null);
+    const [config, setConfig] = useState<PlayerConfig | null>(null);
     const [deviceId, setDeviceId] = useState<string>('Loading...');
 
     useEffect(() => {

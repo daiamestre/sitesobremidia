@@ -20,7 +20,7 @@ export default function Settings() {
   useEffect(() => {
     const loadSettings = async () => {
       if (!user?.id) return;
-      
+
       try {
         const { data, error } = await supabase
           .from('profiles')
@@ -29,7 +29,7 @@ export default function Settings() {
           .single();
 
         if (error) throw error;
-        
+
         if (data) {
           setNotificationsEnabled(data.offline_notification_enabled);
           setOfflineThreshold(data.offline_notification_threshold);
@@ -46,7 +46,7 @@ export default function Settings() {
 
   const handleSaveNotifications = async () => {
     if (!user?.id) return;
-    
+
     setIsSaving(true);
     try {
       const { error } = await supabase
@@ -58,7 +58,7 @@ export default function Settings() {
         .eq('user_id', user.id);
 
       if (error) throw error;
-      
+
       toast.success('Configurações salvas com sucesso!');
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -76,9 +76,9 @@ export default function Settings() {
       });
 
       if (error) throw error;
-      
+
       toast.success('E-mail de teste enviado! Verifique sua caixa de entrada.');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error sending test email:', error);
       toast.error('Erro ao enviar e-mail de teste');
     } finally {
@@ -153,7 +153,7 @@ export default function Settings() {
                   onCheckedChange={setNotificationsEnabled}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="offline-threshold">Tempo limite para notificação (minutos)</Label>
                 <p className="text-sm text-muted-foreground">
@@ -185,10 +185,10 @@ export default function Settings() {
                     'Salvar Configurações'
                   )}
                 </Button>
-                
-                <Button 
-                  variant="outline" 
-                  onClick={handleTestEmail} 
+
+                <Button
+                  variant="outline"
+                  onClick={handleTestEmail}
                   disabled={isSendingTest || !notificationsEnabled}
                 >
                   {isSendingTest ? (

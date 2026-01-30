@@ -1,7 +1,10 @@
 {
     "framework": "vite",
-    "buildCommand": "vite build",
     "rewrites": [
+        {
+            "source": "/player/(.*)",
+            "destination": "/index.html"
+        },
         {
             "source": "/(.*)",
             "destination": "/index.html"
@@ -26,7 +29,7 @@
             ]
         },
         {
-            "source": "/sw.js",
+            "source": "/sw-v303.js",
             "headers": [
                 {
                     "key": "Cache-Control",

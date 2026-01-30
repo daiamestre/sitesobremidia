@@ -137,7 +137,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!playlist || !user) return;
 
     setLoading(true);
@@ -176,19 +176,20 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
 
       if (linksError) throw linksError;
       setAvailableLinks((linksData || []) as ExternalLink[]);
-    } catch (error: any) {
+      setAvailableLinks((linksData || []) as ExternalLink[]);
+    } catch (error: unknown) {
       console.error('Error fetching data:', error);
       toast.error('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
-  };
+  }, [playlist, user]);
 
   useEffect(() => {
     if (open && playlist) {
       fetchData();
     }
-  }, [open, playlist]);
+  }, [open, playlist, fetchData]);
 
   const updatePositions = useCallback(async (newItems: PlaylistItem[]) => {
     try {
@@ -286,9 +287,11 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       setItems([...items, data as PlaylistItem]);
       setShowPicker(false);
       toast.success('Mídia adicionada!');
-    } catch (error: any) {
+      toast.success('Mídia adicionada!');
+    } catch (error: unknown) {
       console.error('Error adding media:', error);
-      toast.error('Erro ao adicionar mídia: ' + (error.message || 'Erro desconhecido'));
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao adicionar mídia: ' + message);
     }
   };
 
@@ -314,9 +317,11 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       setItems([...items, data as PlaylistItem]);
       setShowPicker(false);
       toast.success('Widget adicionado!');
-    } catch (error: any) {
+      toast.success('Widget adicionado!');
+    } catch (error: unknown) {
       console.error('Error adding widget:', error);
-      toast.error('Erro ao adicionar widget: ' + (error.message || 'Erro desconhecido'));
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao adicionar widget: ' + message);
     }
   };
 
@@ -342,9 +347,11 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       setItems([...items, data as PlaylistItem]);
       setShowPicker(false);
       toast.success('Link externo adicionado!');
-    } catch (error: any) {
+      toast.success('Link externo adicionado!');
+    } catch (error: unknown) {
       console.error('Error adding external link:', error);
-      toast.error('Erro ao adicionar link externo: ' + (error.message || 'Erro desconhecido'));
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error('Erro ao adicionar link externo: ' + message);
     }
   };
 
@@ -363,7 +370,8 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       await updatePositions(updatedItems);
 
       toast.success('Item removido!');
-    } catch (error: any) {
+      toast.success('Item removido!');
+    } catch (error: unknown) {
       console.error('Error removing item:', error);
       toast.error('Erro ao remover item');
     }
@@ -378,7 +386,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
 
       if (error) throw error;
       setItems(items.map(i => i.id === itemId ? { ...i, duration } : i));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating duration:', error);
     }
   };
@@ -387,12 +395,12 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     try {
       const { error } = await supabase
         .from('playlist_items')
-        .update(updates as any)
+        .update(updates)
         .eq('id', itemId);
 
       if (error) throw error;
       setItems(items.map(i => i.id === itemId ? { ...i, ...updates } : i));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating schedule:', error);
       toast.error('Erro ao atualizar agendamento');
     }

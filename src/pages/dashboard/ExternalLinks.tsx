@@ -46,6 +46,15 @@ interface ExternalLink {
   created_at: string;
 }
 
+interface AssetFile {
+  name: string;
+  id: string;
+  url: string;
+  created_at: string;
+  size: number;
+  type: string;
+}
+
 const PLATFORMS = [
   { value: 'instagram', label: 'Instagram', color: 'bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400' },
   { value: 'facebook', label: 'Facebook', color: 'bg-blue-600' },
@@ -199,7 +208,7 @@ export default function ExternalLinks() {
     setIsDialogOpen(true);
   };
 
-  const handleGallerySelection = (assets: any[], type: string) => {
+  const handleGallerySelection = (assets: AssetFile[], type: string) => {
     if (type === 'perfil') {
       setSelectedProfileUrl(assets[0].url);
       setProfileFile(null); // Clear file input if gallery is used
@@ -256,10 +265,9 @@ export default function ExternalLinks() {
     try {
       let finalEmbedCode = formEmbedCode.trim();
 
-      // Handle Instagram Manual Uploads
       if (formPlatform === 'instagram') { // Run for Instagram regardless, to allow clearing
         setIsUploading(true);
-        const manualData: any = {};
+        const manualData: Record<string, unknown> = {};
 
         // 1. Resolve Profile Picture
         let finalProfileUrl = selectedProfileUrl; // Start with current UI state (could be gallery selection or existing)
@@ -267,9 +275,10 @@ export default function ExternalLinks() {
         if (profileFile) {
           try {
             finalProfileUrl = await handleFileUpload(profileFile, 'perfil');
-          } catch (err: any) {
+          } catch (err: unknown) {
             console.error('Profile upload failed:', err);
-            toast.error(`Erro ao enviar foto de perfil: ${err.message || 'Erro desconhecido'}`);
+            const message = err instanceof Error ? err.message : 'Erro desconhecido';
+            toast.error(`Erro ao enviar foto de perfil: ${message}`);
             setIsUploading(false);
             return;
           }
@@ -292,9 +301,10 @@ export default function ExternalLinks() {
             }));
             // Replace current selection with new uploads (or append? UI implies replacement usually, but let's stick to replacement as per current UI state clearing)
             finalPosts = newPosts;
-          } catch (err: any) {
+          } catch (err: unknown) {
             console.error('Posts upload failed:', err);
-            toast.error(`Erro ao enviar posts: ${err.message || 'Erro desconhecido'}`);
+            const message = err instanceof Error ? err.message : 'Erro desconhecido';
+            toast.error(`Erro ao enviar posts: ${message}`);
             setIsUploading(false);
             return;
           }
@@ -327,9 +337,10 @@ export default function ExternalLinks() {
         embed_code: finalEmbedCode,
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      toast.error(`Erro crítico no envio: ${error.message || 'Tente novamente'}`);
+      const message = error instanceof Error ? error.message : 'Tente novamente';
+      toast.error(`Erro crítico no envio: ${message}`);
     } finally {
       setIsUploading(false);
     }
@@ -707,14 +718,14 @@ export default function ExternalLinks() {
               }
 
               try {
-                let currentEmbed: any = {};
+                let currentEmbed: Record<string, unknown> = {};
                 try {
                   currentEmbed = instagramLink.embed_code ? JSON.parse(instagramLink.embed_code) : {};
                 } catch (e) {
                   currentEmbed = {};
                 }
 
-                let updatedEmbed = { ...currentEmbed };
+                const updatedEmbed = { ...currentEmbed };
 
                 if (type === 'profile') {
                   updatedEmbed.manual_profile = data;

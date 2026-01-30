@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -40,44 +40,12 @@ export default function AdminUsers() {
     user: UserProfile | null;
     action: 'approved' | 'rejected' | null;
   }>({ open: false, user: null, action: null });
-  
+
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    checkAdminAndFetch();
-  }, [user]);
-
-  const checkAdminAndFetch = async () => {
-    if (!user) {
-      navigate('/auth');
-      return;
-    }
-
-    // Check if user is admin
-    const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .single();
-
-    if (!roleData) {
-      toast({
-        title: 'Acesso negado',
-        description: 'Você não tem permissão para acessar esta página.',
-        variant: 'destructive',
-      });
-      navigate('/dashboard');
-      return;
-    }
-
-    setIsAdmin(true);
-    fetchUsers();
-  };
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('profiles')
@@ -95,7 +63,40 @@ export default function AdminUsers() {
       setUsers(data || []);
     }
     setLoading(false);
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    const checkAdminAndFetch = async () => {
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+
+      // Check if user is admin
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .single();
+
+      if (!roleData) {
+        toast({
+          title: 'Acesso negado',
+          description: 'Você não tem permissão para acessar esta página.',
+          variant: 'destructive',
+        });
+        navigate('/dashboard');
+        return;
+      }
+
+      setIsAdmin(true);
+      fetchUsers();
+    };
+
+    checkAdminAndFetch();
+  }, [user, navigate, toast, fetchUsers]);
+
 
   const handleStatusChange = async (profile: UserProfile, newStatus: 'approved' | 'rejected') => {
     setProcessingId(profile.id);
@@ -341,7 +342,7 @@ export default function AdminUsers() {
               {confirmDialog.action === 'approved' ? 'Aprovar usuário?' : 'Rejeitar usuário?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmDialog.action === 'approved' 
+              {confirmDialog.action === 'approved'
                 ? `Tem certeza que deseja aprovar ${confirmDialog.user?.full_name}? O usuário receberá um e-mail de confirmação.`
                 : `Tem certeza que deseja rejeitar ${confirmDialog.user?.full_name}? O usuário será notificado por e-mail.`}
             </AlertDialogDescription>
@@ -349,8 +350,8 @@ export default function AdminUsers() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className={confirmDialog.action === 'approved' 
-                ? 'bg-green-600 hover:bg-green-700' 
+              className={confirmDialog.action === 'approved'
+                ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-red-600 hover:bg-red-700'}
               onClick={() => confirmDialog.user && confirmDialog.action && handleStatusChange(confirmDialog.user, confirmDialog.action)}
             >

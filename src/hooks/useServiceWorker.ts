@@ -39,7 +39,7 @@ export function useServiceWorker() {
 
     const registerSW = async () => {
       try {
-        const registration = await navigator.serviceWorker.register('/sw.js', {
+        const registration = await navigator.serviceWorker.register('/sw-v303.js', {
           scope: '/',
         });
 
@@ -126,7 +126,7 @@ export function useServiceWorker() {
     if (!controller) return;
 
     const messageChannel = new MessageChannel();
-    
+
     messageChannel.port1.onmessage = (event) => {
       setState(prev => ({ ...prev, cacheStatus: event.data }));
     };

@@ -17,7 +17,7 @@ export default function DashboardHome() {
       {/* Welcome Header */}
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-display font-bold">
-          Olá, {profile?.full_name?.split(' ')[0] || 'Usuário'}! 👋
+          Olá, {profile?.full_name?.split(' ')[0] || 'Usuário'}! 👋 <span className="text-xs font-normal text-white bg-red-600 px-2 py-1 rounded-full align-middle">v3.2 - ATUALIZADO</span>
         </h1>
         <p className="text-muted-foreground">
           Bem-vindo ao painel do SOBRE MÍDIA. Gerencie suas telas de Digital Signage.

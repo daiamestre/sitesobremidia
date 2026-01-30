@@ -189,7 +189,9 @@ export const PlayerEngine = () => {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0F172A] text-white">
                 <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-                <p>Carregando Mídias...</p>
+                <p>Iniciando Player v3.0.3...</p>
+                <p className="text-xs text-slate-500 mt-2">ID da Rota: {routeId || 'Nenhum'}</p>
+                <p className="text-xs text-slate-500">ID da URL: {new URLSearchParams(window.location.search).get('screen_id') || 'Nenhum'}</p>
             </div>
         );
     }
