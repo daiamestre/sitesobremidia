@@ -36,7 +36,10 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
   const [isMuted, setIsMuted] = useState(true); // Start muted by default
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const isVideo = media.file_type?.toLowerCase() === 'video';
+  const isVideo =
+    media.file_type?.toLowerCase() === 'video' ||
+    media.mime_type?.toLowerCase().startsWith('video') ||
+    /\.(mp4|webm|ogg|mov|mkv)(\?|$)/i.test(media.file_url);
 
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
