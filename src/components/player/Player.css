@@ -1,74 +1,119 @@
-/* Base Player Container */
+/* Base Player Container: High-End Cinema Mode */
 .player-container {
-    position: relative;
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: black;
+    background-color: #000;
     overflow: hidden;
     cursor: none;
-    /* Kiosk Mode: Hide Cursor */
+    /* Kiosk Mode */
+    z-index: 9999;
 }
 
-/* Kiosk Mode: Hide default scrollbars */
+/* Kiosk Mode: Hide all scrollbars */
 .player-container::-webkit-scrollbar {
     display: none;
 }
 
-/* Media Layers for Dual Buffering */
+/* Media Layers: Absolute for seamless crossfade */
 .media-layer {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    object-fit: contain;
-    /* Standard TV fit */
+
+    /* "Cover" ensures no black bars (High-End Wall-to-Wall feel) */
+    object-fit: cover;
+
     opacity: 0;
-    transition: opacity 1s ease-in-out;
-    /* Smooth 1s crossfade */
+    transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Professional Ease */
     z-index: 1;
+    background-color: #000;
+    will-change: opacity;
 }
 
-/* Active Layer is visible */
+/* Active Layer sits on top */
 .media-layer.active {
     opacity: 1;
     z-index: 2;
 }
 
-/* Ensure videos are black before loading to avoid white flash */
+/* Video defaults */
 video {
-    background-color: black;
+    background-color: #000;
 }
 
-/* Debug Overlay (Optional, can be hidden in prod) */
+/* Debug Overlay: Hidden by default for production polish */
 .debug-overlay {
+    display: none;
+    /* Enable locally if needed: 
+    display: block; 
+    */
     position: absolute;
-    top: 10px;
-    right: 10px;
-    background: rgba(0, 0, 0, 0.7);
-    color: #0f0;
-    font-family: monospace;
-    font-size: 12px;
-    padding: 8px;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 255, 255, 0.5);
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    padding: 4px 8px;
     border-radius: 4px;
     z-index: 9999;
     pointer-events: none;
-    opacity: 0.5;
+    backdrop-filter: blur(4px);
 }
 
-/* Start Button Overlay */
+/* High-End Start Overlay */
 .start-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.9);
+    background: #000;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     z-index: 10000;
     cursor: pointer;
-    /* Cursor visible here for interaction */
+    transition: opacity 0.5s ease;
+}
+
+.start-button {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 9999px;
+    padding: 24px;
+    color: white;
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+    animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.1);
+    }
+
+    70% {
+        box-shadow: 0 0 0 20px rgba(255, 255, 255, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+    }
+}
+
+.start-text {
+    margin-top: 24px;
+    color: rgba(255, 255, 255, 0.6);
+    font-family: sans-serif;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
 }
