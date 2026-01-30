@@ -79,51 +79,51 @@ const extractVideoThumbnail = (file: File, userId: string): Promise<string | nul
     const video = document.createElement('video');
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    
+
     video.preload = 'metadata';
     video.muted = true;
     video.playsInline = true;
-    
+
     video.onloadeddata = () => {
       // Seek to 1 second or 10% of video duration (whichever is smaller)
       video.currentTime = Math.min(1, video.duration * 0.1);
     };
-    
+
     video.onseeked = async () => {
       try {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
+
         // Convert canvas to blob
         canvas.toBlob(async (blob) => {
           if (!blob) {
             resolve(null);
             return;
           }
-          
+
           try {
             // Upload thumbnail to storage
             const thumbnailFileName = `${Date.now()}-thumb.jpg`;
             const thumbnailPath = `${userId}/thumbnails/${thumbnailFileName}`;
-            
+
             const { error: uploadError } = await supabase.storage
               .from('media')
               .upload(thumbnailPath, blob, {
                 cacheControl: '3600',
                 contentType: 'image/jpeg',
               });
-            
+
             if (uploadError) {
               console.warn('Thumbnail upload error:', uploadError);
               resolve(null);
               return;
             }
-            
+
             const { data: { publicUrl } } = supabase.storage
               .from('media')
               .getPublicUrl(thumbnailPath);
-            
+
             resolve(publicUrl);
           } catch (err) {
             console.warn('Error uploading thumbnail:', err);
@@ -136,12 +136,12 @@ const extractVideoThumbnail = (file: File, userId: string): Promise<string | nul
         URL.revokeObjectURL(video.src);
       }
     };
-    
+
     video.onerror = () => {
       URL.revokeObjectURL(video.src);
       resolve(null);
     };
-    
+
     video.src = URL.createObjectURL(file);
   });
 };
@@ -253,7 +253,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
       if (uploadFile.status !== 'pending') continue;
 
       // Update status to uploading
-      setFiles(prev => prev.map((f, idx) => 
+      setFiles(prev => prev.map((f, idx) =>
         idx === i ? { ...f, status: 'uploading' as const } : f
       ));
 
@@ -306,23 +306,24 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
         if (dbError) throw dbError;
 
         // Update status to complete
-        setFiles(prev => prev.map((f, idx) => 
+        setFiles(prev => prev.map((f, idx) =>
           idx === i ? { ...f, status: 'complete' as const, progress: 100 } : f
         ));
 
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Upload error:', error);
-        setFiles(prev => prev.map((f, idx) => 
-          idx === i ? { ...f, status: 'error' as const, error: error.message } : f
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setFiles(prev => prev.map((f, idx) =>
+          idx === i ? { ...f, status: 'error' as const, error: errorMessage } : f
         ));
       }
     }
 
     setIsUploading(false);
-    
-    const successCount = files.filter(f => f.status === 'complete').length + 
-                         files.filter(f => f.status === 'pending').length;
-    
+
+    const successCount = files.filter(f => f.status === 'complete').length +
+      files.filter(f => f.status === 'pending').length;
+
     if (successCount > 0) {
       toast.success(`${successCount} arquivo(s) enviado(s) com sucesso!`);
       onUploadComplete();
@@ -400,11 +401,10 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
               <button
                 type="button"
                 onClick={() => setAspectRatio('16x9')}
-                className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
-                  aspectRatio === '16x9'
+                className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${aspectRatio === '16x9'
                     ? 'border-primary bg-primary/10'
                     : 'border-muted-foreground/25 hover:border-primary/50'
-                }`}
+                  }`}
               >
                 <div className="flex-shrink-0">
                   <Monitor className="h-8 w-8 text-primary" />
@@ -419,11 +419,10 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
               <button
                 type="button"
                 onClick={() => setAspectRatio('9x16')}
-                className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
-                  aspectRatio === '9x16'
+                className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${aspectRatio === '9x16'
                     ? 'border-primary bg-primary/10'
                     : 'border-muted-foreground/25 hover:border-primary/50'
-                }`}
+                  }`}
               >
                 <div className="flex-shrink-0">
                   <Monitor className="h-8 w-8 text-primary rotate-90" />
@@ -500,8 +499,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
               onClick={() => fileInputRef.current?.click()}
               className={`
                 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-                ${isDragging 
-                  ? 'border-primary bg-primary/5' 
+                ${isDragging
+                  ? 'border-primary bg-primary/5'
                   : 'border-muted-foreground/25 hover:border-primary/50'
                 }
               `}
@@ -573,8 +572,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
           <Button variant="outline" onClick={handleClose} disabled={isUploading}>
             Cancelar
           </Button>
-          <Button 
-            onClick={uploadFiles} 
+          <Button
+            onClick={uploadFiles}
             disabled={!hasFilesToUpload || isUploading}
             className="gradient-primary"
           >

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ interface AssetFile {
 
 interface SocialAssetsGalleryProps {
     onSelect?: (url: string) => void;
-    onApplyToInstagram?: (type: 'posts' | 'profile', data: any, targetLinkId: string) => void;
+    onApplyToInstagram?: (type: 'posts' | 'profile', data: string | { src: string; type: 'video' | 'image' }[], targetLinkId: string) => void;
     isApplying?: boolean;
     availableLinks?: { id: string; title: string; platform: string }[];
     selectionMode?: boolean;
@@ -64,7 +64,7 @@ export function SocialAssetsGallery({
         }
     }, [instagramLinks, selectedLinkId, selectionMode]);
 
-    const fetchAssets = async () => {
+    const fetchAssets = useCallback(async () => {
         if (!user) return;
         try {
             setLoading(true);
@@ -100,21 +100,22 @@ export function SocialAssetsGallery({
             });
 
             setAssets(processedAssets);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error fetching assets:', error);
             // Don't show error on 404/empty folder, just show empty
-            if (error.message !== 'The resource was not found') {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            if (errorMessage !== 'The resource was not found') {
                 toast.error('Erro ao listar arquivos');
             }
         } finally {
             setLoading(false);
         }
-    };
+    }, [user, activeTab]);
 
     useEffect(() => {
         fetchAssets();
         setSelectedAssets([]); // Reset selection on tab change
-    }, [user, activeTab]);
+    }, [fetchAssets]);
 
     const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
@@ -155,7 +156,7 @@ export function SocialAssetsGallery({
                 toast.success(`${successCount} arquivo(s) enviado(s)!`);
                 fetchAssets();
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Upload error:', error);
             toast.error('Erro crítico no upload');
         } finally {

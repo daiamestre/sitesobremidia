@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
 
-    const fetchAssets = async () => {
+    const fetchAssets = useCallback(async () => {
         if (!user) return;
         try {
             setLoading(true);
@@ -57,17 +57,17 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
             });
 
             setAssets(processedAssets);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error fetching assets:', error);
             toast.error('Erro ao listar imagens');
         } finally {
             setLoading(false);
         }
-    };
+    }, [user]);
 
     useEffect(() => {
         fetchAssets();
-    }, [user]);
+    }, [fetchAssets]);
 
     const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -102,7 +102,7 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
 
             toast.success('Imagem enviada com sucesso!');
             fetchAssets();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Upload error:', error);
             toast.error('Erro ao enviar imagem');
         } finally {

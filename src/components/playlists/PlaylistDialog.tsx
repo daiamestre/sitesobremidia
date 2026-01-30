@@ -141,7 +141,7 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
       }
       onSaved();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving playlist:', error);
       toast.error('Erro ao salvar playlist');
     } finally {

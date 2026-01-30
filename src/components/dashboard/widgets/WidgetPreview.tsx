@@ -1,7 +1,7 @@
 import { WidgetType, WidgetConfig } from '@/types/models';
-import { ClockWidget } from '@/components/player/ClockWidget';
-import { WeatherWidget } from '@/components/player/WeatherWidget';
-import { RssWidget } from '@/components/player/RssWidget';
+import { ClockWidget } from '../../player/ClockWidget';
+import { WeatherWidget } from '../../player/WeatherWidgetComponent';
+import { RssWidget } from '../../player/RssWidget';
 
 interface WidgetPreviewProps {
     widgetType: WidgetType;
