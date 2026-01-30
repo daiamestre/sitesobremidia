@@ -1,5 +1,6 @@
 // ============================================
 // SERVICE WORKER - CACHE OFFLINE PARA PLAYER
+// Version: 3.0.2 - Force Update (2026-01-30)
 // ============================================
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
 import { clientsClaim } from 'workbox-core';
