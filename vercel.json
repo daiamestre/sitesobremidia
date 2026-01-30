@@ -2,10 +2,6 @@
     "framework": "vite",
     "rewrites": [
         {
-            "source": "/player/(.*)",
-            "destination": "/index.html"
-        },
-        {
             "source": "/(.*)",
             "destination": "/index.html"
         }
