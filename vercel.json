@@ -1,13 +1,9 @@
 {
     "version": 2,
-    "cleanUrls": true,
-    "routes": [
+    "rewrites": [
         {
-            "handle": "filesystem"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/index.html"
+            "source": "/((?!assets/|sw.js|favicon.ico|manifest.webmanifest|placeholder.svg|robots.txt|pwa-.*.png).*)",
+            "destination": "/index.html"
         }
     ]
 }
