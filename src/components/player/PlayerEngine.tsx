@@ -42,7 +42,7 @@ export const PlayerEngine = () => {
                 const { data: screen, error: screenError } = await supabase
                     .from('screens')
                     .select('playlist_id')
-                    .eq('screen_code', screenId) // Assuming screen_code is the ID used
+                    .eq('custom_id', screenId)
                     .single();
 
                 if (screenError || !screen?.playlist_id) {
