@@ -31,8 +31,8 @@ export const PlayerEngine = () => {
 
     // -- REFS --
     const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
-    const playlistRef = useRef<MediaItem[]>([]); // To avoid dependency cycles
-    const lastPlayedIdRef = useRef<string | null>(null); // To prevent restart loop
+    const playlistRef = useRef<MediaItem[]>([]);
+    const lastPlayedIdRef = useRef<string | null>(null);
 
     // Sync Ref
     useEffect(() => {
@@ -58,8 +58,7 @@ export const PlayerEngine = () => {
         return false;
     }, []);
 
-    // -- 1. SYNC ENGINE (FETCH & PERSIST) --
-    // FIX: Removed 'playlist' from dependency array. Uses playlistRef.
+    // -- 1. SYNC ENGINE --
     const fetchPlaylist = useCallback(async (isBackgroundUpdate = false) => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -128,7 +127,6 @@ export const PlayerEngine = () => {
                     setNextIndex(validItems.length > 1 ? 1 : 0);
                     setError(null);
                 } else {
-                    // Check against Ref, not State
                     if (JSON.stringify(validItems) !== JSON.stringify(playlistRef.current)) {
                         console.log("New playlist update detected. Queued.");
                         setPendingPlaylist(validItems);
@@ -175,7 +173,7 @@ export const PlayerEngine = () => {
     // -- 2. PLAYBACK CONTROLLER --
     const triggerNext = useCallback(() => {
         setPlaylist((currentPlaylist) => {
-            return currentPlaylist; // Just to get latest if needed
+            return currentPlaylist;
         });
 
         setCurrentIndex(prevIndex => {
@@ -189,7 +187,6 @@ export const PlayerEngine = () => {
                     if (pending) {
                         console.log("Applying pending playlist update...");
                         setPlaylist(pending);
-                        // Note: This transition is abrupt index-wise, but safe
                         return null;
                     }
                     return null;
@@ -203,14 +200,13 @@ export const PlayerEngine = () => {
 
     }, []);
 
-    // -- 3. MEDIA LIFECYCLE (WATCHDOG & ERROR SHIELD) --
+    // -- 3. MEDIA LIFECYCLE --
     useEffect(() => {
         if (!hasStarted || playlist.length === 0) return;
 
         const currentItem = playlist[currentIndex];
 
-        // FIX: Prevent Infinite Restart Loop
-        // Only run logic if we haven't processed this Item ID yet
+        // Prevent Infinite Restart Loop
         if (lastPlayedIdRef.current === currentItem.id) {
             return;
         }
@@ -262,9 +258,8 @@ export const PlayerEngine = () => {
     // -- RENDERING --
     if (isLoading) {
         return (
-            <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0F172A] text-white">
-                <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-                <p>Inicializando Player Enterprise...</p>
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-white">
+                <Loader2 className="w-8 h-8 animate-spin text-white/50 mb-4" />
             </div>
         );
     }
@@ -272,12 +267,11 @@ export const PlayerEngine = () => {
     if (error || playlist.length === 0) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-white p-8 text-center">
-                <div className="w-32 h-32 bg-indigo-900 rounded-full flex items-center justify-center mb-6 animate-pulse">
-                    <span className="text-4xl font-bold">S</span>
+                <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mb-6">
+                    <span className="text-3xl font-bold text-zinc-700">Logo</span>
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Standby</h2>
-                <p className="text-slate-400 mb-4">{error || "Aguardando Programação..."}</p>
-                {isOffline && <div className="flex items-center text-yellow-500 gap-2"><WifiOff size={20} /> Modo Offline</div>}
+                <p className="text-zinc-500 mb-4 text-sm uppercase tracking-widest">{error || "Aguardando Conteúdo"}</p>
+                {isOffline && <div className="flex items-center text-yellow-600 gap-2 text-xs"><WifiOff size={14} /> Offline</div>}
             </div>
         );
     }
@@ -285,17 +279,16 @@ export const PlayerEngine = () => {
     if (!hasStarted) {
         return (
             <div className="start-overlay" onClick={() => setHasStarted(true)}>
-                <div className="bg-indigo-600 rounded-full p-6 animate-bounce shadow-2xl">
-                    <svg className="w-16 h-16 text-white pl-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                <div className="start-button">
+                    <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                 </div>
-                <p className="mt-8 text-white font-bold text-2xl tracking-widest uppercase">Iniciar Apresentação</p>
+                <p className="start-text">Toque para Iniciar</p>
             </div>
         );
     }
 
     const renderItem = (item: MediaItem, index: number, isActive: boolean) => {
         const isNext = index === nextIndex;
-        // Keep active, next, and previous (if possible) or just active/next to avoid heavy DOM
         if (!isActive && !isNext && playlist.length > 2) return null;
 
         const commonClasses = `media-layer ${isActive ? 'active' : ''}`;
@@ -307,9 +300,8 @@ export const PlayerEngine = () => {
                     key={`img-${item.id}-${index}`}
                     src={item.url}
                     className={commonClasses}
-                    alt="slide"
+                    alt=""
                     onError={() => { console.error("Image Fail"); triggerNext(); }}
-                    style={{ backgroundColor: 'black' }}
                 />
             );
         }
@@ -337,9 +329,7 @@ export const PlayerEngine = () => {
         <div className="player-container">
             {playlist.map((item, idx) => renderItem(item, idx, idx === currentIndex))}
             <div className="debug-overlay">
-                SSM PRO v4.0.2 (Fix Loop)<br />
-                Status: {isOffline ? 'OFFLINE' : 'ONLINE'}<br />
-                Item: {currentIndex + 1}/{playlist.length}
+                v4.0.3 • {currentIndex + 1}/{playlist.length}
             </div>
         </div>
     );
