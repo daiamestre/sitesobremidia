@@ -13,10 +13,21 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Plus, Trash2, GripVertical, Image, Video, Music, Clock, Loader2, Cloud, Newspaper, LayoutGrid, ArrowUp, ArrowDown, Link2, Calendar as CalendarIcon } from 'lucide-react';
 import { Playlist, Media, Widget, ExternalLink, PlaylistItem, WidgetType } from '@/types/models';
 
+// Extend Playlist type locally if needed, or rely on models.ts if it's updated there. 
+// Ideally models.ts should have it, but for now I'll cast or rely on dynamic check.
+// I'll check if models.ts change was actually applied? No, I only checked it. 
+// I need to update models.ts or just cast here. 
+// I will check models.ts content to be sure. Wait, I saw models.ts in step 234 and it DID NOT have resolution.
+// So I should update models.ts first or just extend it here.
+// I will extend it here for safety.
+interface ExtendedPlaylist extends Playlist {
+  resolution?: string;
+}
+
 interface PlaylistItemsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  playlist: Playlist | null;
+  playlist: ExtendedPlaylist | null;
 }
 
 const getFileIcon = (type: string) => {
@@ -416,7 +427,33 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
   };
 
   const usedMediaIds = items.filter(i => i.media_id).map(i => i.media_id);
-  const unusedMedia = availableMedia.filter(m => !usedMediaIds.includes(m.id));
+  const unusedMedia = availableMedia.filter(m => {
+    if (usedMediaIds.includes(m.id)) return false;
+
+    // Resolution filtering
+    const playlistResolution = (playlist as ExtendedPlaylist)?.resolution || '16x9';
+
+    // Allow audio always
+    if (m.file_type === 'audio') return true;
+
+    // If media has no aspect ratio, maybe allow it? Or strict? 
+    // User said: "obrigatório o usuario adicionar e selecionar as midias nos formatos e nas proporções corretas"
+    // So if aspect_ratio is missing, we might hide it or show it with warning. 
+    // But `aspect_ratio` defaults to undefined in legacy data. 
+    // Let's enforce strict if aspect_ratio is present. If missing, maybe allow but it's risky.
+    // Given the user wants to FORCE, I will assume valid media has aspect_ratio. 
+    // If aspect_ratio is missing (old uploads), I will treat it as '16x9' (default) or just allow?
+    // I'll check if aspect_ratio matches.
+    if (m.aspect_ratio) {
+      return m.aspect_ratio === playlistResolution;
+    }
+
+    // Fallback for media without aspect_ratio (old media)
+    // Maybe we default to 16x9 for old media?
+    if (!m.aspect_ratio && playlistResolution === '16x9') return true;
+
+    return false;
+  });
 
   const getItemName = (item: PlaylistItem) => {
     if (item.media) return item.media.name;

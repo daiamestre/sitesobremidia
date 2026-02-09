@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Upload, X, Image } from 'lucide-react';
+import { Upload, X, Image, Monitor, MonitorSmartphone } from 'lucide-react';
 
 interface Playlist {
   id: string;
@@ -16,6 +16,7 @@ interface Playlist {
   description: string | null;
   is_active: boolean;
   cover_url?: string | null;
+  resolution?: string;
 }
 
 interface PlaylistDialogProps {
@@ -35,6 +36,7 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [resolution, setResolution] = useState('16x9');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -44,12 +46,14 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
       setIsActive(playlist.is_active);
       setCoverUrl(playlist.cover_url || null);
       setCoverPreview(playlist.cover_url || null);
+      setResolution(playlist.resolution || '16x9');
     } else {
       setName('');
       setDescription('');
       setIsActive(true);
       setCoverUrl(null);
       setCoverPreview(null);
+      setResolution('16x9');
     }
     setCoverFile(null);
   }, [playlist, open]);
@@ -128,14 +132,14 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
       if (playlist) {
         const { error } = await supabase
           .from('playlists')
-          .update({ name, description, is_active: isActive, cover_url: finalCoverUrl })
+          .update({ name, description, is_active: isActive, cover_url: finalCoverUrl, resolution })
           .eq('id', playlist.id);
         if (error) throw error;
         toast.success('Playlist atualizada!');
       } else {
         const { error } = await supabase
           .from('playlists')
-          .insert({ user_id: user.id, name, description, is_active: isActive, cover_url: finalCoverUrl });
+          .insert({ user_id: user.id, name, description, is_active: isActive, cover_url: finalCoverUrl, resolution });
         if (error) throw error;
         toast.success('Playlist criada!');
       }
