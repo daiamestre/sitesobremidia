@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, Volume2, VolumeX } from 'lucide-react';
+import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, Volume2, VolumeX, Monitor, MonitorSmartphone } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Media } from '@/types/models';
@@ -103,6 +103,14 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Resolution Icon for List View */}
+          {media.aspect_ratio && (
+            <div className="flex items-center gap-1 mr-2 px-2 py-1 rounded-md bg-muted/50 text-xs text-muted-foreground" title={`Formato: ${media.aspect_ratio}`}>
+              {media.aspect_ratio === '9x16' ? <MonitorSmartphone className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+              <span className="hidden sm:inline">{media.aspect_ratio}</span>
+            </div>
+          )}
+
           {showControls && (
             <Button variant="ghost" size="icon" onClick={() => onPreview(media)} title="Visualizar/Reproduzir">
               <Play className="h-4 w-4" />
@@ -222,36 +230,52 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
               </Button>
             </>
           ) : (
-            <span className="text-[10px] text-muted-foreground uppercase px-2 font-medium">
-              {media.file_type || 'Arquivo'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground uppercase px-2 font-medium">
+                {media.file_type || 'Arquivo'}
+              </span>
+            </div>
+          )}
+
+          {/* Resolution Display for Grid View - Always show if available */}
+          {media.aspect_ratio && (
+            <div className={`flex items-center gap-1 ml-2 ${showControls ? 'border-l pl-2 border-border/50' : ''}`} title={`Formato: ${media.aspect_ratio}`}>
+              {media.aspect_ratio === '9x16' ? (
+                <MonitorSmartphone className="h-3 w-3 text-muted-foreground" />
+              ) : (
+                <Monitor className="h-3 w-3 text-muted-foreground" />
+              )}
+              <span className="text-[10px] text-muted-foreground">{media.aspect_ratio}</span>
+            </div>
           )}
         </div>
 
-        <div className="border-l border-border/50 pl-1 ml-1 h-5" />
+        <div className="flex items-center">
+          <div className="border-l border-border/50 pl-1 ml-1 h-5" />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem onClick={() => onPreview(media)}>
-              <Eye className="h-4 w-4 mr-2" />
-              Visualizar
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleDownload}>
-              <Download className="h-4 w-4 mr-2" />
-              Baixar
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onDelete(media.id)} className="text-destructive focus:text-destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Excluir
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </CardFooter>
-    </Card>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem onClick={() => onPreview(media)}>
+                <Eye className="h-4 w-4 mr-2" />
+                Visualizar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownload}>
+                <Download className="h-4 w-4 mr-2" />
+                Baixar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDelete(media.id)} className="text-destructive focus:text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </CardFooter >
+    </Card >
   );
 }
