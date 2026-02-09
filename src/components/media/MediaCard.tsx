@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, Volume2, VolumeX, Monitor, MonitorSmartphone } from 'lucide-react';
+import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, Volume2, VolumeX, Monitor, Smartphone } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Media } from '@/types/models';
@@ -168,7 +168,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
           {/* Resolution Icon for List View */}
           {detectedRatio && (
             <div className="flex items-center gap-1 mr-2 px-2 py-1 rounded-md bg-muted/50 text-xs text-muted-foreground" title={`Formato: ${detectedRatio}`}>
-              {detectedRatio === '9x16' ? <MonitorSmartphone className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+              {detectedRatio === '9x16' ? <Smartphone className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
               <span className="hidden sm:inline">{detectedRatio}</span>
             </div>
           )}
@@ -306,7 +306,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
           {detectedRatio && (
             <div className={`flex items-center gap-1 ml-2 ${showControls ? 'border-l pl-2 border-border/50' : ''}`} title={`Formato: ${detectedRatio}`}>
               {detectedRatio === '9x16' ? (
-                <MonitorSmartphone className="h-3 w-3 text-muted-foreground" />
+                <Smartphone className="h-3 w-3 text-muted-foreground" />
               ) : (
                 <Monitor className="h-3 w-3 text-muted-foreground" />
               )}
