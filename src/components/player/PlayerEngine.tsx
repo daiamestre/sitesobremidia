@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertCircle, WifiOff, Maximize } from "lucide-react";
+import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
 import "./Player.css";
 
 interface MediaItem {
@@ -23,6 +24,10 @@ export const PlayerEngine = () => {
     const [pendingPlaylist, setPendingPlaylist] = useState<MediaItem[] | null>(null);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [nextIndex, setNextIndex] = useState(1);
+    const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
+
+    // -- HEARTBEAT --
+    usePlayerHeartbeat(activeScreenId);
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -71,6 +76,7 @@ export const PlayerEngine = () => {
             }
 
             localStorage.setItem(SCREEN_ID_CACHE_KEY, screenId);
+            if (screenId !== activeScreenId) setActiveScreenId(screenId);
 
             const { data: screen, error: screenError } = await supabase
                 .from('screens')
