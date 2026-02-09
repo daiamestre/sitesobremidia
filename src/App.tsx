@@ -39,17 +39,7 @@ const PageLoader = () => (
   </div>
 );
 
-// DASHBOARD LAYOUT WRAPPER
-const DashboardLayout = () => {
-  return (
-    <div className="flex min-h-screen bg-background w-full">
-      <Sidebar />
-      <main className="flex-1 overflow-auto h-screen w-full bg-muted/10 p-4 md:p-8">
-        <Outlet />
-      </main>
-    </div>
-  );
-};
+import { DashboardLayout } from "@/layouts/DashboardLayout";
 
 const App = () => {
   // v3.0: CLEAN SLATE - PLAYER REMOVED
@@ -71,6 +61,7 @@ const App = () => {
                   <Route path="/install" element={<Install />} />
                   <Route path="/player" element={<Player />} />
                   <Route path="/player/:screenId" element={<Player />} />
+                  <Route path="/player/*" element={<Player />} />
 
                   {/* DASHBOARD ROUTES (RESTORED) */}
                   <Route path="/dashboard" element={<DashboardLayout />}>
