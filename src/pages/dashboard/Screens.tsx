@@ -184,9 +184,7 @@ export default function Screens() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredScreens.map(screen => {
             const isOnline = isScreenOnline(screen.last_ping_at);
-            const statusColor = isOnline
-              ? (screen.status === 'playing' ? '#22c55e' : '#3b82f6')
-              : '#ef4444';
+            const statusColor = isOnline ? '#22c55e' : '#ef4444';
 
             return (
               <Card
@@ -201,11 +199,7 @@ export default function Screens() {
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold truncate">{screen.name}</h3>
                         {isOnline ? (
-                          screen.status === 'playing' ? (
-                            <Badge className="bg-green-500 hover:bg-green-600">Reproduzindo</Badge>
-                          ) : (
-                            <Badge className="bg-blue-500 hover:bg-blue-600">Online</Badge>
-                          )
+                          <Badge className="bg-green-500 hover:bg-green-600">Online</Badge>
                         ) : (
                           <Badge variant="secondary" className="bg-destructive/10 text-destructive hover:bg-destructive/20">Offline</Badge>
                         )}
