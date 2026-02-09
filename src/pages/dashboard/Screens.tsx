@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Plus, Search, Monitor, MoreVertical, Pencil, Trash2,
-  MapPin, Loader2, Wifi, WifiOff, Play, Calendar, ExternalLink, Copy, RefreshCw, Camera
+  MapPin, Loader2, Wifi, WifiOff, Play, Calendar, ExternalLink, Copy, RefreshCw, Camera, MonitorSmartphone
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -210,6 +210,16 @@ export default function Screens() {
                           <span className="truncate">{screen.location}</span>
                         </div>
                       )}
+
+                      {/* Resolution Icon */}
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                        {screen.resolution === '9x16' ? (
+                          <MonitorSmartphone className="h-3 w-3" />
+                        ) : (
+                          <Monitor className="h-3 w-3" />
+                        )}
+                        <span>{screen.resolution === '9x16' ? '9x16 (Vertical)' : '16x9 (Horizontal)'}</span>
+                      </div>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
