@@ -224,36 +224,36 @@ export default function Screens() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(screen)}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEdit(screen); }}>
                           <Pencil className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleSchedule(screen)}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSchedule(screen); }}>
                           <Calendar className="h-4 w-4 mr-2" />
                           Agendar
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleCopyUrl(screen)}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyUrl(screen); }}>
                           <Copy className="h-4 w-4 mr-2" />
                           Copiar URL
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => window.open(`/player/${screen.custom_id || screen.id}`, '_blank')}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(`/player/${screen.custom_id || screen.id}`, '_blank'); }}>
                           <ExternalLink className="h-4 w-4 mr-2" />
                           Abrir Player
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => sendCommand(screen.id, 'reload')}
+                          onClick={(e) => { e.stopPropagation(); sendCommand(screen.id, 'reload'); }}
                         >
                           <RefreshCw className="h-4 w-4 mr-2" />
                           Recarregar Player
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => sendCommand(screen.id, 'screenshot')}
+                          onClick={(e) => { e.stopPropagation(); sendCommand(screen.id, 'screenshot'); }}
                         >
                           <Camera className="h-4 w-4 mr-2" />
                           Capturar Tela
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => setDeleteId(screen.id)}
+                          onClick={(e) => { e.stopPropagation(); setDeleteId(screen.id); }}
                           className="text-destructive"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
