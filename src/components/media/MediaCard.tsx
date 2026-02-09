@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -35,11 +35,23 @@ const getFileIcon = (type: string) => {
 export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  // Initialize with prop value, but allow local override for auto-correction
   const [detectedRatio, setDetectedRatio] = useState<string | null>(media.aspect_ratio || null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Sync state with prop if it changes (e.g. after a refresh or parent update)
+  useEffect(() => {
+    if (media.aspect_ratio) {
+      setDetectedRatio(media.aspect_ratio);
+    }
+  }, [media.aspect_ratio]);
+
   const updateAspectRatio = async (ratio: '16x9' | '9x16') => {
-    if (media.aspect_ratio === ratio) return; // No change needed
+    // If DB value matches, do nothing.
+    if (media.aspect_ratio === ratio) return;
+
+    // If we already detected this locally, do nothing to avoid loop.
+    if (detectedRatio === ratio) return;
 
     console.log(`Auto-correcting aspect ratio for ${media.name}: ${ratio}`);
     setDetectedRatio(ratio); // Update UI immediately
@@ -57,21 +69,32 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
 
   const handleMediaLoad = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement, Event>) => {
     const target = e.target as HTMLImageElement | HTMLVideoElement;
-    let width, height;
+    let width = 0;
+    let height = 0;
 
     if (target.tagName === 'VIDEO') {
       const v = target as HTMLVideoElement;
-      width = v.videoWidth;
-      height = v.videoHeight;
+      // Ensure we have valid dimensions
+      if (v.videoWidth > 0 && v.videoHeight > 0) {
+        width = v.videoWidth;
+        height = v.videoHeight;
+      }
     } else {
       const i = target as HTMLImageElement;
-      width = i.naturalWidth;
-      height = i.naturalHeight;
+      if (i.naturalWidth > 0 && i.naturalHeight > 0) {
+        width = i.naturalWidth;
+        height = i.naturalHeight;
+      }
     }
 
-    if (width && height) {
-      const ratio = width > height ? '16x9' : '9x16';
-      updateAspectRatio(ratio);
+    if (width > 0 && height > 0) {
+      // Logic: If Width < Height = Vertical (9x16). If Width >= Height = Horizontal (16x9)
+      const ratio = width < height ? '9x16' : '16x9';
+
+      // Only trigger if different from what we think it is
+      if (detectedRatio !== ratio) {
+        updateAspectRatio(ratio);
+      }
     }
   };
 
@@ -207,6 +230,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
             muted={isMuted}
             loop
             playsInline
+            preload="metadata"
             // Reset state if video ends naturally
             onEnded={() => setIsPlaying(false)}
             onLoadedMetadata={handleMediaLoad}
