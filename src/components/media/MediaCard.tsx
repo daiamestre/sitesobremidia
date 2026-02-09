@@ -6,6 +6,7 @@ import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, 
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Media } from '@/types/models';
+import { supabase } from '@/integrations/supabase/client';
 
 interface MediaCardProps {
   media: Media;
@@ -34,7 +35,45 @@ const getFileIcon = (type: string) => {
 export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [detectedRatio, setDetectedRatio] = useState<string | null>(media.aspect_ratio || null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const updateAspectRatio = async (ratio: '16x9' | '9x16') => {
+    if (media.aspect_ratio === ratio) return; // No change needed
+
+    console.log(`Auto-correcting aspect ratio for ${media.name}: ${ratio}`);
+    setDetectedRatio(ratio); // Update UI immediately
+
+    // Silently update database
+    try {
+      await supabase
+        .from('media')
+        .update({ aspect_ratio: ratio })
+        .eq('id', media.id);
+    } catch (err) {
+      console.error('Error updating aspect ratio:', err);
+    }
+  };
+
+  const handleMediaLoad = (e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement, Event>) => {
+    const target = e.target as HTMLImageElement | HTMLVideoElement;
+    let width, height;
+
+    if (target.tagName === 'VIDEO') {
+      const v = target as HTMLVideoElement;
+      width = v.videoWidth;
+      height = v.videoHeight;
+    } else {
+      const i = target as HTMLImageElement;
+      width = i.naturalWidth;
+      height = i.naturalHeight;
+    }
+
+    if (width && height) {
+      const ratio = width > height ? '16x9' : '9x16';
+      updateAspectRatio(ratio);
+    }
+  };
 
   // --- AGGRESSIVE VIDEO DETECTION ---
   // If it's NOT an image and NOT audio, assume it's video to be safe.
@@ -104,10 +143,10 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
 
         <div className="flex items-center gap-1">
           {/* Resolution Icon for List View */}
-          {media.aspect_ratio && (
-            <div className="flex items-center gap-1 mr-2 px-2 py-1 rounded-md bg-muted/50 text-xs text-muted-foreground" title={`Formato: ${media.aspect_ratio}`}>
-              {media.aspect_ratio === '9x16' ? <MonitorSmartphone className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
-              <span className="hidden sm:inline">{media.aspect_ratio}</span>
+          {detectedRatio && (
+            <div className="flex items-center gap-1 mr-2 px-2 py-1 rounded-md bg-muted/50 text-xs text-muted-foreground" title={`Formato: ${detectedRatio}`}>
+              {detectedRatio === '9x16' ? <MonitorSmartphone className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+              <span className="hidden sm:inline">{detectedRatio}</span>
             </div>
           )}
 
@@ -158,6 +197,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
             src={media.file_url}
             alt={media.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onLoad={handleMediaLoad}
           />
         ) : isVideo ? (
           <video
@@ -169,6 +209,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
             playsInline
             // Reset state if video ends naturally
             onEnded={() => setIsPlaying(false)}
+            onLoadedMetadata={handleMediaLoad}
           />
         ) : (
           <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -238,14 +279,14 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
           )}
 
           {/* Resolution Display for Grid View - Always show if available */}
-          {media.aspect_ratio && (
-            <div className={`flex items-center gap-1 ml-2 ${showControls ? 'border-l pl-2 border-border/50' : ''}`} title={`Formato: ${media.aspect_ratio}`}>
-              {media.aspect_ratio === '9x16' ? (
+          {detectedRatio && (
+            <div className={`flex items-center gap-1 ml-2 ${showControls ? 'border-l pl-2 border-border/50' : ''}`} title={`Formato: ${detectedRatio}`}>
+              {detectedRatio === '9x16' ? (
                 <MonitorSmartphone className="h-3 w-3 text-muted-foreground" />
               ) : (
                 <Monitor className="h-3 w-3 text-muted-foreground" />
               )}
-              <span className="text-[10px] text-muted-foreground">{media.aspect_ratio}</span>
+              <span className="text-[10px] text-muted-foreground">{detectedRatio}</span>
             </div>
           )}
         </div>
