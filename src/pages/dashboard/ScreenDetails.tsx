@@ -131,7 +131,7 @@ export default function ScreenDetails() {
                                 variant={isOnline ? 'default' : 'destructive'}
                                 className={isOnline ? 'bg-green-500 hover:bg-green-600' : ''}
                             >
-                                {screen.status?.toUpperCase()}
+                                {isOnline ? 'ONLINE' : 'OFFLINE'}
                             </Badge>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
