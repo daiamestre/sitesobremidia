@@ -16,6 +16,7 @@ import { Screen } from '@/types/models';
 interface Playlist {
   id: string;
   name: string;
+  resolution?: string;
 }
 
 interface ScreenDialogProps {
@@ -46,7 +47,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
     const fetchPlaylists = async () => {
       const { data } = await supabase
         .from('playlists')
-        .select('id, name')
+        .select('id, name, resolution')
         .eq('is_active', true)
         .order('name');
       setPlaylists(data || []);
@@ -235,9 +236,11 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhuma</SelectItem>
-                  {playlists.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
+                  {playlists
+                    .filter(p => !p.resolution || p.resolution === resolution)
+                    .map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
