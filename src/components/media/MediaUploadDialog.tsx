@@ -308,340 +308,349 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
         }
 
         // Save to database
-        thumbnail_url: thumbnailUrl,
+        const { data, error: dbError } = await supabase.from('media').insert({
+          user_id: user.id,
+          name: finalName,
+          file_path: filePath,
+          file_url: publicUrl,
+          file_type: getFileType(uploadFile.file.type),
+          file_size: uploadFile.file.size,
+          mime_type: uploadFile.file.type,
+          aspect_ratio: aspectRatio,
+          thumbnail_url: thumbnailUrl,
         })
-        .select()
-    .single();
+          .select()
+          .single();
 
-  if (dbError) throw dbError;
+        if (dbError) throw dbError;
 
-  // Add to playlist if selected
-  if (selectedPlaylistId && selectedPlaylistId !== 'none' && data) {
-    try {
-      // Get current max position
-      const { count } = await supabase
-        .from('playlist_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('playlist_id', selectedPlaylistId);
+        // Add to playlist if selected
+        if (selectedPlaylistId && selectedPlaylistId !== 'none' && data) {
+          try {
+            // Get current max position
+            const { count } = await supabase
+              .from('playlist_items')
+              .select('*', { count: 'exact', head: true })
+              .eq('playlist_id', selectedPlaylistId);
 
-      const newPosition = count || 0;
+            const newPosition = count || 0;
 
-      await supabase.from('playlist_items').insert({
-        playlist_id: selectedPlaylistId,
-        media_id: data.id,
-        position: newPosition,
-        duration: mediaDuration,
-        // Apply schedule if set
-        start_time: null, // Simple upload doesn't set specific times per item yet, usually
-        end_time: null,
-        days: null,
-      });
-    } catch (playlistErr) {
-      console.error('Error adding to playlist:', playlistErr);
-      toast.error(`Mídia enviada, mas erro ao adicionar na playlist: ${mediaName}`);
+            await supabase.from('playlist_items').insert({
+              playlist_id: selectedPlaylistId,
+              media_id: data.id,
+              position: newPosition,
+              duration: mediaDuration,
+              // Apply schedule if set
+              start_time: null, // Simple upload doesn't set specific times per item yet, usually
+              end_time: null,
+              days: null,
+            });
+          } catch (playlistErr) {
+            console.error('Error adding to playlist:', playlistErr);
+            toast.error(`Mídia enviada, mas erro ao adicionar na playlist: ${mediaName}`);
+          }
+        }
+
+        if (dbError) throw dbError;
+
+        // Update status to complete
+        setFiles(prev => prev.map((f, idx) =>
+          idx === i ? { ...f, status: 'complete' as const, progress: 100 } : f
+        ));
+
+      } catch (error: unknown) {
+        console.error('Upload error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setFiles(prev => prev.map((f, idx) =>
+          idx === i ? { ...f, status: 'error' as const, error: errorMessage } : f
+        ));
+      }
     }
-  }
 
-  if (dbError) throw dbError;
+    setIsUploading(false);
 
-  // Update status to complete
-  setFiles(prev => prev.map((f, idx) =>
-    idx === i ? { ...f, status: 'complete' as const, progress: 100 } : f
-  ));
+    const successCount = files.filter(f => f.status === 'complete').length +
+      files.filter(f => f.status === 'pending').length;
 
-} catch (error: unknown) {
-  console.error('Upload error:', error);
-  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-  setFiles(prev => prev.map((f, idx) =>
-    idx === i ? { ...f, status: 'error' as const, error: errorMessage } : f
-  ));
-}
+    if (successCount > 0) {
+      toast.success(`${successCount} arquivo(s) enviado(s) com sucesso!`);
+      onUploadComplete();
     }
-
-setIsUploading(false);
-
-const successCount = files.filter(f => f.status === 'complete').length +
-  files.filter(f => f.status === 'pending').length;
-
-if (successCount > 0) {
-  toast.success(`${successCount} arquivo(s) enviado(s) com sucesso!`);
-  onUploadComplete();
-}
   };
 
-const handleClose = () => {
-  if (!isUploading) {
-    setFiles([]);
-    setMediaName('');
-    setCompanyName('');
-    setSegment('');
-    setMediaDuration(10);
-    setScheduledDate(undefined);
-    setAspectRatio('16x9');
-    setSelectedPlaylistId('none');
-    onOpenChange(false);
-  }
-};
+  const handleClose = () => {
+    if (!isUploading) {
+      setFiles([]);
+      setMediaName('');
+      setCompanyName('');
+      setSegment('');
+      setMediaDuration(10);
+      setScheduledDate(undefined);
+      setAspectRatio('16x9');
+      setSelectedPlaylistId('none');
+      onOpenChange(false);
+    }
+  };
 
-const pendingFiles = files.filter(f => f.status === 'pending');
-const hasFilesToUpload = pendingFiles.length > 0;
+  const pendingFiles = files.filter(f => f.status === 'pending');
+  const hasFilesToUpload = pendingFiles.length > 0;
 
-return (
-  <Dialog open={open} onOpenChange={handleClose}>
-    <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>Upload de Mídias</DialogTitle>
-      </DialogHeader>
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Upload de Mídias</DialogTitle>
+        </DialogHeader>
 
-      <div className="space-y-4">
-        {/* Nome da Mídia */}
-        <div className="space-y-2">
-          <Label htmlFor="mediaName">Nome da Mídia</Label>
-          <Input
-            id="mediaName"
-            placeholder="Digite o nome da mídia"
-            value={mediaName}
-            onChange={(e) => setMediaName(e.target.value)}
-          />
-        </div>
-
-        {/* Nome da Empresa */}
-        <div className="space-y-2">
-          <Label htmlFor="companyName">Nome da Empresa</Label>
-          <Input
-            id="companyName"
-            placeholder="Digite o nome da empresa"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-          />
-        </div>
-
-        {/* Seguimento */}
-        <div className="space-y-2">
-          <Label htmlFor="segment">Seguimento</Label>
-          <Select value={segment} onValueChange={setSegment}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione o seguimento" />
-            </SelectTrigger>
-            <SelectContent>
-              {SEGMENTS.map((seg) => (
-                <SelectItem key={seg} value={seg}>
-                  {seg}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Proporção de Tela */}
-        <div className="space-y-2">
-          <Label>Proporção de Tela</Label>
-          <div className="grid grid-cols-2 gap-3">
-            {/* 16x9 Horizontal */}
-            <button
-              type="button"
-              onClick={() => setAspectRatio('16x9')}
-              className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${aspectRatio === '16x9'
-                ? 'border-primary bg-primary/10'
-                : 'border-muted-foreground/25 hover:border-primary/50'
-                }`}
-            >
-              <div className="flex-shrink-0">
-                <Monitor className="h-8 w-8 text-primary" />
-              </div>
-              <div className="text-left">
-                <p className="font-medium text-sm">16x9</p>
-                <p className="text-xs text-muted-foreground">Horizontal</p>
-              </div>
-            </button>
-
-            {/* 9x16 Vertical (deitado) */}
-            <button
-              type="button"
-              onClick={() => setAspectRatio('9x16')}
-              className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${aspectRatio === '9x16'
-                ? 'border-primary bg-primary/10'
-                : 'border-muted-foreground/25 hover:border-primary/50'
-                }`}
-            >
-              <div className="flex-shrink-0">
-                <Monitor className="h-8 w-8 text-primary rotate-90" />
-              </div>
-              <div className="text-left">
-                <p className="font-medium text-sm">9x16</p>
-                <p className="text-xs text-muted-foreground">Vertical</p>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Tempo de Mídia */}
-        <div className="space-y-2">
-          <Label htmlFor="mediaDuration">Tempo de Mídia</Label>
-          <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-muted-foreground" />
+        <div className="space-y-4">
+          {/* Nome da Mídia */}
+          <div className="space-y-2">
+            <Label htmlFor="mediaName">Nome da Mídia</Label>
             <Input
-              id="mediaDuration"
-              type="number"
-              min={1}
-              max={120}
-              value={mediaDuration}
-              onChange={(e) => handleDurationChange(e.target.value)}
-              className="w-24"
+              id="mediaName"
+              placeholder="Digite o nome da mídia"
+              value={mediaName}
+              onChange={(e) => setMediaName(e.target.value)}
             />
-            <span className="text-sm text-muted-foreground">segundos (1s - 2min)</span>
           </div>
-        </div>
 
-        {/* Agendamento */}
-        <div className="space-y-2">
-          <Label>Agendamento</Label>
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !scheduledDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {scheduledDate ? (
-                  format(scheduledDate, "PPP", { locale: ptBR })
-                ) : (
-                  <span>Calendário</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={scheduledDate}
-                onSelect={(date) => {
-                  setScheduledDate(date);
-                  setCalendarOpen(false);
-                }}
-                locale={ptBR}
-                initialFocus
-                className="pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        {/* Upload de Mídias */}
-        <div className="space-y-2">
-          <Label>Upload de Mídias</Label>
-          <div
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onClick={() => fileInputRef.current?.click()}
-            className={`
-                border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-                ${isDragging
-                ? 'border-primary bg-primary/5'
-                : 'border-muted-foreground/25 hover:border-primary/50'
-              }
-              `}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={acceptedMimeTypes}
-              onChange={(e) => handleFileSelect(e.target.files)}
-              className="hidden"
+          {/* Nome da Empresa */}
+          <div className="space-y-2">
+            <Label htmlFor="companyName">Nome da Empresa</Label>
+            <Input
+              id="companyName"
+              placeholder="Digite o nome da empresa"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
             />
-            <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-            <p className="text-base font-medium mb-1">
-              Arraste e solte seus arquivos aqui
-            </p>
-            <p className="text-sm text-muted-foreground">
-              ou clique para selecionar
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Suporta: Imagens (JPG, PNG, GIF, WebP), Vídeos (MP4, WebM), Áudios (MP3, WAV)
-            </p>
           </div>
-        </div>
 
-        {/* Adicionar à Playlist (Opcional) */}
-        <div className="space-y-2">
-          <Label>Adicionar à Playlist (Opcional)</Label>
-          <div className="flex items-center gap-2">
-            <ListPlus className="h-5 w-5 text-muted-foreground" />
-            <Select value={selectedPlaylistId} onValueChange={setSelectedPlaylistId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione uma playlist (Opcional)" />
+          {/* Seguimento */}
+          <div className="space-y-2">
+            <Label htmlFor="segment">Seguimento</Label>
+            <Select value={segment} onValueChange={setSegment}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o seguimento" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Nenhuma (Apenas Galeria)</SelectItem>
-                {playlists.map((playlist) => (
-                  <SelectItem key={playlist.id} value={playlist.id}>
-                    {playlist.name}
+                {SEGMENTS.map((seg) => (
+                  <SelectItem key={seg} value={seg}>
+                    {seg}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        {/* File List */}
-        {files.length > 0 && (
-          <div className="space-y-2 max-h-40 overflow-y-auto">
-            {files.map((uploadFile, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"
+          {/* Proporção de Tela */}
+          <div className="space-y-2">
+            <Label>Proporção de Tela</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {/* 16x9 Horizontal */}
+              <button
+                type="button"
+                onClick={() => setAspectRatio('16x9')}
+                className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${aspectRatio === '16x9'
+                  ? 'border-primary bg-primary/10'
+                  : 'border-muted-foreground/25 hover:border-primary/50'
+                  }`}
               >
-                {getFileIcon(getFileType(uploadFile.file.type))}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{uploadFile.file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatFileSize(uploadFile.file.size)}
-                  </p>
-                  {uploadFile.status === 'uploading' && (
-                    <Progress value={50} className="h-1 mt-1" />
+                <div className="flex-shrink-0">
+                  <Monitor className="h-8 w-8 text-primary" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-sm">16x9</p>
+                  <p className="text-xs text-muted-foreground">Horizontal</p>
+                </div>
+              </button>
+
+              {/* 9x16 Vertical (deitado) */}
+              <button
+                type="button"
+                onClick={() => setAspectRatio('9x16')}
+                className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${aspectRatio === '9x16'
+                  ? 'border-primary bg-primary/10'
+                  : 'border-muted-foreground/25 hover:border-primary/50'
+                  }`}
+              >
+                <div className="flex-shrink-0">
+                  <Monitor className="h-8 w-8 text-primary rotate-90" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-sm">9x16</p>
+                  <p className="text-xs text-muted-foreground">Vertical</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Tempo de Mídia */}
+          <div className="space-y-2">
+            <Label htmlFor="mediaDuration">Tempo de Mídia</Label>
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              <Input
+                id="mediaDuration"
+                type="number"
+                min={1}
+                max={120}
+                value={mediaDuration}
+                onChange={(e) => handleDurationChange(e.target.value)}
+                className="w-24"
+              />
+              <span className="text-sm text-muted-foreground">segundos (1s - 2min)</span>
+            </div>
+          </div>
+
+          {/* Agendamento */}
+          <div className="space-y-2">
+            <Label>Agendamento</Label>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !scheduledDate && "text-muted-foreground"
                   )}
-                  {uploadFile.status === 'error' && (
-                    <p className="text-xs text-destructive mt-1">{uploadFile.error}</p>
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {scheduledDate ? (
+                    format(scheduledDate, "PPP", { locale: ptBR })
+                  ) : (
+                    <span>Calendário</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={scheduledDate}
+                  onSelect={(date) => {
+                    setScheduledDate(date);
+                    setCalendarOpen(false);
+                  }}
+                  locale={ptBR}
+                  initialFocus
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Upload de Mídias */}
+          <div className="space-y-2">
+            <Label>Upload de Mídias</Label>
+            <div
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onClick={() => fileInputRef.current?.click()}
+              className={`
+                border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
+                ${isDragging
+                  ? 'border-primary bg-primary/5'
+                  : 'border-muted-foreground/25 hover:border-primary/50'
+                }
+              `}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={acceptedMimeTypes}
+                onChange={(e) => handleFileSelect(e.target.files)}
+                className="hidden"
+              />
+              <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-base font-medium mb-1">
+                Arraste e solte seus arquivos aqui
+              </p>
+              <p className="text-sm text-muted-foreground">
+                ou clique para selecionar
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Suporta: Imagens (JPG, PNG, GIF, WebP), Vídeos (MP4, WebM), Áudios (MP3, WAV)
+              </p>
+            </div>
+          </div>
+
+          {/* Adicionar à Playlist (Opcional) */}
+          <div className="space-y-2">
+            <Label>Adicionar à Playlist (Opcional)</Label>
+            <div className="flex items-center gap-2">
+              <ListPlus className="h-5 w-5 text-muted-foreground" />
+              <Select value={selectedPlaylistId} onValueChange={setSelectedPlaylistId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione uma playlist (Opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma (Apenas Galeria)</SelectItem>
+                  {playlists.map((playlist) => (
+                    <SelectItem key={playlist.id} value={playlist.id}>
+                      {playlist.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* File List */}
+          {files.length > 0 && (
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {files.map((uploadFile, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"
+                >
+                  {getFileIcon(getFileType(uploadFile.file.type))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{uploadFile.file.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatFileSize(uploadFile.file.size)}
+                    </p>
+                    {uploadFile.status === 'uploading' && (
+                      <Progress value={50} className="h-1 mt-1" />
+                    )}
+                    {uploadFile.status === 'error' && (
+                      <p className="text-xs text-destructive mt-1">{uploadFile.error}</p>
+                    )}
+                  </div>
+                  {uploadFile.status === 'complete' ? (
+                    <CheckCircle2 className="h-5 w-5 text-success" />
+                  ) : uploadFile.status !== 'uploading' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(index);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   )}
                 </div>
-                {uploadFile.status === 'complete' ? (
-                  <CheckCircle2 className="h-5 w-5 text-success" />
-                ) : uploadFile.status !== 'uploading' && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile(index);
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-      {/* Actions */}
-      <div className="flex justify-end gap-2 pt-4">
-        <Button variant="outline" onClick={handleClose} disabled={isUploading}>
-          Cancelar
-        </Button>
-        <Button
-          onClick={uploadFiles}
-          disabled={!hasFilesToUpload || isUploading}
-          className="gradient-primary"
-        >
-          {isUploading ? 'Enviando...' : `Enviar ${pendingFiles.length} arquivo(s)`}
-        </Button>
-      </div>
-    </DialogContent>
-  </Dialog>
-);
+        {/* Actions */}
+        <div className="flex justify-end gap-2 pt-4">
+          <Button variant="outline" onClick={handleClose} disabled={isUploading}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={uploadFiles}
+            disabled={!hasFilesToUpload || isUploading}
+            className="gradient-primary"
+          >
+            {isUploading ? 'Enviando...' : `Enviar ${pendingFiles.length} arquivo(s)`}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
