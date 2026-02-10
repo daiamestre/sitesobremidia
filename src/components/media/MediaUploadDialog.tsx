@@ -27,6 +27,8 @@ interface UploadFile {
   progress: number;
   status: 'pending' | 'uploading' | 'complete' | 'error';
   error?: string;
+  thumbnailBlob?: Blob;
+  thumbnailPreview?: string;
 }
 
 const ACCEPTED_TYPES = {
@@ -74,8 +76,8 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// Extract thumbnail from video file
-const extractVideoThumbnail = (file: File, userId: string): Promise<string | null> => {
+// Generate thumbnail blob from video file
+const generateVideoThumbnail = (file: File): Promise<Blob | null> => {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     const canvas = document.createElement('canvas');
@@ -87,52 +89,21 @@ const extractVideoThumbnail = (file: File, userId: string): Promise<string | nul
 
     video.onloadeddata = () => {
       // Seek to 1 second or 10% of video duration (whichever is smaller)
-      video.currentTime = Math.min(1, video.duration * 0.1);
+      video.currentTime = Math.min(1.5, video.duration * 0.1); // Increased to 1.5s as per user pref
     };
 
-    video.onseeked = async () => {
+    video.onseeked = () => {
       try {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Convert canvas to blob
-        canvas.toBlob(async (blob) => {
-          if (!blob) {
-            resolve(null);
-            return;
-          }
-
-          try {
-            // Upload thumbnail to storage
-            const thumbnailFileName = `${Date.now()}-thumb.jpg`;
-            const thumbnailPath = `${userId}/thumbnails/${thumbnailFileName}`;
-
-            const { error: uploadError } = await supabase.storage
-              .from('media')
-              .upload(thumbnailPath, blob, {
-                cacheControl: '3600',
-                contentType: 'image/jpeg',
-              });
-
-            if (uploadError) {
-              console.warn('Thumbnail upload error:', uploadError);
-              resolve(null);
-              return;
-            }
-
-            const { data: { publicUrl } } = supabase.storage
-              .from('media')
-              .getPublicUrl(thumbnailPath);
-
-            resolve(publicUrl);
-          } catch (err) {
-            console.warn('Error uploading thumbnail:', err);
-            resolve(null);
-          }
+        canvas.toBlob((blob) => {
+          resolve(blob);
         }, 'image/jpeg', 0.8);
       } catch (err) {
-        reject(err);
+        console.warn('Canvas error:', err);
+        resolve(null);
       } finally {
         URL.revokeObjectURL(video.src);
       }
@@ -185,7 +156,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
     ...ACCEPTED_TYPES.audio,
   ].join(',');
 
-  const handleFileSelect = (selectedFiles: FileList | null) => {
+  const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
 
     const newFiles: UploadFile[] = Array.from(selectedFiles)
@@ -204,6 +175,23 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
       }));
 
     setFiles(prev => [...prev, ...newFiles]);
+
+    // Generate thumbnails for videos
+    for (const newFile of newFiles) {
+      if (getFileType(newFile.file.type) === 'video') {
+        try {
+          const blob = await generateVideoThumbnail(newFile.file);
+          if (blob) {
+            const previewUrl = URL.createObjectURL(blob);
+            setFiles(prev => prev.map(f =>
+              f.file === newFile.file ? { ...f, thumbnailBlob: blob, thumbnailPreview: previewUrl } : f
+            ));
+          }
+        } catch (err) {
+          console.warn('Failed to generate thumbnail preview', err);
+        }
+      }
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -297,13 +285,24 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
         // Use the custom name if provided, otherwise use original filename
         const finalName = mediaName.trim() || uploadFile.file.name;
 
-        // Extract video thumbnail if it's a video
+        // Upload thumbnail if exists
         let thumbnailUrl: string | null = null;
-        if (getFileType(uploadFile.file.type) === 'video') {
-          try {
-            thumbnailUrl = await extractVideoThumbnail(uploadFile.file, user.id);
-          } catch (err) {
-            console.warn('Could not extract video thumbnail:', err);
+        if (uploadFile.thumbnailBlob) {
+          const thumbName = `${Date.now()}-thumb.jpg`;
+          const thumbPath = `${user.id}/thumbnails/${thumbName}`;
+
+          const { error: thumbErr } = await supabase.storage
+            .from('media')
+            .upload(thumbPath, uploadFile.thumbnailBlob, {
+              cacheControl: '3600',
+              contentType: 'image/jpeg'
+            });
+
+          if (!thumbErr) {
+            const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
+              .from('media')
+              .getPublicUrl(thumbPath);
+            thumbnailUrl = thumbPublicUrl;
           }
         }
 
@@ -604,7 +603,15 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
                   key={index}
                   className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"
                 >
-                  {getFileIcon(getFileType(uploadFile.file.type))}
+                  <div className="flex-shrink-0 w-12 h-12 bg-black/5 rounded overflow-hidden flex items-center justify-center">
+                    {uploadFile.thumbnailPreview ? (
+                      <img src={uploadFile.thumbnailPreview} className="w-full h-full object-cover" alt="Cover" />
+                    ) : getFileType(uploadFile.file.type) === 'image' ? (
+                      <img src={URL.createObjectURL(uploadFile.file)} className="w-full h-full object-cover" alt="Preview" />
+                    ) : (
+                      getFileIcon(getFileType(uploadFile.file.type))
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{uploadFile.file.name}</p>
                     <p className="text-xs text-muted-foreground">
