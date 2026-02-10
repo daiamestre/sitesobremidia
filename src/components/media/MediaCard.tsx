@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { VideoPlayer, VideoPlayerRef } from '@/components/media/VideoPlayer';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -143,13 +144,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
       <div className="flex items-center gap-4 p-4 rounded-lg bg-card border hover:bg-muted/50 transition-colors">
         <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex items-center justify-center flex-shrink-0 relative cursor-pointer" onClick={() => onPreview(media)}>
           {/* Thumbnail Logic */}
-          {media.file_type === 'image' ? (
-            <img src={media.file_url} alt={media.name} className="w-full h-full object-cover" />
-          ) : isVideo ? (
-            <Video className="h-8 w-8 text-accent" />
-          ) : (
-            getFileIcon(media.file_type)
-          )}
+          <MediaThumbnail media={media} className="w-full h-full" />
         </div>
 
         <div className="flex-1 min-w-0">

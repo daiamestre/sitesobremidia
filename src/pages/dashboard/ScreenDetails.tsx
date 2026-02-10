@@ -1,5 +1,5 @@
-
 import { useState, useEffect } from 'react';
+import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -443,11 +443,7 @@ export default function ScreenDetails() {
                                                         className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
                                                         onClick={() => handleAddItem(media)}
                                                     >
-                                                        {media.file_type === 'image' ? (
-                                                            <img src={media.file_url} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <video src={media.file_url} className="w-full h-full object-cover" />
-                                                        )}
+                                                        <MediaThumbnail media={media} showIcon={false} />
                                                         <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] truncate text-white">
                                                             {media.name}
                                                         </div>
@@ -543,26 +539,7 @@ export default function ScreenDetails() {
                                                 </div>
 
                                                 <div className="h-10 w-16 bg-black/20 rounded overflow-hidden flex-shrink-0 relative">
-                                                    {item.media?.file_type === 'video' ? (
-                                                        <div className="relative w-full h-full group bg-black">
-                                                            <video
-                                                                src={item.media.file_url}
-                                                                className="w-full h-full object-cover"
-                                                                preload="metadata"
-                                                                muted
-                                                                playsInline
-                                                                crossOrigin="anonymous"
-                                                                onLoadedMetadata={(e) => {
-                                                                    e.currentTarget.currentTime = 0.1;
-                                                                }}
-                                                            />
-                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                                                                <Video className="h-3 w-3 text-white/90 drop-shadow-sm" />
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <img src={item.media?.file_url} className="w-full h-full object-cover" />
-                                                    )}
+                                                    {item.media && <MediaThumbnail media={item.media} showIcon={false} />}
                                                 </div>
 
                                                 <div className="flex-1 min-w-0">
