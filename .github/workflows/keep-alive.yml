@@ -1,24 +1,22 @@
-
-name: Supabase Keep-Alive Robot
+name: Keep Alive Robot
 
 on:
   schedule:
-    # Run everyday at 08:00 AM UTC (approx 05:00 AM Working Time)
-    - cron: '0 8 * * *'
-  workflow_dispatch: # Allow manual trigger for testing
+    - cron: '0 9 * * *' # Runs at 09:00 UTC every day
+  workflow_dispatch: # Allows manual run from Actions tab
 
 jobs:
-  run-robot:
+  ping-database:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install Dependencies
         run: npm install @supabase/supabase-js
@@ -26,5 +24,5 @@ jobs:
       - name: Run Keep-Alive Script
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node scripts/keep-alive.js

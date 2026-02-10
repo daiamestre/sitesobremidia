@@ -436,23 +436,13 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     // Allow audio always
     if (m.file_type === 'audio') return true;
 
-    // If media has no aspect ratio, maybe allow it? Or strict? 
-    // User said: "obrigatório o usuario adicionar e selecionar as midias nos formatos e nas proporções corretas"
-    // So if aspect_ratio is missing, we might hide it or show it with warning. 
-    // But `aspect_ratio` defaults to undefined in legacy data. 
-    // Let's enforce strict if aspect_ratio is present. If missing, maybe allow but it's risky.
-    // Given the user wants to FORCE, I will assume valid media has aspect_ratio. 
-    // If aspect_ratio is missing (old uploads), I will treat it as '16x9' (default) or just allow?
-    // I'll check if aspect_ratio matches.
-    if (m.aspect_ratio) {
-      return m.aspect_ratio === playlistResolution;
-    }
+    // Strict filtering: Media MUST have aspect_ratio matching playlist resolution.
+    // exception: if media has no aspect_ratio (legacy), we assume 16x9 if playlist is 16x9, but block for 9x16 to be safe?
+    // Let's go with: if aspect_ratio is present, must match. 
+    // If aspect_ratio is missing, treat as 16x9 (most common legacy).
 
-    // Fallback for media without aspect_ratio (old media)
-    // Maybe we default to 16x9 for old media?
-    if (!m.aspect_ratio && playlistResolution === '16x9') return true;
-
-    return false;
+    const mediaRatio = m.aspect_ratio || '16x9';
+    return mediaRatio === playlistResolution;
   });
 
   const getItemName = (item: PlaylistItem) => {
