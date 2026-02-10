@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertCircle, WifiOff, Maximize } from "lucide-react";
+import { Loader2, WifiOff } from "lucide-react";
 import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
 import "./Player.css";
 
@@ -33,12 +33,11 @@ export const PlayerEngine = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
-    // REMOVED hasStarted to enable Auto-Play
 
     // -- REFS --
     const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
     const playlistRef = useRef<MediaItem[]>([]);
-    const lastPlayedIdRef = useRef<string | null>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Sync Ref
     useEffect(() => {
@@ -79,14 +78,41 @@ export const PlayerEngine = () => {
             localStorage.setItem(SCREEN_ID_CACHE_KEY, screenId);
             if (screenId !== activeScreenId) setActiveScreenId(screenId);
 
-            const { data: screen, error: screenError } = await supabase
-                .from('screens')
-                .select('playlist_id, custom_id, orientation, resolution, audio_enabled')
-                .eq('custom_id', screenId)
-                .single();
+            // TRY custom_id FIRST, then fallback to UUID (id)
+            let screen: any = null;
 
-            if (screenError || !screen?.playlist_id) {
+            const { data: byCustomId, error: customErr } = await supabase
+                .from('screens')
+                .select('id, playlist_id, custom_id, orientation, resolution, audio_enabled')
+                .eq('custom_id', screenId)
+                .maybeSingle();
+
+            if (byCustomId) {
+                screen = byCustomId;
+            } else {
+                // Fallback: try by UUID
+                const { data: byId, error: idErr } = await supabase
+                    .from('screens')
+                    .select('id, playlist_id, custom_id, orientation, resolution, audio_enabled')
+                    .eq('id', screenId)
+                    .maybeSingle();
+
+                if (byId) {
+                    screen = byId;
+                }
+            }
+
+            if (!screen) {
                 if (!isBackgroundUpdate) throw new Error("Tela não encontrada.");
+                return;
+            }
+
+            // Update activeScreenId with the actual DB id for heartbeat
+            if (screen.id !== activeScreenId) setActiveScreenId(screen.id);
+
+            if (!screen.playlist_id) {
+                if (!isBackgroundUpdate) setError("Nenhuma playlist definida para esta tela.");
+                setIsLoading(false);
                 return;
             }
 
@@ -101,7 +127,7 @@ export const PlayerEngine = () => {
 
             if (itemsError) throw itemsError;
 
-            const mappedItems = await Promise.all(items.map(async (item: any) => {
+            const mappedItems = await Promise.all((items || []).map(async (item: any) => {
                 if (!item.media) return null;
                 let finalUrl = item.media.file_url;
 
@@ -131,6 +157,7 @@ export const PlayerEngine = () => {
 
                 if (!isBackgroundUpdate) {
                     setPlaylist(validItems);
+                    setCurrentIndex(0);
                     setNextIndex(validItems.length > 1 ? 1 : 0);
                     setError(null);
                     setAudioEnabled(screen.audio_enabled || false);
@@ -180,16 +207,18 @@ export const PlayerEngine = () => {
 
     // -- 2. PLAYBACK CONTROLLER --
     const triggerNext = useCallback(() => {
-        setPlaylist((currentPlaylist) => {
-            return currentPlaylist;
-        });
+        // Clear any pending timer
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+        }
 
         setCurrentIndex(prevIndex => {
             const currentP = playlistRef.current;
             const currentLen = currentP.length;
             if (currentLen === 0) return 0;
 
-            // HOT SWAP CHECK
+            // HOT SWAP CHECK: at end of playlist, apply pending update
             if (prevIndex >= currentLen - 1) {
                 setPendingPlaylist(pending => {
                     if (pending) {
@@ -213,54 +242,79 @@ export const PlayerEngine = () => {
         if (playlist.length === 0) return;
 
         const currentItem = playlist[currentIndex];
-
-        // Prevent Infinite Restart Loop
-        if (lastPlayedIdRef.current === currentItem.id) {
-            return;
-        }
-        lastPlayedIdRef.current = currentItem.id;
+        if (!currentItem) return;
 
         // IMAGE LOGIC
         if (currentItem.type === 'image') {
             const durationMs = (currentItem.duration || 10) * 1000;
-            const timer = setTimeout(triggerNext, durationMs);
-            return () => clearTimeout(timer);
+            timerRef.current = setTimeout(triggerNext, durationMs);
+            return () => {
+                if (timerRef.current) clearTimeout(timerRef.current);
+            };
         }
 
         // VIDEO LOGIC
-        const videoEl = videoRefs.current.get(currentIndex);
+        if (currentItem.type === 'video') {
+            const videoEl = videoRefs.current.get(currentIndex);
+            if (videoEl) {
+                videoEl.currentTime = 0;
 
-        if (currentItem.type === 'video' && videoEl) {
-            videoEl.currentTime = 0;
+                const playPromise = videoEl.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.warn(`Autoplay blocked / codec error:`, error);
+                        // If autoplay fails, fall back to duration timer
+                        const durationMs = (currentItem.duration || 10) * 1000;
+                        timerRef.current = setTimeout(triggerNext, durationMs);
+                    });
+                }
 
-            const playPromise = videoEl.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.warn(`Autoplay blocked / codec error:`, error);
+                const onEnded = () => triggerNext();
+                const onError = (e: any) => {
+                    console.error(`Media Error:`, e);
                     triggerNext();
-                });
+                };
+
+                videoEl.addEventListener('ended', onEnded);
+                videoEl.addEventListener('error', onError);
+
+                return () => {
+                    videoEl.removeEventListener('ended', onEnded);
+                    videoEl.removeEventListener('error', onError);
+                    if (timerRef.current) clearTimeout(timerRef.current);
+                };
+            } else {
+                // Video ref not ready, try duration-based fallback
+                const durationMs = (currentItem.duration || 10) * 1000;
+                timerRef.current = setTimeout(triggerNext, durationMs);
+                return () => {
+                    if (timerRef.current) clearTimeout(timerRef.current);
+                };
             }
-
-            const onEnded = () => triggerNext();
-            const onError = (e: any) => {
-                console.error(`Media Error:`, e);
-                triggerNext();
-            };
-
-            videoEl.addEventListener('ended', onEnded);
-            videoEl.addEventListener('error', onError);
-
-            return () => {
-                videoEl.removeEventListener('ended', onEnded);
-                videoEl.removeEventListener('error', onError);
-            };
         }
 
-        // Fallback
-        const timer = setTimeout(triggerNext, 5000);
-        return () => clearTimeout(timer);
+        // Fallback for unknown types
+        const durationMs = (currentItem.duration || 5) * 1000;
+        timerRef.current = setTimeout(triggerNext, durationMs);
+        return () => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+        };
 
     }, [currentIndex, playlist, triggerNext]);
+
+    // -- PRE-BUFFER NEXT VIDEO --
+    useEffect(() => {
+        if (playlist.length < 2) return;
+        const nextItem = playlist[nextIndex];
+        if (!nextItem || nextItem.type !== 'video') return;
+
+        const nextVideoEl = videoRefs.current.get(nextIndex);
+        if (nextVideoEl) {
+            nextVideoEl.preload = 'auto';
+            // Load first frames
+            nextVideoEl.load();
+        }
+    }, [nextIndex, playlist]);
 
     // -- ACTIONS --
     const toggleFullscreen = () => {
@@ -287,7 +341,7 @@ export const PlayerEngine = () => {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-white p-8 text-center">
                 <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mb-6">
-                    <span className="text-3xl font-bold text-zinc-700">Logo</span>
+                    <span className="text-3xl font-bold text-zinc-700">SM</span>
                 </div>
                 <p className="text-zinc-500 mb-4 text-sm uppercase tracking-widest">{error || "Aguardando Conteúdo"}</p>
                 {isOffline && <div className="flex items-center text-yellow-600 gap-2 text-xs"><WifiOff size={14} /> Offline</div>}
@@ -295,14 +349,13 @@ export const PlayerEngine = () => {
         );
     }
 
-    // REMOVED Start Overlay Check - Player renders items immediately
-
     const renderItem = (item: MediaItem, index: number, isActive: boolean) => {
         const isNext = index === nextIndex;
+        // Only render active, next, and current-1 for smooth transitions
         if (!isActive && !isNext && playlist.length > 2) return null;
+        if (!item) return null;
 
         const commonClasses = `media-layer ${isActive ? 'active' : ''}`;
-        if (!item) return null;
 
         if (item.type === 'image') {
             return (
@@ -311,6 +364,7 @@ export const PlayerEngine = () => {
                     src={item.url}
                     className={commonClasses}
                     alt=""
+                    draggable={false}
                     onError={() => { console.error("Image Fail"); triggerNext(); }}
                 />
             );
@@ -340,7 +394,7 @@ export const PlayerEngine = () => {
         <div className="player-container" onClick={toggleFullscreen}>
             {playlist.map((item, idx) => renderItem(item, idx, idx === currentIndex))}
             <div className="debug-overlay">
-                v4.1.0 • {currentIndex + 1}/{playlist.length}
+                v5.0.0 • {currentIndex + 1}/{playlist.length}
             </div>
         </div>
     );
