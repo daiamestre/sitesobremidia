@@ -1,7 +1,7 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseConfig } from "@/supabaseConfig";
 
 const QUEUE_KEY = "codemidia_playback_queue";
-const MAX_QUEUE_SIZE = 5000; // Store up to 5000 logs (~5 days of continuous play)
+const MAX_QUEUE_SIZE = 5000;
 
 export interface PlaybackLogEntry {
     screen_id: string;
@@ -13,37 +13,20 @@ export interface PlaybackLogEntry {
 }
 
 export const offlineLogger = {
-    /**
-     * Save a log entry to the local queue.
-     */
     log: (entry: PlaybackLogEntry) => {
         try {
             const queueStr = localStorage.getItem(QUEUE_KEY);
             let queue: PlaybackLogEntry[] = queueStr ? JSON.parse(queueStr) : [];
-
-            // Add new entry
             queue.push(entry);
-
-            // Cap size to prevent storage overflow
-            if (queue.length > MAX_QUEUE_SIZE) {
-                // Remove oldest
-                queue = queue.slice(queue.length - MAX_QUEUE_SIZE);
-            }
-
+            if (queue.length > MAX_QUEUE_SIZE) queue = queue.slice(queue.length - MAX_QUEUE_SIZE);
             localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 
-            // Try to flush immediately if online
-            if (navigator.onLine) {
-                offlineLogger.flush();
-            }
+            if (navigator.onLine) offlineLogger.flush();
         } catch (e) {
-            console.error("OfflineLogger: Failed to save log", e);
+            console.error("OfflineLogger: Save failed", e);
         }
     },
 
-    /**
-     * Try to send queued logs to the server.
-     */
     flush: async () => {
         if (!navigator.onLine) return;
 
@@ -54,26 +37,31 @@ export const offlineLogger = {
             const queue: PlaybackLogEntry[] = JSON.parse(queueStr);
             if (queue.length === 0) return;
 
-            // Take a batch (e.g., 50 items) to prevent massive payloads
             const batchSize = 50;
             const batch = queue.slice(0, batchSize);
 
-            // Send to Supabase
-            const { error } = await supabase.from('playback_logs').insert(batch);
+            // USE DIRECT FETCH (Bypass Supabase Client)
+            const url = `${supabaseConfig.url}/rest/v1/playback_logs`;
+            const headers = {
+                'apikey': supabaseConfig.key,
+                'Authorization': `Bearer ${supabaseConfig.key}`, // Anon Key
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            };
 
-            if (!error) {
-                // Success! Remove from queue
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(batch)
+            });
+
+            if (resp.ok) {
                 const remaining = queue.slice(batchSize);
                 localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining));
-
                 console.log(`OfflineLogger: Flushed ${batch.length} logs. Remaining: ${remaining.length}`);
-
-                // If more remain, flush again recursively next tick or soon
-                if (remaining.length > 0) {
-                    setTimeout(() => offlineLogger.flush(), 1000);
-                }
+                if (remaining.length > 0) setTimeout(() => offlineLogger.flush(), 1000);
             } else {
-                console.warn("OfflineLogger: Flush failed (Supabase error)", error);
+                console.warn("OfflineLogger: Flush Failed", resp.status, await resp.text());
             }
         } catch (e) {
             console.error("OfflineLogger: Flush error", e);
