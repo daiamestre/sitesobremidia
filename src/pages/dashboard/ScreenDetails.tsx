@@ -77,6 +77,67 @@ interface ScreenWithPlaylist {
 // Mock Data for Chart
 // Chart Data Logic handled inside component
 
+
+function DebugLogViewer({ screenId }: { screenId: string }) {
+    const [logs, setLogs] = useState<any[]>([]);
+    const [count, setCount] = useState(0);
+    const [lastError, setLastError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetch = async () => {
+            try {
+                const { data, count, error } = await supabase
+                    .from('playback_logs')
+                    .select('*', { count: 'exact' })
+                    .eq('screen_id', screenId)
+                    .order('started_at', { ascending: false })
+                    .limit(5);
+
+                if (error) throw error;
+                setLogs(data || []);
+                setCount(count || 0);
+                setLastError(null);
+            } catch (e: any) {
+                setLastError(e.message);
+            }
+        };
+
+        fetch();
+        const interval = setInterval(fetch, 5000);
+        return () => clearInterval(interval);
+    }, [screenId]);
+
+    return (
+        <div className="bg-black/40 p-2 rounded text-[10px] font-mono max-h-40 overflow-auto">
+            <div className="flex justify-between mb-1 text-xs font-bold">
+                <span>Total Logs: {count}</span>
+                {lastError && <span className="text-red-500">{lastError}</span>}
+            </div>
+            <table className="w-full text-left opacity-80">
+                <thead>
+                    <tr className="border-b border-white/10">
+                        <th>Hora (Local)</th>
+                        <th>Mídia</th>
+                        <th>Duração</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {logs.map((log) => (
+                        <tr key={log.id} className="border-b border-white/5">
+                            <td>{new Date(log.started_at).toLocaleTimeString()}</td>
+                            <td className="truncate max-w-[100px]">{log.media_id ? log.media_id.slice(0, 8) : 'N/A'}...</td>
+                            <td>{log.duration}s</td>
+                        </tr>
+                    ))}
+                    {logs.length === 0 && (
+                        <tr><td colSpan={3} className="text-center py-2 opacity-50">Nenhum log encontrado (ainda).</td></tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 export default function ScreenDetails() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -445,6 +506,24 @@ export default function ScreenDetails() {
                                     <Bar dataKey="value" fill="#8884d8" radius={[4, 4, 0, 0]} className="fill-primary" />
                                 </BarChart>
                             </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+
+                    {/* DEBUG PANEL (Visible Only If Logs Empty or for Testing) */}
+                    <Card className="glass border-orange-500/30 bg-orange-500/5">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-mono text-orange-400 flex items-center gap-2">
+                                <Server className="h-4 w-4" /> DIAGNÓSTICO DE DADOS (Debug)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-xs font-mono space-y-2">
+                            <div className="flex justify-between border-b border-white/10 pb-1">
+                                <span>Status do Gráfico:</span>
+                                <span className={statsData && statsData.length > 0 ? "text-green-400" : "text-red-400"}>
+                                    {statsData && statsData.length > 0 ? `OK (${statsData.reduce((acc: any, curr: any) => acc + curr.value, 0)} visualizações)` : "VAZIO (0)"}
+                                </span>
+                            </div>
+                            <DebugLogViewer screenId={id || ''} />
                         </CardContent>
                     </Card>
 
