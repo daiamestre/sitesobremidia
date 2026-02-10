@@ -40,6 +40,7 @@ export const PlayerEngine = () => {
     const [audioEnabled, setAudioEnabled] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [screenOrientation, setScreenOrientation] = useState<'landscape' | 'portrait'>('landscape');
 
     usePlayerHeartbeat(activeScreenId);
 
@@ -104,6 +105,7 @@ export const PlayerEngine = () => {
 
             const screen = screens[0];
             setActiveScreenId(screen.id);
+            setScreenOrientation(screen.orientation || 'landscape');
 
             if (!screen.playlist_id) {
                 if (!isBackgroundUpdate) setError("Nenhuma playlist definida.");
@@ -340,7 +342,12 @@ export const PlayerEngine = () => {
 
     return (
         <div className="player-container" onClick={toggleFullscreen}>
-            {playlist.map((item, idx) => renderItem(item, idx, idx === currentIndex))}
+            <div
+                className="player-screen-box"
+                style={{ aspectRatio: screenOrientation === 'portrait' ? '9/16' : '16/9' }}
+            >
+                {playlist.map((item, idx) => renderItem(item, idx, idx === currentIndex))}
+            </div>
         </div>
     );
 };
