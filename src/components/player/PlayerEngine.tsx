@@ -25,6 +25,7 @@ export const PlayerEngine = () => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [nextIndex, setNextIndex] = useState(1);
     const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
+    const [audioEnabled, setAudioEnabled] = useState(false);
 
     // -- HEARTBEAT --
     usePlayerHeartbeat(activeScreenId);
@@ -80,7 +81,7 @@ export const PlayerEngine = () => {
 
             const { data: screen, error: screenError } = await supabase
                 .from('screens')
-                .select('playlist_id, custom_id, orientation, resolution')
+                .select('playlist_id, custom_id, orientation, resolution, audio_enabled')
                 .eq('custom_id', screenId)
                 .single();
 
@@ -132,6 +133,7 @@ export const PlayerEngine = () => {
                     setPlaylist(validItems);
                     setNextIndex(validItems.length > 1 ? 1 : 0);
                     setError(null);
+                    setAudioEnabled(screen.audio_enabled || false);
                 } else {
                     if (JSON.stringify(validItems) !== JSON.stringify(playlistRef.current)) {
                         console.log("New playlist update detected. Queued.");
@@ -324,7 +326,7 @@ export const PlayerEngine = () => {
                     }}
                     src={item.url}
                     className={commonClasses}
-                    muted
+                    muted={!audioEnabled}
                     playsInline
                     preload="auto"
                 />

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Monitor, MonitorSmartphone, Loader2 } from 'lucide-react';
+import { Monitor, MonitorSmartphone, Loader2, Volume2, VolumeX } from 'lucide-react';
 
 import { Screen } from '@/types/models';
 
@@ -40,6 +40,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
   const [customId, setCustomId] = useState('');
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -67,6 +68,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
       setCustomId(screen.custom_id || '');
       setPlaylistId(screen.playlist_id);
       setIsActive(screen.is_active);
+      setAudioEnabled(screen.audio_enabled || false);
     } else {
       setName('');
       setDescription('');
@@ -75,6 +77,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
       setCustomId('');
       setPlaylistId(null);
       setIsActive(true);
+      setAudioEnabled(false);
     }
   }, [screen, open]);
 
@@ -114,6 +117,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
             playlist_id: playlistId,
             is_active: isActive,
             custom_id: customId,
+            audio_enabled: audioEnabled,
           })
           .eq('id', screen.id);
         if (error) {
@@ -137,6 +141,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
             is_active: isActive,
             user_id: user.id,
             custom_id: customId,
+            audio_enabled: audioEnabled,
           });
         if (error) {
           if (error.code === '23505') {
@@ -246,6 +251,21 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
             </div>
           </div>
 
+
+
+          <div className="flex items-center justify-between border rounded-lg p-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <Label>Áudio da Tela</Label>
+                {audioEnabled ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Se ativado, os vídeos serão reproduzidos com som
+              </p>
+            </div>
+            <Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} />
+          </div>
+
           <div className="flex items-center justify-between border rounded-lg p-3">
             <div className="space-y-0.5">
               <Label>Tela Ativa</Label>
@@ -266,6 +286,6 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
           </Button>
         </div>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   );
 }

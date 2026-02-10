@@ -108,6 +108,7 @@ export type Screen = {
     playlist?: Playlist | null; // Joined playlist
     custom_id?: string | null;
     resolution?: string;
+    audio_enabled?: boolean;
 };
 
 export type RemoteCommandType = 'reload' | 'reboot' | 'screenshot';
