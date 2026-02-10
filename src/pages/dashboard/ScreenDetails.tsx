@@ -113,7 +113,7 @@ export default function ScreenDetails() {
                             media_id,
                             position,
                             duration,
-                            media:media_id(id, name, file_url, duration, file_type)
+                            media:media_id(id, name, file_url, file_type)
                         )
                     )
                 `)
