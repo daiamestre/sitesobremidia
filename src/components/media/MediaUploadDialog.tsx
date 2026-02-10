@@ -76,7 +76,6 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// Generate thumbnail blob from video file
 const generateVideoThumbnail = (file: File): Promise<Blob | null> => {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
@@ -87,9 +86,11 @@ const generateVideoThumbnail = (file: File): Promise<Blob | null> => {
     video.muted = true;
     video.playsInline = true;
 
-    video.onloadeddata = () => {
-      // Seek to 1 second or 10% of video duration (whichever is smaller)
-      video.currentTime = Math.min(1.5, video.duration * 0.1); // Increased to 1.5s as per user pref
+    // Use onloadedmetadata to ensure duration is available
+    video.onloadedmetadata = () => {
+      // Seek to 1.5s or 10% of duration if shorter
+      const seekTime = Math.min(1.5, (video.duration || 0) * 0.1);
+      video.currentTime = seekTime || 0.1; // Fallback to 0.1 if calc fails
     };
 
     video.onseeked = () => {
@@ -117,6 +118,25 @@ const generateVideoThumbnail = (file: File): Promise<Blob | null> => {
     video.src = URL.createObjectURL(file);
   });
 };
+
+// ... inside component render ...
+
+<div className="flex-shrink-0 w-12 h-12 bg-black/5 rounded overflow-hidden flex items-center justify-center">
+  {uploadFile.thumbnailPreview ? (
+    <img src={uploadFile.thumbnailPreview} className="w-full h-full object-cover" alt="Cover" />
+  ) : getFileType(uploadFile.file.type) === 'image' ? (
+    <img src={URL.createObjectURL(uploadFile.file)} className="w-full h-full object-cover" alt="Preview" />
+  ) : getFileType(uploadFile.file.type) === 'video' ? (
+    <video
+      src={URL.createObjectURL(uploadFile.file)}
+      className="w-full h-full object-cover"
+      muted
+      onLoadedMetadata={(e) => e.currentTarget.currentTime = 1.0}
+    />
+  ) : (
+    getFileIcon(getFileType(uploadFile.file.type))
+  )}
+</div>
 
 export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: MediaUploadDialogProps) {
   const { user } = useAuth();
@@ -608,6 +628,13 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
                       <img src={uploadFile.thumbnailPreview} className="w-full h-full object-cover" alt="Cover" />
                     ) : getFileType(uploadFile.file.type) === 'image' ? (
                       <img src={URL.createObjectURL(uploadFile.file)} className="w-full h-full object-cover" alt="Preview" />
+                    ) : getFileType(uploadFile.file.type) === 'video' ? (
+                      <video
+                        src={URL.createObjectURL(uploadFile.file)}
+                        className="w-full h-full object-cover pointer-events-none"
+                        muted
+                        onLoadedMetadata={(e) => e.currentTarget.currentTime = 1.0}
+                      />
                     ) : (
                       getFileIcon(getFileType(uploadFile.file.type))
                     )}
