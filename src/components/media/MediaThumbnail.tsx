@@ -22,7 +22,10 @@ export function MediaThumbnail({ media, className, showIcon = true }: MediaThumb
     // Attempt to seek to a meaningful frame to avoid black starting frames
     const handleMetadataLoaded = () => {
         if (videoRef.current) {
-            videoRef.current.currentTime = 0.5; // Seek to 0.5s instead of 0.1s to likely hit content
+            // If duration is extremely short, don't seek too far. 
+            // Seek to 1.5s to avoid fade-ins.
+            const seekTime = (videoRef.current.duration > 2) ? 1.5 : 0.0;
+            videoRef.current.currentTime = seekTime;
             setLoaded(true);
         }
     };
@@ -38,6 +41,9 @@ export function MediaThumbnail({ media, className, showIcon = true }: MediaThumb
         );
     }
 
+    // Add timestamp explicitly to src to force browser to load from that frame (Media Fragments URI)
+    const videoSrc = isVideo ? `${media.file_url}#t=1.0` : media.file_url;
+
     return (
         <div className={cn("relative w-full h-full overflow-hidden bg-black/5", className)}>
             {isImage ? (
@@ -52,7 +58,7 @@ export function MediaThumbnail({ media, className, showIcon = true }: MediaThumb
                 <>
                     <video
                         ref={videoRef}
-                        src={media.file_url}
+                        src={videoSrc}
                         className="w-full h-full object-cover"
                         preload="metadata"
                         muted
