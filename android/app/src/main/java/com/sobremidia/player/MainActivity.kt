@@ -97,6 +97,19 @@ class MainActivity : AppCompatActivity() {
         // --- HARDWARE LOCKS (IMMORTAL MODE) ---
         acquireSystemLocks()
         requestAudioFocus()
+        
+        // --- AUTO-UPDATE (OTA) ---
+        startUpdateChecker()
+    }
+
+    private fun startUpdateChecker() {
+        val updater = com.sobremidia.player.update.UpdateManager(this)
+        updater.checkForUpdate()
+        
+        // Check every 1 hour
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            startUpdateChecker()
+        }, 60 * 60 * 1000)
     }
 
     private fun acquireSystemLocks() {
