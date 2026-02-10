@@ -191,7 +191,9 @@ class MainActivity : AppCompatActivity() {
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
         // Native Interface
-        webView.addJavascriptInterface(WebAppInterface(this), "NativePlayer")
+        val bridge = WebAppInterface(this)
+        bridge.setWebView(webView)
+        webView.addJavascriptInterface(bridge, "NativePlayer")
 
         // Debugging handled in Chrome Client
         webView.webChromeClient = object : WebChromeClient() {

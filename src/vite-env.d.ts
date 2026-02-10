@@ -27,5 +27,7 @@ interface Window {
     showToast(message: string): void;
     getDeviceStatus(): string; // JSON String
     requestOverlayPermission(): void;
+    captureScreenshot(callbackName: string): void;
   };
+  onScreenshotReady?: (base64: string | null) => void;
 }

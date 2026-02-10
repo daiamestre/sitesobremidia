@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseConfig } from "@/supabaseConfig";
 import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
+import { offlineLogger } from "@/utils/offlineLogger";
+import { monitoring } from "@/utils/monitoring";
 import "./Player.css";
 
 interface MediaItem {
@@ -200,21 +202,29 @@ export const PlayerEngine = () => {
         return () => clearInterval(interval);
     }, [fetchPlaylist]);
 
-    // LOGGING
-    const logPlayback = useCallback(async (item: MediaItem) => {
-        try {
-            await supabase.from('playback_logs').insert({
-                screen_id: activeScreenId,
-                media_id: item.id,
-                playlist_id: null, // We don't track playlist_id in MediaItem currently, optional
-                duration: item.duration,
-                status: 'completed',
-                started_at: new Date().toISOString() // Or calculate actual start
-            });
-        } catch (e) {
-            // Fail silently if table doesn't exist yet or offline
-            console.warn("Stats log failed:", e);
-        }
+    // HEARTBEAT / MONITORING (Proof of Play)
+    useEffect(() => {
+        if (!activeScreenId) return;
+
+        // Send initial heartbeat
+        monitoring.sendHeartbeat(activeScreenId);
+
+        // Schedule every 5 minutes
+        const heartbeatInterval = setInterval(() => {
+            monitoring.sendHeartbeat(activeScreenId);
+        }, 5 * 60 * 1000);
+
+        return () => clearInterval(heartbeatInterval);
+    }, [activeScreenId]);
+    const logPlayback = useCallback((item: MediaItem) => {
+        offlineLogger.log({
+            screen_id: activeScreenId || '', // Should not happen if active
+            media_id: item.id,
+            playlist_id: null,
+            duration: item.duration,
+            status: 'completed',
+            started_at: new Date().toISOString()
+        });
     }, [activeScreenId]);
 
     // PLAYBACK LOGIC
