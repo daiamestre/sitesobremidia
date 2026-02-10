@@ -544,12 +544,17 @@ export default function ScreenDetails() {
 
                                                 <div className="h-10 w-16 bg-black/20 rounded overflow-hidden flex-shrink-0 relative">
                                                     {item.media?.file_type === 'video' ? (
-                                                        <div className="relative w-full h-full group">
+                                                        <div className="relative w-full h-full group bg-black">
                                                             <video
-                                                                src={`${item.media.file_url}#t=0.1`}
+                                                                src={item.media.file_url}
                                                                 className="w-full h-full object-cover"
                                                                 preload="metadata"
                                                                 muted
+                                                                playsInline
+                                                                crossOrigin="anonymous"
+                                                                onLoadedMetadata={(e) => {
+                                                                    e.currentTarget.currentTime = 0.1;
+                                                                }}
                                                             />
                                                             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                                                                 <Video className="h-3 w-3 text-white/90 drop-shadow-sm" />

@@ -465,10 +465,15 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         return (
           <div className="w-full h-full bg-black relative">
             <video
-              src={`${item.media.file_url}#t=0.1`}
+              src={item.media.file_url}
               className="w-full h-full object-cover"
               preload="metadata"
               muted
+              playsInline
+              crossOrigin="anonymous"
+              onLoadedMetadata={(e) => {
+                e.currentTarget.currentTime = 0.1;
+              }}
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
               <Video className="h-4 w-4 text-white/90 drop-shadow-sm" />
