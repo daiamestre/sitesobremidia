@@ -328,6 +328,7 @@ export const PlayerEngine = () => {
                     className={commonClasses}
                     muted={!audioEnabled}
                     playsInline
+                    crossOrigin="anonymous"
                     preload="auto"
                 />
             );
