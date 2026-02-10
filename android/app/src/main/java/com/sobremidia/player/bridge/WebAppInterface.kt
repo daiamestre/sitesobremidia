@@ -104,4 +104,39 @@ class WebAppInterface(private val context: Context) {
             }
         }
     }
+    private var webView: android.webkit.WebView? = null
+    
+    fun setWebView(view: android.webkit.WebView) {
+        this.webView = view
+    }
+
+    @JavascriptInterface
+    fun captureScreenshot(callbackName: String) {
+        val activity = context as? android.app.Activity ?: return
+        activity.runOnUiThread {
+            try {
+                if (webView == null) return@runOnUiThread
+                
+                val view = activity.window.decorView.rootView
+                val bitmap = android.graphics.Bitmap.createBitmap(view.width, view.height, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bitmap)
+                view.draw(canvas)
+                
+                val stream = java.io.ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 60, stream) // 60% quality
+                val byteArray = stream.toByteArray()
+                val base64 = android.util.Base64.encodeToString(byteArray, android.util.Base64.NO_WRAP)
+                
+                val result = "data:image/jpeg;base64,$base64"
+                
+                // Send back to JS
+                // We must use evaluateJavascript from UI Thread
+                webView?.evaluateJavascript("$callbackName('$result')", null)
+                
+            } catch (e: Exception) {
+                android.util.Log.e("NativePlayer", "Screenshot Failed", e)
+                webView?.evaluateJavascript("$callbackName(null)", null)
+            }
+        }
+    }
 }
