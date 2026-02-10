@@ -1,4 +1,4 @@
-project_id = "ixdvgbgtqwuvworzdnhm"
+project_id = "bhwsybgsyvvhqtkdqozb"
 
 [functions.check-offline-screens]
 verify_jwt = false
