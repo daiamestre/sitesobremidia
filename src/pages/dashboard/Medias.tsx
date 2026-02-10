@@ -32,6 +32,7 @@ export default function Medias() {
   const [currentFolder, setCurrentFolder] = useState<'image' | 'video' | 'audio' | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<Media | null>(null);
+  const [editMedia, setEditMedia] = useState<Media | null>(null);
   const [deleteMediaId, setDeleteMediaId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -211,6 +212,7 @@ export default function Medias() {
                 viewMode={viewMode}
                 onDelete={setDeleteMediaId}
                 onPreview={setPreviewMedia}
+                onEdit={(m) => { setEditMedia(m); setUploadDialogOpen(true); }}
               />
             ))}
           </div>
@@ -224,6 +226,7 @@ export default function Medias() {
                 viewMode={viewMode}
                 onDelete={setDeleteMediaId}
                 onPreview={setPreviewMedia}
+                onEdit={(m) => { setEditMedia(m); setUploadDialogOpen(true); }}
               />
             ))}
           </div>
@@ -233,11 +236,16 @@ export default function Medias() {
       {/* Upload Dialog */}
       <MediaUploadDialog
         open={uploadDialogOpen}
-        onOpenChange={setUploadDialogOpen}
+        onOpenChange={(open) => {
+          setUploadDialogOpen(open);
+          if (!open) setEditMedia(null);
+        }}
         onUploadComplete={() => {
           fetchMedias();
           setUploadDialogOpen(false);
+          setEditMedia(null);
         }}
+        editMedia={editMedia}
       />
 
       {/* Preview Dialog */}

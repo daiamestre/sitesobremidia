@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,12 +14,13 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { Playlist } from '@/types/models';
+import { Playlist, Media } from '@/types/models';
 
 interface MediaUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUploadComplete: () => void;
+  editMedia?: Media | null;
 }
 
 interface UploadFile {
@@ -121,12 +122,14 @@ const generateVideoThumbnail = (file: File): Promise<Blob | null> => {
 
 
 
-export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: MediaUploadDialogProps) {
+export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMedia }: MediaUploadDialogProps) {
   const { user } = useAuth();
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isEditMode = !!editMedia;
 
   // Form fields
   const [mediaName, setMediaName] = useState('');
@@ -138,6 +141,19 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
   const [aspectRatio, setAspectRatio] = useState<'16x9' | '9x16'>('16x9');
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>('none');
+
+  // Pre-fill form when editing
+  useEffect(() => {
+    if (open && editMedia) {
+      setMediaName(editMedia.name || '');
+      setAspectRatio((editMedia.aspect_ratio as '16x9' | '9x16') || '16x9');
+      setFiles([]); // Clear any stale files
+    } else if (open) {
+      // Reset for new upload
+      setMediaName('');
+      setAspectRatio('16x9');
+    }
+  }, [open, editMedia]);
 
   useEffect(() => {
     if (open && user) {
@@ -380,6 +396,98 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
     }
   };
 
+  // --- UPDATE MEDIA (Edit Mode) ---
+  const updateMedia = async () => {
+    if (!user || !editMedia) return;
+
+    if (!mediaName.trim()) {
+      toast.error('Por favor, preencha o nome da mídia');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const updateData: Record<string, any> = {
+        name: mediaName.trim(),
+        aspect_ratio: aspectRatio,
+      };
+
+      // If user selected a new file, upload it and replace old one
+      if (files.length > 0 && files[0].status === 'pending') {
+        const newFile = files[0];
+
+        // Upload new file
+        const fileExt = newFile.file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `${user.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(filePath, newFile.file, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('media')
+          .getPublicUrl(filePath);
+
+        // Upload thumbnail for video
+        let thumbnailUrl: string | null = null;
+        if (newFile.thumbnailBlob) {
+          const thumbName = `${Date.now()}-thumb.jpg`;
+          const thumbPath = `${user.id}/thumbnails/${thumbName}`;
+          const { error: thumbErr } = await supabase.storage
+            .from('media')
+            .upload(thumbPath, newFile.thumbnailBlob, {
+              cacheControl: '3600',
+              contentType: 'image/jpeg'
+            });
+          if (!thumbErr) {
+            const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
+              .from('media')
+              .getPublicUrl(thumbPath);
+            thumbnailUrl = thumbPublicUrl;
+          }
+        }
+
+        // Delete old file from storage
+        try {
+          await supabase.storage.from('media').remove([editMedia.file_path]);
+        } catch (err) {
+          console.warn('Could not delete old file:', err);
+        }
+
+        updateData.file_path = filePath;
+        updateData.file_url = publicUrl;
+        updateData.file_type = getFileType(newFile.file.type);
+        updateData.file_size = newFile.file.size;
+        updateData.mime_type = newFile.file.type;
+        if (thumbnailUrl) updateData.thumbnail_url = thumbnailUrl;
+      }
+
+      // Update database
+      const { error: dbError } = await supabase
+        .from('media')
+        .update(updateData)
+        .eq('id', editMedia.id);
+
+      if (dbError) throw dbError;
+
+      toast.success('Mídia atualizada com sucesso!');
+      onUploadComplete();
+    } catch (error: unknown) {
+      console.error('Update error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(`Erro ao atualizar: ${errorMessage}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleClose = () => {
     if (!isUploading) {
       setFiles([]);
@@ -401,10 +509,29 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Upload de Mídias</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Editar Mídia' : 'Upload de Mídias'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Preview da mídia atual (edit mode) */}
+          {isEditMode && files.length === 0 && (
+            <div className="rounded-lg border overflow-hidden bg-muted/30">
+              <p className="text-xs text-muted-foreground px-3 pt-2">Mídia atual:</p>
+              <div className="aspect-video max-h-40 flex items-center justify-center">
+                {editMedia?.file_type === 'video' ? (
+                  <video src={editMedia.file_url} className="h-full object-contain" muted />
+                ) : editMedia?.file_type === 'image' ? (
+                  <img src={editMedia.file_url} className="h-full object-contain" alt={editMedia.name} />
+                ) : (
+                  <div className="flex flex-col items-center text-muted-foreground">
+                    <Music className="h-8 w-8" />
+                    <span className="text-xs mt-1">Áudio</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Nome da Mídia */}
           <div className="space-y-2">
             <Label htmlFor="mediaName">Nome da Mídia</Label>
@@ -542,7 +669,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
 
           {/* Upload de Mídias */}
           <div className="space-y-2">
-            <Label>Upload de Mídias</Label>
+            <Label>{isEditMode ? 'Trocar Mídia (opcional)' : 'Upload de Mídias'}</Label>
             <div
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -559,17 +686,17 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
               <input
                 ref={fileInputRef}
                 type="file"
-                multiple
+                multiple={!isEditMode}
                 accept={acceptedMimeTypes}
                 onChange={(e) => handleFileSelect(e.target.files)}
                 className="hidden"
               />
               <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
               <p className="text-base font-medium mb-1">
-                Arraste e solte seus arquivos aqui
+                {isEditMode ? 'Clique para trocar o arquivo' : 'Arraste e solte seus arquivos aqui'}
               </p>
               <p className="text-sm text-muted-foreground">
-                ou clique para selecionar
+                {isEditMode ? 'Selecione um novo arquivo para substituir' : 'ou clique para selecionar'}
               </p>
               <p className="text-xs text-muted-foreground mt-2">
                 Suporta: Imagens (JPG, PNG, GIF, WebP), Vídeos (MP4, WebM), Áudios (MP3, WAV)
@@ -577,26 +704,28 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
             </div>
           </div>
 
-          {/* Adicionar à Playlist (Opcional) */}
-          <div className="space-y-2">
-            <Label>Adicionar à Playlist (Opcional)</Label>
-            <div className="flex items-center gap-2">
-              <ListPlus className="h-5 w-5 text-muted-foreground" />
-              <Select value={selectedPlaylistId} onValueChange={setSelectedPlaylistId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione uma playlist (Opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhuma (Apenas Galeria)</SelectItem>
-                  {playlists.map((playlist) => (
-                    <SelectItem key={playlist.id} value={playlist.id}>
-                      {playlist.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Adicionar à Playlist (Opcional) - only for new uploads */}
+          {!isEditMode && (
+            <div className="space-y-2">
+              <Label>Adicionar à Playlist (Opcional)</Label>
+              <div className="flex items-center gap-2">
+                <ListPlus className="h-5 w-5 text-muted-foreground" />
+                <Select value={selectedPlaylistId} onValueChange={setSelectedPlaylistId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione uma playlist (Opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma (Apenas Galeria)</SelectItem>
+                    {playlists.map((playlist) => (
+                      <SelectItem key={playlist.id} value={playlist.id}>
+                        {playlist.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* File List */}
           {files.length > 0 && (
@@ -659,13 +788,23 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: Medi
           <Button variant="outline" onClick={handleClose} disabled={isUploading}>
             Cancelar
           </Button>
-          <Button
-            onClick={uploadFiles}
-            disabled={!hasFilesToUpload || isUploading}
-            className="gradient-primary"
-          >
-            {isUploading ? 'Enviando...' : `Enviar ${pendingFiles.length} arquivo(s)`}
-          </Button>
+          {isEditMode ? (
+            <Button
+              onClick={updateMedia}
+              disabled={isUploading}
+              className="gradient-primary"
+            >
+              {isUploading ? 'Atualizando...' : 'Atualizar Mídia'}
+            </Button>
+          ) : (
+            <Button
+              onClick={uploadFiles}
+              disabled={!hasFilesToUpload || isUploading}
+              className="gradient-primary"
+            >
+              {isUploading ? 'Enviando...' : `Enviar ${pendingFiles.length} arquivo(s)`}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

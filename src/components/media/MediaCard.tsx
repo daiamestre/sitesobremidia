@@ -4,7 +4,7 @@ import { VideoPlayer, VideoPlayerRef } from '@/components/media/VideoPlayer';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, Volume2, VolumeX, Monitor, Smartphone } from 'lucide-react';
+import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, Volume2, VolumeX, Monitor, Smartphone, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Media } from '@/types/models';
@@ -15,6 +15,7 @@ interface MediaCardProps {
   viewMode: 'grid' | 'list';
   onDelete: (id: string) => void;
   onPreview: (media: Media) => void;
+  onEdit: (media: Media) => void;
 }
 
 const formatFileSize = (bytes?: number): string => {
@@ -34,7 +35,7 @@ const getFileIcon = (type: string) => {
   }
 };
 
-export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardProps) {
+export function MediaCard({ media, viewMode, onDelete, onPreview, onEdit }: MediaCardProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   // Initialize with prop value, but allow local override for auto-correction
@@ -181,6 +182,10 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
                 <Eye className="h-4 w-4 mr-2" />
                 Visualizar
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEdit(media)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Editar
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 Baixar
@@ -326,6 +331,10 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
               <DropdownMenuItem onClick={() => onPreview(media)}>
                 <Eye className="h-4 w-4 mr-2" />
                 Visualizar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEdit(media)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Editar
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleDownload}>
                 <Download className="h-4 w-4 mr-2" />
