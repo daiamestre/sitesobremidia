@@ -99,7 +99,7 @@ export default function ScreenDetails() {
                             media_id,
                             position,
                             duration,
-                            media:media_items(id, name, file_url, duration, file_type)
+                            media:media_id(id, name, file_url, duration, file_type)
                         )
                     )
                 `)
@@ -222,8 +222,19 @@ export default function ScreenDetails() {
         }
     };
 
-    if (isLoading || !screen) return <div className="p-8"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div></div>;
+    if (isLoading) return <div className="p-8 flex justify-center"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div></div>;
 
+    // Add specific check for error or missing screen
+    if (isError || !screen) {
+        return (
+            <div className="p-8 flex flex-col items-center justify-center text-muted-foreground">
+                <Server className="h-10 w-10 mb-2 opacity-50" />
+                <h2 className="text-xl font-semibold">Erro ao carregar detalhes</h2>
+                <p>Não foi possível encontrar a tela ou os dados estão incompletos.</p>
+                <Button variant="link" onClick={() => navigate('/dashboard/screens')}>Voltar</Button>
+            </div>
+        );
+    }
     const isOnline = screen.last_ping_at && (new Date().getTime() - new Date(screen.last_ping_at).getTime()) < 300000; // 5 min
     const isPortrait = screen.resolution === '9x16';
 
