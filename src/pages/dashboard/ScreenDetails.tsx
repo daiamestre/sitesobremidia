@@ -97,32 +97,51 @@ export default function ScreenDetails() {
         queryKey: ['screen-stats', id, statsPeriod],
         queryFn: async () => {
             const now = new Date();
-            let start, end, period;
+            let start, end, formatLabel: (d: Date) => string;
 
             if (statsPeriod === 'today') {
                 start = startOfDay(now);
                 end = endOfDay(now);
-                period = 'hourly';
+                formatLabel = (d) => format(d, 'HH:mm');
             } else if (statsPeriod === 'week') {
                 start = startOfDay(subDays(now, 6));
                 end = endOfDay(now);
-                period = 'daily';
+                formatLabel = (d) => format(d, 'dd/MM');
             } else { // month
                 start = startOfDay(subDays(now, 29));
                 end = endOfDay(now);
-                period = 'daily'; // Show daily breakdown for the month
+                formatLabel = (d) => format(d, 'dd/MM');
             }
 
-            const { data, error } = await supabase.rpc('get_screen_stats', {
-                target_screen_id: id,
-                start_date: start.toISOString(),
-                end_date: end.toISOString(),
-                period: period
+            // CLIENT-SIDE AGGREGATION (Bypassing RPC)
+            const { data, error } = await supabase
+                .from('playback_logs')
+                .select('started_at')
+                .eq('screen_id', id)
+                .gte('started_at', start.toISOString())
+                .lte('started_at', end.toISOString());
+
+            if (error) {
+                console.error("Stats Error:", error);
+                throw error;
+            }
+
+            // Aggregate
+            const counts: Record<string, number> = {};
+            data?.forEach((row: any) => {
+                const date = new Date(row.started_at);
+                const label = formatLabel(date);
+                counts[label] = (counts[label] || 0) + 1;
             });
 
-            if (error) throw error;
-            // Rename keys for Recharts if needed, but RPC returns { label, value } which matches dataKey="name"/"value" logic (need "name")
-            return data.map((d: any) => ({ name: d.label, value: d.value }));
+            // Convert and Sort
+            return Object.entries(counts)
+                .map(([name, value]) => ({ name, value }))
+                .sort((a, b) => {
+                    // Basic sort works for DD/MM and HH:mm
+                    // for DD/MM it sorts 01/02 before 02/02
+                    return a.name.localeCompare(b.name);
+                });
         },
         enabled: !!id
     });
