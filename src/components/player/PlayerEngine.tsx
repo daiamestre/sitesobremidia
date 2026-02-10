@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseConfig } from "@/supabaseConfig";
 import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
 import "./Player.css";
 
@@ -60,23 +61,62 @@ export const PlayerEngine = () => {
             if (cached) {
                 const parsed = JSON.parse(cached);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    addDiag(`✅ Cache: ${parsed.length} items`);
                     setPlaylist(parsed);
                     setIsLoading(false);
                     return true;
                 }
             }
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
         return false;
-    }, [addDiag]);
+    }, []);
 
     // ============================================================
-    // MAIN SYNC — PARALLEL media fetches with Promise.allSettled
+    // RAW FETCH to Supabase REST API — bypasses JS client entirely
+    // ============================================================
+    const rawSupabaseQuery = useCallback(async (
+        table: string,
+        queryParams: string,
+        accessToken?: string | null
+    ): Promise<any[]> => {
+        const url = `${supabaseConfig.url}/rest/v1/${table}?${queryParams}`;
+        const headers: Record<string, string> = {
+            'apikey': supabaseConfig.key,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        };
+        if (accessToken) {
+            headers['Authorization'] = `Bearer ${accessToken}`;
+        } else {
+            headers['Authorization'] = `Bearer ${supabaseConfig.key}`;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        try {
+            const resp = await fetch(url, { headers, signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!resp.ok) {
+                const body = await resp.text();
+                throw new Error(`HTTP ${resp.status}: ${body.substring(0, 100)}`);
+            }
+            return await resp.json();
+        } catch (e: any) {
+            clearTimeout(timeoutId);
+            if (e.name === 'AbortError') throw new Error('TIMEOUT (5s)');
+            throw e;
+        }
+    }, []);
+
+    // ============================================================
+    // MAIN SYNC
     // ============================================================
     const fetchPlaylist = useCallback(async (isBackgroundUpdate = false) => {
         try {
+            // Get auth token
             const { data: { session } } = await supabase.auth.getSession();
-            addDiag(`🔑 Auth: ${session ? `uid=${session.user.id.substring(0, 8)}...` : 'NO SESSION'}`);
+            const token = session?.access_token || null;
+            addDiag(`🔑 Auth: ${session ? `uid=${session.user.id.substring(0, 8)}...` : 'anon'}`);
 
             const params = new URLSearchParams(window.location.search);
             const screenId = routeId || params.get('screen_id') || localStorage.getItem(SCREEN_ID_CACHE_KEY);
@@ -88,18 +128,18 @@ export const PlayerEngine = () => {
             }
             localStorage.setItem(SCREEN_ID_CACHE_KEY, screenId);
 
-            // Find screen
+            // STEP 2: Find screen (Supabase client works for this)
             let screen: any = null;
             try {
                 const r = await withTimeout(supabase.from('screens').select('*').eq('custom_id', screenId).maybeSingle(), 8000);
-                if (r.data) { screen = r.data; addDiag(`✅ Screen found by custom_id`); }
-            } catch { /* fallback below */ }
+                if (r.data) { screen = r.data; addDiag(`✅ Screen: custom_id match`); }
+            } catch { /* fallback */ }
 
             if (!screen) {
                 try {
                     const r = await withTimeout(supabase.from('screens').select('*').eq('id', screenId).maybeSingle(), 8000);
-                    if (r.data) { screen = r.data; addDiag(`✅ Screen found by UUID`); }
-                } catch { /* no screen */ }
+                    if (r.data) { screen = r.data; addDiag(`✅ Screen: UUID match`); }
+                } catch { /* not found */ }
             }
 
             if (!screen) {
@@ -115,7 +155,7 @@ export const PlayerEngine = () => {
             }
             addDiag(`✅ playlist_id="${screen.playlist_id}"`);
 
-            // Fetch playlist_items (no join)
+            // STEP 4: Fetch playlist_items (Supabase client works)
             const { data: items, error: itemsErr } = await withTimeout(
                 supabase.from('playlist_items')
                     .select('id, position, duration, media_id')
@@ -123,7 +163,6 @@ export const PlayerEngine = () => {
                     .order('position'),
                 8000
             );
-
             if (itemsErr) throw itemsErr;
             if (!items || items.length === 0) {
                 if (!isBackgroundUpdate) setError("Playlist vazia.");
@@ -132,58 +171,69 @@ export const PlayerEngine = () => {
             addDiag(`✅ ${items.length} playlist items`);
 
             // =====================================================
-            // PARALLEL media fetch — all at once with 3s timeout each
+            // STEP 5: Fetch media via RAW FETCH (bypasses JS client)
             // =====================================================
-            addDiag(`🔍 Fetching ${items.length} media items in PARALLEL...`);
+            const mediaIds = [...new Set(items.filter(i => i.media_id).map(i => i.media_id))];
+            addDiag(`🔍 Fetching ${mediaIds.length} media via RAW FETCH...`);
 
-            const fetchResults = await Promise.allSettled(
-                items.filter(i => i.media_id).map(async (item, idx) => {
-                    try {
-                        const { data: media } = await withTimeout(
-                            supabase.from('media')
-                                .select('id, file_url, file_type')
-                                .eq('id', item.media_id)
-                                .maybeSingle(),
-                            3000
-                        );
-                        if (!media?.file_url) return null;
+            let mediaMap: Record<string, any> = {};
 
-                        let finalUrl = media.file_url;
-                        if (!finalUrl.startsWith('http')) {
-                            const { data: pub } = supabase.storage.from('media').getPublicUrl(finalUrl);
-                            finalUrl = pub.publicUrl;
-                        }
+            try {
+                // PostgREST filter: id=in.(uuid1,uuid2,...)
+                const inFilter = mediaIds.map(id => `"${id}"`).join(',');
+                const queryStr = `select=id,file_url,file_type&id=in.(${inFilter})`;
 
-                        return {
-                            id: item.id,
-                            url: finalUrl,
-                            type: media.file_type || 'image',
-                            duration: item.duration || 10,
-                            position: item.position,
-                        } as MediaItem & { position: number };
-                    } catch {
-                        return null;
-                    }
-                })
-            );
+                addDiag(`📡 API: ${supabaseConfig.url?.substring(0, 30)}/rest/v1/media?...`);
 
-            // Collect successful results
-            const validItems: MediaItem[] = fetchResults
-                .map(r => r.status === 'fulfilled' ? r.value : null)
-                .filter((item): item is MediaItem & { position: number } => item !== null)
-                .sort((a, b) => (a as any).position - (b as any).position)
-                .map(({ position, ...rest }) => rest as unknown as MediaItem);
+                const mediaRows = await rawSupabaseQuery('media', queryStr, token);
+                addDiag(`✅ Raw fetch: ${mediaRows.length} media rows returned!`);
 
-            const succeeded = fetchResults.filter(r => r.status === 'fulfilled' && r.value).length;
-            const failed = fetchResults.length - succeeded;
-            addDiag(`📊 Results: ${succeeded} ok, ${failed} failed`);
+                for (const m of mediaRows) {
+                    mediaMap[m.id] = m;
+                }
+            } catch (e: any) {
+                addDiag(`❌ Raw fetch failed: ${e.message}`);
 
-            validItems.forEach((item, i) => {
-                addDiag(`✅ #${i}: ${item.type} → ${item.url.substring(0, 55)}...`);
-            });
+                // FALLBACK: try without auth token (anon key only)
+                try {
+                    addDiag(`🔄 Retrying without auth token...`);
+                    const inFilter = mediaIds.map(id => `"${id}"`).join(',');
+                    const queryStr = `select=id,file_url,file_type&id=in.(${inFilter})`;
+                    const mediaRows = await rawSupabaseQuery('media', queryStr, null);
+                    addDiag(`✅ Anon fetch: ${mediaRows.length} rows`);
+                    for (const m of mediaRows) mediaMap[m.id] = m;
+                } catch (e2: any) {
+                    addDiag(`❌ Anon fetch also failed: ${e2.message}`);
+                }
+            }
+
+            // STEP 6: Build playlist
+            const validItems: MediaItem[] = [];
+            for (const item of items) {
+                const media = item.media_id ? mediaMap[item.media_id] : null;
+                if (!media?.file_url) {
+                    addDiag(`⚠️ Skip: no media for ${item.media_id?.substring(0, 8)}`);
+                    continue;
+                }
+
+                let finalUrl = media.file_url;
+                if (!finalUrl.startsWith('http')) {
+                    // Build storage URL manually
+                    finalUrl = `${supabaseConfig.url}/storage/v1/object/public/media/${finalUrl}`;
+                }
+
+                validItems.push({
+                    id: item.id,
+                    url: finalUrl,
+                    type: media.file_type || 'image',
+                    duration: item.duration || 10,
+                });
+                addDiag(`✅ ${media.file_type}: ${finalUrl.substring(0, 55)}...`);
+            }
+
+            addDiag(`📊 Final: ${validItems.length}/${items.length} valid`);
 
             if (validItems.length === 0) {
-                addDiag("❌ No valid items — all media queries failed");
                 if (!isBackgroundUpdate) setError("Nenhuma mídia acessível.");
                 setIsLoading(false); return;
             }
@@ -211,11 +261,11 @@ export const PlayerEngine = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [routeId, loadFromCache, addDiag]);
+    }, [routeId, loadFromCache, addDiag, rawSupabaseQuery]);
 
     // INIT
     useEffect(() => {
-        addDiag("🚀 v5.5");
+        addDiag("🚀 v5.6 (raw fetch for media)");
         addDiag(`📍 ${window.location.href}`);
         fetchPlaylist(false);
 
@@ -284,11 +334,11 @@ export const PlayerEngine = () => {
         else document.exitFullscreen();
     };
 
-    // DIAG OVERLAY — only while loading
+    // DIAG OVERLAY
     if (DIAG && (isLoading || error || playlist.length === 0)) {
         return (
             <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#0a0a0a', color: '#00ff88', fontFamily: 'monospace', fontSize: '12px', padding: '16px', overflow: 'auto', zIndex: 99999 }}>
-                <h2 style={{ color: '#fff', margin: '0 0 8px' }}>🔬 Player Diagnostic v5.5</h2>
+                <h2 style={{ color: '#fff', margin: '0 0 8px' }}>🔬 Player Diagnostic v5.6</h2>
                 <p style={{ color: '#888', margin: '0 0 12px' }}>{isLoading ? '⏳ Loading...' : error ? `❌ ${error}` : '⚠️ Empty'}</p>
                 <div style={{ background: '#111', border: '1px solid #333', borderRadius: '6px', padding: '12px', maxHeight: '75vh', overflow: 'auto' }}>
                     {diagLog.map((log, i) => (
