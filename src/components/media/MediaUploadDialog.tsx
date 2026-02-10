@@ -119,24 +119,7 @@ const generateVideoThumbnail = (file: File): Promise<Blob | null> => {
   });
 };
 
-// ... inside component render ...
 
-<div className="flex-shrink-0 w-12 h-12 bg-black/5 rounded overflow-hidden flex items-center justify-center">
-  {uploadFile.thumbnailPreview ? (
-    <img src={uploadFile.thumbnailPreview} className="w-full h-full object-cover" alt="Cover" />
-  ) : getFileType(uploadFile.file.type) === 'image' ? (
-    <img src={URL.createObjectURL(uploadFile.file)} className="w-full h-full object-cover" alt="Preview" />
-  ) : getFileType(uploadFile.file.type) === 'video' ? (
-    <video
-      src={URL.createObjectURL(uploadFile.file)}
-      className="w-full h-full object-cover"
-      muted
-      onLoadedMetadata={(e) => e.currentTarget.currentTime = 1.0}
-    />
-  ) : (
-    getFileIcon(getFileType(uploadFile.file.type))
-  )}
-</div>
 
 export function MediaUploadDialog({ open, onOpenChange, onUploadComplete }: MediaUploadDialogProps) {
   const { user } = useAuth();
