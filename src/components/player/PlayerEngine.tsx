@@ -15,38 +15,22 @@ interface MediaItem {
 const PLAYLIST_CACHE_KEY = "player_playlist_codemidia";
 const SCREEN_ID_CACHE_KEY = "player_screen_id_codemidia";
 const POLL_INTERVAL_MS = 30000;
-const DIAG = true;
 
 // Force clear stale Service Worker caches that block API calls
 async function nukeStaleSwCaches() {
     try {
-        // Delete the old api-cache that stored broken responses
         await caches.delete('api-cache');
         await caches.delete('player-media-v1');
-
-        // Force SW to update
         const reg = await navigator.serviceWorker?.getRegistration();
         if (reg) {
             await reg.update();
-            if (reg.waiting) {
-                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-            }
+            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
     } catch { /* ignore */ }
 }
 
 export const PlayerEngine = () => {
     const { screenId: routeId } = useParams();
-
-    const [diagLog, setDiagLog] = useState<string[]>([]);
-    const diagLogRef = useRef<string[]>([]);
-    const addDiag = useCallback((msg: string) => {
-        const ts = new Date().toLocaleTimeString();
-        const entry = `[${ts}] ${msg}`;
-        console.log(`[DIAG] ${entry}`);
-        diagLogRef.current = [...diagLogRef.current, entry];
-        setDiagLog([...diagLogRef.current]);
-    }, []);
 
     const [playlist, setPlaylist] = useState<MediaItem[]>([]);
     const [pendingPlaylist, setPendingPlaylist] = useState<MediaItem[] | null>(null);
@@ -84,15 +68,11 @@ export const PlayerEngine = () => {
             const resp = await fetch(url, {
                 headers,
                 signal: controller.signal,
-                // CRITICAL: bypass Service Worker cache
-                cache: 'no-store',
+                cache: 'no-store', // CRITICAL: bypass Service Worker cache
             });
             clearTimeout(timeoutId);
 
-            if (!resp.ok) {
-                const text = await resp.text();
-                throw new Error(`HTTP ${resp.status}: ${text.substring(0, 80)}`);
-            }
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             return await resp.json();
         } catch (e: any) {
             clearTimeout(timeoutId);
@@ -105,39 +85,49 @@ export const PlayerEngine = () => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token || null;
-            addDiag(`🔑 ${session ? `uid=${session.user.id.substring(0, 8)}` : 'anon'}`);
 
             const screenId = routeId || new URLSearchParams(window.location.search).get('screen_id') || localStorage.getItem(SCREEN_ID_CACHE_KEY);
-            if (!screenId) { setError("Nenhuma tela selecionada."); setIsLoading(false); return; }
-            localStorage.setItem(SCREEN_ID_CACHE_KEY, screenId);
-            addDiag(`🔍 screen="${screenId}"`);
-
-            // ALL queries via direct fetch with cache:no-store
-            addDiag(`📡 Fetching screen...`);
-            let screens = await directFetch('screens', `select=*&custom_id=eq.${screenId}`, token);
-            if (!screens.length) {
-                screens = await directFetch('screens', `select=*&id=eq.${screenId}`, token);
+            if (!screenId) {
+                if (!isBackgroundUpdate) setError("Nenhuma tela selecionada.");
+                setIsLoading(false); return;
             }
-            if (!screens.length) { setError("Tela não encontrada."); setIsLoading(false); return; }
+            localStorage.setItem(SCREEN_ID_CACHE_KEY, screenId);
+
+            // Fetch screen
+            let screens = await directFetch('screens', `select=*&custom_id=eq.${screenId}`, token);
+            if (!screens.length) screens = await directFetch('screens', `select=*&id=eq.${screenId}`, token);
+
+            if (!screens.length) {
+                if (!isBackgroundUpdate) setError("Tela não encontrada.");
+                setIsLoading(false); return;
+            }
 
             const screen = screens[0];
             setActiveScreenId(screen.id);
-            addDiag(`✅ screen found: ${screen.id.substring(0, 8)}`);
 
-            if (!screen.playlist_id) { setError("Nenhuma playlist definida."); setIsLoading(false); return; }
+            if (!screen.playlist_id) {
+                if (!isBackgroundUpdate) setError("Nenhuma playlist definida.");
+                setIsLoading(false); return;
+            }
 
-            addDiag(`📡 Fetching playlist items...`);
+            // Fetch items
             const items = await directFetch(
                 'playlist_items',
                 `select=id,position,duration,media_id&playlist_id=eq.${screen.playlist_id}&order=position`,
                 token
             );
-            if (!items.length) { setError("Playlist vazia."); setIsLoading(false); return; }
-            addDiag(`✅ ${items.length} items`);
 
-            // MEDIA — the problematic table
+            if (!items.length) {
+                if (!isBackgroundUpdate) setError("Playlist vazia.");
+                setIsLoading(false); return;
+            }
+
+            // Fetch Media
             const mediaIds = [...new Set(items.filter((i: any) => i.media_id).map((i: any) => i.media_id))];
-            addDiag(`📡 Fetching ${mediaIds.length} media (cache:no-store)...`);
+            if (mediaIds.length === 0) {
+                if (!isBackgroundUpdate) setError("Nenhuma mídia válida.");
+                setIsLoading(false); return;
+            }
 
             const inFilter = mediaIds.map(id => `"${id}"`).join(',');
             const mediaRows = await directFetch(
@@ -145,7 +135,6 @@ export const PlayerEngine = () => {
                 `select=id,file_url,file_type&id=in.(${inFilter})`,
                 token
             );
-            addDiag(`✅ ${mediaRows.length} media rows!`);
 
             const mediaMap: Record<string, any> = {};
             for (const m of mediaRows) mediaMap[m.id] = m;
@@ -160,6 +149,8 @@ export const PlayerEngine = () => {
                 if (!finalUrl.startsWith('http')) {
                     finalUrl = `${supabaseConfig.url}/storage/v1/object/public/media/${finalUrl}`;
                 }
+
+                // Construct URL with query param to bypass cache if needed, but storage handles it usually
                 validItems.push({
                     id: item.id,
                     url: finalUrl,
@@ -168,9 +159,10 @@ export const PlayerEngine = () => {
                 });
             }
 
-            addDiag(`🎬 ${validItems.length} valid → PLAYING!`);
-
-            if (!validItems.length) { setError("Nenhuma mídia válida."); setIsLoading(false); return; }
+            if (!validItems.length) {
+                if (!isBackgroundUpdate) setError("Nenhuma mídia acessível.");
+                setIsLoading(false); return;
+            }
 
             localStorage.setItem(PLAYLIST_CACHE_KEY, JSON.stringify(validItems));
 
@@ -185,35 +177,28 @@ export const PlayerEngine = () => {
             }
 
         } catch (err: any) {
-            addDiag(`💥 ${err?.message || err}`);
+            console.error("Player Error:", err);
             if (!isBackgroundUpdate) {
-                // Try cache
                 try {
                     const cached = localStorage.getItem(PLAYLIST_CACHE_KEY);
                     if (cached) { setPlaylist(JSON.parse(cached)); setError(null); }
-                    else setError(err?.message || 'Error');
-                } catch { setError(err?.message || 'Error'); }
+                    else setError("Erro de conexão. Tentando reconectar...");
+                } catch { setError("Erro crítico."); }
             }
         } finally {
             setIsLoading(false);
         }
-    }, [routeId, addDiag, directFetch]);
+    }, [routeId, directFetch]);
 
     // INIT
     useEffect(() => {
-        addDiag("🚀 v6.0 (all direct fetch, no SW cache)");
-        // Nuke stale SW caches FIRST
-        nukeStaleSwCaches().then(() => {
-            addDiag("🧹 Stale caches cleared");
-            fetchPlaylist(false);
-        });
-
+        nukeStaleSwCaches().then(() => fetchPlaylist(false));
         const interval = setInterval(() => { if (navigator.onLine) fetchPlaylist(true); }, POLL_INTERVAL_MS);
         window.addEventListener('online', () => fetchPlaylist(true));
         return () => clearInterval(interval);
-    }, [fetchPlaylist, addDiag]);
+    }, [fetchPlaylist]);
 
-    // PLAYBACK
+    // PLAYBACK LOGIC
     const triggerNext = useCallback(() => {
         if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
         setCurrentIndex(prev => {
@@ -230,27 +215,55 @@ export const PlayerEngine = () => {
         if (playlist.length === 0) return;
         const item = playlist[currentIndex];
         if (!item) return;
+
+        // Force reset video if changing types/items
+        const duration = (item.duration || 10) * 1000;
+
         if (item.type === 'image') {
-            timerRef.current = setTimeout(triggerNext, (item.duration || 10) * 1000);
+            timerRef.current = setTimeout(triggerNext, duration);
             return () => { if (timerRef.current) clearTimeout(timerRef.current); };
         }
+
         if (item.type === 'video') {
             const el = videoRefs.current.get(currentIndex);
             if (el) {
                 el.currentTime = 0;
-                el.play().catch(() => { timerRef.current = setTimeout(triggerNext, (item.duration || 10) * 1000); });
+                // Force muted for autoplay policy
+                el.muted = !audioEnabled;
+                const playPromise = el.play();
+
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.warn("Autoplay failed:", error);
+                        // Fallback: treat as image timer if video fails to autoplay
+                        timerRef.current = setTimeout(triggerNext, duration);
+                    });
+                }
+
                 const onEnded = () => triggerNext();
-                const onError = () => triggerNext();
+                const onError = () => {
+                    console.error("Video error");
+                    triggerNext();
+                }
+
                 el.addEventListener('ended', onEnded);
                 el.addEventListener('error', onError);
-                return () => { el.removeEventListener('ended', onEnded); el.removeEventListener('error', onError); if (timerRef.current) clearTimeout(timerRef.current); };
+
+                return () => {
+                    el.removeEventListener('ended', onEnded);
+                    el.removeEventListener('error', onError);
+                    if (timerRef.current) clearTimeout(timerRef.current);
+                };
             }
-            timerRef.current = setTimeout(triggerNext, (item.duration || 10) * 1000);
+            // Fallback if ref missing
+            timerRef.current = setTimeout(triggerNext, duration);
             return () => { if (timerRef.current) clearTimeout(timerRef.current); };
         }
-        timerRef.current = setTimeout(triggerNext, (item.duration || 5) * 1000);
+
+        // Default timer
+        timerRef.current = setTimeout(triggerNext, 5000);
         return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    }, [currentIndex, playlist, triggerNext]);
+    }, [currentIndex, playlist, triggerNext, audioEnabled]);
 
     useEffect(() => {
         if (playlist.length < 2) return;
@@ -266,32 +279,62 @@ export const PlayerEngine = () => {
         else document.exitFullscreen();
     };
 
-    // DIAG OVERLAY (only while loading/error)
-    if (DIAG && (isLoading || error || playlist.length === 0)) {
+    if (isLoading) {
         return (
-            <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#0a0a0a', color: '#00ff88', fontFamily: 'monospace', fontSize: '12px', padding: '16px', overflow: 'auto', zIndex: 99999 }}>
-                <h2 style={{ color: '#fff', margin: '0 0 8px' }}>🔬 Player Diagnostic v6.0</h2>
-                <p style={{ color: '#888', margin: '0 0 12px' }}>{isLoading ? '⏳ Loading...' : error ? `❌ ${error}` : '⚠️ Empty'}</p>
-                <div style={{ background: '#111', border: '1px solid #333', borderRadius: '6px', padding: '12px' }}>
-                    {diagLog.map((log, i) => (
-                        <div key={i} style={{ padding: '2px 0', fontSize: '11px', color: log.includes('❌') || log.includes('💥') ? '#ff4444' : log.includes('✅') || log.includes('🎬') ? '#00ff88' : log.includes('⚠️') ? '#ffaa00' : '#aaa' }}>{log}</div>
-                    ))}
-                </div>
+            <div className="player-loading">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
             </div>
         );
     }
 
-    // NORMAL RENDER
+    if (error) {
+        return (
+            <div className="player-error">
+                <h2>{error}</h2>
+                <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-white text-black rounded">
+                    Tentar Novamente
+                </button>
+            </div>
+        );
+    }
+
     const renderItem = (item: MediaItem, idx: number, isActive: boolean) => {
         if (!item) return null;
+        // Keep 3 items in DOM: prev, current, next for smooth transition
         const isNext = idx === nextIndex;
-        if (!isActive && !isNext && playlist.length > 2) return null;
+        // Simple logic: render only active and next
+        if (!isActive && !isNext) return null;
+
         const cls = `media-layer ${isActive ? 'active' : ''}`;
-        if (item.type === 'image') return <img key={`img-${item.id}-${idx}`} src={item.url} className={cls} alt="" draggable={false} onError={() => triggerNext()} />;
-        if (item.type === 'video') return (
-            <video key={`vid-${item.id}-${idx}`} ref={el => { if (el) videoRefs.current.set(idx, el); else videoRefs.current.delete(idx); }}
-                src={item.url} className={cls} muted={!audioEnabled} playsInline crossOrigin="anonymous" preload="auto" />
-        );
+
+        if (item.type === 'image') {
+            return (
+                <img
+                    key={`img-${item.id}-${idx}`}
+                    src={item.url}
+                    className={cls}
+                    alt=""
+                    draggable={false}
+                    onError={() => { if (isActive) triggerNext(); }}
+                />
+            );
+        }
+
+        if (item.type === 'video') {
+            return (
+                <video
+                    key={`vid-${item.id}-${idx}`}
+                    ref={el => { if (el) videoRefs.current.set(idx, el); else videoRefs.current.delete(idx); }}
+                    src={item.url}
+                    className={cls}
+                    muted={!audioEnabled} // Critical for autoplay
+                    playsInline
+                    autoPlay={isActive}
+                    crossOrigin="anonymous"
+                    preload="auto"
+                />
+            );
+        }
         return null;
     };
 
