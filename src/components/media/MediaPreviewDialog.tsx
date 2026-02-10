@@ -17,6 +17,7 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const videoRef = useRef<VideoPlayerRef>(null);
+  const isVertical = media.aspect_ratio === '9x16';
 
   // Reset state when media changes
   useEffect(() => {
@@ -76,7 +77,10 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
               {/* Use robust VideoPlayer */}
               <VideoPlayer
                 src={media.file_url}
-                className="w-full h-full max-h-[70vh] bg-black"
+                className={isVertical
+                  ? "h-full w-auto aspect-[9/16] mx-auto bg-transparent"
+                  : "w-full aspect-video bg-transparent"
+                }
                 autoPlay
                 controls={false} // Use our custom controls below or built-in if preferred
                 showCustomControls={false} // We are building custom controls outside
