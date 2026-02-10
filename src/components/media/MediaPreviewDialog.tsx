@@ -1,7 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, X } from 'lucide-react';
+import { Download, X, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { Media } from '@/types/models';
+import { useRef, useState, useEffect } from 'react';
 
 interface MediaPreviewDialogProps {
   media: Media | null;
@@ -12,6 +13,18 @@ interface MediaPreviewDialogProps {
 export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDialogProps) {
   if (!media) return null;
 
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Reset state when media changes
+  useEffect(() => {
+    if (media?.file_type === 'video') {
+      setIsPlaying(true); // AutoPlay is on
+      setIsMuted(false);
+    }
+  }, [media]);
+
   const handleDownload = () => {
     const link = document.createElement('a');
     link.href = media.file_url;
@@ -20,6 +33,24 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
   };
 
   return (
@@ -44,12 +75,40 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
           )}
 
           {media.file_type === 'video' && (
-            <video
-              src={media.file_url}
-              controls
-              autoPlay
-              className="max-w-full max-h-[70vh]"
-            />
+            <div className="flex flex-col w-full h-full">
+              <div className="flex-1 flex items-center justify-center bg-black/50">
+                <video
+                  ref={videoRef}
+                  src={media.file_url}
+                  autoPlay
+                  className="max-w-full max-h-[60vh]"
+                  onEnded={() => setIsPlaying(false)}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                />
+              </div>
+
+              {/* Custom Controls Bar */}
+              <div className="p-4 bg-background border-t flex items-center justify-center gap-4">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-full"
+                  onClick={togglePlay}
+                >
+                  {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current ml-0.5" />}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 rounded-full"
+                  onClick={toggleMute}
+                >
+                  {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                </Button>
+              </div>
+            </div>
           )}
 
           {media.file_type === 'audio' && (
