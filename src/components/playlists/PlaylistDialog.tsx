@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Upload, X, Image, Monitor, MonitorSmartphone } from 'lucide-react';
+import { Upload, X, Image, Monitor, Smartphone } from 'lucide-react';
 
 interface Playlist {
   id: string;
@@ -179,6 +179,44 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Uma breve descrição sobre o conteúdo..."
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Formato da Playlist</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setResolution('16x9')}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${resolution === '16x9'
+                  ? 'border-primary bg-primary/10'
+                  : 'border-muted-foreground/25 hover:border-primary/50'
+                  }`}
+              >
+                <Monitor className="h-6 w-6 text-primary" />
+                <div className="text-left">
+                  <p className="font-medium text-sm">16x9</p>
+                  <p className="text-xs text-muted-foreground">Horizontal</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setResolution('9x16')}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${resolution === '9x16'
+                  ? 'border-primary bg-primary/10'
+                  : 'border-muted-foreground/25 hover:border-primary/50'
+                  }`}
+              >
+                <Smartphone className="h-6 w-6 text-primary" />
+                <div className="text-left">
+                  <p className="font-medium text-sm">9x16</p>
+                  <p className="text-xs text-muted-foreground">Vertical</p>
+                </div>
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Apenas mídias com este formato poderão ser adicionadas.
+            </p>
           </div>
 
           <div className="space-y-2">

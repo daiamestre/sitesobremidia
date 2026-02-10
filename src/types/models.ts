@@ -10,6 +10,7 @@ export type Playlist = {
     // Computed properties
     item_count?: number;
     total_duration?: number;
+    resolution?: string;
 };
 
 export type MediaType = 'image' | 'video' | 'website' | 'youtube' | 'audio';
