@@ -44,6 +44,16 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Reset playlist if resolution changes and current playlist doesn't match
+  useEffect(() => {
+    if (playlistId && playlists.length > 0) {
+      const selectedPlaylist = playlists.find(p => p.id === playlistId);
+      if (selectedPlaylist && (selectedPlaylist.resolution || '16x9') !== resolution) {
+        setPlaylistId(null);
+      }
+    }
+  }, [resolution, playlists, playlistId]);
+
   useEffect(() => {
     const fetchPlaylists = async () => {
       const { data } = await supabase

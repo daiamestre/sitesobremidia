@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:keepScreenOn="true">
+
+    <!-- Video Surface -->
+    <!-- Standby / Fallback Image -->
+    <ImageView
+        android:id="@+id/standbyImage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_launcher_background"
+        android:visibility="visible"
+        android:contentDescription="Standby Logo" />
+
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/playerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:use_controller="false"
+        app:resize_mode="zoom"
+        app:surface_type="texture_view"
+        android:keepScreenOn="true" />
+
+    <!-- Loading Overlay -->
+    <FrameLayout
+        android:id="@+id/loading_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#0F172A"
+        android:elevation="10dp"
+        android:visibility="visible">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <!-- Logo or Icon -->
+            <ImageView
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:src="@mipmap/ic_launcher_round"
+                android:layout_marginBottom="32dp"
+                android:elevation="4dp"/>
+
+            <!-- Professional Spinner -->
+            <ProgressBar
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:indeterminateTint="#4F46E5"
+                style="?android:attr/progressBarStyleLarge"
+                android:layout_marginBottom="24dp"/>
+            
+            <TextView
+                android:id="@+id/status_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Carregando Playlist..."
+                android:textColor="#F8FAFC"
+                android:textSize="18sp"
+                android:letterSpacing="0.05"
+                android:textStyle="bold"/>
+
+            <!-- Subtle Device ID below -->
+            <TextView
+                 android:id="@+id/status_device_id"
+                 android:layout_width="wrap_content"
+                 android:layout_height="wrap_content"
+                 android:text=""
+                 android:textColor="#64748B"
+                 android:textSize="12sp"
+                 android:layout_marginTop="8dp"/>
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Debug Text (Removed for Production) -->
+
+</FrameLayout>

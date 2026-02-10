@@ -27,8 +27,11 @@ dist-ssr
 
 # Android
 android/app/build
-android/.gradle
+**/.gradle
+**/build
 android/local.properties
 
 .vercel
 .env*.local
+*.apk
+*.aab
