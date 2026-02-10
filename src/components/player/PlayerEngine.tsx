@@ -343,8 +343,8 @@ export const PlayerEngine = () => {
     return (
         <div className="player-container" onClick={toggleFullscreen}>
             <div
-                className="player-screen-box"
-                style={{ aspectRatio: screenOrientation === 'portrait' ? '9/16' : '16/9' }}
+                className={`player-screen-box ${screenOrientation}`}
+                style={screenOrientation === 'landscape' ? { aspectRatio: '16/9' } : {}}
             >
                 {playlist.map((item, idx) => renderItem(item, idx, idx === currentIndex))}
             </div>
