@@ -97,6 +97,10 @@ export default function ScreenDetails() {
     const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
     const [availableMedia, setAvailableMedia] = useState<Media[]>([]);
 
+    // Playlist Picker States
+    const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
+    const [availablePlaylists, setAvailablePlaylists] = useState<Playlist[]>([]);
+
     // Fetch Screen
     const { data: screen, isLoading, isError, refetch } = useQuery({
         queryKey: ['screen', id],
@@ -145,6 +149,25 @@ export default function ScreenDetails() {
             fetchMedia();
         }
     }, [mediaPickerOpen]);
+
+    // Fetch Playlists for Picker
+    useEffect(() => {
+        if (playlistPickerOpen) {
+            const fetchPlaylists = async () => {
+                // Fetch basic playlist info
+                const { data, error } = await supabase
+                    .from('playlists')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('created_at', { ascending: false });
+
+                if (data && !error) {
+                    setAvailablePlaylists(data as Playlist[]);
+                }
+            };
+            fetchPlaylists();
+        }
+    }, [playlistPickerOpen]);
 
 
     // Handlers
@@ -233,6 +256,28 @@ export default function ScreenDetails() {
             toast.error('Erro ao salvar playlist');
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleLinkPlaylist = async (playlist: Playlist) => {
+        try {
+            toast.loading('Vinculando playlist...');
+
+            const { error } = await supabase
+                .from('screens')
+                .update({ playlist_id: playlist.id })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            toast.dismiss();
+            toast.success(`Playlist "${playlist.name}" vinculada com sucesso!`);
+            setPlaylistPickerOpen(false);
+            refetch(); // Trigger reload to show the new playlist items
+        } catch (error) {
+            console.error(error);
+            toast.dismiss();
+            toast.error('Erro ao vincular playlist');
         }
     };
 
@@ -417,12 +462,69 @@ export default function ScreenDetails() {
 
                         <CardContent className="flex-1 p-0 overflow-hidden flex flex-col">
                             {!screen.playlist_id ? (
-                                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
-                                    <ListVideo className="h-10 w-10 mb-3 opacity-20" />
+                                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8 text-center gap-4">
+                                    <ListVideo className="h-10 w-10 mb-2 opacity-20" />
                                     <p>Esta tela não possui uma playlist associada.</p>
-                                    <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate('/dashboard/playlists')}>
-                                        Criar/Vincular Playlist
-                                    </Button>
+                                    <div className="flex flex-col gap-2 w-full max-w-xs">
+                                        <Button
+                                            variant="default"
+                                            className="w-full gap-2"
+                                            onClick={() => setPlaylistPickerOpen(true)}
+                                        >
+                                            <ListVideo className="h-4 w-4" />
+                                            Selecionar Playlist Existente
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            className="w-full gap-2"
+                                            onClick={() => navigate('/dashboard/playlists')}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Criar Nova Playlist
+                                        </Button>
+                                    </div>
+
+                                    {/* Playlist Picker Dialog */}
+                                    <Dialog open={playlistPickerOpen} onOpenChange={setPlaylistPickerOpen}>
+                                        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                                            <DialogHeader>
+                                                <DialogTitle>Selecionar Playlist</DialogTitle>
+                                            </DialogHeader>
+                                            <ScrollArea className="flex-1 p-2">
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                                    {availablePlaylists.map(playlist => (
+                                                        <div key={playlist.id}
+                                                            className="bg-card border border-border/50 rounded-lg p-3 cursor-pointer hover:ring-2 hover:ring-primary transition-all flex flex-col gap-2 group"
+                                                            onClick={() => handleLinkPlaylist(playlist)}
+                                                        >
+                                                            <div className="aspect-video bg-muted rounded-md overflow-hidden relative">
+                                                                {playlist.cover_url ? (
+                                                                    <img src={playlist.cover_url} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center bg-accent/50">
+                                                                        <ListVideo className="h-8 w-8 text-muted-foreground opacity-50" />
+                                                                    </div>
+                                                                )}
+                                                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <span className="text-white text-xs font-bold bg-primary px-2 py-1 rounded-full">Selecionar</span>
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-medium text-sm truncate" title={playlist.name}>{playlist.name}</h4>
+                                                                <span className="text-xs text-muted-foreground">{playlist.item_count || 0} itens • {Math.floor((playlist.total_duration || 0) / 60)}m</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+
+                                                    {availablePlaylists.length === 0 && (
+                                                        <div className="col-span-full py-8 text-center text-muted-foreground">
+                                                            Nenhuma playlist encontrada.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </ScrollArea>
+                                        </DialogContent>
+                                    </Dialog>
                                 </div>
                             ) : (
                                 <ScrollArea className="flex-1">
