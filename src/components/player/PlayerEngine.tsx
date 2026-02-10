@@ -9,6 +9,7 @@ import "./Player.css";
 
 interface MediaItem {
     id: string;
+    mediaId: string; // Real Media UUID for stats
     url: string;
     type: 'video' | 'image' | 'web';
     duration: number;
@@ -157,6 +158,7 @@ export const PlayerEngine = () => {
                 // Construct URL with query param to bypass cache if needed, but storage handles it usually
                 validItems.push({
                     id: item.id,
+                    mediaId: media.id, // STORE REAL MEDIA ID for stats
                     url: finalUrl,
                     type: media.file_type || 'image',
                     duration: item.duration || 10,
@@ -217,9 +219,10 @@ export const PlayerEngine = () => {
         return () => clearInterval(heartbeatInterval);
     }, [activeScreenId]);
     const logPlayback = useCallback((item: MediaItem) => {
+        if (!item.mediaId) return; // Guard against missing ID
         offlineLogger.log({
             screen_id: activeScreenId || '', // Should not happen if active
-            media_id: item.id,
+            media_id: item.mediaId, // USE REAL MEDIA ID
             playlist_id: null,
             duration: item.duration,
             status: 'completed',
