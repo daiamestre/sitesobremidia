@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Download, X, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { Media } from '@/types/models';
 import { useRef, useState, useEffect } from 'react';
+import { VideoPlayer, VideoPlayerRef } from '@/components/media/VideoPlayer';
 
 interface MediaPreviewDialogProps {
   media: Media | null;
@@ -15,7 +16,7 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<VideoPlayerRef>(null);
 
   // Reset state when media changes
   useEffect(() => {
@@ -37,18 +38,14 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
 
   const togglePlay = () => {
     if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+      videoRef.current.togglePlay();
+      // Sync local state is handled via onPlay/onPause callbacks
     }
   };
 
   const toggleMute = () => {
     if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
+      videoRef.current.toggleMute();
       setIsMuted(!isMuted);
     }
   };
@@ -75,26 +72,36 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
           )}
 
           {media.file_type === 'video' && (
-            <div className="flex flex-col w-full h-full">
-              <div className="flex-1 flex items-center justify-center bg-black/50">
-                <video
-                  ref={videoRef}
-                  src={media.file_url}
-                  autoPlay
-                  className="max-w-full max-h-[60vh]"
-                  onEnded={() => setIsPlaying(false)}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                />
-              </div>
+            <div className="flex flex-col w-full h-full relative group">
+              {/* Use robust VideoPlayer */}
+              <VideoPlayer
+                src={media.file_url}
+                className="w-full h-full max-h-[70vh] bg-black"
+                autoPlay
+                controls={false} // Use our custom controls below or built-in if preferred
+                showCustomControls={false} // We are building custom controls outside
+                ref={videoRef}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
+                muted={isMuted}
+              />
+
+              {/* Overlay Toggle Play Area (Click on video to toggle) */}
+              <div
+                className="absolute inset-0 z-10 cursor-pointer"
+                onClick={togglePlay}
+                role="button"
+                aria-label={isPlaying ? "Pausar vídeo" : "Reproduzir vídeo"}
+              />
 
               {/* Custom Controls Bar */}
-              <div className="p-4 bg-background border-t flex items-center justify-center gap-4">
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-10 w-10 rounded-full"
-                  onClick={togglePlay}
+                  className="h-10 w-10 rounded-full bg-background/20 border-white/20 text-white hover:bg-background/40 hover:text-white"
+                  onClick={(e) => { e.stopPropagation(); togglePlay(); }}
                 >
                   {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current ml-0.5" />}
                 </Button>
@@ -102,8 +109,8 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-10 w-10 rounded-full"
-                  onClick={toggleMute}
+                  className="h-10 w-10 rounded-full text-white hover:bg-white/10"
+                  onClick={(e) => { e.stopPropagation(); toggleMute(); }}
                 >
                   {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                 </Button>
