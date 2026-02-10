@@ -63,9 +63,13 @@ export function MediaThumbnail({ media, className, showIcon = true }: MediaThumb
                         preload="metadata"
                         muted
                         playsInline
-                        crossOrigin="anonymous"
                         onLoadedMetadata={handleMetadataLoaded}
-                        onError={() => setError(true)}
+                        onError={(e) => {
+                            // Only set error if we really can't play. 
+                            // Sometimes browsers fire error for minor things, but here it's likely fatal.
+                            console.error("Video load error", e);
+                            setError(true);
+                        }}
                     />
                     {/* Fallback overlay if video takes time to load metadata */}
                     {!loaded && (
