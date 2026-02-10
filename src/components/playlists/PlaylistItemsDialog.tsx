@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -454,34 +455,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
 
   const getItemThumbnail = (item: PlaylistItem) => {
     if (item.media) {
-      if (item.media.file_type === 'image') {
-        return <img src={item.media.file_url} alt="" className="w-full h-full object-cover" />;
-      }
-      if (item.media.file_type === 'video') {
-        // Usar thumbnail se disponível, senão mostrar ícone
-        if (item.media.thumbnail_url) {
-          return <img src={item.media.thumbnail_url} alt="" className="w-full h-full object-cover" />;
-        }
-        return (
-          <div className="w-full h-full bg-black relative">
-            <video
-              src={item.media.file_url}
-              className="w-full h-full object-cover"
-              preload="metadata"
-              muted
-              playsInline
-              crossOrigin="anonymous"
-              onLoadedMetadata={(e) => {
-                e.currentTarget.currentTime = 0.1;
-              }}
-            />
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-              <Video className="h-4 w-4 text-white/90 drop-shadow-sm" />
-            </div>
-          </div>
-        );
-      }
-      return getFileIcon(item.media.file_type);
+      return <MediaThumbnail media={item.media} showIcon={false} />;
     }
     if (item.widget) {
       switch (item.widget.widget_type) {
@@ -727,11 +701,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
                                 className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
                               >
                                 <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
-                                  {media.file_type === 'image' ? (
-                                    <img src={media.file_url} alt="" className="w-full h-full object-cover" />
-                                  ) : (
-                                    getFileIcon(media.file_type)
-                                  )}
+                                  <MediaThumbnail media={media} showIcon={false} />
                                 </div>
                                 <span className="text-sm truncate">{media.name}</span>
                               </div>
