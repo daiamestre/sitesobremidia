@@ -463,8 +463,16 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
           return <img src={item.media.thumbnail_url} alt="" className="w-full h-full object-cover" />;
         }
         return (
-          <div className="w-full h-full bg-gradient-to-br from-accent/20 to-accent/5 flex items-center justify-center relative">
-            <Video className="h-5 w-5 text-accent" />
+          <div className="w-full h-full bg-black relative">
+            <video
+              src={`${item.media.file_url}#t=0.1`}
+              className="w-full h-full object-cover"
+              preload="metadata"
+              muted
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <Video className="h-4 w-4 text-white/90 drop-shadow-sm" />
+            </div>
           </div>
         );
       }
