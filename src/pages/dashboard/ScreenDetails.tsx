@@ -52,7 +52,21 @@ interface PlaylistItem {
     duration: number; // override duration
 }
 
-interface ScreenWithPlaylist extends Screen {
+// Types matching query response exactly, without implementing full Screen interface
+interface ScreenWithPlaylist {
+    id: string;
+    name: string;
+    location?: string;
+    description?: string;
+    last_ping_at?: string;
+    version?: string;
+    ip_address?: string;
+    custom_id?: string;
+    resolution?: string;
+    orientation?: 'landscape' | 'portrait';
+    playlist_id?: string;
+    is_active: boolean;
+    audio_enabled?: boolean;
     playlist?: {
         id: string;
         name: string;
@@ -84,7 +98,7 @@ export default function ScreenDetails() {
     const [availableMedia, setAvailableMedia] = useState<Media[]>([]);
 
     // Fetch Screen
-    const { data: screen, isLoading, refetch } = useQuery({
+    const { data: screen, isLoading, isError, refetch } = useQuery({
         queryKey: ['screen', id],
         queryFn: async () => {
             const { data, error } = await supabase
