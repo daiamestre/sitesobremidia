@@ -156,7 +156,8 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
       onOpenChange(false);
     } catch (error: unknown) {
       console.error('Error saving screen:', error);
-      toast.error('Erro ao salvar tela');
+      console.error('Error saving screen:', error);
+      toast.error('Erro ao salvar tela: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setSaving(false);
     }
