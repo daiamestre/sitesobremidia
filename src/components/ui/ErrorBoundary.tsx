@@ -31,9 +31,24 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     private handlePromiseRejection = (event: PromiseRejectionEvent) => {
+        const reason = event.reason?.message || event.reason;
+        const reasonStr = String(reason);
+
+        // IGNORE: Media Player Errors (Handled internally by PlayerEngine)
+        if (reasonStr.includes("The element has no supported sources")) {
+            console.warn("[ErrorBoundary] Ignored Media Error:", reason);
+            return;
+        }
+
+        // IGNORE: AbortErrors (Common in React 18 / Video switching)
+        if (reasonStr.includes("AbortError") || reasonStr.includes("The play() request was interrupted")) {
+            console.warn("[ErrorBoundary] Ignored AbortError:", reason);
+            return;
+        }
+
         this.setState({
             hasError: true,
-            error: new Error(`PROMISE REJECTION: ${event.reason?.message || event.reason || "Unknown Rejection"}`)
+            error: new Error(`PROMISE REJECTION: ${reasonStr || "Unknown Rejection"}`)
         });
     };
 
