@@ -13,7 +13,7 @@ import {
     Power, RefreshCw, Camera, Save, Trash2, GripVertical, Plus, Image, Video,
     Music, Volume2, VolumeX, Smartphone, MonitorSmartphone
 } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Screen, ScreenStatus, Playlist, Media } from '@/types/models';
 import { toast } from 'sonner';
@@ -75,15 +75,7 @@ interface ScreenWithPlaylist {
 }
 
 // Mock Data for Chart
-const data = [
-    { name: 'Jan', value: 400 },
-    { name: 'Fev', value: 300 },
-    { name: 'Mar', value: 200 },
-    { name: 'Abr', value: 278 },
-    { name: 'Mai', value: 189 },
-    { name: 'Jun', value: 239 },
-    { name: 'Jul', value: 349 },
-];
+// Chart Data Logic handled inside component
 
 export default function ScreenDetails() {
     const { id } = useParams<{ id: string }>();
@@ -96,6 +88,44 @@ export default function ScreenDetails() {
     const [isSaving, setIsSaving] = useState(false);
     const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
     const [availableMedia, setAvailableMedia] = useState<Media[]>([]);
+
+    // Stats State
+    const [statsPeriod, setStatsPeriod] = useState<'today' | 'week' | 'month'>('week');
+
+    // Fetch Stats
+    const { data: statsData, isLoading: isLoadingStats } = useQuery({
+        queryKey: ['screen-stats', id, statsPeriod],
+        queryFn: async () => {
+            const now = new Date();
+            let start, end, period;
+
+            if (statsPeriod === 'today') {
+                start = startOfDay(now);
+                end = endOfDay(now);
+                period = 'hourly';
+            } else if (statsPeriod === 'week') {
+                start = startOfDay(subDays(now, 6));
+                end = endOfDay(now);
+                period = 'daily';
+            } else { // month
+                start = startOfDay(subDays(now, 29));
+                end = endOfDay(now);
+                period = 'daily'; // Show daily breakdown for the month
+            }
+
+            const { data, error } = await supabase.rpc('get_screen_stats', {
+                target_screen_id: id,
+                start_date: start.toISOString(),
+                end_date: end.toISOString(),
+                period: period
+            });
+
+            if (error) throw error;
+            // Rename keys for Recharts if needed, but RPC returns { label, value } which matches dataKey="name"/"value" logic (need "name")
+            return data.map((d: any) => ({ name: d.label, value: d.value }));
+        },
+        enabled: !!id
+    });
 
     // Playlist Picker States
     const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
@@ -357,12 +387,35 @@ export default function ScreenDetails() {
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>Estatísticas de Exibição</CardTitle>
                             <div className="flex gap-2">
-                                <Button size="sm" variant="outline" className="h-8">Mensal</Button>
+                                <Button
+                                    size="sm"
+                                    variant={statsPeriod === 'today' ? "default" : "outline"}
+                                    className="h-7 text-xs"
+                                    onClick={() => setStatsPeriod('today')}
+                                >
+                                    Hoje
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={statsPeriod === 'week' ? "default" : "outline"}
+                                    className="h-7 text-xs"
+                                    onClick={() => setStatsPeriod('week')}
+                                >
+                                    7 Dias
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={statsPeriod === 'month' ? "default" : "outline"}
+                                    className="h-7 text-xs"
+                                    onClick={() => setStatsPeriod('month')}
+                                >
+                                    30 Dias
+                                </Button>
                             </div>
                         </CardHeader>
                         <CardContent className="h-[320px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={data}>
+                                <BarChart data={statsData || []}>
                                     <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                                     <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                                     <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />

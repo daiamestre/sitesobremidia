@@ -200,8 +200,31 @@ export const PlayerEngine = () => {
         return () => clearInterval(interval);
     }, [fetchPlaylist]);
 
+    // LOGGING
+    const logPlayback = useCallback(async (item: MediaItem) => {
+        try {
+            await supabase.from('playback_logs').insert({
+                screen_id: activeScreenId,
+                media_id: item.id,
+                playlist_id: null, // We don't track playlist_id in MediaItem currently, optional
+                duration: item.duration,
+                status: 'completed',
+                started_at: new Date().toISOString() // Or calculate actual start
+            });
+        } catch (e) {
+            // Fail silently if table doesn't exist yet or offline
+            console.warn("Stats log failed:", e);
+        }
+    }, [activeScreenId]);
+
     // PLAYBACK LOGIC
     const triggerNext = useCallback(() => {
+        // Log previous item completion
+        const currentItem = playlistRef.current[currentIndex];
+        if (currentItem && activeScreenId) {
+            logPlayback(currentItem);
+        }
+
         if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
         setCurrentIndex(prev => {
             const len = playlistRef.current.length;
@@ -211,7 +234,7 @@ export const PlayerEngine = () => {
             setNextIndex((next + 1) % len);
             return next;
         });
-    }, []);
+    }, [activeScreenId, currentIndex, logPlayback]);
 
     useEffect(() => {
         if (playlist.length === 0) return;
