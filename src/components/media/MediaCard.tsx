@@ -230,6 +230,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
             muted={isMuted}
             loop
             playsInline
+            crossOrigin="anonymous"
             preload="metadata"
             // Reset state if video ends naturally
             onEnded={() => setIsPlaying(false)}
