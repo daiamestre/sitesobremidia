@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { VideoPlayer, VideoPlayerRef } from '@/components/media/VideoPlayer';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -37,7 +38,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
   const [isMuted, setIsMuted] = useState(true);
   // Initialize with prop value, but allow local override for auto-correction
   const [detectedRatio, setDetectedRatio] = useState<string | null>(media.aspect_ratio || null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<VideoPlayerRef>(null);
 
   // Sync state with prop if it changes (e.g. after a refresh or parent update)
   useEffect(() => {
@@ -113,19 +114,15 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+      videoRef.current.togglePlay();
+      setIsPlaying(!isPlaying); // Optimistic update, but onPlay/onPause will confirm
     }
   };
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
+      videoRef.current.toggleMute();
       setIsMuted(!isMuted);
     }
   };
@@ -223,17 +220,23 @@ export function MediaCard({ media, viewMode, onDelete, onPreview }: MediaCardPro
             onLoad={handleMediaLoad}
           />
         ) : isVideo ? (
-          <video
+          <VideoPlayer
             ref={videoRef}
             src={media.file_url}
             className="w-full h-full object-cover"
-            muted={isMuted}
+            muted={isMuted} // Controlled by parent state initially
             loop
-            playsInline
-            preload="metadata"
-            // Reset state if video ends naturally
+            showCustomControls={false} // Hidden, we use overlay
             onEnded={() => setIsPlaying(false)}
-            onLoadedMetadata={handleMediaLoad}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onLoadedMetadata={() => {
+              // We need to access the underlying video element to get dimensions
+              const videoEl = videoRef.current?.video;
+              if (videoEl) {
+                handleMediaLoad({ target: videoEl } as any);
+              }
+            }}
           />
         ) : (
           <div className="flex flex-col items-center justify-center text-muted-foreground">
