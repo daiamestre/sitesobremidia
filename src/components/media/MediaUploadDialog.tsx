@@ -477,6 +477,39 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
 
       if (dbError) throw dbError;
 
+      // Add to playlist if selected
+      if (selectedPlaylistId && selectedPlaylistId !== 'none') {
+        try {
+          // Get current max position
+          const { count } = await supabase
+            .from('playlist_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('playlist_id', selectedPlaylistId);
+
+          const newPosition = count || 0;
+
+          // Check if already in this playlist
+          const { data: existing } = await supabase
+            .from('playlist_items')
+            .select('id')
+            .eq('playlist_id', selectedPlaylistId)
+            .eq('media_id', editMedia.id)
+            .maybeSingle();
+
+          if (!existing) {
+            await supabase.from('playlist_items').insert({
+              playlist_id: selectedPlaylistId,
+              media_id: editMedia.id,
+              position: newPosition,
+              duration: mediaDuration,
+            });
+          }
+        } catch (playlistErr) {
+          console.error('Error adding to playlist:', playlistErr);
+          toast.error('Mídia atualizada, mas erro ao adicionar na playlist');
+        }
+      }
+
       toast.success('Mídia atualizada com sucesso!');
       onUploadComplete();
     } catch (error: unknown) {
@@ -704,28 +737,26 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
             </div>
           </div>
 
-          {/* Adicionar à Playlist (Opcional) - only for new uploads */}
-          {!isEditMode && (
-            <div className="space-y-2">
-              <Label>Adicionar à Playlist (Opcional)</Label>
-              <div className="flex items-center gap-2">
-                <ListPlus className="h-5 w-5 text-muted-foreground" />
-                <Select value={selectedPlaylistId} onValueChange={setSelectedPlaylistId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione uma playlist (Opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhuma (Apenas Galeria)</SelectItem>
-                    {playlists.map((playlist) => (
-                      <SelectItem key={playlist.id} value={playlist.id}>
-                        {playlist.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          {/* Adicionar à Playlist (Opcional) */}
+          <div className="space-y-2">
+            <Label>{isEditMode ? 'Incluir na Playlist (Opcional)' : 'Adicionar à Playlist (Opcional)'}</Label>
+            <div className="flex items-center gap-2">
+              <ListPlus className="h-5 w-5 text-muted-foreground" />
+              <Select value={selectedPlaylistId} onValueChange={setSelectedPlaylistId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione uma playlist (Opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma (Apenas Galeria)</SelectItem>
+                  {playlists.map((playlist) => (
+                    <SelectItem key={playlist.id} value={playlist.id}>
+                      {playlist.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
+          </div>
 
           {/* File List */}
           {files.length > 0 && (
