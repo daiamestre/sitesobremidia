@@ -28,7 +28,7 @@ const History = lazy(() => import("./pages/dashboard/History"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const AdminUsers = lazy(() => import("./pages/dashboard/AdminUsers"));
 const Player = lazy(() => import("./pages/Player"));
-
+const WebPlayerDemo = lazy(() => import("./components/player/WebPlayerDemo"));
 
 const queryClient = new QueryClient();
 
@@ -62,6 +62,7 @@ const App = () => {
                   <Route path="/player" element={<Player />} />
                   <Route path="/player/:screenId" element={<Player />} />
                   <Route path="/player/*" element={<Player />} />
+                  <Route path="/player-demo" element={<WebPlayerDemo />} />
 
                   {/* DASHBOARD ROUTES (RESTORED) */}
                   <Route path="/dashboard" element={<DashboardLayout />}>
