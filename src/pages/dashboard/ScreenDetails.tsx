@@ -3,11 +3,14 @@ import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
     ArrowLeft, Monitor, Wifi, WifiOff, MapPin, Clock, Server, ListVideo, Play,
     Power, RefreshCw, Camera, Save, Trash2, GripVertical, Plus, Image, Video,
@@ -58,6 +61,7 @@ interface ScreenWithPlaylist {
     name: string;
     location?: string;
     description?: string;
+    status?: string;
     last_ping_at?: string;
     version?: string;
     ip_address?: string;
@@ -67,6 +71,8 @@ interface ScreenWithPlaylist {
     playlist_id?: string;
     is_active: boolean;
     audio_enabled?: boolean;
+    last_screenshot_at?: string;
+    last_screenshot_type?: 'manual' | 'heartbeat';
     playlist?: {
         id: string;
         name: string;
@@ -86,6 +92,9 @@ function DebugLogViewer({ screenId }: { screenId: string }) {
     useEffect(() => {
         const fetch = async () => {
             try {
+                // FIX: Cannot query UUID column with text string (causes 400 error).
+                console.log("Debug: Fetching logs for UUID:", screenId);
+
                 const { data, count, error } = await supabase
                     .from('playback_logs')
                     .select('*', { count: 'exact' })
@@ -93,7 +102,12 @@ function DebugLogViewer({ screenId }: { screenId: string }) {
                     .order('started_at', { ascending: false })
                     .limit(5);
 
-                if (error) throw error;
+                if (error) {
+                    console.error("Debug: Log fetch error:", error);
+                    throw error;
+                }
+
+                console.log("Debug: Logs found:", data);
                 setLogs(data || []);
                 setCount(count || 0);
                 setLastError(null);
@@ -108,32 +122,17 @@ function DebugLogViewer({ screenId }: { screenId: string }) {
     }, [screenId]);
 
     return (
-        <div className="bg-black/40 p-2 rounded text-[10px] font-mono max-h-40 overflow-auto">
-            <div className="flex justify-between mb-1 text-xs font-bold">
-                <span>Total Logs: {count}</span>
+        <div className="bg-black/80 p-4 rounded text-xs font-mono max-h-60 overflow-auto border border-red-500/30">
+            <h4 className="text-red-400 font-bold mb-2">DEBUG RAW DATA</h4>
+            <div className="flex justify-between mb-1">
+                <span>Total Count: {count}</span>
                 {lastError && <span className="text-red-500">{lastError}</span>}
             </div>
-            <table className="w-full text-left opacity-80">
-                <thead>
-                    <tr className="border-b border-white/10">
-                        <th>Hora (Local)</th>
-                        <th>Mídia</th>
-                        <th>Duração</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {logs.map((log) => (
-                        <tr key={log.id} className="border-b border-white/5">
-                            <td>{new Date(log.started_at).toLocaleTimeString()}</td>
-                            <td className="truncate max-w-[100px]">{log.media_id ? log.media_id.slice(0, 8) : 'N/A'}...</td>
-                            <td>{log.duration}s</td>
-                        </tr>
-                    ))}
-                    {logs.length === 0 && (
-                        <tr><td colSpan={3} className="text-center py-2 opacity-50">Nenhum log encontrado (ainda).</td></tr>
-                    )}
-                </tbody>
-            </table>
+
+            {/* RAW DATA DUMP */}
+            <pre className="text-[10px] text-green-400 whitespace-pre-wrap break-all">
+                {logs.length > 0 ? JSON.stringify(logs, null, 2) : "Nenhum dado retornado (Array vazio)."}
+            </pre>
         </div>
     );
 }
@@ -142,6 +141,32 @@ export default function ScreenDetails() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+
+    // --- SMART UUID RESOLVER ---
+    const [resolvedId, setResolvedId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const resolve = async () => {
+            if (!id) return;
+            // Common UUID Regex
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+            if (isUUID) {
+                setResolvedId(id);
+            } else {
+                console.log("Detectado ID Personalizado (Custom ID):", id, "Buscando UUID...");
+                const { data } = await supabase.from('screens').select('id').eq('custom_id', id).single();
+                if (data) {
+                    console.log("UUID Resolvido:", data.id);
+                    setResolvedId(data.id);
+                } else {
+                    console.error("ERRO: ID não encontrado:", id);
+                    setResolvedId(null);
+                }
+            }
+        };
+        resolve();
+    }, [id]);
 
     // States
     const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([]);
@@ -152,11 +177,14 @@ export default function ScreenDetails() {
 
     // Stats State
     const [statsPeriod, setStatsPeriod] = useState<'today' | 'week' | 'month'>('week');
+    const [isCapturing, setIsCapturing] = useState(false);
 
     // Fetch Stats
     const { data: statsData, isLoading: isLoadingStats } = useQuery({
-        queryKey: ['screen-stats', id, statsPeriod],
+        queryKey: ['screen-stats', resolvedId, statsPeriod],
         queryFn: async () => {
+            if (!resolvedId) return [];
+
             const now = new Date();
             let start, end, formatLabel: (d: Date) => string;
 
@@ -174,11 +202,11 @@ export default function ScreenDetails() {
                 formatLabel = (d) => format(d, 'dd/MM');
             }
 
-            // CLIENT-SIDE AGGREGATION (Bypassing RPC)
+            // FIX: Always query by resolved UUID.
             const { data, error } = await supabase
                 .from('playback_logs')
                 .select('started_at')
-                .eq('screen_id', id)
+                .eq('screen_id', resolvedId)
                 .gte('started_at', start.toISOString())
                 .lte('started_at', end.toISOString());
 
@@ -204,7 +232,8 @@ export default function ScreenDetails() {
                     return a.name.localeCompare(b.name);
                 });
         },
-        enabled: !!id
+        refetchInterval: 10000,
+        enabled: !!resolvedId
     });
 
     // Playlist Picker States
@@ -213,8 +242,9 @@ export default function ScreenDetails() {
 
     // Fetch Screen
     const { data: screen, isLoading, isError, refetch } = useQuery({
-        queryKey: ['screen', id],
+        queryKey: ['screen', resolvedId],
         queryFn: async () => {
+            if (!resolvedId) return null;
             const { data, error } = await supabase
                 .from('screens')
                 .select(`
@@ -231,12 +261,26 @@ export default function ScreenDetails() {
                         )
                     )
                 `)
-                .eq('id', id)
+                .eq('id', resolvedId)
                 .single();
             if (error) throw error;
+            console.log(">>> [DATABASE] Screen Data Loaded:", {
+                id: data.id,
+                last_screenshot_at: data.last_screenshot_at,
+                last_screenshot_type: data.last_screenshot_type
+            });
             return data as any as ScreenWithPlaylist;
-        }
+        },
+        refetchInterval: 10000, // Fetch fresh data every 10s to keep status live
+        enabled: !!resolvedId
     });
+
+    // Force re-render every minute to update "time ago" text even if data hasn't changed
+    const [, forceUpdate] = useState(0);
+    useEffect(() => {
+        const interval = setInterval(() => forceUpdate(n => n + 1), 60000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Initialize/Sync Playlist Items
     useEffect(() => {
@@ -279,17 +323,80 @@ export default function ScreenDetails() {
         }
     }, [playlistPickerOpen]);
 
+    // [REALTIME DIAGNOSTIC] Listen for command execution to auto-refresh screenshot
+    useEffect(() => {
+        if (!resolvedId) return;
+
+        console.log(">>> [SNIFFER] Iniciando Observador em Tempo Real para UUID:", resolvedId);
+        const channel = supabase
+            .channel(`screen-diagnostics-${resolvedId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'remote_commands',
+                    filter: `screen_id=eq.${resolvedId}`
+                },
+                (payload) => {
+                    const cmd = payload.new.command?.toLowerCase();
+                    const status = payload.new.status?.toLowerCase();
+
+                    console.log(">>> [SNIFFER] Mudança de Status detectada:", cmd, status);
+
+                    if (cmd === 'screenshot') {
+                        if (status === 'executed' || status?.startsWith('executed')) {
+                            toast.success('📸 Screenshot recebido e atualizado!', {
+                                description: 'A imagem foi capturada agora mesmo pelo dispositivo.'
+                            });
+                            setIsCapturing(false);
+                            // Refresh React Query to update last_screenshot_at
+                            queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] });
+                            // Force refresh image via DOM
+                            const img = document.getElementById('screenshot-preview') as HTMLImageElement;
+                            if (img) {
+                                const baseUrl = supabaseConfig.url;
+                                img.src = `${baseUrl}/storage/v1/object/public/screenshots/${resolvedId}.jpg?t=${Date.now()}`;
+                            }
+                        } else if (status === 'failed' || status?.startsWith('failed')) {
+                            toast.error(`❌ Falha na captura do dispositivo`, {
+                                description: payload.new.status_note || payload.new.error_message || 'Verifique se o player está online.'
+                            });
+                            setIsCapturing(false);
+                        }
+                    }
+                }
+            )
+            .subscribe((status) => {
+                console.log(">>> [SNIFFER] Status da Conexão Realtime:", status);
+            });
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [resolvedId, queryClient]);
+
 
     // Handlers
     const handleSendCommand = async (command: 'reload' | 'reboot' | 'screenshot') => {
-        toast.info(`Enviando comando: ${command}...`);
-        // In a real app, insert into command queue table
-        await supabase.from('remote_commands').insert({
-            screen_id: id,
+        if (!resolvedId) {
+            toast.error("Erro: ID da tela não resolvido.");
+            return;
+        }
+        if (command === 'screenshot') setIsCapturing(true);
+        toast.info(`Contatando dispositivo: ${command}...`, { duration: 2000 });
+
+        const { error } = await supabase.from('remote_commands').insert({
+            screen_id: resolvedId, // Use UUID
             command: command,
             status: 'pending'
         });
-        toast.success('Comando enviado!');
+
+        if (error) {
+            console.error("Erro ao enviar comando:", error);
+            toast.error(`Erro ao enviar: ${error.message}`);
+            if (command === 'screenshot') setIsCapturing(false);
+        }
     };
 
     const handleRemoveItem = (index: number) => {
@@ -376,7 +483,7 @@ export default function ScreenDetails() {
             const { error } = await supabase
                 .from('screens')
                 .update({ playlist_id: playlist.id })
-                .eq('id', id);
+                .eq('id', resolvedId);
 
             if (error) throw error;
 
@@ -404,7 +511,8 @@ export default function ScreenDetails() {
             </div>
         );
     }
-    const isOnline = screen.last_ping_at && (new Date().getTime() - new Date(screen.last_ping_at).getTime()) < 300000; // 5 min
+    // Status logic: Must be active AND have pinged in the last 5 minutes
+    const isOnline = screen.is_active !== false && screen.last_ping_at && (new Date().getTime() - new Date(screen.last_ping_at).getTime()) < 300000; // 5 min
     const isPortrait = screen.resolution === '9x16';
 
     return (
@@ -448,6 +556,12 @@ export default function ScreenDetails() {
                                 <div className="flex items-center gap-1.5 font-mono bg-muted px-1.5 py-0.5 rounded text-xs">
                                     ID: {screen.custom_id || screen.id.slice(0, 8)}
                                 </div>
+                                {screen.status && (
+                                    <div className="flex items-center gap-1.5 font-mono bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded text-xs border border-blue-500/20">
+                                        <Server className="h-3 w-3" />
+                                        {screen.status}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -509,23 +623,7 @@ export default function ScreenDetails() {
                         </CardContent>
                     </Card>
 
-                    {/* DEBUG PANEL (Visible Only If Logs Empty or for Testing) */}
-                    <Card className="glass border-orange-500/30 bg-orange-500/5">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-mono text-orange-400 flex items-center gap-2">
-                                <Server className="h-4 w-4" /> DIAGNÓSTICO DE DADOS (Debug)
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-xs font-mono space-y-2">
-                            <div className="flex justify-between border-b border-white/10 pb-1">
-                                <span>Status do Gráfico:</span>
-                                <span className={statsData && statsData.length > 0 ? "text-green-400" : "text-red-400"}>
-                                    {statsData && statsData.length > 0 ? `OK (${statsData.reduce((acc: any, curr: any) => acc + curr.value, 0)} visualizações)` : "VAZIO (0)"}
-                                </span>
-                            </div>
-                            <DebugLogViewer screenId={id || ''} />
-                        </CardContent>
-                    </Card>
+
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Remote Control */}
@@ -535,36 +633,183 @@ export default function ScreenDetails() {
                                     <Wifi className="h-5 w-5" /> Controle Remoto
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="grid grid-cols-2 gap-3">
-                                <Button variant="outline" className="h-20 flex flex-col gap-2 hover:bg-primary/10 hover:border-primary/50" onClick={() => handleSendCommand('reload')}>
-                                    <RefreshCw className="h-6 w-6" />
-                                    Atualizar Player
-                                </Button>
-                                <Button variant="outline" className="h-20 flex flex-col gap-2 hover:bg-destructive/10 hover:border-destructive/50 hover:text-destructive" onClick={() => handleSendCommand('reboot')}>
-                                    <Power className="h-6 w-6" />
-                                    Reiniciar Dispositivo
-                                </Button>
-                                <Button className="col-span-2 h-12 flex items-center gap-2" onClick={() => handleSendCommand('screenshot')}>
-                                    <Camera className="h-5 w-5" /> Solicitar Screenshot
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Button variant="outline" className="h-20 flex flex-col gap-2 hover:bg-primary/10 hover:border-primary/50" onClick={() => handleSendCommand('reload')}>
+                                        <RefreshCw className="h-6 w-6" />
+                                        Atualizar Player
+                                    </Button>
+                                    <Button variant="outline" className="h-20 flex flex-col gap-2 hover:bg-destructive/10 hover:border-destructive/50 hover:text-destructive" onClick={() => handleSendCommand('reboot')}>
+                                        <Power className="h-6 w-6" />
+                                        Reiniciar Dispositivo
+                                    </Button>
+                                </div>
+
+                                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-sm font-medium">Tela Ativa</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Se desativada, a tela exibirá um aviso.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={screen.is_active !== false}
+                                        onCheckedChange={async (checked) => {
+                                            if (!resolvedId) {
+                                                toast.error('Erro: ID da tela não resolvido.');
+                                                return;
+                                            }
+
+                                            // Optimistic update: change UI immediately
+                                            queryClient.setQueryData(['screen', resolvedId], (old: any) =>
+                                                old ? { ...old, is_active: checked } : old
+                                            );
+
+                                            const { data, error } = await supabase
+                                                .from('screens')
+                                                .update({ is_active: checked })
+                                                .eq('id', resolvedId)
+                                                .select('is_active');
+
+                                            if (error) {
+                                                console.error('Toggle is_active error:', error);
+                                                toast.error(`Erro ao atualizar: ${error.message}`);
+                                                // Rollback optimistic update
+                                                queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] });
+                                            } else if (!data || data.length === 0) {
+                                                console.error('Toggle is_active: 0 rows affected (RLS ou ID inválido)');
+                                                toast.error('Sem permissão para alterar esta tela.');
+                                                queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] });
+                                            } else {
+                                                toast.success(`Tela ${checked ? 'ativada' : 'desativada'}!`);
+                                            }
+                                        }}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
+                                    <div className="space-y-0.5">
+                                        <div className="flex items-center gap-2">
+                                            {screen.audio_enabled !== false ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
+                                            <Label className="text-sm font-medium">Áudio Dinâmico</Label>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Controla o volume do player remotamente.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={screen.audio_enabled !== false}
+                                        onCheckedChange={async (checked) => {
+                                            if (!resolvedId) {
+                                                toast.error('Erro: ID da tela não resolvido.');
+                                                return;
+                                            }
+                                            const { error } = await supabase
+                                                .from('screens')
+                                                .update({ audio_enabled: checked })
+                                                .eq('id', resolvedId);
+
+                                            if (error) {
+                                                console.error('Toggle audio error:', error);
+                                                toast.error(`Erro ao atualizar áudio: ${error.message}`);
+                                            } else {
+                                                toast.success(`Áudio ${checked ? 'ativado' : 'mudo'}!`);
+                                            }
+                                            queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] });
+                                        }}
+                                    />
+                                </div>
+
+                                <Button
+                                    className="w-full h-12 flex items-center gap-2"
+                                    onClick={() => handleSendCommand('screenshot')}
+                                    disabled={isCapturing}
+                                >
+                                    {isCapturing ? (
+                                        <>
+                                            <RefreshCw className="h-5 w-5 animate-spin" />
+                                            Capturando na TV...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Camera className="h-5 w-5" />
+                                            Solicitar Screenshot
+                                        </>
+                                    )}
                                 </Button>
                             </CardContent>
                         </Card>
 
-                        {/* Screenshot Preview */}
-                        <Card className="glass overflow-hidden">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Monitor className="h-5 w-5" /> Screenshot
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-0 relative aspect-video bg-black/50">
-                                {/* Placeholder for now */}
-                                <div className="absolute inset-0 flex items-center justify-center text-muted-foreground flex-col gap-2">
-                                    <Camera className="h-8 w-8 opacity-20" />
-                                    <span className="text-xs opacity-50">Nenhum screenshot recente</span>
+                        {/* Screenshot Preview - Simple Div Version for Visibility */}
+                        <div className="glass rounded-xl border border-border/50 overflow-hidden flex flex-col bg-card/10 min-h-[450px]">
+                            {/* Header Strip */}
+                            <div className="px-4 py-3 flex items-center justify-between border-b border-border/40 shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <Monitor className="h-4 w-4 text-primary" />
+                                    <span className="text-sm font-semibold text-white">Screenshot da TV</span>
                                 </div>
-                            </CardContent>
-                        </Card>
+                                <div className="flex items-center gap-2">
+                                    {screen.last_screenshot_type && (
+                                        <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-primary/20 text-primary border-primary/30 uppercase tracking-tighter font-bold">
+                                            {screen.last_screenshot_type === 'heartbeat' ? 'Check de Mídia' : 'Manual'}
+                                        </Badge>
+                                    )}
+                                    <button
+                                        className="p-1.5 hover:bg-muted rounded-md transition-colors"
+                                        onClick={() => {
+                                            const img = document.getElementById('screenshot-preview') as HTMLImageElement;
+                                            if (img) img.src = `${supabaseConfig.url}/storage/v1/object/public/screenshots/${resolvedId}.jpg?t=${Date.now()}`;
+                                        }}
+                                    >
+                                        <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Image Container */}
+                            <div className={`p-0 relative flex-1 bg-black/80 flex items-center justify-center group overflow-hidden ${isPortrait ? 'min-h-[350px]' : 'aspect-video'}`}>
+                                <img
+                                    id="screenshot-preview"
+                                    src={`${supabaseConfig.url}/storage/v1/object/public/screenshots/${resolvedId}.jpg?t=${Date.now()}`}
+                                    className="w-full h-full object-contain"
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                    }}
+                                    onLoad={(e) => {
+                                        e.currentTarget.style.display = 'block';
+                                        e.currentTarget.nextElementSibling?.classList.add('hidden');
+                                    }}
+                                />
+                                {/* Error State */}
+                                <div className="hidden absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-2 bg-[#0a0a0a]">
+                                    <Camera className="h-8 w-8 opacity-20" />
+                                    <span className="text-xs opacity-50">Nenhum screenshot disponível</span>
+                                </div>
+                            </div>
+
+                            {/* FOOTER LEGEND - Plain Div for Visibility */}
+                            <div className="p-4 bg-muted/60 border-t border-border/60 shrink-0">
+                                <div className="flex items-center justify-between text-xs mb-1.5">
+                                    <div className="flex items-center gap-2 text-primary font-bold">
+                                        <Clock className="h-4 w-4" />
+                                        <span>{screen.last_screenshot_type === 'heartbeat' ? 'CHECAGEM DE MÍDIA' : 'ÚLTIMO PRINT MANUAL'}</span>
+                                    </div>
+                                    <div className="text-white font-black bg-primary/20 px-2 py-0.5 rounded border border-primary/30">
+                                        {screen.last_screenshot_at ? (
+                                            format(new Date(screen.last_screenshot_at), "dd/MM 'às' HH:mm", { locale: ptBR })
+                                        ) : (
+                                            '--/-- às --:--'
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground leading-snug">
+                                    {screen.last_screenshot_at
+                                        ? "Esta captura foi enviada automaticamente pelo Player para auditoria visual."
+                                        : "Aguardando o primeiro envio de captura do dispositivo vinculado."}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
