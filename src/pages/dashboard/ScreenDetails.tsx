@@ -746,7 +746,7 @@ export default function ScreenDetails() {
                             <div className="px-4 py-3 flex items-center justify-between border-b border-border/40 shrink-0">
                                 <div className="flex items-center gap-2">
                                     <Monitor className="h-4 w-4 text-primary" />
-                                    <span className="text-sm font-semibold text-white">Screenshot da TV</span>
+                                    <span className="text-sm font-semibold text-white">Screenshot</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {screen.last_screenshot_type && (
