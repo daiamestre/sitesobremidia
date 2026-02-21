@@ -740,8 +740,8 @@ export default function ScreenDetails() {
                             </CardContent>
                         </Card>
 
-                        {/* Screenshot Preview - Simple Div Version for Visibility */}
-                        <div className="glass rounded-xl border border-border/50 overflow-hidden flex flex-col bg-card/10 min-h-[450px]">
+                        {/* Screenshot Preview - Compact Version */}
+                        <div className="glass rounded-xl border border-border/50 overflow-hidden flex flex-col bg-card/10 min-h-[300px] w-full max-w-[380px] mx-auto md:mx-0">
                             {/* Header Strip */}
                             <div className="px-4 py-3 flex items-center justify-between border-b border-border/40 shrink-0">
                                 <div className="flex items-center gap-2">
@@ -767,7 +767,7 @@ export default function ScreenDetails() {
                             </div>
 
                             {/* Image Container */}
-                            <div className={`p-0 relative flex-1 bg-black/80 flex items-center justify-center group overflow-hidden ${isPortrait ? 'min-h-[350px]' : 'aspect-video'}`}>
+                            <div className={`p-0 relative flex-1 bg-black/80 flex items-center justify-center group overflow-hidden ${isPortrait ? 'max-h-[280px] min-h-[220px]' : 'aspect-video'}`}>
                                 <img
                                     id="screenshot-preview"
                                     src={`${supabaseConfig.url}/storage/v1/object/public/screenshots/${resolvedId}.jpg?t=${Date.now()}`}
