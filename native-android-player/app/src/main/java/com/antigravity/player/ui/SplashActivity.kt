@@ -11,6 +11,7 @@ import com.antigravity.player.UserApplication
 import com.antigravity.player.di.ServiceLocator
 import com.antigravity.player.util.DeviceTypeUtil
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,7 +88,10 @@ class SplashActivity : AppCompatActivity() {
         // Make it async to allow network calls (refresh token)
         lifecycleScope.launch {
             // Restore Session from Secure Storage (Disk) -> Auto Refresh if needed
-            val isSessionValid = auth.restoreSession(applicationContext)
+            // [HARDENING] Safety Timeout to prevent Splash Hang
+            val isSessionValid = withTimeoutOrNull(15000) {
+                auth.restoreSession(applicationContext)
+            } ?: false
             
             com.antigravity.core.util.Logger.i("BOOT", "Routing Check: SessionValid=$isSessionValid, SavedScreen=$savedScreenId")
 

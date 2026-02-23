@@ -19,6 +19,11 @@ class AuthRepository {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
+        install(io.ktor.client.plugins.HttpTimeout) {
+            requestTimeoutMillis = com.antigravity.sync.config.SupabaseConfig.TIMEOUT_READ_MS
+            connectTimeoutMillis = com.antigravity.sync.config.SupabaseConfig.TIMEOUT_CONNECT_MS
+            socketTimeoutMillis = com.antigravity.sync.config.SupabaseConfig.TIMEOUT_READ_MS
+        }
     }
 
 
