@@ -522,36 +522,46 @@ export default function ScreenDetails() {
     };
 
     const handleSavePlaylist = async () => {
-        if (!screen?.playlist_id) return;
+        if (!screen?.playlist_id || !user?.id) return;
         setIsSaving(true);
         try {
-            // 1. Delete all current items (simplest strategy for now, or use upsert if IDs strictly managed)
-            // But we have mixed temp IDs. Safest is delete all for this playlist and insert new.
-            // CAREFUL: This wipes history/stats if linked to specific item IDs. 
-            // Better: update existing where possible, insert new, delete missing.
-            // For MVP: Delete All -> Insert All is standard "Save Playlist" behavior in many simple CRUDs.
+            // 1. Delete all current items for this playlist
+            const { error: deleteError } = await supabase
+                .from('playlist_items')
+                .delete()
+                .eq('playlist_id', screen.playlist_id);
 
-            await supabase.from('playlist_items').delete().eq('playlist_id', screen.playlist_id);
+            if (deleteError) throw deleteError;
 
+            // 2. Prepare items to insert with user_id for RLS compliance
             const itemsToInsert = playlistItems.map((item, index) => ({
                 playlist_id: screen.playlist_id,
+                user_id: user.id, // CRITICAL: ensure RLS allows insertion
                 media_id: item.media_id,
                 widget_id: item.widget_id,
                 external_link_id: item.external_link_id,
                 position: index,
-                duration: item.duration
+                duration: item.duration || 10
             }));
 
             if (itemsToInsert.length > 0) {
-                await supabase.from('playlist_items').insert(itemsToInsert);
+                const { error: insertError } = await supabase
+                    .from('playlist_items')
+                    .insert(itemsToInsert);
+
+                if (insertError) throw insertError;
             }
 
             toast.success('Playlist salva com sucesso!');
             setHasUnsavedChanges(false);
-            refetch(); // Reload data
-        } catch (e) {
-            console.error(e);
-            toast.error('Erro ao salvar playlist');
+
+            // Reload EVERYTHING to ensure state is perfectly synced with DB
+            await refetch();
+        } catch (e: any) {
+            console.error("Erro ao salvar playlist:", e);
+            toast.error(`Erro ao salvar playlist: ${e.message || 'Erro desconhecido'}`);
+            // If insert failed, refetch to restore what's (potentially still) in DB
+            refetch();
         } finally {
             setIsSaving(false);
         }
