@@ -175,10 +175,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .eq('playlist_id', playlist.id)
         .order('position');
 
-      if (itemsError) {
-        console.error('Erro ao buscar itens da playlist:', itemsError);
-        // Não jogamos erro ainda para tentar carregar o resto
-      }
+      if (itemsError) throw itemsError;
       setItems((itemsData || []) as PlaylistItem[]);
 
       const { data: mediaData, error: mediaError } = await supabase
