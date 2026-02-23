@@ -14,6 +14,31 @@ object ChipsetDetector {
     fun getRecommendedProfile(): HardwareProfile {
         val board = Build.BOARD.lowercase()
         val hardware = Build.HARDWARE.lowercase()
+        val model = Build.MODEL.lowercase()
+        val product = Build.PRODUCT.lowercase()
+        val fingerprint = Build.FINGERPRINT.lowercase()
+        
+        // 1. DETECÇÃO DE EMULADOR (Force Stability Mode)
+        val isEmulator = (fingerprint.startsWith("google/sdk_gphone") ||
+                          fingerprint.startsWith("unknown") ||
+                          model.contains("google_sdk") ||
+                          model.contains("emulator") ||
+                          model.contains("android sdk built for x86") ||
+                          hardware.contains("goldfish") ||
+                          hardware.contains("ranchu") ||
+                          product.contains("sdk_gphone") ||
+                          product.contains("google_sdk") ||
+                          product.contains("sdk") ||
+                          product.contains("vbox86p") ||
+                          board.contains("goldfish") ||
+                          board.contains("ranchu") ||
+                          board.contains("vbox86p"))
+
+        if (isEmulator) {
+            Log.i(TAG, "EMULADOR DETECTADO: Forçando MODO ESTABILIDADE para fluidez máxima.")
+            return HardwareProfile.LEGACY_STABILITY
+        }
+
         val procInfo = getCpuInfo()
 
         // Assinaturas de processadores de entrada (Allwinner, Rockchip, Amlogic)
