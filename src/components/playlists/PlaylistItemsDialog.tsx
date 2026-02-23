@@ -658,7 +658,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
                     <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="media" className="flex items-center gap-2">
                         <Image className="h-4 w-4" />
-                        Mídias
+                        Mídias da Galeria
                       </TabsTrigger>
                       <TabsTrigger value="widgets" className="flex items-center gap-2">
                         <LayoutGrid className="h-4 w-4" />
