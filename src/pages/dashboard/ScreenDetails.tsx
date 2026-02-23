@@ -552,7 +552,13 @@ export default function ScreenDetails() {
                 if (insertError) throw insertError;
             }
 
-            toast.success('Playlist salva com sucesso!');
+            // Trigger Realtime Sync: Update the playlist itself to notify the player
+            await supabase
+                .from('playlists')
+                .update({ updated_at: new Date().toISOString() })
+                .eq('id', screen.playlist_id);
+
+            toast.success('Playlist salva e sincronizada com o player!');
             setHasUnsavedChanges(false);
 
             // Reload EVERYTHING to ensure state is perfectly synced with DB

@@ -207,7 +207,6 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
 
       if (linksError) throw linksError;
       setAvailableLinks((linksData || []) as ExternalLink[]);
-      setAvailableLinks((linksData || []) as ExternalLink[]);
     } catch (error: unknown) {
       console.error('Error fetching data:', error);
       toast.error('Erro ao carregar dados');
@@ -232,11 +231,16 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       );
 
       await Promise.all(updates);
+
+      // Trigger Realtime Sync
+      if (playlist?.id) {
+        await supabase.from('playlists').update({ updated_at: new Date().toISOString() }).eq('id', playlist.id);
+      }
     } catch (error) {
       console.error('Error updating positions:', error);
       toast.error('Erro ao atualizar posições');
     }
-  }, []);
+  }, [playlist?.id]);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
@@ -316,9 +320,13 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .single();
 
       if (error) throw error;
+
+      // Trigger Realtime Sync
+      await supabase.from('playlists').update({ updated_at: new Date().toISOString() }).eq('id', playlist.id);
+
       setItems([...items, data as PlaylistItem]);
       setShowPicker(false);
-      toast.success('Mídia adicionada!');
+      toast.success('Mídia adicionada e sincronizada!');
     } catch (error: unknown) {
       console.error('Error adding media:', error);
       const message = error instanceof Error ? error.message : 'Erro desconhecido';
@@ -346,9 +354,13 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .single();
 
       if (error) throw error;
+
+      // Trigger Realtime Sync
+      await supabase.from('playlists').update({ updated_at: new Date().toISOString() }).eq('id', playlist.id);
+
       setItems([...items, data as PlaylistItem]);
       setShowPicker(false);
-      toast.success('Widget adicionado!');
+      toast.success('Widget adicionado e sincronizado!');
     } catch (error: unknown) {
       console.error('Error adding widget:', error);
       const message = error instanceof Error ? error.message : 'Erro desconhecido';
@@ -376,9 +388,13 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .single();
 
       if (error) throw error;
+
+      // Trigger Realtime Sync
+      await supabase.from('playlists').update({ updated_at: new Date().toISOString() }).eq('id', playlist.id);
+
       setItems([...items, data as PlaylistItem]);
       setShowPicker(false);
-      toast.success('Link externo adicionado!');
+      toast.success('Link externo adicionado e sincronizado!');
     } catch (error: unknown) {
       console.error('Error adding external link:', error);
       const message = error instanceof Error ? error.message : 'Erro desconhecido';
@@ -400,8 +416,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       setItems(updatedItems);
       await updatePositions(updatedItems);
 
-      toast.success('Item removido!');
-      toast.success('Item removido!');
+      toast.success('Item removido e sincronizado!');
     } catch (error: unknown) {
       console.error('Error removing item:', error);
       toast.error('Erro ao remover item');
