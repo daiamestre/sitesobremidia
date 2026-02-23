@@ -148,6 +148,8 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
   const [pickerTab, setPickerTab] = useState<'media' | 'widgets' | 'links'>('media');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!playlist || !user) return;
@@ -218,29 +220,15 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
   useEffect(() => {
     if (open && playlist) {
       fetchData();
+      setHasUnsavedChanges(false);
     }
   }, [open, playlist, fetchData]);
 
-  const updatePositions = useCallback(async (newItems: PlaylistItem[]) => {
-    try {
-      const updates = newItems.map((item, index) =>
-        supabase
-          .from('playlist_items')
-          .update({ position: index })
-          .eq('id', item.id)
-      );
-
-      await Promise.all(updates);
-
-      // Trigger Realtime Sync
-      if (playlist?.id) {
-        await supabase.from('playlists').update({ updated_at: new Date().toISOString() }).eq('id', playlist.id);
-      }
-    } catch (error) {
-      console.error('Error updating positions:', error);
-      toast.error('Erro ao atualizar posições');
-    }
-  }, [playlist?.id]);
+  const updatePositions = useCallback((newItems: PlaylistItem[]) => {
+    const updated = newItems.map((item, index) => ({ ...item, position: index }));
+    setItems(updated);
+    setHasUnsavedChanges(true);
+  }, []);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
@@ -286,169 +274,128 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     setDragOverIndex(null);
   };
 
-  const moveItem = async (fromIndex: number, toIndex: number) => {
+  const moveItem = (fromIndex: number, toIndex: number) => {
     if (toIndex < 0 || toIndex >= items.length) return;
 
     const newItems = [...items];
     const [movedItem] = newItems.splice(fromIndex, 1);
     newItems.splice(toIndex, 0, movedItem);
 
-    const updatedItems = newItems.map((item, index) => ({ ...item, position: index }));
-    setItems(updatedItems);
-
-    await updatePositions(updatedItems);
-    toast.success('Ordem atualizada!');
+    updatePositions(newItems);
+    toast.success('Ordem alterada localmente');
   };
 
-  const addMedia = async (media: Media) => {
+  const addMedia = (media: Media) => {
     if (!playlist) return;
+    const newItem: PlaylistItem = {
+      id: `temp-${Date.now()}`,
+      playlist_id: playlist.id,
+      media_id: media.id,
+      widget_id: null,
+      external_link_id: null,
+      position: items.length,
+      duration: media.file_type === 'video' ? (media.duration || 10) : 10,
+      media,
+      created_at: new Date().toISOString()
+    };
+    setItems([...items, newItem]);
+    setHasUnsavedChanges(true);
+    setShowPicker(false);
+    toast.success('Mídia adicionada à lista');
+  };
 
+  const addWidget = (widget: Widget) => {
+    if (!playlist) return;
+    const newItem: PlaylistItem = {
+      id: `temp-w-${Date.now()}`,
+      playlist_id: playlist.id,
+      media_id: null,
+      widget_id: widget.id,
+      external_link_id: null,
+      position: items.length,
+      duration: widget.widget_type === 'rss' ? 15 : 10,
+      widget,
+      created_at: new Date().toISOString()
+    };
+    setItems([...items, newItem]);
+    setHasUnsavedChanges(true);
+    setShowPicker(false);
+    toast.success('Widget adicionado à lista');
+  };
+
+  const addExternalLink = (link: ExternalLink) => {
+    if (!playlist) return;
+    const newItem: PlaylistItem = {
+      id: `temp-l-${Date.now()}`,
+      playlist_id: playlist.id,
+      media_id: null,
+      widget_id: null,
+      external_link_id: link.id,
+      position: items.length,
+      duration: 30,
+      external_link: link,
+      created_at: new Date().toISOString()
+    };
+    setItems([...items, newItem]);
+    setHasUnsavedChanges(true);
+    setShowPicker(false);
+    toast.success('Link adicionado à lista');
+  };
+
+  const removeItem = (itemId: string) => {
+    const newItems = items.filter(i => i.id !== itemId);
+    updatePositions(newItems);
+    setHasUnsavedChanges(true);
+    toast.success('Item removido da lista');
+  };
+
+  const updateDuration = (itemId: string, duration: number) => {
+    setItems(items.map(i => i.id === itemId ? { ...i, duration } : i));
+    setHasUnsavedChanges(true);
+  };
+
+  const updateSchedule = (itemId: string, updates: { start_time?: string | null, end_time?: string | null, days?: number[] | null }) => {
+    setItems(items.map(i => i.id === itemId ? { ...i, ...updates } : i));
+    setHasUnsavedChanges(true);
+  };
+
+  const handleSave = async () => {
+    if (!playlist || !user) return;
+    setIsSaving(true);
     try {
-      const newPosition = items.length;
-      const { data, error } = await supabase
-        .from('playlist_items')
-        .insert({
-          playlist_id: playlist.id,
-          user_id: user?.id,
-          media_id: media.id,
-          widget_id: null,
-          external_link_id: null,
-          position: newPosition,
-          duration: media.file_type === 'video' ? (media.duration || 10) : 10,
-        })
-        .select('*, media:media(*), widget:widgets(*), external_link:external_links(*)')
-        .single();
+      // 1. Delete all current items
+      await supabase.from('playlist_items').delete().eq('playlist_id', playlist.id);
 
-      if (error) throw error;
+      // 2. Insert all items
+      const toInsert = items.map((item, index) => ({
+        playlist_id: playlist.id,
+        user_id: user.id,
+        media_id: item.media_id,
+        widget_id: item.widget_id,
+        external_link_id: item.external_link_id,
+        position: index,
+        duration: item.duration,
+        start_time: item.start_time,
+        end_time: item.end_time,
+        days: item.days
+      }));
 
-      // Trigger Realtime Sync
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from('playlist_items').insert(toInsert);
+        if (error) throw error;
+      }
+
+      // 3. Trigger Sync
       await supabase.from('playlists').update({ updated_at: new Date().toISOString() }).eq('id', playlist.id);
 
-      setItems([...items, data as PlaylistItem]);
-      setShowPicker(false);
-      toast.success('Mídia adicionada e sincronizada!');
-    } catch (error: unknown) {
-      console.error('Error adding media:', error);
-      const message = error instanceof Error ? error.message : 'Erro desconhecido';
-      toast.error('Erro ao adicionar mídia: ' + message);
-    }
-  };
-
-  const addWidget = async (widget: Widget) => {
-    if (!playlist) return;
-
-    try {
-      const newPosition = items.length;
-      const { data, error } = await supabase
-        .from('playlist_items')
-        .insert({
-          playlist_id: playlist.id,
-          user_id: user?.id,
-          media_id: null,
-          widget_id: widget.id,
-          external_link_id: null,
-          position: newPosition,
-          duration: widget.widget_type === 'rss' ? 15 : 10,
-        })
-        .select('*, media:media(*), widget:widgets(*), external_link:external_links(*)')
-        .single();
-
-      if (error) throw error;
-
-      // Trigger Realtime Sync
-      await supabase.from('playlists').update({ updated_at: new Date().toISOString() }).eq('id', playlist.id);
-
-      setItems([...items, data as PlaylistItem]);
-      setShowPicker(false);
-      toast.success('Widget adicionado e sincronizado!');
-    } catch (error: unknown) {
-      console.error('Error adding widget:', error);
-      const message = error instanceof Error ? error.message : 'Erro desconhecido';
-      toast.error('Erro ao adicionar widget: ' + message);
-    }
-  };
-
-  const addExternalLink = async (link: ExternalLink) => {
-    if (!playlist) return;
-
-    try {
-      const newPosition = items.length;
-      const { data, error } = await supabase
-        .from('playlist_items')
-        .insert({
-          playlist_id: playlist.id,
-          user_id: user?.id,
-          media_id: null,
-          widget_id: null,
-          external_link_id: link.id,
-          position: newPosition,
-          duration: 30,
-        })
-        .select('*, media:media(*), widget:widgets(*), external_link:external_links(*)')
-        .single();
-
-      if (error) throw error;
-
-      // Trigger Realtime Sync
-      await supabase.from('playlists').update({ updated_at: new Date().toISOString() }).eq('id', playlist.id);
-
-      setItems([...items, data as PlaylistItem]);
-      setShowPicker(false);
-      toast.success('Link externo adicionado e sincronizado!');
-    } catch (error: unknown) {
-      console.error('Error adding external link:', error);
-      const message = error instanceof Error ? error.message : 'Erro desconhecido';
-      toast.error('Erro ao adicionar link externo: ' + message);
-    }
-  };
-
-  const removeItem = async (itemId: string) => {
-    try {
-      const { error } = await supabase
-        .from('playlist_items')
-        .delete()
-        .eq('id', itemId);
-
-      if (error) throw error;
-
-      const newItems = items.filter(i => i.id !== itemId);
-      const updatedItems = newItems.map((item, index) => ({ ...item, position: index }));
-      setItems(updatedItems);
-      await updatePositions(updatedItems);
-
-      toast.success('Item removido e sincronizado!');
-    } catch (error: unknown) {
-      console.error('Error removing item:', error);
-      toast.error('Erro ao remover item');
-    }
-  };
-
-  const updateDuration = async (itemId: string, duration: number) => {
-    try {
-      const { error } = await supabase
-        .from('playlist_items')
-        .update({ duration })
-        .eq('id', itemId);
-
-      if (error) throw error;
-      setItems(items.map(i => i.id === itemId ? { ...i, duration } : i));
-    } catch (error: unknown) {
-      console.error('Error updating duration:', error);
-    }
-  };
-
-  const updateSchedule = async (itemId: string, updates: { start_time?: string | null, end_time?: string | null, days?: number[] | null }) => {
-    try {
-      const { error } = await supabase
-        .from('playlist_items')
-        .update(updates)
-        .eq('id', itemId);
-
-      if (error) throw error;
-      setItems(items.map(i => i.id === itemId ? { ...i, ...updates } : i));
-    } catch (error: unknown) {
-      console.error('Error updating schedule:', error);
-      toast.error('Erro ao atualizar agendamento');
+      toast.success('Playlist salva e sincronizada!');
+      setHasUnsavedChanges(false);
+      fetchData(); // Refresh to get real IDs from DB
+    } catch (error: any) {
+      console.error('Error saving playlist:', error);
+      toast.error('Erro ao salvar: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -828,6 +775,28 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
             </div>
           </>
         )}
+        <div className="flex items-center justify-between border-t p-4 bg-muted/20">
+          <div className="text-xs text-muted-foreground">
+            {hasUnsavedChanges ? (
+              <span className="text-amber-500 font-medium">Alterações não salvas</span>
+            ) : (
+              <span>Todas as alterações foram salvas</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Fechar
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={!hasUnsavedChanges || isSaving}
+              className="gap-2"
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
+              {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
