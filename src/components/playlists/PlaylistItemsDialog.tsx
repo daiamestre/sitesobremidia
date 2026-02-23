@@ -373,10 +373,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         widget_id: item.widget_id,
         external_link_id: item.external_link_id,
         position: index,
-        duration: item.duration,
-        start_time: item.start_time,
-        end_time: item.end_time,
-        days: item.days
+        duration: item.duration
       }));
 
       if (toInsert.length > 0) {
