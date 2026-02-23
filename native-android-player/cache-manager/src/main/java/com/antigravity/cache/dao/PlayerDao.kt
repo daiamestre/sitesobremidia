@@ -14,9 +14,12 @@ interface PlayerDao {
     @Transaction
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistWithItems(playlist: CachedPlaylist, items: List<CachedMediaItem>) {
+        // [HARD RESET] Force purge of all previous playlists/items to avoid "Ghost Media"
+        // This ensures LIMIT 1 always returns the exact current sync state.
+        deleteAllPlaylists()
+        deleteAllMediaItems()
+        
         insertPlaylist(playlist)
-        // Simple strategy: Clear old items for this playlist and re-insert
-        deleteItemsByPlaylist(playlist.id)
         insertItems(items)
     }
 

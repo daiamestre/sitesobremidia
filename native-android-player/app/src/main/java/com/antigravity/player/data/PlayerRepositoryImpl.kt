@@ -103,6 +103,11 @@ class PlayerRepositoryImpl(
 
                     if (newConfigSignature == SessionManager.lastConfigHash && isCacheValid) {
                         Logger.i("SYNC", "Config Unchanged and Cache Valid. Signature: $newConfigSignature")
+                        
+                        // [PURIFICATION] Even if config is same, ensure no orphan files exist
+                        val validIds = remotePlaylist.items.map { it.id }
+                        fileStorageManager.purgeOrphanedFiles(validIds)
+                        
                         emitPlaylistFromCache()
                         sendHeartbeat("ONLINE | IDLE", null, null)
                         
@@ -129,7 +134,7 @@ class PlayerRepositoryImpl(
                         reportActionApplied("OrientationChange", remotePlaylist.orientation)
                     }
 
-                    // 3. Save playlist structure FIRST
+                    // [INDUSTRIAL] Save playlist structure FIRST (This triggers the Hard Reset in DAO)
                     _syncProgress.value = "Salvando configurações..."
                     saveToLocalCache(remotePlaylist)
 
@@ -137,11 +142,7 @@ class PlayerRepositoryImpl(
                     _syncProgress.value = "Sincronizando novas mídias..."
                     syncContent(remotePlaylist)
 
-                    // 5. Finalize
-                    _syncProgress.value = "Finalizando..."
-                    saveToLocalCache(remotePlaylist)
-
-                    // 6. Garbage Collection
+                    // 5. Garbage Collection (Physical Removal)
                     val validIds = remotePlaylist.items.map { it.id }
                     fileStorageManager.purgeOrphanedFiles(validIds)
 
