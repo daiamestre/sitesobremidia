@@ -3,6 +3,7 @@ import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -14,11 +15,11 @@ import { Switch } from '@/components/ui/switch';
 import {
     ArrowLeft, Monitor, Wifi, WifiOff, MapPin, Clock, Server, ListVideo, Play,
     Power, RefreshCw, Camera, Save, Trash2, GripVertical, Plus, Image, Video,
-    Music, Volume2, VolumeX, Smartphone, MonitorSmartphone
+    Music, Volume2, VolumeX, Smartphone, MonitorSmartphone, LayoutTemplate, ExternalLink as ExternalLinkIcon
 } from 'lucide-react';
 import { format, formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Screen, ScreenStatus, Playlist, Media } from '@/types/models';
+import { Screen, ScreenStatus, Playlist, Media, Widget, ExternalLink, PlaylistItem as ModelPlaylistItem } from '@/types/models';
 import { toast } from 'sonner';
 import {
     BarChart,
@@ -49,9 +50,13 @@ interface MediaItem {
 
 interface PlaylistItem {
     id: string; // unique item id
-    media_id: string;
+    media_id: string | null;
+    widget_id?: string | null;
+    external_link_id?: string | null;
     position: number;
     media?: MediaItem;
+    widget?: Widget | null;
+    external_link?: ExternalLink | null;
     duration: number; // override duration
 }
 
@@ -141,39 +146,42 @@ export default function ScreenDetails() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const { user } = useAuth();
 
     // --- SMART UUID RESOLVER ---
-    const [resolvedId, setResolvedId] = useState<string | null>(null);
-
-    useEffect(() => {
-        const resolve = async () => {
-            if (!id) return;
+    const { data: resolvedId, isLoading: idLoading, isError: idError } = useQuery({
+        queryKey: ['screen-id-resolve', id],
+        queryFn: async () => {
+            if (!id) return null;
             // Common UUID Regex
             const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-            if (isUUID) {
-                setResolvedId(id);
-            } else {
-                console.log("Detectado ID Personalizado (Custom ID):", id, "Buscando UUID...");
-                const { data } = await supabase.from('screens').select('id').eq('custom_id', id).single();
-                if (data) {
-                    console.log("UUID Resolvido:", data.id);
-                    setResolvedId(data.id);
-                } else {
-                    console.error("ERRO: ID não encontrado:", id);
-                    setResolvedId(null);
-                }
+            if (isUUID) return id;
+
+            console.log("Detectado ID Personalizado (Custom ID):", id, "Buscando UUID...");
+            const { data, error } = await supabase
+                .from('screens')
+                .select('id')
+                .eq('custom_id', id)
+                .maybeSingle();
+
+            if (error) {
+                console.error("Erro na resolução de ID:", error);
+                throw error;
             }
-        };
-        resolve();
-    }, [id]);
+            return data?.id || null;
+        },
+        enabled: !!id
+    });
 
     // States
     const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([]);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
-    const [availableMedia, setAvailableMedia] = useState<Media[]>([]);
+    const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
+    const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
+    const [linkPickerOpen, setLinkPickerOpen] = useState(false);
 
     // Stats State
     const [statsPeriod, setStatsPeriod] = useState<'today' | 'week' | 'month'>('week');
@@ -202,7 +210,6 @@ export default function ScreenDetails() {
                 formatLabel = (d) => format(d, 'dd/MM');
             }
 
-            // FIX: Always query by resolved UUID.
             const { data, error } = await supabase
                 .from('playback_logs')
                 .select('started_at')
@@ -215,7 +222,6 @@ export default function ScreenDetails() {
                 throw error;
             }
 
-            // Aggregate
             const counts: Record<string, number> = {};
             data?.forEach((row: any) => {
                 const date = new Date(row.started_at);
@@ -223,105 +229,150 @@ export default function ScreenDetails() {
                 counts[label] = (counts[label] || 0) + 1;
             });
 
-            // Convert and Sort
             return Object.entries(counts)
                 .map(([name, value]) => ({ name, value }))
-                .sort((a, b) => {
-                    // Basic sort works for DD/MM and HH:mm
-                    // for DD/MM it sorts 01/02 before 02/02
-                    return a.name.localeCompare(b.name);
-                });
+                .sort((a, b) => a.name.localeCompare(b.name));
         },
         refetchInterval: 10000,
         enabled: !!resolvedId
     });
 
-    // Playlist Picker States
-    const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
-    const [availablePlaylists, setAvailablePlaylists] = useState<Playlist[]>([]);
-
-    // Fetch Screen
-    const { data: screen, isLoading, isError, refetch } = useQuery({
+    // Main Query: simplified and more resilient
+    const { data: screen, isLoading: screenLoading, isError: screenError, refetch } = useQuery({
         queryKey: ['screen', resolvedId],
         queryFn: async () => {
             if (!resolvedId) return null;
-            const { data, error } = await supabase
+
+            // Step 1: Fetch Screen and basic Playlist
+            const { data: screenData, error } = await supabase
                 .from('screens')
                 .select(`
                     *,
-                    playlist:playlists(
-                        id,
-                        name,
-                        items:playlist_items(
-                            id,
-                            media_id,
-                            position,
-                            duration,
-                            media:media_id(id, name, file_url, file_type)
-                        )
-                    )
+                    playlist:playlists(id, name)
                 `)
                 .eq('id', resolvedId)
-                .single();
-            if (error) throw error;
-            console.log(">>> [DATABASE] Screen Data Loaded:", {
-                id: data.id,
-                last_screenshot_at: data.last_screenshot_at,
-                last_screenshot_type: data.last_screenshot_type
-            });
-            return data as any as ScreenWithPlaylist;
+                .maybeSingle();
+
+            if (error) {
+                console.error('Error fetching screen:', error);
+                throw error;
+            }
+            if (!screenData) return null;
+
+            let items: any[] = [];
+            if (screenData.playlist_id) {
+                // Step 2: Fetch Playlist Items with specific columns to avoid errors with missing columns (like thumbnail_url in widgets)
+                const { data: itemsData, error: itemsError } = await supabase
+                    .from('playlist_items')
+                    .select(`
+                        id,
+                        playlist_id,
+                        media_id,
+                        widget_id,
+                        external_link_id,
+                        position,
+                        duration,
+                        created_at,
+                        media:media(id, name, file_path, file_url, file_type, thumbnail_url, duration, aspect_ratio),
+                        widget:widgets(id, name, widget_type, config, is_active),
+                        external_link:external_links(id, title, url, platform, thumbnail_url, is_active)
+                    `)
+                    .eq('playlist_id', screenData.playlist_id)
+                    .order('position');
+
+                if (itemsError) {
+                    console.error('Error fetching playlist items:', itemsError);
+                } else {
+                    items = itemsData || [];
+                }
+            }
+
+            return { ...screenData, playlist_items: items };
         },
-        refetchInterval: 10000, // Fetch fresh data every 10s to keep status live
         enabled: !!resolvedId
     });
 
-    // Force re-render every minute to update "time ago" text even if data hasn't changed
-    const [, forceUpdate] = useState(0);
-    useEffect(() => {
-        const interval = setInterval(() => forceUpdate(n => n + 1), 60000);
-        return () => clearInterval(interval);
-    }, []);
+    // Consolidated Loading and Error states
+    const isLoading = idLoading || (!!resolvedId && screenLoading);
+    const isError = idError || (!!resolvedId && screenError);
 
     // Initialize/Sync Playlist Items
     useEffect(() => {
-        if (screen?.playlist?.items) {
-            // Sort by position
-            const sorted = [...screen.playlist.items].sort((a, b) => a.position - b.position);
+        if (screen?.playlist_items) {
+            const sorted = [...screen.playlist_items].sort((a, b) => a.position - b.position);
             setPlaylistItems(sorted);
         } else {
             setPlaylistItems([]);
         }
     }, [screen]);
 
-    // Fetch Media for Picker
+    // Force re-render every minute to update "time ago" text
+    const [, forceUpdate] = useState(0);
     useEffect(() => {
-        if (mediaPickerOpen) {
-            const fetchMedia = async () => {
-                const { data } = await supabase.from('media').select('*').order('created_at', { ascending: false });
-                if (data) setAvailableMedia(data as Media[]);
-            };
-            fetchMedia();
-        }
-    }, [mediaPickerOpen]);
+        const interval = setInterval(() => forceUpdate(n => n + 1), 60000);
+        return () => clearInterval(interval);
+    }, []);
 
-    // Fetch Playlists for Picker
-    useEffect(() => {
-        if (playlistPickerOpen) {
-            const fetchPlaylists = async () => {
-                // Fetch basic playlist info
-                const { data, error } = await supabase
-                    .from('playlists')
-                    .select('*')
-                    .eq('is_active', true)
-                    .order('created_at', { ascending: false });
+    // Secondary queries: Enhanced with user_id to respect RLS
+    const { data: availableMedia = [] } = useQuery({
+        queryKey: ['available-media', user?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('media')
+                .select('*')
+                .eq('user_id', user?.id)
+                .order('name');
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!user?.id
+    });
 
-                if (data && !error) {
-                    setAvailablePlaylists(data as Playlist[]);
-                }
-            };
-            fetchPlaylists();
-        }
-    }, [playlistPickerOpen]);
+    const { data: availableWidgets = [] } = useQuery({
+        queryKey: ['available-widgets', user?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('widgets')
+                .select('id, name, widget_type, config, is_active')
+                .eq('user_id', user?.id)
+                .order('name');
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!user?.id
+    });
+
+    const { data: availableLinks = [] } = useQuery({
+        queryKey: ['available-links', user?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('external_links')
+                .select('*')
+                .eq('user_id', user?.id)
+                .order('title');
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!user?.id
+    });
+
+    const { data: availablePlaylists = [] } = useQuery({
+        queryKey: ['available-playlists', user?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('playlists')
+                .select('*, item_count:playlist_items(count)')
+                .eq('user_id', user?.id)
+                .order('name');
+            if (error) throw error;
+
+            return (data || []).map(p => ({
+                ...p,
+                item_count: (p as any).item_count?.[0]?.count || 0
+            }));
+        },
+        enabled: !!user?.id
+    });
 
     // [REALTIME DIAGNOSTIC] Listen for command execution to auto-refresh screenshot
     useEffect(() => {
@@ -425,6 +476,34 @@ export default function ScreenDetails() {
         setMediaPickerOpen(false);
     };
 
+    const handleAddWidget = (widget: Widget) => {
+        const newItem: PlaylistItem = {
+            id: `temp-widget-${Date.now()}`,
+            media_id: null,
+            widget_id: widget.id,
+            position: playlistItems.length,
+            duration: 15, // default duration for widgets
+            widget: widget
+        };
+        setPlaylistItems([...playlistItems, newItem]);
+        setHasUnsavedChanges(true);
+        setWidgetPickerOpen(false);
+    };
+
+    const handleAddExternalLink = (link: ExternalLink) => {
+        const newItem: PlaylistItem = {
+            id: `temp-link-${Date.now()}`,
+            media_id: null,
+            external_link_id: link.id,
+            position: playlistItems.length,
+            duration: 30, // default duration for links
+            external_link: link
+        };
+        setPlaylistItems([...playlistItems, newItem]);
+        setHasUnsavedChanges(true);
+        setLinkPickerOpen(false);
+    };
+
     const handleDragStart = (e: React.DragEvent, index: number) => {
         e.dataTransfer.setData('text/plain', index.toString());
     };
@@ -457,6 +536,8 @@ export default function ScreenDetails() {
             const itemsToInsert = playlistItems.map((item, index) => ({
                 playlist_id: screen.playlist_id,
                 media_id: item.media_id,
+                widget_id: item.widget_id,
+                external_link_id: item.external_link_id,
                 position: index,
                 duration: item.duration
             }));
@@ -822,33 +903,105 @@ export default function ScreenDetails() {
                                     <ListVideo className="h-5 w-5 text-primary" />
                                     <CardTitle>Lista de Reprodução</CardTitle>
                                 </div>
-                                <Dialog open={mediaPickerOpen} onOpenChange={setMediaPickerOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button size="sm" className="gap-1">
-                                            <Plus className="h-4 w-4" /> Incluir Mídia
-                                        </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-                                        <DialogHeader>
-                                            <DialogTitle>Selecionar Mídia</DialogTitle>
-                                        </DialogHeader>
-                                        <ScrollArea className="flex-1 p-2">
-                                            <div className="grid grid-cols-3 gap-3">
-                                                {availableMedia.map(media => (
-                                                    <div key={media.id}
-                                                        className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
-                                                        onClick={() => handleAddItem(media)}
-                                                    >
-                                                        <MediaThumbnail media={media} showIcon={false} />
-                                                        <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] truncate text-white">
-                                                            {media.name}
+                                <div className="flex gap-2">
+                                    <Dialog open={mediaPickerOpen} onOpenChange={setMediaPickerOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button size="sm" className="gap-1 px-2">
+                                                <Image className="h-4 w-4" /> Mídia
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                                            <DialogHeader>
+                                                <DialogTitle>Selecionar Mídia</DialogTitle>
+                                            </DialogHeader>
+                                            <ScrollArea className="flex-1 p-2">
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    {availableMedia.map(media => (
+                                                        <div key={media.id}
+                                                            className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
+                                                            onClick={() => handleAddItem(media)}
+                                                        >
+                                                            <MediaThumbnail media={media} showIcon={false} />
+                                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] truncate text-white">
+                                                                {media.name}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </ScrollArea>
-                                    </DialogContent>
-                                </Dialog>
+                                                    ))}
+                                                </div>
+                                            </ScrollArea>
+                                        </DialogContent>
+                                    </Dialog>
+
+                                    <Dialog open={widgetPickerOpen} onOpenChange={setWidgetPickerOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button size="sm" variant="outline" className="gap-1 px-2 border-primary/50 text-primary">
+                                                <LayoutTemplate className="h-4 w-4" /> Widget
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                                            <DialogHeader>
+                                                <DialogTitle>Selecionar Widget</DialogTitle>
+                                            </DialogHeader>
+                                            <ScrollArea className="flex-1 p-2">
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    {availableWidgets.map(widget => (
+                                                        <div key={widget.id}
+                                                            className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
+                                                            onClick={() => handleAddWidget(widget)}
+                                                        >
+                                                            {(widget.thumbnail_url || widget.config?.backgroundImageLandscape) ? (
+                                                                <img src={widget.thumbnail_url || widget.config?.backgroundImageLandscape || ''} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex flex-col items-center justify-center bg-primary/10">
+                                                                    <LayoutTemplate className="h-6 w-6 text-primary mb-1" />
+                                                                    <span className="text-[10px] uppercase font-bold text-primary">{widget.widget_type}</span>
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] truncate text-white">
+                                                                {widget.name}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </ScrollArea>
+                                        </DialogContent>
+                                    </Dialog>
+
+                                    <Dialog open={linkPickerOpen} onOpenChange={setLinkPickerOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button size="sm" variant="outline" className="gap-1 px-2 border-blue-500/50 text-blue-500">
+                                                <ExternalLinkIcon className="h-4 w-4" /> Link
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                                            <DialogHeader>
+                                                <DialogTitle>Selecionar Link Externo</DialogTitle>
+                                            </DialogHeader>
+                                            <ScrollArea className="flex-1 p-2">
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    {availableLinks.map(link => (
+                                                        <div key={link.id}
+                                                            className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
+                                                            onClick={() => handleAddExternalLink(link)}
+                                                        >
+                                                            {link.thumbnail_url ? (
+                                                                <img src={link.thumbnail_url} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex flex-col items-center justify-center bg-blue-500/10">
+                                                                    <ExternalLinkIcon className="h-6 w-6 text-blue-500 mb-1" />
+                                                                    <span className="text-[10px] uppercase font-bold text-blue-500">Link</span>
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] truncate text-white">
+                                                                {link.title}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </ScrollArea>
+                                        </DialogContent>
+                                    </Dialog>
+                                </div>
                             </div>
                         </CardHeader>
 
@@ -936,13 +1089,36 @@ export default function ScreenDetails() {
 
                                                 <div className="h-10 w-16 bg-black/20 rounded overflow-hidden flex-shrink-0 relative">
                                                     {item.media && <MediaThumbnail media={item.media} showIcon={false} />}
+                                                    {item.widget && (
+                                                        (item.widget.thumbnail_url || item.widget.config?.backgroundImageLandscape || item.widget.config?.backgroundImagePortrait) ? (
+                                                            <img src={item.widget.thumbnail_url || item.widget.config?.backgroundImageLandscape || item.widget.config?.backgroundImagePortrait || ''} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-primary/20">
+                                                                <LayoutTemplate className="h-5 w-5 text-primary" />
+                                                            </div>
+                                                        )
+                                                    )}
+                                                    {item.external_link && (
+                                                        item.external_link.thumbnail_url ? (
+                                                            <img src={item.external_link.thumbnail_url} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-blue-500/20">
+                                                                <ExternalLinkIcon className="h-5 w-5 text-blue-500" />
+                                                            </div>
+                                                        )
+                                                    )}
                                                 </div>
 
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium truncate">{item.media?.name}</p>
+                                                    <p className="text-sm font-medium truncate">
+                                                        {item.media?.name || item.widget?.name || item.external_link?.title || 'Sem título'}
+                                                    </p>
                                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                         <Clock className="h-3 w-3" />
                                                         <span>{item.duration}s</span>
+                                                        <span className="text-[10px] uppercase font-bold opacity-50 px-1 bg-muted rounded">
+                                                            {item.media ? 'Mídia' : item.widget ? 'Widget' : item.external_link ? 'Link' : ''}
+                                                        </span>
                                                     </div>
                                                 </div>
 
