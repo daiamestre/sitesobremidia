@@ -156,7 +156,18 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     try {
       const { data: itemsData, error: itemsError } = await supabase
         .from('playlist_items')
-        .select('*, media:media_id(*), widget:widget_id(*), external_link:external_link_id(*)')
+        .select(`
+          id,
+          playlist_id,
+          media_id,
+          widget_id,
+          external_link_id,
+          position,
+          duration,
+          media:media_id(id, name, file_url, file_path, file_type, thumbnail_url, aspect_ratio),
+          widget:widget_id(id, name, widget_type, config, is_active, thumbnail_url),
+          external_link:external_link_id(id, title, url, platform, thumbnail_url, is_active)
+        `)
         .eq('playlist_id', playlist.id)
         .order('position');
 
@@ -166,6 +177,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       const { data: mediaData, error: mediaError } = await supabase
         .from('media')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (mediaError) throw mediaError;
@@ -174,6 +186,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       const { data: widgetData, error: widgetError } = await supabase
         .from('widgets')
         .select('*')
+        .eq('user_id', user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -183,6 +196,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       const { data: linksData, error: linksError } = await supabase
         .from('external_links')
         .select('*')
+        .eq('user_id', user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -431,19 +445,17 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
   const unusedMedia = availableMedia.filter(m => {
     if (usedMediaIds.includes(m.id)) return false;
 
-    // Resolution filtering
-    const playlistResolution = (playlist as ExtendedPlaylist)?.resolution || '16x9';
+    // Optional: Resolution filtering
+    const playlistResolution = (playlist as ExtendedPlaylist)?.resolution;
+    if (!playlistResolution) return true;
 
     // Allow audio always
     if (m.file_type === 'audio') return true;
 
-    // Strict filtering: Media MUST have aspect_ratio matching playlist resolution.
-    // exception: if media has no aspect_ratio (legacy), we assume 16x9 if playlist is 16x9, but block for 9x16 to be safe?
-    // Let's go with: if aspect_ratio is present, must match. 
-    // If aspect_ratio is missing, treat as 16x9 (most common legacy).
-
-    const mediaRatio = m.aspect_ratio || '16x9';
-    return mediaRatio === playlistResolution;
+    // If media has an aspect ratio, it should ideally match, 
+    // but we show it anyway to avoid "hiding" media from the user.
+    // They can decide if it looks good.
+    return true;
   });
 
   const getItemName = (item: PlaylistItem) => {
@@ -458,6 +470,10 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       return <MediaThumbnail media={item.media} showIcon={false} />;
     }
     if (item.widget) {
+      const widgetThumb = item.widget.thumbnail_url || item.widget.config?.backgroundImageLandscape || item.widget.config?.backgroundImagePortrait;
+      if (widgetThumb) {
+        return <img src={widgetThumb} alt="" className="w-full h-full object-cover" />;
+      }
       switch (item.widget.widget_type) {
         case 'clock':
           return <ClockPreview />;
