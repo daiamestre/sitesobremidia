@@ -348,7 +348,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
           widget_id: widget.id,
           external_link_id: null,
           position: newPosition,
-          duration: 15,
+          duration: widget.widget_type === 'rss' ? 15 : 10,
         })
         .select('*, media:media(*), widget:widgets(*), external_link:external_links(*)')
         .single();
@@ -610,7 +610,8 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
                           min={0}
                           value={item.duration}
                           onChange={(e) => updateDuration(item.id, parseInt(e.target.value) || 0)}
-                          className="w-20 h-8"
+                          className="w-20 h-8 font-mono"
+                          disabled={!!item.widget_id}
                         />
                       </div>
 

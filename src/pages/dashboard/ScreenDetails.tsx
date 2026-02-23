@@ -482,7 +482,7 @@ export default function ScreenDetails() {
             media_id: null,
             widget_id: widget.id,
             position: playlistItems.length,
-            duration: 15, // default duration for widgets
+            duration: widget.widget_type === 'rss' ? 15 : 10, // Default duration: RSS 15s, others 10s
             widget: widget
         };
         setPlaylistItems([...playlistItems, newItem]);
