@@ -195,19 +195,54 @@ export default function ScreenDetails() {
 
             const now = new Date();
             let start, end, formatLabel: (d: Date) => string;
+            const bucketKeys: string[] = [];
+            const buckets: Record<string, number> = {};
 
             if (statsPeriod === 'today') {
                 start = startOfDay(now);
                 end = endOfDay(now);
-                formatLabel = (d) => format(d, 'HH:mm');
+                formatLabel = (d) => format(d, 'HH:00');
+
+                // Pre-fill 24 hours
+                for (let i = 0; i <= 23; i++) {
+                    const temp = new Date(start);
+                    temp.setHours(i, 0, 0, 0);
+                    const label = formatLabel(temp);
+                    if (buckets[label] === undefined) {
+                        bucketKeys.push(label);
+                        buckets[label] = 0;
+                    }
+                }
             } else if (statsPeriod === 'week') {
                 start = startOfDay(subDays(now, 6));
                 end = endOfDay(now);
                 formatLabel = (d) => format(d, 'dd/MM');
+
+                // Pre-fill 7 days
+                for (let i = 0; i < 7; i++) {
+                    const temp = new Date(now);
+                    temp.setDate(temp.getDate() - (6 - i));
+                    const label = formatLabel(temp);
+                    if (buckets[label] === undefined) {
+                        bucketKeys.push(label);
+                        buckets[label] = 0;
+                    }
+                }
             } else { // month
                 start = startOfDay(subDays(now, 29));
                 end = endOfDay(now);
                 formatLabel = (d) => format(d, 'dd/MM');
+
+                // Pre-fill 30 days
+                for (let i = 0; i < 30; i++) {
+                    const temp = new Date(now);
+                    temp.setDate(temp.getDate() - (29 - i));
+                    const label = formatLabel(temp);
+                    if (buckets[label] === undefined) {
+                        bucketKeys.push(label);
+                        buckets[label] = 0;
+                    }
+                }
             }
 
             const { data, error } = await supabase
@@ -222,16 +257,15 @@ export default function ScreenDetails() {
                 throw error;
             }
 
-            const counts: Record<string, number> = {};
             data?.forEach((row: any) => {
                 const date = new Date(row.started_at);
                 const label = formatLabel(date);
-                counts[label] = (counts[label] || 0) + 1;
+                if (buckets[label] !== undefined) {
+                    buckets[label]++;
+                }
             });
 
-            return Object.entries(counts)
-                .map(([name, value]) => ({ name, value }))
-                .sort((a, b) => a.name.localeCompare(b.name));
+            return bucketKeys.map(key => ({ name: key, value: buckets[key] }));
         },
         refetchInterval: 10000,
         enabled: !!resolvedId

@@ -19,7 +19,7 @@ export function usePlaylists(userId?: string) {
             (playlistsData || []).map(async (playlist) => {
                 const { data: items } = await supabase
                     .from('playlist_items')
-                    .select('duration, media:media(file_url, thumbnail_url, file_type), widget:widgets(name, config), external_link:external_links(id, title, url, thumbnail_url)')
+                    .select('duration, media:media!playlist_items_media_id_fkey(file_url, thumbnail_url, file_type), widget:widgets!playlist_items_widget_id_fkey(name, config, thumbnail_url), external_link:external_links!playlist_items_external_link_id_fkey(id, title, url, thumbnail_url)')
                     .eq('playlist_id', playlist.id)
                     .order('position', { ascending: true });
 
