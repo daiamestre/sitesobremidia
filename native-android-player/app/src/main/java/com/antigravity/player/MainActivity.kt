@@ -889,7 +889,8 @@ class MainActivity : AppCompatActivity() {
                 playbackEndedChannel.trySend(Unit)
             }
             
-            var currentIndex = 0
+            var lastPlayedId: String? = null
+            
             while (isActive) {
                 try {
                     // 1. Atualização de Dados (Agendamento Automático)
@@ -911,8 +912,13 @@ class MainActivity : AppCompatActivity() {
                         continue
                     }
 
-                    // 2. Seleção de Mídia
-                    if (currentIndex >= playableItems.size) currentIndex = 0
+                    // 2. Resilient Cursor: Find next item based on ID to survive reordering
+                    val currentIndex = if (lastPlayedId != null) {
+                        val foundIndex = playableItems.indexOfFirst { it.id == lastPlayedId }
+                        // If found, take next. If not found (item removed), restart from 0
+                        if (foundIndex != -1) (foundIndex + 1) % playableItems.size else 0
+                    } else 0
+
                     val item = playableItems[currentIndex]
                     val nextItem = playableItems[(currentIndex + 1) % playableItems.size]
                     
@@ -922,9 +928,6 @@ class MainActivity : AppCompatActivity() {
                     lifecycleScope.launch {
                         when (nextItem.type) {
                             MediaType.VIDEO, MediaType.IMAGE -> standbyPlayer?.preBuffer(nextItem)
-                            MediaType.WEB_WIDGET -> {
-                                logBlackBox("PRE_WARM", "Preparing widget process")
-                            }
                             else -> {}
                         }
                     }
@@ -944,7 +947,6 @@ class MainActivity : AppCompatActivity() {
 
                     if (skipOnFail) {
                         logBlackBox("RECOVERY", "Skipping failed item: ${item.name}")
-                        currentIndex++
                     } else {
                         // 5. Swap de Players de Vídeo (Se necessário)
                         if (item.type == MediaType.VIDEO || item.type == MediaType.IMAGE) {
@@ -952,14 +954,14 @@ class MainActivity : AppCompatActivity() {
                             activePlayer = standbyPlayer
                             standbyPlayer = temp
                         }
-                        currentIndex++
+                        // Important: Mark as played to move pointer
+                        lastPlayedId = item.id
                     }
 
                 } catch (e: Exception) {
                     logBlackBox("LOOP_CRASH", e.message ?: "Unknown")
                     reportErrorToSupabase("FATAL_LOOP_EXCEPTION", e.message ?: "Unknown")
                     delay(5000)
-                    currentIndex++
                 }
             }
         }

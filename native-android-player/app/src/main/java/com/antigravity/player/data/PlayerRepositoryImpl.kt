@@ -219,8 +219,10 @@ class PlayerRepositoryImpl(
     }
 
     private fun calculateConfigSignature(playlist: Playlist): String {
-        // Simple signature based on key fields
-        val itemsPart = playlist.items.joinToString("|") { "${it.id}:${it.remoteUrl}" }
+        // [PRECISION] Signature MUST capture ID order to trigger re-sort instantly
+        val itemsPart = playlist.items.joinToString("|") { 
+            "${it.id}:${it.hash ?: it.remoteUrl.hashCode()}:${it.orderIndex}" 
+        }
         return "${playlist.id}:${playlist.orientation}:${playlist.heartbeatIntervalSeconds}:$itemsPart".hashCode().toString()
     }
 
