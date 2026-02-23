@@ -265,18 +265,11 @@ export default function ScreenDetails() {
                 const { data: itemsData, error: itemsError } = await supabase
                     .from('playlist_items')
                     .select(`
-                        id,
-                        playlist_id,
-                        media_id,
-                        widget_id,
-                        external_link_id,
-                        position,
-                        duration,
-                        created_at,
-                        media:media(id, name, file_path, file_url, file_type, thumbnail_url, aspect_ratio),
-                        widget:widgets(id, name, widget_type, config, is_active),
-                        external_link:external_links(id, title, url, platform, thumbnail_url, is_active)
-                    `)
+                            *,
+                            media:media!playlist_items_media_id_fkey(id, name, file_path, file_url, file_type, thumbnail_url),
+                            widget:widgets!playlist_items_widget_id_fkey(id, name, widget_type, config, is_active),
+                            external_link:external_links!playlist_items_external_link_id_fkey(id, title, url, platform, thumbnail_url, is_active)
+                        `)
                     .eq('playlist_id', screenData.playlist_id)
                     .order('position');
 
