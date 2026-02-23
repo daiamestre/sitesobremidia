@@ -19,20 +19,27 @@ export function usePlaylists(userId?: string) {
             (playlistsData || []).map(async (playlist) => {
                 const { data: items } = await supabase
                     .from('playlist_items')
-                    .select('duration, media:media_id(file_url, thumbnail_url, file_type)')
+                    .select('duration, media:media(file_url, thumbnail_url, file_type), widget:widgets(name, config), external_link:external_links(id, title, url, thumbnail_url)')
                     .eq('playlist_id', playlist.id)
                     .order('position', { ascending: true });
 
                 // Logic to find cover image
                 let coverUrl = playlist.cover_url;
                 if (!coverUrl && items && items.length > 0) {
-                    const firstMediaItem = items.find((item: any) => item.media);
-                    if (firstMediaItem?.media) {
-                        const media = firstMediaItem.media;
-                        if (media.file_type === 'video' && media.thumbnail_url) {
-                            coverUrl = media.thumbnail_url;
-                        } else if (media.file_type === 'image') {
-                            coverUrl = media.file_url;
+                    const firstItemWithCover = items.find((item: any) =>
+                        (item.media && (item.media.file_type === 'image' || item.media.thumbnail_url)) ||
+                        (item.widget && (item.widget.thumbnail_url || item.widget.config?.backgroundImageLandscape || item.widget.config?.backgroundImagePortrait)) ||
+                        (item.external_link && item.external_link.thumbnail_url)
+                    );
+
+                    if (firstItemWithCover) {
+                        const item = firstItemWithCover as any;
+                        if (item.media) {
+                            coverUrl = item.media.file_type === 'video' ? item.media.thumbnail_url : item.media.file_url;
+                        } else if (item.widget) {
+                            coverUrl = item.widget.thumbnail_url || item.widget.config?.backgroundImageLandscape || item.widget.config?.backgroundImagePortrait;
+                        } else if (item.external_link) {
+                            coverUrl = item.external_link.thumbnail_url;
                         }
                     }
                 }
