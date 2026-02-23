@@ -912,6 +912,10 @@ class MainActivity : AppCompatActivity() {
                         continue
                     }
 
+                    // [DEBUG] Monitor the exact sequence seen by the player
+                    val sequenceLog = playableItems.joinToString(", ") { it.id }
+                    Logger.i("PLAYBACK_LOOP", "Active Sequence [Size=${playableItems.size}]: $sequenceLog")
+
                     // 2. Resilient Cursor: Find next item based on ID to survive reordering
                     val currentIndex = if (lastPlayedId != null) {
                         val foundIndex = playableItems.indexOfFirst { it.id == lastPlayedId }
