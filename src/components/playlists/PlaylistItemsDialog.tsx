@@ -305,11 +305,12 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .from('playlist_items')
         .insert({
           playlist_id: playlist.id,
+          user_id: user?.id,
           media_id: media.id,
           widget_id: null,
           external_link_id: null,
           position: newPosition,
-          duration: media.file_type === 'video' ? 0 : 10,
+          duration: media.file_type === 'video' ? (media.duration || 10) : 10,
         })
         .select('*, media:media(*), widget:widgets(*), external_link:external_links(*)')
         .single();
@@ -317,7 +318,6 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       if (error) throw error;
       setItems([...items, data as PlaylistItem]);
       setShowPicker(false);
-      toast.success('Mídia adicionada!');
       toast.success('Mídia adicionada!');
     } catch (error: unknown) {
       console.error('Error adding media:', error);
@@ -335,6 +335,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .from('playlist_items')
         .insert({
           playlist_id: playlist.id,
+          user_id: user?.id,
           media_id: null,
           widget_id: widget.id,
           external_link_id: null,
@@ -347,7 +348,6 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       if (error) throw error;
       setItems([...items, data as PlaylistItem]);
       setShowPicker(false);
-      toast.success('Widget adicionado!');
       toast.success('Widget adicionado!');
     } catch (error: unknown) {
       console.error('Error adding widget:', error);
@@ -365,6 +365,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .from('playlist_items')
         .insert({
           playlist_id: playlist.id,
+          user_id: user?.id,
           media_id: null,
           widget_id: null,
           external_link_id: link.id,
@@ -377,7 +378,6 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       if (error) throw error;
       setItems([...items, data as PlaylistItem]);
       setShowPicker(false);
-      toast.success('Link externo adicionado!');
       toast.success('Link externo adicionado!');
     } catch (error: unknown) {
       console.error('Error adding external link:', error);
