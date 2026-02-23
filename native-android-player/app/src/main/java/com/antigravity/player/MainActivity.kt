@@ -51,6 +51,7 @@ import com.antigravity.core.util.TimeManager
 import com.antigravity.player.util.DeviceControl
 import com.antigravity.player.util.MasterClockBridge
 import com.antigravity.media.exoplayer.ExoPlayerRenderer
+import com.antigravity.media.exoplayer.ChipsetDetector
 import com.antigravity.media.util.PlaybackWatchdog
 import com.antigravity.media.util.MediaIntegrityChecker
 import com.antigravity.core.domain.model.MediaItem
