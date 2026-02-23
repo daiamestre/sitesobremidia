@@ -793,10 +793,17 @@ class MainActivity : AppCompatActivity() {
                 item.remoteUrl
             }
             
-            Glide.with(this@MainActivity)
+            val profile = ChipsetDetector.getRecommendedProfile()
+            val glideRequest = Glide.with(this@MainActivity)
                 .load(path)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .into(staticImageLayer)
+            
+            // [PERFORMANCE] Downsample images on legacy/emulator hardware to save RAM
+            if (profile == ChipsetDetector.HardwareProfile.LEGACY_STABILITY) {
+                glideRequest.override(1280, 720) 
+            }
+            
+            glideRequest.into(staticImageLayer)
             
             staticImageLayer.visibility = View.VISIBLE
             playerView1.visibility = View.GONE

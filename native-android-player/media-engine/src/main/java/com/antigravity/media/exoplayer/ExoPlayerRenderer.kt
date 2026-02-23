@@ -66,10 +66,10 @@ class ExoPlayerRenderer(
             // 1. Configure Optimized Buffering (5s pre-load, 30s max)
             val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    1000,   // Min Buffer: 1 second pre-load
-                    10000,  // Max Buffer: 10 seconds (enough for TV Boxes)
-                    250,    // Buffer for Playback: 250ms before starting (Instant!)
-                    1000    // Buffer for Rebuffer: 1 second on stall
+                    2500,   // Min Buffer (Pre-load): 2.5 seconds (Stabilizes emulator/low-endBox)
+                    15000,  // Max Buffer: 15 seconds
+                    500,    // Buffer for Playback: 500ms before starting (Smooth first frame)
+                    2000    // Buffer for Rebuffer: 2 seconds on stall
                 )
                 .setPrioritizeTimeOverSizeThresholds(false)
                 .build()
