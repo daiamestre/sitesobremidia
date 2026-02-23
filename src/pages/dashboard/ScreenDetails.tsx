@@ -536,7 +536,6 @@ export default function ScreenDetails() {
             // 2. Prepare items to insert with user_id for RLS compliance
             const itemsToInsert = playlistItems.map((item, index) => ({
                 playlist_id: screen.playlist_id,
-                user_id: user.id, // CRITICAL: ensure RLS allows insertion
                 media_id: item.media_id,
                 widget_id: item.widget_id,
                 external_link_id: item.external_link_id,

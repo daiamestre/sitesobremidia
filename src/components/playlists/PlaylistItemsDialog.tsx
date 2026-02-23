@@ -369,7 +369,6 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       // 2. Insert all items
       const toInsert = items.map((item, index) => ({
         playlist_id: playlist.id,
-        user_id: user.id,
         media_id: item.media_id,
         widget_id: item.widget_id,
         external_link_id: item.external_link_id,
