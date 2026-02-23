@@ -154,6 +154,8 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
 
     setLoading(true);
     try {
+      // Passo 1: Buscar itens da playlist (com joins seguros)
+      // Nota: Usamos nomes de tabelas para o join, que é o padrão do Supabase
       const { data: itemsData, error: itemsError } = await supabase
         .from('playlist_items')
         .select(`
@@ -164,14 +166,17 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
           external_link_id,
           position,
           duration,
-          media:media_id(id, name, file_url, file_path, file_type, thumbnail_url, aspect_ratio),
-          widget:widget_id(id, name, widget_type, config, is_active, thumbnail_url),
-          external_link:external_link_id(id, title, url, platform, thumbnail_url, is_active)
+          media:media(id, name, file_url, file_path, file_type, thumbnail_url, aspect_ratio),
+          widget:widgets(id, name, widget_type, config, is_active),
+          external_link:external_links(id, title, url, platform, thumbnail_url, is_active)
         `)
         .eq('playlist_id', playlist.id)
         .order('position');
 
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        console.error('Erro ao buscar itens da playlist:', itemsError);
+        // Não jogamos erro ainda para tentar carregar o resto
+      }
       setItems((itemsData || []) as PlaylistItem[]);
 
       const { data: mediaData, error: mediaError } = await supabase
@@ -306,7 +311,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
           position: newPosition,
           duration: media.file_type === 'video' ? 0 : 10,
         })
-        .select('*, media:media_id(*), widget:widget_id(*), external_link:external_link_id(*)')
+        .select('*, media:media(*), widget:widgets(*), external_link:external_links(*)')
         .single();
 
       if (error) throw error;
@@ -336,7 +341,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
           position: newPosition,
           duration: 15,
         })
-        .select('*, media:media_id(*), widget:widget_id(*), external_link:external_link_id(*)')
+        .select('*, media:media(*), widget:widgets(*), external_link:external_links(*)')
         .single();
 
       if (error) throw error;
@@ -366,7 +371,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
           position: newPosition,
           duration: 30,
         })
-        .select('*, media:media_id(*), widget:widget_id(*), external_link:external_link_id(*)')
+        .select('*, media:media(*), widget:widgets(*), external_link:external_links(*)')
         .single();
 
       if (error) throw error;
