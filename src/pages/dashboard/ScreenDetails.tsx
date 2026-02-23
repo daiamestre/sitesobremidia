@@ -273,7 +273,7 @@ export default function ScreenDetails() {
                         position,
                         duration,
                         created_at,
-                        media:media(id, name, file_path, file_url, file_type, thumbnail_url, duration, aspect_ratio),
+                        media:media(id, name, file_path, file_url, file_type, thumbnail_url, aspect_ratio),
                         widget:widgets(id, name, widget_type, config, is_active),
                         external_link:external_links(id, title, url, platform, thumbnail_url, is_active)
                     `)
