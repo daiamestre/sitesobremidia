@@ -46,16 +46,55 @@ export default function Analytics() {
                 .select('*', { count: 'exact', head: true })
                 .gte('created_at', yesterday.toISOString());
 
+            // 5. Playback Stats (Last 7 Days)
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+            sevenDaysAgo.setHours(0, 0, 0, 0);
+
+            const { data: playbackLogs } = await supabase
+                .from('playback_logs')
+                .select('started_at')
+                .gte('started_at', sevenDaysAgo.toISOString());
+
+            // Aggregate by Date
+            const playbackMap: Record<string, number> = {};
+            // Initialize last 7 days with 0
+            for (let i = 0; i < 7; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const key = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                playbackMap[key] = 0;
+            }
+
+            playbackLogs?.forEach((log: any) => {
+                const date = new Date(log.started_at);
+                const key = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                if (playbackMap[key] !== undefined) {
+                    playbackMap[key]++;
+                }
+            });
+
+            const playbackData = Object.entries(playbackMap)
+                .map(([date, count]) => ({ date, count }))
+                .sort((a, b) => {
+                    const [dayA, monthA] = a.date.split('/').map(Number);
+                    const [dayB, monthB] = b.date.split('/').map(Number);
+                    return (monthA - monthB) || (dayA - dayB);
+                });
+
             return {
                 totalScreens,
                 activeScreens,
                 onlineScreens,
                 mediaCount,
                 playlistCount,
-                commandsCount
+                commandsCount,
+                playbackData
             };
         }
     });
+
+    const playbackData = stats?.playbackData || [];
 
     if (isLoading) {
         return (
@@ -151,17 +190,31 @@ export default function Analytics() {
                     </CardContent>
                 </Card>
 
-                {/* Placeholder for Playback Stats (if logs table existed) */}
+                {/* Playback Stats Chart */}
                 <Card className="glass">
                     <CardHeader>
-                        <CardTitle>Atividade Recente</CardTitle>
+                        <CardTitle>Reproduções (Últimos 7 dias)</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                            <div className="text-center">
-                                <Clock className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                                <p>Métricas de playback detalhadas<br />estarão disponíveis em breve.</p>
-                            </div>
+                        <div className="h-[300px] w-full">
+                            {playbackData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={playbackData}>
+                                        <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                                        <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '8px', color: '#fff' }}
+                                        />
+                                        <Bar dataKey="count" fill="#f97316" name="Reproduções" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-muted-foreground flex-col gap-2">
+                                    <Clock className="h-8 w-8 opacity-20" />
+                                    <p className="text-sm">Sem dados de reprodução recentes</p>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>

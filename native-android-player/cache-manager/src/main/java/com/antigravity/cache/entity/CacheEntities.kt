@@ -2,16 +2,20 @@ package com.antigravity.cache.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.antigravity.core.domain.model.MediaItem
-import com.antigravity.core.domain.model.MediaType
-import com.antigravity.core.domain.model.Playlist
 
 @Entity(tableName = "playlist")
 data class CachedPlaylist(
     @PrimaryKey val id: String,
     val name: String,
     val version: Long,
-    val isEmergency: Boolean
+    val isEmergency: Boolean,
+    
+    // Professional Settings (Cache)
+    val orientation: String = "landscape",
+    val resolution: String = "16x9",
+    val heartbeatIntervalSeconds: Int = 60,
+    val seamlessTransition: Boolean = true,
+    val cacheNextMedia: Boolean = true
 )
 
 @Entity(tableName = "media_item")
@@ -24,47 +28,33 @@ data class CachedMediaItem(
     val remoteUrl: String,
     val localPath: String?,
     val hash: String,
-    val orderIndex: Int
+    val orderIndex: Int,
+    val startTime: String? = null,
+    val endTime: String? = null,
+    val daysOfWeek: String? = null
 )
 
-// Extension functions to map between Domain and Cache
-fun Playlist.toCache(): CachedPlaylist {
-    return CachedPlaylist(id, name, version, isEmergency)
-}
+@Entity(tableName = "play_logs")
+data class CachedPlayLog(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val mediaId: String,
+    val durationMs: Long,
+    val startedAt: Long,
+    val status: String = "completed",
+    val signature: String? = null // SHA-256(screenId + mediaId + startedAt + SECRET)
+)
 
-fun MediaItem.toCache(playlistId: String): CachedMediaItem {
-    return CachedMediaItem(
-        id = id,
-        playlistId = playlistId,
-        name = name,
-        type = type.name,
-        durationSeconds = durationSeconds,
-        remoteUrl = remoteUrl,
-        localPath = localPath,
-        hash = hash,
-        orderIndex = order // Assuming MediaItem has 'order'
-    )
-}
-
-fun CachedPlaylist.toDomain(items: List<CachedMediaItem>): Playlist {
-    return Playlist(
-        id = id,
-        name = name,
-        version = version,
-        isEmergency = isEmergency,
-        items = items.map { it.toDomain() }.sortedBy { it.order }
-    )
-}
-
-fun CachedMediaItem.toDomain(): MediaItem {
-    return MediaItem(
-        id = id,
-        name = name,
-        type = MediaType.valueOf(type),
-        durationSeconds = durationSeconds,
-        remoteUrl = remoteUrl,
-        localPath = localPath,
-        hash = hash,
-        order = orderIndex
-    )
-}
+/**
+ * [OFFLINE BUFFER] Estrutura requerida para precisão cirúrgica nas estatísticas.
+ * Utilizada pelo PlaybackBufferManager para garantir conformidade com o Supabase.
+ */
+@Entity(tableName = "offline_playback_logs")
+data class OfflinePlaybackLog(
+    @PrimaryKey(autoGenerate = true) 
+    val id: Long = 0,
+    
+    val screen_id: String,
+    val media_id: String,
+    val duration: Int,
+    val started_at: String // Formato ISO 8601 (Ex: 2026-02-13T15:27:45Z)
+)

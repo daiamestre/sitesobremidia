@@ -41,11 +41,7 @@ class WebAppInterface(private val context: Context) {
 
     @JavascriptInterface
     fun getDeviceStatus(): String {
-        val overlayPermission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            android.provider.Settings.canDrawOverlays(context)
-        } else {
-            true
-        }
+        val overlayPermission = true
 
         val metrics = context.resources.displayMetrics
         val orientation = context.resources.configuration.orientation
@@ -88,22 +84,6 @@ class WebAppInterface(private val context: Context) {
         }
     }
 
-    @JavascriptInterface
-    fun requestOverlayPermission() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            if (!android.provider.Settings.canDrawOverlays(context)) {
-                android.util.Log.i("NativePlayer", "Requesting Overlay Permission via Bridge")
-                val intent = android.content.Intent(
-                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    android.net.Uri.parse("package:" + context.packageName)
-                )
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            } else {
-                showToast("Permissão já concedida!")
-            }
-        }
-    }
     private var webView: android.webkit.WebView? = null
     
     fun setWebView(view: android.webkit.WebView) {
@@ -137,6 +117,24 @@ class WebAppInterface(private val context: Context) {
                 android.util.Log.e("NativePlayer", "Screenshot Failed", e)
                 webView?.evaluateJavascript("$callbackName(null)", null)
             }
+        }
+    }
+
+    @JavascriptInterface
+    fun reboot() {
+        val pm = context.packageManager
+        val intent = pm.getLaunchIntentForPackage(context.packageName)
+        if (intent != null) {
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            val mPendingIntent = android.app.PendingIntent.getActivity(
+                context,
+                123456,
+                intent,
+                android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val mgr = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            mgr.set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 1000, mPendingIntent)
+            System.exit(0)
         }
     }
 }

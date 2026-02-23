@@ -21,15 +21,8 @@ export const installNetworkInterceptor = () => {
             const duration = performance.now() - start;
 
             // 3. Validação de Resposta
-            if (!response.ok) {
-                console.warn(`[NetInterceptor] ⚠️ ALERTA: Dashboard respondeu com erro ${response.status} para ${url}`);
-                // Could trigger Watchdog here if we had direct access, 
-                // but for now we rely on the Console Log (which Watchdog reads via props or simple event)
-                reportCommunicationError(url, response.status);
-            } else {
-                if (duration > 5000) {
-                    console.warn(`[NetInterceptor] ⏳ LENTIDÃO: Resposta demorou ${(duration / 1000).toFixed(1)}s`);
-                }
+            if (duration > 5000) {
+                console.warn(`[NetInterceptor] ⏳ LENTIDÃO: Resposta demorou ${(duration / 1000).toFixed(1)}s`);
             }
 
             return response;
@@ -45,9 +38,3 @@ export const installNetworkInterceptor = () => {
     console.log('[NetInterceptor] ✅ Sistema de Monitoramento de Rede Ativo.');
 };
 
-const reportCommunicationError = (url: string, status: number) => {
-    // Dispatch event for Watchdog
-    window.dispatchEvent(new CustomEvent('player-network-error', {
-        detail: { url, status, msg: 'Communication Fault' }
-    }));
-};

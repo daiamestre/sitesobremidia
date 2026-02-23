@@ -34,4 +34,13 @@ interface PlayerDao {
 
     @Query("SELECT * FROM media_item WHERE playlistId = :playlistId ORDER BY orderIndex ASC")
     suspend fun getItemsForPlaylist(playlistId: String): List<CachedMediaItem>
+
+    @Query("DELETE FROM playlist")
+    suspend fun deleteAllPlaylists()
+
+    @Query("DELETE FROM media_item")
+    suspend fun deleteAllMediaItems()
+
+    @Query("UPDATE media_item SET localPath = :path WHERE id = :mediaId")
+    suspend fun updateMediaLocalPath(mediaId: String, path: String)
 }
