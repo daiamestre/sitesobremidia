@@ -29,7 +29,25 @@ export function WidgetList({ widgets, onEdit, onDelete }: WidgetListProps) {
                 const label = WIDGET_LABELS[widget.widget_type as keyof typeof WIDGET_LABELS] || widget.widget_type;
 
                 return (
-                    <Card key={widget.id} className={!widget.is_active ? 'opacity-50' : ''}>
+                    <Card key={widget.id} className={`overflow-hidden transition-all hover:shadow-md ${!widget.is_active ? 'opacity-50' : ''}`}>
+                        <div className="aspect-video w-full bg-muted relative overflow-hidden border-b">
+                            {widget.thumbnail_url ? (
+                                <img
+                                    src={widget.thumbnail_url}
+                                    alt={widget.name}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-primary/5">
+                                    <Icon className="h-12 w-12 text-primary/20" />
+                                </div>
+                            )}
+                            {!widget.is_active && (
+                                <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] flex items-center justify-center">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground bg-background/80 px-2 py-1 rounded">Inativo</span>
+                                </div>
+                            )}
+                        </div>
                         <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-lg flex items-center gap-2">

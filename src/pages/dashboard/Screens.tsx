@@ -49,11 +49,12 @@ export default function Screens() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Helper to check online status based on last ping (threshold: 4 mins)
-  const isScreenOnline = (lastPing?: string | null) => {
-    if (!lastPing) return false;
+  // Helper to check online status based on activation AND last ping (threshold: 4 mins)
+  const isScreenOnline = (screen: Screen) => {
+    if (screen.is_active === false) return false;
+    if (!screen.last_ping_at) return false;
     try {
-      const diff = differenceInMinutes(new Date(), new Date(lastPing));
+      const diff = differenceInMinutes(new Date(), new Date(screen.last_ping_at));
       return diff < 4;
     } catch (e) {
       return false;
@@ -90,7 +91,7 @@ export default function Screens() {
   );
 
   const activeCount = screens.filter(s => s.is_active).length;
-  const onlineCount = screens.filter(s => isScreenOnline(s.last_ping_at)).length;
+  const onlineCount = screens.filter(s => isScreenOnline(s)).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -183,7 +184,7 @@ export default function Screens() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredScreens.map(screen => {
-            const isOnline = isScreenOnline(screen.last_ping_at);
+            const isOnline = isScreenOnline(screen);
             const statusColor = isOnline ? '#22c55e' : '#ef4444';
 
             return (
@@ -293,7 +294,7 @@ export default function Screens() {
 
                   <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
-                      {isScreenOnline(screen.last_ping_at) ? (
+                      {isScreenOnline(screen) ? (
                         <Wifi className="h-3 w-3 text-green-500" />
                       ) : (
                         <WifiOff className="h-3 w-3 text-red-500" />

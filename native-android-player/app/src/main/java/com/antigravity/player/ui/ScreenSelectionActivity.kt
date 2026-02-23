@@ -8,22 +8,41 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.Toast
+import android.content.pm.ActivityInfo
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.antigravity.player.MainActivity
 import com.antigravity.player.R
 import com.antigravity.player.di.ServiceLocator
+import com.antigravity.player.util.DeviceTypeUtil
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ScreenSelectionActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // [ADAPTIVE UI] Detect hardware and set appropriate orientation
+        val isTV = DeviceTypeUtil.isTelevision(applicationContext)
+        requestedOrientation = if (isTV) {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        
         setContentView(R.layout.activity_screen_selection)
 
         val idInput = findViewById<EditText>(R.id.custom_id_input)
         val connectBtn = findViewById<Button>(R.id.connect_button)
         val loading = findViewById<ProgressBar>(R.id.selection_loading)
+
+        // [UX 10-foot UI] Increase font for TVs
+        if (isTV) {
+            idInput.textSize = 24f
+            connectBtn.textSize = 24f
+        }
 
         connectBtn.setOnClickListener {
             val customId = idInput.text.toString().trim()
@@ -42,8 +61,9 @@ class ScreenSelectionActivity : AppCompatActivity() {
                     val screen = com.antigravity.sync.service.RemoteDataSource().findScreenByCustomId(customId)
                     
                     if (screen != null) {
-                        // FIX: Save the Custom ID (e.g. "LOJA-01"), not the UUID
-                        saveScreenAndProceed(customId)
+                        // FIX: Save the UUID (screen.id), NOT the Custom ID
+                        // The database requires UUID for logging and heartbeat.
+                        saveScreenAndProceed(screen.id) 
                     } else {
                         Toast.makeText(this@ScreenSelectionActivity, "Tela não encontrada com este ID!", Toast.LENGTH_LONG).show()
                         loading.visibility = View.GONE
@@ -57,15 +77,17 @@ class ScreenSelectionActivity : AppCompatActivity() {
                     if (msg.contains("JWT expired", ignoreCase = true) || msg.contains("401", ignoreCase = true)) {
                         Toast.makeText(this@ScreenSelectionActivity, "Sessão Expirada. Faça login novamente.", Toast.LENGTH_LONG).show()
                         
-                        // Clear prefs
-                        val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-                        prefs.edit().remove("auth_token").remove("auth_user_id").apply()
-                        
-                        // Go to Login
-                        val intent = Intent(this@ScreenSelectionActivity, com.antigravity.player.ui.LoginActivity::class.java)
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                        startActivity(intent)
-                        finish()
+                        // Clear session thoroughly
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            ServiceLocator.authRepository.signOut(applicationContext)
+                            withContext(Dispatchers.Main) {
+                                // Go to Login
+                                val intent = Intent(this@ScreenSelectionActivity, com.antigravity.player.ui.LoginActivity::class.java)
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                startActivity(intent)
+                                finish()
+                            }
+                        }
                     } else {
                         Toast.makeText(this@ScreenSelectionActivity, "Erro ao buscar: $msg", Toast.LENGTH_LONG).show()
                         e.printStackTrace()
@@ -79,11 +101,16 @@ class ScreenSelectionActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
         prefs.edit().putString("saved_screen_id", screenId).apply()
         
+        // [CRITICAL] Reset Repository to use NEW Screen ID immediately
+        ServiceLocator.resetRepository()
+        
         Toast.makeText(this, "Conectado com Sucesso!", Toast.LENGTH_SHORT).show()
         
+        // Start MainActivity (Sync Stage)
         val intent = Intent(this, MainActivity::class.java)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         startActivity(intent)
         finish()
     }
+    // Vertical Locked
 }

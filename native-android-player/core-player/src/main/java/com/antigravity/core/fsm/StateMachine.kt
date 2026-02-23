@@ -89,11 +89,7 @@ class StateMachine {
                 }
             }
             
-            is PlayerState.SAFE_MODE -> when (event) {
-                // Dead end state. Only external intervention or Watchdog reboot can exit.
-                PlayerEvent.WatchdogTimeout -> PlayerState.REBOOTING
-                else -> current
-            }
+            is PlayerState.SAFE_MODE -> current
 
             PlayerState.UPDATING -> {
                 // Installation process
@@ -101,8 +97,6 @@ class StateMachine {
             }
 
             PlayerState.REBOOTING -> current
-            
-            else -> current
         }
     }
 

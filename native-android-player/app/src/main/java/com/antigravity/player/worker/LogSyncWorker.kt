@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.antigravity.player.di.ServiceLocator
+import com.antigravity.sync.dto.PlayLogDto
+import java.time.Instant
 
-class HeartbeatWorker(
+class LogSyncWorker(
     context: Context,
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
@@ -13,13 +15,13 @@ class HeartbeatWorker(
     override suspend fun doWork(): Result {
         return try {
             val repository = ServiceLocator.getRepository(applicationContext)
-            // Sends "online" status. 
-            // In the future we can pass flexible status via inputData if needed.
-            repository.sendHeartbeat("online")
-            Result.success()
+            
+            // [INDUSTRIAL] Batch PoP Upload
+            val result = repository.syncLogs()
+            
+            if (result.isSuccess) Result.success() else Result.retry()
         } catch (e: Exception) {
             e.printStackTrace()
-            // We return retry so WorkManager can try again later if it was a network glitch
             Result.retry()
         }
     }

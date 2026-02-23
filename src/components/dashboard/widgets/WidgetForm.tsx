@@ -145,6 +145,7 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
                 widget_type: widgetType,
                 config,
                 is_active: isActive,
+                thumbnail_url: config.backgroundImageLandscape || config.backgroundImagePortrait || null
             });
         } finally {
             setSaving(false);

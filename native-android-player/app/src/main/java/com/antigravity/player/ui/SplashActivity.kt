@@ -3,67 +3,106 @@ package com.antigravity.player.ui
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.content.pm.ActivityInfo
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.antigravity.player.MainActivity
+import com.antigravity.player.UserApplication
 import com.antigravity.player.di.ServiceLocator
+import com.antigravity.player.util.DeviceTypeUtil
+import kotlinx.coroutines.launch
 
 class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // [ADAPTIVE UI] Detect hardware and force appropriate orientation
+        val isTV = DeviceTypeUtil.isTelevision(applicationContext)
+        requestedOrientation = if (isTV) {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        
         setContentView(com.antigravity.player.R.layout.activity_splash)
         
         // Ensure DI is ready
         ServiceLocator.init(applicationContext) 
         
-        // Delay 2s then Check Permissions
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            checkOverlayPermission()
-        }, 2000)
+        checkOverlayPermission()
+    }
+
+    private var isRequestingPermission = false
+    private var routingStarted = false
+
+    private val overlayPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) {
+        // User returned from settings, check again
+        isRequestingPermission = false
+        checkOverlayPermission()
     }
 
     private fun checkOverlayPermission() {
-        if (!android.provider.Settings.canDrawOverlays(this)) {
-            android.widget.Toast.makeText(this, "Permissão necessária: Sobreposição de tela", android.widget.Toast.LENGTH_LONG).show()
-            
-            val intent = Intent(
-                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                android.net.Uri.parse("package:$packageName")
-            )
-            // Add flag to ensure it opens a new task
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            
-            // Close app so user restarts after granting
-            finish() 
-        } else {
-            checkRouting()
+        if (routingStarted) return
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                if (!isRequestingPermission) {
+                    isRequestingPermission = true
+                    val intent = android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:$packageName")
+                    )
+                    overlayPermissionLauncher.launch(intent)
+                }
+                return
+            }
+        }
+        
+        // Permission granted or not needed, proceed with routing
+        if (!routingStarted) {
+            routingStarted = true
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                checkRouting()
+            }, 1000)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Safety: If user returned and ActivityResult didn't fire, check again
+        if (!routingStarted && !isRequestingPermission) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                checkOverlayPermission()
+            }, 500)
         }
     }
 
     private fun checkRouting() {
         val auth = ServiceLocator.authRepository
         val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-        
-        // Restore Session from Disk
-        val savedToken = prefs.getString("auth_token", null)
-        val savedUserId = prefs.getString("auth_user_id", null)
-        
-        if (savedToken != null) {
-            com.antigravity.sync.service.SessionManager.currentAccessToken = savedToken
-            com.antigravity.sync.service.SessionManager.currentUserId = savedUserId
-        }
-
         val savedScreenId = prefs.getString("saved_screen_id", null)
 
-        val intent = if (!auth.isUserLoggedIn()) {
-            Intent(this, LoginActivity::class.java)
-        } else if (savedScreenId == null) {
-            Intent(this, ScreenSelectionActivity::class.java)
-        } else {
-            Intent(this, MainActivity::class.java)
+        // Make it async to allow network calls (refresh token)
+        lifecycleScope.launch {
+            // Restore Session from Secure Storage (Disk) -> Auto Refresh if needed
+            val isSessionValid = auth.restoreSession(applicationContext)
+            
+            com.antigravity.core.util.Logger.i("BOOT", "Routing Check: SessionValid=$isSessionValid, SavedScreen=$savedScreenId")
+
+            val intent = if (!isSessionValid) {
+                Intent(this@SplashActivity, LoginActivity::class.java)
+            } else if (savedScreenId == null) {
+                Intent(this@SplashActivity, ScreenSelectionActivity::class.java)
+            } else {
+                Intent(this@SplashActivity, com.antigravity.player.MainActivity::class.java)
+            }
+            
+            startActivity(intent)
+            finish()
         }
-        
-        startActivity(intent)
-        finish()
     }
+
+    // Orientation is now locked in Manifest/Splash for initialization stability.
 }

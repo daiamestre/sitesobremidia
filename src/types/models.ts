@@ -68,6 +68,7 @@ export type Widget = {
     widget_type: WidgetType;
     config: WidgetConfig;
     is_active: boolean;
+    thumbnail_url?: string | null;
     created_at?: string;
     user_id?: string;
 };

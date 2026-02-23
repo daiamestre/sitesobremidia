@@ -5,3 +5,6 @@ local.properties
 *.apk
 *.aab
 node_modules/
+
+native-android-player/
+play-services-*.jar

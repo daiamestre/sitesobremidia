@@ -1,7 +1,7 @@
 package com.antigravity.core.domain.model
 
 enum class MediaType {
-    VIDEO, IMAGE, WEB_WIDGET, STREAM_RTSP, STREAM_HLS
+    VIDEO, IMAGE, WEB_WIDGET, EXTERNAL_LINK, STREAM_RTSP, STREAM_HLS
 }
 
 /**
@@ -16,7 +16,12 @@ data class MediaItem(
     val remoteUrl: String, // URL Original (Supabase/CDN)
     val localPath: String?, // Caminho no FileSystem local (null se não baixado)
     val hash: String, // SHA-256 para integridade
-    val order: Int
+    val orderIndex: Int,
+    // Enterprise Scheduling
+    val startTime: String? = null, // "HH:mm"
+    val endTime: String? = null,   // "HH:mm"
+    val daysOfWeek: String? = null, // "1,2,3,4,5" (Seg-Sex)
+    val transitionEffect: String? = "crossfade"
 ) {
     fun isPlayableOffline(): Boolean {
         // Streams nunca são offline-safe por definição, mas têm fallback

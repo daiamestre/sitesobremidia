@@ -24,6 +24,5 @@ sealed class PlayerEvent {
     
     // Critical Events
     data class CriticalError(val error: Throwable) : PlayerEvent()
-    object WatchdogTimeout : PlayerEvent()
     object UpdateReceived : PlayerEvent()
 }

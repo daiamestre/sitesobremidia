@@ -4,14 +4,20 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.antigravity.cache.dao.LogDao
 import com.antigravity.cache.dao.PlayerDao
-import com.antigravity.cache.entity.CachedMediaItem
 import com.antigravity.cache.entity.CachedPlaylist
+import com.antigravity.cache.entity.CachedMediaItem
+import com.antigravity.cache.entity.CachedPlayLog
+import com.antigravity.cache.entity.OfflinePlaybackLog
+import com.antigravity.cache.dao.OfflineLogDao
 
-@Database(entities = [CachedPlaylist::class, CachedMediaItem::class], version = 1, exportSchema = false)
+@Database(entities = [CachedPlaylist::class, CachedMediaItem::class, CachedPlayLog::class, OfflinePlaybackLog::class], version = 5, exportSchema = false)
 abstract class PlayerDatabase : RoomDatabase() {
 
     abstract fun playerDao(): PlayerDao
+    abstract fun logDao(): LogDao
+    abstract fun offlineLogDao(): OfflineLogDao
 
     companion object {
         @Volatile
@@ -23,7 +29,9 @@ abstract class PlayerDatabase : RoomDatabase() {
                     context.applicationContext,
                     PlayerDatabase::class.java,
                     "player_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

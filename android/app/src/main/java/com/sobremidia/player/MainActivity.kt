@@ -52,7 +52,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Prevent Sleep (Watchdog)
+        // Keep Screen On
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
         // Kiosk: Bypass Lock Screen
@@ -88,11 +88,12 @@ class MainActivity : AppCompatActivity() {
         // Load the React App
         // Load the React App
         // FORCE LOAD REMOTE URL
+        // Load the React App (Local)
+        // Load the React App
+        // Load the React App
+        // FORCE LOAD REMOTE URL
         Log.i("MainActivity", "🚀 Loading Remote URL: $REMOTE_DEBUG_URL")
         webView.loadUrl(REMOTE_DEBUG_URL)
-
-        // --- GLOBAL CRASH INTERCEPTOR (User Request: "Interceptador de Erros de Código") ---
-        Thread.setDefaultUncaughtExceptionHandler(SignalErrorHandler(this))
 
         // --- HARDWARE LOCKS (IMMORTAL MODE) ---
         acquireSystemLocks()
@@ -150,37 +151,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- SIGNAL ERROR HANDLER (Auto-Healing) ---
-    inner class SignalErrorHandler(val context: Context) : Thread.UncaughtExceptionHandler {
-        override fun uncaughtException(thread: Thread, throwable: Throwable) {
-            val errorLog = StringBuilder()
-            errorLog.append("\n--- FALHA DE CÓDIGO DETECTADA ---\n")
-            errorLog.append("Causa: ${throwable.cause}\n")
-            errorLog.append("Mensagem: ${throwable.message}\n")
-            errorLog.append("Rastreio: ${throwable.stackTrace.take(5).joinToString("\n")}\n")
-
-            Log.e("SignalHandler", errorLog.toString())
-
-            // Auto-Diagnosis
-            analisarErroAutomaticamente(throwable.message ?: "")
-
-            // Auto-Healing: Restart App
-            Log.i("SignalHandler", "♻️ REINICIANDO SERVIÇO DE PLAYER (Auto-Healing)...")
-            val intent = Intent(context, MainActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            System.exit(2) // Force kill process
-        }
-
-        private fun analisarErroAutomaticamente(msg: String) {
-            when {
-                msg.contains("null object") -> Log.d("SignalHandler", "🔍 Diagnóstico: Falha ao carregar dados do Painel (NullPointer).")
-                msg.contains("Timeout") -> Log.d("SignalHandler", "🔍 Diagnóstico: O servidor do Dashboard está lento.")
-                msg.contains("Binder") -> Log.d("SignalHandler", "🔍 Diagnóstico: Falha de IPC/Binder no Android View.")
-                else -> Log.d("SignalHandler", "🔍 Diagnóstico: Erro desconhecido. Integridade comprometida.")
-            }
-        }
-    }
 
     private fun setupWebView() {
         val settings = webView.settings
@@ -217,11 +187,6 @@ class MainActivity : AppCompatActivity() {
         }
         
         webView.webViewClient = object : WebViewClient() {
-            private val watchdog = android.os.Handler(android.os.Looper.getMainLooper())
-            private val reloadRunnable = Runnable {
-                android.util.Log.e("WebView", "Watchdog triggered: Reloading stuck page...")
-                webView.reload()
-            }
 
             override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
                 val message = "SSL Error: " + error?.primaryError
@@ -235,14 +200,10 @@ class MainActivity : AppCompatActivity() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 
-                // Start 30s timer
-                watchdog.removeCallbacks(reloadRunnable)
-                watchdog.postDelayed(reloadRunnable, 30000)
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                watchdog.removeCallbacks(reloadRunnable)
             }
             
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
@@ -365,7 +326,6 @@ class MainActivity : AppCompatActivity() {
             hideSystemUI()
             // KIOSK PINNING REMOVED BY USER REQUEST
             // startLockTask() caused crash loops on some devices.
-            // Reliance is now solely on Watchdog Service.
         }
     }
 
@@ -377,68 +337,17 @@ class MainActivity : AppCompatActivity() {
         // SAFE INIT: Delay risky operations to allow UI to render first
         // This prevents crash loops if the system is sluggish
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            try {
-                // Ensure Overlay Permission for Watchdog
-                checkOverlayPermission()
-
-                // Signal Watchdog: WE ARE ALIVE
-                val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
-                intent.action = com.sobremidia.player.service.PlayerService.ACTION_RESUMED
-                // WATCHDOG DISABLED BY USER REQUEST due to Startup Freeze
-                // startService(intent)
-            } catch (e: Exception) {
-                Log.e("MainActivity", "SAFE_INIT_FAIL: Could not start Watchdog or Check Overlay", e)
-            }
+            // Post-render setup if needed
         }, 3000) // 3 Seconds Delay
     }
 
     override fun onPause() {
         super.onPause()
-        // Signal Watchdog: WE LOST FOCUS - HELP!
-        try {
-            val intent = Intent(this, com.sobremidia.player.service.PlayerService::class.java)
-            intent.action = com.sobremidia.player.service.PlayerService.ACTION_PAUSED
-             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // startForegroundService(intent)
-            } else {
-                // startService(intent)
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Failed to start service (Pause)", e)
-        }
     }
 
-    private fun checkOverlayPermission() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                AlertDialog.Builder(this)
-                    .setTitle("Habilitar Sobreposição?")
-                    .setMessage("Para o Player funcionar em modo Kiosk (sem interrupções), recomendamos ativar a permissão de 'Sobreposição de Tela'.\n\nDeseja ativar agora?")
-                    .setPositiveButton("ATIVAR") { _, _ ->
-                        try {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:$packageName")
-                            )
-                            startActivityForResult(intent, 101)
-                        } catch (e: Exception) {
-                            Log.e("MainActivity", "Failed to open Overlay Settings", e)
-                            android.widget.Toast.makeText(this, "Erro ao abrir configurações.", android.widget.Toast.LENGTH_LONG).show()
-                        }
-                    }
-                    .setNegativeButton("Agora não", null) // Allow user to skip
-                    .setCancelable(true) 
-                    .show()
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Failed to check overlay permission", e)
-        }
-    }
 
     override fun onBackPressed() {
-        // Soft Back Block (Watchdog will bring it back anyway)
-        // super.onBackPressed() 
-        Log.d("MainActivity", "🚫 Back Button Pressed (Handled by Watchdog)")
+        // Handle back button if needed
     }
 
     override fun onDestroy() {

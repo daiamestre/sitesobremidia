@@ -1,9 +1,41 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Monitor, ListVideo, Image, Calendar, TrendingUp, Clock } from 'lucide-react';
+import { Monitor, ListVideo, Image, Calendar, TrendingUp, Clock, AlertTriangle, RefreshCw, Trash2, Camera } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { fetchAlertDevices, sendRemoteCommand } from '@/services/DeviceService';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 export default function DashboardHome() {
   const { profile } = useAuth();
+  const [alerts, setAlerts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadAlerts = async () => {
+      const data = await fetchAlertDevices();
+      setAlerts(data || []);
+    };
+    loadAlerts();
+    const interval = setInterval(loadAlerts, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleRemoteCommand = async (deviceId: string, command: any) => {
+    try {
+      await sendRemoteCommand(deviceId, command);
+      toast.success(`Comando ${command} enviado com sucesso!`);
+    } catch (e) {
+      toast.error(`Falha ao enviar comando: ${e}`);
+    }
+  };
+
+  const getSeverity = (lastHeartbeat: string) => {
+    if (!lastHeartbeat) return 'critical';
+    const diff = Date.now() - new Date(lastHeartbeat).getTime();
+    if (diff > 600000) return 'critical'; // > 10 min
+    return 'warning'; // 2-10 min
+  };
 
   const stats = [
     { icon: Monitor, label: 'Telas Ativas', value: '0', color: 'text-primary' },
@@ -23,6 +55,64 @@ export default function DashboardHome() {
           Bem-vindo ao painel do SOBRE MÍDIA. Gerencie suas telas de Digital Signage.
         </p>
       </div>
+
+      {/* Device Alerts */}
+      {alerts.length > 0 && (
+        <div className="space-y-4">
+          <Alert variant="destructive" className="glass border-red-500/50 animate-pulse">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Atenção: Central de Alertas Operacionais</AlertTitle>
+            <AlertDescription>
+              Existem {alerts.length} dispositivos exigindo atenção imediata.
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {alerts.map((device) => {
+              const severity = getSeverity(device.last_heartbeat);
+              const isStorageLow = device.storage_available && parseInt(device.storage_available) < 500000000; // < 500MB
+
+              return (
+                <Card key={device.id} className={`glass border-l-4 ${severity === 'critical' ? 'border-l-red-500' : 'border-l-yellow-500'}`}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-bold">{device.name || 'Dispositivo Sem Nome'}</h3>
+                        <p className="text-xs text-muted-foreground">{device.id}</p>
+                      </div>
+                      <div className={`px-2 py-1 rounded text-[10px] uppercase font-bold ${severity === 'critical' ? 'bg-red-500/20 text-red-500' : 'bg-yellow-500/20 text-yellow-600'}`}>
+                        {severity === 'critical' ? 'CRÍTICO (+10m)' : 'ATENÇÃO (Oscilando)'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      {isStorageLow && (
+                        <div className="flex items-center gap-2 text-xs text-red-400">
+                          <AlertTriangle className="h-3 w-3" />
+                          <span>Armazenamento Baixo: {(parseInt(device.storage_available) / (1024 * 1024)).toFixed(0)} MB</span>
+                        </div>
+                      )}
+                      <p className="text-xs">Visto por último: {device.last_heartbeat ? new Date(device.last_heartbeat).toLocaleTimeString() : 'Nunca'}</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="h-8 text-[11px] gap-1" onClick={() => handleRemoteCommand(device.id, 'REBOOT_APP')}>
+                        <RefreshCw className="h-3 w-3" /> Reiniciar
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-[11px] gap-1" onClick={() => handleRemoteCommand(device.id, 'TAKE_SCREENSHOT')}>
+                        <Camera className="h-3 w-3" /> Screenshot
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-[11px] gap-1 text-red-400 hover:text-red-300" onClick={() => handleRemoteCommand(device.id, 'CLEAR_CACHE')}>
+                        <Trash2 className="h-3 w-3" /> Limpar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

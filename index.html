@@ -104,17 +104,6 @@
       return false; // Let default handler run too
     };
 
-    // Fix: Fail-safe reload for Portrait loops
-    window.addEventListener('load', function () {
-      setTimeout(function () {
-        var root = document.getElementById('root');
-        // Check if root is empty AND no native error is showing
-        if ((!root || root.innerHTML.trim() === '') && !document.getElementById('native-error-box')) {
-          console.warn('Watchdog: Root empty, forcing reload...');
-          window.location.reload();
-        }
-      }, 10000);
-    });
   </script>
 </head>
 

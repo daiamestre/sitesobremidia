@@ -5,6 +5,7 @@ import { supabaseConfig } from "@/supabaseConfig";
 import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
 import { offlineLogger } from "@/utils/offlineLogger";
 import { monitoring } from "@/utils/monitoring";
+import { RemoteCommandListener } from "./RemoteCommandListener";
 import "./Player.css";
 
 interface MediaItem {
@@ -109,6 +110,11 @@ export const PlayerEngine = () => {
             const screen = screens[0];
             setActiveScreenId(screen.id);
             setScreenOrientation(screen.orientation || 'landscape');
+
+            if (screen.is_active === false) {
+                if (!isBackgroundUpdate) setError("Tela desativada pelo administrador.");
+                setIsLoading(false); return;
+            }
 
             if (!screen.playlist_id) {
                 if (!isBackgroundUpdate) setError("Nenhuma playlist definida.");
@@ -220,14 +226,17 @@ export const PlayerEngine = () => {
     }, [activeScreenId]);
     const logPlayback = useCallback((item: MediaItem) => {
         if (!item.mediaId) return; // Guard against missing ID
-        offlineLogger.log({
+
+        const payload = {
             screen_id: activeScreenId || '', // Should not happen if active
             media_id: item.mediaId, // USE REAL MEDIA ID
             playlist_id: null,
             duration: item.duration,
             status: 'completed',
             started_at: new Date().toISOString()
-        });
+        };
+        console.log("PlayerEngine: 📤 Triggering log. Payload:", payload);
+        offlineLogger.log(payload);
     }, [activeScreenId]);
 
     // PLAYBACK LOGIC
@@ -252,56 +261,144 @@ export const PlayerEngine = () => {
     useEffect(() => {
         if (playlist.length === 0) return;
         const item = playlist[currentIndex];
-        if (!item) return;
+        // --- ROBUST BACKGROUND TIMER (WEB WORKER) ---
+        // Browser main thread gets throttled in background. We use a Worker Blob to keep time.
+        // This ensures the playlist advances even if the tab is minimized/hidden.
 
-        // Force reset video if changing types/items
+        const workerCode = `
+            self.onmessage = function(e) {
+                const { expectedTime } = e.data;
+                const check = () => {
+                    if (Date.now() >= expectedTime) {
+                        self.postMessage('timeout');
+                        self.close();
+                    } else {
+                        setTimeout(check, 1000);
+                    }
+                };
+                check();
+            };
+        `;
+
+        const blob = new Blob([workerCode], { type: "application/javascript" });
+        const worker = new Worker(URL.createObjectURL(blob));
+
         const duration = (item.duration || 10) * 1000;
+        let isVideo = item.type === 'video';
 
-        if (item.type === 'image') {
-            timerRef.current = setTimeout(triggerNext, duration);
-            return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-        }
+        const startTime = Date.now();
+        const expectedEndTime = startTime + duration + 500; // +500ms buffer
 
-        if (item.type === 'video') {
+        worker.onmessage = (e) => {
+            if (e.data === 'timeout') {
+                console.log("Player: Worker Triggered Skip (Background Safe)");
+                // Clean up video listeners to avoid double triggers if they fire late
+                if (videoRefs.current.get(currentIndex)) {
+                    const el = videoRefs.current.get(currentIndex);
+                    // Optionally force pause? No, just move on.
+                }
+                triggerNext();
+            }
+        };
+
+        worker.postMessage({ expectedTime: expectedEndTime });
+
+        if (isVideo) {
             const el = videoRefs.current.get(currentIndex);
             if (el) {
                 el.currentTime = 0;
-                // Force muted for autoplay policy
                 el.muted = !audioEnabled;
-                const playPromise = el.play();
 
+                const playPromise = el.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
                         console.warn("Autoplay failed:", error);
-                        // Fallback: treat as image timer if video fails to autoplay
-                        timerRef.current = setTimeout(triggerNext, duration);
+                        // Worker is already running, so we don't need to do anything special here, 
+                        // the worker will catch the timeout eventually.
                     });
                 }
 
-                const onEnded = () => triggerNext();
-                const onError = () => {
-                    console.error("Video error");
+                // Standard End Listener
+                const onEnded = () => {
+                    worker.terminate(); // Kill worker if video finishes naturally
                     triggerNext();
+                };
+
+                // If browser pauses video (e.g. background tab), we DO NOT clear the worker.
+                // The worker is our "Safety Net". If the video pauses, the worker will eventually fire "timeout".
+                // This effectively implements "Virtual Playback".
+
+                const onPause = () => {
+                    if (!el.ended && document.visibilityState === 'hidden') {
+                        console.log("Player: Video paused (Background). Worker will handle skip.");
+                    }
                 }
 
                 el.addEventListener('ended', onEnded);
-                el.addEventListener('error', onError);
+                el.addEventListener('pause', onPause);
+                el.addEventListener('error', () => { worker.terminate(); triggerNext(); });
 
                 return () => {
                     el.removeEventListener('ended', onEnded);
-                    el.removeEventListener('error', onError);
-                    if (timerRef.current) clearTimeout(timerRef.current);
+                    el.removeEventListener('pause', onPause);
+                    worker.terminate(); // Cleanup Call 1
                 };
             }
-            // Fallback if ref missing
-            timerRef.current = setTimeout(triggerNext, duration);
-            return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+            // If ref missing, worker handles it.
         }
 
-        // Default timer
-        timerRef.current = setTimeout(triggerNext, 5000);
-        return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+        // Image or Default
+        return () => {
+            worker.terminate(); // Cleanup Call 2
+        };
     }, [currentIndex, playlist, triggerNext, audioEnabled]);
+
+    // [ORIENTATION INTERCEPTOR] Dynamic Layout Logic
+    useEffect(() => {
+        const handleResize = () => {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const isPortrait = height > width;
+
+            document.body.classList.toggle('is-portrait', isPortrait);
+            document.body.classList.toggle('is-landscape', !isPortrait);
+
+            // Notify custom components
+            const event = new CustomEvent('layoutChanged', {
+                detail: { width, height, orientation: isPortrait ? 'portrait' : 'landscape' }
+            });
+            window.dispatchEvent(event);
+
+            console.log(`OrientationInterceptor: ${isPortrait ? 'PORTRAIT' : 'LANDSCAPE'} (${width}x${height})`);
+        };
+
+        window.addEventListener("orientationchange", handleResize);
+        window.addEventListener("resize", handleResize);
+        handleResize(); // Initial trigger
+
+        return () => {
+            window.removeEventListener("orientationchange", handleResize);
+            window.removeEventListener("resize", handleResize);
+        };
+    }, []);
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log("Player: Tab Visible. Resuming active video if needed.");
+                // Ensure video is playing if it should be
+                const item = playlist[currentIndex];
+                if (item?.type === 'video') {
+                    const el = videoRefs.current.get(currentIndex);
+                    if (el && el.paused && !el.ended) {
+                        el.play().catch(() => { });
+                    }
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [currentIndex, playlist]);
 
     useEffect(() => {
         if (playlist.length < 2) return;
@@ -378,6 +475,7 @@ export const PlayerEngine = () => {
 
     return (
         <div className="player-container" onClick={toggleFullscreen}>
+            <RemoteCommandListener screenId={activeScreenId} />
             <div
                 className={`player-screen-box ${screenOrientation}`}
                 style={screenOrientation === 'landscape' ? { aspectRatio: '16/9' } : {}}

@@ -28,6 +28,8 @@ const History = lazy(() => import("./pages/dashboard/History"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const AdminUsers = lazy(() => import("./pages/dashboard/AdminUsers"));
 const Player = lazy(() => import("./pages/Player"));
+const WidgetPlayer = lazy(() => import("./pages/WidgetPlayer"));
+const LinkPlayer = lazy(() => import("./pages/LinkPlayer"));
 const WebPlayerDemo = lazy(() => import("./components/player/WebPlayerDemo"));
 
 const queryClient = new QueryClient();
@@ -61,6 +63,8 @@ const App = () => {
                   <Route path="/install" element={<Install />} />
                   <Route path="/player" element={<Player />} />
                   <Route path="/player/:screenId" element={<Player />} />
+                  <Route path="/player/widget/:id" element={<WidgetPlayer />} />
+                  <Route path="/player/link/:id" element={<LinkPlayer />} />
                   <Route path="/player/*" element={<Player />} />
                   <Route path="/player-demo" element={<WebPlayerDemo />} />
 

@@ -6,27 +6,65 @@
     android:background="#000000"
     android:keepScreenOn="true">
 
-    <!-- Video Surface -->
-    <!-- Standby / Fallback Image -->
+    <!-- Layer 0: Standby / Fallback Layer (Base layer, always visible if others are hidden) -->
     <ImageView
         android:id="@+id/standbyImage"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:src="@drawable/ic_launcher_background"
+        android:scaleType="center"
+        android:src="@mipmap/ic_launcher_round"
+        android:background="#000000"
         android:visibility="visible"
         android:contentDescription="Standby Logo" />
 
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/playerView"
+    <!-- Layer 1: Principal Engine (Video & Static Images) -->
+    <FrameLayout
+        android:id="@+id/main_engine_layer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- Motor de Vídeo (ExoPlayer) -->
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/playerView1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="invisible"
+            app:use_controller="false"
+            app:show_buffering="never"
+            app:shutter_background_color="@android:color/transparent"
+            app:surface_type="surface_view"
+            app:resize_mode="zoom" />
+
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/playerView2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="invisible"
+            app:use_controller="false"
+            app:show_buffering="never"
+            app:shutter_background_color="@android:color/transparent"
+            app:surface_type="surface_view"
+            app:resize_mode="zoom" />
+
+        <!-- Motor Estático (Glide / Bitmaps Descomprimidos) -->
+        <ImageView
+            android:id="@+id/static_image_layer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:visibility="invisible"
+            android:background="@android:color/black" />
+    </FrameLayout>
+
+    <!-- Layer 2: Web Engine Overlay (Placeholder/Control) -->
+    <!-- Nota: O Motor Web Real roda na WidgetActivity (Processo :web_engine) -->
+    <FrameLayout
+        android:id="@+id/web_overlay_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:use_controller="false"
-        app:resize_mode="zoom"
-        app:surface_type="texture_view"
-        android:keepScreenOn="true" />
+        android:visibility="gone" />
 
-    <!-- Loading Overlay -->
+    <!-- Loading Overlay (Initial Boot Only) -->
     <FrameLayout
         android:id="@+id/loading_overlay"
         android:layout_width="match_parent"
@@ -44,42 +82,130 @@
 
             <!-- Logo or Icon -->
             <ImageView
-                android:layout_width="100dp"
-                android:layout_height="100dp"
+                android:layout_width="150dp"
+                android:layout_height="150dp"
                 android:src="@mipmap/ic_launcher_round"
                 android:layout_marginBottom="32dp"
                 android:elevation="4dp"/>
-
-            <!-- Professional Spinner -->
-            <ProgressBar
-                android:layout_width="60dp"
-                android:layout_height="60dp"
-                android:indeterminateTint="#4F46E5"
-                style="?android:attr/progressBarStyleLarge"
-                android:layout_marginBottom="24dp"/>
             
             <TextView
-                android:id="@+id/status_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Carregando Playlist..."
-                android:textColor="#F8FAFC"
-                android:textSize="18sp"
-                android:letterSpacing="0.05"
-                android:textStyle="bold"/>
-
-            <!-- Subtle Device ID below -->
-            <TextView
-                 android:id="@+id/status_device_id"
-                 android:layout_width="wrap_content"
-                 android:layout_height="wrap_content"
-                 android:text=""
-                 android:textColor="#64748B"
-                 android:textSize="12sp"
-                 android:layout_marginTop="8dp"/>
+                android:text="Sobre Mídia Player"
+                android:textColor="#9C27B0"
+                android:textSize="36sp"
+                android:textStyle="bold"
+                android:layout_marginTop="8dp"/>
         </LinearLayout>
     </FrameLayout>
 
-    <!-- Debug Text (Removed for Production) -->
+
+    <!-- Permanent Status Overlay (Bottom Layer) -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="16dp"
+        android:orientation="vertical"
+        android:elevation="5dp">
+
+        <TextView
+            android:id="@+id/status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:shadowColor="#000000"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="4"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/status_device_id"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#64748B"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp"
+            android:visibility="gone"/>
+    </LinearLayout>
+
+    <!-- Legacy WebView ID (kept for internal redirects if any, but hidden) -->
+    <android.webkit.WebView
+        android:id="@+id/player_webview"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <!-- BILLING BLOCK OVERLAY — Cannot be dismissed by user -->
+    <FrameLayout
+        android:id="@+id/block_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E6000000"
+        android:elevation="100dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="48dp">
+
+            <!-- Logo -->
+            <ImageView
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:src="@mipmap/ic_launcher_round"
+                android:layout_marginBottom="32dp" />
+
+            <!-- Warning Icon -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚠"
+                android:textSize="48sp"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Main Message -->
+            <TextView
+                android:id="@+id/block_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sistema Temporariamente Suspenso"
+                android:textColor="#FF5252"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textAlignment="center"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Subtitle -->
+            <TextView
+                android:id="@+id/block_message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Entre em contato com o suporte para reativar este display."
+                android:textColor="#B0BEC5"
+                android:textSize="18sp"
+                android:textAlignment="center"
+                android:layout_marginBottom="24dp" />
+
+            <!-- Branding -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sobre Mídia Player"
+                android:textColor="#9C27B0"
+                android:textSize="16sp"
+                android:textStyle="italic" />
+        </LinearLayout>
+    </FrameLayout>
 
 </FrameLayout>

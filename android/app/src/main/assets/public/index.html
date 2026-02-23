@@ -104,21 +104,11 @@
       return false; // Let default handler run too
     };
 
-    // Fix: Fail-safe reload for Portrait loops
-    window.addEventListener('load', function () {
-      setTimeout(function () {
-        var root = document.getElementById('root');
-        // Check if root is empty AND no native error is showing
-        if ((!root || root.innerHTML.trim() === '') && !document.getElementById('native-error-box')) {
-          console.warn('Watchdog: Root empty, forcing reload...');
-          window.location.reload();
-        }
-      }, 10000);
-    });
   </script>
   <script type="module" crossorigin src="/assets/index-6z-Ddk4U.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-Dd-3WSmZ.css">
-<link rel="manifest" href="/manifest.webmanifest"></head>
+  <link rel="manifest" href="/manifest.webmanifest">
+</head>
 
 <body>
   <div id="root"></div>

@@ -1,7 +1,8 @@
 package com.antigravity.core.domain.usecase
 
 import com.antigravity.core.domain.repository.PlayerRepository
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Caso de Uso Principal: Sincronização de Playlist.
@@ -24,11 +25,16 @@ class SyncPlaylistUseCase(
             val result = repository.syncWithRemote()
             
             if (result.isSuccess) {
-                 // Check if we have a valid playlist after sync
-                 val currentPlaylist = repository.getActivePlaylist().firstOrNull()
-                 if (currentPlaylist == null || !currentPlaylist.isValid()) {
-                     return Result.failure(IllegalStateException("Sync success but playlist invalid"))
-                 }
+                  // [RACE CONDITION FIX] Wait for the first valid emission (max 10s)
+                  val currentPlaylist = withTimeoutOrNull(10000) {
+                      repository.getActivePlaylist()
+                          .filter { it != null && it.items.isNotEmpty() }
+                          .first()
+                  }
+
+                  if (currentPlaylist == null) {
+                      return Result.failure(IllegalStateException("Tempo esgotado aguardando playlist sincronizada."))
+                  }
             }
             
             result
