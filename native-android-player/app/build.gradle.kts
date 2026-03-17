@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("kotlin-kapt")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -83,12 +83,16 @@ dependencies {
     // WorkManager (for HeartbeatWorker, LogSyncWorker)
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     
+    // OkHttp (Explicitly added for UploadWorker)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    
     // ConstraintLayout (Layout Standard)
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     
     // Glide (Image Loading & Pre-caching)
     implementation("com.github.bumptech.glide:glide:4.16.0")
-    kapt("com.github.bumptech.glide:compiler:4.16.0")
+    ksp("com.github.bumptech.glide:ksp:4.16.0")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

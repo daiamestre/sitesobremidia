@@ -10,19 +10,27 @@ import java.util.Calendar
 object SchedulingEngine {
 
     fun shouldPlay(item: MediaItem): Boolean {
+        // Se as regras são strings literais "null", limpar.
+        val days = if (item.daysOfWeek == "null" || item.daysOfWeek.isNullOrEmpty()) null else item.daysOfWeek
+        val startStr = if (item.startTime == "null" || item.startTime.isNullOrEmpty()) null else item.startTime
+        val endStr = if (item.endTime == "null" || item.endTime.isNullOrEmpty()) null else item.endTime
+
         // Se não tem regras, toca sempre.
-        if (item.startTime.isNullOrEmpty() && item.endTime.isNullOrEmpty() && item.daysOfWeek.isNullOrEmpty()) {
+        if (startStr == null && endStr == null && days == null) {
             return true
         }
 
         val now = TimeManager.getSyncedCalendar()
         
-        // 1. Verificar Dias da Semana (1=Dom, 2=Seg ... 7=Sab)
-        if (!item.daysOfWeek.isNullOrEmpty()) {
-            val currentDay = now.get(Calendar.DAY_OF_WEEK) // 1-7
-            val allowedDays = item.daysOfWeek.split(",").mapNotNull { it.trim().toIntOrNull() }
+        // 1. Verificar Dias da Semana (0=Dom, 1=Seg ... 6=Sab no padrão JS/Dashboard)
+        if (days != null) {
+            val currentDayJava = now.get(Calendar.DAY_OF_WEEK) // 1-7
+            val currentDayJs = currentDayJava - 1 // 0-6
+            // Remove cochetes ['[' ou ']'] caso a string venha formatada como JSON array (ex: "[1, 2, 3]")
+            val cleanDays = days.replace("[", "").replace("]", "")
+            val allowedDays = cleanDays.split(",").mapNotNull { it.trim().toIntOrNull() }
             
-            if (!allowedDays.contains(currentDay)) {
+            if (allowedDays.isNotEmpty() && !allowedDays.contains(currentDayJs)) {
                 return false
             }
         }
@@ -32,8 +40,8 @@ object SchedulingEngine {
         val currentMinute = now.get(Calendar.MINUTE)
         val currentTimeValue = currentHour * 60 + currentMinute // Minutos desde meia-noite
 
-        val start = parseTime(item.startTime)
-        val end = parseTime(item.endTime)
+        val start = parseTime(startStr)
+        val end = parseTime(endStr)
 
         if (start != null && end != null) {
             // Regra Comum: 08:00 as 12:00
@@ -55,7 +63,7 @@ object SchedulingEngine {
     }
 
     private fun parseTime(timeStr: String?): Int? {
-        if (timeStr.isNullOrEmpty()) return null
+        if (timeStr == "null" || timeStr.isNullOrEmpty()) return null
         return try {
             val parts = timeStr.split(":")
             val h = parts[0].toInt()

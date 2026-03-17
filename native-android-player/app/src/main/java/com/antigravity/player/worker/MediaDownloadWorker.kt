@@ -31,7 +31,10 @@ class MediaDownloadWorker(
         Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
         
         val mediaId = inputData.getString("media_id") ?: return Result.failure()
-        val url = inputData.getString("url") ?: return Result.failure()
+        val rawUrl = inputData.getString("url") ?: return Result.failure()
+        // [FIX] Supabase Storage URLs with spaces (e.g. "MIDI 1.mp4") crash Ktor HTTP client.
+        val url = rawUrl.replace(" ", "%20")
+        
         val expectedHash = inputData.getString("hash") ?: ""
         val deviceId = SessionManager.currentUserId ?: "UNKNOWN"
 

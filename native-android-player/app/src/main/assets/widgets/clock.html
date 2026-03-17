@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            text-align: center;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .greeting {
+            font-size: 2.5rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+        }
+
+        .time {
+            font-size: 8rem;
+            font-weight: 900;
+            letter-spacing: -2px;
+            line-height: 1;
+        }
+
+        .date {
+            font-size: 2rem;
+            font-weight: 300;
+            margin-top: 1rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .region {
+            font-size: 1.5rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="greeting" class="greeting">Bom dia</div>
+        <div id="time" class="time">00:00</div>
+        <div id="date" class="date">Segunda, 1 de Janeiro</div>
+        <div id="region" class="region"></div>
+    </div>
+
+    <script>
+        let city = "";
+        let state = "";
+        let timezone = null;
+
+        window.configurarWidget = function (injectedCity, injectedState, injectedTz) {
+            city = injectedCity || "";
+            state = injectedState || "";
+            timezone = (injectedTz && injectedTz !== "UTC" && injectedTz !== "null") ? injectedTz : null;
+            updateUI();
+        };
+
+        function updateUI() {
+            const now = new Date();
+            let displayTime = now;
+
+            if (timezone) {
+                try {
+                    displayTime = new Date(now.toLocaleString("en-US", { timeZone: timezone }));
+                } catch (e) {
+                    console.error("Timezone error", e);
+                }
+            }
+
+            // Time
+            document.getElementById('time').textContent = displayTime.toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+
+            // Date
+            const dateOptions = { weekday: 'long', day: 'numeric', month: 'long' };
+            document.getElementById('date').textContent = displayTime.toLocaleDateString('pt-BR', dateOptions);
+
+            // Greeting
+            const hour = displayTime.getHours();
+            let greeting = "Boa noite";
+            if (hour >= 5 && hour < 12) greeting = "Bom dia";
+            else if (hour >= 12 && hour < 18) greeting = "Boa tarde";
+
+            document.getElementById('greeting').textContent = city ? `${greeting}, ${city}` : greeting;
+            document.getElementById('region').textContent = state ? state : "";
+        }
+
+        setInterval(updateUI, 1000);
+        updateUI();
+    </script>
+</body>
+
+</html>

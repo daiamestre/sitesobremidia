@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.antigravity.player.di.ServiceLocator
 import java.io.File
+import kotlinx.coroutines.launch
 
 class HealthMonitorWorker(
     appContext: Context,
@@ -14,6 +15,9 @@ class HealthMonitorWorker(
 
     override suspend fun doWork(): Result {
         return try {
+            val authRepo = com.antigravity.sync.repository.AuthRepository()
+            authRepo.ensureValidSession(applicationContext)
+            
             val repository = ServiceLocator.getRepository(applicationContext)
             
             // 1. Storage
@@ -58,39 +62,33 @@ class HealthMonitorWorker(
             val shortId = if (repoId.length > 6) "...${repoId.takeLast(6)}" else repoId
             val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
             
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                android.widget.Toast.makeText(applicationContext, "📡 Heartbeat ($time) | ID: $shortId", android.widget.Toast.LENGTH_SHORT).show()
+
+
+            // [HIGH-END] Master Telemetry Cycle
+            // [RECURSION FIX] Executa sincronamente na Corrotina. Falhas de rede AQUI
+            // não devem retornar Result.retry() para evitar inundar o Supabase
+            // e estourar o "stack depth limit" dos Triggers do PostgreSQL.
+            try {
+                repository.sendHeartbeat(
+                    status = status,
+                    freeSpace = freeSpaceBytes,
+                    ramUsage = usedRamBytes,
+                    cpuTemp = tempCelsius,
+                    uptimeHours = uptimeHours,
+                    ipAddress = null
+                )
+                com.antigravity.core.util.Logger.i("HealthMonitor", "Telemetria consolidada enviada para ID $repoId")
+            } catch (e: Exception) {
+                com.antigravity.core.util.Logger.e("HealthMonitor", "Silencing heartbeat DB failure: ${e.message}")
+                // NON-FATAL. Avoid endless retries.
             }
-
-            repository.sendHeartbeat(
-                status = status,
-                freeSpace = freeSpaceBytes,
-                ramUsage = usedRamBytes,
-                cpuTemp = tempCelsius,
-                uptimeHours = uptimeHours,
-                ipAddress = null // IP tracking could be added via a network utility if needed
-            )
             
-            // [HIGH-END] Realtime Active Confirmation
-            repository.updateDevicesHeartbeat(repoId)
-
-            // [DYNAMIC RECEIVER] Sync config/playlist if changed
-            repository.syncWithRemote()
-            
-            com.antigravity.core.util.Logger.i("HealthMonitor", "Heartbeat triggered with status: $status for ID $repoId")
-
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                android.widget.Toast.makeText(applicationContext, "✅ Heartbeat OK | ID: $shortId", android.widget.Toast.LENGTH_SHORT).show()
-            }
-
-            Result.success()
+            return Result.success()
         } catch (e: Exception) {
-            com.antigravity.core.util.Logger.e("HealthMonitor", "Heartbeat Job Failed: ${e.message}")
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                android.widget.Toast.makeText(applicationContext, "❌ Heartbeat: Erro!", android.widget.Toast.LENGTH_SHORT).show()
-            }
+            com.antigravity.core.util.Logger.e("HealthMonitor", "Critical Heartbeat Job Failed: ${e.message}")
             e.printStackTrace()
-            Result.retry()
+            // Retorna sucess para matar o loop vicioso do WorkManager
+            return Result.success() 
         }
     }
 

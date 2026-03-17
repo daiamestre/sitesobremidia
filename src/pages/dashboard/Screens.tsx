@@ -49,13 +49,13 @@ export default function Screens() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Helper to check online status based on activation AND last ping (threshold: 4 mins)
+  // Helper to check online status based on activation AND last ping (threshold: 3 mins)
   const isScreenOnline = (screen: Screen) => {
     if (screen.is_active === false) return false;
     if (!screen.last_ping_at) return false;
     try {
       const diff = differenceInMinutes(new Date(), new Date(screen.last_ping_at));
-      return diff < 4;
+      return diff < 3;
     } catch (e) {
       return false;
     }

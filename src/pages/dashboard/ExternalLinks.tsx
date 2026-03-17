@@ -7,6 +7,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import {
   Dialog,
   DialogContent,
@@ -237,22 +239,22 @@ export default function ExternalLinks() {
 
     // console.log(`[Upload] Starting upload to social/${subfolder}:`, filePath);
 
-    const { error: uploadError } = await supabase.storage
-      .from('media') // Keep 'media' bucket
-      .upload(filePath, file, {
-        upsert: true
-      });
+    const command = new PutObjectCommand({
+      Bucket: r2Config.bucketName,
+      Key: filePath,
+      Body: file,
+      ContentType: file.type,
+      CacheControl: CDN_CACHE_HEADERS.media,
+    });
 
-    if (uploadError) {
-      console.error('[Upload] Supabase error:', uploadError);
+    try {
+      await s3Client.send(command);
+    } catch (uploadError) {
+      console.error('[Upload] R2 error:', uploadError);
       throw uploadError;
     }
 
-    const { data } = supabase.storage
-      .from('media')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
+    return getCdnUrl(filePath);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -309,6 +309,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     }
 
     setIsUploading(true);
+    let currentSuccessCount = 0;
+    let currentErrorCount = 0;
 
     for (let i = 0; i < files.length; i++) {
       const uploadFile = files[i];
@@ -323,8 +325,12 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         // Calculate MD5 hash
         const fileHash = await calculateFileMD5(uploadFile.file);
 
+        const isVideo = getFileType(uploadFile.file.type) === 'video';
         const fileExt = uploadFile.file.name.split('.').pop();
-        const fileName = `${uuidv4()}.${fileExt}`;
+        const fileNameBase = `${uuidv4()}.${fileExt}`;
+        // Se for vídeo, salva na pasta temp/ temporariamente
+        const finalFileName = isVideo ? `temp/${fileNameBase}` : fileNameBase;
+
 
         // Upload to Cloudflare R2 via Presigned URL (Elite Flow: Browser -> R2 Direct)
         let publicUrl: string;
@@ -334,7 +340,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
           // Step 1: Request presigned URL from Edge Function
           const { data: presignedData, error: presignedError } = await supabase.functions.invoke('get-upload-url', {
             body: {
-              fileName: fileName,
+              fileName: finalFileName,
               contentType: uploadFile.file.type,
               userId: user.id,
             }
@@ -382,7 +388,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         } catch (presignedErr) {
           // Fallback: Use direct S3 client (legacy flow)
           console.warn('[UPLOAD] Presigned URL failed, falling back to S3 client:', presignedErr);
-          filePath = `${user.id}/${fileName}`;
+          filePath = `${user.id}/${finalFileName}`;
 
           const uploadParams = {
             Bucket: r2Config.bucketName,
@@ -441,6 +447,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
               body: {
                 media_id: data.id,
                 file_url: publicUrl,
+                file_path: filePath,
                 file_type: uploadFile.file.type,
                 file_size: uploadFile.file.size,
                 user_id: user.id,
@@ -484,10 +491,15 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         setFiles(prev => prev.map((f, idx) =>
           idx === i ? { ...f, status: 'complete' as const, progress: 100 } : f
         ));
+        
+        currentSuccessCount++;
 
       } catch (error: unknown) {
         console.error('Upload error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        currentErrorCount++;
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        toast.error(`Erro ao enviar ${uploadFile.file.name}: ${errorMessage}`);
+        
         setFiles(prev => prev.map((f, idx) =>
           idx === i ? { ...f, status: 'error' as const, error: errorMessage } : f
         ));
@@ -496,12 +508,14 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
 
     setIsUploading(false);
 
-    const successCount = files.filter(f => f.status === 'complete').length +
-      files.filter(f => f.status === 'pending').length;
-
-    if (successCount > 0) {
-      toast.success(`${successCount} arquivo(s) enviado(s) com sucesso!`);
+    if (currentSuccessCount > 0 && currentErrorCount === 0) {
+      toast.success(`${currentSuccessCount} arquivo(s) enviado(s) com sucesso!`);
       onUploadComplete();
+    } else if (currentSuccessCount > 0 && currentErrorCount > 0) {
+      toast.warning(`${currentSuccessCount} arquivo(s) enviado(s), mas ${currentErrorCount} falharam.`);
+      onUploadComplete();
+    } else if (currentSuccessCount === 0 && currentErrorCount > 0) {
+      // Do not close dialog, letting user see and correct the failing files
     }
   };
 
@@ -530,9 +544,12 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         const fileHash = await calculateFileMD5(newFile.file);
 
         // Upload new file
+        const isVideo = getFileType(newFile.file.type) === 'video';
         const fileExt = newFile.file.name.split('.').pop();
-        const fileName = `${uuidv4()}.${fileExt}`;
-        const filePath = `${user.id}/${fileName}`;
+        const fileNameBase = `${uuidv4()}.${fileExt}`;
+        const finalFileName = isVideo ? `temp/${fileNameBase}` : fileNameBase;
+        
+        const filePath = `${user.id}/${finalFileName}`;
 
         await s3Client.send(new PutObjectCommand({
           Bucket: r2Config.bucketName,

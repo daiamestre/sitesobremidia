@@ -1,6 +1,7 @@
 package com.antigravity.core.domain.repository
 
 import com.antigravity.core.domain.model.Playlist
+import com.antigravity.core.domain.model.RegionalConfig
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -20,8 +21,27 @@ interface PlayerRepository {
     // Força uma sincronização com a nuvem
     suspend fun syncWithRemote(): Result<Unit>
 
+    // [YELOO] Nova abordagem de sincronização baseada em Flow
+    suspend fun syncPlaylist(screenToken: String): Flow<PlaylistState>
+
+    // [YELOO] Escuta mudanças em Tempo Real (Broadcast)
+    fun listenToChanges(screenToken: String): Flow<Unit>
+
     // Carrega a playlist do banco de dados local (Offline-First)
     suspend fun loadLocalCache(): Result<Unit>
+    
+    // [AUTO-LOGIN] Memória de credenciais
+    suspend fun salvarCredenciais(token: String, playerId: String)
+    suspend fun getStoredCredentials(): Pair<String, String>?
+    
+    // [REGIONAL CONTEXT] Gerencia a localização
+    suspend fun getLocalizacao(): RegionalConfig?
+    suspend fun salvarLocalizacao(config: RegionalConfig)
+
+    // [AUDIT LOG] Gerenciamento de logs de exibição
+    suspend fun salvarLogAuditoria(nome: String, tipo: String, duracao: Int, cidade: String)
+    suspend fun buscarLogsAuditoria(): List<com.antigravity.core.domain.model.LogAuditoria>
+    suspend fun limparLogsAuditoriaAntigos(limiteTempo: Long)
 
     // Marca uma mídia como "Tocada" para o PlayProof
     suspend fun registerPlayProof(mediaId: String, durationMs: Long)
@@ -51,4 +71,5 @@ interface PlayerRepository {
     suspend fun syncLogs(): Result<Unit>
     suspend fun reportRemoteError(type: String, message: String, stackTrace: String, stats: Map<String, Any> = emptyMap())
     suspend fun updateMediaLocalPath(mediaId: String, path: String)
+    suspend fun hasLocalMedia(): Boolean
 }

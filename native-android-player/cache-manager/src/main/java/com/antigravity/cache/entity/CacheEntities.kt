@@ -23,11 +23,13 @@ data class CachedMediaItem(
     @PrimaryKey val id: String,
     val playlistId: String, // Foreign Key relation logically
     val name: String,
-    val type: String,
+    val type: String, // Deprecated: use media_type
+    val media_type: String = "video", // 'video', 'image', 'widget'
     val durationSeconds: Long,
     val remoteUrl: String,
     val localPath: String?,
-    val hash: String,
+    val hash: String, // Deprecated: use file_hash
+    val file_hash: String = "", // O MD5 que vem do Supabase
     val orderIndex: Int,
     val startTime: String? = null,
     val endTime: String? = null,

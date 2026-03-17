@@ -26,7 +26,7 @@ export function useScreens(userId?: string) {
                 const diffSeconds = (now.getTime() - lastPing.getTime()) / 1000;
                 if (diffSeconds < 60) {
                     status = 'playing';
-                } else if (diffSeconds < 300) {
+                } else if (diffSeconds < 180) { // Changed from 300 (5 min) to 180 (3 min)
                     status = 'online'; // Idle but online
                 }
             }

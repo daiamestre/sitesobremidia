@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="32dp"
+    android:layout_margin="16dp"
+    android:background="@drawable/bg_widget_futuristic">
+
+    <View
+        android:id="@+id/glowBackground"
+        android:layout_width="140dp"
+        android:layout_height="140dp"
+        android:layout_centerVertical="true"
+        android:layout_alignParentEnd="true"
+        android:background="@drawable/glow_effect" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_centerVertical="true"
+        android:layout_toStartOf="@id/imgClimaIcon"
+        android:layout_marginEnd="20dp"
+        android:layout_alignParentStart="true">
+
+        <TextView
+            android:id="@+id/txtTemperatura"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="24°"
+            android:textColor="#00F2FF"
+            android:textSize="90sp"
+            android:fontFamily="sans-serif-condensed-light"
+            android:shadowColor="#00F2FF"
+            android:shadowDx="0"
+            android:shadowDy="0"
+            android:shadowRadius="15" />
+
+        <TextView
+            android:id="@+id/txtCidade"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CIDADE"
+            android:letterSpacing="0.2"
+            android:textColor="#80FFFFFF"
+            android:textSize="18sp"
+            android:textAllCaps="true" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/imgClimaIcon"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:src="@drawable/ic_futuristic_cloud"
+        android:elevation="10dp" />
+
+</RelativeLayout>

@@ -22,9 +22,11 @@ import com.antigravity.player.service.SelfHealingService
 import com.antigravity.player.util.GlobalErrorReporter
 import com.antigravity.player.util.NetworkMonitor
 import com.antigravity.player.util.PlaybackBufferManager
+import com.antigravity.player.worker.AuditUploadWorker
 import com.antigravity.player.worker.HealthMonitorWorker
 import com.antigravity.player.worker.LogSyncWorker
-import com.antigravity.player.worker.MaintenanceWorker
+import com.antigravity.cache.worker.MaintenanceWorker
+import com.antigravity.cache.util.WorkScheduler
 import com.antigravity.sync.service.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,32 +68,43 @@ class UserApplication : Application() {
         setupHeartbeat()
         setupLogSync()
         setupIndustrialMaintenance()
+        setupAuditUpload()
+
+        // [SCALE 10K] Reboot-safe heartbeat via WorkManager (safety net)
+        WorkScheduler.scheduleHeartbeat(this)
 
         setupCrashHandler()
         startSelfHealingService()
     }
 
     private fun setupCrashHandler() {
-        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
-            Log.e("SELF_HEALING", "CRASH DETECTADO: ${throwable.message}")
+        // [ZERO-CRASH] Intercepta crashes da Main Thread sem matar o app
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            while (true) {
+                try {
+                    android.os.Looper.loop()
+                } catch (e: Throwable) {
+                    Log.e("SELF_HEALING", "Main Thread Crash Intercepted: ${e.message}")
+                    relaunchMainActivitySilence()
+                }
+            }
+        }
 
-            val intent = packageManager.getLaunchIntentForPackage(packageName)
-            val pendingIntent = PendingIntent.getActivity(
-                this, 0, intent,
-                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
-            )
+        // [ZERO-CRASH] Intercepta crashes de Background Threads
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e("SELF_HEALING", "Worker Thread Crash in ${thread.name}: ${throwable.message}")
+            relaunchMainActivitySilence()
+        }
+    }
 
-            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.set(
-                AlarmManager.RTC_WAKEUP,
-                System.currentTimeMillis() + 5000,
-                pendingIntent
-            )
-
-            Logger.e("CRITICAL", "Auto-Restart Triggered. Exception: ${throwable.message}")
-
-            android.os.Process.killProcess(android.os.Process.myPid())
-            System.exit(10)
+    private fun relaunchMainActivitySilence() {
+        try {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("SELF_HEALING", "Failed to relaunch on crash: ${e.message}")
         }
     }
 
@@ -148,9 +161,9 @@ class UserApplication : Application() {
             immediateRequest
         )
 
-        // Periodic Background Sync
+        // Periodic Background Sync (Increased to 60 min to save egress)
         val logSyncRequest = PeriodicWorkRequestBuilder<LogSyncWorker>(
-            5, TimeUnit.MINUTES
+            60, TimeUnit.MINUTES
         )
             .setConstraints(constraints)
             .build()
@@ -188,6 +201,25 @@ class UserApplication : Application() {
             "IndustrialMaintenance",
             ExistingPeriodicWorkPolicy.KEEP,
             maintenanceRequest
+        )
+    }
+
+    private fun setupAuditUpload() {
+        val workManager = WorkManager.getInstance(this)
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val auditRequest = PeriodicWorkRequestBuilder<AuditUploadWorker>(
+            24, TimeUnit.HOURS
+        )
+            .setConstraints(constraints)
+            .build()
+
+        workManager.enqueueUniquePeriodicWork(
+            "AuditUploadWorker",
+            ExistingPeriodicWorkPolicy.KEEP,
+            auditRequest
         )
     }
 

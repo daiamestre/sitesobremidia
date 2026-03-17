@@ -31,6 +31,7 @@ const menuItems = [
   { icon: Link2, label: 'Links Externos', path: '/dashboard/links' },
   { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics' },
   { icon: History, label: 'Histórico', path: '/dashboard/history' },
+  { icon: Calendar, label: 'Relatórios', path: '/dashboard/reports' },
 ];
 
 export function Sidebar() {

@@ -1,0 +1,465 @@
+Subject: executing service com.antigravity.player/androidx.work.impl.background.systemjob.SystemJobService
+
+----- pid 9976 at 2026-02-23 04:53:18.438517800+0000 -----
+Cmd line: com.antigravity.player
+Build fingerprint: 'google/sdk_gphone64_x86_64/emulator64_x86_64_arm64:12/SE1A.220826.008/10564458:userdebug/dev-keys'
+ABI: 'x86_64'
+Build type: optimized
+Zygote loaded classes=19557 post zygote classes=267
+Dumping registered class loaders
+#0 dalvik.system.PathClassLoader: [], parent #1
+#1 java.lang.BootClassLoader: [], no parent
+#2 dalvik.system.PathClassLoader: [/data/app/~~gmcsrIYknkzgt8qs6ZU4Fw==/com.antigravity.player-vBNBExp9kSCQ96Awycm2-Q==/base.apk:/data/app/~~gmcsrIYknkzgt8qs6ZU4Fw==/com.antigravity.player-vBNBExp9kSCQ96Awycm2-Q==/base.apk!classes17.dex:/data/app/~~gmcsrIYknkzgt8qs6ZU4Fw==/com.antigravity.player-vBNBExp9kSCQ96Awycm2-Q==/base.apk!classes23.dex:/data/app/~~gmcsrIYknkzgt8qs6ZU4Fw==/com.antigravity.player-vBNBExp9kSCQ96Awycm2-Q==/base.apk!classes24.dex:/data/app/~~gmcsrIYknkzgt8qs6ZU4Fw==/com.antigravity.player-vBNBExp9kSCQ96Awycm2-Q==/base.apk!classes11.dex:/data/app/~~gmcsrIYknkzgt8qs6ZU4Fw==/com.antigravity.player-vBNBExp9kSCQ96Awycm2-Q==/base.apk!classes22.dex:/data/app/~~gmcsrIYknkzgt8qs6ZU4Fw==/com.antigravity.player-vBNBExp9kSCQ96Awycm2-Q==/base.apk!classes16.dex:/data/app/~~gmcsrIYknkzgt8qs6ZU4Fw==/com.antigravity.player-vBNBExp9kSCQ96Awycm2-Q==/base.apk!classes15.dex], parent #1
+Done dumping class loaders
+Classes initialized: 0 in 0
+Intern table: 29844 strong; 1179 weak
+JNI: CheckJNI is on; globals=354 (plus 43 weak)
+Libraries: libandroid.so libaudioeffect_jni.so libcompiler_rt.so libframework-connectivity-jni.so libicu_jni.so libjavacore.so libjavacrypto.so libjnigraphics.so libmedia_jni.so libopenjdk.so librs_jni.so librtp_jni.so libsoundpool.so libstats_jni.so libwebviewchromium_loader.so (15)
+Heap: 16% free, 2066KB/2489KB; 145296 objects
+Dumping cumulative Gc timings
+Start Dumping Averages for 1 iterations for concurrent copying
+InitializePhase:	Sum: 14.818s Avg: 14.818s
+ScanImmuneSpaces:	Sum: 3.961s Avg: 3.961s
+ThreadListFlip:	Sum: 3.394s Avg: 3.394s
+GrayAllDirtyImmuneObjects:	Sum: 1.515s Avg: 1.515s
+FlipOtherThreads:	Sum: 1.154s Avg: 1.154s
+MarkZygoteLargeObjects:	Sum: 666.327ms Avg: 666.327ms
+(Paused)GrayAllNewlyDirtyImmuneObjects:	Sum: 254.171ms Avg: 254.171ms
+RecordFree:	Sum: 134.387ms Avg: 134.387ms
+(Paused)ClearCards:	Sum: 133.364ms Avg: 133.364ms
+SweepSystemWeaks:	Sum: 119.482ms Avg: 119.482ms
+ScanCardsForSpace:	Sum: 68.623ms Avg: 68.623ms
+ProcessMarkStack:	Sum: 65.471ms Avg: 65.471ms
+VisitConcurrentRoots:	Sum: 65.373ms Avg: 65.373ms
+MarkStackAsLive:	Sum: 16.018ms Avg: 16.018ms
+SweepAllocSpace:	Sum: 13.908ms Avg: 13.908ms
+ResumeRunnableThreads:	Sum: 6.235ms Avg: 6.235ms
+SwapBitmaps:	Sum: 2.516ms Avg: 2.516ms
+SweepLargeObjects:	Sum: 2.513ms Avg: 2.513ms
+ReclaimPhase:	Sum: 1.837ms Avg: 1.837ms
+(Paused)FlipCallback:	Sum: 1.420ms Avg: 1.420ms
+(Paused)SetFromSpace:	Sum: 1.145ms Avg: 1.145ms
+CopyingPhase:	Sum: 576us Avg: 576us
+ProcessReferences:	Sum: 493us Avg: 493us
+ClearFromSpace:	Sum: 467us Avg: 467us
+Sweep:	Sum: 232us Avg: 232us
+ForwardSoftReferences:	Sum: 212us Avg: 212us
+VisitNonThreadRoots:	Sum: 199us Avg: 199us
+EnqueueFinalizerReferences:	Sum: 164us Avg: 164us
+FlipThreadRoots:	Sum: 163us Avg: 163us
+UnBindBitmaps:	Sum: 95us Avg: 95us
+EmptyRBMarkBitStack:	Sum: 89us Avg: 89us
+ResumeOtherThreads:	Sum: 77us Avg: 77us
+Done Dumping Averages
+concurrent copying paused:	Sum: 3.785s 99% C.I. 0.001s-3.783s Avg: 1.892s Max: 3.783s
+concurrent copying freed-bytes: Avg: 110KB Max: 110KB Min: 110KB
+Freed-bytes histogram: 0:1
+concurrent copying total time: 26.400s mean time: 26.400s
+concurrent copying freed: 400 objects with total size 110KB
+concurrent copying throughput: 15.1515/s / 4268B/s  per cpu-time: 52246/s / 51KB/s
+concurrent copying tracing throughput: 13KB/s  per cpu-time: 170KB/s
+Average major GC reclaim bytes ratio 0.673426 over 1 GC cycles
+Average major GC copied live bytes ratio 0.756972 over 5 major GCs
+Cumulative bytes moved 26107416
+Cumulative objects moved 503294
+Peak regions allocated 44 (11MB) / 2048 (512MB)
+Total madvise time 19.048ms
+Start Dumping Averages for 1 iterations for young concurrent copying
+ScanImmuneSpaces:	Sum: 12.696ms Avg: 12.696ms
+VisitConcurrentRoots:	Sum: 7.901ms Avg: 7.901ms
+InitializePhase:	Sum: 4.698ms Avg: 4.698ms
+GrayAllDirtyImmuneObjects:	Sum: 2.889ms Avg: 2.889ms
+SweepArray:	Sum: 2.615ms Avg: 2.615ms
+ProcessMarkStack:	Sum: 2.492ms Avg: 2.492ms
+ScanCardsForSpace:	Sum: 2.372ms Avg: 2.372ms
+SweepSystemWeaks:	Sum: 1.854ms Avg: 1.854ms
+(Paused)ClearCards:	Sum: 1.819ms Avg: 1.819ms
+(Paused)GrayAllNewlyDirtyImmuneObjects:	Sum: 1.090ms Avg: 1.090ms
+ThreadListFlip:	Sum: 801us Avg: 801us
+RecordFree:	Sum: 638us Avg: 638us
+FlipOtherThreads:	Sum: 612us Avg: 612us
+ForwardSoftReferences:	Sum: 467us Avg: 467us
+ReclaimPhase:	Sum: 405us Avg: 405us
+CopyingPhase:	Sum: 383us Avg: 383us
+ClearFromSpace:	Sum: 377us Avg: 377us
+ProcessReferences:	Sum: 330us Avg: 330us
+EnqueueFinalizerReferences:	Sum: 261us Avg: 261us
+ResetStack:	Sum: 235us Avg: 235us
+(Paused)FlipCallback:	Sum: 216us Avg: 216us
+EmptyRBMarkBitStack:	Sum: 215us Avg: 215us
+ResumeRunnableThreads:	Sum: 153us Avg: 153us
+FlipThreadRoots:	Sum: 140us Avg: 140us
+FreeList:	Sum: 103us Avg: 103us
+ResumeOtherThreads:	Sum: 93us Avg: 93us
+VisitNonThreadRoots:	Sum: 85us Avg: 85us
+(Paused)SetFromSpace:	Sum: 72us Avg: 72us
+MarkZygoteLargeObjects:	Sum: 70us Avg: 70us
+UnBindBitmaps:	Sum: 49us Avg: 49us
+SwapBitmaps:	Sum: 47us Avg: 47us
+Done Dumping Averages
+young concurrent copying paused:	Sum: 3.873ms 99% C.I. 0.283ms-3.590ms Avg: 1.936ms Max: 3.590ms
+young concurrent copying freed-bytes: Avg: 178KB Max: 178KB Min: 178KB
+Freed-bytes histogram: 0:1
+young concurrent copying total time: 46.178ms mean time: 46.178ms
+young concurrent copying freed: 1756 objects with total size 178KB
+young concurrent copying throughput: 38173.9/s / 3872KB/s  per cpu-time: 3965913/s / 3872KB/s
+young concurrent copying tracing throughput: 7319KB/s  per cpu-time: 7319KB/s
+Average minor GC reclaim bytes ratio 0.946088 over 1 GC cycles
+Average minor GC copied live bytes ratio 0.251065 over 4 minor GCs
+Cumulative bytes moved 3811360
+Cumulative objects moved 89193
+Peak regions allocated 44 (11MB) / 2048 (512MB)
+Total time spent in GC: 26.446s
+Mean GC size throughput: 10KB/s per cpu-time: 130KB/s
+Mean GC object throughput: 81.5233 objects/s
+Total number of allocations 147452
+Total bytes allocated 2354KB
+Total bytes freed 288KB
+Free memory 423KB
+Free memory until GC 423KB
+Free memory until OOME 509MB
+Total memory 2489KB
+Max memory 512MB
+Zygote space size 7176KB
+Total mutator paused time: 3.789s
+Total time waiting for GC to complete: 12.661s
+Total GC count: 2
+Total GC time: 26.446s
+Total blocking GC count: 1
+Total blocking GC time: 31.787s
+Histogram of GC count per 10000 ms: 0:5,1:1
+Histogram of blocking GC count per 10000 ms: 0:6
+Native bytes total: 4982211 registered: 618803
+Total native bytes at last GC: 4978211
+/system/framework/oat/x86_64/android.hidl.manager-V1.0-java.odex: verify
+/system/framework/oat/x86_64/android.hidl.base-V1.0-java.odex: verify
+/system/framework/oat/x86_64/android.test.base.odex: verify
+Current JIT code cache size (used / resident): 4KB / 32KB
+Current JIT data cache size (used / resident): 5KB / 32KB
+Zygote JIT code cache size (at point of fork): 12KB / 32KB
+Zygote JIT data cache size (at point of fork): 17KB / 32KB
+Current JIT mini-debug-info size: 18KB
+Current JIT capacity: 64KB
+Current number of JIT JNI stub entries: 0
+Current number of JIT code cache entries: 22
+Total number of JIT baseline compilations: 4
+Total number of JIT optimized compilations: 0
+Total number of JIT compilations for on stack replacement: 0
+Total number of JIT code cache collections: 0
+Memory used for stack maps: Avg: 310B Max: 576B Min: 56B
+Memory used for compiled code: Avg: 1015B Max: 1953B Min: 251B
+Memory used for profiling info: Avg: 120B Max: 192B Min: 48B
+Start Dumping Averages for 22 iterations for JIT timings
+Compiling optimized:	Sum: 76.491ms Avg: 3.476ms
+Compiling baseline:	Sum: 45.035ms Avg: 2.047ms
+TrimMaps:	Sum: 0 Avg: 0
+Done Dumping Averages
+Memory used for compilation: Avg: 95KB Max: 350KB Min: 13KB
+ProfileSaver total_bytes_written=0
+ProfileSaver total_number_of_writes=0
+ProfileSaver total_number_of_code_cache_queries=0
+ProfileSaver total_number_of_skipped_writes=0
+ProfileSaver total_number_of_failed_writes=0
+ProfileSaver total_ms_of_sleep=5000
+ProfileSaver total_ms_of_work=0
+ProfileSaver total_number_of_hot_spikes=0
+ProfileSaver total_number_of_wake_ups=0
+
+*** ART internal metrics ***
+  Metadata:
+    timestamp_since_start_ms: 73608
+  Metrics:
+    ClassLoadingTotalTime: count = 37183674
+    ClassVerificationTotalTime: count = 66706797
+    ClassVerificationCount: count = 61
+    WorldStopTimeDuringGCAvg: count = 1894874
+    YoungGcCount: count = 1
+    FullGcCount: count = 1
+    TotalBytesAllocated: count = 450912
+    TotalGcCollectionTime: count = 31833
+    YoungGcThroughputAvg: count = 3
+    FullGcThroughputAvg: count = 0
+    YoungGcTracingThroughputAvg: count = 7
+    FullGcTracingThroughputAvg: count = 0
+    JitMethodCompileTotalTime: count = 1092928
+    JitMethodCompileCount: count = 4
+    YoungGcCollectionTime: range = 0...60000, buckets: 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    FullGcCollectionTime: range = 0...60000, buckets: 0,0,0,0,0,0,0,1,0,0,0,0,0,0,0
+    YoungGcThroughput: range = 0...10000, buckets: 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    FullGcThroughput: range = 0...10000, buckets: 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    YoungGcTracingThroughput: range = 0...10000, buckets: 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    FullGcTracingThroughput: range = 0...10000, buckets: 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+*** Done dumping ART internal metrics ***
+
+suspend all histogram:	Sum: 3.497s 99% C.I. 0.357ms-3022.520ms Avg: 145.727ms Max: 3351.526ms
+DALVIK THREADS (14):
+"Signal Catcher" daemon prio=10 tid=6 Runnable
+  | group="system" sCount=0 ucsCount=0 flags=0 obj=0x12d810e8 self=0x7e7c78027140
+  | sysTid=9982 nice=-20 cgrp=foreground sched=0/0 handle=0x7e7aea517cf0
+  | state=R schedstat=( 2751750600 644434200 112 ) utm=100 stm=174 core=1 HZ=100
+  | stack=0x7e7aea421000-0x7e7aea423000 stackSize=987KB
+  | held mutexes= "mutator lock"(shared held)
+  native: #00 pc 000000000073cd7f  /apex/com.android.art/lib64/libart.so (art::DumpNativeStack(std::__1::basic_ostream<char, std::__1::char_traits<char> >&, int, BacktraceMap*, char const*, art::ArtMethod*, void*, bool)+127)
+  native: #01 pc 0000000000882570  /apex/com.android.art/lib64/libart.so (art::Thread::DumpStack(std::__1::basic_ostream<char, std::__1::char_traits<char> >&, bool, BacktraceMap*, bool) const+368)
+  native: #02 pc 00000000008a32fa  /apex/com.android.art/lib64/libart.so (art::DumpCheckpoint::Run(art::Thread*)+1082)
+  native: #03 pc 000000000089c1ac  /apex/com.android.art/lib64/libart.so (art::ThreadList::RunCheckpoint(art::Closure*, art::Closure*)+220)
+  native: #04 pc 000000000089b41b  /apex/com.android.art/lib64/libart.so (art::ThreadList::Dump(std::__1::basic_ostream<char, std::__1::char_traits<char> >&, bool)+1723)
+  native: #05 pc 000000000089ac2f  /apex/com.android.art/lib64/libart.so (art::ThreadList::DumpForSigQuit(std::__1::basic_ostream<char, std::__1::char_traits<char> >&)+1423)
+  native: #06 pc 0000000000835fe8  /apex/com.android.art/lib64/libart.so (art::Runtime::DumpForSigQuit(std::__1::basic_ostream<char, std::__1::char_traits<char> >&)+216)
+  native: #07 pc 000000000084c044  /apex/com.android.art/lib64/libart.so (art::SignalCatcher::HandleSigQuit()+1924)
+  native: #08 pc 000000000084adb5  /apex/com.android.art/lib64/libart.so (art::SignalCatcher::Run(void*)+341)
+  native: #09 pc 00000000000c758a  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+58)
+  native: #10 pc 000000000005fd87  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+55)
+  (no managed stack frames)
+
+"perfetto_hprof_listener" prio=10 tid=7 Native (still starting up)
+  | group="" sCount=1 ucsCount=0 flags=1 obj=0x0 self=0x7e7c7801ae90
+  | sysTid=9983 nice=-20 cgrp=foreground sched=0/0 handle=0x7e7aea41acf0
+  | state=S schedstat=( 119900 0 1 ) utm=0 stm=0 core=1 HZ=100
+  | stack=0x7e7aea324000-0x7e7aea326000 stackSize=987KB
+  | held mutexes=
+  native: #00 pc 00000000000b2745  /apex/com.android.runtime/lib64/bionic/libc.so (read+5)
+  native: #01 pc 0000000000029790  /apex/com.android.art/lib64/libperfetto_hprof.so (void* std::__1::__thread_proxy<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, ArtPlugin_Initialize::$_33> >(void*)+288)
+  native: #02 pc 00000000000c758a  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+58)
+  native: #03 pc 000000000005fd87  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+55)
+  (no managed stack frames)
+
+"ADB-JDWP Connection Control Thread" daemon prio=0 tid=8 WaitingInMainDebuggerLoop
+  | group="system" sCount=1 ucsCount=0 flags=1 obj=0x12d81160 self=0x7e7c78020200
+  | sysTid=9984 nice=-20 cgrp=foreground sched=0/0 handle=0x7e7aea31dcf0
+  | state=S schedstat=( 928912700 1591693400 79 ) utm=88 stm=4 core=3 HZ=100
+  | stack=0x7e7aea227000-0x7e7aea229000 stackSize=987KB
+  | held mutexes=
+  native: #00 pc 00000000000b3aaa  /apex/com.android.runtime/lib64/bionic/libc.so (__ppoll+10)
+  native: #01 pc 000000000006a26a  /apex/com.android.runtime/lib64/bionic/libc.so (poll+74)
+  native: #02 pc 000000000000a711  /apex/com.android.art/lib64/libadbconnection.so (adbconnection::AdbConnectionState::RunPollLoop(art::Thread*)+849)
+  native: #03 pc 0000000000008c01  /apex/com.android.art/lib64/libadbconnection.so (adbconnection::CallbackFunction(void*)+1425)
+  native: #04 pc 00000000000c758a  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+58)
+  native: #05 pc 000000000005fd87  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+55)
+  (no managed stack frames)
+
+"Jit thread pool worker thread 0" daemon prio=5 tid=9 Native
+  | group="system" sCount=1 ucsCount=0 flags=1 obj=0x12d811d8 self=0x7e7c7803bf00
+  | sysTid=9985 nice=9 cgrp=foreground sched=0/0 handle=0x7e7a9ca55cf0
+  | state=S schedstat=( 46750600 1067195500 14 ) utm=2 stm=1 core=2 HZ=100
+  | stack=0x7e7a9c957000-0x7e7a9c959000 stackSize=1019KB
+  | held mutexes=
+  native: #00 pc 000000000005adf6  /apex/com.android.runtime/lib64/bionic/libc.so (syscall+22)
+  native: #01 pc 0000000000425c9e  /apex/com.android.art/lib64/libart.so (art::ConditionVariable::WaitHoldingLocks(art::Thread*)+110)
+  native: #02 pc 00000000008a4e17  /apex/com.android.art/lib64/libart.so (art::ThreadPool::GetTask(art::Thread*)+103)
+  native: #03 pc 00000000008a4131  /apex/com.android.art/lib64/libart.so (art::ThreadPoolWorker::Run()+113)
+  native: #04 pc 00000000008a3c28  /apex/com.android.art/lib64/libart.so (art::ThreadPoolWorker::Callback(void*)+264)
+  native: #05 pc 00000000000c758a  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+58)
+  native: #06 pc 000000000005fd87  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+55)
+  (no managed stack frames)
+
+"HeapTaskDaemon" daemon prio=5 tid=10 WaitingForTaskProcessor
+  | group="system" sCount=1 ucsCount=0 flags=1 obj=0x12d81610 self=0x7e7c78031820
+  | sysTid=9986 nice=4 cgrp=foreground sched=0/0 handle=0x7e7a9c950cf0
+  | state=S schedstat=( 2888665700 40318108500 294 ) utm=234 stm=54 core=2 HZ=100
+  | stack=0x7e7a9c84e000-0x7e7a9c850000 stackSize=1035KB
+  | held mutexes=
+  native: #00 pc 000000000005adf6  /apex/com.android.runtime/lib64/bionic/libc.so (syscall+22)
+  native: #01 pc 0000000000425c9e  /apex/com.android.art/lib64/libart.so (art::ConditionVariable::WaitHoldingLocks(art::Thread*)+110)
+  native: #02 pc 00000000005718b1  /apex/com.android.art/lib64/libart.so (art::gc::TaskProcessor::GetTask(art::Thread*)+529)
+  native: #03 pc 0000000000572132  /apex/com.android.art/lib64/libart.so (art::gc::TaskProcessor::RunAllTasks(art::Thread*)+66)
+  at dalvik.system.VMRuntime.runHeapTasks(Native method)
+  at java.lang.Daemons$HeapTaskDaemon.runInternal(Daemons.java:531)
+  at java.lang.Daemons$Daemon.run(Daemons.java:139)
+  at java.lang.Thread.run(Thread.java:920)
+
+"ReferenceQueueDaemon" daemon prio=5 tid=11 Waiting
+  | group="system" sCount=1 ucsCount=0 flags=1 obj=0x12d81250 self=0x7e7c78036b90
+  | sysTid=9987 nice=4 cgrp=foreground sched=0/0 handle=0x7e7a9c847cf0
+  | state=S schedstat=( 1918500 1222700 4 ) utm=0 stm=0 core=2 HZ=100
+  | stack=0x7e7a9c745000-0x7e7a9c747000 stackSize=1035KB
+  | held mutexes=
+  at java.lang.Object.wait(Native method)
+  - waiting on <0x0086ce79> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
+  at java.lang.Object.wait(Object.java:442)
+  at java.lang.Object.wait(Object.java:568)
+  at java.lang.Daemons$ReferenceQueueDaemon.runInternal(Daemons.java:217)
+  - locked <0x0086ce79> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
+  at java.lang.Daemons$Daemon.run(Daemons.java:139)
+  at java.lang.Thread.run(Thread.java:920)
+
+"FinalizerDaemon" daemon prio=5 tid=12 Waiting
+  | group="system" sCount=1 ucsCount=0 flags=1 obj=0x12d812c8 self=0x7e7c78038760
+  | sysTid=9988 nice=4 cgrp=foreground sched=0/0 handle=0x7e7a9c73ecf0
+  | state=S schedstat=( 35683800 99185700 8 ) utm=3 stm=0 core=1 HZ=100
+  | stack=0x7e7a9c63c000-0x7e7a9c63e000 stackSize=1035KB
+  | held mutexes=
+  at java.lang.Object.wait(Native method)
+  - waiting on <0x06e4f7be> (a java.lang.Object)
+  at java.lang.Object.wait(Object.java:442)
+  at java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:190)
+  - locked <0x06e4f7be> (a java.lang.Object)
+  at java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:211)
+  at java.lang.Daemons$FinalizerDaemon.runInternal(Daemons.java:273)
+  at java.lang.Daemons$Daemon.run(Daemons.java:139)
+  at java.lang.Thread.run(Thread.java:920)
+
+"FinalizerWatchdogDaemon" daemon prio=5 tid=13 Waiting
+  | group="system" sCount=1 ucsCount=0 flags=1 obj=0x12d81340 self=0x7e7c7803a330
+  | sysTid=9989 nice=4 cgrp=foreground sched=0/0 handle=0x7e7a9c635cf0
+  | state=S schedstat=( 239590100 6442775100 28 ) utm=22 stm=0 core=2 HZ=100
+  | stack=0x7e7a9c533000-0x7e7a9c535000 stackSize=1035KB
+  | held mutexes=
+  at java.lang.Object.wait(Native method)
+  - waiting on <0x0ded901f> (a java.lang.Daemons$FinalizerWatchdogDaemon)
+  at java.lang.Object.wait(Object.java:442)
+  at java.lang.Object.wait(Object.java:568)
+  at java.lang.Daemons$FinalizerWatchdogDaemon.sleepUntilNeeded(Daemons.java:341)
+  - locked <0x0ded901f> (a java.lang.Daemons$FinalizerWatchdogDaemon)
+  at java.lang.Daemons$FinalizerWatchdogDaemon.runInternal(Daemons.java:321)
+  at java.lang.Daemons$Daemon.run(Daemons.java:139)
+  at java.lang.Thread.run(Thread.java:920)
+
+"Binder:9976_1" prio=5 tid=14 Native
+  | group="main" sCount=1 ucsCount=0 flags=1 obj=0x12d813b8 self=0x7e7c78042e40
+  | sysTid=9990 nice=0 cgrp=foreground sched=0/0 handle=0x7e7a9c42ecf0
+  | state=S schedstat=( 139649500 1291173700 45 ) utm=8 stm=5 core=3 HZ=100
+  | stack=0x7e7a9c338000-0x7e7a9c33a000 stackSize=987KB
+  | held mutexes=
+  native: #00 pc 00000000000b29e7  /apex/com.android.runtime/lib64/bionic/libc.so (__ioctl+7)
+  native: #01 pc 0000000000067b28  /apex/com.android.runtime/lib64/bionic/libc.so (ioctl+216)
+  native: #02 pc 000000000005882f  /system/lib64/libbinder.so (android::IPCThreadState::talkWithDriver(bool)+319)
+  native: #03 pc 0000000000058b10  /system/lib64/libbinder.so (android::IPCThreadState::getAndExecuteCommand()+16)
+  native: #04 pc 00000000000595bf  /system/lib64/libbinder.so (android::IPCThreadState::joinThreadPool(bool)+63)
+  native: #05 pc 0000000000085557  /system/lib64/libbinder.so (android::PoolThread::threadLoop()+23)
+  native: #06 pc 0000000000013c49  /system/lib64/libutils.so (android::Thread::_threadLoop(void*)+313)
+  native: #07 pc 00000000000d2f3c  /system/lib64/libandroid_runtime.so (android::AndroidRuntime::javaThreadShell(void*)+140)
+  native: #08 pc 0000000000013489  /system/lib64/libutils.so (thread_data_t::trampoline(thread_data_t const*)+425)
+  native: #09 pc 00000000000c758a  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+58)
+  native: #10 pc 000000000005fd87  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+55)
+  (no managed stack frames)
+
+"Binder:9976_2" prio=5 tid=15 Native
+  | group="main" sCount=1 ucsCount=0 flags=1 obj=0x12d81430 self=0x7e7c7803dad0
+  | sysTid=9991 nice=0 cgrp=foreground sched=0/0 handle=0x7e7a9c331cf0
+  | state=S schedstat=( 0 97213900 3 ) utm=0 stm=0 core=1 HZ=100
+  | stack=0x7e7a9c23b000-0x7e7a9c23d000 stackSize=987KB
+  | held mutexes=
+  native: #00 pc 00000000000b29e7  /apex/com.android.runtime/lib64/bionic/libc.so (__ioctl+7)
+  native: #01 pc 0000000000067b28  /apex/com.android.runtime/lib64/bionic/libc.so (ioctl+216)
+  native: #02 pc 000000000005882f  /system/lib64/libbinder.so (android::IPCThreadState::talkWithDriver(bool)+319)
+  native: #03 pc 0000000000058b10  /system/lib64/libbinder.so (android::IPCThreadState::getAndExecuteCommand()+16)
+  native: #04 pc 00000000000595bf  /system/lib64/libbinder.so (android::IPCThreadState::joinThreadPool(bool)+63)
+  native: #05 pc 0000000000085557  /system/lib64/libbinder.so (android::PoolThread::threadLoop()+23)
+  native: #06 pc 0000000000013c49  /system/lib64/libutils.so (android::Thread::_threadLoop(void*)+313)
+  native: #07 pc 00000000000d2f3c  /system/lib64/libandroid_runtime.so (android::AndroidRuntime::javaThreadShell(void*)+140)
+  native: #08 pc 0000000000013489  /system/lib64/libutils.so (thread_data_t::trampoline(thread_data_t const*)+425)
+  native: #09 pc 00000000000c758a  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+58)
+  native: #10 pc 000000000005fd87  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+55)
+  (no managed stack frames)
+
+"Binder:9976_3" prio=5 tid=16 Native
+  | group="main" sCount=1 ucsCount=0 flags=1 obj=0x12d814a8 self=0x7e7c7803f6a0
+  | sysTid=9994 nice=0 cgrp=foreground sched=0/0 handle=0x7e7a9c234cf0
+  | state=S schedstat=( 585719800 2754783700 89 ) utm=52 stm=6 core=2 HZ=100
+  | stack=0x7e7a9c13e000-0x7e7a9c140000 stackSize=987KB
+  | held mutexes=
+  native: #00 pc 00000000000b29e7  /apex/com.android.runtime/lib64/bionic/libc.so (__ioctl+7)
+  native: #01 pc 0000000000067b28  /apex/com.android.runtime/lib64/bionic/libc.so (ioctl+216)
+  native: #02 pc 000000000005882f  /system/lib64/libbinder.so (android::IPCThreadState::talkWithDriver(bool)+319)
+  native: #03 pc 0000000000058b10  /system/lib64/libbinder.so (android::IPCThreadState::getAndExecuteCommand()+16)
+  native: #04 pc 00000000000595bf  /system/lib64/libbinder.so (android::IPCThreadState::joinThreadPool(bool)+63)
+  native: #05 pc 0000000000085557  /system/lib64/libbinder.so (android::PoolThread::threadLoop()+23)
+  native: #06 pc 0000000000013c49  /system/lib64/libutils.so (android::Thread::_threadLoop(void*)+313)
+  native: #07 pc 00000000000d2f3c  /system/lib64/libandroid_runtime.so (android::AndroidRuntime::javaThreadShell(void*)+140)
+  native: #08 pc 0000000000013489  /system/lib64/libutils.so (thread_data_t::trampoline(thread_data_t const*)+425)
+  native: #09 pc 00000000000c758a  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+58)
+  native: #10 pc 000000000005fd87  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+55)
+  (no managed stack frames)
+
+"Binder:9976_4" prio=5 tid=17 Native
+  | group="main" sCount=1 ucsCount=0 flags=1 obj=0x12d81520 self=0x7e7c78041270
+  | sysTid=9995 nice=0 cgrp=foreground sched=0/0 handle=0x7e7a9c137cf0
+  | state=S schedstat=( 27217400 42286400 8 ) utm=1 stm=0 core=2 HZ=100
+  | stack=0x7e7a9c041000-0x7e7a9c043000 stackSize=987KB
+  | held mutexes=
+  native: #00 pc 00000000000b29e7  /apex/com.android.runtime/lib64/bionic/libc.so (__ioctl+7)
+  native: #01 pc 0000000000067b28  /apex/com.android.runtime/lib64/bionic/libc.so (ioctl+216)
+  native: #02 pc 000000000005882f  /system/lib64/libbinder.so (android::IPCThreadState::talkWithDriver(bool)+319)
+  native: #03 pc 0000000000058b10  /system/lib64/libbinder.so (android::IPCThreadState::getAndExecuteCommand()+16)
+  native: #04 pc 00000000000595bf  /system/lib64/libbinder.so (android::IPCThreadState::joinThreadPool(bool)+63)
+  native: #05 pc 0000000000085557  /system/lib64/libbinder.so (android::PoolThread::threadLoop()+23)
+  native: #06 pc 0000000000013c49  /system/lib64/libutils.so (android::Thread::_threadLoop(void*)+313)
+  native: #07 pc 00000000000d2f3c  /system/lib64/libandroid_runtime.so (android::AndroidRuntime::javaThreadShell(void*)+140)
+  native: #08 pc 0000000000013489  /system/lib64/libutils.so (thread_data_t::trampoline(thread_data_t const*)+425)
+  native: #09 pc 00000000000c758a  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+58)
+  native: #10 pc 000000000005fd87  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+55)
+  (no managed stack frames)
+
+"main" prio=5 tid=1 Runnable
+  | group="main" sCount=0 ucsCount=0 flags=0 obj=0x718415a0 self=0x7e7c7800d010
+  | sysTid=9976 nice=0 cgrp=foreground sched=0/0 handle=0x7e7dbaf3c4f8
+  | state=R schedstat=( 9679578700 54501476800 908 ) utm=751 stm=216 core=1 HZ=100
+  | stack=0x7ffd833d7000-0x7ffd833d9000 stackSize=8188KB
+  | held mutexes= "mutator lock"(shared held)
+  native: #00 pc 000000000073cd7f  /apex/com.android.art/lib64/libart.so (art::DumpNativeStack(std::__1::basic_ostream<char, std::__1::char_traits<char> >&, int, BacktraceMap*, char const*, art::ArtMethod*, void*, bool)+127)
+  native: #01 pc 0000000000882570  /apex/com.android.art/lib64/libart.so (art::Thread::DumpStack(std::__1::basic_ostream<char, std::__1::char_traits<char> >&, bool, BacktraceMap*, bool) const+368)
+  native: #02 pc 00000000008a32fa  /apex/com.android.art/lib64/libart.so (art::DumpCheckpoint::Run(art::Thread*)+1082)
+  native: #03 pc 000000000088359b  /apex/com.android.art/lib64/libart.so (art::Thread::RunCheckpointFunction()+171)
+  native: #04 pc 00000000008b935d  /apex/com.android.art/lib64/libart.so (_ZN3art8verifier4impl12_GLOBAL__N_114MethodVerifierILb0EE6VerifyEv$1bfd08e472f21f17adc16a1394b56098+8221)
+  native: #05 pc 00000000008b5026  /apex/com.android.art/lib64/libart.so (art::verifier::MethodVerifier::VerifyMethod(art::Thread*, art::ClassLinker*, art::ArenaPool*, art::verifier::VerifierDeps*, unsigned int, art::DexFile const*, art::Handle<art::mirror::DexCache>, art::Handle<art::mirror::ClassLoader>, art::dex::ClassDef const&, art::dex::CodeItem const*, art::ArtMethod*, unsigned int, art::CompilerCallbacks*, art::verifier::VerifierCallback*, bool, art::verifier::HardFailLogMode, bool, unsigned int, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >*)+390)
+  native: #06 pc 00000000008b39b1  /apex/com.android.art/lib64/libart.so (art::verifier::ClassVerifier::VerifyClass(art::Thread*, art::verifier::VerifierDeps*, art::DexFile const*, art::Handle<art::mirror::DexCache>, art::Handle<art::mirror::ClassLoader>, art::dex::ClassDef const&, art::CompilerCallbacks*, art::verifier::VerifierCallback*, bool, art::verifier::HardFailLogMode, unsigned int, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >*)+1969)
+  native: #07 pc 00000000008b2f45  /apex/com.android.art/lib64/libart.so (art::verifier::ClassVerifier::CommonVerifyClass(art::Thread*, art::verifier::VerifierDeps*, art::ObjPtr<art::mirror::Class>, art::CompilerCallbacks*, art::verifier::VerifierCallback*, bool, art::verifier::HardFailLogMode, unsigned int, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >*)+661)
+  native: #08 pc 00000000008b31d1  /apex/com.android.art/lib64/libart.so (art::verifier::ClassVerifier::VerifyClass(art::Thread*, art::verifier::VerifierDeps*, art::ObjPtr<art::mirror::Class>, art::CompilerCallbacks*, bool, art::verifier::HardFailLogMode, unsigned int, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >*)+81)
+  native: #09 pc 0000000000453f1f  /apex/com.android.art/lib64/libart.so (art::ClassLinker::PerformClassVerification(art::Thread*, art::verifier::VerifierDeps*, art::Handle<art::mirror::Class>, art::verifier::HardFailLogMode, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >*)+111)
+  native: #10 pc 0000000000452b49  /apex/com.android.art/lib64/libart.so (art::ClassLinker::VerifyClass(art::Thread*, art::verifier::VerifierDeps*, art::Handle<art::mirror::Class>, art::verifier::HardFailLogMode)+1769)
+  native: #11 pc 0000000000456d34  /apex/com.android.art/lib64/libart.so (art::ClassLinker::InitializeClass(art::Thread*, art::Handle<art::mirror::Class>, bool, bool)+1572)
+  native: #12 pc 000000000042fc64  /apex/com.android.art/lib64/libart.so (art::ClassLinker::EnsureInitialized(art::Thread*, art::Handle<art::mirror::Class>, bool, bool)+68)
+  native: #13 pc 0000000000757216  /apex/com.android.art/lib64/libart.so (art::Class_newInstance(_JNIEnv*, _jobject*)+1782)
+  at java.lang.Class.newInstance(Native method)
+  at android.app.AppComponentFactory.instantiateProvider(AppComponentFactory.java:147)
+  at androidx.core.app.CoreComponentFactory.instantiateProvider(CoreComponentFactory.java:66)
+  at android.app.ActivityThread.installProvider(ActivityThread.java:7411)
+  at android.app.ActivityThread.installContentProviders(ActivityThread.java:6939)
+  at android.app.ActivityThread.handleBindApplication(ActivityThread.java:6710)
+  at android.app.ActivityThread.access$1500(ActivityThread.java:247)
+  at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2053)
+  at android.os.Handler.dispatchMessage(Handler.java:106)
+  at android.os.Looper.loopOnce(Looper.java:201)
+  at android.os.Looper.loop(Looper.java:288)
+  at android.app.ActivityThread.main(ActivityThread.java:7839)
+  at java.lang.reflect.Method.invoke(Native method)
+  at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:548)
+  at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:1003)
+
+"Profile Saver" daemon prio=5 tid=18 Native
+  | group="system" sCount=1 ucsCount=0 flags=1 obj=0x12d81598 self=0x7e7c780465e0
+  | sysTid=9996 nice=9 cgrp=foreground sched=0/0 handle=0x7e7a9a394cf0
+  | state=S schedstat=( 2357231500 41765922400 229 ) utm=189 stm=46 core=0 HZ=100
+  | stack=0x7e7a9a29e000-0x7e7a9a2a0000 stackSize=987KB
+  | held mutexes=
+  native: #00 pc 000000000005adf6  /apex/com.android.runtime/lib64/bionic/libc.so (syscall+22)
+  native: #01 pc 0000000000425c9e  /apex/com.android.art/lib64/libart.so (art::ConditionVariable::WaitHoldingLocks(art::Thread*)+110)
+  native: #02 pc 00000000005e790e  /apex/com.android.art/lib64/libart.so (art::ProfileSaver::Run()+526)
+  native: #03 pc 00000000005ede0b  /apex/com.android.art/lib64/libart.so (art::ProfileSaver::RunProfileSaverThread(void*)+171)
+  native: #04 pc 00000000000c758a  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+58)
+  native: #05 pc 000000000005fd87  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+55)
+  (no managed stack frames)
+
+----- end 9976 -----
+
+----- Waiting Channels: pid 9976 at 2026-02-23 04:53:16.702540900+0000 -----
+Cmd line: com.antigravity.player
+
+sysTid=9976      0
+sysTid=9982      do_sigtimedwait
+sysTid=9983      pipe_read
+sysTid=9984      do_sys_poll
+sysTid=9985      futex_wait_queue_me
+sysTid=9986      futex_wait_queue_me
+sysTid=9987      futex_wait_queue_me
+sysTid=9988      futex_wait_queue_me
+sysTid=9989      futex_wait_queue_me
+sysTid=9990      binder_wait_for_work
+sysTid=9991      binder_wait_for_work
+sysTid=9994      binder_wait_for_work
+sysTid=9995      binder_wait_for_work
+sysTid=9996      futex_wait_queue_me
+
+----- end 9976 -----
+

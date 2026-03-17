@@ -20,45 +20,61 @@ import com.antigravity.sync.storage.TokenStorage
 class RemoteDataSource {
     
     private val client = SupabaseModule.client
+    val postgrest: Postgrest get() = client.postgrest
+    val realtime: Realtime get() = client.realtime
+    
     private var tokenStorage: TokenStorage? = null
+    private var appContext: android.content.Context? = null
 
     fun init(context: android.content.Context) {
+        appContext = context.applicationContext
         if (tokenStorage == null) {
             tokenStorage = TokenStorage(context)
         }
     }
 
-    // [HIGH-END] Realtime Handshake: PostgreSQL CDC via Websockets
-    suspend fun subscribeToRealtimeSync(screenUuid: String, playlistId: String?, scope: CoroutineScope) {
-        val channel = client.realtime.channel("blindada_channel")
+    // [HIGH-END] Realtime Handshake: PostgreSQL CDC via Websockets (Yeloo Style)
+    suspend fun subscribeToRealtimeSync(screenToken: String, playlistId: String?, scope: CoroutineScope) {
+        val channel = client.realtime.channel("yeloo_sync_channel")
         
-        // 1. Screens Subscription: Monitor for screen/device config changes (including is_active)
-        val screenFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-            table = "screens"
-            filter = "id=eq.$screenUuid"
+        // 1. Devices Subscription: Monitor for screen/device config changes (including orientation/active)
+        val deviceFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+            table = "devices"
+            filter = "screen_token=eq.$screenToken"
         }
         
-        screenFlow.onEach { action ->
-            Logger.i("REALTIME", "Screen Update Detected! Action: ${action.javaClass.simpleName}")
-            // Trigger a full sync nudge when screen config changes
+        deviceFlow.onEach { action ->
+            Logger.i("REALTIME", "Device Update Detected via CDC! Action: ${action.javaClass.simpleName}")
+            // Trigger a full sync nudge when device config changes
             SessionManager.triggerSyncNudge()
         }.launchIn(scope)
 
         // 2. Playlists Subscription: Monitor the actual playlist content
         if (playlistId != null) {
             val playlistFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-                table = "playlists" // Aligned with user prompt
+                table = "playlists"
                 filter = "id=eq.$playlistId"
             }
             
             playlistFlow.onEach { action ->
-                Logger.i("REALTIME", "Playlist Update Detected! Triggering download...")
+                Logger.i("REALTIME", "Playlist Header Update Detected! Triggering download...")
+                SessionManager.triggerSyncNudge()
+            }.launchIn(scope)
+
+            // 3. Playlist Items Subscription: Critical for Media Add/Remove/Sort
+            val playlistItemsFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "playlist_items"
+                filter = "playlist_id=eq.$playlistId"
+            }
+
+            playlistItemsFlow.onEach { action ->
+                Logger.i("REALTIME", "Playlist Items Updated! Triggering download...")
                 SessionManager.triggerSyncNudge()
             }.launchIn(scope)
         }
 
         channel.subscribe()
-        Logger.i("REALTIME", "Subscribed to Websockets for Screen: $screenUuid")
+        Logger.i("REALTIME", "Subscribed to Websockets for Screen Token: $screenToken")
     }
 
     // [INDUSTRIAL] Realtime Command Listener: The "Soberana" Remote control
@@ -118,151 +134,71 @@ class RemoteDataSource {
         }
     }
 
-    // Fetch the playlist assigned to this screen
+    // Fetch the playlist assigned to this screen (Yeloo Style)
     suspend fun getPlaylistForScreen(identifier: String): Playlist? {
         val normalizedId = identifier.trim().uppercase()
-        Logger.i("SYNC", "Starting Full Sync for Screen: $normalizedId")
-
-        // 1. Fetch Screen (Robust Case-Insensitive Lookup)
-        var screen = try {
-            client.from("screens")
-                .select() {
+        Logger.i("SYNC", "Starting Full Sync for Device: $normalizedId")
+        
+        // 1. Fetch Device with nested Playlist Items and Media/Widgets (Golden Tip Query)
+        val device = try {
+            client.from("devices")
+                .select(columns = io.github.jan_tennert.supabase.postgrest.query.Columns.raw("""
+                    id, 
+                    name,
+                    screen_token,
+                    current_playlist_id,
+                    version_signature,
+                    orientation,
+                    resolution,
+                    playlists (
+                        id,
+                        name,
+                        playlist_items (
+                            id, position, duration, start_time, end_time, days_of_week,
+                            medias (id, name, file_url, file_hash, media_type),
+                            widgets (id, type, configuration)
+                        )
+                    )
+                """.trimIndent())) {
                    filter {
                        or {
-                           eq("custom_id", identifier.trim())
-                           eq("custom_id", identifier.trim().uppercase())
-                           eq("custom_id", identifier.trim().lowercase())
-                           if (identifier.length > 20) { // Likely UUID
+                           eq("screen_token", identifier.trim())
+                           eq("screen_token", identifier.trim().uppercase())
+                           eq("screen_token", identifier.trim().lowercase())
+                           if (identifier.length > 20) { 
                                eq("id", identifier.trim())
                            }
                        }
                    }
-                }.decodeSingleOrNull<RemoteScreen>()
+                }.decodeSingleOrNull<com.antigravity.sync.dto.DeviceRemoteDTO>()
         } catch (e: Exception) {
-            Logger.w("SYNC", "Primary lookup failed: ${e.message}. Trying UUID fallback...")
-            null
+            Logger.e("SYNC", "Failed to fetch device data: ${e.message}")
+            throw e
         }
 
-        if (screen == null) {
-            throw Exception("[PERMANENT] Tela não encontrada no painel. Verifique o ID: $identifier")
+        if (device == null) {
+            throw Exception("[PERMANENT] Dispositivo não encontrado. Verifique o Screen Token: $identifier")
         }
 
         // Dashboard Settings Extraction
-        val orientation = screen.orientation ?: "landscape"
-        val resolution = screen.resolution ?: "16x9"
+        val orientation = device.orientation ?: "landscape"
+        val resolution = device.resolution ?: "16x9"
         
         SessionManager.currentOrientation = orientation
-        SessionManager.currentScreenName = screen.name
-        // [HARDENING] Handshake Priority: Custom ID for Auth, UUID for System Logic
-        SessionManager.currentUserId = screen.customId ?: screen.id
-        SessionManager.currentUUID = screen.id // Always the UUID for commands and files
+        SessionManager.currentScreenName = device.name ?: "Player ${device.screenToken}"
+        SessionManager.currentUserId = device.screenToken
+        SessionManager.currentUUID = device.id 
         
-        // Persist UUID for instant boot recovery
-        tokenStorage?.saveUUID(screen.id)
-        
-        // [REMOTE CONTROL] Audio State Sync
-        val isAudioEnabled = screen.audioEnabled ?: true
-        if (isAudioEnabled != SessionManager.isAudioEnabled) {
-            SessionManager.triggerAudioChange(isAudioEnabled)
-        }
+        tokenStorage?.saveUUID(device.id)
 
-        // [SCREEN ACTIVE] Propagate is_active state to player
-        val isActive = screen.isActive ?: true
-        if (isActive != SessionManager.isScreenActive) {
-            SessionManager.triggerScreenActive(isActive)
-        }
-
-        // [TIMEZONE SYNC] Apply dashboard timezone offset
-        TimeManager.setTimeZoneOffset(screen.timezoneOffset ?: -3)
-        Logger.i("SYNC", "Applied Dashboard Timezone: GMT${screen.timezoneOffset ?: -3}")
-        
-        val playlistId = screen.playlistId
-        if (playlistId == null) {
-             Logger.w("SYNC", "Screen found but no Playlist assigned.")
+        val playlist = device.playlists
+        if (playlist == null) {
+             Logger.w("SYNC", "Device found but no Playlist assigned.")
              return null
         }
 
-        // 2. Fetch Playlist
-        val remotePlaylist = client.from("playlists")
-            .select(columns = Columns.raw("id, name")) {
-                filter { eq("id", playlistId) }
-            }.decodeSingleOrNull<RemotePlaylist>()
-
-        if (remotePlaylist == null) return null
-
-        // 3. Fetch Items (WITHOUT JOINS to avoid schema relationship errors)
-        val rawItems = client.from("playlist_items")
-            .select(columns = Columns.raw("*")) {
-                filter { eq("playlist_id", playlistId) }
-            }.decodeList<com.antigravity.sync.dto.RemotePlaylistItem>()
-
-        if (rawItems.isEmpty()) {
-            return Playlist(
-                id = remotePlaylist.id,
-                name = remotePlaylist.name,
-                version = System.currentTimeMillis(),
-                items = emptyList(),
-                orientation = orientation,
-                resolution = resolution
-            )
-        }
-
-        // 4. Fetch Metadata Separately (Parallel Fetch)
-        val mediaIds = rawItems.mapNotNull { it.mediaId }.distinct()
-        val widgetIds = rawItems.mapNotNull { it.widgetId }.distinct()
-        val linkIds = rawItems.mapNotNull { it.externalLinkId }.distinct()
-
-        val mediaMap = if (mediaIds.isNotEmpty()) {
-            client.from("media").select {
-                filter { isIn("id", mediaIds) }
-            }.decodeList<RemoteMedia>()
-                .associateBy { it.id }
-        } else emptyMap()
-
-        val widgetMap = if (widgetIds.isNotEmpty()) {
-            client.from("widgets").select {
-                filter { isIn("id", widgetIds) }
-            }.decodeList<RemoteWidget>()
-                .associateBy { it.id }
-        } else emptyMap()
-
-        val linkMap = if (linkIds.isNotEmpty()) {
-            client.from("external_links").select {
-                filter { isIn("id", linkIds) }
-            }.decodeList<RemoteExternalLink>()
-                .associateBy { it.id }
-        } else emptyMap()
-
-        // 5. Merge Metadata back into items with detailed logging
-        val enrichedItems = rawItems.map { item ->
-            val media = item.mediaId?.let { id ->
-                mediaMap[id] ?: run {
-                    Logger.e("SYNC", "Metadata Missing: Media ID $id referenced by item ${item.id} not found!")
-                    null
-                }
-            }
-            val widget = item.widgetId?.let { id ->
-                widgetMap[id] ?: run {
-                    Logger.e("SYNC", "Metadata Missing: Widget ID $id referenced by item ${item.id} not found!")
-                    null
-                }
-            }
-            val link = item.externalLinkId?.let { id ->
-                linkMap[id] ?: run {
-                    Logger.e("SYNC", "Metadata Missing: External Link ID $id referenced by item ${item.id} not found!")
-                    null
-                }
-            }
-
-            item.copy(
-                media = media,
-                widget = widget,
-                externalLink = link
-            )
-        }
-
-        // 6. Combine into Domain Playlist
-        return mapToProfessionalDomain(remotePlaylist, enrichedItems, screen)
+        // 2. Map to Domain
+        return mapToProfessionalDomain(device, playlist, orientation, resolution)
     }
 
     suspend fun updateScreenActionStatus(id: String, action: String, value: String) {
@@ -284,46 +220,50 @@ class RemoteDataSource {
     }
 
     private fun mapToProfessionalDomain(
-        rawPlaylist: RemotePlaylist,
-        rawItems: List<com.antigravity.sync.dto.RemotePlaylistItem>,
-        screen: RemoteScreen
+        device: com.antigravity.sync.dto.DeviceRemoteDTO,
+        playlist: com.antigravity.sync.dto.PlaylistRemoteDTO,
+        orientation: String,
+        resolution: String
     ): Playlist {
+        val rawItems = playlist.items
         val domainItems = rawItems.mapNotNull { item ->
-            // Support priority: Media > Widget > External Link
             val media = item.media
             val widget = item.widget
-            val extLink = item.externalLink
 
             val itemId: String
             val itemName: String
             val itemType: MediaType
             val itemUrl: String
+            val itemHash: String
 
             when {
                 media != null -> {
                     itemId = media.id
                     itemName = media.name
-                    itemType = when (media.type) {
+                    itemType = when (media.mediaType) {
                         "video" -> MediaType.VIDEO
                         "image" -> MediaType.IMAGE
-                        else -> inferMediaType(media.url)
+                        else -> inferMediaType(media.fileUrl)
                     }
-                    itemUrl = media.url
+                    itemUrl = media.fileUrl
+                    itemHash = media.fileHash
                 }
                 widget != null -> {
                     itemId = widget.id
-                    itemName = widget.name
+                    itemName = "Widget ${widget.type}"
                     itemType = MediaType.WEB_WIDGET
-                    itemUrl = "https://sitesobremidia.vercel.app/player/widget/${widget.id}"
+                    val baseWidgetUrl = "native_widget://${widget.type.lowercase()}/${widget.id}"
+                    val configJson = widget.configuration
+                    itemUrl = if (!configJson.isNullOrBlank()) {
+                        "$baseWidgetUrl?config=${java.net.URLEncoder.encode(configJson, "UTF-8")}"
+                    } else {
+                        baseWidgetUrl
+                    }
+                    itemHash = itemUrl.hashCode().toString()
                 }
-                extLink != null -> {
-                    itemId = extLink.id
-                    itemName = extLink.title
-                    itemType = MediaType.EXTERNAL_LINK
-                    itemUrl = "https://sitesobremidia.vercel.app/player/link/${extLink.id}"
-                }
+                // Users new list focuses on medias/widgets
                 else -> {
-                    Logger.e("SYNC", "FILTERED: Item ${item.id} (Pos: ${item.order}) has no valid Media, Widget or Link metadata.")
+                    Logger.e("SYNC", "FILTERED: Item ${item.id} (Pos: ${item.position}) has no valid Media or Widget metadata.")
                     return@mapNotNull null
                 }
             }
@@ -332,11 +272,11 @@ class RemoteDataSource {
                 id = itemId,
                 name = itemName,
                 type = itemType,
-                durationSeconds = item.duration ?: 10L,
+                durationSeconds = item.duration / 1000, 
                 remoteUrl = itemUrl,
                 localPath = null,
-                hash = itemUrl.hashCode().toString(), // [FIX] Force delta sync on URL change
-                orderIndex = item.order ?: 0,
+                hash = itemHash,
+                orderIndex = item.position,
                 startTime = item.startTime,
                 endTime = item.endTime,
                 daysOfWeek = item.daysOfWeek,
@@ -345,13 +285,13 @@ class RemoteDataSource {
         }.sortedBy { it.orderIndex }
 
         return Playlist(
-            id = rawPlaylist.id,
-            name = rawPlaylist.name,
+            id = playlist.id,
+            name = playlist.name,
             version = System.currentTimeMillis(),
             items = domainItems,
-            orientation = screen.orientation ?: "landscape",
-            resolution = screen.resolution ?: "16x9",
-            heartbeatIntervalSeconds = 60, // Default for now
+            orientation = orientation,
+            resolution = resolution,
+            heartbeatIntervalSeconds = 60,
             seamlessTransition = true,
             cacheNextMedia = true
         )
@@ -449,21 +389,66 @@ class RemoteDataSource {
             ) {
                 filter { eq("id", deviceId) }
             }
-            Logger.i("SYNC", "Realtime Confirmation: last_heartbeat updated.")
+            Logger.i("SYNC", "Realtime Confirmation: table 'devices' updated.")
         } catch (e: Exception) {
-            val isRlsError = e.message?.contains("403", ignoreCase = true) == true || 
-                             e.message?.contains("permission", ignoreCase = true) == true
+            val msg = e.message ?: ""
+            val isRecursionError = msg.contains("stack depth limit exceeded", ignoreCase = true)
+            val isRlsError = msg.contains("403", ignoreCase = true) || msg.contains("permission", ignoreCase = true)
             
+            if (isRecursionError) {
+                Logger.e("DB_CRITICAL", "RECURSION DETECTED: A tabela 'devices' está em loop infinito (RLS/Trigger).")
+                Logger.w("SYNC", "Otimização: Ignorando update redundante em 'devices' para evitar crash.")
+                return 
+            }
+
             if (isRlsError) {
-                Logger.e("AUTH_SHIELD", "RLS BLOCK: Dispositivo sem permissão para atualizar status (ID: $deviceId)")
-                // Log local for diagnostic without needing remote access
-                Logger.e("LOCAL_LOG", "[${getIsoTimestamp()}] Erro de Autenticação: Acesso negado pelo RLS ao atualizar heartbeat.")
+                Logger.e("AUTH_SHIELD", "RLS BLOCK: Dispositivo sem permissão para atualizar 'devices' (ID: $deviceId)")
             } else {
-                Logger.e("SYNC", "Realtime Heartbeat Failed: ${e.message}")
+                if (msg.contains("JWT expired", ignoreCase = true) || msg.contains("401", ignoreCase = true)) {
+                    appContext?.let { ctx ->
+                        try {
+                            com.antigravity.sync.repository.AuthRepository().forceRefreshSession(ctx)
+                            val newTimestamp = getIsoTimestamp()
+                            client.from("devices").update(mapOf("last_heartbeat" to newTimestamp)) { filter { eq("id", deviceId) } }
+                            Logger.i("SYNC", "Realtime Confirmation: updated after JWT refresh.")
+                            return
+                        } catch (retryEx: Exception) {
+                            Logger.e("SYNC", "Realtime Heartbeat Failed after retry: ${retryEx.message}")
+                            return
+                        }
+                    }
+                }
+                Logger.e("SYNC", "Realtime Heartbeat Failed: $msg")
             }
         }
     }
 
+
+    // [SCALE 10K] Ultra-Lightweight Heartbeat -> device_health table (1kb payload)
+    // NOTE: Prefer using HeartbeatManager.sendPulse() for the full DTO.
+    //       This method is kept as a simplified fallback.
+    suspend fun upsertDeviceHealth(
+        deviceId: String,
+        status: String = "online",
+        appVersion: String? = null,
+        storageUsagePercent: Int? = null
+    ) {
+        if (deviceId.isBlank() || deviceId == "N/A") return
+        try {
+            val payload = buildMap<String, Any?> {
+                put("device_id", deviceId)
+                put("last_seen", getIsoTimestamp())
+                if (appVersion != null) put("app_version", appVersion)
+                if (storageUsagePercent != null) put("storage_usage_percent", storageUsagePercent)
+            }
+            client.from("device_health").upsert(payload) {
+                onConflict = "device_id"
+            }
+            Logger.d("PULSE", "Heartbeat OK -> device_health (ID: $deviceId)")
+        } catch (e: Exception) {
+            Logger.w("PULSE", "Heartbeat to device_health failed: ${e.message}")
+        }
+    }
 
     // [NEW] Update Screen Status (Heartbeat)
     suspend fun updateScreenStatus(
@@ -480,17 +465,18 @@ class RemoteDataSource {
             com.antigravity.core.util.Logger.e("SYNC", "Aborting Heartbeat: ID is blank or N/A")
             return
         }
+        val rpcParams = buildMap {
+            put("p_screen_id", id)
+            put("p_status", status)
+            put("p_version", version)
+            put("p_ram_usage", ramUsage ?: "N/A")
+            put("p_free_space", freeSpace ?: "N/A")
+            put("p_cpu_temp", cpuTemp ?: "N/A")
+            put("p_uptime", uptime ?: "N/A")
+            put("p_ip_address", ipAddress ?: "N/A")
+        }
+
         try {
-            val rpcParams = buildMap {
-                put("p_screen_id", id)
-                put("p_status", status)
-                put("p_version", version)
-                put("p_ram_usage", ramUsage ?: "N/A")
-                put("p_free_space", freeSpace ?: "N/A")
-                put("p_cpu_temp", cpuTemp ?: "N/A")
-                put("p_uptime", uptime ?: "N/A")
-                put("p_ip_address", ipAddress ?: "N/A")
-            }
 
             // [PERFORMANCE] RPC Call: Standardized endpoint for massive scale
             val response = client.postgrest.rpc("pulse_screen", rpcParams)
@@ -506,6 +492,22 @@ class RemoteDataSource {
             com.antigravity.core.util.Logger.i("SYNC", "Heartbeat confirmed for ID: $id (Resp: ${response.data})")
         } catch (e: Exception) {
             val errorBody = (e as? io.github.jan.supabase.exceptions.RestException)?.description ?: e.message
+            
+            // [NEW] Automatic Retry on JWT Expired
+            if (errorBody?.contains("JWT expired", ignoreCase = true) == true || errorBody?.contains("401", ignoreCase = true) == true) {
+                appContext?.let { ctx ->
+                    try {
+                        com.antigravity.sync.repository.AuthRepository().forceRefreshSession(ctx)
+                        val response = client.postgrest.rpc("pulse_screen", rpcParams)
+                        com.antigravity.core.util.Logger.i("SYNC", "Heartbeat confirmed for ID: $id after JWT refresh.")
+                        return
+                    } catch (retryEx: Exception) {
+                        com.antigravity.core.util.Logger.e("SYNC", "Heartbeat Error after retry [ID=$id]: ${retryEx.message}")
+                        throw retryEx
+                    }
+                }
+            }
+
             com.antigravity.core.util.Logger.e("SYNC", "Heartbeat Error [ID=$id]: $errorBody")
             throw e
         }
@@ -552,6 +554,55 @@ class RemoteDataSource {
         }
     }
 
+    // [OFFLINE ANALYTICS] Descarregamento Diário Assíncrono do Cofre
+    suspend fun uploadAnalyticsBatch(logs: List<Map<String, Any>>): Boolean {
+        if (logs.isEmpty()) return true
+        
+        // Converte o List de Maps de volta para um formato JSON escalável que
+        // a RPC process_display_analytics_batch (PostgreSQL) consiga interpretar e iterar.
+        val jsonArray = kotlinx.serialization.json.buildJsonArray {
+            logs.forEach { log ->
+                add(kotlinx.serialization.json.buildJsonObject {
+                    put("screen_id", log["screen_id"].toString())
+                    put("media_id", log["media_id"].toString())
+                    put("media_name", log["media_name"].toString())
+                    put("duration_seconds", log["duration_seconds"] as Int)
+                    put("played_at", log["played_at"].toString())
+                })
+            }
+        }
+        val rpcParams = kotlinx.serialization.json.buildJsonObject {
+            put("payload", jsonArray)
+        }
+
+        return try {
+            com.antigravity.core.util.Logger.w("SYNC_ANALYTICS", ">>> INICIANDO DESCARGA BATCH: ${logs.size} EXIBIÇÕES")
+            client.postgrest.rpc("process_display_analytics_batch", rpcParams)
+            com.antigravity.core.util.Logger.i("SYNC_ANALYTICS", ">>> BATCH [OK]. O painel estatístico foi atualizado.")
+            true
+        } catch (e: Exception) {
+            val errorBody = (e as? io.github.jan.supabase.exceptions.RestException)?.description ?: e.message
+            
+            // Automatic Retry on JWT Expired specifically for Analytics Batch
+            if (errorBody?.contains("JWT expired", ignoreCase = true) == true || errorBody?.contains("401", ignoreCase = true) == true) {
+                appContext?.let { ctx ->
+                    try {
+                        com.antigravity.core.util.Logger.w("SYNC_ANALYTICS", "JWT Expirado durante Batch. Refazendo Sessão...")
+                        com.antigravity.sync.repository.AuthRepository().forceRefreshSession(ctx)
+                        client.postgrest.rpc("process_display_analytics_batch", rpcParams)
+                        com.antigravity.core.util.Logger.i("SYNC_ANALYTICS", ">>> BATCH [OK] (Após refresh de JWT).")
+                        return true
+                    } catch (retryEx: Exception) {
+                        com.antigravity.core.util.Logger.e("SYNC_ANALYTICS", "Falha de Batch mesmo após refresh: ${retryEx.message}")
+                        return false
+                    }
+                }
+            }
+            
+            com.antigravity.core.util.Logger.e("SYNC_ANALYTICS", "### REJEIÇÃO BATCH [REST ERROR]: $errorBody")
+            false
+        }
+    }
 
     // Helper for ISO 8601 Timestamp (MinSDK 21 safe)
     private fun getIsoTimestamp(): String {

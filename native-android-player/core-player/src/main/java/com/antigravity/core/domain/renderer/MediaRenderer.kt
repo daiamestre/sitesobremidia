@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.Flow
  * O Core não sabe o que é ExoPlayer ou WebView. Ele só sabe "Renderize isso".
  */
 interface MediaRenderer {
-    fun prepare(mediaItem: MediaItem)
-    fun preparePlaylist(items: List<MediaItem>)
+    suspend fun prepare(mediaItem: MediaItem)
+    suspend fun preparePlaylist(items: List<MediaItem>)
     fun play()
     fun pause()
     fun stop()

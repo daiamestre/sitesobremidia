@@ -44,6 +44,9 @@ interface PlayerDao {
     @Query("DELETE FROM media_item")
     suspend fun deleteAllMediaItems()
 
+    @Query("SELECT * FROM media_item")
+    suspend fun getAllMediaItems(): List<CachedMediaItem>
+
     @Query("UPDATE media_item SET localPath = :path WHERE id = :mediaId")
     suspend fun updateMediaLocalPath(mediaId: String, path: String)
 }

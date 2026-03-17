@@ -30,10 +30,12 @@ fun MediaItem.toCache(playlistId: String): CachedMediaItem {
         playlistId = playlistId,
         name = this.name,
         type = this.type.name,
+        media_type = this.type.name.lowercase(),
         durationSeconds = this.durationSeconds,
         remoteUrl = this.remoteUrl,
         localPath = this.localPath,
         hash = this.hash,
+        file_hash = this.hash,
         orderIndex = this.orderIndex,
         startTime = this.startTime,
         endTime = this.endTime,
@@ -62,11 +64,14 @@ fun CachedMediaItem.toDomain(): MediaItem {
     return MediaItem(
         id = this.id,
         name = this.name,
-        type = try { MediaType.valueOf(this.type) } catch (e: Exception) { MediaType.VIDEO },
+        type = try { 
+            val rawType = if (this.media_type != "video") this.media_type else this.type
+            MediaType.valueOf(rawType.uppercase()) 
+        } catch (e: Exception) { MediaType.VIDEO },
         durationSeconds = this.durationSeconds,
         remoteUrl = this.remoteUrl,
         localPath = this.localPath,
-        hash = this.hash,
+        hash = if (this.file_hash.isNotEmpty()) this.file_hash else this.hash,
         orderIndex = this.orderIndex,
         startTime = this.startTime,
         endTime = this.endTime,

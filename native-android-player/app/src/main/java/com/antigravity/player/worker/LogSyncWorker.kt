@@ -14,6 +14,9 @@ class LogSyncWorker(
 
     override suspend fun doWork(): Result {
         return try {
+            val authRepo = com.antigravity.sync.repository.AuthRepository()
+            authRepo.ensureValidSession(applicationContext)
+
             val repository = ServiceLocator.getRepository(applicationContext)
             
             // [INDUSTRIAL] Batch PoP Upload

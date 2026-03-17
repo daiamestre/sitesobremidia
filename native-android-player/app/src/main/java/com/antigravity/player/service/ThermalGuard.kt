@@ -23,6 +23,8 @@ class ThermalGuard(private val context: Context) {
             val temp = readCpuTemperature()
             if (temp >= criticalTemp) {
                 handleOverheating(temp)
+            } else if (isOverheating) {
+                restoreNormalOperation()
             }
             handler.postDelayed(this, checkInterval)
         }
@@ -40,12 +42,42 @@ class ThermalGuard(private val context: Context) {
         handler.removeCallbacks(monitorRunnable)
     }
 
+    private var isOverheating = false
+
     private fun handleOverheating(temp: Float) {
-        Logger.w("THERMAL", "ALERTA: Temperatura crítica detectada: ${temp}°C. Aplicando contramedidas...")
+        if (isOverheating) return
+        isOverheating = true
+        Logger.w("THERMAL", "ALERTA: Temperatura crítica detectada: ${temp}°C. Reduzindo brilho para cooling...")
         
-        // 1. Log event locally and report to dashboard
-        // 2. Reduce visual load (could stop background animations or reduce brightness)
-        // For now, we log it and notify existing telemetry
+        val activity = context as? android.app.Activity
+        activity?.runOnUiThread {
+            try {
+                val window = activity.window
+                val layoutParams = window.attributes
+                layoutParams.screenBrightness = 0.2f // 20% brightness
+                window.attributes = layoutParams
+            } catch (e: Exception) {
+               Logger.e("THERMAL", "Failed to reduce brightness: ${e.message}") 
+            }
+        }
+    }
+
+    private fun restoreNormalOperation() {
+        if (!isOverheating) return
+        isOverheating = false
+        Logger.i("THERMAL", "Temperatura normalizada. Restaurando brilho original.")
+        
+        val activity = context as? android.app.Activity
+        activity?.runOnUiThread {
+            try {
+                val window = activity.window
+                val layoutParams = window.attributes
+                layoutParams.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE // Restore System brightness
+                window.attributes = layoutParams
+            } catch (e: Exception) {
+               Logger.e("THERMAL", "Failed to restore brightness: ${e.message}") 
+            }
+        }
     }
 
     private fun readCpuTemperature(): Float {

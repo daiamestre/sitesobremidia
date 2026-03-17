@@ -4,6 +4,7 @@ import android.content.Context
 import com.antigravity.player.di.ServiceLocator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.firstOrNull
 
 /**
  * 🧹 SmartCacheCleaner - Limpeza Cirúrgica de Disco
@@ -22,10 +23,14 @@ object SmartCacheCleaner {
             com.antigravity.core.util.Logger.i("CACHE_CLEANER", "Iniciando varredura inteligente de disco...")
             
             val repository = ServiceLocator.getRepository(context)
+            val currentPlaylist = repository.getActivePlaylist().firstOrNull()
             
-            // O Repository já possui a lógica de limpeza baseada em IDs reais (mediaId.dat),
-            // o que é mais seguro do que nomes extraídos de URLs que podem sofrer alterações.
-            repository.performMaintenanceCleanup()
+            if (currentPlaylist != null) {
+                val activeIds = currentPlaylist?.items?.map { it.id } ?: emptyList()
+                CleanupManager.executarFaxina(context, activeIds)
+            } else {
+                com.antigravity.core.util.Logger.w("CACHE_CLEANER", "Playlist não encontrada para faxina automática.")
+            }
             
             com.antigravity.core.util.Logger.i("CACHE_CLEANER", "Limpeza concluída com sucesso.")
         } catch (e: Exception) {

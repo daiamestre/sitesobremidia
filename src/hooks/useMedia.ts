@@ -28,13 +28,31 @@ export function useMedia(userId?: string) {
     });
 
     const deleteMutation = useMutation({
-        mutationFn: async ({ id, filePath }: { id: string, filePath: string }) => {
+        mutationFn: async ({ id, filePath, fileUrl }: { id: string, filePath: string, fileUrl: string }) => {
             // 1. Delete from storage
-            const { error: storageError } = await supabase.storage
-                .from('media')
-                .remove([filePath]);
+            const isR2 = fileUrl?.includes('r2.dev') || fileUrl?.includes('cloudflarestorage.com');
 
-            if (storageError) throw storageError;
+            if (isR2) {
+                try {
+                    const { s3Client, r2Config } = await import('@/lib/r2Client');
+                    const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+                    await s3Client.send(new DeleteObjectCommand({
+                        Bucket: r2Config.bucketName,
+                        Key: filePath,
+                    }));
+                } catch (e) {
+                    console.error('Error deleting from R2:', e);
+                    // Continue even if R2 deletion fails, to keep DB clean
+                }
+            } else {
+                const { error: storageError } = await supabase.storage
+                    .from('media')
+                    .remove([filePath]);
+
+                if (storageError) {
+                    console.error('Error deleting from Supabase Storage:', storageError);
+                }
+            }
 
             // 2. Delete from database
             const { error: dbError } = await supabase
@@ -55,9 +73,9 @@ export function useMedia(userId?: string) {
         }
     });
 
-    const deleteMedia = async (id: string, filePath: string) => {
+    const deleteMedia = async (id: string, filePath: string, fileUrl: string) => {
         try {
-            await deleteMutation.mutateAsync({ id, filePath });
+            await deleteMutation.mutateAsync({ id, filePath, fileUrl });
             return true;
         } catch {
             return false;

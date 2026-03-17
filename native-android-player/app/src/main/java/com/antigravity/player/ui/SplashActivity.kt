@@ -83,10 +83,33 @@ class SplashActivity : AppCompatActivity() {
     private fun checkRouting() {
         val auth = ServiceLocator.authRepository
         val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-        val savedScreenId = prefs.getString("saved_screen_id", null)
 
         // Make it async to allow network calls (refresh token)
         lifecycleScope.launch {
+            
+            // [AUTO-LOGIN] Prioridade Máxima: Checar Banco Persistente (Room)
+            val credentials = try {
+                ServiceLocator.getRepository(applicationContext).getStoredCredentials()
+            } catch (e: Exception) { null }
+            
+            if (credentials != null) {
+                com.antigravity.core.util.Logger.i("BOOT", "Auto-Login: Credenciais robustas encontradas no Room. Pulando para Sincronização.")
+                
+                // Carrega memória volátil para não quebrar requests HTTP do Supabase
+                com.antigravity.sync.service.SessionManager.currentAccessToken = credentials.first
+                
+                // Retro-compatibilidade (garante que bibliotecas antigas não quebrem)
+                prefs.edit().putString("auth_token", credentials.first)
+                     .putString("saved_screen_id", credentials.second).apply()
+                
+                val intent = Intent(this@SplashActivity, com.antigravity.player.MainActivity::class.java)
+                startActivity(intent)
+                finish()
+                return@launch
+            }
+            
+            val savedScreenId = prefs.getString("saved_screen_id", null)
+            
             // Restore Session from Secure Storage (Disk) -> Auto Refresh if needed
             // [HARDENING] Safety Timeout to prevent Splash Hang
             val isSessionValid = withTimeoutOrNull(15000) {
