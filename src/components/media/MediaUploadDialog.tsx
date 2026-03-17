@@ -399,17 +399,39 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         let thumbnailUrl: string | null = null;
         if (uploadFile.thumbnailBlob) {
           const thumbName = `${uuidv4()}-thumb.jpg`;
-          const thumbPath = `${user.id}/thumbnails/${thumbName}`;
+          const thumbFileName = `thumbnails/${thumbName}`;
 
-          await s3Client.send(new PutObjectCommand({
-            Bucket: r2Config.bucketName,
-            Key: thumbPath,
-            Body: uploadFile.thumbnailBlob,
-            ContentType: 'image/jpeg',
-            CacheControl: CDN_CACHE_HEADERS.thumbnail,
-          }));
+          try {
+            const { data: thumbPresigned, error: thumbError } = await supabase.functions.invoke('get-upload-url', {
+              body: {
+                fileName: thumbFileName,
+                contentType: 'image/jpeg',
+                userId: user.id,
+              }
+            });
 
-          thumbnailUrl = getCdnUrl(thumbPath);
+            if (thumbError || !thumbPresigned?.signedUrl) {
+              console.warn('Failed to get presigned URL for thumbnail', thumbError);
+            } else {
+              // Using fetch for the tiny thumbnail is fine, no progress needed
+              const res = await fetch(thumbPresigned.signedUrl, {
+                method: 'PUT',
+                body: uploadFile.thumbnailBlob,
+                headers: {
+                  'Content-Type': 'image/jpeg',
+                },
+              });
+
+              if (res.ok) {
+                thumbnailUrl = thumbPresigned.publicUrl;
+                console.log('[UPLOAD] Thumbnail upload successful');
+              } else {
+                console.warn('Thumbnail direct upload failed:', res.statusText);
+              }
+            }
+          } catch (err) {
+            console.warn('Error uploading thumbnail:', err);
+          }
         }
 
         // Save to database
