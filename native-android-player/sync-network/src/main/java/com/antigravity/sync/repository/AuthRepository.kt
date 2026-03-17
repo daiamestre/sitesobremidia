@@ -107,7 +107,33 @@ class AuthRepository {
         return false
     }
 
-    private suspend fun refreshToken(refreshToken: String, context: android.content.Context): Boolean {
+    suspend fun ensureValidSession(context: android.content.Context): Boolean {
+        val storage = com.antigravity.sync.storage.TokenStorage(context)
+        val accessToken = storage.getAccessToken()
+        val refreshToken = storage.getRefreshToken()
+        
+        if (accessToken != null) {
+            if (storage.isTokenExpired() && refreshToken != null) {
+                println("AUTH: Token expired. Refreshing during active session...")
+                return refreshToken(refreshToken, context)
+            }
+            return true
+        }
+        return false
+    }
+
+    suspend fun forceRefreshSession(context: android.content.Context): Boolean {
+        val storage = com.antigravity.sync.storage.TokenStorage(context)
+        val refreshToken = storage.getRefreshToken()
+        
+        if (refreshToken != null) {
+            println("AUTH: Force Refreshing session (bypassing local clock)...")
+            return refreshToken(refreshToken, context)
+        }
+        return false
+    }
+
+    suspend fun refreshToken(refreshToken: String, context: android.content.Context): Boolean {
          return try {
             val endpoint = "${com.antigravity.sync.config.SupabaseConfig.URL}/auth/v1/token?grant_type=refresh_token"
             

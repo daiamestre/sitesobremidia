@@ -23,8 +23,8 @@ class PlaybackWatchdog(
 ) {
     companion object {
         private const val TAG = "PlaybackWatchdog"
-        private const val CHECK_INTERVAL_MS = 500L
-        private const val FREEZE_THRESHOLD = 2 // 2 checks × 0.5s = 1s without position change
+        private const val CHECK_INTERVAL_MS = 1000L // 1 second interval
+        private const val FREEZE_THRESHOLD = 3    // 3 seconds total
     }
 
     private val handler = Handler(Looper.getMainLooper())

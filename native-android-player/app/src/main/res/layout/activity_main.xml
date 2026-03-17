@@ -29,22 +29,24 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="invisible"
+            android:alpha="0.0"
             app:use_controller="false"
             app:show_buffering="never"
             app:shutter_background_color="@android:color/transparent"
-            app:surface_type="surface_view"
-            app:resize_mode="zoom" />
+            app:surface_type="texture_view"
+            app:resize_mode="fit" />
 
         <androidx.media3.ui.PlayerView
             android:id="@+id/playerView2"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="invisible"
+            android:alpha="0.0"
             app:use_controller="false"
             app:show_buffering="never"
             app:shutter_background_color="@android:color/transparent"
-            app:surface_type="surface_view"
-            app:resize_mode="zoom" />
+            app:surface_type="texture_view"
+            app:resize_mode="fit" />
 
         <!-- Motor Estático (Glide / Bitmaps Descomprimidos) -->
         <ImageView
@@ -56,48 +58,18 @@
             android:background="@android:color/black" />
     </FrameLayout>
 
-    <!-- Layer 2: Web Engine Overlay (Placeholder/Control) -->
-    <!-- Nota: O Motor Web Real roda na WidgetActivity (Processo :web_engine) -->
+    <!-- Layer 2: Native Widget Engine Overlay -->
     <FrameLayout
-        android:id="@+id/web_overlay_container"
+        android:id="@+id/native_widget_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone" />
-
-    <!-- Loading Overlay (Initial Boot Only) -->
-    <FrameLayout
-        android:id="@+id/loading_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#0F172A"
-        android:elevation="10dp"
-        android:visibility="visible">
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:orientation="vertical"
-            android:gravity="center">
-
-            <!-- Logo or Icon -->
-            <ImageView
-                android:layout_width="150dp"
-                android:layout_height="150dp"
-                android:src="@mipmap/ic_launcher_round"
-                android:layout_marginBottom="32dp"
-                android:elevation="4dp"/>
-            
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Sobre Mídia Player"
-                android:textColor="#9C27B0"
-                android:textSize="36sp"
-                android:textStyle="bold"
-                android:layout_marginTop="8dp"/>
-        </LinearLayout>
+        android:background="#000000"
+        android:visibility="gone">
+        <!-- Views nativas de Clima e Relógio serão infladas aqui via código -->
     </FrameLayout>
+
+    <!-- [NEW] Strict SyncGuard Loading Gate -->
+    <include layout="@layout/sync_guard_screen" />
 
 
     <!-- Permanent Status Overlay (Bottom Layer) -->

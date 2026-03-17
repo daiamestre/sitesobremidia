@@ -50,6 +50,20 @@ class RealtimeManager(
                     onCommand(command)
                 }?.launchIn(scope)
 
+                // [SCALE 10K] CDC Listener: Listen for playlist_items changes via PostgreSQL Replication
+                try {
+                    val cdcFlow = channel?.postgresChangeFlow<io.github.jan.supabase.realtime.PostgresAction>(schema = "public") {
+                        table = "playlist_items"
+                    }
+                    cdcFlow?.onEach { action ->
+                        Logger.i("REALTIME", "CDC: playlist_items changed! Action: ${action.javaClass.simpleName}")
+                        onCommand(RemoteCommand(command = "reload", payload = "cdc_playlist_update"))
+                    }?.launchIn(scope)
+                    Logger.i("REALTIME", "CDC Subscription active for playlist_items")
+                } catch (e: Exception) {
+                    Logger.w("REALTIME", "CDC subscription failed (non-critical): ${e.message}")
+                }
+
                 channel?.subscribe()
                 Logger.i("REALTIME", "Subscribed! Listening for commands.")
                 onConnected()

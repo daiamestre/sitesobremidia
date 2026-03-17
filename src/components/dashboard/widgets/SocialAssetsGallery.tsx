@@ -9,6 +9,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
+import { PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import {
     Select,
     SelectContent,
@@ -68,34 +70,37 @@ export function SocialAssetsGallery({
         if (!user) return;
         try {
             setLoading(true);
-            const folderPath = `${user.id}/social/${activeTab}`;
+            const folderPath = `${user.id}/social/${activeTab}/`;
 
-            const { data, error } = await supabase.storage
-                .from('media')
-                .list(folderPath, {
-                    limit: 100,
-                    offset: 0,
-                    sortBy: { column: 'created_at', order: 'desc' },
-                });
+            const command = new ListObjectsV2Command({
+                Bucket: r2Config.bucketName,
+                Prefix: folderPath,
+            });
+            const { Contents } = await s3Client.send(command);
 
-            if (error) throw error;
+            const files = Contents || [];
+            
+            // Sort by LastModified desc
+            files.sort((a, b) => {
+                const dateA = a.LastModified?.getTime() || 0;
+                const dateB = b.LastModified?.getTime() || 0;
+                return dateB - dateA;
+            });
 
-            const files = data || [];
             // Filter out empty folder placeholders if any
-            const realFiles = files.filter(f => f.name !== '.emptyFolderPlaceholder');
+            const realFiles = files.filter(f => f.Key && !f.Key.endsWith('.emptyFolderPlaceholder'));
 
             const processedAssets: AssetFile[] = realFiles.map(file => {
-                const { data: { publicUrl } } = supabase.storage
-                    .from('media')
-                    .getPublicUrl(`${folderPath}/${file.name}`);
+                const url = getCdnUrl(file.Key!);
+                const name = file.Key!.split('/').pop() || '';
 
                 return {
-                    name: file.name,
-                    id: file.id || file.name,
-                    created_at: file.created_at,
-                    size: file.metadata?.size || 0,
-                    type: file.metadata?.mimetype || 'unknown',
-                    url: publicUrl
+                    name: name,
+                    id: file.ETag || name,
+                    created_at: file.LastModified?.toISOString() || new Date().toISOString(),
+                    size: file.Size || 0,
+                    type: name.match(/\.(mp4|webm|mov)$/i) ? 'video/mp4' : 'image/jpeg',
+                    url: url
                 };
             });
 
@@ -138,17 +143,20 @@ export function SocialAssetsGallery({
                 const fileName = `manual_${Date.now()}_${sanitizedName}.${fileExt}`;
                 const filePath = `${user.id}/social/${activeTab}/${fileName}`;
 
-                const { error: uploadError } = await supabase.storage
-                    .from('media')
-                    .upload(filePath, file, {
-                        upsert: true
-                    });
+                const command = new PutObjectCommand({
+                    Bucket: r2Config.bucketName,
+                    Key: filePath,
+                    Body: file,
+                    ContentType: file.type,
+                    CacheControl: CDN_CACHE_HEADERS.media,
+                });
 
-                if (uploadError) {
+                try {
+                    await s3Client.send(command);
+                    successCount++;
+                } catch (uploadError) {
                     console.error(`Error uploading ${file.name}:`, uploadError);
                     toast.error(`Erro ao enviar ${file.name}`);
-                } else {
-                    successCount++;
                 }
             }
 
@@ -169,11 +177,11 @@ export function SocialAssetsGallery({
         if (!user || !confirm('Excluir este arquivo permanentemente?')) return;
 
         try {
-            const { error } = await supabase.storage
-                .from('media')
-                .remove([`${user.id}/social/${activeTab}/${fileName}`]);
-
-            if (error) throw error;
+            const command = new DeleteObjectCommand({
+                Bucket: r2Config.bucketName,
+                Key: `${user.id}/social/${activeTab}/${fileName}`,
+            });
+            await s3Client.send(command);
 
             toast.success('Arquivo excluído');
             setAssets(prev => prev.filter(a => a.name !== fileName));

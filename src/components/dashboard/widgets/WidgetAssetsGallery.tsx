@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { Upload, Trash2, Copy, Image as ImageIcon, Loader2, RefreshCw } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { compressImage } from '@/utils/imageCompression';
+import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
+import { PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
 interface AssetFile {
     name: string;
@@ -31,28 +33,31 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
         if (!user) return;
         try {
             setLoading(true);
-            const { data, error } = await supabase.storage
-                .from('media')
-                .list(`${user.id}/widgets`, {
-                    limit: 100,
-                    offset: 0,
-                    sortBy: { column: 'created_at', order: 'desc' },
-                });
+            const prefix = `${user.id}/widgets/`;
+            const command = new ListObjectsV2Command({
+                Bucket: r2Config.bucketName,
+                Prefix: prefix,
+            });
+            const { Contents } = await s3Client.send(command);
 
-            if (error) throw error;
+            const files = Contents || [];
+            
+            // Sort by LastModified desc
+            files.sort((a, b) => {
+                const dateA = a.LastModified?.getTime() || 0;
+                const dateB = b.LastModified?.getTime() || 0;
+                return dateB - dateA;
+            });
 
-            const files = data || [];
             const processedAssets: AssetFile[] = files.map(file => {
-                const { data: { publicUrl } } = supabase.storage
-                    .from('media')
-                    .getPublicUrl(`${user.id}/widgets/${file.name}`);
-
+                const url = getCdnUrl(file.Key!);
+                const name = file.Key!.split('/').pop() || '';
                 return {
-                    name: file.name,
-                    id: file.id || file.name,
-                    created_at: file.created_at,
-                    size: file.metadata?.size || 0,
-                    url: publicUrl
+                    name: name,
+                    id: file.ETag || name,
+                    created_at: file.LastModified?.toISOString() || new Date().toISOString(),
+                    size: file.Size || 0,
+                    url: url
                 };
             });
 
@@ -91,14 +96,14 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
             const fileName = `widget_${Date.now()}_${sanitizedName}.${finalExt}`;
             const filePath = `${user.id}/widgets/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('media')
-                .upload(filePath, compressedBlob, {
-                    contentType: 'image/jpeg',
-                    upsert: true
-                });
-
-            if (uploadError) throw uploadError;
+            const command = new PutObjectCommand({
+                Bucket: r2Config.bucketName,
+                Key: filePath,
+                Body: compressedBlob,
+                ContentType: 'image/jpeg',
+                CacheControl: CDN_CACHE_HEADERS.media,
+            });
+            await s3Client.send(command);
 
             toast.success('Imagem enviada com sucesso!');
             fetchAssets();
@@ -116,11 +121,11 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
         if (!user || !confirm('Excluir esta imagem permanentemente?')) return;
 
         try {
-            const { error } = await supabase.storage
-                .from('media')
-                .remove([`${user.id}/widgets/${fileName}`]);
-
-            if (error) throw error;
+            const command = new DeleteObjectCommand({
+                Bucket: r2Config.bucketName,
+                Key: `${user.id}/widgets/${fileName}`,
+            });
+            await s3Client.send(command);
 
             toast.success('Imagem excluída');
             setAssets(prev => prev.filter(a => a.name !== fileName));

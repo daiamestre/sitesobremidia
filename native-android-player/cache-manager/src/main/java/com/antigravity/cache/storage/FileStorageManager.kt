@@ -3,7 +3,8 @@ package com.antigravity.cache.storage
 import android.content.Context
 import java.io.File
 import java.io.InputStream
-import java.security.MessageDigest
+import com.antigravity.cache.util.HashUtils
+import com.antigravity.core.util.Logger
 
 /**
  * Gerencia o armazenamento físico de arquivos de mídia.
@@ -12,7 +13,21 @@ import java.security.MessageDigest
  * 2. Verificar Hash SHA-256.
  * 3. Limpar arquivos órfãos (Garbage Collection).
  */
-class FileStorageManager(private val context: Context) {
+class FileStorageManager(private val context: Context) : com.antigravity.core.domain.repository.CacheManager {
+
+    override fun getLocalPathForId(id: String): String {
+        return getFileForMedia(id).absolutePath
+    }
+
+    override fun calculateHash(path: String): String {
+        return calculateHash(File(path))
+    }
+
+    override suspend fun savePlaylistToRoom(items: List<Any>) {
+        // This will be implemented in the context of the repository/app
+        // which has access to the DAOs.
+        Logger.i("STORAGE", "Playlist save requested to Room. Logic should be handled by an orchestrator.")
+    }
 
     private val mediaDir: File by lazy {
         File(context.filesDir, "media_content").apply { mkdirs() }
@@ -26,15 +41,9 @@ class FileStorageManager(private val context: Context) {
         val file = getFileForMedia(mediaId)
         if (!file.exists() || file.length() == 0L) return false
         
-        // [INDUSTRIAL] Smart Hash: If it's not a 64-char SHA-256, it's a URL-based identity check.
-        // We only calculate SHA-256 if we have a real checksum to compare against.
-        if (expectedHash.length != 64) {
-            // It's a URL hash (simple ID change detection). Since the file name is mediaId.dat,
-            // the mere existence of the file with the correct mediaId is enough for "identity",
-            // BUT we want to force redownload if the URL changed.
-            // However, since we use delta sync in Repository, if the hash MISMATCHED there, 
-            // we'll be downloading anyway.
-            return true 
+        // [YELOO] Smart Hash: Support MD5 (32 chars) for backend compatibility.
+        if (expectedHash.length != 32 && expectedHash.length != 64) {
+             return true // Fallback for legacy URL-based hashes
         }
         
         return calculateHash(file) == expectedHash
@@ -48,17 +57,12 @@ class FileStorageManager(private val context: Context) {
         return targetFile
     }
 
-    @Suppress("unused")
+    override fun calculateHash(path: String): String {
+        return HashUtils.calculateMD5(File(path)) ?: ""
+    }
+
     private fun calculateHash(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { inputStream ->
-            val buffer = ByteArray(8192)
-            var bytesRead: Int
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                digest.update(buffer, 0, bytesRead)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return HashUtils.calculateMD5(file) ?: ""
     }
     
     fun deleteAll() {

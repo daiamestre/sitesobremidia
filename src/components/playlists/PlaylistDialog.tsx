@@ -9,6 +9,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Upload, X, Image, Monitor, Smartphone } from 'lucide-react';
+import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 
 interface Playlist {
   id: string;
@@ -88,18 +90,16 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
       const fileName = `${Date.now()}-cover.${fileExt}`;
       const filePath = `${user.id}/covers/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(filePath, coverFile, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      await s3Client.send(new PutObjectCommand({
+        Bucket: r2Config.bucketName,
+        Key: filePath,
+        Body: coverFile,
+        ContentType: coverFile.type,
+        CacheControl: CDN_CACHE_HEADERS.media,
+      }));
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(filePath);
+      const publicUrl = getCdnUrl(filePath);
 
       return publicUrl;
     } catch (error) {

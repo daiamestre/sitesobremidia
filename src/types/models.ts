@@ -27,7 +27,10 @@ export type Media = {
     file_size?: number;
     mime_type?: string;
     aspect_ratio?: string;
+    file_hash?: string;
+    processing_status?: string | null;
 };
+
 
 export interface ExternalLink {
     id: string;

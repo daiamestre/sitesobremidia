@@ -635,7 +635,7 @@ export default function ScreenDetails() {
         );
     }
     // Status logic: Must be active AND have pinged in the last 5 minutes
-    const isOnline = screen.is_active !== false && screen.last_ping_at && (new Date().getTime() - new Date(screen.last_ping_at).getTime()) < 300000; // 5 min
+    const isOnline = screen.is_active !== false && screen.last_ping_at && (new Date().getTime() - new Date(screen.last_ping_at).getTime()) < 180000; // 3 min
     const isPortrait = screen.resolution === '9x16';
 
     return (

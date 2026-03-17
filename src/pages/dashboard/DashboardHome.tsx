@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { Monitor, ListVideo, Image, Calendar, TrendingUp, Clock, AlertTriangle, RefreshCw, Trash2, Camera } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { fetchAlertDevices, sendRemoteCommand } from '@/services/DeviceService';
+import { fetchAlertDevices, sendRemoteCommand, fetchFleetSummary } from '@/services/DeviceService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -10,14 +10,20 @@ import { toast } from 'sonner';
 export default function DashboardHome() {
   const { profile } = useAuth();
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [fleet, setFleet] = useState<any>(null);
 
   useEffect(() => {
     const loadAlerts = async () => {
       const data = await fetchAlertDevices();
       setAlerts(data || []);
     };
+    const loadFleet = async () => {
+      const summary = await fetchFleetSummary();
+      setFleet(summary);
+    };
     loadAlerts();
-    const interval = setInterval(loadAlerts, 30000); // Check every 30s
+    loadFleet();
+    const interval = setInterval(() => { loadAlerts(); loadFleet(); }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -55,6 +61,68 @@ export default function DashboardHome() {
           Bem-vindo ao painel do SOBRE MÍDIA. Gerencie suas telas de Digital Signage.
         </p>
       </div>
+
+      {/* [SCALE 10K] Fleet Health Monitor */}
+      {fleet && fleet.total > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Monitor className="h-5 w-5 text-primary" /> Saude da Frota
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card className="glass border-l-4 border-l-green-500">
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-green-400">{fleet.online}</p>
+                <p className="text-xs text-muted-foreground">Online</p>
+              </CardContent>
+            </Card>
+            <Card className="glass border-l-4 border-l-yellow-500">
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-yellow-400">{fleet.warning}</p>
+                <p className="text-xs text-muted-foreground">Oscilando</p>
+              </CardContent>
+            </Card>
+            <Card className="glass border-l-4 border-l-red-500">
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-red-400">{fleet.offline}</p>
+                <p className="text-xs text-muted-foreground">Offline</p>
+              </CardContent>
+            </Card>
+            <Card className="glass border-l-4 border-l-blue-500">
+              <CardContent className="p-4 text-center">
+                <p className="text-2xl font-bold text-blue-400">{fleet.total}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Storage Alerts */}
+          {fleet.storageAlerts.length > 0 && (
+            <Alert variant="destructive" className="glass border-red-500/50">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Armazenamento Critico</AlertTitle>
+              <AlertDescription>
+                {fleet.storageAlerts.length} dispositivo(s) com disco acima de 90%.
+                {fleet.storageAlerts.map((d: any) => (
+                  <span key={d.device_id} className="block text-xs mt-1">
+                    {d.device_id}: {d.storage_usage_percent}% usado
+                  </span>
+                ))}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Version Alerts */}
+          {fleet.versionAlerts.length > 0 && (
+            <Alert className="glass border-yellow-500/50">
+              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+              <AlertTitle className="text-yellow-500">APK Desatualizado</AlertTitle>
+              <AlertDescription>
+                {fleet.versionAlerts.length} tela(s) com versao anterior.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
 
       {/* Device Alerts */}
       {alerts.length > 0 && (

@@ -3,6 +3,8 @@ package com.antigravity.sync.service
 import java.io.File
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.*
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.prepareRequest
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.ByteReadChannel
@@ -18,8 +20,21 @@ import kotlinx.coroutines.withContext
 class MediaDownloader {
 
     private val client = HttpClient(OkHttp) {
+        install(HttpTimeout) {
+            requestTimeoutMillis = 300_000L // 5 minutos globais para permitir downloads pesados no emulador
+            connectTimeoutMillis = 60_000L  // 60 segundos para resolver a conexão
+            socketTimeoutMillis = 300_000L  // 5 minutos aguardando pacotes
+        }
         engine {
             config { // this: OkHttpClient.Builder
+                // [FIX] Explicitly set OkHttp timeouts (Ktor HttpTimeout might not propagate fully to Http2Streams)
+                connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+                writeTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+                
+                // [STABILITY] Force HTTP/1.1 to avoid HTTP/2 stream timeout bugs in OkHttp with large files
+                protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+
                 @Suppress("CustomX509TrustManager")
                 val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
                     @SuppressLint("TrustAllX509TrustManager")
@@ -52,17 +67,24 @@ class MediaDownloader {
 
                 if (tmpFile.exists()) tmpFile.delete()
 
-                // 2. DOWNLOAD COM TIMEOUT E VALIDAÇÃO
-                client.prepareRequest(url).execute { httpResponse ->
+                // 2. DOWNLOAD COM TIMEOUT E VALIDAÇÃO (Overrides Ktor global timeout)
+                client.prepareRequest(url) {
+                    timeout {
+                        requestTimeoutMillis = 300_000L // 5 minutes override for large files
+                        socketTimeoutMillis = 300_000L 
+                        connectTimeoutMillis = 60_000L
+                    }
+                }.execute { httpResponse ->
                     val status = httpResponse.status
-                    val contentLength = httpResponse.headers["Content-Length"]
-                    android.util.Log.d("MediaDownloader", "Starting Download: $url | Status: $status | Content-Length: $contentLength")
+                    val contentLengthStr = httpResponse.headers["Content-Length"]
+                    val expectedSize = contentLengthStr?.toLongOrNull() ?: -1L
+                    android.util.Log.d("MediaDownloader", "Starting Download: $url | Status: $status | Content-Length: $contentLengthStr")
 
                     if (status.value !in 200..299) {
                         throw java.io.IOException("Erro de servidor: $status")
                     }
 
-                    if (contentLength != null && contentLength == "0") {
+                    if (expectedSize == 0L) {
                         throw java.io.IOException("ERRO CRÍTICO: O servidor retornou Content-Length: 0. O arquivo está vazio na origem.")
                     }
 
@@ -79,6 +101,11 @@ class MediaDownloader {
                         fos.flush()
                         fos.fd.sync() // FORÇA A GRAVAÇÃO NO DISCO DO EMULADOR
                         android.util.Log.d("MediaDownloader", "Bytes written to disk: $totalRead")
+                        
+                        // [FIX] Strict Integrity validation for incomplete streams
+                        if (expectedSize > 0 && totalRead < expectedSize) {
+                            throw java.io.IOException("INCOMPLETE_DOWNLOAD: Expected $expectedSize bytes, but got $totalRead bytes. Connection dropped prematurely.")
+                        }
                     }
                 }
 

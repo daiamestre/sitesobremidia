@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { WidgetAssetsGallery } from './WidgetAssetsGallery';
+import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 
 interface WidgetFormProps {
     initialData: Widget | null;
@@ -90,15 +92,16 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
             // Organize widget assets in a specific folder
             const filePath = `${user.id}/widgets/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('media')
-                .upload(filePath, file, { upsert: true });
+            const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+            await s3Client.send(new PutObjectCommand({
+                Bucket: r2Config.bucketName,
+                Key: filePath,
+                Body: file,
+                ContentType: file.type,
+                CacheControl: CDN_CACHE_HEADERS.media,
+            }));
 
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('media')
-                .getPublicUrl(filePath);
+            const publicUrl = getCdnUrl(filePath);
 
             if (imageType === 'landscape') {
                 updateConfig('backgroundImageLandscape', publicUrl);

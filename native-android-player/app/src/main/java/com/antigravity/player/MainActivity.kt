@@ -5,24 +5,22 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.WindowManager
-import android.view.WindowInsets
-import android.view.WindowInsetsController
 import android.widget.FrameLayout
 import android.widget.ImageView
-
 import android.widget.TextView
 import android.widget.Toast
 import android.content.Intent
+import android.content.Context
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.graphics.Color
-import android.content.res.Configuration
 import android.os.Build
 import android.content.pm.ActivityInfo
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.os.HandlerThread
 import android.view.PixelCopy
-import android.graphics.Canvas
-
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
@@ -31,17 +29,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.ViewModelProvider
+import com.antigravity.player.ui.PlayerViewModel
+import com.antigravity.player.ui.PlayerViewModelFactory
+import com.antigravity.core.domain.model.RegionalConfig
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import androidx.core.view.isVisible
-import android.webkit.WebView
-import android.webkit.WebSettings
-import android.webkit.CookieManager
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceError
-import android.webkit.WebViewClient
-
-
 import com.antigravity.player.util.DeviceTypeUtil
 import com.antigravity.player.util.SmartCacheCleaner
 import com.antigravity.player.service.ThermalGuard
@@ -51,7 +45,6 @@ import com.antigravity.core.util.TimeManager
 import com.antigravity.player.util.DeviceControl
 import com.antigravity.player.util.MasterClockBridge
 import com.antigravity.media.exoplayer.ExoPlayerRenderer
-import com.antigravity.media.exoplayer.ChipsetDetector
 import com.antigravity.media.util.PlaybackWatchdog
 import com.antigravity.media.util.MediaIntegrityChecker
 import com.antigravity.core.domain.model.MediaItem
@@ -59,6 +52,7 @@ import com.antigravity.core.domain.model.MediaType
 import com.antigravity.player.di.ServiceLocator
 
 import com.antigravity.player.ui.SplashActivity
+import com.antigravity.player.util.RegionalContextManager
 import com.antigravity.sync.service.SessionManager
 import com.antigravity.core.domain.renderer.RendererState
 import kotlinx.coroutines.flow.firstOrNull
@@ -68,7 +62,6 @@ import com.antigravity.core.util.Logger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.channels.Channel
-import kotlin.coroutines.resume
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 
@@ -82,21 +75,22 @@ class MainActivity : AppCompatActivity() {
     private var standbyPlayer: ExoPlayerRenderer? = null
     private var lastPlayedMediaId: String? = null
     
+    private lateinit var viewModel: PlayerViewModel
     // [WATCHDOG] Playback freeze detector — restarts only video engine on freeze >6s
     private lateinit var playbackWatchdog: PlaybackWatchdog
 
     private lateinit var statusTextView: TextView
-    private lateinit var loadingOverlay: FrameLayout
+    private lateinit var syncGuard: com.antigravity.player.util.SyncGuard
     private lateinit var blockOverlay: FrameLayout
     private lateinit var playerView1: PlayerView
     private lateinit var playerView2: PlayerView
     private lateinit var standbyImage: ImageView
     private lateinit var staticImageLayer: ImageView // Motor Estático
-    private lateinit var webOverlayContainer: FrameLayout // Placeholder do Motor Web
+    private lateinit var nativeWidgetContainer: FrameLayout
+    // WebViews removidas permanentemente (Widgets 100% Nativos)
     
     // [SELF-HEALING] Protocol Flags
     private var consecutiveGlobalFailures = 0
-    private var isWidgetProcessActive = false
     
     // [HARDENING] Idempotency Flags
     private var isSyncInProgress = false
@@ -105,13 +99,15 @@ class MainActivity : AppCompatActivity() {
     private var isAutoCleanStarted = false
     
     // [ADVANCED KIOSK] Maintenance Mode State
-    private var isMaintenanceMode = false
     private var isKioskEnforced = true // Global control for resilience
+    
+    // [ESCAPE PROTOCOL]
     private var maintenanceCounter = 0
     private var lastInputTime = 0L
+    private var maintenanceJob: Job? = null
+    
     private var isOTACycleStarted = false
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(R.style.Theme_Player) // Switch from Launcher to Player theme
         super.onCreate(savedInstanceState)
         
         // [SANDBOX] Must be called BEFORE any WebView is instantiated (including XML inflation)
@@ -124,6 +120,11 @@ class MainActivity : AppCompatActivity() {
         }
         
         setContentView(R.layout.activity_main)
+
+        // [SMART_CLEANER] 1. Faxina de Boot: Remove rastros de 0 bytes da sessão anterior
+        lifecycleScope.launch(Dispatchers.IO) {
+            SmartCacheCleaner.purgeOrphanedMedia(applicationContext)
+        }
 
         // Keep screen on
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -143,20 +144,21 @@ class MainActivity : AppCompatActivity() {
 
         // UI initialization
         statusTextView = findViewById<TextView>(R.id.status_text)
-        loadingOverlay = findViewById<FrameLayout>(R.id.loading_overlay)
+        syncGuard = com.antigravity.player.util.SyncGuard(this)
         playerView1 = findViewById<PlayerView>(R.id.playerView1)
         playerView2 = findViewById<PlayerView>(R.id.playerView2)
         standbyImage = findViewById<ImageView>(R.id.standbyImage)
         blockOverlay = findViewById<FrameLayout>(R.id.block_overlay)
         staticImageLayer = findViewById<ImageView>(R.id.static_image_layer)
-        webOverlayContainer = findViewById<FrameLayout>(R.id.web_overlay_container)
+        nativeWidgetContainer = findViewById<FrameLayout>(R.id.native_widget_container)
         
         hideAllLayers()
         
         // Show Standby initially
         standbyImage.visibility = View.VISIBLE
-        playerView1.visibility = View.GONE
-        playerView2.visibility = View.GONE
+        // [TEORIA DO SURFACE] Mantém invisível em vez de GONE no boot para o Surface ser criado imediatamente
+        playerView1.visibility = View.INVISIBLE
+        playerView2.visibility = View.INVISIBLE
         blockOverlay.visibility = View.GONE
 
         try {
@@ -165,7 +167,75 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch { 
                 delay(5000) // Give network time to settle
                 TimeManager.syncTime() 
+                
+                // [OFFLINE ANALYTICS - BOOT SYNC] Escoa qualquer métrica presa no cofre local se a box desligou ontem
+                try {
+                    com.antigravity.player.util.DisplayAnalyticsManager.syncWithDashboard(applicationContext)
+                } catch (e: Exception) {
+                    Logger.e("BOOT", "Falha no Analytics de Boot: ${e.message}")
+                }
             }
+            
+            // [REGIONAL CONTEXT - OFFLINE FIRST] Inicialização profissional da ViewModel
+            val repository = ServiceLocator.getRepository(applicationContext)
+            
+            // [NETWORK MONITOR] Reage fisicamente às mudanças da placa de rede
+            val networkMonitor = com.antigravity.player.util.NetworkMonitor(applicationContext)
+            networkMonitor.startMonitoring()
+            
+            viewModel = ViewModelProvider(this@MainActivity, PlayerViewModelFactory(repository, networkMonitor))[PlayerViewModel::class.java]
+
+            // O SEGREDO: Observar os dados
+            viewModel.localizacao.observe(this@MainActivity) { config: RegionalConfig? ->
+                config?.let {
+                    // Instantly load the Singleton for active injections
+                    RegionalContextManager.loadFromCache(it.cidade, it.estado, it.timezone)
+                }
+            }
+
+            // [GATEKEEPER] Observer de Estado do Fluxo de Inicialização
+            lifecycleScope.launch {
+                viewModel.playerState.collect { estado ->
+                    runOnUiThread {
+                        when (estado) {
+                            com.antigravity.player.ui.PlayerUIState.SYNCING -> {
+                                // BLOQUEIO: Garante que apenas a tela de sincronização apareça
+                                syncGuard.lockScreen("Sincronizando mídias...")
+                                statusTextView.visibility = View.VISIBLE
+                                playerView1.visibility = View.GONE
+                                playerView2.visibility = View.GONE
+                                
+                                // Log de depuração para o Mestre acompanhar
+                                android.util.Log.d("PLAYER_FLUXO", "Estado: SYNCING - Usuário retido na tela de carregamento.")
+                            }
+                            com.antigravity.player.ui.PlayerUIState.PLAYING -> {
+                                // LIBERAÇÃO: Só acontece quando o CacheManager termina tudo
+                                // Transição atômica: uma sobe enquanto a outra desce
+                                syncGuard.releaseLock()
+                                statusTextView.visibility = View.GONE
+                                playerView1.visibility = View.VISIBLE
+                                standbyImage.visibility = View.GONE
+                                
+                                android.util.Log.d("PLAYER_FLUXO", "Estado: PLAYING - Mídias prontas. Iniciando reprodução.")
+                            }
+                            com.antigravity.player.ui.PlayerUIState.AUTH -> {
+                                android.util.Log.d("PLAYER_FLUXO", "Estado: AUTH - Conexão de tela.")
+                            }
+                            com.antigravity.player.ui.PlayerUIState.PREPARING -> {
+                                // O Observer mantém a tela de Sync Visível até termos o frame pintado.
+                                // Na prática: LockScreen continua visualmente
+                                syncGuard.lockScreen("Preparando Mídias...")
+                                statusTextView.visibility = View.VISIBLE
+                                playerView1.visibility = View.INVISIBLE
+                                playerView2.visibility = View.INVISIBLE
+                                android.util.Log.d("PLAYER_FLUXO", "Estado: PREPARING - Verificação de cache local e Pre-Roll.")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Background Sync: The ViewModel now handles this automatically when network is restored via observing NetworkMonitor.
 
             // Enable Kiosk Mode (Full Screen, Keep Screen On)
             DeviceControl.enableKioskMode(this)
@@ -188,7 +258,6 @@ class MainActivity : AppCompatActivity() {
             if (!lastActiveState) {
                 Logger.w("BILLING", "BOOT BLOCKED: Last persisted state was DISABLED.")
                 blockOverlay.visibility = View.VISIBLE
-                loadingOverlay.visibility = View.GONE
                 playerView1.visibility = View.GONE
                 playerView2.visibility = View.GONE
                 // standbyImage stays VISIBLE as Layer 0
@@ -210,6 +279,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, "ID Resetado! Reiniciando...", Toast.LENGTH_LONG).show()
                 }
                 
+                isKioskEnforced = false // [FIX] Libera o Kiosk Lock antes de abrir a Splash
                 val intent = Intent(this, SplashActivity::class.java)
                 startActivity(intent)
                 finish()
@@ -225,6 +295,16 @@ class MainActivity : AppCompatActivity() {
             // Initialize Dual Media Engine
             playerRenderer1 = ExoPlayerRenderer(this, "RENDERER_1")
             playerRenderer2 = ExoPlayerRenderer(this, "RENDERER_2")
+            
+            // [PROFESSIONAL REPRODUCTION MODE] 
+            // Calcula e preenche a tela inteira sem distorcer (Center Crop real) no momento em que o hardware acorda
+            playerRenderer1.onVideoSizeChanged = { width, height ->
+                com.antigravity.player.util.AspectRatioManager.applyCenterCropScale(playerView1, width, height)
+            }
+            playerRenderer2.onVideoSizeChanged = { width, height ->
+                com.antigravity.player.util.AspectRatioManager.applyCenterCropScale(playerView2, width, height)
+            }
+            
             activePlayer = playerRenderer1
             standbyPlayer = playerRenderer2
         
@@ -241,7 +321,6 @@ class MainActivity : AppCompatActivity() {
             // SMART OFFLINE RECOVERY
             // Listen for Internet Restoration to sync pending updates (Persistent Listener)
             lifecycleScope.launch {
-                 val networkMonitor = com.antigravity.player.util.NetworkMonitor(applicationContext)
                  var isFirstEmission = true
                  
                  networkMonitor.isConnected.collect { isConnected ->
@@ -272,9 +351,9 @@ class MainActivity : AppCompatActivity() {
 
             // [ADVANCED KIOSK] Intelligent Boot & Service Initialization Flow
             lifecycleScope.launch {
-                // 1. Intelligent Boot Delay (ensure hardware readiness)
-                updateStatus("Aguardando Hardware (2s)...")
-                delay(2000)
+                // 1. Intelligent Boot Delay (ensure hardware readiness de decodificação de vídeo)
+                updateStatus("Aguardando Hardware (5s)...")
+                delay(5000)
 
                 // 2. Start Synchronization Loop (Cache-First)
                 checkLocalCacheAndPlay()
@@ -360,12 +439,10 @@ class MainActivity : AppCompatActivity() {
                             playerView1.visibility = View.GONE
                             playerView2.visibility = View.GONE
                             // standbyImage stays VISIBLE as Layer 0
-                            loadingOverlay.visibility = View.GONE
                             Logger.w("BILLING", "SCREEN BLOCKED by admin. Message: ${SessionManager.blockMessage}")
                         } else {
                             // UNBLOCK: Hide overlay and resume
                             blockOverlay.visibility = View.GONE
-                            loadingOverlay.visibility = View.VISIBLE
                             statusTextView.visibility = View.VISIBLE
                             updateStatus("Tela reativada! Sincronizando...")
                             Logger.i("BILLING", "SCREEN UNBLOCKED. Resuming playback.")
@@ -377,11 +454,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // [INDUSTRIAL] Maintenance Reset: WebView Clean Cycle
+            // [INDUSTRIAL] Maintenance Reset
             lifecycleScope.launch {
                 SessionManager.maintenanceEvents.collect {
-                    Logger.w("MAIN", "Industrial Maintenance: Refreshing WebView for memory health.")
-                    findViewById<android.webkit.WebView>(R.id.player_webview)?.reload()
+                    Logger.w("MAIN", "Industrial Maintenance Ping recebido.")
                 }
             }
             
@@ -425,20 +501,21 @@ class MainActivity : AppCompatActivity() {
                         com.antigravity.core.util.Logger.i("MAIN", "Reactive Update: Playlist '${playlist.name}' received.")
                         
                         runOnUiThread {
-                            // 1. Esconde overlays se ainda estiverem visíveis
-                            // 1. Esconde overlays se já houver itens na playlist
-                            if (loadingOverlay.isVisible && playlist.items.isNotEmpty()) {
-                                loadingOverlay.visibility = View.GONE
-                                statusTextView.visibility = View.GONE
-                                playerView1.visibility = View.VISIBLE
-                                standbyImage.visibility = View.GONE
-                            }
+                            // [GATEKEEPER] Removido o fluxo de UI daqui. Apenas isPlaylistReady altera a visibilidade.
                             
                             // 2. Aplica rotação e inicia/atualiza o motor de vídeo
                             applyScreenRotation(playlist.orientation)
                             
                             // START PLAYBACK LOOP (Centralized SSOT)
-                            startPlaybackLoop()
+                            // [ESTRATÉGIA ANTI-CAOS] Aguarda 2000ms antes de iniciar os renders para que o WindowManager
+                            // tenha finalizado a rotação e a GPU esteja estável (Previne EGL_BAD_ATTRIBUTE nativo TVBox)
+                            if (activePlayer?.getPlayerInstance() == null || activePlayer?.getPlayerInstance()?.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    startPlaybackLoop()
+                                }, 2000)
+                            } else {
+                                startPlaybackLoop()
+                            }
                         }
                     }
                 }
@@ -447,6 +524,7 @@ class MainActivity : AppCompatActivity() {
             // 1. Observe Sync Progress (Enterprise Sync UI)
             lifecycleScope.launch {
                 ServiceLocator.getRepository(this@MainActivity).getSyncProgress().collect { progress ->
+                    syncGuard.updateProgress(progress)
                     statusTextView.text = progress
                 }
             }
@@ -477,11 +555,9 @@ class MainActivity : AppCompatActivity() {
             if (cacheResult.isSuccess && localPlaylist != null && localPlaylist.items.isNotEmpty()) {
                 Logger.i("OFFLINE_FIRST", "Cache local encontrado. Iniciando reprodução imediata.")
                 
-                // 2. Esconde o overlay de sincronismo/loading imediatamente (User Experience)
-                loadingOverlay.visibility = View.GONE
-                statusTextView.visibility = View.GONE
-                // standbyImage stays VISIBLE as Layer 0
-                playerView1.visibility = View.VISIBLE
+                // 2. Trava a interface no estado PREPARING via Gatekeeper,
+                // para que a tela de Sync continue travando o fundo até o motor de fato começar o frame 0.
+                viewModel.prepararPrimeiraMidia()
                 
                 // 3. Aplica a orientação que já estava salva para este dispositivo
                 applyScreenRotation(localPlaylist.orientation)
@@ -555,82 +631,72 @@ class MainActivity : AppCompatActivity() {
             // Sincronização VISÍVEL para primeira carga ou erro fatal de cache
             updateStatus("Sincronizando mídias...", isError = false)
             runOnUiThread { 
-                loadingOverlay.visibility = View.VISIBLE 
+                syncGuard.lockScreen("Sincronizando mídias...") 
                 statusTextView.visibility = View.VISIBLE
             }
+            
+            // [SMART_CLEANER] 2. Faxina Pré-Playlist: Limpa fantasmas antes de sincronizar o banco
+            SmartCacheCleaner.purgeOrphanedMedia(applicationContext)
             
             val repo = ServiceLocator.getRepository(applicationContext)
             val syncUseCase = com.antigravity.core.domain.usecase.SyncPlaylistUseCase(repo)
             
             try {
-                val result = syncUseCase()
-
-                if (result.isSuccess) {
-                    val currentPlaylist = repo.getActivePlaylist().firstOrNull()
-                    
-                    runOnUiThread {
-                        if (currentPlaylist != null) {
-                            val playlist = currentPlaylist!!
-                            com.antigravity.sync.service.SessionManager.apply {
-                                heartbeatIntervalSeconds = playlist.heartbeatIntervalSeconds
-                                seamlessTransition = playlist.seamlessTransition
-                                cacheNextMedia = playlist.cacheNextMedia
+                viewModel.iniciarFluxoDeMidia(
+                    syncUseCase = syncUseCase,
+                    onSyncSuccess = {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val currentPlaylist = repo.getActivePlaylist().firstOrNull()
+                            runOnUiThread {
+                                if (currentPlaylist != null) {
+                                    val playlist = currentPlaylist
+                                    com.antigravity.sync.service.SessionManager.apply {
+                                        heartbeatIntervalSeconds = playlist.heartbeatIntervalSeconds
+                                        seamlessTransition = playlist.seamlessTransition
+                                        cacheNextMedia = playlist.cacheNextMedia
+                                    }
+                                    applyScreenRotation(playlist.orientation)
+                                }
+                                updateStatus("Sincronizado!")
                             }
-                            applyScreenRotation(playlist.orientation)
                         }
+                    },
+                    onSyncError = { errorMsg ->
+                        val isAborted = errorMsg.contains("aborted", ignoreCase = true) || errorMsg.contains("timeout", ignoreCase = true)
+                        Logger.e("SYNC", "Sync failed: $errorMsg. Is Aborted/Timeout: $isAborted")
+                        
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val localResult = repo.loadLocalCache()
+                            if (localResult.isSuccess) {
+                                Logger.i("SYNC", "[RESILIENCE] Network failed ($errorMsg), mas cache local encontrado. Resumindo...")
+                                runOnUiThread { updateStatus("Modo Offline Ativo") }
+                                viewModel.prepararPrimeiraMidia()
+                                return@launch 
+                            }
 
-                        updateStatus("Sincronizado!")
-                        // If it's a silent fallback, we might still be in loadingOverlay
-                        if (loadingOverlay.isVisible) {
-                            loadingOverlay.visibility = View.GONE
-                        }
-                    }
-                } else {
-                    val msg = result.exceptionOrNull()?.message ?: "Unknown"
-                    val isAborted = msg.contains("aborted", ignoreCase = true) || msg.contains("timeout", ignoreCase = true)
-                    
-                    Logger.e("SYNC", "Sync failed: $msg. Is Aborted/Timeout: $isAborted")
-                    
-                    // [RESILIENCE] If aborted/timeout, we try one last time to load from local cache silently
-                    val localResult = repo.loadLocalCache()
-                    if (localResult.isSuccess) {
-                        Logger.i("SYNC", "[RESILIENCE] Network failed ($msg), but local cache found. Resuming playback silently.")
-                        runOnUiThread { 
-                            loadingOverlay.visibility = View.GONE 
-                            updateStatus("Modo Offline Ativo")
-                        }
-                        return@launch 
-                    }
+                            runOnUiThread { updateStatus("Erro: $errorMsg", isError = true) }
 
-                    runOnUiThread { 
-                        loadingOverlay.visibility = View.GONE 
-                        updateStatus("Erro: $msg", isError = true)
-                    }
-
-                    if (msg.contains("JWT expired", ignoreCase = true) || msg.contains("401", ignoreCase = true)) {
-                        handleAuthError("Sessão Expirada (401)")
-                    } else if (msg.contains("Tela não encontrada", ignoreCase = true)) {
-                        updateStatus("ID Inválido para este Painel", isError = true)
-                        runOnUiThread {
-                            Toast.makeText(this@MainActivity, "ID não encontrado. Reiniciando...", Toast.LENGTH_LONG).show()
+                            if (errorMsg.contains("JWT expired", ignoreCase = true) || errorMsg.contains("401", ignoreCase = true)) {
+                                handleAuthError("Sessão Expirada (401)")
+                            } else if (errorMsg.contains("Tela não encontrada", ignoreCase = true) || errorMsg.contains("404", ignoreCase = true)) {
+                                Logger.w("SYNC", "ID Inválido.")
+                                runOnUiThread { updateStatus("ID Rejeitado pelo Painel", isError = true) }
+                                handleAuthError("Aparelho não vinculado ou ID inválido.")
+                            } else if (errorMsg.contains("[PERMANENT]") || errorMsg.contains("Invalid remote playlist", ignoreCase = true)) {
+                                runOnUiThread { updateStatus("Playlist Inválida. Recuperando...", isError = true) }
+                                performAutoRepair() 
+                            } else {
+                                val retryDelay = if (isAborted) 15000L else 30000L
+                                Handler(Looper.getMainLooper()).postDelayed({ startSyncAndPlay() }, retryDelay)
+                            }
                         }
-                        Handler(Looper.getMainLooper()).postDelayed({ 
-                            handleAuthError("ID não encontrado. Faça login novamente.") 
-                        }, 4000)
-                    } else if (msg.contains("[PERMANENT]") || msg.contains("Invalid remote playlist", ignoreCase = true)) {
-                        updateStatus("Playlist Inválida. Recuperando...", isError = true) 
-                        performAutoRepair() // Trigger immediate repair as requested
-                    } else {
-                        // Retry loop
-                        val retryDelay = if (isAborted) 15000L else 30000L
-                        Handler(Looper.getMainLooper()).postDelayed({ startSyncAndPlay() }, retryDelay)
                     }
-                }
+                )
             } catch (e: Exception) {
                  val errorMsg = e.message ?: "Erro desconhecido"
                  Logger.e("SYNC", "Critical failure: $errorMsg", e)
                  runOnUiThread { 
-                     loadingOverlay.visibility = View.GONE 
+                     syncGuard.releaseLock() 
                      updateStatus("Falha Crítica: $errorMsg", isError = true)
                  }
                  Handler(Looper.getMainLooper()).postDelayed({ startSyncAndPlay() }, 10000)
@@ -675,6 +741,7 @@ class MainActivity : AppCompatActivity() {
               // 3. Reset Global State
               ServiceLocator.resetRepository() 
               withContext(Dispatchers.Main) {
+                  isKioskEnforced = false // [FIX] Impede que a MainActivity roube a tela de volta antes de morrer
                   com.antigravity.player.util.DeviceControl.disableKioskMode(this@MainActivity)
          
                   // 4. Force Restart to Login
@@ -711,25 +778,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * [SEAMLESS ENGINE] Instant player swap optimized for SurfaceView.
-     * SurfaceView doesn't support alpha animations natively (hardware composited),
-     * so we use instant VISIBLE/GONE swap which is actually smoother on TV Boxes
-     * since it avoids GPU compositing overhead.
+     * [SEAMLESS ENGINE V3] Atômico e Estrito.
+     * Troca de visibilidade com gap cirúrgico de 50ms para garantir refresh da GPU.
      */
-    private fun crossfadePlayers(viewToFadeOut: View, viewToFadeIn: View) {
+    private fun performSeamlessSwap(viewToFadeOut: View, viewToFadeIn: View, newPlayer: ExoPlayerRenderer?) {
         runOnUiThread {
-            // [HARDENING] If we are starting playback, hide loading overlay
-            if (loadingOverlay.visibility == View.VISIBLE) {
-                loadingOverlay.visibility = View.GONE
-            }
-
-            // [STABILITY] Stop watchdog during transition to prevent false positives
             playbackWatchdog.stop()
 
-            // Instant swap — SurfaceView is hardware composited, no alpha needed
-            viewToFadeIn.visibility = View.VISIBLE
-            viewToFadeOut.visibility = View.GONE 
-            standbyImage.visibility = View.GONE // Ensure logo is hidden during media
+            // 1. O vídeo novo já está tocando e com frame push feito via listener. Liberamos o áudio.
+            newPlayer?.setAudioEnabled(true)
+            
+            // 2. Delay Atômico para troca impecável
+            Handler(Looper.getMainLooper()).postDelayed({
+                // Troca simultânea instantânea (Visibility)
+                viewToFadeOut.visibility = View.INVISIBLE
+                viewToFadeIn.alpha = 1f
+                
+                // 3. Limpa a Mídia Antiga para a Próxima Rodada (-RAM)
+                val oldPlayerView = (viewToFadeOut as? androidx.media3.ui.PlayerView)
+                oldPlayerView?.player?.stop()
+                oldPlayerView?.player?.clearMediaItems()
+                
+            }, 50)
+            
+            // Cleanup de overlays inativos
+            Handler(Looper.getMainLooper()).postDelayed({
+                staticImageLayer.visibility = View.GONE
+                nativeWidgetContainer.visibility = View.GONE
+                standbyImage.visibility = View.VISIBLE
+            }, 100)
         }
     }
 
@@ -740,42 +817,127 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {}
     }
 
-    private var lastPulseTime = System.currentTimeMillis()
-    private fun pulseHeartbeat(item: String) {
-        lastPulseTime = System.currentTimeMillis()
-        logBlackBox("PULSE", "Playing: $item")
+    // [DIAGNÓSTICO VISUAL] Fim do jogo de adivinhação
+    private fun exibirAlertaDeMidiaCorrompida(nomeMidia: String) {
+        runOnUiThread {
+            if (!isFinishing && !isDestroyed) {
+                val erroMsg = "⚠️ ERRO DE MÍDIA: [$nomeMidia]\nPrecisa de Re-upload"
+                Toast.makeText(this@MainActivity, erroMsg, Toast.LENGTH_LONG).show()
+                Logger.e("ANTIGRAVITY", erroMsg)
+            }
+        }
+    }
+
+    private fun startPersistentHeartbeat() {
+        val intent = Intent(this, com.antigravity.player.service.PersistentHeartbeatService::class.java)
+        try {
+            androidx.core.content.ContextCompat.startForegroundService(this, intent)
+        } catch (e: Exception) {
+            Logger.e("HEARTBEAT_PROC", "Falha ao iniciar Foreground Service: ${e.message}")
+        }
     }
 
     // ========================================================================
     // [INDUSTRIAL ENGINES] ISOLATED PLAYBACK MOTORS
     // ========================================================================
     
-    private suspend fun engineVideo(item: MediaItem, playbackEndedChannel: Channel<Unit>): Boolean {
+    private suspend fun engineVideo(item: MediaItem, nextItem: MediaItem): Boolean {
         logBlackBox("ENGINE_VIDEO", "Target: ${item.name}")
         val durationMs = item.durationSeconds * 1000L
         
-        // Setup renderer callbacks
-        activePlayer?.prepare(item)
-        activePlayer?.play()
+        val fileName = "${item.id}.dat"
+        val localFile = com.antigravity.player.util.CacheManager.verificarEBaixar(this@MainActivity, item.remoteUrl, fileName)
         
-        // [PRECISION] Wait for hardware to actually start rendering the first frame
-        val startTime = System.currentTimeMillis()
-        withTimeoutOrNull(5000) { // Max 5s wait for hardware start
-            activePlayer?.getPlaybackState()?.first { it is RendererState.PLAYING }
+        if (!localFile.exists() || localFile.length() <= 0L) {
+            Logger.e("ENGINE_VIDEO", "File critical failure: Mídia ${item.name} não existe ou tem 0 bytes.")
+            exibirAlertaDeMidiaCorrompida(item.name)
+            return true 
         }
-        val startupLag = System.currentTimeMillis() - startTime
-        Logger.i("ENGINE_VIDEO", "Playback started for ${item.name} (Lag: ${startupLag}ms)")
-
-        // Z-Order: Show the new layer only when it's ready
+        
+        // Muta para cortar o estalo inicial
+        activePlayer?.setAudioEnabled(false)
+        
+        val viewToFadeIn = if (activePlayer == playerRenderer1) playerView1 else playerView2
+        val viewToFadeOut = if (activePlayer == playerRenderer1) playerView2 else playerView1
+        
         runOnUiThread {
-            val viewToFadeIn = if (activePlayer == playerRenderer1) playerView1 else playerView2
-            val viewToFadeOut = if (activePlayer == playerRenderer1) playerView2 else playerView1
-            crossfadePlayers(viewToFadeOut, viewToFadeIn)
+            viewToFadeIn.alpha = 0f 
+            viewToFadeIn.visibility = View.VISIBLE
+            viewToFadeIn.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            
+            lifecycleScope.launch {
+                try {
+                    activePlayer?.play() // Inicia B por trás, mutado.
+                    
+                    val listener = object : androidx.media3.common.Player.Listener {
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            if (isPlaying) {
+                                runOnUiThread {
+                                    viewModel.confirmarMidiaPronta()
+                                    statusTextView.visibility = View.GONE
+                                    
+                                    // [ATOMIC SWAP] 
+                                    performSeamlessSwap(viewToFadeOut, viewToFadeIn, activePlayer)
+                                    
+                                    val rawPlayer = activePlayer?.getPlayerInstance()
+                                    if (rawPlayer != null) {
+                                        playbackWatchdog.watch(rawPlayer)
+                                    }
+                                }
+                                activePlayer?.getPlayerInstance()?.removeListener(this)
+                            }
+                        }
+                    }
+                    activePlayer?.getPlayerInstance()?.addListener(listener)
+                    
+                } catch (e: Exception) {
+                    Logger.e("ANTIGRAVITY", "Exceção no Play Async: ${e.message}")
+                    runOnUiThread { viewToFadeOut.animate().alpha(0f).setDuration(300).start(); standbyImage.visibility = View.VISIBLE }
+                }
+            }
         }
         
-        // Wait for the FULL programmed duration from dashboard
-        // We subtract nothing here because we want the item to STAY on screen for durationMs
-        delay(durationMs)
+        // [V3 STRICT DOUBLE BUFFER ENGINE] Active Polling Frame Loop
+        val startTime = System.currentTimeMillis()
+        var nextPreloaded = false
+        
+        while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+            val player = activePlayer?.getPlayerInstance()
+            if (player == null) {
+                delay(durationMs)
+                break
+            }
+            
+            val currentPos = player.currentPosition
+            val realDurationMs = if (player.duration > 0) player.duration else durationMs
+            val remaining = realDurationMs - currentPos
+            
+            // 1. Gatilho de Pre-Buffering (Exatos 5 Segundos antes do Fim)
+            if (remaining <= 5000L && !nextPreloaded) {
+                Logger.i("SEAMLESS_DIAGNOSTIC", "Buffer Readiness Triggered. Pre-Loading next: ${nextItem.name}")
+                lifecycleScope.launch {
+                    when (nextItem.type) {
+                        MediaType.VIDEO, MediaType.IMAGE -> standbyPlayer?.preBuffer(nextItem)
+                        else -> {}
+                    }
+                }
+                nextPreloaded = true
+            }
+            
+            // 2. Ponte de Corte (100ms antes do fim real para evitar a tela preta intrínseca de conclusão)
+            if (remaining <= 100L && currentPos > 0) {
+                Logger.i("SEAMLESS_DIAGNOSTIC", "Encerramento Seamless (-100ms). Devolvendo controle de engine.")
+                break
+            }
+            
+            // 3. Failsafe global
+            if (System.currentTimeMillis() - startTime > realDurationMs + 5000L) {
+                Logger.e("SEAMLESS_DIAGNOSTIC", "Tempo expirado forçadamente")
+                break
+            }
+            
+            delay(10) // Ultra-smooth 10ms frame polling
+        }
         
         // [STABILITY] Reset watchdog for next item
         playbackWatchdog.reset()
@@ -787,33 +949,74 @@ class MainActivity : AppCompatActivity() {
         logBlackBox("ENGINE_STATIC", "Loading: ${item.name}")
         val durationMs = item.durationSeconds * 1000L
         
+        // [SURVIVOR PLAN] Ensure file exists locally before loading image
+        val fileName = "${item.id}.dat"
+        val localFile = com.antigravity.player.util.CacheManager.verificarEBaixar(this@MainActivity, item.remoteUrl, fileName)
+        
+        // [ANTI-CAOS] Validação Física Categórica.
+        if (!localFile.exists() || localFile.length() <= 0L) {
+            Logger.e("ENGINE_STATIC", "File critical failure: Imagem ${item.name} não existe ou tem 0 bytes. Pulando.")
+            exibirAlertaDeMidiaCorrompida(item.name)
+            return true 
+        }
+        
+        // Use local path for Glide to ensure ZERO egress
+        val path = localFile.absolutePath
+        
         runOnUiThread {
-            val path = if (item.localPath != null && java.io.File(item.localPath!!).exists()) {
-                item.localPath
-            } else {
-                item.remoteUrl
-            }
-            
-            val profile = ChipsetDetector.getRecommendedProfile()
+            val profile = com.antigravity.media.exoplayer.ChipsetDetector.getRecommendedProfile()
             val glideRequest = Glide.with(this@MainActivity)
                 .load(path)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
             
             // [PERFORMANCE] Downsample images on legacy/emulator hardware to save RAM
-            if (profile == ChipsetDetector.HardwareProfile.LEGACY_STABILITY) {
+            if (profile == com.antigravity.media.exoplayer.ChipsetDetector.HardwareProfile.LEGACY_STABILITY) {
                 glideRequest.override(1280, 720) 
             }
             
-            glideRequest.into(staticImageLayer)
+            // [ZERO-GAP GATEKEEPER]
+            // Atrela o destravamento da tela de Sincronismo apenas quando a imagem for carregada no ImageView
+            glideRequest.listener(object : com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable> {
+                override fun onLoadFailed(
+                    e: com.bumptech.glide.load.engine.GlideException?,
+                    model: Any?,
+                    target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    Logger.e("ENGINE_STATIC", "Falha ao carregar imagem para o pre-roll: ${e?.message}")
+                    return false
+                }
+
+                override fun onResourceReady(
+                    resource: android.graphics.drawable.Drawable,
+                    model: Any,
+                    target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>?,
+                    dataSource: com.bumptech.glide.load.DataSource,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    runOnUiThread {
+                        viewModel.confirmarMidiaPronta()
+                    }
+                    return false
+                }
+            }).into(staticImageLayer)
             
             staticImageLayer.visibility = View.VISIBLE
-            playerView1.visibility = View.GONE
-            playerView2.visibility = View.GONE
+            
+            // Explicitly hide non-image layers to prevent overlap.
+            // [DOUBLE BUFFERING] Usamos INVISIBLE invés de GONE para não quebrar as referências das Surfaces na memória
+            playerView1.visibility = View.INVISIBLE
+            playerView2.visibility = View.INVISIBLE
+            nativeWidgetContainer.visibility = View.GONE
             standbyImage.visibility = View.GONE
             
-            // [PERFORMANCE] Stop video engines to free hardware decoders
-            playerRenderer1.stop()
-            playerRenderer2.stop()
+            // [PERFORMANCE] Stop active video engine to free hardware decoders
+            // DO NOT stop standby player as it is pre-buffering the next item.
+            if (activePlayer == playerRenderer1) {
+                playerRenderer1.stop()
+            } else {
+                playerRenderer2.stop()
+            }
         }
         
         delay(durationMs)
@@ -821,46 +1024,46 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun engineWidget(item: MediaItem): Boolean {
-        logBlackBox("ENGINE_WIDGET", "Launching Process :web_engine")
+        logBlackBox("ENGINE_WIDGET", "Native rendering: ${item.remoteUrl}")
         
+        // Formato esperado da URL nativa: native_widget://[tipo]/[id]
+        val widgetType = if (item.remoteUrl.startsWith("native_widget://")) {
+            item.remoteUrl.substringAfter("native_widget://").substringBefore("/")
+        } else {
+            // Em caso de fallback onde o banco antigo guardava "weather" ou "clock" no nome
+            item.name.lowercase()
+        }
+
+        // 1. Oculta todos os layers e mostra o container nativo
         runOnUiThread {
-            webOverlayContainer.visibility = View.VISIBLE
+            nativeWidgetContainer.visibility = View.VISIBLE
             
-            // Launch WidgetActivity in separate process
-            val intent = Intent(this@MainActivity, com.antigravity.player.ui.WidgetActivity::class.java)
-            intent.putExtra("url", item.remoteUrl)
-            // Use FLAG_ACTIVITY_NEW_TASK because it's in a separate process
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            startActivity(intent)
-            isWidgetProcessActive = true
+            // Oculta vídeo e imagem
+            // [DOUBLE BUFFERING] Usamos INVISIBLE invés de GONE para as Surfaces sobreviverem
+            playerView1.visibility = View.INVISIBLE
+            playerView2.visibility = View.INVISIBLE
+            staticImageLayer.visibility = View.GONE
+            standbyImage.visibility = View.GONE
             
-            // [PERFORMANCE] Stop video engines to free hardware decoders
+            // Pausa processamento de vídeo do player ativo
+            // [HARD LIMITER] Para o engine, mas mantém o Hard-Bind
             playerRenderer1.stop()
             playerRenderer2.stop()
-            staticImageLayer.visibility = View.GONE
         }
 
-        val durationMs = item.durationSeconds * 1000L
-        delay(durationMs)
+        // 2. Renderiza a Interface diretamente no Layout Nativo do Android
+        com.antigravity.player.util.NativeWidgetEngine.renderWidget(this@MainActivity, nativeWidgetContainer, item.remoteUrl)
 
-        // [LIFECYCLE] Force foreground recovery and close widget
+        // [ZERO-GAP GATEKEEPER]
+        // Widgets nativos são carregados de forma quase instantânea na UI thread, 
+        // então assim que a view é populada, podemos liberar a tela de Sync.
         runOnUiThread {
-            logBlackBox("ENGINE_WIDGET", "Finalizing Widget and recovering focus")
-            
-            // 1. Send signal to finish the WidgetActivity
-            val finishIntent = Intent(this@MainActivity, com.antigravity.player.ui.WidgetActivity::class.java)
-            finishIntent.putExtra("command", "FINISH")
-            finishIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            startActivity(finishIntent)
-
-            // 2. Clear local overlay container
-            webOverlayContainer.visibility = View.GONE
-            
-            // 3. Force MainActivity to front (Hardware Z-Order enforcement)
-            val focusIntent = Intent(this@MainActivity, MainActivity::class.java)
-            focusIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-            startActivity(focusIntent)
+            viewModel.confirmarMidiaPronta()
         }
+
+        // 3. Aguarda duração programada
+        val durationMs = item.durationSeconds * 1000L
+        kotlinx.coroutines.delay(durationMs)
         
         return false
     }
@@ -871,11 +1074,60 @@ class MainActivity : AppCompatActivity() {
 
     private fun hideAllLayers() {
         runOnUiThread {
-            playerView1.visibility = View.GONE
-            playerView2.visibility = View.GONE
+            // [TEORIA DO SURFACE] Mantém os players invisíveis em vez de GONE no reset geral,
+            // para que a Surface se prepare antes que o primeiro vídeo toque.
+            playerView1.visibility = View.INVISIBLE
+            playerView2.visibility = View.INVISIBLE
             staticImageLayer.visibility = View.GONE
             standbyImage.visibility = View.GONE
-            webOverlayContainer.visibility = View.GONE
+            nativeWidgetContainer.visibility = View.GONE
+        }
+    }
+
+    /**
+     * [CONTINGENCY] Modo de Emergência - Vídeo Interno
+     * Tenta reproduzir o standby.mp4 da pasta assets se não houver internet nem cache.
+     */
+    private fun playStandbyVideo() {
+        val standbyUri = android.net.Uri.parse("asset:///standby.mp4")
+        val item = com.antigravity.core.domain.model.MediaItem(
+            id = "STANDBY_FALLBACK",
+            name = "Standby Loop",
+            type = com.antigravity.core.domain.model.MediaType.VIDEO,
+            remoteUrl = "",
+            durationSeconds = 60,
+            localPath = null,
+            hash = "",
+            orderIndex = 0
+        )
+        
+        lifecycleScope.launch {
+            try {
+                // Previne crash se o player não estiver inicializado
+                if (activePlayer == null) {
+                    runOnUiThread { standbyImage.visibility = View.VISIBLE }
+                    return@launch
+                }
+
+                // Substitui a URI real pela URI de Asset diretamente no ExoPlayer underlying
+                val rawPlayer = activePlayer?.getPlayerInstance()
+                if (rawPlayer != null) {
+                    runOnUiThread {
+                        rawPlayer.setMediaItem(androidx.media3.common.MediaItem.fromUri(standbyUri))
+                        rawPlayer.prepare()
+                        rawPlayer.play()
+                        
+                        // Swap atômico (invisível -> visível)
+                        val viewIn = if (activePlayer == playerRenderer1) playerView1 else playerView2
+                        val viewOut = if (activePlayer == playerRenderer1) playerView2 else playerView1
+                        
+                        performSeamlessSwap(viewOut, viewIn, activePlayer)
+                    }
+                }
+            } catch (e: Exception) {
+                Logger.e("CONTINGENCY", "Falha ao tocar standby.mp4: ${e.message}")
+                runOnUiThread { standbyImage.visibility = View.VISIBLE }
+            }
         }
     }
 
@@ -894,10 +1146,17 @@ class MainActivity : AppCompatActivity() {
             // [WATCHDOG] Detector de Congelamento Global
             playbackWatchdog = PlaybackWatchdog {
                 logBlackBox("WATCHDOG", "EMERGENCY_SKIP")
+                runOnUiThread {
+                    // [FAIL-SAFE VISUAL] Oculta o player travado e mostra a logo Neutra
+                    val currentView = if (activePlayer == playerRenderer1) playerView1 else playerView2
+                    currentView.animate().alpha(0f).setDuration(300).start()
+                    standbyImage.visibility = View.VISIBLE
+                }
                 playbackEndedChannel.trySend(Unit)
             }
             
-            var lastPlayedId: String? = null
+            // [INDUSTRIAL QUEUE MANAGER]
+            val queueManager = com.antigravity.player.util.QueueManager()
             
             while (isActive) {
                 try {
@@ -911,10 +1170,10 @@ class MainActivity : AppCompatActivity() {
                     val playableItems = playlist.items.filter { SchedulingEngine.shouldPlay(it) }
 
                     if (playableItems.isEmpty()) {
-                        logBlackBox("IDLE", "No items scheduled")
+                        logBlackBox("IDLE", "No items scheduled. Triggering Standby Fallback.")
                         runOnUiThread {
                             hideAllLayers()
-                            standbyImage.visibility = View.VISIBLE
+                            playStandbyVideo()
                         }
                         delay(20000)
                         continue
@@ -924,33 +1183,34 @@ class MainActivity : AppCompatActivity() {
                     val sequenceLog = playableItems.joinToString(", ") { it.id }
                     Logger.i("PLAYBACK_LOOP", "Active Sequence [Size=${playableItems.size}]: $sequenceLog")
 
-                    // 2. Resilient Cursor: Find next item based on ID to survive reordering
-                    val currentIndex = if (lastPlayedId != null) {
-                        val foundIndex = playableItems.indexOfFirst { it.id == lastPlayedId }
-                        // If found, take next. If not found (item removed), restart from 0
-                        if (foundIndex != -1) (foundIndex + 1) % playableItems.size else 0
-                    } else 0
-
-                    val item = playableItems[currentIndex]
-                    val nextItem = playableItems[(currentIndex + 1) % playableItems.size]
-                    
-                    pulseHeartbeat(item.name)
-                    
-                    // 3. Pré-Carregamento em Segundo Plano (Zero-Gap)
-                    lifecycleScope.launch {
-                        when (nextItem.type) {
-                            MediaType.VIDEO, MediaType.IMAGE -> standbyPlayer?.preBuffer(nextItem)
-                            else -> {}
-                        }
+                    // 2. [QUEUE MANAGER] Resilient Cursor and Blacklist Aware Iterator
+                    val (item, isWrapAround) = queueManager.getNextPlayableItem(playableItems)
+                    if (item == null) {
+                        logBlackBox("ERROR", "QueueManager esgotou todas mídias válidas (Todos em Quarentena).")
+                        delay(2000) 
+                        continue
                     }
-
-                    // 4. EXECUÇÃO PELOS MOTORES (Isolamento de Hardware)
+                    
+                    // [HARDWARE RESILIENCE] Faxina Profunda de Memória
+                    // Rodamos isso EXATAMENTE na virada de ciclo para esconder qualquer stutter (engasgo do Garbage Collector)
+                    if (isWrapAround) {
+                        com.antigravity.player.util.MemoryLeakGuardian.performSanityCheck(this@MainActivity)
+                    }
+                    
+                    val nextItem = queueManager.peekNext(playableItems, item) ?: playableItems.first()
+                    
+                    // [AUTO-RESTART WATCHDOG] Postpone OS-level reboot alarm dynamically based on media duration
+                    val watchdogTimeout = (item.durationSeconds * 1000L).coerceAtLeast(60000L) + 60000L
+                    startWatchdog(watchdogTimeout)
+                    startPersistentHeartbeat()
+                    
+                    // 3. EXECUÇÃO PELOS MOTORES (Isolamento de Hardware)
                     val skipOnFail = when (item.type) {
-                        MediaType.VIDEO -> engineVideo(item, playbackEndedChannel)
+                        MediaType.VIDEO -> engineVideo(item, nextItem)
                         MediaType.IMAGE -> engineStatic(item)
                         MediaType.WEB_WIDGET -> engineWidget(item)
                         MediaType.EXTERNAL_LINK -> engineLink(item)
-                        MediaType.STREAM_RTSP, MediaType.STREAM_HLS -> engineVideo(item, playbackEndedChannel)
+                        MediaType.STREAM_RTSP, MediaType.STREAM_HLS -> engineVideo(item, nextItem)
                         else -> {
                             logBlackBox("SKIP", "Untracked type: ${item.type}")
                             true
@@ -959,18 +1219,33 @@ class MainActivity : AppCompatActivity() {
 
                     if (skipOnFail) {
                         logBlackBox("RECOVERY", "Skipping failed item: ${item.name}")
+                        // [CRITICAL FIX] Quarentena Ativa: Avisa o QueueManager e freia o CPU
+                        queueManager.quarantineItem(item.id, "EngineSkip (Hardware/Codec Reject)")
+                        
+                        // [TV BOX FREIO DE MÃO] Assíncrono Back-off para a GPU esfriar antes de tentar o próximo vídeo 
+                        logBlackBox("RECOVERY", "Aguardando 2000ms GPU cooldown.")
+                        delay(2000L) 
                     } else {
-                        // 5. Swap de Players de Vídeo (Se necessário)
-                        if (item.type == MediaType.VIDEO || item.type == MediaType.IMAGE) {
-                            val temp = activePlayer
-                            activePlayer = standbyPlayer
-                            standbyPlayer = temp
-                        }
-                        // Important: Mark as played to move pointer
-                        lastPlayedId = item.id
-                    }
+                        // 5. Swap de Players de Vídeo (SEMPRE)
+                        // This ensures the standbyPlayer (which just prebuffered nextItem)
+                        // becomes the activePlayer for the next loop iteration.
+                        val temp = activePlayer
+                        activePlayer = standbyPlayer
+                        standbyPlayer = temp
+                        
+                        // [CRITICAL FIX] Marca como tocado garantindo o avanço
+                        queueManager.markAsProcessed(item.id)
 
+                        // [AUDIT LOG - OFFLINE FIRST] Registra o sucesso da exibição no cofre local
+                        com.antigravity.player.util.DisplayAnalyticsManager.registerPlayback(
+                            context = this@MainActivity,
+                            mediaId = item.id,
+                            mediaName = item.name,
+                            duration = item.durationSeconds.toInt()
+                        )
+                    }
                 } catch (e: Exception) {
+                    Logger.e("LOOP_CRASH", "Exception in playback loop: ${e.message}", e)
                     logBlackBox("LOOP_CRASH", e.message ?: "Unknown")
                     reportErrorToSupabase("FATAL_LOOP_EXCEPTION", e.message ?: "Unknown")
                     delay(5000)
@@ -1014,34 +1289,23 @@ class MainActivity : AppCompatActivity() {
         super.onWindowFocusChanged(hasFocus)
         // [MISSION CRITICAL] Silent Immersive Enforcement (No prompts, no Toasts)
         if (hasFocus) {
-            val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+            val windowInsetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
             // Esconde barras de status e navegação
-            windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+            windowInsetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             // Garante que elas só apareçam se o usuário deslizar (e sumam logo depois)
             windowInsetsController.systemBarsBehavior = 
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         } else {
-            // [MISSION CRITICAL] Absolute Focus Management (< 1s recovery)
-            if (!this@MainActivity.isMaintenanceMode && this@MainActivity.isKioskEnforced) {
-                Logger.w("KIOSK", "Perda de Foco Detectada! Retomando em 500ms...")
-                Handler(Looper.getMainLooper()).postDelayed({
-                    if (!this@MainActivity.isFinishing && !this@MainActivity.isDestroyed) {
-                        val intent = Intent(this@MainActivity, MainActivity::class.java)
-                        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                        startActivity(intent)
-                    }
-                }, 500)
-            }
-
-            // Collapse notification shade
-            try {
-                @SuppressLint("WrongConstant")
-                val statusBarService = getSystemService("statusbar")
-                val statusBarManager = Class.forName("android.app.StatusBarManager")
-                val collapseMethod = statusBarManager.getMethod("collapsePanels")
-                collapseMethod.invoke(statusBarService)
-            } catch (e: Exception) {
-                sendBroadcast(Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+            // [KIOSK LOCK] Se perdeu o foco (ex: Home pressionado, outra intent abrindo)
+            // E o modo kiosk está ativo globalmente, force o redirecionamento imediato para a MainActivity.
+            if (isKioskEnforced) {
+                Logger.w("KIOSK", "Focus lost. Forcing MainActivity back to top (activityManager.moveTaskToFront).")
+                try {
+                    val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                    am.moveTaskToFront(taskId, android.app.ActivityManager.MOVE_TASK_WITH_HOME)
+                } catch (e: Exception) {
+                    Logger.e("KIOSK", "Failed to moveTaskToFront: ${e.message}")
+                }
             }
         }
     }
@@ -1114,21 +1378,30 @@ class MainActivity : AppCompatActivity() {
     private fun applyScreenRotation(orientation: String?) {
         runOnUiThread {
             when (orientation?.lowercase()) {
-                "portrait" -> {
+                "portrait", "retrato", "vertical" -> {
+                    Logger.i("ORIENTATION", "Forcing Portrait Mode")
                     requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 }
-                "landscape" -> {
+                "landscape", "paisagem", "horizontal" -> {
+                    Logger.i("ORIENTATION", "Forcing Landscape Mode")
                     requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                 }
+                else -> {
+                    Logger.i("ORIENTATION", "No valid orientation received: $orientation. Keeping current.")
+                }
             }
+            // Trigger layout recalculation immediately for hardware constraints
+            window.decorView.requestLayout()
         }
     }
 
     private fun startScreenshotHeartbeat() {
         lifecycleScope.launch {
             while (isActive) {
-                delay(3600000) // 1 hour
-                takeProofOfPlayScreenshot()
+                delay(21600000) // 6 hours (Optimization: drastically reduce egress/quota)
+                if (SessionManager.isScreenActive) {
+                    takeProofOfPlayScreenshot()
+                }
             }
         }
     }
@@ -1149,33 +1422,171 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val view = window.decorView
-        if (view.width <= 0 || view.height <= 0) return
-        
-        try {
-            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            PixelCopy.request(window, bitmap, { copyResult ->
-                if (copyResult == PixelCopy.SUCCESS) {
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        try {
-                            val stream = java.io.ByteArrayOutputStream()
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 70, stream)
-                            val byteArray = stream.toByteArray()
-                            
-                            val screenId = getSharedPreferences("player_prefs", MODE_PRIVATE).getString("saved_screen_id", "UNKNOWN") ?: "UNKNOWN"
-                            ServiceLocator.getRemoteDataSource().uploadScreenshot(screenId, byteArray, "manual")
-                            
-                            if (commandId != null) {
-                                ServiceLocator.getRemoteDataSource().acknowledgeCommand(commandId, "success")
+        lifecycleScope.launch {
+            // 1. [SILENCIADOR] Bloqueia o tráfego do Heartbeat Service e processos secundários
+            com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = true
+            
+            // 2. [LIXEIRO] Varre a RAM para liberar espaço na GPU de caixas baratas (O Pulo do Gato)
+            System.gc()
+            
+            // 3. Aguarda 2 segundos estritos para a CPU/Rede/Memória estarem em Idle total
+            delay(2000)
+
+            val view = window.decorView
+            if (view.width <= 0 || view.height <= 0) {
+                com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
+                return@launch
+            }
+            
+            try {
+                val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+                PixelCopy.request(window, bitmap, { copyResult ->
+                    if (copyResult == PixelCopy.SUCCESS) {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            try {
+                                val stream = java.io.ByteArrayOutputStream()
+                                bitmap.compress(Bitmap.CompressFormat.JPEG, 70, stream)
+                                val byteArray = stream.toByteArray()
+                                
+                                val screenId = getSharedPreferences("player_prefs", MODE_PRIVATE).getString("saved_screen_id", "UNKNOWN") ?: "UNKNOWN"
+                                ServiceLocator.getRemoteDataSource().uploadScreenshot(screenId, byteArray, "manual")
+                                
+                                if (commandId != null) {
+                                    ServiceLocator.getRemoteDataSource().acknowledgeCommand(commandId, "success")
+                                }
+                            } catch (e: Exception) {
+                                Logger.e("SCREENSHOT", "Upload failed: ${e.message}")
+                            } finally {
+                                // [LIBERAÇÃO] Devolve o controle ao Heartbeat
+                                com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
                             }
-                        } catch (e: Exception) {
-                            Logger.e("SCREENSHOT", "Upload failed: ${e.message}")
                         }
+                    } else {
+                        com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
                     }
-                }
-            }, Handler(Looper.getMainLooper()))
-        } catch (e: Exception) {
-            Logger.e("SCREENSHOT", "Capture failed: ${e.message}")
+                }, Handler(Looper.getMainLooper()))
+            } catch (e: Exception) {
+                Logger.e("SCREENSHOT", "Hard Crash during capture: ${e.message}")
+                com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
+            }
         }
+    }
+
+    // ========================================================================
+    // [ESCAPE PROTOCOL] DIRECT ESCAPE MAINTENANCE MODE
+    // ========================================================================
+
+    override fun onTouchEvent(event: android.view.MotionEvent?): Boolean {
+        if (event?.action == android.view.MotionEvent.ACTION_DOWN) {
+            triggerMaintenanceFree()
+        }
+        return super.onTouchEvent(event)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        triggerMaintenanceFree()
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun triggerMaintenanceFree() {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastInputTime > 1500) {
+            maintenanceCounter = 1
+        } else {
+            maintenanceCounter++
+        }
+        lastInputTime = currentTime
+
+        if (maintenanceCounter >= 3) {
+            enableSystemNavigation()
+            maintenanceCounter = 0
+        }
+    }
+
+    private fun enableSystemNavigation() {
+        if (!isKioskEnforced) {
+            // Se já estiver liberado, zera o timer e reinicia os 4 min
+            maintenanceJob?.cancel()
+        } else {
+            // 1. Pausa a blindagem (Kiosk Lock no onWindowFocusChanged)
+            isKioskEnforced = false
+            Logger.w("ESCAPE_PROTOCOL", "Modo Manutenção ativado. System UI liberada e MoveTaskToFront bloqueado.")
+
+            // 2. Libera as barras de navegação (Home / Back Buttons) visíveis
+            runOnUiThread {
+                val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+                windowInsetsController?.show(WindowInsetsCompat.Type.systemBars())
+                windowInsetsController?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+
+                Toast.makeText(this, "MODO DE MANUTENÇÃO: Sistema Liberado por 4 Min. Pressione Home para sair.", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        // 3. Força o Timer de 4 minutos (240 segundos) independente do clique
+        maintenanceJob = lifecycleScope.launch {
+            delay(240_000L) // 4 Minutos
+
+            runOnUiThread {
+                Toast.makeText(this@MainActivity, "Tempo Exgotado. Retomando Controle (Kiosk Lock).", Toast.LENGTH_LONG).show()
+                isKioskEnforced = true
+                setFullscreenMode() // Esconde a barra e reativa Swipe Mode
+                
+                // Força um foco instantâneo caso tenha minimizado
+                val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                try {
+                    am.moveTaskToFront(taskId, android.app.ActivityManager.MOVE_TASK_WITH_HOME)
+                } catch (ignore: Exception) {}
+            }
+            Logger.i("ESCAPE_PROTOCOL", "Modo Kiosk Total restabelecido via Timer de Segurança.")
+        }
+    }
+
+    fun exportarRelatorio() {
+        viewModel.gerarRelatorioCSV { conteudoCsv ->
+            val nomeArquivo = "Relatorio_SobreMidia_${System.currentTimeMillis()}.csv"
+            
+            try {
+                // Criar o arquivo temporário para compartilhamento no cache
+                val file = File(cacheDir, nomeArquivo)
+                file.writeText(conteudoCsv)
+
+                val uri = FileProvider.getUriForFile(this, "${applicationContext.packageName}.fileprovider", file)
+
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/csv"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                
+                startActivity(Intent.createChooser(intent, "Exportar Logs de Auditoria"))
+            } catch (e: Exception) {
+                Logger.e("EXPORT", "Falha ao exportar CSV: ${e.message}")
+                Toast.makeText(this, "Erro ao exportar relatório", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    /**
+     * [AUTO-RESTART WATCHDOG]
+     * Configura um "Homem-Morto" (Dead Man's Switch) no Sistema Operacional.
+     * Se o ExoPlayer travar a Main Thread ou a TV Box matar o app por falta de RAM,
+     * este alarme do Android recriará a MainActivity daqui a exatos 60 segundos,
+     * garantindo o Playback Eterno e a Recuperação Desassistida (Zero-Touch).
+     */
+    private fun startWatchdog(timeoutMs: Long = 60000L) {
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        
+        // Se o loop de mídia não rodar a tempo de cancelar e remarcar esse alarme (ex: engasgou total),
+        // o Android acorda e invoca essa PendingIntent, ressuscitando o Player.
+        alarmManager.set(
+            AlarmManager.RTC_WAKEUP,
+            System.currentTimeMillis() + timeoutMs, 
+            pendingIntent
+        )
     }
 }

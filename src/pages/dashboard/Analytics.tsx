@@ -26,7 +26,7 @@ export default function Analytics() {
             const onlineScreens = screens?.filter(s => {
                 if (!s.last_ping_at) return false;
                 const diff = now.getTime() - new Date(s.last_ping_at).getTime();
-                return diff < 5 * 60 * 1000; // 5 mins
+                return diff < 180000; // 3 min tolerance
             }).length || 0;
 
             // 2. Storage Usage (Approximation from media count/size if available or just count)

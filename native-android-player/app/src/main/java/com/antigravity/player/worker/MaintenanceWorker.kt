@@ -20,8 +20,12 @@ class MaintenanceWorker(
             // 1. Purge Local Database logs/cache
             repository.performMaintenanceCleanup()
             
-            // 2. Force JVM Garbage Collection
+            // 2. Force JVM Garbage Collection & Media Cache Sweep
             System.gc()
+            try {
+                com.bumptech.glide.Glide.get(applicationContext).clearDiskCache()
+                com.antigravity.core.util.Logger.i("MAINTENANCE", "Glide Disk Cache cleared (Daily Sweep).")
+            } catch (ignore: Exception) {}
             
             // 3. Force WebView memory release (Via session manager)
             com.antigravity.sync.service.SessionManager.triggerWebViewReset()

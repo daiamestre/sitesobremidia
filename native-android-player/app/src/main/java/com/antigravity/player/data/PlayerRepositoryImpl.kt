@@ -1,7 +1,13 @@
 package com.antigravity.player.data
 
+import java.io.File
+
 import com.antigravity.cache.dao.LogDao
 import com.antigravity.cache.dao.PlayerDao
+import com.antigravity.cache.dao.ConfiguracaoDao
+import com.antigravity.cache.dao.LogAuditoriaDao
+import com.antigravity.cache.entity.ConfiguracaoEntity
+import com.antigravity.cache.entity.LogAuditoriaEntity
 import com.antigravity.cache.entity.OfflinePlaybackLog
 import com.antigravity.cache.entity.toCache
 import com.antigravity.cache.entity.toDomain
@@ -9,12 +15,16 @@ import com.antigravity.cache.storage.FileStorageManager
 import com.antigravity.core.config.PlayerConfig
 import com.antigravity.core.domain.model.Playlist
 import com.antigravity.core.domain.repository.PlayerRepository
+import com.antigravity.core.domain.repository.PlaylistState
+import com.antigravity.core.domain.model.MediaType
+import com.antigravity.core.domain.model.MediaItem
 import com.antigravity.core.util.Logger
 import com.antigravity.core.util.TimeManager
+import com.antigravity.core.domain.model.RegionalConfig
 import com.antigravity.player.di.ServiceLocator
 import com.antigravity.player.util.PlaybackBufferManager
 import com.antigravity.player.worker.MediaDownloadWorker
-import com.antigravity.sync.dto.PlayLogDto
+import com.antigravity.sync.dto.*
 import com.antigravity.sync.service.MediaDownloader
 import com.antigravity.sync.service.RemoteDataSource
 import com.antigravity.sync.service.SessionManager
@@ -23,9 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -40,6 +48,8 @@ class PlayerRepositoryImpl(
     private val playerDao: PlayerDao,
     private val logDao: LogDao,
     private val fileStorageManager: FileStorageManager,
+    private val configuracaoDao: ConfiguracaoDao,
+    private val logAuditoriaDao: LogAuditoriaDao,
     override val deviceId: String
 ) : PlayerRepository {
 
@@ -57,6 +67,134 @@ class PlayerRepositoryImpl(
         return _activePlaylist.asStateFlow()
     }
     override fun getSyncProgress(): Flow<String> = _syncProgress.asStateFlow()
+
+    override suspend fun syncPlaylist(screenToken: String): Flow<PlaylistState> = flow {
+        emit(PlaylistState.Loading)
+        try {
+            // 1. Fetch Device and Active Playlist (Yeloo Blueprint + Golden Tip)
+            val deviceResponse = remoteDataSource.postgrest.from("devices")
+                .select(columns = Columns.raw("""
+                    id, 
+                    current_playlist_id, 
+                    version_signature,
+                    playlists (
+                        id, name,
+                        playlist_items (
+                            id, position, duration, start_time, end_time, days_of_week,
+                            medias (id, name, file_url, file_hash, media_type),
+                            widgets (id, type, configuration)
+                        )
+                    )
+                """.trimIndent())) {
+                    filter { eq("screen_token", screenToken) }
+                }.decodeSingle<DeviceRemoteDTO>()
+
+            val remoteItems = deviceResponse.playlist?.items ?: emptyList()
+
+            // 2. Hash Match Logic for each media item
+            val domainItems = remoteItems.map { item ->
+                val media = item.media
+                if (media != null) {
+                    val file = fileStorageManager.getFileForMedia(media.id)
+                    val expectedHash = media.fileHash
+                    
+                    // [PROFESSIONAL HASH MATCH] Decisão de download baseada em integridade MD5
+                    if (file.exists()) {
+                        val localHash = fileStorageManager.calculateHash(file.absolutePath)
+                        if (localHash == expectedHash) {
+                            Logger.i("SYNC", "Hash Match: ${media.name} já está íntegro no cache.")
+                        } else {
+                            Logger.w("SYNC", "Hash Mismatch: ${media.name} corrompido ou desatualizado. Re-baixando...")
+                            file.delete()
+                            emit(PlaylistState.Downloading(media.name))
+                            remoteDataSource.reportDownloadProgress(deviceId, media.id, 0)
+                            val mediaDownloader = com.antigravity.sync.service.MediaDownloader()
+                            mediaDownloader.downloadFile(media.fileUrl, file)
+                        }
+                    } else {
+                        Logger.i("SYNC", "Novo Arquivo: ${media.name} baixando pela primeira vez.")
+                        emit(PlaylistState.Downloading(media.name))
+                        remoteDataSource.reportDownloadProgress(deviceId, media.id, 0)
+                        val mediaDownloader = com.antigravity.sync.service.MediaDownloader()
+                        mediaDownloader.downloadFile(media.fileUrl, file)
+                    }
+                    
+                    val localPath = file.absolutePath
+                    
+                    MediaItem(
+                        id = media.id,
+                        name = media.name,
+                        type = when(media.mediaType) {
+                            "video" -> MediaType.VIDEO
+                            "image" -> MediaType.IMAGE
+                            else -> MediaType.VIDEO
+                        },
+                        durationSeconds = item.duration / 1000,
+                        remoteUrl = media.fileUrl,
+                        localPath = localPath,
+                        hash = expectedHash,
+                        orderIndex = item.position,
+                        startTime = item.startTime,
+                        endTime = item.endTime,
+                        daysOfWeek = item.daysOfWeek
+                    )
+                } else {
+                    // Handle Widgets
+                    val widget = item.widget
+                    val itemUrl = if (widget != null) {
+                         val baseWidgetUrl = "native_widget://${widget.type.lowercase()}/${widget.id}"
+                         val configJson = widget.configuration
+                         if (!configJson.isNullOrBlank()) {
+                             "$baseWidgetUrl?config=${java.net.URLEncoder.encode(configJson, "UTF-8")}"
+                         } else {
+                             baseWidgetUrl
+                         }
+                    } else ""
+
+                    MediaItem(
+                        id = item.id,
+                        name = "Widget ${item.position}",
+                        type = if (widget != null) MediaType.WEB_WIDGET else MediaType.VIDEO,
+                        durationSeconds = item.duration / 1000,
+                        remoteUrl = itemUrl,
+                        localPath = null,
+                        hash = itemUrl.hashCode().toString(),
+                        orderIndex = item.position,
+                        startTime = item.startTime,
+                        endTime = item.endTime,
+                        daysOfWeek = item.daysOfWeek
+                    )
+                }
+            }
+
+            // 3. Persist to Room
+            savePlaylistToRoomInternal(domainItems)
+
+            emit(PlaylistState.Success(domainItems))
+
+        } catch (e: Exception) {
+            Logger.e("REPOS", "Sync Flow Crash: ${e.message}")
+            emit(PlaylistState.Error(e.message ?: "Erro na sincronização flow"))
+        }
+    }
+
+    override fun listenToChanges(screenToken: String): Flow<Unit> {
+        val channel = remoteDataSource.realtime.channel("device_broadcast_$screenToken")
+        return channel.broadcastFlow<Unit>(event = "sync_now").map { Unit }
+    }
+
+    private suspend fun savePlaylistToRoomInternal(items: List<MediaItem>) {
+        val cachedPlaylist = com.antigravity.cache.entity.CachedPlaylist(
+            id = deviceId,
+            name = "Sync: ${java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}",
+            version = System.currentTimeMillis(),
+            isEmergency = false,
+            orientation = SessionManager.currentOrientation,
+            resolution = "16x9"
+        )
+        val cachedItems = items.map { it.toCache(deviceId) }
+        playerDao.insertPlaylistWithItems(cachedPlaylist, cachedItems)
+    }
 
     override suspend fun syncWithRemote(): Result<Unit> = withContext(Dispatchers.IO) {
         if (syncMutex.isLocked) {
@@ -127,6 +265,17 @@ class PlayerRepositoryImpl(
                         _syncProgress.value = "Novas configurações detectadas..."
                     }
 
+                    // [DEEP CLEANUP] Se o ID da playlist mudou completamente (ex: deletou e criou outra no painel), limpe tudo.
+                    val cachedPlaylist = playerDao.getActivePlaylist()
+                    if (cachedPlaylist != null && cachedPlaylist.id != remotePlaylist.id) {
+                        Logger.w("SYNC", "Nova Playlist detectada! Aplicando Limpeza Profunda (Hard Reset)...")
+                        // Mata fisicamente a pasta de arquivos
+                        fileStorageManager.deleteAll()
+                        // Mata as tabelas de rastreamento do Room para forçar Download do Zero
+                        playerDao.deleteAllPlaylists()
+                        playerDao.deleteAllMediaItems()
+                    }
+
                     // 2. Hot-Swap Orientation
                     val oldOrientation = SessionManager.currentOrientation
                     if (remotePlaylist.orientation != oldOrientation) {
@@ -141,10 +290,24 @@ class PlayerRepositoryImpl(
                     // 4. Download only new/missing media
                     _syncProgress.value = "Sincronizando novas mídias..."
                     syncContent(remotePlaylist)
+                    
+                    // [PROFESSIONAL REPRODUCTION MODE] 
+                    // BLOQUEIO DE REDE: Não sai da tela de sincronia se o cache não estiver 100% íntegro pós-download.
+                    val isSyncComplete = verifyCacheIntegrity(remotePlaylist)
+                    if (!isSyncComplete) {
+                        Logger.e("SYNC", "Falha Crítica de Sincronia: Faltam arquivos ou arquivos estão corrompidos após o Sync.")
+                        throw Exception("Download Incompleto. Retentando...")
+                    }
 
                     // 5. Garbage Collection (Physical Removal)
+                    // [CACHE_CLEANER] 1. Purgar os orfãos usando StorageManager local
                     val validIds = remotePlaylist.items.map { it.id }
                     fileStorageManager.purgeOrphanedFiles(validIds)
+                    
+                    // [CACHE_CLEANER] 2. Nova estratégia de varredura profunda (Limpeza Obsoleta Anti-TVBox Full)
+                    // Extrai a lista de nomes físicos exatos (.dat) que a playlist atual exige
+                    val nomesArquivosOficiais = remotePlaylist.items.map { "${it.id}.dat" }
+                    com.antigravity.player.util.CacheManager.limparCacheObsoleto(context, nomesArquivosOficiais)
 
                     // 7. Emit & Handshake
                     emitPlaylistFromCache()
@@ -192,21 +355,15 @@ class PlayerRepositoryImpl(
     private fun initRealtimeSync(playlistId: String) {
         repositoryScope.launch {
             try {
-                // [HARDENING] Realtime requires UUID for Postgres filter to work correctly
-                while (SessionManager.currentUUID == null) {
-                    Logger.w("REPOS", "Waiting for UUID to initialize Realtime Sync...")
-                    delay(2000)
-                }
-                
-                val uuid = SessionManager.currentUUID!!
-                Logger.i("REPOS", "Starting Realtime Sync for UUID: $uuid")
+                // [YELOO] Realtime subscribe uses the screenToken (deviceId)
+                Logger.i("REPOS", "Starting Realtime Sync for Screen Token: $deviceId")
 
-                // 1. Subscribe to Websockets using the resolved UUID
-                remoteDataSource.subscribeToRealtimeSync(uuid, playlistId, repositoryScope)
+                // 1. Subscribe to Websockets using the Screen Token
+                remoteDataSource.subscribeToRealtimeSync(deviceId, playlistId, repositoryScope)
                 
                 // 2. Listen for Nudges (from Realtime)
                 SessionManager.syncEvents.collect {
-                    Logger.i("REPOS", "Sync Nudge Received! Forcing Background Update...")
+                    Logger.i("REPOS", "Sync Nudge Received! Forcing Yeloo-Style Update...")
                     syncWithRemote()
                 }
             } catch (e: Exception) {
@@ -279,7 +436,7 @@ class PlayerRepositoryImpl(
         // Wait for all downloads to finish (with timeout to prevent infinite loop)
         var completed = 0
         val startTime = System.currentTimeMillis()
-        val timeoutMs = 45 * 1000L // Reduced to 45s for better initial UX. Background sync will finish the rest anyway.
+        val timeoutMs = 60 * 1000L // [CONTINGENCY] Reduced to 1 minute for faster fallback
         
         while (completed < total) {
             val elapsed = System.currentTimeMillis() - startTime
@@ -511,6 +668,11 @@ class PlayerRepositoryImpl(
                 logDao.deleteOldestLogs(100)
             }
 
+            // 3. Clear Stale Audit Logs (7-day retention for Zero-Egress database health)
+            val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
+            logAuditoriaDao.limparLogsAntigos(sevenDaysAgo)
+            Logger.i("MAINTENANCE", "Audit Logs pruned (7-day retention).")
+
             Logger.i("MAINTENANCE", "Cycle Completed Successfully.")
         } catch (e: Exception) {
             Logger.e("MAINTENANCE", "Cycle Failed: ${e.message}")
@@ -578,5 +740,77 @@ class PlayerRepositoryImpl(
             
             Logger.i("REPOS", "Local path updated for $mediaId -> $path. Emission triggered.")
         }
+    }
+
+    // [REGIONAL CONTEXT]
+    override suspend fun getLocalizacao(): RegionalConfig? = withContext(Dispatchers.IO) {
+        val config = configuracaoDao.getLocalizacaoSalva()
+        if (config != null) RegionalConfig(config.cidade, config.estado, config.timezone) else null
+    }
+
+    override suspend fun salvarLocalizacao(config: RegionalConfig) = withContext(Dispatchers.IO) {
+        val antiga = configuracaoDao.getLocalizacaoSalva()
+        configuracaoDao.salvarLocalizacao(ConfiguracaoEntity(
+            id = 1,
+            tokenAcesso = antiga?.tokenAcesso,
+            playerID = antiga?.playerID,
+            cidade = config.cidade,
+            estado = config.estado,
+            timezone = config.timezone
+        ))
+    }
+
+    override suspend fun salvarCredenciais(token: String, playerId: String) = withContext(Dispatchers.IO) {
+        val antiga = configuracaoDao.getLocalizacaoSalva()
+        configuracaoDao.salvarLocalizacao(ConfiguracaoEntity(
+            id = 1,
+            tokenAcesso = token,
+            playerID = playerId,
+            cidade = antiga?.cidade ?: "Desconhecido",
+            estado = antiga?.estado ?: "Desconhecido",
+            timezone = antiga?.timezone ?: "America/Sao_Paulo"
+        ))
+    }
+
+    override suspend fun getStoredCredentials(): Pair<String, String>? = withContext(Dispatchers.IO) {
+        val config = configuracaoDao.getLocalizacaoSalva()
+        if (!config?.tokenAcesso.isNullOrEmpty() && !config?.playerID.isNullOrEmpty()) {
+            Pair(config!!.tokenAcesso!!, config.playerID!!)
+        } else {
+            null
+        }
+    }
+
+    override suspend fun salvarLogAuditoria(nome: String, tipo: String, duracao: Int, cidade: String) = withContext(Dispatchers.IO) {
+        logAuditoriaDao.inserirLog(LogAuditoriaEntity(
+            midiaNome = nome,
+            midiaTipo = tipo,
+            duracaoExibida = duracao,
+            cidadeNoMomento = cidade
+        ))
+    }
+
+    override suspend fun buscarLogsAuditoria(): List<com.antigravity.core.domain.model.LogAuditoria> = withContext(Dispatchers.IO) {
+        logAuditoriaDao.buscarTodosLogs().map { entity ->
+            com.antigravity.core.domain.model.LogAuditoria(
+                id = entity.id,
+                midiaNome = entity.midiaNome,
+                midiaTipo = entity.midiaTipo,
+                dataHora = entity.dataHora,
+                cidadeNoMomento = entity.cidadeNoMomento,
+                duracaoExibida = entity.duracaoExibida
+            )
+        }
+    }
+
+    override suspend fun limparLogsAuditoriaAntigos(limiteTempo: Long) = withContext(Dispatchers.IO) {
+        logAuditoriaDao.limparLogsAntigos(limiteTempo)
+    }
+
+    override suspend fun hasLocalMedia(): Boolean = withContext(Dispatchers.IO) {
+        val dir = File(context.filesDir, "media_content")
+        if (!dir.exists()) return@withContext false
+        val files = dir.listFiles()
+        return@withContext files?.any { file -> file.isFile && file.length() > 0 } ?: false
     }
 }

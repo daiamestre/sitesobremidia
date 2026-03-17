@@ -38,7 +38,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Player"
         android:usesCleartextTraffic="true"
-        android:hardwareAccelerated="true"
+        android:hardwareAccelerated="false"
         tools:targetApi="31">
         
         <activity
@@ -50,7 +50,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 
@@ -65,30 +64,30 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
             android:exported="false"/>
 
+        <!-- [HEARTBEAT] Serviço Imortal para garantir status verde no Dashboard 24/7 -->
+        <service
+            android:name=".service.PersistentHeartbeatService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- Player (Main & System Launcher) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleInstance"
+            android:hardwareAccelerated="true"
             android:stateNotNeeded="true"
-            android:theme="@style/Theme.Player.Launcher"
-            android:screenOrientation="fullSensor"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode|smallestScreenSize|density|uiMode">
+            android:theme="@style/Theme.Player"
+            android:screenOrientation="locked"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode|smallestScreenSize|density">
             <intent-filter android:priority="1000">
+                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
-        <!-- Isolamento do Motor Web em processo separado -->
-        <activity
-            android:name=".ui.WidgetActivity"
-            android:process=":web_engine"
-            android:theme="@style/Theme.Player.Transparent"
-            android:screenOrientation="fullSensor"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="false"
-            android:hardwareAccelerated="true" />
 
         <receiver
             android:name=".receiver.BootReceiver"

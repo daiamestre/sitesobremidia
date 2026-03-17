@@ -4,7 +4,7 @@ import { VideoPlayer, VideoPlayerRef } from '@/components/media/VideoPlayer';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, Volume2, VolumeX, Monitor, Smartphone, Pencil } from 'lucide-react';
+import { Image, Video, Music, MoreVertical, Trash2, Download, Eye, Play, Pause, Volume2, VolumeX, Monitor, Smartphone, Pencil, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Media } from '@/types/models';
@@ -115,6 +115,8 @@ export function MediaCard({ media, viewMode, onDelete, onPreview, onEdit }: Medi
 
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (media.processing_status === 'processing') return;
+    
     if (videoRef.current) {
       videoRef.current.togglePlay();
       setIsPlaying(!isPlaying); // Optimistic update, but onPlay/onPause will confirm
@@ -208,6 +210,7 @@ export function MediaCard({ media, viewMode, onDelete, onPreview, onEdit }: Medi
       <div
         className="aspect-video bg-muted/30 flex items-center justify-center cursor-pointer relative overflow-hidden"
         onClick={() => {
+          if (media.processing_status === 'processing') return; // Bloquear clique se estiver processando
           if (!isVideo) onPreview(media);
           else onPreview(media); // Default behavior is preview
         }}
@@ -245,11 +248,18 @@ export function MediaCard({ media, viewMode, onDelete, onPreview, onEdit }: Medi
           </div>
         )}
 
-        {/* Overlay Icon for non-playing states (Hover) */}
+        {/* Overlay Icon for non-playing states (Hover or Processing) */}
         {!isPlaying && (
           <div className={`absolute inset-0 bg-black/40 ${isVideo ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity flex items-center justify-center backdrop-blur-[1px]`}>
-            {/* Always show Eye for interactions unless playing */}
-            {isVideo ? (
+            {/* Se estiver processando, mostra ampulheta. Senão, mostra Play/Eye */}
+            {media.processing_status === 'processing' ? (
+              <div className="flex flex-col items-center">
+                <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
+                <span className="text-xs font-semibold text-white bg-black/60 px-2 py-1 rounded-md">
+                  Processando Vídeo...
+                </span>
+              </div>
+            ) : isVideo ? (
               <Play className="h-10 w-10 text-white opacity-80 hover:opacity-100 transition-opacity" onClick={togglePlay} />
             ) : (
               <Eye className="h-8 w-8 text-white drop-shadow-lg" />

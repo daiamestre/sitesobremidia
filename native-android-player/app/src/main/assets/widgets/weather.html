@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+            font-family: 'Inter', sans-serif;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            text-align: center;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            max-width: 90%;
+        }
+
+        .location {
+            font-size: 2rem;
+            font-weight: 500;
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.9;
+        }
+
+        .weather-main {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .temp {
+            font-size: 8rem;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .description {
+            font-size: 2.5rem;
+            font-weight: 300;
+            opacity: 0.8;
+        }
+
+        .details {
+            display: flex;
+            justify-content: space-around;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 1.5rem;
+            gap: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .detail-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            opacity: 0.6;
+        }
+
+        .detail-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="location" class="location">Carregando clima...</div>
+
+        <div class="weather-main">
+            <div id="temp" class="temp">--°</div>
+            <div id="description" class="description">--</div>
+        </div>
+
+        <div class="details">
+            <div class="detail-item">
+                <span class="detail-label">Sensação</span>
+                <span id="feels-like" class="detail-value">--°</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Umidade</span>
+                <span id="humidity" class="detail-value">--%</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Vento</span>
+                <span id="wind" class="detail-value">-- km/h</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentCity = "";
+
+        window.configurarWidget = function (city, state, tz) {
+            if (city && city !== currentCity) {
+                currentCity = city;
+                document.getElementById('location').textContent = `Previsão para ${city} - ${state}`;
+                fetchWeather(city);
+            }
+        };
+
+        async function fetchWeather(city) {
+            try {
+                // 1. Geocoding
+                const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=pt`);
+                const geoData = await geoRes.json();
+
+                if (!geoData.results || geoData.results.length === 0) return;
+
+                const { latitude, longitude } = geoData.results[0];
+
+                // 2. Weather
+                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m`);
+                const weatherData = await weatherRes.json();
+                const current = weatherData.current;
+
+                document.getElementById('temp').textContent = Math.round(current.temperature_2m) + "°";
+                document.getElementById('feels-like').textContent = Math.round(current.apparent_temperature) + "°";
+                document.getElementById('humidity').textContent = current.relative_humidity_2m + "%";
+                document.getElementById('wind').textContent = Math.round(current.wind_speed_10m) + " km/h";
+                document.getElementById('description').textContent = getWeatherDesc(current.weather_code);
+
+            } catch (e) {
+                console.error("Weather fetch failed", e);
+            }
+        }
+
+        function getWeatherDesc(code) {
+            if (code === 0) return "Céu Limpo";
+            if (code >= 1 && code <= 3) return "Nublado";
+            if (code >= 45 && code <= 48) return "Nevoeiro";
+            if (code >= 51 && code <= 67) return "Chuva";
+            if (code >= 71 && code <= 77) return "Neve";
+            if (code >= 80 && code <= 82) return "Pancadas";
+            if (code >= 95) return "Tempestade";
+            return "Nublado";
+        }
+
+        // Refresh every 30 mins
+        setInterval(() => {
+            if (currentCity) fetchWeather(currentCity);
+        }, 30 * 60 * 1000);
+    </script>
+</body>
+
+</html>

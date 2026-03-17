@@ -96,6 +96,8 @@ object ServiceLocator {
                 db.playerDao(),
                 db.logDao(),
                 storage,
+                db.configuracaoDao(),
+                db.logAuditoriaDao(),
                 currentScreenId
             )
         }

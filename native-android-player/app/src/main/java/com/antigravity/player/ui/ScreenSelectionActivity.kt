@@ -101,16 +101,29 @@ class ScreenSelectionActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
         prefs.edit().putString("saved_screen_id", screenId).apply()
         
-        // [CRITICAL] Reset Repository to use NEW Screen ID immediately
-        ServiceLocator.resetRepository()
+        val token = prefs.getString("auth_token", "") ?: ""
         
-        Toast.makeText(this, "Conectado com Sucesso!", Toast.LENGTH_SHORT).show()
-        
-        // Start MainActivity (Sync Stage)
-        val intent = Intent(this, MainActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        startActivity(intent)
-        finish()
+        lifecycleScope.launch(Dispatchers.IO) {
+            // [AUTO-LOGIN] Salva credenciais seguras no Banco de Dados físico Room
+            try {
+                ServiceLocator.getRepository(applicationContext).salvarCredenciais(token, screenId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            
+            withContext(Dispatchers.Main) {
+                // [CRITICAL] Reset Repository to use NEW Screen ID immediately
+                ServiceLocator.resetRepository()
+                
+                Toast.makeText(this@ScreenSelectionActivity, "Conectado com Sucesso!", Toast.LENGTH_SHORT).show()
+                
+                // Start MainActivity (Sync Stage)
+                val intent = Intent(this@ScreenSelectionActivity, MainActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                startActivity(intent)
+                finish()
+            }
+        }
     }
     // Vertical Locked
 }

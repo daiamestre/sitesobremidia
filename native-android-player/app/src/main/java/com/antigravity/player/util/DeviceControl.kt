@@ -93,8 +93,7 @@ object DeviceControl {
             android.util.Log.w("DeviceControl", "Generated UUID fallback: $uniqueId")
         }
 
-        // 4. Save
-        prefs.edit().putString("saved_screen_id", uniqueId).apply()
+        // 4. Return without saving to allow SplashActivity to route to ScreenSelection
         return uniqueId!!
     }
 }

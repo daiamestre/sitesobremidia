@@ -25,6 +25,7 @@ const Schedule = lazy(() => import("./pages/dashboard/Schedule"));
 const ExternalLinks = lazy(() => import("./pages/dashboard/ExternalLinks"));
 const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
 const History = lazy(() => import("./pages/dashboard/History"));
+const Reports = lazy(() => import("./pages/dashboard/Reports"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const AdminUsers = lazy(() => import("./pages/dashboard/AdminUsers"));
 const Player = lazy(() => import("./pages/Player"));
@@ -80,6 +81,7 @@ const App = () => {
                     <Route path="links" element={<ExternalLinks />} />
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="history" element={<History />} />
+                    <Route path="reports" element={<Reports />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="admin/users" element={<AdminUsers />} />
                   </Route>
