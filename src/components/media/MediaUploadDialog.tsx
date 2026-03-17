@@ -454,8 +454,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
 
         // [FASE 4] Trigger transcoding pipeline for videos
         if (data && getFileType(uploadFile.file.type) === 'video') {
-          try {
-            await supabase.functions.invoke('process-media', {
+            const { error: processError } = await supabase.functions.invoke('process-media', {
               body: {
                 media_id: data.id,
                 file_url: publicUrl,
@@ -465,9 +464,14 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                 user_id: user.id,
               }
             });
-          } catch (e) {
-            console.warn('[TRANSCODE] Pipeline trigger failed (non-blocking):', e);
-          }
+
+            if (processError) {
+              // Silently log the processing trigger error - the video IS uploaded and in the database.
+              // The user can manually retry processing later or the cron job can pick it up.
+              console.warn(`[TRANSCODE] Pipeline trigger failed: Edge Function returned non-2xx status code`, processError);
+            } else {
+              console.log('[TRANSCODE] Pipeline triggered successfully');
+            }
         }
 
         // Add to playlist if selected
