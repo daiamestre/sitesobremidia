@@ -18,6 +18,7 @@ import { Playlist, Media } from '@/types/models';
 import SparkMD5 from 'spark-md5';
 import { v4 as uuidv4 } from 'uuid';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { uploadToR2WithProgress, uploadToR2 } from '@/lib/r2Upload';
 import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
 
 interface MediaUploadDialogProps {
@@ -565,33 +566,29 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         const fileNameBase = `${uuidv4()}.${fileExt}`;
         const finalFileName = isVideo ? `temp/${fileNameBase}` : fileNameBase;
         
-        const filePath = `${user.id}/${finalFileName}`;
-
-        await s3Client.send(new PutObjectCommand({
-          Bucket: r2Config.bucketName,
-          Key: filePath,
-          Body: newFile.file,
-          ContentType: newFile.file.type,
-          CacheControl: CDN_CACHE_HEADERS.media,
-        }));
-
-        const publicUrl = getCdnUrl(filePath);
+        const { publicUrl, filePath } = await uploadToR2WithProgress(
+          newFile.file,
+          finalFileName,
+          newFile.file.type,
+          user.id,
+          () => {} // progress not tracked in edit flow
+        );
 
         // Upload thumbnail for video
         let thumbnailUrl: string | null = null;
         if (newFile.thumbnailBlob) {
-          const thumbName = `${uuidv4()}-thumb.jpg`;
-          const thumbPath = `${user.id}/thumbnails/${thumbName}`;
-
-          await s3Client.send(new PutObjectCommand({
-            Bucket: r2Config.bucketName,
-            Key: thumbPath,
-            Body: newFile.thumbnailBlob,
-            ContentType: 'image/jpeg',
-            CacheControl: CDN_CACHE_HEADERS.thumbnail,
-          }));
-
-          thumbnailUrl = getCdnUrl(thumbPath);
+          try {
+            const thumbName = `${uuidv4()}-thumb.jpg`;
+            const thumbResult = await uploadToR2(
+              newFile.thumbnailBlob,
+              `thumbnails/${thumbName}`,
+              'image/jpeg',
+              user.id
+            );
+            thumbnailUrl = thumbResult.publicUrl;
+          } catch (thumbErr) {
+            console.warn('[EDIT] Thumbnail upload failed (non-fatal):', thumbErr);
+          }
         }
 
         // Delete old file from storage (attempt both R2 and Supabase for safety during transition)

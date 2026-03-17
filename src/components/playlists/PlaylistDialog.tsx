@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Upload, X, Image, Monitor, Smartphone } from 'lucide-react';
 import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { uploadToR2 } from '@/lib/r2Upload';
 
 interface Playlist {
   id: string;
@@ -88,18 +89,12 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
     try {
       const fileExt = coverFile.name.split('.').pop();
       const fileName = `${Date.now()}-cover.${fileExt}`;
-      const filePath = `${user.id}/covers/${fileName}`;
-
-      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
-      await s3Client.send(new PutObjectCommand({
-        Bucket: r2Config.bucketName,
-        Key: filePath,
-        Body: coverFile,
-        ContentType: coverFile.type,
-        CacheControl: CDN_CACHE_HEADERS.media,
-      }));
-
-      const publicUrl = getCdnUrl(filePath);
+      const { publicUrl } = await uploadToR2(
+        coverFile,
+        `covers/${fileName}`,
+        coverFile.type,
+        user.id
+      );
 
       return publicUrl;
     } catch (error) {

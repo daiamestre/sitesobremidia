@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
 import { PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { uploadToR2 } from '@/lib/r2Upload';
 import {
     Select,
     SelectContent,
@@ -143,16 +144,13 @@ export function SocialAssetsGallery({
                 const fileName = `manual_${Date.now()}_${sanitizedName}.${fileExt}`;
                 const filePath = `${user.id}/social/${activeTab}/${fileName}`;
 
-                const command = new PutObjectCommand({
-                    Bucket: r2Config.bucketName,
-                    Key: filePath,
-                    Body: file,
-                    ContentType: file.type,
-                    CacheControl: CDN_CACHE_HEADERS.media,
-                });
-
                 try {
-                    await s3Client.send(command);
+                    await uploadToR2(
+                        file,
+                        `social/${activeTab}/${fileName}`,
+                        file.type,
+                        user.id
+                    );
                     successCount++;
                 } catch (uploadError) {
                     console.error(`Error uploading ${file.name}:`, uploadError);

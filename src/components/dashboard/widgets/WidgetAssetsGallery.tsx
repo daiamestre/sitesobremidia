@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { compressImage } from '@/utils/imageCompression';
 import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
 import { PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { uploadToR2 } from '@/lib/r2Upload';
 
 interface AssetFile {
     name: string;
@@ -96,14 +97,12 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
             const fileName = `widget_${Date.now()}_${sanitizedName}.${finalExt}`;
             const filePath = `${user.id}/widgets/${fileName}`;
 
-            const command = new PutObjectCommand({
-                Bucket: r2Config.bucketName,
-                Key: filePath,
-                Body: compressedBlob,
-                ContentType: 'image/jpeg',
-                CacheControl: CDN_CACHE_HEADERS.media,
-            });
-            await s3Client.send(command);
+            const result = await uploadToR2(
+                compressedBlob,
+                `widgets/${fileName}`,
+                'image/jpeg',
+                user.id
+            );
 
             toast.success('Imagem enviada com sucesso!');
             fetchAssets();
