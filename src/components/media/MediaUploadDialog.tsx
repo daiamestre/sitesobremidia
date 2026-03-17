@@ -386,20 +386,10 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
           console.log('[UPLOAD] Presigned URL upload successful:', filePath);
 
         } catch (presignedErr) {
-          // Fallback: Use direct S3 client (legacy flow)
-          console.warn('[UPLOAD] Presigned URL failed, falling back to S3 client:', presignedErr);
-          filePath = `${user.id}/${finalFileName}`;
-
-          const uploadParams = {
-            Bucket: r2Config.bucketName,
-            Key: filePath,
-            Body: uploadFile.file,
-            ContentType: uploadFile.file.type,
-            CacheControl: CDN_CACHE_HEADERS.media,
-          };
-
-          await s3Client.send(new PutObjectCommand(uploadParams));
-          publicUrl = getCdnUrl(filePath);
+          // A URL pré-assinada é o único fluxo suportado agora para uploads diretos R2.
+          // Fallback para s3Client causava "t.getReader is not function" no browser SDK.
+          console.error('[UPLOAD] Presigned URL or Direct XHR failed:', presignedErr);
+          throw presignedErr;
         }
 
         // Use the custom name if provided, otherwise use original filename
