@@ -398,10 +398,10 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         // Upload thumbnail if exists
         let thumbnailUrl: string | null = null;
         if (uploadFile.thumbnailBlob) {
-          const thumbName = `${uuidv4()}-thumb.jpg`;
-          const thumbFileName = `thumbnails/${thumbName}`;
-
           try {
+            const thumbName = `${uuidv4()}-thumb.jpg`;
+            const thumbFileName = `thumbnails/${thumbName}`;
+
             const { data: thumbPresigned, error: thumbError } = await supabase.functions.invoke('get-upload-url', {
               body: {
                 fileName: thumbFileName,
@@ -411,7 +411,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
             });
 
             if (thumbError || !thumbPresigned?.signedUrl) {
-              console.warn('Failed to get presigned URL for thumbnail', thumbError);
+              console.warn('Failed to get presigned URL for thumbnail. Proceeding without thumbnail.', thumbError);
             } else {
               // Using fetch for the tiny thumbnail is fine, no progress needed
               const res = await fetch(thumbPresigned.signedUrl, {
@@ -430,7 +430,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
               }
             }
           } catch (err) {
-            console.warn('Error uploading thumbnail:', err);
+            console.warn('Non-fatal error uploading thumbnail. Proceeding with main video.', err);
           }
         }
 
