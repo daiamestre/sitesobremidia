@@ -15,6 +15,10 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Playlist, Media } from '@/types/models';
+import SparkMD5 from 'spark-md5';
+import { v4 as uuidv4 } from 'uuid';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
 
 interface MediaUploadDialogProps {
   open: boolean;
@@ -117,6 +121,40 @@ const generateVideoThumbnail = (file: File): Promise<Blob | null> => {
     };
 
     video.src = URL.createObjectURL(file);
+  });
+};
+
+const calculateFileMD5 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const blobSlice = File.prototype.slice || (File.prototype as any).mozSlice || (File.prototype as any).webkitSlice;
+    const chunkSize = 2097152; // Read in chunks of 2MB
+    const chunks = Math.ceil(file.size / chunkSize);
+    let currentChunk = 0;
+    const spark = new SparkMD5.ArrayBuffer();
+    const fileReader = new FileReader();
+
+    fileReader.onload = (e) => {
+      spark.append(e.target?.result as ArrayBuffer);
+      currentChunk++;
+
+      if (currentChunk < chunks) {
+        loadNext();
+      } else {
+        resolve(spark.end());
+      }
+    };
+
+    fileReader.onerror = () => {
+      reject('MD5 calculation failed');
+    };
+
+    const loadNext = () => {
+      const start = currentChunk * chunkSize;
+      const end = (start + chunkSize >= file.size) ? file.size : start + chunkSize;
+      fileReader.readAsArrayBuffer(blobSlice.call(file, start, end));
+    };
+
+    loadNext();
   });
 };
 
@@ -282,24 +320,81 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       ));
 
       try {
-        const fileExt = uploadFile.file.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `${user.id}/${fileName}`;
+        // Calculate MD5 hash
+        const fileHash = await calculateFileMD5(uploadFile.file);
 
-        // Upload to storage
-        const { error: uploadError } = await supabase.storage
-          .from('media')
-          .upload(filePath, uploadFile.file, {
-            cacheControl: '3600',
-            upsert: false,
+        const fileExt = uploadFile.file.name.split('.').pop();
+        const fileName = `${uuidv4()}.${fileExt}`;
+
+        // Upload to Cloudflare R2 via Presigned URL (Elite Flow: Browser -> R2 Direct)
+        let publicUrl: string;
+        let filePath: string;
+
+        try {
+          // Step 1: Request presigned URL from Edge Function
+          const { data: presignedData, error: presignedError } = await supabase.functions.invoke('get-upload-url', {
+            body: {
+              fileName: fileName,
+              contentType: uploadFile.file.type,
+              userId: user.id,
+            }
           });
 
-        if (uploadError) throw uploadError;
+          if (presignedError || !presignedData?.signedUrl) {
+            throw new Error(presignedError?.message || 'Failed to get presigned URL');
+          }
 
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('media')
-          .getPublicUrl(filePath);
+          // Step 2: Upload directly to R2 via XHR (real-time progress + bypasses Vercel)
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', presignedData.signedUrl, true);
+            xhr.setRequestHeader('Content-Type', uploadFile.file.type);
+
+            // Real-time progress tracking
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                const percent = Math.round((event.loaded / event.total) * 100);
+                setFiles(prev => prev.map((f, idx) =>
+                  idx === i ? { ...f, progress: percent } : f
+                ));
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else {
+                reject(new Error(`Direct upload failed: ${xhr.status}`));
+              }
+            };
+
+            xhr.onerror = () => reject(new Error('Network error during upload'));
+            xhr.ontimeout = () => reject(new Error('Upload timed out'));
+            xhr.timeout = 600000; // 10 min timeout for large videos
+
+            xhr.send(uploadFile.file);
+          });
+
+          publicUrl = presignedData.publicUrl;
+          filePath = presignedData.filePath;
+          console.log('[UPLOAD] Presigned URL upload successful:', filePath);
+
+        } catch (presignedErr) {
+          // Fallback: Use direct S3 client (legacy flow)
+          console.warn('[UPLOAD] Presigned URL failed, falling back to S3 client:', presignedErr);
+          filePath = `${user.id}/${fileName}`;
+
+          const uploadParams = {
+            Bucket: r2Config.bucketName,
+            Key: filePath,
+            Body: uploadFile.file,
+            ContentType: uploadFile.file.type,
+            CacheControl: CDN_CACHE_HEADERS.media,
+          };
+
+          await s3Client.send(new PutObjectCommand(uploadParams));
+          publicUrl = getCdnUrl(filePath);
+        }
 
         // Use the custom name if provided, otherwise use original filename
         const finalName = mediaName.trim() || uploadFile.file.name;
@@ -307,22 +402,18 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         // Upload thumbnail if exists
         let thumbnailUrl: string | null = null;
         if (uploadFile.thumbnailBlob) {
-          const thumbName = `${Date.now()}-thumb.jpg`;
+          const thumbName = `${uuidv4()}-thumb.jpg`;
           const thumbPath = `${user.id}/thumbnails/${thumbName}`;
 
-          const { error: thumbErr } = await supabase.storage
-            .from('media')
-            .upload(thumbPath, uploadFile.thumbnailBlob, {
-              cacheControl: '3600',
-              contentType: 'image/jpeg'
-            });
+          await s3Client.send(new PutObjectCommand({
+            Bucket: r2Config.bucketName,
+            Key: thumbPath,
+            Body: uploadFile.thumbnailBlob,
+            ContentType: 'image/jpeg',
+            CacheControl: CDN_CACHE_HEADERS.thumbnail,
+          }));
 
-          if (!thumbErr) {
-            const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
-              .from('media')
-              .getPublicUrl(thumbPath);
-            thumbnailUrl = thumbPublicUrl;
-          }
+          thumbnailUrl = getCdnUrl(thumbPath);
         }
 
         // Save to database
@@ -331,6 +422,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
           name: finalName,
           file_path: filePath,
           file_url: publicUrl,
+          file_hash: fileHash,
           file_type: getFileType(uploadFile.file.type),
           file_size: uploadFile.file.size,
           mime_type: uploadFile.file.type,
@@ -341,6 +433,23 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
           .single();
 
         if (dbError) throw dbError;
+
+        // [FASE 4] Trigger transcoding pipeline for videos
+        if (data && getFileType(uploadFile.file.type) === 'video') {
+          try {
+            await supabase.functions.invoke('process-media', {
+              body: {
+                media_id: data.id,
+                file_url: publicUrl,
+                file_type: uploadFile.file.type,
+                file_size: uploadFile.file.size,
+                user_id: user.id,
+              }
+            });
+          } catch (e) {
+            console.warn('[TRANSCODE] Pipeline trigger failed (non-blocking):', e);
+          }
+        }
 
         // Add to playlist if selected
         if (selectedPlaylistId && selectedPlaylistId !== 'none' && data) {
@@ -417,52 +526,59 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       if (files.length > 0 && files[0].status === 'pending') {
         const newFile = files[0];
 
+        // Calculate MD5 hash
+        const fileHash = await calculateFileMD5(newFile.file);
+
         // Upload new file
         const fileExt = newFile.file.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const fileName = `${uuidv4()}.${fileExt}`;
         const filePath = `${user.id}/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('media')
-          .upload(filePath, newFile.file, {
-            cacheControl: '3600',
-            upsert: false,
-          });
+        await s3Client.send(new PutObjectCommand({
+          Bucket: r2Config.bucketName,
+          Key: filePath,
+          Body: newFile.file,
+          ContentType: newFile.file.type,
+          CacheControl: CDN_CACHE_HEADERS.media,
+        }));
 
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('media')
-          .getPublicUrl(filePath);
+        const publicUrl = getCdnUrl(filePath);
 
         // Upload thumbnail for video
         let thumbnailUrl: string | null = null;
         if (newFile.thumbnailBlob) {
-          const thumbName = `${Date.now()}-thumb.jpg`;
+          const thumbName = `${uuidv4()}-thumb.jpg`;
           const thumbPath = `${user.id}/thumbnails/${thumbName}`;
-          const { error: thumbErr } = await supabase.storage
-            .from('media')
-            .upload(thumbPath, newFile.thumbnailBlob, {
-              cacheControl: '3600',
-              contentType: 'image/jpeg'
-            });
-          if (!thumbErr) {
-            const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
-              .from('media')
-              .getPublicUrl(thumbPath);
-            thumbnailUrl = thumbPublicUrl;
-          }
+
+          await s3Client.send(new PutObjectCommand({
+            Bucket: r2Config.bucketName,
+            Key: thumbPath,
+            Body: newFile.thumbnailBlob,
+            ContentType: 'image/jpeg',
+            CacheControl: CDN_CACHE_HEADERS.thumbnail,
+          }));
+
+          thumbnailUrl = getCdnUrl(thumbPath);
         }
 
-        // Delete old file from storage
+        // Delete old file from storage (attempt both R2 and Supabase for safety during transition)
         try {
-          await supabase.storage.from('media').remove([editMedia.file_path]);
+          if (editMedia.file_url.includes(r2Config.publicDomain || 'r2.dev')) {
+            const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+            await s3Client.send(new DeleteObjectCommand({
+              Bucket: r2Config.bucketName,
+              Key: editMedia.file_path,
+            }));
+          } else {
+            await supabase.storage.from('media').remove([editMedia.file_path]);
+          }
         } catch (err) {
           console.warn('Could not delete old file:', err);
         }
 
         updateData.file_path = filePath;
         updateData.file_url = publicUrl;
+        updateData.file_hash = fileHash;
         updateData.file_type = getFileType(newFile.file.type);
         updateData.file_size = newFile.file.size;
         updateData.mime_type = newFile.file.type;
@@ -788,7 +904,10 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                       {formatFileSize(uploadFile.file.size)}
                     </p>
                     {uploadFile.status === 'uploading' && (
-                      <Progress value={50} className="h-1 mt-1" />
+                      <div className="mt-1">
+                        <Progress value={uploadFile.progress} className="h-1.5" />
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{uploadFile.progress}%</p>
+                      </div>
                     )}
                     {uploadFile.status === 'error' && (
                       <p className="text-xs text-destructive mt-1">{uploadFile.error}</p>
