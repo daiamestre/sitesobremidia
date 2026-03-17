@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { WidgetAssetsGallery } from './WidgetAssetsGallery';
 import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { uploadToR2 } from '@/lib/r2Upload';
 
 interface WidgetFormProps {
     initialData: Widget | null;
@@ -90,18 +90,12 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
             const sanitizedName = file.name.replace(/[^a-zA-Z0-9]/g, '_');
             const fileName = `widget_${Date.now()}_${sanitizedName}.${fileExt}`;
             // Organize widget assets in a specific folder
-            const filePath = `${user.id}/widgets/${fileName}`;
-
-            const { PutObjectCommand } = await import('@aws-sdk/client-s3');
-            await s3Client.send(new PutObjectCommand({
-                Bucket: r2Config.bucketName,
-                Key: filePath,
-                Body: file,
-                ContentType: file.type,
-                CacheControl: CDN_CACHE_HEADERS.media,
-            }));
-
-            const publicUrl = getCdnUrl(filePath);
+            const { publicUrl, filePath } = await uploadToR2(
+                file,
+                `widgets/${fileName}`,
+                file.type,
+                user.id
+            );
 
             if (imageType === 'landscape') {
                 updateConfig('backgroundImageLandscape', publicUrl);

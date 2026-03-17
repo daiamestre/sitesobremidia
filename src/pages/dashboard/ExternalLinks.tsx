@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { uploadToR2 } from '@/lib/r2Upload';
 import {
   Dialog,
   DialogContent,
@@ -239,22 +240,14 @@ export default function ExternalLinks() {
 
     // console.log(`[Upload] Starting upload to social/${subfolder}:`, filePath);
 
-    const command = new PutObjectCommand({
-      Bucket: r2Config.bucketName,
-      Key: filePath,
-      Body: file,
-      ContentType: file.type,
-      CacheControl: CDN_CACHE_HEADERS.media,
-    });
+    const { publicUrl: uploadedUrl } = await uploadToR2(
+      file,
+      `social/${subfolder}/${fileName}`,
+      file.type,
+      user.id
+    );
 
-    try {
-      await s3Client.send(command);
-    } catch (uploadError) {
-      console.error('[Upload] R2 error:', uploadError);
-      throw uploadError;
-    }
-
-    return getCdnUrl(filePath);
+    return uploadedUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
