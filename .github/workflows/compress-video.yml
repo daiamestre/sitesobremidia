@@ -1,0 +1,111 @@
+name: Compress Video
+
+on:
+  repository_dispatch:
+    types: [novo_video]
+
+jobs:
+  compress:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg and Rclone
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg rclone jq
+
+      - name: Configure Rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat <<EOF > ~/.config/rclone/rclone.conf
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          endpoint = https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          EOF
+
+      - name: Download Original Video
+        run: |
+          FILE_PATH="${{ github.event.client_payload.file_path }}"
+          echo "Baixando $FILE_PATH..."
+          rclone copy "r2:${{ secrets.R2_BUCKET }}/$FILE_PATH" ./ --progress
+          # Obtém apenas o nome do arquivo
+          FILE_NAME=$(basename "$FILE_PATH")
+          echo "FILE_NAME=$FILE_NAME" >> $GITHUB_ENV
+          
+          # Verifica se o download funcionou
+          if [ ! -f "$FILE_NAME" ]; then
+            echo "Erro: Arquivo não encontrado após download"
+            exit 1
+          fi
+
+      - name: Process Video with FFmpeg (H.265)
+        run: |
+          INPUT_FILE="${{ env.FILE_NAME }}"
+          OUTPUT_FILE="compressed_$INPUT_FILE"
+          
+          echo "Iniciando processamento FFmpeg: $INPUT_FILE -> $OUTPUT_FILE"
+          ffmpeg -i "$INPUT_FILE" -vcodec libx265 -crf 24 -preset slow -pix_fmt yuv420p -acodec aac -b:a 128k -y "$OUTPUT_FILE"
+          
+          echo "Processamento concluído."
+          echo "Tamanho original:"
+          ls -lh "$INPUT_FILE"
+          echo "Tamanho comprimido:"
+          ls -lh "$OUTPUT_FILE"
+          
+          echo "OUTPUT_FILE=$OUTPUT_FILE" >> $GITHUB_ENV
+
+      - name: Upload Compressed Video
+        run: |
+          ORIGINAL_PATH="${{ github.event.client_payload.file_path }}"
+          # O caminho final será igual ao original, mas sem a pasta 'temp/' na frente
+          FINAL_PATH="${ORIGINAL_PATH#temp/}"
+          OUTPUT_FILE="${{ env.OUTPUT_FILE }}"
+          
+          echo "Enviando $OUTPUT_FILE para r2:${{ secrets.R2_BUCKET }}/$FINAL_PATH..."
+          
+          # Envia com content type e cache control corretos
+          rclone copyto "$OUTPUT_FILE" "r2:${{ secrets.R2_BUCKET }}/$FINAL_PATH" --s3-no-check-bucket --s3-chunk-size=5M --header "Content-Type: video/mp4" --header "Cache-Control: public, max-age=31536000, immutable" --progress
+          
+          echo "FINAL_PATH=$FINAL_PATH" >> $GITHUB_ENV
+
+      - name: Delete Temporary Video
+        run: |
+          TEMP_PATH="${{ github.event.client_payload.file_path }}"
+          echo "Deletando arquivo temporário: $TEMP_PATH"
+          rclone delete "r2:${{ secrets.R2_BUCKET }}/$TEMP_PATH"
+
+      - name: Notify Supabase Webhook
+        if: always()
+        run: |
+          MEDIA_ID="${{ github.event.client_payload.media_id }}"
+          FINAL_PATH="${{ env.FINAL_PATH }}"
+          STATUS_CODE="${{ job.status }}"
+          PUBLIC_DOMAIN="${{ secrets.R2_PUBLIC_DOMAIN }}"
+          
+          # Se tiver domínio público configurado, usa, senão constrói a URL direta (r2.dev não recomendado pra prod)
+          if [ -n "$PUBLIC_DOMAIN" ]; then
+            FILE_URL="https://$PUBLIC_DOMAIN/$FINAL_PATH"
+          else
+            FILE_URL="https://pub-your-bucket-id.r2.dev/$FINAL_PATH" # Placeholder para fallback
+          fi
+
+          echo "Notificando Supabase. Job status: $STATUS_CODE"
+          
+          # Se o processo falhou em alguma etapa
+          if [ "$STATUS_CODE" != "success" ]; then
+            PAYLOAD=$(jq -n --arg id "$MEDIA_ID" '{media_id: $id, status: "error"}')
+          else
+            PAYLOAD=$(jq -n --arg id "$MEDIA_ID" --arg path "$FINAL_PATH" --arg url "$FILE_URL" '{media_id: $id, status: "ready", file_path: $path, file_url: $url}')
+          fi
+          
+          # A Edge Function do Supabase precisará de um header de autorização
+          curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/process-media-webhook" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -d "$PAYLOAD"
