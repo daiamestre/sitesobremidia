@@ -85,11 +85,12 @@ async function generatePresignedUrl(params: {
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('&');
 
-  // Canonical request
-  const encodedKey = key.split('/').map(p => encodeURIComponent(p)).join('/');
+  // For R2 account-level endpoint, the canonical path MUST be /{bucket}/{key}
+  // The key should NOT be re-encoded - slashes are path separators
+  const canonicalPath = `/${bucketName}/${key}`;
   const canonicalRequest = [
     method,
-    `/${encodedKey}`,
+    canonicalPath,
     sortedQueryString,
     `host:${host}\n`,
     'host',
@@ -113,7 +114,8 @@ async function generatePresignedUrl(params: {
   
   const signature = toHex(await crypto.subtle.sign('HMAC', signingKey, encode(stringToSign)));
 
-  const presignedUrl = `${endpoint}/${encodedKey}?${sortedQueryString}&X-Amz-Signature=${signature}`;
+  // Final presigned URL includes bucket in path
+  const presignedUrl = `${endpoint}/${bucketName}/${key}?${sortedQueryString}&X-Amz-Signature=${signature}`;
   return presignedUrl;
 }
 
