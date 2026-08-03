@@ -1,0 +1,48 @@
+export enum StatusCliente {
+  PROSPECT = 'PROSPECT',
+  CONTACTED = 'CONTACTED',
+  PROPOSAL_SENT = 'PROPOSAL_SENT',
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  CANCELED = 'CANCELED',
+}
+
+export enum StatusContrato {
+  DRAFT = 'DRAFT',
+  PENDING_SIGNATURE = 'PENDING_SIGNATURE',
+  ACTIVE = 'ACTIVE',
+  EXPIRED = 'EXPIRED',
+  CANCELED = 'CANCELED',
+}
+
+export enum StatusCampanha {
+  DRAFT = 'DRAFT',
+  REVIEW = 'REVIEW',
+  APPROVED = 'APPROVED',
+  ACTIVE = 'ACTIVE',
+  PAUSED = 'PAUSED',
+  FINISHED = 'FINISHED',
+}
+
+export enum FormaPagamento {
+  PIX = 'PIX',
+  BOLETO = 'BOLETO',
+  CREDIT_CARD = 'CREDIT_CARD',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+}
+
+export enum TipoPlano {
+  MONTHLY = 'MONTHLY',
+  QUARTERLY = 'QUARTERLY',
+  SEMIANNUAL = 'SEMIANNUAL',
+  ANNUAL = 'ANNUAL',
+  CUSTOM = 'CUSTOM',
+}
+
+export enum TipoUsuario {
+  ADMIN = 'ADMIN',
+  MANAGER = 'MANAGER',
+  REPRESENTATIVE = 'REPRESENTATIVE',
+  ADVERTISER = 'ADVERTISER',
+  CLIENT = 'CLIENT',
+}

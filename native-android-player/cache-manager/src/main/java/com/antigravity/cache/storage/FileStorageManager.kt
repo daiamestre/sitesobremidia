@@ -19,9 +19,6 @@ class FileStorageManager(private val context: Context) : com.antigravity.core.do
         return getFileForMedia(id).absolutePath
     }
 
-    override fun calculateHash(path: String): String {
-        return calculateHash(File(path))
-    }
 
     override suspend fun savePlaylistToRoom(items: List<Any>) {
         // This will be implemented in the context of the repository/app

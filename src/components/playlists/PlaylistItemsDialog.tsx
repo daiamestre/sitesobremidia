@@ -285,7 +285,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       widget_id: null,
       external_link_id: null,
       position: items.length,
-      duration: media.file_type === 'video' ? (media.duration || 10) : 10,
+      duration: (media as any).duration ? Number((media as any).duration) : 10,
       media,
       created_at: new Date().toISOString()
     };

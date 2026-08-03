@@ -6,10 +6,18 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class DeviceRemoteDTO(
     val id: String,
-    @SerialName("current_playlist_id") val currentPlaylistId: String?,
-    @SerialName("version_signature") val versionSignature: String?,
+    val name: String? = null,
+    @SerialName("custom_id") val customId: String? = null,
+    @SerialName("screen_token") val screenToken: String? = null,
+    @SerialName("playlist_id") val playlistId: String? = null,
+    @SerialName("current_playlist_id") val currentPlaylistId: String? = null,
+    @SerialName("version_signature") val versionSignature: String? = null,
+    val orientation: String? = "landscape",
+    val resolution: String? = "16x9",
     @SerialName("playlists") val playlist: PlaylistRemoteDTO? = null
-)
+) {
+    val playlists: PlaylistRemoteDTO? get() = playlist
+}
 
 @Serializable
 data class PlaylistRemoteDTO(
@@ -21,8 +29,8 @@ data class PlaylistRemoteDTO(
 @Serializable
 data class RemotePlaylistItemDTO(
     val id: String,
-    val position: Int,
-    val duration: Long,
+    val position: Int = 0,
+    val duration: Long = 10000,
     @SerialName("start_time") val startTime: String? = null,
     @SerialName("end_time") val endTime: String? = null,
     @SerialName("days_of_week") val daysOfWeek: String? = null,
@@ -40,8 +48,8 @@ data class MediaRemoteDTO(
     val id: String,
     val name: String,
     @SerialName("file_url") val fileUrl: String,
-    @SerialName("file_hash") val fileHash: String,
-    @SerialName("media_type") val mediaType: String // 'video' ou 'image'
+    @SerialName("file_hash") val fileHash: String? = null,
+    @SerialName("file_type") val mediaType: String? = "video"
 )
 
 @Serializable

@@ -141,30 +141,29 @@ class RemoteDataSource {
         
         // 1. Fetch Device with nested Playlist Items and Media/Widgets (Golden Tip Query)
         val device = try {
-            client.from("devices")
-                .select(columns = io.github.jan_tennert.supabase.postgrest.query.Columns.raw("""
+            client.from("screens")
+                .select(columns = io.github.jan.supabase.postgrest.query.Columns.raw("""
                     id, 
                     name,
-                    screen_token,
-                    current_playlist_id,
-                    version_signature,
+                    custom_id,
+                    playlist_id,
                     orientation,
                     resolution,
                     playlists (
                         id,
                         name,
                         playlist_items (
-                            id, position, duration, start_time, end_time, days_of_week,
-                            medias (id, name, file_url, file_hash, media_type),
-                            widgets (id, type, configuration)
+                            id, position, duration,
+                            medias:media!playlist_items_media_id_fkey (id, name, file_url, file_type),
+                            widgets:widgets!playlist_items_widget_id_fkey (id, name, widget_type, config)
                         )
                     )
                 """.trimIndent())) {
                    filter {
                        or {
-                           eq("screen_token", identifier.trim())
-                           eq("screen_token", identifier.trim().uppercase())
-                           eq("screen_token", identifier.trim().lowercase())
+                           eq("custom_id", identifier.trim())
+                           eq("custom_id", identifier.trim().uppercase())
+                           eq("custom_id", identifier.trim().lowercase())
                            if (identifier.length > 20) { 
                                eq("id", identifier.trim())
                            }
@@ -246,7 +245,7 @@ class RemoteDataSource {
                         else -> inferMediaType(media.fileUrl)
                     }
                     itemUrl = media.fileUrl
-                    itemHash = media.fileHash
+                    itemHash = media.fileHash ?: media.id
                 }
                 widget != null -> {
                     itemId = widget.id
@@ -272,7 +271,7 @@ class RemoteDataSource {
                 id = itemId,
                 name = itemName,
                 type = itemType,
-                durationSeconds = item.duration / 1000, 
+                durationSeconds = item.duration.toLong(), // duration in DB is already in seconds
                 remoteUrl = itemUrl,
                 localPath = null,
                 hash = itemHash,
@@ -441,9 +440,7 @@ class RemoteDataSource {
                 if (appVersion != null) put("app_version", appVersion)
                 if (storageUsagePercent != null) put("storage_usage_percent", storageUsagePercent)
             }
-            client.from("device_health").upsert(payload) {
-                onConflict = "device_id"
-            }
+            client.from("device_health").upsert(payload, onConflict = "device_id")
             Logger.d("PULSE", "Heartbeat OK -> device_health (ID: $deviceId)")
         } catch (e: Exception) {
             Logger.w("PULSE", "Heartbeat to device_health failed: ${e.message}")
@@ -465,40 +462,36 @@ class RemoteDataSource {
             com.antigravity.core.util.Logger.e("SYNC", "Aborting Heartbeat: ID is blank or N/A")
             return
         }
-        val rpcParams = buildMap {
-            put("p_screen_id", id)
-            put("p_status", status)
-            put("p_version", version)
-            put("p_ram_usage", ramUsage ?: "N/A")
-            put("p_free_space", freeSpace ?: "N/A")
-            put("p_cpu_temp", cpuTemp ?: "N/A")
-            put("p_uptime", uptime ?: "N/A")
-            put("p_ip_address", ipAddress ?: "N/A")
+        val updateParams = buildMap {
+            put("status", status)
+            put("version", version)
+            put("last_ping_at", getIsoTimestamp())
+            ramUsage?.let { if (it.isNotBlank() && it != "N/A") put("ram_usage", it) }
+            freeSpace?.let { if (it.isNotBlank() && it != "N/A") put("free_space", it) }
+            cpuTemp?.let { if (it.isNotBlank() && it != "N/A") put("cpu_temp", it) }
+            uptime?.let { if (it.isNotBlank() && it != "N/A") put("uptime", it) }
+            ipAddress?.let { if (it.isNotBlank() && it != "N/A") put("ip_address", it) }
         }
 
         try {
-
-            // [PERFORMANCE] RPC Call: Standardized endpoint for massive scale
-            val response = client.postgrest.rpc("pulse_screen", rpcParams)
-            
-            // [CLOUD TIME SYNC] Extract server time from HTTP headers to refine clock
-            try {
-                // Supabase / Postgrest responses usually carry the 'Date' header
-                // We use this as Layer 2 Cloud Sync to adjust for drift every heartbeat
-                // If the client supports it, we can extract it from regular responses.
-            } catch (e: Exception) {}
-
-            // [HARDENING] Log raw response for diagnostic
-            com.antigravity.core.util.Logger.i("SYNC", "Heartbeat confirmed for ID: $id (Resp: ${response.data})")
+            client.from("screens").update(updateParams) {
+                filter {
+                    eq("id", id)
+                }
+            }
+            com.antigravity.core.util.Logger.i("SYNC", "Heartbeat (Direct Table Update) confirmed for ID: $id")
         } catch (e: Exception) {
             val errorBody = (e as? io.github.jan.supabase.exceptions.RestException)?.description ?: e.message
             
-            // [NEW] Automatic Retry on JWT Expired
             if (errorBody?.contains("JWT expired", ignoreCase = true) == true || errorBody?.contains("401", ignoreCase = true) == true) {
                 appContext?.let { ctx ->
                     try {
                         com.antigravity.sync.repository.AuthRepository().forceRefreshSession(ctx)
-                        val response = client.postgrest.rpc("pulse_screen", rpcParams)
+                        client.from("screens").update(updateParams) {
+                            filter {
+                                eq("id", id)
+                            }
+                        }
                         com.antigravity.core.util.Logger.i("SYNC", "Heartbeat confirmed for ID: $id after JWT refresh.")
                         return
                     } catch (retryEx: Exception) {

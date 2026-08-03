@@ -230,7 +230,6 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
                     loop={loop}
                     controls={controls && !showCustomControls} // Native controls if requested and no custom ones
                     playsInline
-                    crossOrigin="anonymous" // Important for CORS
                     onError={handleError}
                     onLoadedData={handleLoadedData}
                     onWaiting={handleWaiting}

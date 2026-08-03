@@ -65,13 +65,12 @@ export default function Install() {
       </header>
 
       <main className="relative z-10 container mx-auto px-4 py-8 max-w-2xl">
-        {/* Hero Section */}
         <div className="text-center mb-10">
           <div className="mb-6 flex justify-center">
             <img 
-              src="/pwa-192x192.png" 
-              alt="SOBRE MÍDIA" 
-              className="w-24 h-24 rounded-2xl shadow-2xl glow-primary"
+              src="/logo-3d.png" 
+              alt="SOBRE MÍDIA 3D" 
+              className="w-32 sm:w-44 h-auto object-contain hover:scale-105 transition-transform duration-300 pointer-events-none select-none drop-shadow-xl"
             />
           </div>
           
@@ -83,45 +82,47 @@ export default function Install() {
           </h1>
           
           <p className="text-muted-foreground text-lg mb-6">
-            Tenha acesso rápido ao app direto da sua tela inicial
+            Tenha acesso rápido ao app direto da sua tela inicial ou faça o download
           </p>
 
           {/* Platform Download Buttons */}
-          {!isInstalled && (
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              {/* Android Button */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5 my-6 sm:my-8">
+            {/* Android Download Button */}
+            <a
+              href="https://drive.google.com/file/d/1DjZ2PVJm7NYaRpFO7TOmBTwgMHBV9vdp/view?usp=drive_link"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto"
+            >
               <Button
-                onClick={() => {
-                  if (isAndroid && isInstallable) {
-                    handleInstall();
-                  } else {
-                    const androidSection = document.getElementById('install-instructions');
-                    androidSection?.scrollIntoView({ behavior: 'smooth' });
-                  }
-                }}
                 size="lg"
-                className={`w-full sm:w-auto ${isAndroid ? 'gradient-primary glow-primary' : 'bg-muted hover:bg-muted/80'}`}
+                className="w-full sm:w-auto gradient-primary glow-primary hover:scale-105 transition-all duration-300 shadow-2xl px-8 sm:px-10 py-4 sm:py-6 h-auto text-base sm:text-lg md:text-xl font-bold border border-primary/40 rounded-xl"
               >
-                <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <svg className="h-6 w-6 mr-2.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.523 15.341c-.5 0-.908-.407-.908-.91 0-.5.408-.909.908-.909s.909.409.909.91c0 .502-.409.909-.909.909zm-11.046 0c-.5 0-.909-.407-.909-.91 0-.5.409-.909.909-.909s.908.409.908.91c0 .502-.408.909-.908.909zm11.395-5.861l1.592-2.764a.333.333 0 0 0-.114-.456.332.332 0 0 0-.454.114l-1.615 2.805a9.547 9.547 0 0 0-3.791-.767c-1.359 0-2.648.263-3.791.767l-1.615-2.805a.333.333 0 0 0-.454-.114.333.333 0 0 0-.114.456l1.592 2.764C5.76 11.041 3.5 14.157 3.5 17.8h17c0-3.643-2.26-6.759-5.628-8.32zM3.5 18.8v3.7c0 .828.672 1.5 1.5 1.5h1c.828 0 1.5-.672 1.5-1.5v-3.7H3.5zm13 0v3.7c0 .828.672 1.5 1.5 1.5h1c.828 0 1.5-.672 1.5-1.5v-3.7H16.5zM0 11.3c0-.828.672-1.5 1.5-1.5s1.5.672 1.5 1.5v6c0 .828-.672 1.5-1.5 1.5S0 18.128 0 17.3v-6zm21 0c0-.828.672-1.5 1.5-1.5s1.5.672 1.5 1.5v6c0 .828-.672 1.5-1.5 1.5s-1.5-.672-1.5-1.5v-6z"/>
                 </svg>
                 Download para Android
+                <Download className="h-5 w-5 ml-2.5 opacity-90 animate-bounce" />
               </Button>
+            </a>
 
-              {/* iOS Button */}
+            {/* iOS Download Button */}
+            <a
+              href="https://drive.google.com/file/d/1DjZ2PVJm7NYaRpFO7TOmBTwgMHBV9vdp/view?usp=drive_link"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto"
+            >
               <Button
-                onClick={() => {
-                  const iosSection = document.getElementById('install-instructions');
-                  iosSection?.scrollIntoView({ behavior: 'smooth' });
-                }}
                 size="lg"
-                className={`w-full sm:w-auto ${isIOS ? 'gradient-primary glow-primary' : 'bg-muted hover:bg-muted/80'}`}
+                className="w-full sm:w-auto gradient-primary glow-primary hover:scale-105 transition-all duration-300 shadow-2xl px-8 sm:px-10 py-4 sm:py-6 h-auto text-base sm:text-lg md:text-xl font-bold border border-primary/40 rounded-xl"
               >
-                <Apple className="h-5 w-5 mr-2" />
+                <Apple className="h-6 w-6 mr-2.5" />
                 Download para iOS
+                <Download className="h-5 w-5 ml-2.5 opacity-90 animate-bounce" />
               </Button>
-            </div>
-          )}
+            </a>
+          </div>
         </div>
 
         {/* Status Badge */}

@@ -28,6 +28,9 @@ import com.antigravity.sync.dto.*
 import com.antigravity.sync.service.MediaDownloader
 import com.antigravity.sync.service.RemoteDataSource
 import com.antigravity.sync.service.SessionManager
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.broadcastFlow
 import androidx.work.OneTimeWorkRequestBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -72,22 +75,36 @@ class PlayerRepositoryImpl(
         emit(PlaylistState.Loading)
         try {
             // 1. Fetch Device and Active Playlist (Yeloo Blueprint + Golden Tip)
-            val deviceResponse = remoteDataSource.postgrest.from("devices")
+            val deviceResponse = remoteDataSource.postgrest.from("screens")
                 .select(columns = Columns.raw("""
                     id, 
-                    current_playlist_id, 
-                    version_signature,
+                    name,
+                    custom_id,
+                    playlist_id,
                     playlists (
                         id, name,
                         playlist_items (
-                            id, position, duration, start_time, end_time, days_of_week,
-                            medias (id, name, file_url, file_hash, media_type),
-                            widgets (id, type, configuration)
+                            id, position, duration,
+                            medias:media!playlist_items_media_id_fkey (id, name, file_url, file_type),
+                            widgets:widgets!playlist_items_widget_id_fkey (id, name, widget_type, config)
                         )
                     )
                 """.trimIndent())) {
-                    filter { eq("screen_token", screenToken) }
-                }.decodeSingle<DeviceRemoteDTO>()
+                    filter {
+                        or {
+                            eq("custom_id", screenToken.trim())
+                            eq("custom_id", screenToken.trim().uppercase())
+                            eq("custom_id", screenToken.trim().lowercase())
+                            if (screenToken.trim().length > 20) {
+                                eq("id", screenToken.trim())
+                            }
+                        }
+                    }
+                }.decodeSingleOrNull<DeviceRemoteDTO>()
+
+            if (deviceResponse == null) {
+                throw Exception("[PERMANENT] Tela não encontrada no painel. Verifique o ID: $screenToken")
+            }
 
             val remoteItems = deviceResponse.playlist?.items ?: emptyList()
 
@@ -96,7 +113,7 @@ class PlayerRepositoryImpl(
                 val media = item.media
                 if (media != null) {
                     val file = fileStorageManager.getFileForMedia(media.id)
-                    val expectedHash = media.fileHash
+                    val expectedHash = media.fileHash ?: media.id
                     
                     // [PROFESSIONAL HASH MATCH] Decisão de download baseada em integridade MD5
                     if (file.exists()) {
@@ -189,7 +206,7 @@ class PlayerRepositoryImpl(
             name = "Sync: ${java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}",
             version = System.currentTimeMillis(),
             isEmergency = false,
-            orientation = SessionManager.currentOrientation,
+            orientation = SessionManager.currentOrientation ?: "landscape",
             resolution = "16x9"
         )
         val cachedItems = items.map { it.toCache(deviceId) }

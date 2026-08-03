@@ -268,22 +268,30 @@ class MainActivity : AppCompatActivity() {
 
 
             
-            // RESET FEATURE: Long press status to clear screen ID
-            statusTextView.setOnLongClickListener {
+            // RESET FEATURE: Long press status or overlay to clear screen ID and pick screen again
+            val syncOverlay = findViewById<View>(R.id.sync_guard_overlay)
+            val resetScreenAction = {
                 getSharedPreferences("player_prefs", MODE_PRIVATE).edit {
                     remove("saved_screen_id")
                 }
                 ServiceLocator.resetRepository()
                 
                 if (!isFinishing && !isDestroyed) {
-                    Toast.makeText(this, "ID Resetado! Reiniciando...", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Redirecionando para Seleção de Tela...", Toast.LENGTH_LONG).show()
                 }
                 
-                isKioskEnforced = false // [FIX] Libera o Kiosk Lock antes de abrir a Splash
-                val intent = Intent(this, SplashActivity::class.java)
+                isKioskEnforced = false
+                val intent = Intent(this, com.antigravity.player.ui.ScreenSelectionActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 startActivity(intent)
                 finish()
                 true
+            }
+
+            statusTextView.setOnLongClickListener { resetScreenAction() }
+            syncOverlay?.setOnLongClickListener { resetScreenAction() }
+            syncOverlay?.setOnClickListener {
+                Toast.makeText(this@MainActivity, "Mantenha pressionado por 2s para trocar a Tela", Toast.LENGTH_SHORT).show()
             }
 
                // [OTA] Auto-Update Initial Check 
@@ -491,24 +499,24 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 ServiceLocator.getRepository(this@MainActivity).getActivePlaylist()
                     .distinctUntilChanged { old, new ->
-                        old?.id == new?.id && 
-                        old?.items?.size == new?.items?.size && 
-                        old?.version == new?.version &&
-                        old?.orientation == new?.orientation
+                        // [FIX] Also detect changes in item order, count and individual durations
+                        val oldFingerprint = old?.items?.joinToString("|") { "${it.id}:${it.orderIndex}:${it.durationSeconds}" }
+                        val newFingerprint = new?.items?.joinToString("|") { "${it.id}:${it.orderIndex}:${it.durationSeconds}" }
+                        old?.id == new?.id &&
+                        old?.orientation == new?.orientation &&
+                        oldFingerprint == newFingerprint
                     }
                     .collect { playlist ->
                     if (playlist != null && playlist.items.isNotEmpty()) {
-                        com.antigravity.core.util.Logger.i("MAIN", "Reactive Update: Playlist '${playlist.name}' received.")
+                        com.antigravity.core.util.Logger.i("MAIN", "Reactive Update: Playlist '${playlist.name}' received (${playlist.items.size} items).")
                         
                         runOnUiThread {
-                            // [GATEKEEPER] Removido o fluxo de UI daqui. Apenas isPlaylistReady altera a visibilidade.
-                            
                             // 2. Aplica rotação e inicia/atualiza o motor de vídeo
                             applyScreenRotation(playlist.orientation)
                             
                             // START PLAYBACK LOOP (Centralized SSOT)
-                            // [ESTRATÉGIA ANTI-CAOS] Aguarda 2000ms antes de iniciar os renders para que o WindowManager
-                            // tenha finalizado a rotação e a GPU esteja estável (Previne EGL_BAD_ATTRIBUTE nativo TVBox)
+                            // Aguarda 2000ms antes de iniciar os renders para que o WindowManager
+                            // tenha finalizado a rotação e a GPU esteja estável
                             if (activePlayer?.getPlayerInstance() == null || activePlayer?.getPlayerInstance()?.playbackState == androidx.media3.common.Player.STATE_IDLE) {
                                 Handler(Looper.getMainLooper()).postDelayed({
                                     startPlaybackLoop()
@@ -517,6 +525,17 @@ class MainActivity : AppCompatActivity() {
                                 startPlaybackLoop()
                             }
                         }
+                    }
+                }
+            }
+
+            // [FIX] Realtime Sync Nudge Listener: Triggers full re-sync when dashboard changes playlist
+            lifecycleScope.launch {
+                SessionManager.syncEvents.collect {
+                    Logger.i("REALTIME", "Sync nudge received! Re-syncing playlist from server...")
+                    isSyncLoopRunning = false // Allow new playback loop after sync
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        syncInBackground()
                     }
                 }
             }
@@ -585,7 +604,7 @@ class MainActivity : AppCompatActivity() {
         try {
             val result = syncUseCase()
             if (result.isSuccess) {
-                Logger.i("SYNC", "Sincronização de background concluída. Novas mídias aplicadas no próximo ciclo.")
+                Logger.i("SYNC", "Sincronização de background concluída. Aplicando nova sequência...")
                 
                 // [NEW] Aciona a limpeza cirúrgica após baixar as novas mídias
                 SmartCacheCleaner.purgeOrphanedMedia(applicationContext)
@@ -600,6 +619,10 @@ class MainActivity : AppCompatActivity() {
                             cacheNextMedia = playlist.cacheNextMedia
                         }
                         applyScreenRotation(playlist.orientation)
+                        
+                        // [FIX] Restart playback loop to pick up new sequence and durations immediately
+                        isSyncLoopRunning = false
+                        startPlaybackLoop()
                     }
                 }
             } else {
@@ -678,13 +701,13 @@ class MainActivity : AppCompatActivity() {
 
                             if (errorMsg.contains("JWT expired", ignoreCase = true) || errorMsg.contains("401", ignoreCase = true)) {
                                 handleAuthError("Sessão Expirada (401)")
-                            } else if (errorMsg.contains("Tela não encontrada", ignoreCase = true) || errorMsg.contains("404", ignoreCase = true)) {
-                                Logger.w("SYNC", "ID Inválido.")
-                                runOnUiThread { updateStatus("ID Rejeitado pelo Painel", isError = true) }
-                                handleAuthError("Aparelho não vinculado ou ID inválido.")
-                            } else if (errorMsg.contains("[PERMANENT]") || errorMsg.contains("Invalid remote playlist", ignoreCase = true)) {
-                                runOnUiThread { updateStatus("Playlist Inválida. Recuperando...", isError = true) }
-                                performAutoRepair() 
+                            } else if (errorMsg.contains("Tela não encontrada", ignoreCase = true) || errorMsg.contains("404", ignoreCase = true) || errorMsg.contains("[PERMANENT]", ignoreCase = true)) {
+                                Logger.w("SYNC", "Tela Inválida ou não encontrada. Abrindo seleção de tela...")
+                                getSharedPreferences("player_prefs", MODE_PRIVATE).edit().remove("saved_screen_id").apply()
+                                val intent = Intent(this@MainActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java)
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                startActivity(intent)
+                                finish()
                             } else {
                                 val retryDelay = if (isAborted) 15000L else 30000L
                                 Handler(Looper.getMainLooper()).postDelayed({ startSyncAndPlay() }, retryDelay)
@@ -909,17 +932,23 @@ class MainActivity : AppCompatActivity() {
             }
             
             val currentPos = player.currentPosition
-            val realDurationMs = if (player.duration > 0) player.duration else durationMs
+            val rawVideoDurationMs = if (player.duration > 0) player.duration else durationMs
+            val realDurationMs = if (durationMs > 0L) minOf(durationMs, rawVideoDurationMs) else rawVideoDurationMs
             val remaining = realDurationMs - currentPos
             
             // 1. Gatilho de Pre-Buffering (Exatos 5 Segundos antes do Fim)
             if (remaining <= 5000L && !nextPreloaded) {
-                Logger.i("SEAMLESS_DIAGNOSTIC", "Buffer Readiness Triggered. Pre-Loading next: ${nextItem.name}")
-                lifecycleScope.launch {
-                    when (nextItem.type) {
-                        MediaType.VIDEO, MediaType.IMAGE -> standbyPlayer?.preBuffer(nextItem)
-                        else -> {}
+                val profile = com.antigravity.media.exoplayer.ChipsetDetector.getRecommendedProfile()
+                if (profile != com.antigravity.media.exoplayer.ChipsetDetector.HardwareProfile.LEGACY_STABILITY) {
+                    Logger.i("SEAMLESS_DIAGNOSTIC", "Buffer Readiness Triggered. Pre-Loading next: ${nextItem.name}")
+                    lifecycleScope.launch {
+                        when (nextItem.type) {
+                            MediaType.VIDEO, MediaType.IMAGE -> standbyPlayer?.preBuffer(nextItem)
+                            else -> {}
+                        }
                     }
+                } else {
+                    Logger.w("SEAMLESS_DIAGNOSTIC", "Hardware Fraco (1GB RAM): Pre-buffer desativado para economizar GPU/RAM.")
                 }
                 nextPreloaded = true
             }
@@ -936,7 +965,7 @@ class MainActivity : AppCompatActivity() {
                 break
             }
             
-            delay(10) // Ultra-smooth 10ms frame polling
+            delay(30) // Otimizado: 30ms (33Hz) economiza CPU/bateria em TV Boxes sem aquecer SoCs
         }
         
         // [STABILITY] Reset watchdog for next item
@@ -1452,7 +1481,7 @@ class MainActivity : AppCompatActivity() {
                                 ServiceLocator.getRemoteDataSource().uploadScreenshot(screenId, byteArray, "manual")
                                 
                                 if (commandId != null) {
-                                    ServiceLocator.getRemoteDataSource().acknowledgeCommand(commandId, "success")
+                                    ServiceLocator.getRemoteDataSource().acknowledgeCommand(commandId, "executed")
                                 }
                             } catch (e: Exception) {
                                 Logger.e("SCREENSHOT", "Upload failed: ${e.message}")

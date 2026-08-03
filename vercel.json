@@ -2,7 +2,7 @@
     "version": 2,
     "rewrites": [
         {
-            "source": "/((?!assets/|sw.js|favicon.ico|manifest.webmanifest|placeholder.svg|robots.txt|pwa-.*.png).*)",
+            "source": "/((?!.*\\.).*)",
             "destination": "/index.html"
         }
     ]

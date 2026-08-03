@@ -33,15 +33,17 @@ class PersistentHeartbeatService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        try {
+            startForeground(NOTIFICATION_ID, createNotification())
+        } catch (e: Exception) {
+            Logger.e("HEARTBEAT_PROC", "Failed to startForeground in onCreate: ${e.message}")
+        }
         Logger.i("HEARTBEAT_PROC", "🔥 PersistentHeartbeatService Iniciado na Trilha do Sistema.")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!isRunning) {
             isRunning = true
-            
-            // 1. Elevação de Privilégio: Torna o processo imune à limpeza de RAM nativa
-            startForeground(NOTIFICATION_ID, createNotification())
             
             // 2. Trava o processador para que o painel de rede Wi-Fi/Ethernet não durma
             acquireWakeLock()

@@ -423,7 +423,7 @@ export default function ScreenDetails() {
                     console.log(">>> [SNIFFER] Mudança de Status detectada:", cmd, status);
 
                     if (cmd === 'screenshot') {
-                        if (status === 'executed' || status?.startsWith('executed')) {
+                        if (status === 'executed' || status === 'success' || status?.startsWith('executed')) {
                             toast.success('📸 Screenshot recebido e atualizado!', {
                                 description: 'A imagem foi capturada agora mesmo pelo dispositivo.'
                             });
