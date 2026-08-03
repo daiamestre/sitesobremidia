@@ -7,11 +7,13 @@ import com.antigravity.core.domain.repository.PlayerRepository
 import com.antigravity.core.domain.repository.PlaylistState
 import com.antigravity.sync.dto.DeviceRemoteDTO
 import com.antigravity.sync.service.MediaDownloader
-import io.github.jan_tennert.supabase.postgrest.Postgrest
-import io.github.jan_tennert.supabase.postgrest.query.Columns
-import io.github.jan_tennert.supabase.realtime.Realtime
-import io.github.jan_tennert.supabase.realtime.PostgresAction
-import io.github.jan_tennert.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.realtime.Realtime
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.broadcastFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -31,32 +33,46 @@ class PlayerRepositoryImpl(
 
         try {
             // 1. Buscar o Device e a Playlist Ativa (Igual ao Yeloo)
-            val deviceResponse = supabasePostgrest.from("devices")
+            val deviceResponse = supabasePostgrest.from("screens")
                 .select(columns = Columns.raw("""
                     id, 
-                    screen_token,
-                    current_playlist_id,
-                    version_signature,
+                    name,
+                    custom_id,
+                    playlist_id,
                     playlists (
                         id,
                         name,
                         playlist_items (
-                            id, position, duration, start_time, days_of_week, is_active,
-                            medias (id, file_url, file_hash, media_type)
+                            id, position, duration,
+                            medias:media!playlist_items_media_id_fkey (id, name, file_url, file_type)
                         )
                     )
                 """.trimIndent())) {
-                    filter { eq("screen_token", screenToken) }
-                }.decodeSingle<DeviceRemoteDTO>()
+                    filter {
+                        or {
+                            eq("custom_id", screenToken.trim())
+                            eq("custom_id", screenToken.trim().uppercase())
+                            eq("custom_id", screenToken.trim().lowercase())
+                            if (screenToken.trim().length > 20) {
+                                eq("id", screenToken.trim())
+                            }
+                        }
+                    }
+                }.decodeSingleOrNull<DeviceRemoteDTO>()
 
-            val remoteItems = deviceResponse.playlists?.items ?: emptyList()
+            if (deviceResponse == null) {
+                throw Exception("[PERMANENT] Tela não encontrada no painel. Verifique o ID: $screenToken")
+            }
+
+            val remoteItems = (deviceResponse.playlists ?: deviceResponse.playlist)?.items ?: emptyList()
 
             // 2. Lógica de "Hash Match" para cada mídia
-            val domainItems = remoteItems.filter { it.isActive }.map { item ->
+            val domainItems = mutableListOf<MediaItem>()
+            for (item in remoteItems) {
                 val media = item.media
                 if (media != null) {
                     val localPath = cacheManager.getLocalPathForId(media.id)
-                    val expectedHash = media.fileHash
+                    val expectedHash = media.fileHash ?: media.id
                     
                     // Se o arquivo não existe ou o Hash mudou
                     if (!File(localPath).exists() || cacheManager.calculateHash(localPath) != expectedHash) {
@@ -65,33 +81,36 @@ class PlayerRepositoryImpl(
                     }
                     
                     // Map to domain MediaItem
-                    MediaItem(
-                        id = media.id,
-                        name = media.name,
-                        type = when(media.mediaType) {
-                            "video" -> MediaType.VIDEO
-                            "image" -> MediaType.IMAGE
-                            else -> MediaType.VIDEO
-                        },
-                        durationSeconds = item.duration / 1000,
-                        remoteUrl = media.fileUrl,
-                        localPath = localPath,
-                        hash = expectedHash,
-                        orderIndex = item.position,
-                        startTime = item.startTime,
-                        daysOfWeek = item.daysOfWeek
+                    domainItems.add(
+                        MediaItem(
+                            id = media.id,
+                            name = media.name,
+                            type = when(media.mediaType) {
+                                "video" -> MediaType.VIDEO
+                                "image" -> MediaType.IMAGE
+                                else -> MediaType.VIDEO
+                            },
+                            durationSeconds = item.duration / 1000,
+                            remoteUrl = media.fileUrl,
+                            localPath = localPath,
+                            hash = expectedHash,
+                            orderIndex = item.position,
+                            startTime = item.startTime,
+                            daysOfWeek = item.daysOfWeek
+                        )
                     )
                 } else {
-                    // Handle Widgets/Links if needed, but following blueprint focused on media
-                    MediaItem(
-                        id = item.id,
-                        name = "Item ${item.position}",
-                        type = MediaType.VIDEO,
-                        durationSeconds = item.duration / 1000,
-                        remoteUrl = "",
-                        localPath = null,
-                        hash = "",
-                        orderIndex = item.position
+                    domainItems.add(
+                        MediaItem(
+                            id = item.id,
+                            name = "Item ${item.position}",
+                            type = MediaType.VIDEO,
+                            durationSeconds = item.duration / 1000,
+                            remoteUrl = "",
+                            localPath = null,
+                            hash = "",
+                            orderIndex = item.position
+                        )
                     )
                 }
             }

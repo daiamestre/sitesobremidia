@@ -50,9 +50,7 @@ class HeartbeatManager(
         )
 
         try {
-            client.from("device_health").upsert(payload) {
-                onConflict = "device_id"
-            }
+            client.from("device_health").upsert(payload)
             Logger.d("PULSE", "Heartbeat OK (${payload.storageUsage}% disk, media: ${payload.currentMediaId})")
         } catch (e: Exception) {
             // Falha silenciosa para nao travar o player se a rede oscilar

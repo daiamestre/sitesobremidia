@@ -32,7 +32,10 @@ android/app/build
 android/local.properties
 
 .vercel
-.env*.local
 *.apk
 *.aab
 *.hprof
+coverage
+dev-dist
+lint-results*
+.temp*

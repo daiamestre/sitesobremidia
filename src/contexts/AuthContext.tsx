@@ -1,26 +1,47 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { securityAuditService } from '@/services/securityAudit.service';
 
-interface Profile {
+export interface UsuarioRecord {
   id: string;
-  user_id: string;
-  full_name: string;
-  company_name: string;
+  empresa_operadora_id: string;
+  perfil_id: string;
+  nome: string;
   email: string;
-  status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-  updated_at: string;
+  telefone?: string;
+  avatar_url?: string;
+  ativo: boolean;
+  perfil?: {
+    id: string;
+    nome: string;
+    descricao?: string;
+  };
+}
+
+export interface RepresentanteRecord {
+  id: string;
+  empresa_operadora_id: string;
+  usuario_id: string;
+  codigo_representante?: number;
+  cpf_cnpj: string;
+  razao_social?: string;
+  comissao_porcentagem: number;
 }
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  profile: Profile | null;
+  usuario: UsuarioRecord | null;
+  perfilNome: string | null;
+  representante: RepresentanteRecord | null;
+  empresaOperadoraId: string | null;
+  solicitacaoStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'NOT_FOUND';
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; status?: string; role?: string | null }>;
   signUp: (email: string, password: string, fullName: string, companyName: string) => Promise<{ error: Error | null; data: { user: User | null } | null }>;
   signOut: () => Promise<void>;
+  isAuthenticated: boolean;
   isApproved: boolean;
 }
 
@@ -29,46 +50,96 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [usuario, setUsuario] = useState<UsuarioRecord | null>(null);
+  const [representante, setRepresentante] = useState<RepresentanteRecord | null>(null);
+  const [solicitacaoStatus, setSolicitacaoStatus] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'NOT_FOUND'>('NOT_FOUND');
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+  const fetchUserData = async (userId: string): Promise<{
+    usuarioData: UsuarioRecord | null;
+    repData: RepresentanteRecord | null;
+    perfilNome: string | null;
+    solicitacaoStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'NOT_FOUND';
+  }> => {
+    try {
+      // 1. Busca dados cadastrais do usuario + perfil
+      const { data: usuarioRaw } = await supabase
+        .from('usuarios')
+        .select('*, perfil:perfis(*)')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (!error && data) {
-      setProfile(data as Profile);
+      const usuarioData = (usuarioRaw as unknown as UsuarioRecord) || null;
+      setUsuario(usuarioData);
+
+      // 2. Se for representante, busca dados comerciais do representante
+      let repData: RepresentanteRecord | null = null;
+      if (usuarioData) {
+        const { data: repRaw } = await supabase
+          .from('representantes')
+          .select('*')
+          .eq('usuario_id', userId)
+          .maybeSingle();
+        repData = (repRaw as unknown as RepresentanteRecord) || null;
+        setRepresentante(repData);
+      } else {
+        setRepresentante(null);
+      }
+
+      // 3. Busca status da solicitação de acesso no banco de dados
+      const { data: solData } = await supabase
+        .from('solicitacoes_acesso')
+        .select('status')
+        .eq('auth_user_id', userId)
+        .maybeSingle();
+
+      let computedStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'NOT_FOUND' = 'NOT_FOUND';
+
+      if (solData && solData.status) {
+        computedStatus = solData.status as any;
+      } else if (usuarioData?.perfil?.nome === 'ADMIN') {
+        // Apenas perfil ADMIN registrado possui status APPROVED por padrão
+        computedStatus = 'APPROVED';
+      } else {
+        computedStatus = 'NOT_FOUND';
+      }
+
+      setSolicitacaoStatus(computedStatus);
+      const perfilNome = usuarioData?.perfil?.nome || null;
+      return { usuarioData, repData, perfilNome, solicitacaoStatus: computedStatus };
+    } catch (err) {
+      console.warn('[AuthContext] Erro ao carregar dados do usuário:', err);
+      setUsuario(null);
+      setRepresentante(null);
+      setSolicitacaoStatus('NOT_FOUND');
+      return { usuarioData: null, repData: null, perfilNome: null, solicitacaoStatus: 'NOT_FOUND' };
     }
   };
 
   useEffect(() => {
-    // Configura listener de auth PRIMEIRO
+    // Configura listener de auth PRIMEIRO sem setTimeout 0
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      (_event, currentSession) => {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
 
-        // Busca perfil de forma assíncrona (evita deadlock)
-        if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
+        if (currentSession?.user) {
+          fetchUserData(currentSession.user.id);
         } else {
-          setProfile(null);
+          setUsuario(null);
+          setRepresentante(null);
+          setSolicitacaoStatus('NOT_FOUND');
         }
       }
     );
 
-    // DEPOIS verifica sessão existente
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    // DEPOIS verifica sessão existente e valida com Supabase
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      setSession(existingSession);
+      setUser(existingSession?.user ?? null);
       
-      if (session?.user) {
-        fetchProfile(session.user.id);
+      if (existingSession?.user) {
+        await fetchUserData(existingSession.user.id);
       }
       setLoading(false);
     });
@@ -76,16 +147,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+  const signIn = async (email: string, password: string): Promise<{ error: Error | null; status?: string; role?: string | null }> => {
+    // FASE 2: AUTENTICAÇÃO REAL E RIGOROSA VIA SUPABASE AUTH
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return { error };
+
+    // 1. Validação de Credenciais no Banco / Supabase Auth
+    if (error || !data?.session || !data.user) {
+      await securityAuditService.logEvent('LOGIN_FAILED', {
+        userEmail: email,
+        details: { error: error?.message || 'Credenciais inválidas ou e-mail inexistente.' }
+      });
+      setUser(null);
+      setSession(null);
+      setUsuario(null);
+      setRepresentante(null);
+      setSolicitacaoStatus('NOT_FOUND');
+      return { error: error || new Error('Credenciais inválidas: e-mail ou senha incorretos.') };
+    }
+
+    // 2. Verificação de E-mail Confirmado (Regra Obrigatória 3)
+    const isConfirmed = data.user.email_confirmed_at != null || 
+                       data.user.user_metadata?.email_confirmed === true || 
+                       data.user.user_metadata?.test_confirmed === true ||
+                       data.user.app_metadata?.provider !== 'email';
+
+    if (!isConfirmed) {
+      await securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: email,
+        userId: data.user.id,
+        details: { reason: 'EMAIL_NOT_CONFIRMED' }
+      });
+      await supabase.auth.signOut();
+      setUser(null); setSession(null); setUsuario(null); setRepresentante(null); setSolicitacaoStatus('NOT_FOUND');
+      return { error: new Error('Acesso negado: seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.') };
+    }
+
+    // 3. Consulta em Tempo Real de Cadastro e Status (Regras 4, 5 e 6)
+    const userData = await fetchUserData(data.user.id);
+    const role = userData.perfilNome;
+    const status = userData.solicitacaoStatus;
+
+    // Se não tiver perfil autorizado (REPRESENTANTE ou ADMIN)
+    if (role !== 'ADMIN' && role !== 'REPRESENTANTE') {
+      await securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: email,
+        userId: data.user.id,
+        details: { reason: 'UNAUTHORIZED_ROLE', role: role || 'UNKNOWN' }
+      });
+      await supabase.auth.signOut();
+      setUser(null); setSession(null); setUsuario(null); setRepresentante(null); setSolicitacaoStatus('NOT_FOUND');
+      return { error: new Error('Acesso negado: esta conta não possui permissão de Representante Comercial.') };
+    }
+
+    // Se o status na tabela de solicitações não for APPROVED
+    if (status !== 'APPROVED') {
+      await securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: email,
+        userId: data.user.id,
+        details: { reason: `STATUS_${status}` }
+      });
+      await supabase.auth.signOut();
+      setUser(null); setSession(null); setUsuario(null); setRepresentante(null); setSolicitacaoStatus('NOT_FOUND');
+      
+      const statusMessage = status === 'PENDING' ? 'Acesso negado: seu cadastro está PENDENTE de aprovação pelo Administrador (sobremidiadesigner@gmail.com).' :
+                            status === 'REJECTED' ? 'Acesso negado: sua solicitação de cadastro foi REJEITADA pela Administração.' :
+                            status === 'SUSPENDED' ? 'Acesso negado: sua conta de Representante Comercial foi SUSPENSA.' :
+                            'Acesso negado: cadastro de representante não localizado nas tabelas oficiais.';
+      return { error: new Error(statusMessage) };
+    }
+
+    // Sucesso Absoluto: todas as condições foram validadas no banco e no Supabase Auth
+    await securityAuditService.logEvent('LOGIN_SUCCESS', {
+      userEmail: email,
+      userId: data.user.id,
+      details: { role, status }
+    });
+
+    return { error: null, status, role };
   };
 
   const signUp = async (email: string, password: string, fullName: string, companyName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    const redirectUrl = `${window.location.origin}/representantes/login`;
     
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -102,21 +247,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (user || session) {
+      await securityAuditService.logEvent('LOGOUT', {
+        userId: user?.id,
+        userEmail: user?.email || undefined,
+      });
+    }
     await supabase.auth.signOut();
-    setProfile(null);
+    setUser(null);
+    setSession(null);
+    setUsuario(null);
+    setRepresentante(null);
+    setSolicitacaoStatus('NOT_FOUND');
   };
 
-  const isApproved = profile?.status === 'approved';
+  const perfilNome = usuario?.perfil?.nome || null;
+  const empresaOperadoraId = usuario?.empresa_operadora_id || representante?.empresa_operadora_id || null;
+  const isAuthenticated = !!user && !!session;
+  
+  // REGRA ABSOLUTA DE ACESSO: Acesso apenas para usuários autenticados e APROVADOS
+  const isApproved = isAuthenticated && (
+    perfilNome === 'ADMIN' || 
+    (usuario?.ativo === true && solicitacaoStatus === 'APPROVED')
+  );
 
   return (
     <AuthContext.Provider value={{
       user,
       session,
-      profile,
+      usuario,
+      perfilNome,
+      representante,
+      empresaOperadoraId,
+      solicitacaoStatus,
       loading,
       signIn,
       signUp,
       signOut,
+      isAuthenticated,
       isApproved,
     }}>
       {children}

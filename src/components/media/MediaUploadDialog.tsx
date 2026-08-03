@@ -186,11 +186,13 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     if (open && editMedia) {
       setMediaName(editMedia.name || '');
       setAspectRatio((editMedia.aspect_ratio as '16x9' | '9x16') || '16x9');
+      setMediaDuration((editMedia as any).duration || 10);
       setFiles([]); // Clear any stale files
     } else if (open) {
       // Reset for new upload
       setMediaName('');
       setAspectRatio('16x9');
+      setMediaDuration(10);
     }
   }, [open, editMedia]);
 
@@ -551,6 +553,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       const updateData: Record<string, any> = {
         name: mediaName.trim(),
         aspect_ratio: aspectRatio,
+        duration: mediaDuration,
       };
 
       // If user selected a new file, upload it and replace old one
@@ -622,6 +625,12 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         .eq('id', editMedia.id);
 
       if (dbError) throw dbError;
+
+      // Update duration in playlist_items for all playlists containing this media
+      await supabase
+        .from('playlist_items')
+        .update({ duration: mediaDuration })
+        .eq('media_id', editMedia.id);
 
       // Add to playlist if selected
       if (selectedPlaylistId && selectedPlaylistId !== 'none') {

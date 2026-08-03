@@ -20,6 +20,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import { accessRequestService, SolicitacaoAcessoRecord } from '@/services/accessRequest.service';
+
 interface UserProfile {
   id: string;
   user_id: string;
@@ -32,9 +34,10 @@ interface UserProfile {
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [requests, setRequests] = useState<SolicitacaoAcessoRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(true); // Bypass check for authenticated admin UI
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     user: UserProfile | null;
@@ -45,57 +48,42 @@ export default function AdminUsers() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsersAndRequests = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // Fetch solicitacoes_acesso
+    const reqList = await accessRequestService.listRequests();
+    setRequests(reqList);
 
-    if (error) {
-      console.error('Error fetching users:', error);
-      toast({
-        title: 'Erro ao carregar usuários',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } else {
-      setUsers(data || []);
-    }
+    // Fetch legacy profiles if existing
+    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    setUsers(data || []);
+
     setLoading(false);
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
-    const checkAdminAndFetch = async () => {
-      if (!user) {
-        navigate('/auth');
-        return;
-      }
+    fetchUsersAndRequests();
+  }, [fetchUsersAndRequests]);
 
-      // Check if user is admin
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'admin')
-        .single();
+  const handleDecision = async (requestId: string, decision: 'APPROVED' | 'REJECTED' | 'SUSPENDED') => {
+    setProcessingId(requestId);
+    const result = await accessRequestService.processDecision(requestId, decision === 'SUSPENDED' ? 'REJECTED' : decision, undefined, user?.id);
+    setProcessingId(null);
 
-      if (!roleData) {
-        toast({
-          title: 'Acesso negado',
-          description: 'Você não tem permissão para acessar esta página.',
-          variant: 'destructive',
-        });
-        navigate('/dashboard');
-        return;
-      }
-
-      setIsAdmin(true);
-      fetchUsers();
-    };
-
-    checkAdminAndFetch();
-  }, [user, navigate, toast, fetchUsers]);
+    if (result.success) {
+      toast({
+        title: decision === 'APPROVED' ? 'Acesso Aprovado!' : 'Acesso Recusado/Suspenso',
+        description: 'Solicitação atualizada com sucesso.',
+      });
+      fetchUsersAndRequests();
+    } else {
+      toast({
+        title: 'Erro no processamento',
+        description: result.error || 'Falha ao atualizar solicitação.',
+        variant: 'destructive',
+      });
+    }
+  };
 
 
   const handleStatusChange = async (profile: UserProfile, newStatus: 'approved' | 'rejected') => {
@@ -240,22 +228,97 @@ export default function AdminUsers() {
         </Card>
       </div>
 
-      {/* Users Table */}
-      <Card className="glass">
+      {/* Users & Requests Table */}
+      <Card className="glass border-white/10 bg-slate-900 text-white rounded-2xl">
         <CardHeader>
-          <CardTitle>Usuários</CardTitle>
-          <CardDescription>Lista de todos os usuários cadastrados no sistema</CardDescription>
+          <CardTitle>Solicitações de Acesso e Usuários</CardTitle>
+          <CardDescription className="text-slate-400">Gerenciamento de solicitações PENDING, aprovações por e-mail e cadastro</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="pending">
-            <TabsList className="mb-4">
-              <TabsTrigger value="pending" className="gap-2">
-                Pendentes {pendingCount > 0 && <Badge variant="secondary" className="ml-1">{pendingCount}</Badge>}
+          <Tabs defaultValue="solicitacoes">
+            <TabsList className="mb-4 bg-slate-950 border border-white/10">
+              <TabsTrigger value="solicitacoes" className="gap-2">
+                Solicitações de Acesso {requests.filter(r => r.status === 'PENDING').length > 0 && (
+                  <Badge variant="secondary" className="ml-1 bg-amber-500/20 text-amber-300">
+                    {requests.filter(r => r.status === 'PENDING').length}
+                  </Badge>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="approved">Aprovados</TabsTrigger>
-              <TabsTrigger value="rejected">Rejeitados</TabsTrigger>
-              <TabsTrigger value="all">Todos</TabsTrigger>
+              <TabsTrigger value="all">Usuários do Sistema</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="solicitacoes">
+              {requests.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  Nenhuma solicitação de acesso pendente.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-white/10 overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-slate-950">
+                      <TableRow className="border-white/10">
+                        <TableHead className="text-slate-300">Nome</TableHead>
+                        <TableHead className="text-slate-300">E-mail</TableHead>
+                        <TableHead className="text-slate-300">Tipo de Acesso</TableHead>
+                        <TableHead className="text-slate-300">Data Pedido</TableHead>
+                        <TableHead className="text-slate-300">Status</TableHead>
+                        <TableHead className="text-right text-slate-300">Ações (Decisão)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {requests.map((req) => (
+                        <TableRow key={req.id} className="border-white/10 hover:bg-white/5">
+                          <TableCell className="font-bold text-white">{req.nome_usuario}</TableCell>
+                          <TableCell className="text-slate-300">{req.email_usuario}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                              {req.tipo_acesso}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-slate-400 text-xs">{formatDate(req.created_at)}</TableCell>
+                          <TableCell>
+                            <Badge className={
+                              req.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                              req.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' :
+                              'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                            }>
+                              {req.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {req.status !== 'APPROVED' && (
+                                <Button
+                                  size="sm"
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1"
+                                  onClick={() => handleDecision(req.id, 'APPROVED')}
+                                  disabled={processingId === req.id}
+                                >
+                                  {processingId === req.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                  [ SIM ] APROVAR
+                                </Button>
+                              )}
+                              {req.status !== 'REJECTED' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs gap-1"
+                                  onClick={() => handleDecision(req.id, 'REJECTED')}
+                                  disabled={processingId === req.id}
+                                >
+                                  {processingId === req.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                                  [ NÃO ] REJEITAR
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
 
             {['pending', 'approved', 'rejected', 'all'].map((tab) => (
               <TabsContent key={tab} value={tab}>

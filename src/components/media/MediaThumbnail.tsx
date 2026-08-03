@@ -44,11 +44,14 @@ export function MediaThumbnail({ media, className, showIcon = true }: MediaThumb
     // Add timestamp explicitly to src to force browser to load from that frame (Media Fragments URI)
     const videoSrc = isVideo ? `${media.file_url}#t=1.0` : media.file_url;
 
+    const hasThumbnail = Boolean(media.thumbnail_url);
+    const displayThumbnailUrl = media.thumbnail_url || (isImage ? media.file_url : null);
+
     return (
         <div className={cn("relative w-full h-full overflow-hidden bg-black/5", className)}>
-            {isImage ? (
+            {hasThumbnail || isImage ? (
                 <img
-                    src={media.file_url}
+                    src={displayThumbnailUrl!}
                     alt={media.name || 'Media'}
                     className="w-full h-full object-cover transition-opacity duration-300"
                     onError={() => setError(true)}

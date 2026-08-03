@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { accessRequestService } from '@/services/accessRequest.service';
 import { Loader2, Mail, Lock, User, Building } from 'lucide-react';
 import { z } from 'zod';
 
@@ -46,6 +47,13 @@ export default function Auth() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam === 'signup' || tabParam === 'register') {
+      setActiveTab('signup');
+    } else if (tabParam === 'login') {
+      setActiveTab('login');
+    }
+
     const redirect = params.get('redirect');
 
     if (user && profile) {
@@ -117,54 +125,58 @@ export default function Auth() {
         variant: 'destructive',
       });
     } else {
-      // Envia notificação por e-mail
+      // Registra solicitação de acesso de Gestor de Telas
       try {
-        await supabase.functions.invoke('send-approval-notification', {
-          body: {
-            user_id: data?.user?.id,
-            full_name: fullName,
-            email: signUpEmail,
-            company_name: companyName,
-          },
+        await accessRequestService.createRequest({
+          tipoAcesso: 'GESTOR_TELAS',
+          nomeUsuario: fullName,
+          emailUsuario: signUpEmail,
+          authUserId: data?.user?.id,
+          dadosCadastro: { empresa: companyName },
         });
-        console.log('Notification email sent successfully');
-      } catch (emailError) {
-        console.error('Failed to send notification email:', emailError);
+      } catch (reqError) {
+        console.error('Falha ao registrar solicitação de acesso:', reqError);
       }
       
       setIsLoading(false);
       toast({
         title: 'Conta criada com sucesso!',
-        description: 'Seu cadastro está aguardando aprovação. Você receberá um e-mail quando for aprovado.',
+        description: 'Seu cadastro ficou PENDENTE de aprovação. O administrador (sobremidiadesigner@gmail.com) recebeu um e-mail para autorização.',
       });
       setActiveTab('login');
     }
   };
 
-  // Mostrar mensagem de pendência se usuário existe mas não está aprovado
-  if (user && profile && !isApproved) {
+  // Mostrar mensagem de negação de acesso se usuário existe mas não está aprovado
+  if (user && !isApproved) {
+    const statusMessage = 
+      solicitacaoStatus === 'REJECTED' ? 'Seu cadastro não possui autorização para acesso.' :
+      solicitacaoStatus === 'SUSPENDED' ? 'Seu acesso está temporariamente suspenso.' :
+      'Seu cadastro está aguardando aprovação da administração.';
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md glass animate-fade-in">
+        <Card className="w-full max-w-md glass animate-fade-in border-white/10 bg-slate-900 text-white rounded-2xl">
           <CardHeader className="text-center">
             <Logo className="justify-center mb-4" size="lg" />
-            <CardTitle className="text-2xl font-display">Aguardando Aprovação</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              {profile.status === 'pending' 
-                ? 'Seu cadastro está sendo analisado. Você receberá um e-mail quando for aprovado.'
-                : 'Seu cadastro foi rejeitado. Entre em contato com o suporte.'}
+            <CardTitle className="text-2xl font-display text-white">Acesso Não Liberado</CardTitle>
+            <CardDescription className="text-slate-300 pt-2 text-sm font-medium">
+              {statusMessage}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-slate-400 text-center">
+              Administração notificada em <strong className="text-white">sobremidiadesigner@gmail.com</strong>.
+            </p>
             <Button 
               onClick={() => {
                 supabase.auth.signOut();
                 navigate('/auth');
               }} 
               variant="outline" 
-              className="w-full"
+              className="w-full bg-slate-950 border-white/10 text-white hover:bg-slate-800"
             >
-              Sair
+              Voltar / Entrar com outra conta
             </Button>
           </CardContent>
         </Card>
