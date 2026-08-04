@@ -53,9 +53,13 @@ export function CrmSessionProvider({ children }: { children: ReactNode }) {
   }, [userName]);
 
   const userCargo = useMemo(() => {
+    if (role === 'OWNER') return 'Proprietário (Soberano)';
     if (role === 'ADMIN') return 'Administrador Geral';
-    if (role === 'SUPERVISOR') return 'Supervisor Comercial';
+    if (role === 'SUPERVISOR' || role === 'GESTOR' || role === 'GERENTE') return 'Supervisor Comercial / Gestor';
     if (role === 'FINANCEIRO') return 'Gestão Financeira';
+    if (role === 'ANUNCIANTE' || role === 'CLIENTE') return 'Cliente Anunciante';
+    if (role === 'PARCEIRO') return 'Parceiro de Rede';
+    if (role === 'FUNCIONARIO' || role === 'OPERACIONAL' || role === 'DESIGNER') return 'Operações & Mídia';
     return 'Representante Comercial';
   }, [role]);
 

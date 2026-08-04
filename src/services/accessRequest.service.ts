@@ -1,8 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
 import { notificationService } from './notification.service';
 
-export type TipoAcesso = 'REPRESENTANTE' | 'GESTOR_TELAS';
-export type StatusSolicitacao = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+export type TipoAcesso = 'REPRESENTANTE' | 'GESTOR_TELAS' | 'FUNCIONARIO' | 'ANUNCIANTE' | 'PARCEIRO';
+export type StatusSolicitacao = 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED';
+
 
 export interface SolicitacaoAcessoInput {
   tipoAcesso: TipoAcesso;
@@ -227,7 +228,7 @@ export class AccessRequestService {
         }
       }
 
-      // 3. Atualiza estado e marca approval_used_at = NOW() para inutilizar o token
+      // 3. Atualiza estado e marca approval_used_at = NOW() com Trava de Concorrência (Sprint 1.5)
       const updatePayload: Record<string, any> = {
         status: decision,
         approval_used_at: nowIso,
@@ -243,13 +244,24 @@ export class AccessRequestService {
         updatePayload.motivo_rejeicao = motivoRejeicao || 'Rejeitado pelo administrador.';
       }
 
-      const { error: updateError } = await supabase
+      // Bloqueio Otimista anti-race condition: ao aprovar, exige que approved_by esteja NULO e status PENDING
+      let query = supabase
         .from('solicitacoes_acesso')
         .update(updatePayload)
         .eq('id', requestId);
 
+      if (decision === 'APPROVED') {
+        query = query.is('approved_by', null).eq('status', 'PENDING');
+      }
+
+      const { data: updateResult, error: updateError } = await query.select('id');
+
       if (updateError) {
         return { success: false, error: updateError.message };
+      }
+
+      if (decision === 'APPROVED' && (!updateResult || updateResult.length === 0)) {
+        return { success: false, error: '[RACE CONDITION SHIELD] Esta solicitação já foi aprovada ou processada anteriormente por outro administrador.' };
       }
 
       // 4. Notifica o usuário por e-mail
