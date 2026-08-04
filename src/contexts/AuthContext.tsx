@@ -36,7 +36,7 @@ interface AuthContextType {
   perfilNome: string | null;
   representante: RepresentanteRecord | null;
   empresaOperadoraId: string | null;
-  solicitacaoStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'NOT_FOUND';
+  solicitacaoStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND';
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; status?: string; role?: string | null }>;
   signUp: (email: string, password: string, fullName: string, companyName: string) => Promise<{ error: Error | null; data: { user: User | null } | null }>;
@@ -52,14 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [usuario, setUsuario] = useState<UsuarioRecord | null>(null);
   const [representante, setRepresentante] = useState<RepresentanteRecord | null>(null);
-  const [solicitacaoStatus, setSolicitacaoStatus] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'NOT_FOUND'>('NOT_FOUND');
+  const [solicitacaoStatus, setSolicitacaoStatus] = useState<'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND'>('NOT_FOUND');
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (userId: string): Promise<{
     usuarioData: UsuarioRecord | null;
     repData: RepresentanteRecord | null;
     perfilNome: string | null;
-    solicitacaoStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'NOT_FOUND';
+    solicitacaoStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND';
   }> => {
     try {
       // 1. Busca dados cadastrais do usuario + perfil
@@ -93,12 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('auth_user_id', userId)
         .maybeSingle();
 
-      let computedStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'NOT_FOUND' = 'NOT_FOUND';
+      let computedStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND' = 'NOT_FOUND';
 
       if (solData && solData.status) {
         computedStatus = solData.status as any;
-      } else if (usuarioData?.perfil?.nome === 'ADMIN') {
-        // Apenas perfil ADMIN registrado possui status APPROVED por padrão
+      } else if (usuarioData?.perfil?.nome === 'OWNER' || usuarioData?.perfil?.nome === 'ADMIN') {
+        // OWNER e ADMIN possuem status ativo/aprovado soberano
         computedStatus = 'APPROVED';
       } else {
         computedStatus = 'NOT_FOUND';
@@ -190,8 +190,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const role = userData.perfilNome;
     const status = userData.solicitacaoStatus;
 
-    // Se não tiver perfil autorizado (REPRESENTANTE ou ADMIN)
-    if (role !== 'ADMIN' && role !== 'REPRESENTANTE') {
+    // Se não tiver perfil corporativo oficial (7 Perfis Constitucionais + Legado)
+    const validRoles = ['OWNER', 'ADMIN', 'GESTOR', 'FUNCIONARIO', 'REPRESENTANTE', 'ANUNCIANTE', 'PARCEIRO', 'GERENTE', 'FINANCEIRO', 'DESIGNER', 'OPERACIONAL', 'CLIENTE', 'SUPERVISOR'];
+    if (!role || !validRoles.includes(role.toUpperCase())) {
       await securityAuditService.logEvent('ACCESS_DENIED', {
         userEmail: email,
         userId: data.user.id,
@@ -199,11 +200,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       await supabase.auth.signOut();
       setUser(null); setSession(null); setUsuario(null); setRepresentante(null); setSolicitacaoStatus('NOT_FOUND');
-      return { error: new Error('Acesso negado: esta conta não possui permissão de Representante Comercial.') };
+      return { error: new Error('Acesso negado: esta conta não possui permissão de Representante Comercial ou perfil corporativo do ERP.') };
     }
 
-    // Se o status na tabela de solicitações não for APPROVED
-    if (status !== 'APPROVED') {
+    // Se o status na tabela de solicitações ou ciclo de vida não for APPROVED nem ACTIVE
+    if (status !== 'APPROVED' && status !== 'ACTIVE') {
       await securityAuditService.logEvent('ACCESS_DENIED', {
         userEmail: email,
         userId: data.user.id,
@@ -214,7 +215,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const statusMessage = status === 'PENDING' ? 'Acesso negado: seu cadastro está PENDENTE de aprovação pelo Administrador (sobremidiadesigner@gmail.com).' :
                             status === 'REJECTED' ? 'Acesso negado: sua solicitação de cadastro foi REJEITADA pela Administração.' :
-                            status === 'SUSPENDED' ? 'Acesso negado: sua conta de Representante Comercial foi SUSPENSA.' :
+                            status === 'SUSPENDED' ? 'Acesso negado: sua conta corporativa foi SUSPENSA.' :
+                            status === 'INACTIVE' ? 'Acesso negado: sua conta de usuário está INATIVA no sistema.' :
+                            status === 'DELETED' ? 'Acesso negado: esta conta foi excluída ou encerrada no ERP.' :
                             'Acesso negado: cadastro de representante não localizado nas tabelas oficiais.';
       return { error: new Error(statusMessage) };
     }
@@ -265,10 +268,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const empresaOperadoraId = usuario?.empresa_operadora_id || representante?.empresa_operadora_id || null;
   const isAuthenticated = !!user && !!session;
   
-  // REGRA ABSOLUTA DE ACESSO: Acesso apenas para usuários autenticados e APROVADOS
+  // REGRA ABSOLUTA DE ACESSO CORPORATIVO: Acesso liberado para OWNER/ADMIN soberanos ou contas com ciclo de vida APPROVED/ACTIVE e ativas
   const isApproved = isAuthenticated && (
-    perfilNome === 'ADMIN' || 
-    (usuario?.ativo === true && solicitacaoStatus === 'APPROVED')
+    perfilNome === 'OWNER' || perfilNome === 'ADMIN' || 
+    (usuario?.ativo === true && (solicitacaoStatus === 'APPROVED' || solicitacaoStatus === 'ACTIVE'))
   );
 
   return (
