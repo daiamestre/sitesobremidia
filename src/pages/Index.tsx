@@ -98,6 +98,19 @@ export default function Index() {
                       </div>
                     </div>
                   </Link>
+
+                  <Link to="/auth/corporate">
+                    <div className="p-4 rounded-xl border border-primary/30 bg-slate-900/80 hover:border-primary/70 hover:bg-slate-800/90 transition-all cursor-pointer group flex items-center gap-4 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent pointer-events-none" />
+                      <div className="p-3 rounded-lg bg-primary/20 text-primary group-hover:bg-primary group-hover:text-white transition-colors relative z-10">
+                        <Zap className="h-5 w-5" />
+                      </div>
+                      <div className="relative z-10">
+                        <h4 className="font-bold text-base text-primary group-hover:text-white transition-colors">Área Corporativa</h4>
+                        <p className="text-xs text-slate-400">Administração e controle central</p>
+                      </div>
+                    </div>
+                  </Link>
                 </div>
               </SheetContent>
             </Sheet>
