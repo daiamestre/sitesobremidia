@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS public.system_ownership (
 -- 4. PROTEÇÃO DO OWNER (TRIGGERS ABSOLUTAS)
 -- ==============================================================================
 
--- 4.1 Impedir DELETE do OWNER
+-- 4.1 Impedir DELETE do OWNER na tabela usuarios
 CREATE OR REPLACE FUNCTION prevent_owner_deletion()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -109,7 +109,7 @@ FOR EACH ROW
 EXECUTE FUNCTION prevent_owner_deletion();
 
 
--- 4.2 Impedir UPDATE de campos sensíveis do OWNER
+-- 4.2 Impedir UPDATE de campos sensíveis do OWNER na tabela usuarios
 CREATE OR REPLACE FUNCTION prevent_owner_downgrade()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -161,6 +161,50 @@ CREATE TRIGGER trigger_prevent_owner_downgrade
 BEFORE UPDATE ON public.usuarios
 FOR EACH ROW
 EXECUTE FUNCTION prevent_owner_downgrade();
+
+
+-- 4.3 Impedir violação direta na tabela system_ownership (Ataque de Impersonação)
+CREATE OR REPLACE FUNCTION prevent_system_ownership_tampering()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Impede DELETE de um ownership lockado
+    IF TG_OP = 'DELETE' THEN
+        IF OLD.locked = true THEN
+            RAISE EXCEPTION 'Acesso Negado: Impossível remover o registro de posse do sistema (SYSTEM OWNERSHIP LOCKED).';
+        END IF;
+        RETURN OLD;
+    END IF;
+
+    -- Impede UPDATE de campos sensíveis de um ownership lockado
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.locked = true THEN
+            -- Impede destrancar
+            IF NEW.locked = false THEN
+                RAISE EXCEPTION 'Acesso Negado: Impossível remover a trava do registro de posse do sistema.';
+            END IF;
+            
+            -- Impede trocar de dono
+            IF NEW.owner_user_id IS DISTINCT FROM OLD.owner_user_id THEN
+                RAISE EXCEPTION 'Acesso Negado: Impossível transferir a posse do sistema (SYSTEM OWNERSHIP LOCKED).';
+            END IF;
+            
+            -- Impede trocar de organização
+            IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+                RAISE EXCEPTION 'Acesso Negado: Impossível transferir a organização do sistema (SYSTEM OWNERSHIP LOCKED).';
+            END IF;
+        END IF;
+        RETURN NEW;
+    END IF;
+    
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_prevent_system_ownership_tampering ON public.system_ownership;
+CREATE TRIGGER trigger_prevent_system_ownership_tampering
+BEFORE UPDATE OR DELETE ON public.system_ownership
+FOR EACH ROW
+EXECUTE FUNCTION prevent_system_ownership_tampering();
 
 -- ==============================================================================
 -- 5. CONFIGURAÇÃO INICIAL (SEEDING) DO OWNER jairaniran2@gmail.com
