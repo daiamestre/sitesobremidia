@@ -16,7 +16,7 @@ export interface UsuarioRecord {
   owner_locked?: boolean;
   organization_id?: string;
   department_id?: string;
-  new_role_id?: string;
+  role_id?: string;
   perfil?: {
     id: string;
     nome: string;
@@ -30,7 +30,7 @@ export interface UsuarioRecord {
     id: string;
     name: string;
   };
-  new_role?: {
+  role?: {
     id: string;
     name: string;
   };
@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 1. Busca dados cadastrais do usuario + perfil e novas hierarquias
       const { data: usuarioRaw } = await supabase
         .from('usuarios')
-        .select('*, perfil:perfis(*), organization:organizations(*), department:departments(*), new_role:new_roles(*)')
+        .select('*, perfil:perfis(*), organization:organizations(*), department:departments(*), role:roles(*)')
         .eq('id', userId)
         .maybeSingle();
 
@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (solData && solData.status) {
         computedStatus = solData.status as any;
-      } else if (usuarioData?.perfil?.nome === 'OWNER' || usuarioData?.perfil?.nome === 'ADMIN') {
+      } else if (usuarioData?.is_owner || usuarioData?.perfil?.nome === 'OWNER' || usuarioData?.perfil?.nome === 'ADMIN') {
         // OWNER e ADMIN possuem status ativo/aprovado soberano
         computedStatus = 'APPROVED';
       } else {
