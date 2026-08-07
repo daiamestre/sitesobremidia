@@ -12,6 +12,7 @@ const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Install = lazy(() => import("./pages/Install"));
 const RepresentantesAuth = lazy(() => import("./pages/representantes/RepresentantesAuth"));
+const WorkspaceLayout = lazy(() => import("./modules/corporate/layout/WorkspaceLayout"));
 const CrmLayout = lazy(() => import("./modules/crm/layout/CrmLayout"));
 const CrmDashboardHome = lazy(() => import("./modules/crm/pages/CrmDashboardHome"));
 const ClientesListPage = lazy(() => import("./modules/crm/pages/ClientesListPage"));
@@ -101,6 +102,7 @@ const App = () => {
                   {/* PUBLIC ROUTES */}
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
+                  <Route path="/auth/corporate" element={<Auth />} />
                   <Route path="/install" element={<Install />} />
                   {/* REPRESENTANTES LOGIN & CRM MODULE */}
                   <Route path="/representantes/login" element={<RepresentantesAuth />} />
@@ -171,6 +173,7 @@ const App = () => {
                   <Route path="/admin/solicitacoes/:id" element={<AdminSolicitacaoAprovacao />} />
 
                   {/* DASHBOARD ROUTES (RESTORED) */}
+                  {/* DASHBOARD ROUTES (RESTORED) */}
                   <Route path="/dashboard" element={<RequireApproval><DashboardLayout /></RequireApproval>}>
                     <Route index element={<DashboardHome />} />
                     <Route path="medias" element={<Medias />} />
@@ -185,6 +188,15 @@ const App = () => {
                     <Route path="reports" element={<Reports />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="admin/users" element={<AdminUsers />} />
+                  </Route>
+
+                  {/* CORPORATE WORKSPACE ROUTES */}
+                  <Route path="/workspace" element={<RequireApproval><WorkspaceLayout /></RequireApproval>}>
+                    <Route index element={<PlaceholderPage title="Workspace" description="Bem-vindo ao seu ambiente de trabalho." />} />
+                    <Route path="corporate" element={<PlaceholderPage title="Corporate Command Center" description="Painel de controle central do Owner/Administrador da Plataforma." />} />
+                    <Route path="finance" element={<PlaceholderPage title="Financeiro" description="Gestão de recursos, contas a pagar e receber, DRE e fluxo de caixa." />} />
+                    <Route path="marketing" element={<PlaceholderPage title="Marketing e Anúncios" description="Gestão de campanhas, anunciantes e criativos." />} />
+                    <Route path="operations" element={<PlaceholderPage title="Operações (Gestor)" description="Gestão da rede de telas, agendamentos e saúde do sistema." />} />
                   </Route>
 
                   {/* CATCH ALL */}
