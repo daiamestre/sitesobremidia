@@ -39,7 +39,7 @@ export default function Auth() {
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   
-  const { signIn, signUp, user, isApproved, profile, workspaceRoute } = useAuth();
+  const { signIn, signUp, user, isApproved, profile, workspaceRoute, solicitacaoStatus } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
