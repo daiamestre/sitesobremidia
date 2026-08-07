@@ -12,10 +12,27 @@ export interface UsuarioRecord {
   telefone?: string;
   avatar_url?: string;
   ativo: boolean;
+  is_owner?: boolean;
+  owner_locked?: boolean;
+  organization_id?: string;
+  department_id?: string;
+  new_role_id?: string;
   perfil?: {
     id: string;
     nome: string;
     descricao?: string;
+  };
+  organization?: {
+    id: string;
+    name: string;
+  };
+  department?: {
+    id: string;
+    name: string;
+  };
+  new_role?: {
+    id: string;
+    name: string;
   };
 }
 
@@ -38,11 +55,13 @@ interface AuthContextType {
   empresaOperadoraId: string | null;
   solicitacaoStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND';
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null; status?: string; role?: string | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; status?: string; role?: string | null; routeRedirect?: string }>;
   signUp: (email: string, password: string, fullName: string, companyName: string) => Promise<{ error: Error | null; data: { user: User | null } | null }>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
   isApproved: boolean;
+  isOwner: boolean;
+  workspaceRoute: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -62,10 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     solicitacaoStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND';
   }> => {
     try {
-      // 1. Busca dados cadastrais do usuario + perfil
+      // 1. Busca dados cadastrais do usuario + perfil e novas hierarquias
       const { data: usuarioRaw } = await supabase
         .from('usuarios')
-        .select('*, perfil:perfis(*)')
+        .select('*, perfil:perfis(*), organization:organizations(*), department:departments(*), new_role:new_roles(*)')
         .eq('id', userId)
         .maybeSingle();
 
@@ -147,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string): Promise<{ error: Error | null; status?: string; role?: string | null }> => {
+  const signIn = async (email: string, password: string): Promise<{ error: Error | null; status?: string; role?: string | null; routeRedirect?: string }> => {
     // FASE 2: AUTENTICAÇÃO REAL E RIGOROSA VIA SUPABASE AUTH
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -222,14 +241,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error(statusMessage) };
     }
 
+    // Determinar Rota Base de Workspace (FASE CORPORATIVA)
+    let routeRedirect = '/dashboard'; // default
+    if (userData.usuarioData?.is_owner || role === 'OWNER' || role === 'ADMIN') {
+      routeRedirect = '/workspace/corporate';
+    } else if (role === 'FINANCEIRO') {
+      routeRedirect = '/workspace/finance';
+    } else if (role === 'MARKETING' || role === 'ANUNCIANTE') {
+      routeRedirect = '/workspace/marketing';
+    } else if (role === 'OPERACIONAL' || role === 'GESTOR') {
+      routeRedirect = '/workspace/operations';
+    } else if (role === 'REPRESENTANTE') {
+      routeRedirect = '/representantes/dashboard';
+    }
+
     // Sucesso Absoluto: todas as condições foram validadas no banco e no Supabase Auth
     await securityAuditService.logEvent('LOGIN_SUCCESS', {
       userEmail: email,
       userId: data.user.id,
-      details: { role, status }
+      details: { role, status, workspace: routeRedirect }
     });
 
-    return { error: null, status, role };
+    return { error: null, status, role, routeRedirect };
   };
 
   const signUp = async (email: string, password: string, fullName: string, companyName: string) => {
@@ -274,6 +307,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (usuario?.ativo === true && (solicitacaoStatus === 'APPROVED' || solicitacaoStatus === 'ACTIVE'))
   );
 
+  // DETERMINA O WORKSPACE ATUAL
+  let workspaceRoute = '/dashboard';
+  if (usuario?.is_owner || perfilNome === 'OWNER' || perfilNome === 'ADMIN') {
+    workspaceRoute = '/workspace/corporate';
+  } else if (perfilNome === 'FINANCEIRO') {
+    workspaceRoute = '/workspace/finance';
+  } else if (perfilNome === 'MARKETING' || perfilNome === 'ANUNCIANTE') {
+    workspaceRoute = '/workspace/marketing';
+  } else if (perfilNome === 'OPERACIONAL' || perfilNome === 'GESTOR') {
+    workspaceRoute = '/workspace/operations';
+  } else if (perfilNome === 'REPRESENTANTE') {
+    workspaceRoute = '/representantes/dashboard';
+  }
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -289,6 +336,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       isAuthenticated,
       isApproved,
+      isOwner: usuario?.is_owner || perfilNome === 'OWNER',
+      workspaceRoute,
     }}>
       {children}
     </AuthContext.Provider>

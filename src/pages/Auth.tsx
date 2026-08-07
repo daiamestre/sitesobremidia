@@ -39,7 +39,7 @@ export default function Auth() {
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   
-  const { signIn, signUp, user, isApproved, profile } = useAuth();
+  const { signIn, signUp, user, isApproved, profile, workspaceRoute } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -58,10 +58,11 @@ export default function Auth() {
 
     if (user && profile) {
       if (isApproved) {
-        navigate(redirect || '/dashboard', { replace: true });
+        // Redireciona para o workspace correspondente se não houver parametro de redirecionamento explicito
+        navigate(redirect || workspaceRoute || '/dashboard', { replace: true });
       }
     }
-  }, [user, profile, isApproved, navigate, location.search]);
+  }, [user, profile, isApproved, navigate, location.search, workspaceRoute]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +78,7 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error } = await signIn(loginEmail, loginPassword);
+    const { error, routeRedirect } = await signIn(loginEmail, loginPassword);
     setIsLoading(false);
 
     if (error) {
@@ -88,6 +89,8 @@ export default function Auth() {
           : error.message,
         variant: 'destructive',
       });
+    } else if (routeRedirect) {
+      navigate(routeRedirect, { replace: true });
     }
   };
 

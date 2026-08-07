@@ -22,11 +22,11 @@ import {
 } from 'lucide-react';
 
 export default function Index() {
-  const features = [
-    { icon: Monitor, title: 'Múltiplas Telas', description: 'Gerencie ilimitadas telas em tempo real' },
-    { icon: ListVideo, title: 'Playlists Dinâmicas', description: 'Crie e organize conteúdos facilmente' },
-    { icon: Calendar, title: 'Agendamento', description: 'Programe exibições por data e horário' },
-    { icon: Zap, title: 'Tempo Real', description: 'Atualizações instantâneas nos players' },
+  const portals = [
+    { icon: Megaphone, title: 'Anunciantes', description: 'Portal para campanhas e anúncios', link: '/auth?tab=login&role=anunciantes' },
+    { icon: UserCheck, title: 'Representantes', description: 'Área comercial e parceiros', link: '/representantes/login' },
+    { icon: Monitor, title: 'Gestor de Mídias', description: 'Operação da rede e conteúdos', link: '/auth?tab=login&role=gestor' },
+    { icon: Zap, title: 'Área Corporativa', description: 'Administração, gestão e controle da organização', link: '/auth/corporate', highlight: true },
   ];
 
   return (
@@ -152,21 +152,31 @@ export default function Index() {
           </div>
         </section>
 
-        {/* Features */}
-        <section className="container mx-auto px-4 py-12 sm:py-16">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <div
-                key={feature.title}
-                className="border border-white/10 bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl hover:border-primary/50 hover:glow-primary transition-all duration-300 shadow-xl animate-fade-in group"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="p-3.5 rounded-xl bg-primary/15 w-fit mb-4 group-hover:bg-primary/25 transition-colors">
-                  <feature.icon className="h-6 w-6 text-primary" />
+        {/* Portals Grid */}
+        <section className="container mx-auto px-4 py-8 sm:py-12">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-display font-bold text-white mb-3">Escolha seu acesso</h2>
+            <p className="text-slate-400">Selecione o ambiente correspondente ao seu perfil corporativo</p>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            {portals.map((portal, index) => (
+              <Link to={portal.link} key={portal.title} className="block group">
+                <div
+                  className={`h-full border bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl transition-all duration-300 shadow-xl flex flex-col items-center text-center
+                    ${portal.highlight 
+                      ? 'border-primary/50 shadow-primary/20 hover:bg-primary/10 hover:shadow-primary/40 hover:-translate-y-1' 
+                      : 'border-white/10 hover:border-primary/30 hover:bg-slate-800/80 hover:-translate-y-1'}`}
+                >
+                  <div className={`p-4 rounded-xl mb-5 transition-colors ${portal.highlight ? 'bg-primary text-white' : 'bg-primary/15 text-primary group-hover:bg-primary group-hover:text-white'}`}>
+                    <portal.icon className="h-8 w-8" />
+                  </div>
+                  <h3 className={`font-display font-bold text-lg sm:text-xl mb-3 ${portal.highlight ? 'text-primary' : 'text-white group-hover:text-primary transition-colors'}`}>
+                    {portal.title}
+                  </h3>
+                  <p className="text-sm sm:text-base text-slate-300">{portal.description}</p>
                 </div>
-                <h3 className="font-display font-bold text-lg sm:text-xl text-white mb-2">{feature.title}</h3>
-                <p className="text-sm sm:text-base text-slate-300">{feature.description}</p>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
