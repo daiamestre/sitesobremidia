@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clienteService, ClienteCompleto } from '../services/cliente.service';
+import { Cliente360Modal } from '../components/Cliente360Modal';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Building2, MapPin, Trash2, Loader2, FileCheck } from 'lucide-react';
+import { Plus, Search, Building2, MapPin, Trash2, Loader2, FileCheck, Eye } from 'lucide-react';
 
 export default function ClientesListPage() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function ClientesListPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selected360Cliente, setSelected360Cliente] = useState<ClienteCompleto | null>(null);
 
   const fetchClientes = useCallback(async () => {
     setLoading(true);
@@ -165,10 +167,10 @@ export default function ClientesListPage() {
                     const emp = cliente.empresas?.[0];
                     const ct = emp?.contatos?.[0];
                     return (
-                      <TableRow key={cliente.id} className="border-white/10 hover:bg-white/5">
+                      <TableRow key={cliente.id} className="border-white/10 hover:bg-white/5 cursor-pointer" onClick={() => setSelected360Cliente(cliente)}>
                         <TableCell>
-                          <div className="font-bold text-white text-sm">
-                            <span className="text-xs text-primary font-mono mr-2">#{cliente.codigo_cliente}</span>
+                          <div className="font-bold text-white text-sm flex items-center gap-1">
+                            <span className="text-xs text-primary font-mono mr-1">#{cliente.codigo_cliente}</span>
                             {emp?.nome_fantasia || 'Sem nome'}
                           </div>
                           <span className="text-xs text-slate-400">{emp?.segmento || 'Geral'}</span>
@@ -189,15 +191,25 @@ export default function ClientesListPage() {
                         </TableCell>
                         <TableCell>
                           <Badge className={
-                            cliente.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                            cliente.status === 'PROSPECT' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
+                            cliente.status === 'ACTIVE' || cliente.status === 'ATIVO' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                            cliente.status === 'PROSPECT' || cliente.status === 'NEGOCIACAO' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
                             'bg-amber-500/20 text-amber-400 border-amber-500/30'
                           }>
                             {cliente.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-primary/30 text-primary hover:bg-primary/10 text-xs h-8 px-2.5 gap-1"
+                              onClick={() => setSelected360Cliente(cliente)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Visão 360º
+                            </Button>
+
                             <Button
                               size="sm"
                               variant="outline"
@@ -228,6 +240,13 @@ export default function ClientesListPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* MODAL DA VISÃO 360 DE ACORDO COM O PROTOCOLO FASE 8.4-B.1 */}
+      <Cliente360Modal
+        cliente={selected360Cliente}
+        isOpen={!!selected360Cliente}
+        onClose={() => setSelected360Cliente(null)}
+      />
     </div>
   );
 }

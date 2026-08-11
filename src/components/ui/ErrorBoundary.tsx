@@ -46,6 +46,12 @@ export class ErrorBoundary extends Component<Props, State> {
             return;
         }
 
+        // IGNORE: ServiceWorker registration failures (Common in dev/test environments like Playwright)
+        if (reasonStr.includes("Failed to register a ServiceWorker")) {
+            console.warn("[ErrorBoundary] Ignored ServiceWorker Error:", reason);
+            return;
+        }
+
         this.setState({
             hasError: true,
             error: new Error(`PROMISE REJECTION: ${reasonStr || "Unknown Rejection"}`)

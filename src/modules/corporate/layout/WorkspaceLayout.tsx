@@ -2,7 +2,9 @@ import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { CrmSidebar } from "@/modules/crm/components/Sidebar"; // Reusing the visual structure for now
+import { CrmSidebar } from "@/modules/crm/components/Sidebar";
+import { CrmHeader } from "@/modules/crm/components/Header";
+import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
 
 export default function WorkspaceLayout() {
   const { isAuthenticated, isApproved, loading } = useAuth();
@@ -24,10 +26,13 @@ export default function WorkspaceLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
-        <CrmSidebar />
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 animate-in fade-in duration-300">
+      <div className="min-h-screen flex w-full bg-background text-foreground overflow-hidden">
+        <div className="hidden md:block">
+          <CrmSidebar />
+        </div>
+        <main className="flex-1 flex flex-col min-w-0 min-h-screen">
+          <CrmHeader />
+          <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 bg-background animate-in fade-in duration-300">
             <Outlet />
           </div>
         </main>

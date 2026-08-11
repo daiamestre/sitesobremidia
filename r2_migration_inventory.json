@@ -1,0 +1,35 @@
+[
+  {
+    "table": "media",
+    "record_id": "5d073359-96fb-4a6d-b7df-d699f003603e",
+    "bucket": "media",
+    "arquivo": "4164f657-8896-4e32-9bd4-2c253a1245fe/1773705072714-kou3d.png",
+    "old_url": "https://bhwsybgsyvvhqtkdqozb.supabase.co/storage/v1/object/public/media/4164f657-8896-4e32-9bd4-2c253a1245fe/1773705072714-kou3d.png",
+    "origem": "supabase",
+    "destino": "r2",
+    "status": "DONE",
+    "size": 5565388
+  },
+  {
+    "table": "media",
+    "record_id": "a0a631c4-9e01-4ceb-b3f7-fb275240e8a4",
+    "bucket": "media",
+    "arquivo": "4164f657-8896-4e32-9bd4-2c253a1245fe/1773716623571-xpw9jq.mp4",
+    "old_url": "https://bhwsybgsyvvhqtkdqozb.supabase.co/storage/v1/object/public/media/4164f657-8896-4e32-9bd4-2c253a1245fe/1773716623571-xpw9jq.mp4",
+    "origem": "supabase",
+    "destino": "r2",
+    "status": "DONE",
+    "size": 15794448
+  },
+  {
+    "table": "playlists",
+    "record_id": "1ec39023-a573-4067-94e1-31ac08aa540a",
+    "bucket": "media",
+    "arquivo": "4164f657-8896-4e32-9bd4-2c253a1245fe/covers/1773716517067-cover.png",
+    "old_url": "https://bhwsybgsyvvhqtkdqozb.supabase.co/storage/v1/object/public/media/4164f657-8896-4e32-9bd4-2c253a1245fe/covers/1773716517067-cover.png",
+    "origem": "supabase",
+    "destino": "r2",
+    "status": "DONE",
+    "size": 388909
+  }
+]

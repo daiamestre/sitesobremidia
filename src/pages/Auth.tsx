@@ -56,13 +56,11 @@ export default function Auth() {
 
     const redirect = params.get('redirect');
 
-    if (user && profile) {
-      if (isApproved) {
-        // Redireciona para o workspace correspondente se não houver parametro de redirecionamento explicito
-        navigate(redirect || workspaceRoute || '/dashboard', { replace: true });
-      }
+    if (user && isApproved) {
+      // Redireciona para o workspace correspondente se não houver parametro de redirecionamento explicito
+      navigate(redirect || workspaceRoute || '/dashboard', { replace: true });
     }
-  }, [user, profile, isApproved, navigate, location.search, workspaceRoute]);
+  }, [user, isApproved, navigate, location.search, workspaceRoute]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

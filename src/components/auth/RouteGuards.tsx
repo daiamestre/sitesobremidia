@@ -90,7 +90,7 @@ export function RequireApproval({ children }: GuardProps) {
   }
 
   // 3. Blindagem de Tenant: Garantir vinculação à empresa operadora
-  if (!user?.user_metadata?.is_superadmin && role !== 'ADMIN' && !empresaOperadoraId) {
+  if (!user?.user_metadata?.is_superadmin && role !== 'ADMIN' && role !== 'OWNER' && !empresaOperadoraId) {
     securityAuditService.logEvent('ACCESS_DENIED', {
       userEmail: user.email || undefined,
       userId: user.id,

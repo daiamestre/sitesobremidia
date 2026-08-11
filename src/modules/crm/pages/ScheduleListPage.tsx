@@ -47,7 +47,10 @@ export default function ScheduleListPage() {
         </div>
 
         <Button
-          onClick={() => navigate('/representantes/agendamento/calendario')}
+          onClick={() => {
+            const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+            navigate(`${basePath}/agenda`);
+          }}
           className="gradient-primary glow-primary font-bold text-xs px-5 py-2.5 rounded-xl shadow-xl gap-2"
         >
           <CalendarIcon className="h-4 w-4" />
@@ -121,7 +124,10 @@ export default function ScheduleListPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => navigate(`/representantes/agendamento/${s.id}`)}
+                          onClick={() => {
+                            const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+                            navigate(`${basePath}/agenda/${s.id}`);
+                          }}
                           className="border-primary/30 text-primary hover:bg-primary/10 text-xs gap-1 h-8"
                         >
                           <Eye className="h-3.5 w-3.5" />

@@ -1,26 +1,30 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { propostaService } from '@/modules/crm/services/proposta.service';
+import { NovaPropostaModal } from '@/modules/crm/components/NovaPropostaModal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { FileText, Send, CheckCircle2, AlertCircle, Loader2, Plus } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 export default function PropostasListPage() {
+  const navigate = useNavigate();
   const { representante } = useAuth();
   const [propostas, setPropostas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
 
+  const loadPropostas = async () => {
+    setLoading(true);
+    const res = await propostaService.findAll(representante?.id);
+    setPropostas(res);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    async function loadPropostas() {
-      setLoading(true);
-      const res = await propostaService.findAll(representante?.id);
-      setPropostas(res);
-      setLoading(false);
-    }
     loadPropostas();
   }, [representante]);
 
@@ -63,12 +67,10 @@ export default function PropostasListPage() {
             Gerencie orçamentos com cálculo dinâmico e envio por e-mail.
           </p>
         </div>
-        <Link to="/representantes/contratos">
-          <Button className="gradient-primary glow-primary font-bold shadow-lg gap-2">
-            <Plus className="h-4 w-4" />
-            Gerar Novo Contrato / PI
-          </Button>
-        </Link>
+        <Button onClick={() => setIsModalOpen(true)} className="gradient-primary glow-primary font-bold shadow-lg gap-2">
+          <Plus className="h-4 w-4" />
+          + Nova Proposta Comercial
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -77,13 +79,16 @@ export default function PropostasListPage() {
             <CardContent>
               <AlertCircle className="h-12 w-12 text-slate-500 mx-auto mb-3" />
               <p className="text-slate-300 font-semibold text-lg">Nenhuma proposta registrada</p>
-              <p className="text-slate-400 text-sm mt-1">Crie negociações com seus clientes para visualizá-las aqui.</p>
+              <p className="text-slate-400 text-sm mt-1 mb-4">Crie negociações com seus clientes para visualizá-las aqui.</p>
+              <Button onClick={() => setIsModalOpen(true)} variant="outline" className="border-white/10 text-white">
+                Emitir Primeira Proposta
+              </Button>
             </CardContent>
           </Card>
         ) : (
           propostas.map((prop) => {
             const empresaNome = prop.cliente?.empresas?.[0]?.nome_fantasia || prop.cliente?.empresas?.[0]?.razao_social || 'Cliente Corporativo';
-            const isSent = prop.status === 'SENT' || prop.status === 'ACCEPTED';
+            const isSent = prop.status === 'SENT' || prop.status === 'ACCEPTED' || prop.status === 'APPROVED';
 
             return (
               <Card key={prop.id} className="bg-slate-900/80 border-white/10 hover:border-primary/40 transition-all rounded-xl shadow-xl">
@@ -105,16 +110,19 @@ export default function PropostasListPage() {
                   <div className="flex justify-between items-center bg-slate-950/60 p-3 rounded-lg border border-white/5">
                     <span className="text-xs text-slate-400 font-medium">Valor Total Estimado</span>
                     <span className="text-lg font-mono font-extrabold text-emerald-400">
-                      R$ {Number(prop.valor_final || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      R$ {Number(prop.valor_final || prop.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex gap-2">
                     <Button 
                       variant="outline"
                       className="w-full bg-slate-800 hover:bg-slate-700 text-white border-white/10 text-xs"
-                      onClick={() => toast({ title: 'Visualização de PDF', description: 'Abrindo prévia gerada em tempo real no servidor...' })}
+                      onClick={() => {
+                        const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+                        navigate(`${basePath}/contratos/selecionar/${prop.id}`);
+                      }}
                     >
-                      Ver PDF / Prévia
+                      Converter p/ Contrato
                     </Button>
                     <Button 
                       disabled={sendingId === prop.id || isSent}
@@ -142,6 +150,13 @@ export default function PropostasListPage() {
           })
         )}
       </div>
+
+      <NovaPropostaModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={loadPropostas}
+      />
     </div>
   );
 }
+

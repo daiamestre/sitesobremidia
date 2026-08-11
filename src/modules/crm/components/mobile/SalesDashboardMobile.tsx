@@ -6,7 +6,7 @@ import { geolocationService } from '../../services/geolocation.service';
 import { offlineStorageService } from '../../services/offlineStorage.service';
 import { useToast } from '@/hooks/use-toast';
 
-export function SalesDashboardMobile({ empresaOperadoraId }: { empresaOperadoraId: string }) {
+export function SalesDashboardMobile({ empresaOperadoraId, clienteId }: { empresaOperadoraId: string; clienteId?: string }) {
   const { toast } = useToast();
   const [loadingCheckin, setLoadingCheckin] = useState(false);
 
@@ -14,9 +14,9 @@ export function SalesDashboardMobile({ empresaOperadoraId }: { empresaOperadoraI
     setLoadingCheckin(true);
     const coords = await geolocationService.getCurrentPosition();
 
-    // Salva na fila offline local
+    // Salva na fila offline local — clienteId derivado da prop, nunca hardcoded
     offlineStorageService.enqueue('CHECKIN', {
-      clienteId: 'cli-001',
+      clienteId: clienteId || null, // null se não houver cliente selecionado no contexto
       latitude: coords.latitude,
       longitude: coords.longitude,
       precisao: coords.accuracy,
@@ -41,8 +41,8 @@ export function SalesDashboardMobile({ empresaOperadoraId }: { empresaOperadoraI
       <CardContent className="pt-4 space-y-3 text-xs">
         <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-2">
           <div className="flex justify-between items-center text-white">
-            <strong>Cliente: Anunciante Exemplo Ltda</strong>
-            <span className="text-[10px] text-slate-400">São Paulo - SP</span>
+            <strong>{clienteId ? `Cliente: ${clienteId}` : 'Nenhum cliente selecionado'}</strong>
+            <span className="text-[10px] text-emerald-400">{clienteId ? 'GPS disponível' : 'Selecione um cliente'}</span>
           </div>
           <Button
             size="sm"

@@ -20,7 +20,7 @@ export class AuditService {
     dadosAlterados?: Record<string, any>;
   }): Promise<AuditLogEntry> {
     const entry: AuditLogEntry = {
-      id: `AUD-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      id: `AUD-${crypto.randomUUID()}`,
       dataHora: new Date().toISOString(),
       userId: params.userId,
       userEmail: params.userEmail,

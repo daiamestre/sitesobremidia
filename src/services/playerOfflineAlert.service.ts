@@ -31,7 +31,7 @@ export class PlayerOfflineAlertService {
    */
   createIncidentRecord(playerId: string, screenCode: string, screenName: string): PlayerOfflineIncident {
     return {
-      incidentId: `inc-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      incidentId: `inc-${crypto.randomUUID()}`,
       playerId,
       screenId: '',
       screenCode,

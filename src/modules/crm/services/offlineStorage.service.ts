@@ -20,7 +20,7 @@ export class OfflineStorageService {
   enqueue(type: OfflineQueueItem['type'], payload: any): OfflineQueueItem {
     const queue = this.getQueue();
     const item: OfflineQueueItem = {
-      id: `OFF-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `OFF-${crypto.randomUUID()}`,
       type,
       payload,
       createdAt: new Date().toISOString(),

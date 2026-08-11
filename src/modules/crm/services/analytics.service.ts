@@ -42,6 +42,16 @@ export class AnalyticsService {
    * Calcula KPIs Executivos consolidados em tempo real
    */
   async calculateKPIs(empresaOperadoraId?: string): Promise<ExecutiveKPIs> {
+    // Zero Mock: Empty State — nunca fabricar métricas executivas
+    const emptyKPIs: ExecutiveKPIs = {
+      receitaTotal: 0, receitaMensal: 0, receitaAnual: 0,
+      mrr: 0, arr: 0, ebitda: 0,
+      qtdClientes: 0, qtdContratos: 0, campanhasAtivas: 0,
+      recebimentos: 0, saldoDevedor: 0, comissoes: 0,
+      playersOnline: 0, playersOffline: 0, alertasAtivos: 0,
+      sla: 0, uptime: 0, proofOfPlay: 0,
+    };
+
     try {
       let queryContas = supabase.from('contas_receber').select('valor_original, valor_recebido, saldo');
       if (empresaOperadoraId) queryContas = queryContas.eq('empresa_operadora_id', empresaOperadoraId);
@@ -51,9 +61,10 @@ export class AnalyticsService {
       const recebimentos = (contas || []).reduce((a, c) => a + Number(c.valor_recebido), 0);
       const saldoDevedor = (contas || []).reduce((a, c) => a + Number(c.saldo), 0);
 
-      const mrr = receitaTotal > 0 ? receitaTotal / 12 : 145000;
+      // Zero Mock: MRR calculado apenas sobre dados reais — nunca 145000 fictício
+      const mrr = receitaTotal > 0 ? receitaTotal / 12 : 0;
       const arr = mrr * 12;
-      const ebitda = mrr * 0.42; // 42% Margem EBITDA
+      const ebitda = mrr * 0.42;
 
       let queryClientes = supabase.from('clientes').select('id', { count: 'exact' });
       if (empresaOperadoraId) queryClientes = queryClientes.eq('empresa_operadora_id', empresaOperadoraId);
@@ -67,8 +78,9 @@ export class AnalyticsService {
       if (empresaOperadoraId) queryPlayers = queryPlayers.eq('empresa_operadora_id', empresaOperadoraId);
       const { data: players } = await queryPlayers;
 
-      const playersOnline = (players || []).filter((p) => p.status === 'ONLINE').length || 18;
-      const playersOffline = (players || []).filter((p) => p.status === 'OFFLINE').length || 1;
+      // Zero Mock: contagens reais sem fallbacks numéricos fictícios
+      const playersOnline = (players || []).filter((p) => p.status === 'ONLINE').length;
+      const playersOffline = (players || []).filter((p) => p.status === 'OFFLINE').length;
 
       return {
         receitaTotal,
@@ -77,40 +89,22 @@ export class AnalyticsService {
         mrr,
         arr,
         ebitda,
-        qtdClientes: qtdClientes || 34,
-        qtdContratos: qtdContratos || 42,
-        campanhasAtivas: 28,
+        qtdClientes: qtdClientes || 0,
+        qtdContratos: qtdContratos || 0,
+        campanhasAtivas: 0, // TODO-FASE8.4: buscar de campanhas_ativas quando disponível
         recebimentos,
         saldoDevedor,
         comissoes: receitaTotal * 0.05,
         playersOnline,
         playersOffline,
         alertasAtivos: 0,
-        sla: 99.8,
-        uptime: 99.9,
-        proofOfPlay: 1458900,
-      };
-    } catch (err) {
-      return {
-        receitaTotal: 0,
-        receitaMensal: 0,
-        receitaAnual: 0,
-        mrr: 0,
-        arr: 0,
-        ebitda: 0,
-        qtdClientes: 0,
-        qtdContratos: 0,
-        campanhasAtivas: 0,
-        recebimentos: 0,
-        saldoDevedor: 0,
-        comissoes: 0,
-        playersOnline: 0,
-        playersOffline: 0,
-        alertasAtivos: 0,
-        sla: 100,
-        uptime: 100,
+        sla: 0, // TODO-FASE8.4: calcular de dw_fact_exibicao quando disponível
+        uptime: 0,
         proofOfPlay: 0,
       };
+    } catch (err) {
+      console.error('[AnalyticsService] Erro ao calcular KPIs:', err);
+      return emptyKPIs; // Nunca fabricar dados em catch
     }
   }
 

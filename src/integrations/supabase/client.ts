@@ -4,66 +4,14 @@ import type { Database } from './types';
 
 import { supabaseConfig } from '../../supabaseConfig';
 
-// Safe Initialization
-let supabaseInstance;
-
-try {
-  if (!supabaseConfig.url || !supabaseConfig.key) {
-    console.warn("⚠️ Supabase credentials missing. Initializing Fallback Client (Offline Mode).");
-    // Return a dummy client that doesn't crash but logs errors on usage
-    supabaseInstance = {
-      from: () => ({
-        select: () => Promise.resolve({ data: null, error: { message: "Missing Credentials" } }),
-        insert: () => Promise.resolve({ data: null, error: { message: "Missing Credentials" } }),
-        update: () => Promise.resolve({ data: null, error: { message: "Missing Credentials" } }),
-        delete: () => Promise.resolve({ data: null, error: { message: "Missing Credentials" } }),
-        on: () => ({ subscribe: () => { } }),
-      }),
-      auth: {
-        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
-      },
-      channel: () => ({
-        on: () => ({ subscribe: () => { } }),
-        subscribe: () => { }
-      })
-    } as any;
-  } else {
-    supabaseInstance = createClient<Database>(supabaseConfig.url, supabaseConfig.key, {
-      auth: {
-        storage: localStorage,
-        persistSession: true,
-        autoRefreshToken: true,
-      }
-    });
-  }
-} catch (e) {
-  console.error("Critical Error initializing Supabase:", e);
-  // FALLBACK: Return Dummy Client to allow App to render ErrorBoundary instead of crashing hard
-  supabaseInstance = {
-    from: () => ({
-      select: () => Promise.resolve({ data: null, error: { message: "Critical Init Failure" } }),
-      insert: () => Promise.resolve({ data: null, error: { message: "Critical Init Failure" } }),
-      update: () => Promise.resolve({ data: null, error: { message: "Critical Init Failure" } }),
-      delete: () => Promise.resolve({ data: null, error: { message: "Critical Init Failure" } }),
-      on: () => ({ subscribe: () => { } }),
-    }),
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
-      signInWithPassword: () => Promise.resolve({ error: { message: "Offline Mode (Init Failed)" } }),
-    },
-    channel: () => ({
-      on: () => ({ subscribe: () => { } }),
-      subscribe: () => { }
-    }),
-    storage: {
-      from: () => ({
-        getPublicUrl: () => ({ data: { publicUrl: "" } })
-      })
-    }
-  } as any;
+if (!supabaseConfig.url || !supabaseConfig.key) {
+  throw new Error("⚠️ Supabase credentials missing. Zero Mock Protocol: system cannot initialize without valid credentials.");
 }
 
-export const supabase = supabaseInstance;
+export const supabase = createClient<Database>(supabaseConfig.url, supabaseConfig.key, {
+  auth: {
+    storage: localStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+  }
+});

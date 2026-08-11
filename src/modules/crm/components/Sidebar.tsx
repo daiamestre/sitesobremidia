@@ -24,18 +24,21 @@ export function CrmSidebar() {
   const location = useLocation();
   const { userName, userEmail, userInitials, userCargo, handleCrmLogout, isLoggingOut } = useCrmSession();
 
+  // Determine base path dynamically
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+
   const navItems = [
-    { label: 'Dashboard', icon: Home, path: '/representantes/dashboard' },
-    { label: 'Clientes', icon: Users, path: '/representantes/clientes' },
-    { label: 'Propostas', icon: FileText, path: '/representantes/propostas' },
-    { label: 'Contratos', icon: FileCheck, path: '/representantes/contratos' },
-    { label: 'Campanhas', icon: Tv, path: '/representantes/campanhas' },
-    { label: 'Pontos de Exibição', icon: MapPin, path: '/representantes/pontos' },
-    { label: 'Agenda', icon: Calendar, path: '/representantes/agenda' },
-    { label: 'Financeiro', icon: DollarSign, path: '/representantes/financeiro' },
-    { label: 'Relatórios', icon: BarChart3, path: '/representantes/relatorios' },
-    { label: 'Configurações', icon: Settings, path: '/representantes/configuracoes' },
-    { label: 'Meu Perfil', icon: User, path: '/representantes/perfil' },
+    { label: 'Dashboard', icon: Home, path: `${basePath}/corporate` },
+    { label: 'Clientes', icon: Users, path: `${basePath}/clientes` },
+    { label: 'Propostas', icon: FileText, path: `${basePath}/propostas` },
+    { label: 'Contratos', icon: FileCheck, path: `${basePath}/contratos` },
+    { label: 'Campanhas', icon: Tv, path: `${basePath}/campanhas` },
+    { label: 'Pontos de Exibição', icon: MapPin, path: `${basePath}/screens` }, // Changed from pontos to screens to match Workspace
+    { label: 'Agenda', icon: Calendar, path: `${basePath}/agenda` },
+    { label: 'Financeiro', icon: DollarSign, path: `${basePath}/financeiro` }, // App.tsx uses finance, but wait...
+    { label: 'BI & Relatórios', icon: BarChart3, path: `${basePath}/bi` },
+    { label: 'Configurações', icon: Settings, path: `${basePath}/configuracoes` },
+    { label: 'Meu Perfil', icon: User, path: `${basePath}/perfil` },
   ];
 
   return (
