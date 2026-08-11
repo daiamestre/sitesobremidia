@@ -33,8 +33,8 @@ export class SignatureProviderAdapter implements DigitalSignatureProvider {
   constructor(private provedor: SignatureProviderName = 'CLICKSIGN') {}
 
   async createEnvelope(payload: EnvelopePayload): Promise<EnvelopeResult> {
-    const envelopeId = `ENV-${this.provedor}-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-    const documentHash = `SHA256-${Math.random().toString(36).substring(2, 15).toUpperCase()}`;
+    const envelopeId = `ENV-${this.provedor}-${crypto.randomUUID().toUpperCase()}`;
+    const documentHash = `SHA256-${crypto.randomUUID().toUpperCase()}`;
 
     const { data: ass, error } = await supabase
       .from('assinaturas')

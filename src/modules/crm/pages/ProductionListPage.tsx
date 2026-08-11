@@ -121,7 +121,10 @@ export default function ProductionListPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => navigate(`/representantes/producao/${p.id}`)}
+                            onClick={() => {
+                              const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+                              navigate(`${basePath}/campanhas/${p.id}`);
+                            }}
                             className="border-primary/30 text-primary hover:bg-primary/10 text-xs gap-1 h-8"
                           >
                             <Eye className="h-3.5 w-3.5" />

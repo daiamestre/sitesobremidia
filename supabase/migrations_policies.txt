@@ -1,0 +1,838 @@
+
+--- 00187_corporate_navigation_upgrade.sql ---
+CREATE POLICY "corporate_navigation_select_policy" ON public.corporate_navigation
+    FOR SELECT
+    USING (
+        auth.role() = 'authenticated' AND
+        EXISTS (
+            SELECT 1 FROM public.usuarios u
+            WHERE u.id = auth.uid() AND u.organization_id = corporate_navigation.organization_id
+        )
+    );
+
+CREATE POLICY "corporate_navigation_modify_policy" ON public.corporate_navigation
+    FOR ALL
+    USING (
+        auth.role() = 'authenticated' AND
+        EXISTS (
+            SELECT 1 FROM public.usuarios u
+            JOIN public.roles r ON u.role_id = r.id
+            WHERE u.id = auth.uid() 
+            AND u.organization_id = corporate_navigation.organization_id 
+            AND (u.is_owner = true OR r.name = 'ADMIN')
+        )
+    );
+
+CREATE POLICY "audit_events_insert_policy" ON public.audit_events
+    FOR INSERT
+    WITH CHECK (
+        auth.role() = 'authenticated' AND
+        EXISTS (
+            SELECT 1 FROM public.usuarios u
+            WHERE u.id = auth.uid() AND u.organization_id = audit_events.organization_id
+        )
+    );
+
+CREATE POLICY "audit_events_select_policy" ON public.audit_events
+    FOR SELECT
+    USING (
+        auth.role() = 'authenticated' AND
+        EXISTS (
+            SELECT 1 FROM public.usuarios u
+            JOIN public.roles r ON u.role_id = r.id
+            WHERE u.id = auth.uid() 
+            AND u.organization_id = audit_events.organization_id 
+            AND (u.is_owner = true OR r.name = 'ADMIN' OR r.name = 'AUDITOR')
+        )
+    );
+
+
+--- 008_rls_triggers.sql ---
+CREATE POLICY p_admin_all ON public.empresa_operadora FOR ALL TO authenticated USING (
+  EXISTS (
+    SELECT 1 FROM public.usuarios u
+    JOIN public.perfis p ON p.id = u.perfil_id
+    WHERE u.id = auth.uid() AND p.nome = 'ADMIN'
+  )
+);
+
+CREATE POLICY p_representante_clientes ON public.clientes FOR ALL TO authenticated USING (
+  empresa_operadora_id = public.get_tenant_id() AND
+  EXISTS (
+    SELECT 1 FROM public.representantes r
+    WHERE r.id = clientes.representante_id AND r.usuario_id = auth.uid()
+  )
+);
+
+CREATE POLICY p_tenant_contratos ON public.contratos FOR ALL TO authenticated USING (
+  empresa_operadora_id = public.get_tenant_id()
+);
+
+CREATE POLICY p_players_read_campanhas ON public.campanhas FOR SELECT TO anon, authenticated USING (
+  status = 'ACTIVE'
+);
+
+
+--- 009_access_requests.sql ---
+CREATE POLICY p_admin_solicitacoes ON public.solicitacoes_acesso 
+FOR ALL TO authenticated USING (
+  EXISTS (
+    SELECT 1 FROM public.usuarios u
+    JOIN public.perfis p ON p.id = u.perfil_id
+    WHERE u.id = auth.uid() AND p.nome = 'ADMIN'
+  )
+);
+
+CREATE POLICY p_user_read_own_solicitacao ON public.solicitacoes_acesso 
+FOR SELECT TO authenticated USING (
+  auth_user_id = auth.uid()
+);
+
+CREATE POLICY p_insert_solicitacao ON public.solicitacoes_acesso 
+FOR INSERT TO anon, authenticated WITH CHECK (TRUE);
+
+
+--- 012_contratos_templates.sql ---
+CREATE POLICY p_read_contrato_templates ON public.contrato_templates
+      FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_contrato_auditoria ON public.contrato_auditoria
+      FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_contrato_auditoria ON public.contrato_auditoria
+      FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+
+--- 014_pedidos_insercao.sql ---
+CREATE POLICY p_read_pedidos_insercao ON public.pedidos_insercao FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_pedidos_insercao ON public.pedidos_insercao FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_update_pedidos_insercao ON public.pedidos_insercao FOR UPDATE TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_pi_locais ON public.pi_locais FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_pi_locais ON public.pi_locais FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_pi_historico ON public.pi_historico FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_pi_historico ON public.pi_historico FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_pi_observacoes ON public.pi_observacoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_pi_observacoes ON public.pi_observacoes FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_pi_auditoria ON public.pi_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_pi_auditoria ON public.pi_auditoria FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+
+--- 015_producao_midias.sql ---
+CREATE POLICY p_read_producoes ON public.producoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_producoes ON public.producoes FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_update_producoes ON public.producoes FOR UPDATE TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_midias ON public.midias FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_midias ON public.midias FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_update_midias ON public.midias FOR UPDATE TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_midia_versoes ON public.midia_versoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_midia_versoes ON public.midia_versoes FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_midia_aprovacoes ON public.midia_aprovacoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_midia_aprovacoes ON public.midia_aprovacoes FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_producao_historico ON public.producao_historico FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_producao_historico ON public.producao_historico FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_producao_auditoria ON public.producao_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_producao_auditoria ON public.producao_auditoria FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+
+--- 016_agendamento_rede.sql ---
+CREATE POLICY p_read_agendamentos ON public.agendamentos FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_agendamentos ON public.agendamentos FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_update_agendamentos ON public.agendamentos FOR UPDATE TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_grade_exibicao ON public.grade_exibicao FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_grade_exibicao ON public.grade_exibicao FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_agendamento_itens ON public.agendamento_itens FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_agendamento_itens ON public.agendamento_itens FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_agendamento_historico ON public.agendamento_historico FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_agendamento_historico ON public.agendamento_historico FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_agendamento_auditoria ON public.agendamento_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_agendamento_auditoria ON public.agendamento_auditoria FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+
+--- 017_operacao_rede.sql ---
+CREATE POLICY p_read_operacoes ON public.operacoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_insert_operacoes ON public.operacoes FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_operacao_players ON public.operacao_players FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_operacao_logs ON public.operacao_logs FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_operacao_metricas ON public.operacao_metricas FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_operacao_alertas ON public.operacao_alertas FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_operacao_auditoria ON public.operacao_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+
+--- 018_security_rls_hardening.sql ---
+CREATE POLICY p_read_pedidos_insercao ON public.pedidos_insercao FOR SELECT TO authenticated
+USING (
+  empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+  public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+);
+
+CREATE POLICY p_read_producoes ON public.producoes FOR SELECT TO authenticated
+USING (
+  empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+  public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+);
+
+CREATE POLICY p_read_agendamentos ON public.agendamentos FOR SELECT TO authenticated
+USING (
+  empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+  public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+);
+
+CREATE POLICY p_read_operacoes ON public.operacoes FOR SELECT TO authenticated
+USING (
+  empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+  public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+);
+
+
+--- 019_financeiro.sql ---
+CREATE POLICY p_read_contas_receber ON public.contas_receber FOR SELECT TO authenticated
+    USING (
+      empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+      public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+    );
+
+CREATE POLICY p_insert_contas_receber ON public.contas_receber FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY p_read_pagamentos ON public.pagamentos FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_recebimentos_conciliacao ON public.recebimentos_conciliacao FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_comissoes ON public.comissoes FOR SELECT TO authenticated
+    USING (
+      empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+      public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+    );
+
+CREATE POLICY p_read_fluxo_caixa ON public.fluxo_caixa FOR SELECT TO authenticated
+    USING (
+      empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+      public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+    );
+
+CREATE POLICY p_read_financeiro_auditoria ON public.financeiro_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+
+--- 019_financeiro_core.sql ---
+CREATE POLICY p_read_contas_receber ON public.contas_receber FOR SELECT TO authenticated
+    USING (
+      empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+      public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+    );
+
+CREATE POLICY p_read_parcelas ON public.parcelas FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_pagamentos ON public.pagamentos FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_conciliacoes ON public.conciliacoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_comissoes ON public.comissoes FOR SELECT TO authenticated
+    USING (
+      empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+      public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+    );
+
+CREATE POLICY p_read_fluxo_caixa ON public.fluxo_caixa FOR SELECT TO authenticated
+    USING (
+      empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+      public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+    );
+
+CREATE POLICY p_read_financeiro_auditoria ON public.financeiro_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+
+--- 020_financeiro_plus.sql ---
+CREATE POLICY p_read_plano_contas ON public.plano_contas FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_centros_custo ON public.centros_custo FOR SELECT TO authenticated
+    USING (
+      empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+      public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+    );
+
+CREATE POLICY p_read_financeiro_lancamentos ON public.financeiro_lancamentos FOR SELECT TO authenticated
+    USING (
+      empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+      public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+    );
+
+CREATE POLICY p_read_notas_fiscais ON public.notas_fiscais FOR SELECT TO authenticated
+    USING (
+      empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR
+      public.get_user_empresa_operadora_id(auth.uid()) IS NULL
+    );
+
+
+--- 021_financeiro_billing.sql ---
+CREATE POLICY p_read_boletos ON public.boletos FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_pix_cobrancas ON public.pix_cobrancas FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_gateways_pagamento ON public.gateways_pagamento FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_webhook_pagamentos ON public.webhook_pagamentos FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_financeiro_notificacoes ON public.financeiro_notificacoes FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_financeiro_configuracoes ON public.financeiro_configuracoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_regras_comissao ON public.regras_comissao FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+
+--- 022_datawarehouse.sql ---
+CREATE POLICY p_read_dw_receita ON public.dw_receita FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_dw_operacao ON public.dw_operacao FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_dw_financeiro ON public.dw_financeiro FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_dw_ocupacao ON public.dw_ocupacao FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_dw_comercial ON public.dw_comercial FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_analytics_auditoria ON public.analytics_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+
+--- 023_bi_enterprise.sql ---
+CREATE POLICY p_read_bi_consultas ON public.bi_consultas FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_bi_exportacoes ON public.bi_exportacoes FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_bi_agendamentos ON public.bi_agendamentos FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_bi_alertas ON public.bi_alertas FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_bi_snapshots ON public.bi_snapshots FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_bi_auditoria ON public.bi_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+
+--- 024_digital_signature.sql ---
+CREATE POLICY p_read_assinaturas ON public.assinaturas FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_assinatura_eventos ON public.assinatura_eventos FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_assinatura_auditoria ON public.assinatura_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+
+--- 025_customer_portal.sql ---
+CREATE POLICY p_read_portal_usuarios ON public.portal_usuarios FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_portal_sessoes ON public.portal_sessoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_portal_notificacoes ON public.portal_notificacoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_portal_downloads ON public.portal_downloads FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_portal_chamados ON public.portal_chamados FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_portal_aprovacoes ON public.portal_aprovacoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_portal_auditoria ON public.portal_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+
+--- 026_mobile_enterprise.sql ---
+CREATE POLICY p_read_mobile_dispositivos ON public.mobile_dispositivos FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_mobile_sincronizacao ON public.mobile_sincronizacao FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_mobile_checkins ON public.mobile_checkins FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_mobile_visitas ON public.mobile_visitas FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_mobile_fotos ON public.mobile_fotos FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_mobile_rotas ON public.mobile_rotas FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_mobile_auditoria ON public.mobile_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+
+--- 027_ai_enterprise.sql ---
+CREATE POLICY p_read_ai_modelos ON public.ai_modelos FOR SELECT TO authenticated
+    USING (empresa_operadora_id = public.get_user_empresa_operadora_id(auth.uid()) OR public.get_user_empresa_operadora_id(auth.uid()) IS NULL);
+
+CREATE POLICY p_read_ai_predicoes ON public.ai_predicoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_ai_recomendacoes ON public.ai_recomendacoes FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_ai_anomalias ON public.ai_anomalias FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_ai_feedback ON public.ai_feedback FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_read_ai_auditoria ON public.ai_auditoria FOR SELECT TO authenticated USING (TRUE);
+
+
+--- 028_representantes_rls_security_hardening.sql ---
+CREATE POLICY p_rep_clientes_read ON public.clientes
+FOR SELECT TO authenticated
+USING (
+  representante_id IN (
+    SELECT r.id FROM public.representantes r WHERE r.usuario_id = auth.uid()
+  )
+  OR
+  EXISTS (
+    SELECT 1 FROM public.usuarios u
+    JOIN public.perfis p ON p.id = u.perfil_id
+    WHERE u.id = auth.uid() AND p.nome IN ('ADMIN', 'GERENTE')
+  )
+);
+
+CREATE POLICY p_rep_clientes_insert ON public.clientes
+FOR INSERT TO authenticated
+WITH CHECK (
+  representante_id IN (
+    SELECT r.id FROM public.representantes r WHERE r.usuario_id = auth.uid()
+  )
+  OR
+  EXISTS (
+    SELECT 1 FROM public.usuarios u
+    JOIN public.perfis p ON p.id = u.perfil_id
+    WHERE u.id = auth.uid() AND p.nome IN ('ADMIN', 'GERENTE')
+  )
+);
+
+CREATE POLICY p_rep_clientes_update ON public.clientes
+FOR UPDATE TO authenticated
+USING (
+  representante_id IN (
+    SELECT r.id FROM public.representantes r WHERE r.usuario_id = auth.uid()
+  )
+  OR
+  EXISTS (
+    SELECT 1 FROM public.usuarios u
+    JOIN public.perfis p ON p.id = u.perfil_id
+    WHERE u.id = auth.uid() AND p.nome IN ('ADMIN', 'GERENTE')
+  )
+);
+
+CREATE POLICY p_admin_clientes_delete ON public.clientes
+FOR DELETE TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.usuarios u
+    JOIN public.perfis p ON p.id = u.perfil_id
+    WHERE u.id = auth.uid() AND p.nome IN ('ADMIN', 'GERENTE')
+  )
+);
+
+CREATE POLICY p_usuarios_self_or_admin ON public.usuarios
+FOR SELECT TO authenticated
+USING (
+  id = auth.uid() OR
+  EXISTS (
+    SELECT 1 FROM public.usuarios u
+    JOIN public.perfis p ON p.id = u.perfil_id
+    WHERE u.id = auth.uid() AND p.nome = 'ADMIN'
+  )
+);
+
+CREATE POLICY p_representantes_self_or_admin ON public.representantes
+FOR ALL TO authenticated
+USING (
+  usuario_id = auth.uid() OR
+  EXISTS (
+    SELECT 1 FROM public.usuarios u
+    JOIN public.perfis p ON p.id = u.perfil_id
+    WHERE u.id = auth.uid() AND p.nome = 'ADMIN'
+  )
+);
+
+CREATE POLICY p_security_logs_insert ON public.security_logs
+FOR INSERT TO anon, authenticated
+WITH CHECK (TRUE);
+
+CREATE POLICY p_security_logs_admin_select ON public.security_logs
+FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.usuarios u
+    JOIN public.perfis p ON p.id = u.perfil_id
+    WHERE u.id = auth.uid() AND p.nome = 'ADMIN'
+  )
+);
+
+
+--- 029_epic_001_core_identity_governance.sql ---
+CREATE POLICY p_read_perfis_auth ON public.perfis
+  FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY p_write_usuarios_admin_owner ON public.usuarios
+  FOR ALL TO authenticated USING (
+    EXISTS (
+      SELECT 1 FROM public.usuarios u
+      JOIN public.perfis p ON p.id = u.perfil_id
+      WHERE u.id = auth.uid() AND p.nome IN ('OWNER', 'ADMIN')
+    )
+  );
+
+
+--- 030_sprint_1_5_zero_trust_rls_and_concurrency.sql ---
+CREATE POLICY "Enable read for active authenticated users" 
+ON public.clientes
+FOR SELECT 
+USING (public.can_access_client_data(empresa_operadora_id));
+
+CREATE POLICY "Enable read for active contracts" 
+ON public.contratos
+FOR SELECT 
+USING (public.can_read_contrato(representante_id, empresa_operadora_id));
+
+CREATE POLICY "Enable read for active PIs" 
+ON public.pedidos_insercao
+FOR SELECT 
+USING (public.fn_can_access_data());
+
+CREATE POLICY "Enable read for active media users" 
+ON public.midias
+FOR SELECT 
+USING (public.can_access_midia());
+
+CREATE POLICY "Enable read for active playlist users" 
+ON public.playlists
+FOR SELECT 
+USING (public.can_access_midia());
+
+
+--- 20260106232433_25a48f68-19c3-4c30-8874-d0c15839579e.sql ---
+CREATE POLICY "Users can view their own profile"
+ON public.profiles
+FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own profile"
+ON public.profiles
+FOR UPDATE
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own profile"
+ON public.profiles
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all profiles"
+ON public.profiles
+FOR SELECT
+TO authenticated
+USING (public.has_role(auth.uid(), 'admin'));
+
+CREATE POLICY "Admins can update all profiles"
+ON public.profiles
+FOR UPDATE
+TO authenticated
+USING (public.has_role(auth.uid(), 'admin'));
+
+CREATE POLICY "Users can view their own roles"
+ON public.user_roles
+FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can manage all roles"
+ON public.user_roles
+FOR ALL
+TO authenticated
+USING (public.has_role(auth.uid(), 'admin'));
+
+
+--- 20260107011037_19d26d0d-173b-495f-a37a-4f7758630431.sql ---
+CREATE POLICY "Users can view their own media"
+ON public.media FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own media"
+ON public.media FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own media"
+ON public.media FOR UPDATE
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own media"
+ON public.media FOR DELETE
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all media"
+ON public.media FOR SELECT
+USING (has_role(auth.uid(), 'admin'::app_role));
+
+CREATE POLICY "Users can upload media"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'media' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Users can view their own media files"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'media' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Users can delete their own media files"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'media' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Public can view media"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'media');
+
+
+--- 20260107011412_78773262-2225-44ea-a110-10dd6d7c7384.sql ---
+CREATE POLICY "Users can view their own playlists"
+ON public.playlists FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own playlists"
+ON public.playlists FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own playlists"
+ON public.playlists FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own playlists"
+ON public.playlists FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all playlists"
+ON public.playlists FOR SELECT USING (has_role(auth.uid(), 'admin'::app_role));
+
+CREATE POLICY "Users can view their playlist items"
+ON public.playlist_items FOR SELECT
+USING (EXISTS (SELECT 1 FROM public.playlists WHERE id = playlist_id AND user_id = auth.uid()));
+
+CREATE POLICY "Users can insert their playlist items"
+ON public.playlist_items FOR INSERT
+WITH CHECK (EXISTS (SELECT 1 FROM public.playlists WHERE id = playlist_id AND user_id = auth.uid()));
+
+CREATE POLICY "Users can update their playlist items"
+ON public.playlist_items FOR UPDATE
+USING (EXISTS (SELECT 1 FROM public.playlists WHERE id = playlist_id AND user_id = auth.uid()));
+
+CREATE POLICY "Users can delete their playlist items"
+ON public.playlist_items FOR DELETE
+USING (EXISTS (SELECT 1 FROM public.playlists WHERE id = playlist_id AND user_id = auth.uid()));
+
+CREATE POLICY "Users can view their own screens"
+ON public.screens FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own screens"
+ON public.screens FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own screens"
+ON public.screens FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own screens"
+ON public.screens FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all screens"
+ON public.screens FOR SELECT USING (has_role(auth.uid(), 'admin'::app_role));
+
+
+--- 20260107011924_dd76ad48-0210-4fa9-8bea-4b10b497c7ef.sql ---
+CREATE POLICY "Admins can view all media files"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'media' AND has_role(auth.uid(), 'admin'::app_role));
+
+
+--- 20260107020059_26b4eb6f-88eb-4bcb-9e98-db9787c0bde5.sql ---
+CREATE POLICY "Block anonymous access to profiles"
+ON public.profiles FOR SELECT
+USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Block anonymous access to user_roles"
+ON public.user_roles FOR SELECT
+USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Block anonymous access to media"
+ON public.media FOR SELECT
+USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Block anonymous access to playlists"
+ON public.playlists FOR SELECT
+USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Block anonymous access to playlist_items"
+ON public.playlist_items FOR SELECT
+USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Block anonymous access to screens"
+ON public.screens FOR SELECT
+USING (auth.uid() IS NOT NULL);
+
+
+--- 20260107022752_79f3b2b1-46d0-424f-a5df-c7c3192de9d1.sql ---
+CREATE POLICY "Users can view their screen schedules"
+ON public.screen_schedules
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM public.screens 
+    WHERE screens.id = screen_schedules.screen_id 
+    AND screens.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can insert their screen schedules"
+ON public.screen_schedules
+FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.screens 
+    WHERE screens.id = screen_schedules.screen_id 
+    AND screens.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can update their screen schedules"
+ON public.screen_schedules
+FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM public.screens 
+    WHERE screens.id = screen_schedules.screen_id 
+    AND screens.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can delete their screen schedules"
+ON public.screen_schedules
+FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1 FROM public.screens 
+    WHERE screens.id = screen_schedules.screen_id 
+    AND screens.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Admins can view all screen schedules"
+ON public.screen_schedules
+FOR SELECT
+USING (has_role(auth.uid(), 'admin'::app_role));
+
+
+--- 20260107090457_6517852a-8a18-422a-a4ac-6865ccb6e21d.sql ---
+CREATE POLICY "Users can view their own external links" 
+ON public.external_links 
+FOR SELECT 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own external links" 
+ON public.external_links 
+FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own external links" 
+ON public.external_links 
+FOR UPDATE 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own external links" 
+ON public.external_links 
+FOR DELETE 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all external links" 
+ON public.external_links 
+FOR SELECT 
+USING (has_role(auth.uid(), 'admin'::app_role));
+
+
+--- 20260107091933_3e414a83-dfe5-4d74-a627-0a1628407525.sql ---
+CREATE POLICY "Users can view their own widgets" 
+ON public.widgets 
+FOR SELECT 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create their own widgets" 
+ON public.widgets 
+FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own widgets" 
+ON public.widgets 
+FOR UPDATE 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own widgets" 
+ON public.widgets 
+FOR DELETE 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all widgets"
+ON public.widgets
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM public.user_roles 
+    WHERE user_roles.user_id = auth.uid() 
+    AND user_roles.role = 'admin'
+  )
+);
+
+
+--- 20260228000001_security_hardening.sql ---
+CREATE POLICY "Authenticated users can view proof_of_play" ON public.proof_of_play
+            FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Authenticated users can view screenshots_logs" ON public.screenshots_logs
+            FOR SELECT TO authenticated USING (true);
+
+
+--- 20260228000002_heartbeat_and_realtime.sql ---
+CREATE POLICY "Allow authenticated to upsert health" ON device_health
+            FOR ALL TO authenticated
+            USING (true)
+            WITH CHECK (true);
+

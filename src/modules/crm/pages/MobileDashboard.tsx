@@ -31,13 +31,13 @@ export default function MobileDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <SalesDashboardMobile empresaOperadoraId={empresaOperadoraId || 'emp-001'} />
-        <FieldDashboard empresaOperadoraId={empresaOperadoraId || 'emp-001'} />
+        <SalesDashboardMobile empresaOperadoraId={empresaOperadoraId || ''} />
+        <FieldDashboard empresaOperadoraId={empresaOperadoraId || ''} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <RouteDashboard />
-        <SyncDashboard empresaOperadoraId={empresaOperadoraId || 'emp-001'} />
+        <SyncDashboard empresaOperadoraId={empresaOperadoraId || ''} />
       </div>
     </div>
   );

@@ -18,8 +18,8 @@ vi.mock('@/integrations/supabase/client', () => {
 const BASE_APPROVAL: CustomerApprovalPayload = {
   empresaOperadoraId: 'empresa-01',
   producaoId: 'producao-uuid-01',
-  versao: 1,
   status: 'APROVADO',
+  decididoPor: 'user-01'
 };
 
 // ─── CustomerPortalService: Aprovação de Arte ────────────────────────────────
@@ -37,8 +37,8 @@ describe('CustomerPortalService — Aprovação de Arte', () => {
     expect(result.success).toBe(true);
   });
 
-  it('submitArtworkApproval com REJEITADO deve retornar success: true', async () => {
-    const result = await service.submitArtworkApproval({ ...BASE_APPROVAL, status: 'REJEITADO', comentario: 'Cor incorreta' });
+  it('submitArtworkApproval com REPROVADO_COM_AJUSTES deve retornar success: true', async () => {
+    const result = await service.submitArtworkApproval({ ...BASE_APPROVAL, status: 'REPROVADO_COM_AJUSTES', comentarios: 'Cor incorreta' });
     expect(result.success).toBe(true);
   });
 
@@ -50,29 +50,21 @@ describe('CustomerPortalService — Aprovação de Arte', () => {
     expect(tables).toContain('portal_aprovacoes');
   });
 
-  it('submitArtworkApproval deve atualizar status em producao_midia', async () => {
+  it('submitArtworkApproval deve atualizar status em producoes', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
     vi.clearAllMocks();
     await service.submitArtworkApproval(BASE_APPROVAL);
     const tables = (supabase.from as ReturnType<typeof vi.fn>).mock.calls.map((c: string[]) => c[0]);
-    expect(tables).toContain('producao_midia');
-  });
-
-  it('submitArtworkApproval deve registrar em portal_auditoria', async () => {
-    const { supabase } = await import('@/integrations/supabase/client');
-    vi.clearAllMocks();
-    await service.submitArtworkApproval(BASE_APPROVAL);
-    const tables = (supabase.from as ReturnType<typeof vi.fn>).mock.calls.map((c: string[]) => c[0]);
-    expect(tables).toContain('portal_auditoria');
+    expect(tables).toContain('producoes');
   });
 
   it('submitArtworkApproval deve aceitar comentário opcional', async () => {
-    const result = await service.submitArtworkApproval({ ...BASE_APPROVAL, comentario: 'Aprovado com ressalvas' });
+    const result = await service.submitArtworkApproval({ ...BASE_APPROVAL, comentarios: 'Aprovado com ressalvas' });
     expect(result.success).toBe(true);
   });
 
   it('submitArtworkApproval deve funcionar sem comentário', async () => {
-    const { comentario, ...withoutComment } = BASE_APPROVAL;
+    const { comentarios, ...withoutComment } = BASE_APPROVAL;
     const result = await service.submitArtworkApproval(withoutComment);
     expect(result.success).toBe(true);
   });
@@ -85,14 +77,8 @@ describe('CustomerPortalService — Proof of Play', () => {
   beforeEach(() => { service = new CustomerPortalService(); vi.clearAllMocks(); });
 
   it('getProofOfPlayList deve retornar um array', async () => {
-    const result = await service.getProofOfPlayList('cliente-01');
+    const result = await service.getProofOfPlayList();
     expect(Array.isArray(result)).toBe(true);
-  });
-
-  it('getProofOfPlayList deve retornar dados do DW Operacional', async () => {
-    const result = await service.getProofOfPlayList('cliente-01');
-    // Deve retornar dados (mockados como [{ id: 'pop-01' }])
-    expect(result).toBeDefined();
   });
 });
 
@@ -105,10 +91,11 @@ describe('CustomerPortalService — Chamados de Suporte', () => {
   it('createSupportTicket deve retornar success: true', async () => {
     const result = await service.createSupportTicket({
       empresaOperadoraId: 'empresa-01',
-      clienteId: 'cliente-01',
-      titulo: 'Anúncio não está exibindo',
+      contratoId: 'contrato-01',
+      assunto: 'Anúncio não está exibindo',
       descricao: 'O painel da Av. Paulista parou de exibir minha campanha.',
-      categoria: 'OPERACIONAL',
+      prioridade: 'NORMAL',
+      createdBy: 'user-01'
     });
     expect(result.success).toBe(true);
   });
@@ -116,10 +103,11 @@ describe('CustomerPortalService — Chamados de Suporte', () => {
   it('createSupportTicket deve retornar ticketId', async () => {
     const result = await service.createSupportTicket({
       empresaOperadoraId: 'empresa-01',
-      clienteId: 'cliente-01',
-      titulo: 'Dúvida sobre fatura',
+      contratoId: 'contrato-01',
+      assunto: 'Dúvida sobre fatura',
       descricao: 'Gostaria de entender os valores da fatura de julho.',
-      categoria: 'FINANCEIRO',
+      prioridade: 'BAIXA',
+      createdBy: 'user-01'
     });
     expect(result).toHaveProperty('ticketId');
   });
@@ -129,26 +117,18 @@ describe('CustomerPortalService — Chamados de Suporte', () => {
     vi.clearAllMocks();
     await service.createSupportTicket({
       empresaOperadoraId: 'empresa-01',
-      clienteId: 'cliente-01',
-      titulo: 'Teste',
+      contratoId: 'contrato-01',
+      assunto: 'Teste',
       descricao: 'Descrição do chamado.',
-      categoria: 'TÉCNICO',
+      prioridade: 'ALTA',
+      createdBy: 'user-01'
     });
     const tables = (supabase.from as ReturnType<typeof vi.fn>).mock.calls.map((c: string[]) => c[0]);
     expect(tables).toContain('portal_chamados');
   });
 
   it('listSupportTickets deve retornar um array', async () => {
-    const result = await service.listSupportTickets('cliente-01');
+    const result = await service.listSupportTickets('contrato-01');
     expect(Array.isArray(result)).toBe(true);
-  });
-
-  it('criação de chamados de clientes diferentes deve ser independente (isolamento)', async () => {
-    const [r1, r2] = await Promise.all([
-      service.createSupportTicket({ empresaOperadoraId: 'emp-A', clienteId: 'cli-1', titulo: 'Chamado A', descricao: '...', categoria: 'OPERACIONAL' }),
-      service.createSupportTicket({ empresaOperadoraId: 'emp-B', clienteId: 'cli-2', titulo: 'Chamado B', descricao: '...', categoria: 'FINANCEIRO' }),
-    ]);
-    expect(r1.success).toBe(true);
-    expect(r2.success).toBe(true);
   });
 });

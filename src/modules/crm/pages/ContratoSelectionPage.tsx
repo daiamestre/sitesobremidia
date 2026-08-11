@@ -193,7 +193,10 @@ export default function ContratoSelectionPage() {
           </p>
         </div>
 
-        <Button variant="outline" onClick={() => navigate('/representantes/clientes')} className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
+        <Button variant="outline" onClick={() => {
+          const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+          navigate(`${basePath}/clientes`);
+        }} className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
           <ArrowLeft className="h-4 w-4" />
           Voltar para Carteira
         </Button>
@@ -380,7 +383,10 @@ export default function ContratoSelectionPage() {
 
                 {contratoExistente && (
                   <Button 
-                    onClick={() => navigate(`/representantes/pi/novo/${propostaId}`)}
+                    onClick={() => {
+                      const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+                      navigate(`${basePath}/pi/novo/${propostaId}`);
+                    }}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs px-6 h-10 gap-2 shadow-xl hover:scale-105 transition-all"
                   >
                     <Send className="h-4 w-4" />

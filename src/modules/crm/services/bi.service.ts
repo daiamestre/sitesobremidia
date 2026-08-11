@@ -9,41 +9,116 @@ export interface DrillDownNode {
   metricaTotal: number;
 }
 
-// ARQUITETURA IA READY (Interfaces de Integração Futura para Fase 9.7)
-export interface PredictionProvider {
-  predictRevenue(monthsAhead: number): Promise<{ expectedRevenue: number; confidenceScore: number }>;
+export interface FinancialCubeData {
+  mrr: number;
+  arr: number;
+  ebitda: number;
+  receitaBruta: number;
+  inadimplencia: number;
+  comissoes: number;
+  impostos: number;
+  custosOperacionais: number;
+  resultadoLiquido: number;
 }
 
-export interface RecommendationProvider {
-  recommendCampaigns(clienteId: string): Promise<{ recommendedUnits: string[]; rationale: string }>;
-}
-
-export interface AnomalyProvider {
-  detectAnomalies(tenantId: string): Promise<{ anomaliesFound: string[]; severity: 'LOW' | 'HIGH' }>;
-}
-
-export interface ForecastProvider {
-  forecastOccupancy(telaId: string): Promise<{ projectedOccupancyPercent: number }>;
+export interface OperationalCubeData {
+  proofOfPlay: number;
+  sla: number;
+  uptime: number;
+  playersOnline: number;
+  playersOffline: number;
+  alertas: number;
 }
 
 export class BIService {
   /**
-   * Executa drill-down hierárquico (Empresa ➔ Estado ➔ Cidade ➔ Unidade ➔ Painel ➔ Tela)
+   * Consulta Cubo Financeiro OLAP real alimentado pelo Data Warehouse
    */
-  async executeDrillDown(empresaOperadoraId?: string, cidadeFilter?: string): Promise<DrillDownNode[]> {
+  async getFinancialCube(empresaOperadoraId?: string): Promise<FinancialCubeData> {
     try {
-      let query = supabase.from('dw_receita').select('*');
-      if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
-      if (cidadeFilter) query = query.eq('cidade', cidadeFilter);
+      let dreQuery = supabase.from('v_dre_consolidado').select('*');
+      if (empresaOperadoraId) dreQuery = dreQuery.eq('empresa_operadora_id', empresaOperadoraId);
 
-      const { data } = await query;
+      const { data: dreData } = await dreQuery.maybeSingle();
 
-      return [
-        { niveis: ['Empresa', 'Estado', 'Cidade'], cidade: cidadeFilter || 'Curitiba', metricaTotal: 450000 },
-        { niveis: ['Unidade', 'Painel'], cidade: cidadeFilter || 'São Paulo', metricaTotal: 890000 },
-      ];
+      if (dreData) {
+        const receitaBruta = Number(dreData.receita_bruta || 0);
+        const impostos = Number(dreData.impostos_estimados || 0);
+        const comissoes = Number(dreData.comissoes_vendas || 0);
+        const custosOperacionais = Number(dreData.custos_operacionais_rede || 0);
+        const ebitda = Number(dreData.ebitda || 0);
+        const resultadoLiquido = Number(dreData.resultado_liquido || 0);
+
+        return {
+          mrr: receitaBruta,
+          arr: receitaBruta * 12,
+          ebitda,
+          receitaBruta,
+          inadimplencia: 0,
+          comissoes,
+          impostos,
+          custosOperacionais,
+          resultadoLiquido,
+        };
+      }
     } catch (err) {
-      return [];
+      console.error("[BI Service] Erro ao buscar FinancialCube", err);
+    }
+
+    return {
+      mrr: 0,
+      arr: 0,
+      ebitda: 0,
+      receitaBruta: 0,
+      inadimplencia: 0,
+      comissoes: 0,
+      impostos: 0,
+      custosOperacionais: 0,
+      resultadoLiquido: 0,
+    };
+  }
+
+  /**
+   * Consulta Cubo Operacional OLAP real alimentado pelo Data Warehouse
+   */
+  async getOperationalCube(empresaOperadoraId?: string): Promise<OperationalCubeData> {
+    try {
+      let exibQuery = supabase.from('dw_fact_exibicao').select('*');
+      if (empresaOperadoraId) exibQuery = exibQuery.eq('empresa_operadora_id', empresaOperadoraId);
+
+      const { data: exibData } = await exibQuery;
+      const exibs = exibData || [];
+
+      const proofOfPlay = exibs.reduce((acc: number, item: any) => acc + (Number(item.insercoes_realizadas) || 0), 0);
+      const avgSla = exibs.length > 0
+        ? Number((exibs.reduce((acc: number, item: any) => acc + (Number(item.sla_entrega_pct) || 100), 0) / exibs.length).toFixed(1))
+        : 0;
+
+      let playerQuery = supabase.from('dw_dim_player').select('status_online');
+      if (empresaOperadoraId) playerQuery = playerQuery.eq('empresa_operadora_id', empresaOperadoraId);
+      const { data: players } = await playerQuery;
+
+      const online = (players || []).filter((p) => p.status_online).length;
+      const offline = (players || []).length - online;
+
+      return {
+        proofOfPlay: proofOfPlay,
+        sla: avgSla,
+        uptime: avgSla > 0 ? avgSla : 0,
+        playersOnline: online,
+        playersOffline: offline,
+        alertas: offline > 0 ? offline : 0,
+      };
+    } catch (err) {
+      console.error("[BI Service] Erro ao buscar OperationalCube", err);
+      return {
+        proofOfPlay: 0,
+        sla: 0,
+        uptime: 0,
+        playersOnline: 0,
+        playersOffline: 0,
+        alertas: 0,
+      };
     }
   }
 
@@ -51,42 +126,23 @@ export class BIService {
    * Consulta Cubo Comercial OLAP
    */
   async getCommercialCube(empresaOperadoraId?: string): Promise<any> {
+    // TODO: Implementar busca na dw_dim_cliente e faturamento
     return {
-      conversao: 42.5,
-      ticketMedio: 12500,
-      receitaBruta: 1450000,
-      cac: 450,
-      ltv: 38400,
-      churn: 0.8,
-      retencao: 99.2,
+      conversao: 0,
+      ticketMedio: 0,
+      receitaBruta: 0,
+      cac: 0,
+      ltv: 0,
+      churn: 0,
+      retencao: 0,
     };
   }
 
   /**
-   * Consulta Cubo Financeiro OLAP
+   * Executa drill-down hierárquico
    */
-  async getFinancialCube(empresaOperadoraId?: string): Promise<any> {
-    return {
-      mrr: 145000,
-      arr: 1740000,
-      ebitda: 60900,
-      inadimplencia: 1.2,
-      comissoes: 7250,
-    };
-  }
-
-  /**
-   * Consulta Cubo Operacional OLAP
-   */
-  async getOperationalCube(empresaOperadoraId?: string): Promise<any> {
-    return {
-      proofOfPlay: 1458900,
-      sla: 99.8,
-      uptime: 99.9,
-      playersOnline: 18,
-      playersOffline: 1,
-      alertas: 0,
-    };
+  async executeDrillDown(empresaOperadoraId?: string, cidadeFilter?: string): Promise<DrillDownNode[]> {
+    return [];
   }
 }
 

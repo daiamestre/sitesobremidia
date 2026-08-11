@@ -17,10 +17,16 @@ export interface UsuarioRecord {
   organization_id?: string;
   department_id?: string;
   role_id?: string;
+  cliente_id?: string;
   perfil?: {
     id: string;
     nome: string;
     descricao?: string;
+  };
+  cliente?: {
+    id: string;
+    razao_social?: string;
+    nome_fantasia?: string;
   };
   organization?: {
     id: string;
@@ -89,19 +95,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       const usuarioData = (usuarioRaw as unknown as UsuarioRecord) || null;
+      console.log('[AuthContext] fetchUserData -> usuarioData:', usuarioData);
       setUsuario(usuarioData);
 
       // 2. Se for representante, busca dados comerciais do representante
       let repData: RepresentanteRecord | null = null;
       if (usuarioData) {
-        const { data: repRaw } = await supabase
+        const { data: repRaw, error: repError } = await supabase
           .from('representantes')
           .select('*')
           .eq('usuario_id', userId)
           .maybeSingle();
+        if (repError) {
+          console.error('[AuthContext] Erro ao buscar representante:', repError);
+        }
+        console.log('[AuthContext] fetchUserData -> repData:', repRaw);
         repData = (repRaw as unknown as RepresentanteRecord) || null;
         setRepresentante(repData);
       } else {
+        console.log('[AuthContext] fetchUserData -> usuarioData is null, skipping representante fetch');
         setRepresentante(null);
       }
 
@@ -114,17 +126,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       let computedStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND' = 'NOT_FOUND';
 
-      if (solData && solData.status) {
-        computedStatus = solData.status as any;
-      } else if (usuarioData?.is_owner || usuarioData?.perfil?.nome === 'OWNER' || usuarioData?.perfil?.nome === 'ADMIN') {
-        // OWNER e ADMIN possuem status ativo/aprovado soberano
+      if (usuarioData?.is_owner || usuarioData?.perfil?.nome === 'OWNER' || usuarioData?.perfil?.nome === 'ADMIN' || usuarioData?.role?.name === 'OWNER' || usuarioData?.status === 'ATIVO' || usuarioData?.status === 'ACTIVE') {
+        // OWNER, ADMIN e usuários com status ATIVO corporativo possuem status aprovado soberano
         computedStatus = 'APPROVED';
+      } else if (solData && solData.status) {
+        computedStatus = solData.status as any;
       } else {
         computedStatus = 'NOT_FOUND';
       }
 
       setSolicitacaoStatus(computedStatus);
-      const perfilNome = usuarioData?.perfil?.nome || null;
+      const perfilNome = usuarioData?.is_owner ? 'OWNER' : (usuarioData?.perfil?.nome || usuarioData?.role?.name || null);
       return { usuarioData, repData, perfilNome, solicitacaoStatus: computedStatus };
     } catch (err) {
       console.warn('[AuthContext] Erro ao carregar dados do usuário:', err);
@@ -243,13 +255,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Determinar Rota Base de Workspace (FASE CORPORATIVA)
     let routeRedirect = '/dashboard'; // default
-    if (userData.usuarioData?.is_owner || role === 'OWNER' || role === 'ADMIN') {
+    if (userData.usuarioData?.is_owner || role === 'OWNER' || role === 'ADMIN' || userData.usuarioData?.role?.name === 'OWNER') {
       routeRedirect = '/workspace/corporate';
     } else if (role === 'FINANCEIRO') {
       routeRedirect = '/workspace/finance';
     } else if (role === 'MARKETING' || role === 'ANUNCIANTE') {
       routeRedirect = '/workspace/marketing';
-    } else if (role === 'OPERACIONAL' || role === 'GESTOR') {
+    } else if (role === 'OPERACIONAL' || role === 'GESTOR' || role === 'GERENTE') {
       routeRedirect = '/workspace/operations';
     } else if (role === 'REPRESENTANTE') {
       routeRedirect = '/representantes/dashboard';
@@ -309,16 +321,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // DETERMINA O WORKSPACE ATUAL
   let workspaceRoute = '/dashboard';
-  if (usuario?.is_owner || perfilNome === 'OWNER' || perfilNome === 'ADMIN') {
+  if (usuario?.is_owner || perfilNome === 'OWNER' || perfilNome === 'ADMIN' || usuario?.role?.name === 'OWNER') {
     workspaceRoute = '/workspace/corporate';
   } else if (perfilNome === 'FINANCEIRO') {
     workspaceRoute = '/workspace/finance';
   } else if (perfilNome === 'MARKETING' || perfilNome === 'ANUNCIANTE') {
     workspaceRoute = '/workspace/marketing';
-  } else if (perfilNome === 'OPERACIONAL' || perfilNome === 'GESTOR') {
+  } else if (perfilNome === 'OPERACIONAL' || perfilNome === 'GESTOR' || perfilNome === 'GERENTE') {
     workspaceRoute = '/workspace/operations';
   } else if (perfilNome === 'REPRESENTANTE') {
     workspaceRoute = '/representantes/dashboard';
+  } else if (perfilNome === 'CLIENTE') {
+    workspaceRoute = '/portal';
   }
 
   return (

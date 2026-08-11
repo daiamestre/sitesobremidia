@@ -15,9 +15,8 @@ export interface PixProvider {
 
 export class BillingService implements BillingProvider, PixProvider {
   async generateBoleto(contaReceberId: string, valor: number, vencimento: string) {
-    const nossonumero = `NOSSO-${Date.now().toString().substring(6)}`;
-    const linhaDigitavel = `34191.79001 01043.510047 91020.150008 8 ${Math.floor(Math.random() * 9000) + 1000}00000000`;
-    const codigoBarras = `34198${Math.floor(Math.random() * 9000000000000000)}`;
+    // Zero Mock: Integração real bancária necessária
+    throw new Error('Geração de boleto indisponível. Integração com gateway de pagamentos não configurada.');
 
     const { data: conta } = await supabase.from('contas_receber').select('empresa_operadora_id').eq('id', contaReceberId).single();
 
@@ -56,7 +55,7 @@ export class BillingService implements BillingProvider, PixProvider {
   }
 
   async generatePix(contaReceberId: string, valor: number) {
-    const txid = `PIX-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+    const txid = `PIX-${crypto.randomUUID().toUpperCase()}`;
     const payload = `00020126580014BR.GOV.BCB.PIX0136${txid}5204000053039865405${valor.toFixed(2)}5802BR5915SOBRE MIDIA ERP6009CURITIBA62070503***6304`;
 
     const { data: conta } = await supabase.from('contas_receber').select('empresa_operadora_id').eq('id', contaReceberId).single();

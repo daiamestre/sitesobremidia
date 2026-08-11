@@ -42,8 +42,8 @@ export default function PedidoInsercaoPage() {
 
   // Form State para Emissão de Novo PI
   const [formData, setFormData] = useState({
-    titulo: 'Campanha de Mídia Digital Signage HD',
-    descricao: 'Veiculação de vinhetas publicitárias e corporativas na rede de telas.',
+    titulo: '',
+    descricao: '',
     prioridade: 'MEDIA' as PIPrioridade,
     inicioVeiculacao: new Date().toISOString().split('T')[0],
     fimVeiculacao: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -119,7 +119,8 @@ export default function PedidoInsercaoPage() {
         title: 'Pedido de Inserção Emitido!',
         description: `PI ${res.numeroPI} criado com sucesso no núcleo operacional.`,
       });
-      navigate(`/representantes/pi/${res.piId}`);
+      const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+      navigate(`${basePath}/pi/${res.piId}`);
     } else {
       toast({
         title: 'Erro ao emitir PI',
@@ -208,7 +209,10 @@ export default function PedidoInsercaoPage() {
           </p>
         </div>
 
-        <Button variant="outline" onClick={() => navigate('/representantes/clientes')} className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
+        <Button variant="outline" onClick={() => {
+          const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+          navigate(`${basePath}/pi`);
+        }} className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
           <ArrowLeft className="h-4 w-4" />
           Voltar para Carteira
         </Button>

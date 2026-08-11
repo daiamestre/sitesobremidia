@@ -50,7 +50,7 @@ export function IntelligentCommercialWizard() {
     nomeFantasia: '',
     razaoSocial: '',
     cnpj: '',
-    segmento: 'Farmácia / Saúde',
+    segmento: '',
     telefone: '',
     whatsapp: '',
     email: '',
@@ -58,28 +58,28 @@ export function IntelligentCommercialWizard() {
     logradouro: '',
     numero: '',
     bairro: '',
-    cidade: 'São Paulo',
-    estado: 'SP',
+    cidade: '',
+    estado: '',
     
     // Unidade / Estabelecimento
-    nomeUnidade: 'Unidade Matriz - Centro',
-    enderecoUnidade: 'Av. Paulista, 1000',
+    nomeUnidade: '',
+    enderecoUnidade: '',
     
     // Contato Principal
     contatoNome: '',
-    contatoCargo: 'Gerente Comercial',
+    contatoCargo: '',
     contatoEmail: '',
     contatoTelefone: '',
 
     // Dados Comerciais & Mídia
-    tituloCampanha: 'Campanha Institucional - Telas HD',
-    duracaoSegundos: 15,
-    quantidadeTelas: 4,
+    tituloCampanha: '',
+    duracaoSegundos: 0,
+    quantidadeTelas: 0,
     dataInicio: new Date().toISOString().split('T')[0],
     dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     
     // Condições Comerciais
-    valorMensal: 3500,
+    valorMensal: 0,
     formaPagamento: 'PIX' as 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'BANK_TRANSFER',
     observacoes: '',
   });
@@ -143,7 +143,11 @@ export function IntelligentCommercialWizard() {
 
   // Finaliza atendimento comercial criando/vinculando cliente e proposta
   const handleFinishWizard = async () => {
+    console.log("handleFinishWizard INICIADO");
+    console.log({ empresaOperadoraId, representanteId: representante?.id });
+    
     if (!empresaOperadoraId || !representante?.id) {
+      console.log("REJEITADO: Sessão inválida");
       toast({
         title: 'Sessão inválida',
         description: 'Não foi possível validar o representante.',
@@ -154,9 +158,11 @@ export function IntelligentCommercialWizard() {
 
     setIsSubmitting(true);
     let finalClienteId = selectedCliente?.id;
+    console.log("Prosseguindo com wizard...");
 
     // 1. Se for cliente novo, cria no PostgreSQL via clienteService
     if (!isExistingClientSelected || !finalClienteId) {
+      console.log("Criando novo cliente...");
       const resCliente = await clienteService.create({
         empresaOperadoraId,
         representanteId: representante.id,
