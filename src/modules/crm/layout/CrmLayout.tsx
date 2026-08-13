@@ -2,7 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { CrmSidebar } from '../components/Sidebar';
 import { CrmHeader } from '../components/Header';
 
-export function CrmLayout() {
+export default function CrmLayout() {
   return (
     <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
       {/* Sidebar Fixo na Esquerda para Desktop */}
