@@ -1,11 +1,13 @@
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { LayoutDashboard, MapPin, Tv, DollarSign, LogOut } from 'lucide-react';
+import { useCentralUnread } from '@/hooks/useCentral';
+import { LayoutDashboard, MapPin, Tv, DollarSign, LogOut, FileText, Calendar, Target, BarChart2, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function CustomerPortalLayout() {
   const { user, usuario, signOut } = useAuth();
   const location = useLocation();
+  const { total: totalNaoLidas } = useCentralUnread();
 
   if (!user || !usuario || !usuario.cliente_id) {
     return <Navigate to="/auth" replace />;
@@ -13,9 +15,14 @@ export default function CustomerPortalLayout() {
 
   const navItems = [
     { name: 'Dashboard', path: '/portal', icon: LayoutDashboard },
+    { name: 'Contrato', path: '/portal/contrato', icon: FileText },
     { name: 'Meus Pontos', path: '/portal/pontos', icon: MapPin },
     { name: 'Minhas Campanhas', path: '/portal/campanhas', icon: Tv },
+    { name: 'Inserções/Dia', path: '/portal/insercoes', icon: Calendar },
+    { name: 'Ocupação da Rede', path: '/portal/ocupacao', icon: Target },
     { name: 'Financeiro', path: '/portal/financeiro', icon: DollarSign },
+    // MENSAGENS: entra abaixo do Financeiro (BI & Relatórios), com contador real de não lidas
+    { name: 'Mensagens', path: '/portal/central', icon: Bell, badge: totalNaoLidas },
   ];
 
   return (
@@ -37,6 +44,11 @@ export default function CustomerPortalLayout() {
                     >
                       <item.icon className="h-4 w-4" />
                       {item.name}
+                      {'badge' in item && item.badge > 0 && (
+                        <span className="min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                          {item.badge > 99 ? '99+' : item.badge}
+                        </span>
+                      )}
                     </Button>
                   </Link>
                 );

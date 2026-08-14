@@ -1,41 +1,125 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { clienteService, ClienteCompleto } from '../../services/cliente.service';
+import { clienteFormSchema, UFS_VALIDAS, normalizarCnpj, normalizarCep } from '../../validators/cliente.validator';
+import { StatusCliente } from '../../types/enums';
 import { propostaService } from '../../services/proposta.service';
+import { auditService } from '../../services/audit.service';
+import type { CrmRole } from '../../types/rbac.types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Building2, 
-  Search, 
-  CheckCircle2, 
-  User, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Plus, 
-  ArrowRight, 
-  ArrowLeft, 
-  Loader2, 
-  Tv, 
-  DollarSign, 
+import {
+  Building2,
+  Search,
+  CheckCircle2,
+  User,
+  MapPin,
+  Phone,
+  Mail,
+  Plus,
+  ArrowRight,
+  ArrowLeft,
+  Loader2,
+  Tv,
+  DollarSign,
   FileText,
-  Briefcase
+  Briefcase,
+  Info,
 } from 'lucide-react';
+
+type FormaPagamento = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'BANK_TRANSFER';
+
+interface WizardFormState {
+  // Empresa
+  nomeFantasia: string;
+  razaoSocial: string;
+  cnpj: string;
+  segmento: string;
+  telefone: string;
+  whatsapp: string;
+  email: string;
+  // Endereço
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  // Responsável
+  representanteLegal: string;
+  cargoRepresentante: string;
+  // Comercial (cliente)
+  status: StatusCliente;
+  observacoes: string;
+  // Contato
+  contatoNome: string;
+  contatoCargo: string;
+  contatoEmail: string;
+  contatoTelefone: string;
+  // Mídia & Negociação
+  tituloCampanha: string;
+  duracaoSegundos: number;
+  quantidadeTelas: number;
+  dataInicio: string;
+  dataFim: string;
+  valorMensal: number;
+  formaPagamento: FormaPagamento;
+  observacoesProposta: string;
+}
+
+const STEP_LABELS = ['1. Cliente & Endereço', '2. Unidade & Contato', '3. Mídia & Negociação', '4. Revisão & Salvar'];
+
+function formatCpfCnpj(value: string): string {
+  const d = value.replace(/\D/g, '').slice(0, 14);
+  if (d.length <= 11) {
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+    if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+    return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+  }
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
+
+function formatCep(value: string): string {
+  const d = value.replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 5) return d;
+  return `${d.slice(0, 5)}-${d.slice(5)}`;
+}
+
+function formatTelefone(value: string): string {
+  const d = value.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : d;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+/** Mapeia o perfil do usuário para o CrmRole oficial do módulo de auditoria. */
+function mapPerfilParaCrmRole(perfilNome: string | null): CrmRole {
+  const p = (perfilNome || 'REPRESENTANTE').toUpperCase();
+  if (p === 'OWNER' || p === 'ADMIN') return 'ADMIN';
+  if (p === 'GERENTE') return 'GERENTE';
+  if (p === 'FINANCEIRO') return 'FINANCEIRO';
+  if (p === 'DESIGNER') return 'DESIGNER';
+  return 'REPRESENTANTE';
+}
 
 export function IntelligentCommercialWizard() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { empresaOperadoraId, representante } = useAuth();
+  const { user, empresaOperadoraId, representante, isOwner, perfilNome } = useAuth();
 
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Busca e Seleção de Cliente Existente
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,9 +128,8 @@ export function IntelligentCommercialWizard() {
   const [isExistingClientSelected, setIsExistingClientSelected] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<ClienteCompleto | null>(null);
 
-  // Form State Unificado
-  const [formData, setFormData] = useState({
-    // Cliente / Empresa
+  // Form State Unificado — NENHUM dado é descartado entre etapas
+  const [formData, setFormData] = useState<WizardFormState>({
     nomeFantasia: '',
     razaoSocial: '',
     cnpj: '',
@@ -57,35 +140,47 @@ export function IntelligentCommercialWizard() {
     cep: '',
     logradouro: '',
     numero: '',
+    complemento: '',
     bairro: '',
     cidade: '',
     estado: '',
-    
-    // Unidade / Estabelecimento
-    nomeUnidade: '',
-    enderecoUnidade: '',
-    
-    // Contato Principal
+    representanteLegal: '',
+    cargoRepresentante: '',
+    status: StatusCliente.PROSPECT,
+    observacoes: '',
     contatoNome: '',
     contatoCargo: '',
     contatoEmail: '',
     contatoTelefone: '',
-
-    // Dados Comerciais & Mídia
     tituloCampanha: '',
     duracaoSegundos: 0,
     quantidadeTelas: 0,
     dataInicio: new Date().toISOString().split('T')[0],
     dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    
-    // Condições Comerciais
     valorMensal: 0,
-    formaPagamento: 'PIX' as 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'BANK_TRANSFER',
-    observacoes: '',
+    formaPagamento: 'PIX',
+    observacoesProposta: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+if (name === 'cnpj') {
+      setFormData((prev) => ({ ...prev, cnpj: formatCpfCnpj(value) }));
+    }
+    if (name === 'cep') {
+      setFormData((prev) => ({ ...prev, cep: formatCep(value) }));
+      return;
+    }
+    if (name === 'whatsapp' || name === 'telefone' || name === 'contatoTelefone') {
+      setFormData((prev) => ({ ...prev, [name]: formatTelefone(value) }));
+      return;
+    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: Number(value || 0) }));
   };
 
   // Executa busca de clientes existentes
@@ -99,33 +194,43 @@ export function IntelligentCommercialWizard() {
       return (
         (emp?.nome_fantasia || '').toLowerCase().includes(term) ||
         (emp?.razao_social || '').toLowerCase().includes(term) ||
-        (emp?.cnpj || '').includes(term)
+        (emp?.cnpj || '').replace(/\D/g, '').includes(term.replace(/\D/g, ''))
       );
     });
     setSearchResults(filtered);
     setIsSearching(false);
   };
 
-  // Seleciona cliente existente e preenche form
+  // Seleciona cliente existente e preenche form (a proposta continua sendo criada)
   const handleSelectClient = (c: ClienteCompleto) => {
     const emp = c.empresas?.[0];
-    const ct = emp?.contatos?.[0];
+    const ct = emp?.contatos?.find((x) => x.is_principal) ?? emp?.contatos?.[0];
 
     setSelectedCliente(c);
     setIsExistingClientSelected(true);
+    setErrors({});
     setFormData((prev) => ({
       ...prev,
       nomeFantasia: emp?.nome_fantasia || '',
       razaoSocial: emp?.razao_social || '',
       cnpj: emp?.cnpj || '',
-      segmento: emp?.segmento || 'Geral',
+      segmento: emp?.segmento || '',
       telefone: emp?.telefone || '',
       whatsapp: emp?.whatsapp || '',
       email: emp?.email || '',
-      cidade: emp?.cidade || 'São Paulo',
-      estado: emp?.estado || 'SP',
+      cep: emp?.cep || '',
+      logradouro: emp?.logradouro || '',
+      numero: emp?.numero || '',
+      complemento: emp?.complemento || '',
+      bairro: emp?.bairro || '',
+      cidade: emp?.cidade || '',
+      estado: emp?.estado || '',
+      representanteLegal: emp?.representante_legal || '',
+      cargoRepresentante: emp?.cargo_representante || '',
+      status: (c.status as StatusCliente) || StatusCliente.PROSPECT,
+      observacoes: emp?.observacoes || '',
       contatoNome: ct?.nome || emp?.representante_legal || '',
-      contatoCargo: ct?.cargo || 'Gerente',
+      contatoCargo: ct?.cargo || '',
       contatoEmail: ct?.email || emp?.email || '',
       contatoTelefone: ct?.telefone || emp?.whatsapp || '',
     }));
@@ -141,16 +246,44 @@ export function IntelligentCommercialWizard() {
     setIsExistingClientSelected(false);
   };
 
-  // Finaliza atendimento comercial criando/vinculando cliente e proposta
+  // Validação de campos obrigatórios da Etapa 1 (feedback antecipado; validação total na Etapa 4)
+  // Cliente já existente na carteira não passa por validação cadastral: os dados vêm do banco real.
+  const validateStep1 = (): boolean => {
+    if (isExistingClientSelected) return true;
+    const parsed = clienteFormSchema.safeParse(formData);
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      parsed.error.issues.forEach((issue) => {
+        const field = String(issue.path[0] || 'form');
+        if (!fieldErrors[field]) fieldErrors[field] = issue.message;
+      });
+      setErrors(fieldErrors);
+      toast({
+        title: 'Corrija os campos destacados',
+        description: 'Há campos obrigatórios ou inválidos nos dados do cliente.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    setErrors({});
+    return true;
+  };
+
+  // Finaliza atendimento comercial criando cliente (quando novo) e proposta
   const handleFinishWizard = async () => {
-    console.log("handleFinishWizard INICIADO");
-    console.log({ empresaOperadoraId, representanteId: representante?.id });
-    
-    if (!empresaOperadoraId || !representante?.id) {
-      console.log("REJEITADO: Sessão inválida");
+    if (!empresaOperadoraId) {
       toast({
         title: 'Sessão inválida',
-        description: 'Não foi possível validar o representante.',
+        description: 'Não foi possível validar o tenant (empresa operadora). Refaça o login.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!representante?.id && !isOwner) {
+      toast({
+        title: 'Sessão inválida',
+        description: 'Não foi possível validar o representante. Refaça o login.',
         variant: 'destructive',
       });
       return;
@@ -158,50 +291,119 @@ export function IntelligentCommercialWizard() {
 
     setIsSubmitting(true);
     let finalClienteId = selectedCliente?.id;
-    console.log("Prosseguindo com wizard...");
 
-    // 1. Se for cliente novo, cria no PostgreSQL via clienteService
+    // 0. Validação completa dos dados do cliente antes de qualquer gravação
     if (!isExistingClientSelected || !finalClienteId) {
-      console.log("Criando novo cliente...");
+      const parsed = clienteFormSchema.safeParse(formData);
+      if (!parsed.success) {
+        setIsSubmitting(false);
+        const fieldErrors: Record<string, string> = {};
+        parsed.error.issues.forEach((issue) => {
+          const field = String(issue.path[0] || 'form');
+          if (!fieldErrors[field]) fieldErrors[field] = issue.message;
+        });
+        setErrors(fieldErrors);
+        setStep(1);
+        toast({
+          title: 'Dados do cliente inválidos',
+          description: 'Corrija os campos destacados antes de salvar.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // 0.1 Validação comercial (proposta)
+    if (!formData.tituloCampanha.trim() || formData.tituloCampanha.trim().length < 2) {
+      setIsSubmitting(false);
+      setStep(3);
+      toast({ title: 'Título da campanha obrigatório', description: 'Informe o título da campanha na etapa de Mídia.', variant: 'destructive' });
+      return;
+    }
+    if (!formData.quantidadeTelas || formData.quantidadeTelas < 1) {
+      setIsSubmitting(false);
+      setStep(3);
+      toast({ title: 'Quantidade de telas inválida', description: 'Informe ao menos 1 tela/ponto na etapa de Mídia.', variant: 'destructive' });
+      return;
+    }
+    if (!formData.valorMensal || formData.valorMensal <= 0) {
+      setIsSubmitting(false);
+      setStep(3);
+      toast({ title: 'Valor mensal inválido', description: 'Informe o valor mensal da negociação.', variant: 'destructive' });
+      return;
+    }
+    if (formData.dataFim < formData.dataInicio) {
+      setIsSubmitting(false);
+      setStep(3);
+      toast({ title: 'Vigência inválida', description: 'A data final não pode ser anterior à data inicial.', variant: 'destructive' });
+      return;
+    }
+
+    // 1. Se for cliente novo, cria no PostgreSQL via RPC atômica
+    if (!isExistingClientSelected || !finalClienteId) {
       const resCliente = await clienteService.create({
         empresaOperadoraId,
-        representanteId: representante.id,
+        representanteId: isOwner ? null : (representante?.id ?? null),
+        status: formData.status,
         razaoSocial: formData.razaoSocial || formData.nomeFantasia,
         nomeFantasia: formData.nomeFantasia,
-        cnpj: formData.cnpj,
+        cnpj: normalizarCnpj(formData.cnpj),
         segmento: formData.segmento,
-        telefone: formData.telefone,
-        whatsapp: formData.whatsapp,
+        telefone: formData.telefone.replace(/\D/g, ''),
+        whatsapp: formData.whatsapp.replace(/\D/g, ''),
         email: formData.email,
-        cep: formData.cep,
+        cep: normalizarCep(formData.cep),
         logradouro: formData.logradouro,
         numero: formData.numero,
+        complemento: formData.complemento,
         bairro: formData.bairro,
         cidade: formData.cidade,
-        estado: formData.estado,
+        estado: formData.estado.toUpperCase(),
+        representanteLegal: formData.representanteLegal,
+        cargoRepresentante: formData.cargoRepresentante,
+        observacoes: formData.observacoes,
         contatoNome: formData.contatoNome,
         contatoCargo: formData.contatoCargo,
         contatoEmail: formData.contatoEmail,
-        contatoTelefone: formData.contatoTelefone,
+        contatoTelefone: formData.contatoTelefone.replace(/\D/g, ''),
       });
 
       if (!resCliente.success || !resCliente.clienteId) {
         setIsSubmitting(false);
         toast({
           title: 'Erro ao cadastrar cliente',
-          description: resCliente.error || 'Falha ao salvar cliente.',
+          description: resCliente.error || 'Falha ao salvar cliente no PostgreSQL.',
           variant: 'destructive',
         });
         return;
       }
       finalClienteId = resCliente.clienteId;
+
+      // Auditoria: registro da criação do cliente
+      await auditService.log({
+        userId: user?.id || '',
+        userEmail: user?.email || '',
+        userRole: mapPerfilParaCrmRole(perfilNome),
+        empresaOperadoraId,
+        entidadeTipo: 'cliente',
+        entidadeId: resCliente.clienteId,
+        acao: 'INSERT',
+        statusNovo: formData.status,
+        observacoes: `Cliente criado via Novo Cliente (wizard comercial)${isOwner ? ' — OWNER sem representante' : ''}`,
+        dadosAlterados: {
+          nome_fantasia: formData.nomeFantasia,
+          razao_social: formData.razaoSocial || formData.nomeFantasia,
+          cnpj: normalizarCnpj(formData.cnpj),
+          representante_id: representante?.id || null,
+        },
+      });
     }
 
     // 2. Grava a proposta comercial atrelada ao cliente e ao representante
     const resProp = await propostaService.create({
       empresaOperadoraId,
       clienteId: finalClienteId,
-      representanteId: representante.id,
+      representanteId: isOwner ? null : (representante?.id ?? null),
       tituloCampanha: formData.tituloCampanha,
       duracaoSegundos: Number(formData.duracaoSegundos),
       quantidadeTelas: Number(formData.quantidadeTelas),
@@ -209,25 +411,49 @@ export function IntelligentCommercialWizard() {
       formaPagamento: formData.formaPagamento,
       dataInicio: formData.dataInicio,
       dataFim: formData.dataFim,
-      observacoes: formData.observacoes,
+      observacoes: formData.observacoesProposta,
     });
 
     setIsSubmitting(false);
 
     if (resProp.success) {
+      // Auditoria: registro da criação da proposta
+      await auditService.log({
+        userId: user?.id || '',
+        userEmail: user?.email || '',
+        userRole: mapPerfilParaCrmRole(perfilNome),
+        empresaOperadoraId,
+        entidadeTipo: 'cliente',
+        entidadeId: finalClienteId,
+        acao: 'INSERT',
+        statusNovo: 'DRAFT',
+        observacoes: `Proposta ${resProp.numeroProposta} criada via Novo Cliente${isOwner ? ' — OWNER' : ''}`,
+        dadosAlterados: {
+          numero_proposta: resProp.numeroProposta,
+          titulo: formData.tituloCampanha,
+          valor_mensal: formData.valorMensal,
+          forma_pagamento: formData.formaPagamento,
+        },
+      });
+
       toast({
-        title: 'Atendimento Comercial Concluído!',
-        description: `Proposta ${resProp.numeroProposta} gerada no CRM com sucesso.`,
+        title: 'Cliente Cadastrado com Sucesso!',
+        description: `Cliente persistido no PostgreSQL e proposta ${resProp.numeroProposta} gerada.`,
       });
       navigate('/representantes/clientes');
     } else {
       toast({
-        title: 'Erro na Proposta',
-        description: resProp.error || 'Falha ao gerar proposta comercial.',
+        title: 'Cliente criado, mas falha na proposta',
+        description: resProp.error || 'O cliente foi persistido; revise a proposta diretamente no CRM.',
         variant: 'destructive',
       });
+      navigate(`/representantes/clientes/${finalClienteId}`);
     }
   };
+
+  const numeroFormatado = (v: number) => Number(v || 0).toLocaleString('pt-BR');
+  const valorFormatado = (v: number) =>
+    Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in pb-12">
@@ -240,27 +466,26 @@ export function IntelligentCommercialWizard() {
             </div>
             <div>
               <h2 className="text-xl sm:text-2xl font-display font-extrabold text-white">
-                Formulário Comercial Inteligente
+                Novo Cliente — Cadastro Completo
               </h2>
               <p className="text-slate-300 text-xs mt-0.5">
-                Atendimento Unificado ➔ Cliente, Estabelecimento, Contato e Proposta Comercial
+                Cliente, Unidade, Contato e Negociação → Revisão e Salvamento real no PostgreSQL
               </p>
             </div>
           </div>
           <Badge className="bg-primary/20 text-primary border-primary/30 px-3 py-1 font-bold text-xs">
-            Etapa {step} de 5
+            Etapa {step} de 4
           </Badge>
         </div>
 
-        {/* Dynamic Wizard Steps Bar */}
-        <div className="grid grid-cols-5 gap-2 pt-2">
-          {['1. Cliente', '2. Unidade', '3. Contato', '4. Mídia', '5. Revisão'].map((label, idx) => {
+        <div className="grid grid-cols-4 gap-2 pt-2">
+          {STEP_LABELS.map((label, idx) => {
             const stepNum = idx + 1;
             const active = step === stepNum;
             const completed = step > stepNum;
             return (
-              <div 
-                key={label} 
+              <div
+                key={label}
                 onClick={() => completed && setStep(stepNum)}
                 className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                   active ? 'bg-primary/20 border-primary text-primary font-bold shadow-lg' :
@@ -275,16 +500,16 @@ export function IntelligentCommercialWizard() {
         </div>
       </div>
 
-      {/* STEP 1: CLIENTE & EMPRESA (SELEÇÃO OU CADASTRO) */}
+      {/* STEP 1: CLIENTE + ENDEREÇO */}
       {step === 1 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
               <Building2 className="h-5 w-5 text-primary" />
-              Etapa 1: Cliente & Empresa
+              Etapa 1: Cliente + Endereço
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs">
-              Localize um cliente já cadastrado ou preencha as informações do novo cliente comercial.
+              Localize um cliente já cadastrado ou preencha todos os dados cadastrais da empresa, endereço, responsável e status comercial.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
@@ -311,8 +536,8 @@ export function IntelligentCommercialWizard() {
                   {searchResults.map((c) => {
                     const emp = c.empresas?.[0];
                     return (
-                      <div 
-                        key={c.id} 
+                      <div
+                        key={c.id}
                         onClick={() => handleSelectClient(c)}
                         className="p-2.5 rounded-lg bg-slate-900 border border-white/10 hover:border-primary cursor-pointer flex items-center justify-between transition-all"
                       >
@@ -343,82 +568,248 @@ export function IntelligentCommercialWizard() {
               )}
             </div>
 
-            {/* Opção B: Dados da Empresa (Preenchidos ou Editáveis) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Nome Fantasia *</Label>
-                <Input
-                  name="nomeFantasia"
-                  value={formData.nomeFantasia}
-                  onChange={handleChange}
-                  placeholder="Ex: Farmácia DrogaMais"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                  required
-                />
-              </div>
+            {/* Bloco: Empresa */}
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-white/10">
+              <h4 className="text-xs font-bold text-primary uppercase mb-4 flex items-center gap-2">
+                <Building2 className="h-4 w-4" /> Empresa
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Nome Fantasia *</Label>
+                  <Input
+                    name="nomeFantasia"
+                    value={formData.nomeFantasia}
+                    onChange={handleChange}
+                    placeholder="Ex: Farmácia DrogaMais"
+                    className={`bg-slate-950/60 border-white/10 text-white rounded-xl h-11 ${errors.nomeFantasia ? 'border-rose-500' : ''}`}
+                  />
+                  {errors.nomeFantasia && <p className="text-[11px] text-rose-400">{errors.nomeFantasia}</p>}
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Razão Social *</Label>
-                <Input
-                  name="razaoSocial"
-                  value={formData.razaoSocial}
-                  onChange={handleChange}
-                  placeholder="Ex: DrogaMais LTDA"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Razão Social *</Label>
+                  <Input
+                    name="razaoSocial"
+                    value={formData.razaoSocial}
+                    onChange={handleChange}
+                    placeholder="Ex: DrogaMais LTDA"
+                    className={`bg-slate-950/60 border-white/10 text-white rounded-xl h-11 ${errors.razaoSocial ? 'border-rose-500' : ''}`}
+                  />
+                  {errors.razaoSocial && <p className="text-[11px] text-rose-400">{errors.razaoSocial}</p>}
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">CNPJ *</Label>
-                <Input
-                  name="cnpj"
-                  value={formData.cnpj}
-                  onChange={handleChange}
-                  placeholder="00.000.000/0001-00"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">CNPJ / CPF</Label>
+                  <Input
+                    name="cnpj"
+                    value={formData.cnpj}
+                    onChange={handleChange}
+                    placeholder="Digite o CPF ou CNPJ (opcional)"
+                    className={`bg-slate-950/60 border-white/10 text-white rounded-xl h-11 ${errors.cnpj ? 'border-rose-500' : ''}`}
+                  />
+                  {errors.cnpj && <p className="text-[11px] text-rose-400">{errors.cnpj}</p>}
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">WhatsApp Comercial *</Label>
-                <Input
-                  name="whatsapp"
-                  value={formData.whatsapp}
-                  onChange={handleChange}
-                  placeholder="(11) 99999-8888"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">WhatsApp Comercial *</Label>
+                  <Input
+                    name="whatsapp"
+                    value={formData.whatsapp}
+                    onChange={handleChange}
+                    placeholder="(11) 99999-8888"
+                    className={`bg-slate-950/60 border-white/10 text-white rounded-xl h-11 ${errors.whatsapp ? 'border-rose-500' : ''}`}
+                  />
+                  {errors.whatsapp && <p className="text-[11px] text-rose-400">{errors.whatsapp}</p>}
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">E-mail Corporativo *</Label>
-                <Input
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="contato@empresa.com"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">E-mail Corporativo *</Label>
+                  <Input
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="contato@empresa.com"
+                    className={`bg-slate-950/60 border-white/10 text-white rounded-xl h-11 ${errors.email ? 'border-rose-500' : ''}`}
+                  />
+                  {errors.email && <p className="text-[11px] text-rose-400">{errors.email}</p>}
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Cidade / Estado</Label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Segmento</Label>
+                  <Input
+                    name="segmento"
+                    value={formData.segmento}
+                    onChange={handleChange}
+                    placeholder="Ex: Varejo Farmacêutico"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Telefone Fixo</Label>
+                  <Input
+                    name="telefone"
+                    value={formData.telefone}
+                    onChange={handleChange}
+                    placeholder="(81) 3222-0000"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco: Endereço */}
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-white/10">
+              <h4 className="text-xs font-bold text-primary uppercase mb-4 flex items-center gap-2">
+                <MapPin className="h-4 w-4" /> Endereço
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">CEP</Label>
+                  <Input
+                    name="cep"
+                    value={formData.cep}
+                    onChange={handleChange}
+                    placeholder="50720-001"
+                    className={`bg-slate-950/60 border-white/10 text-white rounded-xl h-11 ${errors.cep ? 'border-rose-500' : ''}`}
+                  />
+                  {errors.cep && <p className="text-[11px] text-rose-400">{errors.cep}</p>}
+                </div>
+
+                <div className="space-y-2 lg:col-span-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Logradouro / Rua</Label>
+                  <Input
+                    name="logradouro"
+                    value={formData.logradouro}
+                    onChange={handleChange}
+                    placeholder="Ex: Av. Paulista"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Número</Label>
+                  <Input
+                    name="numero"
+                    value={formData.numero}
+                    onChange={handleChange}
+                    placeholder="Ex: 1000"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Complemento</Label>
+                  <Input
+                    name="complemento"
+                    value={formData.complemento}
+                    onChange={handleChange}
+                    placeholder="Ex: Loja 04"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Bairro</Label>
+                  <Input
+                    name="bairro"
+                    value={formData.bairro}
+                    onChange={handleChange}
+                    placeholder="Ex: Bela Vista"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Cidade</Label>
                   <Input
                     name="cidade"
                     value={formData.cidade}
                     onChange={handleChange}
-                    className="col-span-2 bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                    placeholder="Ex: São Paulo"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
                   />
-                  <Input
-                    name="estado"
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Estado (UF) *</Label>
+                  <Select
                     value={formData.estado}
+                    onValueChange={(v) => setFormData((prev) => ({ ...prev, estado: v }))}
+                  >
+                    <SelectTrigger className={`bg-slate-950/60 border-white/10 text-white rounded-xl h-11 ${errors.estado ? 'border-rose-500' : ''}`}>
+                      <SelectValue placeholder="UF" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-white/10 max-h-72">
+                      {UFS_VALIDAS.map((uf) => (
+                        <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.estado && <p className="text-[11px] text-rose-400">{errors.estado}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco: Responsável */}
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-white/10">
+              <h4 className="text-xs font-bold text-primary uppercase mb-4 flex items-center gap-2">
+                <User className="h-4 w-4" /> Responsável
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Representante Legal</Label>
+                  <Input
+                    name="representanteLegal"
+                    value={formData.representanteLegal}
                     onChange={handleChange}
+                    placeholder="Ex: João da Silva"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Cargo do Representante</Label>
+                  <Input
+                    name="cargoRepresentante"
+                    value={formData.cargoRepresentante}
+                    onChange={handleChange}
+                    placeholder="Ex: Sócio-Administrador"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco: Comercial */}
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-white/10">
+              <h4 className="text-xs font-bold text-primary uppercase mb-4 flex items-center gap-2">
+                <DollarSign className="h-4 w-4" /> Comercial
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Status</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(val) => setFormData((prev) => ({ ...prev, status: val as StatusCliente }))}
+                  >
+                    <SelectTrigger className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10 text-white">
+                      {Object.values(StatusCliente).map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Observações</Label>
+                  <Input
+                    name="observacoes"
+                    value={formData.observacoes}
+                    onChange={handleChange}
+                    placeholder="Anotações cadastrais do cliente"
                     className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
                   />
                 </div>
@@ -426,8 +817,8 @@ export function IntelligentCommercialWizard() {
             </div>
 
             <div className="flex justify-end pt-4 border-t border-white/10">
-              <Button onClick={() => setStep(2)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
-                <span>Próximo: Estabelecimento</span>
+              <Button onClick={() => { if (validateStep1()) setStep(2); }} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
+                <span>Proximo: Unidade & Contato</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -435,40 +826,100 @@ export function IntelligentCommercialWizard() {
         </Card>
       )}
 
-      {/* STEP 2: ESTABELECIMENTO / UNIDADE */}
+      {/* STEP 2: UNIDADE + CONTATO */}
       {step === 2 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
               <MapPin className="h-5 w-5 text-primary" />
-              Etapa 2: Estabelecimento / Unidade Física
+              Etapa 2: Unidade & Contato
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs">
-              Mapeie o ponto de exibição das telas do cliente.
+              Estabelecimento do cliente (persistido em empresas) e responsável direto pelas aprovações, contrato e cobranças.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-xs text-slate-200 font-semibold">Nome da Unidade / Loja *</Label>
-                <Input
-                  name="nomeUnidade"
-                  value={formData.nomeUnidade}
-                  onChange={handleChange}
-                  placeholder="Ex: Unidade Matriz - Av. Paulista"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-white/10">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-xs font-bold text-primary uppercase flex items-center gap-2">
+                  <Building2 className="h-4 w-4" /> Unidade / Estabelecimento
+                </h4>
+                <Button size="sm" variant="ghost" onClick={() => setStep(1)} className="text-xs text-primary">
+                  Alterar dados na Etapa 1
+                </Button>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-slate-400 font-semibold">Nome da Unidade</Label>
+                  <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
+                </div>
+                <div className="space-y-1 lg:col-span-2">
+                  <Label className="text-[11px] text-slate-400 font-semibold">Endereço do Estabelecimento</Label>
+                  <p className="text-sm text-slate-200">
+                    {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || '—'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-slate-400 font-semibold">CEP</Label>
+                  <p className="text-sm text-slate-200">{formData.cep || '—'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-slate-400 font-semibold">Cidade / UF</Label>
+                  <p className="text-sm text-slate-200">{formData.cidade || '—'}{formData.estado ? `/${formData.estado}` : ''}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-slate-400 font-semibold">CNPJ</Label>
+                  <p className="text-sm text-slate-200">{formData.cnpj || '—'}</p>
+                </div>
+              </div>
+            </div>
 
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-xs text-slate-200 font-semibold">Endereço do Local de Exibição</Label>
-                <Input
-                  name="enderecoUnidade"
-                  value={formData.enderecoUnidade}
-                  onChange={handleChange}
-                  placeholder="Ex: Av. Paulista, 1000 - Loja 04"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-white/10">
+              <h4 className="text-xs font-bold text-primary uppercase mb-4 flex items-center gap-2">
+                <User className="h-4 w-4" /> Contato Principal
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Nome do Contato</Label>
+                  <Input
+                    name="contatoNome"
+                    value={formData.contatoNome}
+                    onChange={handleChange}
+                    placeholder="Ex: Carlos Roberto"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Cargo / Função</Label>
+                  <Input
+                    name="contatoCargo"
+                    value={formData.contatoCargo}
+                    onChange={handleChange}
+                    placeholder="Ex: Gerente Geral"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">E-mail do Contato</Label>
+                  <Input
+                    name="contatoEmail"
+                    type="email"
+                    value={formData.contatoEmail}
+                    onChange={handleChange}
+                    placeholder="carlos@empresa.com"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Telefone / WhatsApp</Label>
+                  <Input
+                    name="contatoTelefone"
+                    value={formData.contatoTelefone}
+                    onChange={handleChange}
+                    placeholder="(11) 98888-7777"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
               </div>
             </div>
 
@@ -477,7 +928,7 @@ export function IntelligentCommercialWizard() {
                 <ArrowLeft className="h-4 w-4" /> Voltar
               </Button>
               <Button onClick={() => setStep(3)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
-                <span>Próximo: Contato</span>
+                <span>Proximo: Midia & Negociacao</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -485,62 +936,123 @@ export function IntelligentCommercialWizard() {
         </Card>
       )}
 
-      {/* STEP 3: CONTATOS */}
+      {/* STEP 3: MÍDIA & NEGOCIAÇÃO */}
       {step === 3 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
-              <User className="h-5 w-5 text-primary" />
-              Etapa 3: Contatos Comerciais
+              <Tv className="h-5 w-5 text-primary" />
+              Etapa 3: Mídia & Negociação
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs">
-              Informe o responsável direto pelas aprovações e contrato.
+              Defina a campanha, telas/pontos, vigência e as condições comerciais da proposta.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Nome do Contato Principal *</Label>
-                <Input
-                  name="contatoNome"
-                  value={formData.contatoNome}
-                  onChange={handleChange}
-                  placeholder="Ex: Carlos Roberto"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-white/10">
+              <h4 className="text-xs font-bold text-primary uppercase mb-4 flex items-center gap-2">
+                <Tv className="h-4 w-4" /> Mídia / Campanha
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Título da Campanha *</Label>
+                  <Input
+                    name="tituloCampanha"
+                    value={formData.tituloCampanha}
+                    onChange={handleChange}
+                    placeholder="Ex: Campanha de Lançamento 2026"
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Qtd. Telas / Pontos *</Label>
+                  <Input
+                    name="quantidadeTelas"
+                    type="number"
+                    min={1}
+                    value={formData.quantidadeTelas}
+                    onChange={handleNumberChange}
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Duração da Mídia (Segundos)</Label>
+                  <Input
+                    name="duracaoSegundos"
+                    type="number"
+                    min={0}
+                    value={formData.duracaoSegundos}
+                    onChange={handleNumberChange}
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Data Início</Label>
+                  <Input
+                    name="dataInicio"
+                    type="date"
+                    value={formData.dataInicio}
+                    onChange={handleChange}
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Data Fim</Label>
+                  <Input
+                    name="dataFim"
+                    type="date"
+                    value={formData.dataFim}
+                    onChange={handleChange}
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Cargo / Função</Label>
-                <Input
-                  name="contatoCargo"
-                  value={formData.contatoCargo}
-                  onChange={handleChange}
-                  placeholder="Ex: Gerente Geral"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">E-mail do Contato</Label>
-                <Input
-                  name="contatoEmail"
-                  value={formData.contatoEmail}
-                  onChange={handleChange}
-                  placeholder="carlos@empresa.com"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Telefone / Whats Direct</Label>
-                <Input
-                  name="contatoTelefone"
-                  value={formData.contatoTelefone}
-                  onChange={handleChange}
-                  placeholder="(11) 98888-7777"
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-white/10">
+              <h4 className="text-xs font-bold text-primary uppercase mb-4 flex items-center gap-2">
+                <DollarSign className="h-4 w-4" /> Negociação / Condições Comerciais
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Valor Mensal (R$) *</Label>
+                  <Input
+                    name="valorMensal"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={formData.valorMensal}
+                    onChange={handleNumberChange}
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Forma de Pagamento</Label>
+                  <Select
+                    value={formData.formaPagamento}
+                    onValueChange={(val) => setFormData((p) => ({ ...p, formaPagamento: val as FormaPagamento }))}
+                  >
+                    <SelectTrigger className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10 text-white">
+                      <SelectItem value="PIX">PIX à Vista</SelectItem>
+                      <SelectItem value="BOLETO">Boleto Faturado</SelectItem>
+                      <SelectItem value="CREDIT_CARD">Cartão de Crédito</SelectItem>
+                      <SelectItem value="BANK_TRANSFER">Transferência Bancária</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-2 lg:col-span-3">
+                  <Label className="text-xs text-slate-200 font-semibold">Observações da Proposta</Label>
+                  <Input
+                    name="observacoesProposta"
+                    value={formData.observacoesProposta}
+                    onChange={handleChange}
+                    placeholder="Condições adicionais, escopo de veiculação, etc."
+                    className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
+                  />
+                </div>
               </div>
             </div>
 
@@ -549,7 +1061,7 @@ export function IntelligentCommercialWizard() {
                 <ArrowLeft className="h-4 w-4" /> Voltar
               </Button>
               <Button onClick={() => setStep(4)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
-                <span>Próximo: Dados de Mídia</span>
+                <span>Proximo: Revisao & Salvamento</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -557,144 +1069,109 @@ export function IntelligentCommercialWizard() {
         </Card>
       )}
 
-      {/* STEP 4: DADOS DE MÍDIA & PLANO */}
+      {/* STEP 4: REVISÃO + SALVAMENTO */}
       {step === 4 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
-              <Tv className="h-5 w-5 text-primary" />
-              Etapa 4: Dados da Campanha & Telas
+              <FileText className="h-5 w-5 text-emerald-400" />
+              Etapa 4: Revisão e Salvamento
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs">
-              Defina a quantidade de telas, tempo de veiculação e vigência.
+              Revise exatamente o que será gravado no PostgreSQL. Nenhum campo é descartado entre as etapas.
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-xs text-slate-200 font-semibold">Título da Campanha *</Label>
-                <Input
-                  name="tituloCampanha"
-                  value={formData.tituloCampanha}
-                  onChange={handleChange}
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
+          <CardContent className="pt-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
+                <h4 className="text-xs font-bold text-primary uppercase mb-2">Cliente</h4>
+                <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
+                <p className="text-xs text-slate-300">Razao Social: {formData.razaoSocial || '—'}</p>
+                <p className="text-xs text-slate-300">CNPJ: {formData.cnpj || '—'}</p>
+                <p className="text-xs text-slate-400">Segmento: {formData.segmento || '—'}</p>
+                <p className="text-xs text-slate-400">Status: {formData.status}</p>
+                <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {formData.telefone || '—'}</p>
+                <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {formData.whatsapp || '—'}</p>
+                <p className="text-xs text-slate-400 flex items-center gap-1 break-all"><Mail className="h-3 w-3" /> {formData.email || '—'}</p>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Qtd. Telas / Painéis *</Label>
-                <Input
-                  name="quantidadeTelas"
-                  type="number"
-                  value={formData.quantidadeTelas}
-                  onChange={handleChange}
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
+                <h4 className="text-xs font-bold text-primary uppercase mb-2">Endereço</h4>
+                <p className="text-xs text-slate-300">
+                  {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || '—'}
+                </p>
+                <p className="text-xs text-slate-300">CEP: {formData.cep || '—'}</p>
+                <p className="text-xs text-slate-300">{formData.cidade || '—'}{formData.estado ? `/${formData.estado}` : ''}</p>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Valor Mensal (R$) *</Label>
-                <Input
-                  name="valorMensal"
-                  type="number"
-                  value={formData.valorMensal}
-                  onChange={handleChange}
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
+                <h4 className="text-xs font-bold text-primary uppercase mb-2">Responsável</h4>
+                <p className="text-xs text-slate-300">Representante Legal: {formData.representanteLegal || '—'}</p>
+                <p className="text-xs text-slate-300">Cargo: {formData.cargoRepresentante || '—'}</p>
+                {formData.observacoes && <p className="text-xs text-slate-400 whitespace-pre-wrap">Obs: {formData.observacoes}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Forma de Pagamento</Label>
-                <Select 
-                  value={formData.formaPagamento} 
-                  onValueChange={(val: any) => setFormData(p => ({ ...p, formaPagamento: val }))}
-                >
-                  <SelectTrigger className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-white/10 text-white">
-                    <SelectItem value="PIX">PIX à Vista</SelectItem>
-                    <SelectItem value="BOLETO">Boleto Faturado</SelectItem>
-                    <SelectItem value="CREDIT_CARD">Cartão de Crédito</SelectItem>
-                    <SelectItem value="BANK_TRANSFER">Transferência Bancária</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
+                <h4 className="text-xs font-bold text-primary uppercase mb-2">Unidade</h4>
+                <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
+                <p className="text-xs text-slate-300">
+                  {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || '—'}
+                </p>
+                <p className="text-xs text-slate-300">CEP: {formData.cep || '—'}</p>
+                <p className="text-xs text-slate-300">{formData.cidade || '—'}{formData.estado ? `/${formData.estado}` : ''}</p>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-slate-200 font-semibold">Duração da Mídia (Segundos)</Label>
-                <Input
-                  name="duracaoSegundos"
-                  type="number"
-                  value={formData.duracaoSegundos}
-                  onChange={handleChange}
-                  className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
-                />
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
+                <h4 className="text-xs font-bold text-primary uppercase mb-2">Contato</h4>
+                <p className="text-xs text-slate-300">Nome: {formData.contatoNome || '—'}</p>
+                <p className="text-xs text-slate-300">Cargo: {formData.contatoCargo || '—'}</p>
+                <p className="text-xs text-slate-300">E-mail: {formData.contatoEmail || '—'}</p>
+                <p className="text-xs text-slate-300">Telefone: {formData.contatoTelefone || '—'}</p>
               </div>
+
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
+                <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">Mídia</h4>
+                <p className="text-sm font-bold text-white">{formData.tituloCampanha || '—'}</p>
+                <p className="text-xs text-slate-300">Telas / Pontos: {numeroFormatado(formData.quantidadeTelas)} unidades</p>
+                <p className="text-xs text-slate-300">Duração: {formData.duracaoSegundos ? `${formData.duracaoSegundos}s` : '—'}</p>
+                <p className="text-xs text-slate-300">Vigência: {formData.dataInicio} → {formData.dataFim}</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
+                <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">Negociação</h4>
+                <p className="text-sm font-bold text-white">{valorFormatado(formData.valorMensal)}</p>
+                <p className="text-xs text-slate-300">Forma de Pagamento: {formData.formaPagamento}</p>
+                {formData.observacoesProposta && <p className="text-xs text-slate-400 whitespace-pre-wrap">Obs: {formData.observacoesProposta}</p>}
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 flex gap-3 items-start">
+              <Info className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-slate-400">
+                {isOwner
+                  ? ' Este cadastro será salvo como OWNER (representante_id NULL, conforme regra de autonomia administrativa).'
+                  : ` Este cadastro será vinculado ao representante autenticado (${representante?.id || '—'}).`}
+              </p>
             </div>
 
             <div className="flex justify-between pt-6 border-t border-white/10">
               <Button variant="outline" onClick={() => setStep(3)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
                 <ArrowLeft className="h-4 w-4" /> Voltar
               </Button>
-              <Button onClick={() => setStep(5)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
-                <span>Próximo: Revisão</span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* STEP 5: REVISÃO & CONCLUSÃO */}
-      {step === 5 && (
-        <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
-          <CardHeader className="border-b border-white/10">
-            <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
-              <FileText className="h-5 w-5 text-emerald-400" />
-              Etapa 5: Resumo e Emissão da Proposta Comercial
-            </CardTitle>
-            <CardDescription className="text-slate-300 text-xs">
-              Revise todos os dados coletados antes de gravar o atendimento no PostgreSQL.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-2">
-                <h4 className="text-xs font-bold text-primary uppercase">Empresa & Cliente</h4>
-                <p className="text-sm font-bold text-white">{formData.nomeFantasia}</p>
-                <p className="text-xs text-slate-300">CNPJ: {formData.cnpj}</p>
-                <p className="text-xs text-slate-400">Cidade: {formData.cidade}/{formData.estado}</p>
-                <p className="text-xs text-slate-400">Contato: {formData.contatoNome} ({formData.contatoTelefone || formData.whatsapp})</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-2">
-                <h4 className="text-xs font-bold text-emerald-400 uppercase">Campanha & Negociação</h4>
-                <p className="text-sm font-bold text-white">{formData.tituloCampanha}</p>
-                <p className="text-xs text-slate-300">Telas / Pontos: {formData.quantidadeTelas} unidades</p>
-                <p className="text-xs text-slate-300">Valor Mensal: R$ {Number(formData.valorMensal).toLocaleString('pt-BR')}</p>
-                <p className="text-xs text-slate-400">Pagamento: {formData.formaPagamento}</p>
-              </div>
-            </div>
-
-            <div className="flex justify-between pt-6 border-t border-white/10">
-              <Button variant="outline" onClick={() => setStep(4)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
-                <ArrowLeft className="h-4 w-4" /> Voltar
-              </Button>
-              <Button 
-                onClick={handleFinishWizard} 
+              <Button
+                onClick={handleFinishWizard}
                 disabled={isSubmitting}
-                className="gradient-primary glow-primary font-bold rounded-xl px-8 h-12 shadow-xl hover:scale-105 transition-all"
+                className="gradient-primary glow-primary font-bold rounded-xl px-8 h-12 shadow-xl hover:scale-105 transition-all gap-2"
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                     <span>Gravando no PostgreSQL...</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="mr-2 h-5 w-5" />
-                    <span>Finalizar Atendimento & Salvar Proposta</span>
+                    <Plus className="h-5 w-5" />
+                    <span>{isExistingClientSelected ? 'Salvar Proposta do Cliente' : 'Cadastrar Cliente & Salvar Proposta'}</span>
                   </>
                 )}
               </Button>

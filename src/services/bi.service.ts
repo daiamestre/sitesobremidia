@@ -82,6 +82,26 @@ export class BiService {
 
       const comissoesLiberadas = (comissoes || []).reduce((a, c) => a + (Number(c.valor_comissao) || 0), 0);
 
+      // 5. Ocupação da Rede & SLA de Entrega (DW Exibição)
+      let queryEx = supabase.from('dw_fact_exibicao').select('insercoes_realizadas, insercoes_contratadas, sla_entrega_pct');
+      if (empresaOperadoraId) queryEx = queryEx.eq('empresa_operadora_id', empresaOperadoraId);
+      const { data: exibicoes } = await queryEx;
+
+      const exList = exibicoes || [];
+      const totalRealizadas = exList.reduce((a, r) => a + (Number(r.insercoes_realizadas) || 0), 0);
+      const totalContratadas = exList.reduce((a, r) => a + (Number(r.insercoes_contratadas) || 0), 0);
+      const totalSlaPonderado = exList.reduce(
+        (a, r) => a + (Number(r.sla_entrega_pct) || 0) * (Number(r.insercoes_contratadas) || 0),
+        0
+      );
+
+      const ocupacaoRedePct = totalContratadas > 0
+        ? Number(((totalRealizadas / totalContratadas) * 100).toFixed(1))
+        : 0;
+      const slaRedePct = totalContratadas > 0
+        ? Number((totalSlaPonderado / totalContratadas).toFixed(1))
+        : 0;
+
       return {
         receitaFaturada: receitaFaturada || 0,
         receitaRecebida: receitaRecebida || 0,
@@ -92,8 +112,8 @@ export class BiService {
         clientesAtivos: countCli || 0,
         inadimplenciaPct: receitaFaturada > 0 ? Number(((receitaPendente / receitaFaturada) * 100).toFixed(1)) : 0,
         comissoesLiberadas: comissoesLiberadas || 0,
-        ocupacaoRedePct: 0,
-        slaRedePct: 0,
+        ocupacaoRedePct,
+        slaRedePct,
       };
     } catch (err) {
       return {

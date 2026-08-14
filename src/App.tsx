@@ -14,11 +14,14 @@ const Install = lazy(() => import("./pages/Install"));
 const RepresentantesAuth = lazy(() => import("./pages/representantes/RepresentantesAuth"));
 const WorkspaceLayout = lazy(() => import("./modules/corporate/layout/WorkspaceLayout"));
 const CorporateCommandCenter = lazy(() => import("./modules/corporate/pages/CorporateCommandCenter"));
+const UsuariosAcessosPage = lazy(() => import("./modules/corporate/pages/UsuariosAcessosPage"));
 const CrmLayout = lazy(() => import("./modules/crm/layout/CrmLayout"));
 const CrmDashboardHome = lazy(() => import("./modules/crm/pages/CrmDashboardHome"));
 const RepresentativeDashboard = lazy(() => import("./modules/crm/pages/RepresentativeDashboard"));
 const ClientesListPage = lazy(() => import("./modules/crm/pages/ClientesListPage"));
 const NovoClientePage = lazy(() => import("./modules/crm/pages/NovoClientePage"));
+const ClienteDetalhePage = lazy(() => import("./modules/crm/pages/ClienteDetalhePage"));
+const EditarClientePage = lazy(() => import("./modules/crm/pages/EditarClientePage"));
 const PropostasListPage = lazy(() => import("./modules/crm/pages/PropostasListPage"));
 const ContratoSelectionPage = lazy(() => import("./modules/crm/pages/ContratoSelectionPage"));
 const ContratosListPage = lazy(() => import("./modules/crm/pages/ContratosListPage"));
@@ -65,6 +68,9 @@ const CustomerPortalLayout = lazy(() => import("./modules/crm/layout/CustomerPor
 const MeusPontosPage = lazy(() => import("./modules/crm/pages/portal/MeusPontosPage"));
 const MinhasCampanhasPage = lazy(() => import("./modules/crm/pages/portal/MinhasCampanhasPage"));
 const FinanceiroClientePage = lazy(() => import("./modules/crm/pages/portal/FinanceiroClientePage"));
+const ContratoVigentePage = lazy(() => import("./modules/crm/pages/portal/ContratoVigentePage"));
+const InsercoesPorDiaPage = lazy(() => import("./modules/crm/pages/portal/InsercoesPorDiaPage"));
+const OcupacaoRedePage = lazy(() => import("./modules/crm/pages/portal/OcupacaoRedePage"));
 
 const DashboardHome = lazy(() => import("./pages/dashboard/DashboardHome"));
 const Medias = lazy(() => import("./pages/dashboard/Medias"));
@@ -85,6 +91,7 @@ const WidgetPlayer = lazy(() => import("./pages/WidgetPlayer"));
 const LinkPlayer = lazy(() => import("./pages/LinkPlayer"));
 const WebPlayerDemo = lazy(() => import("./components/player/WebPlayerDemo"));
 const AdminSolicitacaoAprovacao = lazy(() => import("./pages/admin/AdminSolicitacaoAprovacao"));
+const CentralDashboard = lazy(() => import("./pages/Central/CentralDashboard"));
 
 const queryClient = new QueryClient();
 
@@ -125,6 +132,8 @@ const App = () => {
                     <Route path="dashboard" element={<RepresentativeDashboard />} />
                     <Route path="clientes" element={<ClientesListPage />} />
                     <Route path="clientes/novo" element={<NovoClientePage />} />
+                    <Route path="clientes/editar/:id" element={<EditarClientePage />} />
+                    <Route path="clientes/:id" element={<ClienteDetalhePage />} />
                     <Route path="propostas" element={<PropostasListPage />} />
                     <Route path="contratos" element={<ContratosListPage />} />
                     <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
@@ -165,6 +174,9 @@ const App = () => {
                     <Route path="bi/operacional" element={<OperationalAnalytics />} />
                     <Route path="bi/ocupacao" element={<OccupancyAnalytics />} />
                     <Route path="bi/scorecard" element={<ExecutiveScorecard />} />
+                    <Route path="central" element={<CentralDashboard />} />
+                    <Route path="configuracoes" element={<Settings />} />
+                    <Route path="perfil" element={<AdminUsers />} />
                     <Route path="assinaturas" element={<ContractsSignaturePage />} />
                     <Route path="portal-cliente" element={<CustomerPortalDashboard />} />
                     <Route path="mobile" element={<MobileDashboard />} />
@@ -175,9 +187,13 @@ const App = () => {
                   {/* CUSTOMER PORTAL DEDICATED LAYER */}
                   <Route path="/portal" element={<RequireApproval><CustomerPortalLayout /></RequireApproval>}>
                     <Route index element={<CustomerPortalDashboard />} />
+                    <Route path="contrato" element={<ContratoVigentePage />} />
                     <Route path="pontos" element={<MeusPontosPage />} />
                     <Route path="campanhas" element={<MinhasCampanhasPage />} />
+                    <Route path="insercoes" element={<InsercoesPorDiaPage />} />
+                    <Route path="ocupacao" element={<OcupacaoRedePage />} />
                     <Route path="financeiro" element={<FinanceiroClientePage />} />
+                    <Route path="central" element={<CentralDashboard />} />
                   </Route>
 
                   <Route path="/player" element={<Player />} />
@@ -201,6 +217,7 @@ const App = () => {
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="history" element={<History />} />
                     <Route path="reports" element={<Reports />} />
+                    <Route path="central" element={<CentralDashboard />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="admin/users" element={<AdminUsers />} />
                   </Route>
@@ -212,6 +229,8 @@ const App = () => {
                     <Route path="representantes" element={<RepresentativeDashboard />} />
                     <Route path="clientes" element={<ClientesListPage />} />
                     <Route path="clientes/novo" element={<NovoClientePage />} />
+                    <Route path="clientes/editar/:id" element={<EditarClientePage />} />
+                    <Route path="clientes/:id" element={<ClienteDetalhePage />} />
                     <Route path="propostas" element={<PropostasListPage />} />
                      <Route path="contratos" element={<ContratosListPage />} />
                     <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
@@ -232,7 +251,9 @@ const App = () => {
                     <Route path="financeiro/comissoes" element={<CommissionPage />} />
                     <Route path="bi" element={<BIExecutiveDashboard />} />
                     <Route path="noc" element={<NocDashboardPage />} />
+                    <Route path="central" element={<CentralDashboard />} />
                     <Route path="media" element={<Medias />} />
+                    <Route path="usuarios" element={<UsuariosAcessosPage />} />
                     <Route path="configuracoes" element={<Settings />} />
                     <Route path="perfil" element={<AdminUsers />} />
                     <Route path="marketing" element={<CommercialDashboard />} />

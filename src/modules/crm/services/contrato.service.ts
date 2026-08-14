@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { contratoDocumentoService } from './contratoDocumento.service';
 
 export interface ContratoTemplateRecord {
   id: string;
@@ -14,9 +15,10 @@ export interface ContratoCompleto {
   id: string;
   empresa_operadora_id: string;
   numero_contrato: string;
+  numero_contrato_legivel?: string;
   cliente_id: string;
   empresa_id: string;
-  representante_id: string;
+  representante_id: string | null;
   proposta_id: string;
   tipo_contrato?: 'ANUNCIANTE' | 'PARCEIRO';
   template_id?: string;
@@ -25,7 +27,14 @@ export interface ContratoCompleto {
   usuario_responsavel_id?: string;
   data_selecao?: string;
   status_documento: 'RASCUNHO' | 'GERADO' | 'ENVIADO' | 'ASSINADO' | 'CANCELADO';
+  status_workflow: string;
   pdf_object_key?: string;
+  pdf_assinado_key?: string;
+  documento_enviado_em?: string | null;
+  documento_assinado_em?: string | null;
+  assinatura_envelope_id?: string | null;
+  assinado_por?: string | null;
+  versao_atual: number;
   valor_mensal: number;
   forma_pagamento: string;
   data_inicio: string;
@@ -33,6 +42,7 @@ export interface ContratoCompleto {
   proposta?: any;
   cliente?: any;
   empresa?: any;
+  itens?: any[];
 }
 
 export class ContratoService {
@@ -223,54 +233,139 @@ export class ContratoService {
   }
 
   /**
-   * Gera o PDF definitivo do contrato, salva no Cloudflare R2, registra versão e auditoria
+   * Gera o documento REAL do contrato (PDF vetorial client-side, R2, versão e
+   * auditoria). Delega ao contratoDocumentoService — sem edge function não
+   * deployed e sem bucket de storage inexistente.
    */
-  async generateContractPDF(contratoId: string, htmlContent: string, usuarioId: string): Promise<{ success: boolean; objectKey?: string; error?: string }> {
+  async generateContractPDF(contratoId: string, usuarioId: string): Promise<{ success: boolean; objectKey?: string; signedDownloadUrl?: string; documentHash?: string; error?: string }> {
+    const resultado = await contratoDocumentoService.gerarDocumentoContrato(contratoId, usuarioId);
+    if (!resultado.success) {
+      return { success: false, error: resultado.error };
+    }
+    let signedDownloadUrl: string | undefined;
+    if (resultado.objectKey) {
+      try {
+        signedDownloadUrl = await contratoDocumentoService.obterUrlDownload(resultado.objectKey);
+      } catch {
+        signedDownloadUrl = undefined;
+      }
+    }
+    return {
+      success: true,
+      objectKey: resultado.objectKey,
+      signedDownloadUrl,
+      documentHash: resultado.documentHash,
+    };
+  }
+
+  /**
+   * Busca um contrato pelo ID e retorna todos os dados relacionados
+   */
+  async findByContratoId(contratoId: string): Promise<ContratoCompleto | null> {
+    try {
+      const { data, error } = await supabase
+        .from('contratos')
+        .select(`
+          *,
+          proposta:propostas(*),
+          cliente:clientes(*),
+          empresa:empresas(*)
+        `)
+        .eq('id', contratoId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return data as ContratoCompleto;
+    } catch (err) {
+      console.error('[ContratoService.findByContratoId] Erro:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Gera URL presigned de download do PDF original com autorização REAL
+   * (Edge Function get-download-url + RLS do banco).
+   */
+  async getContractDownloadUrl(contratoId: string): Promise<{ success: boolean; downloadUrl?: string; fileName?: string; error?: string }> {
     try {
       const { data: contrato, error: fetchErr } = await supabase
         .from('contratos')
-        .select('*')
+        .select('pdf_object_key, numero_contrato, tipo_contrato, empresa_operadora_id')
         .eq('id', contratoId)
         .single();
 
       if (fetchErr || !contrato) return { success: false, error: 'Contrato não encontrado.' };
+      if (!contrato.pdf_object_key) return { success: false, error: 'PDF do contrato não foi gerado.' };
 
-      const novaVersao = (contrato.versao_atual || 1);
-      const objectKey = `tenants/${contrato.empresa_operadora_id}/contratos/${contrato.id}/v${novaVersao}/contrato_${contrato.numero_contrato}.html`;
+      const downloadUrl = await contratoDocumentoService.obterUrlDownload(contrato.pdf_object_key);
 
-      // 1. Salva snapshot imutável em contrato_versoes
-      await supabase.from('contrato_versoes').insert({
-        contrato_id: contrato.id,
-        numero_versao: novaVersao,
-        snapshot_dados: { contrato, htmlContent },
-        motivo_alteracao: 'Geração oficial de contrato PDF/HTML no módulo FASE 7.4-B',
-        pdf_url: objectKey,
-        created_by: usuarioId,
-      });
+      const fileName = `Contrato_${contrato.tipo_contrato || 'Anunciante'}_${contrato.numero_contrato}.pdf`;
 
-      // 2. Atualiza status no contrato principal
-      await supabase
-        .from('contratos')
-        .update({
-          status_documento: 'GERADO',
-          pdf_object_key: objectKey,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', contrato.id);
-
-      // 3. Registra Log de Auditoria: CONTRATO_PDF_GERADO
-      await supabase.from('contrato_auditoria').insert({
-        contrato_id: contrato.id,
-        evento: 'CONTRATO_PDF_GERADO',
-        usuario_id: usuarioId,
-        tipo_contrato: contrato.tipo_contrato,
-        versao: novaVersao,
-        detalhes: { object_key: objectKey },
-      });
-
-      return { success: true, objectKey };
+      return {
+        success: true,
+        downloadUrl,
+        fileName,
+      };
     } catch (err: any) {
-      return { success: false, error: err?.message || 'Erro ao gerar PDF do contrato.' };
+      return { success: false, error: err?.message || 'Erro ao obter URL de download.' };
+    }
+  }
+
+  /**
+   * Gera URL presigned de download do PDF ASSINADO com autorização REAL.
+   */
+  async getSignedDocumentDownloadUrl(contratoId: string): Promise<{ success: boolean; downloadUrl?: string; fileName?: string; signedAt?: string; error?: string }> {
+    try {
+      const { data: contrato, error: fetchErr } = await supabase
+        .from('contratos')
+        .select('pdf_assinado_key, numero_contrato, tipo_contrato, documento_assinado_em')
+        .eq('id', contratoId)
+        .single();
+
+      if (fetchErr || !contrato) return { success: false, error: 'Contrato não encontrado.' };
+      if (!contrato.pdf_assinado_key) return { success: false, error: 'Documento assinado não disponível.' };
+
+      const downloadUrl = await contratoDocumentoService.obterUrlDownload(contrato.pdf_assinado_key);
+
+      const fileName = `Contrato_Assinado_${contrato.tipo_contrato || 'Anunciante'}_${contrato.numero_contrato}.pdf`;
+
+      return {
+        success: true,
+        downloadUrl,
+        fileName,
+        signedAt: contrato.documento_assinado_em,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Erro ao obter URL de download.' };
+    }
+  }
+
+  /**
+   * Envia o contrato gerado para assinatura interna (ASSINADOR_INTERNO) —
+   * fluxo real com hash SHA-256 do PDF original.
+   */
+  async enviarParaAssinatura(contratoId: string, usuarioId: string): Promise<{ success: boolean; assinaturaId?: string; envelopeId?: string; error?: string }> {
+    return contratoDocumentoService.criarEnvelopeInterno(contratoId, usuarioId);
+  }
+
+  /**
+   * Busca eventos de auditoria do contrato
+   */
+  async getAuditTrail(contratoId: string): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('contrato_auditoria')
+        .select('*')
+        .eq('contrato_id', contratoId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[ContratoService.getAuditTrail] Erro:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      return [];
     }
   }
 
@@ -312,6 +407,7 @@ export class ContratoService {
           cliente:clientes(*),
           empresa:empresas(*)
         `)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (representanteId) {

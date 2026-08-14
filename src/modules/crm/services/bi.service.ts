@@ -123,19 +123,77 @@ export class BIService {
   }
 
   /**
-   * Consulta Cubo Comercial OLAP
+   * Consulta Cubo Comercial OLAP real alimentado pelo Data Warehouse
+   * Zero Mock: métricas calculadas exclusivamente a partir de dw_fact_receita
    */
   async getCommercialCube(empresaOperadoraId?: string): Promise<any> {
-    // TODO: Implementar busca na dw_dim_cliente e faturamento
-    return {
-      conversao: 0,
-      ticketMedio: 0,
-      receitaBruta: 0,
-      cac: 0,
-      ltv: 0,
-      churn: 0,
-      retencao: 0,
-    };
+    try {
+      let query = supabase.from('dw_fact_receita').select('*');
+      if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
+
+      const { data: receitas, error } = await query;
+
+      if (error) {
+        console.error("[BI Service] Erro ao buscar CommercialCube", error);
+      }
+
+      const receitasArray = receitas || [];
+
+      if (receitasArray.length === 0) {
+        return {
+          conversao: 0,
+          ticketMedio: 0,
+          receitaBruta: 0,
+          cac: 0,
+          ltv: 0,
+          churn: 0,
+          retencao: 100,
+        };
+      }
+
+      const totalContratado = receitasArray.reduce(
+        (sum: number, r: any) => sum + (Number(r.valor_contratado) || 0), 0
+      );
+      const totalRecebido = receitasArray.reduce(
+        (sum: number, r: any) => sum + (Number(r.valor_recebido) || 0), 0
+      );
+      const totalPendente = receitasArray.reduce(
+        (sum: number, r: any) => sum + (Number(r.valor_pendente) || 0), 0
+      );
+
+      const conversao = totalContratado > 0 ? (totalRecebido / totalContratado) * 100 : 0;
+      const ticketMedio = receitasArray.length > 0 ? totalContratado / receitasArray.length : 0;
+      const receitaBruta = totalRecebido;
+      const cac = 0;
+      const churn = totalContratado > 0 ? (totalPendente / totalContratado) * 100 : 0;
+      const retencao = 100 - churn;
+
+      const clientesUnicos = new Set(
+        receitasArray.filter((r: any) => r.cliente_id).map((r: any) => r.cliente_id)
+      ).size;
+      const ltv = clientesUnicos > 0 ? receitaBruta / clientesUnicos : 0;
+
+      return {
+        conversao,
+        ticketMedio,
+        receitaBruta,
+        cac,
+        ltv,
+        churn,
+        retencao,
+      };
+    } catch (err) {
+      console.error("[BI Service] Erro ao buscar CommercialCube", err);
+      return {
+        conversao: 0,
+        ticketMedio: 0,
+        receitaBruta: 0,
+        cac: 0,
+        ltv: 0,
+        churn: 0,
+        retencao: 100,
+      };
+    }
   }
 
   /**

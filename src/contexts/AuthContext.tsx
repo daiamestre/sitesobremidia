@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[AuthContext] fetchUserData -> usuarioData:', usuarioData);
       setUsuario(usuarioData);
 
-      // 2. Se for representante, busca dados comerciais do representante
+      // 2. Busca dados comerciais do representante
       let repData: RepresentanteRecord | null = null;
       if (usuarioData) {
         const { data: repRaw, error: repError } = await supabase
@@ -258,7 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (userData.usuarioData?.is_owner || role === 'OWNER' || role === 'ADMIN' || userData.usuarioData?.role?.name === 'OWNER') {
       routeRedirect = '/workspace/corporate';
     } else if (role === 'FINANCEIRO') {
-      routeRedirect = '/workspace/finance';
+      routeRedirect = '/workspace/financeiro';
     } else if (role === 'MARKETING' || role === 'ANUNCIANTE') {
       routeRedirect = '/workspace/marketing';
     } else if (role === 'OPERACIONAL' || role === 'GESTOR' || role === 'GERENTE') {
@@ -324,7 +324,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (usuario?.is_owner || perfilNome === 'OWNER' || perfilNome === 'ADMIN' || usuario?.role?.name === 'OWNER') {
     workspaceRoute = '/workspace/corporate';
   } else if (perfilNome === 'FINANCEIRO') {
-    workspaceRoute = '/workspace/finance';
+    workspaceRoute = '/workspace/financeiro';
   } else if (perfilNome === 'MARKETING' || perfilNome === 'ANUNCIANTE') {
     workspaceRoute = '/workspace/marketing';
   } else if (perfilNome === 'OPERACIONAL' || perfilNome === 'GESTOR' || perfilNome === 'GERENTE') {

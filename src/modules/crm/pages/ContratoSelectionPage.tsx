@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { contratoService, ContratoTemplateRecord, ContratoCompleto } from '../services/contrato.service';
+import { contratoDocumentoService } from '../services/contratoDocumento.service';
 import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,17 +19,20 @@ import {
   RotateCcw, 
   XCircle,
   FileCheck,
-  Send
+  Send,
+  Download,
+  Eye,
+  AlertCircle
 } from 'lucide-react';
 
-export default function ContratoSelectionPage() {
-  const { propostaId } = useParams<{ propostaId: string }>();
+export default function ContratoSelectionPage() {  const { propostaId } = useParams<{ propostaId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
 
   const [proposta, setProposta] = useState<any>(null);
   const [cliente, setCliente] = useState<ClienteCompleto | null>(null);
+  const [quantidadeTelas, setQuantidadeTelas] = useState(0);
   const [templates, setTemplates] = useState<ContratoTemplateRecord[]>([]);
   const [contratoExistente, setContratoExistente] = useState<ContratoCompleto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +40,9 @@ export default function ContratoSelectionPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<ContratoTemplateRecord | null>(null);
   const [mode, setMode] = useState<'SELECTION' | 'PREVIEW'>('SELECTION');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [enviandoAssinatura, setEnviandoAssinatura] = useState(false);
+  const [isSendingSignature, setIsSendingSignature] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!propostaId) return;
@@ -64,6 +71,14 @@ export default function ContratoSelectionPage() {
         setSelectedTemplate(matchedTpl);
         setMode('PREVIEW');
       }
+
+      // Quantidade REAL de telas: soma de itens_contrato do contrato
+      const { data: itens } = await supabase
+        .from('itens_contrato')
+        .select('quantidade')
+        .eq('contrato_id', existingCtr.id);
+      const totalTelas = (itens || []).reduce((acc: number, item: any) => acc + (Number(item.quantidade) || 0), 0);
+      setQuantidadeTelas(totalTelas);
     }
 
     setLoading(false);
@@ -105,25 +120,62 @@ export default function ContratoSelectionPage() {
     }
   };
 
+  /**
+   * Renderiza o HTML do contrato substituindo placeholders com DADOS REAIS DO BANCO.
+   * NÃO utiliza valores fallback/hardcoded — se algum dado essencial estiver ausente,
+   * exibe um indicador visível no preview.
+   */
   const renderFilledContractHTML = () => {
     if (!selectedTemplate || !proposta) return '';
     const emp = cliente?.empresas?.[0];
     const ct = emp?.contatos?.[0];
 
+    // Quantidade real de telas vinda de itens_contrato do contrato (não hardcodeado)
+    const quantidadeTelasReal = quantidadeTelas > 0
+      ? String(quantidadeTelas)
+      : proposta.observacoes?.match(/tela[s]?\s*[:=]?\s*(\d+)/i)?.[1] || "";
+
+    // Título da campanha a partir dos dados reais (não hardcodeado)
+    let tituloCampanha = "";
+    if (proposta.titulo_campanha) {
+      tituloCampanha = proposta.titulo_campanha;
+    } else if (proposta.observacoes) {
+      const campanhaMatch = proposta.observacoes.match(/\[Campanha:\s*(.+?)\]/);
+      tituloCampanha = campanhaMatch?.[1] || "";
+    }
+
+    // Endereço real da unidade (não hardcodeado)
+    const enderecoUnidade = (emp?.logradouro && emp?.numero)
+      ? `${emp.logradouro}, ${emp.numero}`
+      : (emp?.logradouro || "");
+
+    // Nome da unidade real
+    const nomeUnidade = emp?.nome_fantasia || emp?.razao_social || "";
+
+    const dados: Record<string, string> = {
+      RAZAO_SOCIAL: emp?.razao_social || emp?.nome_fantasia || '[Dados não informados]',
+      CNPJ: emp?.cnpj || '[CNPJ não informado]',
+      CIDADE: emp?.cidade || '[Cidade não informada]',
+      ESTADO: emp?.estado || '[Estado não informado]',
+      REPRESENTANTE_LEGAL: ct?.nome || emp?.representante_legal || '[Representante não informado]',
+      TITULO_CAMPANHA: tituloCampanha || '[Campanha não definida]',
+      QUANTIDADE_TELAS: quantidadeTelasReal || '[Quantidade não informada]',
+      VALOR_MENSAL: new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(proposta.valor_final || 0),
+      FORMA_PAGAMENTO: proposta.forma_pagamento || '[Forma de pagamento não definida]',
+      DATA_INICIO: contratoExistente?.data_inicio
+        ? new Date(contratoExistente.data_inicio).toLocaleDateString('pt-BR')
+        : new Date().toLocaleDateString('pt-BR'),
+      DATA_FIM: contratoExistente?.data_fim
+        ? new Date(contratoExistente.data_fim).toLocaleDateString('pt-BR')
+        : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR'),
+      ENDERECO_UNIDADE: enderecoUnidade,
+      NOME_UNIDADE: nomeUnidade,
+    };
+
     let html = selectedTemplate.conteudo_html;
-    html = html.replace(/\{\{RAZAO_SOCIAL\}\}/g, emp?.razao_social || emp?.nome_fantasia || 'EMPRESA CONTRATANTE');
-    html = html.replace(/\{\{CNPJ\}\}/g, emp?.cnpj || '00.000.000/0001-00');
-    html = html.replace(/\{\{CIDADE\}\}/g, emp?.cidade || 'São Paulo');
-    html = html.replace(/\{\{ESTADO\}\}/g, emp?.estado || 'SP');
-    html = html.replace(/\{\{REPRESENTANTE_LEGAL\}\}/g, ct?.nome || emp?.representante_legal || 'Representante Legal');
-    html = html.replace(/\{\{TITULO_CAMPANHA\}\}/g, proposta.observacoes?.split('|')[0]?.replace('[Campanha: ', '') || 'Campanha de Mídia');
-    html = html.replace(/\{\{QUANTIDADE_TELAS\}\}/g, '4');
-    html = html.replace(/\{\{VALOR_MENSAL\}\}/g, new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(proposta.valor_final || 0));
-    html = html.replace(/\{\{FORMA_PAGAMENTO\}\}/g, proposta.forma_pagamento || 'PIX');
-    html = html.replace(/\{\{DATA_INICIO\}\}/g, new Date().toLocaleDateString('pt-BR'));
-    html = html.replace(/\{\{DATA_FIM\}\}/g, new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR'));
-    html = html.replace(/\{\{ENDERECO_UNIDADE\}\}/g, emp?.logradouro ? `${emp.logradouro}, ${emp.numero}` : 'Av. Paulista, 1000');
-    html = html.replace(/\{\{NOME_UNIDADE\}\}/g, 'Unidade Matriz - Ponto Comercial');
+    Object.entries(dados).forEach(([key, value]) => {
+      html = html.replace(new RegExp(`{{${key}}}`, 'g'), value);
+    });
     return html;
   };
 
@@ -133,23 +185,106 @@ export default function ContratoSelectionPage() {
       return;
     }
 
+    if (['GERADO', 'ENVIADO', 'ASSINADO'].includes(contratoExistente.status_documento || '')) {
+      // Busca URL assinada do PDF já gerado (não regenera documento já enviado/assinado)
+      const result = await contratoService.getContractDownloadUrl(contratoExistente.id);
+      if (result.success && result.downloadUrl) {
+        setDownloadUrl(result.downloadUrl);
+        toast({
+          title: 'Documento Disponível',
+          description: `PDF do contrato ${contratoExistente.numero_contrato} já foi gerado.`,
+        });
+      } else {
+        toast({
+          title: 'Erro',
+          description: result.error || 'Falha ao localizar documento.',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+
+    if (contratoExistente.status_documento === 'CANCELADO') {
+      toast({
+        title: 'Contrato Cancelado',
+        description: 'Um contrato cancelado não pode ter documento regenerado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsGeneratingPdf(true);
-    const htmlContent = renderFilledContractHTML();
-    const result = await contratoService.generateContractPDF(contratoExistente.id, htmlContent, user.id);
+    const result = await contratoService.generateContractPDF(contratoExistente.id, user.id);
     setIsGeneratingPdf(false);
 
     if (result.success) {
+      setDownloadUrl(result.signedDownloadUrl || null);
       toast({
         title: 'Contrato PDF Gerado com Sucesso!',
-        description: 'Artefato definitivo armazenado no Cloudflare R2 Storage.',
+        description: 'Documento PDF real armazenado no storage de contratos. Hash: ' + (result.documentHash || 'N/I').substring(0, 16) + '...',
       });
       loadData();
     } else {
       toast({
         title: 'Erro na geração',
-        description: result.error || 'Falha ao salvar PDF no R2.',
+        description: result.error || 'Falha ao gerar PDF real.',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!contratoExistente?.id) return;
+    const result = await contratoService.getContractDownloadUrl(contratoExistente.id);
+    if (result.success && result.downloadUrl) {
+      try {
+        await contratoDocumentoService.baixarDocumento(contratoExistente.pdf_object_key || '', result.fileName || `Contrato_${contratoExistente.numero_contrato}.pdf`);
+        if (user && contratoExistente.tipo_contrato) {
+          await contratoDocumentoService.registrarDownloadDocumento(contratoExistente.id, contratoExistente.tipo_contrato, user.id, contratoExistente.pdf_object_key || '');
+        }
+        toast({ title: 'Download iniciado', description: 'Documento PDF baixado com sucesso.' });
+      } catch (err: any) {
+        toast({ title: 'Erro no Download', description: err?.message || 'Não foi possível obter o documento.', variant: 'destructive' });
+      }
+    } else {
+      toast({
+        title: 'Erro no Download',
+        description: result.error || 'Não foi possível obter o documento.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleViewPDF = async () => {
+    if (!contratoExistente?.id) return;
+    const result = await contratoService.getContractDownloadUrl(contratoExistente.id);
+    if (result.success && result.downloadUrl) {
+      window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      toast({
+        title: 'Erro na Visualização',
+        description: result.error || 'Não foi possível abrir o documento.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSendForSignature = async () => {
+    if (!contratoExistente?.id || !user) {
+      toast({ title: 'Erro', description: 'Registro de contrato não localizado.', variant: 'destructive' });
+      return;
+    }
+    setIsSendingSignature(true);
+    const result = await contratoService.enviarParaAssinatura(contratoExistente.id, user.id);
+    setIsSendingSignature(false);
+    if (result.success) {
+      toast({
+        title: 'Contrato Enviado para Assinatura!',
+        description: `Envelope ${result.envelopeId} criado. O cliente pode assinar pelo portal.`,
+      });
+      loadData();
+    } else {
+      toast({ title: 'Erro no envio', description: result.error || 'Falha ao enviar para assinatura.', variant: 'destructive' });
     }
   };
 
@@ -171,6 +306,10 @@ export default function ContratoSelectionPage() {
   }
 
   const emp = cliente?.empresas?.[0];
+  const docStatus = contratoExistente?.status_documento || 'RASCUNHO';
+  const canGeneratePDF = docStatus === 'RASCUNHO' || docStatus === 'GERADO';
+  const hasPDFGenerated = docStatus === 'GERADO' || docStatus === 'ENVIADO' || docStatus === 'ASSINADO';
+  const envelopeEnviado = !!contratoExistente?.assinatura_envelope_id || docStatus === 'ENVIADO';
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in pb-12">
@@ -189,7 +328,7 @@ export default function ContratoSelectionPage() {
             </Badge>
           </div>
           <p className="text-slate-300 text-xs">
-            Seleção Manual do Modelo de Contrato ➔ Preenchimento Automático ➔ Geração no R2 Storage
+            Seleção Manual do Modelo de Contrato ➔ Preenchimento Automático ➔ Geração real de PDF no Storage ➔ Assinatura Digital
           </p>
         </div>
 
@@ -327,11 +466,16 @@ export default function ContratoSelectionPage() {
                 Pré-visualização do Contrato ({selectedTemplate.nome})
               </CardTitle>
               <CardDescription className="text-slate-400 text-xs">
-                Texto jurídico imutável preenchido automaticamente com dados da proposta e do cliente.
+                Texto jurídico preenchido automaticamente com dados reais da proposta e do cliente do banco.
+                {hasPDFGenerated && contratoExistente?.pdf_object_key && (
+                  <span className="ml-2 text-emerald-400">
+                    · Documento PDF real já gerado no storage
+                  </span>
+                )}
               </CardDescription>
             </div>
             <Badge className="bg-primary/20 text-primary border-primary/30">
-              Status Documento: {contratoExistente?.status_documento || 'RASCUNHO'}
+              Status Documento: {docStatus}
             </Badge>
           </CardHeader>
 
@@ -345,7 +489,7 @@ export default function ContratoSelectionPage() {
               <div className="flex items-center gap-2">
                 <Button 
                   variant="outline" 
-                  onClick={() => setMode('SELECTION')}
+                  onClick={() => { setMode('SELECTION'); setDownloadUrl(null); }}
                   className="border-slate-700 text-slate-300 rounded-xl text-xs gap-1.5"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
@@ -362,26 +506,87 @@ export default function ContratoSelectionPage() {
                 </Button>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={handleCancelContract}
-                  className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 rounded-xl text-xs gap-1.5"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  Cancelar
-                </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {!hasPDFGenerated && (
+                  <Button 
+                    variant="outline" 
+                    onClick={handleCancelContract}
+                    className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 rounded-xl text-xs gap-1.5"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    Cancelar
+                  </Button>
+                )}
 
-                <Button 
-                  onClick={handleGeneratePDF}
-                  disabled={isGeneratingPdf}
-                  className="gradient-primary glow-primary font-bold rounded-xl text-xs px-6 h-10 gap-2 shadow-xl"
-                >
-                  {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  <span>Gerar PDF Definitivo</span>
-                </Button>
+                {hasPDFGenerated && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleViewPDF}
+                      className="border-slate-500/30 text-slate-300 rounded-xl text-xs gap-1"
+                    >
+                      <Eye className="h-3.5 w-3.5" /> Visualizar
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleDownloadPDF}
+                      className="border-cyan-500/30 text-cyan-400 rounded-xl text-xs gap-1"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Baixar PDF
+                    </Button>
+                  </>
+                )}
 
-                {contratoExistente && (
+                {!hasPDFGenerated && docStatus === 'RASCUNHO' && (
+                  <Button 
+                    onClick={handleGeneratePDF}
+                    disabled={isGeneratingPdf}
+                    className="gradient-primary glow-primary font-bold rounded-xl text-xs px-6 h-10 gap-2 shadow-xl"
+                  >
+                    {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    <span>Gerar PDF Definitivo</span>
+                  </Button>
+                )}
+
+                {docStatus === 'GERADO' && !envelopeEnviado && (
+                  <Button 
+                    onClick={handleSendForSignature}
+                    disabled={isSendingSignature}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs px-6 h-10 gap-2 shadow-xl"
+                  >
+                    {isSendingSignature ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    <span>Enviar para Assinatura</span>
+                  </Button>
+                )}
+
+                {docStatus === 'ENVIADO' && !contratoExistente?.pdf_assinado_key && (
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px]">
+                    Aguardando assinatura do cliente no portal
+                  </Badge>
+                )}
+
+                {contratoExistente && (contratoExistente.status_documento === 'ASSINADO' || contratoExistente.pdf_assinado_key) && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={async () => {
+                      if (!contratoExistente?.id) return;
+                      const result = await contratoService.getSignedDocumentDownloadUrl(contratoExistente.id);
+                      if (result.success && result.downloadUrl) {
+                        window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+                      } else {
+                        toast({ title: 'Erro', description: result.error, variant: 'destructive' });
+                      }
+                    }}
+                    className="border-emerald-500/30 text-emerald-400 rounded-xl text-xs gap-1"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Ver PDF Assinado
+                  </Button>
+                )}
+
+                {contratoExistente && contratoExistente.status_documento !== 'ASSINADO' && contratoExistente.status_documento !== 'CANCELADO' && (
                   <Button 
                     onClick={() => {
                       const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';

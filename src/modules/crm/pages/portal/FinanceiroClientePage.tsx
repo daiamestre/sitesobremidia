@@ -65,30 +65,34 @@ export default function FinanceiroClientePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cobrancas.map(cob => (
-                  <TableRow key={cob.id} className="border-white/10 hover:bg-white/5">
-                    <TableCell className="text-slate-300 text-xs">
-                      {new Date(cob.data_vencimento).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-white font-bold text-xs">
-                      R$ {Number(cob.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={
-                        cob.status === 'PAGO' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 
-                        cob.status === 'VENCIDO' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : 
-                        'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                      }>
-                        {cob.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {cob.status === 'PENDENTE' && (
-                        <Badge className="cursor-pointer bg-primary/20 text-primary border-primary/30">Pagar</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {cobrancas.map(cob => {
+                  const valor = Number(cob.valor_parcela || cob.valor || 0);
+                  const dataVenc = cob.data_vencimento ? new Date(cob.data_vencimento).toLocaleDateString() : 'N/A';
+                  return (
+                    <TableRow key={cob.id} className="border-white/10 hover:bg-white/5">
+                      <TableCell className="text-slate-300 text-xs">
+                        {dataVenc}
+                      </TableCell>
+                      <TableCell className="text-white font-bold text-xs">
+                        R$ {valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={
+                          cob.status_pagamento === 'PAID' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 
+                          cob.status_pagamento === 'OVERDUE' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : 
+                          'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                        }>
+                          {cob.status_pagamento}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {cob.status_pagamento === 'PENDING' && (
+                          <Badge className="cursor-pointer bg-primary/20 text-primary border-primary/30">Pagar</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>

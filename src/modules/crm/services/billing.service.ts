@@ -15,28 +15,9 @@ export interface PixProvider {
 
 export class BillingService implements BillingProvider, PixProvider {
   async generateBoleto(contaReceberId: string, valor: number, vencimento: string) {
-    // Zero Mock: Integração real bancária necessária
+    // Zero Mock Protocol: Geração de boleto travada até integração do Gateway de Pagamentos
+    // Nenhum dado bancário fake (linha digitável, código de barras, PDF) pode ser gerado
     throw new Error('Geração de boleto indisponível. Integração com gateway de pagamentos não configurada.');
-
-    const { data: conta } = await supabase.from('contas_receber').select('empresa_operadora_id').eq('id', contaReceberId).single();
-
-    await supabase.from('boletos').insert({
-      empresa_operadora_id: conta?.empresa_operadora_id,
-      conta_receber_id: contaReceberId,
-      linha_digitavel: linhaDigitavel,
-      codigo_barras: codigoBarras,
-      nosso_numero: nossonumero,
-      vencimento,
-      valor,
-      gateway: 'BANCO_DO_BRASIL',
-      pdf_r2: `tenants/${conta?.empresa_operadora_id}/financeiro/boletos/${nossonumero}.pdf`,
-    });
-
-    return {
-      linhaDigitavel,
-      codigoBarras,
-      pdfUrl: `tenants/${conta?.empresa_operadora_id}/financeiro/boletos/${nossonumero}.pdf`,
-    };
   }
 
   async cancelBoleto(boletoId: string) {

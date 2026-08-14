@@ -21,6 +21,17 @@ vi.mock('@/integrations/supabase/client', () => ({
       };
       return chainable;
     }),
+    channel: vi.fn(() => {
+      const channelMock: any = {
+        on: vi.fn(() => channelMock),
+        subscribe: vi.fn((cb?: (status: string) => void) => {
+          cb?.('SUBSCRIBED');
+          return channelMock;
+        }),
+      };
+      return channelMock;
+    }),
+    removeChannel: vi.fn(),
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
       getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),

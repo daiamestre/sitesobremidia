@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface PropostaPayload {
   empresaOperadoraId: string;
   clienteId: string;
-  representanteId: string;
+  representanteId?: string | null;
   tituloCampanha: string;
   duracaoSegundos: number;
   quantidadeTelas: number;
@@ -50,6 +50,11 @@ export class PropostaService {
     }
   }
 
+  private toDateOnly(value: string): string | null {
+    const match = value?.match(/^\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : null;
+  }
+
   /**
    * Registra uma proposta comercial de forma 100% estruturada no PostgreSQL
    */
@@ -60,41 +65,93 @@ export class PropostaService {
     error?: string 
   }> {
     try {
-      const { data: maxPropData } = await supabase
-        .from('propostas')
-        .select('numero_proposta')
-        .eq('empresa_operadora_id', payload.empresaOperadoraId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const lastNum = maxPropData?.numero_proposta ? parseInt(maxPropData.numero_proposta.replace(/\D/g, ''), 10) : 0;
-      const nextNum = (lastNum || 0) + 1;
-      const numeroProposta = `PROP-${new Date().getFullYear()}-${String(nextNum).padStart(4, '0')}`;
-
       const desconto = payload.desconto || 0;
       const valorTotal = payload.valorMensal;
       const valorFinal = Math.max(0, valorTotal - desconto);
+      const dataInicio = this.toDateOnly(payload.dataInicio);
+      const dataFim = this.toDateOnly(payload.dataFim);
 
-      const { data: proposta, error: propostaError } = await supabase
-        .from('propostas')
-        .insert({
-          empresa_operadora_id: payload.empresaOperadoraId,
-          numero_proposta: numeroProposta,
-          cliente_id: payload.clienteId,
-          representante_id: payload.representanteId,
-          valor_total: valorTotal,
-          desconto: desconto,
-          valor_final: valorFinal,
-          forma_pagamento: payload.formaPagamento,
-          validade_dias: 15,
-          status: 'DRAFT',
-          observacoes: payload.observacoes || `Proposta comercial para a campanha ${payload.tituloCampanha}.`,
-        })
-        .select('id, numero_proposta')
-        .single();
+      let proposta: { id: string; numero_proposta: string } | null = null;
+      let propostaError: { message: string } | null = null;
 
-      if (propostaError || !proposta) {
+      for (let attempt = 0; attempt < 12 && !proposta; attempt++) {
+        const { data: maxPropData } = await supabase
+          .from('propostas')
+          .select('numero_proposta')
+          .eq('empresa_operadora_id', payload.empresaOperadoraId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const lastDigits = maxPropData?.numero_proposta
+          ? (maxPropData.numero_proposta.split('-').pop() || '0').replace(/\D/g, '')
+          : '0';
+        const lastNum = BigInt(lastDigits || '0');
+        const nextNum = (lastNum + BigInt(1 + attempt)).toString();
+        const numeroProposta = `PROP-${new Date().getFullYear()}-${nextNum.padStart(4, '0')}`;
+
+        const result = await supabase
+          .from('propostas')
+          .insert({
+            empresa_operadora_id: payload.empresaOperadoraId,
+            numero_proposta: numeroProposta,
+            cliente_id: payload.clienteId,
+            representante_id: payload.representanteId,
+            valor_total: valorTotal,
+            desconto: desconto,
+            valor_final: valorFinal,
+            forma_pagamento: payload.formaPagamento,
+            validade_dias: 15,
+            status: 'DRAFT',
+            titulo_campanha: payload.tituloCampanha,
+            data_inicio: dataInicio,
+            data_fim: dataFim,
+            duracao_segundos: payload.duracaoSegundos,
+            observacoes: payload.observacoes || `Proposta comercial para a campanha ${payload.tituloCampanha}.`,
+          })
+          .select('id, numero_proposta')
+          .single();
+
+        if (result.data) {
+          proposta = result.data;
+        } else if (result.error?.code !== '23505') {
+          propostaError = result.error;
+          break;
+        }
+      }
+
+      if (!proposta) {
+        const fallback = `PROP-${new Date().getFullYear()}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const result = await supabase
+          .from('propostas')
+          .insert({
+            empresa_operadora_id: payload.empresaOperadoraId,
+            numero_proposta: fallback,
+            cliente_id: payload.clienteId,
+            representante_id: payload.representanteId,
+            valor_total: valorTotal,
+            desconto: desconto,
+            valor_final: valorFinal,
+            forma_pagamento: payload.formaPagamento,
+            validade_dias: 15,
+            status: 'DRAFT',
+            titulo_campanha: payload.tituloCampanha,
+            data_inicio: dataInicio,
+            data_fim: dataFim,
+            duracao_segundos: payload.duracaoSegundos,
+            observacoes: payload.observacoes || `Proposta comercial para a campanha ${payload.tituloCampanha}.`,
+          })
+          .select('id, numero_proposta')
+          .single();
+
+        if (result.data) {
+          proposta = result.data;
+        } else {
+          propostaError = result.error || propostaError;
+        }
+      }
+
+      if (!proposta) {
         return { success: false, error: propostaError?.message || 'Falha ao salvar proposta.' };
       }
 

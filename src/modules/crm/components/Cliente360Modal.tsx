@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { ClienteCompleto } from '../services/cliente.service';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Building2, Phone, Mail, MapPin, FileText, ShieldCheck, DollarSign, Tv, Layers, Calendar, UserCheck } from 'lucide-react';
+import { Building2, Phone, Mail, MapPin, FileText, ShieldCheck, DollarSign, Tv, Layers, Calendar, UserCheck, AlertCircle } from 'lucide-react';
 
 interface Cliente360ModalProps {
   cliente: ClienteCompleto | null;
@@ -19,8 +19,11 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
   const [financeiro, setFinanceiro] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const empresa = cliente?.empresas?.[0];
-  const contatoPrincipal = empresa?.contatos?.find(c => c.is_principal) || empresa?.contatos?.[0];
+  const empresa = useMemo(() => cliente?.empresas?.[0] ?? null, [cliente?.empresas]);
+  const contatoPrincipal = useMemo(() => 
+    empresa?.contatos?.find(c => c.is_principal) ?? empresa?.contatos?.[0] ?? null, 
+    [empresa?.contatos]
+  );
 
   useEffect(() => {
     if (cliente?.id && isOpen) {
@@ -42,12 +45,15 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
       setFinanceiro(finRes.data || []);
     } catch (err) {
       console.error('Erro ao buscar dados 360º:', err);
+      setPropostas([]);
+      setContratos([]);
+      setFinanceiro([]);
     } finally {
       setLoading(false);
     }
   };
 
-  if (!cliente) return null;
+  if (!cliente || !empresa) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -144,15 +150,20 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
             {/* ABA 3: PROPOSTAS */}
             <TabsContent value="propostas" className="space-y-3 m-0">
               {propostas.length > 0 ? (
-                propostas.map(p => (
-                  <div key={p.id} className="p-4 rounded-xl border border-white/10 bg-slate-950/50 flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-white">Proposta Commercial #{p.codigo_proposta || p.id.slice(0, 8)}</p>
-                      <p className="text-xs text-slate-400">Status: {p.status} • Período: {p.meses_duracao || 1} meses</p>
+                propostas.map(p => {
+                  const propostaNum = p.numero_proposta || p.id?.slice(0, 8) || 'N/A';
+                  const status = p.status || 'DESCONHECIDO';
+                  const valorTotal = Number(p.valor_total || 0);
+                  return (
+                    <div key={p.id} className="p-4 rounded-xl border border-white/10 bg-slate-950/50 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-white">Proposta Comercial #{String(propostaNum)}</p>
+                        <p className="text-xs text-slate-400">Status: {String(status)} • Validade: {p.validade_dias || 15} dias</p>
+                      </div>
+                      <Badge className="bg-emerald-500/20 text-emerald-400">R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Badge>
                     </div>
-                    <Badge className="bg-emerald-500/20 text-emerald-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Badge>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <p className="text-center py-6 text-slate-400">Nenhuma proposta comercial gerada para este cliente.</p>
               )}
@@ -161,15 +172,21 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
             {/* ABA 4: CONTRATOS */}
             <TabsContent value="contratos" className="space-y-3 m-0">
               {contratos.length > 0 ? (
-                contratos.map(ct => (
-                  <div key={ct.id} className="p-4 rounded-xl border border-white/10 bg-slate-950/50 flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-white">Contrato de Mídia #{ct.codigo_contrato || ct.id.slice(0, 8)}</p>
-                      <p className="text-xs text-slate-400">Status: {ct.status} • Vigência: {ct.data_inicio} até {ct.data_fim}</p>
+                contratos.map(ct => {
+                  const contratoNum = ct.numero_contrato || ct.id?.slice(0, 8) || 'N/A';
+                  const statusWorkflow = ct.status_workflow || 'DESCONHECIDO';
+                  const dataInicio = ct.data_inicio ? new Date(ct.data_inicio).toLocaleDateString('pt-BR') : 'N/A';
+                  const dataFim = ct.data_fim ? new Date(ct.data_fim).toLocaleDateString('pt-BR') : 'N/A';
+                  return (
+                    <div key={ct.id} className="p-4 rounded-xl border border-white/10 bg-slate-950/50 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-white">Contrato de Mídia #{String(contratoNum)}</p>
+                        <p className="text-xs text-slate-400">Status: {String(statusWorkflow)} • Vigência: {dataInicio} até {dataFim}</p>
+                      </div>
+                      <Badge className="bg-primary/20 text-primary">Ativo</Badge>
                     </div>
-                    <Badge className="bg-primary/20 text-primary">Ativo</Badge>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <p className="text-center py-6 text-slate-400">Nenhum contrato ativo formalizado.</p>
               )}
@@ -183,15 +200,19 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
             {/* ABA 6: FINANCEIRO */}
             <TabsContent value="financeiro" className="space-y-3 m-0">
               {financeiro.length > 0 ? (
-                financeiro.map(f => (
-                  <div key={f.id} className="p-4 rounded-xl border border-white/10 bg-slate-950/50 flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-white">Cobrança Mensal</p>
-                      <p className="text-xs text-slate-400">Vencimento: {f.data_vencimento}</p>
+                financeiro.map(f => {
+                  const valorParcela = Number(f.valor_parcela || f.valor || 0);
+                  const dataVenc = f.data_vencimento ? new Date(f.data_vencimento).toLocaleDateString('pt-BR') : 'N/A';
+                  return (
+                    <div key={f.id} className="p-4 rounded-xl border border-white/10 bg-slate-950/50 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-white">Cobrança Mensal</p>
+                        <p className="text-xs text-slate-400">Vencimento: {dataVenc}</p>
+                      </div>
+                      <Badge className="bg-emerald-500/20 text-emerald-400">R$ {valorParcela.toFixed(2)}</Badge>
                     </div>
-                    <Badge className="bg-emerald-500/20 text-emerald-400">R$ {Number(f.valor || 0).toFixed(2)}</Badge>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <p className="text-center py-6 text-slate-400">Nenhum título financeiro ou cobrança pendente.</p>
               )}
