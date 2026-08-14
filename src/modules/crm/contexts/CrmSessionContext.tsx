@@ -124,7 +124,7 @@ export function CrmSessionProvider({ children }: { children: ReactNode }) {
 export function useCrmSession(): CrmSessionData {
   const context = useContext(CrmSessionContext);
   if (!context) {
-    throw new Error('useCrmSession deve ser utilizado dentro de um <CrmSessionProvider> montado em CrmLayout.');
+    throw new Error('useCrmSession deve ser utilizado dentro de um <CrmSessionProvider>.');
   }
   return context;
 }

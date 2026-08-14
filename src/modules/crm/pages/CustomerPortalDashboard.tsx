@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,11 +9,31 @@ import { ArtworkApproval } from '../components/portal/ArtworkApproval';
 import { ProofOfPlayViewer } from '../components/portal/ProofOfPlayViewer';
 import { CustomerSupportTickets } from '../components/portal/CustomerSupportTickets';
 import { CustomerInvoices } from '../components/portal/CustomerInvoices';
+import { customerPortalService } from '../services/customerPortal.service';
 
 export default function CustomerPortalDashboard() {
   const navigate = useNavigate();
-  const { empresaOperadoraId } = useAuth();
-  const dummyClienteId = 'cli-001';
+  const { empresaOperadoraId, usuario } = useAuth();
+
+  // Zero Mock: identidade resolvida diretamente da tabela usuarios (unified identity)
+  const resolvedClienteId = usuario?.cliente_id || null;
+  const resolvedEmpresaId = empresaOperadoraId || null;
+
+  // Estados reais para KPIs
+  const [kpis, setKpis] = useState({
+    campanhasAtivas: 0,
+    artesAprovadasPct: 0,
+    contratosVigentes: 0,
+    chamadosAbertos: 0,
+  });
+
+  useEffect(() => {
+    if (resolvedClienteId) {
+      customerPortalService.getDashboardKPIs(resolvedClienteId).then((data) => {
+        setKpis(data);
+      });
+    }
+  }, [resolvedClienteId]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-fade-in pb-12">
@@ -27,7 +47,7 @@ export default function CustomerPortalDashboard() {
           <p className="text-slate-300 text-xs">Self-Service Enterprise: Aprovações de Arte, Proof-of-Play, Contratos e Faturamento</p>
         </div>
 
-        <Button onClick={() => navigate('/representantes/dashboard')} variant="outline" className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
+        <Button onClick={() => navigate('/workspace')} variant="outline" className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
           <ArrowLeft className="h-4 w-4" /> Voltar ao ERP
         </Button>
       </div>
@@ -40,7 +60,7 @@ export default function CustomerPortalDashboard() {
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">Campanhas Ativas</span>
-              <strong className="text-xl font-bold text-white">3</strong>
+              <strong className="text-xl font-bold text-white">{kpis.campanhasAtivas}</strong>
             </div>
           </CardContent>
         </Card>
@@ -52,7 +72,7 @@ export default function CustomerPortalDashboard() {
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">Artes Aprovadas</span>
-              <strong className="text-xl font-bold text-emerald-400">100%</strong>
+              <strong className="text-xl font-bold text-emerald-400">{kpis.artesAprovadasPct}%</strong>
             </div>
           </CardContent>
         </Card>
@@ -64,7 +84,7 @@ export default function CustomerPortalDashboard() {
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">Contratos Vigentes</span>
-              <strong className="text-xl font-bold text-blue-400">2</strong>
+              <strong className="text-xl font-bold text-blue-400">{kpis.contratosVigentes}</strong>
             </div>
           </CardContent>
         </Card>
@@ -76,20 +96,24 @@ export default function CustomerPortalDashboard() {
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">Chamados Abertos</span>
-              <strong className="text-xl font-bold text-amber-400">0</strong>
+              <strong className="text-xl font-bold text-amber-400">{kpis.chamadosAbertos}</strong>
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <ArtworkApproval producaoId="prod-001" empresaOperadoraId={empresaOperadoraId || 'emp-001'} />
+        {resolvedEmpresaId && (
+          <ArtworkApproval producaoId="prod-001" empresaOperadoraId={resolvedEmpresaId} />
+        )}
         <ProofOfPlayViewer />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <CustomerInvoices />
-        <CustomerSupportTickets clienteId={dummyClienteId} empresaOperadoraId={empresaOperadoraId || 'emp-001'} />
+        {resolvedEmpresaId && (
+          <CustomerSupportTickets clienteId={resolvedClienteId || ''} empresaOperadoraId={resolvedEmpresaId} />
+        )}
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { offlineStorageService } from './offlineStorage.service';
 
 export class MobileSyncService {
-  async syncOfflineData(empresaOperadoraId: string, dispositivoId: string): Promise<{ success: boolean; syncedCount: number }> {
+  async syncOfflineData(empresaOperadoraId: string, tecnicoId: string): Promise<{ success: boolean; syncedCount: number }> {
     const queue = offlineStorageService.getQueue();
     if (queue.length === 0) return { success: true, syncedCount: 0 };
 
@@ -12,31 +12,28 @@ export class MobileSyncService {
       if (item.type === 'CHECKIN') {
         await supabase.from('mobile_checkins').insert({
           empresa_operadora_id: empresaOperadoraId,
-          cliente_id: item.payload.clienteId,
+          screen_id: item.payload.screenId, // FIXED: was clienteId
           latitude: item.payload.latitude,
           longitude: item.payload.longitude,
-          precisao_metros: item.payload.precisao,
+          tipo: item.payload.tipo || 'MANUTENCAO',
+          created_by: tecnicoId, // ADDED: required by schema
+          status: 'INICIADO'
         });
         syncedCount++;
       } else if (item.type === 'VISITA') {
         await supabase.from('mobile_visitas').insert({
           empresa_operadora_id: empresaOperadoraId,
-          cliente_id: item.payload.clienteId,
-          tipo: item.payload.tipo,
-          observacao: item.payload.observacao,
+          screen_id: item.payload.screenId, // FIXED: was clienteId
+          tecnico_id: tecnicoId, // ADDED: required by schema
+          data_agendada: item.payload.dataAgendada || new Date().toISOString().split('T')[0],
+          status: 'REALIZADA'
         });
         syncedCount++;
       }
     }
 
-    // Log Sync Record
-    await supabase.from('mobile_sincronizacao').insert({
-      empresa_operadora_id: empresaOperadoraId,
-      dispositivo_id: dispositivoId,
-      registros_enviados: syncedCount,
-      registros_recebidos: 10,
-      resultado: 'SUCESSO',
-    });
+    // REMOVED: mobile_sincronizacao ghost table insert. 
+    // Sync telemetry should be handled by local PWA logs or a central observability platform, not the operational database.
 
     offlineStorageService.clearQueue();
     return { success: true, syncedCount };

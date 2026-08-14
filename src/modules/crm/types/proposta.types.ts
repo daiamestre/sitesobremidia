@@ -3,7 +3,7 @@ import { FormaPagamento } from './enums';
 export interface Proposta {
   id: string;
   clienteId: string;
-  representanteId: string;
+  representanteId: string | null;
   numeroProposta: string;
   valorTotal: number;
   desconto: number;

@@ -1,11 +1,35 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, TrendingUp, AlertTriangle, ArrowLeft, BarChart3, PieChart, Landmark, FileText } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertTriangle, ArrowLeft, BarChart3, PieChart, Landmark, FileText, Loader2 } from 'lucide-react';
 
 export default function FinanceExecutiveDashboard() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  
+  // Zero Mock - Inicializando dados vazios
+  const [metrics, setMetrics] = useState({
+    mrr: 0,
+    arr: 0,
+    ticketMedio: 0,
+    inadimplencia: 0
+  });
+
+  useEffect(() => {
+    setLoading(false);
+  }, []);
+
+  const getBasePath = () => window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-fade-in pb-12">
@@ -20,13 +44,13 @@ export default function FinanceExecutiveDashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => navigate('/representantes/financeiro/dre')} variant="outline" className="border-blue-500/30 text-blue-400 rounded-xl text-xs gap-1.5">
+          <Button onClick={() => navigate(`${getBasePath()}/financeiro/dre`)} variant="outline" className="border-blue-500/30 text-blue-400 rounded-xl text-xs gap-1.5">
             <FileText className="h-4 w-4" /> DRE
           </Button>
-          <Button onClick={() => navigate('/representantes/financeiro/regras-comissao')} variant="outline" className="border-purple-500/30 text-purple-400 rounded-xl text-xs gap-1.5">
+          <Button onClick={() => navigate(`${getBasePath()}/financeiro/regras-comissao`)} variant="outline" className="border-purple-500/30 text-purple-400 rounded-xl text-xs gap-1.5">
             <PieChart className="h-4 w-4" /> Regras Comissão
           </Button>
-          <Button onClick={() => navigate('/representantes/financeiro')} variant="outline" className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
+          <Button onClick={() => navigate(`${getBasePath()}/`)} variant="outline" className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
             <ArrowLeft className="h-4 w-4" /> Voltar
           </Button>
         </div>
@@ -39,8 +63,10 @@ export default function FinanceExecutiveDashboard() {
               <TrendingUp className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-slate-400 text-xs block font-semibold">MRR (Receita Recorrente Mensal)</span>
-              <strong className="text-lg font-bold text-emerald-400">R$ 145.000,00</strong>
+              <span className="text-slate-400 text-xs block font-semibold">MRR (Receita Recorrente)</span>
+              <strong className="text-lg font-bold text-emerald-400">
+                {metrics.mrr > 0 ? `R$ ${metrics.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ 0,00'}
+              </strong>
             </div>
           </CardContent>
         </Card>
@@ -51,8 +77,10 @@ export default function FinanceExecutiveDashboard() {
               <DollarSign className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-slate-400 text-xs block font-semibold">ARR (Receita Anual Projetada)</span>
-              <strong className="text-lg font-bold text-blue-400">R$ 1.740.000,00</strong>
+              <span className="text-slate-400 text-xs block font-semibold">ARR (Receita Anual)</span>
+              <strong className="text-lg font-bold text-blue-400">
+                {metrics.arr > 0 ? `R$ ${metrics.arr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ 0,00'}
+              </strong>
             </div>
           </CardContent>
         </Card>
@@ -63,8 +91,10 @@ export default function FinanceExecutiveDashboard() {
               <Landmark className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-slate-400 text-xs block font-semibold">Ticket Médio por Contrato</span>
-              <strong className="text-lg font-bold text-amber-400">R$ 12.500,00</strong>
+              <span className="text-slate-400 text-xs block font-semibold">Ticket Médio</span>
+              <strong className="text-lg font-bold text-amber-400">
+                {metrics.ticketMedio > 0 ? `R$ ${metrics.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'N/A'}
+              </strong>
             </div>
           </CardContent>
         </Card>
@@ -75,8 +105,10 @@ export default function FinanceExecutiveDashboard() {
               <AlertTriangle className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-slate-400 text-xs block font-semibold">Taxa de Inadimplência</span>
-              <strong className="text-lg font-bold text-rose-400">1.2%</strong>
+              <span className="text-slate-400 text-xs block font-semibold">Inadimplência</span>
+              <strong className="text-lg font-bold text-rose-400">
+                {metrics.inadimplencia > 0 ? `${metrics.inadimplencia}%` : '0.0%'}
+              </strong>
             </div>
           </CardContent>
         </Card>

@@ -25,11 +25,13 @@ import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { propostaService } from '../services/proposta.service';
 import { contratoService, ContratoCompleto } from '../services/contrato.service';
 import { useCrmSession } from '../contexts/CrmSessionContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { EmptyDashboard } from '../components/EmptyDashboard';
 
 export default function CrmDashboardHome() {
   const navigate = useNavigate();
   const { empresaOperadoraId, representante, userName } = useCrmSession();
+  const { isOwner } = useAuth();
 
   const [clientsList, setClientsList] = useState<ClienteCompleto[]>([]);
   const [propostasList, setPropostasList] = useState<any[]>([]);
@@ -40,9 +42,9 @@ export default function CrmDashboardHome() {
     async function loadRealData() {
       setLoading(true);
       const [clientesData, propostasData, contratosData] = await Promise.all([
-        clienteService.findAll(empresaOperadoraId || undefined, representante?.id || undefined),
-        propostaService.findAll(representante?.id || undefined),
-        contratoService.findAll(representante?.id || undefined)
+        clienteService.findAll(empresaOperadoraId || undefined, isOwner ? undefined : representante?.id || undefined),
+        propostaService.findAll(isOwner ? undefined : representante?.id || undefined),
+        contratoService.findAll(isOwner ? undefined : representante?.id || undefined)
       ]);
       setClientsList(clientesData || []);
       setPropostasList(propostasData || []);
@@ -51,7 +53,7 @@ export default function CrmDashboardHome() {
     }
 
     loadRealData();
-  }, [empresaOperadoraId, representante?.id]);
+  }, [empresaOperadoraId, representante?.id, isOwner]);
 
   if (!loading && clientsList.length === 0 && propostasList.length === 0 && contratosList.length === 0) {
     return <EmptyDashboard userName={userName} />;
@@ -101,22 +103,23 @@ export default function CrmDashboardHome() {
     },
     { 
       title: 'Campanhas', 
-      value: `${totalContratosCount * 4} Telas`, 
-      subtext: 'Painéis & TVs Corporativas vinculadas', 
-      growth: '+100% Operacional', 
+      value: `${totalContratosCount} Contratos`, // Zero Mock: telas/panéis a derivar de pontos.service (FASE 8.4)
+      subtext: 'Número de contratos ativos com veiculação', 
+      growth: totalContratosCount > 0 ? '+100% Operacional' : '0% Operacional', 
       icon: Tv,
       color: 'from-amber-500/20 to-orange-500/10 text-amber-400 border-amber-500/30'
     },
   ];
 
-  // TODO_REMOVE_MOCK: Funil derivado do banco ou estado real
+  // Funil com percentuais reais (proporcional ao volume da carteira)
+  const funnelBase = Math.max(clientsList.length, 1); // evitar divisão por zero
   const funnelStages = [
     { stage: 'Contato & Prospecção', count: clientsList.length, value: formatCurrency(valorTotalPropostas * 0.4), percentage: 100, color: 'bg-blue-500' },
-    { stage: 'Proposta Emitida', count: propostasList.length, value: formatCurrency(valorTotalPropostas), percentage: propostasList.length > 0 ? 60 : 0, color: 'bg-purple-500' },
-    { stage: 'Contrato Fechado', count: contratosList.length, value: formatCurrency(valorTotalContratos), percentage: contratosList.length > 0 ? 30 : 0, color: 'bg-emerald-500' },
+    { stage: 'Proposta Emitida', count: propostasList.length, value: formatCurrency(valorTotalPropostas), percentage: propostasList.length > 0 ? Math.min(100, Math.round((propostasList.length / funnelBase) * 100)) : 0, color: 'bg-purple-500' },
+    { stage: 'Contrato Fechado', count: contratosList.length, value: formatCurrency(valorTotalContratos), percentage: contratosList.length > 0 ? Math.min(100, Math.round((contratosList.length / funnelBase) * 100)) : 0, color: 'bg-emerald-500' },
   ];
 
-  // TODO_REMOVE_MOCK: Agenda de visitas comercial do representante
+  // Agenda de visitas: empty state real enquanto agendamento.service não estiver integrado (FASE 8.4)
   const upcomingMeetings: Array<{ id: string; time: string; title: string; company: string; type: string }> = [];
 
   return (
@@ -236,7 +239,7 @@ export default function CrmDashboardHome() {
                   <span className="text-slate-300">Recorrente Realizado:</span>
                   <span className="text-emerald-400 font-display">{formatCurrency(valorTotalContratos)}</span>
                 </div>
-                <Progress value={valorTotalContratos > 0 ? Math.min(100, (valorTotalContratos / 50000) * 100) : 5} className="h-3 bg-slate-950" />
+                <Progress value={valorTotalContratos > 0 ? 100 : 5} className="h-3 bg-slate-950" />
               </div>
               <p className="text-xs text-slate-400">
                 O volume faturado reflete diretamente as medições e contratos vigentes no sistema.

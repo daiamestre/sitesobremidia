@@ -20,7 +20,7 @@ export class TimelineService {
     metadata?: Record<string, any>;
   }): Promise<TimelineEntry> {
     const newEntry: TimelineEntry = {
-      id: `TL-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      id: `TL-${crypto.randomUUID()}`,
       contratoId: params.contratoId,
       timestamp: new Date().toISOString(),
       userId: params.userId,

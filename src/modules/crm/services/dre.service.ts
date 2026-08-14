@@ -13,45 +13,55 @@ export interface DREResult {
 
 export class DREService {
   /**
-   * Calcula a Demonstração do Resultado do Exercício (DRE) para a empresa operadora
+   * Consulta DRE Consolidado a partir da View do Data Warehouse (v_dre_consolidado)
    */
   async calculateDRE(empresaOperadoraId?: string, ano: number = 2026): Promise<DREResult> {
+    // Zero Mock: Empty State padrão — nunca fabricar dados financeiros
+    const emptyDRE: DREResult = {
+      receitaBruta: 0,
+      descontos: 0,
+      receitaLiquida: 0,
+      custosOperacionais: 0,
+      margemBruta: 0,
+      despesasAdministrativas: 0,
+      ebitda: 0,
+      resultadoLiquido: 0,
+    };
+
     try {
-      let queryContas = supabase.from('contas_receber').select('valor_original, desconto, valor_recebido');
-      if (empresaOperadoraId) queryContas = queryContas.eq('empresa_operadora_id', empresaOperadoraId);
+      let query = supabase.from('v_dre_consolidado').select('*');
+      if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
 
-      const { data: contas } = await queryContas;
-      const receitaBruta = (contas || []).reduce((a, c) => a + Number(c.valor_original), 0);
-      const descontos = (contas || []).reduce((a, c) => a + Number(c.desconto), 0);
-      const receitaLiquida = receitaBruta - descontos;
+      const { data, error } = await query.maybeSingle();
 
-      const custosOperacionais = receitaLiquida * 0.35; // 35% Custo Operacional NOC & Player
-      const margemBruta = receitaLiquida - custosOperacionais;
-      const despesasAdministrativas = receitaLiquida * 0.15; // 15% Despesas Adms
-      const ebitda = margemBruta - despesasAdministrativas;
-      const resultadoLiquido = ebitda * 0.85; // Após Impostos (15%)
+      if (error) {
+        console.error('[DREService] Erro ao consultar v_dre_consolidado:', error.message);
+        return emptyDRE; // Error State → zeros reais, não dados fabricados
+      }
+
+      if (!data) return emptyDRE; // Empty State → sem registros no banco
+
+      // Campos reais do banco — sem fallback para valores fictícios
+      const receitaBruta = Number(data.receita_bruta) || 0;
+      const impostos = Number(data.impostos_estimados) || 0;
+      const comissoes = Number(data.comissoes_vendas) || 0;
+      const custosOperacionais = Number(data.custos_operacionais_rede) || 0;
+      const ebitda = Number(data.ebitda) || 0;
+      const resultadoLiquido = Number(data.resultado_liquido) || 0;
 
       return {
         receitaBruta,
-        descontos,
-        receitaLiquida,
+        descontos: impostos + comissoes,
+        receitaLiquida: receitaBruta - impostos - comissoes,
         custosOperacionais,
-        margemBruta,
-        despesasAdministrativas,
+        margemBruta: receitaBruta - impostos - comissoes - custosOperacionais,
+        despesasAdministrativas: 0,
         ebitda,
         resultadoLiquido,
       };
     } catch (err) {
-      return {
-        receitaBruta: 0,
-        descontos: 0,
-        receitaLiquida: 0,
-        custosOperacionais: 0,
-        margemBruta: 0,
-        despesasAdministrativas: 0,
-        ebitda: 0,
-        resultadoLiquido: 0,
-      };
+      console.error('[DREService] Exceção ao calcular DRE:', err);
+      return emptyDRE; // Nunca fabricar dados em catch
     }
   }
 }

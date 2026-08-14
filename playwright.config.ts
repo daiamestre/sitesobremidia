@@ -1,4 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+import fs from 'fs';
+
+// Read from default ".env" file.
+dotenv.config();
+
+// Override with E2E specific ephemeral credentials if generated
+if (fs.existsSync('.env.e2e.local')) {
+  dotenv.config({ path: '.env.e2e.local', override: true });
+}
 
 /**
  * SOBRE MÍDIA ERP v3.0 — Playwright E2E Configuration
@@ -37,6 +47,6 @@ export default defineConfig({
     command: 'npm run dev',
     url: 'http://localhost:8080',
     reuseExistingServer: !process.env.CI,
-    timeout: 30000,
+    timeout: 120000,
   },
 });

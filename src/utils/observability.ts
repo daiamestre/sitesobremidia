@@ -21,7 +21,7 @@ class ObservabilityManager {
     details?: Record<string, any>
   ): StructuredLog {
     const log: StructuredLog = {
-      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `log-${crypto.randomUUID()}`,
       correlationId: correlationId || `corr-${Date.now()}`,
       timestamp: new Date().toISOString(),
       level,

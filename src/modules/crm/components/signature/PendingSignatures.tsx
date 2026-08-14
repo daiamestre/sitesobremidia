@@ -1,15 +1,93 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Mail } from 'lucide-react';
+import { Clock, Mail, Eye, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { digitalSignatureService } from '../../services/digitalSignature.service';
 
-export function PendingSignatures({ pendentes }: { pendentes: any[] }) {
+export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes: any[]; onAssinaturaEvent?: () => void }) {
+  const { toast } = useToast();
+  const { usuario, user } = useAuth();
+  const [signingId, setSigningId] = useState<string | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+
+  const handleView = async (envelopeId: string) => {
+    setViewingId(envelopeId);
+    try {
+      const result = await digitalSignatureService.viewDocument(envelopeId);
+      if (result.success && result.downloadUrl) {
+        window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        toast({ title: 'Erro', description: result.error || 'Não foi possível abrir o documento.', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Falha ao visualizar.', variant: 'destructive' });
+    } finally {
+      setViewingId(null);
+    }
+  };
+
+  const handleDownload = async (envelopeId: string) => {
+    try {
+      const result = await digitalSignatureService.downloadSignedDocument(envelopeId);
+      if (result.pdfUrl) {
+        const a = document.createElement('a');
+        a.href = result.pdfUrl;
+        a.download = result.fileName || 'documento.pdf';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Falha no download.', variant: 'destructive' });
+    }
+  };
+
+  const handleReenviar = async (envelopeId: string) => {
+    try {
+      await digitalSignatureService.downloadSignedDocument(envelopeId);
+      toast({ title: 'Notificação Reenviada', description: 'Link de acesso reenviado ao signatário.' });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Falha ao reenviar.', variant: 'destructive' });
+    }
+  };
+
+  const handleSign = async (p: any) => {
+    const usuarioId = usuario?.id || user?.id;
+    if (!p.contrato?.id || !usuarioId) return;
+    setSigningId(p.id);
+    try {
+      const result = await digitalSignatureService.signDocument(
+        p.envelope_id,
+        usuarioId,
+        {
+          nome: p.signatario_nome || '',
+          email: p.signatario_email || '',
+          cpfCnpj: p.signatario_cpf_cnpj || '',
+        }
+      );
+      if (result.success) {
+        toast({ title: 'Documento Assinado!', description: 'PDF assinado gerado e armazenado com sucesso.' });
+        onAssinaturaEvent?.();
+      } else {
+        toast({ title: 'Erro na Assinatura', description: result.error || 'Falha ao assinar.', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Falha ao assinar.', variant: 'destructive' });
+    } finally {
+      setSigningId(null);
+    }
+  };
+
   return (
     <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
       <CardHeader className="pb-3 border-b border-white/10">
         <CardTitle className="text-base font-bold text-white flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-amber-400" /> Contratos Aguardando Assinatura ({pendentes.length})
+            <Clock className="h-4 w-4 text-amber-400" /> Assinaturas Pendentes ({pendentes.length})
           </span>
         </CardTitle>
       </CardHeader>
@@ -19,13 +97,61 @@ export function PendingSignatures({ pendentes }: { pendentes: any[] }) {
         ) : (
           pendentes.map((p) => (
             <div key={p.id} className="p-3 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-              <div>
-                <strong className="text-white font-mono block">Envelope #{p.envelope_id}</strong>
-                <span className="text-[10px] text-slate-400">Provedor: {p.provedor}</span>
+              <div className="flex flex-col gap-0.5">
+                <strong className="text-white font-mono block text-[11px]">Envelope: {p.envelope_id}</strong>
+                <span className="text-[10px] text-slate-400">
+                  Contrato: {p.contrato?.numero_contrato || 'N/I'} · Provedor: {p.provedor}
+                </span>
+                {p.signatario_nome && (
+                  <span className="text-[10px] text-slate-400">
+                    Signatário: {p.signatario_nome} ({p.signatario_email})
+                  </span>
+                )}
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] w-fit mt-1">
+                  {p.status || 'ENVIADO'}
+                </Badge>
+                {p.eventos && p.eventos.length > 0 && (
+                  <span className="text-[9px] text-slate-500 mt-0.5">
+                    Último evento: {p.eventos[0].evento} · {new Date(p.eventos[0].created_at).toLocaleString('pt-BR')}
+                  </span>
+                )}
               </div>
-              <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-400 rounded-xl text-xs gap-1 h-7">
-                <Mail className="h-3 w-3" /> Reenviar
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleView(p.envelope_id)}
+                  disabled={viewingId === p.envelope_id}
+                  className="border-slate-600 text-slate-300 rounded-xl text-[10px] h-7 gap-1"
+                >
+                  {viewingId === p.envelope_id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
+                  </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDownload(p.envelope_id)}
+                  className="border-cyan-500/30 text-cyan-400 rounded-xl text-[10px] h-7 gap-1"
+                >
+                  <Download className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleReenviar(p.envelope_id)}
+                  className="border-blue-500/30 text-blue-400 rounded-xl text-[10px] h-7 gap-1"
+                >
+                  <Mail className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleSign(p)}
+                  disabled={signingId === p.id || !p.contrato?.id}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] h-7 gap-1"
+                >
+                  {signingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  <span>Assinar</span>
+                </Button>
+              </div>
             </div>
           ))
         )}

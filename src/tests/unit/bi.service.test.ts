@@ -4,11 +4,66 @@ import { BIService, DrillDownNode } from '@/modules/crm/services/bi.service';
 // ─── Mock Supabase ────────────────────────────────────────────────────────────
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-    })),
+    from: vi.fn((table: string) => {
+      const mockChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockImplementation(() => {
+          if (table === 'v_dre_consolidado') {
+            return Promise.resolve({
+              data: {
+                receita_bruta: 50000,
+                impostos_estimados: 5000,
+                comissoes_vendas: 2500,
+                custos_operacionais_rede: 10000,
+                ebitda: 32500,
+                resultado_liquido: 32500,
+              },
+              error: null,
+            });
+          }
+          return Promise.resolve({ data: null, error: null });
+        }),
+      };
+
+      if (table === 'dw_fact_receita') {
+        return {
+          ...mockChain,
+          then: (resolve: any) => resolve({
+            data: [
+              { cliente_id: 'cli-01', empresa_operadora_id: 'empresa-01', valor_contratado: 5000, valor_recebido: 4900, valor_pendente: 100, status_recebimento: 'RECEBIDO' },
+              { cliente_id: 'cli-01', empresa_operadora_id: 'empresa-01', valor_contratado: 3000, valor_recebido: 3000, valor_pendente: 0, status_recebimento: 'RECEBIDO' },
+              { cliente_id: 'cli-02', empresa_operadora_id: 'empresa-01', valor_contratado: 2500, valor_recebido: 2000, valor_pendente: 500, status_recebimento: 'PENDENTE' },
+            ],
+            error: null,
+          }),
+        };
+      }
+
+      // Handle array results (select all)
+      if (table === 'dw_fact_exibicao') {
+        return {
+          ...mockChain,
+          then: (resolve: any) => resolve({
+            data: [{ insercoes_realizadas: 1000, sla_entrega_pct: 99.5 }],
+            error: null,
+          }),
+        };
+      }
+
+      if (table === 'dw_dim_player') {
+        return {
+          ...mockChain,
+          then: (resolve: any) => resolve({
+            data: [{ status_online: true }, { status_online: true }],
+            error: null,
+          }),
+        };
+      }
+
+      return mockChain;
+    }),
   },
 }));
 

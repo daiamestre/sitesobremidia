@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clienteService, ClienteCompleto } from '../services/cliente.service';
+import { Cliente360Modal } from '../components/Cliente360Modal';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,24 +10,25 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Building2, MapPin, Trash2, Loader2, FileCheck } from 'lucide-react';
+import { Plus, Search, Building2, MapPin, Trash2, Loader2, FileCheck, Eye, Pencil } from 'lucide-react';
 
 export default function ClientesListPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { empresaOperadoraId, representante, user } = useAuth();
+  const { empresaOperadoraId, representante, user, isOwner } = useAuth();
 
   const [clientes, setClientes] = useState<ClienteCompleto[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selected360Cliente, setSelected360Cliente] = useState<ClienteCompleto | null>(null);
 
   const fetchClientes = useCallback(async () => {
     setLoading(true);
-    const data = await clienteService.findAll(empresaOperadoraId || undefined, representante?.id || undefined);
+    const data = await clienteService.findAll(empresaOperadoraId || undefined, isOwner ? undefined : representante?.id || undefined);
     setClientes(data);
     setLoading(false);
-  }, [empresaOperadoraId, representante?.id]);
+  }, [empresaOperadoraId, representante?.id, isOwner]);
 
   useEffect(() => {
     fetchClientes();
@@ -75,6 +77,7 @@ export default function ClientesListPage() {
 
   const filteredClientes = clientes.filter((c) => {
     const emp = c.empresas?.[0];
+    if (!emp) return false;
     const term = searchTerm.toLowerCase();
     return (
       (emp?.nome_fantasia || '').toLowerCase().includes(term) ||
@@ -164,40 +167,67 @@ export default function ClientesListPage() {
                   {filteredClientes.map((cliente) => {
                     const emp = cliente.empresas?.[0];
                     const ct = emp?.contatos?.[0];
+                    const nomeFantasia = emp?.nome_fantasia || 'Sem nome';
+                    const segmento = emp?.segmento || 'Geral';
+                    const cnpj = emp?.cnpj || 'N/A';
+                    const razaoSocial = emp?.razao_social || 'N/A';
+                    const cidadeEstado = emp?.cidade ? `${emp.cidade}/${emp.estado}` : 'N/I';
+                    const contatoNome = ct?.nome || emp?.representante_legal || 'N/A';
+                    const contatoInfo = emp?.whatsapp || emp?.email || 'N/A';
                     return (
-                      <TableRow key={cliente.id} className="border-white/10 hover:bg-white/5">
+                      <TableRow key={cliente.id} className="border-white/10 hover:bg-white/5 cursor-pointer" onClick={() => navigate(`/representantes/clientes/${cliente.id}`)}>
                         <TableCell>
-                          <div className="font-bold text-white text-sm">
-                            <span className="text-xs text-primary font-mono mr-2">#{cliente.codigo_cliente}</span>
-                            {emp?.nome_fantasia || 'Sem nome'}
+                          <div className="font-bold text-white text-sm flex items-center gap-1">
+                            <span className="text-xs text-primary font-mono mr-1">#{cliente.codigo_cliente}</span>
+                            {nomeFantasia}
                           </div>
-                          <span className="text-xs text-slate-400">{emp?.segmento || 'Geral'}</span>
+                          <span className="text-xs text-slate-400">{segmento}</span>
                         </TableCell>
                         <TableCell>
-                          <div className="text-xs text-slate-200 font-semibold">{emp?.cnpj}</div>
-                          <div className="text-xs text-slate-400 truncate max-w-[180px]">{emp?.razao_social}</div>
+                          <div className="text-xs text-slate-200 font-semibold">{cnpj}</div>
+                          <div className="text-xs text-slate-400 truncate max-w-[180px]">{razaoSocial}</div>
                         </TableCell>
                         <TableCell>
                           <div className="text-xs text-slate-300 flex items-center gap-1">
                             <MapPin className="h-3 w-3 text-slate-400" />
-                            {emp?.cidade ? `${emp.cidade}/${emp.estado}` : 'N/I'}
+                            {cidadeEstado}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-xs text-slate-200 font-medium">{ct?.nome || emp?.representante_legal || 'N/A'}</div>
-                          <div className="text-[11px] text-slate-400">{emp?.whatsapp || emp?.email}</div>
+                          <div className="text-xs text-slate-200 font-medium">{contatoNome}</div>
+                          <div className="text-[11px] text-slate-400">{contatoInfo}</div>
                         </TableCell>
                         <TableCell>
                           <Badge className={
-                            cliente.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                            cliente.status === 'PROSPECT' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
+                            cliente.status === 'ACTIVE' || cliente.status === 'ATIVO' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                            cliente.status === 'PROSPECT' || cliente.status === 'NEGOCIACAO' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
                             'bg-amber-500/20 text-amber-400 border-amber-500/30'
                           }>
                             {cliente.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-primary/30 text-primary hover:bg-primary/10 text-xs h-8 px-2.5 gap-1"
+                              onClick={() => setSelected360Cliente(cliente)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Visão 360º
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10 text-xs h-8 px-2.5 gap-1"
+                              onClick={() => navigate(`/representantes/clientes/editar/${cliente.id}`)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Editar
+                            </Button>
+
                             <Button
                               size="sm"
                               variant="outline"
@@ -212,7 +242,7 @@ export default function ClientesListPage() {
                               size="sm"
                               variant="outline"
                               className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs h-8 px-2"
-                              onClick={() => handleInactivate(cliente.id, emp?.nome_fantasia || `Cliente #${cliente.codigo_cliente}`)}
+                              onClick={() => handleInactivate(cliente.id, nomeFantasia)}
                               disabled={deletingId === cliente.id}
                             >
                               {deletingId === cliente.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
@@ -228,6 +258,13 @@ export default function ClientesListPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* MODAL DA VISÃO 360 DE ACORDO COM O PROTOCOLO FASE 8.4-B.1 */}
+      <Cliente360Modal
+        cliente={selected360Cliente}
+        isOpen={!!selected360Cliente}
+        onClose={() => setSelected360Cliente(null)}
+      />
     </div>
   );
 }

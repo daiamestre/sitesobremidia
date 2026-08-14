@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 // Mocks principais da plataforma
@@ -106,9 +107,11 @@ describe('FASE 10.2.1 — Saneamento, Segurança e Regressão Anti-Mocks no CRM'
   it('3. [Regressão Anti-Mocks no Sidebar] Não deve conter Carlos Eduardo, nem CE', () => {
     render(
       <MemoryRouter>
-        <CrmSessionProvider>
-          <CrmSidebar />
-        </CrmSessionProvider>
+        <QueryClientProvider client={new QueryClient()}>
+          <CrmSessionProvider>
+            <CrmSidebar />
+          </CrmSessionProvider>
+        </QueryClientProvider>
       </MemoryRouter>
     );
 
@@ -121,9 +124,11 @@ describe('FASE 10.2.1 — Saneamento, Segurança e Regressão Anti-Mocks no CRM'
   it('4. [Regressão Anti-Mocks no Header] Não deve exibir avatar fixo CE', () => {
     render(
       <MemoryRouter>
-        <CrmSessionProvider>
-          <CrmHeader />
-        </CrmSessionProvider>
+        <QueryClientProvider client={new QueryClient()}>
+          <CrmSessionProvider>
+            <CrmHeader />
+          </CrmSessionProvider>
+        </QueryClientProvider>
       </MemoryRouter>
     );
 

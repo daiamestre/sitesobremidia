@@ -149,7 +149,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const filePath = `${userId}/${fileName}`;
+    // Paths institucionais (ex.: tenants/{empresa_operadora_id}/contratos/{id}/v{n}/...)
+    // são preservados como informados; demais arquivos são escopados por usuário.
+    const filePath = fileName.startsWith("tenants/") ? fileName : `${userId}/${fileName}`;
 
     const signedUrl = await generatePresignedUrl({
       accountId,
@@ -164,7 +166,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const publicUrl = publicDomain ? `${publicDomain}/${filePath}` : signedUrl;
 
-    console.log(`[PRESIGNED] Generated URL for ${filePath} (expires in 5min)`);
+    console.log(`[PRESIGNED] Generated PUT URL for ${filePath} (expires in 5min)`);
 
     return new Response(
       JSON.stringify({ signedUrl, publicUrl, filePath, expiresIn: 300 }),

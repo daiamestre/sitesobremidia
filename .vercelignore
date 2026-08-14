@@ -8,3 +8,15 @@ node_modules/
 
 native-android-player/
 play-services-*.jar
+
+# Segredos de auditoria e lixo de testes (não publicar)
+check_schema.*
+audit/
+playwright-report/
+test-results/
+*.tsbuildinfo
+vite.config.ts.timestamp-*
+
+# Backups e artefatos locais de auditoria
+*.bak-tsc
+tsc_app_*

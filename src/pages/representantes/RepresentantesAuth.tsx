@@ -50,7 +50,7 @@ export default function RepresentantesAuth() {
     }
     setIsLoading(true);
 
-    const { error, status } = await signIn(email, password);
+    const { error, status, routeRedirect } = await signIn(email, password);
     setIsLoading(false);
 
     if (error) {
@@ -72,10 +72,10 @@ export default function RepresentantesAuth() {
     }
 
     toast({
-      title: 'Bem-vindo ao CRM Comercial!',
-      description: 'Acesso liberado como Representante Comercial.',
+      title: 'Bem-vindo ao sistema!',
+      description: 'Acesso liberado com sucesso.',
     });
-    navigate('/representantes/dashboard');
+    navigate(routeRedirect || '/representantes/dashboard', { replace: true });
   };
 
   const handleCreateRequest = async () => {

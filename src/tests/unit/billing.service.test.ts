@@ -26,31 +26,26 @@ describe('BillingService — Boleto', () => {
     expect(service).toBeInstanceOf(BillingService);
   });
 
-  it('generateBoleto deve retornar linhaDigitavel', async () => {
-    const result = await service.generateBoleto('conta-01', 1500, '2026-08-31');
-    expect(result).toHaveProperty('linhaDigitavel');
-    expect(typeof result.linhaDigitavel).toBe('string');
-    expect(result.linhaDigitavel.length).toBeGreaterThan(0);
+  it('generateBoleto deve lançar erro (gateway não configurado — Zero Mock)', async () => {
+    await expect(service.generateBoleto('conta-01', 1500, '2026-08-31')).rejects.toThrow(
+      'Geração de boleto indisponível'
+    );
   });
 
-  it('generateBoleto deve retornar codigoBarras', async () => {
-    const result = await service.generateBoleto('conta-01', 1500, '2026-08-31');
-    expect(result).toHaveProperty('codigoBarras');
-    expect(result.codigoBarras).toMatch(/^34198/);
+  it('generateBoleto deve lançar erro em vez de retornar dados bancários fake', async () => {
+    await expect(service.generateBoleto('conta-01', 1500, '2026-08-31')).rejects.toThrow();
   });
 
-  it('generateBoleto deve retornar pdfUrl', async () => {
-    const result = await service.generateBoleto('conta-01', 1500, '2026-08-31');
-    expect(result).toHaveProperty('pdfUrl');
-    expect(typeof result.pdfUrl).toBe('string');
-  });
-
-  it('generateBoleto deve inserir registro em public.boletos', async () => {
+  it('generateBoleto não deve inserir registro em public.boletos (sem dados fake)', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
     vi.clearAllMocks();
-    await service.generateBoleto('conta-01', 1500, '2026-08-31');
+    try {
+      await service.generateBoleto('conta-01', 1500, '2026-08-31');
+    } catch {
+      // Esperado: deve lançar erro
+    }
     const tables = (supabase.from as ReturnType<typeof vi.fn>).mock.calls.map((c: string[]) => c[0]);
-    expect(tables).toContain('boletos');
+    expect(tables).not.toContain('boletos');
   });
 
   it('cancelBoleto deve retornar success: true', async () => {
@@ -86,6 +81,9 @@ describe('BillingService — PIX', () => {
 
   it('generatePix deve retornar txid', async () => {
     const result = await service.generatePix('conta-01', 750.00);
+    if (result.envelopeId) {
+      expect(result.envelopeId).toMatch(/ENV-CLICKSIGN-[A-F0-9-]+/);
+    }
     expect(result).toHaveProperty('txid');
     expect(result.txid).toMatch(/^PIX-/);
   });

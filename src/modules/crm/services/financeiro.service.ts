@@ -101,13 +101,15 @@ export class FinanceiroService {
       'erp.valor': payload.valorOriginal,
     });
     try {
-      // 1. Gera código atômico via RPC se não fornecido
       let numDoc = payload.numeroDocumento;
       if (!numDoc) {
-        const { data: numData } = await supabase.rpc('fn_gerar_numero_recebivel_atomo', {
+        const { data: numData, error: rpcError } = await supabase.rpc('fn_gerar_numero_recebivel_atomo', {
           p_empresa_operadora_id: payload.empresaOperadoraId,
         });
-        numDoc = numData || `REC-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000000)}`;
+        if (rpcError || !numData) {
+          throw new Error(`Falha ao gerar número de documento via RPC: ${rpcError?.message || 'Retorno vazio'}`);
+        }
+        numDoc = numData;
       }
 
       const saldo = payload.valorOriginal - (payload.desconto || 0) + (payload.juros || 0) + (payload.multa || 0);

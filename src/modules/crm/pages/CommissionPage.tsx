@@ -47,7 +47,10 @@ export default function CommissionPage() {
           <p className="text-slate-300 text-xs">Cálculo Automático por Cargo (Representante, Supervisor, Gerente)</p>
         </div>
 
-        <Button variant="outline" onClick={() => navigate('/representantes/financeiro')} className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
+        <Button variant="outline" onClick={() => {
+          const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+          navigate(`${basePath}/financeiro`);
+        }} className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
           <ArrowLeft className="h-4 w-4" /> Voltar ao Financeiro
         </Button>
       </div>

@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { centralService } from '@/services/central.service';
 import { EmailTemplates, TemplateType, EmailTemplateData } from '@/templates/emailTemplates';
 
 export type NotificationChannel = 'EMAIL' | 'WHATSAPP' | 'SMS' | 'IN_APP';
@@ -107,22 +108,27 @@ export class SMSProviderAdapter {
 export class InAppProviderAdapter {
   async send(userId: string, title: string, message: string): Promise<NotificationResult> {
     try {
-      const { error } = await supabase.from('notificacoes_central').insert({
-        usuario_id: userId,
-        tipo_evento: 'SYSTEM_ALERT',
-        canal: 'IN_APP',
-        destinatario_contato: userId,
-        titulo: title,
-        mensagem: message,
-        status_envio: 'SENT',
-        enviado_em: new Date().toISOString(),
-      });
+      const { data: usuario } = await supabase
+        .from('usuarios')
+        .select('empresa_operadora_id')
+        .eq('id', userId)
+        .maybeSingle();
 
-      if (error) {
-        return { success: false, channel: 'IN_APP', providerStatus: 'ACTIVE', error: error.message };
+      if (!usuario) {
+        return { success: false, channel: 'IN_APP', providerStatus: 'ACTIVE', error: 'Usuário destino não encontrado' };
       }
 
-      return { success: true, channel: 'IN_APP', providerStatus: 'ACTIVE' };
+      const ok = await centralService.criarNotificacao({
+        usuarioId: userId,
+        empresaId: usuario.empresa_operadora_id,
+        tipoEvento: 'SYSTEM_ALERT',
+        titulo: title,
+        mensagem: message,
+      });
+
+      return ok
+        ? { success: true, channel: 'IN_APP', providerStatus: 'ACTIVE' }
+        : { success: false, channel: 'IN_APP', providerStatus: 'ACTIVE', error: 'Falha ao criar notificação in-app' };
     } catch (err: any) {
       return { success: false, channel: 'IN_APP', providerStatus: 'ACTIVE', error: err?.message };
     }

@@ -42,7 +42,10 @@ export default function ProductionDetailsPage() {
     return (
       <div className="text-center py-12 space-y-3">
         <p className="text-slate-300">Produção não encontrada.</p>
-        <Button onClick={() => navigate('/representantes/producao')} variant="outline" className="text-white">
+        <Button onClick={() => {
+          const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+          navigate(`${basePath}/campanhas`);
+        }} variant="outline" className="text-white">
           Voltar para Lista
         </Button>
       </div>
@@ -67,7 +70,10 @@ export default function ProductionDetailsPage() {
           </p>
         </div>
 
-        <Button variant="outline" onClick={() => navigate('/representantes/producao')} className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
+        <Button variant="outline" onClick={() => {
+          const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+          navigate(`${basePath}/campanhas`);
+        }} className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
           <ArrowLeft className="h-4 w-4" />
           Voltar para Produções
         </Button>

@@ -124,8 +124,8 @@ export class FinanceiroPlusService {
           empresa_operadora_id: payload.empresaOperadoraId,
           cliente_id: payload.clienteId,
           contrato_id: payload.contratoId || null,
-          numero_rps: Math.floor(Math.random() * 900000) + 100000,
-          numero_nfse: `NFSE-${Date.now().toString().substring(5)}`,
+          numero_rps: 0, // Zero Mock: deve ser preenchido por integração real de prefeitura
+          numero_nfse: '', // Zero Mock: deve ser retornado pela integração real
           valor_servicos: payload.valorServicos,
           aliquota_iss: 5.0,
           valor_iss: iss,

@@ -13,10 +13,14 @@ import { test, expect, Page } from '@playwright/test';
 // Helper: navega para a tela de login dos representantes
 async function goToLogin(page: Page) {
   await page.goto('/representantes');
-  await page.waitForLoadState('networkidle');
+  // Espera determinística pelo formulário de login (React montado).
+  // Com o Supabase real conectado, a validação de sessão + redirect
+  // pode levar dezenas de segundos — networkidle nunca estabiliza.
+  await page.locator('input[type="email"]').first().waitFor({ state: 'visible', timeout: 60000 });
 }
 
 test.describe('Autenticação — Portal do Representante', () => {
+  test.setTimeout(180_000);
 
   test('deve exibir a tela de login ao acessar /representantes', async ({ page }) => {
     await goToLogin(page);
@@ -41,8 +45,8 @@ test.describe('Autenticação — Portal do Representante', () => {
 
   test('não deve navegar para o dashboard sem credenciais', async ({ page }) => {
     await page.goto('/representantes/dashboard');
-    await page.waitForLoadState('networkidle');
-    // Sem autenticação, deve redirecionar para login
+    // Sem autenticação, deve redirecionar para o login
+    await page.waitForURL(url => url.toString().includes('auth') || url.toString().includes('login'), { timeout: 15000 });
     await expect(page).not.toHaveURL('/representantes/dashboard');
   });
 
@@ -54,7 +58,7 @@ test.describe('Autenticação — Portal do Representante', () => {
       }
     });
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     // Filtrar erros não relacionados à app (ex: extensões do browser)
     const appErrors = criticalErrors.filter(e => !e.includes('extension') && !e.includes('chrome-extension'));
     expect(appErrors.length).toBe(0);
@@ -65,7 +69,7 @@ test.describe('Página Principal (Landing Page)', () => {
 
   test('deve exibir a landing page em /', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     await expect(page).toHaveURL('/');
   });
 

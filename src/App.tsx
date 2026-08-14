@@ -13,19 +13,27 @@ const Auth = lazy(() => import("./pages/Auth"));
 const Install = lazy(() => import("./pages/Install"));
 const RepresentantesAuth = lazy(() => import("./pages/representantes/RepresentantesAuth"));
 const WorkspaceLayout = lazy(() => import("./modules/corporate/layout/WorkspaceLayout"));
+const CorporateCommandCenter = lazy(() => import("./modules/corporate/pages/CorporateCommandCenter"));
+const UsuariosAcessosPage = lazy(() => import("./modules/corporate/pages/UsuariosAcessosPage"));
 const CrmLayout = lazy(() => import("./modules/crm/layout/CrmLayout"));
 const CrmDashboardHome = lazy(() => import("./modules/crm/pages/CrmDashboardHome"));
+const RepresentativeDashboard = lazy(() => import("./modules/crm/pages/RepresentativeDashboard"));
 const ClientesListPage = lazy(() => import("./modules/crm/pages/ClientesListPage"));
 const NovoClientePage = lazy(() => import("./modules/crm/pages/NovoClientePage"));
+const ClienteDetalhePage = lazy(() => import("./modules/crm/pages/ClienteDetalhePage"));
+const EditarClientePage = lazy(() => import("./modules/crm/pages/EditarClientePage"));
 const PropostasListPage = lazy(() => import("./modules/crm/pages/PropostasListPage"));
 const ContratoSelectionPage = lazy(() => import("./modules/crm/pages/ContratoSelectionPage"));
+const ContratosListPage = lazy(() => import("./modules/crm/pages/ContratosListPage"));
 const PedidoInsercaoPage = lazy(() => import("./modules/crm/pages/PedidoInsercaoPage"));
+const PedidoInsercaoListPage = lazy(() => import("./modules/crm/pages/PedidoInsercaoListPage"));
 const ProductionListPage = lazy(() => import("./modules/crm/pages/ProductionListPage"));
 const ProductionDetailsPage = lazy(() => import("./modules/crm/pages/ProductionDetailsPage"));
 const ScheduleListPage = lazy(() => import("./modules/crm/pages/ScheduleListPage"));
 const ScheduleDetailsPage = lazy(() => import("./modules/crm/pages/ScheduleDetailsPage"));
 const ScheduleCalendarPage = lazy(() => import("./modules/crm/pages/ScheduleCalendarPage"));
 const OperationDashboard = lazy(() => import("./modules/crm/pages/OperationDashboard"));
+const NocDashboardPage = lazy(() => import("./modules/crm/pages/NocDashboardPage"));
 const FinanceDashboard = lazy(() => import("./modules/crm/pages/FinanceDashboard"));
 const ContasReceberPage = lazy(() => import("./modules/crm/pages/ContasReceberPage"));
 const CommissionPage = lazy(() => import("./modules/crm/pages/CommissionPage"));
@@ -54,7 +62,16 @@ const ContractsSignaturePage = lazy(() => import("./modules/crm/pages/ContractsS
 const CustomerPortalDashboard = lazy(() => import("./modules/crm/pages/CustomerPortalDashboard"));
 const MobileDashboard = lazy(() => import("./modules/crm/pages/MobileDashboard"));
 const AIDashboard = lazy(() => import("./modules/crm/pages/AIDashboard"));
-const PlaceholderPage = lazy(() => import("./modules/crm/pages/PlaceholderPage"));
+
+// CUSTOMER PORTAL PAGES
+const CustomerPortalLayout = lazy(() => import("./modules/crm/layout/CustomerPortalLayout"));
+const MeusPontosPage = lazy(() => import("./modules/crm/pages/portal/MeusPontosPage"));
+const MinhasCampanhasPage = lazy(() => import("./modules/crm/pages/portal/MinhasCampanhasPage"));
+const FinanceiroClientePage = lazy(() => import("./modules/crm/pages/portal/FinanceiroClientePage"));
+const ContratoVigentePage = lazy(() => import("./modules/crm/pages/portal/ContratoVigentePage"));
+const InsercoesPorDiaPage = lazy(() => import("./modules/crm/pages/portal/InsercoesPorDiaPage"));
+const OcupacaoRedePage = lazy(() => import("./modules/crm/pages/portal/OcupacaoRedePage"));
+
 const DashboardHome = lazy(() => import("./pages/dashboard/DashboardHome"));
 const Medias = lazy(() => import("./pages/dashboard/Medias"));
 const Playlists = lazy(() => import("./pages/dashboard/Playlists"));
@@ -74,6 +91,7 @@ const WidgetPlayer = lazy(() => import("./pages/WidgetPlayer"));
 const LinkPlayer = lazy(() => import("./pages/LinkPlayer"));
 const WebPlayerDemo = lazy(() => import("./components/player/WebPlayerDemo"));
 const AdminSolicitacaoAprovacao = lazy(() => import("./pages/admin/AdminSolicitacaoAprovacao"));
+const CentralDashboard = lazy(() => import("./pages/Central/CentralDashboard"));
 
 const queryClient = new QueryClient();
 
@@ -86,6 +104,7 @@ const PageLoader = () => (
 
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { RequireApproval } from "@/components/auth/RouteGuards";
+import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
 
 const App = () => {
   return (
@@ -96,9 +115,10 @@ const App = () => {
 
         <AuthProvider>
           <BrowserRouter>
-            <div className="animate-in fade-in duration-300">
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
+            <CrmSessionProvider>
+              <div className="animate-in fade-in duration-300">
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
                   {/* PUBLIC ROUTES */}
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
@@ -108,18 +128,19 @@ const App = () => {
                   <Route path="/representantes/login" element={<RepresentantesAuth />} />
 
                   <Route path="/representantes" element={<RequireApproval><CrmLayout /></RequireApproval>}>
-                    <Route index element={<CrmDashboardHome />} />
-                    <Route path="dashboard" element={<CrmDashboardHome />} />
+                    <Route index element={<RepresentativeDashboard />} />
+                    <Route path="dashboard" element={<RepresentativeDashboard />} />
                     <Route path="clientes" element={<ClientesListPage />} />
                     <Route path="clientes/novo" element={<NovoClientePage />} />
+                    <Route path="clientes/editar/:id" element={<EditarClientePage />} />
+                    <Route path="clientes/:id" element={<ClienteDetalhePage />} />
                     <Route path="propostas" element={<PropostasListPage />} />
-                    <Route path="contratos" element={<ContratoSelectionPage />} />
+                    <Route path="contratos" element={<ContratosListPage />} />
                     <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
                     <Route path="campanhas" element={<ProductionListPage />} />
                     <Route path="pontos" element={<OccupancyDashboard />} />
                     <Route path="agenda" element={<ScheduleCalendarPage />} />
                     <Route path="relatorios" element={<CommercialDashboard />} />
-                    <Route path="configuracoes" element={<PlaceholderPage title="Configurações e Metas" description="Parâmetros de comissão, dados bancários e preferências de notificação do Representante." />} />
                     <Route path="pi" element={<PedidoInsercaoPage />} />
                     <Route path="pi/novo/:contratoId" element={<PedidoInsercaoPage />} />
                     <Route path="pi/:piId" element={<PedidoInsercaoPage />} />
@@ -153,17 +174,28 @@ const App = () => {
                     <Route path="bi/operacional" element={<OperationalAnalytics />} />
                     <Route path="bi/ocupacao" element={<OccupancyAnalytics />} />
                     <Route path="bi/scorecard" element={<ExecutiveScorecard />} />
+                    <Route path="central" element={<CentralDashboard />} />
+                    <Route path="configuracoes" element={<Settings />} />
+                    <Route path="perfil" element={<AdminUsers />} />
                     <Route path="assinaturas" element={<ContractsSignaturePage />} />
                     <Route path="portal-cliente" element={<CustomerPortalDashboard />} />
                     <Route path="mobile" element={<MobileDashboard />} />
                     <Route path="ia" element={<AIDashboard />} />
-                    <Route path="campanhas" element={<PlaceholderPage title="Campanhas Ativas" description="Campanhas de anúncio veiculadas nas telas da rede." />} />
-                    <Route path="pontos" element={<PlaceholderPage title="Pontos de Exibição" description="Mapeamento de TVs corporativas e painéis de LED." />} />
-                    <Route path="agenda" element={<PlaceholderPage title="Agenda de Visitas" description="Compromissos, reuniões e visitas comerciais agendadas." />} />
-                    <Route path="relatorios" element={<PlaceholderPage title="Relatórios Comerciais" description="Desempenho de vendas, taxa de conversão e relatórios." />} />
-                    <Route path="configuracoes" element={<PlaceholderPage title="Configurações do CRM" description="Preferências da conta e configurações gerais." />} />
-                    <Route path="perfil" element={<PlaceholderPage title="Meu Perfil" description="Dados do representante comercial e preferências." />} />
                   </Route>
+
+
+                  {/* CUSTOMER PORTAL DEDICATED LAYER */}
+                  <Route path="/portal" element={<RequireApproval><CustomerPortalLayout /></RequireApproval>}>
+                    <Route index element={<CustomerPortalDashboard />} />
+                    <Route path="contrato" element={<ContratoVigentePage />} />
+                    <Route path="pontos" element={<MeusPontosPage />} />
+                    <Route path="campanhas" element={<MinhasCampanhasPage />} />
+                    <Route path="insercoes" element={<InsercoesPorDiaPage />} />
+                    <Route path="ocupacao" element={<OcupacaoRedePage />} />
+                    <Route path="financeiro" element={<FinanceiroClientePage />} />
+                    <Route path="central" element={<CentralDashboard />} />
+                  </Route>
+
                   <Route path="/player" element={<Player />} />
                   <Route path="/player/:screenId" element={<Player />} />
                   <Route path="/player/widget/:id" element={<WidgetPlayer />} />
@@ -172,8 +204,7 @@ const App = () => {
                   <Route path="/player-demo" element={<WebPlayerDemo />} />
                   <Route path="/admin/solicitacoes/:id" element={<AdminSolicitacaoAprovacao />} />
 
-                  {/* DASHBOARD ROUTES (RESTORED) */}
-                  {/* DASHBOARD ROUTES (RESTORED) */}
+                  {/* DASHBOARD ROUTES */}
                   <Route path="/dashboard" element={<RequireApproval><DashboardLayout /></RequireApproval>}>
                     <Route index element={<DashboardHome />} />
                     <Route path="medias" element={<Medias />} />
@@ -186,17 +217,47 @@ const App = () => {
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="history" element={<History />} />
                     <Route path="reports" element={<Reports />} />
+                    <Route path="central" element={<CentralDashboard />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="admin/users" element={<AdminUsers />} />
                   </Route>
 
-                  {/* CORPORATE WORKSPACE ROUTES */}
+                  {/* UNIFIED CORPORATE WORKSPACE ROUTES */}
                   <Route path="/workspace" element={<RequireApproval><WorkspaceLayout /></RequireApproval>}>
-                    <Route index element={<PlaceholderPage title="Workspace" description="Bem-vindo ao seu ambiente de trabalho." />} />
-                    <Route path="corporate" element={<PlaceholderPage title="Corporate Command Center" description="Painel de controle central do Owner/Administrador da Plataforma." />} />
-                    <Route path="finance" element={<PlaceholderPage title="Financeiro" description="Gestão de recursos, contas a pagar e receber, DRE e fluxo de caixa." />} />
-                    <Route path="marketing" element={<PlaceholderPage title="Marketing e Anúncios" description="Gestão de campanhas, anunciantes e criativos." />} />
-                    <Route path="operations" element={<PlaceholderPage title="Operações (Gestor)" description="Gestão da rede de telas, agendamentos e saúde do sistema." />} />
+                    <Route index element={<CorporateCommandCenter />} />
+                    <Route path="corporate" element={<CorporateCommandCenter />} />
+                    <Route path="representantes" element={<RepresentativeDashboard />} />
+                    <Route path="clientes" element={<ClientesListPage />} />
+                    <Route path="clientes/novo" element={<NovoClientePage />} />
+                    <Route path="clientes/editar/:id" element={<EditarClientePage />} />
+                    <Route path="clientes/:id" element={<ClienteDetalhePage />} />
+                    <Route path="propostas" element={<PropostasListPage />} />
+                     <Route path="contratos" element={<ContratosListPage />} />
+                    <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
+                    <Route path="pi" element={<PedidoInsercaoListPage />} />
+                    <Route path="pi/novo/:contratoId" element={<PedidoInsercaoPage />} />
+                    <Route path="pi/:piId" element={<PedidoInsercaoPage />} />
+                    <Route path="campanhas" element={<ProductionListPage />} />
+                    <Route path="campanhas/:producaoId" element={<ProductionDetailsPage />} />
+                    <Route path="screens" element={<Screens />} />
+                    <Route path="screens/:id" element={<ScreenDetails />} />
+                    <Route path="agenda" element={<ScheduleCalendarPage />} />
+                    <Route path="agenda/lista" element={<ScheduleListPage />} />
+                    <Route path="agenda/:scheduleId" element={<ScheduleDetailsPage />} />
+                    <Route path="playlists" element={<Playlists />} />
+                    <Route path="financeiro" element={<FinanceExecutiveDashboard />} />
+                    <Route path="financeiro/dre" element={<DREPage />} />
+                    <Route path="financeiro/cobrancas" element={<BillingDashboard />} />
+                    <Route path="financeiro/comissoes" element={<CommissionPage />} />
+                    <Route path="bi" element={<BIExecutiveDashboard />} />
+                    <Route path="noc" element={<NocDashboardPage />} />
+                    <Route path="central" element={<CentralDashboard />} />
+                    <Route path="media" element={<Medias />} />
+                    <Route path="usuarios" element={<UsuariosAcessosPage />} />
+                    <Route path="configuracoes" element={<Settings />} />
+                    <Route path="perfil" element={<AdminUsers />} />
+                    <Route path="marketing" element={<CommercialDashboard />} />
+                    <Route path="operations" element={<OperationDashboard />} />
                   </Route>
 
                   {/* CATCH ALL */}
@@ -204,10 +265,11 @@ const App = () => {
                 </Routes>
               </Suspense>
             </div>
-          </BrowserRouter>
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+          </CrmSessionProvider>
+        </BrowserRouter>
+      </AuthProvider>
+    </TooltipProvider>
+  </QueryClientProvider>
   );
 };
 

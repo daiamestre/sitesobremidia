@@ -68,16 +68,15 @@ describe('Integração: Fluxo Financeiro Completo (Contrato → PI → Recebíve
     expect(result.totalGerado).toBe(12);
   });
 
-  it('Passo 3: BillingService.generateBoleto deve gerar boleto para a conta', async () => {
+  it('Passo 3: BillingService.generateBoleto respeita o Zero Mock Protocol (sem dados bancários fake)', async () => {
     const { BillingService } = await import('@/modules/crm/services/billing.service');
     const service = new BillingService();
 
-    const result = await service.generateBoleto('conta-uuid-01', 1000, '2026-08-31');
-
-    expect(result).toHaveProperty('linhaDigitavel');
-    expect(result).toHaveProperty('codigoBarras');
-    expect(result).toHaveProperty('pdfUrl');
-    expect(result.linhaDigitavel.length).toBeGreaterThan(10);
+    // Zero Mock Protocol: sem gateway de pagamentos configurado, boleto NÃO pode
+    // retornar linha digitável/código de barras/PDF falsos — deve falhar de forma explícita.
+    await expect(service.generateBoleto('conta-uuid-01', 1000, '2026-08-31')).rejects.toThrow(
+      'Geração de boleto indisponível. Integração com gateway de pagamentos não configurada.'
+    );
   });
 
   it('Passo 4: BillingService.generatePix deve gerar PIX para a mesma conta', async () => {
@@ -100,17 +99,17 @@ describe('Integração: Fluxo Financeiro Completo (Contrato → PI → Recebíve
     expect(result.notificados).toBeGreaterThanOrEqual(1);
   });
 
-  it('Pipeline completo Boleto + PIX: ambos devem funcionar para a mesma conta simultaneamente', async () => {
+  it('Pipeline completo Boleto + PIX: boleto bloqueado (Zero Mock) e PIX funcional para a mesma conta', async () => {
     const { BillingService } = await import('@/modules/crm/services/billing.service');
     const service = new BillingService();
 
-    const [boleto, pix] = await Promise.all([
-      service.generateBoleto('conta-01', 2500, '2026-09-30'),
-      service.generatePix('conta-01', 2500),
-    ]);
+    await expect(service.generateBoleto('conta-01', 2500, '2026-09-30')).rejects.toThrow(
+      'Geração de boleto indisponível. Integração com gateway de pagamentos não configurada.'
+    );
 
-    expect(boleto.linhaDigitavel.length).toBeGreaterThan(0);
+    const pix = await service.generatePix('conta-01', 2500);
     expect(pix.txid).toMatch(/^PIX-/);
+    expect(pix.qrcode.length).toBeGreaterThan(0);
   });
 
   it('Multi-tenant: fluxos financeiros de empresa-A e empresa-B devem ser independentes', async () => {
