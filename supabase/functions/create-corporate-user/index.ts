@@ -146,8 +146,22 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (rpcErr || !rpcData) {
-      // Rollback da identidade de autenticação se o registro corporativo falhar
-      await adminClient.auth.admin.deleteUser(newUserId);
+      // Rollback da identidade de autenticação se o registro corporativo falhar.
+      // GoTrue admin.deleteUser é intermitente ("Database error deleting user"):
+      // tentativas com backoff; se persistir, o usuário órfão é removido pelos
+      // testes via SQL direto (limpeza determinística).
+      let rollbackOk = false;
+      for (let tentativa = 0; tentativa < 3; tentativa++) {
+        const { error: delErr } = await adminClient.auth.admin.deleteUser(newUserId);
+        if (!delErr) {
+          rollbackOk = true;
+          break;
+        }
+        await new Promise((res) => setTimeout(res, 1500 * (tentativa + 1)));
+      }
+      if (!rollbackOk) {
+        console.error("create-corporate-user rollback incompleto para", email, "— limpar via SQL.");
+      }
       console.error("create-corporate-user RPC error:", rpcErr?.message);
       return json({ error: rpcErr?.message ?? "Falha ao registrar usuário corporativo" }, 403);
     }
