@@ -12,8 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import {
   FileText, Search, Filter, Loader2, RefreshCw, Plus,
   Calendar, DollarSign, Building2, CheckCircle2, XCircle,
-  Clock, Zap, BarChart3, TrendingUp, Eye, AlertTriangle
+  Clock, Zap, BarChart3, TrendingUp, Eye, AlertTriangle, Download, PenLine
 } from 'lucide-react';
+import { contratoDocumentoService } from '@/modules/crm/services/contratoDocumento.service';
 
 // ─── Status Helpers ──────────────────────────────────────────────────────────
 
@@ -43,12 +44,64 @@ const STATUS_DOC_MAP: Record<string, { label: string; icon: React.ReactNode }> =
 
 function Contrato360Modal({ contrato, onClose }: { contrato: ContratoCompleto; onClose: () => void }) {
   const navigate = useNavigate();
+  const { usuario } = useAuth();
+  const { toast } = useToast();
+  const [isSending, setIsSending] = useState(false);
   const statusWf = STATUS_WORKFLOW_MAP[contrato.status_workflow] ?? { label: contrato.status_workflow, color: '' };
   const statusDoc = STATUS_DOC_MAP[contrato.status_documento] ?? { label: contrato.status_documento, icon: null };
   const empresaNome = (contrato as any).empresa?.nome_fantasia || (contrato as any).empresa?.razao_social || '—';
 
   const tabs = ['Visão Geral', 'Financeiro', 'Operacional', 'Auditoria'];
   const [tab, setTab] = useState(0);
+
+  const handleVisualizar = async () => {
+    if (!contrato.pdf_object_key) return;
+    try {
+      await contratoDocumentoService.visualizarDocumento(contrato.pdf_object_key);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Não foi possível abrir o documento.', variant: 'destructive' });
+    }
+  };
+
+  const handleBaixar = async () => {
+    if (!contrato.pdf_object_key) return;
+    try {
+      await contratoDocumentoService.baixarDocumento(contrato.pdf_object_key, `Contrato_${contrato.numero_contrato}.pdf`);
+      if (usuario?.id) {
+        await contratoDocumentoService.registrarDownloadDocumento(contrato.id, contrato.tipo_contrato || '', usuario.id, contrato.pdf_object_key);
+      }
+      toast({ title: 'Download iniciado', description: 'Documento do contrato baixado.' });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Não foi possível baixar o documento.', variant: 'destructive' });
+    }
+  };
+
+  const handleVisualizarAssinado = async () => {
+    if (!contrato.pdf_assinado_key) return;
+    try {
+      await contratoDocumentoService.visualizarDocumento(contrato.pdf_assinado_key);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Não foi possível abrir o documento assinado.', variant: 'destructive' });
+    }
+  };
+
+  const handleEnviarAssinatura = async () => {
+    if (!usuario?.id) return;
+    setIsSending(true);
+    try {
+      const resultado = await contratoService.enviarParaAssinatura(contrato.id, usuario.id);
+      if (resultado.success) {
+        toast({ title: 'Enviado para assinatura', description: `Envelope ${resultado.envelopeId || ''} criado. O cliente recebeu o documento no portal.` });
+        onClose();
+      } else {
+        toast({ title: 'Erro', description: resultado.error || 'Falha ao enviar para assinatura.', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Falha ao enviar para assinatura.', variant: 'destructive' });
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -71,7 +124,13 @@ function Contrato360Modal({ contrato, onClose }: { contrato: ContratoCompleto; o
               variant="outline"
               size="sm"
               className="border-white/10 text-white text-xs"
-              onClick={() => navigate(`/representantes/contratos/selecionar/${contrato.proposta_id}`)}
+              onClick={() => {
+                if (!contrato.proposta_id) {
+                  toast({ title: 'Sem Proposta de Origem', description: 'Este contrato não possui proposta vinculada para edição.', variant: 'destructive' });
+                  return;
+                }
+                navigate(`/representantes/contratos/selecionar/${contrato.proposta_id}`);
+              }}
             >
               Editar Contrato
             </Button>
@@ -97,25 +156,65 @@ function Contrato360Modal({ contrato, onClose }: { contrato: ContratoCompleto; o
         {/* Body */}
         <div className="p-6 overflow-y-auto max-h-[480px] space-y-4">
           {tab === 0 && (
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: 'Número do Contrato', value: contrato.numero_contrato, mono: true },
-                { label: 'Tipo', value: contrato.tipo_contrato || '—' },
-                { label: 'Status Workflow', value: statusWf.label },
-                { label: 'Status Documento', value: statusDoc.label },
-                { label: 'Cliente ID', value: contrato.cliente_id, mono: true },
-                { label: 'Proposta de Origem', value: (contrato as any).proposta?.numero_proposta || contrato.proposta_id, mono: true },
-                { label: 'Forma de Pagamento', value: contrato.forma_pagamento },
-                { label: 'Data Início', value: contrato.data_inicio },
-                { label: 'Data Fim', value: contrato.data_fim },
-                { label: 'Template', value: (contrato as any).template_nome || '—' },
-              ].map(({ label, value, mono }) => (
-                <div key={label} className="bg-slate-950/60 p-3 rounded-lg border border-white/5">
-                  <p className="text-xs text-slate-400 mb-0.5">{label}</p>
-                  <p className={`text-sm font-semibold text-white ${mono ? 'font-mono' : ''}`}>{value}</p>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: 'Número do Contrato', value: contrato.numero_contrato, mono: true },
+                  { label: 'Tipo', value: contrato.tipo_contrato || '—' },
+                  { label: 'Status Workflow', value: statusWf.label },
+                  { label: 'Status Documento', value: statusDoc.label },
+                  { label: 'Cliente ID', value: contrato.cliente_id, mono: true },
+                  { label: 'Proposta de Origem', value: (contrato as any).proposta?.numero_proposta || contrato.proposta_id, mono: true },
+                  { label: 'Forma de Pagamento', value: contrato.forma_pagamento },
+                  { label: 'Data Início', value: contrato.data_inicio },
+                  { label: 'Data Fim', value: contrato.data_fim },
+                  { label: 'Template', value: (contrato as any).template_nome || '—' },
+                ].map(({ label, value, mono }) => (
+                  <div key={label} className="bg-slate-950/60 p-3 rounded-lg border border-white/5">
+                    <p className="text-xs text-slate-400 mb-0.5">{label}</p>
+                    <p className={`text-sm font-semibold text-white ${mono ? 'font-mono' : ''}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-white/5 space-y-3">
+                <p className="text-xs text-slate-400 mb-0.5">Documento do Contrato</p>
+                {!contrato.pdf_object_key && !contrato.pdf_assinado_key ? (
+                  <p className="text-sm text-slate-400">Documento ainda não gerado. Use "Editar / Gerar PDF" para gerar e armazenar o PDF real no R2.</p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {contrato.pdf_object_key && (
+                        <>
+                          <Button variant="outline" size="sm" className="border-white/10 text-white text-xs gap-1" onClick={handleVisualizar}>
+                            <Eye className="h-3.5 w-3.5" /> Visualizar
+                          </Button>
+                          <Button variant="outline" size="sm" className="border-white/10 text-white text-xs gap-1" onClick={handleBaixar}>
+                            <Download className="h-3.5 w-3.5" /> Baixar
+                          </Button>
+                        </>
+                      )}
+                      {contrato.pdf_assinado_key && (
+                        <Button variant="outline" size="sm" className="border-emerald-500/30 text-emerald-400 text-xs gap-1 hover:bg-emerald-500/10" onClick={handleVisualizarAssinado}>
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Ver Assinado
+                        </Button>
+                      )}
+                      {contrato.status_documento === 'GERADO' && (
+                        <Button size="sm" className="bg-primary/90 hover:bg-primary text-white text-xs gap-1 font-bold" onClick={handleEnviarAssinatura} disabled={isSending}>
+                          {isSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PenLine className="h-3.5 w-3.5" />}
+                          Enviar para Assinatura
+                        </Button>
+                      )}
+                    </div>
+                    {contrato.status_documento === 'ENVIADO' && (
+                      <p className="text-xs text-amber-300">Enviado em {contrato.documento_enviado_em ? new Date(contrato.documento_enviado_em).toLocaleString('pt-BR') : '—'} · Aguardando assinatura do cliente no portal.</p>
+                    )}
+                    {contrato.status_documento === 'ASSINADO' && (
+                      <p className="text-xs text-emerald-400">Assinado em {contrato.documento_assinado_em ? new Date(contrato.documento_assinado_em).toLocaleString('pt-BR') : '—'} por {contrato.assinado_por || '—'} · Envelope {contrato.assinatura_envelope_id || '—'}</p>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
           )}
 
           {tab === 1 && (
@@ -201,7 +300,7 @@ function Contrato360Modal({ contrato, onClose }: { contrato: ContratoCompleto; o
 
 export default function ContratosListPage() {
   const navigate = useNavigate();
-  const { representante } = useAuth();
+  const { representante, isOwner, usuario } = useAuth();
   const { toast } = useToast();
 
   const [contratos, setContratos] = useState<ContratoCompleto[]>([]);
@@ -212,10 +311,10 @@ export default function ContratosListPage() {
 
   const loadContratos = useCallback(async () => {
     setLoading(true);
-    const data = await contratoService.findAll(representante?.id);
+    const data = await contratoService.findAll(isOwner ? undefined : representante?.id);
     setContratos(data);
     setLoading(false);
-  }, [representante]);
+  }, [representante, isOwner]);
 
   useEffect(() => {
     loadContratos();
@@ -410,6 +509,62 @@ export default function ContratosListPage() {
                       <FileText className="h-3.5 w-3.5" /> Editar / Gerar PDF
                     </Button>
                   </div>
+                  {c.pdf_object_key && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-white/10 text-white text-xs gap-1"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await contratoDocumentoService.baixarDocumento(c.pdf_object_key!, `Contrato_${c.numero_contrato}.pdf`);
+                            if (usuario?.id) {
+                              await contratoDocumentoService.registrarDownloadDocumento(c.id, c.tipo_contrato || '', usuario.id, c.pdf_object_key!);
+                            }
+                            toast({ title: 'Download iniciado', description: 'Documento do contrato baixado.' });
+                          } catch (err: any) {
+                            toast({ title: 'Erro', description: err?.message || 'Não foi possível baixar o documento.', variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        <Download className="h-3.5 w-3.5" /> Baixar PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-white/10 text-white text-xs gap-1"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await contratoDocumentoService.visualizarDocumento(c.pdf_object_key!);
+                          } catch (err: any) {
+                            toast({ title: 'Erro', description: err?.message || 'Não foi possível abrir o documento.', variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5" /> Ver PDF
+                      </Button>
+                      {c.pdf_assinado_key && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full border-emerald-500/30 text-emerald-400 text-xs gap-1 hover:bg-emerald-500/10"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await contratoDocumentoService.baixarDocumento(c.pdf_assinado_key!, `Contrato_Assinado_${c.numero_contrato}.pdf`);
+                              toast({ title: 'Download iniciado', description: 'PDF assinado baixado.' });
+                            } catch (err: any) {
+                              toast({ title: 'Erro', description: err?.message || 'Não foi possível baixar o documento assinado.', variant: 'destructive' });
+                            }
+                          }}
+                        >
+                          <Download className="h-3.5 w-3.5" /> Baixar Assinado
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

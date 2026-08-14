@@ -1,12 +1,15 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  Search, 
-  Bell, 
-  Plus, 
-  Briefcase
+import {
+  Search,
+  Bell,
+  Plus,
+  Briefcase,
+  Loader2,
+  CheckCircle2,
+  Inbox,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -17,10 +20,26 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useCrmSession } from '../contexts/CrmSessionContext';
+import { useCentralUnread } from '@/hooks/useCentral';
+import { useQuery } from '@tanstack/react-query';
+import { centralService } from '@/services/central.service';
+import { cn } from '@/lib/utils';
+import { formatDateTime } from '@/utils/formatters';
 
 export function CrmHeader() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { userInitials, userName, userEmail } = useCrmSession();
+  const { total: totalNaoLidas } = useCentralUnread();
+
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+  const centralPath = `${basePath}/central`;
+
+  const { data: recentes, isLoading: loadingRecentes } = useQuery({
+    queryKey: ['central-recentes'],
+    queryFn: () => centralService.listarNotificacoes({ itensPorPagina: 8 }),
+    staleTime: 20000,
+  });
 
   return (
     <header className="sticky top-0 z-20 bg-slate-950/80 backdrop-blur-md border-b border-white/10 px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
@@ -54,35 +73,89 @@ export function CrmHeader() {
 
       {/* Right Actions */}
       <div className="flex items-center gap-3">
-        {/* Notifications */}
+        {/* Notificações — Sino Global conectado à Central (dados reais + realtime) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
               className="relative text-slate-300 hover:text-white hover:bg-white/10 rounded-xl"
+              aria-label={`Notificações${totalNaoLidas > 0 ? ` (${totalNaoLidas} não lidas)` : ''}`}
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-primary rounded-full ring-2 ring-slate-950 animate-pulse" />
+              {totalNaoLidas > 0 ? (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-slate-950">
+                  {totalNaoLidas > 99 ? '99+' : totalNaoLidas}
+                </span>
+              ) : (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-slate-600 rounded-full ring-2 ring-slate-950" />
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 bg-slate-950 border-white/10 text-white rounded-xl p-2">
-            <DropdownMenuLabel className="font-bold text-sm">Notificações Comerciais</DropdownMenuLabel>
+            <DropdownMenuLabel className="font-bold text-sm flex items-center justify-between">
+              <span>Central de Comunicação</span>
+              {totalNaoLidas > 0 && (
+                <span className="text-[10px] text-primary font-semibold">{totalNaoLidas} não lidas</span>
+              )}
+            </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-white/10" />
-            <DropdownMenuItem className="p-3 text-xs focus:bg-slate-900 focus:text-white rounded-lg cursor-pointer">
-              <div>
-                <p className="font-bold text-white">Proposta Aprovada</p>
-                <p className="text-slate-400">Academia FitLife aprovou o plano Anual.</p>
-                <span className="text-[10px] text-primary mt-1 block">Há 15 minutos</span>
+
+            {loadingRecentes ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="p-3 text-xs focus:bg-slate-900 focus:text-white rounded-lg cursor-pointer">
-              <div>
-                <p className="font-bold text-white">Nova Visita Agendada</p>
-                <p className="text-slate-400">Reunião presencial amanhã às 14:00.</p>
-                <span className="text-[10px] text-primary mt-1 block">Há 1 hora</span>
+            ) : recentes && recentes.length > 0 ? (
+              recentes.slice(0, 5).map((n) => (
+                <DropdownMenuItem
+                  key={n.id}
+                  className="p-3 text-xs focus:bg-slate-900 focus:text-white rounded-lg cursor-pointer flex flex-col items-start gap-1"
+                  onClick={() => {
+                    centralService.marcarComoLida(n.id);
+                    navigate(centralPath);
+                  }}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <span
+                      className={cn(
+                        'w-2 h-2 rounded-full flex-shrink-0',
+                        n.status_notificacao === 'NAO_LIDA' ? 'bg-primary' : 'bg-slate-600'
+                      )}
+                    />
+                    <p className={cn('font-bold text-white', n.status_notificacao === 'LIDA' && 'text-slate-400 font-semibold')}>
+                      {n.titulo}
+                    </p>
+                    {n.prioridade === 'CRITICO' && (
+                      <span className="ml-auto text-[9px] font-bold text-red-400 border border-red-500/40 rounded px-1">CRÍTICO</span>
+                    )}
+                  </div>
+                  <p className="text-slate-400 line-clamp-1 w-full pl-4">{n.mensagem}</p>
+                  <span className="text-[10px] text-primary mt-0.5 pl-4">{formatDateTime(n.created_at)}</span>
+                </DropdownMenuItem>
+              ))
+            ) : (
+              <div className="py-6 text-center text-xs text-slate-500">
+                <Inbox className="h-6 w-6 mx-auto mb-2 opacity-40" />
+                Nenhuma notificação no momento.
               </div>
+            )}
+
+            <DropdownMenuSeparator className="bg-white/10" />
+            <DropdownMenuItem
+              className="text-xs font-semibold text-primary justify-center py-2 focus:bg-slate-900 rounded-lg cursor-pointer"
+              onClick={() => navigate(centralPath)}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
+              Abrir Central de Comunicação
             </DropdownMenuItem>
+            {totalNaoLidas > 0 && (
+              <DropdownMenuItem
+                className="text-xs text-slate-300 justify-center py-2 focus:bg-slate-900 rounded-lg cursor-pointer"
+                onClick={() => centralService.marcarTodasComoLidas()}
+              >
+                Marcar todas como lidas
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -95,7 +168,7 @@ export function CrmHeader() {
 
         {/* MAIN TOP RIGHT BUTTON: + Novo Cliente */}
         <Button
-          onClick={() => navigate('/representantes/clientes/novo')}
+          onClick={() => navigate(`${basePath}/clientes/novo`)}
           size="lg"
           className="gradient-primary glow-primary font-bold text-sm px-5 py-2.5 h-10 rounded-xl shadow-xl transition-all duration-300 hover:scale-105 gap-2"
         >

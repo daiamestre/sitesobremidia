@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCentralUnread } from '@/hooks/useCentral';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Image,
@@ -19,10 +20,15 @@ import {
   Shield,
   LayoutGrid,
   BarChart3,
+  Inbox,
+  Bell,
+  AlertTriangle,
+  FileText,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const menuItems = [
+  { icon: Inbox, label: 'Central', path: '/dashboard/central' },
   { icon: Image, label: 'Minhas Mídias', path: '/dashboard/medias' },
   { icon: ListVideo, label: 'Playlists', path: '/dashboard/playlists' },
   { icon: Monitor, label: 'Telas', path: '/dashboard/screens' },
@@ -39,6 +45,18 @@ export function Sidebar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const { signOut, profile, user } = useAuth();
   const location = useLocation();
+  const { total: totalNaoLidas } = useCentralUnread();
+
+  // MENSAGENS: entrada logo abaixo de BI & Relatórios (Relatórios) em todos os painéis
+  const menuComMensagens = [
+    ...menuItems,
+    {
+      icon: Bell,
+      label: 'Mensagens',
+      path: '/dashboard/central',
+      badge: totalNaoLidas,
+    },
+  ];
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -85,7 +103,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => {
+        {menuComMensagens.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <NavLink
@@ -99,7 +117,16 @@ export function Sidebar() {
               )}
             >
               <item.icon className="h-5 w-5 flex-shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && (
+                <>
+                  <span className="flex-1">{item.label}</span>
+                  {'badge' in item && item.badge > 0 && (
+                    <span className="min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
+                </>
+              )}
             </NavLink>
           );
         })}

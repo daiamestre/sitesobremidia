@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src/modules/crm/services/cliente.service.ts",
+    "src/modules/crm/validators/cliente.validator.ts",
+    "src/modules/crm/types/cliente.types.ts",
+    "src/modules/crm/pages/NovoClientePage.tsx",
+    "src/modules/crm/pages/EditarClientePage.tsx",
+    "src/modules/crm/pages/ClientesListPage.tsx",
+    "src/modules/crm/pages/ClienteDetalhePage.tsx",
+    "src/modules/crm/components/Cliente360Modal.tsx",
+    "src/pages/Central/CentralDashboard.tsx",
+    "src/App.tsx"
+  ]
+}

@@ -1,7 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { useCrmSession } from '../contexts/CrmSessionContext';
+import { useCentralUnread } from '@/hooks/useCentral';
+import { useRbac } from '@/hooks/useRbac';
+import { corporateUsersService } from '@/services/corporateUsers.service';
 import { 
   Home, 
   Users, 
@@ -16,30 +20,69 @@ import {
   User, 
   LogOut,
   ChevronRight,
-  Briefcase
+  Briefcase,
+  Bell,
+  ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function CrmSidebar() {
   const location = useLocation();
   const { userName, userEmail, userInitials, userCargo, handleCrmLogout, isLoggingOut } = useCrmSession();
+  const { total: totalNaoLidas } = useCentralUnread();
+  const { isOwner } = useRbac();
+  const [minhasPermissoes, setMinhasPermissoes] = useState<string[]>([]);
+
+  // Central de Acessos é delegada: visível apenas para OWNER ou quem possui
+  // users.view delegado (ADMIN por perfil sem delegação não acessa a Central).
+  useEffect(() => {
+    let ativo = true;
+    corporateUsersService
+      .getMyPermissions()
+      .then((p) => {
+        if (ativo) setMinhasPermissoes(p);
+      })
+      .catch(() => {
+        if (ativo) setMinhasPermissoes([]);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const podeVerCentralAcessos = isOwner || minhasPermissoes.includes('users.view');
 
   // Determine base path dynamically
   const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+  const isWorkspace = basePath === '/workspace';
 
   const navItems = [
-    { label: 'Dashboard', icon: Home, path: `${basePath}/corporate` },
+    // Dashboard aponta para rotas existentes em CADA painel (corrige o 404 do
+    // painel de representantes: /representantes/corporate não existe)
+    { label: 'Dashboard', icon: Home, path: isWorkspace ? '/workspace/corporate' : '/representantes/dashboard' },
     { label: 'Clientes', icon: Users, path: `${basePath}/clientes` },
     { label: 'Propostas', icon: FileText, path: `${basePath}/propostas` },
     { label: 'Contratos', icon: FileCheck, path: `${basePath}/contratos` },
     { label: 'Campanhas', icon: Tv, path: `${basePath}/campanhas` },
-    { label: 'Pontos de Exibição', icon: MapPin, path: `${basePath}/screens` }, // Changed from pontos to screens to match Workspace
+    // Pontos de Exibição: /workspace/screens existe; no painel de representantes a rota é /representantes/pontos
+    { label: 'Pontos de Exibição', icon: MapPin, path: isWorkspace ? '/workspace/screens' : '/representantes/pontos' },
     { label: 'Agenda', icon: Calendar, path: `${basePath}/agenda` },
-    { label: 'Financeiro', icon: DollarSign, path: `${basePath}/financeiro` }, // App.tsx uses finance, but wait...
+    { label: 'Financeiro', icon: DollarSign, path: `${basePath}/financeiro` },
     { label: 'BI & Relatórios', icon: BarChart3, path: `${basePath}/bi` },
+    // MENSAGENS: entra logo abaixo de BI & Relatórios em todos os painéis
+    { label: 'Mensagens', icon: Bell, path: `${basePath}/central`, badge: totalNaoLidas },
     { label: 'Configurações', icon: Settings, path: `${basePath}/configuracoes` },
     { label: 'Meu Perfil', icon: User, path: `${basePath}/perfil` },
   ];
+
+  // Central de Acessos: item administrativo delegado (OWNER ou users.view)
+  if (isWorkspace && podeVerCentralAcessos) {
+    navItems.splice(11, 0, {
+      label: 'Central de Acessos',
+      icon: ShieldCheck,
+      path: '/workspace/usuarios',
+    });
+  }
 
   return (
     <aside className="w-64 bg-slate-950 border-r border-white/10 flex flex-col justify-between h-screen sticky top-0 z-30 select-none">
@@ -77,7 +120,14 @@ export function CrmSidebar() {
                     />
                     <span>{item.label}</span>
                   </div>
-                  {isActive && <ChevronRight className="h-4 w-4 opacity-80" />}
+                  <div className="flex items-center gap-1.5">
+                    {'badge' in item && item.badge > 0 && (
+                      <span className="min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
+                    {isActive && <ChevronRight className="h-4 w-4 opacity-80" />}
+                  </div>
                 </div>
               </Link>
             );

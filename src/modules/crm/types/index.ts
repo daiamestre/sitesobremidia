@@ -15,6 +15,7 @@ export * from './financeiro.types';
 export * from './assinatura.types';
 export * from './arquivo.types';
 export * from './proposta.types';
+export * from './portal.types';
 
 export type StepperStepId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 export interface StepperStep {

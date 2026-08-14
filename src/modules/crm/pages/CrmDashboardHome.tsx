@@ -25,11 +25,13 @@ import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { propostaService } from '../services/proposta.service';
 import { contratoService, ContratoCompleto } from '../services/contrato.service';
 import { useCrmSession } from '../contexts/CrmSessionContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { EmptyDashboard } from '../components/EmptyDashboard';
 
 export default function CrmDashboardHome() {
   const navigate = useNavigate();
   const { empresaOperadoraId, representante, userName } = useCrmSession();
+  const { isOwner } = useAuth();
 
   const [clientsList, setClientsList] = useState<ClienteCompleto[]>([]);
   const [propostasList, setPropostasList] = useState<any[]>([]);
@@ -40,9 +42,9 @@ export default function CrmDashboardHome() {
     async function loadRealData() {
       setLoading(true);
       const [clientesData, propostasData, contratosData] = await Promise.all([
-        clienteService.findAll(empresaOperadoraId || undefined, representante?.id || undefined),
-        propostaService.findAll(representante?.id || undefined),
-        contratoService.findAll(representante?.id || undefined)
+        clienteService.findAll(empresaOperadoraId || undefined, isOwner ? undefined : representante?.id || undefined),
+        propostaService.findAll(isOwner ? undefined : representante?.id || undefined),
+        contratoService.findAll(isOwner ? undefined : representante?.id || undefined)
       ]);
       setClientsList(clientesData || []);
       setPropostasList(propostasData || []);
@@ -51,7 +53,7 @@ export default function CrmDashboardHome() {
     }
 
     loadRealData();
-  }, [empresaOperadoraId, representante?.id]);
+  }, [empresaOperadoraId, representante?.id, isOwner]);
 
   if (!loading && clientsList.length === 0 && propostasList.length === 0 && contratosList.length === 0) {
     return <EmptyDashboard userName={userName} />;

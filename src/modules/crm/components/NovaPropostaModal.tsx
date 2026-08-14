@@ -58,7 +58,7 @@ export const NovaPropostaModal: React.FC<NovaPropostaModalProps> = ({ isOpen, on
       const { error } = await supabase.from('propostas').insert({
         empresa_operadora_id: empresaOperadoraId || '7d62aaec-e24d-4273-b257-867183cf658c',
         cliente_id: selectedClienteId,
-        representante_id: representante?.id || 'a1b2c3d4-e5f6-7000-8000-000000000001',
+        representante_id: representante?.id || null,
         numero_proposta: numeroProposta,
         valor_total: valorTotal,
         desconto: desconto,

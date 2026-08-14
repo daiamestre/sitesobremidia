@@ -94,11 +94,11 @@ export default function SignatureDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <PendingSignatures pendentes={pendentes} />
-        <SignedContracts assinados={assinados} />
+        <PendingSignatures pendentes={pendentes} onAssinaturaEvent={fetchSignatures} />
+        <SignedContracts assinados={assinados} onAssinaturaEvent={fetchSignatures} />
       </div>
 
-      <WebhookMonitor />
+      <WebhookMonitor empresaOperadoraId={empresaOperadoraId || undefined} />
     </div>
   );
 }

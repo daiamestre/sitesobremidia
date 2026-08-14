@@ -76,7 +76,7 @@ export function RequireApproval({ children }: GuardProps) {
       userEmail: user?.email || undefined,
       details: { reason: 'UNAUTHENTICATED_ROUTE_ACCESS' }
     });
-    return <Navigate to="/representantes/login" replace />;
+    return <Navigate to={`/auth?redirect=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
   // 2. Verificação de status APPROVED na tabela do banco -> Redireciona ao login com mensagem
@@ -99,8 +99,8 @@ export function RequireApproval({ children }: GuardProps) {
     return <Navigate to="/representantes/login?error=tenant" replace />;
   }
 
-  // 4. Blindagem RBAC: Somente Administrador, Supervisor, Representante ou Financeiro
-  const allowedRoles: RoleName[] = ['ADMIN', 'REPRESENTANTE', 'SUPERVISOR', 'FINANCEIRO'];
+  // 4. Blindagem RBAC: OWNER, Administrador, Gestor, Supervisor, Representante ou Financeiro
+  const allowedRoles: RoleName[] = ['OWNER', 'ADMIN', 'GESTOR', 'GERENTE', 'REPRESENTANTE', 'SUPERVISOR', 'FINANCEIRO'];
   if (!role || !allowedRoles.includes(role)) {
     securityAuditService.logEvent('ACCESS_DENIED', {
       userEmail: user.email || undefined,

@@ -39,3 +39,19 @@ coverage
 dev-dist
 lint-results*
 .temp*
+
+# Audit scripts (contain local tokens, not for repo)
+audit/
+
+# Playwright artifacts e cache local
+playwright-report/
+test-results/
+*.tsbuildinfo
+vite.config.ts.timestamp-*
+supabase/.temp/
+
+# Scripts temporários de apoio (diagnóstico/fix, fora do repo)
+_*.mjs
+_*.cjs
+_*.ps1
+*.tmp

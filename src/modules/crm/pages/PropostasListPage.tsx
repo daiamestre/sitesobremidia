@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function PropostasListPage() {
   const navigate = useNavigate();
-  const { representante } = useAuth();
+  const { representante, isOwner } = useAuth();
   const [propostas, setPropostas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -19,14 +19,14 @@ export default function PropostasListPage() {
 
   const loadPropostas = async () => {
     setLoading(true);
-    const res = await propostaService.findAll(representante?.id);
+    const res = await propostaService.findAll(isOwner ? undefined : representante?.id);
     setPropostas(res);
     setLoading(false);
   };
 
   useEffect(() => {
     loadPropostas();
-  }, [representante]);
+  }, [representante, isOwner]);
 
   const handleSendProposal = async (propostaId: string) => {
     setSendingId(propostaId);
