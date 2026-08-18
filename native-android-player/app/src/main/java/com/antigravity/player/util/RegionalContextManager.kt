@@ -46,7 +46,8 @@ object RegionalContextManager {
         withContext(Dispatchers.IO) {
             try {
                 // Fields required: status, regionName, city, timezone
-                val apiUrl = "http://ip-api.com/json/?fields=status,regionName,city,timezone"
+                // [SECURITY HARDENING] HTTPS obrigatório (P0: HTTP -> DENY)
+                val apiUrl = "https://ip-api.com/json/?fields=status,regionName,city,timezone"
                 val url = URL(apiUrl)
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"

@@ -50,14 +50,14 @@ export class FinanceGatewayAdapter {
  * Barramento de Eventos Financeiros (Internal Event Bus)
  */
 export class FinanceEventBus {
-  private static listeners: Map<FinanceEventType, Function[]> = new Map();
+  private static listeners: Map<FinanceEventType, Array<(payload: unknown) => Promise<void> | void>> = new Map();
 
-  static on(event: FinanceEventType, callback: Function) {
+  static on(event: FinanceEventType, callback: (payload: unknown) => Promise<void> | void) {
     if (!this.listeners.has(event)) this.listeners.set(event, []);
     this.listeners.get(event)?.push(callback);
   }
 
-  static async emit(event: FinanceEventType, payload: any) {
+  static async emit(event: FinanceEventType, payload: unknown) {
     const callbacks = this.listeners.get(event) || [];
     for (const fn of callbacks) {
       try {
@@ -99,8 +99,8 @@ export class FinanceiroPlusService {
       });
 
       return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err?.message };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
 
@@ -141,8 +141,8 @@ export class FinanceiroPlusService {
       await FinanceEventBus.emit('NotaFiscalEmitida', { invoiceId: nf.id, valor: payload.valorServicos });
 
       return { success: true, invoiceId: nf.id };
-    } catch (err: any) {
-      return { success: false, error: err?.message };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
 
@@ -173,7 +173,7 @@ export class FinanceiroPlusService {
   /**
    * Lista Lançamentos do Livro-Razão
    */
-  async listGeneralLedger(empresaOperadoraId?: string): Promise<any[]> {
+  async listGeneralLedger(empresaOperadoraId?: string): Promise<Record<string, unknown>[]> {
     try {
       let query = supabase.from('financeiro_lancamentos').select('*').order('created_at', { ascending: false });
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
@@ -187,7 +187,7 @@ export class FinanceiroPlusService {
   /**
    * Lista Notas Fiscais
    */
-  async listInvoices(empresaOperadoraId?: string): Promise<any[]> {
+  async listInvoices(empresaOperadoraId?: string): Promise<Record<string, unknown>[]> {
     try {
       let query = supabase.from('notas_fiscais').select('*, cliente:clientes(*)').order('created_at', { ascending: false });
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);

@@ -22,7 +22,8 @@ import {
   ChevronRight,
   Briefcase,
   Bell,
-  ShieldCheck
+  ShieldCheck,
+  UserCog
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -60,6 +61,14 @@ export function CrmSidebar() {
     // Dashboard aponta para rotas existentes em CADA painel (corrige o 404 do
     // painel de representantes: /representantes/corporate não existe)
     { label: 'Dashboard', icon: Home, path: isWorkspace ? '/workspace/corporate' : '/representantes/dashboard' },
+    // Grupo Comercial (apenas no workspace corporativo): gestão de representantes
+    // + desempenho real, integrada à Central de Acessos.
+    ...(isWorkspace
+      ? [
+          { label: 'Comercial', header: true as const },
+          { label: 'Representantes', icon: UserCog, path: '/workspace/representantes' },
+        ]
+      : []),
     { label: 'Clientes', icon: Users, path: `${basePath}/clientes` },
     { label: 'Propostas', icon: FileText, path: `${basePath}/propostas` },
     { label: 'Contratos', icon: FileCheck, path: `${basePath}/contratos` },
@@ -77,7 +86,7 @@ export function CrmSidebar() {
 
   // Central de Acessos: item administrativo delegado (OWNER ou users.view)
   if (isWorkspace && podeVerCentralAcessos) {
-    navItems.splice(11, 0, {
+    navItems.splice(13, 0, {
       label: 'Central de Acessos',
       icon: ShieldCheck,
       path: '/workspace/usuarios',
@@ -98,6 +107,16 @@ export function CrmSidebar() {
         {/* Navigation Items */}
         <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-170px)] custom-scrollbar">
           {navItems.map((item) => {
+            if ('header' in item && item.header) {
+              return (
+                <div
+                  key={item.label}
+                  className="px-3.5 pt-3 pb-1 text-[10px] font-bold tracking-widest uppercase text-slate-500 select-none"
+                >
+                  {item.label}
+                </div>
+              );
+            }
             const isActive = location.pathname === item.path || 
               (item.path !== '/representantes/dashboard' && location.pathname.startsWith(item.path));
             

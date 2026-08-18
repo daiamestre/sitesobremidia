@@ -8,8 +8,7 @@ import { toast } from 'sonner';
 import { Upload, Trash2, Copy, Image as ImageIcon, Loader2, RefreshCw } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { compressImage } from '@/utils/imageCompression';
-import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
-import { PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { getCdnUrl } from '@/lib/r2Client';
 import { uploadToR2 } from '@/lib/r2Upload';
 
 interface AssetFile {
@@ -35,29 +34,29 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
         try {
             setLoading(true);
             const prefix = `${user.id}/widgets/`;
-            const command = new ListObjectsV2Command({
-                Bucket: r2Config.bucketName,
-                Prefix: prefix,
+            // [SECURITY FASE F] Listagem server-side via Edge Function
+            // autenticada (list-media-objects) — sem credenciais R2 no browser.
+            const { data, error } = await supabase.functions.invoke('list-media-objects', {
+                body: { prefix },
             });
-            const { Contents } = await s3Client.send(command);
 
-            const files = Contents || [];
-            
+            if (error || !data?.items) {
+                throw new Error(error?.message || 'Falha ao listar objetos');
+            }
+
+            const files = data.items as Array<{ key: string; size: number; lastModified: string; etag: string }>;
+
             // Sort by LastModified desc
-            files.sort((a, b) => {
-                const dateA = a.LastModified?.getTime() || 0;
-                const dateB = b.LastModified?.getTime() || 0;
-                return dateB - dateA;
-            });
+            files.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
 
             const processedAssets: AssetFile[] = files.map(file => {
-                const url = getCdnUrl(file.Key!);
-                const name = file.Key!.split('/').pop() || '';
+                const url = getCdnUrl(file.key);
+                const name = file.key.split('/').pop() || '';
                 return {
                     name: name,
-                    id: file.ETag || name,
-                    created_at: file.LastModified?.toISOString() || new Date().toISOString(),
-                    size: file.Size || 0,
+                    id: file.etag || name,
+                    created_at: file.lastModified || new Date().toISOString(),
+                    size: file.size || 0,
                     url: url
                 };
             });
@@ -99,7 +98,7 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
 
             const result = await uploadToR2(
                 compressedBlob,
-                `widgets/${fileName}`,
+                filePath,
                 'image/jpeg',
                 user.id
             );
@@ -120,11 +119,12 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
         if (!user || !confirm('Excluir esta imagem permanentemente?')) return;
 
         try {
-            const command = new DeleteObjectCommand({
-                Bucket: r2Config.bucketName,
-                Key: `${user.id}/widgets/${fileName}`,
+            // [SECURITY FASE F] Delete via Edge Function autenticada
+            const { error } = await supabase.functions.invoke('delete-media-object', {
+                body: { objectKey: `${user.id}/widgets/${fileName}` },
             });
-            await s3Client.send(command);
+
+            if (error) throw new Error(error.message || 'Falha ao excluir objeto');
 
             toast.success('Imagem excluída');
             setAssets(prev => prev.filter(a => a.name !== fileName));

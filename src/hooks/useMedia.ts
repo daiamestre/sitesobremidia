@@ -33,13 +33,15 @@ export function useMedia(userId?: string) {
             const isR2 = fileUrl?.includes('r2.dev') || fileUrl?.includes('cloudflarestorage.com');
 
             if (isR2) {
+                // [SECURITY HARDENING FASE F] Delete via Edge Function autenticada
+                // (delete-media-object). Nunca mais embutir credenciais R2 no browser.
                 try {
-                    const { s3Client, r2Config } = await import('@/lib/r2Client');
-                    const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
-                    await s3Client.send(new DeleteObjectCommand({
-                        Bucket: r2Config.bucketName,
-                        Key: filePath,
-                    }));
+                    const { error: r2Error } = await supabase.functions.invoke('delete-media-object', {
+                        body: { objectKey: filePath },
+                    });
+                    if (r2Error) {
+                        console.error('Error deleting from R2:', r2Error);
+                    }
                 } catch (e) {
                     console.error('Error deleting from R2:', e);
                     // Continue even if R2 deletion fails, to keep DB clean

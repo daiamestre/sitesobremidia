@@ -1,10 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, FileText } from 'lucide-react';
 
+interface FaturaPortal {
+  id: string;
+  numero: string;
+  vencimento: string;
+  valor: string;
+}
+
 export function CustomerInvoices() {
   // Zero Mock: faturas buscadas do banco real (FASE 8.4 — stub aguardando portal_faturas)
   // Enquanto não implementado, exibir Empty State, nunca dados fictícios
-  const faturas: any[] = []; // TODO-FASE8.4: buscar de contas_receber WHERE contrato_id = contratoId
+  const faturas: FaturaPortal[] = []; // TODO-FASE8.4: buscar de contas_receber WHERE contrato_id = contratoId
 
   return (
     <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
@@ -23,7 +30,7 @@ export function CustomerInvoices() {
             <p className="text-[10px] text-slate-500">Os documentos financeiros serão exibidos aqui quando gerados.</p>
           </div>
         ) : (
-          faturas.map((fat: any) => (
+          faturas.map((fat) => (
             <div key={fat.id} className="p-3 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
               <div className="space-y-0.5">
                 <strong className="text-white block font-mono">{fat.numero}</strong>

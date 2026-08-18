@@ -2665,39 +2665,66 @@ export type Database = {
       }
       devices: {
         Row: {
+          activated_at: string | null
           app_version: string | null
           created_at: string | null
           current_playlist_id: string | null
           id: string
+          identity_hash: string | null
           ip_address: string | null
           is_online: boolean | null
           last_heartbeat: string | null
+          last_seen: string | null
           mac_address: string | null
+          model: string | null
           name: string
+          registered_at: string | null
+          revoked_at: string | null
+          screen_id: string | null
+          screen_token: string | null
+          status: string | null
           storage_available: number | null
         }
         Insert: {
+          activated_at?: string | null
           app_version?: string | null
           created_at?: string | null
           current_playlist_id?: string | null
           id?: string
+          identity_hash?: string | null
           ip_address?: string | null
           is_online?: boolean | null
           last_heartbeat?: string | null
+          last_seen?: string | null
           mac_address?: string | null
+          model?: string | null
           name: string
+          registered_at?: string | null
+          revoked_at?: string | null
+          screen_id?: string | null
+          screen_token?: string | null
+          status?: string | null
           storage_available?: number | null
         }
         Update: {
+          activated_at?: string | null
           app_version?: string | null
           created_at?: string | null
           current_playlist_id?: string | null
           id?: string
+          identity_hash?: string | null
           ip_address?: string | null
           is_online?: boolean | null
           last_heartbeat?: string | null
+          last_seen?: string | null
           mac_address?: string | null
+          model?: string | null
           name?: string
+          registered_at?: string | null
+          revoked_at?: string | null
+          screen_id?: string | null
+          screen_token?: string | null
+          status?: string | null
           storage_available?: number | null
         }
         Relationships: [
@@ -2706,6 +2733,13 @@ export type Database = {
             columns: ["current_playlist_id"]
             isOneToOne: false
             referencedRelation: "playlists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devices_screen_id_fkey"
+            columns: ["screen_id"]
+            isOneToOne: false
+            referencedRelation: "screens"
             referencedColumns: ["id"]
           },
         ]

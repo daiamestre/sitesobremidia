@@ -1,43 +1,112 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRbac } from '@/hooks/useRbac';
+import { usePermissoesRepresentantes } from '@/hooks/usePermissoesRepresentantes';
+import { representantesGerenciaService, RepresentanteGerencia } from '@/services/representantesGerencia.service';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Building2, Mail, MapPin, Pencil, Phone, Trash2, User, Loader2, FileCheck } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, MapPin, Pencil, Phone, Trash2, User, Loader2, FileCheck, UserCog, RefreshCw } from 'lucide-react';
 
 export default function ClienteDetalhePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { isOwner } = useRbac();
+  const permissoes = usePermissoesRepresentantes();
 
   const [cliente, setCliente] = useState<ClienteCompleto | null>(null);
   const [loading, setLoading] = useState(true);
   const [inactivating, setInactivating] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      if (!id) return;
-      setLoading(true);
-      const data = await clienteService.findById(id);
-      setLoading(false);
+  // Reatribuição de representante (auditada pela RPC reassinar_cliente_representante)
+  const [dialogReassignAberto, setDialogReassignAberto] = useState(false);
+  const [representantesDisponiveis, setRepresentantesDisponiveis] = useState<RepresentanteGerencia[]>([]);
+  const [carregandoRepresentantes, setCarregandoRepresentantes] = useState(false);
+  const [novoRepresentanteId, setNovoRepresentanteId] = useState<string>('');
+  const [reassignando, setReassignando] = useState(false);
 
-      if (!data) {
-        toast({
-          title: 'Cliente não encontrado',
-          description: 'O registro não existe ou você não tem permissão para visualizá-lo.',
-          variant: 'destructive',
-        });
-        navigate('/representantes/clientes');
-        return;
-      }
-      setCliente(data);
-    };
-    load();
-  }, [id, navigate, toast]);
+  const podeReassign = isOwner || permissoes.podeEditarClientes;
+
+  const load = useCallback(async (clienteId: string) => {
+    setLoading(true);
+    const data = await clienteService.findById(clienteId);
+    setLoading(false);
+
+    if (!data) {
+      toast({
+        title: 'Cliente não encontrado',
+        description: 'O registro não existe ou você não tem permissão para visualizá-lo.',
+        variant: 'destructive',
+      });
+      navigate('/representantes/clientes');
+      return;
+    }
+    setCliente(data);
+  }, [navigate, toast]);
+
+  useEffect(() => {
+    if (!id) return;
+    load(id);
+  }, [id, load]);
+
+  const abrirReassign = async () => {
+    setDialogReassignAberto(true);
+    setCarregandoRepresentantes(true);
+    setNovoRepresentanteId(cliente?.representante_id ?? '');
+    try {
+      const lista = await representantesGerenciaService.listarRepresentantes();
+      setRepresentantesDisponiveis(lista);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Falha ao carregar representantes.';
+      toast({ title: 'Erro ao carregar representantes', description: msg, variant: 'destructive' });
+      setDialogReassignAberto(false);
+    } finally {
+      setCarregandoRepresentantes(false);
+    }
+  };
+
+  const confirmarReassign = async () => {
+    if (!cliente) return;
+    setReassignando(true);
+    const res = await representantesGerenciaService.reassinarCliente(
+      cliente.id,
+      novoRepresentanteId || null,
+    );
+    setReassignando(false);
+    if (!res.success) {
+      toast({ title: 'Erro ao reatribuir', description: res.error, variant: 'destructive' });
+      return;
+    }
+    const novoRep = representantesDisponiveis.find((r) => r.id === novoRepresentanteId);
+    toast({
+      title: 'Cliente reatribuído',
+      description: novoRep
+        ? `Agora responsável: ${novoRep.nome}.`
+        : 'Cliente removido da carteira de representantes.',
+    });
+    setDialogReassignAberto(false);
+    if (id) await load(id);
+  };
 
   const handleInactivate = async () => {
     if (!cliente) return;
@@ -232,6 +301,16 @@ export default function ClienteDetalhePage() {
 
       {/* Rodapé de ações */}
       <div className="flex justify-end gap-2">
+        {podeReassign && (
+          <Button
+            variant="outline"
+            className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 text-xs h-9 gap-2"
+            onClick={abrirReassign}
+          >
+            <UserCog className="h-3.5 w-3.5" />
+            Reatribuir Representante
+          </Button>
+        )}
         <Button
           variant="outline"
           className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs h-9 gap-2"
@@ -253,6 +332,73 @@ export default function ClienteDetalhePage() {
           Propostas & Contratos
         </Button>
       </div>
+
+      {/* DIALOG REATRIBUIR REPRESENTANTE */}
+      <Dialog open={dialogReassignAberto} onOpenChange={setDialogReassignAberto}>
+        <DialogContent className="bg-slate-950 border-white/10 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCog className="h-5 w-5 text-purple-400" /> Reatribuir Representante
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Alterar o representante responsável pelo cliente{' '}
+              <strong className="text-white">{emp?.nome_fantasia || `#${cliente.codigo_cliente}`}</strong>.
+              A operação é auditada ({'CLIENTE_REPRESENTANTE_CHANGED'}).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-3 rounded-xl bg-slate-900 border border-white/10 text-xs">
+              <span className="text-slate-400 block">Representante atual</span>
+              <strong className="text-white">
+                {cliente.representante?.usuario?.nome ??
+                  (cliente.representante_id ? `ID ${cliente.representante_id}` : 'Sem representante')}
+              </strong>
+            </div>
+            {carregandoRepresentantes ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Select value={novoRepresentanteId} onValueChange={setNovoRepresentanteId}>
+                  <SelectTrigger className="bg-slate-900 border-white/10 text-white rounded-xl h-10 text-sm">
+                    <SelectValue placeholder="Selecione o representante" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-white/10 text-white max-h-72 overflow-y-auto">
+                    <SelectItem value="">Sem representante</SelectItem>
+                    {representantesDisponiveis.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.nome}
+                        {!r.ativo ? ' (inativo)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-slate-500">
+                  Somente representantes do mesmo tenant podem ser selecionados (validação no backend).
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="border-white/10 text-slate-300 rounded-xl text-xs"
+              onClick={() => setDialogReassignAberto(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmarReassign}
+              disabled={reassignando || carregandoRepresentantes || novoRepresentanteId === (cliente?.representante_id ?? '')}
+              className="bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs gap-1.5"
+            >
+              {reassignando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Confirmar reatribuição
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

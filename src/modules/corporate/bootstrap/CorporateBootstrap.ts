@@ -16,7 +16,17 @@ export interface CorporateContextData {
     name: string;
   } | null;
   navigation: CorporateModule[];
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
+}
+
+interface CorporateNavigationRow {
+  id: string;
+  name: string;
+  module_key: string;
+  route?: string;
+  icon?: string;
+  parent_id?: string;
+  permission_required?: string;
 }
 
 export class CorporateBootstrap {
@@ -67,7 +77,7 @@ export class CorporateBootstrap {
     }
   }
 
-  private buildNavigationTree(flatNav: any[]): CorporateModule[] {
+  private buildNavigationTree(flatNav: CorporateNavigationRow[]): CorporateModule[] {
     const modules: CorporateModule[] = [];
     const lookup: Record<string, CorporateModule> = {};
 

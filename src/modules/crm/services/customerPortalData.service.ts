@@ -229,7 +229,7 @@ export class CustomerPortalDataService {
 
         // 4. Buscar último playback para cada tela
         const telaIds = (locais || []).map(l => l.tela_id).filter(Boolean) as string[];
-        let playbackMap: Record<string, { count: number; last_playback: string }> = {};
+        const playbackMap: Record<string, { count: number; last_playback: string }> = {};
         if (telaIds.length > 0) {
           const { data: playbacks } = await supabase
             .from('playback_logs')

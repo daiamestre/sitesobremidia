@@ -98,7 +98,7 @@ describe('SignatureProviderAdapter', () => {
   });
 
   it('ASSINADOR_INTERNO deve retornar erro quando o envio falha', async () => {
-    (contratoDocumentoService.criarEnvelopeInterno as any).mockResolvedValueOnce({
+    vi.mocked(contratoDocumentoService.criarEnvelopeInterno).mockResolvedValueOnce({
       success: false,
       error: 'Gere o documento do contrato antes de enviar para assinatura.',
     });

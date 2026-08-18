@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test.describe('Owner Customer Center', () => {
   // Teste temporariamente isolado da pipeline remota porque requer CREDENCIAIS PRIVADAS DO SUPABASE AUTH
@@ -6,7 +6,7 @@ test.describe('Owner Customer Center', () => {
     // 1. LOGIN OWNER
     await page.goto('/login');
     await page.fill('input[type="email"]', process.env.OWNER_EMAIL || 'owner@test.com');
-    await page.fill('input[type="password"]', process.env.OWNER_PASSWORD || '123456');
+    await page.fill('input[type="password"]', process.env.OWNER_PASSWORD || (() => { throw new Error('OWNER_PASSWORD obrigatorio (ver .env.e2e.local)'); })());
     await page.click('button[type="submit"]');
 
     // 2. NAVEGAR PARA CENTRAL DE CLIENTES
@@ -32,8 +32,8 @@ test.describe('Owner Customer Center', () => {
     await expect(page.locator('text=Playwright Test Client Ltda')).toBeVisible();
 
     // 7. ABRIR CLIENTE 360
-    await page.click('text=Visão 360º');
-    await expect(page.locator('text=Informações Cadastrais')).toBeVisible();
-    await expect(page.locator('text=Gestão de Identidade e Acesso')).toBeVisible();
+    await page.click('text=VisÃ£o 360Âº');
+    await expect(page.locator('text=InformaÃ§Ãµes Cadastrais')).toBeVisible();
+    await expect(page.locator('text=GestÃ£o de Identidade e Acesso')).toBeVisible();
   });
 });

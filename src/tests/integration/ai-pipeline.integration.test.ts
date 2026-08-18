@@ -16,6 +16,15 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 // ─── Testes de Integração: Fluxo AI Pipeline (DW → BI → AI) ────────────────
+interface AnomaliaDetectada {
+  gravidade: string;
+}
+
+interface RecomendacaoGerada {
+  prioridade: string;
+  impacto: string;
+}
+
 describe('Integração: AI Pipeline (Data Warehouse → BI → AI Engine)', () => {
 
   it('PredictionService deve retornar dados estruturados para o AIService consumir', async () => {
@@ -45,8 +54,8 @@ describe('Integração: AI Pipeline (Data Warehouse → BI → AI Engine)', () =
     expect(Array.isArray(recommendations)).toBe(true);
 
     // Verificar que anomalias têm gravidade e recomendações têm prioridade
-    anomalies.forEach((a: any) => expect(a).toHaveProperty('gravidade'));
-    recommendations.forEach((r: any) => expect(r).toHaveProperty('prioridade'));
+    anomalies.forEach((a: AnomaliaDetectada) => expect(a).toHaveProperty('gravidade'));
+    recommendations.forEach((r: RecomendacaoGerada) => expect(r).toHaveProperty('prioridade'));
   });
 
   it('CopilotService deve agregar resposta do AIService com dados do DW', async () => {
@@ -92,7 +101,7 @@ describe('Integração: AI Pipeline (Data Warehouse → BI → AI Engine)', () =
     expect(Array.isArray(recommendations)).toBe(true);
 
     // Verificar que as recomendações têm impacto definido
-    expect(recommendations.some((r: any) => r.impacto === 'AUMENTO_RECEITA')).toBe(true);
+    expect(recommendations.some((r: RecomendacaoGerada) => r.impacto === 'AUMENTO_RECEITA')).toBe(true);
   });
 });
 

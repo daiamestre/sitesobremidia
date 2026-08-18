@@ -1,14 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { representativeService, RepresentativeDashboardMetrics, CarteiraClienteItem, ComissaoItem, MetaItem } from '@/services/representative.service';
+import { representativeService, RepresentativeDashboardMetrics, CarteiraClienteItem, ComissaoItem, MetaItem, RankingItem } from '@/services/representative.service';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  Users, DollarSign, Award, Target, TrendingUp, Briefcase, FileText, 
-  CheckCircle, Clock, AlertTriangle, Layers, Loader2, ArrowRight 
+  Users, DollarSign, Award, Target, TrendingUp, FileText, Loader2 
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,23 +20,30 @@ export default function RepresentativeDashboard() {
   const [carteira, setCarteira] = useState<CarteiraClienteItem[]>([]);
   const [comissoes, setComissoes] = useState<ComissaoItem[]>([]);
   const [metas, setMetas] = useState<MetaItem[]>([]);
+  const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const repId = representante?.id || 'a1b2c3d4-e5f6-7000-8000-000000000001';
+  const repId = representante?.id;
 
   const fetchData = useCallback(async () => {
+    if (!repId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const [m, c, com, met] = await Promise.all([
+    const [m, c, com, met, rank] = await Promise.all([
       representativeService.getDashboardMetrics(repId, empresaOperadoraId || undefined),
       representativeService.getCarteiraClientes(repId, empresaOperadoraId || undefined),
       representativeService.getComissoes(repId, empresaOperadoraId || undefined),
       representativeService.getMetas(repId, empresaOperadoraId || undefined),
+      representativeService.getRankingComercial(empresaOperadoraId || undefined),
     ]);
 
     setMetrics(m);
     setCarteira(c);
     setComissoes(com);
     setMetas(met);
+    setRanking(rank);
     setLoading(false);
   }, [repId, empresaOperadoraId]);
 
@@ -46,9 +52,18 @@ export default function RepresentativeDashboard() {
   }, [fetchData]);
 
   if (loading || !metrics) {
+    if (loading || (!repId && !metrics)) {
+      return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-slate-400 text-sm">
+          Sessão de representante não identificada. Faça login novamente.
+        </p>
       </div>
     );
   }
@@ -301,35 +316,48 @@ export default function RepresentativeDashboard() {
             </CardHeader>
             <CardContent className="pt-4 p-0">
               <div className="p-4 space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-950 font-extrabold flex items-center justify-center text-sm shadow-md">
-                      #1
+                {ranking.length === 0 && (
+                  <p className="text-slate-500 text-sm text-center py-6">
+                    Ainda não há dados suficientes para gerar o ranking.
+                  </p>
+                )}
+                {ranking.map((r) => (
+                  <div
+                    key={r.representante_id}
+                    className={`flex items-center justify-between p-3 rounded-xl border ${
+                      r.posicao === 1
+                        ? 'border-amber-500/30 bg-amber-500/10'
+                        : 'border-white/10 bg-slate-950/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-8 h-8 rounded-full font-extrabold flex items-center justify-center text-sm shadow-md ${
+                          r.posicao === 1
+                            ? 'bg-amber-400 text-slate-950'
+                            : r.posicao === 2
+                              ? 'bg-slate-300 text-slate-900'
+                              : r.posicao === 3
+                                ? 'bg-orange-700 text-white'
+                                : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        #{r.posicao}
+                      </div>
+                      <div>
+                        <strong className="text-white text-sm block font-bold">
+                          {r.nome_representante}
+                        </strong>
+                        <span className="text-slate-400 text-xs font-mono">
+                          {r.contratos_fechados} Contrato(s) Fechado(s)
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <strong className="text-white text-sm block font-bold">Jairan Santos</strong>
-                      <span className="text-slate-400 text-xs font-mono">1 Contrato Ativo</span>
-                    </div>
+                    <span className="font-mono text-emerald-400 font-extrabold text-sm">
+                      R$ {r.total_receita.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
+                    </span>
                   </div>
-                  <span className="font-mono text-emerald-400 font-extrabold text-sm">
-                    R$ 15.000,00/mês
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-slate-950/40">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 font-bold flex items-center justify-center text-sm">
-                      #2
-                    </div>
-                    <div>
-                      <strong className="text-slate-300 text-sm block font-bold">Representante B Alpha</strong>
-                      <span className="text-slate-400 text-xs font-mono">1 Contrato Ativo</span>
-                    </div>
-                  </div>
-                  <span className="font-mono text-slate-300 font-bold text-sm">
-                    R$ 10.000,00/mês
-                  </span>
-                </div>
+                ))}
               </div>
             </CardContent>
           </Card>

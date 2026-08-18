@@ -5,8 +5,17 @@ import { AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { operacaoService } from '../../services/operacao.service';
 import { useToast } from '@/hooks/use-toast';
 
+interface Alerta {
+  id: string;
+  resolvido: boolean;
+  nivel: string;
+  tipo: string;
+  mensagem: string;
+  created_at: string;
+}
+
 interface AlertListProps {
-  alertas: any[];
+  alertas: Alerta[];
   onResolveSuccess?: () => void;
 }
 

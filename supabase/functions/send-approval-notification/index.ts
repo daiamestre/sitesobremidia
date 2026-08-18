@@ -2,8 +2,10 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { create, getNumericDate } from "https://deno.land/x/djwt@v2.9.1/mod.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const JWT_SECRET = Deno.env.get("JWT_SECRET") || "super-secret-jwt-key-change-this"; // Fallback for dev
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "http://localhost:54321"; // Adjust based on env
+// [SECURITY HARDENING] Sem fallback hardcoded: se JWT_SECRET não estiver no
+// ambiente, a função recusa gerar tokens (fail-closed).
+const JWT_SECRET = Deno.env.get("JWT_SECRET") || "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 // In production, this should point to your deployed function URL
 const FUNCTION_BASE_URL = `${SUPABASE_URL}/functions/v1`;
 
@@ -51,6 +53,14 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // [SECURITY HARDENING] JWT_SECRET obrigatório (sem fallback hardcoded)
+    if (!JWT_SECRET || !SUPABASE_URL) {
+      return new Response(
+        JSON.stringify({ error: "JWT_SECRET/SUPABASE_URL nao configurados no ambiente." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { user_id, full_name, email, company_name }: NewUserNotification = await req.json();
 
     console.log(`Processing notification for user: ${email} (${user_id})`);

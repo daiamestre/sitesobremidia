@@ -27,6 +27,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Loader2, UserPlus, Users, ShieldCheck, Mail, Phone, RefreshCw, CheckCircle2, XCircle, Ban,
   UserCheck, KeyRound, Crown, ArrowLeft, ArrowRight, Send, Search, LayoutDashboard, KeySquare, Clock, MailWarning,
+  UserCog,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -54,6 +55,9 @@ export default function UsuariosAcessosPage() {
   const [criadoEmail, setCriadoEmail] = useState<string | null>(null);
   const [statusTarget, setStatusTarget] = useState<UsuarioCentral | null>(null);
   const [trocandoStatus, setTrocandoStatus] = useState(false);
+  const [editTarget, setEditTarget] = useState<UsuarioCentral | null>(null);
+  const [editForm, setEditForm] = useState({ nome: '', telefone: '', perfilId: '' });
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [autonomiaTarget, setAutonomiaTarget] = useState<UsuarioCentral | null>(null);
   const [autonomiaSelecao, setAutonomiaSelecao] = useState<Set<string>>(new Set());
   const [enviandoAutonomia, setEnviandoAutonomia] = useState(false);
@@ -74,6 +78,11 @@ export default function UsuariosAcessosPage() {
 
   const podeGerenciarAutonomia = useMemo(
     () => isOwner || (minhasPermissoes ?? []).includes('users.manage_permissions'),
+    [isOwner, minhasPermissoes]
+  );
+
+  const podeEditar = useMemo(
+    () => isOwner || (minhasPermissoes ?? []).includes('users.edit'),
     [isOwner, minhasPermissoes]
   );
 
@@ -215,6 +224,39 @@ export default function UsuariosAcessosPage() {
   const abrirAutonomia = (alvo: UsuarioCentral) => {
     setAutonomiaTarget(alvo);
     setAutonomiaSelecao(new Set(permissoesPorUsuario[alvo.id] ?? []));
+  };
+
+  const abrirEdicao = (alvo: UsuarioCentral) => {
+    const perfilAtual = perfis.find((p) => p.nome.toUpperCase() === (alvo.perfil_nome ?? '').toUpperCase());
+    setEditForm({
+      nome: alvo.nome,
+      telefone: alvo.telefone ?? '',
+      perfilId: perfilAtual?.id ?? '',
+    });
+    setEditTarget(alvo);
+  };
+
+  const salvarEdicao = async () => {
+    if (!editTarget) return;
+    if (editForm.nome.trim().length < 3) {
+      toast.error('Informe o nome completo do usuário.');
+      return;
+    }
+    setSalvandoEdicao(true);
+    const resultado = await corporateUsersService.atualizarUsuario(editTarget.id, {
+      nome: editForm.nome.trim(),
+      telefone: editForm.telefone.trim() || null,
+      perfilId: editForm.perfilId || null,
+    });
+    setSalvandoEdicao(false);
+
+    if (resultado.success) {
+      toast.success('Usuário atualizado com sucesso');
+      setEditTarget(null);
+      await carregar(false);
+    } else {
+      toast.error(resultado.error ?? 'Erro ao atualizar usuário');
+    }
   };
 
   const salvarAutonomia = async () => {
@@ -463,6 +505,16 @@ export default function UsuariosAcessosPage() {
                         <td className="px-4 py-3 text-right whitespace-nowrap">
                           {!u.is_owner && (
                             <>
+                              {podeEditar && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-primary hover:text-primary"
+                                  onClick={() => abrirEdicao(u)}
+                                >
+                                  <UserCog className="h-3.5 w-3.5 mr-1.5" /> Editar
+                                </Button>
+                              )}
                               {perfilDoUsuario(u).toUpperCase() === 'ADMIN' && podeGerenciarAutonomia && (
                                 <Button
                                   variant="ghost"
@@ -731,6 +783,74 @@ export default function UsuariosAcessosPage() {
             >
               {trocandoStatus && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
               {statusTarget?.ativo ? 'Desativar' : 'Reativar'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Editar usuário corporativo (nome, telefone, perfil) */}
+      <AlertDialog open={!!editTarget} onOpenChange={(open) => !open && !salvandoEdicao && setEditTarget(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <UserCog className="h-5 w-5 text-primary" /> Editar Usuário
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Atualize os dados cadastrais de <strong>{editTarget?.nome}</strong>. Alterações são validadas e auditadas no servidor.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="ed-nome">Nome completo *</Label>
+              <Input
+                id="ed-nome"
+                value={editForm.nome}
+                onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
+                placeholder="Ex.: João da Silva"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ed-telefone">Telefone (opcional)</Label>
+              <div className="relative">
+                <Phone className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="ed-telefone"
+                  value={editForm.telefone}
+                  onChange={(e) => setEditForm({ ...editForm, telefone: e.target.value })}
+                  placeholder="(11) 99999-9999"
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ed-perfil">Perfil de acesso</Label>
+              <select
+                id="ed-perfil"
+                value={editForm.perfilId}
+                onChange={(e) => setEditForm({ ...editForm, perfilId: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">Manter perfil atual</option>
+                {perfisPermitidos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                A conta OWNER é protegida; atribuir ADMIN exige users.create_admin.
+              </p>
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={salvandoEdicao}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarEdicao} disabled={salvandoEdicao}>
+              {salvandoEdicao && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+              Salvar alterações
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

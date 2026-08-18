@@ -53,7 +53,7 @@ async function generatePresignedGetUrl(params: {
 
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const datetimeStr = now.toISOString().replace(/[:\-]|\.\d{3}/g, "").slice(0, 15) + "Z";
+  const datetimeStr = now.toISOString().replace(/[:-]|\.\d{3}/g, "").slice(0, 15) + "Z";
 
   const host = `${accountId}.r2.cloudflarestorage.com`;
   const credentialScope = `${dateStr}/${region}/${service}/aws4_request`;

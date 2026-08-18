@@ -10,12 +10,12 @@ const mockInsert = vi.fn().mockResolvedValue({ data: null, error: null });
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     auth: {
-      signInWithPassword: (...args: any[]) => mockSignInWithPassword(...args),
-      signOut: (...args: any[]) => mockSignOut(...args),
-      getSession: (...args: any[]) => mockGetSession(...args),
+      signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
+      signOut: (...args: unknown[]) => mockSignOut(...args),
+      getSession: (...args: unknown[]) => mockGetSession(...args),
     },
     from: () => ({
-      insert: (...args: any[]) => mockInsert(...args),
+      insert: (...args: unknown[]) => mockInsert(...args),
     }),
   },
 }));

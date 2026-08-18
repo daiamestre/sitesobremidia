@@ -1,17 +1,20 @@
 import React, { createContext, useContext, ReactNode, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { User, Session } from '@supabase/supabase-js';
+import { useAuth, RepresentanteRecord } from '@/contexts/AuthContext';
 import { useRbac, RoleName } from '@/hooks/useRbac';
 import { useToast } from '@/hooks/use-toast';
 import { securityAuditService } from '@/services/securityAudit.service';
 
+type CrmRepresentante = RepresentanteRecord & { nome?: string | null };
+
 export interface CrmSessionData {
-  user: any;
-  session: any;
+  user: User | null;
+  session: Session | null;
   isAuthenticated: boolean;
   isApproved: boolean;
   empresaOperadoraId: string | null;
-  representante: any | null;
+  representante: CrmRepresentante | null;
   userRole: RoleName | null;
   userName: string;
   userEmail: string;

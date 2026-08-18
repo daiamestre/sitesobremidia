@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { accessRequestService, SolicitacaoAcessoRecord } from '@/services/accessRequest.service';
+import { accessRequestService, hashToken, SolicitacaoAcessoRecord } from '@/services/accessRequest.service';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,10 +23,36 @@ export default function AdminSolicitacaoAprovacao() {
   const [processing, setProcessing] = useState(false);
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [tokenAuthorized, setTokenAuthorized] = useState(false);
+  const [tokenError, setTokenError] = useState<string | null>(null);
 
   useEffect(() => {
     async function init() {
-      // 1. Verifica se usuário logado é ADMIN
+      // 1. Fluxo via LINK DE E-MAIL (token presente): autorização pelo token,
+      //    sem exigir login — leitura via RPC que valida hash/uso único/expiração
+      if (id && tokenParam) {
+        const incomingHash = await hashToken(tokenParam);
+        const { data, error } = await supabase.rpc('get_solicitacao_aprovacao', {
+          p_request_id: id,
+          p_token_hash: incomingHash,
+        });
+
+        if (!error && data) {
+          const row = Array.isArray(data) ? data[0] : data;
+          if (row) {
+            setRequest(row as unknown as SolicitacaoAcessoRecord);
+            setTokenAuthorized(true);
+          } else {
+            setTokenError('Link de aprovação inválido ou expirado.');
+          }
+        } else {
+          setTokenError(error?.message || 'Link de aprovação inválido ou expirado.');
+        }
+        setLoading(false);
+        return;
+      }
+
+      // 2. Fluxo via PAINEL (sem token): exige ADMIN logado
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
         setIsAdminUser(false);
@@ -44,7 +70,7 @@ export default function AdminSolicitacaoAprovacao() {
         }
       }
 
-      // 2. Carrega dados da solicitação pelo ID
+      // 3. Carrega dados da solicitação pelo ID (RLS: própria ou do mesmo tenant)
       if (id) {
         const { data, error } = await supabase
           .from('solicitacoes_acesso')
@@ -61,14 +87,28 @@ export default function AdminSolicitacaoAprovacao() {
     }
 
     init();
-  }, [id]);
+  }, [id, tokenParam]);
 
-  const handleApprove = async () => {
+  const handleApprove = useCallback(async () => {
     if (!id) return;
     setProcessing(true);
 
-    const { data: { session } } = await supabase.auth.getSession();
-    const result = await accessRequestService.processDecision(id, 'APPROVED', undefined, session?.user?.id, tokenParam);
+    let result: { success: boolean; error?: string };
+
+    if (tokenParam) {
+      const { data, error } = await supabase.functions.invoke('handle-approval', {
+        body: { id, token: tokenParam, action: 'approve', format: 'json' },
+      });
+      result = error
+        ? { success: false, error: error.message }
+        : (data as { ok?: boolean; error?: string }).ok !== false
+          ? { success: true }
+          : { success: false, error: (data as { error?: string }).error || 'Falha ao processar ação.' };
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      result = await accessRequestService.processDecision(id, 'APPROVED', undefined, session?.user?.id);
+    }
+
     setProcessing(false);
 
     if (result.success) {
@@ -84,14 +124,28 @@ export default function AdminSolicitacaoAprovacao() {
         variant: 'destructive',
       });
     }
-  };
+  }, [id, tokenParam, toast, navigate]);
 
-  const handleReject = async () => {
+  const handleReject = useCallback(async () => {
     if (!id) return;
     setProcessing(true);
 
-    const { data: { session } } = await supabase.auth.getSession();
-    const result = await accessRequestService.processDecision(id, 'REJECTED', motivoRejeicao, session?.user?.id, tokenParam);
+    let result: { success: boolean; error?: string };
+
+    if (tokenParam) {
+      const { data, error } = await supabase.functions.invoke('handle-approval', {
+        body: { id, token: tokenParam, action: 'reject', motivo: motivoRejeicao, format: 'json' },
+      });
+      result = error
+        ? { success: false, error: error.message }
+        : (data as { ok?: boolean; error?: string }).ok !== false
+          ? { success: true }
+          : { success: false, error: (data as { error?: string }).error || 'Falha ao processar ação.' };
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      result = await accessRequestService.processDecision(id, 'REJECTED', motivoRejeicao, session?.user?.id);
+    }
+
     setProcessing(false);
 
     if (result.success) {
@@ -107,7 +161,7 @@ export default function AdminSolicitacaoAprovacao() {
         variant: 'destructive',
       });
     }
-  };
+  }, [id, tokenParam, motivoRejeicao, toast, navigate]);
 
   if (loading) {
     return (
@@ -125,7 +179,7 @@ export default function AdminSolicitacaoAprovacao() {
             <AlertTriangle className="h-12 w-12 text-amber-400 mx-auto mb-2" />
             <CardTitle>Solicitação não encontrada</CardTitle>
             <CardDescription className="text-slate-400">
-              O link informado é inválido ou a solicitação foi removida.
+              {tokenError || 'O link informado é inválido ou a solicitação foi removida.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
@@ -135,6 +189,8 @@ export default function AdminSolicitacaoAprovacao() {
       </div>
     );
   }
+
+  const canDecide = tokenAuthorized || isAdminUser;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
@@ -196,7 +252,7 @@ export default function AdminSolicitacaoAprovacao() {
                 Ir para o Painel de Controle
               </Button>
             </div>
-          ) : !isAdminUser ? (
+          ) : !canDecide ? (
             <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm text-center space-y-3">
               <p>Você precisa estar logado com uma conta de <strong>Administrador</strong> para autorizar solicitações de cadastro.</p>
               <Button onClick={() => navigate(`/auth?redirect=/admin/solicitacoes/${id}`)} className="w-full gradient-primary">

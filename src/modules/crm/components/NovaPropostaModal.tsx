@@ -14,11 +14,17 @@ interface NovaPropostaModalProps {
   onSuccess: () => void;
 }
 
+interface ClienteOption {
+  id: string;
+  codigo_cliente?: string | null;
+  empresas?: { razao_social?: string | null; nome_fantasia?: string | null }[] | null;
+}
+
 export const NovaPropostaModal: React.FC<NovaPropostaModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const { empresaOperadoraId, representante, user } = useAuth();
   const { toast } = useToast();
 
-  const [clientes, setClientes] = useState<any[]>([]);
+  const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [selectedClienteId, setSelectedClienteId] = useState<string>('');
   const [numeroProposta, setNumeroProposta] = useState('');
   const [valorTotal, setValorTotal] = useState<number>(10000);
@@ -76,10 +82,10 @@ export const NovaPropostaModal: React.FC<NovaPropostaModalProps> = ({ isOpen, on
       });
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: 'Erro ao criar proposta',
-        description: err.message || 'Falha ao registrar proposta no PostgreSQL.',
+        description: err instanceof Error ? err.message : String(err),
         variant: 'destructive'
       });
     } finally {

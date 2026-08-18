@@ -22,7 +22,7 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: (table: string) => ({
       select: (fields?: string) => ({
-        eq: (col: string, val: any) => ({
+        eq: (col: string, val: unknown) => ({
           single: () => {
             if (table === 'solicitacoes_acesso' && val === 'already-approved-id') {
               return Promise.resolve({
@@ -41,10 +41,10 @@ vi.mock('@/integrations/supabase/client', () => ({
           maybeSingle: () => Promise.resolve({ data: null }),
         }),
       }),
-      update: (payload: any) => {
+      update: (payload: unknown) => {
         const queryObj = {
-          eq: (col: string, val: any) => queryObj,
-          is: (col: string, val: any) => queryObj,
+          eq: (col: string, val: unknown) => queryObj,
+          is: (col: string, val: unknown) => queryObj,
           select: (fields?: string) => {
             // Se for simulação de segunda requisição concorrente, retorna array vazio
             return Promise.resolve({ data: [], error: null });

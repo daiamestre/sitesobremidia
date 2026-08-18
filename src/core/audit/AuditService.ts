@@ -5,7 +5,7 @@ export interface AuditEventParams {
   action: string;
   module: string;
   targetId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class AuditService {

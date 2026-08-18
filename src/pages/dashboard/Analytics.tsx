@@ -66,7 +66,7 @@ export default function Analytics() {
                 playbackMap[key] = 0;
             }
 
-            playbackLogs?.forEach((log: any) => {
+            playbackLogs?.forEach((log) => {
                 const date = new Date(log.started_at);
                 const key = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
                 if (playbackMap[key] !== undefined) {

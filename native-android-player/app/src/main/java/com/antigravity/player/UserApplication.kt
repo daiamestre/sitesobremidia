@@ -26,7 +26,6 @@ import com.antigravity.player.worker.AuditUploadWorker
 import com.antigravity.player.worker.HealthMonitorWorker
 import com.antigravity.player.worker.LogSyncWorker
 import com.antigravity.cache.worker.MaintenanceWorker
-import com.antigravity.cache.util.WorkScheduler
 import com.antigravity.sync.service.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -70,8 +69,9 @@ class UserApplication : Application() {
         setupIndustrialMaintenance()
         setupAuditUpload()
 
-        // [SCALE 10K] Reboot-safe heartbeat via WorkManager (safety net)
-        WorkScheduler.scheduleHeartbeat(this)
+        // [SECURITY/CONSOLIDAÇÃO FASE H] Heartbeat único e oficial:
+        // PersistentHeartbeatService (60s, foreground). O HeartbeatWorker
+        // (15min, WorkManager) era duplicado e foi removido.
 
         setupCrashHandler()
         startSelfHealingService()

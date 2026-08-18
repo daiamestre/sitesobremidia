@@ -1,0 +1,313 @@
+{
+  "run": 1786982267881,
+  "results": [
+    {
+      "id": "ATK-1",
+      "name": "ADMIN auto-promove para OWNER",
+      "expected": "rejeitado",
+      "actual": "403",
+      "ok": true
+    },
+    {
+      "id": "ATK-2",
+      "name": "ADMIN promove terceiro a OWNER",
+      "expected": "rejeitado",
+      "actual": "403",
+      "ok": true
+    },
+    {
+      "id": "ATK-3",
+      "name": "Desativado reativa a própria conta",
+      "expected": "rejeitado",
+      "actual": "403",
+      "ok": true
+    },
+    {
+      "id": "ATK-4",
+      "name": "INSERT forjado (perfil ADMIN/tenant B/owner)",
+      "expected": "rejeitado (403)",
+      "actual": "403 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Acesso Negado: tenant não corresponde ao do chamador.\"}",
+      "ok": true
+    },
+    {
+      "id": "ATK-5",
+      "name": "Admin A lê usuários do tenant B",
+      "expected": "0 linhas",
+      "actual": "200 0 linhas",
+      "ok": true
+    },
+    {
+      "id": "ATK-6",
+      "name": "Admin A lê representantes do tenant B",
+      "expected": "0 linhas",
+      "actual": "200 0 linhas",
+      "ok": true
+    },
+    {
+      "id": "ATK-7",
+      "name": "Admin A lê empresa_operadora do tenant B",
+      "expected": "0 linhas",
+      "actual": "200 0 linhas",
+      "ok": true
+    },
+    {
+      "id": "ATK-8",
+      "name": "Admin A lê auditoria do tenant B",
+      "expected": "0 linhas",
+      "actual": "200 0 linhas",
+      "ok": true
+    },
+    {
+      "id": "ATK-9",
+      "name": "RepA muda o próprio perfil p/ ADMIN",
+      "expected": "rejeitado",
+      "actual": "403",
+      "ok": true
+    },
+    {
+      "id": "ATK-10",
+      "name": "RepA troca o próprio tenant",
+      "expected": "rejeitado",
+      "actual": "403",
+      "ok": true
+    },
+    {
+      "id": "ATK-11",
+      "name": "INSERT forjado de auditoria (tenant B)",
+      "expected": "rejeitado (403)",
+      "actual": "403 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"new row violates row-level security policy for table \\\"auditoria_l",
+      "ok": true
+    },
+    {
+      "id": "ATK-12",
+      "name": "RepA lê permissões de outros usuários",
+      "expected": "0 linhas",
+      "actual": "200 0 linhas",
+      "ok": true
+    },
+    {
+      "id": "ATK-13",
+      "name": "RepA altera perfil do AdminA",
+      "expected": "rejeitado",
+      "actual": "200",
+      "ok": true
+    },
+    {
+      "id": "ATK-14",
+      "name": "ADMIN destitui o OWNER",
+      "expected": "rejeitado",
+      "actual": "400",
+      "ok": true
+    },
+    {
+      "id": "ATK-15",
+      "name": "Admin B altera usuário do tenant A",
+      "expected": "0 linhas",
+      "actual": "200 0 linhas",
+      "ok": true
+    },
+    {
+      "id": "ATK-16",
+      "name": "OwnerA edita OwnerB via RPC (cross-tenant)",
+      "expected": "rejeitado",
+      "actual": "403 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Acesso Negado: usuário de outro tenant.\"}",
+      "ok": true
+    },
+    {
+      "id": "ATK-17",
+      "name": "RepA cria usuário via RPC",
+      "expected": "rejeitado",
+      "actual": "403 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Acesso Negado: apenas OWNER ou ADMIN podem criar usuários.\"}",
+      "ok": true
+    },
+    {
+      "id": "ATK-18",
+      "name": "AdminA edita via RPC sem users.edit",
+      "expected": "rejeitado",
+      "actual": "403 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Acesso Negado: permissão users.edit não concedida.\"}",
+      "ok": true
+    },
+    {
+      "id": "ATK-19",
+      "name": "AdminA cria ADMIN sem users.create_admin",
+      "expected": "rejeitado",
+      "actual": "403 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Acesso Negado: criar ADMIN requer users.create_admin.\"}",
+      "ok": true
+    },
+    {
+      "id": "ATK-20",
+      "name": "AdminA desativa sem users.deactivate",
+      "expected": "rejeitado",
+      "actual": "403",
+      "ok": true
+    },
+    {
+      "id": "ATK-21",
+      "name": "Criação via RPC sem perfil",
+      "expected": "rejeitado",
+      "actual": "400 {\"code\":\"22023\",\"details\":null,\"hint\":null,\"message\":\"Perfil alvo inexistente.\"}",
+      "ok": true
+    },
+    {
+      "id": "ATK-22",
+      "name": "AdminB deleta representante do tenant A",
+      "expected": "0 linhas",
+      "actual": "200 0 linha(s)",
+      "ok": true
+    },
+    {
+      "id": "ATK-23",
+      "name": "AdminB insere representante no tenant A",
+      "expected": "rejeitado (403)",
+      "actual": "400 {\"code\":\"PGRST204\",\"details\":null,\"hint\":null,\"message\":\"Could not find the 'cargo' column of 'representantes' in the sc",
+      "ok": true
+    },
+    {
+      "id": "ATK-24",
+      "name": "AdminB deleta usuário do tenant A",
+      "expected": "0 linhas",
+      "actual": "200 0 linha(s)",
+      "ok": true
+    },
+    {
+      "id": "ATK-25",
+      "name": "Usuário sem registro insere a própria linha com tenant A/ADMIN",
+      "expected": "rejeitado",
+      "actual": "403 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Acesso Negado: criação direta de usuário não autorizada.\"}",
+      "ok": true
+    },
+    {
+      "id": "ATK-26",
+      "name": "AdminB decide solicitação do tenant A",
+      "expected": "0 linhas",
+      "actual": "200 0 linha(s)",
+      "ok": true
+    },
+    {
+      "id": "ATK-27",
+      "name": "DELETE de solicitação via REST",
+      "expected": "0 linhas",
+      "actual": "200 0 linha(s)",
+      "ok": true
+    },
+    {
+      "id": "ATK-28",
+      "name": "Anon insere solicitação forjada APPROVED",
+      "expected": "rejeitado",
+      "actual": "401 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"new row violates row-level security policy for table \\\"solicitacoe",
+      "ok": true
+    },
+    {
+      "id": "ATK-29",
+      "name": "INSERT solicitação com approved_by forjado",
+      "expected": "rejeitado",
+      "actual": "403 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"new row violates row-level security policy for table \\\"solicitacoe",
+      "ok": true
+    },
+    {
+      "id": "ATK-30",
+      "name": "AdminA auto-concede permissão (self-grant)",
+      "expected": "rejeitado",
+      "actual": "403 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Acesso Negado: sem permissão para gerenciar autonomia.\"}",
+      "ok": true
+    },
+    {
+      "id": "POS-1",
+      "name": "OwnerA desativa RepA",
+      "expected": "sucesso (1 linha)",
+      "actual": "200 1 linha(s) ativo=false",
+      "ok": true
+    },
+    {
+      "id": "POS-2",
+      "name": "OwnerA reativa RepA",
+      "expected": "sucesso",
+      "actual": "200 1 linha(s)",
+      "ok": true
+    },
+    {
+      "id": "POS-3",
+      "name": "OwnerA edita RepA via RPC",
+      "expected": "sucesso",
+      "actual": "204 [{\"nome\":\"Rep A Editado\",\"telefone\":\"11999990000\"}]",
+      "ok": true
+    },
+    {
+      "id": "POS-4",
+      "name": "OwnerA cria REPRESENTANTE via RPC",
+      "expected": "sucesso",
+      "actual": "200 \"7fedb320-d0ca-443f-b316-a028e9c91252\"",
+      "ok": true
+    },
+    {
+      "id": "POS-5",
+      "name": "Fluxo legítimo: anon insere solicitação e RPC valida token",
+      "expected": "insert + RPC ok",
+      "actual": "insert=201 rpc=200 status=PENDING",
+      "ok": true
+    },
+    {
+      "id": "POS-6",
+      "name": "OwnerA rejeita solicitação do próprio tenant",
+      "expected": "1 linha",
+      "actual": "200 1 linha(s) status=REJECTED",
+      "ok": true
+    },
+    {
+      "id": "V-1",
+      "name": "Auditoria server-side gerada p/ ações do OWNER",
+      "expected": "ações registradas",
+      "actual": "5 registro(s): USER_UPDATED, USER_ACTIVATED, USER_DEACTIVATED, USER_ACTIVATED, USER_DEACTIVATED",
+      "ok": true
+    },
+    {
+      "id": "V-2",
+      "name": "Sem registros forjados no tenant B",
+      "expected": "0",
+      "actual": "0",
+      "ok": true
+    },
+    {
+      "id": "V-3",
+      "name": "Integridade do estado de RepA após ataques",
+      "expected": "ativo, rep, tenant A",
+      "actual": "true/false/REPRESENTANTE/7d62aaec-e24d-4273-b257-867183cf658c",
+      "ok": true
+    },
+    {
+      "id": "V-4",
+      "name": "Novo usuário criado corretamente (perfil+representante)",
+      "expected": "REPRESENTANTE + 1 rep",
+      "actual": "REPRESENTANTE / reps=1",
+      "ok": true
+    },
+    {
+      "id": "V-5",
+      "name": "RPC rejeita token inválido",
+      "expected": "rejeitado",
+      "actual": "401 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Token de aprovacao invalido ou adulterado.\"}",
+      "ok": true
+    },
+    {
+      "id": "V-6",
+      "name": "RPC rejeita token já consumido",
+      "expected": "rejeitado",
+      "actual": "401 {\"code\":\"42501\",\"details\":null,\"hint\":null,\"message\":\"Este link de aprovacao ja foi utilizado anteriormente (Token Consu",
+      "ok": true
+    },
+    {
+      "id": "V-7",
+      "name": "Auditoria server-side da decisão de solicitação",
+      "expected": "STATUS_CHANGE registrado",
+      "actual": "1 registro(s): STATUS_CHANGE",
+      "ok": true
+    },
+    {
+      "id": "V-8",
+      "name": "Edge handle-approval rejeita decisão sem token",
+      "expected": "400/403",
+      "actual": "403 {\"ok\":false,\"error\":\"Token de autorização é obrigatório.\"}",
+      "ok": true
+    }
+  ]
+}

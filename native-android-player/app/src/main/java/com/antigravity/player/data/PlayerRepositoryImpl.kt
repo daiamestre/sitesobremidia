@@ -769,7 +769,8 @@ class PlayerRepositoryImpl(
         val antiga = configuracaoDao.getLocalizacaoSalva()
         configuracaoDao.salvarLocalizacao(ConfiguracaoEntity(
             id = 1,
-            tokenAcesso = antiga?.tokenAcesso,
+            // [SECURITY HARDENING] Nunca restaura token plaintext legado do Room.
+            tokenAcesso = null,
             playerID = antiga?.playerID,
             cidade = config.cidade,
             estado = config.estado,
@@ -777,22 +778,23 @@ class PlayerRepositoryImpl(
         ))
     }
 
+    // [SECURITY HARDENING P0/P1] Credenciais NUNCA mais em Room (plaintext).
+    // Persistência migrada para TokenStorage criptografado (Android Keystore).
+    // A coluna tokenAcesso do Room permanece apenas para compatibilidade de schema.
     override suspend fun salvarCredenciais(token: String, playerId: String) = withContext(Dispatchers.IO) {
-        val antiga = configuracaoDao.getLocalizacaoSalva()
-        configuracaoDao.salvarLocalizacao(ConfiguracaoEntity(
-            id = 1,
-            tokenAcesso = token,
-            playerID = playerId,
-            cidade = antiga?.cidade ?: "Desconhecido",
-            estado = antiga?.estado ?: "Desconhecido",
-            timezone = antiga?.timezone ?: "America/Sao_Paulo"
-        ))
+        try {
+            com.antigravity.sync.storage.TokenStorage(context).saveScreenBinding(playerId)
+        } catch (e: Exception) {
+            Logger.e("REPOS", "salvarCredenciais encrypted FAILED: ${e.message}")
+        }
     }
 
     override suspend fun getStoredCredentials(): Pair<String, String>? = withContext(Dispatchers.IO) {
-        val config = configuracaoDao.getLocalizacaoSalva()
-        if (!config?.tokenAcesso.isNullOrEmpty() && !config?.playerID.isNullOrEmpty()) {
-            Pair(config!!.tokenAcesso!!, config.playerID!!)
+        val storage = com.antigravity.sync.storage.TokenStorage(context)
+        val token = storage.getAccessToken()
+        val screenUuid = storage.getScreenUuid()
+        if (!token.isNullOrEmpty() && !screenUuid.isNullOrEmpty()) {
+            Pair(token, screenUuid)
         } else {
             null
         }

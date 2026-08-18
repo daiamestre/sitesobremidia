@@ -8,7 +8,20 @@ import { useToast } from '@/hooks/use-toast';
 
 export function WebhookMonitor({ empresaOperadoraId }: { empresaOperadoraId?: string }) {
   const { toast } = useToast();
-  const [eventos, setEventos] = useState<any[]>([]);
+
+  interface EventoAssinatura {
+    id: string;
+    evento: string;
+    created_at: string;
+    detalhes?: { ip_address?: string | null } | null;
+    assinatura?: {
+      envelope_id?: string | null;
+      status?: string | null;
+      contrato?: { numero_contrato?: string | null } | null;
+    } | null;
+  }
+
+  const [eventos, setEventos] = useState<EventoAssinatura[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchEventos = useCallback(async () => {

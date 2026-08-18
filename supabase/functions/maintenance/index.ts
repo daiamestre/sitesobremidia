@@ -11,6 +11,24 @@ serve(async (req: Request) => {
         return new Response(null, { headers: corsHeaders });
     }
 
+    // [SECURITY HARDENING] Função DESTRUTIVA (deleta objetos de storage):
+    // somente chamadas internas com CRON_SECRET (cron/scheduler) são aceitas.
+    // Sem o header correto → 401. NUNCA deixar exposta publicamente.
+    const expectedSecret = Deno.env.get("CRON_SECRET");
+    if (!expectedSecret) {
+        return new Response(JSON.stringify({ error: "CRON_SECRET nao configurado no ambiente." }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+    }
+    const provided = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    if (provided !== expectedSecret) {
+        return new Response(JSON.stringify({ error: "Acesso negado." }), {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+    }
+
     try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

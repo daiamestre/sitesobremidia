@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { WidgetAssetsGallery } from './WidgetAssetsGallery';
-import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
 import { uploadToR2 } from '@/lib/r2Upload';
 
 interface WidgetFormProps {
@@ -92,7 +91,7 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
             // Organize widget assets in a specific folder
             const { publicUrl, filePath } = await uploadToR2(
                 file,
-                `widgets/${fileName}`,
+                `${user.id}/widgets/${fileName}`,
                 file.type,
                 user.id
             );

@@ -6,8 +6,23 @@ import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { digitalSignatureService } from '../../services/digitalSignature.service';
 
+interface Assinatura {
+  id: string;
+  envelope_id?: string | null;
+  status?: string | null;
+  provedor?: string | null;
+  pdf_assinado_key?: string | null;
+  document_hash?: string | null;
+  signed_document_hash?: string | null;
+  signatario_nome?: string | null;
+  signatario_email?: string | null;
+  assinado_em?: string | null;
+  contrato?: { numero_contrato?: string | null } | null;
+  eventos?: { evento: string; created_at: string }[] | null;
+}
+
 interface SignatureDetailsProps {
-  assinatura: any;
+  assinatura: Assinatura;
   onActionComplete?: () => void;
 }
 
@@ -33,8 +48,8 @@ export function SignatureDetails({ assinatura, onActionComplete }: SignatureDeta
       } else {
         toast({ title: 'Erro', description: 'Documento assinado não disponível.', variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err?.message || 'Falha no download.', variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     } finally {
       setDownloading(false);
     }
@@ -50,8 +65,8 @@ export function SignatureDetails({ assinatura, onActionComplete }: SignatureDeta
       } else {
         toast({ title: 'Erro', description: 'Documento assinado não disponível.', variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err?.message || 'Falha ao abrir.', variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     } finally {
       setViewing(false);
     }
@@ -126,7 +141,7 @@ export function SignatureDetails({ assinatura, onActionComplete }: SignatureDeta
           <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
             <span className="text-slate-400 block">Timeline de Eventos:</span>
             <div className="space-y-1 mt-1">
-              {assinatura.eventos.map((ev: any, i: number) => (
+              {assinatura.eventos.map((ev, i: number) => (
                 <div key={i} className="flex items-center gap-2 text-[10px]">
                   <ShieldCheck className="h-3 w-3 text-slate-500" />
                   <span className="text-slate-300">{ev.evento}</span>

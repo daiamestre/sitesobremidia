@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // OWNER, ADMIN e usuários com status ATIVO corporativo possuem status aprovado soberano
         computedStatus = 'APPROVED';
       } else if (solData && solData.status) {
-        computedStatus = solData.status as any;
+        computedStatus = solData.status as typeof computedStatus;
       } else {
         computedStatus = 'NOT_FOUND';
       }

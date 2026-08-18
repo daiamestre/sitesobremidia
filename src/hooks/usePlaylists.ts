@@ -3,6 +3,26 @@ import { supabase } from '@/integrations/supabase/client';
 import { Playlist } from '@/types/models';
 import { toast } from 'sonner';
 
+// Formato dos itens retornados pelo join com media/widget/external_link
+interface PlaylistItemWithDetails {
+    duration: number;
+    media?: {
+        file_type?: string;
+        thumbnail_url?: string | null;
+        file_url?: string;
+    } | null;
+    widget?: {
+        thumbnail_url?: string | null;
+        config?: {
+            backgroundImageLandscape?: string | null;
+            backgroundImagePortrait?: string | null;
+        } | null;
+    } | null;
+    external_link?: {
+        thumbnail_url?: string | null;
+    } | null;
+}
+
 export function usePlaylists(userId?: string) {
     const queryClient = useQueryClient();
 
@@ -26,14 +46,14 @@ export function usePlaylists(userId?: string) {
                 // Logic to find cover image
                 let coverUrl = playlist.cover_url;
                 if (!coverUrl && items && items.length > 0) {
-                    const firstItemWithCover = items.find((item: any) =>
+                    const firstItemWithCover = items.find((item: PlaylistItemWithDetails) =>
                         (item.media && (item.media.file_type === 'image' || item.media.thumbnail_url)) ||
                         (item.widget && (item.widget.thumbnail_url || item.widget.config?.backgroundImageLandscape || item.widget.config?.backgroundImagePortrait)) ||
                         (item.external_link && item.external_link.thumbnail_url)
                     );
 
                     if (firstItemWithCover) {
-                        const item = firstItemWithCover as any;
+                        const item = firstItemWithCover as PlaylistItemWithDetails;
                         if (item.media) {
                             coverUrl = item.media.file_type === 'video' ? item.media.thumbnail_url : item.media.file_url;
                         } else if (item.widget) {
@@ -47,7 +67,7 @@ export function usePlaylists(userId?: string) {
                 return {
                     ...playlist,
                     item_count: items?.length || 0,
-                    total_duration: items?.reduce((acc: number, item: any) => acc + item.duration, 0) || 0,
+                    total_duration: items?.reduce((acc: number, item: PlaylistItemWithDetails) => acc + item.duration, 0) || 0,
                     cover_url: coverUrl,
                 };
             })

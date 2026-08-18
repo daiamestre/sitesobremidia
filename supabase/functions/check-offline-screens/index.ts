@@ -31,6 +31,23 @@ serve(async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // [SECURITY HARDENING] Função de cron (envia e-mails em massa e lê todas
+  // as telas): somente chamadas internas com CRON_SECRET são aceitas.
+  const expectedSecret = Deno.env.get("CRON_SECRET");
+  if (!expectedSecret) {
+    return new Response(JSON.stringify({ error: "CRON_SECRET nao configurado." }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const provided = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  if (provided !== expectedSecret) {
+    return new Response(JSON.stringify({ error: "Acesso negado." }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     console.log("Starting offline screen check...");
 

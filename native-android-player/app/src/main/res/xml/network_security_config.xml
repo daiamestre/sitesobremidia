@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ============================================================
+     SOBRE MÍDIA PLAYER — NETWORK SECURITY CONFIG (P0 SSL/HTTPS)
+     Padrão: HTTPS ONLY.
+     - Cleartext (HTTP) NEGADO globalmente.
+     - Somente certificados do sistema (nenhum cert de usuário/MITM).
+     - Exceções de domínio: nenhuma para HTTP.
+     ============================================================ -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

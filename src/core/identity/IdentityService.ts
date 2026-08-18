@@ -41,7 +41,7 @@ export class IdentityService {
           .eq('role_id', data.role.id);
           
         if (permData) {
-          permissions = permData.map((p: any) => p.permission.code);
+          permissions = permData.map((p: { permission: { code: string } }) => p.permission.code);
         }
       }
 

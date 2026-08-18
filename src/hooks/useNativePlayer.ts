@@ -1,11 +1,21 @@
 
+// Bridge nativa do WebView Android exposta em window.Android
+interface AndroidBridge {
+    getDeviceId?: () => string;
+    getPlayerConfig?: () => string;
+    showToast?: (msg: string) => void;
+}
+
+const getAndroidBridge = (): AndroidBridge | undefined =>
+    typeof window !== 'undefined' ? (window as unknown as { Android?: AndroidBridge }).Android : undefined;
+
 export const useNativePlayer = () => {
-    const isNative = typeof window !== 'undefined' && !!(window as any).Android;
+    const isNative = typeof window !== 'undefined' && !!getAndroidBridge();
 
     const getDeviceId = (): string => {
-        if (isNative && (window as any).Android?.getDeviceId) {
+        if (isNative && getAndroidBridge()?.getDeviceId) {
             try {
-                return (window as any).Android.getDeviceId();
+                return getAndroidBridge()!.getDeviceId();
             } catch (e) {
                 console.error("Error accessing Android ID", e);
                 return "error-device-id";
@@ -15,9 +25,9 @@ export const useNativePlayer = () => {
     };
 
     const getPlayerConfig = (): string => {
-        if (isNative && (window as any).Android?.getPlayerConfig) {
+        if (isNative && getAndroidBridge()?.getPlayerConfig) {
             try {
-                return (window as any).Android.getPlayerConfig();
+                return getAndroidBridge()!.getPlayerConfig();
             } catch (e) {
                 console.error("Error accessing Android Config", e);
                 return "{}";
@@ -27,9 +37,9 @@ export const useNativePlayer = () => {
     };
 
     const showToast = (msg: string) => {
-        if (isNative && (window as any).Android?.showToast) {
+        if (isNative && getAndroidBridge()?.showToast) {
             try {
-                (window as any).Android.showToast(msg);
+                getAndroidBridge()!.showToast(msg);
             } catch (e) {
                 console.error("Error showing toast", e);
             }

@@ -97,10 +97,11 @@ class SplashActivity : AppCompatActivity() {
                 
                 // Carrega memória volátil para não quebrar requests HTTP do Supabase
                 com.antigravity.sync.service.SessionManager.currentAccessToken = credentials.first
-                
-                // Retro-compatibilidade (garante que bibliotecas antigas não quebrem)
-                prefs.edit().putString("auth_token", credentials.first)
-                     .putString("saved_screen_id", credentials.second).apply()
+
+                // [SECURITY HARDENING] Não persiste mais o token em player_prefs (plaintext).
+                // O token já vive criptografado no TokenStorage (Android Keystore).
+                // Mantém apenas o UUID da tela (não-secreto) para roteamento.
+                prefs.edit().putString("saved_screen_id", credentials.second).apply()
                 
                 val intent = Intent(this@SplashActivity, com.antigravity.player.MainActivity::class.java)
                 startActivity(intent)

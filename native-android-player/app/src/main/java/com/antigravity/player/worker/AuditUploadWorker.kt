@@ -13,6 +13,9 @@ import okhttp3.MediaType
 import okhttp3.RequestBody
 import java.util.concurrent.TimeUnit
 import com.antigravity.cache.entity.LogAuditoriaEntity
+import com.antigravity.sync.config.SupabaseConfig
+import com.antigravity.sync.service.SessionManager
+import com.antigravity.sync.storage.TokenStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Log
@@ -65,22 +68,31 @@ class AuditUploadWorker(
     }
 
     private suspend fun enviarRelatorioParaDashboard(csvConteudo: String, playerNome: String): Boolean {
-        // [AUDITORIA] Endpoint para o Dashboard processar o CSV
-        val endpoint = "https://bhwsybgsyvvhqtkdqozb.supabase.co/functions/v1/upload-audit-log"
-        
+        // [SECURITY FASE F] Endpoint derivado do BuildConfig (supabase.properties
+        // gitignored) — sem URL hardcoded no código-fonte.
+        val endpoint = "${SupabaseConfig.URL}/functions/v1/upload-audit-log"
+
+        // [SECURITY FASE F] JWT obrigatório: a Edge Function rejeita chamadas
+        // sem token (401). Sem token, não há como autenticar — aborta.
+        val accessToken = SessionManager.currentAccessToken
+            ?: TokenStorage(applicationContext).getAccessToken()
+            ?: return false
+
         return try {
             val mediaType = "text/csv".toMediaTypeOrNull()
             val csvBody = csvConteudo.toRequestBody(mediaType)
 
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("player_name", playerNome) 
+                .addFormDataPart("player_name", playerNome)
                 .addFormDataPart("relatorio", "auditoria_${System.currentTimeMillis()}.csv", csvBody)
                 .build()
 
             val request = Request.Builder()
                 .url(endpoint)
                 .post(requestBody)
+                .header("apikey", SupabaseConfig.KEY)
+                .header("Authorization", "Bearer $accessToken")
                 .build()
 
             val response = client.newCall(request).execute()

@@ -6,7 +6,19 @@ import { vi } from 'vitest';
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: vi.fn(() => {
-      const chainable: any = {
+      const chainable: {
+        select: ReturnType<typeof vi.fn>;
+        insert: ReturnType<typeof vi.fn>;
+        update: ReturnType<typeof vi.fn>;
+        delete: ReturnType<typeof vi.fn>;
+        eq: ReturnType<typeof vi.fn>;
+        is: ReturnType<typeof vi.fn>;
+        order: ReturnType<typeof vi.fn>;
+        limit: ReturnType<typeof vi.fn>;
+        single: ReturnType<typeof vi.fn>;
+        maybeSingle: ReturnType<typeof vi.fn>;
+        then: (resolve: (value: { data: unknown[]; error: null }) => unknown) => unknown;
+      } = {
         select: vi.fn(() => chainable),
         insert: vi.fn(() => chainable),
         update: vi.fn(() => chainable),
@@ -17,12 +29,15 @@ vi.mock('@/integrations/supabase/client', () => ({
         limit: vi.fn().mockResolvedValue({ data: [], error: null }),
         single: vi.fn().mockResolvedValue({ data: { id: 'mock-id-123', numero_proposta: 'PROP-2026-0001' }, error: null }),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-        then: (resolve: any) => resolve({ data: [], error: null }),
+        then: (resolve) => resolve({ data: [], error: null }),
       };
       return chainable;
     }),
     channel: vi.fn(() => {
-      const channelMock: any = {
+      const channelMock: {
+        on: ReturnType<typeof vi.fn>;
+        subscribe: ReturnType<typeof vi.fn>;
+      } = {
         on: vi.fn(() => channelMock),
         subscribe: vi.fn((cb?: (status: string) => void) => {
           cb?.('SUBSCRIBED');

@@ -20,6 +20,7 @@ import {
 import { format, formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Screen, ScreenStatus, Playlist, Media, Widget, ExternalLink, PlaylistItem as ModelPlaylistItem } from '@/types/models';
+import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import {
     BarChart,
@@ -87,9 +88,11 @@ interface ScreenWithPlaylist {
 
 // Chart Data Logic handled inside component
 
+type PlaybackLogRow = Database['public']['Tables']['playback_logs']['Row'];
+type PlaylistItemsRow = Database['public']['Tables']['playlist_items']['Row'];
 
 function DebugLogViewer({ screenId }: { screenId: string }) {
-    const [logs, setLogs] = useState<any[]>([]);
+    const [logs, setLogs] = useState<PlaybackLogRow[]>([]);
     const [count, setCount] = useState(0);
     const [lastError, setLastError] = useState<string | null>(null);
 
@@ -115,8 +118,8 @@ function DebugLogViewer({ screenId }: { screenId: string }) {
                 setLogs(data || []);
                 setCount(count || 0);
                 setLastError(null);
-            } catch (e: any) {
-                setLastError(e.message);
+            } catch (e: unknown) {
+                setLastError(e instanceof Error ? e.message : String(e));
             }
         };
 
@@ -256,7 +259,7 @@ export default function ScreenDetails() {
                 throw error;
             }
 
-            data?.forEach((row: any) => {
+            data?.forEach((row) => {
                 const date = new Date(row.started_at);
                 const label = formatLabel(date);
                 if (buckets[label] !== undefined) {
@@ -292,7 +295,7 @@ export default function ScreenDetails() {
             }
             if (!screenData) return null;
 
-            let items: any[] = [];
+            let items: PlaylistItemsRow[] = [];
             if (screenData.playlist_id) {
                 // Step 2: Fetch Playlist Items with specific columns to avoid errors with missing columns (like thumbnail_url in widgets)
                 const { data: itemsData, error: itemsError } = await supabase
@@ -394,7 +397,7 @@ export default function ScreenDetails() {
 
             return (data || []).map(p => ({
                 ...p,
-                item_count: (p as any).item_count?.[0]?.count || 0
+                item_count: p.item_count?.[0]?.count || 0
             }));
         },
         enabled: !!user?.id
@@ -588,9 +591,9 @@ export default function ScreenDetails() {
 
             // Reload EVERYTHING to ensure state is perfectly synced with DB
             await refetch();
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Erro ao salvar playlist:", e);
-            toast.error(`Erro ao salvar playlist: ${e.message || 'Erro desconhecido'}`);
+            toast.error(`Erro ao salvar playlist: ${e instanceof Error ? e.message : String(e)}`);
             // If insert failed, refetch to restore what's (potentially still) in DB
             refetch();
         } finally {
@@ -783,7 +786,7 @@ export default function ScreenDetails() {
                                             }
 
                                             // Optimistic update: change UI immediately
-                                            queryClient.setQueryData(['screen', resolvedId], (old: any) =>
+                                            queryClient.setQueryData<ScreenWithPlaylist | null>(['screen', resolvedId], (old) =>
                                                 old ? { ...old, is_active: checked } : old
                                             );
 

@@ -9,15 +9,10 @@ import io.github.jan.supabase.gotrue.Auth
 import io.github.jan.supabase.realtime.*
 import io.ktor.client.request.header
 import io.ktor.client.engine.okhttp.*
-import okhttp3.OkHttpClient
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.*
 import kotlinx.serialization.json.Json
-import android.annotation.SuppressLint
 
 object SupabaseModule {
-    
+
     // In a real production app, these should be injected via BuildConfig
     // For this implementation plan, we will define them here to allow compilation
     @OptIn(io.github.jan.supabase.annotations.SupabaseInternal::class)
@@ -25,23 +20,15 @@ object SupabaseModule {
         supabaseUrl = com.antigravity.sync.config.SupabaseConfig.URL,
         supabaseKey = com.antigravity.sync.config.SupabaseConfig.KEY
     ) {
-        // [HARDENING] Custom OkHttp Engine for SSL Bypass (Clock Resilience)
+        // [SECURITY HARDENING] TLS PADRÃO do Android/OkHttp.
+        // Removido o TrustManager que aceitava TODOS os certificados e o
+        // HostnameVerifier que aceitava qualquer host (P0 da auditoria).
+        // Certificados inválidos agora são REJEITADOS (DENY).
         httpEngine = OkHttp.create {
             config {
-                @Suppress("CustomX509TrustManager")
-                val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-                    @SuppressLint("TrustAllX509TrustManager")
-                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    @SuppressLint("TrustAllX509TrustManager")
-                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-                })
-
-                val sslContext = SSLContext.getInstance("SSL")
-                sslContext.init(null, trustAllCerts, SecureRandom())
-                
-                sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-                hostnameVerifier { _, _ -> true }
+                connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
             }
         }
 
@@ -75,11 +62,10 @@ object SupabaseModule {
                         request.headers["Authorization"] = "Bearer $token"
                     }
                     
-                    val deviceId = com.antigravity.sync.service.SessionManager.currentUserId ?: "UNKNOWN_DEVICE"
+                    val deviceId = SessionManager.deviceIdentityHash
+                        ?: SessionManager.currentUserId
+                        ?: "UNKNOWN_DEVICE"
                     request.headers["X-Device-ID"] = deviceId
-                    
-                    // [AUTOPSY] HEADER SNIFFER
-                    com.antigravity.core.util.Logger.d("SYNC_AUTOPSY", ">>> REQUEST HEADERS: Auth=[${token?.take(10)}...], DeviceID=[$deviceId]")
                 }
             })
         }

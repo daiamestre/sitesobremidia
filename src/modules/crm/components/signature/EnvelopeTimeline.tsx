@@ -1,8 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { History, Clock } from 'lucide-react';
 
+interface EventoEnvelope {
+  id: string;
+  evento: string;
+  created_at: string;
+}
+
 interface EnvelopeTimelineProps {
-  eventos: any[];
+  eventos: EventoEnvelope[];
 }
 
 export function EnvelopeTimeline({ eventos }: EnvelopeTimelineProps) {

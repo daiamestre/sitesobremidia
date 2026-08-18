@@ -68,5 +68,7 @@ data class AppReleaseDto(
     @SerialName("version_name") val versionName: String,
     @SerialName("apk_url") val apkUrl: String,
     @SerialName("release_notes") val release_notes: String? = null,
-    @SerialName("is_mandatory") val is_mandatory: Boolean = false
+    @SerialName("is_mandatory") val is_mandatory: Boolean = false,
+    // [SECURITY HARDENING FASE J] Hash SHA-256 do APK (integridade OTA)
+    @SerialName("sha256") val sha256: String? = null
 )

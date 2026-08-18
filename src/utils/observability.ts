@@ -7,7 +7,7 @@ export interface StructuredLog {
   level: LogLevel;
   category: 'CRM' | 'CONTRATOS' | 'PI' | 'PRODUCAO' | 'AGENDAMENTO' | 'PLAYER' | 'NOC';
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 class ObservabilityManager {
@@ -18,7 +18,7 @@ class ObservabilityManager {
     level: LogLevel,
     message: string,
     correlationId?: string,
-    details?: Record<string, any>
+    details?: Record<string, unknown>
   ): StructuredLog {
     const log: StructuredLog = {
       id: `log-${crypto.randomUUID()}`,

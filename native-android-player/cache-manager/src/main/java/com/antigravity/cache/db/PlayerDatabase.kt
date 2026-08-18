@@ -19,7 +19,7 @@ import com.antigravity.cache.dao.LogAuditoriaDao
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [CachedPlaylist::class, CachedMediaItem::class, CachedPlayLog::class, OfflinePlaybackLog::class, ConfiguracaoEntity::class, LogAuditoriaEntity::class], version = 9, exportSchema = false)
+@Database(entities = [CachedPlaylist::class, CachedMediaItem::class, CachedPlayLog::class, OfflinePlaybackLog::class, ConfiguracaoEntity::class, LogAuditoriaEntity::class], version = 10, exportSchema = false)
 abstract class PlayerDatabase : RoomDatabase() {
 
     abstract fun playerDao(): PlayerDao
@@ -57,6 +57,13 @@ abstract class PlayerDatabase : RoomDatabase() {
             }
         }
 
+        // [SECURITY HARDENING P0/P1] Purge one-time de tokens plaintext legados do Room.
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("UPDATE configuracoes_player SET tokenAcesso = NULL")
+            }
+        }
+
         fun getDatabase(context: Context): PlayerDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -64,7 +71,7 @@ abstract class PlayerDatabase : RoomDatabase() {
                     PlayerDatabase::class.java,
                     "player_database"
                 )
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

@@ -12,11 +12,12 @@ interface MediaPreviewDialogProps {
 }
 
 export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDialogProps) {
-  if (!media) return null;
-
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const videoRef = useRef<VideoPlayerRef>(null);
+
+  if (!media) return null;
+
   const isVertical = media.aspect_ratio === '9x16';
 
   // Reset state when media changes

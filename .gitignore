@@ -30,6 +30,15 @@ android/app/build
 **/.gradle
 **/build
 android/local.properties
+native-android-player/local.properties
+
+# Segredos locais do Player (NUNCA commitar)
+native-android-player/supabase.properties
+native-android-player/keystore.properties
+native-android-player/*.jks
+native-android-player/*.keystore
+native-android-player/*.p12
+native-android-player/*.pem
 
 .vercel
 *.apk

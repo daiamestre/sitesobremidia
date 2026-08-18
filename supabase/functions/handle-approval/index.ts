@@ -54,62 +54,110 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   const url = new URL(req.url);
-  const requestId = url.searchParams.get("id");
-  const rawToken = url.searchParams.get("token");
-  const action = url.searchParams.get("action"); // 'approve' | 'reject'
+  let requestId = url.searchParams.get("id");
+  let rawToken = url.searchParams.get("token");
+  let action = url.searchParams.get("action"); // 'approve' | 'reject'
+  let motivo = url.searchParams.get("motivo");
+  let wantsJson = url.searchParams.get("format") === "json" ||
+    (req.headers.get("accept") || "").includes("application/json");
 
-  if (!requestId || !action || !['approve', 'reject'].includes(action)) {
+  // Chamadas programáticas (supabase.functions.invoke): aceita JSON no corpo
+  if (req.method === "POST" && (req.headers.get("content-type") || "").includes("application/json")) {
+    try {
+      const body = await req.json();
+      requestId = requestId ?? body?.id;
+      rawToken = rawToken ?? body?.token;
+      action = action ?? body?.action;
+      motivo = motivo ?? body?.motivo;
+      wantsJson = wantsJson || body?.format === "json";
+    } catch {
+      return new Response(wantsJson ? JSON.stringify({ ok: false, error: "Corpo JSON invalido." }) : htmlResponse("Erro de Solicitação", "Corpo JSON inválido.", "#ef4444"), {
+        status: 400,
+        headers: { "Content-Type": wantsJson ? "application/json" : "text/html", ...corsHeaders }
+      });
+    }
+  }
+
+  const json = (status: number, payload: { ok: boolean; error?: string }) =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { "Content-Type": "application/json", ...corsHeaders }
+    });
+
+  if (!requestId || !action || !["approve", "reject"].includes(action)) {
+    if (wantsJson) return json(400, { ok: false, error: "Parâmetros inválidos ou malformados." });
     return new Response(htmlResponse("Erro de Solicitação", "Parâmetros inválidos ou malformados na URL.", "#ef4444"), {
       status: 400,
-      headers: { "Content-Type": "text/html" }
+      headers: { "Content-Type": "text/html", ...corsHeaders }
+    });
+  }
+
+  // F11: token é OBRIGATÓRIO — sem token não existe autorização de decisão
+  if (!rawToken) {
+    if (wantsJson) return json(403, { ok: false, error: "Token de autorização é obrigatório." });
+    return new Response(htmlResponse("Acesso Negado", "Token de autorização é obrigatório para decidir solicitações.", "#ef4444"), {
+      status: 403,
+      headers: { "Content-Type": "text/html", ...corsHeaders }
     });
   }
 
   try {
     // 1. Busca registro na tabela public.solicitacoes_acesso
     const { data: request, error: fetchError } = await supabase
-      .from('solicitacoes_acesso')
-      .select('*')
-      .eq('id', requestId)
+      .from("solicitacoes_acesso")
+      .select("*")
+      .eq("id", requestId)
       .single();
 
     if (fetchError || !request) {
+      if (wantsJson) return json(404, { ok: false, error: "Solicitação de acesso não encontrada." });
       return new Response(htmlResponse("Não Encontrado", "A solicitação de acesso não foi encontrada no banco de dados.", "#ef4444"), {
-        status: 444,
-        headers: { "Content-Type": "text/html" }
+        status: 404,
+        headers: { "Content-Type": "text/html", ...corsHeaders }
       });
     }
 
     // 2. Validação SERVER-SIDE do Token (Single-Use, Expiration & SHA-256 Hash)
-    if (rawToken) {
-      // 2.1 Verifica Reutilização (Single-Use)
-      if (request.approval_used_at) {
-        return new Response(htmlResponse("Token Consumido", "Este link de aprovação já foi utilizado anteriormente.", "#f59e0b"), {
-          status: 400,
-          headers: { "Content-Type": "text/html" }
-        });
-      }
-
-      // 2.2 Verifica Expiração (48h)
-      if (request.approval_token_expires_at && new Date(request.approval_token_expires_at) < new Date()) {
-        return new Response(htmlResponse("Link Expirado", "Este link de aprovação expirou (validade de 48 horas).", "#ef4444"), {
-          status: 410,
-          headers: { "Content-Type": "text/html" }
-        });
-      }
-
-      // 2.3 Verifica Hash SHA-256 do Token
-      const incomingHash = await hashToken(rawToken);
-      if (request.approval_token_hash && request.approval_token_hash !== incomingHash) {
-        return new Response(htmlResponse("Token Inválido", "O token de segurança é inválido ou foi adulterado.", "#ef4444"), {
-          status: 403,
-          headers: { "Content-Type": "text/html" }
-        });
-      }
+    // 2.1 Verifica Reutilização (Single-Use)
+    if (request.approval_used_at) {
+      if (wantsJson) return json(400, { ok: false, error: "Este link de aprovação já foi utilizado anteriormente (Token Consumido)." });
+      return new Response(htmlResponse("Token Consumido", "Este link de aprovação já foi utilizado anteriormente.", "#f59e0b"), {
+        status: 400,
+        headers: { "Content-Type": "text/html", ...corsHeaders }
+      });
     }
 
-    // 3. Executa a transação no banco de dados usando SERVICE_ROLE_KEY
-    const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
+    // 2.2 Verifica Expiração (48h)
+    if (request.approval_token_expires_at && new Date(request.approval_token_expires_at) < new Date()) {
+      if (wantsJson) return json(410, { ok: false, error: "Este link de aprovação expirou (validade de 48 horas)." });
+      return new Response(htmlResponse("Link Expirado", "Este link de aprovação expirou (validade de 48 horas).", "#ef4444"), {
+        status: 410,
+        headers: { "Content-Type": "text/html", ...corsHeaders }
+      });
+    }
+
+    // 2.3 Verifica Hash SHA-256 do Token
+    const incomingHash = await hashToken(rawToken);
+    if (!request.approval_token_hash || request.approval_token_hash !== incomingHash) {
+      if (wantsJson) return json(403, { ok: false, error: "Token de aprovação inválido ou adulterado." });
+      return new Response(htmlResponse("Token Inválido", "O token de segurança é inválido ou foi adulterado.", "#ef4444"), {
+        status: 403,
+        headers: { "Content-Type": "text/html", ...corsHeaders }
+      });
+    }
+
+    // 2.4 Estado transacionável: somente PENDING pode ser decidido
+    if (request.status !== "PENDING") {
+      if (wantsJson) return json(409, { ok: false, error: "Esta solicitação já foi processada." });
+      return new Response(htmlResponse("Já Processada", "Esta solicitação já foi processada anteriormente.", "#f59e0b"), {
+        status: 409,
+        headers: { "Content-Type": "text/html", ...corsHeaders }
+      });
+    }
+
+    // 3. Executa a transação no banco de dados usando SERVICE_ROLE_KEY,
+    //    com trava anti-race (status PENDING) e uso único (approval_used_at nulo)
+    const newStatus = action === "approve" ? "APPROVED" : "REJECTED";
     const nowIso = new Date().toISOString();
 
     const updatePayload: Record<string, any> = {
@@ -118,27 +166,37 @@ serve(async (req: Request): Promise<Response> => {
       updated_at: nowIso,
     };
 
-    if (action === 'approve') {
+    if (action === "approve") {
       updatePayload.approved_at = nowIso;
     } else {
       updatePayload.rejected_at = nowIso;
-      updatePayload.motivo_rejeicao = 'Rejeitado via decisão de link seguro por e-mail.';
+      updatePayload.motivo_rejeicao = motivo || "Rejeitado via decisão de link seguro por e-mail.";
     }
 
-    const { error: updateError } = await supabase
-      .from('solicitacoes_acesso')
+    const { data: updatedRows, error: updateError } = await supabase
+      .from("solicitacoes_acesso")
       .update(updatePayload)
-      .eq('id', requestId);
+      .eq("id", requestId)
+      .eq("status", "PENDING")
+      .is("approval_used_at", null)
+      .select("id");
 
     if (updateError) throw updateError;
+    if (!updatedRows || updatedRows.length === 0) {
+      if (wantsJson) return json(409, { ok: false, error: "[RACE CONDITION SHIELD] Esta solicitação já foi processada por outra requisição." });
+      return new Response(htmlResponse("Já Processada", "Esta solicitação já foi processada por outra requisição.", "#f59e0b"), {
+        status: 409,
+        headers: { "Content-Type": "text/html", ...corsHeaders }
+      });
+    }
 
     // 4. Envia Notificação por E-mail ao Usuário
     if (RESEND_API_KEY && request.email_usuario) {
-      const subject = action === 'approve' 
-        ? 'Seu cadastro na plataforma SOBRE MÍDIA foi APROVADO!' 
-        : 'Informação sobre seu cadastro na plataforma SOBRE MÍDIA';
+      const subject = action === "approve"
+        ? "Seu cadastro na plataforma SOBRE MÍDIA foi APROVADO!"
+        : "Informação sobre seu cadastro na plataforma SOBRE MÍDIA";
 
-      const userHtml = action === 'approve'
+      const userHtml = action === "approve"
         ? `<p>Olá <strong>${request.nome_usuario}</strong>,</p><p>Seu cadastro como <strong>${request.tipo_acesso}</strong> foi <strong>APROVADO</strong>!</p><p>Você já pode acessar o sistema normalmente.</p>`
         : `<p>Olá <strong>${request.nome_usuario}</strong>,</p><p>Seu cadastro como <strong>${request.tipo_acesso}</strong> não foi aprovado neste momento.</p>`;
 
@@ -157,23 +215,26 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    // 5. Retorna página visual de resposta
-    const title = action === 'approve' ? "Cadastro Aprovado!" : "Cadastro Rejeitado";
-    const msg = action === 'approve'
+    // 5. Retorna página visual de resposta (ou JSON para chamadas programáticas)
+    if (wantsJson) return json(200, { ok: true });
+
+    const title = action === "approve" ? "Cadastro Aprovado!" : "Cadastro Rejeitado";
+    const msg = action === "approve"
       ? `O cadastro de ${request.nome_usuario} (${request.tipo_acesso}) foi APROVADO com sucesso.`
       : `O cadastro de ${request.nome_usuario} (${request.tipo_acesso}) foi REJEITADO.`;
-    const color = action === 'approve' ? "#10b981" : "#ef4444";
+    const color = action === "approve" ? "#10b981" : "#ef4444";
 
     return new Response(htmlResponse(title, msg, color), {
       status: 200,
-      headers: { "Content-Type": "text/html" }
+      headers: { "Content-Type": "text/html", ...corsHeaders }
     });
 
   } catch (error: any) {
     console.error("[handle-approval] Erro de decisão:", error);
+    if (wantsJson) return json(500, { ok: false, error: "Ocorreu um erro ao processar a decisão no banco." });
     return new Response(htmlResponse("Erro Interno", "Ocorreu um erro ao processar a decisão no banco.", "#ef4444"), {
       status: 500,
-      headers: { "Content-Type": "text/html" }
+      headers: { "Content-Type": "text/html", ...corsHeaders }
     });
   }
 });

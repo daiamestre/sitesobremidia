@@ -15,7 +15,13 @@ const emails = {
   admin2: 'e2e-acc-adm2-e2e@sobremidia.com.br',
   repAdmin1: 'e2e-acc-rep2-e2e@sobremidia.com.br',
 };
-const ACC_PASSWORD = 'Temp@Acc#123';
+// [SECURITY FASE F] Senha dos usuários E2E via variável de ambiente
+// (TEST_USER_PASSWORD). Nunca hardcodar credencial em teste versionado.
+const ACC_PASSWORD =
+  process.env.TEST_USER_PASSWORD ||
+  (() => {
+    throw new Error('TEST_USER_PASSWORD obrigatório (ver .env.e2e.local)');
+  })();
 
 function adminClient(): SupabaseClient {
   const keys = JSON.parse(fs.readFileSync(path.join(os.tmpdir(), 'sb_keys.json'), 'utf8'));

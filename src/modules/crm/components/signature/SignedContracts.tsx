@@ -6,11 +6,21 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { digitalSignatureService } from '../../services/digitalSignature.service';
 
-export function SignedContracts({ assinados, onAssinaturaEvent }: { assinados: any[]; onAssinaturaEvent?: () => void }) {
+interface AssinaturaAssinada {
+  id: string;
+  envelope_id: string;
+  contrato_id?: string | null;
+  assinado_em?: string | null;
+  created_at?: string | null;
+  signed_document_hash?: string | null;
+  contrato?: { numero_contrato?: string | null; tipo_contrato?: string | null } | null;
+}
+
+export function SignedContracts({ assinados, onAssinaturaEvent }: { assinados: AssinaturaAssinada[]; onAssinaturaEvent?: () => void }) {
   const { toast } = useToast();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  const handleDownloadSigned = async (a: any) => {
+  const handleDownloadSigned = async (a: AssinaturaAssinada) => {
     const envelopeId = a.envelope_id;
     if (!envelopeId) {
       toast({ title: 'Erro', description: 'Envelope não identificado.', variant: 'destructive' });
@@ -31,14 +41,14 @@ export function SignedContracts({ assinados, onAssinaturaEvent }: { assinados: a
       } else {
         toast({ title: 'Erro', description: 'PDF assinado não disponível.', variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err?.message || 'Falha no download.', variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     } finally {
       setDownloadingId(null);
     }
   };
 
-  const handleViewSigned = async (a: any) => {
+  const handleViewSigned = async (a: AssinaturaAssinada) => {
     const envelopeId = a.envelope_id;
     if (!envelopeId) return;
 
@@ -49,8 +59,8 @@ export function SignedContracts({ assinados, onAssinaturaEvent }: { assinados: a
       } else {
         toast({ title: 'Erro', description: 'PDF assinado não disponível.', variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err?.message || 'Falha ao abrir.', variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     }
   };
 

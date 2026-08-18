@@ -1,8 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { History, Clock } from 'lucide-react';
 
+interface AuditoriaEvento {
+  id: string;
+  evento: string;
+  created_at: string;
+}
+
 interface FinancialTimelineProps {
-  auditoria: any[];
+  auditoria: AuditoriaEvento[];
 }
 
 export function FinancialTimeline({ auditoria }: FinancialTimelineProps) {

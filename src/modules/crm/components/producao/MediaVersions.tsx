@@ -2,8 +2,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Layers, FileCheck, Film, HardDrive, Clock } from 'lucide-react';
 
+interface VersaoMidia {
+  id: string;
+  numero_versao: number;
+  object_key?: string | null;
+  checksum: string;
+  tamanho: number;
+  created_at: string;
+}
+
 interface MediaVersionsProps {
-  versoes: any[];
+  versoes: VersaoMidia[];
 }
 
 export function MediaVersions({ versoes }: MediaVersionsProps) {

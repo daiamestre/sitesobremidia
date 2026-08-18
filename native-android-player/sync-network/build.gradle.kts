@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.20"
@@ -9,9 +9,32 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        minSdk = 21
+        minSdk = 23
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
+
+        // [SECURITY HARDENING] Credenciais injetadas via arquivo LOCAL
+        // supabase.properties (gitignored). NUNCA hardcodar a chave anon no repo.
+        // Valores placeholder: build compila, runtime falha com erro claro
+        // atÃ© o operador criar o arquivo local (ver supabase.properties.example).
+        val supabaseProps = java.util.Properties().apply {
+            val f = rootProject.file("supabase.properties")
+            if (f.exists()) f.inputStream().use { load(it) }
+        }
+        buildConfigField(
+            "String",
+            "SUPABASE_URL",
+            "\"${supabaseProps.getProperty("SUPABASE_URL", "https://CHANGE_ME.supabase.co")}\""
+        )
+        buildConfigField(
+            "String",
+            "SUPABASE_ANON_KEY",
+            "\"${supabaseProps.getProperty("SUPABASE_ANON_KEY", "CHANGE_ME_ANON_KEY")}\""
+        )
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {
@@ -50,4 +73,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     
     implementation("androidx.core:core-ktx:1.12.0")
+
+    // [SECURITY HARDENING] Armazenamento criptografado de tokens (Android Keystore)
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 }
+

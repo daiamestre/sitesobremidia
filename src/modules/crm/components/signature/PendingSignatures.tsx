@@ -7,7 +7,19 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { digitalSignatureService } from '../../services/digitalSignature.service';
 
-export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes: any[]; onAssinaturaEvent?: () => void }) {
+interface AssinaturaPendente {
+  id: string;
+  envelope_id: string;
+  provedor?: string | null;
+  status?: string | null;
+  signatario_nome?: string | null;
+  signatario_email?: string | null;
+  signatario_cpf_cnpj?: string | null;
+  contrato?: { id?: string | null; numero_contrato?: string | null } | null;
+  eventos?: { evento: string; created_at: string }[] | null;
+}
+
+export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes: AssinaturaPendente[]; onAssinaturaEvent?: () => void }) {
   const { toast } = useToast();
   const { usuario, user } = useAuth();
   const [signingId, setSigningId] = useState<string | null>(null);
@@ -22,8 +34,8 @@ export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes:
       } else {
         toast({ title: 'Erro', description: result.error || 'Não foi possível abrir o documento.', variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err?.message || 'Falha ao visualizar.', variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     } finally {
       setViewingId(null);
     }
@@ -41,8 +53,8 @@ export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes:
         a.click();
         document.body.removeChild(a);
       }
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err?.message || 'Falha no download.', variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     }
   };
 
@@ -50,12 +62,12 @@ export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes:
     try {
       await digitalSignatureService.downloadSignedDocument(envelopeId);
       toast({ title: 'Notificação Reenviada', description: 'Link de acesso reenviado ao signatário.' });
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err?.message || 'Falha ao reenviar.', variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     }
   };
 
-  const handleSign = async (p: any) => {
+  const handleSign = async (p: AssinaturaPendente) => {
     const usuarioId = usuario?.id || user?.id;
     if (!p.contrato?.id || !usuarioId) return;
     setSigningId(p.id);
@@ -75,8 +87,8 @@ export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes:
       } else {
         toast({ title: 'Erro na Assinatura', description: result.error || 'Falha ao assinar.', variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err?.message || 'Falha ao assinar.', variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     } finally {
       setSigningId(null);
     }

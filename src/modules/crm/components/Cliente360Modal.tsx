@@ -13,10 +13,36 @@ interface Cliente360ModalProps {
   onClose: () => void;
 }
 
+interface PropostaRow {
+  id: string;
+  numero_proposta?: string | null;
+  status?: string | null;
+  valor_total?: number | null;
+  validade_dias?: number | null;
+  cliente_id?: string | null;
+}
+
+interface ContratoRow {
+  id: string;
+  numero_contrato?: string | null;
+  status_workflow?: string | null;
+  data_inicio?: string | null;
+  data_fim?: string | null;
+  cliente_id?: string | null;
+}
+
+interface CobrancaRow {
+  id: string;
+  valor_parcela?: number | null;
+  valor?: number | null;
+  data_vencimento?: string | null;
+  cliente_id?: string | null;
+}
+
 export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpen, onClose }) => {
-  const [propostas, setPropostas] = useState<any[]>([]);
-  const [contratos, setContratos] = useState<any[]>([]);
-  const [financeiro, setFinanceiro] = useState<any[]>([]);
+  const [propostas, setPropostas] = useState<PropostaRow[]>([]);
+  const [contratos, setContratos] = useState<ContratoRow[]>([]);
+  const [financeiro, setFinanceiro] = useState<CobrancaRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   const empresa = useMemo(() => cliente?.empresas?.[0] ?? null, [cliente?.empresas]);

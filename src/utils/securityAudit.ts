@@ -25,8 +25,8 @@ export async function runSecurityAudit(): Promise<SecurityAuditReport> {
       passed: !error,
       details: error ? `Erro de permissão RLS: ${error.message}` : 'Políticas RLS ativas e funcionais.',
     });
-  } catch (err: any) {
-    results.push({ category: 'RLS Multi-Tenant', checkName: 'Validação RLS pedidos_insercao', passed: false, details: err.message });
+  } catch (err: unknown) {
+    results.push({ category: 'RLS Multi-Tenant', checkName: 'Validação RLS pedidos_insercao', passed: false, details: err instanceof Error ? err.message : String(err) });
   }
 
   // Check 2: Multi-Tenant RLS on producoes
@@ -38,8 +38,8 @@ export async function runSecurityAudit(): Promise<SecurityAuditReport> {
       passed: !error,
       details: error ? `Erro RLS: ${error.message}` : 'Políticas RLS ativas e funcionais.',
     });
-  } catch (err: any) {
-    results.push({ category: 'RLS Multi-Tenant', checkName: 'Validação RLS producoes', passed: false, details: err.message });
+  } catch (err: unknown) {
+    results.push({ category: 'RLS Multi-Tenant', checkName: 'Validação RLS producoes', passed: false, details: err instanceof Error ? err.message : String(err) });
   }
 
   // Check 3: Multi-Tenant RLS on agendamentos
@@ -51,8 +51,8 @@ export async function runSecurityAudit(): Promise<SecurityAuditReport> {
       passed: !error,
       details: error ? `Erro RLS: ${error.message}` : 'Políticas RLS ativas e funcionais.',
     });
-  } catch (err: any) {
-    results.push({ category: 'RLS Multi-Tenant', checkName: 'Validação RLS agendamentos', passed: false, details: err.message });
+  } catch (err: unknown) {
+    results.push({ category: 'RLS Multi-Tenant', checkName: 'Validação RLS agendamentos', passed: false, details: err instanceof Error ? err.message : String(err) });
   }
 
   // Check 4: Multi-Tenant RLS on operacoes
@@ -64,8 +64,8 @@ export async function runSecurityAudit(): Promise<SecurityAuditReport> {
       passed: !error,
       details: error ? `Erro RLS: ${error.message}` : 'Políticas RLS ativas e funcionais.',
     });
-  } catch (err: any) {
-    results.push({ category: 'RLS Multi-Tenant', checkName: 'Validação RLS operacoes', passed: false, details: err.message });
+  } catch (err: unknown) {
+    results.push({ category: 'RLS Multi-Tenant', checkName: 'Validação RLS operacoes', passed: false, details: err instanceof Error ? err.message : String(err) });
   }
 
   // Check 5: SECURITY DEFINER Search Path Protection on PL/pgSQL functions
@@ -85,8 +85,8 @@ export async function runSecurityAudit(): Promise<SecurityAuditReport> {
       passed: !error,
       details: error ? `Falha RPC: ${error.message}` : 'Função protegida com search_path = public, pg_temp.',
     });
-  } catch (err: any) {
-    results.push({ category: 'SECURITY DEFINER', checkName: 'Validação fn_validar_conflitos_agendamento', passed: false, details: err.message });
+  } catch (err: unknown) {
+    results.push({ category: 'SECURITY DEFINER', checkName: 'Validação fn_validar_conflitos_agendamento', passed: false, details: err instanceof Error ? err.message : String(err) });
   }
 
   // Check 6: Cloudflare R2 Key Structure Pattern

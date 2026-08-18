@@ -200,9 +200,9 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
 
       if (linksError) throw linksError;
       setAvailableLinks((linksData || []) as ExternalLink[]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching data:', error);
-      toast.error('Erro ao carregar dados: ' + (error.message || 'Erro de conexão'));
+      toast.error('Erro ao carregar dados: ' + (error instanceof Error ? error.message : 'Erro de conexão'));
     } finally {
       setLoading(false);
     }
@@ -285,7 +285,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       widget_id: null,
       external_link_id: null,
       position: items.length,
-      duration: (media as any).duration ? Number((media as any).duration) : 10,
+      duration: media.duration ? Number(media.duration) : 10,
       media,
       created_at: new Date().toISOString()
     };
@@ -378,9 +378,9 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       toast.success('Playlist salva e sincronizada!');
       setHasUnsavedChanges(false);
       fetchData(); // Refresh to get real IDs from DB
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving playlist:', error);
-      toast.error('Erro ao salvar: ' + (error.message || 'Erro desconhecido'));
+      toast.error('Erro ao salvar: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
     } finally {
       setIsSaving(false);
     }

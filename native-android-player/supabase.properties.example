@@ -1,0 +1,15 @@
+# ======================================================================
+# SUPABASE PROPERTIES (LOCAL, GITIGNORED — NUNCA COMMITAR)
+# ======================================================================
+# Copie para supabase.properties e preencha com os valores do projeto.
+# O arquivo supabase.properties é ignorado pelo .gitignore.
+# Sem este arquivo o build compila com placeholders e o runtime falha
+# com erro claro (proteção contra vazamento de credenciais).
+#
+# A chave anon é PÚBLICA por design (role=anon). O que NUNCA pode entrar
+# aqui nem no APK: service_role, database password, R2 secret,
+# Cloudflare secret, private signing key.
+# ======================================================================
+
+SUPABASE_URL=https://bhwsybgsyvvhqtkdqozb.supabase.co
+SUPABASE_ANON_KEY=COLE_A_CHAVE_ANON_AQUI

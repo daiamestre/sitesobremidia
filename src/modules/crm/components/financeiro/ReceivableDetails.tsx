@@ -101,7 +101,7 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
 
               <div className="space-y-1">
                 <Label className="text-xs text-slate-300">Forma de Pagamento</Label>
-                <Select value={tipo} onValueChange={(val: any) => setTipo(val)}>
+                <Select value={tipo} onValueChange={(val) => setTipo(val as TipoPagamento)}>
                   <SelectTrigger className="bg-slate-900 border-white/10 text-white rounded-xl h-10 text-xs">
                     <SelectValue />
                   </SelectTrigger>

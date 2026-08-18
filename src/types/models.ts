@@ -121,7 +121,7 @@ export type RemoteCommand = {
     id: string;
     screen_id: string;
     command: RemoteCommandType;
-    payload?: any;
+    payload?: unknown;
     status: 'pending' | 'executed' | 'failed';
     created_at: string;
     executed_at?: string | null;

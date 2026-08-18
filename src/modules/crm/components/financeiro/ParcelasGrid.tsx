@@ -2,8 +2,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Calendar, DollarSign } from 'lucide-react';
 
+interface Parcela {
+  id: string;
+  numero_parcela?: number | null;
+  vencimento: string;
+  valor: number;
+  status: string;
+}
+
 interface ParcelasGridProps {
-  parcelas: any[];
+  parcelas: Parcela[];
 }
 
 export function ParcelasGrid({ parcelas }: ParcelasGridProps) {

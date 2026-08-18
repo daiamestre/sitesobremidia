@@ -45,6 +45,12 @@ export const PERMISSOES_DISPONIVEIS = [
   { codigo: 'users.deactivate', label: 'Desativar usuários' },
   { codigo: 'users.create_admin', label: 'Criar Administradores' },
   { codigo: 'users.manage_permissions', label: 'Gerenciar autonomia' },
+  { codigo: 'representantes.view', label: 'Visualizar representantes' },
+  { codigo: 'representantes.edit', label: 'Editar representantes' },
+  { codigo: 'representantes.activate', label: 'Ativar representantes' },
+  { codigo: 'representantes.deactivate', label: 'Desativar representantes' },
+  { codigo: 'representantes.edit_clients', label: 'Reatribuir clientes' },
+  { codigo: 'representantes.view_performance', label: 'Visualizar desempenho' },
 ] as const;
 
 export const EDGE_FUNCTION_URL =
@@ -138,11 +144,6 @@ export class CorporateUsersService {
   }
 
   async atualizarStatusUsuario(usuarioId: string, ativo: boolean): Promise<{ success: boolean; error?: string }> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return { success: false, error: 'Sessão expirada. Faça login novamente.' };
-    }
-
     const novoStatus = ativo ? 'ACTIVE' : 'INACTIVE';
 
     const { error } = await supabase
@@ -155,24 +156,25 @@ export class CorporateUsersService {
       return { success: false, error: error.message };
     }
 
-    const { data: tenantId } = await supabase.rpc('get_user_tenant_id');
+    // A trilha de auditoria é registrada pelo trigger server-side
+    // auditar_alteracao_usuario (impossível de forjar pelo cliente).
+    return { success: true };
+  }
 
-    const { error: audErr } = await supabase.from('auditoria_logs').insert({
-      empresa_operadora_id: tenantId ?? null,
-      usuario_id: user.id,
-      usuario_email: user.email,
-      usuario_role: null,
-      entidade_tipo: 'USUARIO',
-      entidade_id: usuarioId,
-      acao: ativo ? 'USER_ACTIVATED' : 'USER_DEACTIVATED',
-      status_anterior: ativo ? 'INACTIVE' : 'ACTIVE',
-      status_novo: novoStatus,
-      observacoes: ativo
-        ? `Usuário reativado via Central de Acessos`
-        : `Usuário desativado via Central de Acessos`,
+  async atualizarUsuario(
+    usuarioId: string,
+    dados: { nome?: string; telefone?: string | null; perfilId?: string | null }
+  ): Promise<{ success: boolean; error?: string }> {
+    const { error } = await supabase.rpc('atualizar_usuario_corporativo', {
+      p_alvo_id: usuarioId,
+      p_nome: dados.nome ?? null,
+      p_telefone: dados.telefone ?? null,
+      p_perfil_id: dados.perfilId ?? null,
     });
-    if (audErr) {
-      console.error('[CorporateUsersService.atualizarStatusUsuario] auditoria', audErr.message);
+
+    if (error) {
+      console.error('[CorporateUsersService.atualizarUsuario]', error);
+      return { success: false, error: error.message };
     }
 
     return { success: true };

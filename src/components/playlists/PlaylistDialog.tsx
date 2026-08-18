@@ -9,8 +9,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Upload, X, Image, Monitor, Smartphone } from 'lucide-react';
-import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { uploadToR2 } from '@/lib/r2Upload';
 
 interface Playlist {
@@ -91,7 +89,7 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
       const fileName = `${Date.now()}-cover.${fileExt}`;
       const { publicUrl } = await uploadToR2(
         coverFile,
-        `covers/${fileName}`,
+        `${user.id}/covers/${fileName}`,
         coverFile.type,
         user.id
       );

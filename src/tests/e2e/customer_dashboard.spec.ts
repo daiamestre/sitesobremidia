@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test.describe('Customer Portal Dashboard', () => {
   // Teste temporariamente isolado da pipeline remota porque requer CREDENCIAIS PRIVADAS DO SUPABASE AUTH
@@ -6,7 +6,7 @@ test.describe('Customer Portal Dashboard', () => {
     // 1. LOGIN CLIENTE
     await page.goto('/login');
     await page.fill('input[type="email"]', process.env.CUSTOMER_EMAIL || 'cliente@test.com');
-    await page.fill('input[type="password"]', process.env.CUSTOMER_PASSWORD || '123456');
+    await page.fill('input[type="password"]', process.env.CUSTOMER_PASSWORD || (() => { throw new Error('CUSTOMER_PASSWORD obrigatorio (ver .env.e2e.local)'); })());
     await page.click('button[type="submit"]');
 
     // 2. DASHBOARD CLIENTE

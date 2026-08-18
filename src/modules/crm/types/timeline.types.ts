@@ -12,5 +12,5 @@ export interface TimelineEntry {
   descricao: string;
   statusAnterior?: WorkflowStatus;
   statusNovo?: WorkflowStatus;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }

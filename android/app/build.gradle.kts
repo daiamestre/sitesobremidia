@@ -3,6 +3,17 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android)
 }
 
+// [SECURITY FASE F] Signing de release via keystore.properties (GITIGNORED).
+// Sem o arquivo, o build de RELEASE falha na configuração (fail-closed):
+// nunca publicar APK assinado com a debug keystore.
+fun loadSigningProps(): java.util.Properties? {
+    val f = rootProject.file("keystore.properties")
+    if (!f.exists()) return null
+    return java.util.Properties().apply { f.inputStream().use { load(it) } }
+}
+
+val signingProps = loadSigningProps()
+
 android {
     namespace = "com.sobremidia.player"
     compileSdk = 34
@@ -17,6 +28,26 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("production") {
+            if (signingProps == null) {
+                throw GradleException(
+                    "[SECURITY] keystore.properties ausente. Crie-o a partir de " +
+                        "keystore.properties.example para assinar o APK de PRODUÇÃO. " +
+                        "Nunca publique APK assinado com a debug keystore."
+                )
+            }
+            storeFile = file(signingProps.getProperty("STORE_FILE"))
+            storePassword = signingProps.getProperty("STORE_PASSWORD")
+            keyAlias = signingProps.getProperty("KEY_ALIAS")
+            keyPassword = signingProps.getProperty("KEY_PASSWORD")
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = false
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -24,6 +55,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // [SECURITY FASE F] Release NUNCA assina com debug keystore
+            signingConfig = signingConfigs.getByName("production")
         }
     }
     compileOptions {

@@ -1,6 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient('https://bhwsybgsyvvhqtkdqozb.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJod3N5YmdzeXZ2aHF0a2Rxb3piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzNjk5NjgsImV4cCI6MjA4Mzk0NTk2OH0.ejbdSX6xeSC4Cg8unLFSUbN5BOW7dJw2CRcFJACcWfI');
+// [SECURITY FASE FUNDAÇÃO] Chave anon lida do ambiente — nunca hardcodar.
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing env vars (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY)');
+    process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function checkMedias() {
     const { data, error } = await supabase.from('media').select('*').order('created_at', { ascending: false }).limit(5);

@@ -2,6 +2,14 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { RecommendationService } from '@/modules/crm/services/recommendation.service';
 
 // ─── Testes Unitários: RecommendationService ─────────────────────────────────
+interface Recomendacao {
+  id: string;
+  titulo: string;
+  recomendacao: string;
+  prioridade: string;
+  impacto: string;
+}
+
 describe('RecommendationService', () => {
   let service: RecommendationService;
 
@@ -25,14 +33,14 @@ describe('RecommendationService', () => {
 
   it('cada recomendação deve ter um id único', async () => {
     const result = await service.getSmartRecommendations('empresa-uuid-01');
-    const ids = result.map((r: any) => r.id);
+    const ids = result.map((r: Recomendacao) => r.id);
     const uniqueIds = new Set(ids);
     expect(uniqueIds.size).toBe(ids.length);
   });
 
   it('cada recomendação deve ter campo titulo', async () => {
     const result = await service.getSmartRecommendations('empresa-uuid-01');
-    result.forEach((r: any) => {
+    result.forEach((r: Recomendacao) => {
       expect(r).toHaveProperty('titulo');
       expect(typeof r.titulo).toBe('string');
       expect(r.titulo.length).toBeGreaterThan(0);
@@ -41,7 +49,7 @@ describe('RecommendationService', () => {
 
   it('cada recomendação deve ter campo recomendacao (descrição)', async () => {
     const result = await service.getSmartRecommendations('empresa-uuid-01');
-    result.forEach((r: any) => {
+    result.forEach((r: Recomendacao) => {
       expect(r).toHaveProperty('recomendacao');
       expect(typeof r.recomendacao).toBe('string');
     });
@@ -50,7 +58,7 @@ describe('RecommendationService', () => {
   it('cada recomendação deve ter prioridade válida', async () => {
     const prioridadesValidas = ['ALTA', 'MEDIA', 'BAIXA'];
     const result = await service.getSmartRecommendations('empresa-uuid-01');
-    result.forEach((r: any) => {
+    result.forEach((r: Recomendacao) => {
       expect(prioridadesValidas).toContain(r.prioridade);
     });
   });
@@ -58,14 +66,14 @@ describe('RecommendationService', () => {
   it('cada recomendação deve ter impacto definido', async () => {
     const impactosValidos = ['AUMENTO_RECEITA', 'REDUCAO_CUSTO', 'RETENCAO', 'EXPANSAO', 'OTIMIZACAO'];
     const result = await service.getSmartRecommendations('empresa-uuid-01');
-    result.forEach((r: any) => {
+    result.forEach((r: Recomendacao) => {
       expect(impactosValidos).toContain(r.impacto);
     });
   });
 
   it('deve conter pelo menos uma recomendação de alta prioridade', async () => {
     const result = await service.getSmartRecommendations('empresa-uuid-01');
-    const hasAlta = result.some((r: any) => r.prioridade === 'ALTA');
+    const hasAlta = result.some((r: Recomendacao) => r.prioridade === 'ALTA');
     expect(hasAlta).toBe(true);
   });
 

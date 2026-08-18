@@ -2,8 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Wifi, WifiOff, Activity, Clock, ShieldCheck } from 'lucide-react';
 
+interface PlayerHeartbeat {
+  id: string;
+  is_online: boolean;
+  player?: { nome?: string | null } | null;
+  versao_app?: string | null;
+  ultimo_heartbeat: string;
+}
+
 interface PlayerHealthPanelProps {
-  players: any[];
+  players: PlayerHeartbeat[];
 }
 
 export function PlayerHealthPanel({ players }: PlayerHealthPanelProps) {

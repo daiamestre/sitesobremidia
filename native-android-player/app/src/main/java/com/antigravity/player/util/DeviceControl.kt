@@ -96,4 +96,33 @@ object DeviceControl {
         // 4. Return without saving to allow SplashActivity to route to ScreenSelection
         return uniqueId!!
     }
+
+    /**
+     * [DEVICE IDENTITY - HARDENING P0]
+     * Identidade de hardware estável e não reversível, derivada de
+     * ANDROID_ID + fingerprint do build via SHA-256.
+     *
+     * Diferente do getOrCreateDeviceId (que resolve o screen_id lógico),
+     * esta identidade identifica o APARELHO FÍSICO e é vinculada a
+     * screen+tenant no backend (tabela devices / fn_device_bind).
+     *
+     * NUNCA logar este valor.
+     */
+    fun getHardwareIdentity(context: android.content.Context): String {
+        val androidId = try {
+            android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
+        } catch (e: Exception) {
+            null
+        } ?: "unknown"
+        val fingerprint = android.os.Build.FINGERPRINT ?: "unknown"
+        val raw = "sobremidia::device::$androidId::$fingerprint"
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(raw.toByteArray(Charsets.UTF_8))
+            digest.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            // Fallback determinístico nunca expõe o ANDROID_ID bruto
+            raw.hashCode().toString(16).padStart(16, '0')
+        }
+    }
 }

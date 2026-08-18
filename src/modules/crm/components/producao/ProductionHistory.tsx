@@ -1,8 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { History, Clock } from 'lucide-react';
 
+interface HistoricoProducao {
+  id: string;
+  status_novo: string;
+  descricao?: string | null;
+  created_at: string;
+}
+
 interface ProductionHistoryProps {
-  historico: any[];
+  historico: HistoricoProducao[];
 }
 
 export function ProductionHistory({ historico }: ProductionHistoryProps) {

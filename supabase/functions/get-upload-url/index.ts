@@ -1,8 +1,16 @@
 /**
- * [PRESIGNED URL] get-upload-url Edge Function
- * 
+ * [PRESIGNED URL] get-upload-url Edge Function — HARDENED
+ *
  * Generates presigned URLs for direct browser-to-R2 uploads.
  * Uses native Deno Web Crypto API (no AWS SDK - avoids fs.readFile errors).
+ *
+ * [SECURITY HARDENING FASE F — P0]
+ * - JWT OBRIGATÓRIO: sem Authorization Bearer válido → 401.
+ * - userId NUNCA é aceito do body: é derivado do `sub` do JWT.
+ * - O caminho do objeto é validado SERVER-SIDE pela RPC
+ *   `fn_r2_validate_object_scope` (SECURITY DEFINER): o usuário só
+ *   consegue escrever em `{user_id}/...` ou `tenants/{seu_tenant}/...`.
+ * - Nenhuma credencial R2 trafega no browser (removido r2Client S3).
  */
 
 const corsHeaders = {
@@ -48,30 +56,19 @@ async function generatePresignedUrl(params: {
   expiresIn: number;
 }): Promise<string> {
   const { accountId, accessKeyId, secretAccessKey, bucketName, region, key, contentType, expiresIn } = params;
-  
+
   const endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
   const service = 's3';
   const method = 'PUT';
 
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-  const datetimeStr = now.toISOString().replace(/[:\-]|\.\d{3}/g, '').slice(0, 15) + 'Z'; // YYYYMMDDTHHmmssZ
+  const datetimeStr = now.toISOString().replace(/[:-]|\.\d{3}/g, '').slice(0, 15) + 'Z'; // YYYYMMDDTHHmmssZ
 
   const host = `${accountId}.r2.cloudflarestorage.com`;
   const credentialScope = `${dateStr}/${region}/${service}/aws4_request`;
   const credential = `${accessKeyId}/${credentialScope}`;
 
-  // Canonical query string (must be sorted alphabetically)
-  const queryParams = new URLSearchParams({
-    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
-    'X-Amz-Credential': credential,
-    'X-Amz-Date': datetimeStr,
-    'X-Amz-Expires': String(expiresIn),
-    'X-Amz-SignedHeaders': 'host',
-    'x-amz-checksum-sha256': '',
-  });
-
-  // Actually, for presigned PUT to R2, we just need:
   const canonicalQueryParams = new URLSearchParams();
   canonicalQueryParams.set('X-Amz-Algorithm', 'AWS4-HMAC-SHA256');
   canonicalQueryParams.set('X-Amz-Credential', credential);
@@ -79,14 +76,11 @@ async function generatePresignedUrl(params: {
   canonicalQueryParams.set('X-Amz-Expires', String(expiresIn));
   canonicalQueryParams.set('X-Amz-SignedHeaders', 'host');
 
-  // Sort query params
   const sortedQueryString = Array.from(canonicalQueryParams.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('&');
 
-  // For R2 account-level endpoint, the canonical path MUST be /{bucket}/{key}
-  // The key should NOT be re-encoded - slashes are path separators
   const canonicalPath = `/${bucketName}/${key}`;
   const canonicalRequest = [
     method,
@@ -97,7 +91,6 @@ async function generatePresignedUrl(params: {
     'UNSIGNED-PAYLOAD',
   ].join('\n');
 
-  // String to Sign
   const stringToSign = [
     'AWS4-HMAC-SHA256',
     datetimeStr,
@@ -105,18 +98,36 @@ async function generatePresignedUrl(params: {
     await sha256(canonicalRequest),
   ].join('\n');
 
-  // Signing key
   const kDate = await hmac(encode(`AWS4${secretAccessKey}`), dateStr);
   const kRegion = await hmac(kDate, region);
   const kService = await hmac(kRegion, service);
   const kSigning = await hmac(kService, 'aws4_request');
   const signingKey = await crypto.subtle.importKey('raw', kSigning, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  
+
   const signature = toHex(await crypto.subtle.sign('HMAC', signingKey, encode(stringToSign)));
 
-  // Final presigned URL includes bucket in path
   const presignedUrl = `${endpoint}/${bucketName}/${key}?${sortedQueryString}&X-Amz-Signature=${signature}`;
   return presignedUrl;
+}
+
+// Valida o JWT do usuário e retorna o sub (userId) — ou null
+async function resolveUserId(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get("authorization") || "";
+  const jwt = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!jwt) return null;
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !anonKey) return null;
+
+  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.49.1");
+  const supabase = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+  });
+
+  const { data, error } = await supabase.auth.getUser(jwt);
+  if (error || !data?.user?.id) return null;
+  return data.user.id;
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -126,6 +137,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    // [SECURITY] JWT obrigatório
+    const userId = await resolveUserId(req);
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "Autenticacao obrigatoria." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const accountId = Deno.env.get("R2_ACCOUNT_ID");
     const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID");
     const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY");
@@ -140,18 +160,42 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const body = await req.json();
-    const { fileName, contentType, userId } = body;
+    const { fileName, contentType } = body;
 
-    if (!fileName || !contentType || !userId) {
+    if (!fileName || typeof fileName !== "string" || !contentType || typeof contentType !== "string") {
       return new Response(
-        JSON.stringify({ error: "fileName, contentType, and userId are required" }),
+        JSON.stringify({ error: "fileName and contentType are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Paths institucionais (ex.: tenants/{empresa_operadora_id}/contratos/{id}/v{n}/...)
-    // são preservados como informados; demais arquivos são escopados por usuário.
-    const filePath = fileName.startsWith("tenants/") ? fileName : `${userId}/${fileName}`;
+    // [SECURITY] Escopo do objeto validado no banco (SECURITY DEFINER):
+    // só {user_id}/... ou tenants/{tenant do usuário}/...
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !anonKey) {
+      return new Response(
+        JSON.stringify({ error: "Supabase environment missing." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.49.1");
+    const supabase = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${req.headers.get("authorization")}` } },
+    });
+
+    const { data: allowed, error: scopeError } = await supabase.rpc("fn_r2_validate_object_scope", {
+      p_object_key: fileName,
+    });
+
+    if (scopeError || allowed !== true) {
+      console.error("[get-upload-url] Escopo negado:", fileName, scopeError?.message);
+      return new Response(
+        JSON.stringify({ error: "Acesso negado: caminho fora do seu escopo." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const signedUrl = await generatePresignedUrl({
       accountId,
@@ -159,17 +203,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       secretAccessKey,
       bucketName,
       region: 'auto',
-      key: filePath,
+      key: fileName,
       contentType,
       expiresIn: 300,
     });
 
-    const publicUrl = publicDomain ? `${publicDomain}/${filePath}` : signedUrl;
+    const publicUrl = publicDomain ? `${publicDomain}/${fileName}` : signedUrl;
 
-    console.log(`[PRESIGNED] Generated PUT URL for ${filePath} (expires in 5min)`);
+    console.log(`[PRESIGNED] Generated PUT URL for ${fileName} (user ${userId}, expires in 5min)`);
 
     return new Response(
-      JSON.stringify({ signedUrl, publicUrl, filePath, expiresIn: 300 }),
+      JSON.stringify({ signedUrl, publicUrl, filePath: fileName, expiresIn: 300 }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 

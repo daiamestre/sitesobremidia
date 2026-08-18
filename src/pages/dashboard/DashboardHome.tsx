@@ -9,8 +9,8 @@ import { toast } from 'sonner';
 
 export default function DashboardHome() {
   const { profile } = useAuth();
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [fleet, setFleet] = useState<any>(null);
+  const [alerts, setAlerts] = useState<Awaited<ReturnType<typeof fetchAlertDevices>>>([]);
+  const [fleet, setFleet] = useState<Awaited<ReturnType<typeof fetchFleetSummary>> | null>(null);
 
   useEffect(() => {
     const loadAlerts = async () => {
@@ -27,7 +27,7 @@ export default function DashboardHome() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleRemoteCommand = async (deviceId: string, command: any) => {
+  const handleRemoteCommand = async (deviceId: string, command: 'REBOOT_APP' | 'CLEAR_CACHE' | 'TAKE_SCREENSHOT') => {
     try {
       await sendRemoteCommand(deviceId, command);
       toast.success(`Comando ${command} enviado com sucesso!`);
@@ -102,7 +102,7 @@ export default function DashboardHome() {
               <AlertTitle>Armazenamento Critico</AlertTitle>
               <AlertDescription>
                 {fleet.storageAlerts.length} dispositivo(s) com disco acima de 90%.
-                {fleet.storageAlerts.map((d: any) => (
+                {fleet.storageAlerts.map((d) => (
                   <span key={d.device_id} className="block text-xs mt-1">
                     {d.device_id}: {d.storage_usage_percent}% usado
                   </span>

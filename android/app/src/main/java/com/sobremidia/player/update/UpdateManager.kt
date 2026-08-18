@@ -45,6 +45,7 @@ class UpdateManager(private val context: Context) {
                     val json = JSONObject(response.toString())
                     val remoteVersionCode = json.optInt("versionCode", 0)
                     val apkUrl = json.optString("url", "")
+                    val sha256 = json.optString("sha256", "")
                     
                     val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
                     val currentVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -57,8 +58,23 @@ class UpdateManager(private val context: Context) {
                     Log.i(TAG, "Versions - Remote: $remoteVersionCode, Local: $currentVersionCode")
 
                     if (remoteVersionCode > currentVersionCode && apkUrl.isNotEmpty()) {
+                        // [SECURITY FASE F] OTA com integridade obrigatória:
+                        // SHA-256 (64 hex) exigido no manifest — sem hash válido,
+                        // a atualização é recusada (fail-safe).
+                        if (!sha256.matches(Regex("^[a-fA-F0-9]{64}$"))) {
+                            Log.e(TAG, "OTA REJECTED: manifest sem sha256 válido.")
+                            return@Thread
+                        }
+                        // [SECURITY FASE FUNDAÇÃO] APK somente via HTTPS — um
+                        // manifest adulterado não pode apontar para download em
+                        // HTTP (MITM/cleartext). O network_security_config já
+                        // bloqueia cleartext globalmente; reforço aqui no código.
+                        if (!apkUrl.startsWith("https://")) {
+                            Log.e(TAG, "OTA REJECTED: APK URL não é HTTPS.")
+                            return@Thread
+                        }
                         Log.i(TAG, "🚀 Update Found! Downloading...")
-                        startDownload(apkUrl)
+                        startDownload(apkUrl, sha256)
                     } else {
                         Log.i(TAG, "✅ App is up to date.")
                     }
@@ -71,7 +87,7 @@ class UpdateManager(private val context: Context) {
         }.start()
     }
 
-    private fun startDownload(apkUrl: String) {
+    private fun startDownload(apkUrl: String, expectedSha256: String) {
         try {
             val fileName = "update.apk"
             val file = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
@@ -93,7 +109,16 @@ class UpdateManager(private val context: Context) {
                 override fun onReceive(ctxt: Context, intent: Intent) {
                     val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
                     if (id == downloadId) {
-                        Log.i(TAG, "📥 Download Complete. Installing...")
+                        Log.i(TAG, "📥 Download Complete. Verifying integrity...")
+                        // [SECURITY FASE F] Verifica SHA-256 ANTES de instalar.
+                        // APK adulterado/corrompido NUNCA chega ao instalador.
+                        val actual = sha256Of(file)
+                        if (actual.isEmpty() || !actual.equals(expectedSha256, ignoreCase = true)) {
+                            Log.e(TAG, "OTA INTEGRITY FAIL: sha256 diverge. Instalação bloqueada.")
+                            file.delete()
+                            return
+                        }
+                        Log.i(TAG, "SHA-256 verified. Installing...")
                         installApk(file)
                         context.unregisterReceiver(this)
                     }
@@ -103,6 +128,24 @@ class UpdateManager(private val context: Context) {
 
         } catch (e: Exception) {
             Log.e(TAG, "Download failed", e)
+        }
+    }
+
+    private fun sha256Of(file: File): String {
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            java.io.FileInputStream(file).use { input ->
+                val buffer = ByteArray(8192)
+                var read = input.read(buffer)
+                while (read != -1) {
+                    digest.update(buffer, 0, read)
+                    read = input.read(buffer)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "sha256 computation failed", e)
+            ""
         }
     }
 

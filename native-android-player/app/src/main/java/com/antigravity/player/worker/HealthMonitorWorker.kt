@@ -68,18 +68,24 @@ class HealthMonitorWorker(
             // [RECURSION FIX] Executa sincronamente na Corrotina. Falhas de rede AQUI
             // não devem retornar Result.retry() para evitar inundar o Supabase
             // e estourar o "stack depth limit" dos Triggers do PostgreSQL.
+            // [CONSOLIDAÇÃO FASE F] Caminho ÚNICO de telemetria: player_heartbeats
+            // via RPC SECURITY DEFINER (fn_player_report_telemetry). O antigo
+            // sendHeartbeat() gravava em screens (duplicando o
+            // PersistentHeartbeatService) e foi removido deste worker.
             try {
-                repository.sendHeartbeat(
-                    status = status,
-                    freeSpace = freeSpaceBytes,
-                    ramUsage = usedRamBytes,
-                    cpuTemp = tempCelsius,
-                    uptimeHours = uptimeHours,
+                val remote = ServiceLocator.getRemoteDataSource()
+                remote.reportPlayerTelemetry(
+                    screenId = repoId,
+                    cpuUsage = null,
+                    memoryUsage = ramPercent.toFloat(),
+                    tempCelsius = tempCelsius,
+                    storageFreeMb = freeSpaceBytes / (1024 * 1024),
+                    appVersion = version,
                     ipAddress = null
                 )
-                com.antigravity.core.util.Logger.i("HealthMonitor", "Telemetria consolidada enviada para ID $repoId")
+                com.antigravity.core.util.Logger.i("HealthMonitor", "Telemetria consolidada (player_heartbeats) para ID $repoId")
             } catch (e: Exception) {
-                com.antigravity.core.util.Logger.e("HealthMonitor", "Silencing heartbeat DB failure: ${e.message}")
+                com.antigravity.core.util.Logger.e("HealthMonitor", "Silencing telemetry DB failure: ${e.message}")
                 // NON-FATAL. Avoid endless retries.
             }
             

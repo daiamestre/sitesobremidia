@@ -14,5 +14,5 @@ export interface AuditLogEntry {
   ipAddress?: string;
   userAgent?: string;
   observacoes?: string;
-  dadosAlterados?: Record<string, any>;
+  dadosAlterados?: Record<string, unknown>;
 }

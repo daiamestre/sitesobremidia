@@ -54,9 +54,9 @@ export interface ContratoCompleto {
   versao_atual?: number;
   status_workflow?: string;
   itens?: ContratoItem[];
-  cliente?: any;
-  empresa?: any;
-  proposta?: any;
+  cliente?: unknown;
+  empresa?: unknown;
+  proposta?: unknown;
 }
 
 export interface ContratoVigente {

@@ -9,11 +9,6 @@ import io.ktor.client.request.prepareRequest
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readAvailable
-import okhttp3.OkHttpClient
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.*
-import android.annotation.SuppressLint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -35,20 +30,8 @@ class MediaDownloader {
                 // [STABILITY] Force HTTP/1.1 to avoid HTTP/2 stream timeout bugs in OkHttp with large files
                 protocols(listOf(okhttp3.Protocol.HTTP_1_1))
 
-                @Suppress("CustomX509TrustManager")
-                val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-                    @SuppressLint("TrustAllX509TrustManager")
-                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    @SuppressLint("TrustAllX509TrustManager")
-                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-                })
-
-                val sslContext = SSLContext.getInstance("SSL")
-                sslContext.init(null, trustAllCerts, SecureRandom())
-                
-                sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-                hostnameVerifier { _, _ -> true }
+                // [SECURITY HARDENING] TLS PADRÃO (removido TrustManager/HostnameVerifier
+                // que aceitavam qualquer certificado — P0 da auditoria).
             }
         }
     }

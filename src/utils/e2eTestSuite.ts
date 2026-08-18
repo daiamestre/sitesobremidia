@@ -47,8 +47,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: res.success ? `Cliente ID: ${clienteId}` : res.error || 'Falha ao criar cliente',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 1, name: 'Cliente ➔ Criar Cliente', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 1, name: 'Cliente ➔ Criar Cliente', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   // 2. HAPPY PATH: Criar Proposta Comercial
@@ -72,8 +72,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: res.success ? `Proposta ID: ${propostaId} (Status: APROVADA)` : res.error || 'Falha ao criar proposta',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 2, name: 'Proposta ➔ Criar Proposta', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 2, name: 'Proposta ➔ Criar Proposta', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   // 3. HAPPY PATH: Vincular Contrato Comercial com Advisory Lock
@@ -98,8 +98,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: res.success ? `Contrato ID: ${contratoId}` : res.error || 'Falha ao vincular contrato',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 3, name: 'Contrato ➔ Vincular Contrato', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 3, name: 'Contrato ➔ Vincular Contrato', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   // 4. HAPPY PATH: Emitir Pedido de Inserção (PI)
@@ -130,8 +130,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: res.success ? `PI Numação: ${res.numeroPI}` : res.error || 'Falha ao emitir PI',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 4, name: 'PI ➔ Emissão PI', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 4, name: 'PI ➔ Emissão PI', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   // 5. EDGE CASE: Falha de Upload (Validação de Tamanho Excessivo)
@@ -185,8 +185,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: uploadRes.success ? `Mídia ID: ${midiaId} (Object Key Tenants R2)` : 'Falha upload R2',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 6, name: 'Produção ➔ Upload R2', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 6, name: 'Produção ➔ Upload R2', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   // 7. EDGE CASE: Rejeição de Mídia & Substituição por v2
@@ -214,15 +214,15 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: appRes.success ? 'Versão v2 aprovada com sucesso' : 'Falha no ciclo de reprovação/versão',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 7, name: 'EDGE CASE ➔ Rejeição/Versão', category: 'EDGE_CASE', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 7, name: 'EDGE CASE ➔ Rejeição/Versão', category: 'EDGE_CASE', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   // 8. EDGE CASE: Interceptação de Conflito de Agendamento
   start = Date.now();
   try {
     const conflictVal = await agendamentoService.validateConflicts({
-      agendamentoId: null as any,
+      agendamentoId: null as unknown as string,
       telaId: 'tela-demo-1',
       playerId: 'player-demo-1',
       horaInicio: '08:00:00',
@@ -238,8 +238,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: 'Validação de choques de horário funcional via banco',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 8, name: 'EDGE CASE ➔ Validação Conflitos', category: 'EDGE_CASE', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 8, name: 'EDGE CASE ➔ Validação Conflitos', category: 'EDGE_CASE', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   // 9. HAPPY PATH: Agendamento & Publicação sem Conflitos
@@ -277,8 +277,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: pubRes.success ? `Agendamento ID: ${agendamentoId} (Status: ATIVO)` : pubRes.error || 'Falha ao ativar',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 9, name: 'Agendamento ➔ Criar Grade', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 9, name: 'Agendamento ➔ Criar Grade', category: 'HAPPY_PATH', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   // 10. RESILIENCE: Inicialização Operacional NOC & Proof-of-Play
@@ -310,8 +310,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: opRes.success ? `Operação ID: ${operacaoId} (Health: HEALTHY)` : 'Falha na execução NOC',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 10, name: 'NOC / Player ➔ Execução Real', category: 'RESILIENCE', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 10, name: 'NOC / Player ➔ Execução Real', category: 'RESILIENCE', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   // 11. RESILIENCE: Perda de Conectividade e Encerramento da Operação
@@ -337,8 +337,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       durationMs: Date.now() - start,
       details: stopRes.success ? 'Operação encerrada e auditada com sucesso' : 'Falha ao encerrar',
     });
-  } catch (err: any) {
-    steps.push({ stepNumber: 11, name: 'Resiliência ➔ Queda de Sinal', category: 'RESILIENCE', passed: false, durationMs: Date.now() - start, details: err.message });
+  } catch (err: unknown) {
+    steps.push({ stepNumber: 11, name: 'Resiliência ➔ Queda de Sinal', category: 'RESILIENCE', passed: false, durationMs: Date.now() - start, details: (err as Error).message });
   }
 
   const passedCount = steps.filter((s) => s.passed).length;

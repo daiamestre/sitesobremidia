@@ -62,13 +62,9 @@ class LoginActivity : AppCompatActivity() {
                     val context = applicationContext
                     val deviceId = com.antigravity.player.util.DeviceControl.getOrCreateDeviceId(context)
                     
-                    // 1. Save Session
-                    val prefs = getSharedPreferences("player_prefs", android.content.Context.MODE_PRIVATE)
-                    prefs.edit().apply {
-                        putString("auth_token", com.antigravity.sync.service.SessionManager.currentAccessToken)
-                        putString("auth_user_id", com.antigravity.sync.service.SessionManager.currentUserId)
-                        apply()
-                    }
+                    // [SECURITY HARDENING] Sessão já persistida criptografada
+                    // pelo AuthRepository (TokenStorage / Android Keystore).
+                    // Não duplicamos mais o token em player_prefs (plaintext).
 
                     // 1. Redirect to Screen Selection (Correct Flow per user request)
                     Toast.makeText(this@LoginActivity, "Login realizado com sucesso!", Toast.LENGTH_SHORT).show()

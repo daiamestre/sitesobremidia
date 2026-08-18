@@ -38,17 +38,50 @@ vi.mock('@/modules/crm/services/contrato.service', () => ({
 
 const mockSignOut = vi.fn().mockResolvedValue({ error: null });
 
+interface SessaoAuthMock {
+  user: { id: string; email: string };
+  empresaOperadoraId: string;
+  representante: { id: string; nome: string };
+  isAuthenticated: boolean;
+  signOut: typeof mockSignOut;
+}
+
+interface RbacMock {
+  role: string;
+}
+
+interface ClienteDashboardFixture {
+  id: string;
+  status: string;
+  empresas: Array<{ nome_fantasia: string }>;
+}
+
+interface PropostaDashboardFixture {
+  id: string;
+  valor_final: number;
+}
+
+interface ContratoDashboardFixture {
+  id: string;
+  valor_mensal: number;
+  status_documento: string;
+  cliente: { empresa: { nome_fantasia: string } };
+}
+
+type MockReturnValue<T> = { mockReturnValue: (value: T) => void };
+type MockResolvedValue<T> = { mockResolvedValue: (value: T) => void };
+
 describe('FASE 10.2.1 — Saneamento, Segurança e Regressão Anti-Mocks no CRM', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useAuth as any).mockReturnValue({
+    (useAuth as unknown as MockReturnValue<SessaoAuthMock>).mockReturnValue({
       user: { id: 'usr-999', email: 'mariana.ferreira@sobremidia.com.br' },
       empresaOperadoraId: 'tenant-123',
       representante: { id: 'rep-001', nome: 'Mariana Ferreira' },
       isAuthenticated: true,
       signOut: mockSignOut,
     });
-    (useRbac as any).mockReturnValue({
+    (useRbac as unknown as MockReturnValue<RbacMock>).mockReturnValue({
       role: 'REPRESENTANTE',
     });
   });
@@ -160,17 +193,17 @@ describe('FASE 10.2.1 — Saneamento, Segurança e Regressão Anti-Mocks no CRM'
   });
 
   it('6. [Dashboard] Deve renderizar totais reais quando os serviços retornarem dados válidos', async () => {
-    (clienteService.findAll as any).mockResolvedValue([
+    (clienteService.findAll as unknown as MockResolvedValue<ClienteDashboardFixture[]>).mockResolvedValue([
       { id: 'c-1', status: 'ACTIVE', empresas: [{ nome_fantasia: 'Empresa Real 1' }] },
       { id: 'c-2', status: 'PROSPECT', empresas: [{ nome_fantasia: 'Empresa Real 2' }] }
     ]);
 
-    (propostaService.findAll as any).mockResolvedValue([
+    (propostaService.findAll as unknown as MockResolvedValue<PropostaDashboardFixture[]>).mockResolvedValue([
       { id: 'p-1', valor_final: 10000 },
       { id: 'p-2', valor_final: 15000 }
     ]);
 
-    (contratoService.findAll as any).mockResolvedValue([
+    (contratoService.findAll as unknown as MockResolvedValue<ContratoDashboardFixture[]>).mockResolvedValue([
       { id: 'ctr-1', valor_mensal: 5000, status_documento: 'Vigente', cliente: { empresa: { nome_fantasia: 'Empresa Real 1' } } }
     ]);
 

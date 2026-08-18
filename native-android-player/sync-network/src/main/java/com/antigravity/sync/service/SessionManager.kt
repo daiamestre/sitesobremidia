@@ -16,6 +16,11 @@ object SessionManager {
     var currentUserId: String? = null // This often stores Custom ID
     var currentUUID: String? = null   // New: Store the real Supabase UUID for system logic
 
+    // --- Device Identity (Hardware Binding) ---
+    var deviceIdentityHash: String? = null // SHA-256 do hardware (NUNCA logar)
+    var boundDeviceId: String? = null      // UUID do device registrado no backend
+    var isDeviceRevoked: Boolean = false   // Bloqueio por revogação do Owner/Admin
+
     // --- Screen Config ---
     var currentOrientation: String? = "landscape"
     var currentScreenName: String? = null
@@ -87,6 +92,10 @@ object SessionManager {
     fun clear() {
         currentAccessToken = null
         currentUserId = null
+        currentUUID = null
+        deviceIdentityHash = null
+        boundDeviceId = null
+        isDeviceRevoked = false
         currentOrientation = "landscape"
         heartbeatIntervalSeconds = 60
         seamlessTransition = true

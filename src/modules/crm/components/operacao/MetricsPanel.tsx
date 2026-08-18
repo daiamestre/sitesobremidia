@@ -1,8 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChart3, Clock, Tv, CheckCircle2, Zap } from 'lucide-react';
 
+interface Metrica {
+  quantidade_exibicoes: number;
+  tempo_total_exibido_segundos: number;
+  disponibilidade_porcentagem: number;
+  taxa_falhas: number;
+}
+
 interface MetricsPanelProps {
-  metricas: any[];
+  metricas: Metrica[];
 }
 
 export function MetricsPanel({ metricas }: MetricsPanelProps) {

@@ -2,6 +2,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 // NativePlayer is declared in src/vite-env.d.ts
 
+interface DeviceStats {
+    ram_used?: number;
+    storage_used?: number;
+    cpu_temp?: number;
+    battery_level?: number | null;
+    is_charging?: boolean;
+}
+
 export const monitoring = {
     /**
      * Captures a screenshot via Native Bridge and uploads it to Supabase.
@@ -76,7 +84,7 @@ export const monitoring = {
         if (!screenId) return;
 
         let screenshotUrl = null;
-        let deviceStats: any = {};
+        let deviceStats: DeviceStats = {};
 
         // 1. Try to get Screenshot
         try {

@@ -101,10 +101,13 @@ class ScreenSelectionActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
         prefs.edit().putString("saved_screen_id", screenId).apply()
         
-        val token = prefs.getString("auth_token", "") ?: ""
+        // [SECURITY HARDENING] Token lido da memória volátil (sessão ativa),
+        // não mais de player_prefs (que não recebe mais tokens plaintext).
+        val token = com.antigravity.sync.service.SessionManager.currentAccessToken ?: ""
         
         lifecycleScope.launch(Dispatchers.IO) {
-            // [AUTO-LOGIN] Salva credenciais seguras no Banco de Dados físico Room
+            // [SECURITY HARDENING] Credenciais persistidas criptografadas
+            // (TokenStorage / Android Keystore), não mais em Room plaintext.
             try {
                 ServiceLocator.getRepository(applicationContext).salvarCredenciais(token, screenId)
             } catch (e: Exception) {

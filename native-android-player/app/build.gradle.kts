@@ -1,8 +1,19 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
 }
+
+// [SECURITY HARDENING FASE K] Signing de produção via keystore.properties
+// (GITIGNORED — nunca commitar keystore/senhas). Fallback: debug keystore
+// local do desenvolvedor, apenas para builds locais de teste.
+fun loadSigningProps(): java.util.Properties? {
+    val f = rootProject.file("keystore.properties")
+    if (!f.exists()) return null
+    return java.util.Properties().apply { f.inputStream().use { load(it) } }
+}
+
+val signingProps = loadSigningProps()
 
 android {
     namespace = "com.antigravity.player"
@@ -10,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.antigravity.player"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
@@ -21,22 +32,39 @@ android {
         ndk {
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
         }
+
+        // [SECURITY FASE F] Pin do certificado de assinatura do release APK
+        // (SHA-256 do cert, 64 hex). Configurado no keystore.properties
+        // (GITIGNORED). Se vazio, a verificação de assinatura é ignorada —
+        // a integridade SHA-256 do arquivo continua OBRIGATÓRIA.
+        buildConfigField(
+            "String",
+            "OTA_RELEASE_CERT_SHA256",
+            "\"${signingProps?.getProperty("OTA_RELEASE_CERT_SHA256") ?: ""}\""
+        )
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     signingConfigs {
-        create("hybrid") {
-            // Standard Debug Keystore for now (Replace with real key for Production)
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-            
-            // UNIVERSAL COMPATIBILITY: Force V1 (JAR) + V2 (APK) + V3 (Key Rotation)
-            // Critical for Android 5/6/7 TV Boxes (V1) and Modern Android 11+ / Fire TV (V2/V3)
+        create("production") {
+            if (signingProps == null) {
+                throw GradleException(
+                    "[SECURITY] keystore.properties ausente. Crie-o a partir de " +
+                    "keystore.properties.example para assinar o APK de PRODUÇÃO. " +
+                    "Nunca publique APK assinado com a debug keystore."
+                )
+            }
+            storeFile = file(signingProps.getProperty("STORE_FILE"))
+            storePassword = signingProps.getProperty("STORE_PASSWORD")
+            keyAlias = signingProps.getProperty("KEY_ALIAS")
+            keyPassword = signingProps.getProperty("KEY_PASSWORD")
             enableV1Signing = true
             enableV2Signing = true
-            enableV3Signing = true 
-            enableV4Signing = false 
+            enableV3Signing = true
+            enableV4Signing = false
         }
     }
 
@@ -45,10 +73,12 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("hybrid")
+            // [SECURITY FASE K] Release NUNCA assina com debug keystore:
+            // sem keystore.properties o build de release falha na configuração.
+            signingConfig = signingConfigs.getByName("production")
         }
         debug {
-            signingConfig = signingConfigs.getByName("hybrid")
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -99,3 +129,4 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
+

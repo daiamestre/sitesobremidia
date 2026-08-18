@@ -10,24 +10,41 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * reais, códigos de status SQL/REST (200, 42501, 409) e carimbos de auditoria.
  */
 
+interface AuditLogEntry {
+  timestamp: string;
+  event: string;
+  actor_id: string;
+  target_id: string;
+  action: string;
+}
+
+interface CloudPayload {
+  user_id?: string;
+  status?: string;
+  approved_by?: string;
+  error?: string;
+  data?: string;
+  rows?: number;
+  success?: boolean;
+  timestamp?: string | null;
+  storage?: string;
+  file?: string;
+  size?: string;
+  hls_url?: string;
+}
+
 interface CloudResponse {
   http_status: number;
   error_code?: string;
-  payload?: any;
-  audit_log_entry?: {
-    timestamp: string;
-    event: string;
-    actor_id: string;
-    target_id: string;
-    action: string;
-  };
+  payload?: CloudPayload;
+  audit_log_entry?: AuditLogEntry;
   sql_query_executed?: string;
 }
 
 class CloudStagingValidator {
   private users: Record<string, { id: string; email: string; role: string; status: string; tenant: string }> = {};
   private accessRequests: Record<string, { id: string; user_id: string; status: string; approved_by: string | null; approved_at: string | null }> = {};
-  private auditLogs: any[] = [];
+  private auditLogs: AuditLogEntry[] = [];
 
   constructor() {
     // Setup inicial de contas Cloud

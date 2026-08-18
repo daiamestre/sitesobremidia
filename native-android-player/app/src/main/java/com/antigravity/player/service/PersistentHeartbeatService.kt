@@ -73,30 +73,38 @@ class PersistentHeartbeatService : Service() {
                     val repo = ServiceLocator.getRepository(applicationContext)
                     val playlist = repo.getActivePlaylist().firstOrNull()
                     val remoteDS = ServiceLocator.getRemoteDataSource()
-                    val userId = SessionManager.currentUserId ?: "UNKNOWN"
-                    
-                    if (playlist != null) {
-                        Logger.d("HEARTBEAT_PROC", "Enviando sinal de vida (Foreground)...")
-                        remoteDS.updateScreenStatus(
-                            id = userId,
-                            status = "playing",
-                            version = "1.0",
-                            ipAddress = "N/A"
-                        )
-                    } else {
-                        remoteDS.updateScreenStatus(
-                            id = userId,
-                            status = "syncing",
-                            version = "1.0",
-                            ipAddress = "N/A"
-                        )
+
+                    // [FIX FASE H] ID correto = UUID real da tela (screens.id).
+                    // Antes usava currentUserId, que é inconsistente (user UUID,
+                    // screen_token ou UUID conforme o fluxo de boot) e podia
+                    // atualizar a linha ERRADA ou nenhuma linha.
+                    val screenId = SessionManager.currentUUID ?: SessionManager.currentUserId
+                    if (screenId.isNullOrBlank() || screenId == "N/A" || screenId == "UNKNOWN") {
+                        Logger.w("HEARTBEAT_PROC", "Screen UUID indisponível; pulso adiado.")
+                        delay(60_000L)
+                        continue
                     }
+                    
+                    // [BILLING] Status reflete o estado REAL da tela (blocked = "blocked")
+                    val status = when {
+                        !SessionManager.isScreenActive -> "blocked"
+                        playlist != null -> "playing"
+                        else -> "syncing"
+                    }
+
+                    Logger.d("HEARTBEAT_PROC", "Enviando sinal de vida (Foreground)... [$status]")
+                    remoteDS.updateScreenStatus(
+                        id = screenId,
+                        status = status,
+                        version = "1.0",
+                        ipAddress = "N/A"
+                    )
                     
                     // [SCALE 10K] Lightweight Pulse -> device_health via HeartbeatManager
                     try {
                         val heartbeat = com.antigravity.sync.service.HeartbeatManager(
                             context = applicationContext,
-                            deviceId = userId
+                            deviceId = screenId
                         )
                         heartbeat.sendPulse(currentMediaId = null)
                     } catch (e: Exception) {

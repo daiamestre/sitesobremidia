@@ -16,6 +16,28 @@ interface MediaItem {
     duration: number;
 }
 
+// Linhas retornadas pelo REST direto do Supabase (bypass do cliente tipado)
+interface ScreenRow {
+    id: string;
+    orientation?: string | null;
+    is_active?: boolean;
+    playlist_id?: string | null;
+    audio_enabled?: boolean;
+}
+
+interface PlaylistItemRow {
+    id: string;
+    position?: number;
+    duration?: number;
+    media_id?: string | null;
+}
+
+interface MediaRow {
+    id: string;
+    file_url?: string;
+    file_type?: string;
+}
+
 const PLAYLIST_CACHE_KEY = "player_playlist_codemidia";
 const SCREEN_ID_CACHE_KEY = "player_screen_id_codemidia";
 const POLL_INTERVAL_MS = 30000;
@@ -57,7 +79,7 @@ export const PlayerEngine = () => {
     // ============================================================
     // DIRECT FETCH — completely bypass Supabase client AND Service Worker
     // ============================================================
-    const directFetch = useCallback(async (table: string, queryParams: string, token: string | null): Promise<any[]> => {
+    const directFetch = useCallback(async <T,>(table: string, queryParams: string, token: string | null): Promise<T[]> => {
         const url = `${supabaseConfig.url}/rest/v1/${table}?${queryParams}`;
         const headers: Record<string, string> = {
             'apikey': supabaseConfig.key,
@@ -79,9 +101,9 @@ export const PlayerEngine = () => {
 
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             return await resp.json();
-        } catch (e: any) {
+        } catch (e: unknown) {
             clearTimeout(timeoutId);
-            if (e.name === 'AbortError') throw new Error('TIMEOUT 6s');
+            if (typeof e === 'object' && e !== null && 'name' in e && e.name === 'AbortError') throw new Error('TIMEOUT 6s');
             throw e;
         }
     }, []);
@@ -99,8 +121,8 @@ export const PlayerEngine = () => {
             localStorage.setItem(SCREEN_ID_CACHE_KEY, screenId);
 
             // Fetch screen
-            let screens = await directFetch('screens', `select=*&custom_id=eq.${screenId}`, token);
-            if (!screens.length) screens = await directFetch('screens', `select=*&id=eq.${screenId}`, token);
+            let screens = await directFetch<ScreenRow>('screens', `select=*&custom_id=eq.${screenId}`, token);
+            if (!screens.length) screens = await directFetch<ScreenRow>('screens', `select=*&id=eq.${screenId}`, token);
 
             if (!screens.length) {
                 if (!isBackgroundUpdate) setError("Tela não encontrada.");
@@ -122,7 +144,7 @@ export const PlayerEngine = () => {
             }
 
             // Fetch items
-            const items = await directFetch(
+            const items = await directFetch<PlaylistItemRow>(
                 'playlist_items',
                 `select=id,position,duration,media_id&playlist_id=eq.${screen.playlist_id}&order=position`,
                 token
@@ -134,20 +156,20 @@ export const PlayerEngine = () => {
             }
 
             // Fetch Media
-            const mediaIds = [...new Set(items.filter((i: any) => i.media_id).map((i: any) => i.media_id))];
+            const mediaIds = [...new Set(items.filter((i: PlaylistItemRow) => i.media_id).map((i: PlaylistItemRow) => i.media_id))];
             if (mediaIds.length === 0) {
                 if (!isBackgroundUpdate) setError("Nenhuma mídia válida.");
                 setIsLoading(false); return;
             }
 
             const inFilter = mediaIds.map(id => `"${id}"`).join(',');
-            const mediaRows = await directFetch(
+            const mediaRows = await directFetch<MediaRow>(
                 'media',
                 `select=id,file_url,file_type&id=in.(${inFilter})`,
                 token
             );
 
-            const mediaMap: Record<string, any> = {};
+            const mediaMap: Record<string, MediaRow> = {};
             for (const m of mediaRows) mediaMap[m.id] = m;
 
             // Build playlist
@@ -188,7 +210,7 @@ export const PlayerEngine = () => {
                 setPendingPlaylist(validItems);
             }
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Player Error:", err);
             if (!isBackgroundUpdate) {
                 try {
@@ -284,7 +306,7 @@ export const PlayerEngine = () => {
         const worker = new Worker(URL.createObjectURL(blob));
 
         const duration = (item.duration || 10) * 1000;
-        let isVideo = item.type === 'video';
+        const isVideo = item.type === 'video';
 
         const startTime = Date.now();
         const expectedEndTime = startTime + duration + 500; // +500ms buffer

@@ -74,8 +74,8 @@ describe('Integração: Stack de Observabilidade (Trace → Log → Metrics)', (
 
     try {
       throw new Error('PIX gateway unavailable');
-    } catch (err: any) {
-      obs.endSpan(span.spanId, 'ERROR', err.message);
+    } catch (err: unknown) {
+      obs.endSpan(span.spanId, 'ERROR', (err as Error).message);
       log.error('Falha ao gerar PIX', err, { txid: 'PIX-FAIL', gateway: 'GERENCIANET' });
       met.recordAPICall('generatePix', 'empresa-02', 5000, false);
     }

@@ -18,6 +18,9 @@ const UsuariosAcessosPage = lazy(() => import("./modules/corporate/pages/Usuario
 const CrmLayout = lazy(() => import("./modules/crm/layout/CrmLayout"));
 const CrmDashboardHome = lazy(() => import("./modules/crm/pages/CrmDashboardHome"));
 const RepresentativeDashboard = lazy(() => import("./modules/crm/pages/RepresentativeDashboard"));
+const RepresentantesPage = lazy(() => import("./modules/crm/pages/RepresentantesPage"));
+const DesempenhoRepresentantesPage = lazy(() => import("./modules/crm/pages/DesempenhoRepresentantesPage"));
+const RepresentanteDetalhePage = lazy(() => import("./modules/crm/pages/RepresentanteDetalhePage"));
 const ClientesListPage = lazy(() => import("./modules/crm/pages/ClientesListPage"));
 const NovoClientePage = lazy(() => import("./modules/crm/pages/NovoClientePage"));
 const ClienteDetalhePage = lazy(() => import("./modules/crm/pages/ClienteDetalhePage"));
@@ -226,7 +229,9 @@ const App = () => {
                   <Route path="/workspace" element={<RequireApproval><WorkspaceLayout /></RequireApproval>}>
                     <Route index element={<CorporateCommandCenter />} />
                     <Route path="corporate" element={<CorporateCommandCenter />} />
-                    <Route path="representantes" element={<RepresentativeDashboard />} />
+                    <Route path="representantes" element={<RepresentantesPage />} />
+                    <Route path="representantes/desempenho" element={<DesempenhoRepresentantesPage />} />
+                    <Route path="representantes/:id" element={<RepresentanteDetalhePage />} />
                     <Route path="clientes" element={<ClientesListPage />} />
                     <Route path="clientes/novo" element={<NovoClientePage />} />
                     <Route path="clientes/editar/:id" element={<EditarClientePage />} />

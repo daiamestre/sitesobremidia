@@ -93,9 +93,9 @@ export const RemoteCommandListener = ({ screenId }: Props) => {
                                 console.log("Screenshot uploaded successfully!");
                                 await markAsExecuted(cmd.id, { url: fileName });
 
-                            } catch (err: any) {
+                            } catch (err: unknown) {
                                 console.error("Upload failed:", err);
-                                await markAsFailed(cmd.id, err.message);
+                                await markAsFailed(cmd.id, err instanceof Error ? err.message : String(err));
                             } finally {
                                 // Cleanup generic callback to avoid memory leaks if called multiple times?
                                 // Actually keeping it is fine, just overwrites.
@@ -118,7 +118,7 @@ export const RemoteCommandListener = ({ screenId }: Props) => {
             }
         };
 
-        const markAsExecuted = async (id: string, payload?: any) => {
+        const markAsExecuted = async (id: string, payload?: { url: string } | null) => {
             await supabase.from('remote_commands').update({
                 status: 'executed',
                 executed_at: new Date().toISOString(),

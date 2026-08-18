@@ -63,7 +63,7 @@ const detectDevice = (): DeviceInfo => {
   const isInstalled = 
     window.matchMedia('(display-mode: standalone)').matches ||
     window.matchMedia('(display-mode: fullscreen)').matches ||
-    (window.navigator as any).standalone === true ||
+    (window.navigator as unknown as Record<string, unknown>).standalone === true ||
     document.referrer.includes('android-app://');
 
   // Detecção de TV / TV Box
@@ -123,7 +123,7 @@ const detectDevice = (): DeviceInfo => {
   const isEdge = ua.includes('edg/') || ua.includes('edge');
   const isFirefox = ua.includes('firefox');
   const isOpera = ua.includes('opr/') || ua.includes('opera');
-  const isBrave = (navigator as any).brave !== undefined;
+  const isBrave = (navigator as unknown as Record<string, unknown>).brave !== undefined;
   const isChrome = ua.includes('chrome') && !isEdge && !isOpera && !isSamsungInternet && !isBrave;
   const isSafari = ua.includes('safari') && !isChrome && !isEdge && !isFirefox && !isOpera && !isSamsungInternet;
 

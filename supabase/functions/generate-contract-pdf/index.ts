@@ -144,7 +144,7 @@ async function createContractPDF(
   const fontSizeH3 = 12;
   const fontSizeP = 10;
 
-  let pages: any[] = [];
+  const pages: any[] = [];
   let currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
   pages.push(currentPage);
   let yPos = pageHeight - marginTop;
@@ -253,12 +253,51 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { contratoId, usuarioId }: GenerateContractRequest = await req.json();
-
-    if (!contratoId || !usuarioId) {
+    // [SECURITY HARDENING] JWT obrigatório: o usuário é derivado do token,
+    // NUNCA aceito do corpo (anti-IDOR). usuarioId do body é ignorado.
+    const authHeader = req.headers.get("authorization") || "";
+    const jwt = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!jwt) {
       return new Response(
-        JSON.stringify({ error: "contratoId e usuarioId são obrigatórios." }),
+        JSON.stringify({ error: "Autenticacao obrigatoria." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userSupabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: `Bearer ${jwt}` } } }
+    );
+    const { data: authData, error: authError } = await userSupabase.auth.getUser(jwt);
+    if (authError || !authData?.user?.id) {
+      return new Response(
+        JSON.stringify({ error: "Token invalido." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const usuarioId = authData.user.id;
+
+    const { contratoId }: GenerateContractRequest = await req.json();
+
+    if (!contratoId) {
+      return new Response(
+        JSON.stringify({ error: "contratoId é obrigatório." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // [SECURITY] Escopo de leitura com o JWT do usuário (RLS aplica):
+    // só consegue prosseguir se a própria RLS devolver o contrato.
+    const { data: ownedCheck } = await userSupabase
+      .from("contratos")
+      .select("id")
+      .eq("id", contratoId)
+      .maybeSingle();
+    if (!ownedCheck) {
+      return new Response(
+        JSON.stringify({ error: "Contrato não encontrado ou sem permissão." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

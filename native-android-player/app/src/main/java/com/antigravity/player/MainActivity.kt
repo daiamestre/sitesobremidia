@@ -651,6 +651,9 @@ class MainActivity : AppCompatActivity() {
         isSyncInProgress = true
         
         lifecycleScope.launch {
+            // [DEVICE IDENTITY] Attest hardware identity BEFORE syncing content
+            attestDeviceIdentity()
+            
             // Sincronização VISÍVEL para primeira carga ou erro fatal de cache
             updateStatus("Sincronizando mídias...", isError = false)
             runOnUiThread { 
@@ -725,6 +728,38 @@ class MainActivity : AppCompatActivity() {
                  Handler(Looper.getMainLooper()).postDelayed({ startSyncAndPlay() }, 10000)
             } finally {
                 isSyncInProgress = false
+            }
+        }
+    }
+    
+    // [DEVICE IDENTITY] Bind/attest hardware identity; revoked device blocks playback
+    private fun attestDeviceIdentity() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val identity = com.antigravity.player.util.DeviceControl.getHardwareIdentity(applicationContext)
+                val uuid = SessionManager.currentUUID
+                    ?: ServiceLocator.getRepository(applicationContext).deviceId
+                if (uuid.isBlank() || uuid == "UNKNOWN" || uuid == "UNKNOWN_DEVICE") {
+                    return@launch
+                }
+                SessionManager.deviceIdentityHash = identity
+
+                val remoteDS = ServiceLocator.getRemoteDataSource()
+                val firstBind = SessionManager.boundDeviceId == null
+                val attested = if (firstBind) {
+                    remoteDS.bindDevice(identity, uuid)
+                } else {
+                    remoteDS.attestDevice(identity, uuid)
+                }
+
+                if (!attested && SessionManager.isDeviceRevoked) {
+                    Logger.e("DEVICE_ID", "DEVICE REVOKED BY ADMIN. Blocking playback.")
+                    runOnUiThread {
+                        SessionManager.triggerScreenActive(false, "Dispositivo revogado pelo administrador. Contate o suporte.")
+                    }
+                }
+            } catch (e: Exception) {
+                Logger.w("DEVICE_ID", "Attestation cycle failed (offline?): ${e.message}")
             }
         }
     }

@@ -108,7 +108,7 @@ describe('CircuitBreaker — Padrão de Resiliência', () => {
   it('deve contar falhas sem abrir antes do threshold', async () => {
     const failFn = async () => { throw new Error('fail'); };
     for (let i = 0; i < 2; i++) {
-      try { await breaker.execute(failFn); } catch {}
+      try { await breaker.execute(failFn); } catch { /* falha esperada: conta para o breaker */ }
     }
     expect(breaker.getStatus().state).toBe('CLOSED');
     expect(breaker.getStatus().failureCount).toBe(2);
@@ -117,7 +117,7 @@ describe('CircuitBreaker — Padrão de Resiliência', () => {
   it('deve abrir o circuito após atingir failureThreshold (3 falhas)', async () => {
     const failFn = async () => { throw new Error('fail'); };
     for (let i = 0; i < 3; i++) {
-      try { await breaker.execute(failFn); } catch {}
+      try { await breaker.execute(failFn); } catch { /* falha esperada: conta para o breaker */ }
     }
     expect(breaker.getStatus().state).toBe('OPEN');
   });
@@ -125,7 +125,7 @@ describe('CircuitBreaker — Padrão de Resiliência', () => {
   it('deve lançar erro imediatamente quando OPEN (sem chamar a função)', async () => {
     const failFn = async () => { throw new Error('fail'); };
     for (let i = 0; i < 3; i++) {
-      try { await breaker.execute(failFn); } catch {}
+      try { await breaker.execute(failFn); } catch { /* falha esperada: conta para o breaker */ }
     }
     const protectedFn = vi.fn().mockResolvedValue('would succeed');
     await expect(breaker.execute(protectedFn)).rejects.toThrow(/OPEN/);
@@ -135,7 +135,7 @@ describe('CircuitBreaker — Padrão de Resiliência', () => {
   it('reset deve restaurar estado CLOSED com contadores zerados', async () => {
     const failFn = async () => { throw new Error('fail'); };
     for (let i = 0; i < 3; i++) {
-      try { await breaker.execute(failFn); } catch {}
+      try { await breaker.execute(failFn); } catch { /* falha esperada: conta para o breaker */ }
     }
     breaker.reset();
     expect(breaker.getStatus().state).toBe('CLOSED');
@@ -148,7 +148,7 @@ describe('CircuitBreaker — Padrão de Resiliência', () => {
 
   it('sucesso após reset deve reiniciar contagem de falhas do zero', async () => {
     const failFn = async () => { throw new Error('fail'); };
-    try { await breaker.execute(failFn); } catch {}
+    try { await breaker.execute(failFn); } catch { /* falha esperada: conta para o breaker */ }
     breaker.reset();
     await breaker.execute(async () => 'ok');
     expect(breaker.getStatus().failureCount).toBe(0);

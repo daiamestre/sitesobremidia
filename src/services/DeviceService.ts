@@ -7,9 +7,9 @@ import { supabase } from '@/integrations/supabase/client';
 export const fetchAlertDevices = async () => {
     const { data, error } = await supabase
         .from('devices')
-        .select('id, name, mac_address, last_heartbeat, is_online, storage_available, ram_usage')
+        .select('id, name, model, screen_id, status, last_seen, last_heartbeat, registered_at')
         // Filtra dispositivos offline ou com heartbeat atrasado (limite de 2 minutos)
-        .or(`is_online.eq.false,last_heartbeat.lt.${new Date(Date.now() - 120000).toISOString()}`)
+        .or(`last_heartbeat.lt.${new Date(Date.now() - 120000).toISOString()},last_seen.lt.${new Date(Date.now() - 120000).toISOString()}`)
         .order('last_heartbeat', { ascending: false });
 
     if (error) {
@@ -51,8 +51,8 @@ export const fetchFleetSummary = async () => {
     let online = 0;
     let warning = 0;
     let offline = 0;
-    let storageAlerts: typeof health = [];
-    let versionAlerts: typeof health = [];
+    const storageAlerts: typeof health = [];
+    const versionAlerts: typeof health = [];
     const latestVersion = health.reduce((v, d) => d.app_version && d.app_version > v ? d.app_version : v, '0');
 
     for (const device of health) {
@@ -75,15 +75,46 @@ export const fetchFleetSummary = async () => {
 };
 
 /**
- * Envia um comando remoto para o dispositivo via Action Queue.
+ * [SECURITY HARDENING — FASE FUNDAÇÃO]
+ * Envia um comando remoto para o dispositivo via remote_commands (caminho
+ * OFICIAL consumido pelo player Android via Realtime CDC). O antigo caminho
+ * `device_commands` era código morto: a tabela nunca existiu no banco e nada
+ * consumia os comandos (P1 da auditoria — Dashboard → Android nunca chegava).
+ *
+ * O device_id (devices.id) é resolvido para o screen_id vinculado, e o
+ * vocabulário de comando é traduzido para o que o player executa:
+ *   REBOOT_APP     -> reboot
+ *   CLEAR_CACHE    -> sync
+ *   TAKE_SCREENSHOT-> screenshot
  */
 export const sendRemoteCommand = async (deviceId: string, command: 'REBOOT_APP' | 'CLEAR_CACHE' | 'TAKE_SCREENSHOT') => {
+    const commandMap: Record<string, string> = {
+        REBOOT_APP: 'reboot',
+        CLEAR_CACHE: 'sync',
+        TAKE_SCREENSHOT: 'screenshot',
+    };
+
+    const { data: device, error: deviceError } = await supabase
+        .from('devices')
+        .select('id, screen_id')
+        .eq('id', deviceId)
+        .maybeSingle();
+
+    if (deviceError) {
+        console.error(`Erro ao resolver dispositivo ${deviceId}:`, deviceError);
+        throw deviceError;
+    }
+    if (!device?.screen_id) {
+        console.error(`Dispositivo ${deviceId} não encontrado ou sem tela vinculada.`);
+        throw new Error('Dispositivo sem tela vinculada.');
+    }
+
     const { error } = await supabase
-        .from('device_commands')
+        .from('remote_commands')
         .insert({
-            device_id: deviceId,
-            command: command,
-            status: 'PENDING'
+            screen_id: device.screen_id,
+            command: commandMap[command] ?? 'reboot',
+            status: 'pending'
         });
 
     if (error) {

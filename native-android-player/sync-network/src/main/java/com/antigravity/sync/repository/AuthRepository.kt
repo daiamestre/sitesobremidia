@@ -1,4 +1,4 @@
-package com.antigravity.sync.repository
+﻿package com.antigravity.sync.repository
 
 import io.ktor.client.HttpClient
 import io.ktor.client.request.post
@@ -95,13 +95,13 @@ class AuthRepository {
         if (accessToken != null && userId != null) {
             // Check expiry
             if (storage.isTokenExpired() && refreshToken != null) {
-                println("AUTH: Token expired. Refreshing...")
+                com.antigravity.core.util.Logger.i("AUTH", "Token expired. Refreshing...")
                 return refreshToken(refreshToken, context)
             }
             
             com.antigravity.sync.service.SessionManager.currentAccessToken = accessToken
             com.antigravity.sync.service.SessionManager.currentUserId = userId
-            println("AUTH: Session Restored from Disk.")
+            com.antigravity.core.util.Logger.i("AUTH", "Session Restored from Disk.")
             return true
         }
         return false
@@ -114,7 +114,7 @@ class AuthRepository {
         
         if (accessToken != null) {
             if (storage.isTokenExpired() && refreshToken != null) {
-                println("AUTH: Token expired. Refreshing during active session...")
+                com.antigravity.core.util.Logger.i("AUTH", "Token expired. Refreshing during active session...")
                 return refreshToken(refreshToken, context)
             }
             return true
@@ -127,7 +127,7 @@ class AuthRepository {
         val refreshToken = storage.getRefreshToken()
         
         if (refreshToken != null) {
-            println("AUTH: Force Refreshing session (bypassing local clock)...")
+            com.antigravity.core.util.Logger.i("AUTH", "Force Refreshing session (bypassing local clock)...")
             return refreshToken(refreshToken, context)
         }
         return false
@@ -159,7 +159,7 @@ class AuthRepository {
                 )
                 true
             } else {
-                println("AUTH: Refresh failed")
+                com.antigravity.core.util.Logger.w("AUTH", "Refresh failed")
                 false
             }
          } catch (e: Exception) {
@@ -188,3 +188,4 @@ class AuthRepository {
         return com.antigravity.sync.service.SessionManager.currentUserId
     }
 }
+

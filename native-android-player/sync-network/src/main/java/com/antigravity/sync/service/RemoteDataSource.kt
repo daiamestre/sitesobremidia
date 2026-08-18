@@ -610,6 +610,96 @@ class RemoteDataSource {
         }
     }
 
+    // [DEVICE IDENTITY] Bind/activate hardware identity to screen (tenant-safe RPC)
+    suspend fun bindDevice(identityHash: String, screenUuid: String): Boolean {
+        if (identityHash.isBlank() || screenUuid.isBlank()) return false
+        return try {
+            val result = client.postgrest.rpc(
+                "fn_device_bind",
+                buildJsonObject {
+                    put("p_identity_hash", identityHash)
+                    put("p_screen_id", screenUuid)
+                }
+            )
+            val ok = result.data?.toString()?.contains("\"ok\":true") == true
+            if (ok) {
+                SessionManager.boundDeviceId = result.data?.toString()
+                SessionManager.isDeviceRevoked = false
+                Logger.i("DEVICE_ID", "Device bound successfully to screen $screenUuid")
+            } else {
+                val err = result.data?.toString().orEmpty()
+                Logger.e("DEVICE_ID", "Device bind rejected: $err")
+                if (err.contains("revoked", ignoreCase = true)) {
+                    SessionManager.isDeviceRevoked = true
+                }
+            }
+            ok
+        } catch (e: Exception) {
+            Logger.w("DEVICE_ID", "Device bind failed: ${e.message}")
+            false
+        }
+    }
+
+    // [DEVICE IDENTITY] Attest periodic identity; revoked device -> blocked
+    suspend fun attestDevice(identityHash: String, screenUuid: String): Boolean {
+        if (identityHash.isBlank() || screenUuid.isBlank()) return false
+        return try {
+            val result = client.postgrest.rpc(
+                "fn_device_attest",
+                buildJsonObject {
+                    put("p_identity_hash", identityHash)
+                    put("p_screen_id", screenUuid)
+                }
+            )
+            val body = result.data?.toString().orEmpty()
+            val ok = body.contains("\"ok\":true")
+            if (!ok) {
+                Logger.e("DEVICE_ID", "Device attestation rejected: $body")
+                if (body.contains("revoked", ignoreCase = true)) {
+                    SessionManager.isDeviceRevoked = true
+                }
+            } else {
+                SessionManager.isDeviceRevoked = false
+            }
+            ok
+        } catch (e: Exception) {
+            Logger.w("DEVICE_ID", "Device attest failed: ${e.message}")
+            false
+        }
+    }
+
+    // [TELEMETRY] Caminho OFICIAL de telemetria: player_heartbeats via RPC
+    // SECURITY DEFINER (fn_player_report_telemetry). Tenant/player são
+    // resolvidos server-side pela screen — o player nunca escreve em
+    // tabelas de outros tenants. Substitui o antigo sendHeartbeat duplicado.
+    suspend fun reportPlayerTelemetry(
+        screenId: String,
+        cpuUsage: Float?,
+        memoryUsage: Float?,
+        tempCelsius: Float?,
+        storageFreeMb: Long?,
+        appVersion: String?,
+        ipAddress: String?
+    ): Boolean {
+        if (screenId.isBlank() || screenId == "N/A") return false
+        return try {
+            val json = buildJsonObject {
+                put("p_screen_id", screenId)
+                if (cpuUsage != null) put("p_cpu_usage", cpuUsage)
+                if (memoryUsage != null) put("p_memory_usage", memoryUsage)
+                if (tempCelsius != null) put("p_temp_celsius", tempCelsius)
+                if (storageFreeMb != null) put("p_storage_free_mb", storageFreeMb)
+                if (appVersion != null) put("p_versao_app", appVersion)
+                if (ipAddress != null) put("p_ip_address", ipAddress)
+            }
+            val result = client.postgrest.rpc("fn_player_report_telemetry", json)
+            result.data?.toString()?.contains("\"ok\":true") == true
+        } catch (e: Exception) {
+            Logger.w("TELEMETRY", "Telemetry report failed: ${e.message}")
+            false
+        }
+    }
+
     suspend fun getLatestAppRelease(): com.antigravity.sync.dto.AppReleaseDto? {
         return try {
             client.from("app_releases")

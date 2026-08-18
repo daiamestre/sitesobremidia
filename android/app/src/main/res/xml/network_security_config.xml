@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- ============================================================
+     SOBRE MÍDIA PLAYER (LEGACY/CAPACITOR) — NETWORK SECURITY
+     [SECURITY HARDENING P0]: HTTPS ONLY.
+     - Cleartext (HTTP) NEGADO globalmente.
+     - Somente certificados do sistema (sem user certs / MITM).
+     ============================================================ -->
 <network-security-config>
-    <domain-config>
-        <domain includeSubdomains="true">sitesobremidia.vercel.app</domain>
-        <domain includeSubdomains="true">bhwsybgsyvvhqtkdqozb.supabase.co</domain>
-        <trust-anchors>
-            <certificates src="system" />
-            <certificates src="user" />
-        </trust-anchors>
-    </domain-config>
-
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

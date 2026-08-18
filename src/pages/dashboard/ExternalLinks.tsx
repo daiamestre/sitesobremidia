@@ -7,8 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { getCdnUrl } from '@/lib/r2Client';
 import { uploadToR2 } from '@/lib/r2Upload';
 import {
   Dialog,
@@ -242,7 +241,7 @@ export default function ExternalLinks() {
 
     const { publicUrl: uploadedUrl } = await uploadToR2(
       file,
-      `social/${subfolder}/${fileName}`,
+      filePath,
       file.type,
       user.id
     );

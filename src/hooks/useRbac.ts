@@ -49,14 +49,14 @@ export function useRbac() {
           PERMISSIONS.FINANCIAL_READ, 
           PERMISSIONS.USERS_APPROVE, 
           PERMISSIONS.TEAM_MANAGE
-        ].includes(action as any);
+        ].includes(action as PermissionValue);
       case 'FINANCEIRO':
         return [
           PERMISSIONS.FINANCIAL_READ, 
           PERMISSIONS.FINANCIAL_WRITE, 
           PERMISSIONS.CONTRACT_READ, 
           PERMISSIONS.REPORTS_VIEW
-        ].includes(action as any);
+        ].includes(action as PermissionValue);
       case 'FUNCIONARIO':
       case 'OPERACIONAL':
       case 'DESIGNER':
@@ -66,27 +66,27 @@ export function useRbac() {
           PERMISSIONS.CAMPAIGNS_MANAGE, 
           PERMISSIONS.CONTRACT_READ, 
           PERMISSIONS.NETWORK_VIEW
-        ].includes(action as any);
+        ].includes(action as PermissionValue);
       case 'REPRESENTANTE':
         return [
           PERMISSIONS.CRM_READ, 
           PERMISSIONS.CRM_CREATE, 
           PERMISSIONS.PROPOSAL_CREATE, 
           PERMISSIONS.CONTRACT_READ
-        ].includes(action as any);
+        ].includes(action as PermissionValue);
       case 'ANUNCIANTE':
       case 'CLIENTE':
         return [
           PERMISSIONS.CONTRACT_READ_OWN, 
           PERMISSIONS.CAMPAIGNS_READ_OWN, 
           PERMISSIONS.REPORTS_CLIENT_VIEW
-        ].includes(action as any);
+        ].includes(action as PermissionValue);
       case 'PARCEIRO':
         return [
           PERMISSIONS.PLAYER_READ_OWN, 
           PERMISSIONS.FINANCIAL_REPASSE_VIEW, 
           PERMISSIONS.NETWORK_PARTNER_STATUS
-        ].includes(action as any);
+        ].includes(action as PermissionValue);
       default:
         return false;
     }

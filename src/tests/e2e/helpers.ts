@@ -15,7 +15,7 @@ export function writeReport(file: string, data: unknown): void {
   console.log(`[REPORT] ${file} gravado em ${ARTIFACTS_DIR}/${file}`);
 }
 
-export function readReport(file: string): any | null {
+export function readReport(file: string): unknown | null {
   try {
     return JSON.parse(fs.readFileSync(`${ARTIFACTS_DIR}/${file}`, 'utf8'));
   } catch {

@@ -41,7 +41,7 @@ export const ADMIN_EMAIL_NOTIFICATION = 'sobremidiadesigner@gmail.com';
 /**
  * Função utilitária para gerar hash SHA-256 no navegador/Node
  */
-async function hashToken(token: string): Promise<string> {
+export async function hashToken(token: string): Promise<string> {
   const msgUint8 = new TextEncoder().encode(token);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -83,10 +83,14 @@ export class AccessRequestService {
       const tokenHash = await hashToken(rawToken);
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
-      // 3. Insere a solicitação de acesso com hash de token
-      const { data: inserted, error: insertError } = await supabase
+      // 3. Insere a solicitação de acesso com hash de token.
+      //    O id é gerado no cliente porque o INSERT roda como anon (sem sessão
+      //    pós signUp) e anon não possui policy SELECT para ler o RETURNING.
+      const requestId = crypto.randomUUID();
+      const { error: insertError } = await supabase
         .from('solicitacoes_acesso')
         .insert({
+          id: requestId,
           tipo_acesso: input.tipoAcesso,
           nome_usuario: input.nomeUsuario,
           email_usuario: input.emailUsuario,
@@ -96,16 +100,12 @@ export class AccessRequestService {
           status: 'PENDING',
           approval_token_hash: tokenHash,
           approval_token_expires_at: expiresAt,
-        })
-        .select('id')
-        .single();
+        });
 
-      if (insertError || !inserted) {
+      if (insertError) {
         console.error('[AccessRequestService.createRequest] Erro na inserção:', insertError);
         return { success: false, error: insertError?.message || 'Falha ao registrar solicitação de acesso.' };
       }
-
-      const requestId = inserted.id;
 
       // 4. Dispara e-mail formatado com link contendo token único seguro para sobremidiadesigner@gmail.com
       await this.notifyAdmin(requestId, input.nomeUsuario, input.emailUsuario, input.tipoAcesso, rawToken);
@@ -175,13 +175,17 @@ export class AccessRequestService {
       html: htmlContent,
     });
 
-    await supabase
-      .from('solicitacoes_acesso')
-      .update({
-        email_admin_enviado: true,
-        email_admin_enviado_em: new Date().toISOString(),
-      })
-      .eq('id', requestId);
+    // Marcador cosmético de envio: só quando há sessão (anon não tem UPDATE RLS)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await supabase
+        .from('solicitacoes_acesso')
+        .update({
+          email_admin_enviado: true,
+          email_admin_enviado_em: new Date().toISOString(),
+        })
+        .eq('id', requestId);
+    }
   }
 
   /**

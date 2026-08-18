@@ -9,8 +9,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
-import { PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { getCdnUrl } from '@/lib/r2Client';
 import { uploadToR2 } from '@/lib/r2Upload';
 import {
     Select,
@@ -73,33 +72,30 @@ export function SocialAssetsGallery({
             setLoading(true);
             const folderPath = `${user.id}/social/${activeTab}/`;
 
-            const command = new ListObjectsV2Command({
-                Bucket: r2Config.bucketName,
-                Prefix: folderPath,
+            // [SECURITY FASE F] Listagem server-side via Edge Function
+            const { data, error } = await supabase.functions.invoke('list-media-objects', {
+                body: { prefix: folderPath },
             });
-            const { Contents } = await s3Client.send(command);
 
-            const files = Contents || [];
-            
+            if (error || !data?.items) {
+                throw new Error(error?.message || 'Falha ao listar objetos');
+            }
+
+            const files = (data.items as Array<{ key: string; size: number; lastModified: string; etag: string }>)
+                .filter(f => !f.key.endsWith('.emptyFolderPlaceholder'));
+
             // Sort by LastModified desc
-            files.sort((a, b) => {
-                const dateA = a.LastModified?.getTime() || 0;
-                const dateB = b.LastModified?.getTime() || 0;
-                return dateB - dateA;
-            });
+            files.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
 
-            // Filter out empty folder placeholders if any
-            const realFiles = files.filter(f => f.Key && !f.Key.endsWith('.emptyFolderPlaceholder'));
-
-            const processedAssets: AssetFile[] = realFiles.map(file => {
-                const url = getCdnUrl(file.Key!);
-                const name = file.Key!.split('/').pop() || '';
+            const processedAssets: AssetFile[] = files.map(file => {
+                const url = getCdnUrl(file.key);
+                const name = file.key.split('/').pop() || '';
 
                 return {
                     name: name,
-                    id: file.ETag || name,
-                    created_at: file.LastModified?.toISOString() || new Date().toISOString(),
-                    size: file.Size || 0,
+                    id: file.etag || name,
+                    created_at: file.lastModified || new Date().toISOString(),
+                    size: file.size || 0,
                     type: name.match(/\.(mp4|webm|mov)$/i) ? 'video/mp4' : 'image/jpeg',
                     url: url
                 };
@@ -147,7 +143,7 @@ export function SocialAssetsGallery({
                 try {
                     await uploadToR2(
                         file,
-                        `social/${activeTab}/${fileName}`,
+                        filePath,
                         file.type,
                         user.id
                     );
@@ -175,11 +171,12 @@ export function SocialAssetsGallery({
         if (!user || !confirm('Excluir este arquivo permanentemente?')) return;
 
         try {
-            const command = new DeleteObjectCommand({
-                Bucket: r2Config.bucketName,
-                Key: `${user.id}/social/${activeTab}/${fileName}`,
+            // [SECURITY FASE F] Delete via Edge Function autenticada
+            const { error } = await supabase.functions.invoke('delete-media-object', {
+                body: { objectKey: `${user.id}/social/${activeTab}/${fileName}` },
             });
-            await s3Client.send(command);
+
+            if (error) throw new Error(error.message || 'Falha ao excluir objeto');
 
             toast.success('Arquivo excluído');
             setAssets(prev => prev.filter(a => a.name !== fileName));

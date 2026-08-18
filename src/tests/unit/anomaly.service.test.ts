@@ -2,6 +2,15 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { AnomalyService } from '@/modules/crm/services/anomaly.service';
 
 // ─── Testes Unitários: AnomalyService ────────────────────────────────────────
+interface Anomalia {
+  id: string;
+  tipo: string;
+  gravidade: string;
+  mensagem: string;
+  confianca: number;
+  status: string;
+}
+
 describe('AnomalyService', () => {
   let service: AnomalyService;
 
@@ -20,7 +29,7 @@ describe('AnomalyService', () => {
 
   it('cada anomalia deve ter um id', async () => {
     const result = await service.detectNetworkAnomalies('empresa-uuid-01');
-    result.forEach((a: any) => {
+    result.forEach((a: Anomalia) => {
       expect(a).toHaveProperty('id');
       expect(typeof a.id).toBe('string');
     });
@@ -29,7 +38,7 @@ describe('AnomalyService', () => {
   it('cada anomalia deve ter tipo definido', async () => {
     const tiposValidos = ['QUEDA_DE_HEARTBEAT', 'LATENCIA_ALTA', 'PLAYER_OFFLINE', 'QUEDA_RECEITA', 'SLA_VIOLADO'];
     const result = await service.detectNetworkAnomalies('empresa-uuid-01');
-    result.forEach((a: any) => {
+    result.forEach((a: Anomalia) => {
       expect(tiposValidos).toContain(a.tipo);
     });
   });
@@ -37,14 +46,14 @@ describe('AnomalyService', () => {
   it('cada anomalia deve ter gravidade válida', async () => {
     const gravidadesValidas = ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'];
     const result = await service.detectNetworkAnomalies('empresa-uuid-01');
-    result.forEach((a: any) => {
+    result.forEach((a: Anomalia) => {
       expect(gravidadesValidas).toContain(a.gravidade);
     });
   });
 
   it('cada anomalia deve ter campo mensagem descritiva', async () => {
     const result = await service.detectNetworkAnomalies('empresa-uuid-01');
-    result.forEach((a: any) => {
+    result.forEach((a: Anomalia) => {
       expect(a).toHaveProperty('mensagem');
       expect(typeof a.mensagem).toBe('string');
       expect(a.mensagem.length).toBeGreaterThan(0);
@@ -53,7 +62,7 @@ describe('AnomalyService', () => {
 
   it('cada anomalia deve ter confiança entre 0 e 100', async () => {
     const result = await service.detectNetworkAnomalies('empresa-uuid-01');
-    result.forEach((a: any) => {
+    result.forEach((a: Anomalia) => {
       expect(a.confianca).toBeGreaterThan(0);
       expect(a.confianca).toBeLessThanOrEqual(100);
     });
@@ -62,7 +71,7 @@ describe('AnomalyService', () => {
   it('cada anomalia deve ter status definido', async () => {
     const statusValidos = ['NOVA', 'ANALISADA', 'RESOLVIDA', 'IGNORADA', 'ESCALADA'];
     const result = await service.detectNetworkAnomalies('empresa-uuid-01');
-    result.forEach((a: any) => {
+    result.forEach((a: Anomalia) => {
       expect(statusValidos).toContain(a.status);
     });
   });

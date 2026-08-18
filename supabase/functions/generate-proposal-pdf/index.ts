@@ -18,17 +18,63 @@ interface GenerateProposalRequest {
   sendEmail?: boolean;
 }
 
+interface PropostaRow {
+  id: string;
+  numero_proposta: string;
+  cliente_id: string;
+  empresa_operadora_id: string;
+  created_at?: string;
+  validade_dias?: number;
+  valor_total?: number;
+  desconto?: number;
+  valor_final?: number;
+  versao_atual?: number;
+  forma_pagamento?: string;
+  observacoes?: string;
+  status?: string;
+  cliente?: unknown;
+  representante?: RepresentanteRow | null;
+  operadora?: OperadoraRow | null;
+}
+
+interface RepresentanteRow {
+  usuario?: { nome?: string } | null;
+}
+
+interface EmpresaRow {
+  nome_fantasia?: string;
+  razao_social?: string;
+  cnpj?: string;
+  cidade?: string;
+  estado?: string;
+  representante_legal?: string;
+  whatsapp?: string;
+  email?: string;
+  contatos?: Array<{ nome?: string }>;
+}
+
+interface OperadoraRow {
+  razao_social?: string;
+}
+
+interface PropostaItemRow {
+  quantidade: number;
+  valor_unitario: number;
+  valor_total: number;
+  catalogo_servicos?: { nome?: string } | null;
+}
+
 /**
  * Renderiza o modelo HTML oficial de alta fidelidade visual da SOBRE MÍDIA para a Proposta Comercial
  */
 function renderProposalHTML(data: {
-  proposta: any;
-  cliente: any;
-  empresa: any;
-  contato: any;
-  representante: any;
-  itens: any[];
-  operadora: any;
+  proposta: PropostaRow;
+  cliente: unknown;
+  empresa: EmpresaRow | null;
+  contato: { nome?: string } | null;
+  representante: RepresentanteRow | null;
+  itens: PropostaItemRow[];
+  operadora: OperadoraRow | null;
 }): string {
   const { proposta, empresa, contato, representante, itens, operadora } = data;
   const dataEmissao = new Date(proposta.created_at || Date.now()).toLocaleDateString("pt-BR");
@@ -142,11 +188,48 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    // [SECURITY HARDENING] JWT obrigatório — escopo de leitura validado com
+    // o token do usuário (RLS aplica). Sem token → 401; sem acesso → 403.
+    const authHeader = req.headers.get("authorization") || "";
+    const jwt = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!jwt) {
+      return new Response(JSON.stringify({ error: "Autenticacao obrigatoria." }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    const userSupabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: `Bearer ${jwt}` } } }
+    );
+    const { data: authData, error: authError } = await userSupabase.auth.getUser(jwt);
+    if (authError || !authData?.user?.id) {
+      return new Response(JSON.stringify({ error: "Token invalido." }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
     const { propostaId, isPreview = false, sendEmail = false }: GenerateProposalRequest = await req.json();
 
     if (!propostaId) {
       return new Response(JSON.stringify({ error: "propostaId é obrigatório." }), {
         status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // [SECURITY] Ownership check via RLS do usuário (anti-IDOR)
+    const { data: ownedCheck } = await userSupabase
+      .from('propostas')
+      .select('id')
+      .eq('id', propostaId)
+      .maybeSingle();
+    if (!ownedCheck) {
+      return new Response(JSON.stringify({ error: "Proposta não encontrada ou sem permissão." }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
@@ -263,9 +346,9 @@ serve(async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[generate-proposal-pdf] Erro:", error);
-    return new Response(JSON.stringify({ error: error.message || "Erro interno ao gerar PDF." }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message || "Erro interno ao gerar PDF." : "Erro interno ao gerar PDF." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });

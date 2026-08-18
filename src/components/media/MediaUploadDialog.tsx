@@ -17,9 +17,8 @@ import { cn } from '@/lib/utils';
 import { Playlist, Media } from '@/types/models';
 import SparkMD5 from 'spark-md5';
 import { v4 as uuidv4 } from 'uuid';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { uploadToR2WithProgress, uploadToR2 } from '@/lib/r2Upload';
-import { s3Client, r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
+import { r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
 
 interface MediaUploadDialogProps {
   open: boolean;
@@ -597,11 +596,11 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         // Delete old file from storage (attempt both R2 and Supabase for safety during transition)
         try {
           if (editMedia.file_url.includes(r2Config.publicDomain || 'r2.dev')) {
-            const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
-            await s3Client.send(new DeleteObjectCommand({
-              Bucket: r2Config.bucketName,
-              Key: editMedia.file_path,
-            }));
+            // [SECURITY FASE F] Delete via Edge Function autenticada (presigned DELETE),
+            // nunca via credenciais no browser.
+            await supabase.functions.invoke('delete-media-object', {
+              body: { objectKey: editMedia.file_path },
+            });
           } else {
             await supabase.storage.from('media').remove([editMedia.file_path]);
           }

@@ -30,7 +30,7 @@ vi.mock('@/integrations/supabase/client', () => ({
       if (table === 'dw_fact_receita') {
         return {
           ...mockChain,
-          then: (resolve: any) => resolve({
+          then: (resolve: (value: { data: unknown; error: null }) => unknown) => resolve({
             data: [
               { cliente_id: 'cli-01', empresa_operadora_id: 'empresa-01', valor_contratado: 5000, valor_recebido: 4900, valor_pendente: 100, status_recebimento: 'RECEBIDO' },
               { cliente_id: 'cli-01', empresa_operadora_id: 'empresa-01', valor_contratado: 3000, valor_recebido: 3000, valor_pendente: 0, status_recebimento: 'RECEBIDO' },
@@ -45,7 +45,7 @@ vi.mock('@/integrations/supabase/client', () => ({
       if (table === 'dw_fact_exibicao') {
         return {
           ...mockChain,
-          then: (resolve: any) => resolve({
+          then: (resolve: (value: { data: unknown; error: null }) => unknown) => resolve({
             data: [{ insercoes_realizadas: 1000, sla_entrega_pct: 99.5 }],
             error: null,
           }),
@@ -55,7 +55,7 @@ vi.mock('@/integrations/supabase/client', () => ({
       if (table === 'dw_dim_player') {
         return {
           ...mockChain,
-          then: (resolve: any) => resolve({
+          then: (resolve: (value: { data: unknown; error: null }) => unknown) => resolve({
             data: [{ status_online: true }, { status_online: true }],
             error: null,
           }),

@@ -5,7 +5,7 @@
     "bundledWebRuntime": false,
     "server": {
         "url": "https://sitesobremidia.vercel.app",
-        "cleartext": true,
+        "cleartext": false,
         "allowNavigation": [
             "sitesobremidia.vercel.app"
         ]

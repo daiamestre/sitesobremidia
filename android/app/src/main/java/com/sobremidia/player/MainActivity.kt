@@ -162,10 +162,11 @@ class MainActivity : AppCompatActivity() {
         }
         settings.mediaPlaybackRequiresUserGesture = false
         settings.allowFileAccess = true
-        // Fix: Allow Universal Access to prevent "Origin/Security" White Screen blocks
-        settings.allowUniversalAccessFromFileURLs = true
-        settings.allowFileAccessFromFileURLs = true // Critical for file:// DB access
-        settings.allowContentAccess = true
+        // [SECURITY HARDENING P0] Restrição de acesso a file://:
+        // remove allowUniversalAccessFromFileURLs; file URLs negados por padrão.
+        settings.allowUniversalAccessFromFileURLs = false
+        settings.allowFileAccessFromFileURLs = false
+        settings.allowContentAccess = false
         
         // Cache Strategy: Use disk cache aggressively if offline
         settings.cacheMode = WebSettings.LOAD_DEFAULT 
@@ -189,12 +190,11 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
 
             override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
-                val message = "SSL Error: " + error?.primaryError
+                // [SECURITY HARDENING P0] Nunca ignorar erros TLS.
+                // Certificado inválido -> DENY (bloqueia a página em vez de aceitar MITM).
+                val message = "SSL Error blocked: " + error?.primaryError
                 Log.e("WebView", message)
-                
-                // CRITICAL FIX: IGNORE ALL SSL ERRORS TO ENSURE PLAYBACK
-                // User requirement: "Play Anyway"
-                handler?.proceed() 
+                handler?.cancel()
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
