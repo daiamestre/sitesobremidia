@@ -129,3 +129,19 @@ Triggers: `prevent_self_escalation`, `prevent_usuario_insert_forgery`,
 6. Lint legado (226) — limpeza futura.
 
 **Toda correção depende de autorização explícita (Fase 4 — RESTAURAÇÃO CONTROLADA).**
+---
+
+## ADDENDUM F - ESTADO POS-EXECUCAO (18/08, fase autorizada)
+
+**Banco real**: cadeia 20260826 + 20260827-20260911 + 20260912/20260913/20260914/20260915 aplicada (ver secao 17 do REGRESSION_FORENSICS_REPORT.md). Cross-tenant fechado e comprovado. RPCs de Representantes ativas com dados reais.
+
+**Regression Guard instalado**: `src/tests/regression/regression-guard.test.tsx` (8 testes) + include em vitest.config.ts. Remocao de rota/menu/pagina/service/hook protegidos => REGRESSION BLOCKED.
+
+**Validacao**: build OK, tsc 0 erros, vitest 408/408, lint dos arquivos protegidos 0 erros.
+
+**Pendencias registradas (nao bloqueantes)**:
+1. Convergencia Git: baseline local (0671f90 + 16afb59) ainda nao em origin/feat/main (deploy Vercel segue em main 07/08).
+2. schema_migrations: aplicacao via Management API nao registrada (mesmo mecanismo adotado pelo projeto).
+3. Android build.gradle.kts:13: janela separada.
+4. Creative Studio: confirmacao do proprietario sobre existencia em outro repo (nenhum artefato encontrado neste).
+5. Lint legado (226) + rules-of-hooks em MediaPreviewDialog (pre-existente, desde 34c7e8d).

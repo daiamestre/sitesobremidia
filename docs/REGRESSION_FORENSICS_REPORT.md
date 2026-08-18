@@ -193,3 +193,49 @@ existe commitada desde `93f352c` e o Dashboard OWNER desde `0310ba9`, mas nada d
 **governança**: convergir histórias Git, atualizar `main` com o baseline aprovado, aplicar
 as 6 migrations pendentes (com autorização), corrigir o lint legado em janela própria e
 instalar o regression guard (ver docs/RESTORATION_PLAN.md).
+---
+
+## 17. ADDENDUM DE EXECUCAO (FASE AUTORIZADA - 18/08)
+
+Autorizacao concedida. Executado com zero alteracoes de codigo do app (apenas aditivos):
+
+### 17.1 Migrations aplicadas no banco real (mecanismo Management API, transacao por arquivo)
+| Migration | Status |
+|---|---|
+| 20260826_representantes_gestao_desempenho | APLICADA (RPCs representantes ativas) |
+| 20260912_restauracao_pre_requisitos (nova, aditiva) | APLICADA (funcoes 018/20260827 ausentes) |
+| 20260827_player_security_hardening | APLICADA |
+| 20260828_device_identity | APLICADA |
+| 20260829_app_release_integrity | APLICADA |
+| 20260901_media_network_edge_auth | APLICADA |
+| 20260910_foundation_closure | APLICADA |
+| 20260911_close_tenant_exposure | APLICADA |
+| 20260913_restauracao_compat_schema (nova, aditiva: midias/midia_aprovacoes/operacoes/operacao_players/device_health + overload fn text(uuid)) | APLICADA |
+| 20260914_limpeza_policies_legadas (nova, aditiva) | APLICADA (dropped 8 policies permissivas legadas) |
+| 20260915_close_p0_media_playlists_widgets (sessao concorrente, revisada e validada) | APLICADA |
+
+### 17.2 Fechamento P0 comprovado (scripts/cross_tenant_verify.mjs, banco real)
+- anon: 7+ tabelas com permission denied (screens, remote_commands, app_releases, media, widgets, playlists, playlist_items, devices, playback_logs, monitoring_logs, proof_of_play, screenshots_logs).
+- autenticado (owner tenant A): SELECT tela tenant B = bloqueado; UPDATE = 0 linhas; INSERT playback_logs = bloqueado; INSERT remote_commands = bloqueado.
+- Falha intermediaria detectada e corrigida: policies legadas "Allow authenticated read"/"safe_heartbeat_update_screens"/"Permitir inserção de logs de reprodução industrial" sobreviveram com nomes diferentes (OR-semantica) - removidas em 20260914.
+
+### 17.3 Representantes - backend real OK (scripts/representantes_smoke.mjs)
+- listar_representantes_gerencia: 4 representantes (dados reais).
+- get_desempenho_representantes: 4 linhas.
+- get_my_admin_permissions (OWNER): 13 permissoes.
+
+### 17.4 Regression Guard instalado (novo)
+- src/tests/regression/regression-guard.test.tsx (8 testes): rotas, menus, paginas, service, hook, OWNER ve menu, painel representante nao ve.
+- vitest.config.ts inclui src/tests/regression/**.
+- Se qualquer peca protegida for removida => REGRESSION BLOCKED.
+
+### 17.5 Validacao
+- npm run build: OK (PWA 226 entries).
+- npx tsc --noEmit: 0 erros.
+- vitest run --pool=forks: 34 arquivos / 408 testes / 0 falhas.
+- lint: 226 erros pre-existentes (225 no-explicit-any + 1 rules-of-hooks em MediaPreviewDialog, desde commit inicial 34c7e8d). Arquivos novos/protegidos: 0 erros.
+
+### 17.6 Nao tocado
+- Android (build.gradle.kts:13) - janela separada (sem alteracao).
+- policies player/contratos (device_logs, download_status, system_errors, contrato_auditoria, contrato_templates) - preservadas.
+- Nenhum arquivo de codigo do app foi modificado nesta fase (git status: apenas vitest.config.ts + arquivos novos aditivos).
