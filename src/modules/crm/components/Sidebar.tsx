@@ -23,7 +23,8 @@ import {
   Briefcase,
   Bell,
   ShieldCheck,
-  UserCog
+  UserCog,
+  TrendingUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -52,6 +53,7 @@ export function CrmSidebar() {
   }, []);
 
   const podeVerCentralAcessos = isOwner || minhasPermissoes.includes('users.view');
+  const podeVerDesempenhoRepresentantes = isOwner || minhasPermissoes.includes('representantes.view_performance');
 
   // Determine base path dynamically
   const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
@@ -67,6 +69,9 @@ export function CrmSidebar() {
       ? [
           { label: 'Comercial', header: true as const },
           { label: 'Representantes', icon: UserCog, path: '/workspace/representantes' },
+          ...(podeVerDesempenhoRepresentantes
+            ? [{ label: 'Desempenho', icon: TrendingUp, path: '/workspace/representantes/desempenho' }]
+            : []),
         ]
       : []),
     { label: 'Clientes', icon: Users, path: `${basePath}/clientes` },
@@ -86,7 +91,7 @@ export function CrmSidebar() {
 
   // Central de Acessos: item administrativo delegado (OWNER ou users.view)
   if (isWorkspace && podeVerCentralAcessos) {
-    navItems.splice(13, 0, {
+    navItems.splice(14, 0, {
       label: 'Central de Acessos',
       icon: ShieldCheck,
       path: '/workspace/usuarios',
@@ -118,7 +123,8 @@ export function CrmSidebar() {
               );
             }
             const isActive = location.pathname === item.path || 
-              (item.path !== '/representantes/dashboard' && location.pathname.startsWith(item.path));
+              (item.path !== '/representantes/dashboard' && location.pathname.startsWith(item.path)) &&
+              !(item.path === '/workspace/representantes' && location.pathname.startsWith('/workspace/representantes/desempenho'));
             
             return (
               <Link key={item.path} to={item.path}>

@@ -178,6 +178,14 @@ export default function RepresentantesPage() {
             Carteira, propostas, contratos, receita e desempenho dos representantes do seu tenant.
           </p>
         </div>
+        {permissoes.podeVerDesempenho && (
+          <Button
+            onClick={() => navigate('/workspace/representantes/desempenho')}
+            className="bg-slate-800/80 text-slate-200 border border-white/10 text-xs gap-1.5 rounded-xl hover:bg-slate-700/80"
+          >
+            <BarChart3 className="h-4 w-4" /> Ver Desempenho
+          </Button>
+        )}
         <Button
           onClick={() => navigate('/workspace/usuarios')}
           className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg text-xs gap-1.5 rounded-xl"

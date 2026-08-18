@@ -13,6 +13,7 @@ export default defineConfig({
       'src/tests/integration/**/*.{test,spec}.{ts,tsx}',
       'src/tests/security/**/*.{security,test}.{ts,tsx}',
       'src/tests/crm/**/*.{test,spec}.{ts,tsx}',
+      'src/tests/regression/**/*.{test,spec}.{ts,tsx}',
     ],
     coverage: {
       provider: 'v8',

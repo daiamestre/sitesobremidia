@@ -2,47 +2,47 @@
   {
     "test": "anon READ screens",
     "ok": false,
-    "detail": "OPEN: 5 rows (11111111-0000-0000-0001-000000000001,11111111-0000-0000-0001-000000000002)"
+    "detail": "ERR: permission denied for table screens"
   },
   {
     "test": "anon READ remote_commands",
     "ok": false,
-    "detail": "OPEN: 5 rows (e525c04e-c599-4119-b350-3159e2556269,54d24083-7f3c-460b-a5b6-607817b08d36)"
+    "detail": "ERR: permission denied for table remote_commands"
   },
   {
     "test": "anon READ app_releases",
     "ok": false,
-    "detail": "OPEN: 1 rows (18fb225f-4280-4b61-bc6e-c93c94938b0c)"
+    "detail": "ERR: permission denied for table app_releases"
   },
   {
     "test": "anon READ media",
     "ok": false,
-    "detail": "OPEN: 5 rows (fc74463d-350f-4a8b-bb0e-6d9cf98ce935,c0050e12-0f35-4ebe-b920-2b144cd70bf4)"
+    "detail": "ERR: permission denied for table media"
   },
   {
     "test": "anon READ widgets",
     "ok": false,
-    "detail": "OPEN: 1 rows (e9382c06-c157-4623-8c52-de189140d748)"
+    "detail": "ERR: permission denied for table widgets"
   },
   {
     "test": "anon READ playlists",
     "ok": false,
-    "detail": "OPEN: 1 rows (1ec39023-a573-4067-94e1-31ac08aa540a)"
+    "detail": "ERR: permission denied for table playlists"
   },
   {
     "test": "anon READ playlist_items",
     "ok": false,
-    "detail": "OPEN: 5 rows (49c5df7c-73ff-4ddc-bdb2-f586a96b96d1,9880a297-5dab-4aea-a2e7-0e52935e0936)"
+    "detail": "ERR: permission denied for table playlist_items"
   },
   {
     "test": "anon READ devices",
-    "ok": true,
-    "detail": "blocked/empty"
+    "ok": false,
+    "detail": "ERR: permission denied for table devices"
   },
   {
     "test": "anon READ playback_logs",
-    "ok": true,
-    "detail": "blocked/empty"
+    "ok": false,
+    "detail": "ERR: permission denied for table playback_logs"
   },
   {
     "test": "anon READ device_logs",
@@ -51,52 +51,32 @@
   },
   {
     "test": "anon READ monitoring_logs",
-    "ok": true,
-    "detail": "blocked/empty"
+    "ok": false,
+    "detail": "ERR: permission denied for table monitoring_logs"
   },
   {
     "test": "anon READ proof_of_play",
-    "ok": true,
-    "detail": "blocked/empty"
+    "ok": false,
+    "detail": "ERR: permission denied for table proof_of_play"
   },
   {
     "test": "anon READ screenshots_logs",
-    "ok": true,
-    "detail": "blocked/empty"
+    "ok": false,
+    "detail": "ERR: permission denied for table screenshots_logs"
   },
   {
     "test": "anon INSERT remote_commands",
     "ok": true,
-    "detail": "blocked: new row violates row-level security policy for table \"remote_commands\""
+    "detail": "blocked: permission denied for table remote_commands"
   },
   {
     "test": "AUTH sees ONLY own screens",
     "ok": false,
-    "detail": "owners=,4164f657-8896-4e32-9bd4-2c253a1245fe uid=12345678-1234-1234-1234-123456789012"
+    "detail": "owners= uid=12345678-1234-1234-1234-123456789012"
   },
   {
     "test": "foreign screen exists to test",
-    "ok": true,
-    "detail": "screen=11111111-0000-0000-0001-000000000001 owner=null"
-  },
-  {
-    "test": "AUTH SELECT foreign remote_commands",
-    "ok": true,
-    "detail": "blocked/empty"
-  },
-  {
-    "test": "AUTH INSERT command on foreign screen",
     "ok": false,
-    "detail": "OPEN: cross-tenant command accepted!"
-  },
-  {
-    "test": "AUTH UPDATE foreign screen",
-    "ok": false,
-    "detail": "OPEN: cross-tenant update accepted!"
-  },
-  {
-    "test": "AUTH INSERT playback_logs foreign screen",
-    "ok": false,
-    "detail": "OPEN: cross-tenant PoP accepted!"
+    "detail": "none found"
   }
 ]
