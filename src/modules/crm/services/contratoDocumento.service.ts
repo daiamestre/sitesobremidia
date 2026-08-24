@@ -433,7 +433,15 @@ export async function gerarDocumentoContrato(contratoId: string, usuarioId: stri
  * Cria envelope REAL de assinatura interna (ASSINADOR_INTERNO):
  * hash SHA-256 do PDF original real, envelope com timestamp+random reais.
  */
-export async function criarEnvelopeInterno(contratoId: string, usuarioId?: string): Promise<{ success: boolean; assinaturaId?: string; envelopeId?: string; error?: string }> {
+export async function criarEnvelopeInterno(contratoId: string, usuarioId?: string): Promise<{
+  success: boolean;
+  assinaturaId?: string;
+  envelopeId?: string;
+  signatarioNome?: string | null;
+  signatarioEmail?: string | null;
+  signatarioCpfCnpj?: string | null;
+  error?: string;
+}> {
   try {
     const { data: contrato, error: ctrErr } = await supabase
       .from('contratos')
@@ -524,7 +532,14 @@ export async function criarEnvelopeInterno(contratoId: string, usuarioId?: strin
       detalhes: { envelope_id: envelopeId, assinatura_id: ass.id, document_hash: documentHash },
     });
 
-    return { success: true, assinaturaId: ass.id, envelopeId };
+    return {
+      success: true,
+      assinaturaId: ass.id,
+      envelopeId,
+      signatarioNome: contato?.nome || empresa?.representante_legal || null,
+      signatarioEmail: empresa?.email || null,
+      signatarioCpfCnpj: empresa?.cnpj || null,
+    };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao enviar para assinatura.' };
   }

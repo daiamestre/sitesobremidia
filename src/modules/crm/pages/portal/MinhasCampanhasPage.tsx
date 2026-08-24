@@ -8,6 +8,10 @@ import { useToast } from '@/hooks/use-toast';
 import { customerPortalDataService } from '../../services/customerPortalData.service';
 import { CampanhaComInsercoes } from '../types/portal.types';
 import { formatDate, formatNumber } from '@/utils/formatters';
+import { Button } from '@/components/ui/button';
+import { PlusCircle, MoreHorizontal } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useNavigate } from 'react-router-dom';
 
 const getStatusConfig = (status: string) => {
   switch (status) {
@@ -35,6 +39,7 @@ export default function MinhasCampanhasPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'ativas' | 'historico'>('ativas');
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (usuario?.cliente_id) {
@@ -118,15 +123,42 @@ export default function MinhasCampanhasPage() {
               </div>
             </div>
           )}
-          <div className="flex items-center gap-2 pt-2 border-t border-white/10">
-            <Button variant="ghost" size="sm" className="text-xs text-slate-400 hover:text-white gap-1 h-auto px-3 py-1.5">
-              <Eye className="h-3.5 w-3.5" /> Detalhes
-            </Button>
-            {isAtiva && (
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
-                Em veiculação
-              </Badge>
-            )}
+          <div className="flex items-center justify-between pt-2 border-t border-white/10">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="text-xs text-slate-400 hover:text-white gap-1 h-auto px-3 py-1.5" onClick={() => navigate(`/portal/campanhas/${campanha.id}`)}>
+                <Eye className="h-3.5 w-3.5" /> Detalhes
+              </Button>
+              {isAtiva && (
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
+                  Em veiculação
+                </Badge>
+              )}
+            </div>
+
+            {/* Menu de Ações Rápido */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-slate-900 border-white/10 text-slate-300">
+                <DropdownMenuItem className="focus:bg-white/10 focus:text-white cursor-pointer gap-2" onClick={() => navigate(`/portal/campanhas/${campanha.id}`)}>
+                  <Eye className="h-4 w-4" /> Ver Detalhes
+                </DropdownMenuItem>
+                {campanha.status === 'DRAFT' && (
+                  <DropdownMenuItem className="focus:bg-white/10 focus:text-white cursor-pointer gap-2">
+                    <FileText className="h-4 w-4" /> Editar Rascunho
+                  </DropdownMenuItem>
+                )}
+                {campanha.status === 'ACTIVE' && (
+                  <DropdownMenuItem className="focus:bg-amber-500/20 focus:text-amber-400 cursor-pointer gap-2 text-amber-400">
+                    <PauseCircle className="h-4 w-4" /> Pausar Campanha
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
           </div>
         </CardContent>
       </Card>
@@ -155,20 +187,28 @@ export default function MinhasCampanhasPage() {
     <div className="space-y-6 max-w-6xl mx-auto animate-fade-in pb-12">
       {/* Header */}
       <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
               <Tv className="h-6 w-6 text-primary" /> Minhas Campanhas
             </h2>
             <p className="text-slate-400 text-sm mt-1">Acompanhe suas campanhas ativas e histórico de veiculação.</p>
           </div>
-          <div className="flex items-center gap-4 text-sm">
-            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-              {campanhasAtivas.length} Ativas
-            </Badge>
-            <Badge className="bg-slate-500/20 text-slate-400 border-slate-500/30">
-              {campanhasHistorico.length} no Histórico
-            </Badge>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 text-sm w-full md:w-auto">
+            <div className="flex gap-2">
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                {campanhasAtivas.length} Ativas
+              </Badge>
+              <Badge className="bg-slate-500/20 text-slate-400 border-slate-500/30">
+                {campanhasHistorico.length} no Histórico
+              </Badge>
+            </div>
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-white gap-2"
+              onClick={() => navigate('/portal/nova-campanha')}
+            >
+              <PlusCircle className="h-4 w-4" /> Nova Campanha
+            </Button>
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MapPin, Tv, ShieldCheck, Loader2, AlertTriangle, CheckCircle2, BarChart2, PlusCircle, Wifi, WifiOff, AlertCircle, Monitor, Building2, Clock } from 'lucide-react';
@@ -42,6 +43,7 @@ const getLimiteStatus = (usado: number, limite: number | null) => {
 };
 
 export default function MeusPontosPage() {
+  const navigate = useNavigate();
   const { usuario } = useAuth();
   const [pontos, setPontos] = useState<PontoDetalhado[]>([]);
   const [resumo, setResumo] = useState<PontosResumo | null>(null);
@@ -63,7 +65,7 @@ export default function MeusPontosPage() {
       setPontos(data.pontos);
       setResumo(data.resumo);
       setPorCidade(data.por_cidade);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao buscar pontos:', error);
       toast({ title: 'Erro', description: 'Não foi possível carregar os pontos.', variant: 'destructive' });
     } finally {
@@ -107,7 +109,7 @@ export default function MeusPontosPage() {
           <Button variant="outline" size="sm" onClick={() => setViewMode('table')} className={viewMode === 'table' ? 'bg-primary/20 text-primary border-primary/30' : ''}>
             <div className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> Tabela</div>
           </Button>
-          <Button className="bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-2" disabled>
+          <Button className="bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-2" onClick={() => navigate('/portal/expansao')}>
             <PlusCircle className="h-4 w-4" /> + Solicitar Expansão
           </Button>
         </div>

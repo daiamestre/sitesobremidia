@@ -11,6 +11,7 @@ import { Loader2 } from "lucide-react";
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Install = lazy(() => import("./pages/Install"));
+const DevicePairingScreen = lazy(() => import("./pages/DevicePairingScreen"));
 const RepresentantesAuth = lazy(() => import("./pages/representantes/RepresentantesAuth"));
 const WorkspaceLayout = lazy(() => import("./modules/corporate/layout/WorkspaceLayout"));
 const CorporateCommandCenter = lazy(() => import("./modules/corporate/pages/CorporateCommandCenter"));
@@ -65,16 +66,27 @@ const ExecutiveScorecard = lazy(() => import("./modules/crm/pages/ExecutiveScore
 const ContractsSignaturePage = lazy(() => import("./modules/crm/pages/ContractsSignaturePage"));
 const CustomerPortalDashboard = lazy(() => import("./modules/crm/pages/CustomerPortalDashboard"));
 const MobileDashboard = lazy(() => import("./modules/crm/pages/MobileDashboard"));
+const AcoesCentraisPage = lazy(() => import("./modules/crm/pages/AcoesCentraisPage"));
 const AIDashboard = lazy(() => import("./modules/crm/pages/AIDashboard"));
 
 // CUSTOMER PORTAL PAGES
 const CustomerPortalLayout = lazy(() => import("./modules/crm/layout/CustomerPortalLayout"));
 const MeusPontosPage = lazy(() => import("./modules/crm/pages/portal/MeusPontosPage"));
 const MinhasCampanhasPage = lazy(() => import("./modules/crm/pages/portal/MinhasCampanhasPage"));
+const NovaCampanhaPage = lazy(() => import("./modules/crm/pages/portal/NovaCampanhaPage"));
+const MinhaRedePage = lazy(() => import("./modules/crm/pages/portal/MinhaRedePage"));
+const ReceitaHostPage = lazy(() => import("./modules/crm/pages/portal/ReceitaHostPage"));
 const FinanceiroClientePage = lazy(() => import("./modules/crm/pages/portal/FinanceiroClientePage"));
 const ContratoVigentePage = lazy(() => import("./modules/crm/pages/portal/ContratoVigentePage"));
 const InsercoesPorDiaPage = lazy(() => import("./modules/crm/pages/portal/InsercoesPorDiaPage"));
 const OcupacaoRedePage = lazy(() => import("./modules/crm/pages/portal/OcupacaoRedePage"));
+const ProdutosPage = lazy(() => import("./modules/crm/pages/portal/ProdutosPage"));
+const OfertasPage = lazy(() => import("./modules/crm/pages/portal/OfertasPage"));
+const OnboardingPage = lazy(() => import("./modules/crm/pages/portal/OnboardingPage"));
+const ExpansaoPage = lazy(() => import("./modules/crm/pages/portal/ExpansaoPage"));
+const BrandKitPage = lazy(() => import("./modules/crm/pages/portal/BrandKitPage"));
+const AssetLibraryPage = lazy(() => import("./modules/crm/pages/portal/AssetLibraryPage"));
+const EncartePage = lazy(() => import("./modules/crm/pages/portal/EncartePage"));
 
 const DashboardHome = lazy(() => import("./pages/dashboard/DashboardHome"));
 const Medias = lazy(() => import("./pages/dashboard/Medias"));
@@ -166,6 +178,7 @@ const App = () => {
                     <Route path="financeiro/executivo" element={<FinanceExecutiveDashboard />} />
                     <Route path="financeiro/cobrancas" element={<BillingDashboard />} />
                     <Route path="financeiro/cobrancas/:id" element={<BillingDetailPage />} />
+                    <Route path="acoes-centrais" element={<AcoesCentraisPage />} />
                     <Route path="financeiro/regras-comissao" element={<CommissionRulesPage />} />
                     <Route path="financeiro/dre" element={<DREPage />} />
                     <Route path="analytics" element={<ExecutiveDashboard />} />
@@ -194,13 +207,24 @@ const App = () => {
                     <Route index element={<CustomerPortalDashboard />} />
                     <Route path="contrato" element={<ContratoVigentePage />} />
                     <Route path="pontos" element={<MeusPontosPage />} />
+                    <Route path="minha-rede" element={<MinhaRedePage />} />
                     <Route path="campanhas" element={<MinhasCampanhasPage />} />
+                    <Route path="nova-campanha" element={<NovaCampanhaPage />} />
                     <Route path="insercoes" element={<InsercoesPorDiaPage />} />
                     <Route path="ocupacao" element={<OcupacaoRedePage />} />
+                    <Route path="receita" element={<ReceitaHostPage />} />
                     <Route path="financeiro" element={<FinanceiroClientePage />} />
+                    <Route path="produtos" element={<ProdutosPage />} />
+                    <Route path="ofertas" element={<OfertasPage />} />
+                    <Route path="expansao" element={<ExpansaoPage />} />
+                    <Route path="brand-kit" element={<BrandKitPage />} />
+                    <Route path="assets" element={<AssetLibraryPage />} />
+                    <Route path="encarte" element={<EncartePage />} />
+                    <Route path="onboarding" element={<OnboardingPage />} />
                     <Route path="central" element={<CentralDashboard />} />
                   </Route>
 
+                  <Route path="/device-pairing" element={<DevicePairingScreen />} />
                   <Route path="/player" element={<Player />} />
                   <Route path="/player/:screenId" element={<Player />} />
                   <Route path="/player/widget/:id" element={<WidgetPlayer />} />
