@@ -16,17 +16,18 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
   const [isMuted, setIsMuted] = useState(false);
   const videoRef = useRef<VideoPlayerRef>(null);
 
-  if (!media) return null;
-
-  const isVertical = media.aspect_ratio === '9x16';
-
   // Reset state when media changes
   useEffect(() => {
-    if (media?.file_type === 'video') {
+    if (!media) return;
+    if (media.file_type === 'video') {
       setIsPlaying(true); // AutoPlay is on
       setIsMuted(false);
     }
   }, [media]);
+
+  if (!media) return null;
+
+  const isVertical = media.aspect_ratio === '9x16';
 
   const handleDownload = () => {
     const link = document.createElement('a');

@@ -62,7 +62,12 @@ export default function ClienteDetalhePage() {
       return;
     }
     setCliente(data);
-  }, [navigate, toast]);
+
+    // URL legada (UUID) → URL canônica pelo código operacional do cliente
+    if (data.codigo_cliente && id && /^\d{1,9}$/.test(id) === false && /^[0-9a-f]{8}-/i.test(id)) {
+      navigate(`/representantes/clientes/${data.codigo_cliente}`, { replace: true });
+    }
+  }, [navigate, toast, id]);
 
   useEffect(() => {
     if (!id) return;
@@ -191,7 +196,7 @@ export default function ClienteDetalhePage() {
               <ArrowLeft className="h-4 w-4" /> Voltar
             </Button>
             <Button
-              onClick={() => navigate(`/representantes/clientes/editar/${cliente.id}`)}
+              onClick={() => navigate(`/representantes/clientes/editar/${cliente.codigo_cliente ?? cliente.id}`)}
               className="gradient-primary glow-primary font-bold rounded-xl gap-2 shadow-xl hover:scale-105 transition-all"
             >
               <Pencil className="h-4 w-4" /> Editar

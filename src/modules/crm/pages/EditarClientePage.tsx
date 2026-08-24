@@ -141,7 +141,7 @@ export default function EditarClientePage() {
         title: 'Cliente Atualizado!',
         description: 'Os dados foram persistidos no PostgreSQL com sucesso.',
       });
-      navigate(`/representantes/clientes/${id}`);
+      navigate(`/representantes/clientes/${cliente?.codigo_cliente ?? id}`);
     } else {
       toast({
         title: 'Erro ao salvar',
@@ -179,7 +179,7 @@ export default function EditarClientePage() {
         </div>
         <Button
           variant="outline"
-          onClick={() => navigate(`/representantes/clientes/${id}`)}
+          onClick={() => navigate(`/representantes/clientes/${cliente?.codigo_cliente ?? id}`)}
           className="border-white/10 text-slate-300 hover:text-white rounded-xl gap-2"
         >
           <ArrowLeft className="h-4 w-4" /> Voltar
@@ -449,7 +449,7 @@ export default function EditarClientePage() {
       <div className="flex justify-end gap-3">
         <Button
           variant="outline"
-          onClick={() => navigate(`/representantes/clientes/${id}`)}
+          onClick={() => navigate(`/representantes/clientes/${cliente?.codigo_cliente ?? id}`)}
           className="border-slate-700 text-slate-300 rounded-xl"
         >
           Cancelar

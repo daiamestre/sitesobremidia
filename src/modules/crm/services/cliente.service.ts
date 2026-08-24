@@ -74,10 +74,12 @@ export class ClienteService {
   }
 
   /**
-   * Busca um único cliente pelo seu UUID
+   * Busca um único cliente pelo identificador operacional (codigo_cliente)
+   * ou pelo UUID legado (identidade técnica interna).
    */
   async findById(id: string): Promise<ClienteCompleto | null> {
     try {
+      const ehCodigoOperacional = /^\d{1,9}$/.test(id);
       const { data, error } = await supabase
         .from('clientes')
         .select(`
@@ -85,7 +87,7 @@ export class ClienteService {
           empresas:empresas(*, contatos:contatos(*)),
           representante:representantes(*, usuario:usuarios(nome, email))
         `)
-        .eq('id', id)
+        .eq(ehCodigoOperacional ? 'codigo_cliente' : 'id', ehCodigoOperacional ? Number(id) : id)
         .is('deleted_at', null)
         .maybeSingle();
 
@@ -308,3 +310,13 @@ export class ClienteService {
 }
 
 export const clienteService = new ClienteService();
+
+/**
+ * Rota canônica de cliente: usa o código operacional (codigo_cliente) quando
+ * existir; UUID apenas como fallback transitório (a página redireciona).
+ */
+export function rotaCliente(cliente: { id: string; codigo_cliente?: number | null } | null | undefined): string {
+  if (!cliente) return '/representantes/clientes';
+  const codigo = cliente.codigo_cliente ? String(cliente.codigo_cliente) : '';
+  return `/representantes/clientes/${encodeURIComponent(codigo || cliente.id)}`;
+}
