@@ -136,6 +136,37 @@ CROSS JOIN (VALUES
 ) AS r(nome, trigger_dias, evento_situacao, canal, prioridade)
 ON CONFLICT (empresa_operadora_id, nome) DO NOTHING;
 
+-- Novos tenants recebem automaticamente a política padrão
+CREATE OR REPLACE FUNCTION public.trg_seed_regras_cobranca()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.regras_cobranca (empresa_operadora_id, nome, trigger_dias, evento_situacao, canais_habilitados, prioridade)
+  VALUES
+    (NEW.id, 'Lembrete D-10', -10, 'LEMBRETE', ARRAY['email']::text[], 'NORMAL'),
+    (NEW.id, 'Lembrete D-7',   -7, 'LEMBRETE', ARRAY['email']::text[], 'NORMAL'),
+    (NEW.id, 'Lembrete D-5',   -5, 'LEMBRETE', ARRAY['email']::text[], 'ALTO'),
+    (NEW.id, 'Lembrete D-1',   -1, 'LEMBRETE', ARRAY['email']::text[], 'ALTO'),
+    (NEW.id, 'Vencimento D0',   0, 'VENCIMENTO', ARRAY['email']::text[], 'CRITICO'),
+    (NEW.id, 'Contato 1 (D+1)', 1, 'CONTATO_1', ARRAY['email']::text[], 'CRITICO'),
+    (NEW.id, 'Contato 2 (D+3)', 3, 'CONTATO_2', ARRAY['email']::text[], 'ALTO'),
+    (NEW.id, 'Contato 3 + Inadimplencia (D+5)', 5, 'CONTATO_3_INADIMPLENCIA', ARRAY['email']::text[], 'CRITICO')
+  ON CONFLICT (empresa_operadora_id, nome) DO NOTHING;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'seed regras falhou: %', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_seed_regras_ins ON public.empresa_operadora;
+CREATE TRIGGER trg_seed_regras_ins
+  AFTER INSERT ON public.empresa_operadora
+  FOR EACH ROW EXECUTE FUNCTION public.trg_seed_regras_cobranca();
+
 -- ======================================================================
 -- ETAPA 5 — COMUNICAÇÃO CORE (estruturas globais consumidas pelo worker)
 -- ======================================================================
@@ -362,6 +393,7 @@ DECLARE
   v_total NUMERIC(14,2);
   v_valor NUMERIC(14,2);
   v_cliente_id UUID;
+  v_documento TEXT;
   v_restam_abertas INT;
   v_liq TIMESTAMPTZ;
   v_usuario UUID;
@@ -421,10 +453,12 @@ BEGIN
       AND payload->>'conta_receber_id' = v_conta_receber_id::text
       AND tipo_job LIKE 'COLECTION%';
 
-    -- Confirmação ao cliente (idempotente)
+    -- Confirmação ao cliente (idempotente), com dados completos para o template
+    SELECT c.cliente_id, c.numero_documento, c.valor INTO v_cliente_id, v_documento, v_valor FROM contas_receber c WHERE c.id = v_conta_receber_id;
     PERFORM public.enfileirar_job(
       v_tenant, 'COLECTION_PAID',
-      jsonb_build_object('conta_receber_id', v_conta_receber_id, 'valor_pago', NEW.valor_pago, 'origem', 'conciliacao'),
+      jsonb_build_object('conta_receber_id', v_conta_receber_id, 'cliente_id', v_cliente_id,
+                         'numero_documento', v_documento, 'valor', v_valor, 'valor_pago', NEW.valor_pago, 'origem', 'conciliacao'),
       v_tenant::text || ':' || v_conta_receber_id::text || ':COLECTION_PAID:' || coalesce(NEW.transacao_id_externo, NEW.id::text),
       'ALTO', NULL, 2
     );

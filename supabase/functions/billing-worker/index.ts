@@ -108,9 +108,13 @@ async function resolverDestinatarios(clienteId: string | null, tenantId: string)
       for (const c of principal || []) if (c.email && !destinos.includes(c.email)) destinos.push(c.email);
     }
   }
-  if (destinos.length === 0) {
-    const { data: empEmail } = await admin.rpc("get_tenant_email_fallback" as any).then((r: any) => r.data).catch(() => null);
-    if (typeof empEmail === "string") destinos.push(empEmail);
+  if (destinos.length === 0 && tenantId) {
+    const { data: tenantRow } = await admin
+      .from("empresa_operadora")
+      .select("email")
+      .eq("id", tenantId)
+      .maybeSingle();
+    if (tenantRow?.email) destinos.push(tenantRow.email);
   }
   return destinos.slice(0, 5);
 }

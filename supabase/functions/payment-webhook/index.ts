@@ -45,6 +45,15 @@ async function hmacValida(bodyText: string, assinatura: string | null): Promise<
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  try {
+    return await handle(req);
+  } catch (e) {
+    console.error("[payment-webhook] erro:", e);
+    return json(500, { erro: String(e?.message ?? e) });
+  }
+});
+
+async function handle(req: Request): Promise<Response> {
   if (req.method !== "POST") return json(405, { erro: "metodo não permitido" });
 
   const bodyText = await req.text();
@@ -106,7 +115,7 @@ serve(async (req: Request) => {
       conta_receber_id: conta.id,
       contrato_id: null,
       meio_pagamento: meio,
-      valor_pago,
+      valor_pago: valorPago,
       data_liquidacao: dataLiq,
       transacao_id_externo: transacaoId,
     })
@@ -126,10 +135,12 @@ serve(async (req: Request) => {
     .select("status, valor_pago, saldo")
     .eq("id", conta.id)
     .single();
+  void depois;
 
   return json(200, {
     ok: true,
     pagamento_id: pag?.id,
-    cobranca: { id: conta.id, status: depois?.status, saldo: depois?.saldo },
+    cobranca: { id: conta.id },
   });
-});
+}
+
