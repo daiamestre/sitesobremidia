@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Plus, Search, Monitor, MoreVertical, Pencil, Trash2,
-  MapPin, Loader2, Wifi, WifiOff, Play, Calendar, ExternalLink, Copy, RefreshCw, Camera, MonitorSmartphone
+  MapPin, Loader2, Wifi, WifiOff, Play, Calendar, ExternalLink, Copy, RefreshCw, Camera, MonitorSmartphone, Unlink
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -29,8 +29,10 @@ import { toast } from 'sonner';
 import { format, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScreenDialog } from '@/components/screens/ScreenDialog';
+import { CriarTelaPagaDialog } from '@/modules/gestor/CriarTelaPagaDialog';
 import { ScreenScheduleDialog } from '@/components/screens/ScreenScheduleDialog';
 import { ScreenIdBadge } from '@/components/screens/ScreenIdBadge';
+import { ScreenPairingDialog } from '@/components/screens/ScreenPairingDialog';
 import { useScreens } from '@/hooks/useScreens';
 import { Screen } from '@/types/models';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -39,15 +41,38 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Screens() {
   const { user } = useAuth();
-  const { screens, loading, fetchScreens, deleteScreen, sendCommand } = useScreens(user?.id);
+  const { screens, loading, fetchScreens, deleteScreen, sendCommand, unpairScreen, isUnpairing } = useScreens(user?.id);
   const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [telaPagaOpen, setTelaPagaOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [pairingDialogOpen, setPairingDialogOpen] = useState(false);
   const [scheduleScreen, setScheduleScreen] = useState<Screen | null>(null);
   const [selectedScreen, setSelectedScreen] = useState<Screen | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // unpairTarget: the primary screen being unpaired (for the AlertDialog)
+  const [unpairTarget, setUnpairTarget] = useState<Screen | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const hasSelectedWithDevice = [...selectedIds].some(id => {
+    const s = screens.find(sc => sc.id === id);
+    return s?.bound_device_id;
+  });
 
   // Helper to check online status based on activation AND last ping (threshold: 3 mins)
   const isScreenOnline = (screen: Screen) => {
@@ -76,6 +101,22 @@ export default function Screens() {
     setDeleteId(null);
   };
 
+  const handleUnpair = async () => {
+    if (!unpairTarget) return;
+    if (selectedIds.size > 1) {
+      for (const id of selectedIds) {
+        const s = screens.find(sc => sc.id === id);
+        if (s?.bound_device_id) {
+          await unpairScreen(id);
+        }
+      }
+    } else {
+      await unpairScreen(unpairTarget.id);
+    }
+    setSelectedIds(new Set());
+    setUnpairTarget(null);
+  };
+
   const handleEdit = (screen: Screen) => {
     setSelectedScreen(screen);
     setDialogOpen(true);
@@ -101,10 +142,33 @@ export default function Screens() {
           <h1 className="text-3xl font-display font-bold">Telas</h1>
           <p className="text-muted-foreground">Gerencie seus dispositivos e players</p>
         </div>
-        <Button className="gradient-primary" onClick={() => { setSelectedScreen(null); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Tela
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10" onClick={() => setPairingDialogOpen(true)}>
+            <MonitorSmartphone className="h-4 w-4 mr-2" />
+            Vincular TV
+          </Button>
+          {selectedIds.size > 0 && hasSelectedWithDevice && (
+            <Button variant="destructive" onClick={() => {
+              const firstWithDevice = [...selectedIds].find(id => {
+                const s = screens.find(sc => sc.id === id);
+                return s?.bound_device_id;
+              });
+              const targetScreen = firstWithDevice ? screens.find(sc => sc.id === firstWithDevice) : null;
+              if (targetScreen) setUnpairTarget(targetScreen);
+            }}>
+              <Unlink className="h-4 w-4 mr-2" />
+              Desvincular Tela {selectedIds.size > 1 ? `(${selectedIds.size})` : ''}
+            </Button>
+          )}
+          <Button variant="outline" className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10" onClick={() => setTelaPagaOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Tela (R$ 22,99)
+          </Button>
+          <Button className="gradient-primary" onClick={() => { setSelectedScreen(null); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Tela
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -196,7 +260,15 @@ export default function Screens() {
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(screen.id)}
+                        onClick={(e) => toggleSelect(screen.id, e)}
+                        onChange={() => {}}
+                        className="h-4 w-4 rounded border-muted-foreground/30 accent-primary cursor-pointer shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold truncate">{screen.name}</h3>
                         {isOnline ? (
@@ -221,6 +293,7 @@ export default function Screens() {
                         )}
                         <span>{screen.resolution === '9x16' ? '9x16 (Vertical)' : '16x9 (Horizontal)'}</span>
                       </div>
+                    </div>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -257,6 +330,15 @@ export default function Screens() {
                           <Camera className="h-4 w-4 mr-2" />
                           Capturar Tela
                         </DropdownMenuItem>
+                        {screen.bound_device_id && (
+                          <DropdownMenuItem
+                            onClick={(e) => { e.stopPropagation(); setUnpairTarget(screen); }}
+                            className="text-amber-500 focus:text-amber-400"
+                          >
+                            <Unlink className="h-4 w-4 mr-2" />
+                            Desvincular Tela
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onClick={(e) => { e.stopPropagation(); setDeleteId(screen.id); }}
                           className="text-destructive"
@@ -315,11 +397,19 @@ export default function Screens() {
       )}
 
       {/* Dialogs */}
+      <CriarTelaPagaDialog open={telaPagaOpen} onOpenChange={setTelaPagaOpen} />
       <ScreenDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         screen={selectedScreen}
         onSaved={fetchScreens}
+      />
+
+      <ScreenPairingDialog
+        open={pairingDialogOpen}
+        onOpenChange={setPairingDialogOpen}
+        screens={screens}
+        onPaired={fetchScreens}
       />
 
       {scheduleScreen && (
@@ -330,6 +420,68 @@ export default function Screens() {
           screenName={scheduleScreen.name}
         />
       )}
+
+      <AlertDialog open={!!unpairTarget} onOpenChange={(open) => !open && setUnpairTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Unlink className="h-5 w-5" />
+              {selectedIds.size > 1 ? `Desvincular ${selectedIds.size} telas?` : 'Desvincular esta tela?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                {unpairTarget && selectedIds.size <= 1 && (
+                  <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-1.5 text-foreground">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tela</span>
+                      <span className="font-medium">{unpairTarget.name}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ID do Player</span>
+                      <code className="text-xs bg-black/30 px-2 py-0.5 rounded font-mono">{unpairTarget.custom_id || unpairTarget.id.slice(0, 8)}</code>
+                    </div>
+                    {unpairTarget.bound_device_id && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dispositivo</span>
+                        <code className="text-xs bg-black/30 px-2 py-0.5 rounded font-mono truncate max-w-[160px]">{unpairTarget.bound_device_id}</code>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {selectedIds.size > 1 ? (
+                  <p>{selectedIds.size} telas terão seus dispositivos desvinculados.</p>
+                ) : (
+                  <p>O dispositivo atualmente conectado <strong>perderá o vínculo</strong> com esta tela.</p>
+                )}
+                <p className="text-emerald-400 font-medium">✓ A Screen e a Playlist <strong>NÃO serão excluídas</strong> e ficarão disponíveis para novo pareamento.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel disabled={isUnpairing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleUnpair();
+              }}
+              disabled={isUnpairing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+            >
+              {isUnpairing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Desvinculando...
+                </>
+              ) : (
+                <>
+                  <Unlink className="h-4 w-4" />
+                  {selectedIds.size > 1 ? `Desvincular ${selectedIds.size} telas` : 'Desvincular'}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
