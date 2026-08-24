@@ -323,7 +323,7 @@ DECLARE
 BEGIN
   INSERT INTO public.jobs (empresa_operadora_id, tipo_job, idempotency_key, payload, prioridade, status, tentativas, max_tentativas, retry_at)
   VALUES (
-    p_empresa_operadora_id, left(p_event_name, 100), p_idempotency_key,
+    p_empresa_operadora_id, left(p_event_name, 80), p_idempotency_key,
     COALESCE(p_payload, jsonb_build_object('empresa_operadora_id', p_empresa_operadora_id, 'event_type', p_event_name)),
     v_prio, 'PENDING', 0, greatest(coalesce(p_max_tentativas,3), 1), COALESCE(p_available_at, NOW())
   )

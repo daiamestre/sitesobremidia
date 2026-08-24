@@ -105,4 +105,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.criar_cobranca_tela(UUID,UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.criar_tela_gestor(UUID,UUID,VARCHAR,VARCHAR,VARCHAR,TEXT,UUID) TO authenticated;
 
+-- Chaves de idempotência do billing (~124 chars: tenant+conta+evento+txid)
+ALTER TABLE public.jobs ALTER COLUMN idempotency_key TYPE TEXT;
+
 SELECT 'Migration 20260826_gestor_tela_paga aplicada' AS status;

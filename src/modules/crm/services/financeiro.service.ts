@@ -740,6 +740,8 @@ export class FinanceiroService {
 
 const COBRANCA_SELECT =
   '*, cliente:clientes!contas_receber_cliente_id_fkey(id,empresas(nome_fantasia,razao_social)), contrato:contratos!contas_receber_contrato_id_fkey(id,numero_contrato,tipo_contrato), pagamentos:pagamentos!pagamentos_conta_receber_id_fkey(id,meio_pagamento,valor_pago,data_liquidacao)';
+// Nota: embeds resolvem como OUTER join quando cliente/contrato forem nulos
+// (cobranças internas, ex.: criação de tela por gestor).
 
 export type CobrancaSituacao = 'ABERTA' | 'VENCENDO_HOJE' | 'ATRASADA' | 'PAGA' | 'PARCIAL' | 'CANCELADA';
 
