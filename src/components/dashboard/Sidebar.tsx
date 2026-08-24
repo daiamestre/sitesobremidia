@@ -24,6 +24,7 @@ import {
   Bell,
   AlertTriangle,
   FileText,
+  Banknote,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -43,13 +44,17 @@ const menuItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const { signOut, profile, user } = useAuth();
+  const { signOut, profile, user, isOwner } = useAuth();
   const location = useLocation();
   const { total: totalNaoLidas } = useCentralUnread();
 
   // MENSAGENS: entrada logo abaixo de BI & Relatórios (Relatórios) em todos os painéis
+  // Central de Cobranças restrita a ADMIN/OWNER (mesma regra do módulo financeiro)
   const menuComMensagens = [
     ...menuItems,
+    ...((isAdmin || isOwner)
+      ? [{ icon: Banknote, label: 'Central de Cobranças', path: '/financeiro/cobrancas' }]
+      : []),
     {
       icon: Bell,
       label: 'Mensagens',

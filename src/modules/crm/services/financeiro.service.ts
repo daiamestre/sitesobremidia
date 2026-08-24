@@ -446,6 +446,234 @@ export class FinanceiroService {
       return [];
     }
   }
+
+  async listCobrancas(empresaOperadoraId?: string): Promise<{ data: Cobranca[]; error: string | null }> {
+    try {
+      let query = supabase
+        .from('contas_receber')
+        .select(COBRANCA_SELECT)
+        .order('data_vencimento', { ascending: true });
+      if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
+      const { data, error } = await query;
+      if (error) return { data: [], error: error.message };
+      return { data: (data || []) as unknown as Cobranca[], error: null };
+    } catch (err: any) {
+      logger.error('listCobrancas falhou', err);
+      return { data: [], error: err?.message || 'Falha ao listar cobranças.' };
+    }
+  }
+
+  async getCobranca(id: string): Promise<{ data: Cobranca | null; error: string | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('contas_receber')
+        .select(COBRANCA_SELECT)
+        .eq('id', id)
+        .limit(1)
+        .maybeSingle();
+      if (error) return { data: null, error: error.message };
+      return { data: (data as unknown as Cobranca) || null, error: null };
+    } catch (err: any) {
+      logger.error('getCobranca falhou', err);
+      return { data: null, error: err?.message || 'Falha ao carregar cobrança.' };
+    }
+  }
+
+  async createCobranca(payload: CreateCobrancaPayload): Promise<{ success: boolean; cobrancaId?: string; error?: string }> {
+    if (!payload.empresaOperadoraId) return { success: false, error: 'Tenant (empresa_operadora_id) ausente. Refaça o login.' };
+    if (!payload.clienteId) return { success: false, error: 'Selecione o cliente da cobrança.' };
+    if (!payload.contratoId) return { success: false, error: 'Selecione o contrato vinculado.' };
+    if (!payload.valor || payload.valor <= 0) return { success: false, error: 'Informe um valor maior que zero.' };
+    if (!payload.dataVencimento) return { success: false, error: 'Informe a data de vencimento.' };
+    try {
+      const { data, error } = await supabase
+        .from('contas_receber')
+        .insert({
+          empresa_operadora_id: payload.empresaOperadoraId,
+          cliente_id: payload.clienteId,
+          contrato_id: payload.contratoId,
+          valor: payload.valor,
+          data_vencimento: payload.dataVencimento,
+          numero_parcela: payload.numeroParcela ?? 1,
+          total_parcelas: payload.totalParcelas ?? 1,
+          status: 'PENDENTE',
+        })
+        .select('id')
+        .single();
+      if (error || !data) return { success: false, error: error?.message || 'Falha ao criar cobrança.' };
+      return { success: true, cobrancaId: data.id };
+    } catch (err: any) {
+      logger.error('createCobranca falhou', err);
+      return { success: false, error: err?.message || 'Falha ao criar cobrança.' };
+    }
+  }
+
+  async marcarComoPaga(
+    cobranca: Pick<Cobranca, 'id' | 'valor' | 'contrato_id' | 'empresa_operadora_id'>,
+    opts: { meioPagamento: TipoPagamento; valorPago?: number; dataLiquidacao?: string; usuarioId?: string }
+  ): Promise<{ success: boolean; pagamentoId?: string; error?: string }> {
+    const valorPago = opts.valorPago && opts.valorPago > 0 ? opts.valorPago : cobranca.valor;
+    const dataLiquidacao = opts.dataLiquidacao || new Date().toISOString();
+    try {
+      const { data: pag, error: pagError } = await supabase
+        .from('pagamentos')
+        .insert({
+          empresa_operadora_id: cobranca.empresa_operadora_id,
+          conta_receber_id: cobranca.id,
+          contrato_id: cobranca.contrato_id,
+          meio_pagamento: opts.meioPagamento,
+          valor_pago: valorPago,
+          data_liquidacao: dataLiquidacao,
+          created_by: opts.usuarioId || null,
+        })
+        .select('id')
+        .single();
+      if (pagError || !pag) return { success: false, error: pagError?.message || 'Falha ao registrar pagamento.' };
+
+      const { error: updError } = await supabase
+        .from('contas_receber')
+        .update({ status: 'PAGO', data_recebimento: dataLiquidacao, updated_at: new Date().toISOString() })
+        .eq('id', cobranca.id);
+      if (updError) {
+        await supabase.from('pagamentos').delete().eq('id', pag.id);
+        return { success: false, error: updError.message };
+      }
+      return { success: true, pagamentoId: pag.id };
+    } catch (err: any) {
+      logger.error('marcarComoPaga falhou', err);
+      return { success: false, error: err?.message || 'Falha ao dar baixa na cobrança.' };
+    }
+  }
+
+  async cancelarCobranca(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('contas_receber')
+        .update({ status: 'CANCELADO', updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Falha ao cancelar cobrança.' };
+    }
+  }
+
+  async reabrirCobranca(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('contas_receber')
+        .update({ status: 'PENDENTE', data_recebimento: null, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Falha ao reabrir cobrança.' };
+    }
+  }
+
+  async listClientesResumo(empresaOperadoraId?: string): Promise<ClienteResumo[]> {
+    try {
+      let query = supabase
+        .from('clientes')
+        .select('id, empresas(nome_fantasia, razao_social)')
+        .order('created_at', { ascending: false });
+      if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
+      const { data, error } = await query;
+      if (error) return [];
+      return ((data || []) as any[]).map((c) => ({
+        id: c.id,
+        nome: c.empresas?.[0]?.nome_fantasia || c.empresas?.[0]?.razao_social || `Cliente ${String(c.id).slice(0, 8)}`,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async listContratosResumo(empresaOperadoraId?: string): Promise<ContratoResumo[]> {
+    try {
+      let query = supabase
+        .from('contratos')
+        .select('id, numero_contrato, cliente_id')
+        .order('created_at', { ascending: false });
+      if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
+      const { data, error } = await query;
+      if (error) return [];
+      return (data || []) as ContratoResumo[];
+    } catch {
+      return [];
+    }
+  }
+}
+
+const COBRANCA_SELECT =
+  '*, cliente:clientes!contas_receber_cliente_id_fkey(id,empresas(nome_fantasia,razao_social)), contrato:contratos!contas_receber_contrato_id_fkey(id,numero_contrato), pagamentos:pagamentos!pagamentos_conta_receber_id_fkey(id,meio_pagamento,valor_pago,data_liquidacao)';
+
+export type CobrancaSituacao = 'ABERTA' | 'VENCENDO_HOJE' | 'ATRASADA' | 'PAGA' | 'PARCIAL' | 'CANCELADA';
+
+export interface CobrancaPagamento {
+  id: string;
+  meio_pagamento: string;
+  valor_pago: number;
+  data_liquidacao: string;
+}
+
+export interface Cobranca {
+  id: string;
+  empresa_operadora_id: string | null;
+  contrato_id: string | null;
+  cliente_id: string | null;
+  numero_parcela: number;
+  total_parcelas: number;
+  valor: number;
+  data_vencimento: string;
+  data_recebimento: string | null;
+  status: ContaStatus;
+  created_at: string;
+  updated_at: string;
+  cliente?: { id: string; empresas?: { nome_fantasia?: string | null; razao_social?: string | null }[] } | null;
+  contrato?: { id: string; numero_contrato: string | null } | null;
+  pagamentos?: CobrancaPagamento[] | null;
+}
+
+export interface ClienteResumo {
+  id: string;
+  nome: string;
+}
+
+export interface ContratoResumo {
+  id: string;
+  numero_contrato: string | null;
+  cliente_id: string | null;
+}
+
+export interface CreateCobrancaPayload {
+  empresaOperadoraId: string;
+  contratoId: string;
+  clienteId: string;
+  valor: number;
+  dataVencimento: string;
+  numeroParcela?: number;
+  totalParcelas?: number;
+}
+
+export function deriveCobrancaSituacao(status: string, dataVencimento: string | null | undefined, hoje: Date = new Date()): CobrancaSituacao {
+  if (status === 'PAGO' || status === 'PAGA') return 'PAGA';
+  if (status === 'CANCELADO' || status === 'CANCELADA') return 'CANCELADA';
+  if (status === 'PARCIAL' || status === 'PARCIAL_PAGA') return 'PARCIAL';
+  if (!dataVencimento) return 'ABERTA';
+  const [ano, mes, dia] = String(dataVencimento).split('-').map(Number);
+  if (!ano || !mes || !dia) return 'ABERTA';
+  const venc = new Date(ano, mes - 1, dia);
+  const base = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const diffDias = Math.round((venc.getTime() - base.getTime()) / 86400000);
+  if (diffDias < 0) return 'ATRASADA';
+  if (diffDias === 0) return 'VENCENDO_HOJE';
+  return 'ABERTA';
+}
+
+export function formatarNomeCliente(cobranca: Cobranca): string {
+  const nome = cobranca.cliente?.empresas?.[0]?.nome_fantasia || cobranca.cliente?.empresas?.[0]?.razao_social;
+  return nome || `Cliente ${cobranca.cliente_id ? cobranca.cliente_id.slice(0, 8) : '—'}`;
 }
 
 export const financeiroService = new FinanceiroService();

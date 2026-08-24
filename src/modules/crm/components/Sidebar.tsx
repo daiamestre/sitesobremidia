@@ -32,7 +32,7 @@ export function CrmSidebar() {
   const location = useLocation();
   const { userName, userEmail, userInitials, userCargo, handleCrmLogout, isLoggingOut } = useCrmSession();
   const { total: totalNaoLidas } = useCentralUnread();
-  const { isOwner } = useRbac();
+  const { isOwner, isAdmin } = useRbac();
   const [minhasPermissoes, setMinhasPermissoes] = useState<string[]>([]);
 
   // Central de Acessos é delegada: visível apenas para OWNER ou quem possui
@@ -82,6 +82,7 @@ export function CrmSidebar() {
     { label: 'Pontos de Exibição', icon: MapPin, path: isWorkspace ? '/workspace/screens' : '/representantes/pontos' },
     { label: 'Agenda', icon: Calendar, path: `${basePath}/agenda` },
     { label: 'Financeiro', icon: DollarSign, path: `${basePath}/financeiro` },
+    ...(isOwner || isAdmin ? [{ label: 'Central de Cobranças', icon: DollarSign, path: '/financeiro/cobrancas' }] : []),
     { label: 'BI & Relatórios', icon: BarChart3, path: `${basePath}/bi` },
     // MENSAGENS: entra logo abaixo de BI & Relatórios em todos os painéis
     { label: 'Mensagens', icon: Bell, path: `${basePath}/central`, badge: totalNaoLidas },

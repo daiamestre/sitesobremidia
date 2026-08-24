@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
@@ -48,6 +48,7 @@ const CostCenterPage = lazy(() => import("./modules/crm/pages/CostCenterPage"));
 const InvoicesPage = lazy(() => import("./modules/crm/pages/InvoicesPage"));
 const FinanceExecutiveDashboard = lazy(() => import("./modules/crm/pages/FinanceExecutiveDashboard"));
 const BillingDashboard = lazy(() => import("./modules/crm/pages/BillingDashboard"));
+const BillingDetailPage = lazy(() => import("./modules/crm/pages/BillingDetailPage"));
 const CommissionRulesPage = lazy(() => import("./modules/crm/pages/CommissionRulesPage"));
 const DREPage = lazy(() => import("./modules/crm/pages/DREPage"));
 const ExecutiveDashboard = lazy(() => import("./modules/crm/pages/ExecutiveDashboard"));
@@ -164,6 +165,7 @@ const App = () => {
                     <Route path="financeiro/notas-fiscais" element={<InvoicesPage />} />
                     <Route path="financeiro/executivo" element={<FinanceExecutiveDashboard />} />
                     <Route path="financeiro/cobrancas" element={<BillingDashboard />} />
+                    <Route path="financeiro/cobrancas/:id" element={<BillingDetailPage />} />
                     <Route path="financeiro/regras-comissao" element={<CommissionRulesPage />} />
                     <Route path="financeiro/dre" element={<DREPage />} />
                     <Route path="analytics" element={<ExecutiveDashboard />} />
@@ -206,6 +208,13 @@ const App = () => {
                   <Route path="/player/*" element={<Player />} />
                   <Route path="/player-demo" element={<WebPlayerDemo />} />
                   <Route path="/admin/solicitacoes/:id" element={<AdminSolicitacaoAprovacao />} />
+
+                  {/* FINANCEIRO STANDALONE (deep-linkable: /financeiro/cobrancas) */}
+                  <Route path="/financeiro" element={<RequireApproval><CrmLayout /></RequireApproval>}>
+                    <Route index element={<Navigate to="/financeiro/cobrancas" replace />} />
+                    <Route path="cobrancas" element={<BillingDashboard />} />
+                    <Route path="cobrancas/:id" element={<BillingDetailPage />} />
+                  </Route>
 
                   {/* DASHBOARD ROUTES */}
                   <Route path="/dashboard" element={<RequireApproval><DashboardLayout /></RequireApproval>}>
@@ -253,6 +262,7 @@ const App = () => {
                     <Route path="financeiro" element={<FinanceExecutiveDashboard />} />
                     <Route path="financeiro/dre" element={<DREPage />} />
                     <Route path="financeiro/cobrancas" element={<BillingDashboard />} />
+                    <Route path="financeiro/cobrancas/:id" element={<BillingDetailPage />} />
                     <Route path="financeiro/comissoes" element={<CommissionPage />} />
                     <Route path="bi" element={<BIExecutiveDashboard />} />
                     <Route path="noc" element={<NocDashboardPage />} />
