@@ -54,7 +54,8 @@ export const PERMISSOES_DISPONIVEIS = [
 ] as const;
 
 export const EDGE_FUNCTION_URL =
-  (import.meta.env.VITE_SUPABASE_URL as string).replace(/\/$/, '') + '/functions/v1/create-corporate-user';
+  ((import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? 'http://localhost:54321').replace(/\/$/, '') +
+  '/functions/v1/create-corporate-user';
 
 export class CorporateUsersService {
   async getMyPermissions(): Promise<string[]> {
