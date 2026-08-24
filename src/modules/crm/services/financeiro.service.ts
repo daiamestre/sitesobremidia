@@ -732,7 +732,7 @@ export class FinanceiroService {
 }
 
 const COBRANCA_SELECT =
-  '*, cliente:clientes!contas_receber_cliente_id_fkey(id,empresas(nome_fantasia,razao_social)), contrato:contratos!contas_receber_contrato_id_fkey(id,numero_contrato), pagamentos:pagamentos!pagamentos_conta_receber_id_fkey(id,meio_pagamento,valor_pago,data_liquidacao)';
+  '*, cliente:clientes!contas_receber_cliente_id_fkey(id,empresas(nome_fantasia,razao_social)), contrato:contratos!contas_receber_contrato_id_fkey(id,numero_contrato,tipo_contrato), pagamentos:pagamentos!pagamentos_conta_receber_id_fkey(id,meio_pagamento,valor_pago,data_liquidacao)';
 
 export type CobrancaSituacao = 'ABERTA' | 'VENCENDO_HOJE' | 'ATRASADA' | 'PAGA' | 'PARCIAL' | 'CANCELADA';
 
@@ -766,7 +766,7 @@ export interface Cobranca {
   saldo?: number;
   notes?: string | null;
   cliente?: { id: string; empresas?: { nome_fantasia?: string | null; razao_social?: string | null }[] } | null;
-  contrato?: { id: string; numero_contrato: string | null } | null;
+  contrato?: { id: string; numero_contrato: string | null; tipo_contrato?: string | null } | null;
   pagamentos?: CobrancaPagamento[] | null;
 }
 

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft, BadgeCheck, Ban, CalendarClock, CheckCircle2, Copy, CreditCard,
+  ArrowLeft, BadgeCheck, Ban, Banknote, CalendarClock, CheckCircle2, Copy, CreditCard,
   Loader2, Mail, RotateCcw, Send, ShieldAlert, ShieldBan,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -141,6 +141,47 @@ export default function BillingDetailPage() {
     const venc = new Date(`${String(cobranca.data_vencimento).slice(0, 10)}T00:00:00`).getTime();
     return Math.max(0, Math.round((new Date(new Date().toDateString()).getTime() - venc) / 86400000));
   }, [cobranca]);
+
+  const { data: servicosContrato } = useQuery({
+    queryKey: ['central-servicos-contrato', cobranca?.contrato_id],
+    queryFn: () => financeiroService.listServicosDeContrato(cobranca!.contrato_id!),
+    enabled: podeAcessar && !!cobranca?.contrato_id,
+  });
+
+  const timelineEventos = useMemo(() => {
+    if (!cobranca) return [];
+    const evs: { titulo: string; quando: string; quandoISO: number; origem: string; ok: boolean }[] = [];
+    evs.push({
+      titulo: EVENTO_LABEL['COBRANCA_CRIADA'],
+      quando: fmtDataHora(cobranca.created_at),
+      quandoISO: new Date(cobranca.created_at).getTime() || 0,
+      origem: cobranca.gerada_automaticamente ? 'Recorrência automática' : 'Manual',
+      ok: true,
+    });
+    for (const ev of historico?.eventos || []) {
+      if (/COBRANCA_(CRIADA|GERADA)/.test(ev.evento)) continue;
+      evs.push({
+        titulo: EVENTO_LABEL[ev.evento] || ev.evento,
+        quando: fmtDataHora(ev.criado_em),
+        quandoISO: new Date(ev.criado_em).getTime() || 0,
+        origem: Object.entries(ev.detalhes || {})
+          .filter(([k]) => ['dias_atraso', 'meio', 'valor_pago', 'regra', 'motivo'].includes(k))
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(' · ') || '—',
+        ok: !/FALHA|BLOQUEADO|INADIMPLENCIA/.test(ev.evento),
+      });
+    }
+    for (const j of historico?.jobsCobranca || []) {
+      evs.push({
+        titulo: `Contato ${j.evento.replace('COLECTION_', '')} — ${j.status}`,
+        quando: fmtDataHora(j.processado_em || j.criado_em),
+        quandoISO: new Date(j.processado_em || j.criado_em).getTime() || 0,
+        origem: j.tentativas > 0 ? `tentativa(s): ${j.tentativas}/${j.max_tentativas}${j.erro_ultimo ? ` · erro: ${j.erro_ultimo}` : ''}` : 'na fila',
+        ok: j.status === 'COMPLETED',
+      });
+    }
+    return evs.sort((a, b) => b.quandoISO - a.quandoISO).slice(0, 40);
+  }, [cobranca, historico]);
 
   if (!podeAcessar) {
     return (
@@ -297,49 +338,20 @@ export default function BillingDetailPage() {
     }
   };
 
-  const timelineEventos = useMemo(() => {
-    const evs: { titulo: string; quando: string; origem: string; ok: boolean }[] = [];
-    evs.push({
-      titulo: EVENTO_LABEL['COBRANCA_CRIADA'] + ((historico?.eventos || []).find((e) => e.evento === 'COBRANCA_GERADA_AUTOMATICA') ? '' : ''),
-      quando: fmtDataHora(cobranca.created_at),
-      origem: cobranca.gerada_automaticamente ? 'Recorrência automática' : 'Manual',
-      ok: true,
-    });
-    for (const ev of historico?.eventos || []) {
-      if (/COBRANCA_(CRIADA|GERADA)/.test(ev.evento)) continue;
-      evs.push({
-        titulo: EVENTO_LABEL[ev.evento] || ev.evento,
-        quando: fmtDataHora(ev.criado_em),
-        origem: Object.entries(ev.detalhes || {})
-          .filter(([k]) => ['dias_atraso', 'meio', 'valor_pago', 'regra', 'motivo'].includes(k))
-          .map(([k, v]) => `${k}: ${v}`)
-          .join(' · ') || '—',
-        ok: !/FALHA|BLOQUEADO|INADIMPLENCIA/.test(ev.evento),
-      });
-    }
-    for (const j of historico?.jobsCobranca || []) {
-      evs.push({
-        titulo: `Contato ${j.evento.replace('COLECTION_', '')} — ${j.status}`,
-        quando: fmtDataHora(j.processado_em || j.criado_em),
-        origem: j.tentativas > 0 ? `tentativa(s): ${j.tentativas}/${j.max_tentativas}${j.erro_ultimo ? ` · erro: ${j.erro_ultimo}` : ''}` : 'na fila',
-        ok: j.status === 'COMPLETED',
-      });
-    }
-    return evs.sort((a, b) => new Date(b.quando.split(' ').reverse().join(' ')).getTime() - new Date(a.quando.split(' ').reverse().join(' ')).getTime()).slice(0, 40);
-  }, [cobranca, historico]);
-
   const dadosGerais: { label: string; valor: string }[] = [
     { label: 'Cliente', valor: formatarNomeCliente(cobranca) },
     { label: 'Contrato', valor: cobranca.contrato?.numero_contrato || '—' },
+    { label: 'Tipo de contrato', valor: cobranca.contrato?.tipo_contrato || '—' },
+    { label: 'Serviço faturado', valor: servicosContrato?.[0]?.nome || cobranca.notes || '—' },
     { label: 'Parcela', valor: `${cobranca.numero_parcela} de ${cobranca.total_parcelas}` },
     { label: 'Documento', valor: cobranca.numero_documento || '—' },
-    { label: 'Valor', valor: brl(cobranca.valor) },
+    { label: 'Valor original', valor: brl(cobranca.valor) },
     { label: 'Pago / Saldo', valor: `${brl(cobranca.valor_pago ?? 0)} / ${brl(cobranca.saldo ?? cobranca.valor)}` },
     { label: 'Competência', valor: cobranca.competencia_date ? fmtData(cobranca.competencia_date) : '—' },
     { label: 'Vencimento', valor: `${fmtData(cobranca.data_vencimento)}${diasEmAtraso > 0 ? ` (${diasEmAtraso}d atraso)` : ''}` },
     { label: 'Método', valor: cobranca.metodo_cobranca || '—' },
     { label: 'Recorrência', valor: cobranca.recorrencia || 'AVULSA' },
-    { label: 'Status no banco', valor: cobranca.status },
+    { label: 'Status', valor: cobranca.status },
     { label: 'Observações', valor: cobranca.notes || '—' },
   ];
 
@@ -403,6 +415,42 @@ export default function BillingDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* CONTAS A RECEBER — a cobrança é a conta a receber (mesma linha, 1:1) */}
+      <Card className="border border-emerald-500/20 bg-slate-900/80 backdrop-blur-xl rounded-2xl">
+        <CardHeader className="border-b border-white/10 pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+            <Banknote className="h-4 w-4 text-emerald-400" /> Contas a Receber
+          </CardTitle>
+          <button type="button" onClick={copiarId} className="text-[10px] text-slate-500 hover:text-primary inline-flex items-center gap-1 font-mono">
+            CR {cobranca.id} <Copy className="h-3 w-3" />
+          </button>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { label: 'Valor original', valor: brl(cobranca.valor), cor: 'text-slate-100' },
+              { label: 'Valor recebido', valor: brl(cobranca.valor_pago ?? 0), cor: 'text-emerald-400' },
+              { label: 'Saldo em aberto', valor: brl(cobranca.saldo ?? cobranca.valor), cor: Number(cobranca.saldo ?? cobranca.valor) > 0 ? 'text-amber-400' : 'text-emerald-400' },
+              { label: 'Vencimento', valor: fmtData(cobranca.data_vencimento), cor: 'text-slate-200' },
+              { label: 'Status', valor: cobranca.status, cor: 'text-slate-200' },
+              { label: 'Criada em', valor: fmtData(cobranca.created_at), cor: 'text-slate-400' },
+            ].map((d) => (
+              <div key={d.label} className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+                <span className="text-[10px] uppercase tracking-wide text-slate-500">{d.label}</span>
+                <p className={`text-sm font-bold ${d.cor} break-words`}>{d.valor}</p>
+              </div>
+            ))}
+          </div>
+          {(cobranca.pagamentos?.length || historico?.pagamentos?.length) ? (
+            <p className="text-[11px] text-slate-500">
+              {Math.max(cobranca.pagamentos?.length || 0, historico?.pagamentos?.length || 0)} baixa(s) registrada(s) — detalhes na seção Pagamentos vinculados abaixo.
+            </p>
+          ) : (
+            <p className="text-[11px] text-slate-500">Nenhuma baixa registrada até o momento.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 border border-white/10 bg-slate-900/80 backdrop-blur-xl rounded-2xl">
