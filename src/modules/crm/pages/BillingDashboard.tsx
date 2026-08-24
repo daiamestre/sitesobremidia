@@ -20,6 +20,7 @@ import {
   financeiroService,
   deriveCobrancaSituacao,
   formatarNomeCliente,
+  rotaCobranca,
   type Cobranca,
   type CobrancaSituacao,
   type ClienteResumo,
@@ -329,7 +330,7 @@ export default function BillingDashboard() {
                 agenda.proximas.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => navigate(`/financeiro/cobrancas/${c.id}`)}
+                    onClick={() => navigate(rotaCobranca(c))}
                     className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-white/5 hover:border-white/15 transition-colors text-left"
                   >
                     <div className="min-w-0">
@@ -362,7 +363,7 @@ export default function BillingDashboard() {
                 agenda.vencidas.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => navigate(`/financeiro/cobrancas/${c.id}`)}
+                    onClick={() => navigate(rotaCobranca(c))}
                     className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-white/5 hover:border-white/15 transition-colors text-left"
                   >
                     <div className="min-w-0">
@@ -499,13 +500,13 @@ export default function BillingDashboard() {
                   <TableRow
                     key={c.id}
                     className="border-white/10 hover:bg-white/5 cursor-pointer"
-                    onClick={() => navigate(`/financeiro/cobrancas/${c.id}`)}
+                    onClick={() => navigate(rotaCobranca(c))}
                   >
                     <TableCell>
                       <strong className="text-white block text-xs">{c.nomeCliente}</strong>
                     </TableCell>
                     <TableCell className="text-xs text-slate-300 font-mono">
-                      {c.numero_documento || c.contrato?.numero_contrato || '—'}
+                      {c.codigo_operacional || c.numero_documento || c.contrato?.numero_contrato || '—'}
                     </TableCell>
                     <TableCell className="text-xs text-slate-300">{c.metodo_cobranca || '—'}</TableCell>
                     <TableCell className="text-xs text-slate-100 font-semibold">{brl(c.valor)}</TableCell>
@@ -528,7 +529,7 @@ export default function BillingDashboard() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => navigate(`/financeiro/cobrancas/${c.id}`)}
+                        onClick={() => navigate(rotaCobranca(c))}
                         className="border-primary/30 text-primary hover:bg-primary/10 text-xs gap-1 h-8"
                       >
                         Detalhes

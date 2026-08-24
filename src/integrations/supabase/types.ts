@@ -1948,6 +1948,7 @@ export type Database = {
       contas_receber: {
         Row: {
           cliente_id: string | null
+          codigo_operacional: string
           competencia_date: string | null
           contrato_id: string
           created_at: string
@@ -1974,6 +1975,7 @@ export type Database = {
         }
         Insert: {
           cliente_id?: string | null
+          codigo_operacional: string
           competencia_date?: string | null
           contrato_id: string
           created_at?: string
@@ -2000,6 +2002,7 @@ export type Database = {
         }
         Update: {
           cliente_id?: string | null
+          codigo_operacional?: string
           competencia_date?: string | null
           contrato_id?: string
           created_at?: string
@@ -9068,6 +9071,42 @@ export type Database = {
         }
         Returns: undefined
       }
+      buscar_conta_por_documento: {
+        Args: { p_doc: string }
+        Returns: {
+          cliente_id: string | null
+          codigo_operacional: string
+          competencia_date: string | null
+          contrato_id: string
+          created_at: string
+          currency: string
+          data_recebimento: string | null
+          data_vencimento: string
+          empresa_operadora_id: string | null
+          gerada_automaticamente: boolean
+          id: string
+          issue_date: string | null
+          metodo_cobranca: string | null
+          notes: string | null
+          numero_documento: string | null
+          numero_parcela: number
+          payment_date: string | null
+          recorrencia: string | null
+          saldo: number | null
+          situacao_cobranca: string
+          status: string
+          total_parcelas: number
+          updated_at: string
+          valor: number
+          valor_pago: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "contas_receber"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       can_access_client_data: {
         Args: { p_empresa_id?: string; p_user_id?: string }
         Returns: boolean
@@ -9238,6 +9277,7 @@ export type Database = {
         Args: { p_empresa_operadora_id?: string; p_meses_frente?: number }
         Returns: Json
       }
+      gerar_codigo_conta: { Args: { p_id: string }; Returns: string }
       gerar_numero_documento: {
         Args: { p_ano?: number; p_tenant_id: string; p_tipo: string }
         Returns: string

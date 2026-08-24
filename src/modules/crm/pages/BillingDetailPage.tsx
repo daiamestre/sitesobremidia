@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -30,6 +30,8 @@ import {
   financeiroService,
   deriveCobrancaSituacao,
   formatarNomeCliente,
+  codigoOperacionalCobranca,
+  isUuid,
   type CobrancaSituacao,
 } from '../services/financeiro.service';
 
@@ -183,6 +185,17 @@ export default function BillingDetailPage() {
     return evs.sort((a, b) => b.quandoISO - a.quandoISO).slice(0, 40);
   }, [cobranca, historico]);
 
+  const codigoOperacional = codigoOperacionalCobranca(cobranca);
+
+  // URL legada (UUID) → redireciona para a URL canônica do código operacional.
+  // O UUID continua resolvendo a entidade internamente; apenas deixa de ser a URL principal.
+  useEffect(() => {
+    if (!cobranca || !id || !isUuid(id)) return;
+    if (codigoOperacional && codigoOperacional !== id) {
+      navigate(`/financeiro/cobrancas/${encodeURIComponent(codigoOperacional)}`, { replace: true });
+    }
+  }, [cobranca, id, codigoOperacional, navigate]);
+
   if (!podeAcessar) {
     return (
       <div className="max-w-xl mx-auto py-16 animate-fade-in">
@@ -332,7 +345,16 @@ export default function BillingDetailPage() {
   const copiarId = async () => {
     try {
       await navigator.clipboard.writeText(cobranca.id);
-      toast({ title: 'Identificador copiado' });
+      toast({ title: 'UUID técnico copiado' });
+    } catch {
+      toast({ title: 'Não foi possível copiar', variant: 'destructive' });
+    }
+  };
+
+  const copiarCodigo = async () => {
+    try {
+      await navigator.clipboard.writeText(codigoOperacional);
+      toast({ title: 'Código da cobrança copiado' });
     } catch {
       toast({ title: 'Não foi possível copiar', variant: 'destructive' });
     }
@@ -363,11 +385,15 @@ export default function BillingDetailPage() {
             <ArrowLeft className="h-4 w-4" /> Voltar para a Central
           </Button>
           <h2 className="text-2xl font-display font-extrabold text-white flex items-center gap-3">
-            Detalhes da Cobrança
+            {codigoOperacional ? (
+              <span className="font-mono tracking-tight text-emerald-400">{codigoOperacional}</span>
+            ) : (
+              'Detalhes da Cobrança'
+            )}
             {situacao && <Badge className={`${SITUACAO_BADGE[situacao]} border text-[11px]`}>{SITUACAO_LABEL[situacao]}</Badge>}
           </h2>
-          <button type="button" onClick={copiarId} className="text-[11px] text-slate-500 hover:text-primary inline-flex items-center gap-1">
-            ID {cobranca.id.slice(0, 8)}… <Copy className="h-3 w-3" />
+          <button type="button" onClick={copiarId} title="Identificador técnico interno" className="text-[10px] text-slate-600 hover:text-slate-400 inline-flex items-center gap-1 font-mono w-fit">
+            UUID técnico {cobranca.id.slice(0, 8)}… <Copy className="h-2.5 w-2.5" />
           </button>
         </div>
 
@@ -422,9 +448,11 @@ export default function BillingDetailPage() {
           <CardTitle className="text-base font-bold text-white flex items-center gap-2">
             <Banknote className="h-4 w-4 text-emerald-400" /> Contas a Receber
           </CardTitle>
-          <button type="button" onClick={copiarId} className="text-[10px] text-slate-500 hover:text-primary inline-flex items-center gap-1 font-mono">
-            CR {cobranca.id} <Copy className="h-3 w-3" />
-          </button>
+          {codigoOperacional && (
+            <button type="button" onClick={copiarCodigo} className="text-[10px] text-slate-500 hover:text-primary inline-flex items-center gap-1 font-mono">
+              CR · {codigoOperacional} <Copy className="h-3 w-3" />
+            </button>
+          )}
         </CardHeader>
         <CardContent className="pt-4 space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

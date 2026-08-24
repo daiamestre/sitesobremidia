@@ -97,13 +97,10 @@ async function handle(req: Request): Promise<Response> {
     ({ data: conta } = await admin.from("contas_receber").select("id, empresa_operadora_id, status").eq("id", contaReceberId).maybeSingle());
   }
   if (!conta && numeroDocumento) {
-    ({ data: conta } = await admin
-      .from("contas_receber")
-      .select("id, empresa_operadora_id, status")
-      .or(`numero_documento.eq.${numeroDocumento},numero_documento.ilike.%${numeroDocumento}%`)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle());
+    const rpc = await admin.rpc("buscar_conta_por_documento", { p_doc: numeroDocumento });
+    const lista = (rpc.data as any[]) || null;
+    conta = lista && lista.length > 0 ? lista[0] : null;
+    void rpc.error;
   }
   if (!conta) return json(404, { erro: "cobrança não encontrada" });
   if (["CANCELADA", "CANCELADO"].includes(conta.status)) return json(422, { erro: "cobrança cancelada — recusar pagamento" });

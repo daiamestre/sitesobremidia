@@ -456,12 +456,19 @@ export class FinanceiroService {
     }
   }
 
-  async getCobranca(id: string): Promise<{ data: Cobranca | null; error: string | null }> {
+  /**
+   * Resolve a cobrança pelo código operacional (codigo_operacional,
+   * ex.: COB-2026-000030) ou por UUID legado (identidade técnica interna).
+   */
+  async getCobranca(ref: string): Promise<{ data: Cobranca | null; error: string | null }> {
     try {
+      const porUuid = isUuid(ref);
+      const coluna = porUuid ? 'id' : 'codigo_operacional';
+      const valor = porUuid ? ref : decodeURIComponent(ref).toUpperCase();
       const { data, error } = await supabase
         .from('contas_receber')
         .select(COBRANCA_SELECT)
-        .eq('id', id)
+        .eq(coluna, valor)
         .limit(1)
         .maybeSingle();
       if (error) return { data: null, error: error.message };
@@ -757,6 +764,7 @@ export interface Cobranca {
   created_at: string;
   updated_at: string;
   numero_documento?: string | null;
+  codigo_operacional?: string | null;
   competencia_date?: string | null;
   metodo_cobranca?: string | null;
   recorrencia?: string | null;
@@ -849,6 +857,33 @@ export function deriveCobrancaSituacao(status: string, dataVencimento: string | 
 export function formatarNomeCliente(cobranca: Cobranca): string {
   const nome = cobranca.cliente?.empresas?.[0]?.nome_fantasia || cobranca.cliente?.empresas?.[0]?.razao_social;
   return nome || `Cliente ${cobranca.cliente_id ? cobranca.cliente_id.slice(0, 8) : '—'}`;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Identifica se o parâmetro de rota é um UUID legado (identidade técnica)
+ * ou um código operacional (ex.: COB-2026-000184).
+ */
+export function isUuid(valor: string | null | undefined): boolean {
+  return !!valor && UUID_RE.test(valor);
+}
+
+/**
+ * Código operacional exibível da cobrança (nunca o UUID).
+ */
+export function codigoOperacionalCobranca(cobranca: Pick<Cobranca, 'id' | 'codigo_operacional'> | null | undefined): string {
+  const code = cobranca?.codigo_operacional?.trim();
+  return code || '';
+}
+
+/**
+ * Rota canônica de detalhe: usa o código operacional quando existir;
+ * UUID apenas como fallback transitório (a página redireciona para a URL do código).
+ */
+export function rotaCobranca(cobranca: Pick<Cobranca, 'id' | 'codigo_operacional'>): string {
+  const code = codigoOperacionalCobranca(cobranca);
+  return `/financeiro/cobrancas/${encodeURIComponent(code || cobranca.id)}`;
 }
 
 export const financeiroService = new FinanceiroService();
