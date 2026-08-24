@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Banknote, CalendarClock, CheckCircle2, Clock, Loader2, PlusCircle, RefreshCw, SearchX, ShieldAlert, TrendingUp, AlertTriangle } from 'lucide-react';
+import {
+  AlertTriangle, Banknote, CalendarClock, CheckCircle2, Clock, Loader2,
+  PlusCircle, RefreshCw, SearchX, ShieldAlert, ShieldBan, TrendingUp, Zap,
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +53,16 @@ const SITUACAO_BADGE: Record<CobrancaSituacao, string> = {
   CANCELADA: 'bg-slate-700/60 text-slate-300 border-slate-600/40',
 };
 
+const SITUACAO_COBRANCA_LABEL: Record<string, string> = {
+  NENHUMA: '',
+  EM_COBRANCA: 'Em cobrança',
+  CONTATO_1: '1º contato',
+  CONTATO_2: '2º contato',
+  CONTATO_3: '3º contato',
+  INADIMPLENTE: 'Inadimplente',
+  BLOQUEADO: 'Bloqueado',
+};
+
 export default function BillingDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -61,13 +74,33 @@ export default function BillingDashboard() {
   const [filtroSituacao, setFiltroSituacao] = useState<string>('all');
   const [filtroPeriodo, setFiltroPeriodo] = useState<string>('all');
   const [filtroCliente, setFiltroCliente] = useState<string>('all');
+  const [filtroTipo, setFiltroTipo] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [processandoRegua, setProcessandoRegua] = useState(false);
 
   const podeAcessar = isOwner || isAdmin;
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ['central-cobrancas', empresaOperadoraId],
     queryFn: () => financeiroService.listCobrancas(empresaOperadoraId || undefined),
+    enabled: podeAcessar,
+  });
+
+  const { data: bloqueadosCount } = useQuery({
+    queryKey: ['central-bloqueados', empresaOperadoraId],
+    queryFn: () => financeiroService.contarBloqueados(empresaOperadoraId || undefined),
+    enabled: podeAcessar,
+  });
+
+  const { data: tiposContrato } = useQuery({
+    queryKey: ['central-tipos-contrato', empresaOperadoraId],
+    queryFn: () => financeiroService.listTiposContrato(empresaOperadoraId || undefined),
+    enabled: podeAcessar,
+  });
+
+  const { data: contratosResumo } = useQuery({
+    queryKey: ['central-contratos-tipo', empresaOperadoraId],
+    queryFn: () => financeiroService.listContratosResumo(empresaOperadoraId || undefined),
     enabled: podeAcessar,
   });
 
@@ -79,6 +112,10 @@ export default function BillingDashboard() {
         ...c,
         situacao: deriveCobrancaSituacao(c.status, c.data_vencimento),
         nomeCliente: formatarNomeCliente(c),
+        diasAtraso: (() => {
+          const d = new Date(`${String(c.data_vencimento).slice(0, 10)}T00:00:00`).getTime();
+          return Math.max(0, Math.round((new Date(new Date().toDateString()).getTime() - d) / 86400000));
+        })(),
       })),
     [cobrancas]
   );
@@ -89,16 +126,21 @@ export default function BillingDashboard() {
     return Array.from(mapa.entries()).filter(([id]) => id);
   }, [enriquecidas]);
 
-  const hojeZero = new Date(new Date().toDateString()).getTime();
   const diffDiasVenc = (iso: string) => {
     const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`).getTime();
-    return Math.round((d - hojeZero) / 86400000);
+    return Math.round((d - new Date(new Date().toDateString()).getTime()) / 86400000);
   };
 
   const filtradas = useMemo(() => {
     let lista = [...enriquecidas];
     if (filtroSituacao !== 'all') lista = lista.filter((c) => c.situacao === filtroSituacao);
     if (filtroCliente !== 'all') lista = lista.filter((c) => c.cliente_id === filtroCliente);
+    if (filtroTipo !== 'all') {
+      const idsDoTipo = new Set(
+        (contratosResumo || []).filter((ct) => ct.tipo_contrato === filtroTipo).map((ct) => ct.id)
+      );
+      lista = lista.filter((c) => c.contrato_id && idsDoTipo.has(c.contrato_id));
+    }
     if (filtroPeriodo !== 'all') {
       lista = lista.filter((c) => {
         const diff = diffDiasVenc(c.data_vencimento);
@@ -122,14 +164,15 @@ export default function BillingDashboard() {
         [
           c.nomeCliente,
           c.contrato?.numero_contrato,
-          c.pagamentos?.length ? String(c.pagamentos[0].meio_pagamento) : '',
+          c.numero_documento,
+          c.metodo_cobranca,
         ]
           .filter(Boolean)
           .some((campo) => String(campo).toLowerCase().includes(q))
       );
     }
-    return lista;
-  }, [enriquecidas, filtroSituacao, filtroCliente, filtroPeriodo, busca]);
+    return lista.sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento));
+  }, [enriquecidas, filtroSituacao, filtroCliente, filtroPeriodo, filtroTipo, contratosResumo, busca]);
 
   const kpis = useMemo(() => {
     const soma = (sit: CobrancaSituacao[]) =>
@@ -139,6 +182,9 @@ export default function BillingDashboard() {
     const atrasado = soma(['ATRASADA']);
     const parcial = soma(['PARCIAL']);
     const recebido = soma(['PAGA']);
+    const emCobranca = enriquecidas.filter((c) =>
+      ['EM_COBRANCA', 'CONTATO_1', 'CONTATO_2', 'CONTATO_3'].includes(c.situacao_cobranca || '')
+    );
     return {
       totalAReceber: aberto + atrasado + parcial,
       totalAberto: aberto,
@@ -149,8 +195,45 @@ export default function BillingDashboard() {
       totalRecebido: recebido,
       qtdPago: qtd(['PAGA']),
       qtdParcial: qtd(['PARCIAL']),
+      qtdEmCobranca: emCobranca.length,
+      valorEmCobranca: emCobranca.reduce((acc, c) => acc + Number(c.valor || 0), 0),
+      qtdInadimplentes: enriquecidas.filter((c) => c.situacao_cobranca === 'INADIMPLENTE').length,
+      bloqueados: bloqueadosCount ?? 0,
     };
+  }, [enriquecidas, bloqueadosCount]);
+
+  // AGENDA FINANCEIRA — próximas e vencidas com estágio da política
+  const agenda = useMemo(() => {
+    const abertas = enriquecidas.filter((c) => !['PAGA', 'CANCELADA'].includes(c.situacao));
+    const proximas = abertas
+      .filter((c) => diffDiasVenc(c.data_vencimento) >= 0 && diffDiasVenc(c.data_vencimento) <= 15)
+      .sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento))
+      .slice(0, 6);
+    const vencidas = abertas
+      .filter((c) => c.diasAtraso > 0)
+      .sort((a, b) => b.diasAtraso - a.diasAtraso)
+      .slice(0, 6);
+    return { proximas, vencidas };
   }, [enriquecidas]);
+
+  const handleProcessarRegua = async () => {
+    setProcessandoRegua(true);
+    try {
+      const r = await financeiroService.processarReguaCobranca(empresaOperadoraId || undefined);
+      if (!r.success) {
+        toast({ title: 'Erro na régua', description: r.error, variant: 'destructive' });
+        return;
+      }
+      const d = r.data || {};
+      toast({
+        title: 'Régua processada',
+        description: `Recorrentes geradas: ${d?.recorrencia?.cobrancas_geradas ?? 0} · Estágios: ${d.estagios_avancados ?? 0} · Inadimplências: ${d.inadimplencias_registradas ?? 0} · Bloqueios: ${d.clientes_bloqueados ?? 0}`,
+      });
+      refetch();
+    } finally {
+      setProcessandoRegua(false);
+    }
+  };
 
   if (!podeAcessar) {
     return (
@@ -177,10 +260,10 @@ export default function BillingDashboard() {
             Central de Cobranças
           </h2>
           <p className="text-xs text-slate-300">
-            Gestão de cobranças a receber: acompanhamento de vencimentos, baixas e situações por cliente.
+            Ciclo completo: contratos recorrentes, régua de contatos, inadimplência, bloqueio e conciliação.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             onClick={() => refetch()}
@@ -189,6 +272,15 @@ export default function BillingDashboard() {
           >
             {isRefetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Atualizar
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleProcessarRegua}
+            disabled={processandoRegua}
+            className="border-primary/40 text-primary hover:bg-primary/10 rounded-xl gap-2 text-xs"
+          >
+            {processandoRegua ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            Processar régua
           </Button>
           <Button
             onClick={() => setDialogOpen(true)}
@@ -200,14 +292,15 @@ export default function BillingDashboard() {
         </div>
       </div>
 
+      {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {[
           { titulo: 'Total a Receber', valor: brl(kpis.totalAReceber), sub: 'em aberto + parcial', icon: TrendingUp, cor: 'text-emerald-400' },
           { titulo: 'Em Aberto', valor: brl(kpis.totalAberto), sub: `${kpis.qtdAberto} cobrança(s)`, icon: Clock, cor: 'text-blue-400' },
-          { titulo: 'Vencendo Hoje', valor: String(kpis.qtdVencHoje), sub: 'cobrança(s)', icon: CalendarClock, cor: 'text-amber-400' },
-          { titulo: 'Em Atraso', valor: brl(kpis.totalAtrasado), sub: `${kpis.qtdAtrasado} cobrança(s)`, icon: AlertTriangle, cor: 'text-rose-400' },
+          { titulo: 'Em Cobrança', valor: brl(kpis.valorEmCobranca), sub: `${kpis.qtdEmCobranca} na régua`, icon: CalendarClock, cor: 'text-amber-400' },
+          { titulo: 'Inadimplentes', valor: String(kpis.qtdInadimplentes), sub: 'após 3º contato', icon: AlertTriangle, cor: 'text-rose-400' },
+          { titulo: 'Bloqueados', valor: String(kpis.bloqueados), sub: 'clientes suspensos', icon: ShieldBan, cor: 'text-rose-400' },
           { titulo: 'Recebido', valor: brl(kpis.totalRecebido), sub: `${kpis.qtdPago} baixa(s)`, icon: CheckCircle2, cor: 'text-emerald-400' },
-          { titulo: 'Parciais', valor: String(kpis.qtdParcial), sub: 'pagamento parcial', icon: Banknote, cor: 'text-indigo-400' },
         ].map((kpi) => (
           <Card key={kpi.titulo} className="border border-white/10 bg-slate-900/80 backdrop-blur-xl rounded-2xl">
             <CardContent className="pt-5 pb-4 px-5 space-y-1">
@@ -222,13 +315,85 @@ export default function BillingDashboard() {
         ))}
       </div>
 
+      {/* AGENDA FINANCEIRA */}
+      {!isLoading && !isError && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl rounded-2xl">
+            <CardContent className="p-5 space-y-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <CalendarClock className="h-4 w-4 text-blue-400" /> Próximos vencimentos (15 dias)
+              </h3>
+              {agenda.proximas.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4 text-center">Nenhum vencimento nos próximos 15 dias.</p>
+              ) : (
+                agenda.proximas.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => navigate(`/financeiro/cobrancas/${c.id}`)}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-white/5 hover:border-white/15 transition-colors text-left"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white truncate">{c.nomeCliente}</p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {c.contrato?.numero_contrato || c.numero_documento || '—'}
+                        {c.metodo_cobranca ? ` · ${c.metodo_cobranca}` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-xs font-bold text-white">{brl(c.valor)}</p>
+                      <p className={`text-[10px] ${diffDiasVenc(c.data_vencimento) <= 5 ? 'text-amber-400' : 'text-slate-500'}`}>
+                        {fmtData(c.data_vencimento)}
+                      </p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl rounded-2xl">
+            <CardContent className="p-5 space-y-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-rose-400" /> Cobranças vencidas
+              </h3>
+              {agenda.vencidas.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4 text-center">Nenhuma cobrança vencida. Excelente!</p>
+              ) : (
+                agenda.vencidas.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => navigate(`/financeiro/cobrancas/${c.id}`)}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-white/5 hover:border-white/15 transition-colors text-left"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white truncate">{c.nomeCliente}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {c.diasAtraso} dia(s) de atraso
+                        {c.situacao_cobranca && c.situacao_cobranca !== 'NENHUMA'
+                          ? ` · ${SITUACAO_COBRANCA_LABEL[c.situacao_cobranca] || c.situacao_cobranca}`
+                          : ''}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-xs font-bold text-rose-300">{brl(c.valor)}</p>
+                      <Badge className={`${SITUACAO_BADGE[c.situacao]} border text-[9px]`}>{SITUACAO_LABEL[c.situacao]}</Badge>
+                    </div>
+                  </button>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* FILTROS */}
       <div className="card bg-slate-900/80 backdrop-blur-xl p-6 rounded-2xl shadow-sm mb-6 border border-white/10">
         <h3 className="font-semibold text-white mb-4">Filtros</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           <div className="space-y-1.5">
             <Label className="text-xs text-slate-400">Busca</Label>
             <Input
-              placeholder="Cliente, contrato..."
+              placeholder="Cliente, contrato, documento..."
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               className="bg-slate-950 border-slate-700 text-slate-200"
@@ -275,9 +440,21 @@ export default function BillingDashboard() {
               <SelectContent className="bg-slate-950 border-slate-700 max-h-64">
                 <SelectItem value="all">Todos</SelectItem>
                 {clientesFiltro.map(([id, nome]) => (
-                  <SelectItem key={id} value={id}>
-                    {nome}
-                  </SelectItem>
+                  <SelectItem key={id} value={id}>{nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-400">Tipo de contrato</Label>
+            <Select value={filtroTipo} onValueChange={(v) => { setFiltroTipo(v); }}>
+              <SelectTrigger className="bg-slate-950 border-slate-700 text-slate-200">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-950 border-slate-700 max-h-64">
+                <SelectItem value="all">Todos</SelectItem>
+                {(tiposContrato || []).map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -285,6 +462,7 @@ export default function BillingDashboard() {
         </div>
       </div>
 
+      {/* LISTAGEM */}
       {isLoading ? (
         <div className="text-center py-16">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -308,11 +486,11 @@ export default function BillingDashboard() {
                 <TableRow className="border-white/10 hover:bg-transparent">
                   <TableHead className="text-slate-300">Cliente</TableHead>
                   <TableHead className="text-slate-300">Referência</TableHead>
-                  <TableHead className="text-slate-300">Parcela</TableHead>
+                  <TableHead className="text-slate-300">Método</TableHead>
                   <TableHead className="text-slate-300">Valor</TableHead>
                   <TableHead className="text-slate-300">Vencimento</TableHead>
-                  <TableHead className="text-slate-300">Pagamento</TableHead>
                   <TableHead className="text-slate-300">Situação</TableHead>
+                  <TableHead className="text-slate-300">Régua</TableHead>
                   <TableHead className="text-right text-slate-300">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -327,18 +505,24 @@ export default function BillingDashboard() {
                       <strong className="text-white block text-xs">{c.nomeCliente}</strong>
                     </TableCell>
                     <TableCell className="text-xs text-slate-300 font-mono">
-                      {c.contrato?.numero_contrato || '—'}
+                      {c.numero_documento || c.contrato?.numero_contrato || '—'}
                     </TableCell>
-                    <TableCell className="text-xs text-slate-300">
-                      {c.numero_parcela}/{c.total_parcelas}
-                    </TableCell>
+                    <TableCell className="text-xs text-slate-300">{c.metodo_cobranca || '—'}</TableCell>
                     <TableCell className="text-xs text-slate-100 font-semibold">{brl(c.valor)}</TableCell>
                     <TableCell className="text-xs text-slate-300">{fmtData(c.data_vencimento)}</TableCell>
-                    <TableCell className="text-xs text-slate-300">{fmtData(c.data_recebimento)}</TableCell>
                     <TableCell>
                       <Badge className={`${SITUACAO_BADGE[c.situacao]} border text-[11px]`}>
                         {SITUACAO_LABEL[c.situacao]}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-[11px]">
+                      {c.situacao_cobranca && c.situacao_cobranca !== 'NENHUMA' ? (
+                        <span className={c.situacao_cobranca === 'INADIMPLENTE' ? 'text-rose-400 font-semibold' : 'text-amber-400'}>
+                          {SITUACAO_COBRANCA_LABEL[c.situacao_cobranca]}
+                        </span>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <Button
@@ -374,6 +558,7 @@ export default function BillingDashboard() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         empresaOperadoraId={empresaOperadoraId}
+        tiposContrato={tiposContrato || []}
         onCriada={() => {
           queryClient.invalidateQueries({ queryKey: ['central-cobrancas'] });
           toast({ title: 'Cobrança criada', description: 'A cobrança foi registrada em contas a receber.' });
@@ -383,22 +568,32 @@ export default function BillingDashboard() {
   );
 }
 
+type Periodicidade = 'AVULSA' | 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
+
 function NovaCobrancaDialog({
   open,
   onOpenChange,
   empresaOperadoraId,
+  tiposContrato,
   onCriada,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   empresaOperadoraId: string | null;
+  tiposContrato: string[];
   onCriada: () => void;
 }) {
   const { toast } = useToast();
   const [clienteId, setClienteId] = useState<string>('');
+  const [tipoContrato, setTipoContrato] = useState<string>('');
   const [contratoId, setContratoId] = useState<string>('');
+  const [servicoId, setServicoId] = useState<string>('');
+  const [descricao, setDescricao] = useState<string>('');
   const [valor, setValor] = useState<string>('');
+  const [competencia, setCompetencia] = useState<string>(() => new Date().toISOString().slice(0, 7));
   const [vencimento, setVencimento] = useState<string>('');
+  const [periodicidade, setPeriodicidade] = useState<Periodicidade>('AVULSA');
+  const [metodo, setMetodo] = useState<string>('PIX');
   const [salvando, setSalvando] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -414,14 +609,19 @@ function NovaCobrancaDialog({
     enabled: open,
   });
 
-  const contratosDoCliente = (contratos || []).filter((ct: ContratoResumo) => ct.cliente_id === clienteId);
-  const clientesLista: ClienteResumo[] = clientes || [];
+  const { data: servicos } = useQuery({
+    queryKey: ['central-servicos-contrato', contratoId],
+    queryFn: () => financeiroService.listServicosDeContrato(contratoId),
+    enabled: open && !!contratoId,
+  });
+
+  const contratosDoCliente = (contratos || []).filter(
+    (ct: any) => ct.cliente_id === clienteId && (!tipoContrato || (ct as any).tipo_contrato === tipoContrato)
+  );
 
   const reset = () => {
-    setClienteId('');
-    setContratoId('');
-    setValor('');
-    setVencimento('');
+    setClienteId(''); setTipoContrato(''); setContratoId(''); setServicoId('');
+    setDescricao(''); setValor(''); setVencimento(''); setPeriodicidade('AVULSA'); setMetodo('PIX');
     setFormError(null);
   };
 
@@ -430,12 +630,17 @@ function NovaCobrancaDialog({
     setSalvando(true);
     try {
       const valorNum = Number(valor.replace(',', '.'));
+      const servicoSel = (servicos || []).find((s) => s.servico_id === servicoId);
       const resultado = await financeiroService.createCobranca({
         empresaOperadoraId: empresaOperadoraId || '',
         clienteId,
         contratoId,
         valor: valorNum,
         dataVencimento: vencimento,
+        competenciaDate: competencia ? `${competencia}-01` : undefined,
+        metodoCobranca: metodo,
+        recorrencia: periodicidade,
+        descricao: descricao || (servicoSel ? `Referente a ${servicoSel.nome}` : undefined),
       });
       if (!resultado.success) {
         setFormError(resultado.error || 'Falha ao criar cobrança.');
@@ -458,28 +663,55 @@ function NovaCobrancaDialog({
         onOpenChange(o);
       }}
     >
-      <DialogContent className="bg-slate-900 border-white/10 text-slate-200 max-w-md">
+      <DialogContent className="bg-slate-900 border-white/10 text-slate-200 max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-white">Nova cobrança</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-400">Cliente *</Label>
+              <Select
+                value={clienteId}
+                onValueChange={(v) => { setClienteId(v); setContratoId(''); setServicoId(''); }}
+                disabled={loadingClientes}
+              >
+                <SelectTrigger className="bg-slate-950 border-slate-700">
+                  <SelectValue placeholder={loadingClientes ? 'Carregando...' : 'Selecione'} />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-700 max-h-64">
+                  {(clientes as ClienteResumo[] || []).map((cli) => (
+                    <SelectItem key={cli.id} value={cli.id}>{cli.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-400">Tipo de contrato</Label>
+              <Select value={tipoContrato} onValueChange={(v) => { setTipoContrato(v); setContratoId(''); }}>
+                <SelectTrigger className="bg-slate-950 border-slate-700">
+                  <SelectValue placeholder="Todos os tipos" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-700 max-h-64">
+                  <SelectItem value="todos">Todos os tipos</SelectItem>
+                  {tiposContrato.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="space-y-1.5">
-            <Label className="text-xs text-slate-400">Cliente *</Label>
-            <Select
-              value={clienteId}
-              onValueChange={(v) => {
-                setClienteId(v);
-                setContratoId('');
-              }}
-              disabled={loadingClientes}
-            >
+            <Label className="text-xs text-slate-400">Contrato vinculado *</Label>
+            <Select value={contratoId} onValueChange={(v) => { setContratoId(v); setServicoId(''); }} disabled={!clienteId}>
               <SelectTrigger className="bg-slate-950 border-slate-700">
-                <SelectValue placeholder={loadingClientes ? 'Carregando...' : 'Selecione o cliente'} />
+                <SelectValue placeholder={clienteId ? 'Selecione o contrato' : 'Escolha um cliente primeiro'} />
               </SelectTrigger>
               <SelectContent className="bg-slate-950 border-slate-700 max-h-64">
-                {clientesLista.map((cli) => (
-                  <SelectItem key={cli.id} value={cli.id}>
-                    {cli.nome}
+                {contratosDoCliente.map((ct: any) => (
+                  <SelectItem key={ct.id} value={ct.id}>
+                    {ct.numero_contrato || ct.id.slice(0, 8)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -487,15 +719,23 @@ function NovaCobrancaDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-slate-400">Contrato vinculado *</Label>
-            <Select value={contratoId} onValueChange={setContratoId} disabled={!clienteId}>
+            <Label className="text-xs text-slate-400">Serviço faturado</Label>
+            <Select
+              value={servicoId}
+              onValueChange={(v) => {
+                setServicoId(v);
+                const s = (servicos || []).find((sv) => sv.servico_id === v);
+                if (s && s.valor_total > 0) setValor(String(s.valor_total).replace('.', ','));
+              }}
+              disabled={!contratoId}
+            >
               <SelectTrigger className="bg-slate-950 border-slate-700">
-                <SelectValue placeholder={clienteId ? 'Selecione o contrato' : 'Escolha um cliente primeiro'} />
+                <SelectValue placeholder={contratoId ? (servicos?.length ? 'Selecione o serviço' : 'Sem itens vinculados') : 'Escolha um contrato primeiro'} />
               </SelectTrigger>
               <SelectContent className="bg-slate-950 border-slate-700 max-h-64">
-                {contratosDoCliente.map((ct) => (
-                  <SelectItem key={ct.id} value={ct.id}>
-                    {ct.numero_contrato || ct.id.slice(0, 8)}
+                {(servicos || []).map((s) => (
+                  <SelectItem key={s.servico_id} value={s.servico_id}>
+                    {s.nome} ({brl(s.valor_unitario)})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -505,23 +745,49 @@ function NovaCobrancaDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-400">Valor (R$) *</Label>
-              <Input
-                inputMode="decimal"
-                placeholder="1500,00"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                className="bg-slate-950 border-slate-700"
-              />
+              <Input inputMode="decimal" placeholder="1500,00" value={valor} onChange={(e) => setValor(e.target.value)} className="bg-slate-950 border-slate-700" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-400">Vencimento *</Label>
-              <Input
-                type="date"
-                value={vencimento}
-                onChange={(e) => setVencimento(e.target.value)}
-                className="bg-slate-950 border-slate-700"
-              />
+              <Input type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} className="bg-slate-950 border-slate-700" />
             </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-400">Competência</Label>
+              <Input type="month" value={competencia} onChange={(e) => setCompetencia(e.target.value)} className="bg-slate-950 border-slate-700" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-400">Periodicidade</Label>
+              <Select value={periodicidade} onValueChange={(v) => setPeriodicidade(v as Periodicidade)}>
+                <SelectTrigger className="bg-slate-950 border-slate-700"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-700">
+                  <SelectItem value="AVULSA">Avulsa</SelectItem>
+                  <SelectItem value="MENSAL">Mensal</SelectItem>
+                  <SelectItem value="BIMESTRAL">Bimestral</SelectItem>
+                  <SelectItem value="TRIMESTRAL">Trimestral</SelectItem>
+                  <SelectItem value="SEMESTRAL">Semestral</SelectItem>
+                  <SelectItem value="ANUAL">Anual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-400">Método</Label>
+              <Select value={metodo} onValueChange={setMetodo}>
+                <SelectTrigger className="bg-slate-950 border-slate-700"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-700">
+                  {['PIX', 'BOLETO', 'TRANSFERÊNCIA', 'TED', 'DINHEIRO'].map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-400">Descrição / referência</Label>
+            <Input placeholder="Ex.: Plano de mídia mensal" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="bg-slate-950 border-slate-700" />
           </div>
 
           {formError && <p className="text-xs text-rose-400">{formError}</p>}

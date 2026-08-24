@@ -553,6 +553,7 @@ export type Database = {
           id: string
           is_mandatory: boolean | null
           release_notes: string | null
+          sha256: string | null
           version_code: number
           version_name: string
         }
@@ -562,6 +563,7 @@ export type Database = {
           id?: string
           is_mandatory?: boolean | null
           release_notes?: string | null
+          sha256?: string | null
           version_code: number
           version_name: string
         }
@@ -571,6 +573,7 @@ export type Database = {
           id?: string
           is_mandatory?: boolean | null
           release_notes?: string | null
+          sha256?: string | null
           version_code?: number
           version_name?: string
         }
@@ -1335,6 +1338,9 @@ export type Database = {
       }
       clientes: {
         Row: {
+          bloqueado_em: string | null
+          bloqueio_financeiro: boolean
+          bloqueio_motivo: string | null
           codigo_cliente: number
           created_at: string
           created_by: string | null
@@ -1350,6 +1356,9 @@ export type Database = {
           version: number
         }
         Insert: {
+          bloqueado_em?: string | null
+          bloqueio_financeiro?: boolean
+          bloqueio_motivo?: string | null
           codigo_cliente: number
           created_at?: string
           created_by?: string | null
@@ -1365,6 +1374,9 @@ export type Database = {
           version?: number
         }
         Update: {
+          bloqueado_em?: string | null
+          bloqueio_financeiro?: boolean
+          bloqueio_motivo?: string | null
           codigo_cliente?: number
           created_at?: string
           created_by?: string | null
@@ -1677,6 +1689,161 @@ export type Database = {
           },
         ]
       }
+      comunicacao_eventos_catalogo: {
+        Row: {
+          ativo: boolean
+          backoff_segundos: number
+          canais_habilitados: string[]
+          created_at: string
+          descricao: string | null
+          domain: string
+          event_name: string
+          id: string
+          max_tentativas: number
+          payload_schema: Json
+          prioridade: string
+          template_key_padrao: string | null
+          tenant_scope: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          backoff_segundos?: number
+          canais_habilitados?: string[]
+          created_at?: string
+          descricao?: string | null
+          domain: string
+          event_name: string
+          id?: string
+          max_tentativas?: number
+          payload_schema?: Json
+          prioridade?: string
+          template_key_padrao?: string | null
+          tenant_scope?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          backoff_segundos?: number
+          canais_habilitados?: string[]
+          created_at?: string
+          descricao?: string | null
+          domain?: string
+          event_name?: string
+          id?: string
+          max_tentativas?: number
+          payload_schema?: Json
+          prioridade?: string
+          template_key_padrao?: string | null
+          tenant_scope?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      comunicacao_preferencias: {
+        Row: {
+          canal: string
+          empresa_operadora_id: string | null
+          event_name: string
+          habilitado: boolean
+          id: string
+          pode_desabilitar: boolean
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          canal: string
+          empresa_operadora_id?: string | null
+          event_name: string
+          habilitado?: boolean
+          id?: string
+          pode_desabilitar?: boolean
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          canal?: string
+          empresa_operadora_id?: string | null
+          event_name?: string
+          habilitado?: boolean
+          id?: string
+          pode_desabilitar?: boolean
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comunicacao_preferencias_empresa_operadora_id_fkey"
+            columns: ["empresa_operadora_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_operadora"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comunicacao_templates: {
+        Row: {
+          assunto: string
+          canal: string
+          corpo: string
+          created_at: string
+          criado_por: string | null
+          empresa_operadora_id: string | null
+          event_name: string | null
+          id: string
+          status: string
+          template_key: string
+          updated_at: string
+          variaveis: string[]
+          versao: number
+        }
+        Insert: {
+          assunto?: string
+          canal: string
+          corpo: string
+          created_at?: string
+          criado_por?: string | null
+          empresa_operadora_id?: string | null
+          event_name?: string | null
+          id?: string
+          status?: string
+          template_key: string
+          updated_at?: string
+          variaveis?: string[]
+          versao?: number
+        }
+        Update: {
+          assunto?: string
+          canal?: string
+          corpo?: string
+          created_at?: string
+          criado_por?: string | null
+          empresa_operadora_id?: string | null
+          event_name?: string | null
+          id?: string
+          status?: string
+          template_key?: string
+          updated_at?: string
+          variaveis?: string[]
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comunicacao_templates_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comunicacao_templates_empresa_operadora_id_fkey"
+            columns: ["empresa_operadora_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_operadora"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conciliacoes: {
         Row: {
           cobranca_id: string | null
@@ -1778,175 +1945,84 @@ export type Database = {
           },
         ]
       }
-      conversa_mensagens: {
-        Row: {
-          conversa_id: string
-          created_at: string
-          empresa_operadora_id: string
-          id: string
-          mensagem: string
-          remetente_id: string
-        }
-        Insert: {
-          conversa_id: string
-          created_at?: string
-          empresa_operadora_id: string
-          id?: string
-          mensagem: string
-          remetente_id: string
-        }
-        Update: {
-          conversa_id?: string
-          created_at?: string
-          empresa_operadora_id?: string
-          id?: string
-          mensagem?: string
-          remetente_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "conversa_mensagens_conversa_id_fkey"
-            columns: ["conversa_id"]
-            isOneToOne: false
-            referencedRelation: "conversas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversa_mensagens_empresa_operadora_id_fkey"
-            columns: ["empresa_operadora_id"]
-            isOneToOne: false
-            referencedRelation: "empresa_operadora"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversa_mensagens_remetente_id_fkey"
-            columns: ["remetente_id"]
-            isOneToOne: false
-            referencedRelation: "usuarios"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      conversa_participantes: {
-        Row: {
-          conversa_id: string
-          created_at: string
-          ultima_leitura: string | null
-          usuario_id: string
-        }
-        Insert: {
-          conversa_id: string
-          created_at?: string
-          ultima_leitura?: string | null
-          usuario_id: string
-        }
-        Update: {
-          conversa_id?: string
-          created_at?: string
-          ultima_leitura?: string | null
-          usuario_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "conversa_participantes_conversa_id_fkey"
-            columns: ["conversa_id"]
-            isOneToOne: false
-            referencedRelation: "conversas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversa_participantes_usuario_id_fkey"
-            columns: ["usuario_id"]
-            isOneToOne: false
-            referencedRelation: "usuarios"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      conversas: {
-        Row: {
-          created_at: string
-          criado_por: string | null
-          empresa_operadora_id: string
-          id: string
-          nome: string | null
-          tipo: string
-        }
-        Insert: {
-          created_at?: string
-          criado_por?: string | null
-          empresa_operadora_id: string
-          id?: string
-          nome?: string | null
-          tipo?: string
-        }
-        Update: {
-          created_at?: string
-          criado_por?: string | null
-          empresa_operadora_id?: string
-          id?: string
-          nome?: string | null
-          tipo?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "conversas_criado_por_fkey"
-            columns: ["criado_por"]
-            isOneToOne: false
-            referencedRelation: "usuarios"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversas_empresa_operadora_id_fkey"
-            columns: ["empresa_operadora_id"]
-            isOneToOne: false
-            referencedRelation: "empresa_operadora"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       contas_receber: {
         Row: {
           cliente_id: string | null
+          competencia_date: string | null
           contrato_id: string
           created_at: string
+          currency: string
           data_recebimento: string | null
           data_vencimento: string
           empresa_operadora_id: string | null
+          gerada_automaticamente: boolean
           id: string
+          issue_date: string | null
+          metodo_cobranca: string | null
+          notes: string | null
+          numero_documento: string | null
           numero_parcela: number
+          payment_date: string | null
+          recorrencia: string | null
+          saldo: number | null
+          situacao_cobranca: string
           status: string
           total_parcelas: number
           updated_at: string
           valor: number
+          valor_pago: number
         }
         Insert: {
           cliente_id?: string | null
+          competencia_date?: string | null
           contrato_id: string
           created_at?: string
+          currency?: string
           data_recebimento?: string | null
           data_vencimento: string
           empresa_operadora_id?: string | null
+          gerada_automaticamente?: boolean
           id?: string
+          issue_date?: string | null
+          metodo_cobranca?: string | null
+          notes?: string | null
+          numero_documento?: string | null
           numero_parcela?: number
+          payment_date?: string | null
+          recorrencia?: string | null
+          saldo?: number | null
+          situacao_cobranca?: string
           status?: string
           total_parcelas?: number
           updated_at?: string
           valor: number
+          valor_pago?: number
         }
         Update: {
           cliente_id?: string | null
+          competencia_date?: string | null
           contrato_id?: string
           created_at?: string
+          currency?: string
           data_recebimento?: string | null
           data_vencimento?: string
           empresa_operadora_id?: string | null
+          gerada_automaticamente?: boolean
           id?: string
+          issue_date?: string | null
+          metodo_cobranca?: string | null
+          notes?: string | null
+          numero_documento?: string | null
           numero_parcela?: number
+          payment_date?: string | null
+          recorrencia?: string | null
+          saldo?: number | null
+          situacao_cobranca?: string
           status?: string
           total_parcelas?: number
           updated_at?: string
           valor?: number
+          valor_pago?: number
         }
         Relationships: [
           {
@@ -2415,6 +2491,133 @@ export type Database = {
           },
         ]
       }
+      conversa_mensagens: {
+        Row: {
+          conversa_id: string
+          created_at: string
+          empresa_operadora_id: string
+          id: string
+          mensagem: string
+          remetente_id: string
+        }
+        Insert: {
+          conversa_id: string
+          created_at?: string
+          empresa_operadora_id: string
+          id?: string
+          mensagem: string
+          remetente_id: string
+        }
+        Update: {
+          conversa_id?: string
+          created_at?: string
+          empresa_operadora_id?: string
+          id?: string
+          mensagem?: string
+          remetente_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversa_mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversa_mensagens_empresa_operadora_id_fkey"
+            columns: ["empresa_operadora_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_operadora"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversa_mensagens_remetente_id_fkey"
+            columns: ["remetente_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversa_participantes: {
+        Row: {
+          conversa_id: string
+          created_at: string
+          ultima_leitura: string | null
+          usuario_id: string
+        }
+        Insert: {
+          conversa_id: string
+          created_at?: string
+          ultima_leitura?: string | null
+          usuario_id: string
+        }
+        Update: {
+          conversa_id?: string
+          created_at?: string
+          ultima_leitura?: string | null
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversa_participantes_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversa_participantes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversas: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          empresa_operadora_id: string
+          id: string
+          nome: string | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          empresa_operadora_id: string
+          id?: string
+          nome?: string | null
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          empresa_operadora_id?: string
+          id?: string
+          nome?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversas_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversas_empresa_operadora_id_fkey"
+            columns: ["empresa_operadora_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_operadora"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       corporate_modules: {
         Row: {
           created_at: string | null
@@ -2628,6 +2831,41 @@ export type Database = {
           },
         ]
       }
+      device_health: {
+        Row: {
+          app_version: string | null
+          battery_level: number | null
+          current_media_id: string | null
+          device_id: string
+          last_seen: string | null
+          storage_usage_percent: number | null
+        }
+        Insert: {
+          app_version?: string | null
+          battery_level?: number | null
+          current_media_id?: string | null
+          device_id: string
+          last_seen?: string | null
+          storage_usage_percent?: number | null
+        }
+        Update: {
+          app_version?: string | null
+          battery_level?: number | null
+          current_media_id?: string | null
+          device_id?: string
+          last_seen?: string | null
+          storage_usage_percent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_health_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: true
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_logs: {
         Row: {
           created_at: string | null
@@ -2663,10 +2901,66 @@ export type Database = {
           },
         ]
       }
+      device_pairing_codes: {
+        Row: {
+          created_at: string
+          device_model: string | null
+          expires_at: string
+          id: string
+          identity_hash: string
+          pairing_code: string
+          screen_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          device_model?: string | null
+          expires_at: string
+          id?: string
+          identity_hash: string
+          pairing_code: string
+          screen_id?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          device_model?: string | null
+          expires_at?: string
+          id?: string
+          identity_hash?: string
+          pairing_code?: string
+          screen_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_pairing_codes_screen_id_fkey"
+            columns: ["screen_id"]
+            isOneToOne: false
+            referencedRelation: "dw_dim_tela"
+            referencedColumns: ["tela_id"]
+          },
+          {
+            foreignKeyName: "device_pairing_codes_screen_id_fkey"
+            columns: ["screen_id"]
+            isOneToOne: false
+            referencedRelation: "screens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_pairing_codes_screen_id_fkey"
+            columns: ["screen_id"]
+            isOneToOne: false
+            referencedRelation: "vw_offline_screens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           activated_at: string | null
           app_version: string | null
+          brand: string | null
           created_at: string | null
           current_playlist_id: string | null
           id: string
@@ -2678,16 +2972,16 @@ export type Database = {
           mac_address: string | null
           model: string | null
           name: string
-          registered_at: string | null
+          os_version: string | null
           revoked_at: string | null
           screen_id: string | null
           screen_token: string | null
-          status: string | null
           storage_available: number | null
         }
         Insert: {
           activated_at?: string | null
           app_version?: string | null
+          brand?: string | null
           created_at?: string | null
           current_playlist_id?: string | null
           id?: string
@@ -2699,16 +2993,16 @@ export type Database = {
           mac_address?: string | null
           model?: string | null
           name: string
-          registered_at?: string | null
+          os_version?: string | null
           revoked_at?: string | null
           screen_id?: string | null
           screen_token?: string | null
-          status?: string | null
           storage_available?: number | null
         }
         Update: {
           activated_at?: string | null
           app_version?: string | null
+          brand?: string | null
           created_at?: string | null
           current_playlist_id?: string | null
           id?: string
@@ -2720,11 +3014,10 @@ export type Database = {
           mac_address?: string | null
           model?: string | null
           name?: string
-          registered_at?: string | null
+          os_version?: string | null
           revoked_at?: string | null
           screen_id?: string | null
           screen_token?: string | null
-          status?: string | null
           storage_available?: number | null
         }
         Relationships: [
@@ -2733,13 +3026,6 @@ export type Database = {
             columns: ["current_playlist_id"]
             isOneToOne: false
             referencedRelation: "playlists"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "devices_screen_id_fkey"
-            columns: ["screen_id"]
-            isOneToOne: false
-            referencedRelation: "screens"
             referencedColumns: ["id"]
           },
         ]
@@ -2968,7 +3254,7 @@ export type Database = {
           cep: string | null
           cidade: string | null
           cliente_id: string
-          cnpj: string | null
+          cnpj: string
           complemento: string | null
           created_at: string
           created_by: string | null
@@ -2997,7 +3283,7 @@ export type Database = {
           cep?: string | null
           cidade?: string | null
           cliente_id: string
-          cnpj: string | null
+          cnpj: string
           complemento?: string | null
           created_at?: string
           created_by?: string | null
@@ -3026,7 +3312,7 @@ export type Database = {
           cep?: string | null
           cidade?: string | null
           cliente_id?: string
-          cnpj?: string | null
+          cnpj?: string
           complemento?: string | null
           created_at?: string
           created_by?: string | null
@@ -3900,6 +4186,61 @@ export type Database = {
           },
         ]
       }
+      midia_aprovacoes: {
+        Row: {
+          created_at: string
+          id: string
+          midia_id: string
+          motivo: string | null
+          observacao: string | null
+          status: string
+          usuario_id: string | null
+          versao_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          midia_id: string
+          motivo?: string | null
+          observacao?: string | null
+          status: string
+          usuario_id?: string | null
+          versao_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          midia_id?: string
+          motivo?: string | null
+          observacao?: string | null
+          status?: string
+          usuario_id?: string | null
+          versao_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "midia_aprovacoes_midia_id_fkey"
+            columns: ["midia_id"]
+            isOneToOne: false
+            referencedRelation: "midias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "midia_aprovacoes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "midia_aprovacoes_versao_id_fkey"
+            columns: ["versao_id"]
+            isOneToOne: false
+            referencedRelation: "midia_versoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       midia_versoes: {
         Row: {
           biblioteca_midia_id: string
@@ -3928,6 +4269,68 @@ export type Database = {
             columns: ["biblioteca_midia_id"]
             isOneToOne: false
             referencedRelation: "biblioteca_midias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      midias: {
+        Row: {
+          altura: number | null
+          checksum: string | null
+          created_at: string
+          descricao: string | null
+          duracao: number | null
+          id: string
+          largura: number | null
+          mime_type: string
+          nome: string
+          object_key: string
+          producao_id: string
+          status: string
+          tamanho: number
+          tipo: string
+          versao_atual: number
+        }
+        Insert: {
+          altura?: number | null
+          checksum?: string | null
+          created_at?: string
+          descricao?: string | null
+          duracao?: number | null
+          id?: string
+          largura?: number | null
+          mime_type: string
+          nome: string
+          object_key: string
+          producao_id: string
+          status?: string
+          tamanho: number
+          tipo: string
+          versao_atual?: number
+        }
+        Update: {
+          altura?: number | null
+          checksum?: string | null
+          created_at?: string
+          descricao?: string | null
+          duracao?: number | null
+          id?: string
+          largura?: number | null
+          mime_type?: string
+          nome?: string
+          object_key?: string
+          producao_id?: string
+          status?: string
+          tamanho?: number
+          tipo?: string
+          versao_atual?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "midias_producao_id_fkey"
+            columns: ["producao_id"]
+            isOneToOne: false
+            referencedRelation: "producoes"
             referencedColumns: ["id"]
           },
         ]
@@ -4335,6 +4738,155 @@ export type Database = {
           },
         ]
       }
+      operacao_players: {
+        Row: {
+          created_at: string
+          id: string
+          is_online: boolean
+          operacao_id: string
+          player_id: string | null
+          ultima_sincronizacao: string
+          ultimo_erro: string | null
+          ultimo_heartbeat: string
+          versao_app: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_online?: boolean
+          operacao_id: string
+          player_id?: string | null
+          ultima_sincronizacao?: string
+          ultimo_erro?: string | null
+          ultimo_heartbeat?: string
+          versao_app?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_online?: boolean
+          operacao_id?: string
+          player_id?: string | null
+          ultima_sincronizacao?: string
+          ultimo_erro?: string | null
+          ultimo_heartbeat?: string
+          versao_app?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operacao_players_operacao_id_fkey"
+            columns: ["operacao_id"]
+            isOneToOne: false
+            referencedRelation: "operacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operacao_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "dw_dim_player"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "operacao_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operacoes: {
+        Row: {
+          agendamento_id: string
+          created_at: string
+          empresa_operadora_id: string
+          fim_execucao: string | null
+          health_status: string
+          id: string
+          inicio_execucao: string
+          pedido_insercao_id: string | null
+          producao_id: string | null
+          status: string
+          ultima_exibicao: string | null
+          ultima_sincronizacao: string
+          updated_at: string
+        }
+        Insert: {
+          agendamento_id: string
+          created_at?: string
+          empresa_operadora_id: string
+          fim_execucao?: string | null
+          health_status?: string
+          id?: string
+          inicio_execucao?: string
+          pedido_insercao_id?: string | null
+          producao_id?: string | null
+          status?: string
+          ultima_exibicao?: string | null
+          ultima_sincronizacao?: string
+          updated_at?: string
+        }
+        Update: {
+          agendamento_id?: string
+          created_at?: string
+          empresa_operadora_id?: string
+          fim_execucao?: string | null
+          health_status?: string
+          id?: string
+          inicio_execucao?: string
+          pedido_insercao_id?: string | null
+          producao_id?: string | null
+          status?: string
+          ultima_exibicao?: string | null
+          ultima_sincronizacao?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operacoes_agendamento_id_fkey"
+            columns: ["agendamento_id"]
+            isOneToOne: false
+            referencedRelation: "agendamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operacoes_agendamento_id_fkey"
+            columns: ["agendamento_id"]
+            isOneToOne: false
+            referencedRelation: "dw_dim_campanha"
+            referencedColumns: ["agendamento_id"]
+          },
+          {
+            foreignKeyName: "operacoes_agendamento_id_fkey"
+            columns: ["agendamento_id"]
+            isOneToOne: false
+            referencedRelation: "dw_fact_exibicao"
+            referencedColumns: ["agendamento_id"]
+          },
+          {
+            foreignKeyName: "operacoes_empresa_operadora_id_fkey"
+            columns: ["empresa_operadora_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_operadora"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operacoes_pedido_insercao_id_fkey"
+            columns: ["pedido_insercao_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos_insercao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operacoes_producao_id_fkey"
+            columns: ["producao_id"]
+            isOneToOne: false
+            referencedRelation: "producoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ordens_producao: {
         Row: {
           cliente_id: string | null
@@ -4570,6 +5122,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "dw_fact_receita"
             referencedColumns: ["conta_receber_id"]
+          },
+          {
+            foreignKeyName: "pagamentos_conta_receber_id_fkey"
+            columns: ["conta_receber_id"]
+            isOneToOne: false
+            referencedRelation: "vw_cobranca_completa"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "pagamentos_contrato_id_fkey"
@@ -4845,6 +5404,55 @@ export type Database = {
           id?: string
         }
         Relationships: []
+      }
+      permissoes_usuarios: {
+        Row: {
+          concedida_por: string | null
+          created_at: string
+          empresa_operadora_id: string
+          id: string
+          permissao: string
+          usuario_id: string
+        }
+        Insert: {
+          concedida_por?: string | null
+          created_at?: string
+          empresa_operadora_id: string
+          id?: string
+          permissao: string
+          usuario_id: string
+        }
+        Update: {
+          concedida_por?: string | null
+          created_at?: string
+          empresa_operadora_id?: string
+          id?: string
+          permissao?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permissoes_usuarios_concedida_por_fkey"
+            columns: ["concedida_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permissoes_usuarios_empresa_operadora_id_fkey"
+            columns: ["empresa_operadora_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_operadora"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permissoes_usuarios_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pi_auditoria: {
         Row: {
@@ -5271,7 +5879,7 @@ export type Database = {
           ip_address: string | null
           memory_usage: number | null
           ping_at: string
-          player_id: string
+          player_id: string | null
           screen_id: string | null
           status_ping: string
           storage_free_mb: number | null
@@ -5286,7 +5894,7 @@ export type Database = {
           ip_address?: string | null
           memory_usage?: number | null
           ping_at?: string
-          player_id: string
+          player_id?: string | null
           screen_id?: string | null
           status_ping?: string
           storage_free_mb?: number | null
@@ -5301,7 +5909,7 @@ export type Database = {
           ip_address?: string | null
           memory_usage?: number | null
           ping_at?: string
-          player_id?: string
+          player_id?: string | null
           screen_id?: string | null
           status_ping?: string
           storage_free_mb?: number | null
@@ -5654,6 +6262,7 @@ export type Database = {
       }
       playlists: {
         Row: {
+          audio_enabled: boolean
           company_id: string | null
           cover_url: string | null
           created_at: string
@@ -5667,6 +6276,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          audio_enabled?: boolean
           company_id?: string | null
           cover_url?: string | null
           created_at?: string
@@ -5680,6 +6290,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          audio_enabled?: boolean
           company_id?: string | null
           cover_url?: string | null
           created_at?: string
@@ -6438,6 +7049,63 @@ export type Database = {
           },
         ]
       }
+      regras_cobranca: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          canais_habilitados: string[]
+          criado_em: string
+          criado_por: string | null
+          empresa_operadora_id: string
+          evento_situacao: string
+          id: string
+          nome: string
+          prioridade: string
+          trigger_dias: number
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          canais_habilitados?: string[]
+          criado_em?: string
+          criado_por?: string | null
+          empresa_operadora_id: string
+          evento_situacao?: string
+          id?: string
+          nome: string
+          prioridade?: string
+          trigger_dias: number
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          canais_habilitados?: string[]
+          criado_em?: string
+          criado_por?: string | null
+          empresa_operadora_id?: string
+          evento_situacao?: string
+          id?: string
+          nome?: string
+          prioridade?: string
+          trigger_dias?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regras_cobranca_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regras_cobranca_empresa_operadora_id_fkey"
+            columns: ["empresa_operadora_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_operadora"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       remote_commands: {
         Row: {
           command: string
@@ -6767,6 +7435,7 @@ export type Database = {
         Row: {
           app_version: string | null
           audio_enabled: boolean | null
+          bound_device_id: string | null
           cidade: string | null
           cpu_temp: string | null
           created_at: string
@@ -6806,6 +7475,7 @@ export type Database = {
         Insert: {
           app_version?: string | null
           audio_enabled?: boolean | null
+          bound_device_id?: string | null
           cidade?: string | null
           cpu_temp?: string | null
           created_at?: string
@@ -6845,6 +7515,7 @@ export type Database = {
         Update: {
           app_version?: string | null
           audio_enabled?: boolean | null
+          bound_device_id?: string | null
           cidade?: string | null
           cpu_temp?: string | null
           created_at?: string
@@ -8231,6 +8902,72 @@ export type Database = {
           },
         ]
       }
+      vw_cobranca_completa: {
+        Row: {
+          cliente_id: string | null
+          cliente_nome: string | null
+          competencia_date: string | null
+          contrato_id: string | null
+          currency: string | null
+          dias_em_atraso: number | null
+          dias_para_vencimento: number | null
+          empresa_operadora_id: string | null
+          gerada_automaticamente: boolean | null
+          id: string | null
+          issue_date: string | null
+          metodo_cobranca: string | null
+          notes: string | null
+          numero_contrato: string | null
+          numero_documento: string | null
+          qtd_pagamentos: number | null
+          recorrencia: string | null
+          saldo: number | null
+          situacao_cobranca: string | null
+          status_conta_receber: string | null
+          tipo_contrato: string | null
+          ultima_atualizacao: string | null
+          valor_original: number | null
+          valor_pago: number | null
+          vencimento: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contas_receber_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contas_receber_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "dw_dim_cliente"
+            referencedColumns: ["cliente_id"]
+          },
+          {
+            foreignKeyName: "contas_receber_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contas_receber_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "dw_dim_contrato"
+            referencedColumns: ["contrato_id"]
+          },
+          {
+            foreignKeyName: "contas_receber_empresa_operadora_id_fkey"
+            columns: ["empresa_operadora_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_operadora"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_daily_stats: {
         Row: {
           day: string | null
@@ -8321,7 +9058,60 @@ export type Database = {
       }
     }
     Functions: {
+      admin_unpair_screen: { Args: { p_screen_id?: string }; Returns: Json }
+      atualizar_usuario_corporativo: {
+        Args: {
+          p_alvo_id: string
+          p_nome: string
+          p_perfil_id: string
+          p_telefone: string
+        }
+        Returns: undefined
+      }
+      can_access_client_data: {
+        Args: { p_empresa_id?: string; p_user_id?: string }
+        Returns: boolean
+      }
+      can_access_midia: {
+        Args: { p_empresa_id?: string; p_user_id?: string }
+        Returns: boolean
+      }
+      can_read_contrato: {
+        Args: {
+          p_empresa_id?: string
+          p_representante_id?: string
+          p_user_id?: string
+        }
+        Returns: boolean
+      }
+      criar_usuario_corporativo: {
+        Args: {
+          p_email: string
+          p_nome: string
+          p_perfil_id: string
+          p_telefone: string
+          p_uid: string
+        }
+        Returns: string
+      }
+      current_device_id: { Args: never; Returns: string }
       delete_old_logs: { Args: never; Returns: undefined }
+      desbloquear_cliente: {
+        Args: { p_cliente_id: string; p_motivo?: string }
+        Returns: Json
+      }
+      enfileirar_job: {
+        Args: {
+          p_available_at?: string
+          p_empresa_operadora_id: string
+          p_event_name: string
+          p_idempotency_key?: string
+          p_max_tentativas?: number
+          p_payload?: Json
+          p_priority?: string
+        }
+        Returns: Json
+      }
       fn_assinar_contrato: {
         Args: {
           p_assinatura_id: string
@@ -8341,7 +9131,7 @@ export type Database = {
           p_cargo_representante?: string
           p_cep?: string
           p_cidade?: string
-          p_cnpj?: string | null
+          p_cnpj?: string
           p_complemento?: string
           p_contato_cargo?: string
           p_contato_email?: string
@@ -8364,6 +9154,21 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_can_access_data: { Args: { p_user_id?: string }; Returns: boolean }
+      fn_can_login: { Args: { p_user_id?: string }; Returns: boolean }
+      fn_check_pairing_status: {
+        Args: { p_identity_hash: string }
+        Returns: Json
+      }
+      fn_device_attest: {
+        Args: { p_identity_hash: string; p_screen_id: string }
+        Returns: Json
+      }
+      fn_device_bind: {
+        Args: { p_identity_hash: string; p_model?: string; p_screen_id: string }
+        Returns: Json
+      }
+      fn_device_revoke: { Args: { p_device_id: string }; Returns: Json }
       fn_gerar_numero_contrato_atomo: {
         Args: { p_empresa_operadora_id: string }
         Returns: string
@@ -8376,14 +9181,89 @@ export type Database = {
         Args: { p_empresa_operadora_id: string }
         Returns: string
       }
+      fn_get_user_security_context: {
+        Args: { p_user_id?: string }
+        Returns: {
+          cargo_nome: string
+          empresa_operadora_id: string
+          status_ciclo_vida: string
+        }[]
+      }
+      fn_link_device_to_screen: {
+        Args: { p_pairing_code: string; p_screen_id: string }
+        Returns: Json
+      }
+      fn_player_can_access_screen: {
+        Args: { p_screen_id: string }
+        Returns: boolean
+      }
+      fn_player_can_access_screen_text:
+        | {
+            Args: { p_screen_id: string }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.fn_player_can_access_screen_text(p_screen_id => text), public.fn_player_can_access_screen_text(p_screen_id => uuid). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { p_screen_id: string }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.fn_player_can_access_screen_text(p_screen_id => text), public.fn_player_can_access_screen_text(p_screen_id => uuid). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+      fn_player_report_telemetry: {
+        Args: {
+          p_cpu_usage?: number
+          p_ip_address?: string
+          p_memory_usage?: number
+          p_screen_id: string
+          p_storage_free_mb?: number
+          p_temp_celsius?: number
+          p_versao_app?: string
+        }
+        Returns: Json
+      }
+      fn_r2_validate_object_scope: {
+        Args: { p_object_key: string }
+        Returns: boolean
+      }
       fn_registrar_visualizacao_assinatura: {
         Args: { p_assinatura_id: string; p_ip?: string; p_user_agent?: string }
+        Returns: Json
+      }
+      fn_request_pairing_code: {
+        Args: { p_device_model?: string; p_identity_hash: string }
+        Returns: Json
+      }
+      gerar_cobrancas_recorrentes: {
+        Args: { p_empresa_operadora_id?: string; p_meses_frente?: number }
         Returns: Json
       }
       gerar_numero_documento: {
         Args: { p_ano?: number; p_tenant_id: string; p_tipo: string }
         Returns: string
       }
+      gerenciar_autonomia: {
+        Args: { p_alvo_id: string; p_conceder: boolean; p_permissoes: string[] }
+        Returns: undefined
+      }
+      gerenciar_representante: {
+        Args: {
+          p_acao: string
+          p_banco_agencia?: string
+          p_banco_conta?: string
+          p_banco_nome?: string
+          p_chave_pix?: string
+          p_comissao_porcentagem?: number
+          p_cpf_cnpj?: string
+          p_razao_social?: string
+          p_representante_id: string
+        }
+        Returns: Json
+      }
+      get_authorized_screens_for_player:
+        | { Args: never; Returns: Json }
+        | { Args: { payload: Json }; Returns: Json }
+      get_central_acessos_dashboard: { Args: never; Returns: Json }
       get_current_user_tenant_ids: {
         Args: never
         Returns: {
@@ -8392,6 +9272,28 @@ export type Database = {
           org_id: string
         }[]
       }
+      get_desempenho_representante_detalhe: {
+        Args: {
+          p_periodo_fim?: string
+          p_periodo_inicio?: string
+          p_representante_id: string
+        }
+        Returns: Json
+      }
+      get_desempenho_representantes: {
+        Args: {
+          p_empresa_operadora_id?: string
+          p_ordenar?: string
+          p_periodo_fim?: string
+          p_periodo_inicio?: string
+          p_representante_id?: string
+        }
+        Returns: Json
+      }
+      get_my_admin_permissions: { Args: never; Returns: string[] }
+      get_player_playlist_for_screen:
+        | { Args: { p_device_id: string; p_identifier: string }; Returns: Json }
+        | { Args: { payload: Json }; Returns: Json }
       get_screen_stats: {
         Args: {
           end_date: string
@@ -8404,15 +9306,71 @@ export type Database = {
           value: number
         }[]
       }
+      get_solicitacao_aprovacao: {
+        Args: { p_request_id: string; p_token_hash: string }
+        Returns: {
+          approval_token_expires_at: string
+          approval_used_at: string
+          approved_at: string
+          auth_user_id: string
+          created_at: string
+          dados_cadastro: Json
+          email_usuario: string
+          empresa_operadora_id: string
+          id: string
+          motivo_rejeicao: string
+          nome_usuario: string
+          rejected_at: string
+          status: string
+          telefone: string
+          tipo_acesso: string
+          updated_at: string
+          usuario_id: string
+        }[]
+      }
       get_tenant_id: { Args: never; Returns: string }
+      get_user_empresa_operadora_id: {
+        Args: { p_user_id: string }
+        Returns: string
+      }
       get_user_representante_id: { Args: never; Returns: string }
       get_user_role: { Args: never; Returns: string }
+      get_user_tenant_id: { Args: never; Returns: string }
+      has_admin_permission: { Args: { p_permissao: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      is_active_user: { Args: never; Returns: boolean }
+      is_central_privileged: { Args: never; Returns: boolean }
+      is_conversa_participante: {
+        Args: { p_conversa_id: string }
+        Returns: boolean
+      }
+      is_owner_or_admin: { Args: never; Returns: boolean }
+      listar_representantes_gerencia: {
+        Args: {
+          p_busca?: string
+          p_empresa_operadora_id?: string
+          p_representante_id?: string
+          p_status?: string
+        }
+        Returns: Json
+      }
+      listar_usuarios_central: { Args: never; Returns: Json }
+      player_unpair_screen:
+        | { Args: { p_device_id: string; p_screen_id: string }; Returns: Json }
+        | { Args: { payload: Json }; Returns: Json }
+      pode_gerenciar_representantes: {
+        Args: { p_permissao: string }
+        Returns: boolean
+      }
+      processar_regua_cobranca: {
+        Args: { p_empresa_operadora_id?: string }
+        Returns: Json
       }
       pulse_screen:
         | {
@@ -8461,7 +9419,16 @@ export type Database = {
             Returns: Json
           }
       purge_old_logs: { Args: never; Returns: undefined }
+      reassinar_cliente_representante: {
+        Args: { p_cliente_id: string; p_representante_id?: string }
+        Returns: Json
+      }
       refresh_daily_stats: { Args: never; Returns: undefined }
+      registrar_tentativa_job: {
+        Args: { p_erro?: string; p_job_id: string; p_ok: boolean }
+        Returns: Json
+      }
+      release_screen_device: { Args: { p_screen_id: string }; Returns: boolean }
       report_error: {
         Args: {
           p_error_type: string

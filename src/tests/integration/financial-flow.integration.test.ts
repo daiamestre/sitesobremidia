@@ -90,13 +90,15 @@ describe('Integração: Fluxo Financeiro Completo (Contrato → PI → Recebíve
     expect(result).toHaveProperty('imagemQrCode');
   });
 
-  it('Passo 5: Régua de cobrança deve disparar notificações automáticas', async () => {
+  it('Passo 5: Régua de cobrança real exige tenant válido e retorna contadores do RPC', async () => {
     const { BillingService } = await import('@/modules/crm/services/billing.service');
     const service = new BillingService();
 
-    const result = await service.executeAutomatedBillingRules('empresa-01');
+    await expect(service.executeAutomatedBillingRules('empresa-01')).rejects.toThrow(/obrigat/);
 
-    expect(result.notificados).toBeGreaterThanOrEqual(1);
+    const result = await service.executeAutomatedBillingRules('00000000-0000-0000-0000-000000000001');
+    expect(result).toHaveProperty('notificados');
+    expect(result.resultado).toBeTruthy();
   });
 
   it('Pipeline completo Boleto + PIX: boleto bloqueado (Zero Mock) e PIX funcional para a mesma conta', async () => {

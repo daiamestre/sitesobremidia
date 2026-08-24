@@ -103,13 +103,13 @@ export class FinanceiroService {
     try {
       let numDoc = payload.numeroDocumento;
       if (!numDoc) {
-        const { data: numData, error: rpcError } = await supabase.rpc('fn_gerar_numero_recebivel_atomo', {
+        const { data: numData, error: rpcError } = await (supabase.rpc as any)('fn_gerar_numero_recebivel_atomo', {
           p_empresa_operadora_id: payload.empresaOperadoraId,
         });
         if (rpcError || !numData) {
           throw new Error(`Falha ao gerar número de documento via RPC: ${rpcError?.message || 'Retorno vazio'}`);
         }
-        numDoc = numData;
+        numDoc = String(numData);
       }
 
       const saldo = payload.valorOriginal - (payload.desconto || 0) + (payload.juros || 0) + (payload.multa || 0);
@@ -122,15 +122,11 @@ export class FinanceiroService {
           contrato_id: payload.contratoId || null,
           cliente_id: payload.clienteId,
           numero_documento: numDoc,
-          competencia: comp,
-          vencimento: payload.vencimento,
-          valor_original: payload.valorOriginal,
-          desconto: payload.desconto || 0,
-          juros: payload.juros || 0,
-          multa: payload.multa || 0,
-          valor_recebido: 0,
-          saldo,
+          competencia_date: `${comp}-01`,
+          data_vencimento: payload.vencimento,
+          valor: saldo,
           status: 'PENDENTE',
+          notes: null,
         })
         .select('id')
         .single();
@@ -138,7 +134,7 @@ export class FinanceiroService {
       if (error || !conta) return { success: false, error: error?.message || 'Falha ao criar recebível.' };
 
       // Insere Fluxo de Caixa Previsto
-      await supabase.from('fluxo_caixa').insert({
+      await (supabase.from('fluxo_caixa') as any).insert({
         empresa_operadora_id: payload.empresaOperadoraId,
         tipo: 'ENTRADA',
         categoria: 'FATURAMENTO',
@@ -209,7 +205,7 @@ export class FinanceiroService {
         });
       }
 
-      await supabase.from('parcelas').insert(parcelasRows);
+      await (supabase.from as any)('parcelas').insert(parcelasRows);
 
       await supabase.from('financeiro_auditoria').insert({
         empresa_operadora_id: payload.empresaOperadoraId,
@@ -234,23 +230,23 @@ export class FinanceiroService {
       const { data: conta } = await supabase.from('contas_receber').select('*').eq('id', payload.contaReceberId).single();
       if (!conta) return { success: false, error: 'Recebível não encontrado.' };
 
-      // 1. Registra pagamento em public.pagamentos
+      // 1. Registra pagamento em public.pagamentos (schema real; conciliação via trigger)
       const { data: pag, error: pagErr } = await supabase
         .from('pagamentos')
         .insert({
           conta_receber_id: payload.contaReceberId,
-          parcela_id: payload.parcelaId || null,
-          tipo: payload.tipo,
-          valor: payload.valor,
-          data_pagamento: payload.dataPagamento || new Date().toISOString(),
-          comprovante_object_key: payload.comprovanteObjectKey || null,
+          meio_pagamento: payload.tipo,
+          valor_pago: payload.valor,
+          data_liquidacao: payload.dataPagamento || new Date().toISOString(),
+          transacao_id_externo: payload.txid || null,
+          created_by: usuarioId || null,
         })
         .select('id')
         .single();
 
       if (pagErr || !pag) return { success: false, error: pagErr?.message };
 
-      // 2. Registra conciliação
+      // 2. Registra conciliação (tabela com schema próprio)
       await this.reconcilePayment({
         pagamentoId: pag.id,
         gateway: payload.gateway || 'GATEWAY_PADRAO',
@@ -261,20 +257,13 @@ export class FinanceiroService {
         usuarioId,
       });
 
-      // 3. Atualiza valor_recebido e saldo
-      const novoRecebido = Number(conta.valor_recebido || 0) + payload.valor;
-      const novoSaldo = Math.max(0, Number(conta.saldo || 0) - payload.valor);
-      const novoStatus: ContaStatus = novoSaldo <= 0 ? 'PAGO' : 'PARCIAL';
-
-      await supabase
+      // 3. Estado consolidado da conta após o trigger de conciliação
+      const { data: contaAtualizada } = await supabase
         .from('contas_receber')
-        .update({
-          valor_recebido: novoRecebido,
-          saldo: novoSaldo,
-          status: novoStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', payload.contaReceberId);
+        .select('valor, valor_pago, saldo, status')
+        .eq('id', payload.contaReceberId)
+        .single();
+      const novoStatus: ContaStatus = (contaAtualizada?.status as ContaStatus) || 'PARCIAL';
 
       // 4. Calcula comissões parametrizadas (Representante, Supervisor, Gerente) apenas após confirmação do recebimento
       if (usuarioId) {
@@ -321,7 +310,7 @@ export class FinanceiroService {
     comprovanteKey?: string;
     usuarioId?: string;
   }): Promise<void> {
-    await supabase.from('conciliacoes').insert({
+    await (supabase.from('conciliacoes') as any).insert({
       pagamento_id: payload.pagamentoId,
       gateway: payload.gateway || 'INTERNO',
       txid: payload.txid || null,
@@ -348,7 +337,7 @@ export class FinanceiroService {
 
     // Representante (5%)
     const valRep = (payload.valorPago * this.commissionRules.representantePercent) / 100;
-    await supabase.from('comissoes').insert({
+    await (supabase.from('comissoes') as any).insert({
       empresa_operadora_id: payload.empresaOperadoraId,
       contrato_id: payload.contratoId || null,
       conta_receber_id: payload.contaReceberId,
@@ -382,12 +371,16 @@ export class FinanceiroService {
     const { data: pag } = await supabase.from('pagamentos').select('*, conta:contas_receber(*)').eq('id', pagamentoId).single();
     if (!pag) return { success: false };
 
-    const novaRecebido = Math.max(0, Number(pag.conta.valor_recebido) - Number(pag.valor));
-    const novoSaldo = Number(pag.conta.saldo) + Number(pag.valor);
+    const conta = pag.conta as any;
+    const valorEstornado = Number(pag.valor_pago || 0);
+    const novoPago = Math.max(0, Number(conta?.valor_pago || 0) - valorEstornado);
+    const novoSaldo = Math.max(0, Number(conta?.valor || 0) - novoPago);
+    const vencido = conta?.data_vencimento ? String(conta.data_vencimento) < new Date().toISOString().slice(0, 10) : false;
+    const novoStatus = novoSaldo <= 0 ? 'PAGO' : novoPago > 0 ? 'PARCIAL' : vencido ? 'ATRASADO' : 'PENDENTE';
 
     await supabase
       .from('contas_receber')
-      .update({ valor_recebido: novaRecebido, saldo: novoSaldo, status: 'PARCIAL' })
+      .update({ valor_pago: novoPago, saldo: novoSaldo, status: novoStatus, updated_at: new Date().toISOString() })
       .eq('id', pag.conta_receber_id);
 
     await supabase.from('financeiro_auditoria').insert({
@@ -407,13 +400,13 @@ export class FinanceiroService {
     try {
       let query = supabase
         .from('contas_receber')
-        .select(`*, cliente:clientes(*), contrato:contratos(*), parcelas:parcelas(*), pagamentos:pagamentos(*)`)
-        .order('vencimento', { ascending: true });
+        .select(`*, cliente:clientes(*), contrato:contratos(*), pagamentos:pagamentos(*)`)
+        .order('data_vencimento', { ascending: true });
 
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
 
       const { data } = await query;
-      return (data || []) as ContaReceberCompleta[];
+      return (data || []) as unknown as ContaReceberCompleta[];
     } catch (err) {
       return [];
     }
@@ -427,7 +420,7 @@ export class FinanceiroService {
       let query = supabase.from('comissoes').select(`*, usuario:usuarios(*)`).order('created_at', { ascending: false });
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
       const { data } = await query;
-      return (data || []) as ComissaoRecord[];
+      return (data || []) as unknown as ComissaoRecord[];
     } catch (err) {
       return [];
     }
@@ -497,6 +490,10 @@ export class FinanceiroService {
           numero_parcela: payload.numeroParcela ?? 1,
           total_parcelas: payload.totalParcelas ?? 1,
           status: 'PENDENTE',
+          competencia_date: payload.competenciaDate ?? null,
+          metodo_cobranca: payload.metodoCobranca ?? null,
+          recorrencia: payload.recorrencia ?? 'AVULSA',
+          notes: payload.descricao ?? null,
         })
         .select('id')
         .single();
@@ -593,12 +590,141 @@ export class FinanceiroService {
     try {
       let query = supabase
         .from('contratos')
-        .select('id, numero_contrato, cliente_id')
+        .select('id, numero_contrato, cliente_id, tipo_contrato, valor_mensal')
         .order('created_at', { ascending: false });
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
       const { data, error } = await query;
       if (error) return [];
       return (data || []) as ContratoResumo[];
+    } catch {
+      return [];
+    }
+  }
+
+  // ======================================================================
+  // CENTRAL DE COBRANÇAS v2 — tipos, serviços, agenda, histórico, régua
+  // ======================================================================
+
+  async listTiposContrato(empresaOperadoraId?: string): Promise<string[]> {
+    try {
+      let query = supabase.from('contratos').select('tipo_contrato').not('tipo_contrato', 'is', null);
+      if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
+      const { data, error } = await query;
+      if (error) return [];
+      return Array.from(new Set((data || []).map((d: any) => d.tipo_contrato).filter(Boolean))).sort();
+    } catch {
+      return [];
+    }
+  }
+
+  async listServicosDeContrato(contratoId: string): Promise<ServicoResumo[]> {
+    try {
+      const { data, error } = await supabase
+        .from('itens_contrato')
+        .select('id, servico_id, quantidade, valor_unitario, valor_total, servico:servico_id(nome, codigo_servico, valor_tabela)')
+        .eq('contrato_id', contratoId);
+      if (error) return [];
+      return (data || []).map((i: any) => ({
+        item_contrato_id: i.id,
+        servico_id: i.servico_id,
+        nome: i.servico?.nome || 'Serviço',
+        codigo: i.servico?.codigo_servico || null,
+        valor_unitario: Number(i.valor_unitario || 0),
+        valor_total: Number(i.valor_total || 0),
+        quantidade: Number(i.quantidade || 1),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async processarReguaCobranca(empresaOperadoraId?: string) {
+    try {
+      const { data, error } = await supabase.rpc('processar_regua_cobranca', {
+        p_empresa_operadora_id: empresaOperadoraId ?? null,
+      });
+      if (error) return { success: false as const, error: error.message, data: null };
+      return { success: true as const, error: null, data: (data as any) || {} };
+    } catch (err: any) {
+      return { success: false as const, error: err?.message || 'Falha ao processar régua.', data: null };
+    }
+  }
+
+  async getHistoricoCobranca(id: string): Promise<CobrancaHistorico> {
+    const vazio: CobrancaHistorico = { eventos: [], jobsCobranca: [] };
+    try {
+      const [{ data: aud }, { data: pags }, { data: jobs }] = await Promise.all([
+        supabase.from('financeiro_auditoria').select('*').contains('detalhes', { conta_receber_id: id }).order('created_at', { ascending: true }),
+        supabase.from('pagamentos').select('*').eq('conta_receber_id', id).order('data_liquidacao', { ascending: true }),
+        supabase.from('jobs').select('id, tipo_job, status, tentativas, max_tentativas, erro_ultimo, created_at, processed_at').contains('payload', { conta_receber_id: id }).like('tipo_job', 'COLECTION%').order('created_at', { ascending: true }),
+      ]);
+      return {
+        eventos: (aud || []).map((e: any) => ({
+          id: e.id,
+          evento: e.evento,
+          criado_em: e.created_at,
+          detalhes: typeof e.detalhes === 'string' ? JSON.parse(e.detalhes) : (e.detalhes || {}),
+        })),
+        pagamentos: pags || [],
+        jobsCobranca: (jobs || []).map((j: any) => ({
+          id: j.id,
+          evento: j.tipo_job,
+          status: j.status,
+          tentativas: j.tentativas,
+          max_tentativas: j.max_tentativas,
+          erro_ultimo: j.erro_ultimo,
+          criado_em: j.created_at,
+          processado_em: j.processed_at,
+        })),
+      };
+    } catch {
+      return vazio;
+    }
+  }
+
+  async contarBloqueados(empresaOperadoraId?: string): Promise<number> {
+    try {
+      let query = supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('bloqueio_financeiro', true);
+      if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
+      const { count } = await query;
+      return count || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  async desbloquearCliente(clienteId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('desbloquear_cliente', {
+        p_cliente_id: clienteId,
+        p_motivo: 'Desbloqueio manual pela Central de Cobranças',
+      });
+      if (error) return { success: false, error: error.message };
+      const ok = (data as any)?.ok !== false;
+      return ok ? { success: true } : { success: false, error: (data as any)?.erro || 'Cliente não estava bloqueado.' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Falha ao desbloquear cliente.' };
+    }
+  }
+
+  async listarContatosFinanceiros(clienteId: string): Promise<ContatoFinanceiro[]> {
+    try {
+      const { data: empresas } = await supabase.from('empresas').select('id, email').eq('cliente_id', clienteId).limit(1);
+      const empresaId = empresas?.[0]?.id;
+      if (!empresaId) return [];
+      const { data } = await supabase
+        .from('contatos')
+        .select('nome, email, telefone, cargo, is_principal')
+        .eq('empresa_id', empresaId)
+        .or('cargo.ilike.%financ%,cargo.ilike.%fatur%,cargo.ilike.%contab%,is_principal.eq.true');
+      return (data || []).map((c: any) => ({
+        nome: c.nome,
+        email: c.email,
+        telefone: c.telefone,
+        cargo: c.cargo,
+        principal: !!c.is_principal,
+        financeiro: /financ|fatur|contab|pagam/i.test(c.cargo || ''),
+      }));
     } catch {
       return [];
     }
@@ -630,6 +756,15 @@ export interface Cobranca {
   status: ContaStatus;
   created_at: string;
   updated_at: string;
+  numero_documento?: string | null;
+  competencia_date?: string | null;
+  metodo_cobranca?: string | null;
+  recorrencia?: string | null;
+  gerada_automaticamente?: boolean;
+  situacao_cobranca?: 'NENHUMA' | 'EM_COBRANCA' | 'CONTATO_1' | 'CONTATO_2' | 'CONTATO_3' | 'INADIMPLENTE' | 'BLOQUEADO';
+  valor_pago?: number;
+  saldo?: number;
+  notes?: string | null;
   cliente?: { id: string; empresas?: { nome_fantasia?: string | null; razao_social?: string | null }[] } | null;
   contrato?: { id: string; numero_contrato: string | null } | null;
   pagamentos?: CobrancaPagamento[] | null;
@@ -644,6 +779,42 @@ export interface ContratoResumo {
   id: string;
   numero_contrato: string | null;
   cliente_id: string | null;
+  tipo_contrato?: string | null;
+  valor_mensal?: number | null;
+}
+
+export interface ServicoResumo {
+  item_contrato_id: string;
+  servico_id: string;
+  nome: string;
+  codigo: string | null;
+  valor_unitario: number;
+  valor_total: number;
+  quantidade: number;
+}
+
+export interface ContatoFinanceiro {
+  nome: string;
+  email: string | null;
+  telefone: string | null;
+  cargo: string | null;
+  principal: boolean;
+  financeiro: boolean;
+}
+
+export interface CobrancaHistorico {
+  eventos: { id: string; evento: string; criado_em: string; detalhes: Record<string, any> }[];
+  pagamentos?: any[];
+  jobsCobranca: {
+    id: string;
+    evento: string;
+    status: string;
+    tentativas: number;
+    max_tentativas: number;
+    erro_ultimo: string | null;
+    criado_em: string;
+    processado_em: string | null;
+  }[];
 }
 
 export interface CreateCobrancaPayload {
@@ -654,6 +825,10 @@ export interface CreateCobrancaPayload {
   dataVencimento: string;
   numeroParcela?: number;
   totalParcelas?: number;
+  competenciaDate?: string;
+  metodoCobranca?: string;
+  recorrencia?: 'AVULSA' | 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
+  descricao?: string;
 }
 
 export function deriveCobrancaSituacao(status: string, dataVencimento: string | null | undefined, hoje: Date = new Date()): CobrancaSituacao {

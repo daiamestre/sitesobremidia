@@ -13,7 +13,15 @@ vi.mock('@/integrations/supabase/client', () => {
       error: null,
     }),
   };
-  return { supabase: { from: vi.fn(() => mockChain) } };
+  return {
+    supabase: {
+      from: vi.fn(() => mockChain),
+      rpc: vi.fn().mockResolvedValue({
+        data: { recorrencia: { cobrancas_geradas: 3 }, estagios_avancados: 2, inadimplencias_registradas: 1, clientes_bloqueados: 1 },
+        error: null,
+      }),
+    },
+  };
 });
 
 // ─── BillingService: Boleto ───────────────────────────────────────────────────
@@ -135,16 +143,16 @@ describe('BillingService — Régua de Cobrança Automática', () => {
   beforeEach(() => { service = new BillingService(); });
 
   it('executeAutomatedBillingRules deve retornar notificados >= 1', async () => {
-    const result = await service.executeAutomatedBillingRules('empresa-01');
+    const result = await service.executeAutomatedBillingRules('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
     expect(result).toHaveProperty('notificados');
     expect(result.notificados).toBeGreaterThanOrEqual(1);
   });
 
-  it('executeAutomatedBillingRules deve inserir notificação em financeiro_notificacoes', async () => {
+  it('executeAutomatedBillingRules deve delegar ao RPC real processar_regua_cobranca (Zero Mock)', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
     vi.clearAllMocks();
-    await service.executeAutomatedBillingRules('empresa-01');
-    const tables = (supabase.from as ReturnType<typeof vi.fn>).mock.calls.map((c: string[]) => c[0]);
-    expect(tables).toContain('financeiro_notificacoes');
+    await service.executeAutomatedBillingRules('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+    const rpcCalls = (supabase.rpc as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => c[0]);
+    expect(rpcCalls).toContain('processar_regua_cobranca');
   });
 });

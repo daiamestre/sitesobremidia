@@ -41,11 +41,13 @@ describe('Segurança: empresa_operadora_id obrigatório', () => {
     expect(result.success).toBe(true);
   });
 
-  it('BillingService.executeAutomatedBillingRules deve exigir empresaOperadoraId', async () => {
+  it('BillingService.executeAutomatedBillingRules deve exigir empresaOperadoraId (UUID de tenant)', async () => {
     const { BillingService } = await import('@/modules/crm/services/billing.service');
     const service = new BillingService();
-    const result = await service.executeAutomatedBillingRules('empresa-A');
-    expect(result.notificados).toBeGreaterThanOrEqual(1);
+    await expect(service.executeAutomatedBillingRules('')).rejects.toThrow(/obrigat/);
+    await expect(service.executeAutomatedBillingRules('empresa-A')).rejects.toThrow(/obrigat/);
+    const result = await service.executeAutomatedBillingRules('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+    expect(result).toHaveProperty('notificados');
   });
 
   it('AIService.askExecutiveCopilot deve aceitar empresaOperadoraId como parâmetro', async () => {
