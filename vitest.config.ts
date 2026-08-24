@@ -6,6 +6,11 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts'],
+    // Execução determinística: mocks globais (setup.ts) são sensíveis à ordem
+    // quando workers paralelos compartilham transform results em runners com 1 CPU.
+    fileParallelism: false,
+    // Reexecuta uma vez em CI para absorver flakiness de infraestrutura (jsdom pesado)
+    retry: process.env.CI ? 1 : 0,
     // E2E roda via: npx playwright test (separado do Vitest)
     exclude: ['src/tests/e2e/**', 'node_modules/**'],
     include: [
