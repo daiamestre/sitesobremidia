@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   criarCobrancaTela, criarTelaPosPagamento, gerarBrcodePix, statusCobranca,
-} from '../services/telaPago.service';
+} from './telaPago.service';
 
 const brl = (n: number) => Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
