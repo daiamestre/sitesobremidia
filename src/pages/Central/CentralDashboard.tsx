@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { resolverPortalSolicitado, podeAcessarPortal, rotuloPortal } from '@/lib/portalAccess';
+import { accessRequestService } from '@/services/accessRequest.service';
 import { useCentral, useConversas } from '@/hooks/useCentral';
 import { biService } from '@/services/bi.service';
 import { centralService } from '@/services/central.service';
@@ -57,9 +59,11 @@ import {
   Plus,
   ChevronRight,
   Mail,
+  KeyRound,
 } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 import type { Notificacao, Solicitacao, ConversaComMeta, PrioridadeNotificacao } from '@/services/central.service';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -153,6 +157,8 @@ export const CentralDashboard = () => {
   } = useCentral();
 
   const [activeTab, setActiveTab] = useState<'inbox' | 'solicitacoes' | 'chat' | 'feed' | 'inteligencia'>('inbox');
+  const [portalNegado, setPortalNegado] = useState<{portal:'ANUNCIANTES'|'REPRESENTANTES'|'GESTOR'|'CORPORATIVO';meuPortal:string}|null>(null);
+  const [searchParams] = useSearchParams();
   const [selectedNotification, setSelectedNotification] = useState<NotificationWithActions | null>(null);
   const [selectedSolicitacao, setSelectedSolicitacao] = useState<SolicitacaoWithDetails | null>(null);
   const [filterPrioridade, setFilterPrioridade] = useState<string>('TODAS');
@@ -299,6 +305,82 @@ export const CentralDashboard = () => {
   const canManageSolicitacoes = perfilNome === 'OWNER' || perfilNome === 'ADMIN' || perfilNome === 'GESTOR' || perfilNome === 'GERENTE' || perfilNome === 'FINANCEIRO';
   const currentUserId = usuario?.id;
 
+  // ============================================================
+  // REDEFINIÇÕES DE SENHA (fluxo com autorização — Central)
+  // PASSWORD_RESET_REQUEST → AUTORIZAR (emite credencial temporária
+  // UMA vez via edge authorize-password-reset) | RECUSAR.
+  // ============================================================
+  interface SolicitacaoReset extends Solicitacao {
+    credencial_emitida_em?: string | null;
+  }
+  const [credencialEmitida, setCredencialEmitida] = useState<{ email: string; nome?: string; senha: string } | null>(null);
+  const [resetProcessandoId, setResetProcessandoId] = useState<string | null>(null);
+
+  const { data: resetsSenha = [], refetch: refetchResets } = useQuery<SolicitacaoReset[]>({
+    queryKey: ['central-resets-senha'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('solicitacoes')
+        .select('*')
+        .eq('tipo_solicitacao', 'PASSWORD_RESET_REQUEST')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) {
+        console.error('[Central] resets senha:', error);
+        return [];
+      }
+      return (data as SolicitacaoReset[]) ?? [];
+    },
+    staleTime: 10000,
+    refetchInterval: 30000,
+  });
+
+  const autorizarReset = useCallback(async (sol: SolicitacaoReset) => {
+    setResetProcessandoId(sol.id);
+    try {
+      const { error: rpcErr } = await supabase.rpc('decidir_reset_senha', {
+        p_solicitacao_id: sol.id, p_aprovar: true, p_motivo: null,
+      });
+      if (rpcErr) throw new Error(rpcErr.message);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${(import.meta.env.VITE_SUPABASE_URL as string).replace(/\/$/, '')}/functions/v1/authorize-password-reset`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+          body: JSON.stringify({ solicitacao_id: sol.id }) },
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body?.senha_temporaria) throw new Error(body?.error || `Falha na emissão (HTTP ${res.status})`);
+
+      toast.success(`Redefinição AUTORIZADA para ${body.email_alvo}.`);
+      setCredencialEmitida({ email: body.email_alvo, nome: body.nome_alvo, senha: body.senha_temporaria });
+      refetchResets();
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao autorizar redefinição.');
+      refetchResets();
+    } finally {
+      setResetProcessandoId(null);
+    }
+  }, [refetchResets]);
+
+  const recusarReset = useCallback(async (sol: SolicitacaoReset) => {
+    const motivo = window.prompt('Motivo da recusa:') ?? '';
+    if (!motivo.trim()) return;
+    setResetProcessandoId(sol.id);
+    try {
+      const { error } = await supabase.rpc('decidir_reset_senha', {
+        p_solicitacao_id: sol.id, p_aprovar: false, p_motivo: motivo.trim(),
+      });
+      if (error) throw new Error(error.message);
+      toast.success('Solicitação RECUSADA. Nenhuma senha foi alterada.');
+      refetchResets();
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao recusar solicitação.');
+    } finally {
+      setResetProcessandoId(null);
+    }
+  }, [refetchResets]);
+
   const unifiedFeed = React.useMemo(() => {
     if (!feed) return [];
     const items = [
@@ -370,6 +452,23 @@ export const CentralDashboard = () => {
     const u = usuariosTenant.find((x) => x.id === id);
     return u?.nome || conversaAberta?.participanteNomes?.[id] || 'Usuário';
   };
+
+  if (portalNegado) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md border-red-500/20 bg-slate-900 text-white rounded-2xl">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl text-white">Acesso não autorizado</CardTitle>
+            <CardDescription className="text-slate-300 pt-3">Este usuário não possui permissão para acessar o {rotuloPortal(portalNegado.portal)}.<br/>Seu perfil atual não possui acesso a este portal.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button className="w-full" onClick={() => navigate(portalNegado.meuPortal, { replace: true })}>Ir para meu portal</Button>
+            <Button variant="outline" className="w-full" onClick={() => setPortalNegado(null)}>Voltar</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -690,6 +789,77 @@ export const CentralDashboard = () => {
                 <option value="EXPIRADA">Expiradas</option>
               </select>
             </div>
+          </div>
+
+          {/* ============================================================
+              REDEFINIÇÕES DE SENHA — PASSWORD_RESET_REQUEST (autorização)
+              ============================================================ */}
+          <div className="space-y-2 mb-6">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-amber-500" />
+              <h3 className="text-sm font-semibold">Redefinições de Senha</h3>
+              <Badge variant="outline" className="text-xs">
+                {resetsSenha.filter((r) => r.status === 'PENDENTE').length} aguardando decisão
+              </Badge>
+            </div>
+            {resetsSenha.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                  Nenhuma solicitação de redefinição de senha.
+                </CardContent>
+              </Card>
+            ) : (
+              resetsSenha.map((sol) => {
+                const isPending = sol.status === 'PENDENTE';
+                const emitida = !!sol.credencial_emitida_em;
+                return (
+                  <Card
+                    key={sol.id}
+                    id={`reset-senha-${sol.id}`}
+                    className={cn(
+                      'transition-all hover:shadow-md',
+                      isPending && 'border-l-4 border-l-amber-500 bg-amber-50/30',
+                      solicitacaoDeepLink === sol.id && 'ring-2 ring-primary border-primary'
+                    )}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                        <div className={cn('p-2 rounded-lg flex-shrink-0', isPending ? 'bg-amber-100 text-amber-700' : sol.status === 'APROVADA' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
+                          <KeyRound className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-semibold text-sm">🔐 Solicitação de redefinição de senha</h4>
+                            <Badge variant="outline" className={cn('text-xs', isPending ? 'bg-amber-100 text-amber-700 border-amber-200' : sol.status === 'APROVADA' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200')}>
+                              {isPending ? 'AGUARDANDO AUTORIZAÇÃO' : sol.status}
+                            </Badge>
+                            {emitida && <Badge variant="secondary" className="text-xs">credencial emitida</Badge>}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground whitespace-pre-line line-clamp-4">
+                            {sol.descricao}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {formatDateTime(sol.created_at)}</span>
+                            {sol.decisao_motivo && <span>Motivo: {sol.decisao_motivo}</span>}
+                          </div>
+                        </div>
+                        {isPending && canManageSolicitacoes && (
+                          <div className="flex flex-col gap-1.5 flex-shrink-0 sm:w-40">
+                            <Button size="sm" disabled={resetProcessandoId === sol.id} onClick={() => autorizarReset(sol)}>
+                              {resetProcessandoId === sol.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <KeyRound className="h-4 w-4 mr-2" />}
+                              Autorizar
+                            </Button>
+                            <Button size="sm" variant="destructive" disabled={resetProcessandoId === sol.id} onClick={() => recusarReset(sol)}>
+                              <XCircleIcon className="h-4 w-4 mr-2" /> Recusar
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </div>
 
           {filteredSolicitacoes.length === 0 ? (
@@ -1280,6 +1450,48 @@ export const CentralDashboard = () => {
               Criar conversa
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CREDENCIAL TEMPORÁRIA — exibida UMA única vez ao aprovador */}
+      <Dialog open={!!credencialEmitida} onOpenChange={(o) => !o && setCredencialEmitida(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-emerald-500" />
+              Senha temporária gerada
+            </DialogTitle>
+            <DialogDescription>
+              {credencialEmitida?.nome ? `${credencialEmitida.nome} — ` : ''}
+              {credencialEmitida?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="p-3 rounded-lg bg-muted border font-mono text-center text-lg tracking-wider select-all">
+              {credencialEmitida?.senha}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Copie agora: esta senha não será exibida novamente. O usuário deverá trocá-la
+              obrigatoriamente no próximo login.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(credencialEmitida?.senha ?? '');
+                    toast.success('Senha copiada.');
+                  } catch {
+                    toast.error('Não foi possível copiar.');
+                  }
+                }}
+              >
+                Copiar senha
+              </Button>
+              <Button className="flex-1" onClick={() => setCredencialEmitida(null)}>Concluir</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

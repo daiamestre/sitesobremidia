@@ -19,7 +19,10 @@ SECURITY DEFINER
 AS $$
 BEGIN
   RETURN QUERY
-  SELECT u.status_ciclo_vida::VARCHAR, p.nome::VARCHAR, u.empresa_operadora_id
+  SELECT 
+    COALESCE(u.status, CASE WHEN u.ativo = true THEN 'ACTIVE' ELSE 'INACTIVE' END)::VARCHAR AS status_ciclo_vida, 
+    COALESCE(p.nome, CASE WHEN u.is_owner = true THEN 'OWNER' ELSE 'USER' END)::VARCHAR AS cargo_nome, 
+    u.empresa_operadora_id
   FROM public.usuarios u
   LEFT JOIN public.perfis p ON u.perfil_id = p.id
   WHERE u.id = p_user_id;

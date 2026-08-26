@@ -17,9 +17,23 @@ async function resetSeedNotification() {
   );
   const { error: le } = await supabase.auth.signInWithPassword({ email: E2E_OWNER_EMAIL, password: E2E_OWNER_PASSWORD });
   if (le) throw new Error(`reset login falhou: ${le.message}`);
+
+  // Estado determinístico: zera o inbox do PRÓPRIO tenant (RLS limita o update)
+  const { error: e0 } = await supabase
+    .from('notificacoes_central')
+    .update({ lida: true, status_notificacao: 'LIDA', resolvida_em: new Date().toISOString() })
+    .neq('titulo', NOTIF_OWNER);
+  if (e0) throw new Error(`zerar inbox falhou: ${e0.message}`);
+
   const { error } = await supabase
     .from('notificacoes_central')
-    .update({ lida: false, status_notificacao: 'NAO_LIDA', resolvida_em: null })
+    .update({
+      lida: false,
+      status_notificacao: 'NAO_LIDA',
+      resolvida_em: null,
+      // Feed paginado (30 mais recentes): renova a data p/ o seed nunca sair da 1ª página
+      created_at: new Date().toISOString(),
+    })
     .eq('titulo', NOTIF_OWNER);
   await supabase.auth.signOut();
   if (error) throw new Error(`reset falhou: ${error.message}`);
@@ -56,7 +70,7 @@ test.describe('E2E CENTRAL - FLUXO COMPLETO COM RLS', () => {
     console.log('6. Marcar como lida...');
     await expect(page.getByRole('button', { name: /Marcar todas como lidas/ })).toBeVisible({ timeout: 15000 });
     await page.locator('[title="Marcar como lida"]').first().click();
-    await expect(page.getByText('LIDA', { exact: true })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText('LIDA', { exact: true }).first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByRole('button', { name: /Marcar todas como lidas/ })).not.toBeVisible({ timeout: 20000 });
 
     console.log('7. Chat: criar conversa individual com o Representante...');

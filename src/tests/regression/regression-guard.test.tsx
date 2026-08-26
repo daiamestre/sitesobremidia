@@ -45,6 +45,8 @@ vi.mock('@/services/corporateUsers.service', () => ({
 const PROJETO = process.cwd();
 const ler = (rel: string) => fs.readFileSync(path.join(PROJETO, rel), 'utf8');
 
+// Migrations protegidas: vivas em migrations/ ou preservadas em
+// migrations_archive/ (reconciliação repo=cloud=ledger — conteúdo NUNCA apagado).
 const ARTEFATOS_PROTEGIDOS = [
   'src/modules/corporate/pages/UsuariosAcessosPage.tsx',
   'src/modules/crm/pages/RepresentantesPage.tsx',
@@ -54,7 +56,7 @@ const ARTEFATOS_PROTEGIDOS = [
   'src/hooks/usePermissoesRepresentantes.ts',
   'src/modules/crm/components/Sidebar.tsx',
   'src/App.tsx',
-  'supabase/migrations/20260826_representantes_gestao_desempenho.sql',
+  'supabase/migrations_archive/20260826_representantes_gestao_desempenho.sql',
   'supabase/migrations/20260825_central_acessos_hardening.sql',
 ];
 

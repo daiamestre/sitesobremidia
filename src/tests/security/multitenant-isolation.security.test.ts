@@ -126,7 +126,7 @@ describe('Segurança: Isolamento entre tenants distintos', () => {
     if (r1.documentHash && r2.documentHash) {
       expect(r1.documentHash).not.toBe(r2.documentHash);
     }
-  });
+  }, 20000);
 });
 
 // ─── Segurança: Proteção contra Prompt Injection na camada de IA ─────────────

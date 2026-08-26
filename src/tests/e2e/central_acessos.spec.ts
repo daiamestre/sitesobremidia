@@ -47,6 +47,9 @@ async function sqlMgmt(query: string): Promise<any[]> {
 
 async function deletarUsuarioPorEmail(email: string): Promise<void> {
   await sqlMgmt(`
+    DELETE FROM public.solicitacoes_acesso WHERE approved_by IN (SELECT id FROM public.usuarios WHERE email = '${email}');
+    DELETE FROM public.solicitacoes_acesso WHERE rejected_by IN (SELECT id FROM public.usuarios WHERE email = '${email}');
+    DELETE FROM public.solicitacoes_acesso WHERE usuario_id IN (SELECT id FROM public.usuarios WHERE email = '${email}');
     DELETE FROM public.permissoes_usuarios WHERE usuario_id IN (SELECT id FROM auth.users WHERE email = '${email}');
     DELETE FROM public.notificacoes_central WHERE usuario_id IN (SELECT id FROM public.usuarios WHERE email = '${email}');
     DELETE FROM public.auditoria_logs WHERE entidade_id IN (SELECT id FROM public.usuarios WHERE email = '${email}');
@@ -73,6 +76,9 @@ async function confirmarUsuario(email: string): Promise<void> {
   if (erro) {
     await sqlMgmt(`UPDATE auth.users SET email_confirmed_at = COALESCE(email_confirmed_at, now()), confirmed_at = COALESCE(confirmed_at, now()) WHERE id = '${rows[0].id}';`);
   }
+  // Provisionamento v2 nasce com troca obrigatória de senha — o teste pré-define
+  // a credencial conhecida, portanto limpa o flag para o login ir direto ao workspace.
+  await sqlMgmt(`UPDATE public.usuarios SET must_change_password = false WHERE id = '${rows[0].id}' AND must_change_password IS TRUE;`);
 }
 
 async function criarUsuarioViaWizard(page: Page, nome: string, email: string, perfil: string): Promise<void> {
@@ -88,10 +94,10 @@ async function criarUsuarioViaWizard(page: Page, nome: string, email: string, pe
   await page.getByRole('button', { name: new RegExp(perfil, 'i') }).click();
   await page.getByRole('button', { name: /Avançar/i }).click();
 
-  await expect(page.getByRole('button', { name: /Criar usuário e enviar convite/i })).toBeVisible({ timeout: 15000 });
-  await page.getByRole('button', { name: /Criar usuário e enviar convite/i }).click();
+  await expect(page.getByRole('button', { name: /Criar usu.rio e (gerar senha inicial|enviar convite)/i })).toBeVisible({ timeout: 15000 });
+  await page.getByRole('button', { name: /Criar usu.rio e (gerar senha inicial|enviar convite)/i }).click();
 
-  await expect(page.getByText(/Usuário criado com sucesso/i).first()).toBeVisible({ timeout: 60000 });
+  await expect(page.getByText(/Acesso criado para|Usu.rio criado com sucesso/i).first()).toBeVisible({ timeout: 60000 });
   await page.getByRole('button', { name: /Concluir/i }).click();
 
   await expect(page.getByText(email).first()).toBeVisible({ timeout: 30000 });
