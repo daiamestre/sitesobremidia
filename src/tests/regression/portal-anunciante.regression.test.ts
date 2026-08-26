@@ -3,12 +3,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * PROTEÃ‡ÃƒO DE REGRESSÃƒO â€” FLUXOS CRÃTICOS DO PORTAL DO ANUNCIANTE
- * (missÃ£o Â§5 senha automÃ¡tica Â· Â§7 primeiro acesso Â· Â§8-Â§12 reset autorizado
+ * PROTEÃ‡ÃO DE REGRESSÃO â€” FLUXOS CRÍTICOS DO PORTAL DO ANUNCIANTE
+ * (missão Â§5 senha automática Â· Â§7 primeiro acesso Â· Â§8-Â§12 reset autorizado
  *  Â§23-Â§26 playlists + R$19,99)
  *
  * Estes testes varrem migrations e edge functions e FALHAM se qualquer
- * elemento estrutural essencial desaparecer de futuras alteraÃ§Ãµes.
+ * elemento estrutural essencial desaparecer de futuras alterações.
  */
 
 const MIGRATIONS_DIR = path.resolve(process.cwd(), 'supabase', 'migrations');
@@ -26,38 +26,52 @@ function lerUltimaMigrationContendo(termo: string): { arquivo: string; sql: stri
 
 /** Localiza a migration que DEFINE (CREATE OR REPLACE) um objeto — ignora menções em comentários de arquivos posteriores */
 function lerMigrationDefinindo(createStatement: string): { arquivo: string; sql: string } | null {
-  return lerUltimaMigrationContendo(createStatement);
+  // Cobre os dois padroes do projeto: "CREATE OR REPLACE FUNCTION X" e o par
+  // "DROP FUNCTION IF EXISTS X" + "CREATE FUNCTION X" (consolidacoes de
+  // assinatura, ex.: 20261101), sempre escolhendo a definicao mais recente.
+  const arquivos = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+  let ultima: { arquivo: string; sql: string } | null = null;
+  const isCreate = /^CREATE\b/.test(createStatement);
+  const base = createStatement.replace(/^CREATE (?:OR REPLACE )?/, '');
+  const variantes = isCreate
+    ? ['CREATE OR REPLACE ' + base, 'CREATE ' + base]
+    : [createStatement];
+  for (const f of arquivos) {
+    const sql = readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8');
+    if (variantes.some((v) => sql.includes(v))) ultima = { arquivo: f, sql };
+  }
+  return ultima;
 }
 
-describe('[REGRESSÃƒO] Provisionamento com senha automÃ¡tica + troca obrigatÃ³ria', () => {
-  it('usuarios.must_change_password existe na migration fundaÃ§Ã£o', () => {
+describe('[REGRESSÃO] Provisionamento com senha automática + troca obrigatória', () => {
+  it('usuarios.must_change_password existe na migration fundação', () => {
     const m = lerMigrationDefinindo('ADD COLUMN IF NOT EXISTS must_change_password');
     expect(m).not.toBeNull();
     expect(m!.sql).toContain('ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE');
   });
 
-  it('RPC provisionar_usuario_corporativo nasce ACTIVE/APPROVED com troca obrigatÃ³ria', () => {
+  it('RPC provisionar_usuario_corporativo nasce ACTIVE/APPROVED com troca obrigatória', () => {
     const m = lerMigrationDefinindo('CREATE OR REPLACE FUNCTION public.provisionar_usuario_corporativo');
     expect(m).not.toBeNull();
     const sql = m!.sql;
     // Estado de vida liberado para login imediato
     expect(sql).toContain("'ACTIVE'");
     expect(sql).toContain("'APPROVED'");
-    // Troca obrigatÃ³ria imposta server-side
+    // Troca obrigatória imposta server-side
         expect(sql).toContain('must_change_password, version)');
     expect(sql).toContain('v_caller, v_caller, TRUE, 1)');
-    // SolicitaÃ§Ã£o nasce APROVADA (modelo de autorizaÃ§Ã£o do login preservado)
+    // Solicitação nasce APROVADA (modelo de autorização do login preservado)
     expect(sql).toContain("'APPROVED', v_caller, NOW()");
   });
 
-  it('ANUNCIANTE sÃ³ provisiona equipe da PRÃ“PRIA empresa com perfis limitados', () => {
+  it('ANUNCIANTE só provisiona equipe da PRÃ“PRIA empresa com perfis limitados', () => {
     const m = lerMigrationDefinindo('CREATE OR REPLACE FUNCTION public.provisionar_usuario_corporativo');
     const sql = m!.sql;
     expect(sql).toContain("v_perfil_nome NOT IN ('CLIENTE','ANUNCIANTE')");
     expect(sql).toContain('v_cliente_final := v_caller_cliente;');
   });
 
-  it('edge provision-user gera senha no backend e NÃƒO usa convite/link quebrado', () => {
+  it('edge provision-user gera senha no backend e NÃO usa convite/link quebrado', () => {
     const edge = readFileSync(
       path.join(FUNCTIONS_DIR, 'provision-user', 'index.ts'),
       'utf8',
@@ -65,10 +79,10 @@ describe('[REGRESSÃƒO] Provisionamento com senha automÃ¡tica + troca obrigat
     // Senha gerada por CSPRNG no servidor
     expect(edge).toContain('crypto.getRandomValues');
     expect(edge).toContain('gerarSenhaInicial');
-    // Identidade criada JÃ confirmada e COM senha
+    // Identidade criada JÁ confirmada e COM senha
     expect(edge).toContain('email_confirm: true');
     expect(edge).toMatch(/password:\s*senhaInicial/);
-    // Credencial entregue uma Ãºnica vez na resposta
+    // Credencial entregue uma única vez na resposta
     expect(edge).toContain('senha_inicial: senhaInicial');
     // Fluxo antigo de convite removido (link /auth/callback inexistente)
     expect(edge).not.toContain('generateLink');
@@ -84,35 +98,35 @@ describe('[REGRESSÃƒO] Provisionamento com senha automÃ¡tica + troca obrigat
   });
 });
 
-describe('[REGRESSÃƒO] RecuperaÃ§Ã£o de senha COM AUTORIZAÃ‡ÃƒO (Central)', () => {
-  it('RPC solicitar_reset_senha Ã© anti-enumeraÃ§Ã£o e cria PASSWORD_RESET_REQUEST pendente', () => {
+describe('[REGRESSÃO] Recuperação de senha COM AUTORIZAÃ‡ÃO (Central)', () => {
+  it('RPC solicitar_reset_senha é anti-enumeração e cria PASSWORD_RESET_REQUEST pendente', () => {
     const m = lerMigrationDefinindo('CREATE OR REPLACE FUNCTION public.solicitar_reset_senha');
     expect(m).not.toBeNull();
     const sql = m!.sql;
     expect(sql).toContain("'PASSWORD_RESET_REQUEST'");
     expect(sql).toContain("'PENDENTE'");
-    // Anti-enumeraÃ§Ã£o: usuÃ¡rio inexistente retorna TRUE silenciosamente
+    // Anti-enumeração: usuário inexistente retorna TRUE silenciosamente
     expect(sql).toMatch(/IF NOT FOUND THEN\s+RETURN TRUE/);
   });
 
-  it('RPC decidir_reset_senha exige privilegiado e impede dupla decisÃ£o', () => {
+  it('RPC decidir_reset_senha exige privilegiado e impede dupla decisão', () => {
     const m = lerMigrationDefinindo('CREATE OR REPLACE FUNCTION public.decidir_reset_senha');
     expect(m).not.toBeNull();
     const sql = m!.sql;
     expect(sql).toContain('is_central_privileged()');
     expect(sql).toMatch(/status <> 'PENDENTE'/);
-    // Auditoria das duas decisÃµes sem segredos
+    // Auditoria das duas decisões sem segredos
     expect(sql).toContain('PASSWORD_RESET_AUTHORIZED');
     expect(sql).toContain('PASSWORD_RESET_REJECTED');
   });
 
-  it('emissÃ£o Ãºnica de credencial (credencial_emitida_em) na tabela solicitacoes', () => {
+  it('emissão única de credencial (credencial_emitida_em) na tabela solicitacoes', () => {
     const m = lerUltimaMigrationContendo('ADD COLUMN IF NOT EXISTS credencial_emitida_em');
     expect(m).not.toBeNull();
     expect(m!.sql).toContain('ADD COLUMN IF NOT EXISTS credencial_emitida_em TIMESTAMPTZ');
   });
 
-  it('edge authorize-password-reset valida aprovaÃ§Ã£o e emite senha temporÃ¡ria uma vez', () => {
+  it('edge authorize-password-reset valida aprovação e emite senha temporária uma vez', () => {
     const edge = readFileSync(
       path.join(FUNCTIONS_DIR, 'authorize-password-reset', 'index.ts'),
       'utf8',
@@ -123,7 +137,7 @@ describe('[REGRESSÃƒO] RecuperaÃ§Ã£o de senha COM AUTORIZAÃ‡ÃƒO (Cent
     expect(edge).toContain('must_change_password: true');
   });
 
-  it('tela Esqueci minha senha chama solicitar_reset_senha (nÃ£o redefine direto)', () => {
+  it('tela Esqueci minha senha chama solicitar_reset_senha (não redefine direto)', () => {
     const page = readFileSync(path.join(process.cwd(), 'src', 'pages', 'ForgotPassword.tsx'), 'utf8');
     expect(page).toContain("supabase.rpc('solicitar_reset_senha'");
     expect(page).not.toContain("functions.invoke('send-password-reset'");
@@ -139,14 +153,14 @@ describe('[REGRESSÃƒO] RecuperaÃ§Ã£o de senha COM AUTORIZAÃ‡ÃƒO (Cent
   });
 });
 
-describe('[REGRESSÃƒO] Regra comercial do vÃ­deo â€” 1Âº grÃ¡tis, adicionais R$19,99', () => {
-  it('RPC adicionar_midia_playlist cobra 19.99 APENAS a partir do 2Âº vÃ­deo e libera o 1Âº', () => {
+describe('[REGRESSÃO] Regra comercial do vídeo â€” 1Âº grátis, adicionais R$19,99', () => {
+  it('RPC adicionar_midia_playlist cobra 19.99 APENAS a partir do 2Âº vídeo e libera o 1Âº', () => {
     const m = lerUltimaMigrationContendo('adicionar_midia_playlist');
     expect(m).not.toBeNull();
     const sql = m!.sql;
     expect(sql).toContain('19.99');
     expect(sql).toContain('v_asset.tipo <> \'video\' OR v_videos = 0');
-    // Item adicional NÃƒO Ã© inserido antes do pagamento
+    // Item adicional NÃO é inserido antes do pagamento
     expect(sql).toContain("'COBRANCA_VIDEO_GERADA'");
   });
 
@@ -158,8 +172,8 @@ describe('[REGRESSÃƒO] Regra comercial do vÃ­deo â€” 1Âº grÃ¡tis, a
     expect(sql).toMatch(/cobranca_id UUID UNIQUE/);
   });
 
-  it('playlists do anunciante tÃªm RLS com isolamento por cliente_id', () => {
-    // Localiza a migration de CRIAÃ‡ÃƒO da tabela (nÃ£o a Ãºltima que sÃ³ a menciona)
+  it('playlists do anunciante têm RLS com isolamento por cliente_id', () => {
+    // Localiza a migration de CRIAÃ‡ÃO da tabela (não a última que só a menciona)
     const arquivos = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
     let criacao: { arquivo: string; sql: string } | null = null;
     for (const f of arquivos) {
@@ -176,19 +190,19 @@ describe('[REGRESSÃƒO] Regra comercial do vÃ­deo â€” 1Âº grÃ¡tis, a
   });
 });
 
-describe('[REGRESSÃƒO] Portal do anunciante â€” experiÃªncia direta (missÃ£o Â§3/Â§16)', () => {
-  it('useClienteModalidade EXPÃ•E hasActiveContract (bug crÃ­tico do loop-onboarding)', () => {
+describe('[REGRESSÃO] Portal do anunciante â€” experiência direta (missão Â§3/Â§16)', () => {
+  it('useClienteModalidade EXPÃ•E hasActiveContract (bug crítico do loop-onboarding)', () => {
     const hook = readFileSync(
       path.join(process.cwd(), 'src', 'modules', 'crm', 'hooks', 'useClienteModalidade.ts'),
       'utf8',
     );
     expect(hook).toContain('hasActiveContract');
     expect(hook).toContain('CONTRATOS_ATIVOS_STATUS');
-    // Identidade comercial vem de `empresas` (join), nÃ£o de colunas inexistentes
+    // Identidade comercial vem de `empresas` (join), não de colunas inexistentes
     expect(hook).toContain('empresas(');
   });
 
-  it('layout do portal NUNCA forÃ§a onboarding para ANUNCIANTE', () => {
+  it('layout do portal NUNCA força onboarding para ANUNCIANTE', () => {
     const layout = readFileSync(
       path.join(process.cwd(), 'src', 'modules', 'crm', 'layout', 'CustomerPortalLayout.tsx'),
       'utf8',
@@ -197,11 +211,11 @@ describe('[REGRESSÃƒO] Portal do anunciante â€” experiÃªncia direta (mi
     const hostSemContrato = layout.includes("hostSemContrato");
     expect(legadoSemModalidade).toBe(true);
     expect(hostSemContrato).toBe(true);
-    // A condiÃ§Ã£o de redirecionamento deve exigir legado OU host-sem-contrato
+    // A condição de redirecionamento deve exigir legado OU host-sem-contrato
     expect(layout).toMatch(/\(legadoSemModalidade \|\| hostSemContrato\)/);
   });
 
-  it('dashboard do anunciante usa KPIs de mÃ­dia SEM mÃ©tricas financeiras', () => {
+  it('dashboard do anunciante usa KPIs de mídia SEM métricas financeiras', () => {
     const dash = readFileSync(
       path.join(process.cwd(), 'src', 'modules', 'crm', 'pages', 'CustomerPortalDashboard.tsx'),
       'utf8',
@@ -213,7 +227,7 @@ describe('[REGRESSÃƒO] Portal do anunciante â€” experiÃªncia direta (mi
     expect(dash).not.toContain('<CustomerInvoices');
   });
 
-  it('guard global de troca obrigatÃ³ria ativo em RequireApproval', () => {
+  it('guard global de troca obrigatória ativo em RequireApproval', () => {
     const guards = readFileSync(
       path.join(process.cwd(), 'src', 'components', 'auth', 'RouteGuards.tsx'),
       'utf8',
@@ -232,35 +246,35 @@ describe('[REGRESSÃƒO] Portal do anunciante â€” experiÃªncia direta (mi
   });
 });
 
-describe('[REGRESSÃƒO] FASE 17 â€” Playlist â†’ Player â†’ ExibiÃ§Ã£o', () => {
+describe('[REGRESSÃO] FASE 17 â€” Playlist â†’ Player â†’ Exibição', () => {
   it('screens.ponto_id existe e playlist_publicacoes registrada na migration da Fase 17', () => {
     const m = lerUltimaMigrationContendo('publicar_playlist_no_ponto');
     expect(m).not.toBeNull();
     const sql = m!.sql;
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS ponto_id UUID REFERENCES public.pontos(id)');
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.playlist_publicacoes');
-    // PublicaÃ§Ã£o idempotente via espelho canÃ´nico existente
+    // Publicação idempotente via espelho canônico existente
     expect(sql).toContain('public.publicar_playlist_cliente(p_playlist_id)');
   });
 
-  it('regra de nÃ£o-invasÃ£o: tela ocupada por outra playlist Ã© preservada', () => {
+  it('regra de não-invasão: tela ocupada por outra playlist é preservada', () => {
     const m = lerUltimaMigrationContendo('publicar_playlist_no_ponto');
     const sql = m!.sql;
-    // SÃ³ assume tela livre (NULL) ou jÃ¡ desta playlist â€” nunca rouba conteÃºdo do Gestor
+    // Só assume tela livre (NULL) ou já desta playlist â€” nunca rouba conteúdo do Gestor
     expect(sql).toMatch(/playlist_id IS NULL OR\s+(v_screen\.)?playlist_id = v_canal/);
   });
 
-  it('despublicaÃ§Ã£o limpa screens apenas quando apontam para o canal prÃ³prio', () => {
+  it('despublicação limpa screens apenas quando apontam para o canal próprio', () => {
     const m = lerUltimaMigrationContendo('despublicar_playlist_do_ponto');
     const sql = m!.sql;
     expect(sql).toMatch(/tela_atual = v_rec\.playlist_player_id/);
   });
 
-  it('nenhum token administrativo (sbp_) exposto em cÃ³digo frontend', () => {
+  it('nenhum token administrativo (sbp_) exposto em código frontend', () => {
     const raizSrc = path.join(process.cwd(), 'src');
     let vazou = false;
     const walk = (dir: string) => {
-      // O diretÃ³rio de testes contÃ©m este prÃ³prio marcador â€” cÃ³digo de RUNTIME Ã© o que importa
+      // O diretório de testes contém este próprio marcador â€” código de RUNTIME é o que importa
       if (path.basename(dir) === 'tests') return;
       for (const f of readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, f.name);
@@ -272,7 +286,7 @@ describe('[REGRESSÃƒO] FASE 17 â€” Playlist â†’ Player â†’ Exib
       }
     };
     walk(raizSrc);
-    expect(vazou, 'token de Management API encontrado no cÃ³digo do frontend').toBe(false);
+    expect(vazou, 'token de Management API encontrado no código do frontend').toBe(false);
   });
 });
 

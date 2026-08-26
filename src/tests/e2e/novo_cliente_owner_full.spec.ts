@@ -5,6 +5,11 @@ import {
   writeReport,
 } from './helpers';
 
+test.describe.configure({ mode: 'serial' });
+
+// Fluxo do wizard corporativo e desktop-only (mesma convensao das demais suites: CrmSidebar/CrmLayout nao renderizam no mobile).
+test.skip(({ isMobile }) => isMobile, 'Wizard corporativo e desktop-only');
+
 test.describe('E2E OWNER - FLUXO COMPLETO POR INTERFACE (todos os campos)', () => {
   test('Cadastro completo via wizard, revisao exata, salvar, listagem, edicao, reload e prova de persistencia', async ({ page }) => {
     test.setTimeout(240_000);
@@ -70,13 +75,16 @@ test.describe('E2E OWNER - FLUXO COMPLETO POR INTERFACE (todos os campos)', () =
 
     console.log('4. ETAPA 2 - contato principal...');
     await preencherEtapa2(page, data);
+    await page.click('button:has-text("Proximo: Pontos Parceiros")');
+    await expect(page.getByText('Etapa 3: Pontos Parceiros')).toBeVisible({ timeout: 15000 });
+    // Etapa 3 (Pontos Parceiros) é opcional no cadastro do OWNER; avança direto
     await page.click('button:has-text("Proximo: Midia & Negociacao")');
-    await expect(page.getByText(/Etapa 3: M.dia & Negocia..o/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 4:/)).toBeVisible({ timeout: 15000 });
 
     console.log('5. ETAPA 3 - midia e negociacao...');
     await preencherEtapa3(page, data);
     await page.click('button:has-text("Proximo: Revisao & Salvamento")');
-    await expect(page.getByText(/Etapa 4: Revis.o e Salvamento/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 5:/)).toBeVisible({ timeout: 15000 });
 
     console.log('6. ETAPA 4 - verificando visualmente que a revisao contem EXATAMENTE os dados informados...');
     await expect(page.getByText(data.nomeFantasia, { exact: true }).first()).toBeVisible();

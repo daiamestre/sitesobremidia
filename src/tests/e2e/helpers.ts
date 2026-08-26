@@ -42,15 +42,16 @@ export function gerarCnpjValido(): string {
 export async function login(page: Page, email: string, password: string): Promise<void> {
   // Garante uma sessão limpa: em testes com múltiplos logins no MESMO contexto,
   // a sessão anterior faria o /auth redirecionar imediatamente (loop de detach).
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  // Timeouts generosos: dev-server compila rotas sob demanda (cold start).
+  await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 120_000 });
   await page.evaluate(() => localStorage.clear());
-  await page.goto('/auth?tab=login', { waitUntil: 'domcontentloaded' });
+  await page.goto('/auth?tab=login', { waitUntil: 'domcontentloaded', timeout: 120_000 });
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
   await page.waitForURL(
     (url) => /\/representantes|\/workspace|\/dashboard/.test(url.toString()),
-    { timeout: 60000 }
+    { timeout: 90_000 }
   );
 }
 
@@ -58,7 +59,10 @@ export async function selectByLabel(page: Page, labelText: string, option: strin
   if (!option) return;
   const wrapper = page.locator('label', { hasText: labelText }).first().locator('..');
   await wrapper.locator('button[role="combobox"]').click();
-  await page.getByRole('option', { name: option, exact: true }).click();
+  // A opção renderizada pode carregar sufixo descritivo (ex.: "PIX à Vista");
+  // casa pelo PREFIXO preservando a desambiguação.
+  const esc = option.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  await page.getByRole('option', { name: new RegExp('^' + esc) }).first().click();
 }
 
 export async function preencherEtapa1(

@@ -6,6 +6,10 @@ import { clienteFormSchema, UFS_VALIDAS, normalizarCnpj, normalizarCep } from '.
 import { StatusCliente } from '../../types/enums';
 import { propostaService } from '../../services/proposta.service';
 import { auditService } from '../../services/audit.service';
+import { corporateUsersService } from '@/services/corporateUsers.service';
+import { prospeccaoService } from '@/services/prospeccao.service';
+import { SelecaoPontosParceiros } from '../prospeccao/SelecaoPontosParceiros';
+import { supabase } from '@/integrations/supabase/client';
 import type { CrmRole } from '../../types/rbac.types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,6 +35,7 @@ import {
   FileText,
   Briefcase,
   Info,
+  AlertTriangle,
 } from 'lucide-react';
 
 type FormaPagamento = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'BANK_TRANSFER';
@@ -74,7 +79,7 @@ interface WizardFormState {
   observacoesProposta: string;
 }
 
-const STEP_LABELS = ['1. Cliente & Endereço', '2. Unidade & Contato', '3. Mídia & Negociação', '4. Revisão & Salvar'];
+const STEP_LABELS = ['1. Cliente & Endereço', '2. Unidade & Contato', '3. Pontos Parceiros', '4. Mídia & Negociação', '5. Revisão & Salvar'];
 
 function formatCpfCnpj(value: string): string {
   const d = value.replace(/\D/g, '').slice(0, 14);
@@ -118,7 +123,18 @@ export function IntelligentCommercialWizard() {
   const { user, empresaOperadoraId, representante, isOwner, perfilNome } = useAuth();
 
   const [step, setStep] = useState(1);
+  // Seleção de PONTOS PARCEIROS na prospecção (missão Â§7-Â§10) â€” sincronizada
+  // via RPC selecionar_pontos_prospeccao após a criação do cliente.
+  const [pontosSelecionados, setPontosSelecionados] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Provisionamento automático do acesso do anunciante (Fechamento Comercial)
+  type EstadoProvisionamento =
+    | { estado: 'ok'; senhaInicial: string; login: string }
+    | { estado: 'ja_existe'; login: string }
+    | { estado: 'sem_email' }
+    | { estado: 'falhou'; detalhe: string };
+  const [provisionando, setProvisionando] = useState(false);
+  const [provisionamento, setProvisionamento] = useState<EstadoProvisionamento | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Busca e Seleção de Cliente Existente
@@ -128,7 +144,7 @@ export function IntelligentCommercialWizard() {
   const [isExistingClientSelected, setIsExistingClientSelected] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<ClienteCompleto | null>(null);
 
-  // Form State Unificado — NENHUM dado é descartado entre etapas
+  // Form State Unificado â€” NENHUM dado é descartado entre etapas
   const [formData, setFormData] = useState<WizardFormState>({
     nomeFantasia: '',
     razaoSocial: '',
@@ -316,26 +332,26 @@ if (name === 'cnpj') {
     // 0.1 Validação comercial (proposta)
     if (!formData.tituloCampanha.trim() || formData.tituloCampanha.trim().length < 2) {
       setIsSubmitting(false);
-      setStep(3);
-      toast({ title: 'Título da campanha obrigatório', description: 'Informe o título da campanha na etapa de Mídia.', variant: 'destructive' });
+      setStep(4);
+        toast({ title: 'Título da campanha obrigatório', description: 'Informe o título da campanha na etapa de Mídia.', variant: 'destructive' });
       return;
     }
     if (!formData.quantidadeTelas || formData.quantidadeTelas < 1) {
       setIsSubmitting(false);
-      setStep(3);
-      toast({ title: 'Quantidade de telas inválida', description: 'Informe ao menos 1 tela/ponto na etapa de Mídia.', variant: 'destructive' });
+      setStep(4);
+        toast({ title: 'Quantidade de telas inválida', description: 'Informe ao menos 1 tela/ponto na etapa de Mídia.', variant: 'destructive' });
       return;
     }
     if (!formData.valorMensal || formData.valorMensal <= 0) {
       setIsSubmitting(false);
-      setStep(3);
-      toast({ title: 'Valor mensal inválido', description: 'Informe o valor mensal da negociação.', variant: 'destructive' });
+      setStep(4);
+        toast({ title: 'Valor mensal inválido', description: 'Informe o valor mensal da negociação.', variant: 'destructive' });
       return;
     }
     if (formData.dataFim < formData.dataInicio) {
       setIsSubmitting(false);
-      setStep(3);
-      toast({ title: 'Vigência inválida', description: 'A data final não pode ser anterior à data inicial.', variant: 'destructive' });
+      setStep(4);
+        toast({ title: 'Vigência inválida', description: 'A data final não pode ser anterior à data inicial.', variant: 'destructive' });
       return;
     }
 
@@ -389,7 +405,7 @@ if (name === 'cnpj') {
         entidadeId: resCliente.clienteId,
         acao: 'INSERT',
         statusNovo: formData.status,
-        observacoes: `Cliente criado via Novo Cliente (wizard comercial)${isOwner ? ' — OWNER sem representante' : ''}`,
+        observacoes: `Cliente criado via Novo Cliente (wizard comercial)${isOwner ? ' â€” OWNER sem representante' : ''}`,
         dadosAlterados: {
           nome_fantasia: formData.nomeFantasia,
           razao_social: formData.razaoSocial || formData.nomeFantasia,
@@ -397,6 +413,21 @@ if (name === 'cnpj') {
           representante_id: representante?.id || null,
         },
       });
+    }
+
+    // 1.5 Sincroniza a seleção de PONTOS PARCEIROS (missão §7-§10).
+    // Best-effort: não bloqueia a criação do cliente, mas avisa em caso de falha.
+    if (finalClienteId && pontosSelecionados.size > 0) {
+      try {
+        await prospeccaoService.selecionarPontos(finalClienteId, Array.from(pontosSelecionados));
+      } catch (errSync) {
+        console.error('[Wizard] Falha ao sincronizar pontos de prospecção:', errSync);
+        toast({
+          title: 'Atenção',
+          description: 'Cliente salvo, mas houve falha ao vincular os pontos selecionados. Vincule-os novamente no detalhe do cliente.',
+          variant: 'destructive',
+        });
+      }
     }
 
     // 2. Grava a proposta comercial atrelada ao cliente e ao representante
@@ -427,7 +458,7 @@ if (name === 'cnpj') {
         entidadeId: finalClienteId,
         acao: 'INSERT',
         statusNovo: 'DRAFT',
-        observacoes: `Proposta ${resProp.numeroProposta} criada via Novo Cliente${isOwner ? ' — OWNER' : ''}`,
+        observacoes: `Proposta ${resProp.numeroProposta} criada via Novo Cliente${isOwner ? ' â€” OWNER' : ''}`,
         dadosAlterados: {
           numero_proposta: resProp.numeroProposta,
           titulo: formData.tituloCampanha,
@@ -439,6 +470,59 @@ if (name === 'cnpj') {
       toast({
         title: 'Cliente Cadastrado com Sucesso!',
         description: `Cliente persistido no PostgreSQL e proposta ${resProp.numeroProposta} gerada.`,
+      });
+
+      // ============================================================
+      // 3. PROVISIONAMENTO AUTOMÁTICO DO ACESSO DO ANUNCIANTE
+      // (fecha o ciclo: REPRESENTANTE â†’ CADASTRO â†’ ACESSO CRIADO)
+      // Idempotente: EMAIL_JA_CADASTRADO não é erro de fluxo.
+      // Falha NÃO desfaz o cadastro â€” orientamos a Central de Acessos.
+      // ============================================================
+      const emailLogin = (formData.email || '').trim().toLowerCase();
+      if (!emailLogin) {
+        setProvisionamento({ estado: 'sem_email' });
+        return;
+      }
+
+      setProvisionando(true);
+      try {
+        const { data: perfilAnun, error: perfErr } = await supabase
+          .from('perfis')
+          .select('id')
+          .eq('nome', 'ANUNCIANTE')
+          .maybeSingle();
+        if (perfErr || !perfilAnun?.id) throw new Error('Perfil ANUNCIANTE indisponível.');
+
+        const r = await corporateUsersService.criarUsuario({
+          nome: formData.nomeFantasia || formData.razaoSocial || formData.contatoNome || 'Anunciante',
+          email: emailLogin,
+          telefone: formData.telefone || undefined,
+          perfilId: perfilAnun.id,
+          clienteId: finalClienteId,
+        });
+
+        if (r.success && r.senha_inicial) {
+          setProvisionamento({ estado: 'ok', senhaInicial: r.senha_inicial, login: emailLogin });
+          setProvisionando(false);
+          return; // diálogo de credencial controla o fechamento/navegação
+        }
+        if (r.error === 'EMAIL_JA_CADASTRADO') {
+          setProvisionamento({ estado: 'ja_existe', login: emailLogin });
+          setProvisionando(false);
+          return;
+        }
+        setProvisionamento({ estado: 'falhou', detalhe: r.error ?? 'erro desconhecido' });
+      } catch (e: any) {
+        console.error('[Wizard] provisionamento do acesso falhou:', e?.message);
+        setProvisionamento({ estado: 'falhou', detalhe: e?.message ?? 'erro desconhecido' });
+      }
+      setProvisionando(false);
+
+      toast({
+        title: 'Acesso automático não pôde ser criado',
+        description:
+          'O cadastro foi concluído, mas o provisionamento falhou. Use a Central de Acessos para criar o acesso deste anunciante.',
+        variant: 'destructive',
       });
       navigate('/representantes/clientes');
     } else {
@@ -466,10 +550,10 @@ if (name === 'cnpj') {
             </div>
             <div>
               <h2 className="text-xl sm:text-2xl font-display font-extrabold text-white">
-                Novo Cliente — Cadastro Completo
+                Novo Cliente â€” Cadastro Completo
               </h2>
               <p className="text-slate-300 text-xs mt-0.5">
-                Cliente, Unidade, Contato e Negociação → Revisão e Salvamento real no PostgreSQL
+                Cliente, Unidade, Contato e Negociação â†’ Revisão e Salvamento real no PostgreSQL
               </p>
             </div>
           </div>
@@ -500,7 +584,7 @@ if (name === 'cnpj') {
         </div>
       </div>
 
-      {/* STEP 1: CLIENTE + ENDEREÇO */}
+      {/* STEP 1: CLIENTE + ENDEREÃ‡O */}
       {step === 1 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
@@ -851,25 +935,25 @@ if (name === 'cnpj') {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[11px] text-slate-400 font-semibold">Nome da Unidade</Label>
-                  <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
+                  <p className="text-sm font-bold text-white">{formData.nomeFantasia || 'â€”'}</p>
                 </div>
                 <div className="space-y-1 lg:col-span-2">
                   <Label className="text-[11px] text-slate-400 font-semibold">Endereço do Estabelecimento</Label>
                   <p className="text-sm text-slate-200">
-                    {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || '—'}
+                    {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || 'â€”'}
                   </p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[11px] text-slate-400 font-semibold">CEP</Label>
-                  <p className="text-sm text-slate-200">{formData.cep || '—'}</p>
+                  <p className="text-sm text-slate-200">{formData.cep || 'â€”'}</p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[11px] text-slate-400 font-semibold">Cidade / UF</Label>
-                  <p className="text-sm text-slate-200">{formData.cidade || '—'}{formData.estado ? `/${formData.estado}` : ''}</p>
+                  <p className="text-sm text-slate-200">{formData.cidade || 'â€”'}{formData.estado ? `/${formData.estado}` : ''}</p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[11px] text-slate-400 font-semibold">CNPJ</Label>
-                  <p className="text-sm text-slate-200">{formData.cnpj || '—'}</p>
+                  <p className="text-sm text-slate-200">{formData.cnpj || 'â€”'}</p>
                 </div>
               </div>
             </div>
@@ -928,7 +1012,7 @@ if (name === 'cnpj') {
                 <ArrowLeft className="h-4 w-4" /> Voltar
               </Button>
               <Button onClick={() => setStep(3)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
-                <span>Proximo: Midia & Negociacao</span>
+                <span>Proximo: Pontos Parceiros</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -936,13 +1020,47 @@ if (name === 'cnpj') {
         </Card>
       )}
 
-      {/* STEP 3: MÍDIA & NEGOCIAÇÃO */}
+      {/* STEP 3: MÍDIA & NEGOCIAÃ‡ÃO */}
+      
+      {/* STEP 3: PONTOS PARCEIROS (missao Â§7-Â§10) */}
       {step === 3 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-emerald-400" />
+              Etapa 3: Pontos Parceiros
+            </CardTitle>
+            <CardDescription className="text-slate-300 text-xs">
+              Em quantos estabelecimentos o cliente deseja divulgar sua marca? Selecione os pontos
+              parceiros disponiveis (validacao final no servidor).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-5 space-y-4">
+            <SelecaoPontosParceiros value={pontosSelecionados} onChange={setPontosSelecionados} />
+            {selectedCliente?.id && (
+              <p className="text-[11px] text-amber-400/90">
+                Cliente existente selecionado: a selecao substituira a lista de prospeccao atual deste cliente.
+              </p>
+            )}
+          </CardContent>
+          <div className="px-6 pb-5 flex items-center justify-between">
+            <Button variant="outline" onClick={() => setStep(2)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
+              <ArrowLeft className="h-4 w-4" /> Voltar
+            </Button>
+            <Button onClick={() => setStep(4)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
+              <span>Proximo: Midia & Negociacao</span>
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {step === 4 && (
+        <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
+          <CardHeader className="border-b border-white/10">
+            <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
               <Tv className="h-5 w-5 text-primary" />
-              Etapa 3: Mídia & Negociação
+              Etapa 4: Mídia & Negociação
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs">
               Defina a campanha, telas/pontos, vigência e as condições comerciais da proposta.
@@ -1060,7 +1178,7 @@ if (name === 'cnpj') {
               <Button variant="outline" onClick={() => setStep(2)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
                 <ArrowLeft className="h-4 w-4" /> Voltar
               </Button>
-              <Button onClick={() => setStep(4)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
+              <Button onClick={() => setStep(5)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
                 <span>Proximo: Revisao & Salvamento</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -1070,12 +1188,12 @@ if (name === 'cnpj') {
       )}
 
       {/* STEP 4: REVISÃO + SALVAMENTO */}
-      {step === 4 && (
+      {step === 5 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
               <FileText className="h-5 w-5 text-emerald-400" />
-              Etapa 4: Revisão e Salvamento
+              Etapa 5: Revisão e Salvamento
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs">
               Revise exatamente o que será gravado no PostgreSQL. Nenhum campo é descartado entre as etapas.
@@ -1085,56 +1203,56 @@ if (name === 'cnpj') {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
                 <h4 className="text-xs font-bold text-primary uppercase mb-2">Cliente</h4>
-                <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
-                <p className="text-xs text-slate-300">Razao Social: {formData.razaoSocial || '—'}</p>
-                <p className="text-xs text-slate-300">CNPJ: {formData.cnpj || '—'}</p>
-                <p className="text-xs text-slate-400">Segmento: {formData.segmento || '—'}</p>
+                <p className="text-sm font-bold text-white">{formData.nomeFantasia || 'â€”'}</p>
+                <p className="text-xs text-slate-300">Razao Social: {formData.razaoSocial || 'â€”'}</p>
+                <p className="text-xs text-slate-300">CNPJ: {formData.cnpj || 'â€”'}</p>
+                <p className="text-xs text-slate-400">Segmento: {formData.segmento || 'â€”'}</p>
                 <p className="text-xs text-slate-400">Status: {formData.status}</p>
-                <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {formData.telefone || '—'}</p>
-                <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {formData.whatsapp || '—'}</p>
-                <p className="text-xs text-slate-400 flex items-center gap-1 break-all"><Mail className="h-3 w-3" /> {formData.email || '—'}</p>
+                <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {formData.telefone || 'â€”'}</p>
+                <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {formData.whatsapp || 'â€”'}</p>
+                <p className="text-xs text-slate-400 flex items-center gap-1 break-all"><Mail className="h-3 w-3" /> {formData.email || 'â€”'}</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
                 <h4 className="text-xs font-bold text-primary uppercase mb-2">Endereço</h4>
                 <p className="text-xs text-slate-300">
-                  {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || '—'}
+                  {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || 'â€”'}
                 </p>
-                <p className="text-xs text-slate-300">CEP: {formData.cep || '—'}</p>
-                <p className="text-xs text-slate-300">{formData.cidade || '—'}{formData.estado ? `/${formData.estado}` : ''}</p>
+                <p className="text-xs text-slate-300">CEP: {formData.cep || 'â€”'}</p>
+                <p className="text-xs text-slate-300">{formData.cidade || 'â€”'}{formData.estado ? `/${formData.estado}` : ''}</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
                 <h4 className="text-xs font-bold text-primary uppercase mb-2">Responsável</h4>
-                <p className="text-xs text-slate-300">Representante Legal: {formData.representanteLegal || '—'}</p>
-                <p className="text-xs text-slate-300">Cargo: {formData.cargoRepresentante || '—'}</p>
+                <p className="text-xs text-slate-300">Representante Legal: {formData.representanteLegal || 'â€”'}</p>
+                <p className="text-xs text-slate-300">Cargo: {formData.cargoRepresentante || 'â€”'}</p>
                 {formData.observacoes && <p className="text-xs text-slate-400 whitespace-pre-wrap">Obs: {formData.observacoes}</p>}
               </div>
 
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
                 <h4 className="text-xs font-bold text-primary uppercase mb-2">Unidade</h4>
-                <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
+                <p className="text-sm font-bold text-white">{formData.nomeFantasia || 'â€”'}</p>
                 <p className="text-xs text-slate-300">
-                  {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || '—'}
+                  {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || 'â€”'}
                 </p>
-                <p className="text-xs text-slate-300">CEP: {formData.cep || '—'}</p>
-                <p className="text-xs text-slate-300">{formData.cidade || '—'}{formData.estado ? `/${formData.estado}` : ''}</p>
+                <p className="text-xs text-slate-300">CEP: {formData.cep || 'â€”'}</p>
+                <p className="text-xs text-slate-300">{formData.cidade || 'â€”'}{formData.estado ? `/${formData.estado}` : ''}</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
                 <h4 className="text-xs font-bold text-primary uppercase mb-2">Contato</h4>
-                <p className="text-xs text-slate-300">Nome: {formData.contatoNome || '—'}</p>
-                <p className="text-xs text-slate-300">Cargo: {formData.contatoCargo || '—'}</p>
-                <p className="text-xs text-slate-300">E-mail: {formData.contatoEmail || '—'}</p>
-                <p className="text-xs text-slate-300">Telefone: {formData.contatoTelefone || '—'}</p>
+                <p className="text-xs text-slate-300">Nome: {formData.contatoNome || 'â€”'}</p>
+                <p className="text-xs text-slate-300">Cargo: {formData.contatoCargo || 'â€”'}</p>
+                <p className="text-xs text-slate-300">E-mail: {formData.contatoEmail || 'â€”'}</p>
+                <p className="text-xs text-slate-300">Telefone: {formData.contatoTelefone || 'â€”'}</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
                 <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">Mídia</h4>
-                <p className="text-sm font-bold text-white">{formData.tituloCampanha || '—'}</p>
+                <p className="text-sm font-bold text-white">{formData.tituloCampanha || 'â€”'}</p>
                 <p className="text-xs text-slate-300">Telas / Pontos: {numeroFormatado(formData.quantidadeTelas)} unidades</p>
-                <p className="text-xs text-slate-300">Duração: {formData.duracaoSegundos ? `${formData.duracaoSegundos}s` : '—'}</p>
-                <p className="text-xs text-slate-300">Vigência: {formData.dataInicio} → {formData.dataFim}</p>
+                <p className="text-xs text-slate-300">Duração: {formData.duracaoSegundos ? `${formData.duracaoSegundos}s` : 'â€”'}</p>
+                <p className="text-xs text-slate-300">Vigência: {formData.dataInicio} â†’ {formData.dataFim}</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
@@ -1150,12 +1268,12 @@ if (name === 'cnpj') {
               <p className="text-xs text-slate-400">
                 {isOwner
                   ? ' Este cadastro será salvo como OWNER (representante_id NULL, conforme regra de autonomia administrativa).'
-                  : ` Este cadastro será vinculado ao representante autenticado (${representante?.id || '—'}).`}
+                  : ` Este cadastro será vinculado ao representante autenticado (${representante?.id || 'â€”'}).`}
               </p>
             </div>
 
             <div className="flex justify-between pt-6 border-t border-white/10">
-              <Button variant="outline" onClick={() => setStep(3)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
+              <Button variant="outline" onClick={() => setStep(4)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
                 <ArrowLeft className="h-4 w-4" /> Voltar
               </Button>
               <Button
@@ -1178,6 +1296,123 @@ if (name === 'cnpj') {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* ============================================================
+          CREDENCIAL INICIAL â€” acesso provisionado automaticamente.
+          Exibida UMA única vez ao representante para entrega ao cliente.
+          ============================================================ */}
+      {provisionamento && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+          role="dialog"
+          aria-modal
+          data-testid="dialog-credencial-anunciante"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 text-slate-100 shadow-2xl space-y-4">
+            {provisionamento.estado === 'ok' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+                  <h3 className="text-lg font-bold">Acesso do anunciante criado!</h3>
+                </div>
+                <p className="text-sm text-slate-400">
+                  O login do cliente foi provisionado automaticamente. A Central de Comunicação
+                  já registrou a mensagem de boas-vindas para o anunciante.
+                </p>
+                <div className="rounded-xl border border-white/10 bg-slate-950/70 p-4 space-y-2 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500">Login (e-mail)</span>
+                    <span className="font-mono select-all">{provisionamento.login}</span>
+                  </div>
+                  <div className="flex justify-between gap-3 items-center">
+                    <span className="text-slate-500">Senha inicial</span>
+                    <code
+                      data-testid="senha-inicial-valor"
+                      className="font-mono tracking-wider select-all bg-white/5 px-2 py-1 rounded"
+                    >
+                      {provisionamento.senhaInicial}
+                    </code>
+                  </div>
+                </div>
+                <ul className="text-xs text-slate-500 list-disc pl-4 space-y-1">
+                  <li>Entregue estas credenciais ao cliente por canal confiável.</li>
+                  <li>No primeiro login ele será obrigado a definir uma nova senha.</li>
+                  <li>Esta senha não será exibida novamente pelo sistema.</li>
+                </ul>
+                <Button
+                  className="w-full"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        `Login: ${provisionamento.login}\nSenha inicial: ${provisionamento.senhaInicial}`,
+                      );
+                      toast({ title: 'Credenciais copiadas.' });
+                    } catch {
+                      toast({ title: 'Não foi possível copiar.', variant: 'destructive' });
+                    }
+                  }}
+                  variant="outline"
+                >
+                  Copiar credenciais
+                </Button>
+              </>
+            )}
+
+            {provisionamento.estado === 'ja_existe' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <Info className="h-6 w-6 text-sky-400" />
+                  <h3 className="text-lg font-bold">Acesso já existente</h3>
+                </div>
+                <p className="text-sm text-slate-400">
+                  Já existe um acesso para o e-mail{' '}
+                  <span className="font-mono">{provisionamento.login}</span>. Nenhum usuário duplicado
+                  foi criado. Se o cliente perdeu a senha, utilize â€œEsqueci minha senhaâ€ na tela de login.
+                </p>
+              </>
+            )}
+
+            {provisionamento.estado === 'sem_email' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <Info className="h-6 w-6 text-amber-400" />
+                  <h3 className="text-lg font-bold">Cadastro sem e-mail de acesso</h3>
+                </div>
+                <p className="text-sm text-slate-400">
+                  O cadastro foi concluído, mas sem e-mail informado não é possível criar o login
+                  automaticamente. Use a Central de Acessos quando tiver o e-mail do cliente.
+                </p>
+              </>
+            )}
+
+            {provisionamento.estado === 'falhou' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-6 w-6 text-rose-400" />
+                  <h3 className="text-lg font-bold">Acesso não provisionado</h3>
+                </div>
+                <p className="text-sm text-slate-400">
+                  O cadastro e a proposta foram salvos com sucesso, porém a criação automática do
+                  acesso falhou. Detalhe técnico: {provisionamento.detalhe}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Requisição registrada para auditoria. Você pode repetir o provisionamento pela
+                  Central de Acessos (operação é segura contra duplicidade).
+                </p>
+              </>
+            )}
+
+            <Button
+              className="w-full mt-2"
+              data-testid="btn-concluir-pos-provisionamento"
+              disabled={provisionando}
+              onClick={() => navigate('/representantes/clientes')}
+            >
+              Concluir
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

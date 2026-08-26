@@ -4,6 +4,11 @@ import {
   preencherEtapa1, preencherEtapa2, preencherEtapa3, writeReport,
 } from './helpers';
 
+test.describe.configure({ mode: 'serial' });
+
+// Fluxo do wizard corporativo e desktop-only (mesma convensao das demais suites: CrmSidebar/CrmLayout nao renderizam no mobile).
+test.skip(({ isMobile }) => isMobile, 'Wizard corporativo e desktop-only');
+
 test.describe('E2E NEGATIVOS - VALIDACOES E CONTROLE DE ERRO PELA INTERFACE', () => {
   test('Campo obrigatorio vazio, CNPJ invalido, email invalido, CEP invalido, CNPJ duplicado, salvar 2x, sessao invalida', async ({ page }) => {
     test.setTimeout(360_000);
@@ -98,11 +103,14 @@ test.describe('E2E NEGATIVOS - VALIDACOES E CONTROLE DE ERRO PELA INTERFACE', ()
     await page.click('button:has-text("Proximo: Unidade & Contato")');
     await expect(page.getByText('Etapa 2: Unidade & Contato')).toBeVisible({ timeout: 15000 });
     await preencherEtapa2(page, base);
+    await page.click('button:has-text("Proximo: Pontos Parceiros")');
+    await expect(page.getByText('Etapa 3: Pontos Parceiros')).toBeVisible({ timeout: 15000 });
+    // Etapa 3 (Pontos Parceiros) é opcional no cadastro do OWNER; avança direto
     await page.click('button:has-text("Proximo: Midia & Negociacao")');
-    await expect(page.getByText(/Etapa 3: M.dia & Negocia..o/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 4:/)).toBeVisible({ timeout: 15000 });
     await preencherEtapa3(page, base);
     await page.click('button:has-text("Proximo: Revisao & Salvamento")');
-    await expect(page.getByText(/Etapa 4: Revis.o e Salvamento/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 5:/)).toBeVisible({ timeout: 15000 });
     await page.click('button:has-text("Cadastrar Cliente & Salvar Proposta")');
     await expect(page.getByText('Cliente Cadastrado com Sucesso!', { exact: true })).toBeVisible({ timeout: 45000 });
     await page.waitForURL('**/representantes/clientes', { timeout: 30000 });
@@ -125,11 +133,14 @@ test.describe('E2E NEGATIVOS - VALIDACOES E CONTROLE DE ERRO PELA INTERFACE', ()
     await page.click('button:has-text("Proximo: Unidade & Contato")');
     await expect(page.getByText('Etapa 2: Unidade & Contato')).toBeVisible({ timeout: 15000 });
     await preencherEtapa2(page, dup);
+    await page.click('button:has-text("Proximo: Pontos Parceiros")');
+    await expect(page.getByText('Etapa 3: Pontos Parceiros')).toBeVisible({ timeout: 15000 });
+    // Etapa 3 (Pontos Parceiros) é opcional no cadastro do OWNER; avança direto
     await page.click('button:has-text("Proximo: Midia & Negociacao")');
-    await expect(page.getByText(/Etapa 3: M.dia & Negocia..o/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 4:/)).toBeVisible({ timeout: 15000 });
     await preencherEtapa3(page, dup);
     await page.click('button:has-text("Proximo: Revisao & Salvamento")');
-    await expect(page.getByText(/Etapa 4: Revis.o e Salvamento/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 5:/)).toBeVisible({ timeout: 15000 });
     await page.click('button:has-text("Cadastrar Cliente & Salvar Proposta")');
     await expect(page.getByText('Erro ao cadastrar cliente', { exact: true })).toBeVisible({ timeout: 45000 });
     await expect(page.getByText(/empresas_cnpj_key/).first()).toBeVisible({ timeout: 15000 });
@@ -153,11 +164,14 @@ test.describe('E2E NEGATIVOS - VALIDACOES E CONTROLE DE ERRO PELA INTERFACE', ()
     await page.click('button:has-text("Proximo: Unidade & Contato")');
     await expect(page.getByText('Etapa 2: Unidade & Contato')).toBeVisible({ timeout: 15000 });
     await preencherEtapa2(page, doubleSave);
+    await page.click('button:has-text("Proximo: Pontos Parceiros")');
+    await expect(page.getByText('Etapa 3: Pontos Parceiros')).toBeVisible({ timeout: 15000 });
+    // Etapa 3 (Pontos Parceiros) é opcional no cadastro do OWNER; avança direto
     await page.click('button:has-text("Proximo: Midia & Negociacao")');
-    await expect(page.getByText(/Etapa 3: M.dia & Negocia..o/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 4:/)).toBeVisible({ timeout: 15000 });
     await preencherEtapa3(page, doubleSave);
     await page.click('button:has-text("Proximo: Revisao & Salvamento")');
-    await expect(page.getByText(/Etapa 4: Revis.o e Salvamento/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 5:/)).toBeVisible({ timeout: 15000 });
     const saveBtn = page.locator('div.space-y-6.max-w-5xl.mx-auto button').last();
     await saveBtn.click();
     await expect(page.getByText('Gravando no PostgreSQL...', { exact: true })).toBeVisible({ timeout: 10000 });
@@ -184,14 +198,17 @@ test.describe('E2E NEGATIVOS - VALIDACOES E CONTROLE DE ERRO PELA INTERFACE', ()
     await preencherEtapa1(page, step3Empty);
     await page.click('button:has-text("Proximo: Unidade & Contato")');
     await expect(page.getByText('Etapa 2: Unidade & Contato')).toBeVisible({ timeout: 15000 });
+    await page.click('button:has-text("Proximo: Pontos Parceiros")');
+    await expect(page.getByText('Etapa 3: Pontos Parceiros')).toBeVisible({ timeout: 15000 });
+    // Etapa 3 (Pontos Parceiros) é opcional no cadastro do OWNER; avança direto
     await page.click('button:has-text("Proximo: Midia & Negociacao")');
-    await expect(page.getByText(/Etapa 3: M.dia & Negocia..o/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 4:/)).toBeVisible({ timeout: 15000 });
     await page.click('button:has-text("Proximo: Revisao & Salvamento")');
-    await expect(page.getByText(/Etapa 4: Revis.o e Salvamento/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 5:/)).toBeVisible({ timeout: 15000 });
     await page.click('button:has-text("Cadastrar Cliente & Salvar Proposta")');
     await expect(page.getByText('Título da campanha obrigatório', { exact: true })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/Etapa 3: M.dia & Negocia..o/)).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Etapa 4: Revisão e Salvamento', { exact: true })).not.toBeVisible();
+    await expect(page.getByText(/Etapa 4: M.dia & Negocia..o/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Etapa 5:/)).not.toBeVisible();
     console.log('   PASS: salvar bloqueado (título obrigatório) e wizard retornou a Etapa 3, sem gravar.');
 
     // ---------- (h) SESSAO INVALIDA / EXPIRADA ----------

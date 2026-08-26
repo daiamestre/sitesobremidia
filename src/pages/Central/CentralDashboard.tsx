@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -159,6 +160,9 @@ export const CentralDashboard = () => {
   const [activeTab, setActiveTab] = useState<'inbox' | 'solicitacoes' | 'chat' | 'feed' | 'inteligencia'>('inbox');
   const [portalNegado, setPortalNegado] = useState<{portal:'ANUNCIANTES'|'REPRESENTANTES'|'GESTOR'|'CORPORATIVO';meuPortal:string}|null>(null);
   const [searchParams] = useSearchParams();
+  // Deep link canônico gerado pelo trigger de autorização (20261025):
+  // /workspace/central?solicitacao=<id> destaca o card correspondente.
+  const solicitacaoDeepLink = searchParams.get('solicitacao');
   const [selectedNotification, setSelectedNotification] = useState<NotificationWithActions | null>(null);
   const [selectedSolicitacao, setSelectedSolicitacao] = useState<SolicitacaoWithDetails | null>(null);
   const [filterPrioridade, setFilterPrioridade] = useState<string>('TODAS');
@@ -1193,7 +1197,7 @@ export const CentralDashboard = () => {
                     const isNotification = item.type === 'notificacao';
                     const IconComponent = isNotification ? Bell : FileText;
                     const severityColor = isNotification
-                      ? SEVERITY_COLORS[item.severidade] || SEVERITY_COLORS.INFO
+                      ? SEVERITY_COLORS[item.severity] || SEVERITY_COLORS.INFO
                       : SOLICITACAO_STATUS_COLORS[item.status] || SOLICITACAO_STATUS_COLORS.PENDENTE;
 
                     return (
@@ -1208,7 +1212,7 @@ export const CentralDashboard = () => {
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <h4 className="font-medium text-sm">{item.title}</h4>
                                   <Badge variant="outline" className={cn('text-xs', severityColor)}>
-                                    {isNotification ? item.severidade : item.status}
+                                    {isNotification ? item.severity : item.status}
                                   </Badge>
                                   {isNotification && (
                                     <Badge variant="outline" className={cn('text-xs', PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.INFORMATIVO)}>
