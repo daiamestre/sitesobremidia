@@ -11,6 +11,7 @@ export type Playlist = {
     item_count?: number;
     total_duration?: number;
     resolution?: string;
+    audio_enabled?: boolean;
 };
 
 export type MediaType = 'image' | 'video' | 'website' | 'youtube' | 'audio';
@@ -111,8 +112,9 @@ export type Screen = {
     status?: ScreenStatus; // Computed
     playlist?: Playlist | null; // Joined playlist
     custom_id?: string | null;
+    codigo_operacional?: string | null;
     resolution?: string;
-    audio_enabled?: boolean;
+    bound_device_id?: string | null;
 };
 
 export type RemoteCommandType = 'reload' | 'reboot' | 'screenshot';

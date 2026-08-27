@@ -40,7 +40,7 @@ export function RequireAuth({ children }: GuardProps) {
  * Exige que a solicitação de acesso do usuário esteja APPROVED e valida SESSÃO REAL DO SUPABASE (FASE 4)
  */
 export function RequireApproval({ children }: GuardProps) {
-  const { isAuthenticated, isApproved, loading, solicitacaoStatus, user, signOut, empresaOperadoraId } = useAuth();
+  const { isAuthenticated, isApproved, loading, solicitacaoStatus, user, signOut, empresaOperadoraId, usuario } = useAuth();
   const { role } = useRbac();
   const [verifyingRealSession, setVerifyingRealSession] = useState(true);
   const [realSessionValid, setRealSessionValid] = useState(false);
@@ -79,14 +79,126 @@ export function RequireApproval({ children }: GuardProps) {
     return <Navigate to={`/auth?redirect=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
-  // 2. Verificação de status APPROVED na tabela do banco -> Redireciona ao login com mensagem
-  if (!isApproved || solicitacaoStatus !== 'APPROVED') {
+  // 2. Verificação de status APPROVED/ACTIVE na tabela do banco -> Redireciona ao login com mensagem
+  if (!isApproved || (solicitacaoStatus !== 'APPROVED' && solicitacaoStatus !== 'ACTIVE')) {
     securityAuditService.logEvent('ACCESS_DENIED', {
       userEmail: user.email || undefined,
       userId: user.id,
       details: { reason: `ROUTE_BLOCKED_STATUS_${solicitacaoStatus}` }
     });
-    return <Navigate to="/representantes/login?error=pending" replace />;
+    return <Navigate to={`/auth?error=pending&redirect=${encodeURIComponent(location.pathname)}`} replace />;
+  }
+
+  // 2.1 REGRA CRÍTICA (missão §7): senha inicial/provisória — o usuário é
+  // levado à troca obrigatória antes de qualquer área protegida.
+  if (usuario?.must_change_password && location.pathname !== '/auth/change-password') {
+    return <Navigate to="/auth/change-password" replace />;
+  }
+
+  // 2.3 NOVA REGRA: Isolamento por perfil de portal (missão P0)
+  // Cada perfil só pode acessar seu próprio portal - bloqueio rigoroso
+  const isAnunciante = role === 'ANUNCIANTE' || role === 'CLIENTE';
+  const isRepresentante = role === 'REPRESENTANTE';
+  const isGestor = role === 'GESTOR' || role === 'GERENTE' || role === 'FINANCEIRO' || role === 'SUPERVISOR';
+  const isOwnerAdmin = role === 'OWNER' || role === 'ADMIN';
+
+  // Anunciante NÃO pode acessar representante, workspace, dashboard
+  if (isAnunciante) {
+    // Bloqueia acesso ao portal do representante
+    if (location.pathname.startsWith('/representantes')) {
+      securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: user.email || undefined,
+        userId: user.id,
+        details: { reason: 'ANUNCIANTE_BLOCKED_REPRESENTANTE' }
+      });
+      return <Navigate to="/portal" replace />;
+    }
+    // Bloqueia acesso ao workspace/ERP (todas as subpaths)
+    if (location.pathname.startsWith('/workspace')) {
+      securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: user.email || undefined,
+        userId: user.id,
+        details: { reason: 'ANUNCIANTE_BLOCKED_WORKSPACE' }
+      });
+      return <Navigate to="/portal" replace />;
+    }
+    // Bloqueia acesso ao dashboard do Gestor de Mídias (rota exata e todas subpaths)
+    if (location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard/')) {
+      securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: user.email || undefined,
+        userId: user.id,
+        details: { reason: 'ANUNCIANTE_BLOCKED_DASHBOARD' }
+      });
+      return <Navigate to="/portal" replace />;
+    }
+    // Bloqueia acesso ao financeiro standalone (todas as subpaths)
+    if (location.pathname.startsWith('/financeiro')) {
+      securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: user.email || undefined,
+        userId: user.id,
+        details: { reason: 'ANUNCIANTE_BLOCKED_FINANCE_STANDALONE' }
+      });
+      return <Navigate to="/portal" replace />;
+    }
+    // Bloqueia acesso a qualquer rota administrativa
+    if (location.pathname.startsWith('/admin')) {
+      securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: user.email || undefined,
+        userId: user.id,
+        details: { reason: 'ANUNCIANTE_BLOCKED_ADMIN' }
+      });
+      return <Navigate to="/portal" replace />;
+    }
+  }
+
+  // Representante NÃO pode acessar portal do anunciante
+  if (isRepresentante) {
+    if (location.pathname === '/portal') {
+      securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: user.email || undefined,
+        userId: user.id,
+        details: { reason: 'REPRESENTANTE_BLOCKED_PORTAL' }
+      });
+      return <Navigate to={`/representantes/dashboard`} replace />;
+    }
+    if (location.pathname.startsWith('/portal/')) {
+      securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: user.email || undefined,
+        userId: user.id,
+        details: { reason: 'REPRESENTANTE_BLOCKED_PORTAL_SUBPATH' }
+      });
+      return <Navigate to={`/representantes/dashboard`} replace />;
+    }
+  }
+
+  // Gestor de Mídias NÃO pode acessar portal do anunciante
+  if (isGestor) {
+    if (location.pathname === '/portal') {
+      securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: user.email || undefined,
+        userId: user.id,
+        details: { reason: 'GESTOR_BLOCKED_PORTAL' }
+      });
+      return <Navigate to={`/dashboard`} replace />;
+    }
+    if (location.pathname.startsWith('/portal/')) {
+      securityAuditService.logEvent('ACCESS_DENIED', {
+        userEmail: user.email || undefined,
+        userId: user.id,
+        details: { reason: 'GESTOR_BLOCKED_PORTAL_SUBPATH' }
+      });
+      return <Navigate to={`/dashboard`} replace />;
+    }
+  }
+
+  // Owner/Admin NÃO deve acessar portal do anunciante como se fosse anunciante
+  if (isOwnerAdmin && location.pathname === '/portal') {
+    securityAuditService.logEvent('ACCESS_DENIED', {
+      userEmail: user.email || undefined,
+      userId: user.id,
+      details: { reason: 'OWNERADMIN_BLOCKED_PORTAL_ANUNCiante' }
+    });
+    return <Navigate to={`/workspace/corporate`} replace />;
   }
 
   // 3. Blindagem de Tenant: Garantir vinculação à empresa operadora
@@ -96,18 +208,21 @@ export function RequireApproval({ children }: GuardProps) {
       userId: user.id,
       details: { reason: 'ROUTE_BLOCKED_MISSING_TENANT' }
     });
-    return <Navigate to="/representantes/login?error=tenant" replace />;
+    return <Navigate to={`/auth?error=tenant&redirect=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
-  // 4. Blindagem RBAC: OWNER, Administrador, Gestor, Supervisor, Representante ou Financeiro
-  const allowedRoles: RoleName[] = ['OWNER', 'ADMIN', 'GESTOR', 'GERENTE', 'REPRESENTANTE', 'SUPERVISOR', 'FINANCEIRO'];
+  // 4. Blindagem RBAC: Perfis Constitucionais e Operacionais
+  const allowedRoles: RoleName[] = [
+    'OWNER', 'ADMIN', 'GESTOR', 'GERENTE', 'REPRESENTANTE', 'SUPERVISOR', 
+    'FINANCEIRO', 'FUNCIONARIO', 'OPERACIONAL', 'DESIGNER', 'ANUNCIANTE', 'CLIENTE', 'PARCEIRO'
+  ];
   if (!role || !allowedRoles.includes(role)) {
     securityAuditService.logEvent('ACCESS_DENIED', {
       userEmail: user.email || undefined,
       userId: user.id,
       details: { reason: 'ROUTE_BLOCKED_INVALID_ROLE', role: role || 'NONE' }
     });
-    return <Navigate to="/representantes/login?error=role" replace />;
+    return <Navigate to={`/auth?error=role&redirect=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
   return <>{children}</>;

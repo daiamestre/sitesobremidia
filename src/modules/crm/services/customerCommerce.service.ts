@@ -12,8 +12,7 @@
 // ======================================================================
 
 import { supabase } from '@/integrations/supabase/client';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { CommerceDatabase } from '@/types/customerPortalDb';
+import type { Json } from '@/integrations/supabase/types';
 import type {
   Produto,
   ProdutoPreco,
@@ -33,10 +32,8 @@ import type {
   AtualizarPrecoResult,
 } from '@/types/customerPortal';
 
-// Tabelas/RPCs novas não estão no tipo Database gerado; o cast único abaixo
-// estende o Database com os tipos do módulo (customerPortalDb), mantendo o
-// type-safety dos builders sem recorrer a `any`.
-const db = supabase as unknown as SupabaseClient<CommerceDatabase>;
+// Usa o cliente tipado padrão: as tabelas/RPCs deste módulo já existem no Database gerado
+const db = supabase;
 
 export interface ProdutoInput {
   codigo?: string;
@@ -367,7 +364,12 @@ export class CustomerCommerceService {
     patch: { modalidade?: ModalidadeCliente; step?: string; dados?: Record<string, unknown> }
   ): Promise<boolean> {
     try {
-      const { error } = await db.from('onboarding_sessoes').update(patch).eq('id', sessaoId);
+      const patchTyped: { modalidade?: string; step?: string; dados?: Json } = {
+        ...(patch.modalidade !== undefined ? { modalidade: patch.modalidade as string } : {}),
+        ...(patch.step !== undefined ? { step: patch.step } : {}),
+        ...(patch.dados !== undefined ? { dados: patch.dados as unknown as Json } : {}),
+      };
+      const { error } = await db.from('onboarding_sessoes').update(patchTyped).eq('id', sessaoId);
       if (error) throw error;
       return true;
     } catch (err) {
@@ -501,11 +503,31 @@ export class CustomerCommerceService {
   async criarCampanha(tenantId: string, clienteId: string, input: any): Promise<any> {
     try {
       const user = await supabase.auth.getUser();
+
+      // campanhas.contrato_id é NOT NULL no banco: resolver o contrato vigente
+      // do cliente quando o chamador não o informar (falha explícita se ausente).
+      let contratoId: string | null = typeof input?.contratoId === 'string' ? input.contratoId : null;
+      if (!contratoId) {
+        const { data: contrato } = await db
+          .from('contratos')
+          .select('id')
+          .eq('empresa_operadora_id', tenantId)
+          .eq('cliente_id', clienteId)
+          .is('deleted_at', null)
+          .order('data_inicio', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        contratoId = (contrato as { id?: string } | null)?.id ?? null;
+      }
+      if (!contratoId) {
+        throw new Error('Cliente sem contrato vigente — não é possível criar campanha.');
+      }
+
       const { data, error } = await db.from('campanhas').insert({
         empresa_operadora_id: tenantId,
         cliente_id: clienteId,
+        contrato_id: contratoId,
         titulo: input.titulo,
-        descricao: input.descricao || null,
         objetivo: input.objetivo || null,
         data_inicio: input.inicio,
         data_fim: input.fim,
@@ -742,14 +764,20 @@ export class CustomerCommerceService {
   async listarOfertasParaEncarte(clienteId: string): Promise<any[]> {
     try {
       // Retorna ofertas ativas do cliente com detalhes do produto
+      // ofertas não tem FK direta para produtos; o produto chega via oferta_itens
       const { data, error } = await supabase
         .from('ofertas')
-        .select('*, produto:produtos(*)')
+        .select('*, itens:oferta_itens(preco_oferta, preco_original, produto:produtos(*))')
         .eq('cliente_id', clienteId)
         .eq('status', 'ATIVA')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      return ((data || []) as Array<{ itens?: Array<{ produto?: unknown; preco_oferta?: number }> }>)
+        .map((oferta) => ({
+          ...oferta,
+          produto: oferta.itens?.[0]?.produto ?? null,
+          preco_promocional: oferta.itens?.[0]?.preco_oferta ?? null,
+        }));
     } catch (err) {
       console.error('[CustomerCommerce] listarOfertasParaEncarte:', err);
       return [];

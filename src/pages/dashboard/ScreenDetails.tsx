@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,13 +15,26 @@ import { Switch } from '@/components/ui/switch';
 import {
     ArrowLeft, Monitor, Wifi, WifiOff, MapPin, Clock, Server, ListVideo, Play,
     Power, RefreshCw, Camera, Save, Trash2, GripVertical, Plus, Image, Video,
-    Music, Volume2, VolumeX, Smartphone, MonitorSmartphone, LayoutTemplate, ExternalLink as ExternalLinkIcon
+    Music, Volume2, VolumeX, Smartphone, MonitorSmartphone, LayoutTemplate, ExternalLink as ExternalLinkIcon,
+    Unlink, ShieldAlert, Image as ImageIcon,
+    Cpu, Activity, Wifi as WifiIcon
 } from 'lucide-react';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { format, formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Screen, ScreenStatus, Playlist, Media, Widget, ExternalLink, PlaylistItem as ModelPlaylistItem } from '@/types/models';
+import { Screen, ScreenStatus, Playlist, Media, Widget, WidgetConfig, ExternalLink, PlaylistItem as ModelPlaylistItem } from '@/types/models';
 import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+import { ScreenPairingDialog } from '@/components/screens/ScreenPairingDialog';
 import {
     BarChart,
     Bar,
@@ -72,11 +85,11 @@ interface ScreenWithPlaylist {
     version?: string;
     ip_address?: string;
     custom_id?: string;
+    bound_device_id?: string | null;
     resolution?: string;
     orientation?: 'landscape' | 'portrait';
     playlist_id?: string;
     is_active: boolean;
-    audio_enabled?: boolean;
     last_screenshot_at?: string;
     last_screenshot_type?: 'manual' | 'heartbeat';
     playlist?: {
@@ -84,6 +97,79 @@ interface ScreenWithPlaylist {
         name: string;
         items: PlaylistItem[];
     };
+    // Device Fleet / Device Health
+    device_health?: DeviceHealth;
+}
+
+// Device Fleet / Device Health Types
+interface DeviceHealth {
+    device_id: string;
+    status: 'ONLINE' | 'OFFLINE' | 'DEGRADED' | 'UNKNOWN';
+    last_seen: string;
+    uptime_seconds?: number;
+    cpu_usage_percent?: number;
+    cpu_model?: string;
+    cpu_cores?: number;
+    cpu_frequency_mhz?: number;
+    memory_usage_percent?: number;
+    memory_used_mb?: number;
+    memory_free_mb?: number;
+    memory_total_mb?: number;
+    storage_used_mb?: number;
+    storage_free_mb?: number;
+    storage_total_mb?: number;
+    temperature_celsius?: number;
+    temperature_source?: string;
+    thermal_status?: string;
+    battery_level?: number;
+    battery_temperature_celsius?: number;
+    battery_status?: string;
+    battery_health?: string;
+    network_type?: string;
+    wifi_signal_dbm?: number;
+    ip_address?: string;
+    connection_status?: string;
+    screen_width?: number;
+    screen_height?: number;
+    screen_refresh_rate?: number;
+    screen_orientation?: string;
+    player_version?: string;
+    sync_status?: string;
+    current_playlist_id?: string;
+    current_media_id?: string;
+    last_playback_at?: string;
+    last_sync_at?: string;
+    playback_error_count?: number;
+    last_playback_error?: string;
+    media_count?: number;
+    pending_media_count?: number;
+    recorded_at?: string;
+    telemetry_protocol_version?: number;
+}
+
+// Device Info (from devices table)
+interface DeviceInfo {
+    id: string;
+    device_type?: string;
+    device_name?: string;
+    manufacturer?: string;
+    brand?: string;
+    model?: string;
+    serial_number?: string;
+    android_id?: string;
+    os_version?: string;
+    os_sdk?: number;
+    architecture?: string;
+    cpu_model?: string;
+    cpu_cores?: number;
+    ram_total_mb?: number;
+    storage_total_mb?: number;
+    gpu?: string;
+    screen_width?: number;
+    screen_height?: number;
+    screen_refresh_rate?: number;
+    player_version?: string;
+    telemetry_protocol_version?: number;
 }
 
 // Chart Data Logic handled inside component
@@ -160,11 +246,12 @@ export default function ScreenDetails() {
 
             if (isUUID) return id;
 
-            console.log("Detectado ID Personalizado (Custom ID):", id, "Buscando UUID...");
+            console.log("Detectado identificador operacional:", id, "Buscando UUID...");
+            // Buscar por codigo_operacional OU custom_id (compatibilidade)
             const { data, error } = await supabase
                 .from('screens')
                 .select('id')
-                .eq('custom_id', id)
+                .or(`codigo_operacional.eq.${id},custom_id.eq.${id}`)
                 .maybeSingle();
 
             if (error) {
@@ -184,10 +271,19 @@ export default function ScreenDetails() {
     const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
     const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
     const [linkPickerOpen, setLinkPickerOpen] = useState(false);
+    const [isUnpairDialogOpen, setIsUnpairDialogOpen] = useState(false);
+    const [isUnpairing, setIsUnpairing] = useState(false);
+    const [pairingDialogOpen, setPairingDialogOpen] = useState(false);
+
+    // Device Fleet / Device Health
+    const [deviceHealth, setDeviceHealth] = useState<DeviceHealth | null>(null);
+    const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
+    const [isLoadingDeviceHealthState, setIsLoadingDeviceHealthState] = useState(false);
 
     // Stats State
     const [statsPeriod, setStatsPeriod] = useState<'today' | 'week' | 'month'>('week');
     const [isCapturing, setIsCapturing] = useState(false);
+    const screenshotTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Fetch Stats
     const { data: statsData, isLoading: isLoadingStats } = useQuery({
@@ -321,6 +417,68 @@ export default function ScreenDetails() {
         enabled: !!resolvedId
     });
 
+    // Device Health Query - fetch device health when screen has bound_device_id
+    const { data: deviceHealthData, isLoading: isLoadingDeviceHealth } = useQuery({
+        queryKey: ['device-health', screen?.bound_device_id],
+        queryFn: async () => {
+            if (!screen?.bound_device_id) return null;
+            
+            // Fetch from device_health table (current state)
+            const { data: health, error } = await supabase
+                .from('device_health')
+                .select('*')
+                .eq('device_id', screen.bound_device_id)
+                .maybeSingle();
+            
+            if (error) {
+                console.warn('Error fetching device health:', error);
+                return null;
+            }
+            return health;
+        },
+        enabled: !!screen?.bound_device_id,
+        refetchInterval: 30000, // Refresh every 30s
+    });
+
+    // Device Info Query - fetch extended device info from devices table
+    const { data: deviceInfoData } = useQuery({
+        queryKey: ['device-info', screen?.bound_device_id],
+        queryFn: async () => {
+            if (!screen?.bound_device_id) return null;
+            
+            const { data: info, error } = await supabase
+                .from('devices')
+                .select('*')
+                .eq('identity_hash', screen.bound_device_id)
+                .maybeSingle();
+            
+            if (error) {
+                console.warn('Error fetching device info:', error);
+                return null;
+            }
+            return info;
+        },
+        enabled: !!screen?.bound_device_id,
+    });
+
+    // Sync device health state
+    useEffect(() => {
+        if (deviceHealthData) {
+            // device_health real columns have no status; derive it from last_seen freshness
+            const health = deviceHealthData as unknown as DeviceHealth;
+            const lastSeenMs = deviceHealthData.last_seen ? new Date(deviceHealthData.last_seen).getTime() : 0;
+            const isFresh = Date.now() - lastSeenMs < 5 * 60 * 1000;
+            setDeviceHealth({ ...health, status: isFresh ? 'ONLINE' : 'OFFLINE' });
+        }
+    }, [deviceHealthData]);
+
+    // Sync device info state
+    useEffect(() => {
+        if (deviceInfoData) {
+            setDeviceInfo(deviceInfoData);
+        }
+    }, [deviceInfoData]);
+
     // Consolidated Loading and Error states
     const isLoading = idLoading || (!!resolvedId && screenLoading);
     const isError = idError || (!!resolvedId && screenError);
@@ -362,7 +520,7 @@ export default function ScreenDetails() {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('widgets')
-                .select('id, name, widget_type, config, is_active')
+                .select('id, name, widget_type, config, thumbnail_url, is_active')
                 .eq('user_id', user?.id)
                 .order('name');
             if (error) throw error;
@@ -403,7 +561,7 @@ export default function ScreenDetails() {
         enabled: !!user?.id
     });
 
-    // [REALTIME DIAGNOSTIC] Listen for command execution to auto-refresh screenshot
+    // [REALTIME DIAGNOSTIC] Listen for command execution to auto-refresh screenshot & commands
     useEffect(() => {
         if (!resolvedId) return;
 
@@ -421,15 +579,24 @@ export default function ScreenDetails() {
                 (payload) => {
                     const cmd = payload.new.command?.toLowerCase();
                     const status = payload.new.status?.toLowerCase();
+                    const payloadObj = payload.new.payload as Record<string, unknown> | null;
+                    const errorMsg = (payloadObj?.error_message as string | undefined) ||
+                        (payload.new as Record<string, unknown>).status_note as string | undefined ||
+                        (payload.new as Record<string, unknown>).error_message as string | undefined;
 
                     console.log(">>> [SNIFFER] Mudança de Status detectada:", cmd, status);
 
                     if (cmd === 'screenshot') {
+                        if (screenshotTimeoutRef.current) {
+                            clearTimeout(screenshotTimeoutRef.current);
+                            screenshotTimeoutRef.current = null;
+                        }
+                        setIsCapturing(false);
+
                         if (status === 'executed' || status === 'success' || status?.startsWith('executed')) {
                             toast.success('📸 Screenshot recebido e atualizado!', {
                                 description: 'A imagem foi capturada agora mesmo pelo dispositivo.'
                             });
-                            setIsCapturing(false);
                             // Refresh React Query to update last_screenshot_at
                             queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] });
                             // Force refresh image via DOM
@@ -440,9 +607,28 @@ export default function ScreenDetails() {
                             }
                         } else if (status === 'failed' || status?.startsWith('failed')) {
                             toast.error(`❌ Falha na captura do dispositivo`, {
-                                description: payload.new.status_note || payload.new.error_message || 'Verifique se o player está online.'
+                                description: errorMsg || 'Verifique se o player está online.'
                             });
-                            setIsCapturing(false);
+                        }
+                    } else if (cmd === 'reload') {
+                        if (status === 'executed' || status === 'success') {
+                            toast.success('🔄 Player atualizado com sucesso!', {
+                                description: 'O player iniciou a sincronização localmente.'
+                            });
+                        } else if (status === 'failed') {
+                            toast.error('❌ Falha ao atualizar player', {
+                                description: errorMsg || 'O dispositivo rejeitou o comando de atualização.'
+                            });
+                        }
+                    } else if (cmd === 'reboot') {
+                        if (status === 'executed' || status === 'success') {
+                            toast.success('⚡ Player reiniciando...', {
+                                description: 'O aplicativo do player está sendo reiniciado.'
+                            });
+                        } else if (status === 'failed') {
+                            toast.error('❌ Falha ao reiniciar player', {
+                                description: errorMsg || 'Comando rejeitado pelo dispositivo.'
+                            });
                         }
                     }
                 }
@@ -452,6 +638,10 @@ export default function ScreenDetails() {
             });
 
         return () => {
+            if (screenshotTimeoutRef.current) {
+                clearTimeout(screenshotTimeoutRef.current);
+                screenshotTimeoutRef.current = null;
+            }
             supabase.removeChannel(channel);
         };
     }, [resolvedId, queryClient]);
@@ -463,8 +653,23 @@ export default function ScreenDetails() {
             toast.error("Erro: ID da tela não resolvido.");
             return;
         }
-        if (command === 'screenshot') setIsCapturing(true);
-        toast.info(`Contatando dispositivo: ${command}...`, { duration: 2000 });
+        
+        if (command === 'screenshot') {
+            setIsCapturing(true);
+            if (screenshotTimeoutRef.current) {
+                clearTimeout(screenshotTimeoutRef.current);
+            }
+            // [P0 HARDENING] Timeout defensivo de 30 segundos contra loading infinito
+            screenshotTimeoutRef.current = setTimeout(() => {
+                setIsCapturing(false);
+                toast.error('⏱️ Timeout no Screenshot (30s)', {
+                    description: 'A TV Box não respondeu em 30 segundos. Verifique se o player está online e conectado.',
+                    duration: 6000
+                });
+            }, 30000);
+        }
+
+        toast.info(`Enviando comando: ${command}...`, { duration: 2000 });
 
         const { error } = await supabase.from('remote_commands').insert({
             screen_id: resolvedId, // Use UUID
@@ -475,7 +680,51 @@ export default function ScreenDetails() {
         if (error) {
             console.error("Erro ao enviar comando:", error);
             toast.error(`Erro ao enviar: ${error.message}`);
-            if (command === 'screenshot') setIsCapturing(false);
+            if (command === 'screenshot') {
+                if (screenshotTimeoutRef.current) {
+                    clearTimeout(screenshotTimeoutRef.current);
+                    screenshotTimeoutRef.current = null;
+                }
+                setIsCapturing(false);
+            }
+        }
+    };
+
+    const handleUnpairScreen = async () => {
+        if (!resolvedId) {
+            toast.error('Erro: ID da tela não encontrado.');
+            return;
+        }
+
+        try {
+            setIsUnpairing(true);
+            const { data, error } = await supabase.rpc('admin_unpair_screen', {
+                p_screen_id: resolvedId
+            });
+
+            if (error) {
+                console.error("Erro ao desvincular dispositivo:", error);
+                toast.error(`Falha ao desvincular: ${error.message}`);
+                return;
+            }
+
+            // RPC returns jsonb -> narrow once
+            const result = data as Record<string, unknown> | null;
+            if (result?.status === 'SUCCESS') {
+                toast.success('Dispositivo desvinculado com sucesso!', {
+                    description: 'A tela e sua playlist foram preservadas e estão livres para novo pareamento.'
+                });
+                setIsUnpairDialogOpen(false);
+                queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] });
+                refetch();
+            } else {
+                toast.error((result?.message as string) || 'Não foi possível desvincular o dispositivo.');
+            }
+        } catch (err: any) {
+            console.error("Erro inesperado ao desvincular:", err);
+            toast.error(`Erro: ${err.message || err}`);
+        } finally {
+            setIsUnpairing(false);
         }
     };
 
@@ -623,6 +872,20 @@ export default function ScreenDetails() {
         }
     };
 
+    // --- REDIRECT UUID -> OPERATIONAL CODE ---
+    // If accessed via UUID, redirect to operational code (codigo_operacional or custom_id)
+    // This mirrors the billing pattern: UUID is internal, operational code is public
+    const operationalCode = screen?.codigo_operacional || screen?.custom_id;
+    const isUUID = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    useEffect(() => {
+        if (!screen || !operationalCode || !isUUID) return;
+        if (id !== operationalCode) {
+            console.log('[ScreenDetails] Redirecting UUID to operational code:', operationalCode);
+            navigate(`/dashboard/screens/${operationalCode}`, { replace: true });
+        }
+    }, [id, operationalCode, isUUID, navigate]);
+
     if (isLoading) return <div className="p-8 flex justify-center"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div></div>;
 
     // Add specific check for error or missing screen
@@ -640,7 +903,187 @@ export default function ScreenDetails() {
     const isOnline = screen.is_active !== false && screen.last_ping_at && (new Date().getTime() - new Date(screen.last_ping_at).getTime()) < 180000; // 3 min
     const isPortrait = screen.resolution === '9x16';
 
-    return (
+    // ============================================================
+    // DEVICE FLEET / DEVICE HEALTH - Helper Functions
+    // ============================================================
+
+    const getHealthStatusBadgeClass = (status?: string) => {
+        switch (status) {
+            case 'ONLINE': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+            case 'DEGRADED': return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+            case 'OFFLINE': return 'bg-red-500/10 text-red-400 border-red-500/30';
+            default: return 'bg-slate-500/10 text-slate-400 border-slate-500/30';
+        }
+    };
+
+    const getHealthStatusDotClass = (status?: string) => {
+        switch (status) {
+            case 'ONLINE': return 'bg-emerald-500 animate-pulse';
+            case 'DEGRADED': return 'bg-amber-500 animate-pulse';
+            case 'OFFLINE': return 'bg-red-500';
+            default: return 'bg-slate-500';
+        }
+    };
+
+    const getHealthStatusLabel = (status?: string) => {
+        switch (status) {
+            case 'ONLINE': return 'Online';
+            case 'DEGRADED': return 'Degradado';
+            case 'OFFLINE': return 'Offline';
+            default: return 'Desconhecido';
+        }
+    };
+
+    const formatBytes = (bytes?: number, decimals = 1) => {
+        if (bytes === undefined || bytes === null) return 'N/A';
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    };
+
+    const formatUptime = (seconds?: number) => {
+        if (seconds === undefined || seconds === null) return 'N/A';
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+        if (hours > 0) return `${hours}h ${minutes}m`;
+        return `${minutes}m`;
+    };
+
+    const formatPercent = (value?: number) => {
+        if (value === undefined || value === null) return 'N/A';
+        return `${value.toFixed(1)}%`;
+    };
+
+    const formatTemperature = (temp?: number) => {
+        if (temp === undefined || temp === null) return 'N/A';
+        return `${temp.toFixed(1)}°C`;
+    };
+
+    const formatSignal = (dbm?: number) => {
+        if (dbm === undefined || dbm === null) return 'N/A';
+        return `${dbm} dBm`;
+    };
+
+    const getSignalQuality = (dbm?: number) => {
+        if (dbm === undefined || dbm === null) return { label: 'N/A', className: 'text-muted-foreground' };
+        if (dbm >= -50) return { label: 'Excelente', className: 'text-emerald-400' };
+        if (dbm >= -60) return { label: 'Boa', className: 'text-emerald-400' };
+        if (dbm >= -70) return { label: 'Regular', className: 'text-amber-400' };
+        if (dbm >= -80) return { label: 'Fraca', className: 'text-orange-400' };
+        return { label: 'Crítica', className: 'text-red-400' };
+    };
+
+    const getThermalLabel = (status?: string) => {
+        switch (status?.toUpperCase()) {
+            case 'NORMAL': return { label: 'Normal', className: 'text-emerald-400' };
+            case 'ELEVATED': return { label: 'Elevada', className: 'text-amber-400' };
+            case 'HIGH': return { label: 'Alta', className: 'text-orange-400' };
+            case 'CRITICAL': return { label: 'Crítica', className: 'text-red-400' };
+            default: return { label: 'N/A', className: 'text-muted-foreground' };
+        }
+    };
+
+    // ============================================================
+    // DEVICE FLEET SECTION COMPONENTS
+    // ============================================================
+
+    const DeviceInfoSection = ({ deviceInfo }: { deviceInfo: DeviceInfo }) => (
+        <div className="rounded-lg bg-muted/30 p-4 border border-border/40">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3">
+                <Smartphone className="h-4 w-4 text-primary" /> Identificação do Dispositivo
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="space-y-1"><span className="text-muted-foreground">Tipo</span><span className="font-medium">{deviceInfo.device_type || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Nome</span><span className="font-medium">{deviceInfo.device_name || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Fabricante</span><span className="font-medium">{deviceInfo.manufacturer || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Marca</span><span className="font-medium">{deviceInfo.brand || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Modelo</span><span className="font-medium">{deviceInfo.model || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Número de Série</span><span className="font-medium font-mono">{deviceInfo.serial_number || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Android ID</span><span className="font-medium font-mono">{deviceInfo.android_id || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Android</span><span className="font-medium">{deviceInfo.os_version || 'N/A'} (SDK {deviceInfo.os_sdk || 'N/A'})</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Arquitetura</span><span className="font-medium">{deviceInfo.architecture || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Player</span><span className="font-medium">{deviceInfo.player_version || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Protocolo Telemetria</span><span className="font-medium">v{deviceInfo.telemetry_protocol_version || 1}</span></div>
+            </div>
+        </div>
+    );
+
+    const DeviceHardwareSection = ({ deviceInfo }: { deviceInfo: DeviceInfo }) => (
+        <div className="rounded-lg bg-muted/30 p-4 border border-border/40">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3">
+                <Cpu className="h-4 w-4 text-primary" /> Hardware
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="space-y-1"><span className="text-muted-foreground">CPU</span><span className="font-medium">{deviceInfo.cpu_model || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Núcleos</span><span className="font-medium">{deviceInfo.cpu_cores || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">RAM Total</span><span className="font-medium">{deviceInfo.ram_total_mb ? formatBytes(deviceInfo.ram_total_mb * 1024 * 1024) : 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Armazenamento Total</span><span className="font-medium">{deviceInfo.storage_total_mb ? formatBytes(deviceInfo.storage_total_mb * 1024 * 1024) : 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">GPU</span><span className="font-medium">{deviceInfo.gpu || 'N/A'}</span></div>
+                <div className="space-y-1">
+                    <span className="text-muted-foreground">Display</span>
+                    <span className="font-medium">
+                        {deviceInfo.screen_width && deviceInfo.screen_height 
+                            ? `${deviceInfo.screen_width} × ${deviceInfo.screen_height}`
+                            : 'N/A'}
+                        {deviceInfo.screen_refresh_rate && ` @ ${deviceInfo.screen_refresh_rate}Hz`}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+
+    const DeviceHealthSection = ({ health, isLoading }: { health: DeviceHealth; isLoading: boolean }) => (
+        <div className="rounded-lg bg-muted/30 p-4 border border-border/40">
+            <div className="flex items-center justify-between mb-3">
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Activity className="h-4 w-4 text-primary" /> Saúde do Dispositivo
+                </h4>
+                <Badge 
+                    variant="outline" 
+                    className={`${getHealthStatusBadgeClass(health.status)} gap-1.5`}
+                >
+                    <span className={`h-2 w-2 rounded-full ${getHealthStatusDotClass(health.status)}`} />
+                    {getHealthStatusLabel(health.status)}
+                </Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div className="space-y-1"><span className="text-muted-foreground">Heartbeat</span><span className="font-medium">{health.last_seen ? formatDistanceToNow(new Date(health.last_seen), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Uptime</span><span className="font-medium">{formatUptime(health.uptime_seconds)}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">CPU</span><span className="font-medium">{formatPercent(health.cpu_usage_percent)}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">RAM</span><span className="font-medium">{formatPercent(health.memory_usage_percent)}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Armazenamento</span><span className="font-medium">{health.storage_total_mb && health.storage_used_mb ? formatPercent((health.storage_used_mb / health.storage_total_mb) * 100) : 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Temperatura</span><span className="font-medium">{formatTemperature(health.temperature_celsius)}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Estado Térmico</span><span className="font-medium">{health.thermal_status ? getThermalLabel(health.thermal_status).label : 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Bateria</span><span className="font-medium">{health.battery_level !== undefined ? `${health.battery_level}%${health.battery_status ? ` (${health.battery_status})` : ''}` : 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Erros Playback</span><span className="font-medium text-red-400">{health.playback_error_count || 0}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Último Sync</span><span className="font-medium">{health.last_sync_at ? formatDistanceToNow(new Date(health.last_sync_at), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Último Playback</span><span className="font-medium">{health.last_playback_at ? formatDistanceToNow(new Date(health.last_playback_at), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Protocolo</span><span className="font-medium">v{health.telemetry_protocol_version || 1}</span></div>
+            </div>
+        </div>
+    );
+
+    const DeviceNetworkSection = ({ health }: { health: DeviceHealth }) => (
+        <div className="rounded-lg bg-muted/30 p-4 border border-border/40">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3">
+                <WifiIcon className="h-4 w-4 text-primary" /> Rede & Conectividade
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="space-y-1"><span className="text-muted-foreground">Tipo</span><span className="font-medium">{health.network_type || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Sinal Wi-Fi</span><span className="font-medium">{formatSignal(health.wifi_signal_dbm)}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Qualidade</span><span className="font-medium">{getSignalQuality(health.wifi_signal_dbm).label}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">IP</span><span className="font-medium font-mono">{health.ip_address || 'N/A'}</span></div>
+                <div className="space-y-1"><span className="text-muted-foreground">Status</span><span className="font-medium">{health.connection_status || 'N/A'}</span></div>
+            </div>
+        </div>
+    );
+
+return (
         <div className="space-y-6 animate-fade-in pb-10">
             {/* Header */}
             <div className="bg-card border border-border/50 rounded-xl p-6 shadow-sm">
@@ -659,11 +1102,18 @@ export default function ScreenDetails() {
                                     {isPortrait ? <MonitorSmartphone className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
                                     {screen.resolution || '16x9'}
                                 </Badge>
-                                {screen.audio_enabled && (
-                                    <Badge variant="secondary" className="gap-1 bg-blue-500/10 text-blue-500 border-blue-500/20">
-                                        <Volume2 className="h-3 w-3" /> Áudio Ativo
-                                    </Badge>
+                                {(screen.bound_device_id && typeof screen.bound_device_id === 'string' && screen.bound_device_id.trim().length > 0) && (
+                                    <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        onClick={() => setIsUnpairDialogOpen(true)}
+                                        className="h-6 text-xs gap-1 px-2"
+                                    >
+                                        <Unlink className="h-3 w-3" />
+                                        Desvincular Tela
+                                    </Button>
                                 )}
+
                             </div>
                             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-2">
                                 <div className="flex items-center gap-1.5">
@@ -679,7 +1129,7 @@ export default function ScreenDetails() {
                                     v{screen.version || '1.0.0'}
                                 </div>
                                 <div className="flex items-center gap-1.5 font-mono bg-muted px-1.5 py-0.5 rounded text-xs">
-                                    ID: {screen.custom_id || screen.id.slice(0, 8)}
+                                    ID: {screen.codigo_operacional || screen.custom_id || '—'}
                                 </div>
                                 {screen.status && (
                                     <div className="flex items-center gap-1.5 font-mono bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded text-xs border border-blue-500/20">
@@ -697,6 +1147,34 @@ export default function ScreenDetails() {
                     </div>
                 </div>
             </div>
+
+            {/* Foto de Capa da Tela */}
+            {screen.capa_url && (
+              <Card className="glass border-border/60 mb-6">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ImageIcon className="h-5 w-5 text-primary" /> Foto de Capa do Local
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-2">
+                  <div className="relative rounded-xl overflow-hidden bg-slate-900">
+                    <img
+                      src={screen.capa_url}
+                      alt={`Foto de capa do ${screen.name}`}
+                      className="w-full h-auto object-cover max-h-[300px]"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white font-medium">{screen.name}</span>
+                        <Badge variant="outline" className="bg-white/10 text-white border-white/20">
+                          {screen.location || 'Sem localização'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Charts & Controls */}
@@ -766,7 +1244,7 @@ export default function ScreenDetails() {
                                     </Button>
                                     <Button variant="outline" className="h-20 flex flex-col gap-2 hover:bg-destructive/10 hover:border-destructive/50 hover:text-destructive" onClick={() => handleSendCommand('reboot')}>
                                         <Power className="h-6 w-6" />
-                                        Reiniciar Dispositivo
+                                        Reiniciar Player
                                     </Button>
                                 </div>
 
@@ -935,7 +1413,172 @@ export default function ScreenDetails() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Dispositivo Vinculado - Device Fleet / Device Health */}
+                        <Card className="glass md:col-span-2 border-border/60">
+                            <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <Smartphone className="h-5 w-5 text-primary" /> Dispositivo Vinculado
+                                    </CardTitle>
+                                    {screen.bound_device_id ? (
+                                        <>
+                                            {/* Health Status Badge */}
+                                            <Badge 
+                                                variant="outline" 
+                                                className={getHealthStatusBadgeClass(deviceHealth?.status)}
+                                            >
+                                                <span className={`h-2 w-2 rounded-full ${getHealthStatusDotClass(deviceHealth?.status)}`} />
+                                                {getHealthStatusLabel(deviceHealth?.status)}
+                                            </Badge>
+                                            {/* Device Type Badge */}
+                                            {deviceInfo?.device_type && (
+                                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 gap-1.5 py-1 px-3">
+                                                    <MonitorSmartphone className="h-3 w-3" />
+                                                    {deviceInfo.device_type}
+                                                </Badge>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30 gap-1.5 py-1 px-3">
+                                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                            Livre para Pareamento
+                                        </Badge>
+                                    )}
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                {screen.bound_device_id && (deviceHealth || deviceInfo) ? (
+                                    <div className="space-y-4">
+                                        {/* Device Identification */}
+                                        {deviceInfo && (
+                                            <DeviceInfoSection deviceInfo={deviceInfo} />
+                                        )}
+                                        
+                                        {/* Hardware Specs */}
+                                        {deviceInfo && (
+                                            <DeviceHardwareSection deviceInfo={deviceInfo} />
+                                        )}
+
+                                        {/* Health Status */}
+                                        {deviceHealth && (
+                                            <DeviceHealthSection 
+                                                health={deviceHealth} 
+                                                isLoading={isLoadingDeviceHealth}
+                                            />
+                                        )}
+
+                                        {/* Network */}
+                                        {deviceHealth && (
+                                            <DeviceNetworkSection health={deviceHealth} />
+                                        )}
+
+                                        {/* Actions */}
+                                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                className="flex items-center gap-2 shrink-0 hover:bg-destructive/90 transition-all font-medium"
+                                                onClick={() => setIsUnpairDialogOpen(true)}
+                                            >
+                                                <Unlink className="h-4 w-4" />
+                                                Desvincular dispositivo
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-lg bg-muted/20 border border-border/40">
+                                        <div className="space-y-1 max-w-xl">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-medium text-foreground">Identidade do Hardware:</span>
+                                                <span className="text-xs text-muted-foreground italic">Nenhum dispositivo pareado no momento</span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                A tela está pronta para ser selecionada e pareada em qualquer TV Box ou aplicativo Android.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            className="flex items-center gap-2 shrink-0 hover:bg-primary/90 transition-all font-medium"
+                                            onClick={() => setPairingDialogOpen(true)}
+                                        >
+                                            <MonitorSmartphone className="h-4 w-4" />
+                                            Parear aparelho
+                                        </Button>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
                     </div>
+
+                    {/* Modal de Confirmação de Desvinculação */}
+                    <AlertDialog open={isUnpairDialogOpen} onOpenChange={setIsUnpairDialogOpen}>
+                        <AlertDialogContent className="bg-card border-border">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                                    <ShieldAlert className="h-5 w-5" />
+                                    Desvincular esta tela?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription asChild>
+                                    <div className="space-y-3 text-sm text-muted-foreground">
+                                        {screen && (
+                                            <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-1.5 text-foreground">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tela</span>
+                                                    <span className="font-medium">{screen.name}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ID do Player</span>
+                                                    <code className="text-xs bg-black/30 px-2 py-0.5 rounded font-mono">{screen.codigo_operacional || screen.custom_id || '—'}</code>
+                                                </div>
+                                                {screen.bound_device_id && (
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dispositivo</span>
+                                                        <code className="text-xs bg-black/30 px-2 py-0.5 rounded font-mono truncate max-w-[180px]">{screen.bound_device_id}</code>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <p>O dispositivo atualmente conectado <strong>perderá o vínculo</strong> com esta tela.</p>
+                                        <p className="text-emerald-400 font-medium">✓ A Screen e a Playlist <strong>NÃO serão excluídas</strong> e ficarão disponíveis para novo pareamento.</p>
+                                    </div>
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="mt-4 gap-2">
+                                <AlertDialogCancel disabled={isUnpairing}>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleUnpairScreen();
+                                    }}
+                                    disabled={isUnpairing}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+                                >
+                                    {isUnpairing ? (
+                                        <>
+                                            <RefreshCw className="h-4 w-4 animate-spin" />
+                                            Desvinculando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Unlink className="h-4 w-4" />
+                                            Desvincular
+                                        </>
+                                    )}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+
+                    {/* Dialog de Pareamento */}
+                    <ScreenPairingDialog
+                        open={pairingDialogOpen}
+                        onOpenChange={setPairingDialogOpen}
+                        screens={screen ? ([{ ...screen, id: screen.id }] as unknown as Screen[]) : []}
+                        onPaired={refetch}
+                    />
+
                 </div>
 
                 {/* Right Column: Playlist Management */}
@@ -963,7 +1606,7 @@ export default function ScreenDetails() {
                                                     {availableMedia.map(media => (
                                                         <div key={media.id}
                                                             className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
-                                                            onClick={() => handleAddItem(media)}
+                                                            onClick={() => handleAddItem(media as unknown as Media)}
                                                         >
                                                             <MediaThumbnail media={media} showIcon={false} />
                                                             <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] truncate text-white">
@@ -991,10 +1634,10 @@ export default function ScreenDetails() {
                                                     {availableWidgets.map(widget => (
                                                         <div key={widget.id}
                                                             className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
-                                                            onClick={() => handleAddWidget(widget)}
+                                                            onClick={() => handleAddWidget(widget as unknown as Widget)}
                                                         >
-                                                            {(widget.thumbnail_url || widget.config?.backgroundImageLandscape) ? (
-                                                                <img src={widget.thumbnail_url || widget.config?.backgroundImageLandscape || ''} className="w-full h-full object-cover" />
+                                                            {(widget.thumbnail_url || (widget.config as WidgetConfig | null)?.backgroundImageLandscape) ? (
+                                                                <img src={widget.thumbnail_url || (widget.config as WidgetConfig | null)?.backgroundImageLandscape || ''} className="w-full h-full object-cover" />
                                                             ) : (
                                                                 <div className="w-full h-full flex flex-col items-center justify-center bg-primary/10">
                                                                     <LayoutTemplate className="h-6 w-6 text-primary mb-1" />
@@ -1100,7 +1743,7 @@ export default function ScreenDetails() {
                                                             </div>
                                                             <div>
                                                                 <h4 className="font-medium text-sm truncate" title={playlist.name}>{playlist.name}</h4>
-                                                                <span className="text-xs text-muted-foreground">{playlist.item_count || 0} itens • {Math.floor((playlist.total_duration || 0) / 60)}m</span>
+                                                                <span className="text-xs text-muted-foreground">{playlist.item_count || 0} itens • {Math.floor(((playlist as Playlist).total_duration || 0) / 60)}m</span>
                                                             </div>
                                                         </div>
                                                     ))}

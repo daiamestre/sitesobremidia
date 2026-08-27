@@ -87,7 +87,7 @@ export default function Screens() {
   };
 
   const handleCopyUrl = (screen: Screen) => {
-    const displayId = screen.custom_id || screen.id;
+    const displayId = screen.codigo_operacional || screen.custom_id || screen.id;
     const url = `${window.location.origin}/player/${displayId}`;
     navigator.clipboard.writeText(url);
     toast.success('URL copiada para a área de transferência');
@@ -251,12 +251,16 @@ export default function Screens() {
             const isOnline = isScreenOnline(screen);
             const statusColor = isOnline ? '#22c55e' : '#ef4444';
 
+            // Use operational code (custom_id or codigo_operacional) for navigation URL
+            // UUID remains internal identifier
+            const displayId = screen.codigo_operacional || screen.custom_id || screen.id;
+
             return (
               <Card
                 key={screen.id}
                 className="glass group hover:shadow-lg transition-shadow overflow-hidden border-l-4 cursor-pointer"
                 style={{ borderLeftColor: statusColor }}
-                onClick={() => navigate(`/dashboard/screens/${screen.id}`)}
+                onClick={() => navigate(`/dashboard/screens/${displayId}`)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
@@ -314,7 +318,7 @@ export default function Screens() {
                           <Copy className="h-4 w-4 mr-2" />
                           Copiar URL
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(`/player/${screen.custom_id || screen.id}`, '_blank'); }}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(`/player/${screen.codigo_operacional || screen.custom_id || screen.id}`, '_blank'); }}>
                           <ExternalLink className="h-4 w-4 mr-2" />
                           Abrir Player
                         </DropdownMenuItem>
@@ -369,6 +373,7 @@ export default function Screens() {
                       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">ID DO PLAYER</span>
                       <ScreenIdBadge
                         customId={screen.custom_id}
+                        codigoOperacional={screen.codigo_operacional}
                         className="bg-background border-border/50 text-[10px] h-6 px-2"
                       />
                     </div>
@@ -438,7 +443,7 @@ export default function Screens() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ID do Player</span>
-                      <code className="text-xs bg-black/30 px-2 py-0.5 rounded font-mono">{unpairTarget.custom_id || unpairTarget.id.slice(0, 8)}</code>
+                      <code className="text-xs bg-black/30 px-2 py-0.5 rounded font-mono">{unpairTarget.codigo_operacional || unpairTarget.custom_id || '—'}</code>
                     </div>
                     {unpairTarget.bound_device_id && (
                       <div className="flex items-center justify-between gap-2">

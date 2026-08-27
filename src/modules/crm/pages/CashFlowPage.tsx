@@ -16,7 +16,7 @@ export default function CashFlowPage() {
 
   const fetchFluxo = useCallback(async () => {
     setLoading(true);
-    const data = await financeiroService.getCashFlow(empresaOperadoraId || undefined);
+    const data = await financeiroService.generateCashFlow(empresaOperadoraId || undefined);
     setFluxo(data);
     setLoading(false);
   }, [empresaOperadoraId]);

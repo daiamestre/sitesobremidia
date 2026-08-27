@@ -7,10 +7,12 @@ import { supabase } from '@/integrations/supabase/client';
 export const fetchAlertDevices = async () => {
     const { data, error } = await supabase
         .from('devices')
-        .select('id, name, model, screen_id, status, last_seen, last_heartbeat, registered_at')
+        // [FIX 20261102] Colunas reais da tabela devices (status/registered_at
+        // nunca existiram -> PGRST 400 e painel de alertas sempre vazio).
+        .select('id, name, model, screen_id, is_online, last_seen, last_heartbeat, storage_available')
         // Filtra dispositivos offline ou com heartbeat atrasado (limite de 2 minutos)
         .or(`last_heartbeat.lt.${new Date(Date.now() - 120000).toISOString()},last_seen.lt.${new Date(Date.now() - 120000).toISOString()}`)
-        .order('last_heartbeat', { ascending: false });
+        .order('last_heartbeat', { ascending: false, nullsFirst: false });
 
     if (error) {
         console.error('Erro ao buscar alertas de dispositivos:', error);

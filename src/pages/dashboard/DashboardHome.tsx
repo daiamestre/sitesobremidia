@@ -138,7 +138,7 @@ export default function DashboardHome() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {alerts.map((device) => {
               const severity = getSeverity(device.last_heartbeat);
-              const isStorageLow = device.storage_available && parseInt(device.storage_available) < 500000000; // < 500MB
+              const isStorageLow = device.storage_available != null && device.storage_available < 500000000; // < 500MB
 
               return (
                 <Card key={device.id} className={`glass border-l-4 ${severity === 'critical' ? 'border-l-red-500' : 'border-l-yellow-500'}`}>
@@ -157,7 +157,7 @@ export default function DashboardHome() {
                       {isStorageLow && (
                         <div className="flex items-center gap-2 text-xs text-red-400">
                           <AlertTriangle className="h-3 w-3" />
-                          <span>Armazenamento Baixo: {(parseInt(device.storage_available) / (1024 * 1024)).toFixed(0)} MB</span>
+                          <span>Armazenamento Baixo: {((device.storage_available ?? 0) / (1024 * 1024)).toFixed(0)} MB</span>
                         </div>
                       )}
                       <p className="text-xs">Visto por último: {device.last_heartbeat ? new Date(device.last_heartbeat).toLocaleTimeString() : 'Nunca'}</p>

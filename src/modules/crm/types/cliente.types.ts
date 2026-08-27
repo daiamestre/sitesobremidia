@@ -17,6 +17,7 @@ export interface ClienteCompleto {
   status: string;
   created_at: string;
   updated_at: string;
+  version?: number;
   empresas?: Array<{
     id: string;
     razao_social: string;

@@ -10,7 +10,7 @@ describe('RepresentantesGerenciaService', () => {
 
   beforeEach(() => {
     rpcMock = vi.fn();
-    vi.mocked(supabase.rpc).mockImplementation(rpcMock);
+    vi.mocked(supabase.rpc).mockImplementation(rpcMock as unknown as typeof supabase.rpc);
     service = new RepresentantesGerenciaService();
   });
 

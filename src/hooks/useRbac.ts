@@ -41,52 +41,52 @@ export function useRbac() {
       case 'GESTOR':
       case 'GERENTE':
       case 'SUPERVISOR':
-        return [
-          PERMISSIONS.CRM_READ, 
-          PERMISSIONS.CRM_WRITE, 
-          PERMISSIONS.CONTRACT_READ, 
-          PERMISSIONS.CONTRACT_WRITE, 
-          PERMISSIONS.FINANCIAL_READ, 
-          PERMISSIONS.USERS_APPROVE, 
+        return ([
+          PERMISSIONS.CRM_READ,
+          PERMISSIONS.CRM_WRITE,
+          PERMISSIONS.CONTRACT_READ,
+          PERMISSIONS.CONTRACT_WRITE,
+          PERMISSIONS.FINANCIAL_READ,
+          PERMISSIONS.USERS_APPROVE,
           PERMISSIONS.TEAM_MANAGE
-        ].includes(action as PermissionValue);
+        ] as PermissionValue[]).includes(action as PermissionValue);
       case 'FINANCEIRO':
-        return [
-          PERMISSIONS.FINANCIAL_READ, 
-          PERMISSIONS.FINANCIAL_WRITE, 
-          PERMISSIONS.CONTRACT_READ, 
+        return ([
+          PERMISSIONS.FINANCIAL_READ,
+          PERMISSIONS.FINANCIAL_WRITE,
+          PERMISSIONS.CONTRACT_READ,
           PERMISSIONS.REPORTS_VIEW
-        ].includes(action as PermissionValue);
+        ] as PermissionValue[]).includes(action as PermissionValue);
       case 'FUNCIONARIO':
       case 'OPERACIONAL':
       case 'DESIGNER':
-        return [
-          PERMISSIONS.MEDIA_MANAGE, 
-          PERMISSIONS.MEDIA_UPLOAD, 
-          PERMISSIONS.CAMPAIGNS_MANAGE, 
-          PERMISSIONS.CONTRACT_READ, 
+        return ([
+          PERMISSIONS.MEDIA_MANAGE,
+          PERMISSIONS.MEDIA_UPLOAD,
+          PERMISSIONS.CAMPAIGNS_MANAGE,
+          PERMISSIONS.CONTRACT_READ,
           PERMISSIONS.NETWORK_VIEW
-        ].includes(action as PermissionValue);
+        ] as PermissionValue[]).includes(action as PermissionValue);
       case 'REPRESENTANTE':
-        return [
-          PERMISSIONS.CRM_READ, 
-          PERMISSIONS.CRM_CREATE, 
-          PERMISSIONS.PROPOSAL_CREATE, 
+        return ([
+          PERMISSIONS.CRM_READ,
+          PERMISSIONS.CRM_CREATE,
+          PERMISSIONS.PROPOSAL_CREATE,
           PERMISSIONS.CONTRACT_READ
-        ].includes(action as PermissionValue);
+        ] as PermissionValue[]).includes(action as PermissionValue);
       case 'ANUNCIANTE':
       case 'CLIENTE':
-        return [
-          PERMISSIONS.CONTRACT_READ_OWN, 
-          PERMISSIONS.CAMPAIGNS_READ_OWN, 
+        return ([
+          PERMISSIONS.CONTRACT_READ_OWN,
+          PERMISSIONS.CAMPAIGNS_READ_OWN,
           PERMISSIONS.REPORTS_CLIENT_VIEW
-        ].includes(action as PermissionValue);
+        ] as PermissionValue[]).includes(action as PermissionValue);
       case 'PARCEIRO':
-        return [
-          PERMISSIONS.PLAYER_READ_OWN, 
-          PERMISSIONS.FINANCIAL_REPASSE_VIEW, 
+        return ([
+          PERMISSIONS.PLAYER_READ_OWN,
+          PERMISSIONS.FINANCIAL_REPASSE_VIEW,
           PERMISSIONS.NETWORK_PARTNER_STATUS
-        ].includes(action as PermissionValue);
+        ] as PermissionValue[]).includes(action as PermissionValue);
       default:
         return false;
     }

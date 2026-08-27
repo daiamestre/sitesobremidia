@@ -80,7 +80,7 @@ class ResendProvider extends CommunicationProvider {
   }
 
   async sendEmail(message: EmailMessage): Promise<SendResult> {
-    const from = message.from || "SOBRE MÍDIA <onboarding@resend.dev>";
+    const from = message.from || Deno.env.get("EMAIL_FROM") || "SOBRE MÍDIA <onboarding@resend.dev>";
 
     try {
       const response = await fetch("https://api.resend.com/emails", {

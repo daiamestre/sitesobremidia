@@ -154,8 +154,10 @@ export default function PontoParceiroWizardPage() {
     setSubindo(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return setErro('Sessão do usuário não encontrada.');
       const ext = file.name.split('.').pop() || 'jpg';
-      const fileName = (session?.user.id ?? 'anon') + '/pontos/' + Date.now() + '.' + ext;
+      const userId = session.user.id;
+      const fileName = userId + '/pontos/' + Date.now() + '.' + ext;
       const inv = await supabase.functions.invoke('get-upload-url', {
         body: { bucket: 'clientes_assets', fileName, contentType: file.type },
       });

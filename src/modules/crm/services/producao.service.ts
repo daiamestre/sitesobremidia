@@ -66,7 +66,7 @@ export interface ProducaoCompleta {
   id: string;
   empresa_operadora_id: string;
   pedido_insercao_id: string;
-  cliente_id: string;
+  cliente_id?: string;
   titulo: string;
   descricao?: string;
   status: ProducaoStatus;
@@ -114,7 +114,6 @@ export class ProducaoService {
         .insert({
           empresa_operadora_id: payload.empresaOperadoraId,
           pedido_insercao_id: payload.pedidoInsercaoId,
-          cliente_id: payload.clienteId,
           titulo: payload.titulo,
           descricao: payload.descricao || null,
           status: 'CRIADA',
@@ -142,10 +141,11 @@ export class ProducaoService {
 
       // Insere Auditoria
       await supabase.from('producao_auditoria').insert({
+        empresa_operadora_id: payload.empresaOperadoraId,
         producao_id: producao.id,
-        evento: 'PRODUCAO_CRIADA',
-        usuario_id: usuarioId || null,
-        detalhes: { titulo: payload.titulo, pedido_insercao_id: payload.pedidoInsercaoId },
+        status_novo: 'CRIADA',
+        observacoes: 'PRODUCAO_CRIADA',
+        created_by: usuarioId || null,
       });
 
       return { success: true, producaoId: producao.id };
@@ -188,24 +188,10 @@ export class ProducaoService {
 
       if (midiaErr || !midia) return { success: false, error: midiaErr?.message };
 
-      // Insere Versão v1 Imutável em midia_versoes
-      await supabase.from('midia_versoes').insert({
-        midia_id: midia.id,
-        numero_versao: versao,
-        object_key: objectKey,
-        checksum: payload.checksum || `MD5-${Date.now()}`,
-        tamanho: payload.tamanho,
-        mime_type: payload.mimeType,
-        duracao: payload.duracao || 15,
-        largura: payload.largura || 1920,
-        altura: payload.altura || 1080,
-        usuario_id: usuarioId || null,
-      });
-
       // Atualiza Status da Produção para MATERIAL_RECEBIDO
       await supabase.from('producoes').update({ status: 'MATERIAL_RECEBIDO', updated_at: new Date().toISOString() }).eq('id', payload.producaoId);
 
-      // Registra Histórico e Auditoria
+      // Registra Histórico
       await supabase.from('producao_historico').insert({
         producao_id: payload.producaoId,
         status_anterior: 'CRIADA',
@@ -215,10 +201,12 @@ export class ProducaoService {
       });
 
       await supabase.from('producao_auditoria').insert({
+        empresa_operadora_id: producao.empresa_operadora_id,
         producao_id: payload.producaoId,
-        evento: 'MIDIA_ENVIADA',
-        usuario_id: usuarioId || null,
-        detalhes: { midia_id: midia.id, object_key: objectKey, nome: payload.nome },
+        status_anterior: 'CRIADA',
+        status_novo: 'MATERIAL_RECEBIDO',
+        observacoes: 'MIDIA_ENVIADA',
+        created_by: usuarioId || null,
       });
 
       return { success: true, midiaId: midia.id };
@@ -251,26 +239,12 @@ export class ProducaoService {
         })
         .eq('id', midiaId);
 
-      // 2. Insere nova versão imutável em midia_versoes
-      await supabase.from('midia_versoes').insert({
-        midia_id: midiaId,
-        numero_versao: novaVersao,
-        object_key: objectKey,
-        checksum: payload.checksum || `MD5-${Date.now()}`,
-        tamanho: payload.tamanho,
-        mime_type: payload.mimeType,
-        duracao: payload.duracao || 15,
-        largura: payload.largura || 1920,
-        altura: payload.altura || 1080,
-        usuario_id: usuarioId || null,
-      });
-
-      // Auditoria
+      // 2. Auditoria
       await supabase.from('producao_auditoria').insert({
+        empresa_operadora_id: midia.producao.empresa_operadora_id,
         producao_id: midia.producao_id,
-        evento: 'MIDIA_SUBSTITUIDA',
-        usuario_id: usuarioId || null,
-        detalhes: { midia_id: midiaId, nova_versao: novaVersao, object_key: objectKey },
+        observacoes: 'MIDIA_SUBSTITUIDA',
+        created_by: usuarioId || null,
       });
 
       return { success: true };
@@ -284,7 +258,7 @@ export class ProducaoService {
    */
   async approveMedia(midiaId: string, observacao?: string, usuarioId?: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data: midia } = await supabase.from('midias').select('*').eq('id', midiaId).single();
+      const { data: midia } = await supabase.from('midias').select('*, producao:producoes(empresa_operadora_id)').eq('id', midiaId).single();
       if (!midia) return { success: false, error: 'Mídia não encontrada.' };
 
       // Registra Aprovação em midia_aprovacoes
@@ -300,10 +274,11 @@ export class ProducaoService {
       await supabase.from('producoes').update({ status: 'APROVADA', updated_at: new Date().toISOString() }).eq('id', midia.producao_id);
 
       await supabase.from('producao_auditoria').insert({
+        empresa_operadora_id: midia.producao.empresa_operadora_id,
         producao_id: midia.producao_id,
-        evento: 'MIDIA_APROVADA',
-        usuario_id: usuarioId || null,
-        detalhes: { midia_id: midiaId, observacao },
+        status_novo: 'APROVADA',
+        observacoes: 'MIDIA_APROVADA',
+        created_by: usuarioId || null,
       });
 
       return { success: true };
@@ -317,7 +292,7 @@ export class ProducaoService {
    */
   async rejectMedia(midiaId: string, motivo: string, usuarioId?: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data: midia } = await supabase.from('midias').select('*').eq('id', midiaId).single();
+      const { data: midia } = await supabase.from('midias').select('*, producao:producoes(empresa_operadora_id)').eq('id', midiaId).single();
       if (!midia) return { success: false, error: 'Mídia não encontrada.' };
 
       await supabase.from('midia_aprovacoes').insert({
@@ -331,10 +306,11 @@ export class ProducaoService {
       await supabase.from('producoes').update({ status: 'REPROVADA', updated_at: new Date().toISOString() }).eq('id', midia.producao_id);
 
       await supabase.from('producao_auditoria').insert({
+        empresa_operadora_id: midia.producao.empresa_operadora_id,
         producao_id: midia.producao_id,
-        evento: 'MIDIA_REPROVADA',
-        usuario_id: usuarioId || null,
-        detalhes: { midia_id: midiaId, motivo },
+        status_novo: 'REPROVADA',
+        observacoes: `MIDIA_REPROVADA${motivo ? `: ${motivo}` : ''}`,
+        created_by: usuarioId || null,
       });
 
       return { success: true };
@@ -348,16 +324,17 @@ export class ProducaoService {
    */
   async publishMedia(midiaId: string, usuarioId?: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data: midia } = await supabase.from('midias').select('*').eq('id', midiaId).single();
+      const { data: midia } = await supabase.from('midias').select('*, producao:producoes(empresa_operadora_id)').eq('id', midiaId).single();
       if (!midia) return { success: false, error: 'Mídia não encontrada.' };
 
       await supabase.from('producoes').update({ status: 'PUBLICADA', updated_at: new Date().toISOString() }).eq('id', midia.producao_id);
 
       await supabase.from('producao_auditoria').insert({
+        empresa_operadora_id: midia.producao.empresa_operadora_id,
         producao_id: midia.producao_id,
-        evento: 'MIDIA_PUBLICADA',
-        usuario_id: usuarioId || null,
-        detalhes: { midia_id: midiaId },
+        status_novo: 'PUBLICADA',
+        observacoes: 'MIDIA_PUBLICADA',
+        created_by: usuarioId || null,
       });
 
       return { success: true };
@@ -375,16 +352,14 @@ export class ProducaoService {
         .from('producoes')
         .select(`
           *,
-          cliente:clientes(*),
           pedido_insercao:pedidos_insercao(*),
-          midias:midias(*, versoes:midia_versoes(*), aprovacoes:midia_aprovacoes(*)),
-          historico:producao_historico(*)
+          midias:midias(*, aprovacoes:midia_aprovacoes(*))
         `)
         .eq('id', producaoId)
         .maybeSingle();
 
       if (error || !data) return null;
-      return data as ProducaoCompleta;
+      return data as unknown as ProducaoCompleta;
     } catch (err) {
       return null;
     }
@@ -397,13 +372,13 @@ export class ProducaoService {
     try {
       let query = supabase
         .from('producoes')
-        .select(`*, cliente:clientes(*), pedido_insercao:pedidos_insercao(*), midias:midias(*)`)
+        .select(`*, pedido_insercao:pedidos_insercao(*), midias:midias(*)`)
         .order('created_at', { ascending: false });
 
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
 
       const { data } = await query;
-      return (data || []) as ProducaoCompleta[];
+      return (data || []) as unknown as ProducaoCompleta[];
     } catch (err) {
       return [];
     }

@@ -66,15 +66,19 @@ test.describe('E2E REPRESENTANTE - FLUXO COMPLETO POR INTERFACE', () => {
 
     console.log('4. ETAPA 2...');
     await preencherEtapa2(page, data);
-    await page.click('button:has-text("Proximo: Midia & Negociacao")');
-    await expect(page.getByText(/Etapa 3: M.dia & Negocia..o/)).toBeVisible({ timeout: 15000 });
+    await page.click('button:has-text("Proximo: Pontos Parceiros")');
+    await expect(page.getByText('Etapa 3: Pontos Parceiros')).toBeVisible({ timeout: 15000 });
 
-    console.log('5. ETAPA 3...');
+    console.log('4b. ETAPA 3 (Pontos Parceiros) - sem seleção, segue adiante...');
+    await page.click('button:has-text("Proximo: Midia & Negociacao")');
+    await expect(page.getByText(/Etapa 4: M.dia & Negocia..o/)).toBeVisible({ timeout: 15000 });
+
+    console.log('5. ETAPA 4...');
     await preencherEtapa3(page, data);
     await page.click('button:has-text("Proximo: Revisao & Salvamento")');
-    await expect(page.getByText(/Etapa 4: Revis.o e Salvamento/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Etapa 5: Revis.o e Salvamento/)).toBeVisible({ timeout: 15000 });
 
-    console.log('6. ETAPA 4 - conferindo dados + aviso de vinculacao ao representante autenticado...');
+    console.log('6. ETAPA 5 - conferindo dados + aviso de vinculacao ao representante autenticado...');
     await expect(page.getByText(data.nomeFantasia, { exact: true }).first()).toBeVisible();
     await expect(page.getByText(`Razao Social: ${data.razaoSocial}`)).toBeVisible();
     await expect(page.getByText(`CNPJ: ${data.cnpj}`)).toBeVisible();

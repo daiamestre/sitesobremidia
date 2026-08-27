@@ -108,7 +108,7 @@ export class RepresentativeService {
       // 3. Comissões
       let queryComissoes = supabase.from('comissoes').select('valor_comissao, status');
       if (empresaOperadoraId) queryComissoes = queryComissoes.eq('empresa_operadora_id', empresaOperadoraId);
-      if (representanteId) queryComissoes = queryComissoes.eq('representante_id', representanteId);
+      if (representanteId) queryComissoes = queryComissoes.eq('vendedor_id', representanteId);
       const { data: comissoes } = await queryComissoes;
 
       const comissoesList = comissoes || [];
@@ -185,7 +185,7 @@ export class RepresentativeService {
     try {
       let query = supabase
         .from('clientes')
-        .select('id, codigo_cliente, status, created_at, contratos(id, valor_mensal), empresas(razao_social, nome_fantasia, cnpj_cpf, cidade)');
+        .select('id, codigo_cliente, status, created_at, contratos(valor_mensal), empresas(cnpj, razao_social, nome_fantasia, cidade)');
 
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
       if (representanteId) query = query.eq('representante_id', representanteId);
@@ -202,7 +202,7 @@ export class RepresentativeService {
           codigo_cliente: cli.codigo_cliente,
           razao_social: empresa?.razao_social || undefined,
           nome_fantasia: empresa?.nome_fantasia || undefined,
-          cnpj_cpf: empresa?.cnpj_cpf || undefined,
+          cnpj_cpf: empresa?.cnpj || undefined,
           status: cli.status,
           cidade: empresa?.cidade || undefined,
           contratos_ativos: contratos.length,
@@ -225,16 +225,25 @@ export class RepresentativeService {
     try {
       let query = supabase
         .from('comissoes')
-        .select('*, contratos(numero_contrato, clientes(empresas(nome_fantasia, razao_social)))');
+        .select('*, contratos(numero_contrato, cliente_id)');
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
-      if (representanteId) query = query.eq('representante_id', representanteId);
+      if (representanteId) query = query.eq('vendedor_id', representanteId);
 
       const { data } = await query;
+
+      // Empresas resolvidas por consulta direta (evita aninhamento profundo clientes→empresas)
+      const clienteIds = Array.from(
+        new Set((data || []).map((item: any) => item?.contratos?.cliente_id).filter((id): id is string => !!id))
+      );
+      const { data: empresasData } = clienteIds.length > 0
+        ? await supabase.from('empresas').select('cliente_id, nome_fantasia, razao_social').in('cliente_id', clienteIds)
+        : { data: [] };
+      const empresasPorCliente = new Map((empresasData || []).map((e) => [e.cliente_id, e]));
 
       // Zero Mock: todos os campos derivados de dados reais do banco — sem strings ou valores fictícios
       return (data || []).map((item: any) => {
         const contrato = item.contratos;
-        const empresa = contrato?.clientes?.empresas;
+        const empresa = contrato ? empresasPorCliente.get(contrato.cliente_id) : undefined;
         return {
           id: item.id,
           contrato_id: item.contrato_id,

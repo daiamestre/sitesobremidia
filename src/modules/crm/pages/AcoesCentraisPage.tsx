@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Calendar, Clock, TrendingUp, AlertCircle, CheckCircle, XCircle, Clock6, Mail, MessageCircle, Phone } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useRef, useTimeout } from '@tanstack/react-query';
 
 interface AcoesCentraisState {
   hoje: EligibleCharge[];
@@ -44,15 +43,15 @@ export default function AcoesCentraisPage() {
   const { toast } = useToast();
 
   // Query todas as cobranças elegíveis
-  const { data: allCharges, isLoading } = useQuery(
-    ['billing-all-charges', empresaOperadoraId],
-    async () => {
+  const { data: allCharges, isLoading } = useQuery({
+    queryKey: ['billing-all-charges', empresaOperadoraId],
+    queryFn: async () => {
       if (!empresaOperadoraId) return [];
       const service = new BillingService();
       return await service.discoverEligibleCharges(empresaOperadoraId);
     },
-    { enabled: !!empresaOperadoraId }
-  );
+    enabled: !!empresaOperadoraId,
+  });
 
   // State for the "Próximas Cobranças" view
   const [state, setState] = useState<AcoesCentraisState>({
@@ -159,7 +158,18 @@ export default function AcoesCentraisPage() {
   }, [allCharges]);
 
   const indicadores = useMemo(() => {
-    if (!allCharges) return {};
+    if (!allCharges) {
+      return {
+        total: 0,
+        totalValor: '0,00',
+        valorPago: '0,00',
+        valorVencido: '0,00',
+        valorVencer: '0,00',
+        taxaPagamento: '0.00',
+        taxaInadimplencia: '0.00',
+        aging: [] as { faixa: string; count: number; total: string }[],
+      };
+    }
 
     const hoje = new Date();
     const total = allCharges.length;
@@ -223,7 +233,7 @@ export default function AcoesCentraisPage() {
                 {state.hoje.slice(0, 3).map((c) => (
                   <li key={c.id} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse"></span>
-                    <span>{c.numero_documento || c.cliente_id?.substring(0, 6) || '—'}</span>
+                    <span>{c.numero_documento || '—'}</span>
                   </li>
                 ))}
               </ul>
@@ -243,7 +253,7 @@ export default function AcoesCentraisPage() {
                 {state.amanha.map((c) => (
                   <li key={c.id} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-orange-400"></span>
-                    <span>{c.numero_documento || c.cliente_id?.substring(0, 6) || '—'}</span>
+                    <span>{c.numero_documento || '—'}</span>
                   </li>
                 ))}
               </ul>
@@ -263,7 +273,7 @@ export default function AcoesCentraisPage() {
                 {state.proximos3Dias.slice(0, 5).map((c) => (
                   <li key={c.id} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
-                    <span>{c.numero_documento || c.cliente_id?.substring(0, 6) || '—'}</span>
+                    <span>{c.numero_documento || '—'}</span>
                   </li>
                 ))}
               </ul>
@@ -283,7 +293,7 @@ export default function AcoesCentraisPage() {
                 {state.proximos7Dias.slice(0, 7).map((c) => (
                   <li key={c.id} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-green-400"></span>
-                    <span>{c.numero_documento || c.cliente_id?.substring(0, 6) || '—'}</span>
+                    <span>{c.numero_documento || '—'}</span>
                   </li>
                 ))}
               </ul>
@@ -303,7 +313,7 @@ export default function AcoesCentraisPage() {
                 {state.atrasadas.map((c) => (
                   <li key={c.id} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse"></span>
-                    <span>{c.numero_documento || c.cliente_id?.substring(0, 6) || '—'} ({diffDays(new Date(), new Date(c.data_vencimento))} dias)</span>
+                    <span>{c.numero_documento || '—'} ({diffDays(new Date(), new Date(c.data_vencimento))} dias)</span>
                   </li>
                 ))}
               </ul>
@@ -379,7 +389,7 @@ export default function AcoesCentraisPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleRetry}
+              onClick={() => handleRetry(state.atrasadas[0]?.id || '')}
               disabled={isLoading}
             >
               {isLoading ? 'Processando...' : 'Retry Ação'}

@@ -1,41 +1,74 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CentralService } from '@/services/central.service';
-import { supabase } from '@/integrations/supabase/client';
 
 // ─── Testes: CentralService — Central de Comunicação & Inteligência ─────────
 
+const db = vi.hoisted(() => {
+  const state = {
+    responses: {} as Record<string, { data?: any; error?: any; count?: number; single?: any; maybeSingle?: any }>,
+    queries: [] as Array<{ table: string; ops: string[] }>,
+    currentUser: null as Record<string, any> | null,
+  };
+
+  const makeUser = (id: string) => ({
+    id,
+    aud: 'authenticated',
+    email: '',
+    app_metadata: {},
+    user_metadata: {},
+    created_at: '2026-01-01T00:00:00.000Z',
+  });
+
+  const makeChain = (table: string) => {
+    const q = { table, ops: [] as string[] };
+    state.queries.push(q);
+    const chain: Record<string, any> = {
+      select: vi.fn((...args: any[]) => { q.ops.push(`select:${String(args[0])}`); return chain; }),
+      insert: vi.fn((...args: any[]) => { q.ops.push(`insert:${JSON.stringify(args[0])}`); return chain; }),
+      update: vi.fn((...args: any[]) => { q.ops.push(`update:${JSON.stringify(args[0])}`); return chain; }),
+      eq: vi.fn((...args: any[]) => { q.ops.push(`eq:${args[0]}:${args[1]}`); return chain; }),
+      order: vi.fn((...args: any[]) => { q.ops.push(`order:${args[0]}:${args[1]}`); return chain; }),
+      range: vi.fn((...args: any[]) => { q.ops.push(`range:${args[0]}-${args[1]}`); return chain; }),
+      limit: vi.fn((...args: any[]) => { q.ops.push(`limit:${args[0]}`); return chain; }),
+      single: vi.fn(() => Promise.resolve(state.responses[table]?.single ?? { data: null, error: null })),
+      maybeSingle: vi.fn(() => Promise.resolve(state.responses[table]?.maybeSingle ?? { data: null, error: null })),
+      then: (resolve: (value: any) => any) => resolve(state.responses[table] ?? { data: [], error: null }),
+    };
+    return chain;
+  };
+
+  const supabaseStub = {
+    from: vi.fn((table: string) => makeChain(table)),
+    rpc: vi.fn(),
+    channel: vi.fn(),
+    removeChannel: vi.fn(),
+    auth: {
+      getUser: vi.fn(() => Promise.resolve({ data: { user: state.currentUser }, error: null })),
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      signOut: vi.fn().mockResolvedValue({ error: null }),
+      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+    },
+  };
+
+  return { state, makeUser, supabaseStub };
+});
+
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: db.supabaseStub,
+}));
+
 describe('CentralService', () => {
   let service: CentralService;
-  let fromMock: ReturnType<typeof vi.mocked<typeof supabase>['from']>;
-  let responses: Record<string, { data?: any; error?: any; count?: number }>;
-  let queries: Array<{ table: string; ops: string[] }>;
+  let responses: typeof db.state.responses;
+  let queries: typeof db.state.queries;
 
   beforeEach(() => {
     service = new CentralService();
-    responses = {};
-    queries = [];
-
-    fromMock = vi.mocked(supabase.from);
-    fromMock.mockReset();
-    fromMock.mockImplementation((table: string) => {
-      const q = { table, ops: [] };
-      queries.push(q);
-      const chain: any = {
-        select: vi.fn((...args: any[]) => { q.ops.push(`select:${String(args[0])}`); return chain; }),
-        insert: vi.fn((...args: any[]) => { q.ops.push(`insert:${JSON.stringify(args[0])}`); return chain; }),
-        update: vi.fn((...args: any[]) => { q.ops.push(`update:${JSON.stringify(args[0])}`); return chain; }),
-        eq: vi.fn((...args: any[]) => { q.ops.push(`eq:${args[0]}:${args[1]}`); return chain; }),
-        order: vi.fn((...args: any[]) => { q.ops.push(`order:${args[0]}:${args[1]}`); return chain; }),
-        range: vi.fn((...args: any[]) => { q.ops.push(`range:${args[0]}-${args[1]}`); return chain; }),
-        limit: vi.fn((...args: any[]) => { q.ops.push(`limit:${args[0]}`); return chain; }),
-        single: vi.fn(() => Promise.resolve(responses[table]?.single ?? { data: null, error: null })),
-        maybeSingle: vi.fn(() => Promise.resolve(responses[table]?.maybeSingle ?? { data: null, error: null })),
-        then: (resolve: any) => resolve(responses[table] ?? { data: [], error: null }),
-      };
-      return chain;
-    });
-
-    vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: null }, error: null });
+    Object.keys(db.state.responses).forEach((key) => delete db.state.responses[key]);
+    db.state.queries.length = 0;
+    db.state.currentUser = null;
+    responses = db.state.responses;
+    queries = db.state.queries;
   });
 
   it('deve ser instanciado corretamente', () => {
@@ -197,7 +230,7 @@ describe('CentralService', () => {
 
   describe('solicitações (decisão aprovar/rejeitar)', () => {
     it('criarSolicitacao deve usar usuário autenticado como solicitante quando não informado', async () => {
-      vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { id: 'u-auth-1' } }, error: null });
+      db.state.currentUser = db.makeUser('u-auth-1');
       responses['solicitacoes'] = { single: { data: { id: 'sol-1' }, error: null } };
 
       const result = await service.criarSolicitacao({ empresaId: 'e-1', tipo: 'NOVO_CLIENTE', titulo: 'Novo cliente' });
@@ -241,7 +274,7 @@ describe('CentralService', () => {
 
   describe('chat individual e em grupo', () => {
     it('criarConversa deve incluir o criador nos participantes e deduplicar', async () => {
-      vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { id: 'u-auth-1' } }, error: null });
+      db.state.currentUser = db.makeUser('u-auth-1');
       responses['conversas'] = { single: { data: { id: 'conv-1' }, error: null } };
       responses['conversa_participantes'] = { error: null };
 
@@ -259,7 +292,7 @@ describe('CentralService', () => {
     });
 
     it('enviarMensagem deve herdar a empresa da conversa e usar remetente autenticado', async () => {
-      vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { id: 'u-auth-1' } }, error: null });
+      db.state.currentUser = db.makeUser('u-auth-1');
       responses['conversas'] = { maybeSingle: { data: { empresa_operadora_id: 'e-1' }, error: null } };
       responses['conversa_mensagens'] = { single: { data: { id: 'msg-1' }, error: null } };
 
@@ -283,7 +316,7 @@ describe('CentralService', () => {
     });
 
     it('marcarConversaLida deve atualizar ultima_leitura do próprio usuário', async () => {
-      vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { id: 'u-auth-1' } }, error: null });
+      db.state.currentUser = db.makeUser('u-auth-1');
       responses['conversa_participantes'] = { error: null };
 
       const ok = await service.marcarConversaLida('conv-1');
@@ -298,7 +331,7 @@ describe('CentralService', () => {
 
   describe('eventos do sistema', () => {
     it('registrarEvento deve usar created_by do usuário autenticado por padrão', async () => {
-      vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { id: 'u-auth-1' } }, error: null });
+      db.state.currentUser = db.makeUser('u-auth-1');
       responses['eventos'] = { error: null };
 
       const ok = await service.registrarEvento({ empresaId: 'e-1', tipoEvento: 'CONTRATO_ASSINADO', entidadeOrigem: 'CONTRATO', entidadeId: 'ctr-1' });

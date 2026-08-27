@@ -17,10 +17,11 @@ export function CustomerSupportTickets({ clienteId, empresaOperadoraId }: { clie
     setCreating(true);
     const res = await customerPortalService.createSupportTicket({
       empresaOperadoraId,
-      clienteId,
-      titulo,
+      contratoId: '',
+      assunto: titulo,
       descricao,
-      categoria: 'FINANCEIRO',
+      prioridade: 'NORMAL',
+      createdBy: clienteId,
     });
     setCreating(false);
 

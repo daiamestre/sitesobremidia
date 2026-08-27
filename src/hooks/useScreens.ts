@@ -100,11 +100,45 @@ export function useScreens(userId?: string) {
         }
     };
 
+    const unpairMutation = useMutation({
+        mutationFn: async (screenId: string) => {
+            const { data } = await supabase.rpc('admin_unpair_screen', {
+                p_screen_id: screenId
+            });
+            const result = data as unknown as { status?: string; message?: string } | null;
+            if (result?.status !== 'SUCCESS') {
+                throw new Error(result?.message || 'Não foi possível desvincular o dispositivo.');
+            }
+            return screenId;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['screens'] });
+            toast.success('Dispositivo desvinculado com sucesso!', {
+                description: 'A tela e sua playlist foram preservadas e estão livres para novo pareamento.'
+            });
+        },
+        onError: (error: Error) => {
+            console.error('Erro ao desvincular dispositivo:', error);
+            toast.error(`Falha ao desvincular: ${error.message}`);
+        }
+    });
+
+    const unpairScreen = async (screenId: string) => {
+        try {
+            await unpairMutation.mutateAsync(screenId);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
     return {
         screens,
         loading,
         fetchScreens: refetch,
         deleteScreen: deleteMutation.mutateAsync,
-        sendCommand
+        sendCommand,
+        unpairScreen,
+        isUnpairing: unpairMutation.isPending
     };
 }

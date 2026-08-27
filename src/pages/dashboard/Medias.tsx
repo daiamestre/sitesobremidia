@@ -42,7 +42,7 @@ export default function Medias() {
     setDeleting(true);
     const mediaToDelete = medias.find(m => m.id === deleteMediaId);
     if (mediaToDelete) {
-      await deleteMedia(deleteMediaId, mediaToDelete.file_path);
+      await deleteMedia(deleteMediaId, mediaToDelete.file_path, mediaToDelete.file_url);
     }
     setDeleting(false);
     setDeleteMediaId(null);

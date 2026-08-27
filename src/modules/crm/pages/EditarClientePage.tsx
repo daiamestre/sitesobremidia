@@ -132,6 +132,12 @@ export default function EditarClientePage() {
       representanteId: representante?.id ?? null,
       status: form.status,
       ...parsed.data,
+      razaoSocial: form.razaoSocial || parsed.data.razaoSocial || '',
+      nomeFantasia: form.nomeFantasia || parsed.data.nomeFantasia || '',
+      whatsapp: form.whatsapp || parsed.data.whatsapp || '',
+      email: form.email || parsed.data.email || '',
+      cidade: form.cidade || parsed.data.cidade || '',
+      estado: form.estado || parsed.data.estado || '',
     };
     const result = await clienteService.update(id, payload);
     setSaving(false);

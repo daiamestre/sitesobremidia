@@ -14,7 +14,7 @@ export function CommissionDetails({ comissao }: CommissionDetailsProps) {
         <CardTitle className="text-base font-bold text-white flex items-center justify-between">
           <span className="flex items-center gap-2">
             <UserCheck className="h-4 w-4 text-purple-400" />
-            Comissão #{comissao.id.substring(0, 8)}
+            Comissão #{comissao.codigo_publico ?? '—'}
           </span>
           <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">{comissao.status}</Badge>
         </CardTitle>

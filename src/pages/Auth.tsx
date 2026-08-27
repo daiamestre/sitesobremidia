@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { accessRequestService } from '@/services/accessRequest.service';
-import { Loader2, Mail, Lock, User, Building } from 'lucide-react';
+import { resolverPortalSolicitado, podeAcessarPortal, rotuloPortal, type PortalEntrada } from '@/lib/portalAccess';
+import { Loader2, Mail, Lock, User, Building, ShieldAlert } from 'lucide-react';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -39,11 +40,28 @@ export default function Auth() {
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   
-  const { signIn, signUp, user, isApproved, profile, workspaceRoute, solicitacaoStatus } = useAuth();
+  const { signIn, signUp, user, isApproved, profile, workspaceRoute, solicitacaoStatus, perfilNome } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const location = useLocation();
+
+  // ============================================================
+  // VALIDAÇÃO DA PORTA DE ENTRADA × RBAC REAL
+  // ?role=/rota só declara QUAL portal se pretende entrar;
+  // a autorização é o perfil REAL carregado do banco (signIn.role).
+  // Sem redirecionamento silencioso: tela de negação explícita.
+  // ============================================================
+  const [portalNegado, setPortalNegado] = useState<{ portal: PortalEntrada; meuPortal: string } | null>(null);
+
+  const validarPortalSolicitado = (roleParam: string | null | undefined, roleReal: string | null | undefined): boolean => {
+    setPortalNegado(null);
+    const portal = resolverPortalSolicitado(roleParam, location.pathname);
+    if (!portal) return true; // porta sem portal declarado (corporativo genérico)
+    if (podeAcessarPortal(portal, roleReal)) return true;
+    setPortalNegado({ portal, meuPortal: workspaceRoute || '/dashboard' });
+    return false;
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -55,16 +73,19 @@ export default function Auth() {
     }
 
     const redirect = params.get('redirect');
+    const roleParam = params.get('role');
 
     if (user && isApproved) {
-      // Redireciona para o workspace correspondente se não houver parametro de redirecionamento explicito
-      navigate(redirect || workspaceRoute || '/dashboard', { replace: true });
+      // VALIDAÇÃO DA PORTA: portal solicitado × perfil REAL do banco
+      if (!validarPortalSolicitado(roleParam, perfilNome)) return; // tela de negação
+      const target = redirect || (roleParam === 'gestor' ? '/dashboard' : workspaceRoute) || '/dashboard';
+      navigate(target, { replace: true });
     }
-  }, [user, isApproved, navigate, location.search, workspaceRoute]);
+  }, [user, isApproved, navigate, location.search, location.pathname, workspaceRoute, perfilNome]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const result = loginSchema.safeParse({ email: loginEmail, password: loginPassword });
     if (!result.success) {
       toast({
@@ -76,19 +97,30 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error, routeRedirect } = await signIn(loginEmail, loginPassword);
+    const { error, role, routeRedirect } = await signIn(loginEmail, loginPassword);
     setIsLoading(false);
 
     if (error) {
       toast({
         title: 'Erro ao entrar',
-        description: error.message === 'Invalid login credentials' 
-          ? 'E-mail ou senha incorretos' 
+        description: error.message === 'Invalid login credentials'
+          ? 'E-mail ou senha incorretos'
           : error.message,
         variant: 'destructive',
       });
-    } else if (routeRedirect) {
-      navigate(routeRedirect, { replace: true });
+    } else {
+      const params = new URLSearchParams(location.search);
+      const redirect = params.get('redirect');
+      const roleParam = params.get('role');
+
+      // VALIDAÇÃO DA PORTA DE ENTRADA × PERFIL REAL (sem redirect silencioso)
+      if (!validarPortalSolicitado(roleParam, role)) {
+        setIsLoading(false);
+        return;
+      }
+
+      const targetDestination = redirect || (roleParam === 'gestor' ? '/dashboard' : routeRedirect) || '/dashboard';
+      navigate(targetDestination, { replace: true });
     }
   };
 
@@ -126,23 +158,52 @@ export default function Auth() {
         variant: 'destructive',
       });
     } else {
-      // Registra solicitação de acesso de Gestor de Telas
+      // FLUXO B — CADASTRO PÚBLICO:
+      // 1. Supabase Auth cria a identidade (acima);
+      // 2. Solicitação de acesso PENDING em solicitacoes_acesso;
+      // 3. O trigger trg_solicitacao_acesso_notifica_owner envia ao OWNER:
+      //    mensagem IN_APP na Central de Comunicação + e-mail via Communication Core.
+      const roleParam = new URLSearchParams(location.search).get('role');
+      const tipoAcesso = roleParam === 'anunciantes' ? 'ANUNCIANTE' : 'GESTOR_TELAS';
+      let requestId: string | undefined;
+      let rawToken: string | undefined;
       try {
-        await accessRequestService.createRequest({
-          tipoAcesso: 'GESTOR_TELAS',
+        const result = await accessRequestService.createRequest({
+          tipoAcesso,
           nomeUsuario: fullName,
           emailUsuario: signUpEmail,
           authUserId: data?.user?.id,
           dadosCadastro: { empresa: companyName },
         });
+        requestId = result.requestId;
+        rawToken = result.rawToken;
       } catch (reqError) {
         console.error('Falha ao registrar solicitação de acesso:', reqError);
+      }
+
+      // E-mail de confirmação ao USUÁRIO + auditoria (o aviso ao OWNER é
+      // enviado pelo trigger oficial no banco — sem duplicação).
+      if (requestId && rawToken) {
+        try {
+          await supabase.functions.invoke('send-approval-notification', {
+            body: {
+              request_id: requestId,
+              raw_token: rawToken,
+              nome_usuario: fullName,
+              email_usuario: signUpEmail,
+              tipo_acesso: tipoAcesso,
+              empresa_nome: companyName,
+            },
+          });
+        } catch (notificationError) {
+          console.error('Falha ao enviar notificação de aprovação:', notificationError);
+        }
       }
       
       setIsLoading(false);
       toast({
         title: 'Conta criada com sucesso!',
-        description: 'Seu cadastro ficou PENDENTE de aprovação. O administrador (sobremidiadesigner@gmail.com) recebeu um e-mail para autorização.',
+        description: 'Seu cadastro está AGUARDANDO APROVAÇÃO. O OWNER foi notificado na Central de Comunicação e por e-mail.',
       });
       setActiveTab('login');
     }
@@ -155,7 +216,46 @@ export default function Auth() {
       solicitacaoStatus === 'SUSPENDED' ? 'Seu acesso está temporariamente suspenso.' :
       'Seu cadastro está aguardando aprovação da administração.';
 
+  // ============================================================
+  // TELA DE NEGAÇÃO — portal solicitado não compatível com o perfil REAL
+  // (sem redirecionamento silencioso; sem expor arquitetura interna)
+  // ============================================================
+  if (portalNegado) {
     return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md glass animate-fade-in border-red-500/20 bg-slate-900 text-white rounded-2xl">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-3 p-3 rounded-2xl bg-red-500/15 text-red-400 border border-red-500/25 w-fit">
+              <ShieldAlert className="h-10 w-10" />
+            </div>
+            <CardTitle className="text-2xl font-display text-white">Acesso não autorizado</CardTitle>
+            <CardDescription className="text-slate-300 pt-3 text-sm leading-relaxed">
+              Este usuário não possui permissão para acessar o {rotuloPortal(portalNegado.portal)}.
+              <br />
+              Seu perfil atual não possui acesso a este portal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button
+              onClick={() => navigate(portalNegado.meuPortal, { replace: true })}
+              className="w-full gradient-primary text-white font-bold"
+            >
+              Ir para meu portal
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setPortalNegado(null)}
+              className="w-full bg-slate-950 border-white/10 text-white hover:bg-slate-800"
+            >
+              Voltar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md glass animate-fade-in border-white/10 bg-slate-900 text-white rounded-2xl">
           <CardHeader className="text-center">
@@ -238,6 +338,15 @@ export default function Auth() {
                       required
                     />
                   </div>
+                </div>
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/auth/forgot-password')}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Esqueci minha senha
+                  </button>
                 </div>
                 <Button type="submit" className="w-full gradient-primary" disabled={isLoading}>
                   {isLoading ? (

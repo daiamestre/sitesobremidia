@@ -6,19 +6,23 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Loader2, MapPin, Tv, BarChart2, Building2, Target, TrendingUp, AlertCircle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { customerPortalDataService } from '../../services/customerPortalData.service';
+import { useClienteModalidade } from '../../hooks/useClienteModalidade';
 import { OcupacaoRede } from '../../types/portal.types';
 import { formatNumber, formatPercentage } from '@/utils/formatters';
 
 export default function OcupacaoRedePage() {
   const { usuario, empresaOperadoraId } = useAuth();
+  const { isHost, isLoading: loadingModalidade } = useClienteModalidade();
   const [ocupacao, setOcupacao] = useState<OcupacaoRede | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (empresaOperadoraId) {
+    if (empresaOperadoraId && isHost) {
       fetchOcupacao(empresaOperadoraId);
+    } else if (!loadingModalidade) {
+      setLoading(false);
     }
-  }, [empresaOperadoraId]);
+  }, [empresaOperadoraId, isHost, loadingModalidade]);
 
   const fetchOcupacao = async (empresaOperadoraId: string) => {
     try {
@@ -46,7 +50,19 @@ export default function OcupacaoRedePage() {
     return 'bg-emerald-500/20 border-emerald-500/30';
   };
 
-  if (loading) {
+  if (!loadingModalidade && !isHost) {
+    return (
+      <div className="flex items-center justify-center h-[60vh] text-slate-400">
+        <div className="text-center space-y-4">
+          <AlertCircle className="h-12 w-12 mx-auto text-slate-600" />
+          <h2 className="text-xl font-bold text-white">Acesso Restrito</h2>
+          <p>Esta página é exclusiva para clientes da modalidade HOST (Hospedadores de Telas).</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || loadingModalidade) {
     return (
       <div className="space-y-6 max-w-6xl mx-auto animate-fade-in pb-12">
         <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl">

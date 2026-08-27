@@ -76,6 +76,8 @@ export class CustomerPortalService {
    */
   async getProofOfPlayList(): Promise<ProofOfPlayItem[]> {
     try {
+      // devices não possui FK para screens no schema atual; a tela é
+      // resolvida em uma segunda consulta pelo devices.screen_id.
       const { data, error } = await supabase
         .from('proof_of_play')
         .select(`
@@ -85,13 +87,7 @@ export class CustomerPortalService {
           devices!inner (
             id,
             name,
-            screen_id,
-            screen:screens!inner (
-              name,
-              cidade,
-              estado,
-              endereco_instalacao
-            )
+            screen_id
           )
         `)
         .order('captured_at', { ascending: false })
@@ -99,15 +95,25 @@ export class CustomerPortalService {
 
       if (error) throw error;
 
-      return (data || []).map((p) => ({
+      const rows = data || [];
+      const screenIds = Array.from(
+        new Set(rows.map((p) => p.devices?.screen_id).filter((id): id is string => !!id))
+      );
+
+      const telas = screenIds.length > 0
+        ? await supabase.from('screens').select('id, name, cidade, estado, endereco_instalacao').in('id', screenIds)
+        : null;
+      const telaMap = new Map((telas?.data || []).map((t) => [t.id, t]));
+
+      return rows.map((p) => ({
         id: p.id,
         capturedAt: p.captured_at,
         screenshotUrl: p.screenshot_url,
         deviceName: p.devices?.name ?? null,
-        screenName: p.devices?.screen?.name ?? null,
-        cidade: p.devices?.screen?.cidade ?? null,
-        estado: p.devices?.screen?.estado ?? null,
-        enderecoInstalacao: p.devices?.screen?.endereco_instalacao ?? null,
+        screenName: telaMap.get(p.devices?.screen_id || '')?.name ?? null,
+        cidade: telaMap.get(p.devices?.screen_id || '')?.cidade ?? null,
+        estado: telaMap.get(p.devices?.screen_id || '')?.estado ?? null,
+        enderecoInstalacao: telaMap.get(p.devices?.screen_id || '')?.endereco_instalacao ?? null,
       }));
     } catch (err) {
       console.error('[CustomerPortal] getProofOfPlayList:', err);
@@ -198,17 +204,23 @@ export class CustomerPortalService {
         .eq('cliente_id', clienteId)
         .in('status', ['APPROVED', 'ACTIVE']);
 
-      // 4. % de artes aprovadas: decisões reais do cliente no tenant
+      // 4. % de artes aprovadas: decisões do CLIENTE
+      // (portal_aprovacoes → producoes → pedidos_insercao.contrato_id),
+      // nunca agregado global do tenant
       let artesAprovadasPct = 0;
-      if (empresaOperadoraId) {
+      if (empresaOperadoraId && contratoIds.length > 0) {
         const { data: decisoes } = await supabase
           .from('portal_aprovacoes')
-          .select('status')
+          .select('status, producao_id, producao:producoes(pedido:pedidos_insercao(contrato_id))')
           .eq('empresa_operadora_id', empresaOperadoraId)
           .in('status', ['APROVADO', 'REPROVADO_COM_AJUSTES']);
-        const total = decisoes?.length || 0;
+        const doCliente = (decisoes || []).filter((d: any) => {
+          const cid = d?.producao?.pedido?.contrato_id;
+          return cid && contratoIds.includes(cid);
+        });
+        const total = doCliente.length;
         if (total > 0) {
-          const aprovadas = decisoes!.filter((d) => d.status === 'APROVADO').length;
+          const aprovadas = doCliente.filter((d: any) => d.status === 'APROVADO').length;
           artesAprovadasPct = Math.round((aprovadas / total) * 100);
         }
       }

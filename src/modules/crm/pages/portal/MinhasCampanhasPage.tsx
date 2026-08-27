@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Loader2, Tv, Clock, CheckCircle2, XCircle, PauseCircle, FileText, Eye, BarChart2, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { customerPortalDataService } from '../../services/customerPortalData.service';
-import { CampanhaComInsercoes } from '../types/portal.types';
+import { CampanhaComInsercoes } from '../../types/portal.types';
 import { formatDate, formatNumber } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, MoreHorizontal } from 'lucide-react';
@@ -214,7 +214,7 @@ export default function MinhasCampanhasPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="bg-slate-900/50 border border-white/10 rounded-xl p-1">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'ativas' | 'historico')} className="bg-slate-900/50 border border-white/10 rounded-xl p-1">
         <TabsList className="grid grid-cols-2 bg-transparent">
           <TabsTrigger value="ativas" className="data-[state=active]:bg-white/10 data-[state=active]:text-white">
             <Tv className="h-4 w-4 mr-2" /> Campanhas Ativas ({campanhasAtivas.length})

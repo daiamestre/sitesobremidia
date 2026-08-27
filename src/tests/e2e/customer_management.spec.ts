@@ -32,8 +32,8 @@ test.describe('Owner Customer Center', () => {
     await expect(page.locator('text=Playwright Test Client Ltda')).toBeVisible();
 
     // 7. ABRIR CLIENTE 360
-    await page.click('text=VisÃ£o 360Âº');
-    await expect(page.locator('text=InformaÃ§Ãµes Cadastrais')).toBeVisible();
-    await expect(page.locator('text=GestÃ£o de Identidade e Acesso')).toBeVisible();
+    await page.click('text=Visão 360Âº');
+    await expect(page.locator('text=Informações Cadastrais')).toBeVisible();
+    await expect(page.locator('text=Gestão de Identidade e Acesso')).toBeVisible();
   });
 });

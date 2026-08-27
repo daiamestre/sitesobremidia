@@ -36,7 +36,7 @@ export class CampanhaService {
   /**
    * Cria uma nova campanha vinculada a um contrato
    */
-  async create(data: Partial<Campanha>): Promise<Campanha | null> {
+  async create(data: Partial<Campanha> & { empresaOperadoraId?: string; contratoId?: string }): Promise<Campanha | null> {
     try {
       const payload = {
         empresa_operadora_id: data.empresaOperadoraId,
@@ -48,7 +48,6 @@ export class CampanhaService {
         status: data.status || 'DRAFT',
         data_inicio: data.inicio,
         data_fim: data.fim,
-        pontos_exibicao_ids: data.pontosExibicaoIds || [],
       };
 
       const { data: campanha, error } = await supabase
@@ -81,7 +80,6 @@ export class CampanhaService {
       if (data.status) payload.status = data.status;
       if (data.inicio) payload.data_inicio = data.inicio;
       if (data.fim) payload.data_fim = data.fim;
-      if (data.pontosExibicaoIds) payload.pontos_exibicao_ids = data.pontosExibicaoIds;
 
       const { data: campanha, error } = await supabase
         .from('campanhas')
@@ -134,7 +132,7 @@ export class CampanhaService {
         .select(`
           *,
           contrato:contratos(id, numero_contrato, data_inicio, data_fim),
-          artes:artes(id, titulo, tipo_midia, url_arquivo, duracao_segundos, status)
+          artes:artes(id, titulo, tipo_midia, url_arquivo, duracao_segundos)
         `)
         .eq('id', id)
         .maybeSingle();
@@ -204,7 +202,7 @@ export class CampanhaService {
         .select(`
           *,
           contrato:contratos(id, numero_contrato, data_inicio, data_fim),
-          artes:artes(id, titulo, tipo_midia, url_arquivo, duracao_segundos, status)
+          artes:artes(id, titulo, tipo_midia, url_arquivo, duracao_segundos)
         `)
         .eq('cliente_id', clienteId)
         .in('status', ['APPROVED', 'ACTIVE'])
@@ -255,19 +253,19 @@ export class CampanhaService {
 
       const piIds = pis.map(p => p.id);
 
-      // Buscar agendamentos de rede para estes PIs
+      // Buscar agendamentos vinculados a estes PIs
       const { data: agendamentos } = await supabase
-        .from('agendamento_rede')
-        .select('data_inicio, data_fim, pi_locais!inner(pi_id)')
-        .in('pi_locais.pi_id', piIds);
+        .from('agendamentos')
+        .select('inicio, fim')
+        .in('pedido_insercao_id', piIds);
 
       if (!agendamentos || agendamentos.length === 0) return [];
 
       // Agrupar por dia
       const porDia: Record<string, number> = {};
       agendamentos.forEach(a => {
-        const inicio = new Date(a.data_inicio);
-        const fim = new Date(a.data_fim);
+        const inicio = new Date(a.inicio);
+        const fim = new Date(a.fim);
         for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
           const key = d.toISOString().split('T')[0];
           porDia[key] = (porDia[key] || 0) + 1;

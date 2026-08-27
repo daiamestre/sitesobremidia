@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Upload, X, Image, Monitor, Smartphone } from 'lucide-react';
+import { Upload, X, Image, Monitor, Smartphone, Volume2, VolumeX } from 'lucide-react';
 import { uploadToR2 } from '@/lib/r2Upload';
 
 interface Playlist {
@@ -18,6 +18,7 @@ interface Playlist {
   is_active: boolean;
   cover_url?: string | null;
   resolution?: string;
+  audio_enabled?: boolean;
 }
 
 interface PlaylistDialogProps {
@@ -32,6 +33,7 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -45,6 +47,7 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
       setName(playlist.name);
       setDescription(playlist.description || '');
       setIsActive(playlist.is_active);
+      setAudioEnabled(playlist.audio_enabled || false);
       setCoverUrl(playlist.cover_url || null);
       setCoverPreview(playlist.cover_url || null);
       setResolution(playlist.resolution || '16x9');
@@ -52,6 +55,7 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
       setName('');
       setDescription('');
       setIsActive(true);
+      setAudioEnabled(false);
       setCoverUrl(null);
       setCoverPreview(null);
       setResolution('16x9');
@@ -125,14 +129,14 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
       if (playlist) {
         const { error } = await supabase
           .from('playlists')
-          .update({ name, description, is_active: isActive, cover_url: finalCoverUrl, resolution })
+          .update({ name, description, is_active: isActive, cover_url: finalCoverUrl, resolution, audio_enabled: audioEnabled })
           .eq('id', playlist.id);
         if (error) throw error;
         toast.success('Playlist atualizada!');
       } else {
         const { error } = await supabase
           .from('playlists')
-          .insert({ user_id: user.id, name, description, is_active: isActive, cover_url: finalCoverUrl, resolution });
+          .insert({ user_id: user.id, name, description, is_active: isActive, cover_url: finalCoverUrl, resolution, audio_enabled: audioEnabled });
         if (error) throw error;
         toast.success('Playlist criada!');
       }
@@ -257,6 +261,19 @@ export function PlaylistDialog({ open, onOpenChange, playlist, onSaved }: Playli
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between border rounded-lg p-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <Label>Playlist com áudio</Label>
+                {audioEnabled ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                O áudio das mídias desta playlist permanece desativado por padrão.
+              </p>
+            </div>
+            <Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} />
           </div>
 
           <div className="flex items-center justify-between border rounded-lg p-3">

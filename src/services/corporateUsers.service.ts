@@ -12,6 +12,21 @@ export interface CriarUsuarioPayload {
   email: string;
   telefone?: string;
   perfilId: string;
+  /** Vinculo comercial (equipe do anunciante); GESTOR de prospeccao NAO envia */
+  clienteId?: string | null;
+  /** Metadados de prospeccao gravados em solicitacoes_acesso.dados_cadastro */
+  dadosExtra?: Record<string, unknown> | null;
+}
+
+export interface CriarUsuarioResultado {
+  success: boolean;
+  error?: string;
+  /** Senha inicial gerada no backend - entregue UMA única vez (missão Â§5/Â§6) */
+  senha_inicial?: string;
+  /** E-mail efetivamente provisionado (eco do backend) */
+  email?: string;
+  /** true quando o perfil é EXTERNO (ANUNCIANTE/PARCEIRO/CLIENTE): nasce PENDING e depende de aprovação na Central */
+  requer_aprovacao?: boolean;
 }
 
 export interface UsuarioCentral {
@@ -55,7 +70,16 @@ export const PERMISSOES_DISPONIVEIS = [
 
 export const EDGE_FUNCTION_URL =
   ((import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? 'http://localhost:54321').replace(/\/$/, '') +
+  // Console OWNER/ADMIN: roteia EXTERNOS (ANUNCIANTE/PARCEIRO/CLIENTE) para
+  // aprovação na Central e INTERNOS para provisionamento direto (missão portal).
   '/functions/v1/create-corporate-user';
+
+/** Provisionamento DIRETO da equipe do ANUNCIANTE (missão portal Â§3/Â§5/Â§7):
+ *  senha inicial backend + troca obrigatória. Restrito server-side a
+ *  OWNER/ADMIN ou ao próprio ANUNCIANTE para perfis de equipe. */
+export const PROVISION_USER_URL =
+  ((import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? 'http://localhost:54321').replace(/\/$/, '') +
+  '/functions/v1/provision-user';
 
 export class CorporateUsersService {
   async getMyPermissions(): Promise<string[]> {
@@ -73,7 +97,7 @@ export class CorporateUsersService {
       console.error('[CorporateUsersService.getDashboard]', error);
       return null;
     }
-    return (data as DashboardCentral) ?? null;
+    return (data as unknown as DashboardCentral) ?? null;
   }
 
   async listarPerfis(): Promise<PerfilCorporativo[]> {
@@ -96,7 +120,7 @@ export class CorporateUsersService {
       console.error('[CorporateUsersService.listarUsuariosCentral]', error);
       return [];
     }
-    return (data as UsuarioCentral[]) ?? [];
+    return (data as unknown as UsuarioCentral[]) ?? [];
   }
 
   async listarPermissoesTenant(): Promise<Record<string, string[]>> {
@@ -116,14 +140,27 @@ export class CorporateUsersService {
     return mapa;
   }
 
-  async criarUsuario(payload: CriarUsuarioPayload): Promise<{ success: boolean; error?: string }> {
+  async criarUsuario(payload: CriarUsuarioPayload): Promise<CriarUsuarioResultado> {
+    return this.postProvisionamento(EDGE_FUNCTION_URL, payload);
+  }
+
+  /**
+   * Provisionamento DIRETO via provision-user (Central de Prospecção do
+   * REPRESENTANTE → GESTOR DE MÍDIAS): mesma garantia de senha automática
+   * backend-only e troca obrigatória no primeiro login.
+   */
+  async provisionarUsuarioDireto(payload: CriarUsuarioPayload): Promise<CriarUsuarioResultado> {
+    return this.postProvisionamento(PROVISION_USER_URL, payload);
+  }
+
+  private async postProvisionamento(url: string, payload: CriarUsuarioPayload): Promise<CriarUsuarioResultado> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       return { success: false, error: 'Sessão expirada. Faça login novamente.' };
     }
 
     try {
-      const res = await fetch(EDGE_FUNCTION_URL, {
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,9 +174,44 @@ export class CorporateUsersService {
       if (!res.ok) {
         return { success: false, error: body?.error ?? `Falha ao criar usuário (HTTP ${res.status})` };
       }
-      return { success: true };
+      return {
+        success: true,
+        senha_inicial: typeof body?.senha_inicial === 'string' ? body.senha_inicial : undefined,
+        email: typeof body?.email === 'string' ? body.email : undefined,
+        requer_aprovacao: body?.requer_aprovacao === true,
+      };
     } catch (err) {
       console.error('[CorporateUsersService.criarUsuario]', err);
+      return { success: false, error: 'Não foi possível contatar o servidor. Tente novamente.' };
+    }
+  }
+
+  /** Provisionamento direto da equipe do ANUNCIANTE (missão portal). */
+  async provisionarMembroEquipe(payload: CriarUsuarioPayload): Promise<CriarUsuarioResultado> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return { success: false, error: 'Sessão expirada. Faça login novamente.' };
+    }
+    try {
+      const res = await fetch(PROVISION_USER_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: body?.error ?? `Falha ao provisionar membro (HTTP ${res.status})` };
+      }
+      return {
+        success: true,
+        senha_inicial: typeof body?.senha_inicial === 'string' ? body.senha_inicial : undefined,
+        requer_aprovacao: false,
+      };
+    } catch (err) {
+      console.error('[CorporateUsersService.provisionarMembroEquipe]', err);
       return { success: false, error: 'Não foi possível contatar o servidor. Tente novamente.' };
     }
   }

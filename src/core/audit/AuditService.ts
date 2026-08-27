@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { identityService } from '../identity/IdentityService';
 
 export interface AuditEventParams {
@@ -38,7 +39,7 @@ export class AuditService {
         action: params.action,
         module: params.module,
         target_id: params.targetId,
-        metadata: params.metadata || {}
+        metadata: (params.metadata || {}) as Record<string, Json>
       });
     } catch (error) {
       // We don't throw here to avoid breaking the main application flow

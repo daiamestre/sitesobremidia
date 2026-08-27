@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +23,7 @@ interface UserSettings {
   name: string;
   notifications_enabled: boolean;
   threshold_minutes: number;
+  empresa_operadora_id?: string;
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -87,6 +88,9 @@ serve(async (req: Request): Promise<Response> => {
     const userIds = [...new Set(allScreens.map(s => s.user_id))];
 
     // Fetch user profiles with notification settings
+    // [FIX 20261102] profiles NÃO possui empresa_operadora_id (nem nunca teve):
+    // o tenant oficial do usuário vive em public.usuarios. Buscar os dois
+    // mapas separadamente evita PGRST 400 no cron inteiro.
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
       .select("user_id, email, full_name, offline_notification_enabled, offline_notification_threshold")
@@ -97,6 +101,20 @@ serve(async (req: Request): Promise<Response> => {
       throw profilesError;
     }
 
+    const { data: usuarioRows, error: usuariosError } = await supabase
+      .from("usuarios")
+      .select("id, empresa_operadora_id")
+      .in("id", userIds);
+
+    if (usuariosError) {
+      console.error("Error fetching usuarios:", usuariosError);
+      throw usuariosError;
+    }
+
+    const tenantMap = new Map<string, string | null>(
+      (usuarioRows || []).map((u: { id: string; empresa_operadora_id: string | null }) => [u.id, u.empresa_operadora_id])
+    );
+
     // Create a map of user_id to settings
     const userSettingsMap = new Map<string, UserSettings>(
       profiles?.map(p => [
@@ -105,7 +123,8 @@ serve(async (req: Request): Promise<Response> => {
           email: p.email, 
           name: p.full_name,
           notifications_enabled: p.offline_notification_enabled ?? true,
-          threshold_minutes: p.offline_notification_threshold ?? 5
+          threshold_minutes: p.offline_notification_threshold ?? 5,
+          empresa_operadora_id: tenantMap.get(p.user_id) ?? undefined
         }
       ]) || []
     );
@@ -154,99 +173,35 @@ serve(async (req: Request): Promise<Response> => {
       const userSettings = userSettingsMap.get(userId);
       if (!userSettings?.email) continue;
 
-      const screenList = screens
-        .map(s => `
-          <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${s.name}</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${s.location || "Não definida"}</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${s.minutes_offline} minutos</td>
-          </tr>
-        `)
+      const screenListHTML = screens
+        .map(s => `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">${s.name}</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${s.location || "Não definida"}</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${s.minutes_offline} minutos</td></tr>`)
         .join("");
 
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-            .content { background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; }
-            table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
-            th { background: #f3f4f6; padding: 12px 8px; text-align: left; }
-            .alert { background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px; margin: 16px 0; }
-            .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1 style="margin: 0;">⚠️ Alerta de Telas Offline</h1>
-            </div>
-            <div class="content">
-              <p>Olá${userSettings.name ? ` ${userSettings.name}` : ""},</p>
-              
-              <div class="alert">
-                <strong>${screens.length} tela(s)</strong> está(ão) offline há mais de ${userSettings.threshold_minutes} minutos.
-              </div>
-              
-              <table>
-                <thead>
-                  <tr>
-                    <th>Tela</th>
-                    <th>Localização</th>
-                    <th>Tempo Offline</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${screenList}
-                </tbody>
-              </table>
-              
-              <p style="margin-top: 20px;">
-                Por favor, verifique a conexão e o status das telas afetadas.
-              </p>
-              
-              <p style="font-size: 12px; color: #6b7280;">
-                Você pode alterar suas preferências de notificação em Configurações.
-              </p>
-              
-              <div class="footer">
-                <p>Esta é uma notificação automática do sistema SOBRE MÍDIA.</p>
-              </div>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
       try {
-        const emailResponse = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${RESEND_API_KEY}`,
-          },
-          body: JSON.stringify({
-            from: "SOBRE MÍDIA <onboarding@resend.dev>",
-            to: [userSettings.email],
-            subject: `⚠️ Alerta: ${screens.length} tela(s) offline`,
-            html,
-          }),
+        const { error: jobError } = await supabase.rpc('enfileirar_job', {
+          p_empresa_operadora_id: userSettings.empresa_operadora_id || '00000000-0000-0000-0000-000000000000',
+          p_event_name: 'OFFLINE_SCREEN_ALERT',
+          p_payload: {
+            to: userSettings.email,
+            template_key: 'offline_screen_alert',
+            vars: {
+              nome_usuario: userSettings.name,
+              quantidade_telas: screens.length,
+              minutos_offline: userSettings.threshold_minutes,
+              screen_list_html: screenListHTML
+            }
+          }
         });
 
-        if (!emailResponse.ok) {
-          const errorText = await emailResponse.text();
-          throw new Error(`Resend API error: ${errorText}`);
+        if (jobError) {
+          throw new Error(`Job enqueuing error: ${jobError.message}`);
         }
 
-        const emailResult = await emailResponse.json();
-        console.log(`Email sent to ${userSettings.email}:`, emailResult);
+        console.log(`Alert job enqueued for ${userSettings.email}`);
         notifiedCount++;
-      } catch (emailError: any) {
-        console.error(`Error sending email to ${userSettings.email}:`, emailError);
-        errors.push(`Failed to send to ${userSettings.email}: ${emailError.message}`);
+      } catch (jobError: any) {
+        console.error(`Error enqueuing job for ${userSettings.email}:`, jobError);
+        errors.push(`Failed to enqueue for ${userSettings.email}: ${jobError.message}`);
       }
     }
 

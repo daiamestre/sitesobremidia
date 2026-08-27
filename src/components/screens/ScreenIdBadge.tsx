@@ -5,20 +5,22 @@ import { cn } from "@/lib/utils";
 
 interface ScreenIdBadgeProps {
     customId?: string | null;
+    codigoOperacional?: string | null;
     className?: string;
     showHash?: boolean;
 }
 
-export function ScreenIdBadge({ customId, className, showHash = true }: ScreenIdBadgeProps) {
+export function ScreenIdBadge({ customId, codigoOperacional, className, showHash = true }: ScreenIdBadgeProps) {
     // Strict Custom ID enforcement: Never show UUID
-    const displayId = customId || "SEM ID";
-    const isCustom = !!customId;
+    // Priority: codigo_operacional > custom_id
+    const displayId = codigoOperacional || customId || "SEM ID";
+    const isCustom = !!displayId && displayId !== "SEM ID";
 
     const handleCopy = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!customId) {
-            toast.error("Nenhum ID personalizado configurado.");
+        if (!displayId || displayId === "SEM ID") {
+            toast.error("Nenhum ID operacional configurado.");
             return;
         }
         navigator.clipboard.writeText(displayId);

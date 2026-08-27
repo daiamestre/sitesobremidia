@@ -33,15 +33,30 @@ export class AIService {
 
     const executionTimeMs = Date.now() - startTime;
 
-    // Log de Auditoria Imutável de IA
+    // Auditoria imutável de IA (tabela restaurada pela migration 20261103).
+    // Grava apenas com tenant definido; nunca bloqueia a resposta.
     if (empresaOperadoraId) {
-      await supabase.from('ai_auditoria').insert({
-        empresa_operadora_id: empresaOperadoraId,
-        prompt,
-        resposta: answer,
-        tempo_ms: executionTimeMs,
-        detalhes: { provider: this.provider, dwRecordsAnalyzed: dwData?.length || 0 },
-      });
+      void (async () => {
+        try {
+          let usuarioId: string | null = null;
+          try {
+            const { data: authData } = await supabase.auth.getUser();
+            usuarioId = authData?.user?.id ?? null;
+          } catch {
+            // sessão indisponível — auditoria segue sem usuário
+          }
+          await supabase.from('ai_auditoria').insert({
+            empresa_operadora_id: empresaOperadoraId,
+            usuario_id: usuarioId,
+            prompt,
+            resposta: answer,
+            tempo_ms: executionTimeMs,
+            detalhes: { provider: this.provider, sources: ['dw_receita', 'dw_operacao', 'mv_receita_mensal'] },
+          });
+        } catch (e) {
+          console.warn('[AIService] auditoria ignorada:', e);
+        }
+      })();
     }
 
     return {

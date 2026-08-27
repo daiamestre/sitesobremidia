@@ -10,16 +10,11 @@ export function FieldDashboard({ empresaOperadoraId }: { empresaOperadoraId: str
   const [uploading, setUploading] = useState(false);
 
   const handleCapturePhoto = async () => {
-    setUploading(true);
-    const res = await cameraService.captureAndUploadPhoto(empresaOperadoraId);
-    setUploading(false);
-
-    if (res.success) {
-      toast({
-        title: 'Foto de Manutenção Salva!',
-        description: `Armazenada no R2: ${res.photoKey}`,
-      });
-    }
+    // mobile_fotos exige checkin_id/media_id; captura avulsa sem check-in ativo não persiste
+    toast({
+      title: 'Nenhum check-in ativo',
+      description: 'Abra um check-in para anexar fotos de manutenção.',
+    });
   };
 
   return (

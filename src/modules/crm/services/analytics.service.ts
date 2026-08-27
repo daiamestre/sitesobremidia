@@ -26,16 +26,17 @@ export class AnalyticsService {
    * Atualização das tabelas de Data Warehouse e Views
    */
   async refreshWarehouse(empresaOperadoraId?: string): Promise<{ success: boolean }> {
-    try {
-      await supabase.from('analytics_auditoria').insert({
-        empresa_operadora_id: empresaOperadoraId || null,
-        evento: 'VIEW_REFRESH',
-        detalhes: { timestamp: new Date().toISOString() },
-      });
-      return { success: true };
-    } catch (err) {
+    // Auditoria best-effort: falha de gravação não derruba o refresh
+    const { error } = await supabase.from('analytics_auditoria').insert({
+      empresa_operadora_id: empresaOperadoraId || null,
+      evento: 'VIEW_REFRESH',
+      detalhes: { timestamp: new Date().toISOString() },
+    });
+    if (error) {
+      console.error('[AnalyticsService] Falha ao registrar analytics_auditoria:', error);
       return { success: false };
     }
+    return { success: true };
   }
 
   /**
@@ -53,12 +54,12 @@ export class AnalyticsService {
     };
 
     try {
-      let queryContas = supabase.from('contas_receber').select('valor_original, valor_recebido, saldo');
+      let queryContas = supabase.from('contas_receber').select('valor, valor_pago, saldo');
       if (empresaOperadoraId) queryContas = queryContas.eq('empresa_operadora_id', empresaOperadoraId);
 
       const { data: contas } = await queryContas;
-      const receitaTotal = (contas || []).reduce((a, c) => a + Number(c.valor_original), 0);
-      const recebimentos = (contas || []).reduce((a, c) => a + Number(c.valor_recebido), 0);
+      const receitaTotal = (contas || []).reduce((a, c) => a + Number(c.valor), 0);
+      const recebimentos = (contas || []).reduce((a, c) => a + Number(c.valor_pago), 0);
       const saldoDevedor = (contas || []).reduce((a, c) => a + Number(c.saldo), 0);
 
       // Zero Mock: MRR calculado apenas sobre dados reais — nunca 145000 fictício
@@ -74,13 +75,13 @@ export class AnalyticsService {
       if (empresaOperadoraId) queryContratos = queryContratos.eq('empresa_operadora_id', empresaOperadoraId);
       const { count: qtdContratos } = await queryContratos;
 
-      let queryPlayers = supabase.from('players').select('status');
+      let queryPlayers = supabase.from('players').select('status_online');
       if (empresaOperadoraId) queryPlayers = queryPlayers.eq('empresa_operadora_id', empresaOperadoraId);
       const { data: players } = await queryPlayers;
 
       // Zero Mock: contagens reais sem fallbacks numéricos fictícios
-      const playersOnline = (players || []).filter((p) => p.status === 'ONLINE').length;
-      const playersOffline = (players || []).filter((p) => p.status === 'OFFLINE').length;
+      const playersOnline = (players || []).filter((p) => p.status_online).length;
+      const playersOffline = (players || []).filter((p) => !p.status_online).length;
 
       return {
         receitaTotal,
@@ -109,13 +110,15 @@ export class AnalyticsService {
   }
 
   /**
-   * Exporta relatórios em CSV, Excel ou PDF (Blob simulado)
+   * Exporta relatórios em CSV, Excel ou PDF
    */
   async exportReport(tipo: 'PDF' | 'EXCEL' | 'CSV', dashboardName: string): Promise<string> {
-    await supabase.from('analytics_auditoria').insert({
+    // Auditoria best-effort
+    const { error } = await supabase.from('analytics_auditoria').insert({
       evento: 'EXPORT',
       detalhes: { tipo, dashboardName },
     });
+    if (error) console.error('[AnalyticsService] Falha ao registrar analytics_auditoria:', error);
     return `Exportação ${tipo} do dashboard ${dashboardName} concluída com sucesso!`;
   }
 }

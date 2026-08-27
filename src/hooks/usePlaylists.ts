@@ -37,15 +37,16 @@ export function usePlaylists(userId?: string) {
 
         const playlistsWithCounts = await Promise.all(
             (playlistsData || []).map(async (playlist) => {
-                const { data: items } = await supabase
+                const { data: itemsData } = await supabase
                     .from('playlist_items')
                     .select('duration, media:media!playlist_items_media_id_fkey(file_url, thumbnail_url, file_type), widget:widgets!playlist_items_widget_id_fkey(name, config, thumbnail_url), external_link:external_links!playlist_items_external_link_id_fkey(id, title, url, thumbnail_url)')
                     .eq('playlist_id', playlist.id)
                     .order('position', { ascending: true });
+                const items = (itemsData || []) as unknown as PlaylistItemWithDetails[];
 
                 // Logic to find cover image
                 let coverUrl = playlist.cover_url;
-                if (!coverUrl && items && items.length > 0) {
+                if (!coverUrl && items.length > 0) {
                     const firstItemWithCover = items.find((item: PlaylistItemWithDetails) =>
                         (item.media && (item.media.file_type === 'image' || item.media.thumbnail_url)) ||
                         (item.widget && (item.widget.thumbnail_url || item.widget.config?.backgroundImageLandscape || item.widget.config?.backgroundImagePortrait)) ||
@@ -66,8 +67,8 @@ export function usePlaylists(userId?: string) {
 
                 return {
                     ...playlist,
-                    item_count: items?.length || 0,
-                    total_duration: items?.reduce((acc: number, item: PlaylistItemWithDetails) => acc + item.duration, 0) || 0,
+                    item_count: items.length,
+                    total_duration: items.reduce((acc: number, item: PlaylistItemWithDetails) => acc + item.duration, 0),
                     cover_url: coverUrl,
                 };
             })

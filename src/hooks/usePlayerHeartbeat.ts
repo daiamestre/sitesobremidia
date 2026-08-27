@@ -9,19 +9,35 @@ export function usePlayerHeartbeat(screenId: string | null | undefined) {
 
         const sendHeartbeat = async () => {
             try {
+                // RLS: escrita em screens/devices exige sessão autenticada.
+                // Player anônimo tem presença registrada pela RPC oficial
+                // get_player_playlist_for_screen (devices.last_seen no caminho bound).
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) return;
+
+                const deviceToken = localStorage.getItem('player_screen_token_codemidia');
+
                 // Try to update by ID first (UUID)
-                const { error, count } = await supabase
+                const { data: updated } = await supabase
                     .from('screens')
                     .update({ last_ping_at: new Date().toISOString() })
                     .eq('id', screenId)
-                    .select('id', { count: 'exact' });
+                    .select('id');
 
                 // If no rows updated (maybe screenId is custom_id?), try custom_id
-                if ((!count || count === 0) && screenId) {
+                if ((!updated || updated.length === 0) && screenId) {
                     await supabase
                         .from('screens')
                         .update({ last_ping_at: new Date().toISOString() })
                         .eq('custom_id', screenId);
+                }
+
+                // If device token exists, update device last_seen as well
+                if (deviceToken) {
+                    await supabase
+                        .from('devices')
+                        .update({ last_seen: new Date().toISOString() })
+                        .eq('screen_token', deviceToken);
                 }
             } catch (err) {
                 console.error('Error sending heartbeat:', err);

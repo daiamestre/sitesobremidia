@@ -15,6 +15,12 @@ interface ScreenPairingDialogProps {
   onPaired?: () => void;
 }
 
+// RPC returns jsonb (typed as Json) -> narrow once per call site
+interface LinkRpcResult {
+  ok?: boolean;
+  error?: string;
+}
+
 export function ScreenPairingDialog({ open, onOpenChange, screens, onPaired }: ScreenPairingDialogProps) {
   const [pairingCode, setPairingCode] = useState("");
   const [selectedScreenId, setSelectedScreenId] = useState<string>("");
@@ -47,15 +53,16 @@ export function ScreenPairingDialog({ open, onOpenChange, screens, onPaired }: S
 
       if (error) throw error;
 
-      if (data && data.ok) {
+      const result = data as LinkRpcResult | null;
+      if (result && result.ok) {
         toast.success("Tela vinculada com sucesso!");
         onOpenChange(false);
         setPairingCode("");
         if (onPaired) onPaired();
       } else {
-        toast.error(data?.error === 'invalid_or_expired_code' 
-          ? "Código inválido ou expirado." 
-          : "Erro ao vincular tela: " + (data?.error || 'Desconhecido'));
+        toast.error(result?.error === 'invalid_or_expired_code'
+          ? "Código inválido ou expirado."
+          : "Erro ao vincular tela: " + (result?.error || 'Desconhecido'));
       }
     } catch (err: any) {
       console.error("Pairing Error:", err);

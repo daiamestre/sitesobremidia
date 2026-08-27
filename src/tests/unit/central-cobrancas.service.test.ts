@@ -24,11 +24,15 @@ const hoisted = vi.hoisted(() => {
     then: (res: any, rej: any) => Promise.resolve(next()).then(res, rej),
     queue,
   };
-  return { chain };
+    return { chain, next, unwrap };
 });
 
 vi.mock('@/integrations/supabase/client', () => ({
-  supabase: { from: vi.fn(() => hoisted.chain) },
+  supabase: {
+    from: vi.fn(() => hoisted.chain),
+    // RPCs do serviço (ex.: gerar_numero_documento) consomem a mesma fila.
+    rpc: vi.fn(() => Promise.resolve(hoisted.unwrap(hoisted.next()))),
+  },
 }));
 
 const resetChain = () => {
@@ -101,7 +105,8 @@ describe('Central de Cobranças — FinanceiroService.createCobranca', () => {
   });
 
   it('insere em contas_receber com status PENDENTE e parcela padrão', async () => {
-    enqueue([{ id: 'novo-id' }]);
+    enqueue('COB-2026-000001'); // consumo 1: rpc gerar_numero_documento
+    enqueue([{ id: 'novo-id' }]); // consumo 2: insert contas_receber
     const resultado = await financeiroService.createCobranca({
       empresaOperadoraId: 't',
       contratoId: 'ct',
@@ -121,12 +126,14 @@ describe('Central de Cobranças — FinanceiroService.createCobranca', () => {
         status: 'PENDENTE',
         numero_parcela: 1,
         total_parcelas: 1,
+        codigo_operacional: 'COB-2026-000001',
       })
     );
   });
 
   it('propaga erro do banco', async () => {
-    enqueue(null, { message: 'violacao' });
+    enqueue('COB-2026-000001'); // consumo 1: rpc gerar_numero_documento
+    enqueue(null, { message: 'violacao' }); // consumo 2: insert contas_receber
     const resultado = await financeiroService.createCobranca({
       empresaOperadoraId: 't',
       contratoId: 'ct',

@@ -86,41 +86,40 @@ serve(async (req) => {
       }
     }
 
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    if (!RESEND_API_KEY) {
-      console.warn("[send-email] RESEND_API_KEY não configurada no ambiente do servidor. Simulando disparo com sucesso.");
-      return new Response(
-        JSON.stringify({ id: `sim-${Date.now()}`, status: "simulated_success" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Precisamos do empresa_operadora_id
+    let empresaOperadoraId = '00000000-0000-0000-0000-000000000000';
+    const { data: userData } = await supabaseService.from("usuarios").select("empresa_operadora_id").eq("id", user.id).maybeSingle();
+    if (userData && userData.empresa_operadora_id) {
+      empresaOperadoraId = userData.empresa_operadora_id;
     }
 
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: "Sobre Mídia <notificacoes@sobremidia.com.br>",
-        to: [to],
-        subject: subject,
-        html: html,
-      }),
+    const { data: jobId, error: jobError } = await supabaseService.rpc('enfileirar_job', {
+      p_empresa_operadora_id: empresaOperadoraId,
+      p_event_name: 'GENERIC_EMAIL',
+      p_payload: {
+        to: to,
+        template_key: 'generic_email',
+        vars: {
+          subject: subject,
+          html: html
+        }
+      }
     });
 
-    const data = await res.json();
-
-    if (!res.ok) {
+    if (jobError) {
+      console.error("[send-email] Erro ao enfileirar:", jobError);
       return new Response(
-        JSON.stringify({ error: data.message || "Erro no provedor Resend" }),
-        { status: res.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: jobError.message || "Erro ao enfileirar job" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(
-      JSON.stringify({ id: data.id, status: "sent" }),
+      JSON.stringify({ id: jobId || `job-${Date.now()}`, status: "sent" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

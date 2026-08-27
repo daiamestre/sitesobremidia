@@ -12,8 +12,11 @@ export interface UsuarioRecord {
   telefone?: string;
   avatar_url?: string;
   ativo: boolean;
+  status?: string; // ciclo de vida: ACTIVE | INACTIVE | SUSPENDED | DELETED
   is_owner?: boolean;
   owner_locked?: boolean;
+  /** TRUE = senha inicial/provisória — troca obrigatória no primeiro acesso */
+  must_change_password?: boolean;
   organization_id?: string;
   department_id?: string;
   role_id?: string;
@@ -52,6 +55,13 @@ export interface RepresentanteRecord {
   comissao_porcentagem: number;
 }
 
+// Perfil legado compatível com componentes do Dashboard
+export interface LegacyProfile {
+  full_name: string | null;
+  company_name: string | null;
+  email: string | null;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -61,9 +71,13 @@ interface AuthContextType {
   empresaOperadoraId: string | null;
   solicitacaoStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND';
   loading: boolean;
+  // Alias legado: mapeado a partir de usuario para compatibilidade com DashboardLayout, Sidebar, DashboardHome, Settings
+  profile: LegacyProfile | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; status?: string; role?: string | null; routeRedirect?: string }>;
   signUp: (email: string, password: string, fullName: string, companyName: string) => Promise<{ error: Error | null; data: { user: User | null } | null }>;
   signOut: () => Promise<void>;
+  /** Recarrega usuarios/representantes/status do banco (ex.: após troca obrigatória de senha) */
+  refreshUserData: () => Promise<void>;
   isAuthenticated: boolean;
   isApproved: boolean;
   isOwner: boolean;
@@ -126,8 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       let computedStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND' = 'NOT_FOUND';
 
-      if (usuarioData?.is_owner || usuarioData?.perfil?.nome === 'OWNER' || usuarioData?.perfil?.nome === 'ADMIN' || usuarioData?.role?.name === 'OWNER' || usuarioData?.status === 'ATIVO' || usuarioData?.status === 'ACTIVE') {
-        // OWNER, ADMIN e usuários com status ATIVO corporativo possuem status aprovado soberano
+      // REGRA: OWNER e ADMIN têm acesso soberano. Os demais dependem do status em solicitacoes_acesso.
+      // NÃO usar usuario.status como bypass — a fonte de verdade é solicitacoes_acesso.
+      if (usuarioData?.is_owner || usuarioData?.perfil?.nome === 'OWNER' || usuarioData?.perfil?.nome === 'ADMIN' || usuarioData?.role?.name === 'OWNER') {
         computedStatus = 'APPROVED';
       } else if (solData && solData.status) {
         computedStatus = solData.status as typeof computedStatus;
@@ -136,7 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setSolicitacaoStatus(computedStatus);
-      const perfilNome = usuarioData?.is_owner ? 'OWNER' : (usuarioData?.perfil?.nome || usuarioData?.role?.name || null);
+      // PRIORIDADE: perfilNome vem do cadastro do usuário (perfil?.nome ou role?.name)
+      // O flag is_owner NUNCA deve sobrescrever o perfil identificado — evita que Representante seja visto como OWNER
+      const perfilNome = usuarioData?.perfil?.nome || usuarioData?.role?.name || (usuarioData?.is_owner ? 'OWNER' : null);
       return { usuarioData, repData, perfilNome, solicitacaoStatus: computedStatus };
     } catch (err) {
       console.warn('[AuthContext] Erro ao carregar dados do usuário:', err);
@@ -200,9 +217,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // 2. Verificação de E-mail Confirmado (Regra Obrigatória 3)
-    const isConfirmed = data.user.email_confirmed_at != null || 
-                       data.user.user_metadata?.email_confirmed === true || 
-                       data.user.user_metadata?.test_confirmed === true ||
+    // SEGURANÇA: nenhum bypass por metadados de usuário — apenas confirmação real do Supabase Auth
+    const isConfirmed = data.user.email_confirmed_at != null ||
                        data.user.app_metadata?.provider !== 'email';
 
     if (!isConfirmed) {
@@ -253,18 +269,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error(statusMessage) };
     }
 
-    // Determinar Rota Base de Workspace (FASE CORPORATIVA)
+    // Determinar Rota Base de Workspace (FASE CORPORATIVA & GESTOR DE MÍDIAS)
     let routeRedirect = '/dashboard'; // default
-    if (userData.usuarioData?.is_owner || role === 'OWNER' || role === 'ADMIN' || userData.usuarioData?.role?.name === 'OWNER') {
+    if (role === 'GESTOR' || role === 'GESTOR_TELAS' || role === 'GESTOR_MIDIAS' || role === 'OPERACIONAL' || role === 'DESIGNER' || role === 'FUNCIONARIO') {
+      routeRedirect = '/dashboard';
+    } else if (userData.usuarioData?.is_owner || role === 'OWNER' || role === 'ADMIN' || userData.usuarioData?.role?.name === 'OWNER') {
       routeRedirect = '/workspace/corporate';
     } else if (role === 'FINANCEIRO') {
       routeRedirect = '/workspace/financeiro';
-    } else if (role === 'MARKETING' || role === 'ANUNCIANTE') {
+    } else if (role === 'MARKETING') {
       routeRedirect = '/workspace/marketing';
-    } else if (role === 'OPERACIONAL' || role === 'GESTOR' || role === 'GERENTE') {
-      routeRedirect = '/workspace/operations';
+    } else if (role === 'ANUNCIANTE') {
+      routeRedirect = '/portal';
+    } else if (role === 'GERENTE' || role === 'SUPERVISOR') {
+      routeRedirect = '/workspace/corporate';
     } else if (role === 'REPRESENTANTE') {
       routeRedirect = '/representantes/dashboard';
+    } else if (role === 'CLIENTE') {
+      routeRedirect = '/portal';
+    }
+
+    // REGRA CRÍTICA DE SEGURANÇA (missão §7): senha inicial/provisória
+    // obriga troca ANTES de qualquer acesso ao portal/workspace.
+    if (userData.usuarioData?.must_change_password) {
+      routeRedirect = '/auth/change-password';
     }
 
     // Sucesso Absoluto: todas as condições foram validadas no banco e no Supabase Auth
@@ -309,9 +337,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSolicitacaoStatus('NOT_FOUND');
   };
 
+  /** Recarga explícita dos dados corporativos (usada pós-troca obrigatória de senha) */
+  const refreshUserData = async () => {
+    if (!user?.id) return;
+    await fetchUserData(user.id);
+  };
+
   const perfilNome = usuario?.perfil?.nome || null;
   const empresaOperadoraId = usuario?.empresa_operadora_id || representante?.empresa_operadora_id || null;
   const isAuthenticated = !!user && !!session;
+
+  // Alias legado — mapeamento explícito dos campos que os componentes do Dashboard esperam
+  const profile: LegacyProfile | null = usuario
+    ? {
+        full_name: usuario.nome || null,
+        company_name: usuario.empresa_operadora_id || null,
+        email: user?.email || usuario.email || null,
+      }
+    : null;
   
   // REGRA ABSOLUTA DE ACESSO CORPORATIVO: Acesso liberado para OWNER/ADMIN soberanos ou contas com ciclo de vida APPROVED/ACTIVE e ativas
   const isApproved = isAuthenticated && (
@@ -321,14 +364,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // DETERMINA O WORKSPACE ATUAL
   let workspaceRoute = '/dashboard';
-  if (usuario?.is_owner || perfilNome === 'OWNER' || perfilNome === 'ADMIN' || usuario?.role?.name === 'OWNER') {
+  if (perfilNome === 'GESTOR' || perfilNome === 'GESTOR_TELAS' || perfilNome === 'GESTOR_MIDIAS' || perfilNome === 'OPERACIONAL' || perfilNome === 'DESIGNER' || perfilNome === 'FUNCIONARIO') {
+    workspaceRoute = '/dashboard';
+  } else if (usuario?.is_owner || perfilNome === 'OWNER' || perfilNome === 'ADMIN' || usuario?.role?.name === 'OWNER') {
     workspaceRoute = '/workspace/corporate';
   } else if (perfilNome === 'FINANCEIRO') {
     workspaceRoute = '/workspace/financeiro';
-  } else if (perfilNome === 'MARKETING' || perfilNome === 'ANUNCIANTE') {
-    workspaceRoute = '/workspace/marketing';
-  } else if (perfilNome === 'OPERACIONAL' || perfilNome === 'GESTOR' || perfilNome === 'GERENTE') {
-    workspaceRoute = '/workspace/operations';
+  } else if (perfilNome === 'ANUNCIANTE') {
+    workspaceRoute = '/portal';
+  } else if (perfilNome === 'GERENTE' || perfilNome === 'SUPERVISOR') {
+    workspaceRoute = '/workspace/corporate';
   } else if (perfilNome === 'REPRESENTANTE') {
     workspaceRoute = '/representantes/dashboard';
   } else if (perfilNome === 'CLIENTE') {
@@ -345,9 +390,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       empresaOperadoraId,
       solicitacaoStatus,
       loading,
+      profile,
       signIn,
       signUp,
       signOut,
+      refreshUserData,
       isAuthenticated,
       isApproved,
       isOwner: usuario?.is_owner || perfilNome === 'OWNER',

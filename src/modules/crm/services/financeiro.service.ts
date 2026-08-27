@@ -48,6 +48,7 @@ export interface ContaReceberCompleta {
   competencia: string;
   vencimento: string;
   valor_original: number;
+  valor_pago: number;
   desconto: number;
   juros: number;
   multa: number;
@@ -69,11 +70,15 @@ export interface ComissaoRecord {
   representante_id?: string;
   supervisor_id?: string;
   gerente_id?: string;
+  codigo_publico?: string | null;
+  cargo?: string | null;
   percentual: number;
   valor: number;
   competencia: string;
   status: 'PENDENTE' | 'LIBERADA' | 'PAGA' | 'CANCELADA';
   created_at: string;
+  data_liberacao?: string | null;
+  data_pagamento?: string | null;
   usuario?: any;
 }
 
@@ -121,6 +126,7 @@ export class FinanceiroService {
           empresa_operadora_id: payload.empresaOperadoraId,
           contrato_id: payload.contratoId || null,
           cliente_id: payload.clienteId,
+          codigo_operacional: numDoc,
           numero_documento: numDoc,
           competencia_date: `${comp}-01`,
           data_vencimento: payload.vencimento,
@@ -479,9 +485,17 @@ export class FinanceiroService {
     }
   }
 
+  /** Gera o codigo_operacional obrigatório de contas_receber via RPC oficial */
+  private async gerarCodigoOperacional(empresaOperadoraId: string): Promise<string> {
+    const { data } = await supabase.rpc('gerar_numero_documento', {
+      p_tenant_id: empresaOperadoraId,
+      p_tipo: 'COB',
+    });
+    return data || `COB-${Date.now()}`;
+  }
+
   async createCobranca(payload: CreateCobrancaPayload): Promise<{ success: boolean; cobrancaId?: string; error?: string }> {
-    if (!payload.empresaOperadoraId) return { success: false, error: 'Tenant (empresa_operadora_id) ausente. Refaça o login.' };
-    if (!payload.clienteId) return { success: false, error: 'Selecione o cliente da cobrança.' };
+    if (!payload.empresaOperadoraId) return { success: false, error: 'Tenant (empresa_operadora_id) ausente. Refaça o login.' };    if (!payload.clienteId) return { success: false, error: 'Selecione o cliente da cobrança.' };
     if (!payload.contratoId) return { success: false, error: 'Selecione o contrato vinculado.' };
     if (!payload.valor || payload.valor <= 0) return { success: false, error: 'Informe um valor maior que zero.' };
     if (!payload.dataVencimento) return { success: false, error: 'Informe a data de vencimento.' };
@@ -492,6 +506,7 @@ export class FinanceiroService {
           empresa_operadora_id: payload.empresaOperadoraId,
           cliente_id: payload.clienteId,
           contrato_id: payload.contratoId,
+          codigo_operacional: await this.gerarCodigoOperacional(payload.empresaOperadoraId),
           valor: payload.valor,
           data_vencimento: payload.dataVencimento,
           numero_parcela: payload.numeroParcela ?? 1,

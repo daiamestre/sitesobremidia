@@ -37,6 +37,8 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
       cnpj: '11222333000199',
       cidade: 'São Paulo',
       estado: 'SP',
+      whatsapp: '11999990000',
+      email: `e2e-${Date.now()}@sobremidia.com.br`,
     });
     clienteId = res.clienteId || '';
     steps.push({
@@ -55,13 +57,16 @@ export async function runE2ETestSuite(empresaOperadoraId: string, usuarioId?: st
   start = Date.now();
   let propostaId = '';
   try {
-    const res = await propostaService.createProposal({
+    const res = await propostaService.create({
       empresaOperadoraId,
       clienteId,
+      tituloCampanha: 'Campanha E2E',
+      duracaoSegundos: 15,
+      quantidadeTelas: 4,
       valorMensal: 3500,
-      prazoMeses: 12,
       formaPagamento: 'PIX',
-      itens: [{ tipoMedia: 'Vídeo Full HD', quantidadeTelas: 4, duracaoSegundos: 15, valorUnitario: 875 }],
+      dataInicio: new Date().toISOString(),
+      dataFim: new Date(Date.now() + 365 * 86400000).toISOString(),
     });
     propostaId = res.propostaId || '';
     steps.push({

@@ -99,11 +99,13 @@ test.describe('PARTE B - USUARIOS E ACESSOS', () => {
 
     // Etapa 3: Revisão
     await expect(page.getByText('Usuário Playwright E2E').first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('button', { name: /Criar usuário e enviar convite/i })).toBeVisible();
-    await page.getByRole('button', { name: /Criar usuário e enviar convite/i }).click();
+    // Missão §5: criação gera SENHA INICIAL AUTOMÁTICA (sem convite por e-mail)
+    await expect(page.getByRole('button', { name: /Criar usuário e gerar senha inicial/i })).toBeVisible();
+    await page.getByRole('button', { name: /Criar usuário e gerar senha inicial/i }).click();
 
-    // Etapa 4: Sucesso
-    await expect(page.getByText(/Usuário criado com sucesso/i).first()).toBeVisible({ timeout: 60000 });
+    // Etapa 4: Sucesso — provisionamento imediato + senha exibida uma única vez
+    await expect(page.getByText(/Usuário provisionado com sucesso/i).first()).toBeVisible({ timeout: 60000 });
+    await expect(page.getByText(/Senha inicial — exibida apenas agora/i)).toBeVisible({ timeout: 15000 });
     await page.getByRole('button', { name: /Concluir/i }).click();
 
     // Lista atualizada com o novo usuário

@@ -10,18 +10,25 @@ import {
   Users, DollarSign, Award, Target, TrendingUp, FileText, Loader2 
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { prospeccaoService, type KpisProspeccao } from '@/services/prospeccao.service';
+import { Store, MonitorPlay, UserPlus } from 'lucide-react';
 
 export default function RepresentativeDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { representante, empresaOperadoraId } = useAuth();
-  
+
   const [metrics, setMetrics] = useState<RepresentativeDashboardMetrics | null>(null);
   const [carteira, setCarteira] = useState<CarteiraClienteItem[]>([]);
   const [comissoes, setComissoes] = useState<ComissaoItem[]>([]);
   const [metas, setMetas] = useState<MetaItem[]>([]);
   const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [kpisPros, setKpisPros] = useState<KpisProspeccao | null>(null);
+
+  useEffect(() => {
+    prospeccaoService.getKpis().then(setKpisPros).catch(() => setKpisPros(null));
+  }, []);
 
   const repId = representante?.id;
 
@@ -82,6 +89,9 @@ export default function RepresentativeDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button onClick={() => navigate('/representantes/prospeccao')} className="bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg text-xs gap-1.5 rounded-xl font-bold">
+            <Target className="h-4 w-4" /> NOVO CADASTRO
+          </Button>
           <Button onClick={() => navigate('/representantes/clientes/novo')} className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg text-xs gap-1.5 rounded-xl">
             + Novo Cliente
           </Button>
@@ -90,6 +100,56 @@ export default function RepresentativeDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* KPIs DE PROSPECÇÃO (missão §25) */}
+      {kpisPros && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <button onClick={() => navigate('/representantes/clientes')} className="text-left">
+            <Card className="border border-purple-500/20 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl hover:border-purple-500/40 transition-all">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30"><Users className="h-5 w-5" /></div>
+                <div>
+                  <span className="text-slate-400 text-[11px] block font-semibold">Anunciantes</span>
+                  <strong className="text-xl font-bold text-white">{kpisPros.meus_anunciantes}</strong>
+                </div>
+              </CardContent>
+            </Card>
+          </button>
+          <button onClick={() => navigate('/representantes/prospeccao/ponto-parceiro')} className="text-left">
+            <Card className="border border-emerald-500/20 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl hover:border-emerald-500/40 transition-all">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"><Store className="h-5 w-5" /></div>
+                <div>
+                  <span className="text-slate-400 text-[11px] block font-semibold">Pontos Parceiros disponíveis</span>
+                  <strong className="text-xl font-bold text-white">{kpisPros.pontos_disponiveis}</strong>
+                </div>
+              </CardContent>
+            </Card>
+          </button>
+          <button onClick={() => navigate('/representantes/prospeccao/gestor')} className="text-left">
+            <Card className="border border-sky-500/20 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl hover:border-sky-500/40 transition-all">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-sky-500/20 text-sky-400 border border-sky-500/30"><MonitorPlay className="h-5 w-5" /></div>
+                <div>
+                  <span className="text-slate-400 text-[11px] block font-semibold">Gestores de Mídias</span>
+                  <strong className="text-xl font-bold text-white">{kpisPros.gestores_ativos}</strong>
+                </div>
+              </CardContent>
+            </Card>
+          </button>
+          <button onClick={() => navigate('/representantes/prospeccao')} className="text-left">
+            <Card className="border border-amber-500/20 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl hover:border-amber-500/40 transition-all">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30"><UserPlus className="h-5 w-5" /></div>
+                <div>
+                  <span className="text-slate-400 text-[11px] block font-semibold">Vínculos cliente-ponto</span>
+                  <strong className="text-xl font-bold text-white">{kpisPros.pontos_vinculados}</strong>
+                </div>
+              </CardContent>
+            </Card>
+          </button>
+        </div>
+      )}
 
       {/* KPI CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

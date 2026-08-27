@@ -712,7 +712,7 @@ function NovaCobrancaDialog({
               <SelectContent className="bg-slate-950 border-slate-700 max-h-64">
                 {contratosDoCliente.map((ct: any) => (
                   <SelectItem key={ct.id} value={ct.id}>
-                    {ct.numero_contrato || ct.id.slice(0, 8)}
+                    {ct.numero_contrato || '—'}
                   </SelectItem>
                 ))}
               </SelectContent>

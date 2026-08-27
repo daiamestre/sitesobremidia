@@ -89,7 +89,7 @@ export default function Install() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5 my-6 sm:my-8">
             {/* Android Download Button */}
             <a
-              href="https://drive.google.com/file/d/118mfmkXpolS0Im8lnVXIciEgDwG4qoGi/view?usp=drive_link"
+              href="https://drive.google.com/file/d/1Ry03iI3T86znHyPZjuOkNtaR_D7jPTHJ/view?usp=sharing"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full sm:w-auto"
@@ -108,7 +108,7 @@ export default function Install() {
 
             {/* iOS Download Button */}
             <a
-              href="https://drive.google.com/file/d/118mfmkXpolS0Im8lnVXIciEgDwG4qoGi/view?usp=drive_link"
+              href="https://drive.google.com/file/d/1Ry03iI3T86znHyPZjuOkNtaR_D7jPTHJ/view?usp=sharing"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full sm:w-auto"

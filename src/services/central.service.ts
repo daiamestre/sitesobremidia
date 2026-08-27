@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 // ============================================================
 // TIPOS — Central de Comunicação & Inteligência
@@ -16,6 +17,8 @@ export type TipoSolicitacao =
   | 'APROVACAO_CAMPANHA'
   | 'APROVACAO_CONTEUDO'
   | 'SOLICITACAO_FINANCEIRA'
+  | 'NOVO_PONTO'
+  | 'PASSWORD_RESET_REQUEST'
   | 'OUTRO';
 
 export interface Notificacao {
@@ -532,7 +535,7 @@ export class CentralService {
       tipo_evento: payload.tipoEvento,
       entidade_origem: payload.entidadeOrigem,
       entidade_id: payload.entidadeId,
-      payload: payload.eventoPayload ?? {},
+      payload: (payload.eventoPayload ?? {}) as Record<string, Json>,
       created_by: payload.criadoPor ?? user?.id ?? null,
     });
 

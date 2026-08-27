@@ -41,7 +41,7 @@ export function SalesDashboardMobile({ empresaOperadoraId, clienteId }: { empres
       <CardContent className="pt-4 space-y-3 text-xs">
         <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-2">
           <div className="flex justify-between items-center text-white">
-            <strong>{clienteId ? `Cliente: ${clienteId}` : 'Nenhum cliente selecionado'}</strong>
+            <strong>{clienteId ? 'Cliente selecionado' : 'Nenhum cliente selecionado'}</strong>
             <span className="text-[10px] text-emerald-400">{clienteId ? 'GPS disponível' : 'Selecione um cliente'}</span>
           </div>
           <Button

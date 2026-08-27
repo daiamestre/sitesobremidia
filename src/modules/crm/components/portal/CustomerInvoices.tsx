@@ -7,7 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 export function CustomerInvoices() {
-  const { clienteId } = useAuth();
+  const { usuario } = useAuth();
+  const clienteId = usuario?.cliente_id;
   const [contas, setContas] = useState<ContaReceberCompleta[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -63,8 +64,8 @@ export function CustomerInvoices() {
                   <Badge
                     className={
                       status === 'PAGO' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                      status === 'VENCIDO' || status === 'ATRASADA' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' :
-                      status === 'PARCIAL_PAGA' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                      status === 'VENCIDO' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' :
+                      status === 'PARCIAL' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
                         'bg-slate-500 text-slate-300'
                     }
                   >

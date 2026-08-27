@@ -95,6 +95,61 @@ export interface OnboardingSessaoInsert {
   dados?: Record<string, unknown>;
 }
 
+// ── Ponto parceiro (migration 20261026_portal_anunciante_foundation) ──
+export interface PontoParceiro {
+  id: string;
+  empresa_operadora_id: string;
+  unidade_id?: string | null;
+  nome: string;
+  categoria?: string | null;
+  descricao?: string | null;
+  foto_url?: string | null;
+  galeria?: Json;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  quantidade_telas: number;
+  valor_anuncio?: number | null;
+  periodicidade: 'MENSAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL' | 'UNICO';
+  disponibilidade: 'DISPONIVEL' | 'RESERVADO' | 'INDISPONIVEL';
+  status_operacional: 'ATIVO' | 'INATIVO' | 'MANUTENCAO';
+  regras_comerciais?: string | null;
+  ativo: boolean;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface PontoParceiroInsert {
+  empresa_operadora_id?: string | null;
+  unidade_id?: string | null;
+  nome: string;
+  categoria?: string | null;
+  descricao?: string | null;
+  foto_url?: string | null;
+  galeria?: Json;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  quantidade_telas?: number;
+  valor_anuncio?: number | null;
+  periodicidade?: PontoParceiro['periodicidade'];
+  disponibilidade?: PontoParceiro['disponibilidade'];
+  status_operacional?: PontoParceiro['status_operacional'];
+  regras_comerciais?: string | null;
+  ativo?: boolean;
+  created_by?: string | null;
+}
+
 export interface CommerceTables {
   produtos: {
     Row: Produto;
@@ -201,6 +256,20 @@ export interface CommerceTables {
     Update: Partial<OnboardingSessao>;
     Relationships: [];
   };
+  pontos: {
+    Row: PontoParceiro;
+    Insert: PontoParceiroInsert;
+    Update: Partial<PontoParceiro>;
+    Relationships: [
+      {
+        foreignKeyName: 'pontos_unidade_id_fkey';
+        columns: ['unidade_id'];
+        isOneToOne: true;
+        referencedRelation: 'unidades';
+        referencedColumns: ['id'];
+      },
+    ];
+  };
 }
 
 export interface CommerceFunctions {
@@ -255,6 +324,23 @@ export interface CommerceFunctions {
   };
   listar_estabelecimentos_disponiveis: {
     Args: Record<string, never>;
+    Returns: Json;
+  };
+  listar_pontos_para_anunciar: {
+    Args: Record<string, never>;
+    Returns: Json;
+  };
+  solicitar_novo_ponto: {
+    Args: {
+      p_ponto_id: string;
+      p_justificativa?: string | null;
+    };
+    Returns: void;
+  };
+  publicar_playlist_cliente: {
+    Args: {
+      p_playlist_id: string;
+    };
     Returns: Json;
   };
 }

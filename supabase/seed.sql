@@ -10,7 +10,13 @@ INSERT INTO public.perfis (id, nome, descricao, ativo) VALUES
 ('00000000-0000-0000-0000-000000000004', 'DESIGNER', 'Equipe de Criação e Arte 3D', TRUE),
 ('00000000-0000-0000-0000-000000000005', 'REPRESENTANTE', 'Representante Comercial Parceiro', TRUE),
 ('00000000-0000-0000-0000-000000000006', 'OPERACIONAL', 'Técnico de Instalação e Hardware', TRUE),
-('00000000-0000-0000-0000-000000000007', 'CLIENTE', 'Acesso de Visualização pelo Cliente', TRUE)
+('00000000-0000-0000-0000-000000000007', 'CLIENTE', 'Acesso de Visualização pelo Cliente', TRUE),
+-- RBAC 2.0 (perfis constitucionais) — Fase 2 Portal Anunciante
+('00000000-0000-0000-0000-000000000008', 'OWNER', 'Proprietário da Plataforma', TRUE),
+('00000000-0000-0000-0000-000000000009', 'GESTOR', 'Gestor de Mídias', TRUE),
+('00000000-0000-0000-0000-00000000000a', 'FUNCIONARIO', 'Funcionário Operacional', TRUE),
+('00000000-0000-0000-0000-00000000000b', 'ANUNCIANTE', 'Cliente Anunciante (Portal próprio)', TRUE),
+('00000000-0000-0000-0000-00000000000c', 'PARCEIRO', 'Parceiro Comercial', TRUE)
 ON CONFLICT (nome) DO NOTHING;
 
 -- 2. Tenant Padrão (Sobre Mídia Matriz)

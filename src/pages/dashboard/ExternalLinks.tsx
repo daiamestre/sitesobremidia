@@ -107,7 +107,7 @@ export default function ExternalLinks() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as ExternalLink[];
+      return data as unknown as ExternalLink[];
     },
     enabled: !!user,
   });

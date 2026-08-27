@@ -10,15 +10,22 @@ import { Loader2 } from "lucide-react";
 // LAZY LOADED PAGES
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
 const Install = lazy(() => import("./pages/Install"));
 const DevicePairingScreen = lazy(() => import("./pages/DevicePairingScreen"));
 const RepresentantesAuth = lazy(() => import("./pages/representantes/RepresentantesAuth"));
 const WorkspaceLayout = lazy(() => import("./modules/corporate/layout/WorkspaceLayout"));
 const CorporateCommandCenter = lazy(() => import("./modules/corporate/pages/CorporateCommandCenter"));
 const UsuariosAcessosPage = lazy(() => import("./modules/corporate/pages/UsuariosAcessosPage"));
+const PontosParceirosPage = lazy(() => import("./modules/corporate/pages/PontosParceirosPage"));
 const CrmLayout = lazy(() => import("./modules/crm/layout/CrmLayout"));
 const CrmDashboardHome = lazy(() => import("./modules/crm/pages/CrmDashboardHome"));
 const RepresentativeDashboard = lazy(() => import("./modules/crm/pages/RepresentativeDashboard"));
+const NovaProspeccaoPage = lazy(() => import("./modules/crm/pages/NovaProspeccaoPage"));
+const PontoParceiroWizardPage = lazy(() => import("./modules/crm/pages/prospeccao/PontoParceiroWizardPage"));
+const GestorMidiiasProspeccaoPage = lazy(() => import("./modules/crm/pages/prospeccao/GestorMidiiasProspeccaoPage"));
 const RepresentantesPage = lazy(() => import("./modules/crm/pages/RepresentantesPage"));
 const DesempenhoRepresentantesPage = lazy(() => import("./modules/crm/pages/DesempenhoRepresentantesPage"));
 const RepresentanteDetalhePage = lazy(() => import("./modules/crm/pages/RepresentanteDetalhePage"));
@@ -87,6 +94,10 @@ const ExpansaoPage = lazy(() => import("./modules/crm/pages/portal/ExpansaoPage"
 const BrandKitPage = lazy(() => import("./modules/crm/pages/portal/BrandKitPage"));
 const AssetLibraryPage = lazy(() => import("./modules/crm/pages/portal/AssetLibraryPage"));
 const EncartePage = lazy(() => import("./modules/crm/pages/portal/EncartePage"));
+const BibliotecaIA = lazy(() => import("./modules/crm/pages/portal/BibliotecaIA"));
+const PlaylistsClientePage = lazy(() => import("./modules/crm/pages/portal/PlaylistsClientePage"));
+const MinhaEquipePage = lazy(() => import("./modules/crm/pages/portal/MinhaEquipePage"));
+const ConfiguracoesPortalPage = lazy(() => import("./modules/crm/pages/portal/ConfiguracoesPortalPage"));
 
 const DashboardHome = lazy(() => import("./pages/dashboard/DashboardHome"));
 const Medias = lazy(() => import("./pages/dashboard/Medias"));
@@ -139,6 +150,9 @@ const App = () => {
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/corporate" element={<Auth />} />
+                  <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/auth/reset-password" element={<ResetPassword />} />
+                  <Route path="/auth/change-password" element={<ChangePassword />} />
                   <Route path="/install" element={<Install />} />
                   {/* REPRESENTANTES LOGIN & CRM MODULE */}
                   <Route path="/representantes/login" element={<RepresentantesAuth />} />
@@ -146,6 +160,9 @@ const App = () => {
                   <Route path="/representantes" element={<RequireApproval><CrmLayout /></RequireApproval>}>
                     <Route index element={<RepresentativeDashboard />} />
                     <Route path="dashboard" element={<RepresentativeDashboard />} />
+                    <Route path="prospeccao" element={<NovaProspeccaoPage />} />
+                    <Route path="prospeccao/ponto-parceiro" element={<PontoParceiroWizardPage />} />
+                    <Route path="prospeccao/gestor" element={<GestorMidiiasProspeccaoPage />} />
                     <Route path="clientes" element={<ClientesListPage />} />
                     <Route path="clientes/novo" element={<NovoClientePage />} />
                     <Route path="clientes/editar/:id" element={<EditarClientePage />} />
@@ -220,8 +237,12 @@ const App = () => {
                     <Route path="brand-kit" element={<BrandKitPage />} />
                     <Route path="assets" element={<AssetLibraryPage />} />
                     <Route path="encarte" element={<EncartePage />} />
+                    <Route path="biblioteca-ia" element={<BibliotecaIA />} />
                     <Route path="onboarding" element={<OnboardingPage />} />
                     <Route path="central" element={<CentralDashboard />} />
+                    <Route path="playlists" element={<PlaylistsClientePage />} />
+                    <Route path="equipe" element={<MinhaEquipePage />} />
+                    <Route path="configuracoes" element={<ConfiguracoesPortalPage />} />
                   </Route>
 
                   <Route path="/device-pairing" element={<DevicePairingScreen />} />
@@ -231,7 +252,7 @@ const App = () => {
                   <Route path="/player/link/:id" element={<LinkPlayer />} />
                   <Route path="/player/*" element={<Player />} />
                   <Route path="/player-demo" element={<WebPlayerDemo />} />
-                  <Route path="/admin/solicitacoes/:id" element={<AdminSolicitacaoAprovacao />} />
+                  <Route path="/admin/solicitacoes/:id" element={<RequireApproval><AdminSolicitacaoAprovacao /></RequireApproval>} />
 
                   {/* FINANCEIRO STANDALONE (deep-linkable: /financeiro/cobrancas) */}
                   <Route path="/financeiro" element={<RequireApproval><CrmLayout /></RequireApproval>}>
@@ -293,6 +314,7 @@ const App = () => {
                     <Route path="central" element={<CentralDashboard />} />
                     <Route path="media" element={<Medias />} />
                     <Route path="usuarios" element={<UsuariosAcessosPage />} />
+                    <Route path="pontos-parceiros" element={<PontosParceirosPage />} />
                     <Route path="configuracoes" element={<Settings />} />
                     <Route path="perfil" element={<AdminUsers />} />
                     <Route path="marketing" element={<CommercialDashboard />} />

@@ -20,3 +20,29 @@ vite.config.ts.timestamp-*
 # Backups e artefatos locais de auditoria
 *.bak-tsc
 tsc_app_*
+
+# Artefatos de auditoria/testes locais (P0-FIX)
+scratch/
+docs/
+audit/
+coverage/
+dev-dist/
+test-results/
+playwright-report/
+CREDENCIAIS*
+RELATORIO*
+RELATORO*
+AUDITORIA_*
+FASE2_*
+MASTER_ISSUE_LEDGER.md
+PLAYER_*.md
+window_dump.txt
+package_dump.txt
+pkglist.txt
+lint-results*.json
+.temp_*
+*_dump*
+screenshot*.png
+screen_*.png
+antes.json
+fase1_antes.json

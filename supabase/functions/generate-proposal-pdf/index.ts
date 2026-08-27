@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -306,31 +306,28 @@ serve(async (req: Request): Promise<Response> => {
       })
       .eq('id', proposta.id);
 
-    // 7. Se solicitado envio e Resend API Key configurado, envia e-mail com link assinado
+    // 7. Se solicitado envio, envia e-mail com link assinado
     let emailSent = false;
-    if (sendEmail && RESEND_API_KEY && empresa?.email) {
-      const emailRes = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-        },
-        body: JSON.stringify({
-          from: "Sobre Mídia <comercial@sobremidia.com.br>",
-          to: [empresa.email],
-          subject: `Proposta Comercial ${proposta.numero_proposta} - Sobre Mídia`,
-          html: `
-            <div style="font-family: Arial, sans-serif; background: #0f172a; color: #fff; padding: 30px; border-radius: 12px;">
-              <h2 style="color: #0284c7;">Proposta Comercial ${proposta.numero_proposta}</h2>
-              <p>Olá <strong>${empresa.nome_fantasia}</strong>,</p>
-              <p>Sua proposta comercial no valor mensal de <strong>${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(proposta.valor_final)}</strong> está pronta!</p>
-              <p>Clique no botão abaixo para visualizar o documento oficial completo:</p>
-              <a href="${Deno.env.get("PUBLIC_APP_URL") || "https://plataforma.sobremidia.com.br"}/representantes/clientes" style="display: inline-block; padding: 12px 24px; background: #0284c7; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 15px;">Visualizar Proposta</a>
-            </div>
-          `,
-        }),
+    if (sendEmail && empresa?.email) {
+      const { error: jobError } = await supabase.rpc('enfileirar_job', {
+        p_empresa_operadora_id: proposta.empresa_operadora_id,
+        p_event_name: 'PROPOSAL_GENERATED',
+        p_payload: {
+          to: empresa.email,
+          template_key: 'proposal_generated',
+          vars: {
+            numero_proposta: proposta.numero_proposta,
+            nome_fantasia: empresa.nome_fantasia,
+            valor_final: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(proposta.valor_final),
+            proposta_link: `${Deno.env.get("PUBLIC_APP_URL") || "https://plataforma.sobremidia.com.br"}/representantes/clientes`
+          }
+        }
       });
-      emailSent = emailRes.ok;
+      
+      emailSent = !jobError;
+      if (jobError) {
+        console.error("[generate-proposal-pdf] Erro ao enfileirar job:", jobError.message);
+      }
     }
 
     return new Response(JSON.stringify({

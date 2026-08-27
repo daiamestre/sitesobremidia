@@ -83,22 +83,9 @@ export class FinanceiroPlusService {
     origemId?: string;
   }): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data: debito } = await supabase.from('plano_contas').select('id').eq('codigo', payload.contaDebitoCodigo).single();
-      const { data: credito } = await supabase.from('plano_contas').select('id').eq('codigo', payload.contaCreditoCodigo).single();
-
-      if (!debito || !credito) return { success: false, error: 'Contas do Plano de Contas não localizadas.' };
-
-      await supabase.from('financeiro_lancamentos').insert({
-        empresa_operadora_id: payload.empresaOperadoraId,
-        conta_debito_id: debito.id,
-        conta_credito_id: credito.id,
-        centro_custo_id: payload.centroCustoId || null,
-        valor: payload.valor,
-        historico: payload.historico,
-        origem_id: payload.origemId || null,
-      });
-
-      return { success: true };
+      // financeiro_lancamentos existe, mas sem colunas de partida dobrada
+      // (conta_debito_id/conta_credito_id/valor/historico ausentes em types.ts)
+      return { success: false, error: 'Partida dobrada não configurada neste banco.' };
     } catch (err: unknown) {
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
@@ -124,8 +111,6 @@ export class FinanceiroPlusService {
           empresa_operadora_id: payload.empresaOperadoraId,
           cliente_id: payload.clienteId,
           contrato_id: payload.contratoId || null,
-          numero_rps: 0, // Zero Mock: deve ser preenchido por integração real de prefeitura
-          numero_nfse: '', // Zero Mock: deve ser retornado pela integração real
           valor_servicos: payload.valorServicos,
           aliquota_iss: 5.0,
           valor_iss: iss,
@@ -156,7 +141,7 @@ export class FinanceiroPlusService {
         .from('contas_receber')
         .select('id')
         .eq('empresa_operadora_id', empresaOperadoraId)
-        .lt('vencimento', hoje)
+        .lt('data_vencimento', hoje)
         .eq('status', 'PENDENTE');
 
       if (vencidos && vencidos.length > 0) {
@@ -189,7 +174,7 @@ export class FinanceiroPlusService {
    */
   async listInvoices(empresaOperadoraId?: string): Promise<Record<string, unknown>[]> {
     try {
-      let query = supabase.from('notas_fiscais').select('*, cliente:clientes(*)').order('created_at', { ascending: false });
+      let query = supabase.from('notas_fiscais').select('*').order('created_at', { ascending: false });
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
       const { data } = await query;
       return data || [];

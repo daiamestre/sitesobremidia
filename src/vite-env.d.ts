@@ -1,33 +1,12 @@
 /// <reference types="vite/client" />
+import type { NativePlayerBridge } from './types/native-bridge';
 
-declare module 'virtual:pwa-register/react' {
-  import type { Dispatch, SetStateAction } from 'react';
+// virtual:pwa-register/react é declarado em src/types/virtual-pwa.d.ts
 
-  export interface RegisterSWOptions {
-    immediate?: boolean;
-    onNeedRefresh?: () => void;
-    onOfflineReady?: () => void;
-    onRegistered?: (registration: ServiceWorkerRegistration | undefined) => void;
-    onRegisteredSW?: (swScriptUrl: string, registration: ServiceWorkerRegistration | undefined) => void;
-    onRegisterError?: (error: unknown) => void;
+declare global {
+  interface Window {
+    // Single source of truth: src/types/native-bridge.d.ts (matches WebAppInterface.kt)
+    NativePlayer?: NativePlayerBridge;
+    onScreenshotReady?: (base64: string | null) => void;
   }
-
-  export function useRegisterSW(options?: RegisterSWOptions): {
-    needRefresh: [boolean, Dispatch<SetStateAction<boolean>>];
-    offlineReady: [boolean, Dispatch<SetStateAction<boolean>>];
-    updateServiceWorker: (reloadPage?: boolean) => Promise<void>;
-  };
-}
-
-interface Window {
-  NativePlayer?: {
-    getDeviceId(): string;
-    log(message: string): void;
-    getPlayerConfig(): string;
-    showToast(message: string): void;
-    getDeviceStatus(): string; // JSON String
-    requestOverlayPermission(): void;
-    captureScreenshot(callbackName: string): void;
-  };
-  onScreenshotReady?: (base64: string | null) => void;
 }

@@ -8,6 +8,16 @@ import "../components/player/Player.css";
 const SCREEN_ID_CACHE_KEY = "player_screen_id_codemidia";
 const SCREEN_TOKEN_CACHE_KEY = "player_screen_token_codemidia";
 
+// RPCs return jsonb (typed as Json) -> narrow once per call site
+interface PairRpcResult {
+    ok?: boolean;
+    pairing_code?: string;
+    expires_at?: string;
+    status?: string;
+    screen_id?: string;
+    screen_token?: string;
+}
+
 export default function DevicePairingScreen() {
     const navigate = useNavigate();
     const [identityHash, setIdentityHash] = useState<string | null>(null);
@@ -57,9 +67,10 @@ export default function DevicePairingScreen() {
 
             if (rpcError) throw rpcError;
 
-            if (data && data.ok) {
-                setPairingCode(data.pairing_code);
-                setExpiresAt(new Date(data.expires_at));
+            const result = data as PairRpcResult | null;
+            if (result && result.ok) {
+                setPairingCode(result.pairing_code ?? null);
+                setExpiresAt(new Date(result.expires_at));
             } else {
                 throw new Error("Failed to generate pairing code");
             }
@@ -93,24 +104,26 @@ export default function DevicePairingScreen() {
                     return;
                 }
 
-                if (data && data.ok) {
-                    if (data.status === 'paired' && data.screen_id) {
+                const result = data as PairRpcResult | null;
+                if (result && result.ok) {
+                    if (result.status === 'paired' && result.screen_id) {
                         // Success! Device is now paired
                         clearInterval(interval);
-                        localStorage.setItem(SCREEN_ID_CACHE_KEY, data.screen_id);
-                        if (data.screen_token) {
-                            localStorage.setItem(SCREEN_TOKEN_CACHE_KEY, data.screen_token);
+                        const screenId = result.screen_id;
+                        localStorage.setItem(SCREEN_ID_CACHE_KEY, screenId);
+                        if (result.screen_token) {
+                            localStorage.setItem(SCREEN_TOKEN_CACHE_KEY, result.screen_token);
                         }
-                        
+
                         // Small delay to show success state before redirecting
                         setTimeout(() => {
-                            navigate(`/player/${data.screen_id}`, { replace: true });
+                            navigate(`/player/${screenId}`, { replace: true });
                         }, 2000);
-                    } else if (data.status === 'expired') {
+                    } else if (result.status === 'expired') {
                         // Code expired, request a new one
                         requestCode();
                     }
-                } else if (data && !data.ok && data.status === 'expired') {
+                } else if (result && !result.ok && result.status === 'expired') {
                     requestCode();
                 }
             } catch (e) {
@@ -212,7 +225,7 @@ export default function DevicePairingScreen() {
                 {/* Device Info Footer */}
                 <div className="absolute bottom-6 text-gray-600 text-sm flex items-center gap-4">
                     <span>SOBRE MÍDIA Player v2.0</span>
-                    {identityHash && <span>• ID: {identityHash.substring(0, 8)}...</span>}
+{identityHash && <span className="text-xs text-emerald-400">Dispositivo pareado</span>}
                 </div>
             </div>
         </div>

@@ -24,6 +24,7 @@ import {
   Bell,
   AlertTriangle,
   FileText,
+  Briefcase,
   Banknote,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -139,6 +140,17 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="p-2 border-t border-sidebar-border space-y-1">
+        {(isAdmin || isOwner) && (
+          <NavLink
+            to="/workspace/corporate"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-primary hover:bg-sidebar-accent'
+            )}
+          >
+            <Briefcase className="h-5 w-5 flex-shrink-0" />
+            {!collapsed && <span>Área Corporativa</span>}
+          </NavLink>
+        )}
         {isAdmin && (
           <NavLink
             to="/dashboard/admin/users"

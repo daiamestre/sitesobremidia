@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { MapPin, Tv, ShieldCheck, Loader2, AlertTriangle, CheckCircle2, BarChart2, PlusCircle, Wifi, WifiOff, AlertCircle, Monitor, Building2, Clock } from 'lucide-react';
+import { MapPin, Tv, ShieldCheck, Loader2, AlertTriangle, CheckCircle2, BarChart2, PlusCircle, Wifi, WifiOff, AlertCircle, Monitor, Building2, Clock, Image as ImageIcon, MapPin as MapPinIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -314,7 +314,7 @@ export default function MeusPontosPage() {
                     <tr key={ponto.id} className="border-b border-white/5 hover:bg-white/5">
                       <td className="p-3">
                         <div className="font-medium text-white">{ponto.nome}</div>
-                        <div className="text-xs text-slate-400">PI: {ponto.pi_id?.slice(0, 8)}</div>
+                        
                       </td>
                       <td className="text-center p-3 text-slate-300">{ponto.cidade} / {ponto.estado}</td>
                       <td className="text-center p-3">
@@ -324,7 +324,11 @@ export default function MeusPontosPage() {
                           <span className="text-slate-500 text-xs">—</span>
                         )}
                       </td>
-                      <td className="text-center p-3 text-slate-400 text-xs">{ponto.resolucao}</td>
+                      <td className="text-center p-3 text-slate-400 text-xs">
+                        {ponto.tela_resolucao || ponto.resolucao}
+                        {ponto.tela_orientacao === 'vertical' && <span className="ml-1 text-primary">(9:16)</span>}
+                        {ponto.tela_orientacao === 'horizontal' && <span className="ml-1 text-primary">(16:9)</span>}
+                      </td>
                       <td className="text-center p-3">
                         <Badge className={situacaoConfig.color}>
                           <SituacaoIcon className="h-3 w-3 mr-1" /> {situacaoConfig.label}
@@ -350,69 +354,103 @@ export default function MeusPontosPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {pontos.map((ponto) => {
-            const situacaoConfig = getSituacaoConfig(ponto.situacao);
-            const telaStatusConfig = getTelaStatusConfig(ponto.tela_status);
-            const SituacaoIcon = situacaoConfig.icon;
-            const TelaStatusIcon = telaStatusConfig.icon;
-            
-            return (
-              <Card key={ponto.id} className="border border-white/10 bg-slate-900/80 hover:border-primary/30 transition-colors">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg font-bold text-white truncate">{ponto.nome}</CardTitle>
-                      <div className="text-xs text-slate-400 flex items-center gap-1 mt-1">
-                        <Building2 className="h-3 w-3" /> {ponto.unidade_nome || ponto.cidade} / {ponto.estado}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pontos.map((ponto) => {
+              const situacaoConfig = getSituacaoConfig(ponto.situacao);
+              const telaStatusConfig = getTelaStatusConfig(ponto.tela_status);
+              const SituacaoIcon = situacaoConfig.icon;
+              const TelaStatusIcon = telaStatusConfig.icon;
+              const isVertical = ponto.tela_orientacao === 'vertical' || ponto.tela_resolucao === '9x16';
+              
+              return (
+                <Card key={ponto.id} className="border border-white/10 bg-slate-900/80 hover:border-primary/30 transition-colors overflow-hidden">
+                  {/* Foto de Capa */}
+                  {ponto.tela_capa_url && (
+                    <div className="relative h-40 w-full bg-slate-900">
+                      <img
+                        src={ponto.tela_capa_url}
+                        alt={`Foto de capa do ${ponto.nome}`}
+                        className="w-full h-full object-cover opacity-90"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                      <div className="absolute bottom-3 left-3 right-3 flex justify-between">
+                        <span className="text-white text-sm font-medium truncate max-w-[60%]">{ponto.nome}</span>
+                        <Badge className={situacaoConfig.color} title={situacaoConfig.label}>
+                          <SituacaoIcon className="h-3 w-3 mr-1" /> {situacaoConfig.label}
+                        </Badge>
                       </div>
                     </div>
-                    <Badge className={situacaoConfig.color} title={situacaoConfig.label}>
-                      <SituacaoIcon className="h-3 w-3 mr-1" /> {situacaoConfig.label}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-2 space-y-3 text-sm">
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5">
-                      <div className="text-slate-400 flex items-center gap-1"><Tv className="h-3 w-3" /> Telas</div>
-                      <div className="font-bold text-white">{ponto.quantidade_telas || 1}</div>
+                  )}
+                  {!ponto.tela_capa_url && (
+                    <div className="relative h-40 w-full bg-slate-800 flex items-center justify-center">
+                      <ImageIcon className="h-12 w-12 text-slate-600" />
                     </div>
-                    <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5">
-                      <div className="text-slate-400 flex items-center gap-1"><Monitor className="h-3 w-3" /> Resolução</div>
-                      <div className="font-bold text-white truncate">{ponto.resolucao}</div>
+                  )}
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        {!ponto.tela_capa_url && (
+                          <CardTitle className="text-lg font-bold text-white truncate">{ponto.nome}</CardTitle>
+                        )}
+                        <div className="text-xs text-slate-400 flex items-center gap-1 mt-1">
+                          <Building2 className="h-3 w-3" /> {ponto.unidade_nome || ponto.cidade} / {ponto.estado}
+                        </div>
+                      </div>
+                      {ponto.tela_capa_url && (
+                        <Badge className={situacaoConfig.color} title={situacaoConfig.label}>
+                          <SituacaoIcon className="h-3 w-3 mr-1" /> {situacaoConfig.label}
+                        </Badge>
+                      )}
                     </div>
-                    <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5">
-                      <div className="text-slate-400 flex items-center gap-1"><Wifi className="h-3 w-3" /> Status</div>
-                      <Badge className={telaStatusConfig.bg} title={telaStatusConfig.label}>
-                        <TelaStatusIcon className="h-3 w-3 mr-1" /> {telaStatusConfig.label}
-                      </Badge>
+                  </CardHeader>
+                  <CardContent className="pt-2 space-y-3 text-sm">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5">
+                        <div className="text-slate-400 flex items-center gap-1"><Tv className="h-3 w-3" /> Telas</div>
+                        <div className="font-bold text-white">{ponto.quantidade_telas || 1}</div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5">
+                        <div className="text-slate-400 flex items-center gap-1"><Monitor className="h-3 w-3" /> Resolução</div>
+                        <div className="font-bold text-white truncate">{ponto.tela_resolucao || ponto.resolucao} {isVertical ? '(9:16)' : '(16:9)'}</div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5">
+                        <div className="text-slate-400 flex items-center gap-1"><Wifi className="h-3 w-3" /> Status</div>
+                        <Badge className={telaStatusConfig.bg} title={telaStatusConfig.label}>
+                          <TelaStatusIcon className="h-3 w-3 mr-1" /> {telaStatusConfig.label}
+                        </Badge>
+                      </div>
+                      <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5">
+                        <div className="text-slate-400 flex items-center gap-1"><Clock className="h-3 w-3" /> Playbacks</div>
+                        <div className="font-bold text-white">{ponto.playback_count || 0}</div>
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5">
-                      <div className="text-slate-400 flex items-center gap-1"><Clock className="h-3 w-3" /> Playbacks</div>
-                      <div className="font-bold text-white">{ponto.playback_count || 0}</div>
+                    
+                    <div className="border-t border-white/10 pt-2 space-y-1.5 text-xs">
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>Último ping: {ponto.tela_ultimo_ping ? new Date(ponto.tela_ultimo_ping).toLocaleString('pt-BR') : 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <Monitor className="h-3.5 w-3.5" />
+                        <span>Última exibição: {ponto.tela_ultima_exibicao ? new Date(ponto.tela_ultima_exibicao).toLocaleString('pt-BR') : 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <MapPinIcon className="h-3.5 w-3.5" />
+                        <span>{ponto.endereco}</span>
+                      </div>
+                      {ponto.tela_nome && (
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <Tv className="h-3.5 w-3.5" />
+                          <span>Tela: {ponto.tela_nome}</span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  
-                  <div className="border-t border-white/10 pt-2 space-y-1.5 text-xs">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Clock className="h-3.5 w-3.5" />
-                      <span>Último ping: {ponto.tela_ultimo_ping ? new Date(ponto.tela_ultimo_ping).toLocaleString('pt-BR') : 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Monitor className="h-3.5 w-3.5" />
-                      <span>Última exibição: {ponto.tela_ultima_exibicao ? new Date(ponto.tela_ultima_exibicao).toLocaleString('pt-BR') : 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span>{ponto.endereco}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
       )}
     </div>
   );

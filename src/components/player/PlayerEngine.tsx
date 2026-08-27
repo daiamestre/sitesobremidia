@@ -5,38 +5,10 @@ import { supabaseConfig } from "@/supabaseConfig";
 import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
 import { offlineLogger } from "@/utils/offlineLogger";
 import { monitoring } from "@/utils/monitoring";
+import { mapRpcPayload, resolveDeviceId, type MediaItem } from "./playerPlaylist";
 import { RemoteCommandListener } from "./RemoteCommandListener";
+import { Monitor, AlertTriangle, RefreshCw } from "lucide-react";
 import "./Player.css";
-
-interface MediaItem {
-    id: string;
-    mediaId: string; // Real Media UUID for stats
-    url: string;
-    type: 'video' | 'image' | 'web';
-    duration: number;
-}
-
-// Linhas retornadas pelo REST direto do Supabase (bypass do cliente tipado)
-interface ScreenRow {
-    id: string;
-    orientation?: string | null;
-    is_active?: boolean;
-    playlist_id?: string | null;
-    audio_enabled?: boolean;
-}
-
-interface PlaylistItemRow {
-    id: string;
-    position?: number;
-    duration?: number;
-    media_id?: string | null;
-}
-
-interface MediaRow {
-    id: string;
-    file_url?: string;
-    file_type?: string;
-}
 
 const PLAYLIST_CACHE_KEY = "player_playlist_codemidia";
 const SCREEN_ID_CACHE_KEY = "player_screen_id_codemidia";
@@ -47,6 +19,7 @@ async function nukeStaleSwCaches() {
     try {
         await caches.delete('api-cache');
         await caches.delete('player-media-v1');
+        await caches.delete('player-media-v2');
         const reg = await navigator.serviceWorker?.getRegistration();
         if (reg) {
             await reg.update();
@@ -54,6 +27,9 @@ async function nukeStaleSwCaches() {
         }
     } catch { /* ignore */ }
 }
+
+// Códigos que representam estado "sem conteúdo" (não são erros de rede)
+const NO_CONTENT_CODES = new Set(['NO_PLAYLIST_ASSIGNED', 'PLAYLIST_EMPTY']);
 
 export const PlayerEngine = () => {
     const { screenId: routeId } = useParams();
@@ -65,9 +41,13 @@ export const PlayerEngine = () => {
     const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
     const [audioEnabled, setAudioEnabled] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [isNoPlaylist, setIsNoPlaylist] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [screenOrientation, setScreenOrientation] = useState<'landscape' | 'portrait'>('landscape');
+    const [bindError, setBindError] = useState<string | null>(null);
 
+    // Heartbeat oficial: a RPC de playlist já atualiza devices.last_seen no
+    // caminho bound; o hook só deve escrever com SESSÃO autenticada (RLS).
     usePlayerHeartbeat(activeScreenId);
 
     const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
@@ -77,152 +57,96 @@ export const PlayerEngine = () => {
     useEffect(() => { playlistRef.current = playlist; }, [playlist]);
 
     // ============================================================
-    // DIRECT FETCH — completely bypass Supabase client AND Service Worker
+    // FASE 17 — DISTRIBUIÇÃO VIA RPC OFICIAL
+    // get_player_playlist_for_screen (SECURITY DEFINER, grant anon):
+    // resolve tela (custom_id/uuid), aplica binding/tenancy server-side,
+    // atualiza presença do device e devolve itens + mídia + durações.
     // ============================================================
-    const directFetch = useCallback(async <T,>(table: string, queryParams: string, token: string | null): Promise<T[]> => {
-        const url = `${supabaseConfig.url}/rest/v1/${table}?${queryParams}`;
-        const headers: Record<string, string> = {
-            'apikey': supabaseConfig.key,
-            'Authorization': `Bearer ${token || supabaseConfig.key}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        };
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-        try {
-            const resp = await fetch(url, {
-                headers,
-                signal: controller.signal,
-                cache: 'no-store', // CRITICAL: bypass Service Worker cache
-            });
-            clearTimeout(timeoutId);
-
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            return await resp.json();
-        } catch (e: unknown) {
-            clearTimeout(timeoutId);
-            if (typeof e === 'object' && e !== null && 'name' in e && e.name === 'AbortError') throw new Error('TIMEOUT 6s');
-            throw e;
-        }
-    }, []);
-
     const fetchPlaylist = useCallback(async (isBackgroundUpdate = false) => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token || null;
-
             const screenId = routeId || new URLSearchParams(window.location.search).get('screen_id') || localStorage.getItem(SCREEN_ID_CACHE_KEY);
             if (!screenId) {
-                if (!isBackgroundUpdate) setError("Nenhuma tela selecionada.");
+                if (!isBackgroundUpdate) setError("Nenhuma tela selecionada ou pareada.");
                 setIsLoading(false); return;
             }
             localStorage.setItem(SCREEN_ID_CACHE_KEY, screenId);
 
-            // Fetch screen
-            let screens = await directFetch<ScreenRow>('screens', `select=*&custom_id=eq.${screenId}`, token);
-            if (!screens.length) screens = await directFetch<ScreenRow>('screens', `select=*&id=eq.${screenId}`, token);
-
-            if (!screens.length) {
-                if (!isBackgroundUpdate) setError("Tela não encontrada.");
-                setIsLoading(false); return;
-            }
-
-            const screen = screens[0];
-            setActiveScreenId(screen.id);
-            setScreenOrientation(screen.orientation || 'landscape');
-
-            if (screen.is_active === false) {
-                if (!isBackgroundUpdate) setError("Tela desativada pelo administrador.");
-                setIsLoading(false); return;
-            }
-
-            if (!screen.playlist_id) {
-                if (!isBackgroundUpdate) setError("Nenhuma playlist definida.");
-                setIsLoading(false); return;
-            }
-
-            // Fetch items
-            const items = await directFetch<PlaylistItemRow>(
-                'playlist_items',
-                `select=id,position,duration,media_id&playlist_id=eq.${screen.playlist_id}&order=position`,
-                token
+            const deviceId = resolveDeviceId(
+                (globalThis as Record<string, unknown>).NativePlayer as { getDeviceId?: () => string } | undefined
             );
 
-            if (!items.length) {
-                if (!isBackgroundUpdate) setError("Playlist vazia.");
-                setIsLoading(false); return;
-            }
-
-            // Fetch Media
-            const mediaIds = [...new Set(items.filter((i: PlaylistItemRow) => i.media_id).map((i: PlaylistItemRow) => i.media_id))];
-            if (mediaIds.length === 0) {
-                if (!isBackgroundUpdate) setError("Nenhuma mídia válida.");
-                setIsLoading(false); return;
-            }
-
-            const inFilter = mediaIds.map(id => `"${id}"`).join(',');
-            const mediaRows = await directFetch<MediaRow>(
-                'media',
-                `select=id,file_url,file_type&id=in.(${inFilter})`,
-                token
+            const { data, error: rpcError } = await supabase.rpc(
+                'get_player_playlist_for_screen',
+                { p_identifier: screenId, p_device_id: deviceId },
             );
 
-            const mediaMap: Record<string, MediaRow> = {};
-            for (const m of mediaRows) mediaMap[m.id] = m;
+            if (rpcError) {
+                if (!isBackgroundUpdate) setError(`Falha de comunicação com o servidor (${rpcError.message}).`);
+                setIsLoading(false); return;
+            }
 
-            // Build playlist
-            const validItems: MediaItem[] = [];
-            for (const item of items) {
-                const media = item.media_id ? mediaMap[item.media_id] : null;
-                if (!media?.file_url) continue;
+            const result = mapRpcPayload(data, supabaseConfig.url);
 
-                let finalUrl = media.file_url;
-                if (!finalUrl.startsWith('http')) {
-                    finalUrl = `${supabaseConfig.url}/storage/v1/object/public/media/${finalUrl}`;
+            // [TS] Comparação explícita: com strictNullChecks off, `!result.ok`
+            // não estreita a união discriminada.
+            if (result.ok === false) {
+                setActiveScreenId(prev => prev); // mantém vínculo anterior para heartbeat
+
+                if (result.code === 'NO_PLAYLIST_ASSIGNED') {
+                    if (!isBackgroundUpdate) {
+                        setIsNoPlaylist(true);
+                        setError(null);
+                    }
+                } else if (!isBackgroundUpdate) {
+                    setIsNoPlaylist(false);
+                    if (result.code === 'DEVICE_ALREADY_BOUND' || result.code === 'DEVICE_REVOKED' || result.code === 'DEVICE_ACCESS_DENIED') {
+                        setBindError(result.message);
+                        setError(null);
+                    } else {
+                        setError(result.message || 'Falha ao carregar playlist.');
+                    }
+                } else if (result.code === 'DEVICE_ALREADY_BOUND') {
+                    // Sinaliza em background também — o operador precisa saber.
+                    setBindError(prevBind => prevBind ?? result.message);
                 }
+                setIsLoading(false); return;
+            }
 
-                // Construct URL with query param to bypass cache if needed, but storage handles it usually
-                validItems.push({
-                    id: item.id,
-                    mediaId: media.id, // STORE REAL MEDIA ID for stats
-                    url: finalUrl,
-                    type: media.file_type || 'image',
-                    duration: item.duration || 10,
+            // SUCCESS
+            setBindError(null);
+            setIsNoPlaylist(false);
+            setActiveScreenId(result.screenId);
+            setScreenOrientation(result.orientation);
+
+            localStorage.setItem(PLAYLIST_CACHE_KEY, JSON.stringify(result.items));
+
+            // [BLOQUEADOR 2] PRE-FETCH: Dispara cache invisível no background worker
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                const urlsToCache = result.items.map(i => i.url);
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'CACHE_MEDIA',
+                    payload: { urls: urlsToCache }
                 });
             }
 
-            if (!validItems.length) {
-                if (!isBackgroundUpdate) setError("Nenhuma mídia acessível.");
-                setIsLoading(false); return;
-            }
-
-            localStorage.setItem(PLAYLIST_CACHE_KEY, JSON.stringify(validItems));
-
-            if (!isBackgroundUpdate) {
-                setPlaylist(validItems);
+            const mudou = JSON.stringify(playlistRef.current) !== JSON.stringify(result.items);
+            if (!isBackgroundUpdate || !mudou) {
+                setPlaylist(mudou ? result.items : playlistRef.current.length ? playlistRef.current : result.items);
                 setCurrentIndex(0);
-                setNextIndex(validItems.length > 1 ? 1 : 0);
+                setNextIndex(result.items.length > 1 ? 1 : 0);
                 setError(null);
-                setAudioEnabled(!!screen.audio_enabled);
-            } else if (JSON.stringify(validItems) !== JSON.stringify(playlistRef.current)) {
-                setPendingPlaylist(validItems);
+                setAudioEnabled(result.audioEnabled);
+            } else {
+                // Aplica somente ao encerrar o ciclo atual (evita corte abrupto)
+                setPendingPlaylist(result.items);
             }
-
-        } catch (err: unknown) {
-            console.error("Player Error:", err);
-            if (!isBackgroundUpdate) {
-                try {
-                    const cached = localStorage.getItem(PLAYLIST_CACHE_KEY);
-                    if (cached) { setPlaylist(JSON.parse(cached)); setError(null); }
-                    else setError("Erro de conexão. Tentando reconectar...");
-                } catch { setError("Erro crítico."); }
-            }
-        } finally {
+            setIsLoading(false);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (!isBackgroundUpdate) setError(`Erro de rede (${msg}).`);
             setIsLoading(false);
         }
-    }, [routeId, directFetch]);
+    }, [routeId]);
 
     // INIT
     useEffect(() => {
@@ -436,21 +360,101 @@ export const PlayerEngine = () => {
         else document.exitFullscreen();
     };
 
+    if (isNoPlaylist) {
+        return (
+            <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center select-none">
+                <div className="max-w-lg w-full bg-slate-900/90 border border-primary/30 rounded-3xl p-8 shadow-2xl backdrop-blur-xl flex flex-col items-center gap-6">
+                    <div className="p-4 rounded-2xl bg-primary/20 text-primary border border-primary/30">
+                        <Monitor className="h-14 w-14" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white">Tela Conectada</h2>
+                    <p className="text-slate-300 text-base leading-relaxed">
+                        Esta tela está conectada ao painel, mas nenhuma playlist foi atribuída a ela no Dashboard.
+                    </p>
+                    <p className="text-xs text-slate-500">
+                        Acesse o painel administrativo pelo computador ou celular para atribuir conteúdos a esta TV.
+                    </p>
+                    <button 
+                        onClick={() => { setIsLoading(true); fetchPlaylist(false); }}
+                        className="mt-2 px-6 py-3 gradient-primary glow-primary text-white font-bold rounded-xl transition-all shadow-lg text-sm"
+                    >
+                        Verificar Atualizações
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     if (isLoading) {
         return (
-            <div className="player-loading">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+            <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 gap-6 select-none">
+                <div className="animate-spin rounded-full h-14 w-14 border-t-2 border-b-2 border-primary"></div>
+                <div className="text-center space-y-2">
+                    <h2 className="text-xl font-bold tracking-tight text-white">Sincronizando mídias...</h2>
+                    <p className="text-sm text-slate-400">Preparando conteúdos e conferindo cache local</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (bindError) {
+        return (
+            <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
+                <div className="max-w-md w-full bg-slate-900/90 border border-amber-500/30 rounded-3xl p-8 shadow-2xl backdrop-blur-xl flex flex-col items-center gap-4">
+                    <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        <AlertTriangle className="h-10 w-10" />
+                    </div>
+                    <h2 className="text-xl font-bold text-amber-400">Vínculo de dispositivo</h2>
+                    <p className="text-sm text-slate-300">{bindError}</p>
+                    <div className="flex flex-col gap-2 w-full mt-4">
+                        <button
+                            onClick={() => { setBindError(null); setIsLoading(true); fetchPlaylist(false); }}
+                            className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-slate-200 transition-colors text-sm"
+                        >
+                            Verificar Novamente
+                        </button>
+                        <button
+                            onClick={() => {
+                                localStorage.removeItem(SCREEN_ID_CACHE_KEY);
+                                localStorage.removeItem('player_device_id_codemidia');
+                                window.location.href = '/device-pairing';
+                            }}
+                            className="w-full py-3 bg-slate-800 text-slate-300 font-semibold rounded-xl hover:bg-slate-700 transition-colors text-sm"
+                        >
+                            Reiniciar Pareamento
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="player-error">
-                <h2>{error}</h2>
-                <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-white text-black rounded">
-                    Tentar Novamente
-                </button>
+            <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
+                <div className="max-w-md w-full bg-slate-900/90 border border-red-500/30 rounded-3xl p-8 shadow-2xl backdrop-blur-xl flex flex-col items-center gap-4">
+                    <div className="p-3 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30">
+                        <AlertTriangle className="h-10 w-10" />
+                    </div>
+                    <h2 className="text-xl font-bold text-red-400">{error}</h2>
+                    <div className="flex flex-col gap-2 w-full mt-4">
+                        <button 
+                            onClick={() => { setIsLoading(true); fetchPlaylist(false); }} 
+                            className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-slate-200 transition-colors text-sm"
+                        >
+                            Tentar Novamente
+                        </button>
+                        <button 
+                            onClick={() => {
+                                localStorage.removeItem(SCREEN_ID_CACHE_KEY);
+                                window.location.href = '/device-pairing';
+                            }} 
+                            className="w-full py-3 bg-slate-800 text-slate-300 font-semibold rounded-xl hover:bg-slate-700 transition-colors text-sm"
+                        >
+                            Trocar ou Vincular Tela
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     }

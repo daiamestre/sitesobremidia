@@ -448,7 +448,9 @@ export default function UsuariosAcessosPage() {
                               <p className="font-medium flex items-center gap-1.5">
                                 {u.nome}
                                 {u.is_owner && (
-                                  <Crown className="h-3.5 w-3.5 text-amber-500" title="Proprietário do sistema" />
+                                  <span title="Proprietário do sistema" className="inline-flex">
+                                    <Crown className="h-3.5 w-3.5 text-amber-500" />
+                                  </span>
                                 )}
                               </p>
                               <p className="text-xs text-muted-foreground flex items-center gap-1">

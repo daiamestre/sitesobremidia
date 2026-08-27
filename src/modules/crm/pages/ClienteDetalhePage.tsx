@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Building2, Mail, MapPin, Pencil, Phone, Trash2, User, Loader2, FileCheck, UserCog, RefreshCw } from 'lucide-react';
 
 export default function ClienteDetalhePage() {
+  const [repCodigo, setRepCodigo] = useState<string | null>(null);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -70,6 +72,16 @@ export default function ClienteDetalhePage() {
   }, [navigate, toast, id]);
 
   useEffect(() => {
+    (async () => {
+      try {
+        if (!cliente?.representante_id) return;
+        const { data } = await supabase.from('representantes').select('codigo_publico').eq('id', cliente.representante_id).maybeSingle();
+        setRepCodigo(data?.codigo_publico ?? null);
+      } catch { /* ignore */ }
+    })();
+  }, [cliente?.representante_id]);
+
+useEffect(() => {
     if (!id) return;
     load(id);
   }, [id, load]);
@@ -356,7 +368,7 @@ export default function ClienteDetalhePage() {
               <span className="text-slate-400 block">Representante atual</span>
               <strong className="text-white">
                 {cliente.representante?.usuario?.nome ??
-                  (cliente.representante_id ? `ID ${cliente.representante_id}` : 'Sem representante')}
+                  (repCodigo ? `REP ${repCodigo}` : 'Sem representante')}
               </strong>
             </div>
             {carregandoRepresentantes ? (

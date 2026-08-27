@@ -63,7 +63,7 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
       const [propRes, contRes, finRes] = await Promise.all([
         supabase.from('propostas').select('*').eq('cliente_id', clienteId),
         supabase.from('contratos').select('*').eq('cliente_id', clienteId),
-        supabase.from('cobrancas').select('*').eq('cliente_id', clienteId)
+        supabase.from('contas_receber').select('*').eq('cliente_id', clienteId)
       ]);
 
       setPropostas(propRes.data || []);
@@ -177,7 +177,7 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
             <TabsContent value="propostas" className="space-y-3 m-0">
               {propostas.length > 0 ? (
                 propostas.map(p => {
-                  const propostaNum = p.numero_proposta || p.id?.slice(0, 8) || 'N/A';
+                  const propostaNum = p.numero_proposta || 'N/A';
                   const status = p.status || 'DESCONHECIDO';
                   const valorTotal = Number(p.valor_total || 0);
                   return (
@@ -199,7 +199,7 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
             <TabsContent value="contratos" className="space-y-3 m-0">
               {contratos.length > 0 ? (
                 contratos.map(ct => {
-                  const contratoNum = ct.numero_contrato || ct.id?.slice(0, 8) || 'N/A';
+                  const contratoNum = ct.numero_contrato || 'N/A';
                   const statusWorkflow = ct.status_workflow || 'DESCONHECIDO';
                   const dataInicio = ct.data_inicio ? new Date(ct.data_inicio).toLocaleDateString('pt-BR') : 'N/A';
                   const dataFim = ct.data_fim ? new Date(ct.data_fim).toLocaleDateString('pt-BR') : 'N/A';

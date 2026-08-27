@@ -34,6 +34,11 @@ export interface SolicitacaoAcessoRecord {
   rejected_at?: string;
   rejected_by?: string;
   motivo_rejeicao?: string;
+  origem?: 'CADASTRO_PUBLICO' | 'CRIACAO_CORPORATIVA' | 'MIGRACAO_BASELINE';
+  perfil_solicitado_id?: string;
+  perfil_solicitado_nome?: string;
+  criado_por?: string;
+  notificacao_central_id?: string;
 }
 
 export const ADMIN_EMAIL_NOTIFICATION = 'sobremidiadesigner@gmail.com';
@@ -59,9 +64,9 @@ function generateRandomHexToken(): string {
 
 export class AccessRequestService {
   /**
-   * Registra uma nova solicitação de acesso e dispara notificação por e-mail para a Administração
+   * Registra uma nova solicitação de acesso e retorna o rawToken para notificação
    */
-  async createRequest(input: SolicitacaoAcessoInput): Promise<{ success: boolean; requestId?: string; error?: string }> {
+  async createRequest(input: SolicitacaoAcessoInput): Promise<{ success: boolean; requestId?: string; rawToken?: string; error?: string }> {
     try {
       // 1. Previne solicitações duplicadas PENDING/APPROVED para o mesmo e-mail
       const { data: existing } = await supabase
@@ -107,10 +112,8 @@ export class AccessRequestService {
         return { success: false, error: insertError?.message || 'Falha ao registrar solicitação de acesso.' };
       }
 
-      // 4. Dispara e-mail formatado com link contendo token único seguro para sobremidiadesigner@gmail.com
-      await this.notifyAdmin(requestId, input.nomeUsuario, input.emailUsuario, input.tipoAcesso, rawToken);
-
-      return { success: true, requestId };
+      // Retorna rawToken para que o chamador invoque send-approval-notification
+      return { success: true, requestId, rawToken };
     } catch (err: any) {
       console.error('[AccessRequestService.createRequest] Exceção:', err);
       return { success: false, error: err?.message || 'Erro interno ao processar cadastro.' };
@@ -200,7 +203,6 @@ export class AccessRequestService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const now = new Date();
-      const nowIso = now.toISOString();
 
       // 1. Busca solicitação existente
       const { data: request, error: fetchError } = await supabase
@@ -232,56 +234,14 @@ export class AccessRequestService {
         }
       }
 
-      // 3. Atualiza estado e marca approval_used_at = NOW() com Trava de Concorrência (Sprint 1.5)
-      const updatePayload: Record<string, any> = {
-        status: decision,
-        approval_used_at: nowIso,
-        updated_at: nowIso,
-      };
-
-      if (decision === 'APPROVED') {
-        updatePayload.approved_at = nowIso;
-        updatePayload.approved_by = adminUserId || null;
-      } else {
-        updatePayload.rejected_at = nowIso;
-        updatePayload.rejected_by = adminUserId || null;
-        updatePayload.motivo_rejeicao = motivoRejeicao || 'Rejeitado pelo administrador.';
+      // 3. Decisão via FLUXO OFICIAL: RPC decidir_solicitacao_acesso
+      //    (valida RBAC/tenant no banco, atualiza usuarios, audita via trigger,
+      //     resolve a mensagem na Central e enfileira USER_APPROVED/USER_REJECTED
+      //     pelo Communication Core — sem chamadas diretas ao Resend).
+      const result = await this.decidirViaCentral(requestId, decision, motivoRejeicao);
+      if (!result.success) {
+        return { success: false, error: result.error };
       }
-
-      // Bloqueio Otimista anti-race condition: ao aprovar, exige que approved_by esteja NULO e status PENDING
-      let query = supabase
-        .from('solicitacoes_acesso')
-        .update(updatePayload)
-        .eq('id', requestId);
-
-      if (decision === 'APPROVED') {
-        query = query.is('approved_by', null).eq('status', 'PENDING');
-      }
-
-      const { data: updateResult, error: updateError } = await query.select('id');
-
-      if (updateError) {
-        return { success: false, error: updateError.message };
-      }
-
-      if (decision === 'APPROVED' && (!updateResult || updateResult.length === 0)) {
-        return { success: false, error: '[RACE CONDITION SHIELD] Esta solicitação já foi aprovada ou processada anteriormente por outro administrador.' };
-      }
-
-      // 4. Notifica o usuário por e-mail
-      const userSubject = decision === 'APPROVED' 
-        ? 'Seu cadastro na plataforma SOBRE MÍDIA foi APROVADO!' 
-        : 'Informação sobre seu cadastro na plataforma SOBRE MÍDIA';
-
-      const userMessage = decision === 'APPROVED'
-        ? `<p>Olá <strong>${request.nome_usuario}</strong>,</p><p>Seu cadastro como <strong>${request.tipo_acesso}</strong> foi <strong>APROVADO</strong> pela administração!</p><p>Você já pode acessar a plataforma utilizando suas credenciais.</p>`
-        : `<p>Olá <strong>${request.nome_usuario}</strong>,</p><p>Seu cadastro como <strong>${request.tipo_acesso}</strong> não foi aprovado pela administração neste momento.</p>`;
-
-      await notificationService.sendEmail({
-        to: request.email_usuario,
-        subject: userSubject,
-        html: userMessage,
-      });
 
       return { success: true };
     } catch (err: any) {
@@ -307,6 +267,60 @@ export class AccessRequestService {
     }
 
     return data as SolicitacaoAcessoRecord[];
+  }
+
+  /**
+   * Lista solicitações de acesso para a CENTRAL DE COMUNICAÇÃO (aba Solicitações).
+   * RLS oficial: solicitante vê a própria; OWNER/ADMIN veem as do tenant
+   * (incluindo órfãs de cadastro público).
+   */
+  async listarParaCentral(statusFilter?: StatusSolicitacao): Promise<SolicitacaoAcessoRecord[]> {
+    let query = supabase
+      .from('solicitacoes_acesso')
+      .select('*, perfil_solicitado:perfis(nome)')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (statusFilter) {
+      query = query.eq('status', statusFilter);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) {
+      console.warn('[AccessRequestService.listarParaCentral] Erro:', error);
+      return [];
+    }
+    return (data as any[]).map((r) => ({
+      ...r,
+      perfil_solicitado_nome: r.perfil_solicitado?.nome ?? undefined,
+      perfil_solicitado: undefined,
+    })) as SolicitacaoAcessoRecord[];
+  }
+
+  /**
+   * FLUXO OFICIAL DE DECISÃO pela Central de Comunicação.
+   * Executa a RPC decidir_solicitacao_acesso (SECURITY DEFINER no banco) que:
+   *   - valida OWNER/ADMIN + tenant via RBAC/RLS vigentes;
+   *   - aceita decisão somente se status = PENDING (idempotente);
+   *   - atualiza usuarios (APPROVED→ACTIVE / REJECTED→bloqueado);
+   *   - registra auditoria (trigger trg_solicitacao_status com auth.uid());
+   *   - resolve a mensagem USER_ACCESS_REQUESTED na Central;
+   *   - enfileira USER_APPROVED/USER_REJECTED via Communication Core.
+   */
+  async decidirViaCentral(
+    requestId: string,
+    decisao: 'APPROVED' | 'REJECTED',
+    motivo?: string
+  ): Promise<{ success: boolean; error?: string; data?: Record<string, unknown> }> {
+    const { data, error } = await supabase.rpc('decidir_solicitacao_acesso', {
+      p_solicitacao_id: requestId,
+      p_decisao: decisao,
+      p_motivo: motivo ?? null,
+    });
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true, data: (data as Record<string, unknown>) ?? undefined };
   }
 }
 

@@ -1,27 +1,18 @@
 -- ======================================================================
--- SOBRE MÍDIA — MIGRATION 20261039
--- PROVISIONAMENTO AUTOMÁTICO DE ACESSO PELO REPRESENTANTE
---
--- Caso real auditado (MERCADO TESTE 1, código 9014): wizard grava
--- cliente+proposta e ENCERRA sem criar Auth/perfil/acesso/credencial/
--- Central. Esta migration estende provisionar_usuario_corporativo para
--- que o REPRESENTANTE possa provisionar APENAS perfis CLIENTE/ANUNCIANTE
--- de clientes DA PRÓPRIA CARTEIRA (clientes.representante_id →
--- representantes.usuario_id = auth.uid()), mantendo todas as garantias:
--- senha inicial server-side, must_change_password, solicitação APPROVED,
--- auditoria e Central. Sem bypass, sem Owner manual.
+-- SOBRE MÍDIA — MIGRATION 20261103
+-- CONSOLIDAÇÃO provisionar_usuario_corporativo (paridade exata com o LIVE):
+--   OWNER/ADMIN (permissões delegadas) | REPRESENTANTE: CLIENTE/ANUNCIANTE
+--   da PRÓPRIA CARTEIRA + GESTOR | ANUNCIANTE: equipe própria.
+--   Mantém p_dados_extra (metadados de prospecção), GUC sancionado,
+--   must_change_password=TRUE, auditoria e boas-vindas na Central.
 -- ======================================================================
 
-CREATE OR REPLACE FUNCTION public.provisionar_usuario_corporativo(
-    p_uid UUID,
-    p_email TEXT,
-    p_nome TEXT,
-    p_telefone TEXT DEFAULT NULL,
-    p_perfil_id UUID DEFAULT NULL,
-    p_cliente_id UUID DEFAULT NULL
-) RETURNS UUID
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION public.provisionar_usuario_corporativo(p_uid uuid, p_email text, p_nome text, p_telefone text DEFAULT NULL::text, p_perfil_id uuid DEFAULT NULL::uuid, p_cliente_id uuid DEFAULT NULL::uuid, p_dados_extra jsonb DEFAULT NULL::jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 DECLARE
     v_caller uuid := auth.uid();
     v_caller_tenant uuid;
@@ -29,7 +20,7 @@ DECLARE
     v_caller_admin boolean;
     v_caller_perfil text;
     v_caller_cliente uuid;
-    v_representante_id uuid;
+    v_caller_rep uuid;
     v_perfil_nome text;
     v_perfil_ativo boolean;
     v_cliente_final uuid := NULL;
@@ -43,10 +34,11 @@ BEGIN
 
     SELECT u.empresa_operadora_id, COALESCE(u.is_owner, false),
            (UPPER(COALESCE(p.nome, '')) = 'ADMIN'),
-           UPPER(COALESCE(p.nome, '')), u.cliente_id
-      INTO v_caller_tenant, v_caller_owner, v_caller_admin, v_caller_perfil, v_caller_cliente
+           UPPER(COALESCE(p.nome, '')), u.cliente_id, r.id
+      INTO v_caller_tenant, v_caller_owner, v_caller_admin, v_caller_perfil, v_caller_cliente, v_caller_rep
       FROM public.usuarios u
       LEFT JOIN public.perfis p ON p.id = u.perfil_id
+      LEFT JOIN public.representantes r ON r.usuario_id = u.id
      WHERE u.id = v_caller;
 
     IF NOT FOUND THEN
@@ -81,23 +73,36 @@ BEGIN
 
     ELSIF v_caller_perfil = 'REPRESENTANTE' THEN
         -- ============================================================
-        -- PROVISIONAMENTO AUTOMÁTICO PELO REPRESENTANTE (fluxo comercial)
-        -- Escopo estrito: apenas perfis CLIENTE/ANUNCIANTE de clientes
-        -- DA PRÓPRIA CARTEIRA. Role derivada do fluxo — nunca escolhida.
+        -- CENTRAL DE PROSPECÇÃO — dois caminhos sancionados:
+        --  a) FECHAMENTO COMERCIAL: CLIENTE/ANUNCIANTE de cliente da
+        --     própria carteira (clientes.representante_id → rep).
+        --  b) PROSPECÇÃO GESTOR DE MÍDIAS: perfil GESTOR, SEM cliente.
+        -- Role derivada do fluxo — nunca escolhida livremente.
         -- ============================================================
-        IF v_perfil_nome NOT IN ('CLIENTE','ANUNCIANTE') THEN
-            RAISE EXCEPTION 'Acesso Negado: representante só provisiona acesso do ANUNCIANTE/CLIENTE.' USING ERRCODE = '42501';
+        IF v_caller_rep IS NULL THEN
+            RAISE EXCEPTION 'Acesso Negado: representante não registrado.' USING ERRCODE = '42501';
         END IF;
 
-        SELECT c.id INTO v_cliente_final
-          FROM public.clientes c
-          JOIN public.representantes r ON r.id = c.representante_id
-         WHERE c.id = p_cliente_id
-           AND c.empresa_operadora_id = v_caller_tenant
-           AND r.usuario_id = v_caller
-           AND r.ativo;
-        IF v_cliente_final IS NULL OR p_cliente_id IS NULL THEN
-            RAISE EXCEPTION 'Acesso Negado: cliente inexistente ou fora da sua carteira.' USING ERRCODE = '42501';
+        IF v_perfil_nome IN ('CLIENTE','ANUNCIANTE') THEN
+            SELECT c.id INTO v_cliente_final
+              FROM public.clientes c
+              JOIN public.representantes r ON r.id = c.representante_id
+             WHERE c.id = p_cliente_id
+               AND c.empresa_operadora_id = v_caller_tenant
+               AND r.usuario_id = v_caller
+               AND r.ativo;
+            IF v_cliente_final IS NULL OR p_cliente_id IS NULL THEN
+                RAISE EXCEPTION 'Acesso Negado: cliente inexistente ou fora da sua carteira.' USING ERRCODE = '42501';
+            END IF;
+
+        ELSIF v_perfil_nome = 'GESTOR' THEN
+            IF p_cliente_id IS NOT NULL THEN
+                RAISE EXCEPTION 'Acesso Negado: GESTOR de prospecção não pode nascer vinculado a cliente.' USING ERRCODE = '42501';
+            END IF;
+            v_cliente_final := NULL;
+
+        ELSE
+            RAISE EXCEPTION 'Acesso Negado: representante provisiona apenas CLIENTE/ANUNCIANTE da carteira ou GESTOR.' USING ERRCODE = '42501';
         END IF;
 
     ELSIF v_caller_perfil = 'ANUNCIANTE' THEN
@@ -109,6 +114,7 @@ BEGIN
             RAISE EXCEPTION 'Acesso Negado: equipe do anunciante aceita apenas perfis CLIENTE ou ANUNCIANTE.' USING ERRCODE = '42501';
         END IF;
         v_cliente_final := v_caller_cliente;
+
     ELSE
         RAISE EXCEPTION 'Acesso Negado: provisionamento restrito a OWNER, ADMIN, REPRESENTANTE ou ANUNCIANTE.' USING ERRCODE = '42501';
     END IF;
@@ -119,11 +125,6 @@ BEGIN
     VALUES
         (p_uid, v_caller_tenant, p_perfil_id, p_nome, p_email, p_telefone,
          true, 'ACTIVE', 'APPROVED', v_cliente_final, v_caller, v_caller, TRUE, 1);
-
-    IF v_perfil_nome = 'REPRESENTANTE' THEN
-        INSERT INTO public.representantes (empresa_operadora_id, usuario_id, cpf_cnpj, ativo)
-        VALUES (v_caller_tenant, p_uid, '', true);
-    END IF;
 
     INSERT INTO public.solicitacoes_acesso
         (id, empresa_operadora_id, auth_user_id, usuario_id, tipo_acesso,
@@ -139,8 +140,13 @@ BEGIN
            ELSE 'FUNCIONARIO'
          END,
          p_nome, p_email, p_telefone,
-         jsonb_build_object('criado_via', CASE v_caller_perfil WHEN 'REPRESENTANTE' THEN 'FECHAMENTO_COMERCIAL' ELSE 'PROVISIONAMENTO_DIRETO' END,
-                            'perfil_nome', v_perfil_nome, 'cliente_id', v_cliente_final),
+         jsonb_build_object(
+             'criado_via',
+             CASE v_caller_perfil WHEN 'REPRESENTANTE' THEN 'FECHAMENTO_COMERCIAL' ELSE 'PROVISIONAMENTO_DIRETO' END,
+             'perfil_nome', v_perfil_nome,
+             'cliente_id', v_cliente_final
+         )
+         || COALESCE(p_dados_extra, '{}'::jsonb),
          'APPROVED', v_caller, NOW(), 'CRIACAO_CORPORATIVA_PROVISIONADA', p_perfil_id, v_caller);
 
     INSERT INTO public.auditoria_logs
@@ -149,7 +155,7 @@ BEGIN
         (v_caller_tenant, v_caller, 'USUARIO', p_uid, 'USER_PROVISIONED', 'ACTIVE',
          'Usuário provisionado com acesso imediato e troca obrigatória de senha. Perfil: '
          || v_perfil_nome || '. Cliente: ' || coalesce(v_cliente_final::text,'—')
-         || CASE WHEN v_caller_perfil = 'REPRESENTANTE' THEN ' (fechamento comercial)' ELSE '' END);
+         || CASE WHEN v_caller_perfil = 'REPRESENTANTE' THEN ' (prospecção/fechamento comercial)' ELSE '' END);
 
     INSERT INTO public.notificacoes_central
         (empresa_operadora_id, usuario_id, tipo_evento, canal, destinatario_contato, titulo, mensagem,
@@ -162,7 +168,5 @@ BEGIN
 
     RETURN p_uid;
 END;
-$$;
+$function$
 
-REVOKE ALL ON FUNCTION public.provisionar_usuario_corporativo(UUID, TEXT, TEXT, TEXT, UUID, UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.provisionar_usuario_corporativo(UUID, TEXT, TEXT, TEXT, UUID, UUID) TO authenticated;

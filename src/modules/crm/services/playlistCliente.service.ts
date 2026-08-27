@@ -101,7 +101,7 @@ export class PlaylistClienteService {
     for (const p of list) {
       p.itens = ((itens ?? []) as unknown as (PlaylistItem & { playlist_id: string })[])
         .filter((i) => i.playlist_id === p.id);
-      p.pontos = ((pontos ?? []) as unknown as { playlist_id: string; ponto: PlaylistPonto['ponto'] & { id: string; nome: string; cidade: string; estado: string } }[])
+      p.pontos = ((pontos ?? []) as unknown as Array<{ playlist_id: string; ponto: { id: string; nome: string; cidade: string; estado: string } }>)
         .filter((r) => r.playlist_id === p.id && r.ponto)
         .map((r) => ({ ponto_id: r.ponto.id, nome: r.ponto.nome, cidade: r.ponto.cidade, estado: r.ponto.estado }));
     }

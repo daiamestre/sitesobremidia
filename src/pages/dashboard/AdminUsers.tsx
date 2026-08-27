@@ -126,7 +126,7 @@ export default function AdminUsers() {
 
     setProcessingId(null);
     setConfirmDialog({ open: false, user: null, action: null });
-    fetchUsers();
+    fetchUsersAndRequests();
   };
 
   const openConfirmDialog = (user: UserProfile, action: 'approved' | 'rejected') => {

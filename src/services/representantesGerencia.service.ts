@@ -154,7 +154,7 @@ export class RepresentantesGerenciaService {
       console.error('[RepresentantesGerenciaService.listarRepresentantes]', error);
       throw new Error(error.message);
     }
-    return (data as RepresentanteGerencia[]) ?? [];
+    return (data as unknown as RepresentanteGerencia[]) ?? [];
   }
 
   async obterDesempenho(opts?: {
@@ -175,7 +175,7 @@ export class RepresentantesGerenciaService {
       console.error('[RepresentantesGerenciaService.obterDesempenho]', error);
       throw new Error(error.message);
     }
-    return (data as DesempenhoRepresentante[]) ?? [];
+    return (data as unknown as DesempenhoRepresentante[]) ?? [];
   }
 
   async obterDesempenhoDetalhe(
@@ -192,7 +192,7 @@ export class RepresentantesGerenciaService {
       console.error('[RepresentantesGerenciaService.obterDesempenhoDetalhe]', error);
       throw new Error(error.message);
     }
-    return (data as DesempenhoDetalhe) ?? null;
+    return (data as unknown as DesempenhoDetalhe) ?? null;
   }
 
   async editarRepresentante(

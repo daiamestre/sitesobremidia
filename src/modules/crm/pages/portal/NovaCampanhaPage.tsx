@@ -92,12 +92,12 @@ export default function NovaCampanhaPage() {
   };
 
   const handleCreate = async (status: 'DRAFT' | 'REVIEW') => {
-    if (!usuario?.cliente_id || !usuario?.tenant_id) return;
+    if (!usuario?.cliente_id || !usuario?.empresa_operadora_id) return;
     
     setLoading(true);
     try {
       // 1. Criar Campanha em Status DRAFT primeiro (tolerância a falhas)
-      const campanhaCriada = await customerCommerceService.criarCampanha(usuario.tenant_id, usuario.cliente_id, {
+      const campanhaCriada = await customerCommerceService.criarCampanha(usuario.empresa_operadora_id, usuario.cliente_id, {
         ...formData,
         status: 'DRAFT',
         duracao_segundos: parseInt(formData.duracao_segundos) || 10
@@ -117,7 +117,7 @@ export default function NovaCampanhaPage() {
 
       // 4. Submeter para Revisão via RPC (Aciona o Communication Core)
       if (status === 'REVIEW') {
-        const enviado = await customerCommerceService.submeterCampanhaParaRevisao(usuario.tenant_id, campanhaCriada.id);
+        const enviado = await customerCommerceService.submeterCampanhaParaRevisao(usuario.empresa_operadora_id, campanhaCriada.id);
         if (!enviado) throw new Error('A campanha foi salva, mas falhou ao enviar para revisão.');
       }
 

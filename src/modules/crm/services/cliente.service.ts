@@ -113,7 +113,7 @@ export class ClienteService {
         return { success: false, error: 'Payload incompleto: nome fantasia, e-mail e WhatsApp são obrigatórios.' };
       }
 
-      const { data: rpcRes, error: rpcError } = await supabase.rpc('fn_cadastrar_cliente_atomo', {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('fn_cadastrar_cliente_atomo', {
         p_empresa_operadora_id: payload.empresaOperadoraId,
         p_representante_id: payload.representanteId ?? null,
         p_status: payload.status || 'PROSPECT',
@@ -147,10 +147,11 @@ export class ClienteService {
         return { success: false, error: `Falha na RPC de cadastro: ${rpcError.message}` };
       }
 
-      if (!rpcRes) {
+      if (!rpcData) {
         return { success: false, error: 'A RPC de cadastro não retornou resposta. Contate o suporte.' };
       }
 
+      const rpcRes = rpcData as unknown as { success?: boolean; error?: unknown; cliente_id?: string };
       if (!rpcRes.success) {
         const msg = String(rpcRes.error || 'Erro desconhecido na RPC.');
         if (msg.includes('empresas_cnpj_key') || msg.toLowerCase().includes('duplicate key')) {

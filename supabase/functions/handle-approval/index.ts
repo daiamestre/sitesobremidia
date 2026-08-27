@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -190,29 +190,145 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    // 4. Envia Notificação por E-mail ao Usuário
-    if (RESEND_API_KEY && request.email_usuario) {
-      const subject = action === "approve"
-        ? "Seu cadastro na plataforma SOBRE MÍDIA foi APROVADO!"
-        : "Informação sobre seu cadastro na plataforma SOBRE MÍDIA";
+    // 4. [P0.2 FIX] Criar registro em public.usuarios após aprovação
+    //    Sem esse registro, AuthContext.tsx retorna NOT_FOUND e bloqueia o login.
+    if (action === "approve" && request.auth_user_id) {
+      try {
+        // 4.1 Resolver perfil_id com base no tipo_acesso da solicitação
+        const perfilNomeMap: Record<string, string> = {
+          REPRESENTANTE: "REPRESENTANTE",
+          GESTOR_TELAS: "GESTOR",
+          ANUNCIANTE: "ANUNCIANTE",
+          PARCEIRO: "PARCEIRO",
+          FUNCIONARIO: "FUNCIONARIO",
+        };
+        const perfilNome = perfilNomeMap[request.tipo_acesso as string] || "REPRESENTANTE";
 
-      const userHtml = action === "approve"
-        ? `<p>Olá <strong>${request.nome_usuario}</strong>,</p><p>Seu cadastro como <strong>${request.tipo_acesso}</strong> foi <strong>APROVADO</strong>!</p><p>Você já pode acessar o sistema normalmente.</p>`
-        : `<p>Olá <strong>${request.nome_usuario}</strong>,</p><p>Seu cadastro como <strong>${request.tipo_acesso}</strong> não foi aprovado neste momento.</p>`;
+        const { data: perfil } = await supabase
+          .from("perfis")
+          .select("id")
+          .eq("nome", perfilNome)
+          .eq("empresa_operadora_id", request.empresa_operadora_id)
+          .maybeSingle();
 
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-        },
-        body: JSON.stringify({
-          from: "Sobre Mídia <notificacoes@sobremidia.com.br>",
-          to: [request.email_usuario],
-          subject: subject,
-          html: userHtml,
-        }),
+        if (perfil?.id) {
+          // 4.2 Upsert seguro: se já existir (re-run idempotente), não falha
+          const { error: userError } = await supabase
+            .from("usuarios")
+            .upsert(
+              {
+                id: request.auth_user_id,
+                empresa_operadora_id: request.empresa_operadora_id,
+                perfil_id: perfil.id,
+                nome: request.nome_usuario,
+                email: request.email_usuario,
+                telefone: request.telefone || null,
+                ativo: true,
+                status: "ACTIVE",
+                created_by: null, // aprovação via link seguro — sem usuário autenticado
+                version: 1,
+              },
+              { onConflict: "id", ignoreDuplicates: false }
+            );
+
+          if (userError) {
+            // Não bloquear a aprovação por falha secundária — apenas registrar o erro
+            console.error("[handle-approval] Aviso: falha ao criar registro em usuarios:", userError.message);
+          } else {
+            console.log("[handle-approval] Registro em public.usuarios criado para auth_user_id:", request.auth_user_id);
+
+            // 4.3 Notificação IN_APP de boas-vindas ao sistema
+            await supabase.from("notificacoes_central").insert({
+              empresa_operadora_id: request.empresa_operadora_id,
+              usuario_id: request.auth_user_id,
+              tipo_evento: "USUARIO_APROVADO",
+              canal: "IN_APP",
+              destinatario_contato: request.auth_user_id,
+              titulo: "Bem-vindo à SOBRE MÍDIA!",
+              mensagem: `Seu cadastro como ${perfilNome} foi aprovado. Você já pode acessar a plataforma.`,
+              prioridade: "SUCESSO",
+              severidade: "INFO",
+              status_envio: "SENT",
+              lida: false,
+              status_notificacao: "NAO_LIDA",
+            });
+
+            // 4.4 Auditoria da criação
+            await supabase.from("auditoria_logs").insert({
+              empresa_operadora_id: request.empresa_operadora_id,
+              usuario_id: request.auth_user_id,
+              usuario_email: request.email_usuario,
+              usuario_role: perfilNome,
+              entidade_tipo: "USUARIO",
+              entidade_id: request.auth_user_id,
+              acao: "USER_APPROVED_AND_CREATED",
+              status_novo: "ACTIVE",
+              observacoes: `Usuário criado via fluxo de aprovação segura. Solicitação: ${requestId}. Tipo: ${request.tipo_acesso}.`,
+            });
+          }
+        } else {
+          console.warn("[handle-approval] Aviso: perfil não encontrado para tipo_acesso:", request.tipo_acesso);
+        }
+      } catch (userCreateErr: any) {
+        // Falha na criação de usuarios NÃO reverte a aprovação — registrar e continuar
+        console.error("[handle-approval] Erro não-crítico na criação de usuarios:", userCreateErr?.message);
+      }
+    }
+
+    // 4.9 [CENTRAL] Marca a mensagem USER_ACCESS_REQUESTED como RESOLVIDA
+    //     (fonte oficial: Central de Comunicação — sem central paralela)
+    try {
+      await supabase
+        .from("notificacoes_central")
+        .update({ status_notificacao: "RESOLVIDA", lida: true, resolvida_em: nowIso })
+        .eq("tipo_evento", "USER_ACCESS_REQUESTED")
+        .eq("entidade_relacionada_id", requestId)
+        .neq("status_notificacao", "RESOLVIDA");
+    } catch (resolveErr: any) {
+      console.error("[handle-approval] Aviso ao resolver notificação da Central:", resolveErr?.message);
+    }
+
+    // 5. Envia Notificação por E-mail ao Usuário
+    if (request.email_usuario) {
+      const isApproved = action === "approve";
+      const eventName = isApproved ? "USER_APPROVED" : "USER_REJECTED";
+      const templateKey = isApproved ? "user_approved" : "user_rejected";
+
+      // Link OFICIAL do Supabase Auth para o aprovado definir a própria senha
+      // (identidade nasce sem senha no fluxo de aprovação — zero credenciais
+      //  em texto puro trafegando por canais administrativos).
+      let resetLink: string | null = null;
+      try {
+        const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+          type: "signup",
+          email: request.email_usuario,
+          options: {
+            redirectTo: `${Deno.env.get("PUBLIC_APP_URL") || "https://plataforma.sobremidia.com.br"}/auth/callback`,
+          },
+        });
+        if (!linkErr && linkData?.url) resetLink = linkData.url ?? null;
+        if (linkErr) console.error("[handle-approval] generateLink:", linkErr.message);
+      } catch (linkErr: any) {
+        console.error("[handle-approval] generateLink exceção:", linkErr?.message);
+      }
+
+      const { error: jobError } = await supabase.rpc('enfileirar_job', {
+        p_empresa_operadora_id: request.empresa_operadora_id || '00000000-0000-0000-0000-000000000000',
+        p_event_name: eventName,
+        p_payload: {
+          to: request.email_usuario,
+          template_key: templateKey,
+          vars: {
+            nome_usuario: request.nome_usuario,
+            tipo_acesso: request.tipo_acesso,
+            ...(resetLink ? { reset_link: resetLink } : {})
+          }
+        }
       });
+
+      if (jobError) {
+        console.error("[handle-approval] Erro ao enfileirar notificação de aprovação/rejeição:", jobError.message);
+      }
     }
 
     // 5. Retorna página visual de resposta (ou JSON para chamadas programáticas)

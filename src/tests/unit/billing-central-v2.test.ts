@@ -32,11 +32,15 @@ describe('Central de Cobranças v2 — deriveCobrancaSituacao (legados e novos)'
   });
 
   it('deriva VENCENDO_HOJE e ATRASADA por data', () => {
-    const hoje = new Date();
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
-    const ontem = new Date(hoje); ontem.setDate(ontem.getDate() - 1);
-    expect(deriveCobrancaSituacao('PENDENTE', iso(hoje))).toBe('VENCENDO_HOJE');
-    expect(deriveCobrancaSituacao('PENDENTE', iso(ontem))).toBe('ATRASADA');
+    // deriveCobrancaSituacao compara em DATA LOCAL (ano/mês/dia). Usar
+    // toISOString() introduz drift de fuso (UTC-3): entre 21h e meia-noite
+    // locais a string UTC cai no dia seguinte e o teste falha.
+    const ymd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const hoje = ymd(new Date());
+    const ontem = ymd(new Date(Date.now() - 86400000));
+    expect(deriveCobrancaSituacao('PENDENTE', hoje)).toBe('VENCENDO_HOJE');
+    expect(deriveCobrancaSituacao('PENDENTE', ontem)).toBe('ATRASADA');
   });
 });
 
@@ -58,6 +62,8 @@ describe('Central de Cobranças v2 — régua e histórico via RPC/tabelas reais
 
   it('createCobranca envia campos v2 (competência, método, recorrência)', async () => {
     chain.insert.mockClear();
+    // createCobranca resolve o codigo_operacional via RPC antes do insert.
+    rpc.mockResolvedValueOnce({ data: 'COB-2026-000001', error: null });
     await financeiroService.createCobranca({
       empresaOperadoraId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
       clienteId: 'c1',

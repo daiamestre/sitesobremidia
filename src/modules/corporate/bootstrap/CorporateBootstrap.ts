@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { identityService } from '@/core/identity/IdentityService';
 
 export interface CorporateModule {

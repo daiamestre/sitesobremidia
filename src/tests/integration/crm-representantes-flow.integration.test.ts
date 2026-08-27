@@ -88,9 +88,8 @@ describe('Integração CRM — Fluxo Comercial do Representante (FASE 6 a 10)', 
       empresaOperadoraId: tenantId,
       contratoId: contratoIdCriado,
       clienteId: clienteIdCriado,
-      descricao: 'Parcela 1/12 - Campanha Digital Signage 2026',
       valorOriginal: 14500,
-      dataVencimento: '2026-09-05',
+      vencimento: '2026-09-05',
     });
 
     expect(rec.success).toBe(true);

@@ -46,7 +46,7 @@ export function WebhookMonitor({ empresaOperadoraId }: { empresaOperadoraId?: st
         console.error('[WebhookMonitor] Erro:', error);
         setEventos([]);
       } else {
-        setEventos(data || []);
+        setEventos((data || []) as unknown as EventoAssinatura[]);
       }
     } catch (err) {
       setEventos([]);

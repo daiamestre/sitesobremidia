@@ -134,39 +134,41 @@ export class CustomerPortalDataService {
 
       const piIds = pis?.map(p => p.id) || [];
 
-      // 3. Buscar locais (pontos) vinculados a estes PIs
-      let pontos: PontoComLimite[] = [];
-      if (piIds.length > 0) {
-        const { data: locais } = await supabase
-          .from('pi_locais')
-          .select(`
-            id,
-            tela_id,
-            unidade_id,
-            pi_id,
-            tela:telas(id, nome, resolucao, location),
-            unidade:unidades(id, nome, cidade, estado, endereco)
-          `)
-          .in('pi_id', piIds);
+// 3. Buscar locais (pontos) vinculados a estes PIs
+        let pontos: PontoComLimite[] = [];
+        if (piIds.length > 0) {
+          const { data: locais } = await supabase
+            .from('pi_locais')
+            // pi_locais só tem FK para screens (via tela_id); não há relação com unidades/telas
+            .select(`
+              id,
+              tela_id,
+              unidade_id,
+              pi_id,
+              tela:screens(id, name, resolution, location, capa_url, orientation, is_active, cidade, estado, endereco_instalacao)
+            `)
+            .in('pi_id', piIds);
 
-        pontos = (locais || []).map(local => ({
-          id: local.id,
-          nome: local.unidade?.nome || local.tela?.nome || `Ponto ${local.id.slice(0, 8)}`,
-          tipo: local.tela ? 'display_digital' : 'tv_corporativa',
-          cidade: local.unidade?.cidade || 'N/I',
-          estado: local.unidade?.estado || 'N/I',
-          endereco: local.unidade?.endereco || local.tela?.location || 'N/I',
-          resolucao: local.tela?.resolucao || 'N/I',
-          ativo: true,
-          tela_id: local.tela_id,
-          tela_nome: local.tela?.nome,
-          unidade_id: local.unidade_id,
-          unidade_nome: local.unidade?.nome,
-          pi_id: local.pi_id,
-          pi_status: 'EM_EXIBICAO',
-          quantidade_telas: local.tela_id ? 1 : 0,
-        }));
-      }
+          pontos = (locais || []).map(local => ({
+            id: local.id,
+            nome: local.tela?.name || `Ponto ${local.id.slice(0, 8)}`,
+            tipo: local.tela ? 'display_digital' : 'tv_corporativa',
+            cidade: local.tela?.cidade || 'N/I',
+            estado: local.tela?.estado || 'N/I',
+            endereco: local.tela?.endereco_instalacao || local.tela?.location || 'N/I',
+            resolucao: local.tela?.resolution || 'N/I',
+            ativo: true,
+            tela_id: local.tela_id ?? undefined,
+            tela_nome: local.tela?.name,
+            tela_capa_url: local.tela?.capa_url ?? undefined,
+            tela_resolucao: local.tela?.resolution ?? undefined,
+            tela_orientacao: (local.tela?.orientation ?? undefined) as 'horizontal' | 'vertical' | undefined,
+            unidade_id: local.unidade_id ?? undefined,
+            pi_id: local.pi_id,
+            pi_status: 'EM_EXIBICAO',
+            quantidade_telas: local.tela_id ? 1 : 0,
+          }));
+        }
 
       const totalPontos = pontos.length;
       const totalTelas = pontos.reduce((sum, p) => sum + p.quantidade_telas, 0);
@@ -212,20 +214,20 @@ export class CustomerPortalDataService {
 
       const piIds = pis?.map(p => p.id) || [];
 
-      // 3. Buscar locais (pontos) vinculados a estes PIs com detalhes de tela e unidade
-      let pontos: PontoDetalhado[] = [];
-      if (piIds.length > 0) {
-        const { data: locais } = await supabase
-          .from('pi_locais')
-          .select(`
-            id,
-            tela_id,
-            unidade_id,
-            pi_id,
-            tela:telas(id, nome_tela, resolucao, location, ativo, last_ping_at, status_note),
-            unidade:unidades(id, nome, cidade, estado, endereco, ativo)
-          `)
-          .in('pi_id', piIds);
+// 3. Buscar locais (pontos) vinculados a estes PIs com detalhes de tela e unidade
+        let pontos: PontoDetalhado[] = [];
+        if (piIds.length > 0) {
+          const { data: locais } = await supabase
+            .from('pi_locais')
+            // pi_locais só tem FK para screens (via tela_id); não há relação com unidades/telas
+            .select(`
+              id,
+              tela_id,
+              unidade_id,
+              pi_id,
+              tela:screens(id, name, resolution, location, is_active, last_ping_at, status_note, capa_url, orientation, cidade, estado, endereco_instalacao)
+            `)
+            .in('pi_id', piIds);
 
         // 4. Buscar último playback para cada tela
         const telaIds = (locais || []).map(l => l.tela_id).filter(Boolean) as string[];
@@ -247,61 +249,62 @@ export class CustomerPortalDataService {
           }
         }
 
-        pontos = (locais || []).map(local => {
-          const tela = local.tela;
-          const unidade = local.unidade;
-          const telaId = local.tela_id;
-          const playback = telaId ? playbackMap[telaId] : null;
-          
-          // Determinar situação da tela
-          let situacao: 'ATIVO' | 'INATIVO' | 'SEM_SINAL' | 'MANUTENCAO' = 'INATIVO';
-          let telaStatus: 'ONLINE' | 'OFFLINE' | 'UNKNOWN' = 'UNKNOWN';
-          
-          if (tela?.ativo) {
-            if (tela.last_ping_at) {
-              const lastPing = new Date(tela.last_ping_at);
-              const agora = new Date();
-              const diffMin = (agora.getTime() - lastPing.getTime()) / (1000 * 60);
-              if (diffMin <= 10) {
-                telaStatus = 'ONLINE';
-                situacao = 'ATIVO';
-              } else if (diffMin <= 60) {
-                telaStatus = 'OFFLINE';
-                situacao = 'SEM_SINAL';
+pontos = (locais || []).map(local => {
+            const tela = local.tela;
+            const telaId = local.tela_id;
+            const playback = telaId ? playbackMap[telaId] : null;
+            
+            // Determinar situação da tela
+            let situacao: 'ATIVO' | 'INATIVO' | 'SEM_SINAL' | 'MANUTENCAO' = 'INATIVO';
+            let telaStatus: 'ONLINE' | 'OFFLINE' | 'UNKNOWN' = 'UNKNOWN';
+            
+            if (tela?.is_active) {
+              if (tela.last_ping_at) {
+                const lastPing = new Date(tela.last_ping_at);
+                const agora = new Date();
+                const diffMin = (agora.getTime() - lastPing.getTime()) / (1000 * 60);
+                if (diffMin <= 10) {
+                  telaStatus = 'ONLINE';
+                  situacao = 'ATIVO';
+                } else if (diffMin <= 60) {
+                  telaStatus = 'OFFLINE';
+                  situacao = 'SEM_SINAL';
+                } else {
+                  telaStatus = 'OFFLINE';
+                  situacao = 'SEM_SINAL';
+                }
               } else {
-                telaStatus = 'OFFLINE';
                 situacao = 'SEM_SINAL';
               }
             } else {
-              situacao = 'SEM_SINAL';
+              situacao = 'MANUTENCAO';
             }
-          } else {
-            situacao = 'MANUTENCAO';
-          }
 
-          return {
-            id: local.id,
-            nome: unidade?.nome || tela?.nome_tela || `Ponto ${local.id.slice(0, 8)}`,
-            tipo: tela ? 'display_digital' : 'tv_corporativa',
-            cidade: unidade?.cidade || 'N/I',
-            estado: unidade?.estado || 'N/I',
-            endereco: unidade?.endereco || tela?.location || 'N/I',
-            resolucao: tela?.resolucao || 'N/I',
-            ativo: tela?.ativo || false,
-            tela_id: local.tela_id,
-            tela_nome: tela?.nome_tela,
-            unidade_id: local.unidade_id,
-            unidade_nome: unidade?.nome,
-            pi_id: local.pi_id,
-            pi_status: 'EM_EXIBICAO',
-            quantidade_telas: telaId ? 1 : 0,
-            tela_status: telaStatus,
-            tela_ultimo_ping: tela?.last_ping_at || null,
-            tela_ultima_exibicao: playback?.last_playback || null,
-            playback_count: playback?.count || 0,
-            situacao,
-          };
-        });
+            return {
+              id: local.id,
+              nome: tela?.name || `Ponto ${local.id.slice(0, 8)}`,
+              tipo: tela ? 'display_digital' : 'tv_corporativa',
+              cidade: tela?.cidade || 'N/I',
+              estado: tela?.estado || 'N/I',
+              endereco: tela?.endereco_instalacao || tela?.location || 'N/I',
+              resolucao: tela?.resolution || 'N/I',
+              ativo: tela?.is_active || false,
+              tela_id: local.tela_id ?? undefined,
+              tela_nome: tela?.name,
+              tela_capa_url: tela?.capa_url ?? undefined,
+              tela_resolucao: tela?.resolution ?? undefined,
+              tela_orientacao: (tela?.orientation ?? undefined) as 'horizontal' | 'vertical' | undefined,
+              unidade_id: local.unidade_id ?? undefined,
+              pi_id: local.pi_id,
+              pi_status: 'EM_EXIBICAO',
+              quantidade_telas: telaId ? 1 : 0,
+              tela_status: telaStatus,
+              tela_ultimo_ping: tela?.last_ping_at || null,
+              tela_ultima_exibicao: playback?.last_playback || null,
+              playback_count: playback?.count || 0,
+              situacao,
+            };
+          });
       }
 
       const totalPontos = pontos.length;
@@ -382,22 +385,18 @@ export class CustomerPortalDataService {
 
       const piIds = pis.map(p => p.id);
 
-      // Buscar agendamentos de rede com detalhes de local (ponto/tela/unidade)
+      // Buscar agendamentos dos PIs com as telas vinculadas
+      // (agendamento_rede não existe; a relação real é agendamentos -> agendamento_telas -> screens)
       const { data: agendamentos } = await supabase
-        .from('agendamento_rede')
+        .from('agendamentos')
         .select(`
-          data_inicio,
-          data_fim,
-          pi_locais!inner(
-            pi_id,
-            tela_id,
-            unidade_id,
-            tela:telas(id, nome_tela),
-            unidade:unidades(id, nome, cidade, estado)
-          ),
-          campanha:campanhas(id, titulo, duracao_segundos, status)
+          id,
+          inicio,
+          fim,
+          pedido_insercao_id,
+          telas:agendamento_telas(tela:screens(id, name, cidade, estado))
         `)
-        .in('pi_locais.pi_id', piIds);
+        .in('pedido_insercao_id', piIds);
 
       if (!agendamentos || agendamentos.length === 0) return [];
 
@@ -416,13 +415,14 @@ export class CustomerPortalDataService {
         }>
       }> = {};
       
+      const contratoPorPi = new Map(pis.map(p => [p.id, p.contrato_id]));
+      const campanhaPorContrato = new Map(campanhas.map(c => [c.contrato_id, c]));
+
       agendamentos.forEach(a => {
-        const inicio = new Date(a.data_inicio);
-        const fim = new Date(a.data_fim);
-        const campanha = a.campanha as any;
-        const piLocal = a.pi_locais as any;
-        const tela = piLocal?.tela;
-        const unidade = piLocal?.unidade;
+        const inicio = new Date(a.inicio);
+        const fim = new Date(a.fim);
+        const tela = a.telas?.[0]?.tela;
+        const campanha = campanhaPorContrato.get(contratoPorPi.get(a.pedido_insercao_id) || '');
         
         for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
           const key = d.toISOString().split('T')[0];
@@ -439,10 +439,10 @@ export class CustomerPortalDataService {
                 titulo: campanha.titulo,
                 duracao_segundos: campanha.duracao_segundos || 15,
                 status: campanha.status,
-                ponto_nome: unidade?.nome || tela?.nome_tela,
-                tela_nome: tela?.nome_tela,
-                cidade: unidade?.cidade,
-                estado: unidade?.estado,
+                ponto_nome: tela?.name || undefined,
+                tela_nome: tela?.name || undefined,
+                cidade: tela?.cidade || undefined,
+                estado: tela?.estado || undefined,
               });
             }
           }
@@ -477,11 +477,10 @@ export class CustomerPortalDataService {
           data_fim,
           duracao_segundos,
           status,
-          pontos_exibicao_ids,
           created_at,
           updated_at,
           contrato:contratos(id, numero_contrato, data_inicio, data_fim),
-          artes:artes(id, titulo, tipo_midia, url_arquivo, duracao_segundos, status)
+          artes:artes(id, titulo, tipo_midia, url_arquivo, duracao_segundos)
         `)
         .eq('cliente_id', clienteId)
         .order('created_at', { ascending: false });
@@ -499,7 +498,6 @@ export class CustomerPortalDataService {
             fim: c.data_fim,
             duracao_segundos: c.duracao_segundos,
             status: c.status,
-            pontos_exibicao_ids: c.pontos_exibicao_ids,
             insercoes,
             total_insercoes: insercoes.reduce((sum, i) => sum + i.quantidade, 0),
             created_at: c.created_at,
@@ -539,16 +537,16 @@ export class CustomerPortalDataService {
       const piIds = pis.map(p => p.id);
 
       const { data: agendamentos } = await supabase
-        .from('agendamento_rede')
-        .select('data_inicio, data_fim, pi_locais!inner(pi_id)')
-        .in('pi_locais.pi_id', piIds);
+        .from('agendamentos')
+        .select('id, inicio, fim')
+        .in('pedido_insercao_id', piIds);
 
       if (!agendamentos || agendamentos.length === 0) return [];
 
       const porDia: Record<string, number> = {};
       agendamentos.forEach(a => {
-        const inicio = new Date(a.data_inicio);
-        const fim = new Date(a.data_fim);
+        const inicio = new Date(a.inicio);
+        const fim = new Date(a.fim);
         for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
           const key = d.toISOString().split('T')[0];
           porDia[key] = (porDia[key] || 0) + 1;
@@ -570,18 +568,23 @@ export class CustomerPortalDataService {
   async getOcupacaoRede(empresaOperadoraId: string): Promise<OcupacaoRede> {
     try {
       // Buscar todos os pontos/telas da rede da operadora
-      const { data: telas } = await supabase
+      // (telas não tem FK para unidades; o caminho real é telas -> locais -> unidades)
+      const { data: telas, error: telasErr } = await supabase
         .from('telas')
         .select(`
           id,
-          nome,
+          nome_tela,
           resolucao,
-          location,
+          orientacao,
           ativo,
-          unidade:unidades(id, nome, cidade, estado, endereco, ativo)
+          local:locais(id, nome, unidade:unidades(id, nome, cidade, estado, endereco))
         `)
         .eq('empresa_operadora_id', empresaOperadoraId);
 
+      if (telasErr) {
+        console.error('[CustomerPortalDataService.getOcupacaoRede] telas:', telasErr);
+        return this.emptyOcupacaoRede();
+      }
       if (!telas) {
         return this.emptyOcupacaoRede();
       }
@@ -617,8 +620,8 @@ export class CustomerPortalDataService {
       // Agrupar por cidade
       const porCidadeMap: Record<string, { cidade: string; estado: string; pontos: number; telas: number; ocupados: number; livres: number }> = {};
       telas.forEach(tela => {
-        const cidade = tela.unidade?.cidade || 'Sem Cidade';
-        const estado = tela.unidade?.estado || 'N/I';
+        const cidade = tela.local?.unidade?.cidade || 'Sem Cidade';
+        const estado = tela.local?.unidade?.estado || 'N/I';
         const key = `${cidade}/${estado}`;
         
         if (!porCidadeMap[key]) {

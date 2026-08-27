@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { podeAcessarPortal, rotuloPortal, type PortalEntrada } from '@/lib/portalAccess';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { accessRequestService } from '@/services/accessRequest.service';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Mail, Lock, ArrowLeft, Loader2, Briefcase, ShieldCheck } from 'lucide-react';
 import {
   Dialog,
@@ -24,6 +26,9 @@ export default function RepresentantesAuth() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isEnviandoReset, setIsEnviandoReset] = useState(false);
+  const [resetEnviado, setResetEnviado] = useState(false);
 
   // States para Solicitação de Cadastro
   const [regNome, setRegNome] = useState('');
@@ -33,7 +38,8 @@ export default function RepresentantesAuth() {
   const [regCidade, setRegCidade] = useState('');
   const [isSubmittingReg, setIsSubmittingReg] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  
+  const [portalNegado, setPortalNegado] = useState<{ portal: PortalEntrada; meuPortal: string } | null>(null);
+
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signIn, signUp } = useAuth();
@@ -50,7 +56,7 @@ export default function RepresentantesAuth() {
     }
     setIsLoading(true);
 
-    const { error, status, routeRedirect } = await signIn(email, password);
+    const { error, status, role, routeRedirect } = await signIn(email, password);
     setIsLoading(false);
 
     if (error) {
@@ -69,6 +75,13 @@ export default function RepresentantesAuth() {
         variant: 'destructive',
       });
       return;
+    }
+
+    // VALIDAÇÃO DA PORTA DE ENTRADA × PERFIL REAL (RBAC do banco)
+    const portal: PortalEntrada = 'REPRESENTANTES';
+    if (!podeAcessarPortal(portal, role)) {
+      setPortalNegado({ portal, meuPortal: routeRedirect || '/dashboard' });
+      return; // sem redirecionamento silencioso
     }
 
     toast({
@@ -131,6 +144,38 @@ export default function RepresentantesAuth() {
       });
     }
   };
+
+  if (portalNegado) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md glass border-red-500/20 bg-slate-900 text-white rounded-2xl">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-display text-red-400">Acesso não autorizado</CardTitle>
+            <CardDescription className="text-slate-300 pt-3 text-sm leading-relaxed">
+              Este usuário não possui permissão para acessar o {rotuloPortal(portalNegado.portal)}.
+              <br />
+              Seu perfil atual não possui acesso a este portal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button
+              onClick={() => navigate(portalNegado.meuPortal, { replace: true })}
+              className="w-full gradient-primary text-white font-bold"
+            >
+              Ir para meu portal
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setPortalNegado(null)}
+              className="w-full bg-slate-950 border-white/10 text-white hover:bg-slate-800"
+            >
+              Voltar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 relative overflow-hidden">
@@ -210,27 +255,60 @@ export default function RepresentantesAuth() {
                         Recuperação de Senha
                       </DialogTitle>
                       <DialogDescription className="text-slate-300 pt-2">
-                        Para redefinir sua senha de Representante Comercial, digite seu e-mail cadastrado ou entre em contato com o administrador do sistema.
+                        Informe seu e-mail de login. Sua solicitação será analisada pelo
+                        administrador — nenhuma senha é alterada automaticamente.
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 pt-2">
-                      <Input
-                        type="email"
-                        placeholder="seu.email@empresa.com"
-                        className="bg-slate-900 border-white/10 text-white"
-                      />
-                      <Button
-                        className="w-full gradient-primary glow-primary font-bold"
-                        onClick={() => {
-                          toast({
-                            title: 'Solicitação enviada!',
-                            description: 'Instruções de recuperação foram enviadas para o e-mail.',
-                          });
-                        }}
-                      >
-                        Enviar E-mail de Recuperação
-                      </Button>
-                    </div>
+                    {resetEnviado ? (
+                      <div className="space-y-3 pt-2 text-center">
+                        <ShieldCheck className="h-10 w-10 text-emerald-500 mx-auto" />
+                        <p className="text-sm text-slate-200">
+                          Solicitação registrada! Aguarde a autorização do administrador.
+                          Após aprovada, você receberá uma senha temporária.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 pt-2">
+                        <Input
+                          type="email"
+                          placeholder="seu.email@empresa.com"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                          className="bg-slate-900 border-white/10 text-white"
+                        />
+                        <Button
+                          className="w-full gradient-primary glow-primary font-bold"
+                          disabled={isEnviandoReset || !resetEmail.trim()}
+                          onClick={async () => {
+                            setIsEnviandoReset(true);
+                            try {
+                              const { error } = await supabase.rpc('solicitar_reset_senha', {
+                                p_email: resetEmail.trim(),
+                              });
+                              if (error) throw new Error(error.message);
+                              setResetEnviado(true);
+                            } catch (err: any) {
+                              toast({
+                                title: 'Erro ao registrar solicitação',
+                                description: err?.message || 'Tente novamente.',
+                                variant: 'destructive',
+                              });
+                            } finally {
+                              setIsEnviandoReset(false);
+                            }
+                          }}
+                        >
+                          {isEnviandoReset ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Enviando...
+                            </>
+                          ) : (
+                            'Solicitar redefinição'
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </DialogContent>
                 </Dialog>
               </div>

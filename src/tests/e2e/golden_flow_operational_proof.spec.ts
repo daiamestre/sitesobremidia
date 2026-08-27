@@ -58,6 +58,9 @@ test.describe('PROVA OPERACIONAL DO GOLDEN FLOW (FASE 10.1-B)', () => {
 
     console.log('5. Etapa 2 — Contato Principal...');
     await page.fill('input[name="contatoNome"]', 'Contato Golden Flow');
+    await page.click('button:has-text("Proximo: Pontos Parceiros")');
+    await expect(page.getByText('Etapa 3: Pontos Parceiros')).toBeVisible({ timeout: 15000 });
+    
     await page.click('button:has-text("Proximo: Midia & Negociacao")');
 
     console.log('6. Etapa 3 — Mídia & Negociação...');

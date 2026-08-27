@@ -154,9 +154,10 @@ export class ProspeccaoService {
   }
 
   /**
-   * Cadastra PONTO PARCEIRO na tabela central `pontos`.
-   * Código EST-NNNNNN gerado pelo trigger fn_set_codigo_publico.
-   * RLS pontos_interno_insert autoriza REPRESENTANTE no próprio tenant.
+   * Cadastra PONTO PARCEIRO na tabela central `pontos` via RPC oficial
+   * criar_ponto_parceiro_prospeccao (20261101): validação server-side de
+   * escopo/ator, auditoria_logs, notificação na Central e código EST-
+   * gerado pelo trigger fn_set_codigo_publico.
    */
   async criarPontoParceiro(
     payload: NovoPontoParceiroPayload
@@ -175,30 +176,34 @@ export class ProspeccaoService {
       .filter(Boolean)
       .join(' | ');
 
-    const insertPayload: PontoParceiroInsert = {
-      // Tolerante à origem do chamador: wizard envia nome; form legível usa nomeFantasia
-      nome: payload.nome ?? (payload as unknown as { nomeFantasia?: string }).nomeFantasia ?? '',
-      categoria: payload.categoria || null,
-      descricao: [descricao, ...montarRegrasComerciais(payload)].filter(Boolean).join('\n'),
-      foto_url: payload.fotoCapaUrl || null,
-      galeria: (payload.fotosUrls ?? []).length ? (payload.fotosUrls as unknown as import('@/types/customerPortalDb').Json) : undefined,
-      cep: payload.cep || null,
-      logradouro: payload.logradouro || null,
-      numero: payload.numero || null,
-      complemento: payload.complemento || null,
-      bairro: payload.bairro || null,
-      cidade: payload.cidade || null,
-      estado: payload.estado ? payload.estado.toUpperCase().slice(0, 2) : null,
-      quantidade_telas: Math.max(0, Number(payload.quantidadeTelas) || 0),
-      disponibilidade: 'DISPONIVEL',
-      status_operacional: 'ATIVO',
-      regras_comerciais: montarRegrasComerciais(payload).join('\n'),
-    };
-
-    const { data, error } = await pontosInsert(insertPayload);
+    const { data, error } = await rpcTyped<{ id: string; codigo_publico: string | null }>(
+      'criar_ponto_parceiro_prospeccao',
+      {
+        p_dados: {
+          nome: (payload.nome ?? '').trim(),
+          categoria: payload.categoria || null,
+          descricao: descricao || null,
+          foto_capa_url: payload.fotoCapaUrl || null,
+          fotos_urls: payload.fotosUrls ?? [],
+          cep: payload.cep || null,
+          logradouro: payload.logradouro || null,
+          numero: payload.numero || null,
+          complemento: payload.complemento || null,
+          bairro: payload.bairro || null,
+          cidade: payload.cidade || null,
+          estado: payload.estado ? payload.estado.toUpperCase().slice(0, 2) : null,
+          quantidade_telas: Math.max(0, Number(payload.quantidadeTelas) || 0),
+          modelo_comercial: payload.modeloComercial,
+          percentual_comissao:
+            payload.modeloComercial === 'COMISSIONADO' && payload.percentualComissao != null
+              ? String(payload.percentualComissao)
+              : null,
+          regras_comerciais: montarRegrasComerciais(payload).join('\n'),
+        },
+      }
+    );
     if (error) throw new Error(error.message);
-    const row = (Array.isArray(data) ? data[0] : data) as { id: string; codigo_publico?: string | null } | null;
-    return { id: String(row?.id ?? ''), codigo_publico: row?.codigo_publico ?? null };
+    return { id: String(data?.id ?? ''), codigo_publico: data?.codigo_publico ?? null };
   }
 
   /** Provisiona GESTOR DE MÍDIAS via mecanismo oficial (senha automática) */

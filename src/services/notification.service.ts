@@ -21,7 +21,14 @@ export interface NotificationResult {
 }
 
 /**
- * Adapter para envio de e-mail (Resend / Edge Function Backend)
+ * Adapter para envio de e-mail via Edge Function (send-email)
+ * 
+ * ARQUITETURA CORRETA:
+ * Frontend → supabase.functions.invoke('send-email') → Edge Function
+ *   → enfileirar_job RPC → communication-core → ResendProvider → Resend API
+ * 
+ * A RESEND_API_KEY existe SOMENTE no ambiente server-side (Edge Functions).
+ * NUNCA chamar Resend API diretamente do frontend.
  */
 export class EmailProviderAdapter {
   async send(payload: EmailPayload): Promise<NotificationResult> {
@@ -35,8 +42,9 @@ export class EmailProviderAdapter {
         finalHtml = rendered.html;
       }
 
-      console.log(`[EmailProviderAdapter] Disparando e-mail para ${payload.to}: ${finalSubject}`);
+      console.log(`[EmailProviderAdapter] Enviando e-mail via Edge Function para ${payload.to}: ${finalSubject}`);
 
+      // Chamar Edge Function send-email (server-side) que enfileira job
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
           to: payload.to,
@@ -46,12 +54,13 @@ export class EmailProviderAdapter {
       });
 
       if (error) {
-        console.warn('[EmailProviderAdapter] Erro na Edge Function:', error);
+        console.warn('[EmailProviderAdapter] Erro na Edge Function:', error.message);
         return {
           success: false,
           channel: 'EMAIL',
           providerStatus: 'ACTIVE',
           error: error.message,
+          messageId: null,
         };
       }
 
@@ -59,14 +68,16 @@ export class EmailProviderAdapter {
         success: true,
         channel: 'EMAIL',
         providerStatus: 'ACTIVE',
-        messageId: data?.id || `msg-${Date.now()}`,
+        messageId: data?.id || `job-${Date.now()}`,
       };
     } catch (err: any) {
+      console.error('[EmailProviderAdapter] Excecao ao enviar e-mail:', err);
       return {
         success: false,
         channel: 'EMAIL',
         providerStatus: 'ACTIVE',
         error: err?.message || 'Erro ao processar envio de e-mail',
+        messageId: null,
       };
     }
   }

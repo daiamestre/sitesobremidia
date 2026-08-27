@@ -170,7 +170,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .order('position');
 
       if (itemsError) throw itemsError;
-      setItems((itemsData || []) as PlaylistItem[]);
+      setItems((itemsData || []) as unknown as PlaylistItem[]);
 
       const { data: mediaData, error: mediaError } = await supabase
         .from('media')

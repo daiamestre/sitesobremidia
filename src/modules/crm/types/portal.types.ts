@@ -9,6 +9,9 @@ export interface PontoComLimite {
   ativo: boolean;
   tela_id?: string;
   tela_nome?: string;
+  tela_capa_url?: string;
+  tela_resolucao?: string;
+  tela_orientacao?: 'horizontal' | 'vertical';
   unidade_id?: string;
   unidade_nome?: string;
   pi_id?: string;

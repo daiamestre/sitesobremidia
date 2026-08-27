@@ -4,7 +4,10 @@ export type TemplateType =
   | 'ACCESS_APPROVED' 
   | 'ACCESS_REJECTED' 
   | 'ACCESS_SUSPENDED'
-  | 'PLAYER_OFFLINE_ALERT';
+  | 'PLAYER_OFFLINE_ALERT'
+  | 'COLLECTION_REMINDER_D5'
+  | 'COLLECTION_REMINDER_D1'
+  | 'COLLECTION_OVERDUE';
 
 export interface EmailTemplateData {
   nome: string;
@@ -16,6 +19,14 @@ export interface EmailTemplateData {
   motivoRejeicao?: string;
   nomeTela?: string;
   tempoOfflineMinutes?: number;
+  cliente_nome?: string;
+  empresa_nome?: string;
+  valor?: string;
+  vencimento?: string;
+  dias_para_vencimento?: number;
+  dias_em_atraso?: number;
+  link_pagamento?: string;
+  numero_cobranca?: string;
 }
 
 export class EmailTemplates {
@@ -84,6 +95,52 @@ export class EmailTemplates {
             <div style="font-family: sans-serif; background-color: #0f172a; color: #f8fafc; padding: 25px; border-radius: 12px;">
               <h2 style="color: #f43f5e;">Alerta de Tela Offline</h2>
               <p>A tela <strong>${data.nomeTela}</strong> parou de emitir batimentos de telemetria há mais de <strong>${data.tempoOfflineMinutes || 15} minutos</strong>.</p>
+            </div>
+          `,
+        };
+
+      case 'COLLECTION_REMINDER_D5':
+        return {
+          subject: `Lembrete: Cobrança vencendo em ${data.dias_para_vencimento} dias`,
+          html: `
+            <div style="font-family: sans-serif; background-color: #0f172a; color: #f8fafc; padding: 25px; border-radius: 12px;">
+              <h2 style="color: #10b981;">Lembrete de Cobrança</h2>
+              <p>Olá <strong>${data.cliente_nome}</strong>,</p>
+              <p>Este é um lembrete de que sua cobrança de <strong>${data.valor}</strong> vence em <strong>${data.vencimento}</strong> (<strong>${data.dias_para_vencimento}</strong> dias restantes).</p>
+              ${data.dias_em_atraso > 0 ? '<p style="color: #f59e0b;"><strong>Atenção:</strong> Este título já está em atraso.</p>' : ''}
+              <p>Por favor, realize o pagamento para evitar multas e juros.</p>
+              ${data.link_pagamento ? '<p><a href="' + data.link_pagamento + '" style="background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5;">Pagar Agora</a></p>' : ''}
+              <p>Atenciosamente,<br/>Equipe SOBRE MÍDIA</p>
+            </div>
+          `,
+        };
+
+      case 'COLLECTION_REMINDER_D1':
+        return {
+          subject: `⚠️ Cobrança Vencendo Hoje - ${data.dias_para_vencimento} dias restantes`,
+          html: `
+            <div style="font-family: sans-serif; background-color: #0f172a; color: #f8fafc; padding: 25px; border-radius: 12px;">
+              <h2 style="color: #ef4444;">Atenção: Cobrança Vencendo Hoje</h2>
+              <p>Olá <strong>${data.cliente_nome}</strong>,</p>
+              <p>Sua cobrança de <strong>${data.valor}</strong> vence hoje (<strong>${data.dias_para_vencimento}</strong> dias restantes).</p>
+              <p>Por favor, realize o pagamento imediatamente para evitar inconvenientes.</p>
+              ${data.link_pagamento ? '<p><a href="' + data.link_pagamento + '" style="background-color: #ef4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5;">Pagar Agora</a></p>' : ''}
+              <p>Atenciosamente,<br/>Equipe SOBRE MÍDIA</p>
+            </div>
+          `,
+        };
+
+      case 'COLLECTION_OVERDUE':
+        return {
+          subject: `Cobrança em Atraso - ${data.dias_em_atraso} dias em atraso`,
+          html: `
+            <div style="font-family: sans-serif; background-color: #0f172a; color: #f8fafc; padding: 25px; border-radius: 12px;">
+              <h2 style="color: #f87171;">Cobrança em Atraso</h2>
+              <p>Olá <strong>${data.cliente_nome}</strong>,</p>
+              <p>Sua cobrança de <strong>${data.valor}</strong> está em atraso há <strong>${data.dias_em_atraso}</strong> dias.</p>
+              <p>Por favor, realize o pagamento o mais breve possível para evitar complicações.</p>
+              ${data.link_pagamento ? '<p><a href="' + data.link_pagamento + '" style="background-color: #f87171; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5;">Pagar Agora</a></p>' : ''}
+              <p>Atenciosamente,<br/>Equipe SOBRE MÍDIA</p>
             </div>
           `,
         };

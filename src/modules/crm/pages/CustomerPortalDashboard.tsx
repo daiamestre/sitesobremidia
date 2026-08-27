@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClienteModalidade, type ModalidadePortal } from '../hooks/useClienteModalidade';
 import { useCentralUnread } from '@/hooks/useCentral';
@@ -18,17 +18,107 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  UserCheck, Tv, FileText, LifeBuoy, ArrowLeft, ShieldCheck,
+  UserCheck, Tv, FileText, LifeBuoy, ShieldCheck,
   MapPin, DollarSign, Bell, TrendingUp, Zap, Monitor, Clock,
   Building2, Megaphone, Store, Landmark, AlertTriangle,
+  ListVideo, Library, Plus,
 } from 'lucide-react';
 import { ArtworkApproval } from '../components/portal/ArtworkApproval';
 import { ProofOfPlayViewer } from '../components/portal/ProofOfPlayViewer';
 import { CustomerSupportTickets } from '../components/portal/CustomerSupportTickets';
-import { CustomerInvoices } from '../components/portal/CustomerInvoices';
 import { customerPortalService } from '../services/customerPortal.service';
+import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
+
+// ──────────────────────────────────────────────────────────────────────
+// KPIs DO ANUNCIANTE (missão §18) — foco em MÍDIA, sem financeiro.
+// Fonte real: RPC get_kpis_portal_anunciante (server-side, tenant-safe).
+// ──────────────────────────────────────────────────────────────────────
+
+interface KpisMidiaAnunciante {
+  meus_pontos: number;
+  campanhas_ativas: number;
+  midias_ativas: number;
+  playlists: number;
+  pontos_para_anunciar: number;
+  insercoes?: number;
+  contratos_vigentes?: number;
+}
+
+async function fetchKpisAnunciante(): Promise<KpisMidiaAnunciante | null> {
+  const { data, error } = await supabase.rpc('get_kpis_portal_anunciante');
+  if (error) {
+    console.error('[Dashboard Anunciante] KPIs:', error);
+    return null;
+  }
+  return data as unknown as KpisMidiaAnunciante;
+}
+
+function getKpisMidiaAnunciante(k: KpisMidiaAnunciante, contratosVigentes: number): KPI[] {
+  const contratos = k.contratos_vigentes ?? contratosVigentes;
+  return [
+    {
+      label: 'Meus Pontos',
+      value: k.meus_pontos,
+      icon: MapPin,
+      color: 'text-emerald-400',
+      bgColor: 'bg-emerald-500/20',
+      borderColor: 'border-emerald-500/30',
+      sub: 'pontos contratados',
+    },
+    {
+      label: 'Campanhas Ativas',
+      value: k.campanhas_ativas,
+      icon: Megaphone,
+      color: 'text-purple-400',
+      bgColor: 'bg-purple-500/20',
+      borderColor: 'border-purple-500/30',
+    },
+    {
+      label: 'Minhas Mídias',
+      value: k.midias_ativas,
+      icon: Library,
+      color: 'text-sky-400',
+      bgColor: 'bg-sky-500/20',
+      borderColor: 'border-sky-500/30',
+    },
+    {
+      label: 'Playlists',
+      value: k.playlists,
+      icon: ListVideo,
+      color: 'text-fuchsia-400',
+      bgColor: 'bg-fuchsia-500/20',
+      borderColor: 'border-fuchsia-500/30',
+    },
+    {
+      label: 'Inserções',
+      value: k.insercoes ?? 0,
+      icon: Zap,
+      color: 'text-cyan-400',
+      bgColor: 'bg-cyan-500/20',
+      borderColor: 'border-cyan-500/30',
+      sub: 'exibições registradas',
+    },
+    {
+      label: 'Pontos para Anunciar',
+      value: k.pontos_para_anunciar,
+      icon: TrendingUp,
+      color: 'text-amber-400',
+      bgColor: 'bg-amber-500/20',
+      borderColor: 'border-amber-500/30',
+      sub: 'disponíveis para expansão',
+    },
+    {
+      label: 'Contratos Vigentes',
+      value: contratos,
+      icon: FileText,
+      color: 'text-blue-400',
+      bgColor: 'bg-blue-500/20',
+      borderColor: 'border-blue-500/30',
+    },
+  ];
+}
 
 // ──────────────────────────────────────────────────────────────────────
 // KPI Definitions por modalidade
@@ -191,14 +281,30 @@ export default function CustomerPortalDashboard() {
     receitaEstimada: null,
   });
   const [loadingKpis, setLoadingKpis] = useState(true);
+  // KPIs de MÍDIA do anunciante (missão §18) — RPC server-side
+  const [kpisMidia, setKpisMidia] = useState<KpisMidiaAnunciante | null>(null);
 
   useEffect(() => {
     if (!resolvedClienteId) return;
     setLoadingKpis(true);
-    customerPortalService
-      .getDashboardKPIs(resolvedClienteId, resolvedEmpresaId)
-      .then((data) => setKpis((prev) => ({ ...prev, ...data })))
-      .finally(() => setLoadingKpis(false));
+    // Fetch ÚNICO para ANUNCIANTE/HÍBRIDO: RPC server-side com todos os KPIs
+    // (inclui contratos_vigentes). O fallback legado só roda se a RPC falhar.
+    fetchKpisAnunciante()
+      .then((midia) => {
+        if (midia) {
+          setKpisMidia(midia);
+          if (midia.contratos_vigentes != null) {
+            setKpis((prev) => ({ ...prev, contratosVigentes: midia.contratos_vigentes! }));
+          }
+          setLoadingKpis(false);
+        } else {
+          return customerPortalService
+            .getDashboardKPIs(resolvedClienteId, resolvedEmpresaId)
+            .then((data) => setKpis((prev) => ({ ...prev, ...data })))
+            .finally(() => setLoadingKpis(false));
+        }
+      })
+      .catch(() => setLoadingKpis(false));
   }, [resolvedClienteId, resolvedEmpresaId]);
 
   // Enquanto modalidade carrega
@@ -216,10 +322,20 @@ export default function CustomerPortalDashboard() {
   const config = modalidade ? MODALIDADE_CONFIG[modalidade] : MODALIDADE_CONFIG.ANUNCIANTE;
   const ModalidadeIcon = config.icon;
 
-  // KPIs adaptados por modalidade
+  // KPIs adaptados por modalidade — ANUNCIANTE/HÍBRIDO usa os KPIs de MÍDIA
   const kpiList: KPI[] = isHost && !isAnunciante
     ? getKpisHost(kpis)
-    : getKpisAnunciante(kpis);
+    : (kpisMidia
+        ? getKpisMidiaAnunciante(kpisMidia, kpis.contratosVigentes)
+        : getKpisAnunciante(kpis));
+
+  // Ações rápidas do anunciante (missão §19)
+  const acoesRapidas = isAnunciante && [
+    { label: 'Criar Campanha', icon: Plus, path: '/portal/nova-campanha', primary: true },
+    { label: 'Minhas Mídias', icon: Library, path: '/portal/assets' },
+    { label: 'Criar Playlist', icon: ListVideo, path: '/portal/playlists' },
+    { label: 'Pontos para Anunciar', icon: TrendingUp, path: '/portal/expansao' },
+  ];
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-fade-in pb-12">
@@ -255,14 +371,27 @@ export default function CustomerPortalDashboard() {
             </div>
           )}
         </div>
-        <Button
-          onClick={() => navigate('/workspace')}
-          variant="outline"
-          className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs flex-shrink-0"
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar ao ERP
-        </Button>
       </div>
+
+      {/* ── Ações Rápidas (missão §19) ── */}
+      {acoesRapidas && acoesRapidas.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {acoesRapidas.map((acao) => (
+            <Button
+              key={acao.label}
+              onClick={() => navigate(acao.path)}
+              variant={acao.primary ? 'default' : 'outline'}
+              className={cn(
+                'h-auto py-3 rounded-xl gap-2 flex-col',
+                !acao.primary && 'border-white/10 text-slate-300 hover:bg-white/5'
+              )}
+            >
+              <acao.icon className="h-4 w-4" />
+              <span className="text-xs font-medium">{acao.label}</span>
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* ── KPIs Grid ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -301,8 +430,8 @@ export default function CustomerPortalDashboard() {
                     Aproveite para criar sua primeira campanha e exibir sua marca na nossa rede de telas.
                   </p>
                 </div>
-                <Button 
-                  onClick={() => navigate('/portal/campanhas/nova')}
+                <Button
+                  onClick={() => navigate('/portal/nova-campanha')}
                   className="bg-purple-600 hover:bg-purple-700 text-white mt-2 rounded-xl"
                 >
                   Criar Minha Primeira Campanha
@@ -320,9 +449,8 @@ export default function CustomerPortalDashboard() {
         </>
       )}
 
-      {/* TODOS: Faturas + Suporte */}
+      {/* ── Suporte (faturas ficam em Contrato e Faturas — missão §38) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <CustomerInvoices />
         {resolvedEmpresaId && (
           <CustomerSupportTickets
             clienteId={resolvedClienteId || ''}

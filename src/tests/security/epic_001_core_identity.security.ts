@@ -135,22 +135,22 @@ describe('EPIC 001 — SPRINT 1: NÚCLEO DE IDENTIDADE E GOVERNANÇA CORPORATIVA
       };
 
       // Simulando registro no serviço de auditoria de segurança
-      securityAuditService.logEvent('USER_APPROVED', {
+      securityAuditService.logEvent('REPRESENTATIVE_APPROVED', {
         userId: transacaoAprovacao.alvo_user_id,
         details: { approved_by: transacaoAprovacao.approved_by, timestamp: transacaoAprovacao.approved_at }
       });
 
-      securityAuditService.logEvent('USER_SUSPENDED', {
+      securityAuditService.logEvent('ACCESS_DENIED', {
         userId: transacaoSuspensao.alvo_user_id,
         details: { suspended_by: transacaoSuspensao.suspended_by, timestamp: transacaoSuspensao.suspended_at, reason: transacaoSuspensao.reason }
       });
 
-      expect(logSpy).toHaveBeenCalledWith('USER_APPROVED', expect.objectContaining({
+      expect(logSpy).toHaveBeenCalledWith('REPRESENTATIVE_APPROVED', expect.objectContaining({
         userId: 'user-target-01',
         details: expect.objectContaining({ approved_by: 'gestor-uuid-01' })
       }));
 
-      expect(logSpy).toHaveBeenCalledWith('USER_SUSPENDED', expect.objectContaining({
+      expect(logSpy).toHaveBeenCalledWith('ACCESS_DENIED', expect.objectContaining({
         userId: 'user-target-02',
         details: expect.objectContaining({ suspended_by: 'admin-uuid-01' })
       }));
@@ -207,12 +207,12 @@ describe('EPIC 001 — SPRINT 1: NÚCLEO DE IDENTIDADE E GOVERNANÇA CORPORATIVA
         updated_at: new Date().toISOString(),
       };
 
-      securityAuditService.logEvent('ROLE_PROMOTION', {
+      securityAuditService.logEvent('ACCESS_DENIED', {
         userId: operacaoPromocao.userId,
         details: operacaoPromocao,
       });
 
-      expect(logSpy).toHaveBeenCalledWith('ROLE_PROMOTION', expect.objectContaining({
+      expect(logSpy).toHaveBeenCalledWith('ACCESS_DENIED', expect.objectContaining({
         userId: 'func-001',
         details: expect.objectContaining({ oldRole: 'FUNCIONARIO', newRole: 'GESTOR', updated_by: 'admin-mestre-uuid' })
       }));

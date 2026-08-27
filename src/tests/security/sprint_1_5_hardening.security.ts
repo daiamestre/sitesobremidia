@@ -12,11 +12,9 @@ vi.mock('@/contexts/AuthContext', () => ({
 }));
 
 // Mock do Supabase Client para simular comportamento anti-race condition
-const mockUpdate = vi.fn();
-const mockEq = vi.fn();
-const mockIs = vi.fn();
-const mockSelect = vi.fn();
-const mockSingle = vi.fn();
+// (a decisão agora é via RPC decidir_solicitacao_acesso — o banco garante
+//  atomicidade: somente status PENDING pode ser decidido, com FOR UPDATE)
+const mockRpc = vi.fn();
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -41,18 +39,8 @@ vi.mock('@/integrations/supabase/client', () => ({
           maybeSingle: () => Promise.resolve({ data: null }),
         }),
       }),
-      update: (payload: unknown) => {
-        const queryObj = {
-          eq: (col: string, val: unknown) => queryObj,
-          is: (col: string, val: unknown) => queryObj,
-          select: (fields?: string) => {
-            // Se for simulação de segunda requisição concorrente, retorna array vazio
-            return Promise.resolve({ data: [], error: null });
-          },
-        };
-        return queryObj;
-      },
     }),
+    rpc: (fn: string, args: Record<string, unknown>) => mockRpc(fn, args),
   },
 }));
 
@@ -75,11 +63,22 @@ describe('🛡️ SPRINT 1.5 — HARDENING, ZERO TRUST & PERMISSION REGISTRY', (
   });
 
   describe('ETAPA B: Blindagem contra Condição de Corrida em Aprovações', () => {
-    it('deve rejeitar e disparar exceção [RACE CONDITION SHIELD] se dois administradores aprovarem simultaneamente a mesma solicitação', async () => {
+    it('deve rejeitar decisão duplicada: RPC decidir_solicitacao_acesso só aceita status PENDING (SELECT FOR UPDATE no banco)', async () => {
+      // Simula a 2ª chamada concorrente: o banco rejeita pois a solicitação
+      // deixou de estar PENDING após a 1ª decisão (guarda server-side)
+      mockRpc.mockResolvedValue({
+        data: null,
+        error: { message: 'Esta solicitação já foi processada (status: APPROVED).' },
+      });
+
       const result = await accessRequestService.processDecision('already-approved-id', 'APPROVED', undefined, 'admin-uuid');
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('[RACE CONDITION SHIELD]');
+      expect(result.error).toContain('já foi processada');
+      expect(mockRpc).toHaveBeenCalledWith(
+        'decidir_solicitacao_acesso',
+        expect.objectContaining({ p_solicitacao_id: 'already-approved-id', p_decisao: 'APPROVED' })
+      );
     });
 
     it('deve comprovar a existência da trigger PL/pgSQL anti-sobrescritura na Migration 030', () => {

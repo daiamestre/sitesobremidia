@@ -24,7 +24,10 @@ import {
   Bell,
   ShieldCheck,
   UserCog,
-  TrendingUp
+  TrendingUp,
+  Monitor,
+  Store,
+  Target
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -63,6 +66,17 @@ export function CrmSidebar() {
     // Dashboard aponta para rotas existentes em CADA painel (corrige o 404 do
     // painel de representantes: /representantes/corporate não existe)
     { label: 'Dashboard', icon: Home, path: isWorkspace ? '/workspace/corporate' : '/representantes/dashboard' },
+    // NOVA PROSPECÇÃO (missão P0/P1): entrada dos 3 cadastros (Anunciante/
+    // Ponto Parceiro/Gestor de Mídias) no painel do representante.
+    ...(!isWorkspace
+      ? [{ label: 'Nova Prospecção', icon: Target, path: '/representantes/prospeccao' }]
+      : []),
+    // Gestor de Mídias Digital Signage
+    ...(isWorkspace
+      ? [
+          { label: 'Gestor de Mídias', icon: Monitor, path: '/dashboard' },
+        ]
+      : []),
     // Grupo Comercial (apenas no workspace corporativo): gestão de representantes
     // + desempenho real, integrada à Central de Acessos.
     ...(isWorkspace
@@ -80,6 +94,10 @@ export function CrmSidebar() {
     { label: 'Campanhas', icon: Tv, path: `${basePath}/campanhas` },
     // Pontos de Exibição: /workspace/screens existe; no painel de representantes a rota é /representantes/pontos
     { label: 'Pontos de Exibição', icon: MapPin, path: isWorkspace ? '/workspace/screens' : '/representantes/pontos' },
+    // Pontos Parceiros (workspace): inventário comercial central (tabela `pontos`)
+    ...(isWorkspace && (isOwner || isAdmin)
+      ? [{ label: 'Pontos Parceiros', icon: Store, path: '/workspace/pontos-parceiros' }]
+      : []),
     { label: 'Agenda', icon: Calendar, path: `${basePath}/agenda` },
     { label: 'Financeiro', icon: DollarSign, path: `${basePath}/financeiro` },
     ...(isOwner || isAdmin ? [{ label: 'Central de Cobranças', icon: DollarSign, path: '/financeiro/cobrancas' }] : []),

@@ -337,7 +337,7 @@ export class PIService {
           cliente:clientes(*),
           contrato:contratos(*),
           proposta:propostas(*),
-          locais:pi_locais(*, unidade:unidades(*)),
+          locais:pi_locais(*, tela:screens(id, name, cidade, estado)),
           historico:pi_historico(*),
           observacoes_list:pi_observacoes(*)
         `)
@@ -345,7 +345,7 @@ export class PIService {
         .maybeSingle();
 
       if (error || !data) return null;
-      return data as PICompleto;
+      return data as unknown as PICompleto;
     } catch (err) {
       return null;
     }

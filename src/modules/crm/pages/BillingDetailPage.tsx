@@ -393,7 +393,7 @@ export default function BillingDetailPage() {
             {situacao && <Badge className={`${SITUACAO_BADGE[situacao]} border text-[11px]`}>{SITUACAO_LABEL[situacao]}</Badge>}
           </h2>
           <button type="button" onClick={copiarId} title="Identificador técnico interno" className="text-[10px] text-slate-600 hover:text-slate-400 inline-flex items-center gap-1 font-mono w-fit">
-            UUID técnico {cobranca.id.slice(0, 8)}… <Copy className="h-2.5 w-2.5" />
+            {cobranca.numero_documento || cobranca.codigo_operacional || '—'}… <Copy className="h-2.5 w-2.5" />
           </button>
         </div>
 

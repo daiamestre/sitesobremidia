@@ -16,7 +16,7 @@ interface NovaPropostaModalProps {
 
 interface ClienteOption {
   id: string;
-  codigo_cliente?: string | null;
+  codigo_cliente?: number | null;
   empresas?: { razao_social?: string | null; nome_fantasia?: string | null }[] | null;
 }
 

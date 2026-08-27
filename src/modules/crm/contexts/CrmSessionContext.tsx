@@ -27,7 +27,7 @@ export interface CrmSessionData {
 const CrmSessionContext = createContext<CrmSessionData | undefined>(undefined);
 
 export function CrmSessionProvider({ children }: { children: ReactNode }) {
-  const { user, session, isAuthenticated, isApproved, empresaOperadoraId, representante, signOut } = useAuth();
+  const { user, usuario, session, isAuthenticated, isApproved, empresaOperadoraId, representante, signOut } = useAuth();
   const { role } = useRbac();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -35,16 +35,19 @@ export function CrmSessionProvider({ children }: { children: ReactNode }) {
 
   // Derivação limpa de perfil real sem hardcode
   const userEmail = user?.email || 'usuario@sobremidia.com.br';
-  
+  const repNome = (representante as CrmRepresentante | null)?.nome ?? null;
+
   const userName = useMemo(() => {
     if (user?.user_metadata?.name) return user.user_metadata.name;
     if (user?.user_metadata?.full_name) return user.user_metadata.full_name;
-    if (representante?.nome) return representante.nome;
+    if (usuario?.nome) return usuario.nome;
+    // Módulo REPRESENTANTE: o nome comercial vive no registro da carteira.
+    if (repNome) return repNome;
     if (userEmail && userEmail !== 'usuario@sobremidia.com.br') {
       return userEmail.split('@')[0];
     }
     return 'Representante Comercial';
-  }, [user, representante, userEmail]);
+  }, [user, usuario, repNome, userEmail]);
 
   const userInitials = useMemo(() => {
     if (!userName || userName === 'Representante Comercial') return 'RC';
@@ -70,7 +73,7 @@ export function CrmSessionProvider({ children }: { children: ReactNode }) {
   const handleCrmLogout = async () => {
     setIsLoggingOut(true);
     try {
-      securityAuditService.logEvent('LOGOUT_SUCCESS', {
+      securityAuditService.logEvent('LOGOUT', {
         userEmail,
         details: { module: 'CRM_REPRESENTANTES', reason: 'USER_INITIATED_LOGOUT' }
       });

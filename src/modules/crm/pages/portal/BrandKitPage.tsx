@@ -30,7 +30,7 @@ export default function BrandKitPage() {
 
   useEffect(() => {
     if (cliente) {
-      setLogoUrl(cliente.brand_logo_url || cliente.logo_url || '');
+      setLogoUrl(cliente.brand_logo_url || '');
       setCorPrimaria(cliente.brand_cor_primaria || '#000000');
       setCorSecundaria(cliente.brand_cor_secundaria || '#ffffff');
       setFontePrimaria(cliente.brand_fonte_primaria || 'Inter');

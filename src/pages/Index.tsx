@@ -1,6 +1,8 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Sheet, 
   SheetContent, 
@@ -18,10 +20,202 @@ import {
   Smartphone, 
   Menu, 
   Megaphone, 
-  UserCheck 
+  UserCheck,
+  ShieldAlert,
+  Home,
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 
+const SCREEN_ID_CACHE_KEY = "player_screen_id_codemidia";
+
 export default function Index() {
+  const navigate = useNavigate();
+  const [nativeOverlayNeeded, setNativeOverlayNeeded] = useState(false);
+  const [showLauncherModal, setShowLauncherModal] = useState(false);
+  const [checkingState, setCheckingState] = useState(false);
+
+  // Evaluate native setup and route sequentially
+  const evaluateOnboardingFlow = useCallback(async () => {
+    if (!window.NativePlayer) return;
+
+    setCheckingState(true);
+
+    // 1. OVERLAY CHECK (Mandatory)
+    if (typeof window.NativePlayer.isOverlayGranted === 'function') {
+      const overlayGranted = window.NativePlayer.isOverlayGranted();
+      if (!overlayGranted) {
+        setNativeOverlayNeeded(true);
+        setCheckingState(false);
+        return;
+      }
+    }
+    setNativeOverlayNeeded(false);
+
+    // 2. LAUNCHER PROMPT (Optional)
+    const launcherDismissed = sessionStorage.getItem('player_launcher_dismissed');
+    if (!launcherDismissed && typeof window.NativePlayer.isHomeLauncher === 'function') {
+      const isLauncher = window.NativePlayer.isHomeLauncher();
+      if (!isLauncher) {
+        setShowLauncherModal(true);
+        setCheckingState(false);
+        return;
+      }
+    }
+    setShowLauncherModal(false);
+
+    // 3. AUTH & PAIRING SEQUENCING
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const savedScreenId = localStorage.getItem(SCREEN_ID_CACHE_KEY);
+
+      if (savedScreenId) {
+        // Device is paired, proceed to Player
+        navigate(`/player/${savedScreenId}`, { replace: true });
+        return;
+      }
+
+      if (!session) {
+        // Unauthenticated -> Login required
+        navigate(`/auth?tab=login`, { replace: true });
+        return;
+      }
+
+      // Authenticated but no screen ID -> Pairing required
+      navigate(`/device-pairing`, { replace: true });
+    } catch (err) {
+      console.error("[Index Onboarding] Error checking session/pairing:", err);
+      navigate(`/auth?tab=login`, { replace: true });
+    } finally {
+      setCheckingState(false);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    if (window.NativePlayer) {
+      evaluateOnboardingFlow();
+
+      const handleResume = () => {
+        evaluateOnboardingFlow();
+      };
+
+      window.addEventListener('nativeResume', handleResume);
+      window.addEventListener('focus', handleResume);
+
+      return () => {
+        window.removeEventListener('nativeResume', handleResume);
+        window.removeEventListener('focus', handleResume);
+      };
+    }
+  }, [evaluateOnboardingFlow]);
+
+  const handleRequestOverlay = () => {
+    if (window.NativePlayer?.requestOverlayPermission) {
+      window.NativePlayer.requestOverlayPermission();
+    }
+  };
+
+  const handleAcceptLauncher = () => {
+    sessionStorage.setItem('player_launcher_dismissed', 'true');
+    setShowLauncherModal(false);
+    if (window.NativePlayer?.requestSetLauncher) {
+      window.NativePlayer.requestSetLauncher();
+    }
+    evaluateOnboardingFlow();
+  };
+
+  const handleDismissLauncher = () => {
+    sessionStorage.setItem('player_launcher_dismissed', 'true');
+    setShowLauncherModal(false);
+    evaluateOnboardingFlow();
+  };
+
+  if (window.NativePlayer) {
+    if (nativeOverlayNeeded) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="max-w-lg w-full bg-slate-900/90 border border-red-500/30 rounded-3xl p-8 shadow-2xl backdrop-blur-xl flex flex-col items-center gap-6">
+            <div className="p-4 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30">
+              <ShieldAlert className="h-14 w-14 animate-pulse" />
+            </div>
+            
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Permissão de Sobreposição
+            </h1>
+            
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+              Para operar continuamente em modo Kiosk e garantir a reprodução ininterrupta, 
+              o <strong>SOBRE MÍDIA Player</strong> precisa de permissão para sobrepor outros aplicativos.
+            </p>
+
+            <div className="w-full space-y-3 pt-2">
+              <Button 
+                onClick={handleRequestOverlay}
+                className="w-full gradient-primary glow-primary font-bold text-lg py-6 rounded-xl shadow-xl hover:scale-[1.02] transition-transform"
+              >
+                Conceder Permissão de Sobreposição
+              </Button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Ao habilitar na tela do Android, o aplicativo retornará automaticamente.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (showLauncherModal) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="max-w-lg w-full bg-slate-900/90 border border-primary/30 rounded-3xl p-8 shadow-2xl backdrop-blur-xl flex flex-col items-center gap-6">
+            <div className="p-4 rounded-2xl bg-primary/20 text-primary border border-primary/30">
+              <Home className="h-14 w-14" />
+            </div>
+            
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Aplicativo Principal (Launcher)
+            </h1>
+            
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+              Deseja definir o <strong>SOBRE MÍDIA Player</strong> como o aplicativo padrão de inicialização (Home) deste dispositivo?
+            </p>
+
+            <div className="w-full space-y-3 pt-2">
+              <Button 
+                onClick={handleAcceptLauncher}
+                className="w-full gradient-primary glow-primary font-bold text-lg py-6 rounded-xl shadow-xl hover:scale-[1.02] transition-transform"
+              >
+                Tornar Aplicativo Principal
+              </Button>
+              
+              <Button 
+                onClick={handleDismissLauncher}
+                variant="outline"
+                className="w-full border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold py-5 rounded-xl"
+              >
+                Agora Não
+              </Button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              O Launcher é opcional. Você pode alterar essa configuração a qualquer momento no Android.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (checkingState) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 gap-4 select-none">
+          <RefreshCw className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-slate-400 font-medium text-base">Iniciando SOBRE MÍDIA Terminal...</p>
+        </div>
+      );
+    }
+  }
+
   const portals = [
     { icon: Megaphone, title: 'Anunciantes', description: 'Portal para campanhas e anúncios', link: '/auth?tab=login&role=anunciantes' },
     { icon: UserCheck, title: 'Representantes', description: 'Área comercial e parceiros', link: '/representantes/login' },
