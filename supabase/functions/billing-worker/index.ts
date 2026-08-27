@@ -291,6 +291,16 @@ serve(async (req: Request) => {
     return json(200, { processados: resultados.length, resultados });
   }
 
+  if (body.action === "generate_monthly_billing") {
+    const competencia = body.competencia || new Date().toISOString().substring(0, 7); // Default to current month 'YYYY-MM'
+    const { data, error } = await admin.rpc('rpc_generate_monthly_billing', { p_competencia: competencia });
+    
+    if (error) {
+      return json(500, { erro: error.message, details: error.details });
+    }
+    return json(200, { success: true, message: "Billing generation completed.", result: data });
+  }
+
   if (!body.job_id) return json(400, { erro: "informe job_id ou action=process_queue" });
   const r = await processarJob(String(body.job_id));
   return json(r.ok ? 200 : 500, r);

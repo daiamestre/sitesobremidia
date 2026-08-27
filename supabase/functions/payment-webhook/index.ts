@@ -91,16 +91,19 @@ async function handle(req: Request): Promise<Response> {
     .maybeSingle();
   if (dup) return json(200, { ok: true, idempotente: true, pagamento_id: dup.id });
 
+  const publicToken: string | null = p.public_token || p.token || null;
+
   // Localizar a cobrança
   let conta: any = null;
   if (contaReceberId) {
-    ({ data: conta } = await admin.from("contas_receber").select("id, empresa_operadora_id, status").eq("id", contaReceberId).maybeSingle());
+    let q = admin.from("contas_receber").select("id, empresa_operadora_id, status").eq("id", contaReceberId);
+    if (publicToken) q = q.eq("public_token", publicToken);
+    ({ data: conta } = await q.maybeSingle());
   }
   if (!conta && numeroDocumento) {
-    const rpc = await admin.rpc("buscar_conta_por_documento", { p_doc: numeroDocumento });
-    const lista = (rpc.data as any[]) || null;
-    conta = lista && lista.length > 0 ? lista[0] : null;
-    void rpc.error;
+    let q = admin.from("contas_receber").select("id, empresa_operadora_id, status").eq("numero_documento", numeroDocumento);
+    if (publicToken) q = q.eq("public_token", publicToken);
+    ({ data: conta } = await q.maybeSingle());
   }
   if (!conta) return json(404, { erro: "cobrança não encontrada" });
   if (["CANCELADA", "CANCELADO"].includes(conta.status)) return json(422, { erro: "cobrança cancelada — recusar pagamento" });

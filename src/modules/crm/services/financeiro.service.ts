@@ -56,6 +56,8 @@ export interface ContaReceberCompleta {
   saldo: number;
   status: ContaStatus;
   created_at: string;
+  public_token?: string;
+  public_enabled?: boolean;
   cliente?: any;
   contrato?: any;
   parcelas?: any[];
@@ -487,11 +489,10 @@ export class FinanceiroService {
 
   /** Gera o codigo_operacional obrigatório de contas_receber via RPC oficial */
   private async gerarCodigoOperacional(empresaOperadoraId: string): Promise<string> {
-    const { data } = await supabase.rpc('gerar_numero_documento', {
-      p_tenant_id: empresaOperadoraId,
-      p_tipo: 'COB',
+    const { data } = await supabase.rpc('fn_gerar_numero_recebivel_atomo', {
+      p_empresa_operadora_id: empresaOperadoraId,
     });
-    return data || `COB-${Date.now()}`;
+    return data || `REC-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
   }
 
   async createCobranca(payload: CreateCobrancaPayload): Promise<{ success: boolean; cobrancaId?: string; error?: string }> {

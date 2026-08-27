@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, CheckCircle2, Loader2, ArrowLeft, CreditCard } from 'lucide-react';
+import { DollarSign, CheckCircle2, Loader2, ArrowLeft, CreditCard, MessageCircle } from 'lucide-react';
 import { ContaReceberCompleta, financeiroService, TipoPagamento } from '../../services/financeiro.service';
 import { useToast } from '@/hooks/use-toast';
 
@@ -57,9 +57,37 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
             Registro de liquidação, conciliação e baixas financeiras.
           </CardDescription>
         </div>
-        <Button variant="outline" onClick={onBack} className="border-slate-700 text-slate-300 text-xs rounded-xl gap-1">
-          <ArrowLeft className="h-4 w-4" /> Voltar
-        </Button>
+        <div className="flex gap-2">
+          {conta.public_token && conta.public_enabled && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const url = `${window.location.origin}/cobranca/${conta.numero_documento}/${conta.public_token}`;
+                  const text = `Olá, informamos que a sua fatura (${conta.numero_documento}) já está disponível para pagamento.\n\nAcesse o link abaixo para visualizar e realizar o pagamento via PIX:\n${url}`;
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                }}
+                className="border-green-500/50 text-green-500 text-xs rounded-xl gap-1 hover:bg-green-500/10"
+              >
+                <MessageCircle className="h-4 w-4" /> WhatsApp
+              </Button>
+              <Button
+              variant="outline"
+              onClick={() => {
+                const url = `${window.location.origin}/cobranca/${conta.numero_documento}/${conta.public_token}`;
+                navigator.clipboard.writeText(url);
+                toast({ title: 'Link Copiado', description: 'Link de cobrança copiado para a área de transferência.' });
+              }}
+              className="border-primary/20 text-primary text-xs rounded-xl gap-1 hover:bg-primary/10"
+            >
+              <DollarSign className="h-4 w-4" /> Link do Cliente
+            </Button>
+            </>
+          )}
+          <Button variant="outline" onClick={onBack} className="border-slate-700 text-slate-300 text-xs rounded-xl gap-1">
+            <ArrowLeft className="h-4 w-4" /> Voltar
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="pt-6 space-y-6">

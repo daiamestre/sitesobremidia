@@ -1,16 +1,21 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DollarSign, CheckCircle2, Clock, AlertCircle, Eye } from 'lucide-react';
+import { DollarSign, CheckCircle2, Clock, AlertCircle, Eye, Plus } from 'lucide-react';
 import { ContaReceberCompleta } from '../../services/financeiro.service';
+import { NewReceivableModal } from './NewReceivableModal';
 
 interface FinanceListProps {
   contas: ContaReceberCompleta[];
   onSelectConta: (conta: ContaReceberCompleta) => void;
+  onRefresh?: () => void;
 }
 
-export function FinanceList({ contas, onSelectConta }: FinanceListProps) {
+export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PAGO':
@@ -27,15 +32,19 @@ export function FinanceList({ contas, onSelectConta }: FinanceListProps) {
   };
 
   return (
-    <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-      <CardHeader className="pb-3 border-b border-white/10">
-        <CardTitle className="text-base font-bold text-white flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-emerald-400" />
-            Contas a Receber ({contas.length})
-          </span>
-        </CardTitle>
-      </CardHeader>
+    <>
+      <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
+        <CardHeader className="pb-3 border-b border-white/10">
+          <CardTitle className="text-base font-bold text-white flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-400" />
+              Contas a Receber ({contas.length})
+            </span>
+            <Button size="sm" onClick={() => setIsModalOpen(true)} className="gap-2 bg-primary/20 text-primary hover:bg-primary/30">
+              <Plus className="h-4 w-4" /> Nova Cobrança
+            </Button>
+          </CardTitle>
+        </CardHeader>
       <CardContent className="pt-4">
         {contas.length === 0 ? (
           <div className="text-center py-8 text-slate-400 text-xs">Nenhum título a receber cadastrado.</div>
@@ -87,6 +96,16 @@ export function FinanceList({ contas, onSelectConta }: FinanceListProps) {
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>
+      
+      <NewReceivableModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSuccess={() => {
+          setIsModalOpen(false);
+          if (onRefresh) onRefresh();
+        }} 
+      />
+    </>
   );
 }
