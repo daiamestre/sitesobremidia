@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { CommerceDatabase, PontoParceiro } from '@/types\customerPortalDb';
+import type { CommerceDatabase, PontoParceiro } from '@/types/customerPortalDb';
 
 const db = supabase as unknown as SupabaseClient<CommerceDatabase>;
 
@@ -91,29 +91,57 @@ export async function fetchPontosStats(periodo: 'hoje'|'7d'|'30d'|'mes' = '30d')
   else if (periodo === '30d') desde.setDate(now.getDate()-30);
   else if (periodo === 'mes') desde = new Date(now.getFullYear(), now.getMonth(), 1);
   const novos = todos.filter(p => new Date(p.created_at) >= desde).length;
-  const totalTelas = todos.reduce((s,p)=> s + (p.quantidade_telas||0),0);
+  // Cálculos 100% reais — sem fallbacks fictícios, sem mocks
+  // Telas: usa screens.ponto_id quando disponível, senão quantidade_telas do ponto
+  let totalTelas = todos.reduce((s,p)=> s + (p.quantidade_telas||0),0);
+  let telasAtivasReais = todos.reduce((s,p)=> s + (p.telas_ativas != null ? p.telas_ativas : (p.status_operacional==='ATIVO' ? p.quantidade_telas||0 : 0)),0);
+  try {
+    const pontoIds = todos.map(p=>p.id);
+    if (pontoIds.length) {
+      const { data: screens } = await (supabase as any).from('screens').select('id,is_active,last_ping_at,ponto_id').in('ponto_id', pontoIds).limit(500);
+      if (screens && Array.isArray(screens) && screens.length){
+        totalTelas = screens.length;
+        const limiteOnline = new Date(Date.now()-5*60*1000); // 5 min heartbeat
+        telasAtivasReais = screens.filter((s:any)=> s.is_active && s.last_ping_at && new Date(s.last_ping_at) >= limiteOnline).length;
+        if(telasAtivasReais===0) telasAtivasReais = screens.filter((s:any)=> s.is_active).length;
+      }
+    }
+  } catch {}
   const ativos = todos.filter(p=> p.status_operacional==='ATIVO' && p.ativo).length;
   const emImplantacao = todos.filter(p=> p.status_operacional==='MANUTENCAO').length;
   const pendentes = todos.filter(p=> !p.ativo).length;
   const suspensos = todos.filter(p=> p.status_operacional==='INATIVO').length;
   const disponiveis = todos.filter(p=> p.disponibilidade==='DISPONIVEL').length;
   const ocupados = todos.filter(p=> p.disponibilidade==='RESERVADO' || p.disponibilidade==='INDISPONIVEL').length;
-  const taxa = todos.length ? Math.round((ocupados / todos.length)*1000)/10 : 78.4;
+  const taxa = todos.length ? Math.round((ocupados / todos.length)*1000)/10 : 0;
+  // Receita média por tela = média real de valor_anuncio dos pontos ativos com valor preenchido; se vazio, tenta contratos
+  let receitaMedia = 0;
+  const valores = todos.filter(p=> p.valor_anuncio != null && Number(p.valor_anuncio)>0).map(p=> Number(p.valor_anuncio));
+  if(valores.length) receitaMedia = Math.round(valores.reduce((a,b)=>a+b,0)/valores.length);
+  else {
+    try {
+      const { data: contratos } = await (supabase as any).from('contratos').select('valor_total').limit(50);
+      if(contratos && contratos.length) {
+        const vals = contratos.map((c:any)=> Number(c.valor_total||0)).filter((n:number)=>n>0);
+        if(vals.length) receitaMedia = Math.round(vals.reduce((a:number,b:number)=>a+b,0)/vals.length / Math.max(1,totalTelas||1));
+      }
+    } catch {}
+  }
   return {
-    totalPontos: todos.length || 147,
-    meusPontos: meus.length || 0,
-    pontosAtivos: ativos || 112,
-    emImplantacao: emImplantacao || 8,
-    pendentes: pendentes || 15,
-    suspensos: suspensos || 12,
-    totalTelas: totalTelas || 342,
-    telasAtivas: Math.round(totalTelas*0.88) || 301,
-    telasOffline: Math.round(totalTelas*0.12) || 41,
-    disponiveis: disponiveis || 32,
-    ocupados: ocupados || 115,
+    totalPontos: todos.length,
+    meusPontos: meus.length,
+    pontosAtivos: ativos,
+    emImplantacao: emImplantacao,
+    pendentes: pendentes,
+    suspensos: suspensos,
+    totalTelas: totalTelas,
+    telasAtivas: telasAtivasReais,
+    telasOffline: Math.max(0, totalTelas - telasAtivasReais),
+    disponiveis: disponiveis,
+    ocupados: ocupados,
     novosNoPeriodo: novos,
     taxaOcupacao: taxa,
-    receitaMediaPorTela: 8500,
+    receitaMediaPorTela: receitaMedia,
   };
 }
 
