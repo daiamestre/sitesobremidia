@@ -3,9 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, BadgeCheck, Ban, Banknote, CalendarClock, CheckCircle2, Copy, CreditCard,
-  Loader2, Mail, RotateCcw, Send, ShieldAlert, ShieldBan, Edit, Link as LinkIcon, MessageCircle
+  Loader2, Mail, RotateCcw, Send, ShieldAlert, ShieldBan, Edit, Link as LinkIcon, MessageCircle, DollarSign, XCircle, Check
 } from 'lucide-react';
 import { EditReceivableModal } from '../components/financeiro/EditReceivableModal';
+import { ManualPaymentModal } from '../components/financeiro/ManualPaymentModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,6 +107,7 @@ export default function BillingDetailPage() {
 
   const [baixaOpen, setBaixaOpen] = useState(false);
   const [cancelarOpen, setCancelarOpen] = useState(false);
+  const [pagamentoManualOpen, setPagamentoManualOpen] = useState(false);
   const [desbloquearOpen, setDesbloquearOpen] = useState(false);
   const [meioPagamento, setMeioPagamento] = useState<string>('PIX');
   const [valorPago, setValorPago] = useState<string>('');
@@ -262,9 +264,16 @@ export default function BillingDetailPage() {
   const generateWhatsAppLink = () => {
     if (!cobranca) return '';
     const numDoc = cobranca.numero_documento || cobranca.codigo_operacional;
-    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${cobranca.public_token || 'demo'}`;
+    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${cobranca.public_token || ''}`;
     const text = `Olá, ${cobranca.cliente?.empresas?.[0]?.nome_fantasia || cobranca.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${cobranca.competencia_date ? ` referente à competência ${String(cobranca.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(cobranca.saldo ?? cobranca.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(cobranca.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  };
+  
+  const textoWhatsAppBase = () => {
+    if (!cobranca) return '';
+    const numDoc = cobranca.numero_documento || cobranca.codigo_operacional;
+    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${cobranca.public_token || ''}`;
+    return `Olá, ${cobranca.cliente?.empresas?.[0]?.nome_fantasia || cobranca.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${cobranca.competencia_date ? ` referente à competência ${String(cobranca.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(cobranca.saldo ?? cobranca.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(cobranca.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
   };
 
   const invalidar = () => {
@@ -409,12 +418,32 @@ export default function BillingDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {podeDarBaixa && (
-            <Button onClick={() => { setValorPago(String(cobranca.valor)); setBaixaOpen(true); }} disabled={processando}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 text-xs">
-              <CheckCircle2 className="h-4 w-4" /> Marcar como paga
+          {podeEditar && (
+            <Button variant="outline" onClick={() => setCobrancaEditando(cobranca as any)} disabled={processando}
+              className="border-blue-500/40 text-blue-300 hover:bg-blue-500/10 gap-2 text-xs">
+              <Edit className="h-4 w-4" /> Editar
             </Button>
           )}
+          {podeDarBaixa && (
+            <Button variant="outline" onClick={() => setPagamentoManualAberto(true)} disabled={processando}
+              className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 gap-2 text-xs">
+              <DollarSign className="h-4 w-4" /> Registrar pagamento
+            </Button>
+          )}
+          {podeDarBaixa && (
+            <Button variant="outline" onClick={() => { setValorPago(String(cobranca.saldo || cobranca.valor)); setBaixaOpen(true); }} disabled={processando}
+              className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 gap-2 text-xs">
+              <Check className="h-4 w-4" /> Marcar como paga
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => window.open(`${window.location.origin}/cobranca/${cobranca.numero_documento || cobranca.codigo_operacional}/${cobranca.public_token || ''}`, '_blank')} disabled={processando}
+            className="border-primary/40 text-primary hover:bg-primary/10 gap-2 text-xs">
+            <LinkIcon className="h-4 w-4" /> Pré-visualizar
+          </Button>
+          <Button variant="outline" onClick={() => window.open(generateWhatsAppLink(), '_blank')} disabled={processando}
+            className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 gap-2 text-xs">
+            <MessageCircle className="h-4 w-4" /> WhatsApp
+          </Button>
           {podeReabrir && (
             <Button variant="outline" onClick={handleReabrir} disabled={processando}
               className="border-blue-500/40 text-blue-300 hover:bg-blue-500/10 gap-2 text-xs">
@@ -424,26 +453,8 @@ export default function BillingDetailPage() {
           {podeCancelar && (
             <Button variant="outline" onClick={() => setCancelarOpen(true)} disabled={processando}
               className="border-rose-500/40 text-rose-300 hover:bg-rose-500/10 gap-2 text-xs">
-              <Ban className="h-4 w-4" /> Cancelar cobrança
+              <XCircle className="h-4 w-4" /> Cancelar
             </Button>
-          )}
-          {podeEditar && (
-            <Button variant="outline" onClick={() => setCobrancaEditando(cobranca as any)} disabled={processando}
-              className="border-blue-500/40 text-blue-300 hover:bg-blue-500/10 gap-2 text-xs">
-              <Edit className="h-4 w-4" /> Editar
-            </Button>
-          )}
-          {cobranca.public_enabled !== false && (
-            <>
-              <Button variant="outline" onClick={() => window.open(`${window.location.origin}/cobranca/${cobranca.numero_documento || cobranca.codigo_operacional}/${cobranca.public_token || 'demo'}`, '_blank')} disabled={processando}
-                className="border-primary/40 text-primary hover:bg-primary/10 gap-2 text-xs">
-                <LinkIcon className="h-4 w-4" /> Pré-visualizar
-              </Button>
-              <Button variant="outline" onClick={() => window.open(generateWhatsAppLink(), '_blank')} disabled={processando}
-                className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 gap-2 text-xs">
-                <MessageCircle className="h-4 w-4" /> WhatsApp
-              </Button>
-            </>
           )}
           {situacao === 'PAGA' && (
             <span className="inline-flex items-center gap-2 text-xs text-emerald-400">
@@ -587,8 +598,8 @@ export default function BillingDetailPage() {
             <CardContent className="pt-4">
               {!(historico?.pagamentos || cobranca.pagamentos)?.length ? (
                 <div className="text-center py-6 space-y-2">
-                  <CalendarClock className="h-7 w-7 mx-auto text-slate-600" />
-                  <p className="text-sm text-slate-400">Nenhum pagamento registrado para esta cobrança.</p>
+                  <Ban className="h-6 w-6 mx-auto text-slate-600" />
+                  <p className="text-xs text-slate-500">Nenhum pagamento registrado.</p>
                 </div>
               ) : (
                 <div className="rounded-xl border border-white/10 overflow-x-auto">
@@ -612,6 +623,27 @@ export default function BillingDetailPage() {
                   </Table>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl rounded-2xl">
+            <CardHeader className="border-b border-white/10 pb-3">
+              <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                <MessageCircle className="h-4 w-4 text-emerald-400" /> Comunicação com cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              <p className="text-xs text-slate-400">
+                Abaixo está a mensagem padrão pronta para envio manual via WhatsApp.
+              </p>
+              <div className="p-3 bg-slate-950 rounded-lg border border-white/5 font-mono text-[11px] text-slate-300 whitespace-pre-wrap">
+                {textoWhatsAppBase()}
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={() => window.open(generateWhatsAppLink(), '_blank')} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-2">
+                  <Send className="h-4 w-4" /> Enviar WhatsApp Manual
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -714,6 +746,18 @@ export default function BillingDetailPage() {
           cobranca={cobrancaEditando}
           onSuccess={() => {
             setCobrancaEditando(null);
+            invalidar();
+          }}
+        />
+      )}
+
+      {pagamentoManualOpen && (
+        <ManualPaymentModal
+          isOpen={pagamentoManualOpen}
+          onClose={() => setPagamentoManualOpen(false)}
+          conta={cobranca as any}
+          onSuccess={() => {
+            setPagamentoManualOpen(false);
             invalidar();
           }}
         />

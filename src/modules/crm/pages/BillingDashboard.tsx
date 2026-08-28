@@ -4,10 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, Banknote, CalendarClock, CheckCircle2, Clock, Loader2,
   PlusCircle, RefreshCw, SearchX, ShieldAlert, ShieldBan, TrendingUp, Zap,
-  Edit, Eye, Link as LinkIcon, MessageCircle, MoreVertical
+  Edit, Eye, Link as LinkIcon, MessageCircle, MoreVertical, XCircle, DollarSign, Check
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { EditReceivableModal } from '../components/financeiro/EditReceivableModal';
+import { ManualPaymentModal } from '../components/financeiro/ManualPaymentModal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,6 +84,15 @@ export default function BillingDashboard() {
   const [processandoRegua, setProcessandoRegua] = useState(false);
   const [cobrancaEditando, setCobrancaEditando] = useState<any | null>(null);
 
+  const [pagamentoManualAberto, setPagamentoManualAberto] = useState(false);
+  const [cobrancaParaPagamento, setCobrancaParaPagamento] = useState<any | null>(null);
+
+  const [baixaAberto, setBaixaAberto] = useState(false);
+  const [cobrancaParaBaixa, setCobrancaParaBaixa] = useState<any | null>(null);
+
+  const [cancelarAberto, setCancelarAberto] = useState(false);
+  const [cobrancaParaCancelar, setCobrancaParaCancelar] = useState<any | null>(null);
+
   const podeAcessar = isOwner || isAdmin;
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
@@ -138,8 +148,8 @@ export default function BillingDashboard() {
 
   const generateWhatsAppLink = (conta: any) => {
     const numDoc = conta.numero_documento || conta.codigo_operacional;
-    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${conta.public_token || 'demo'}`;
-    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
+    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${conta.public_token || ''}`;
+    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || conta.nomeCliente || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
@@ -244,6 +254,45 @@ export default function BillingDashboard() {
       refetch();
     } finally {
       setProcessandoRegua(false);
+    }
+  };
+
+  const handleRegistrarBaixa = async () => {
+    if (!cobrancaParaBaixa) return;
+    try {
+      const res = await financeiroService.marcarComoPaga(
+        cobrancaParaBaixa.id,
+        Number(cobrancaParaBaixa.saldo || cobrancaParaBaixa.valor || 0),
+        cobrancaParaBaixa.metodo_cobranca || 'PIX',
+        { origin: 'DASHBOARD_MANUAL' }
+      );
+      if (res.success) {
+        toast({ title: 'Sucesso', description: 'Cobrança marcada como paga.' });
+        setBaixaAberto(false);
+        setCobrancaParaBaixa(null);
+        refetch();
+      } else {
+        toast({ title: 'Erro', description: res.error || 'Erro ao registrar baixa.', variant: 'destructive' });
+      }
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  const handleCancelarCobranca = async () => {
+    if (!cobrancaParaCancelar) return;
+    try {
+      const res = await financeiroService.cancelarCobranca(cobrancaParaCancelar.id, { origin: 'DASHBOARD_MANUAL' });
+      if (res.success) {
+        toast({ title: 'Cancelada', description: 'A cobrança foi cancelada com sucesso.' });
+        setCancelarAberto(false);
+        setCobrancaParaCancelar(null);
+        refetch();
+      } else {
+        toast({ title: 'Erro', description: res.error || 'Erro ao cancelar cobrança.', variant: 'destructive' });
+      }
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     }
   };
 
@@ -553,7 +602,7 @@ export default function BillingDashboard() {
                             size="sm"
                             variant="ghost"
                             title="Editar Cobrança"
-                            onClick={() => setCobrancaEditando(c as any)}
+                            onClick={(e) => { e.stopPropagation(); setCobrancaEditando(c as any); }}
                             className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-400/10"
                           >
                             <Edit className="h-4 w-4" />
@@ -563,8 +612,8 @@ export default function BillingDashboard() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          title="Pré-visualizar Cobrança"
-                          onClick={() => window.open(`${window.location.origin}/cobranca/${c.numero_documento || c.codigo_operacional}/${c.public_token || 'demo'}`, '_blank')}
+                          title="Pré-visualizar como cliente"
+                          onClick={(e) => { e.stopPropagation(); window.open(`${window.location.origin}/cobranca/${c.numero_documento || c.codigo_operacional}/${c.public_token || ''}`, '_blank'); }}
                           className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
                         >
                           <LinkIcon className="h-4 w-4" />
@@ -573,12 +622,46 @@ export default function BillingDashboard() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          title="Enviar via WhatsApp"
-                          onClick={() => window.open(generateWhatsAppLink(c), '_blank')}
+                          title="WhatsApp"
+                          onClick={(e) => { e.stopPropagation(); window.open(generateWhatsAppLink(c), '_blank'); }}
                           className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
                         >
                           <MessageCircle className="h-4 w-4" />
                         </Button>
+
+                        {c.status !== 'CANCELADO' && c.status !== 'PAGO' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Registrar pagamento"
+                              onClick={(e) => { e.stopPropagation(); setCobrancaParaPagamento(c as any); setPagamentoManualAberto(true); }}
+                              className="h-8 w-8 p-0 text-amber-400 hover:text-amber-300 hover:bg-amber-400/10"
+                            >
+                              <DollarSign className="h-4 w-4" />
+                            </Button>
+                            
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Marcar como paga"
+                              onClick={(e) => { e.stopPropagation(); setCobrancaParaBaixa(c as any); setBaixaAberto(true); }}
+                              className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Cancelar cobrança"
+                              onClick={(e) => { e.stopPropagation(); setCobrancaParaCancelar(c as any); setCancelarAberto(true); }}
+                              className="h-8 w-8 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-400/10"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -623,6 +706,69 @@ export default function BillingDashboard() {
           }}
         />
       )}
+
+      {pagamentoManualAberto && cobrancaParaPagamento && (
+        <ManualPaymentModal
+          isOpen={pagamentoManualAberto}
+          onClose={() => { setPagamentoManualAberto(false); setCobrancaParaPagamento(null); }}
+          conta={cobrancaParaPagamento as any}
+          onSuccess={() => {
+            setPagamentoManualAberto(false);
+            setCobrancaParaPagamento(null);
+            refetch();
+          }}
+        />
+      )}
+
+      <Dialog open={baixaAberto} onOpenChange={setBaixaAberto}>
+        <DialogContent className="bg-slate-950 border border-emerald-500/30 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-emerald-400">Registrar baixa total</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-sm text-slate-300">
+              Tem certeza que deseja marcar a cobrança <strong>{cobrancaParaBaixa?.numero_documento || cobrancaParaBaixa?.codigo_operacional}</strong> como PAGA?
+            </p>
+            <p className="text-xs text-slate-500">
+              Esta ação liquidará o saldo restante de {brl(cobrancaParaBaixa?.saldo || cobrancaParaBaixa?.valor || 0)} e atualizará o status da cobrança.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBaixaAberto(false)} className="text-slate-400 hover:text-white">
+              Cancelar
+            </Button>
+            <Button onClick={handleRegistrarBaixa} className="bg-emerald-600 hover:bg-emerald-500 text-white">
+              Confirmar baixa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cancelarAberto} onOpenChange={setCancelarAberto}>
+        <DialogContent className="bg-slate-950 border border-rose-500/30 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-rose-400 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" /> Cancelar cobrança
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-sm text-slate-300">
+              Tem certeza que deseja cancelar a cobrança <strong>{cobrancaParaCancelar?.numero_documento || cobrancaParaCancelar?.codigo_operacional}</strong>?
+            </p>
+            <p className="text-xs text-rose-400/80 bg-rose-950/30 p-3 rounded-lg border border-rose-500/20">
+              O cancelamento é irreversível. O histórico e as baixas já realizadas serão preservados para fins de auditoria.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCancelarAberto(false)} className="text-slate-400 hover:text-white">
+              Voltar
+            </Button>
+            <Button onClick={handleCancelarCobranca} variant="destructive" className="bg-rose-600 hover:bg-rose-500 text-white">
+              Sim, cancelar cobrança
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
