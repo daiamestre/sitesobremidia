@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DollarSign, CheckCircle2, ArrowLeft, CreditCard, MessageCircle, Edit, Eye, Link } from 'lucide-react';
+import { getPublicBillingUrl } from '@/lib/billing';
 import { ContaReceberCompleta } from '../../services/financeiro.service';
 import { useToast } from '@/hooks/use-toast';
 import { EditReceivableModal } from './EditReceivableModal';
@@ -20,7 +21,7 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
 
-  const urlPublica = `${window.location.origin}/cobranca/${conta.numero_documento}/${conta.public_token}`;
+  const urlPublica = getPublicBillingUrl(conta);
 
   const handleCancel = async () => {
     if (!confirm('Tem certeza que deseja cancelar esta cobrança?')) return;

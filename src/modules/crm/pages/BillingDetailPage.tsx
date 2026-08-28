@@ -3,11 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, BadgeCheck, Ban, Banknote, CalendarClock, CheckCircle2, Copy, CreditCard,
-  Loader2, Mail, RotateCcw, Send, ShieldAlert, ShieldBan, Edit, Link as LinkIcon, MessageCircle, DollarSign, XCircle, Check
+  Loader2, Mail, RotateCcw, Send, ShieldAlert, ShieldBan, Edit, Link as LinkIcon, MessageCircle, DollarSign, XCircle, Check, Eye
 } from 'lucide-react';
 import { EditReceivableModal } from '../components/financeiro/EditReceivableModal';
 import { ManualPaymentModal } from '../components/financeiro/ManualPaymentModal';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getPublicBillingUrl } from '@/lib/billing';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -263,16 +264,14 @@ export default function BillingDetailPage() {
 
   const generateWhatsAppLink = () => {
     if (!cobranca) return '';
-    const numDoc = cobranca.numero_documento || cobranca.codigo_operacional;
-    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${cobranca.public_token || ''}`;
+    const urlPublica = getPublicBillingUrl(cobranca);
     const text = `Olá, ${cobranca.cliente?.empresas?.[0]?.nome_fantasia || cobranca.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${cobranca.competencia_date ? ` referente à competência ${String(cobranca.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(cobranca.saldo ?? cobranca.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(cobranca.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
   
   const textoWhatsAppBase = () => {
     if (!cobranca) return '';
-    const numDoc = cobranca.numero_documento || cobranca.codigo_operacional;
-    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${cobranca.public_token || ''}`;
+    const urlPublica = getPublicBillingUrl(cobranca);
     return `Olá, ${cobranca.cliente?.empresas?.[0]?.nome_fantasia || cobranca.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${cobranca.competencia_date ? ` referente à competência ${String(cobranca.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(cobranca.saldo ?? cobranca.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(cobranca.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
   };
 
@@ -425,7 +424,7 @@ export default function BillingDetailPage() {
             </Button>
           )}
           {podeDarBaixa && (
-            <Button variant="outline" onClick={() => setPagamentoManualAberto(true)} disabled={processando}
+            <Button variant="outline" onClick={() => setPagamentoManualOpen(true)} disabled={processando}
               className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 gap-2 text-xs">
               <DollarSign className="h-4 w-4" /> Registrar pagamento
             </Button>
@@ -436,9 +435,11 @@ export default function BillingDetailPage() {
               <Check className="h-4 w-4" /> Marcar como paga
             </Button>
           )}
-          <Button variant="outline" onClick={() => window.open(`${window.location.origin}/cobranca/${cobranca.numero_documento || cobranca.codigo_operacional}/${cobranca.public_token || ''}`, '_blank')} disabled={processando}
-            className="border-primary/40 text-primary hover:bg-primary/10 gap-2 text-xs">
-            <LinkIcon className="h-4 w-4" /> Pré-visualizar
+          <Button variant="outline" onClick={() => {
+            const link = getPublicBillingUrl(cobranca);
+            if(link) window.open(link, '_blank');
+          }} disabled={processando} className="flex-1 border-primary/20 text-primary hover:bg-primary/5">
+            <Eye className="w-4 h-4 mr-2" /> Pré-visualizar como cliente
           </Button>
           <Button variant="outline" onClick={() => window.open(generateWhatsAppLink(), '_blank')} disabled={processando}
             className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 gap-2 text-xs">

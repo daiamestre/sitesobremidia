@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, Banknote, CalendarClock, CheckCircle2, Clock, Loader2,
   PlusCircle, RefreshCw, SearchX, ShieldAlert, ShieldBan, TrendingUp, Zap,
-  Edit, Eye, Link as LinkIcon, MessageCircle, MoreVertical, XCircle, DollarSign, Check
+  Download, Upload, ExternalLink, Link as LinkIcon, Edit, Eye, MessageCircle, FileText, XCircle, DollarSign, Check
 } from 'lucide-react';
+import { getPublicBillingUrl } from '@/lib/billing';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { EditReceivableModal } from '../components/financeiro/EditReceivableModal';
 import { ManualPaymentModal } from '../components/financeiro/ManualPaymentModal';
@@ -147,8 +148,7 @@ export default function BillingDashboard() {
   };
 
   const generateWhatsAppLink = (conta: any) => {
-    const numDoc = conta.numero_documento || conta.codigo_operacional;
-    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${conta.public_token || ''}`;
+  const urlPublica = getPublicBillingUrl(conta);
     const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || conta.nomeCliente || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
@@ -613,7 +613,11 @@ export default function BillingDashboard() {
                           size="sm"
                           variant="ghost"
                           title="Pré-visualizar como cliente"
-                          onClick={(e) => { e.stopPropagation(); window.open(`${window.location.origin}/cobranca/${c.numero_documento || c.codigo_operacional}/${c.public_token || ''}`, '_blank'); }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const link = getPublicBillingUrl(c);
+                          if(link) window.open(link, '_blank'); 
+                        }}
                           className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
                         >
                           <LinkIcon className="h-4 w-4" />

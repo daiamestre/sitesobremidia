@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DollarSign, Eye, Plus, Edit, Link, MessageCircle } from 'lucide-react';
+import { getPublicBillingUrl } from '@/lib/billing';
 import { ContaReceberCompleta } from '../../services/financeiro.service';
 import { NewReceivableModal } from './NewReceivableModal';
 import { EditReceivableModal } from './EditReceivableModal';
@@ -65,8 +66,8 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
   };
 
   const generateWhatsAppLink = (conta: ContaReceberCompleta) => {
-    const urlPublica = `${window.location.origin}/cobranca/${conta.numero_documento}/${conta.public_token}`;
-    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
+    const urlPublica = getPublicBillingUrl(conta);
+    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || conta.nomeCliente || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
@@ -207,7 +208,10 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
                               size="sm"
                               variant="ghost"
                               title="Pré-visualizar como Cliente"
-                              onClick={() => window.open(`${window.location.origin}/cobranca/${c.numero_documento}/${c.public_token}`, '_blank')}
+                              onClick={() => {
+                                const link = getPublicBillingUrl(c);
+                                if(link) window.open(link, '_blank');
+                              }}
                               className="h-7 px-2 text-primary hover:text-primary hover:bg-primary/10"
                             >
                               <Link className="h-4 w-4 mr-1" />
