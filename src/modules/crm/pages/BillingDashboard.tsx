@@ -138,7 +138,7 @@ export default function BillingDashboard() {
 
   const generateWhatsAppLink = (conta: any) => {
     const numDoc = conta.numero_documento || conta.codigo_operacional;
-    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${conta.public_token}`;
+    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${conta.public_token || 'demo'}`;
     const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
@@ -543,40 +543,42 @@ export default function BillingDashboard() {
                           variant="ghost"
                           title="Detalhes da Cobrança"
                           onClick={() => navigate(rotaCobranca(c))}
-                          className="h-8 px-2 text-slate-300 hover:text-white hover:bg-white/10 hidden sm:flex"
+                          className="h-8 w-8 p-0 text-slate-300 hover:text-white hover:bg-white/10"
                         >
-                          <Eye className="h-4 w-4 sm:mr-1" />
-                          <span className="hidden xl:inline text-xs">Visualizar</span>
+                          <Eye className="h-4 w-4" />
                         </Button>
                         
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-white/10">
-                              <span className="sr-only">Abrir menu</span>
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-slate-900 border-white/10 text-slate-300 w-48">
-                            <DropdownMenuItem onClick={() => navigate(rotaCobranca(c))} className="hover:bg-white/10 focus:bg-white/10 cursor-pointer sm:hidden">
-                              <Eye className="mr-2 h-4 w-4" /> Detalhes
-                            </DropdownMenuItem>
-                            {c.status !== 'CANCELADO' && c.status !== 'PAGO' && (
-                              <DropdownMenuItem onClick={() => setCobrancaEditando(c as any)} className="hover:bg-white/10 focus:bg-white/10 cursor-pointer text-blue-400 focus:text-blue-300">
-                                <Edit className="mr-2 h-4 w-4" /> Editar
-                              </DropdownMenuItem>
-                            )}
-                            {c.public_token && c.public_enabled && (
-                              <>
-                                <DropdownMenuItem onClick={() => window.open(`${window.location.origin}/cobranca/${c.numero_documento || c.codigo_operacional}/${c.public_token}`, '_blank')} className="hover:bg-white/10 focus:bg-white/10 cursor-pointer text-primary focus:text-primary">
-                                  <LinkIcon className="mr-2 h-4 w-4" /> Pré-visualizar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => window.open(generateWhatsAppLink(c), '_blank')} className="hover:bg-white/10 focus:bg-white/10 cursor-pointer text-emerald-400 focus:text-emerald-300">
-                                  <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {c.status !== 'CANCELADO' && c.status !== 'PAGO' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Editar Cobrança"
+                            onClick={() => setCobrancaEditando(c as any)}
+                            className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-400/10"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Pré-visualizar Cobrança"
+                          onClick={() => window.open(`${window.location.origin}/cobranca/${c.numero_documento || c.codigo_operacional}/${c.public_token || 'demo'}`, '_blank')}
+                          className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
+                        >
+                          <LinkIcon className="h-4 w-4" />
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Enviar via WhatsApp"
+                          onClick={() => window.open(generateWhatsAppLink(c), '_blank')}
+                          className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -262,7 +262,7 @@ export default function BillingDetailPage() {
   const generateWhatsAppLink = () => {
     if (!cobranca) return '';
     const numDoc = cobranca.numero_documento || cobranca.codigo_operacional;
-    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${cobranca.public_token}`;
+    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${cobranca.public_token || 'demo'}`;
     const text = `Olá, ${cobranca.cliente?.empresas?.[0]?.nome_fantasia || cobranca.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${cobranca.competencia_date ? ` referente à competência ${String(cobranca.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(cobranca.saldo ?? cobranca.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(cobranca.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
@@ -433,9 +433,9 @@ export default function BillingDetailPage() {
               <Edit className="h-4 w-4" /> Editar
             </Button>
           )}
-          {cobranca.public_token && cobranca.public_enabled && (
+          {cobranca.public_enabled !== false && (
             <>
-              <Button variant="outline" onClick={() => window.open(`${window.location.origin}/cobranca/${cobranca.numero_documento || cobranca.codigo_operacional}/${cobranca.public_token}`, '_blank')} disabled={processando}
+              <Button variant="outline" onClick={() => window.open(`${window.location.origin}/cobranca/${cobranca.numero_documento || cobranca.codigo_operacional}/${cobranca.public_token || 'demo'}`, '_blank')} disabled={processando}
                 className="border-primary/40 text-primary hover:bg-primary/10 gap-2 text-xs">
                 <LinkIcon className="h-4 w-4" /> Pré-visualizar
               </Button>
