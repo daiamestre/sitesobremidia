@@ -62,18 +62,6 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
               >
                 <Link className="h-4 w-4" /> Copiar Link
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const nomeCliente = conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente';
-                  const comp = conta.competencia ? ` referente a competência ${conta.competencia}` : '';
-                  const text = `Olá, ${nomeCliente}! Sua cobrança da SOBRE MÍDIA${comp} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar e realizar o pagamento:\n${urlPublica}`;
-                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-                }}
-                className="border-green-500/50 text-green-500 text-xs rounded-xl gap-1 hover:bg-green-500/10"
-              >
-                <MessageCircle className="h-4 w-4" /> WhatsApp
-              </Button>
             </>
           )}
 
@@ -112,22 +100,72 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Informações Auxiliares */}
           <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-2 text-xs">
             <h4 className="font-bold text-white mb-2 flex items-center gap-2"><CreditCard className="w-4 h-4 text-slate-400" /> Dados da Cobrança</h4>
-            <p className="text-slate-300 flex justify-between"><span className="text-slate-500">Cliente:</span> <span>{conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}</span></p>
+            <p className="text-slate-300 flex justify-between"><span className="text-slate-500">Cliente:</span> <span className="text-right">{conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}</span></p>
             <p className="text-slate-300 flex justify-between"><span className="text-slate-500">Contrato:</span> <span>{conta.contrato?.numero_contrato || 'Avulso'}</span></p>
             <p className="text-slate-300 flex justify-between"><span className="text-slate-500">Competência:</span> <span>{conta.competencia || 'N/A'}</span></p>
-            <p className="text-slate-300 flex justify-between"><span className="text-slate-500">Observações:</span> <span>{conta.notes || '—'}</span></p>
+            <p className="text-slate-300 flex justify-between"><span className="text-slate-500">Observações:</span> <span className="text-right max-w-[150px] truncate" title={conta.notes || ''}>{conta.notes || '—'}</span></p>
           </div>
           
-          {/* Histórico Resumido (Pagamentos e Conciliação poderiam ir aqui) */}
-           <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-2 text-xs">
+          {/* Histórico Resumido */}
+          <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-2 text-xs">
             <h4 className="font-bold text-white mb-2">Resumo Operacional</h4>
             <p className="text-slate-300 flex justify-between"><span className="text-slate-500">Status Financeiro:</span> <strong className="text-primary">{conta.status}</strong></p>
             <p className="text-slate-300 flex justify-between"><span className="text-slate-500">Qtd. Recebimentos:</span> <span>{conta.pagamentos?.length || 0}</span></p>
             <p className="text-slate-300 flex justify-between"><span className="text-slate-500">Régua de Cobrança:</span> <span>{conta.status === 'PAGO' ? 'Finalizada' : 'Em andamento'}</span></p>
+          </div>
+
+          {/* Comunicação com Cliente */}
+          <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-3 text-xs md:col-span-2 lg:col-span-1">
+            <h4 className="font-bold text-white mb-2 flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-green-400" /> Comunicação com Cliente
+            </h4>
+            
+            {conta.public_token && conta.public_enabled ? (
+              <div className="space-y-3">
+                <div className="bg-slate-900 rounded p-3 text-slate-300 font-mono text-[10px] sm:text-xs leading-relaxed border border-white/5 relative">
+                  {`Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!
+Sua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.
+
+Valor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Vencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}
+
+Acesse o link abaixo para visualizar sua cobrança:
+${urlPublica}
+
+Em caso de dúvidas, estamos à disposição.
+SOBRE MÍDIA`}
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 border-white/10 text-slate-300 hover:bg-white/5 h-8 text-xs"
+                    onClick={() => {
+                      const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.\nSOBRE MÍDIA`;
+                      navigator.clipboard.writeText(text);
+                      toast({ title: 'Mensagem Copiada', description: 'O texto está pronto para ser colado.' });
+                    }}
+                  >
+                    Copiar Mensagem
+                  </Button>
+                  <Button
+                    className="flex-1 bg-green-600 hover:bg-green-500 text-white border-transparent h-8 text-xs"
+                    onClick={() => {
+                      const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.\nSOBRE MÍDIA`;
+                      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                    }}
+                  >
+                    Abrir WhatsApp
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-slate-500 text-xs italic">A página pública desta cobrança está desativada. Não é possível gerar o link de pagamento.</p>
+            )}
           </div>
         </div>
 
