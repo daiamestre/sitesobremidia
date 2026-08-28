@@ -18,6 +18,7 @@ interface PublicBillingData {
   id: string;
   numero_documento: string;
   codigo_operacional: string;
+  public_identifier: string;
   competencia: string;
   vencimento: string;
   valor_original: number;
@@ -40,14 +41,14 @@ interface PublicBillingData {
 }
 
 export default function PaginaCobranca() {
-  const { codigo, token } = useParams<{ codigo: string; token: string }>();
+  const { codigo, identificador } = useParams<{ codigo: string; identificador: string }>();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PublicBillingData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchBilling() {
-      if (!codigo || !token) {
+      if (!codigo || !identificador) {
         setError('Link de cobrança inválido.');
         setLoading(false);
         return;
@@ -56,7 +57,7 @@ export default function PaginaCobranca() {
       try {
         const { data: result, error: rpcError } = await supabase.rpc('rpc_get_public_billing', {
           p_codigo: codigo,
-          p_token: token,
+          p_identifier: identificador,
         });
 
         if (rpcError) {
@@ -74,7 +75,7 @@ export default function PaginaCobranca() {
     }
 
     fetchBilling();
-  }, [codigo, token]);
+  }, [codigo, identificador]);
 
   if (loading) {
     return (
@@ -155,7 +156,10 @@ export default function PaginaCobranca() {
           <div className="mt-4 flex flex-col items-center gap-1">
             <span className="text-lg font-semibold text-primary">{data.cliente_nome}</span>
             <span className="text-md text-gray-600 font-mono bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
-              {data.numero_documento || data.codigo_operacional}
+              {data.codigo_operacional}
+            </span>
+            <span className="text-sm text-gray-500 font-mono mt-1">
+              Ref: {data.public_identifier}
             </span>
           </div>
           

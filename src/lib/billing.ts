@@ -13,10 +13,10 @@ export function getPublicBillingUrl(cobranca: any): string {
   // OBRIGATÓRIO: Usar apenas o código operacional, pois o número do documento
   // pode conter barras (ex: CTR-8001/08/2026) que quebram o React Router.
   const codigo = cobranca.codigo_operacional;
-  const token = cobranca.public_token;
+  const identificador = cobranca.public_identifier;
 
-  if (!codigo || !token) return '';
-  if (token === 'demo' || codigo === 'demo') return '';
+  if (!codigo || !identificador) return '';
+  if (identificador === 'demo' || codigo === 'demo') return '';
 
-  return `${window.location.origin}/cobranca/${encodeURIComponent(codigo)}/${token}`;
+  return `${window.location.origin}/cobranca/${encodeURIComponent(codigo)}/${identificador}`;
 }

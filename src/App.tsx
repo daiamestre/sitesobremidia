@@ -149,7 +149,7 @@ const App = () => {
                   <Routes>
                   {/* PUBLIC ROUTES */}
                   <Route path="/" element={<Index />} />
-                  <Route path="/cobranca/:codigo/:token" element={<PaginaCobranca />} />
+                  <Route path="/cobranca/:codigo/:identificador" element={<PaginaCobranca />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/corporate" element={<Auth />} />
                   <Route path="/auth/forgot-password" element={<ForgotPassword />} />
