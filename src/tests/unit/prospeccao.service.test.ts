@@ -91,30 +91,31 @@ describe('prospeccao.service — seleção de pontos (missão §9-§10)', () => 
 describe('prospeccao.service — cadastro de PONTO PARCEIRO (missão §11-§15)', () => {
   beforeEach(() => rpcMock.mockReset());
 
-  it('criarPontoParceiro grava na tabela `pontos` e retorna código EST- gerado pelo trigger', async () => {
-    const insertMock = vi.fn().mockResolvedValue({
-      data: [{ id: 'uuid-1', codigo_publico: 'EST-000001' }],
+  it('criarPontoParceiro grava via RPC criar_ponto_parceiro_prospeccao e retorna código EST- gerado pelo trigger', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: { id: 'uuid-1', codigo_publico: 'EST-000001' },
       error: null,
     });
-    const { supabase } = await import('@/integrations/supabase/client');
-    (supabase.from as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-      insert: insertMock,
-    } as never);
 
     const r = await prospeccaoService.criarPontoParceiro(PAYLOAD_BASE);
-    expect(insertMock).toHaveBeenCalledTimes(1);
-    const arg = insertMock.mock.calls[0][0] as Record<string, unknown>;
-    expect(arg.nome).toBe('Padaria São José');
-    expect(arg.quantidade_telas).toBe(2);
-    expect(arg.disponibilidade).toBe('DISPONIVEL');
-    expect(String(arg.regras_comerciais)).toContain('MODELO COMERCIAL: COMISSIONADO');
+    expect(rpcMock).toHaveBeenCalledWith(
+      'criar_ponto_parceiro_prospeccao',
+      expect.objectContaining({
+        p_dados: expect.objectContaining({
+          nome: 'Padaria São José',
+          quantidade_telas: 2,
+          modelo_comercial: 'COMISSIONADO',
+        }),
+      })
+    );
+    const callArg = rpcMock.mock.calls[0][1] as { p_dados: Record<string, unknown> };
+    expect(String(callArg.p_dados.regras_comerciais)).toContain('MODELO COMERCIAL: COMISSIONADO');
     expect(r.codigo_publico).toBe('EST-000001');
+    expect(r.id).toBe('uuid-1');
   });
 
   it('propaga erro (ex.: CNPJ/validação) sem mascarar', async () => {
-    const insertMock = vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } });
-    const { supabase } = await import('@/integrations/supabase/client');
-    (supabase.from as ReturnType<typeof vi.fn>).mockReturnValueOnce({ insert: insertMock } as never);
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
     await expect(prospeccaoService.criarPontoParceiro(PAYLOAD_BASE)).rejects.toThrow('boom');
   });
 });
@@ -124,13 +125,12 @@ describe('prospeccao.service — provisionamento de GESTOR (missão §20-§22)',
 
   it('usa o mecanismo oficial com perfil GESTOR fixo, SEM clienteId e com metadados de prospecção', async () => {
     const { corporateUsersService } = await import('@/services/corporateUsers.service');
-    // perfis query
     const maybeSingle = vi.fn().mockResolvedValue({ data: { id: 'perfil-gestor-uuid' }, error: null });
-    const eqAtivo = vi.fn(() => ({ maybeSingle }));
-    const eqNome = vi.fn(() => ({ eq: eqAtivo }));
+    const eqAtivo = vi.fn(() => ({ maybeSingle } as any));
+    const eqNome = vi.fn(() => ({ eq: eqAtivo } as any));
     const { supabase } = await import('@/integrations/supabase/client');
     (supabase.from as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-      select: () => ({ eq: eqNome }),
+      select: vi.fn(() => ({ eq: eqNome } as any)),
     } as never);
 
     const r = await prospeccaoService.provisionarGestor({
@@ -154,11 +154,11 @@ describe('prospeccao.service — provisionamento de GESTOR (missão §20-§22)',
 
   it('falha claramente se o perfil GESTOR não existir', async () => {
     const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
-    const eqAtivo = vi.fn(() => ({ maybeSingle }));
-    const eqNome = vi.fn(() => ({ eq: eqAtivo }));
+    const eqAtivo = vi.fn(() => ({ maybeSingle } as any));
+    const eqNome = vi.fn(() => ({ eq: eqAtivo } as any));
     const { supabase } = await import('@/integrations/supabase/client');
     (supabase.from as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-      select: () => ({ eq: eqNome }),
+      select: vi.fn(() => ({ eq: eqNome } as any)),
     } as never);
     await expect(prospeccaoService.provisionarGestor({ nome: 'X', email: 'x@y.z' })).rejects.toThrow(
       /GESTOR/

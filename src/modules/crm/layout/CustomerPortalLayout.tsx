@@ -102,6 +102,7 @@ export default function CustomerPortalLayout() {
     {
       label: 'Conta',
       items: [
+        { name: 'Meu Perfil',    path: '/portal/perfil',         icon: Briefcase },
         { name: 'Minha Equipe',  path: '/portal/equipe',         icon: Users },
         { name: 'Suporte',       path: '/portal/central',        icon: LifeBuoy },
         { name: 'Configurações', path: '/portal/configuracoes',  icon: Settings },
@@ -142,6 +143,7 @@ export default function CustomerPortalLayout() {
       paths.add('/portal/expansao');
       paths.add('/portal/financeiro');
       paths.add('/portal/central');
+      paths.add('/portal/perfil');
       paths.add('/portal/equipe');
       paths.add('/portal/configuracoes');
       paths.add('/portal/brand-kit');
@@ -267,10 +269,10 @@ export default function CustomerPortalLayout() {
 
       {/* ── Layout Principal ── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* ── Sidebar Lateral Persistente (desktop) ── */}
+        {/* ── Sidebar Lateral Persistente (desktop) — oculta em mobile para drawer ── */}
         <aside
           className={cn(
-            'w-64 bg-slate-950 border-r border-white/10 flex-shrink-0 flex flex-col overflow-y-auto sticky top-0 z-30 select-none',
+            'hidden lg:flex w-64 bg-slate-950 border-r border-white/10 flex-shrink-0 flex-col overflow-y-auto sticky top-0 h-[calc(100vh-4rem)] z-30 select-none',
           )}
         >
           {/* Navegação por grupos */}
@@ -426,8 +428,8 @@ export default function CustomerPortalLayout() {
           </div>
         )}
 
-        {/* ── Conteúdo Principal ── */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        {/* ── Conteúdo Principal — pb-20 evita sobreposição do MobileBottomNav ── */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8">
           <Outlet context={{ modalidade, cliente, isAnunciante: isAnuncianteOuHibrido, isHost: isHostOuHibrido }} />
         </main>
       </div>

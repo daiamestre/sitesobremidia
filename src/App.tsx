@@ -15,6 +15,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ChangePassword = lazy(() => import("./pages/ChangePassword"));
 const Install = lazy(() => import("./pages/Install"));
 const DevicePairingScreen = lazy(() => import("./pages/DevicePairingScreen"));
+const PaginaCobranca = lazy(() => import("./pages/PaginaCobranca"));
 const RepresentantesAuth = lazy(() => import("./pages/representantes/RepresentantesAuth"));
 const WorkspaceLayout = lazy(() => import("./modules/corporate/layout/WorkspaceLayout"));
 const CorporateCommandCenter = lazy(() => import("./modules/corporate/pages/CorporateCommandCenter"));
@@ -148,6 +149,7 @@ const App = () => {
                   <Routes>
                   {/* PUBLIC ROUTES */}
                   <Route path="/" element={<Index />} />
+                  <Route path="/cobranca/:codigo/:token" element={<PaginaCobranca />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/corporate" element={<Auth />} />
                   <Route path="/auth/forgot-password" element={<ForgotPassword />} />

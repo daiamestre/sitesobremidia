@@ -128,9 +128,9 @@ export default function OccupancyDashboard() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border border-white/10 bg-slate-900/80 rounded-2xl"><CardContent className="p-4"><span className="text-slate-400 text-xs font-semibold block">Taxa Média de Ocupação</span><strong className="text-xl font-bold text-amber-400">{stats?.taxaOcupacao ?? 78.4}%</strong><span className="text-xs text-slate-500"> ocupados vs. rede</span></CardContent></Card>
-        <Card className="border border-white/10 bg-slate-900/80 rounded-2xl"><CardContent className="p-4"><span className="text-slate-400 text-xs font-semibold block">Tempo Disponível Comercializável</span><strong className="text-xl font-bold text-emerald-400">{stats? (100-stats.taxaOcupacao).toFixed(1):21.6}%</strong></CardContent></Card>
-        <Card className="border border-white/10 bg-slate-900/80 rounded-2xl"><CardContent className="p-4"><span className="text-slate-400 text-xs font-semibold block">Receita Média por Tela</span><strong className="text-xl font-bold text-purple-400">R$ {stats?.receitaMediaPorTela.toLocaleString('pt-BR')}/mês</strong></CardContent></Card>
+        <Card className="border border-white/10 bg-slate-900/80 rounded-2xl"><CardContent className="p-4"><span className="text-slate-400 text-xs font-semibold block">Taxa Média de Ocupação</span><strong className="text-xl font-bold text-amber-400">{stats != null ? stats.taxaOcupacao : 0}%</strong><span className="text-xs text-slate-500"> ocupados vs. rede</span></CardContent></Card>
+        <Card className="border border-white/10 bg-slate-900/80 rounded-2xl"><CardContent className="p-4"><span className="text-slate-400 text-xs font-semibold block">Tempo Disponível Comercializável</span><strong className="text-xl font-bold text-emerald-400">{stats != null ? (100-stats.taxaOcupacao).toFixed(1) : '0.0'}%</strong></CardContent></Card>
+        <Card className="border border-white/10 bg-slate-900/80 rounded-2xl"><CardContent className="p-4"><span className="text-slate-400 text-xs font-semibold block">Receita Média por Tela</span><strong className="text-xl font-bold text-purple-400">R$ {stats != null ? stats.receitaMediaPorTela.toLocaleString('pt-BR') : '0'}/mês</strong></CardContent></Card>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">

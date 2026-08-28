@@ -10,6 +10,7 @@ import {
   Loader2,
   CheckCircle2,
   Inbox,
+  Menu,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -26,7 +27,7 @@ import { centralService } from '@/services/central.service';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/utils/formatters';
 
-export function CrmHeader() {
+export function CrmHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { userInitials, userName, userEmail } = useCrmSession();
@@ -42,10 +43,21 @@ export function CrmHeader() {
   });
 
   return (
-    <header className="sticky top-0 z-20 bg-slate-950/80 backdrop-blur-md border-b border-white/10 px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-20 bg-slate-950/80 backdrop-blur-md border-b border-white/10 px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sm:gap-4">
       {/* Left Title & Mobile Brand */}
-      <div className="flex items-center gap-3">
-        <div className="md:hidden">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {onMenuClick && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onMenuClick}
+            aria-label="Abrir menu"
+            className="md:hidden text-slate-300 hover:text-white hover:bg-white/10 flex-shrink-0 h-9 w-9"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <div className="md:hidden flex-shrink-0">
           <Logo size="sm" />
         </div>
         <div className="hidden md:flex items-center gap-2">
@@ -166,14 +178,15 @@ export function CrmHeader() {
           </div>
         </div>
 
-        {/* MAIN TOP RIGHT BUTTON: + Novo Cliente */}
+        {/* MAIN TOP RIGHT BUTTON: + Novo Cliente — responsivo */}
         <Button
           onClick={() => navigate(`${basePath}/clientes/novo`)}
           size="lg"
-          className="gradient-primary glow-primary font-bold text-sm px-5 py-2.5 h-10 rounded-xl shadow-xl transition-all duration-300 hover:scale-105 gap-2"
+          className="gradient-primary glow-primary font-bold text-sm px-3 sm:px-5 py-2.5 h-9 sm:h-10 rounded-xl shadow-xl transition-all duration-300 hover:scale-105 gap-1.5 sm:gap-2 flex-shrink-0"
         >
           <Plus className="h-4 w-4" />
-          <span>+ Novo Cliente</span>
+          <span className="hidden sm:inline">+ Novo Cliente</span>
+          <span className="sm:hidden">Novo</span>
         </Button>
       </div>
     </header>

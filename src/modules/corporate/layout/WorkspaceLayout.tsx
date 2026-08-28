@@ -5,10 +5,13 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { CrmSidebar } from "@/modules/crm/components/Sidebar";
 import { CrmHeader } from "@/modules/crm/components/Header";
 import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
+import { useState } from "react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 export default function WorkspaceLayout() {
   const { isAuthenticated, isApproved, loading } = useAuth();
   const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   if (loading) {
     return (
@@ -30,9 +33,14 @@ export default function WorkspaceLayout() {
         <div className="hidden md:block">
           <CrmSidebar />
         </div>
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetContent side="left" className="p-0 w-72 bg-slate-950 border-white/10 overflow-y-auto">
+            <CrmSidebar onNavigate={() => setMobileOpen(false)} />
+          </SheetContent>
+        </Sheet>
         <main className="flex-1 flex flex-col min-w-0 min-h-screen">
-          <CrmHeader />
-          <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 bg-background animate-in fade-in duration-300">
+          <CrmHeader onMenuClick={() => setMobileOpen(true)} />
+          <div className="flex-1 overflow-y-auto w-full p-4 sm:p-6 lg:p-8 bg-background animate-in fade-in duration-300">
             <Outlet />
           </div>
         </main>

@@ -142,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // REGRA: OWNER e ADMIN têm acesso soberano. Os demais dependem do status em solicitacoes_acesso.
       // NÃO usar usuario.status como bypass — a fonte de verdade é solicitacoes_acesso.
-      if (usuarioData?.is_owner || usuarioData?.perfil?.nome === 'OWNER' || usuarioData?.perfil?.nome === 'ADMIN' || usuarioData?.role?.name === 'OWNER') {
+      if (usuarioData?.is_owner || usuarioData?.perfil?.nome === 'OWNER' || usuarioData?.perfil?.nome === 'ADMIN') {
         computedStatus = 'APPROVED';
       } else if (solData && solData.status) {
         computedStatus = solData.status as typeof computedStatus;
@@ -151,9 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setSolicitacaoStatus(computedStatus);
-      // PRIORIDADE: perfilNome vem do cadastro do usuário (perfil?.nome ou role?.name)
+      // PRIORIDADE: perfilNome vem exclusivamente da fonte oficial (perfil?.nome || is_owner fallback)
       // O flag is_owner NUNCA deve sobrescrever o perfil identificado — evita que Representante seja visto como OWNER
-      const perfilNome = usuarioData?.perfil?.nome || usuarioData?.role?.name || (usuarioData?.is_owner ? 'OWNER' : null);
+      const perfilNome = usuarioData?.perfil?.nome || (usuarioData?.is_owner ? 'OWNER' : null);
       return { usuarioData, repData, perfilNome, solicitacaoStatus: computedStatus };
     } catch (err) {
       console.warn('[AuthContext] Erro ao carregar dados do usuário:', err);
@@ -273,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let routeRedirect = '/dashboard'; // default
     if (role === 'GESTOR' || role === 'GESTOR_TELAS' || role === 'GESTOR_MIDIAS' || role === 'OPERACIONAL' || role === 'DESIGNER' || role === 'FUNCIONARIO') {
       routeRedirect = '/dashboard';
-    } else if (userData.usuarioData?.is_owner || role === 'OWNER' || role === 'ADMIN' || userData.usuarioData?.role?.name === 'OWNER') {
+    } else if (userData.usuarioData?.is_owner || role === 'OWNER' || role === 'ADMIN') {
       routeRedirect = '/workspace/corporate';
     } else if (role === 'FINANCEIRO') {
       routeRedirect = '/workspace/financeiro';
@@ -343,7 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchUserData(user.id);
   };
 
-  const perfilNome = usuario?.perfil?.nome || null;
+  const perfilNome = usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : null);
   const empresaOperadoraId = usuario?.empresa_operadora_id || representante?.empresa_operadora_id || null;
   const isAuthenticated = !!user && !!session;
 
@@ -366,7 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   let workspaceRoute = '/dashboard';
   if (perfilNome === 'GESTOR' || perfilNome === 'GESTOR_TELAS' || perfilNome === 'GESTOR_MIDIAS' || perfilNome === 'OPERACIONAL' || perfilNome === 'DESIGNER' || perfilNome === 'FUNCIONARIO') {
     workspaceRoute = '/dashboard';
-  } else if (usuario?.is_owner || perfilNome === 'OWNER' || perfilNome === 'ADMIN' || usuario?.role?.name === 'OWNER') {
+  } else if (usuario?.is_owner || perfilNome === 'OWNER' || perfilNome === 'ADMIN') {
     workspaceRoute = '/workspace/corporate';
   } else if (perfilNome === 'FINANCEIRO') {
     workspaceRoute = '/workspace/financeiro';

@@ -26,6 +26,7 @@ import {
   FileText,
   Briefcase,
   Banknote,
+  UserCircle,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -42,7 +43,7 @@ const menuItems = [
   { icon: Calendar, label: 'Relatórios', path: '/dashboard/reports' },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void; hideCollapse?: boolean } = {}) {
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const { signOut, profile, user, isOwner } = useAuth();
@@ -89,14 +90,17 @@ export function Sidebar() {
       {/* Logo */}
       <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
         {!collapsed && <Logo size="sm" />}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCollapsed(!collapsed)}
-          className="ml-auto"
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
+        {!hideCollapse && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setCollapsed(!collapsed)}
+            className="ml-auto"
+            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
+        )}
       </div>
 
       {/* User info */}
@@ -115,8 +119,9 @@ export function Sidebar() {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={onNavigate}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px]',
                 isActive
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -143,8 +148,9 @@ export function Sidebar() {
         {(isAdmin || isOwner) && (
           <NavLink
             to="/workspace/corporate"
+            onClick={onNavigate}
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-primary hover:bg-sidebar-accent'
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-primary hover:bg-sidebar-accent min-h-[44px]'
             )}
           >
             <Briefcase className="h-5 w-5 flex-shrink-0" />
@@ -154,8 +160,9 @@ export function Sidebar() {
         {isAdmin && (
           <NavLink
             to="/dashboard/admin/users"
+            onClick={onNavigate}
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px]',
               location.pathname === '/dashboard/admin/users'
                 ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                 : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -166,9 +173,23 @@ export function Sidebar() {
           </NavLink>
         )}
         <NavLink
-          to="/dashboard/settings"
+          to="/dashboard/perfil"
+          onClick={onNavigate}
           className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px]',
+            location.pathname === '/dashboard/perfil'
+              ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+          )}
+        >
+          <UserCircle className="h-5 w-5 flex-shrink-0" />
+          {!collapsed && <span>Meu Perfil</span>}
+        </NavLink>
+        <NavLink
+          to="/dashboard/settings"
+          onClick={onNavigate}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px]',
             location.pathname === '/dashboard/settings'
               ? 'bg-sidebar-primary text-sidebar-primary-foreground'
               : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'

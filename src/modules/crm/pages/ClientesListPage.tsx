@@ -152,7 +152,8 @@ export default function ClientesListPage() {
             </div>
           ) : (
             <div className="rounded-xl border border-white/10 overflow-hidden">
-              <Table>
+              <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <Table className="min-w-[720px]">
                 <TableHeader className="bg-slate-950">
                   <TableRow className="border-white/10">
                     <TableHead className="text-slate-300">Cód / Nome Fantasia</TableHead>
@@ -207,7 +208,7 @@ export default function ClientesListPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                             <Button
                               size="sm"
                               variant="outline"
@@ -253,7 +254,8 @@ export default function ClientesListPage() {
                     );
                   })}
                 </TableBody>
-              </Table>
+                </Table>
+                </div>
             </div>
           )}
         </CardContent>

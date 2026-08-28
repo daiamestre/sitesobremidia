@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function CrmSidebar() {
+export function CrmSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const location = useLocation();
   const { userName, userEmail, userInitials, userCargo, handleCrmLogout, isLoggingOut } = useCrmSession();
   const { total: totalNaoLidas } = useCentralUnread();
@@ -146,10 +146,10 @@ export function CrmSidebar() {
               !(item.path === '/workspace/representantes' && location.pathname.startsWith('/workspace/representantes/desempenho'));
             
             return (
-              <Link key={item.path} to={item.path}>
+              <Link key={item.path} to={item.path} onClick={onNavigate}>
                 <div
                   className={cn(
-                    'flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group',
+                    'flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group min-h-[44px]',
                     isActive
                       ? 'bg-primary text-white font-bold shadow-lg shadow-primary/25 glow-primary'
                       : 'text-slate-300 hover:bg-slate-900 hover:text-white'

@@ -161,8 +161,11 @@ export default function PontoParceiroWizardPage() {
       const inv = await supabase.functions.invoke('get-upload-url', {
         body: { bucket: 'clientes_assets', fileName, contentType: file.type },
       });
-      if (inv.error || !inv.data?.uploadUrl || !inv.data?.publicUrl) throw new Error('Falha ao autorizar upload (R2).');
-      const put = await fetch(inv.data.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      if (inv.error || !inv.data?.signedUrl || !inv.data?.publicUrl) {
+        console.error("R2 Error:", inv.error || inv.data);
+        throw new Error('Falha ao autorizar upload (R2).');
+      }
+      const put = await fetch(inv.data.signedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
       if (!put.ok) throw new Error('Falha no envio ao R2.');
       if (capa) setFotoCapa(inv.data.publicUrl);
       else setFotos((prev) => [...prev, inv.data.publicUrl]);

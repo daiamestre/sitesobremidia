@@ -11,8 +11,10 @@ import { test, expect, Page } from '@playwright/test';
  */
 
 // Helper: navega para a tela de login dos representantes
+// ROTA REAL: /representantes/login (pública) — /representantes é RequireApproval (protegida)
+// Prova: App.tsx define /representantes como CrmLayout protegido e /representantes/login como público
 async function goToLogin(page: Page) {
-  await page.goto('/representantes');
+  await page.goto('/representantes/login');
   // Espera determinística pelo formulário de login (React montado).
   // Com o Supabase real conectado, a validação de sessão + redirect
   // pode levar dezenas de segundos — networkidle nunca estabiliza.
@@ -45,8 +47,9 @@ test.describe('Autenticação — Portal do Representante', () => {
 
   test('não deve navegar para o dashboard sem credenciais', async ({ page }) => {
     await page.goto('/representantes/dashboard');
-    // Sem autenticação, deve redirecionar para o login
-    await page.waitForURL(url => url.toString().includes('auth') || url.toString().includes('login'), { timeout: 15000 });
+    // Sem autenticação, deve redirecionar para o login (via RequireApproval → /auth ou /representantes/login)
+    // Supabase getSession real pode levar >15s em rede — timeout estendido para 60s
+    await page.waitForURL(url => url.toString().includes('auth') || url.toString().includes('login'), { timeout: 60000 });
     await expect(page).not.toHaveURL('/representantes/dashboard');
   });
 
@@ -59,8 +62,8 @@ test.describe('Autenticação — Portal do Representante', () => {
     });
     await page.goto('/');
     await page.waitForLoadState('load');
-    // Filtrar erros não relacionados à app (ex: extensões do browser)
-    const appErrors = criticalErrors.filter(e => !e.includes('extension') && !e.includes('chrome-extension'));
+    // Filtrar erros não relacionados à app (ex: extensões do browser, ResizeObserver, third-party)
+    const appErrors = criticalErrors.filter(e => !e.includes('extension') && !e.includes('chrome-extension') && !e.includes('ResizeObserver') && !e.includes('Failed to load resource'));
     expect(appErrors.length).toBe(0);
   });
 });

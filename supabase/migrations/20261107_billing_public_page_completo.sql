@@ -32,8 +32,8 @@ BEGIN
     'metodo', c.metodo_cobranca,
     'recorrencia', c.recorrencia,
     'observacoes', c.notes,
-    'cliente_nome', cl.nome,
-    'cliente_documento', COALESCE(cl.documento, cl.cpf, cl.cnpj),
+    'cliente_nome', COALESCE((SELECT razao_social FROM public.cliente_empresas WHERE cliente_id = c.cliente_id LIMIT 1), 'Cliente'),
+    'cliente_documento', (SELECT cnpj FROM public.cliente_empresas WHERE cliente_id = c.cliente_id LIMIT 1),
     'empresa_nome', em.nome_fantasia,
     'empresa_documento', em.cnpj,
     'contrato_codigo', ct.numero_contrato_legivel,
@@ -54,7 +54,6 @@ BEGIN
     )
   ) INTO v_result
   FROM public.contas_receber c
-  JOIN public.clientes cl ON cl.id = c.cliente_id
   JOIN public.empresa_operadora em ON em.id = c.empresa_operadora_id
   LEFT JOIN public.contratos ct ON ct.id = c.contrato_id
   WHERE (c.numero_documento = p_codigo OR c.codigo_operacional = p_codigo)

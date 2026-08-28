@@ -60,7 +60,7 @@ export default function ContasReceberPage() {
           }}
         />
       ) : (
-        <FinanceList contas={contas} onSelectConta={setSelectedConta} />
+        <FinanceList contas={contas} onSelectConta={setSelectedConta} onRefresh={fetchContas} />
       )}
     </div>
   );

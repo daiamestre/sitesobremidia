@@ -106,7 +106,9 @@ export async function fetchPontosStats(periodo: 'hoje'|'7d'|'30d'|'mes' = '30d')
         if(telasAtivasReais===0) telasAtivasReais = screens.filter((s:any)=> s.is_active).length;
       }
     }
-  } catch {}
+  } catch (_e) {
+    void _e; // fallback silencioso: screens indisponível — mantém totalTelas/ativas por quantidade_telas/status
+  }
   const ativos = todos.filter(p=> p.status_operacional==='ATIVO' && p.ativo).length;
   const emImplantacao = todos.filter(p=> p.status_operacional==='MANUTENCAO').length;
   const pendentes = todos.filter(p=> !p.ativo).length;
@@ -125,7 +127,9 @@ export async function fetchPontosStats(periodo: 'hoje'|'7d'|'30d'|'mes' = '30d')
         const vals = contratos.map((c:any)=> Number(c.valor_total||0)).filter((n:number)=>n>0);
         if(vals.length) receitaMedia = Math.round(vals.reduce((a:number,b:number)=>a+b,0)/vals.length / Math.max(1,totalTelas||1));
       }
-    } catch {}
+    } catch (_e2) {
+      void _e2; // fallback silencioso: contratos indisponível — mantém receitaMedia 0
+    }
   }
   return {
     totalPontos: todos.length,
