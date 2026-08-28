@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, AlertCircle, Clock, FileText, Calendar, CreditCard, Receipt, FileSignature, AlertTriangle, MessageCircle, ExternalLink } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock, FileText, Calendar, CreditCard, Receipt, FileSignature, AlertTriangle, MessageCircle, ExternalLink, Copy, QrCode, Download, Loader2 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -45,6 +45,12 @@ export default function PaginaCobranca() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PublicBillingData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  const [bankData, setBankData] = useState<any>(null);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankError, setBankError] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [copied, setCopied] = useState<'linha' | 'pix' | null>(null);
 
   useEffect(() => {
     async function fetchBilling() {
@@ -111,6 +117,70 @@ export default function PaginaCobranca() {
   if (isOverdue) {
     diasAtraso = differenceInDays(dataHoje, dataVenc);
   }
+
+  useEffect(() => {
+    async function fetchBankData() {
+      if (!data || isPaid || isCanceled) return;
+      setBankLoading(true);
+      setBankError(null);
+      try {
+        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'public_consult',
+            public_identifier: codigo,
+            public_token: identificador
+          })
+        });
+        const json = await res.json();
+        if (json.success) {
+          setBankData(json.data);
+        } else {
+          setBankError(json.error || 'Gateway indisponível');
+        }
+      } catch (err) {
+        setBankError('Erro de conexão ao consultar banco');
+      } finally {
+        setBankLoading(false);
+      }
+    }
+    fetchBankData();
+  }, [data, isPaid, isCanceled, codigo, identificador]);
+
+  const handleCopy = (text: string, type: 'linha' | 'pix') => {
+    navigator.clipboard.writeText(text);
+    setCopied(type);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'public_pdf',
+          public_identifier: codigo,
+          public_token: identificador
+        })
+      });
+      const json = await res.json();
+      if (json.success && json.pdf) {
+        const link = document.createElement("a");
+        link.href = "data:application/pdf;base64," + json.pdf;
+        link.download = `boleto-${codigo}.pdf`;
+        link.click();
+      } else {
+        alert("Boleto PDF indisponível no momento.");
+      }
+    } catch (e) {
+      alert("Erro ao baixar o PDF.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const statusColor = isPaid 
     ? 'text-[#25D366] bg-[#25D366]/10 border-[#25D366]/30 shadow-[0_0_15px_rgba(37,211,102,0.2)]'
@@ -343,27 +413,107 @@ export default function PaginaCobranca() {
             {!isPaid && !isCanceled && (
               <div className="bg-[#1B003A]/60 backdrop-blur-xl border border-[#5D1BFF]/40 rounded-2xl overflow-hidden shadow-2xl relative group">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#5D1BFF] via-[#8A2EFF] to-[#B04DFF]" />
-                <div className="bg-white/5 border-b border-white/5 px-6 py-5">
+                <div className="bg-white/5 border-b border-white/5 px-6 py-5 flex justify-between items-center">
                   <h3 className="text-lg font-bold flex items-center gap-3 text-[#FFFFFF]">
                     <CreditCard className="w-5 h-5 text-[#8A2EFF]" />
                     Pagamento online
                   </h3>
+                  {bankLoading && <Loader2 className="w-5 h-5 text-[#F2F2F2]/50 animate-spin" />}
                 </div>
                 <div className="p-6">
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col items-center text-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
-                      <AlertCircle className="w-6 h-6 text-[#F2F2F2]/80" />
+                  {bankError ? (
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col items-center text-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
+                        <AlertCircle className="w-6 h-6 text-[#F2F2F2]/80" />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="font-bold text-[#FFFFFF] text-sm">Integração Bancária Indisponível</p>
+                        <p className="text-xs text-[#F2F2F2]/70 leading-relaxed">
+                          {bankError}
+                        </p>
+                      </div>
+                      <div className="text-xs font-medium text-[#F2F2F2] bg-[#5D1BFF]/20 border border-[#5D1BFF]/30 px-4 py-3 rounded-lg w-full mt-2">
+                        Por favor, efetue o pagamento diretamente na conta informada pela equipe.
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <p className="font-bold text-[#FFFFFF] text-sm">Integração Bancária em Configuração</p>
-                      <p className="text-xs text-[#F2F2F2]/70 leading-relaxed">
-                        O pagamento automático (PIX / Boleto bancário via Banco Inter) estará disponível nesta página logo após a ativação oficial do gateway financeiro.
-                      </p>
+                  ) : bankData ? (
+                    <div className="space-y-6">
+                      {/* PIX */}
+                      {bankData.pix?.pixCopiaECola && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 text-sm font-bold text-[#FFFFFF]">
+                            <QrCode className="w-4 h-4 text-[#25D366]" />
+                            Pagamento via PIX
+                          </div>
+                          <div className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
+                            <p className="text-xs text-[#F2F2F2]/70">Copie o código abaixo e cole no aplicativo do seu banco na opção "Pix Copia e Cola":</p>
+                            <div className="relative">
+                              <input 
+                                type="text" 
+                                readOnly 
+                                value={bankData.pix.pixCopiaECola} 
+                                className="w-full bg-[#1B003A] border border-white/10 rounded-lg py-2.5 pl-3 pr-24 text-xs font-mono text-[#F2F2F2]/80 focus:outline-none"
+                              />
+                              <button 
+                                onClick={() => handleCopy(bankData.pix.pixCopiaECola, 'pix')}
+                                className="absolute right-1 top-1 bottom-1 px-3 bg-[#5D1BFF] hover:bg-[#8A2EFF] transition-colors rounded-md text-xs font-bold flex items-center gap-1"
+                              >
+                                {copied === 'pix' ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                {copied === 'pix' ? 'Copiado' : 'Copiar'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* BOLETO */}
+                      {bankData.boleto?.linhaDigitavel && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-sm font-bold text-[#FFFFFF]">
+                            <div className="flex items-center gap-2">
+                              <Receipt className="w-4 h-4 text-[#8A2EFF]" />
+                              Pagamento via Boleto
+                            </div>
+                            <button
+                              onClick={handleDownloadPdf}
+                              disabled={downloadingPdf}
+                              className="text-xs font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                            >
+                              {downloadingPdf ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                              PDF
+                            </button>
+                          </div>
+                          <div className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
+                            <p className="text-xs text-[#F2F2F2]/70">Utilize a linha digitável abaixo para pagar o boleto:</p>
+                            <div className="relative">
+                              <input 
+                                type="text" 
+                                readOnly 
+                                value={bankData.boleto.linhaDigitavel} 
+                                className="w-full bg-[#1B003A] border border-white/10 rounded-lg py-2.5 pl-3 pr-24 text-xs font-mono text-[#F2F2F2]/80 focus:outline-none"
+                              />
+                              <button 
+                                onClick={() => handleCopy(bankData.boleto.linhaDigitavel, 'linha')}
+                                className="absolute right-1 top-1 bottom-1 px-3 bg-[#5D1BFF] hover:bg-[#8A2EFF] transition-colors rounded-md text-xs font-bold flex items-center gap-1"
+                              >
+                                {copied === 'linha' ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                {copied === 'linha' ? 'Copiado' : 'Copiar'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {!bankData.pix?.pixCopiaECola && !bankData.boleto?.linhaDigitavel && (
+                        <p className="text-xs text-[#F2F2F2]/50 text-center">Dados de pagamento não encontrados.</p>
+                      )}
                     </div>
-                    <div className="text-xs font-medium text-[#F2F2F2] bg-[#5D1BFF]/20 border border-[#5D1BFF]/30 px-4 py-3 rounded-lg w-full mt-2">
-                      Por favor, efetue o pagamento diretamente na conta informada pela equipe e envie o comprovante pelo atendimento.
+                  ) : (
+                    <div className="text-center py-8">
+                       <Loader2 className="w-8 h-8 text-[#5D1BFF] animate-spin mx-auto mb-3" />
+                       <p className="text-sm text-[#F2F2F2]/70">Consultando disponibilidade no banco...</p>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
