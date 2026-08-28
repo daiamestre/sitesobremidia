@@ -4,7 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, Banknote, CalendarClock, CheckCircle2, Clock, Loader2,
   PlusCircle, RefreshCw, SearchX, ShieldAlert, ShieldBan, TrendingUp, Zap,
+  Edit, Eye, Link as LinkIcon, MessageCircle, MoreVertical
 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { EditReceivableModal } from '../components/financeiro/EditReceivableModal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,6 +81,7 @@ export default function BillingDashboard() {
   const [filtroTipo, setFiltroTipo] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [processandoRegua, setProcessandoRegua] = useState(false);
+  const [cobrancaEditando, setCobrancaEditando] = useState<any | null>(null);
 
   const podeAcessar = isOwner || isAdmin;
 
@@ -130,6 +134,13 @@ export default function BillingDashboard() {
   const diffDiasVenc = (iso: string) => {
     const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`).getTime();
     return Math.round((d - new Date(new Date().toDateString()).getTime()) / 86400000);
+  };
+
+  const generateWhatsAppLink = (conta: any) => {
+    const numDoc = conta.numero_documento || conta.codigo_operacional;
+    const urlPublica = `${window.location.origin}/cobranca/${numDoc}/${conta.public_token}`;
+    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
   const filtradas = useMemo(() => {
@@ -526,14 +537,47 @@ export default function BillingDashboard() {
                       )}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => navigate(rotaCobranca(c))}
-                        className="border-primary/30 text-primary hover:bg-primary/10 text-xs gap-1 h-8"
-                      >
-                        Detalhes
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Detalhes da Cobrança"
+                          onClick={() => navigate(rotaCobranca(c))}
+                          className="h-8 px-2 text-slate-300 hover:text-white hover:bg-white/10 hidden sm:flex"
+                        >
+                          <Eye className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden xl:inline text-xs">Visualizar</span>
+                        </Button>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-white/10">
+                              <span className="sr-only">Abrir menu</span>
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-slate-900 border-white/10 text-slate-300 w-48">
+                            <DropdownMenuItem onClick={() => navigate(rotaCobranca(c))} className="hover:bg-white/10 focus:bg-white/10 cursor-pointer sm:hidden">
+                              <Eye className="mr-2 h-4 w-4" /> Detalhes
+                            </DropdownMenuItem>
+                            {c.status !== 'CANCELADO' && c.status !== 'PAGO' && (
+                              <DropdownMenuItem onClick={() => setCobrancaEditando(c as any)} className="hover:bg-white/10 focus:bg-white/10 cursor-pointer text-blue-400 focus:text-blue-300">
+                                <Edit className="mr-2 h-4 w-4" /> Editar
+                              </DropdownMenuItem>
+                            )}
+                            {c.public_token && c.public_enabled && (
+                              <>
+                                <DropdownMenuItem onClick={() => window.open(`${window.location.origin}/cobranca/${c.numero_documento || c.codigo_operacional}/${c.public_token}`, '_blank')} className="hover:bg-white/10 focus:bg-white/10 cursor-pointer text-primary focus:text-primary">
+                                  <LinkIcon className="mr-2 h-4 w-4" /> Pré-visualizar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => window.open(generateWhatsAppLink(c), '_blank')} className="hover:bg-white/10 focus:bg-white/10 cursor-pointer text-emerald-400 focus:text-emerald-300">
+                                  <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -565,6 +609,18 @@ export default function BillingDashboard() {
           toast({ title: 'Cobrança criada', description: 'A cobrança foi registrada em contas a receber.' });
         }}
       />
+
+      {cobrancaEditando && (
+        <EditReceivableModal
+          isOpen={true}
+          onClose={() => setCobrancaEditando(null)}
+          cobranca={cobrancaEditando}
+          onSuccess={() => {
+            setCobrancaEditando(null);
+            refetch();
+          }}
+        />
+      )}
     </div>
   );
 }
