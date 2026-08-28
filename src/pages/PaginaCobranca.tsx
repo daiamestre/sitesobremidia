@@ -113,12 +113,12 @@ export default function PaginaCobranca() {
   }
 
   const statusColor = isPaid 
-    ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+    ? 'text-[#25D366] bg-[#25D366]/10 border-[#25D366]/30 shadow-[0_0_15px_rgba(37,211,102,0.2)]'
     : isCanceled
-    ? 'text-gray-700 bg-gray-50 border-gray-200'
+    ? 'text-[#F2F2F2] bg-white/5 border-white/10'
     : isOverdue 
-    ? 'text-red-700 bg-red-50 border-red-200' 
-    : 'text-blue-700 bg-blue-50 border-blue-200';
+    ? 'text-[#FFD400] bg-[#FFD400]/10 border-[#FFD400]/30 shadow-[0_0_15px_rgba(255,212,0,0.2)]' 
+    : 'text-[#8A2EFF] bg-[#8A2EFF]/10 border-[#8A2EFF]/30 shadow-[0_0_15px_rgba(138,46,255,0.2)]';
 
   const StatusIcon = isPaid ? CheckCircle2 : isCanceled ? AlertCircle : isOverdue ? AlertTriangle : Clock;
   
@@ -142,29 +142,31 @@ export default function PaginaCobranca() {
   const statusText = getStatusText();
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8 font-sans">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#22004A] text-[#F2F2F2] py-10 px-4 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
+      {/* Background Glow Effects */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-[#5D1BFF] rounded-full blur-[120px] opacity-20 pointer-events-none"></div>
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[#8A2EFF] rounded-full blur-[150px] opacity-10 pointer-events-none"></div>
+
+      <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         
         {/* =======================
             CABEÇALHO 
         ======================= */}
-        <div className="text-center space-y-2 mb-10">
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 uppercase">
+        <div className="text-center space-y-3 mb-10">
+          <h1 className="text-3xl font-extrabold tracking-widest text-[#FFFFFF] uppercase drop-shadow-md">
             {data.empresa_nome || 'SOBRE MÍDIA'}
           </h1>
-          <h2 className="text-xl font-medium text-gray-700">Cobrança</h2>
-          <div className="mt-4 flex flex-col items-center gap-1">
-            <span className="text-lg font-semibold text-primary">{data.cliente_nome}</span>
-            <span className="text-md text-gray-600 font-mono bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
+          <h2 className="text-lg font-medium text-[#F2F2F2]/80 uppercase tracking-wider">Sua cobrança</h2>
+          
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <span className="text-2xl font-bold text-[#FFFFFF]">{data.cliente_nome}</span>
+            <span className="text-sm text-[#F2F2F2]/70 font-mono bg-[#1B003A]/60 px-4 py-1.5 rounded-md border border-[#5D1BFF]/30 backdrop-blur-sm">
               {data.codigo_operacional}
-            </span>
-            <span className="text-sm text-gray-500 font-mono mt-1">
-              Ref: {data.public_identifier}
             </span>
           </div>
           
-          <div className="mt-6 flex justify-center">
-            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border font-bold text-sm uppercase tracking-wider shadow-sm ${statusColor}`}>
+          <div className="mt-8 flex justify-center">
+            <div className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-full border font-bold text-sm uppercase tracking-wider backdrop-blur-md transition-all duration-300 hover:scale-105 ${statusColor}`}>
               <StatusIcon className="w-5 h-5" />
               {statusText}
             </div>
@@ -172,142 +174,148 @@ export default function PaginaCobranca() {
         </div>
 
         {/* =======================
-            RESUMO FINANCEIRO 
+            HERO FINANCEIRO 
         ======================= */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border shadow-sm">
-            <CardContent className="p-4 flex flex-col">
-              <span className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Valor original</span>
-              <span className="text-2xl font-bold text-gray-900">{formatMoney(data.valor_original)}</span>
-            </CardContent>
-          </Card>
-          <Card className="border shadow-sm">
-            <CardContent className="p-4 flex flex-col">
-              <span className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Valor pago</span>
-              <span className="text-2xl font-bold text-emerald-600">{formatMoney(data.valor_pago)}</span>
-            </CardContent>
-          </Card>
-          <Card className={`border shadow-sm ${!isPaid && !isCanceled ? 'ring-2 ring-primary ring-offset-2' : ''}`}>
-            <CardContent className="p-4 flex flex-col">
-              <span className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Saldo em aberto</span>
-              <span className="text-2xl font-bold text-primary">{formatMoney(data.saldo)}</span>
-            </CardContent>
-          </Card>
-          <Card className={`border shadow-sm ${isOverdue ? 'bg-red-50 border-red-200' : ''}`}>
-            <CardContent className="p-4 flex flex-col">
-              <span className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Vencimento</span>
-              <span className={`text-2xl font-bold ${isOverdue ? 'text-red-700' : 'text-gray-900'}`}>{formatDate(data.vencimento)}</span>
+        <div className="bg-[#1B003A]/60 backdrop-blur-xl border border-[#5D1BFF]/30 rounded-2xl p-8 sm:p-12 text-center shadow-2xl relative overflow-hidden group hover:border-[#8A2EFF]/50 transition-colors duration-500">
+          <div className="absolute inset-0 bg-gradient-to-b from-[#5D1BFF]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+          
+          <h3 className="text-sm font-semibold uppercase tracking-widest text-[#F2F2F2]/70 mb-2">
+            {isPaid ? 'Cobrança quitada' : 'Saldo em aberto'}
+          </h3>
+          
+          <div className={`text-5xl sm:text-7xl font-extrabold tracking-tight mb-4 drop-shadow-lg ${isPaid ? 'text-[#25D366]' : 'text-[#FFFFFF]'}`}>
+            {formatMoney(isPaid ? data.valor_pago : data.saldo)}
+          </div>
+          
+          {!isPaid && !isCanceled && (
+            <div className="flex flex-col items-center justify-center gap-2 mt-6">
+              <div className="text-lg text-[#F2F2F2]/90 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#8A2EFF]" />
+                Vencimento: <span className="font-semibold text-[#FFFFFF]">{formatDate(data.vencimento)}</span>
+              </div>
+              
               {isOverdue && diasAtraso > 0 && (
-                <span className="text-xs font-semibold text-red-600 mt-1">{diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'} de atraso</span>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#FFD400]/10 border border-[#FFD400]/20 text-[#FFD400] text-sm font-bold mt-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  {diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'} em atraso
+                </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* =======================
+            RESUMO FINANCEIRO (CARDS)
+        ======================= */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="bg-[#1B003A]/40 backdrop-blur-md border border-white/10 hover:border-[#5D1BFF]/40 transition-colors shadow-lg">
+            <CardContent className="p-5 flex flex-col justify-center text-center h-full">
+              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-2">Valor original</span>
+              <span className="text-xl font-bold text-[#FFFFFF]">{formatMoney(data.valor_original)}</span>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-[#1B003A]/40 backdrop-blur-md border border-white/10 hover:border-[#25D366]/40 transition-colors shadow-lg">
+            <CardContent className="p-5 flex flex-col justify-center text-center h-full">
+              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-2">Valor pago</span>
+              <span className="text-xl font-bold text-[#25D366] drop-shadow-[0_0_8px_rgba(37,211,102,0.3)]">{formatMoney(data.valor_pago)}</span>
+            </CardContent>
+          </Card>
+          
+          <Card className={`bg-[#1B003A]/60 backdrop-blur-md border transition-colors shadow-lg ${!isPaid && !isCanceled ? 'border-[#8A2EFF]/50 shadow-[0_0_20px_rgba(138,46,255,0.15)]' : 'border-white/10'}`}>
+            <CardContent className="p-5 flex flex-col justify-center text-center h-full">
+              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-2">Saldo em aberto</span>
+              <span className={`text-xl font-bold ${isPaid ? 'text-[#F2F2F2]/50' : 'text-[#FFFFFF]'}`}>{formatMoney(data.saldo)}</span>
+            </CardContent>
+          </Card>
+          
+          <Card className={`bg-[#1B003A]/40 backdrop-blur-md border transition-colors shadow-lg ${isOverdue ? 'border-[#FFD400]/40 shadow-[0_0_15px_rgba(255,212,0,0.1)]' : 'border-white/10 hover:border-[#5D1BFF]/40'}`}>
+            <CardContent className="p-5 flex flex-col justify-center text-center h-full">
+              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-2">Vencimento</span>
+              <span className={`text-xl font-bold ${isOverdue ? 'text-[#FFD400]' : 'text-[#FFFFFF]'}`}>{formatDate(data.vencimento)}</span>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
           {/* COLUNA ESQUERDA - DADOS DA COBRANÇA */}
           <div className="lg:col-span-2 space-y-8">
             {/* =======================
                 DADOS DA COBRANÇA
             ======================= */}
-            <Card className="shadow-md border-gray-200 overflow-hidden">
-              <CardHeader className="bg-gray-50 border-b border-gray-100 pb-4">
-                <CardTitle className="text-lg flex items-center gap-2 text-gray-800">
-                  <FileText className="w-5 h-5 text-primary" />
+            <div className="bg-[#1B003A]/40 backdrop-blur-lg border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+              <div className="bg-white/5 border-b border-white/5 px-6 py-5">
+                <h3 className="text-lg font-bold flex items-center gap-3 text-[#FFFFFF]">
+                  <FileText className="w-5 h-5 text-[#8A2EFF]" />
                   Dados da Cobrança
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <dl className="divide-y divide-gray-100 text-sm">
-                  <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors">
-                    <dt className="text-gray-500 font-medium">Cliente</dt>
-                    <dd className="sm:col-span-2 font-semibold text-gray-900">{data.cliente_nome}</dd>
-                  </div>
-                  <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors">
-                    <dt className="text-gray-500 font-medium">Contrato</dt>
-                    <dd className="sm:col-span-2 font-medium text-gray-900 flex items-center gap-2">
-                      <FileSignature className="w-4 h-4 text-gray-400" />
-                      {data.contrato_codigo || 'Sem contrato vinculado'}
-                    </dd>
-                  </div>
-                  <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors">
-                    <dt className="text-gray-500 font-medium">Tipo de contrato</dt>
-                    <dd className="sm:col-span-2 text-gray-900">{data.contrato_tipo || '—'}</dd>
-                  </div>
-                  <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors">
-                    <dt className="text-gray-500 font-medium">Serviço faturado</dt>
-                    <dd className="sm:col-span-2 text-gray-900">{data.servico_faturado || 'Serviço de mídia/publicidade contratado'}</dd>
-                  </div>
-                  <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors">
-                    <dt className="text-gray-500 font-medium">Parcela</dt>
-                    <dd className="sm:col-span-2 text-gray-900">
-                      {data.numero_parcela ? `${data.numero_parcela} de ${data.total_parcelas || '1'}` : 'Única'}
-                    </dd>
-                  </div>
-                  <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors">
-                    <dt className="text-gray-500 font-medium">Documento</dt>
-                    <dd className="sm:col-span-2 text-gray-900">{data.numero_documento || data.codigo_operacional}</dd>
-                  </div>
-                  <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors">
-                    <dt className="text-gray-500 font-medium">Competência</dt>
-                    <dd className="sm:col-span-2 text-gray-900 flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      {data.competencia ? format(new Date(data.competencia), 'MMMM / yyyy', { locale: ptBR }).toUpperCase() : '—'}
-                    </dd>
-                  </div>
-                  <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors">
-                    <dt className="text-gray-500 font-medium">Método Previsto</dt>
-                    <dd className="sm:col-span-2 text-gray-900 flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-gray-400" />
-                      {data.metodo || 'PIX'}
-                    </dd>
-                  </div>
-                  <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors">
-                    <dt className="text-gray-500 font-medium">Recorrência</dt>
-                    <dd className="sm:col-span-2 text-gray-900">{data.recorrencia || '—'}</dd>
-                  </div>
+                </h3>
+              </div>
+              <div className="p-0">
+                <dl className="divide-y divide-white/5 text-sm">
+                  {[
+                    { label: 'Cliente', value: data.cliente_nome },
+                    { label: 'Contrato', value: data.contrato_codigo || 'Sem contrato vinculado', icon: FileSignature },
+                    { label: 'Tipo de contrato', value: data.contrato_tipo || '—' },
+                    { label: 'Serviço faturado', value: data.servico_faturado || 'Serviço de mídia/publicidade contratado' },
+                    { label: 'Parcela', value: data.numero_parcela ? `${data.numero_parcela} de ${data.total_parcelas || '1'}` : 'Única' },
+                    { label: 'Documento', value: data.numero_documento || data.codigo_operacional },
+                    { label: 'Competência', value: data.competencia ? format(new Date(data.competencia), 'MMMM / yyyy', { locale: ptBR }).toUpperCase() : '—', icon: Calendar },
+                    { label: 'Vencimento', value: formatDate(data.vencimento) },
+                    { label: 'Método Previsto', value: data.metodo || 'PIX', icon: CreditCard },
+                    { label: 'Recorrência', value: data.recorrencia || '—' },
+                    { label: 'Status', value: statusText }
+                  ].map((item, idx) => (
+                    <div key={idx} className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-2 hover:bg-white/5 transition-colors">
+                      <dt className="text-[#F2F2F2]/60 font-medium">{item.label}</dt>
+                      <dd className="sm:col-span-2 font-medium text-[#FFFFFF] flex items-center gap-2">
+                        {item.icon && <item.icon className="w-4 h-4 text-[#5D1BFF]" />}
+                        {item.value}
+                      </dd>
+                    </div>
+                  ))}
+                  
                   {data.observacoes && (
-                    <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 hover:bg-gray-50 transition-colors bg-amber-50/30">
-                      <dt className="text-gray-500 font-medium">Observações</dt>
-                      <dd className="sm:col-span-2 text-gray-900 italic">{data.observacoes}</dd>
+                    <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-3 gap-2 bg-[#5D1BFF]/10 border-l-2 border-[#8A2EFF]">
+                      <dt className="text-[#F2F2F2]/80 font-medium">Observações</dt>
+                      <dd className="sm:col-span-2 text-[#FFFFFF] italic">{data.observacoes}</dd>
                     </div>
                   )}
                 </dl>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* =======================
                 HISTÓRICO DE PAGAMENTOS
             ======================= */}
-            <Card className="shadow-md border-gray-200">
-              <CardHeader className="bg-gray-50 border-b border-gray-100 pb-4">
-                <CardTitle className="text-lg flex items-center gap-2 text-gray-800">
-                  <Receipt className="w-5 h-5 text-primary" />
-                  Pagamentos Registrados
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
+            <div className="bg-[#1B003A]/40 backdrop-blur-lg border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+              <div className="bg-white/5 border-b border-white/5 px-6 py-5">
+                <h3 className="text-lg font-bold flex items-center gap-3 text-[#FFFFFF]">
+                  <Receipt className="w-5 h-5 text-[#8A2EFF]" />
+                  Histórico de Pagamentos
+                </h3>
+              </div>
+              <div className="p-6">
                 {data.pagamentos && data.pagamentos.length > 0 ? (
                   <div className="space-y-6">
-                    <div className="relative border-l-2 border-gray-200 ml-3 space-y-6">
+                    <div className="relative border-l border-white/10 ml-3 space-y-6">
                       {data.pagamentos.map((pag, index) => (
-                        <div key={pag.id || index} className="relative pl-6">
-                          <div className="absolute w-3 h-3 bg-emerald-500 rounded-full -left-[7px] top-1.5 ring-4 ring-white" />
-                          <div className="bg-white border rounded-lg p-4 shadow-sm hover:shadow transition-shadow">
-                            <div className="flex justify-between items-start mb-2">
+                        <div key={pag.id || index} className="relative pl-6 group">
+                          <div className="absolute w-3 h-3 bg-[#25D366] rounded-full -left-[6px] top-1.5 shadow-[0_0_10px_rgba(37,211,102,0.8)]" />
+                          <div className="bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-colors">
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4 mb-2">
                               <div>
-                                <span className="font-bold text-lg text-gray-900">{formatMoney(pag.valor_pago)}</span>
-                                <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
+                                <span className="font-bold text-xl text-[#FFFFFF]">{formatMoney(pag.valor_pago)}</span>
+                                <div className="text-sm text-[#F2F2F2]/60 mt-1 flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5" />
                                   {format(new Date(pag.data_liquidacao), "dd 'de' MMM, yyyy 'às' HH:mm", { locale: ptBR })}
                                 </div>
                               </div>
-                              <span className="px-2.5 py-1 rounded-md bg-gray-100 text-xs font-semibold text-gray-700 uppercase border">
+                              <span className="self-start px-3 py-1 rounded-md bg-white/10 text-xs font-bold text-[#F2F2F2] uppercase tracking-wider border border-white/10">
                                 {pag.meio_pagamento || 'NÃO DEFINIDO'}
                               </span>
                             </div>
                             {pag.transacao_id_externo && (
-                              <div className="mt-3 pt-3 border-t text-xs text-gray-500 font-mono">
+                              <div className="mt-4 pt-3 border-t border-white/5 text-xs text-[#F2F2F2]/50 font-mono">
                                 ID Transação: {pag.transacao_id_externo}
                               </div>
                             )}
@@ -315,20 +323,15 @@ export default function PaginaCobranca() {
                         </div>
                       ))}
                     </div>
-                    
-                    <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border">
-                      <div className="text-sm text-gray-600 font-medium">Total Pago Registrado:</div>
-                      <div className="text-lg font-bold text-emerald-600">{formatMoney(data.valor_pago)}</div>
-                    </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-8 text-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                    <Receipt className="w-10 h-10 text-gray-300 mb-3" />
-                    <p className="text-gray-500 font-medium">Nenhum pagamento registrado para esta cobrança.</p>
+                  <div className="flex flex-col items-center justify-center py-10 text-center bg-white/5 rounded-xl border border-dashed border-white/10">
+                    <Receipt className="w-12 h-12 text-[#F2F2F2]/20 mb-4" />
+                    <p className="text-[#F2F2F2]/60 font-medium">Nenhum pagamento registrado para esta cobrança.</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* COLUNA DIREITA - AÇÕES E PAGAMENTO */}
@@ -338,53 +341,57 @@ export default function PaginaCobranca() {
                 PAGAMENTO ONLINE
             ======================= */}
             {!isPaid && !isCanceled && (
-              <Card className="border-primary shadow-lg overflow-hidden relative">
-                <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
-                <CardHeader className="bg-primary/5 pb-4">
-                  <CardTitle className="text-lg flex items-center gap-2 text-primary">
-                    <CreditCard className="w-5 h-5" />
-                    Pagar Online
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-5 flex flex-col items-center text-center gap-3">
-                    <AlertCircle className="w-8 h-8 text-blue-600 mb-2 opacity-80" />
-                    <p className="font-semibold text-sm">Integração Bancária em Configuração</p>
-                    <p className="text-xs text-blue-700/80 leading-relaxed">
-                      O pagamento automático (PIX / Boleto bancário via Banco Inter) estará disponível nesta página logo após a ativação oficial do gateway financeiro.
-                    </p>
-                    <p className="text-xs font-medium text-blue-800 bg-blue-100/50 px-3 py-2 rounded-md w-full mt-2">
+              <div className="bg-[#1B003A]/60 backdrop-blur-xl border border-[#5D1BFF]/40 rounded-2xl overflow-hidden shadow-2xl relative group">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#5D1BFF] via-[#8A2EFF] to-[#B04DFF]" />
+                <div className="bg-white/5 border-b border-white/5 px-6 py-5">
+                  <h3 className="text-lg font-bold flex items-center gap-3 text-[#FFFFFF]">
+                    <CreditCard className="w-5 h-5 text-[#8A2EFF]" />
+                    Pagamento online
+                  </h3>
+                </div>
+                <div className="p-6">
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col items-center text-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
+                      <AlertCircle className="w-6 h-6 text-[#F2F2F2]/80" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-bold text-[#FFFFFF] text-sm">Integração Bancária em Configuração</p>
+                      <p className="text-xs text-[#F2F2F2]/70 leading-relaxed">
+                        O pagamento automático (PIX / Boleto bancário via Banco Inter) estará disponível nesta página logo após a ativação oficial do gateway financeiro.
+                      </p>
+                    </div>
+                    <div className="text-xs font-medium text-[#F2F2F2] bg-[#5D1BFF]/20 border border-[#5D1BFF]/30 px-4 py-3 rounded-lg w-full mt-2">
                       Por favor, efetue o pagamento diretamente na conta informada pela equipe e envie o comprovante pelo atendimento.
-                    </p>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )}
 
             {/* =======================
                 ATENDIMENTO
             ======================= */}
-            <Card className="shadow-md border-gray-200">
-              <CardHeader className="bg-gray-50 border-b border-gray-100 pb-4">
-                <CardTitle className="text-lg flex items-center gap-2 text-gray-800">
-                  <MessageCircle className="w-5 h-5 text-gray-600" />
-                  Atendimento
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600">
+            <div className="bg-[#1B003A]/40 backdrop-blur-lg border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+              <div className="bg-white/5 border-b border-white/5 px-6 py-5">
+                <h3 className="text-lg font-bold flex items-center gap-3 text-[#FFFFFF]">
+                  <MessageCircle className="w-5 h-5 text-[#8A2EFF]" />
+                  Precisa de ajuda?
+                </h3>
+              </div>
+              <div className="p-6">
+                <div className="space-y-5">
+                  <p className="text-sm text-[#F2F2F2]/70 leading-relaxed">
                     Ficou com alguma dúvida sobre esta cobrança ou precisa renegociar? Entre em contato com a nossa equipe financeira oficial.
                   </p>
-                  <div className="bg-gray-50 border p-4 rounded-lg">
-                    <div className="text-sm font-semibold text-gray-900 mb-1">SOBRE MÍDIA FINANCEIRO</div>
-                    <div className="text-sm text-gray-600 flex items-center gap-2">
+                  <div className="bg-white/5 border border-white/10 p-5 rounded-xl transition-colors hover:bg-white/10">
+                    <div className="text-sm font-bold text-[#FFFFFF] mb-1">SOBRE MÍDIA FINANCEIRO</div>
+                    <div className="text-xs font-medium text-[#F2F2F2]/60">
                       Atendimento via WhatsApp / E-mail
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
           </div>
         </div>
