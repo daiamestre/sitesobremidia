@@ -6,6 +6,7 @@ import { ContaReceberCompleta } from '../../services/financeiro.service';
 import { useToast } from '@/hooks/use-toast';
 import { EditReceivableModal } from './EditReceivableModal';
 import { ManualPaymentModal } from './ManualPaymentModal';
+import { financeiroService } from '../../services/financeiro.service';
 
 interface ReceivableDetailsProps {
   conta: ContaReceberCompleta;
@@ -17,8 +18,28 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
   const { toast } = useToast();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
 
   const urlPublica = `${window.location.origin}/cobranca/${conta.numero_documento}/${conta.public_token}`;
+
+  const handleCancel = async () => {
+    if (!confirm('Tem certeza que deseja cancelar esta cobrança?')) return;
+    try {
+      setIsCanceling(true);
+      await financeiroService.updateContaReceber(conta.id, { status: 'CANCELADO' });
+      toast({ title: 'Cobrança Cancelada', description: 'A cobrança foi cancelada com sucesso.' });
+      onPaymentSuccess(); // refresh
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível cancelar a cobrança.', variant: 'destructive' });
+    } finally {
+      setIsCanceling(false);
+    }
+  };
+
+  const generateWhatsAppLink = () => {
+    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.\nSOBRE MÍDIA`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  };
 
   return (
     <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
@@ -39,7 +60,7 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
               onClick={() => setIsEditModalOpen(true)}
               className="border-white/10 text-slate-300 text-xs rounded-xl gap-1 hover:bg-white/5"
             >
-              <Edit className="h-4 w-4" /> Editar
+              <Edit className="h-4 w-4" /> Editar Cobrança
             </Button>
           )}
 
@@ -48,19 +69,16 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
               <Button
                 variant="outline"
                 onClick={() => window.open(urlPublica, '_blank')}
-                className="border-blue-500/50 text-blue-400 text-xs rounded-xl gap-1 hover:bg-blue-500/10"
+                className="border-primary/50 text-primary text-xs rounded-xl gap-1 hover:bg-primary/10 font-bold"
               >
                 <Eye className="h-4 w-4" /> Pré-visualizar como Cliente
               </Button>
               <Button
                 variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(urlPublica);
-                  toast({ title: 'Link Copiado', description: 'Link de cobrança copiado para a área de transferência.' });
-                }}
-                className="border-primary/20 text-primary text-xs rounded-xl gap-1 hover:bg-primary/10"
+                onClick={() => window.open(generateWhatsAppLink(), '_blank')}
+                className="border-green-500/50 text-green-400 text-xs rounded-xl gap-1 hover:bg-green-500/10 font-bold"
               >
-                <Link className="h-4 w-4" /> Copiar Link
+                <MessageCircle className="h-4 w-4" /> WhatsApp
               </Button>
             </>
           )}
@@ -70,7 +88,18 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
               onClick={() => setIsPaymentModalOpen(true)} 
               className="gradient-primary glow-primary font-bold text-xs rounded-xl gap-2 shadow-xl border-transparent"
             >
-              <CheckCircle2 className="h-4 w-4" /> Registrar Pagamento
+              <CheckCircle2 className="h-4 w-4" /> Marcar como paga (Parcial/Total)
+            </Button>
+          )}
+          
+          {conta.status !== 'CANCELADO' && (
+            <Button 
+              onClick={handleCancel} 
+              disabled={isCanceling}
+              variant="outline"
+              className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs rounded-xl gap-1"
+            >
+              Cancelar Cobrança
             </Button>
           )}
 

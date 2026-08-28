@@ -3,9 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DollarSign, CheckCircle2, Clock, AlertCircle, Eye, Plus } from 'lucide-react';
+import { DollarSign, Eye, Plus, Edit, Link, MessageCircle } from 'lucide-react';
 import { ContaReceberCompleta } from '../../services/financeiro.service';
 import { NewReceivableModal } from './NewReceivableModal';
+import { EditReceivableModal } from './EditReceivableModal';
+import { useToast } from '@/hooks/use-toast';
 
 interface FinanceListProps {
   contas: ContaReceberCompleta[];
@@ -14,16 +16,38 @@ interface FinanceListProps {
 }
 
 export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { toast } = useToast();
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [editingConta, setEditingConta] = useState<ContaReceberCompleta | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
 
   // Computed metrics for dashboard cards
   const totalAReceber = contas.filter(c => c.status !== 'CANCELADO').reduce((acc, c) => acc + Number(c.saldo || 0), 0);
+  
   const abertos = contas.filter(c => c.status === 'PENDENTE');
   const abertosValor = abertos.reduce((acc, c) => acc + Number(c.saldo || 0), 0);
+  
+  const emCobranca = contas.filter(c => c.status === 'PENDENTE' || c.status === 'VENCIDO'); // Simplify as needed
+  const emCobrancaValor = emCobranca.reduce((acc, c) => acc + Number(c.saldo || 0), 0);
+  
   const recebidos = contas.filter(c => c.status === 'PAGO' || c.status === 'PARCIAL');
   const recebidoValor = recebidos.reduce((acc, c) => acc + Number(c.valor_pago || 0), 0);
-  const vencidos = contas.filter(c => c.status === 'VENCIDO' || (c.status === 'PENDENTE' && new Date(c.vencimento) < new Date()));
-  const vencidosValor = vencidos.reduce((acc, c) => acc + Number(c.saldo || 0), 0);
+  
+  const inadimplentes = contas.filter(c => c.status === 'VENCIDO');
+  const inadimplentesValor = inadimplentes.reduce((acc, c) => acc + Number(c.saldo || 0), 0);
+
+  const bloqueados = contas.filter(c => c.status === 'CANCELADO'); // As placeholder for Bloqueados
+
+  const filteredContas = filterStatus 
+    ? (filterStatus === 'TODOS' ? contas : contas.filter(c => {
+        if (filterStatus === 'ABERTO') return c.status === 'PENDENTE';
+        if (filterStatus === 'COBRANCA') return c.status === 'PENDENTE' || c.status === 'VENCIDO';
+        if (filterStatus === 'INADIMPLENTES') return c.status === 'VENCIDO';
+        if (filterStatus === 'BLOQUEADOS') return c.status === 'CANCELADO'; // Needs real logic if separate
+        if (filterStatus === 'RECEBIDO') return c.status === 'PAGO' || c.status === 'PARCIAL';
+        return true;
+      }))
+    : contas;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -40,6 +64,16 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
     }
   };
 
+  const generateWhatsAppLink = (conta: ContaReceberCompleta) => {
+    const urlPublica = `${window.location.origin}/cobranca/${conta.numero_documento}/${conta.public_token}`;
+    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  };
+
+  const handleCardClick = (status: string) => {
+    setFilterStatus(filterStatus === status ? null : status);
+  };
+
   return (
     <>
       <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
@@ -49,75 +83,149 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
               <DollarSign className="h-4 w-4 text-emerald-400" />
               Contas a Receber ({contas.length})
             </span>
-            <Button size="sm" onClick={() => setIsModalOpen(true)} className="gap-2 bg-primary/20 text-primary hover:bg-primary/30">
+            <Button size="sm" onClick={() => setIsNewModalOpen(true)} className="gap-2 bg-primary/20 text-primary hover:bg-primary/30">
               <Plus className="h-4 w-4" /> Nova Cobrança
             </Button>
           </CardTitle>
         </CardHeader>
       <CardContent className="pt-4 space-y-6">
         
-        {/* Dashboard Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
-            <span className="text-slate-400 block text-xs">Total a Receber</span>
-            <strong className="text-white text-lg font-bold">R$ {totalAReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+        {/* Dashboard Cards - Interactive */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div 
+            onClick={() => handleCardClick('TODOS')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'TODOS' || !filterStatus ? 'bg-primary/20 border-primary/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
+          >
+            <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Total a Receber</span>
+            <strong className="text-white text-sm font-bold block mt-1">R$ {totalAReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <span className="text-[10px] text-slate-500 mt-1 block">{contas.length} cobranças</span>
           </div>
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
-            <span className="text-slate-400 block text-xs">Em Aberto ({abertos.length})</span>
-            <strong className="text-amber-400 text-lg font-bold">R$ {abertosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+
+          <div 
+            onClick={() => handleCardClick('ABERTO')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'ABERTO' ? 'bg-amber-500/20 border-amber-500/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
+          >
+            <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Em Aberto</span>
+            <strong className="text-amber-400 text-sm font-bold block mt-1">R$ {abertosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <span className="text-[10px] text-slate-500 mt-1 block">{abertos.length} dentro do vencimento</span>
           </div>
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
-            <span className="text-slate-400 block text-xs">Recebido ({recebidos.length})</span>
-            <strong className="text-emerald-400 text-lg font-bold">R$ {recebidoValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+
+          <div 
+            onClick={() => handleCardClick('COBRANCA')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'COBRANCA' ? 'bg-orange-500/20 border-orange-500/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
+          >
+            <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Em Cobrança</span>
+            <strong className="text-orange-400 text-sm font-bold block mt-1">R$ {emCobrancaValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <span className="text-[10px] text-slate-500 mt-1 block">{emCobranca.length} na régua</span>
           </div>
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
-            <span className="text-slate-400 block text-xs">Vencidos ({vencidos.length})</span>
-            <strong className="text-rose-400 text-lg font-bold">R$ {vencidosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+
+          <div 
+            onClick={() => handleCardClick('INADIMPLENTES')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'INADIMPLENTES' ? 'bg-rose-500/20 border-rose-500/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
+          >
+            <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Inadimplentes</span>
+            <strong className="text-rose-400 text-sm font-bold block mt-1">R$ {inadimplentesValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <span className="text-[10px] text-slate-500 mt-1 block">{inadimplentes.length} ultrapassaram a régua</span>
+          </div>
+
+          <div 
+            onClick={() => handleCardClick('BLOQUEADOS')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'BLOQUEADOS' ? 'bg-purple-500/20 border-purple-500/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
+          >
+            <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Bloqueados</span>
+            <strong className="text-purple-400 text-sm font-bold block mt-1">Suspensos</strong>
+            <span className="text-[10px] text-slate-500 mt-1 block">{bloqueados.length} contratos inativos</span>
+          </div>
+
+          <div 
+            onClick={() => handleCardClick('RECEBIDO')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'RECEBIDO' ? 'bg-emerald-500/20 border-emerald-500/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
+          >
+            <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Recebido</span>
+            <strong className="text-emerald-400 text-sm font-bold block mt-1">R$ {recebidoValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <span className="text-[10px] text-slate-500 mt-1 block">{recebidos.length} baixas realizadas</span>
           </div>
         </div>
 
-        {contas.length === 0 ? (
-          <div className="text-center py-8 text-slate-400 text-xs">Nenhum título a receber cadastrado.</div>
+        {filteredContas.length === 0 ? (
+          <div className="text-center py-8 text-slate-400 text-xs">Nenhum título encontrado para o filtro selecionado.</div>
         ) : (
           <div className="rounded-xl border border-white/10 overflow-hidden">
             <Table>
               <TableHeader className="bg-slate-950">
                 <TableRow className="border-white/10">
-                  <TableHead className="text-slate-300">Documento / Cliente</TableHead>
+                  <TableHead className="text-slate-300">Cliente / Ref</TableHead>
                   <TableHead className="text-slate-300">Vencimento</TableHead>
-                  <TableHead className="text-slate-300">Valor Original</TableHead>
                   <TableHead className="text-slate-300">Saldo a Receber</TableHead>
-                  <TableHead className="text-slate-300">Status</TableHead>
+                  <TableHead className="text-slate-300">Situação</TableHead>
                   <TableHead className="text-right text-slate-300">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {contas.map((c) => (
+                {filteredContas.map((c) => (
                   <TableRow key={c.id} className="border-white/10 hover:bg-white/5">
                     <TableCell>
-                      <strong className="text-white block font-mono text-xs">{c.numero_documento}</strong>
-                      <span className="text-[11px] text-slate-400">{c.cliente?.empresas?.[0]?.nome_fantasia || 'Cliente'}</span>
+                      <strong className="text-white block font-mono text-xs">{c.cliente?.empresas?.[0]?.nome_fantasia || 'Cliente'}</strong>
+                      <span className="text-[11px] text-slate-400">{c.numero_documento}</span>
                     </TableCell>
                     <TableCell className="text-xs text-slate-300">
                       {new Date(c.vencimento).toLocaleDateString('pt-BR')}
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-200 font-semibold">
-                      R$ {Number(c.valor_original).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-xs font-bold text-emerald-400">
                       R$ {Number(c.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell>{getStatusBadge(c.status)}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onSelectConta(c)}
-                        className="border-primary/30 text-primary hover:bg-primary/10 text-xs gap-1 h-8"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        Detalhes
-                      </Button>
+                      <div className="flex items-center justify-end gap-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Visualizar Detalhes"
+                          onClick={() => onSelectConta(c)}
+                          className="h-7 px-2 text-slate-300 hover:text-white hover:bg-white/10"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          <span className="hidden xl:inline text-xs">Visualizar</span>
+                        </Button>
+                        
+                        {c.status !== 'CANCELADO' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Editar Cobrança"
+                            onClick={() => setEditingConta(c)}
+                            className="h-7 px-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            <span className="hidden xl:inline text-xs">Editar</span>
+                          </Button>
+                        )}
+                        
+                        {c.public_token && c.public_enabled && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Pré-visualizar como Cliente"
+                              onClick={() => window.open(`${window.location.origin}/cobranca/${c.numero_documento}/${c.public_token}`, '_blank')}
+                              className="h-7 px-2 text-primary hover:text-primary hover:bg-primary/10"
+                            >
+                              <Link className="h-4 w-4 mr-1" />
+                              <span className="hidden xl:inline text-xs">Pré-visualizar</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Enviar por WhatsApp"
+                              onClick={() => window.open(generateWhatsAppLink(c), '_blank')}
+                              className="h-7 px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10"
+                            >
+                              <MessageCircle className="h-4 w-4 mr-1" />
+                              <span className="hidden xl:inline text-xs">WhatsApp</span>
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -129,13 +237,25 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
       </Card>
       
       <NewReceivableModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        isOpen={isNewModalOpen} 
+        onClose={() => setIsNewModalOpen(false)} 
         onSuccess={() => {
-          setIsModalOpen(false);
+          setIsNewModalOpen(false);
           if (onRefresh) onRefresh();
         }} 
       />
+
+      {editingConta && (
+        <EditReceivableModal
+          isOpen={true}
+          onClose={() => setEditingConta(null)}
+          cobranca={editingConta as any}
+          onSuccess={() => {
+            setEditingConta(null);
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
     </>
   );
 }
