@@ -528,6 +528,57 @@ export class FinanceiroService {
     }
   }
 
+  async updateReceivable(
+    id: string,
+    payload: { valor?: number; dataVencimento?: string; descricao?: string; metodoCobranca?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Validar recebível e regras financeiras (ex: não reduzir saldo para negativo ou valor total menor que pago)
+      const { data: current } = await supabase
+        .from('contas_receber')
+        .select('valor_pago, status')
+        .eq('id', id)
+        .single();
+        
+      if (!current) return { success: false, error: 'Recebível não encontrado.' };
+      
+      const updatePayload: any = { updated_at: new Date().toISOString() };
+      
+      if (payload.valor !== undefined) {
+        if (payload.valor < Number(current.valor_pago || 0)) {
+          return { success: false, error: 'Valor total não pode ser menor que o valor já recebido.' };
+        }
+        updatePayload.valor = payload.valor;
+        updatePayload.saldo = payload.valor - Number(current.valor_pago || 0);
+        
+        // Recalcular status se necessário baseado no novo saldo
+        if (current.status !== 'CANCELADO') {
+          updatePayload.status = updatePayload.saldo <= 0 ? 'PAGO' : (Number(current.valor_pago || 0) > 0 ? 'PARCIAL' : 'PENDENTE');
+        }
+      }
+      
+      if (payload.dataVencimento) updatePayload.data_vencimento = payload.dataVencimento;
+      if (payload.descricao !== undefined) updatePayload.notes = payload.descricao;
+      if (payload.metodoCobranca !== undefined) updatePayload.metodo_cobranca = payload.metodoCobranca;
+
+      const { error } = await supabase.from('contas_receber').update(updatePayload).eq('id', id);
+      
+      if (error) return { success: false, error: error.message };
+      
+      // Registrar evento de auditoria
+      await supabase.from('financeiro_auditoria').insert({
+        empresa_operadora_id: (await supabase.from('contas_receber').select('empresa_operadora_id').eq('id', id).single()).data?.empresa_operadora_id,
+        evento: 'EDICAO',
+        detalhes: { conta_receber_id: id, alteracoes: payload }
+      });
+      
+      return { success: true };
+    } catch (err: any) {
+      logger.error('updateReceivable falhou', err);
+      return { success: false, error: err?.message || 'Falha ao atualizar cobrança.' };
+    }
+  }
+
   async marcarComoPaga(
     cobranca: Pick<Cobranca, 'id' | 'valor' | 'contrato_id' | 'empresa_operadora_id'>,
     opts: { meioPagamento: TipoPagamento; valorPago?: number; dataLiquidacao?: string; usuarioId?: string }

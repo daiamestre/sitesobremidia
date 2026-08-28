@@ -16,6 +16,15 @@ interface FinanceListProps {
 export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Computed metrics for dashboard cards
+  const totalAReceber = contas.filter(c => c.status !== 'CANCELADO').reduce((acc, c) => acc + Number(c.saldo || 0), 0);
+  const abertos = contas.filter(c => c.status === 'PENDENTE');
+  const abertosValor = abertos.reduce((acc, c) => acc + Number(c.saldo || 0), 0);
+  const recebidos = contas.filter(c => c.status === 'PAGO' || c.status === 'PARCIAL');
+  const recebidoValor = recebidos.reduce((acc, c) => acc + Number(c.valor_pago || 0), 0);
+  const vencidos = contas.filter(c => c.status === 'VENCIDO' || (c.status === 'PENDENTE' && new Date(c.vencimento) < new Date()));
+  const vencidosValor = vencidos.reduce((acc, c) => acc + Number(c.saldo || 0), 0);
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PAGO':
@@ -45,7 +54,28 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
             </Button>
           </CardTitle>
         </CardHeader>
-      <CardContent className="pt-4">
+      <CardContent className="pt-4 space-y-6">
+        
+        {/* Dashboard Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+            <span className="text-slate-400 block text-xs">Total a Receber</span>
+            <strong className="text-white text-lg font-bold">R$ {totalAReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+            <span className="text-slate-400 block text-xs">Em Aberto ({abertos.length})</span>
+            <strong className="text-amber-400 text-lg font-bold">R$ {abertosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+            <span className="text-slate-400 block text-xs">Recebido ({recebidos.length})</span>
+            <strong className="text-emerald-400 text-lg font-bold">R$ {recebidoValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+            <span className="text-slate-400 block text-xs">Vencidos ({vencidos.length})</span>
+            <strong className="text-rose-400 text-lg font-bold">R$ {vencidosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+          </div>
+        </div>
+
         {contas.length === 0 ? (
           <div className="text-center py-8 text-slate-400 text-xs">Nenhum título a receber cadastrado.</div>
         ) : (
