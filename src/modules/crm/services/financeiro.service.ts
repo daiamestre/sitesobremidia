@@ -530,7 +530,7 @@ export class FinanceiroService {
 
   async updateReceivable(
     id: string,
-    payload: { valor?: number; dataVencimento?: string; descricao?: string; metodoCobranca?: string }
+    payload: { valor?: number; dataVencimento?: string; descricao?: string; metodoCobranca?: string; metodosGateway?: string[] }
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // Validar recebível e regras financeiras (ex: não reduzir saldo para negativo ou valor total menor que pago)
@@ -560,6 +560,7 @@ export class FinanceiroService {
       if (payload.dataVencimento) updatePayload.data_vencimento = payload.dataVencimento;
       if (payload.descricao !== undefined) updatePayload.notes = payload.descricao;
       if (payload.metodoCobranca !== undefined) updatePayload.metodo_cobranca = payload.metodoCobranca;
+      if (payload.metodosGateway !== undefined) updatePayload.metodos_gateway = payload.metodosGateway;
 
       const { error } = await supabase.from('contas_receber').update(updatePayload).eq('id', id);
       
@@ -836,6 +837,7 @@ export interface Cobranca {
   codigo_operacional?: string | null;
   competencia_date?: string | null;
   metodo_cobranca?: string | null;
+  metodos_gateway?: string[] | null;
   recorrencia?: string | null;
   gerada_automaticamente?: boolean;
   situacao_cobranca?: 'NENHUMA' | 'EM_COBRANCA' | 'CONTATO_1' | 'CONTATO_2' | 'CONTATO_3' | 'INADIMPLENTE' | 'BLOQUEADO';

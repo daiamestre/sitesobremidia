@@ -268,7 +268,7 @@ serve(async (req) => {
       const srv = createClient(supabaseUrlSrv, serviceRoleKey);
 
       const { data: cb } = await srv.from('contas_receber')
-        .select('inter_codigo_solicitacao, codigo_operacional')
+        .select('inter_codigo_solicitacao, codigo_operacional, metodos_gateway')
         .eq('public_identifier', pId)
         .maybeSingle();
 
@@ -304,6 +304,14 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: true, pdf: parsed.pdf }), { headers: corsHeaders });
       }
 
+      const permitidos = cb.metodos_gateway || ['PIX', 'BOLETO'];
+      const allowPix = permitidos.includes('PIX');
+      const allowBoleto = permitidos.includes('BOLETO');
+
+      if (action === 'public_pdf' && !allowBoleto) {
+        return new Response(JSON.stringify({ error: 'Método Boleto não autorizado' }), { status: 403, headers: corsHeaders });
+      }
+
       const safeData = {
         success: true,
         data: {
@@ -312,11 +320,11 @@ serve(async (req) => {
             dataVencimento: parsed.cobranca?.dataVencimento,
             situacao: parsed.cobranca?.situacao,
           },
-          boleto: parsed.boleto ? {
+          boleto: (parsed.boleto && allowBoleto) ? {
             linhaDigitavel: parsed.boleto.linhaDigitavel,
             codigoBarras: parsed.boleto.codigoBarras,
           } : undefined,
-          pix: parsed.pix ? {
+          pix: (parsed.pix && allowPix) ? {
             pixCopiaECola: parsed.pix.pixCopiaECola,
             txid: parsed.pix.txid
           } : undefined

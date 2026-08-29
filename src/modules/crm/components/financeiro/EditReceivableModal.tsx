@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Save } from 'lucide-react';
 import { financeiroService, Cobranca } from '../../services/financeiro.service';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +26,7 @@ export function EditReceivableModal({ isOpen, onClose, cobranca, onSuccess }: Ed
   );
   const [descricao, setDescricao] = useState(cobranca.notes || '');
   const [metodo, setMetodo] = useState(cobranca.metodo_cobranca || 'PIX');
+  const [metodosGateway, setMetodosGateway] = useState<string[]>(cobranca.metodos_gateway || ['PIX', 'BOLETO']);
 
   useEffect(() => {
     if (isOpen) {
@@ -32,6 +34,7 @@ export function EditReceivableModal({ isOpen, onClose, cobranca, onSuccess }: Ed
       setVencimento(cobranca.data_vencimento ? String(cobranca.data_vencimento).substring(0, 10) : '');
       setDescricao(cobranca.notes || '');
       setMetodo(cobranca.metodo_cobranca || 'PIX');
+      setMetodosGateway(cobranca.metodos_gateway || ['PIX', 'BOLETO']);
     }
   }, [isOpen, cobranca]);
 
@@ -56,15 +59,21 @@ export function EditReceivableModal({ isOpen, onClose, cobranca, onSuccess }: Ed
       return;
     }
 
+    if (metodosGateway.length === 0) {
+      toast({ title: 'Método Inválido', description: 'Selecione pelo menos uma forma de pagamento aceita.', variant: 'destructive' });
+      return;
+    }
+
     setIsSubmitting(true);
     
     // Chamada ao serviço para atualizar
     const res = await financeiroService.updateReceivable(cobranca.id, {
-      valor,
-      dataVencimento: vencimento,
-      descricao,
-      metodoCobranca: metodo
-    });
+        valor: valor.toString(),
+        data_vencimento: vencimento,
+        notes: descricao,
+        metodoCobranca: metodo,
+        metodosGateway: metodosGateway
+      });
 
     setIsSubmitting(false);
 
@@ -139,6 +148,36 @@ export function EditReceivableModal({ isOpen, onClose, cobranca, onSuccess }: Ed
                 <SelectItem value="TRANSFERENCIA">Transferência</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-white/10 mt-4">
+            <Label className="text-slate-300">Formas de pagamento aceitas</Label>
+            <div className="flex gap-6 mt-2">
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  id="pix-allowed" 
+                  checked={metodosGateway.includes('PIX')} 
+                  onCheckedChange={(checked) => {
+                    if (checked) setMetodosGateway(prev => [...prev, 'PIX']);
+                    else setMetodosGateway(prev => prev.filter(m => m !== 'PIX'));
+                  }}
+                  className="border-white/20 data-[state=checked]:bg-primary"
+                />
+                <Label htmlFor="pix-allowed" className="text-sm font-normal text-slate-300 cursor-pointer">PIX</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  id="boleto-allowed" 
+                  checked={metodosGateway.includes('BOLETO')} 
+                  onCheckedChange={(checked) => {
+                    if (checked) setMetodosGateway(prev => [...prev, 'BOLETO']);
+                    else setMetodosGateway(prev => prev.filter(m => m !== 'BOLETO'));
+                  }}
+                  className="border-white/20 data-[state=checked]:bg-primary"
+                />
+                <Label htmlFor="boleto-allowed" className="text-sm font-normal text-slate-300 cursor-pointer">Boleto Bancário</Label>
+              </div>
+            </div>
           </div>
         </div>
 

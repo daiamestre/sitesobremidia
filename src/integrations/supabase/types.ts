@@ -2517,9 +2517,16 @@ export type Database = {
           data_vencimento: string
           empresa_operadora_id: string | null
           gerada_automaticamente: boolean
+          inter_codigo_solicitacao: string | null
+          inter_lock_timestamp: string | null
+          inter_nosso_numero: string | null
+          inter_seu_numero: string | null
+          inter_status: string | null
+          inter_txid: string | null
           id: string
           issue_date: string | null
           metodo_cobranca: string | null
+          metodos_gateway: string[] | null
           notes: string | null
           numero_documento: string | null
           numero_parcela: number
@@ -2544,9 +2551,16 @@ export type Database = {
           data_vencimento: string
           empresa_operadora_id?: string | null
           gerada_automaticamente?: boolean
+          inter_codigo_solicitacao?: string | null
+          inter_lock_timestamp?: string | null
+          inter_nosso_numero?: string | null
+          inter_seu_numero?: string | null
+          inter_status?: string | null
+          inter_txid?: string | null
           id?: string
           issue_date?: string | null
           metodo_cobranca?: string | null
+          metodos_gateway?: string[] | null
           notes?: string | null
           numero_documento?: string | null
           numero_parcela?: number
@@ -2571,9 +2585,16 @@ export type Database = {
           data_vencimento?: string
           empresa_operadora_id?: string | null
           gerada_automaticamente?: boolean
+          inter_codigo_solicitacao?: string | null
+          inter_lock_timestamp?: string | null
+          inter_nosso_numero?: string | null
+          inter_seu_numero?: string | null
+          inter_status?: string | null
+          inter_txid?: string | null
           id?: string
           issue_date?: string | null
           metodo_cobranca?: string | null
+          metodos_gateway?: string[] | null
           notes?: string | null
           numero_documento?: string | null
           numero_parcela?: number
@@ -11427,6 +11448,12 @@ export type Database = {
           data_vencimento: string
           empresa_operadora_id: string | null
           gerada_automaticamente: boolean
+          inter_codigo_solicitacao: string | null
+          inter_lock_timestamp: string | null
+          inter_nosso_numero: string | null
+          inter_seu_numero: string | null
+          inter_status: string | null
+          inter_txid: string | null
           id: string
           issue_date: string | null
           metodo_cobranca: string | null

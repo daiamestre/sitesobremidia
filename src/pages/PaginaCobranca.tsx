@@ -28,6 +28,7 @@ interface PublicBillingData {
   numero_parcela: number | null;
   total_parcelas: number | null;
   metodo: string;
+  metodos_gateway: string[];
   recorrencia: string;
   observacoes: string;
   cliente_nome: string;
@@ -51,6 +52,15 @@ export default function PaginaCobranca() {
   const [bankError, setBankError] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [copied, setCopied] = useState<'linha' | 'pix' | null>(null);
+  const [activeTab, setActiveTab] = useState<'pix' | 'boleto' | null>(null);
+
+  // Selecionar a primeira aba disponível assim que a resposta do banco chegar
+  useEffect(() => {
+    if (bankData) {
+      if (bankData.pix?.pixCopiaECola) setActiveTab('pix');
+      else if (bankData.boleto?.linhaDigitavel) setActiveTab('boleto');
+    }
+  }, [bankData]);
 
   useEffect(() => {
     async function fetchBilling() {
@@ -440,9 +450,36 @@ export default function PaginaCobranca() {
                     </div>
                   ) : bankData ? (
                     <div className="space-y-6">
+                      
+                      {/* SELETOR DE MÉTODO - Só exibe se houver ambos */}
+                      {bankData.pix?.pixCopiaECola && bankData.boleto?.linhaDigitavel && (
+                        <div className="flex bg-[#1B003A] border border-white/10 rounded-lg p-1 gap-1">
+                          <button
+                            onClick={() => setActiveTab('pix')}
+                            className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${
+                              activeTab === 'pix' 
+                                ? 'bg-[#5D1BFF] text-white shadow-md' 
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            PIX
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('boleto')}
+                            className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${
+                              activeTab === 'boleto' 
+                                ? 'bg-[#5D1BFF] text-white shadow-md' 
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            BOLETO
+                          </button>
+                        </div>
+                      )}
+
                       {/* PIX */}
-                      {bankData.pix?.pixCopiaECola && (
-                        <div className="space-y-3">
+                      {bankData.pix?.pixCopiaECola && (activeTab === 'pix' || (!bankData.boleto?.linhaDigitavel)) && (
+                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
                           <div className="flex items-center gap-2 text-sm font-bold text-[#FFFFFF]">
                             <QrCode className="w-4 h-4 text-[#25D366]" />
                             Pagamento via PIX
@@ -469,8 +506,8 @@ export default function PaginaCobranca() {
                       )}
 
                       {/* BOLETO */}
-                      {bankData.boleto?.linhaDigitavel && (
-                        <div className="space-y-3">
+                      {bankData.boleto?.linhaDigitavel && (activeTab === 'boleto' || (!bankData.pix?.pixCopiaECola)) && (
+                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
                           <div className="flex items-center justify-between text-sm font-bold text-[#FFFFFF]">
                             <div className="flex items-center gap-2">
                               <Receipt className="w-4 h-4 text-[#8A2EFF]" />
@@ -506,8 +543,11 @@ export default function PaginaCobranca() {
                         </div>
                       )}
                       
+                      
                       {!bankData.pix?.pixCopiaECola && !bankData.boleto?.linhaDigitavel && (
-                        <p className="text-xs text-[#F2F2F2]/50 text-center">Dados de pagamento não encontrados.</p>
+                        <p className="text-xs text-[#F2F2F2]/50 text-center bg-white/5 border border-white/10 py-6 rounded-xl">
+                          Nenhuma forma de pagamento está disponível para esta cobrança no momento.
+                        </p>
                       )}
                     </div>
                   ) : (
