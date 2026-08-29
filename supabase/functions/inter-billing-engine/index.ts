@@ -497,13 +497,19 @@ serve(async (req) => {
         try { metodosConfig = JSON.parse(metodosConfig); } catch (e) { }
       }
       const permitidos = Array.isArray(metodosConfig) && metodosConfig.length > 0 ? metodosConfig : ['PIX', 'BOLETO'];
+      
+      // WORKAROUND INTER V3: A API de Cobranças não permite "SÓ PIX". Exige que um Boleto seja gerado junto.
+      // O frontend e o public_consult já filtram corretamente para ocultar o boleto do cliente final.
+      const formasRecebimentoInter = (permitidos.length === 1 && permitidos[0] === 'PIX') 
+          ? ['PIX', 'BOLETO'] 
+          : permitidos;
 
       const payloadInter = {
         seuNumero,
         valorNominal: isFinite(valorNominal) && valorNominal > 0 ? Number(valorNominal.toFixed(2)) : 10.00,
         dataVencimento,
         numDiasAgenda: 60,
-        formasRecebimento: permitidos,
+        formasRecebimento: formasRecebimentoInter,
         pagador: {
           tipoPessoa: "FISICA",
           nome: "Teste Sandbox SobreMidia",

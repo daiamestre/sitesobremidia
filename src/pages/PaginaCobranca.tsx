@@ -95,12 +95,13 @@ export default function PaginaCobranca() {
 
 
 
-  // Derived values
-  const isPaid = data?.status === 'PAGO' || (data?.saldo !== undefined && data.saldo <= 0);
+  // Derived values — saldo correto com fallback quando DB retornar null (rollback-safe)
+  const saldoCorreto = data ? (typeof data.saldo === 'number' ? data.saldo : Number(data.valor_original || 0) - Number(data.valor_pago || 0)) : 0;
+  const isPaid = !!data && (data.status === 'PAGO' || data.status === 'PAGA' || saldoCorreto <= 0.009);
   const isCanceled = data?.status === 'CANCELADO' || data?.status === 'CANCELADA';
   const dataVenc = data ? new Date(data.vencimento) : new Date();
   const dataHoje = new Date();
-  const isOverdue = !isPaid && !isCanceled && (data?.status === 'VENCIDO' || dataVenc < dataHoje);
+  const isOverdue = !isPaid && !isCanceled && (data?.status === 'VENCIDO' || data?.status === 'ATRASADA' || dataVenc < dataHoje);
   
   let diasAtraso = 0;
   if (isOverdue) {
@@ -217,7 +218,7 @@ export default function PaginaCobranca() {
     if (isCanceled) return 'CANCELADA';
     if (isPaid) return 'PAGA';
     if (isOverdue) return 'ATRASADA';
-    if (data.status === 'PARCIAL' || (data.valor_pago > 0 && data.saldo > 0)) return 'PAGA PARCIALMENTE';
+    if (data.status === 'PARCIAL' || data.status === 'PARCIAL_PAGA' || (Number(data.valor_pago || 0) > 0 && Number(saldoCorreto) > 0)) return 'PAGA PARCIALMENTE';
     return 'EM ABERTO';
   };
 
@@ -266,7 +267,7 @@ export default function PaginaCobranca() {
           </h3>
           
           <div className={`text-5xl sm:text-7xl font-extrabold tracking-tight mb-4 drop-shadow-lg ${isPaid ? 'text-[#25D366]' : 'text-[#FFFFFF]'}`}>
-            {formatMoney(isPaid ? data.valor_pago : data.saldo)}
+            {formatMoney(isPaid ? data.valor_pago : saldoCorreto)}
           </div>
           
           {!isPaid && !isCanceled && (
@@ -307,7 +308,7 @@ export default function PaginaCobranca() {
           <Card className={`bg-[#1B003A]/60 backdrop-blur-md border transition-colors shadow-lg ${!isPaid && !isCanceled ? 'border-[#8A2EFF]/50 shadow-[0_0_20px_rgba(138,46,255,0.15)]' : 'border-white/10'}`}>
             <CardContent className="p-5 flex flex-col justify-center text-center h-full">
               <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-2">Saldo em aberto</span>
-              <span className={`text-xl font-bold ${isPaid ? 'text-[#F2F2F2]/50' : 'text-[#FFFFFF]'}`}>{formatMoney(data.saldo)}</span>
+              <span className={`text-xl font-bold ${isPaid ? 'text-[#F2F2F2]/50' : 'text-[#FFFFFF]'}`}>{formatMoney(saldoCorreto)}</span>
             </CardContent>
           </Card>
           
