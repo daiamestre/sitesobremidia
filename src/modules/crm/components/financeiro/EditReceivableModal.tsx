@@ -68,12 +68,12 @@ export function EditReceivableModal({ isOpen, onClose, cobranca, onSuccess }: Ed
     
     // Chamada ao serviço para atualizar
     const res = await financeiroService.updateReceivable(cobranca.id, {
-        valor: valor.toString(),
-        data_vencimento: vencimento,
-        notes: descricao,
+        valor: valor,
+        dataVencimento: vencimento,
+        descricao: descricao,
         metodoCobranca: metodo,
         metodosGateway: metodosGateway
-      });
+      } as any);
 
     setIsSubmitting(false);
 

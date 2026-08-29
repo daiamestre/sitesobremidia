@@ -268,12 +268,30 @@ serve(async (req) => {
       const srv = createClient(supabaseUrlSrv, serviceRoleKey);
 
       const { data: cb } = await srv.from('contas_receber')
-        .select('inter_codigo_solicitacao, codigo_operacional, metodos_gateway')
+        .select('inter_codigo_solicitacao, codigo_operacional, metodos_gateway, valor, data_vencimento')
         .eq('public_identifier', pId)
         .maybeSingle();
 
-      if (!cb || cb.codigo_operacional !== pCodigo || !cb.inter_codigo_solicitacao) {
+      if (!cb || cb.codigo_operacional !== pCodigo) {
         return new Response(JSON.stringify({ error: 'Cobrança não encontrada ou inválida', code: 'NOT_FOUND_OR_UNAUTHORIZED' }), { status: 404, headers: corsHeaders });
+      }
+      // Cobrança existe mas ainda não emitida no Banco Inter (sem codigoSolicitacao) -> retornar estrutura vazia coerente
+      if (!cb.inter_codigo_solicitacao) {
+        if (action === 'public_pdf') {
+          return new Response(JSON.stringify({ error: 'Boleto ainda não emitido', code: 'NOT_ISSUED' }), { status: 404, headers: corsHeaders });
+        }
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            cobranca: {
+              valorNominal: (cb as any).valor,
+              dataVencimento: (cb as any).data_vencimento,
+              situacao: 'AGUARDANDO_EMISSAO'
+            },
+            boleto: undefined,
+            pix: undefined
+          }
+        }), { headers: corsHeaders });
       }
 
       let httpClient: any;

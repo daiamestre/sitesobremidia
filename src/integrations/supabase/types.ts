@@ -2523,6 +2523,8 @@ export type Database = {
           inter_seu_numero: string | null
           inter_status: string | null
           inter_txid: string | null
+          public_identifier: string | null
+          public_enabled: boolean | null
           id: string
           issue_date: string | null
           metodo_cobranca: string | null
@@ -2557,6 +2559,8 @@ export type Database = {
           inter_seu_numero?: string | null
           inter_status?: string | null
           inter_txid?: string | null
+          public_identifier?: string | null
+          public_enabled?: boolean | null
           id?: string
           issue_date?: string | null
           metodo_cobranca?: string | null
@@ -2591,6 +2595,8 @@ export type Database = {
           inter_seu_numero?: string | null
           inter_status?: string | null
           inter_txid?: string | null
+          public_identifier?: string | null
+          public_enabled?: boolean | null
           id?: string
           issue_date?: string | null
           metodo_cobranca?: string | null

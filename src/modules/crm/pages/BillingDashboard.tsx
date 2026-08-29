@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRbac } from '@/hooks/useRbac';
@@ -261,10 +262,8 @@ export default function BillingDashboard() {
     if (!cobrancaParaBaixa) return;
     try {
       const res = await financeiroService.marcarComoPaga(
-        cobrancaParaBaixa.id,
-        Number(cobrancaParaBaixa.saldo || cobrancaParaBaixa.valor || 0),
-        cobrancaParaBaixa.metodo_cobranca || 'PIX',
-        { origin: 'DASHBOARD_MANUAL' }
+        cobrancaParaBaixa as any,
+        { meioPagamento: (cobrancaParaBaixa.metodo_cobranca as any) || 'PIX' }
       );
       if (res.success) {
         toast({ title: 'Sucesso', description: 'Cobrança marcada como paga.' });
@@ -803,6 +802,7 @@ function NovaCobrancaDialog({
   const [vencimento, setVencimento] = useState<string>('');
   const [periodicidade, setPeriodicidade] = useState<Periodicidade>('AVULSA');
   const [metodo, setMetodo] = useState<string>('PIX');
+  const [metodosGateway, setMetodosGateway] = useState<string[]>(['PIX', 'BOLETO']);
   const [salvando, setSalvando] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -831,11 +831,17 @@ function NovaCobrancaDialog({
   const reset = () => {
     setClienteId(''); setTipoContrato(''); setContratoId(''); setServicoId('');
     setDescricao(''); setValor(''); setVencimento(''); setPeriodicidade('AVULSA'); setMetodo('PIX');
+    setMetodosGateway(['PIX', 'BOLETO']);
     setFormError(null);
   };
 
   const handleSubmit = async () => {
     setFormError(null);
+    if (metodosGateway.length === 0) {
+      setFormError('Selecione pelo menos uma forma de pagamento (PIX e/ou BOLETO).');
+      toast({ title: 'Forma de pagamento', description: 'Selecione pelo menos uma forma.', variant: 'destructive' });
+      return;
+    }
     setSalvando(true);
     try {
       const valorNum = Number(valor.replace(',', '.'));
@@ -850,6 +856,7 @@ function NovaCobrancaDialog({
         metodoCobranca: metodo,
         recorrencia: periodicidade,
         descricao: descricao || (servicoSel ? `Referente a ${servicoSel.nome}` : undefined),
+        metodosGateway: metodosGateway,
       });
       if (!resultado.success) {
         setFormError(resultado.error || 'Falha ao criar cobrança.');
@@ -997,6 +1004,37 @@ function NovaCobrancaDialog({
           <div className="space-y-1.5">
             <Label className="text-xs text-slate-400">Descrição / referência</Label>
             <Input placeholder="Ex.: Plano de mídia mensal" value={descricao} onChange={(e) => setDescricao(e.target.value)} className="bg-slate-950 border-slate-700" />
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-white/10">
+            <Label className="text-xs text-slate-400">Formas de pagamento aceitas *</Label>
+            <div className="flex gap-6 mt-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="nova-pix"
+                  checked={metodosGateway.includes('PIX')}
+                  onCheckedChange={(checked) => {
+                    if (checked) setMetodosGateway(prev => prev.includes('PIX') ? prev : [...prev, 'PIX']);
+                    else setMetodosGateway(prev => prev.filter(m => m !== 'PIX'));
+                  }}
+                  className="border-white/20 data-[state=checked]:bg-primary"
+                />
+                <Label htmlFor="nova-pix" className="text-xs text-slate-300 cursor-pointer">PIX</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="nova-boleto"
+                  checked={metodosGateway.includes('BOLETO')}
+                  onCheckedChange={(checked) => {
+                    if (checked) setMetodosGateway(prev => prev.includes('BOLETO') ? prev : [...prev, 'BOLETO']);
+                    else setMetodosGateway(prev => prev.filter(m => m !== 'BOLETO'));
+                  }}
+                  className="border-white/20 data-[state=checked]:bg-primary"
+                />
+                <Label htmlFor="nova-boleto" className="text-xs text-slate-300 cursor-pointer">Boleto Bancário</Label>
+              </div>
+            </div>
+            {metodosGateway.length === 0 && <p className="text-[11px] text-rose-400">Selecione ao menos uma forma.</p>}
           </div>
 
           {formError && <p className="text-xs text-rose-400">{formError}</p>}

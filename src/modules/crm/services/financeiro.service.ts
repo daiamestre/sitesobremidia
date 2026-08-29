@@ -517,6 +517,7 @@ export class FinanceiroService {
           metodo_cobranca: payload.metodoCobranca ?? null,
           recorrencia: payload.recorrencia ?? 'AVULSA',
           notes: payload.descricao ?? null,
+          metodos_gateway: payload.metodosGateway ?? ['PIX', 'BOLETO'],
         })
         .select('id')
         .single();
@@ -530,9 +531,17 @@ export class FinanceiroService {
 
   async updateReceivable(
     id: string,
-    payload: { valor?: number; dataVencimento?: string; descricao?: string; metodoCobranca?: string; metodosGateway?: string[] }
+    payload: any
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      // Normalizar payload legado (snake_case) para compatibilidade
+      const norm: any = {
+        valor: payload.valor !== undefined ? Number(payload.valor) : undefined,
+        dataVencimento: payload.dataVencimento ?? payload.data_vencimento ?? payload.vencimento ?? undefined,
+        descricao: payload.descricao ?? payload.notes ?? payload.descricao ?? undefined,
+        metodoCobranca: payload.metodoCobranca ?? payload.metodo_cobranca ?? payload.metodo ?? undefined,
+        metodosGateway: payload.metodosGateway ?? payload.metodos_gateway ?? undefined,
+      };
       // Validar recebível e regras financeiras (ex: não reduzir saldo para negativo ou valor total menor que pago)
       const { data: current } = await supabase
         .from('contas_receber')
@@ -544,12 +553,12 @@ export class FinanceiroService {
       
       const updatePayload: any = { updated_at: new Date().toISOString() };
       
-      if (payload.valor !== undefined) {
-        if (payload.valor < Number(current.valor_pago || 0)) {
+      if (norm.valor !== undefined && !isNaN(norm.valor)) {
+        if (norm.valor < Number(current.valor_pago || 0)) {
           return { success: false, error: 'Valor total não pode ser menor que o valor já recebido.' };
         }
-        updatePayload.valor = payload.valor;
-        updatePayload.saldo = payload.valor - Number(current.valor_pago || 0);
+        updatePayload.valor = norm.valor;
+        updatePayload.saldo = norm.valor - Number(current.valor_pago || 0);
         
         // Recalcular status se necessário baseado no novo saldo
         if (current.status !== 'CANCELADO') {
@@ -557,10 +566,10 @@ export class FinanceiroService {
         }
       }
       
-      if (payload.dataVencimento) updatePayload.data_vencimento = payload.dataVencimento;
-      if (payload.descricao !== undefined) updatePayload.notes = payload.descricao;
-      if (payload.metodoCobranca !== undefined) updatePayload.metodo_cobranca = payload.metodoCobranca;
-      if (payload.metodosGateway !== undefined) updatePayload.metodos_gateway = payload.metodosGateway;
+      if (norm.dataVencimento) updatePayload.data_vencimento = norm.dataVencimento;
+      if (norm.descricao !== undefined) updatePayload.notes = norm.descricao;
+      if (norm.metodoCobranca !== undefined) updatePayload.metodo_cobranca = norm.metodoCobranca;
+      if (norm.metodosGateway !== undefined) updatePayload.metodos_gateway = norm.metodosGateway;
 
       const { error } = await supabase.from('contas_receber').update(updatePayload).eq('id', id);
       
@@ -910,6 +919,7 @@ export interface CreateCobrancaPayload {
   metodoCobranca?: string;
   recorrencia?: 'AVULSA' | 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
   descricao?: string;
+  metodosGateway?: string[];
 }
 
 export function deriveCobrancaSituacao(status: string, dataVencimento: string | null | undefined, hoje: Date = new Date()): CobrancaSituacao {

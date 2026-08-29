@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { financeiroService } from '../../services/financeiro.service';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { Checkbox } from '@/components/ui/checkbox';
 import { format } from 'date-fns';
 
 interface NewReceivableModalProps {
@@ -24,6 +25,15 @@ export function NewReceivableModal({ isOpen, onClose, onSuccess }: NewReceivable
   const [contratoId, setContratoId] = useState('');
   const [valor, setValor] = useState('');
   const [vencimento, setVencimento] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [metodosGateway, setMetodosGateway] = useState<string[]>(['PIX', 'BOLETO']);
+
+  const handleMetodoGatewayChange = (method: string, checked: boolean) => {
+    if (checked) {
+      setMetodosGateway(prev => [...prev, method]);
+    } else {
+      setMetodosGateway(prev => prev.filter(m => m !== method));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,15 +43,20 @@ export function NewReceivableModal({ isOpen, onClose, onSuccess }: NewReceivable
       toast({ title: 'Atenção', description: 'Informe o ID do cliente', variant: 'destructive' });
       return;
     }
+    if (metodosGateway.length === 0) {
+      toast({ title: 'Atenção', description: 'Selecione pelo menos uma forma de pagamento.', variant: 'destructive' });
+      return;
+    }
 
     setLoading(true);
     const res = await financeiroService.createCobranca({
       empresaOperadoraId,
       clienteId,
-      contratoId: contratoId || undefined,
-      valorOriginal: Number(valor),
-      vencimento
-    });
+      contratoId: contratoId || '00000000-0000-0000-0000-000000000000',
+      valor: Number(valor),
+      dataVencimento: vencimento,
+      metodosGateway
+    } as any);
     setLoading(false);
 
     if (res.success) {
@@ -105,6 +120,31 @@ export function NewReceivableModal({ isOpen, onClose, onSuccess }: NewReceivable
               className="bg-slate-950 border-white/10"
               required
             />
+          </div>
+
+          <div className="space-y-3 pt-2 border-t border-white/10">
+            <Label>Métodos de Pagamento Oferecidos</Label>
+            <div className="flex gap-6">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="metodo-pix"
+                  checked={metodosGateway.includes('PIX')}
+                  onCheckedChange={(c) => handleMetodoGatewayChange('PIX', !!c)}
+                />
+                <Label htmlFor="metodo-pix" className="cursor-pointer">PIX</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="metodo-boleto"
+                  checked={metodosGateway.includes('BOLETO')}
+                  onCheckedChange={(c) => handleMetodoGatewayChange('BOLETO', !!c)}
+                />
+                <Label htmlFor="metodo-boleto" className="cursor-pointer">Boleto</Label>
+              </div>
+            </div>
+            {metodosGateway.length === 0 && (
+              <p className="text-red-400 text-xs">Atenção: Selecione ao menos um método de pagamento.</p>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

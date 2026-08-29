@@ -484,8 +484,16 @@ export default function PaginaCobranca() {
                             <QrCode className="w-4 h-4 text-[#25D366]" />
                             Pagamento via PIX
                           </div>
+                          <div className="bg-white p-3 rounded-xl flex justify-center">
+                            <img
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(bankData.pix.pixCopiaECola)}`}
+                              alt="QR Code PIX"
+                              className="w-[160px] h-[160px]"
+                              loading="lazy"
+                            />
+                          </div>
                           <div className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
-                            <p className="text-xs text-[#F2F2F2]/70">Copie o código abaixo e cole no aplicativo do seu banco na opção "Pix Copia e Cola":</p>
+                            <p className="text-xs text-[#F2F2F2]/70">Pix Copia e Cola — copie o código abaixo e cole no app do seu banco:</p>
                             <div className="relative">
                               <input 
                                 type="text" 
@@ -523,7 +531,7 @@ export default function PaginaCobranca() {
                             </button>
                           </div>
                           <div className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
-                            <p className="text-xs text-[#F2F2F2]/70">Utilize a linha digitável abaixo para pagar o boleto:</p>
+                            <p className="text-xs text-[#F2F2F2]/70">Linha digitável — copie e pague no seu banco:</p>
                             <div className="relative">
                               <input 
                                 type="text" 
@@ -539,6 +547,10 @@ export default function PaginaCobranca() {
                                 {copied === 'linha' ? 'Copiado' : 'Copiar'}
                               </button>
                             </div>
+                            {bankData.boleto.codigoBarras && (
+                              <p className="text-[11px] text-[#F2F2F2]/50 font-mono break-all">Código de barras: {bankData.boleto.codigoBarras}</p>
+                            )}
+                            <p className="text-[11px] text-[#F2F2F2]/40">Visualizar/Baixar boleto em PDF pelo botão acima.</p>
                           </div>
                         </div>
                       )}
