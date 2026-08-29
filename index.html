@@ -64,6 +64,57 @@
     }
   </style>
   <script>
+    // PWA MODULE RECOVERY TACTIC (Hard Trap)
+    // Intercepta erros de script 404 ANTES do React iniciar.
+    window.addEventListener('error', function(e) {
+      if (e.target && e.target.tagName === 'SCRIPT') {
+        console.warn('Script failed to load:', e.target.src);
+        var recoveryKey = 'sm_pwa_boot_recovery';
+        var hasAttempted = sessionStorage.getItem(recoveryKey);
+        
+        if (!hasAttempted) {
+          sessionStorage.setItem(recoveryKey, '1');
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              for (var i = 0; i < regs.length; i++) { regs[i].unregister(); }
+              // Force reload bypassing cache
+              window.location.reload(true);
+            }).catch(function() {
+              window.location.reload(true);
+            });
+          } else {
+            window.location.reload(true);
+          }
+        } else {
+          // Fallback UI para TELA BRANCA se o recovery já foi tentado
+          var errorBox = document.getElementById('native-error-box');
+          if (!errorBox) {
+            errorBox = document.createElement('div');
+            errorBox.id = 'native-error-box';
+            errorBox.style.position = 'fixed';
+            errorBox.style.top = '0';
+            errorBox.style.left = '0';
+            errorBox.style.width = '100%';
+            errorBox.style.height = '100%';
+            errorBox.style.backgroundColor = '#1a0505';
+            errorBox.style.color = '#ff4444';
+            errorBox.style.zIndex = '999999';
+            errorBox.style.padding = '20px';
+            errorBox.style.whiteSpace = 'pre-wrap';
+            errorBox.style.fontFamily = 'monospace';
+            errorBox.style.fontSize = '14px';
+            document.body.appendChild(errorBox);
+          }
+          errorBox.innerHTML = '<h2 style="color:white">FALHA DE ATUALIZAÇÃO</h2>' +
+            '<p>O sistema não conseguiu carregar os arquivos necessários (possível bloqueio de rede ou cache expirado).</p>' +
+            '<button onclick="sessionStorage.removeItem(\'' + recoveryKey + '\'); window.location.reload(true);" ' +
+            'style="padding: 10px 20px; background: #ff4444; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px;">' +
+            'Limpar e Tentar Novamente</button>';
+        }
+      }
+    }, true);
+  </script>
+  <script>
     // GLOBAL ERROR TRAP (Native JS)
     // Catches errors before React loads
     window.onerror = function (msg, url, line, col, error) {
