@@ -43,7 +43,9 @@ async function attemptSwUpdate(): Promise<void> {
 function lazyWithRetry(componentImport: () => Promise<any>) {
   return lazy(async () => {
     try {
-      return await componentImport();
+      const component = await componentImport();
+      sessionStorage.removeItem(SM_CHUNK_RECOVERY_KEY);
+      return component;
     } catch (error: unknown) {
       if (!isChunkLoadError(error)) {
         throw error; // Erros não-chunk sobem direto para o ErrorBoundary.
@@ -192,12 +194,6 @@ import { RequireApproval } from "@/components/auth/RouteGuards";
 import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
 
 const App = () => {
-  // Remove a flag de recovery após inicialização bem-sucedida,
-  // desarmando o loop-protection para futuras navegações na mesma sessão.
-  useEffect(() => {
-    sessionStorage.removeItem(SM_CHUNK_RECOVERY_KEY);
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
