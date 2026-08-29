@@ -501,6 +501,7 @@ export class FinanceiroService {
     if (!payload.valor || payload.valor <= 0) return { success: false, error: 'Informe um valor maior que zero.' };
     if (!payload.dataVencimento) return { success: false, error: 'Informe a data de vencimento.' };
     try {
+      const valorNorm = Number(payload.valor);
       const { data, error } = await supabase
         .from('contas_receber')
         .insert({
@@ -508,7 +509,9 @@ export class FinanceiroService {
           cliente_id: payload.clienteId,
           contrato_id: payload.contratoId,
           codigo_operacional: await this.gerarCodigoOperacional(payload.empresaOperadoraId),
-          valor: payload.valor,
+          valor: valorNorm,
+          valor_pago: 0,
+          saldo: valorNorm,
           data_vencimento: payload.dataVencimento,
           numero_parcela: payload.numeroParcela ?? 1,
           total_parcelas: payload.totalParcelas ?? 1,

@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { financeiroService } from '../../services/financeiro.service';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { format } from 'date-fns';
 
 interface NewReceivableModalProps {
@@ -27,12 +27,11 @@ export function NewReceivableModal({ isOpen, onClose, onSuccess }: NewReceivable
   const [vencimento, setVencimento] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [metodosGateway, setMetodosGateway] = useState<string[]>(['PIX', 'BOLETO']);
 
-  const handleMetodoGatewayChange = (method: string, checked: boolean) => {
-    if (checked) {
-      setMetodosGateway(prev => [...prev, method]);
-    } else {
-      setMetodosGateway(prev => prev.filter(m => m !== method));
-    }
+  const gatewayRadioValue = metodosGateway.includes('PIX') && metodosGateway.includes('BOLETO') ? 'PIX_BOLETO' : metodosGateway.includes('PIX') ? 'PIX' : 'BOLETO';
+  const handleGatewayRadio = (v: string) => {
+    if (v === 'PIX') setMetodosGateway(['PIX']);
+    else if (v === 'BOLETO') setMetodosGateway(['BOLETO']);
+    else setMetodosGateway(['PIX', 'BOLETO']);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -123,28 +122,22 @@ export function NewReceivableModal({ isOpen, onClose, onSuccess }: NewReceivable
           </div>
 
           <div className="space-y-3 pt-2 border-t border-white/10">
-            <Label>Métodos de Pagamento Oferecidos</Label>
-            <div className="flex gap-6">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="metodo-pix"
-                  checked={metodosGateway.includes('PIX')}
-                  onCheckedChange={(c) => handleMetodoGatewayChange('PIX', !!c)}
-                />
-                <Label htmlFor="metodo-pix" className="cursor-pointer">PIX</Label>
+            <Label>Forma de pagamento oferecida ao cliente *</Label>
+            <p className="text-[11px] text-slate-400">Escolha como o cliente poderá pagar no Portal Público.</p>
+            <RadioGroup value={gatewayRadioValue} onValueChange={handleGatewayRadio} className="flex flex-col gap-2 mt-1">
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="PIX" id="nr-pix" />
+                <Label htmlFor="nr-pix" className="cursor-pointer text-sm">○ Somente PIX</Label>
               </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="metodo-boleto"
-                  checked={metodosGateway.includes('BOLETO')}
-                  onCheckedChange={(c) => handleMetodoGatewayChange('BOLETO', !!c)}
-                />
-                <Label htmlFor="metodo-boleto" className="cursor-pointer">Boleto</Label>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="BOLETO" id="nr-boleto" />
+                <Label htmlFor="nr-boleto" className="cursor-pointer text-sm">○ Somente Boleto</Label>
               </div>
-            </div>
-            {metodosGateway.length === 0 && (
-              <p className="text-red-400 text-xs">Atenção: Selecione ao menos um método de pagamento.</p>
-            )}
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="PIX_BOLETO" id="nr-both" />
+                <Label htmlFor="nr-both" className="cursor-pointer text-sm">○ PIX + Boleto</Label>
+              </div>
+            </RadioGroup>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

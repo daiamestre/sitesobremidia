@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRbac } from '@/hooks/useRbac';
@@ -1007,34 +1007,30 @@ function NovaCobrancaDialog({
           </div>
 
           <div className="space-y-2 pt-2 border-t border-white/10">
-            <Label className="text-xs text-slate-400">Formas de pagamento aceitas *</Label>
-            <div className="flex gap-6 mt-1">
+            <Label className="text-xs text-slate-400">Forma de pagamento oferecida ao cliente *</Label>
+            <p className="text-[11px] text-slate-500">Escolha qual(is) forma(s) o cliente verá no Portal Público.</p>
+            <RadioGroup
+              value={metodosGateway.includes('PIX') && metodosGateway.includes('BOLETO') ? 'PIX_BOLETO' : metodosGateway.includes('PIX') ? 'PIX' : 'BOLETO'}
+              onValueChange={(v) => {
+                if (v === 'PIX') setMetodosGateway(['PIX']);
+                else if (v === 'BOLETO') setMetodosGateway(['BOLETO']);
+                else setMetodosGateway(['PIX', 'BOLETO']);
+              }}
+              className="flex flex-col gap-2 mt-2"
+            >
               <div className="flex items-center gap-2">
-                <Checkbox
-                  id="nova-pix"
-                  checked={metodosGateway.includes('PIX')}
-                  onCheckedChange={(checked) => {
-                    if (checked) setMetodosGateway(prev => prev.includes('PIX') ? prev : [...prev, 'PIX']);
-                    else setMetodosGateway(prev => prev.filter(m => m !== 'PIX'));
-                  }}
-                  className="border-white/20 data-[state=checked]:bg-primary"
-                />
-                <Label htmlFor="nova-pix" className="text-xs text-slate-300 cursor-pointer">PIX</Label>
+                <RadioGroupItem value="PIX" id="pg-pix" />
+                <Label htmlFor="pg-pix" className="text-xs text-slate-300 cursor-pointer">○ Somente PIX</Label>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox
-                  id="nova-boleto"
-                  checked={metodosGateway.includes('BOLETO')}
-                  onCheckedChange={(checked) => {
-                    if (checked) setMetodosGateway(prev => prev.includes('BOLETO') ? prev : [...prev, 'BOLETO']);
-                    else setMetodosGateway(prev => prev.filter(m => m !== 'BOLETO'));
-                  }}
-                  className="border-white/20 data-[state=checked]:bg-primary"
-                />
-                <Label htmlFor="nova-boleto" className="text-xs text-slate-300 cursor-pointer">Boleto Bancário</Label>
+                <RadioGroupItem value="BOLETO" id="pg-boleto" />
+                <Label htmlFor="pg-boleto" className="text-xs text-slate-300 cursor-pointer">○ Somente Boleto</Label>
               </div>
-            </div>
-            {metodosGateway.length === 0 && <p className="text-[11px] text-rose-400">Selecione ao menos uma forma.</p>}
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="PIX_BOLETO" id="pg-both" />
+                <Label htmlFor="pg-both" className="text-xs text-slate-300 cursor-pointer">○ PIX + Boleto</Label>
+              </div>
+            </RadioGroup>
           </div>
 
           {formError && <p className="text-xs text-rose-400">{formError}</p>}

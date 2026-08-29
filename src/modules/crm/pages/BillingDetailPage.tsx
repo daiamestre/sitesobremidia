@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft, BadgeCheck, Ban, Banknote, CalendarClock, CheckCircle2, Copy, CreditCard,
+  ArrowLeft, BadgeCheck, Ban, Banknote, CalendarClock, CheckCircle2, Copy, CreditCard, RefreshCw,
   Loader2, Mail, RotateCcw, Send, ShieldAlert, ShieldBan, Edit, Link as LinkIcon, MessageCircle, DollarSign, XCircle, Check, Eye
 } from 'lucide-react';
 import { EditReceivableModal } from '../components/financeiro/EditReceivableModal';
@@ -114,6 +114,8 @@ export default function BillingDetailPage() {
   const [valorPago, setValorPago] = useState<string>('');
   const [processando, setProcessando] = useState(false);
   const [cobrancaEditando, setCobrancaEditando] = useState<any | null>(null);
+  const [emitindo, setEmitindo] = useState(false);
+  const [consultando, setConsultando] = useState(false);
 
   const podeAcessar = isOwner || isAdmin;
 
@@ -361,6 +363,54 @@ export default function BillingDetailPage() {
     }
   };
 
+  const handleEmitirInter = async () => {
+    if (!cobranca) return;
+    setEmitindo(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) { toast({ title: 'Sessão expirada', variant: 'destructive' }); return; }
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ action: 'issue', cobranca_id: cobranca.id })
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        toast({ title: 'Falha ao emitir', description: json.error || json.details || 'Erro no gateway', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Cobrança emitida', description: `Código ${json.codigoSolicitacao || ''} gerado no Banco Inter.` });
+      invalidar();
+    } catch (e:any) {
+      toast({ title: 'Erro de rede', description: e.message, variant: 'destructive' });
+    } finally { setEmitindo(false); }
+  };
+
+  const handleConsultarInter = async () => {
+    if (!cobranca) return;
+    setConsultando(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) { toast({ title: 'Sessão expirada', variant: 'destructive' }); return; }
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ action: 'consult', cobranca_id: cobranca.id })
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        toast({ title: 'Consulta falhou', description: json.error || json.details || 'Erro', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Situação atualizada', description: `Situação: ${json.data?.cobranca?.situacao || '—'}` });
+      invalidar();
+    } catch (e:any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally { setConsultando(false); }
+  };
+
   const copiarId = async () => {
     try {
       await navigator.clipboard.writeText(cobranca.id);
@@ -433,6 +483,16 @@ export default function BillingDetailPage() {
             <Button variant="outline" onClick={() => { setValorPago(String(cobranca.saldo || cobranca.valor)); setBaixaOpen(true); }} disabled={processando}
               className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 gap-2 text-xs">
               <Check className="h-4 w-4" /> Marcar como paga
+            </Button>
+          )}
+          {! (cobranca as any).inter_codigo_solicitacao && situacao !== 'PAGA' && situacao !== 'CANCELADA' && (
+            <Button variant="outline" onClick={handleEmitirInter} disabled={emitindo || processando} className="border-violet-500/40 text-violet-300 hover:bg-violet-500/10 gap-2 text-xs">
+              {emitindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Emitir no Banco Inter
+            </Button>
+          )}
+          {(cobranca as any).inter_codigo_solicitacao && (
+            <Button variant="outline" onClick={handleConsultarInter} disabled={consultando || processando} className="border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 gap-2 text-xs">
+              {consultando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Consultar Inter
             </Button>
           )}
           <Button variant="outline" onClick={() => {
