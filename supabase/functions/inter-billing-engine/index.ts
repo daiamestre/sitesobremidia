@@ -297,7 +297,7 @@ serve(async (req) => {
       const dataStr = await reqInter.text();
       if (!reqInter.ok) return new Response(JSON.stringify({ error: 'Erro ao consultar banco' }), { status: 502, headers: corsHeaders });
       
-      let parsed;
+      let parsed: any;
       try { parsed = JSON.parse(dataStr); } catch (e) { parsed = {}; }
       
       if (action === 'public_pdf') {
@@ -308,9 +308,32 @@ serve(async (req) => {
       const allowPix = permitidos.includes('PIX');
       const allowBoleto = permitidos.includes('BOLETO');
 
-      if (action === 'public_pdf' && !allowBoleto) {
-        return new Response(JSON.stringify({ error: 'Método Boleto não autorizado' }), { status: 403, headers: corsHeaders });
+      // --- Debug seguro: retorna chaves top-level e chaves de cobranca (sem dados sensíveis) ---
+      if ((body as any).debug_structure === true) {
+        const topKeys = Object.keys(parsed || {});
+        const cobrancaKeys = Object.keys(parsed?.cobranca || {});
+        const pixKeys = Object.keys(parsed?.pix || parsed?.cobranca?.pix || {});
+        const boletoKeys = Object.keys(parsed?.boleto || parsed?.cobranca?.boleto || {});
+        return new Response(JSON.stringify({
+          success: true,
+          _debug: { topKeys, cobrancaKeys, pixKeys, boletoKeys, metodos_gateway: permitidos }
+        }), { headers: corsHeaders });
       }
+
+      // --- Parser robusto de PIX: Inter v3 Produção pode retornar em múltiplas estruturas ---
+      // Estrutura 1: parsed.pix.pixCopiaECola
+      // Estrutura 2: parsed.cobranca.pix.pixCopiaECola
+      // Estrutura 3: parsed.cobranca.pix (com campo emv ou payload)
+      // Estrutura 4: parsed.pixQrCode ou parsed.qrCode
+      const pixObj = parsed.pix || parsed.cobranca?.pix || parsed.pixQrCode || null;
+      const pixCopiaECola = pixObj?.pixCopiaECola || pixObj?.payload || pixObj?.emv
+        || parsed.cobranca?.pixCopiaECola || parsed.pixCopiaECola || null;
+      const pixTxid = pixObj?.txid || pixObj?.endToEndId || parsed.cobranca?.txid || parsed.txid || null;
+
+      // --- Parser robusto de BOLETO ---
+      const boletoObj = parsed.boleto || parsed.cobranca?.boleto || null;
+      const linhaDigitavel = boletoObj?.linhaDigitavel || boletoObj?.linha_digitavel || null;
+      const codigoBarras = boletoObj?.codigoBarras || boletoObj?.codigo_barras || null;
 
       const safeData = {
         success: true,
@@ -320,13 +343,13 @@ serve(async (req) => {
             dataVencimento: parsed.cobranca?.dataVencimento,
             situacao: parsed.cobranca?.situacao,
           },
-          boleto: (parsed.boleto && allowBoleto) ? {
-            linhaDigitavel: parsed.boleto.linhaDigitavel,
-            codigoBarras: parsed.boleto.codigoBarras,
+          boleto: (linhaDigitavel && allowBoleto) ? {
+            linhaDigitavel,
+            codigoBarras,
           } : undefined,
-          pix: ((parsed.pix || parsed.cobranca?.pix) && allowPix) ? {
-            pixCopiaECola: parsed.pix?.pixCopiaECola || parsed.cobranca?.pix?.pixCopiaECola,
-            txid: parsed.pix?.txid || parsed.cobranca?.pix?.txid
+          pix: (pixCopiaECola && allowPix) ? {
+            pixCopiaECola,
+            txid: pixTxid
           } : undefined
         }
       };
