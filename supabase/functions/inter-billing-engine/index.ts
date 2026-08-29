@@ -324,9 +324,9 @@ serve(async (req) => {
             linhaDigitavel: parsed.boleto.linhaDigitavel,
             codigoBarras: parsed.boleto.codigoBarras,
           } : undefined,
-          pix: (parsed.pix && allowPix) ? {
-            pixCopiaECola: parsed.pix.pixCopiaECola,
-            txid: parsed.pix.txid
+          pix: ((parsed.pix || parsed.cobranca?.pix) && allowPix) ? {
+            pixCopiaECola: parsed.pix?.pixCopiaECola || parsed.cobranca?.pix?.pixCopiaECola,
+            txid: parsed.pix?.txid || parsed.cobranca?.pix?.txid
           } : undefined
         }
       };
@@ -451,11 +451,18 @@ serve(async (req) => {
       const vencRaw = (lockedCobranca as any).data_vencimento || (lockedCobranca as any).vencimento || (lockedCobranca as any).competencia_date;
       const dataVencimento = vencRaw ? new Date(vencRaw).toISOString().split('T')[0] : new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
+      let metodosConfig = lockedCobranca.metodos_gateway;
+      if (typeof metodosConfig === 'string') {
+        try { metodosConfig = JSON.parse(metodosConfig); } catch (e) { }
+      }
+      const permitidos = Array.isArray(metodosConfig) && metodosConfig.length > 0 ? metodosConfig : ['PIX', 'BOLETO'];
+
       const payloadInter = {
         seuNumero,
         valorNominal: isFinite(valorNominal) && valorNominal > 0 ? Number(valorNominal.toFixed(2)) : 10.00,
         dataVencimento,
         numDiasAgenda: 60,
+        formasRecebimento: permitidos,
         pagador: {
           tipoPessoa: "FISICA",
           nome: "Teste Sandbox SobreMidia",
