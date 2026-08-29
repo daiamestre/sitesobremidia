@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,119 +7,176 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
+// ============================================================
+// CHUNK RECOVERY — CAMADA B (P0 Repair)
+// Detecta exclusivamente falhas de carregamento de chunk/módulo.
+// Proteção anti-loop via sessionStorage 'sm_chunk_recovery'.
+// Não altera localStorage, auth tokens, cookies ou estado de sessão.
+// Erros lógicos/runtime NÃO ativam o reload — vão para ErrorBoundary.
+// ============================================================
+const SM_CHUNK_RECOVERY_KEY = 'sm_chunk_recovery';
+
+function isChunkLoadError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === 'ChunkLoadError' ||
+    error.message.includes('Failed to fetch dynamically imported module') ||
+    error.message.includes('Importing a module script failed') ||
+    error.message.includes('Unable to preload CSS for') ||
+    error.message.includes('error loading dynamically imported module')
+  );
+}
+
+async function attemptSwUpdate(): Promise<void> {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.race([
+      Promise.all(regs.map((r) => r.update())),
+      new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+    ]);
+  } catch {
+    // Timeout ou falha no update: prossegue para reload controlado.
+  }
+}
+
+function lazyWithRetry(componentImport: () => Promise<any>) {
+  return lazy(async () => {
+    try {
+      return await componentImport();
+    } catch (error: unknown) {
+      if (!isChunkLoadError(error)) {
+        throw error; // Erros não-chunk sobem direto para o ErrorBoundary.
+      }
+      const alreadyRetried = sessionStorage.getItem(SM_CHUNK_RECOVERY_KEY);
+      if (alreadyRetried) {
+        // Segunda falha consecutiva: propaga para ErrorBoundary sem reload.
+        sessionStorage.removeItem(SM_CHUNK_RECOVERY_KEY);
+        throw error;
+      }
+      // Primeira falha de chunk: marcar, atualizar SW e recarregar (1x por sessão).
+      sessionStorage.setItem(SM_CHUNK_RECOVERY_KEY, '1');
+      await attemptSwUpdate();
+      window.location.reload();
+      return new Promise<never>(() => {}); // Never resolves — reload acima ocorre primeiro.
+    }
+  });
+}
+
+
 // LAZY LOADED PAGES
-const Index = lazy(() => import("./pages/Index"));
-const Auth = lazy(() => import("./pages/Auth"));
-const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
-const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const ChangePassword = lazy(() => import("./pages/ChangePassword"));
-const Install = lazy(() => import("./pages/Install"));
-const DevicePairingScreen = lazy(() => import("./pages/DevicePairingScreen"));
-const PaginaCobranca = lazy(() => import("./pages/PaginaCobranca"));
-const RepresentantesAuth = lazy(() => import("./pages/representantes/RepresentantesAuth"));
-const WorkspaceLayout = lazy(() => import("./modules/corporate/layout/WorkspaceLayout"));
-const CorporateCommandCenter = lazy(() => import("./modules/corporate/pages/CorporateCommandCenter"));
-const UsuariosAcessosPage = lazy(() => import("./modules/corporate/pages/UsuariosAcessosPage"));
-const PontosParceirosPage = lazy(() => import("./modules/corporate/pages/PontosParceirosPage"));
-const CrmLayout = lazy(() => import("./modules/crm/layout/CrmLayout"));
-const CrmDashboardHome = lazy(() => import("./modules/crm/pages/CrmDashboardHome"));
-const RepresentativeDashboard = lazy(() => import("./modules/crm/pages/RepresentativeDashboard"));
-const NovaProspeccaoPage = lazy(() => import("./modules/crm/pages/NovaProspeccaoPage"));
-const PontoParceiroWizardPage = lazy(() => import("./modules/crm/pages/prospeccao/PontoParceiroWizardPage"));
-const GestorMidiiasProspeccaoPage = lazy(() => import("./modules/crm/pages/prospeccao/GestorMidiiasProspeccaoPage"));
-const RepresentantesPage = lazy(() => import("./modules/crm/pages/RepresentantesPage"));
-const DesempenhoRepresentantesPage = lazy(() => import("./modules/crm/pages/DesempenhoRepresentantesPage"));
-const RepresentanteDetalhePage = lazy(() => import("./modules/crm/pages/RepresentanteDetalhePage"));
-const ClientesListPage = lazy(() => import("./modules/crm/pages/ClientesListPage"));
-const NovoClientePage = lazy(() => import("./modules/crm/pages/NovoClientePage"));
-const ClienteDetalhePage = lazy(() => import("./modules/crm/pages/ClienteDetalhePage"));
-const EditarClientePage = lazy(() => import("./modules/crm/pages/EditarClientePage"));
-const PropostasListPage = lazy(() => import("./modules/crm/pages/PropostasListPage"));
-const ContratoSelectionPage = lazy(() => import("./modules/crm/pages/ContratoSelectionPage"));
-const ContratosListPage = lazy(() => import("./modules/crm/pages/ContratosListPage"));
-const PedidoInsercaoPage = lazy(() => import("./modules/crm/pages/PedidoInsercaoPage"));
-const PedidoInsercaoListPage = lazy(() => import("./modules/crm/pages/PedidoInsercaoListPage"));
-const ProductionListPage = lazy(() => import("./modules/crm/pages/ProductionListPage"));
-const ProductionDetailsPage = lazy(() => import("./modules/crm/pages/ProductionDetailsPage"));
-const ScheduleListPage = lazy(() => import("./modules/crm/pages/ScheduleListPage"));
-const ScheduleDetailsPage = lazy(() => import("./modules/crm/pages/ScheduleDetailsPage"));
-const ScheduleCalendarPage = lazy(() => import("./modules/crm/pages/ScheduleCalendarPage"));
-const OperationDashboard = lazy(() => import("./modules/crm/pages/OperationDashboard"));
-const NocDashboardPage = lazy(() => import("./modules/crm/pages/NocDashboardPage"));
-const FinanceDashboard = lazy(() => import("./modules/crm/pages/FinanceDashboard"));
-const ContasReceberPage = lazy(() => import("./modules/crm/pages/ContasReceberPage"));
-const CommissionPage = lazy(() => import("./modules/crm/pages/CommissionPage"));
-const CommissionsDashboard = lazy(() => import("./modules/crm/pages/CommissionsDashboard"));
-const CashFlowPage = lazy(() => import("./modules/crm/pages/CashFlowPage"));
-const CashFlowDashboard = lazy(() => import("./modules/crm/pages/CashFlowDashboard"));
-const GeneralLedgerPage = lazy(() => import("./modules/crm/pages/GeneralLedgerPage"));
-const CostCenterPage = lazy(() => import("./modules/crm/pages/CostCenterPage"));
-const InvoicesPage = lazy(() => import("./modules/crm/pages/InvoicesPage"));
-const FinanceExecutiveDashboard = lazy(() => import("./modules/crm/pages/FinanceExecutiveDashboard"));
-const BillingDashboard = lazy(() => import("./modules/crm/pages/BillingDashboard"));
-const BillingDetailPage = lazy(() => import("./modules/crm/pages/BillingDetailPage"));
-const CommissionRulesPage = lazy(() => import("./modules/crm/pages/CommissionRulesPage"));
-const DREPage = lazy(() => import("./modules/crm/pages/DREPage"));
-const ExecutiveDashboard = lazy(() => import("./modules/crm/pages/ExecutiveDashboard"));
-const CommercialDashboard = lazy(() => import("./modules/crm/pages/CommercialDashboard"));
-const FinanceDashboardEnterprise = lazy(() => import("./modules/crm/pages/FinanceDashboardEnterprise"));
-const OperationDashboardEnterprise = lazy(() => import("./modules/crm/pages/OperationDashboardEnterprise"));
-const OccupancyDashboard = lazy(() => import("./modules/crm/pages/OccupancyDashboard"));
-const BIExecutiveDashboard = lazy(() => import("./modules/crm/pages/BIExecutiveDashboard"));
-const CommercialAnalytics = lazy(() => import("./modules/crm/pages/CommercialAnalytics"));
-const FinancialAnalytics = lazy(() => import("./modules/crm/pages/FinancialAnalytics"));
-const OperationalAnalytics = lazy(() => import("./modules/crm/pages/OperationalAnalytics"));
-const OccupancyAnalytics = lazy(() => import("./modules/crm/pages/OccupancyAnalytics"));
-const ExecutiveScorecard = lazy(() => import("./modules/crm/pages/ExecutiveScorecard"));
-const ContractsSignaturePage = lazy(() => import("./modules/crm/pages/ContractsSignaturePage"));
-const CustomerPortalDashboard = lazy(() => import("./modules/crm/pages/CustomerPortalDashboard"));
-const MobileDashboard = lazy(() => import("./modules/crm/pages/MobileDashboard"));
-const AcoesCentraisPage = lazy(() => import("./modules/crm/pages/AcoesCentraisPage"));
-const AIDashboard = lazy(() => import("./modules/crm/pages/AIDashboard"));
+const Index = lazyWithRetry(() => import("./pages/Index"));
+const Auth = lazyWithRetry(() => import("./pages/Auth"));
+const ForgotPassword = lazyWithRetry(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazyWithRetry(() => import("./pages/ResetPassword"));
+const ChangePassword = lazyWithRetry(() => import("./pages/ChangePassword"));
+const Install = lazyWithRetry(() => import("./pages/Install"));
+const DevicePairingScreen = lazyWithRetry(() => import("./pages/DevicePairingScreen"));
+const PaginaCobranca = lazyWithRetry(() => import("./pages/PaginaCobranca"));
+const RepresentantesAuth = lazyWithRetry(() => import("./pages/representantes/RepresentantesAuth"));
+const WorkspaceLayout = lazyWithRetry(() => import("./modules/corporate/layout/WorkspaceLayout"));
+const CorporateCommandCenter = lazyWithRetry(() => import("./modules/corporate/pages/CorporateCommandCenter"));
+const UsuariosAcessosPage = lazyWithRetry(() => import("./modules/corporate/pages/UsuariosAcessosPage"));
+const PontosParceirosPage = lazyWithRetry(() => import("./modules/corporate/pages/PontosParceirosPage"));
+const CrmLayout = lazyWithRetry(() => import("./modules/crm/layout/CrmLayout"));
+const CrmDashboardHome = lazyWithRetry(() => import("./modules/crm/pages/CrmDashboardHome"));
+const RepresentativeDashboard = lazyWithRetry(() => import("./modules/crm/pages/RepresentativeDashboard"));
+const NovaProspeccaoPage = lazyWithRetry(() => import("./modules/crm/pages/NovaProspeccaoPage"));
+const PontoParceiroWizardPage = lazyWithRetry(() => import("./modules/crm/pages/prospeccao/PontoParceiroWizardPage"));
+const GestorMidiiasProspeccaoPage = lazyWithRetry(() => import("./modules/crm/pages/prospeccao/GestorMidiiasProspeccaoPage"));
+const RepresentantesPage = lazyWithRetry(() => import("./modules/crm/pages/RepresentantesPage"));
+const DesempenhoRepresentantesPage = lazyWithRetry(() => import("./modules/crm/pages/DesempenhoRepresentantesPage"));
+const RepresentanteDetalhePage = lazyWithRetry(() => import("./modules/crm/pages/RepresentanteDetalhePage"));
+const ClientesListPage = lazyWithRetry(() => import("./modules/crm/pages/ClientesListPage"));
+const NovoClientePage = lazyWithRetry(() => import("./modules/crm/pages/NovoClientePage"));
+const ClienteDetalhePage = lazyWithRetry(() => import("./modules/crm/pages/ClienteDetalhePage"));
+const EditarClientePage = lazyWithRetry(() => import("./modules/crm/pages/EditarClientePage"));
+const PropostasListPage = lazyWithRetry(() => import("./modules/crm/pages/PropostasListPage"));
+const ContratoSelectionPage = lazyWithRetry(() => import("./modules/crm/pages/ContratoSelectionPage"));
+const ContratosListPage = lazyWithRetry(() => import("./modules/crm/pages/ContratosListPage"));
+const PedidoInsercaoPage = lazyWithRetry(() => import("./modules/crm/pages/PedidoInsercaoPage"));
+const PedidoInsercaoListPage = lazyWithRetry(() => import("./modules/crm/pages/PedidoInsercaoListPage"));
+const ProductionListPage = lazyWithRetry(() => import("./modules/crm/pages/ProductionListPage"));
+const ProductionDetailsPage = lazyWithRetry(() => import("./modules/crm/pages/ProductionDetailsPage"));
+const ScheduleListPage = lazyWithRetry(() => import("./modules/crm/pages/ScheduleListPage"));
+const ScheduleDetailsPage = lazyWithRetry(() => import("./modules/crm/pages/ScheduleDetailsPage"));
+const ScheduleCalendarPage = lazyWithRetry(() => import("./modules/crm/pages/ScheduleCalendarPage"));
+const OperationDashboard = lazyWithRetry(() => import("./modules/crm/pages/OperationDashboard"));
+const NocDashboardPage = lazyWithRetry(() => import("./modules/crm/pages/NocDashboardPage"));
+const FinanceDashboard = lazyWithRetry(() => import("./modules/crm/pages/FinanceDashboard"));
+const ContasReceberPage = lazyWithRetry(() => import("./modules/crm/pages/ContasReceberPage"));
+const CommissionPage = lazyWithRetry(() => import("./modules/crm/pages/CommissionPage"));
+const CommissionsDashboard = lazyWithRetry(() => import("./modules/crm/pages/CommissionsDashboard"));
+const CashFlowPage = lazyWithRetry(() => import("./modules/crm/pages/CashFlowPage"));
+const CashFlowDashboard = lazyWithRetry(() => import("./modules/crm/pages/CashFlowDashboard"));
+const GeneralLedgerPage = lazyWithRetry(() => import("./modules/crm/pages/GeneralLedgerPage"));
+const CostCenterPage = lazyWithRetry(() => import("./modules/crm/pages/CostCenterPage"));
+const InvoicesPage = lazyWithRetry(() => import("./modules/crm/pages/InvoicesPage"));
+const FinanceExecutiveDashboard = lazyWithRetry(() => import("./modules/crm/pages/FinanceExecutiveDashboard"));
+const BillingDashboard = lazyWithRetry(() => import("./modules/crm/pages/BillingDashboard"));
+const BillingDetailPage = lazyWithRetry(() => import("./modules/crm/pages/BillingDetailPage"));
+const CommissionRulesPage = lazyWithRetry(() => import("./modules/crm/pages/CommissionRulesPage"));
+const DREPage = lazyWithRetry(() => import("./modules/crm/pages/DREPage"));
+const ExecutiveDashboard = lazyWithRetry(() => import("./modules/crm/pages/ExecutiveDashboard"));
+const CommercialDashboard = lazyWithRetry(() => import("./modules/crm/pages/CommercialDashboard"));
+const FinanceDashboardEnterprise = lazyWithRetry(() => import("./modules/crm/pages/FinanceDashboardEnterprise"));
+const OperationDashboardEnterprise = lazyWithRetry(() => import("./modules/crm/pages/OperationDashboardEnterprise"));
+const OccupancyDashboard = lazyWithRetry(() => import("./modules/crm/pages/OccupancyDashboard"));
+const BIExecutiveDashboard = lazyWithRetry(() => import("./modules/crm/pages/BIExecutiveDashboard"));
+const CommercialAnalytics = lazyWithRetry(() => import("./modules/crm/pages/CommercialAnalytics"));
+const FinancialAnalytics = lazyWithRetry(() => import("./modules/crm/pages/FinancialAnalytics"));
+const OperationalAnalytics = lazyWithRetry(() => import("./modules/crm/pages/OperationalAnalytics"));
+const OccupancyAnalytics = lazyWithRetry(() => import("./modules/crm/pages/OccupancyAnalytics"));
+const ExecutiveScorecard = lazyWithRetry(() => import("./modules/crm/pages/ExecutiveScorecard"));
+const ContractsSignaturePage = lazyWithRetry(() => import("./modules/crm/pages/ContractsSignaturePage"));
+const CustomerPortalDashboard = lazyWithRetry(() => import("./modules/crm/pages/CustomerPortalDashboard"));
+const MobileDashboard = lazyWithRetry(() => import("./modules/crm/pages/MobileDashboard"));
+const AcoesCentraisPage = lazyWithRetry(() => import("./modules/crm/pages/AcoesCentraisPage"));
+const AIDashboard = lazyWithRetry(() => import("./modules/crm/pages/AIDashboard"));
 
 // CUSTOMER PORTAL PAGES
-const CustomerPortalLayout = lazy(() => import("./modules/crm/layout/CustomerPortalLayout"));
-const MeusPontosPage = lazy(() => import("./modules/crm/pages/portal/MeusPontosPage"));
-const MinhasCampanhasPage = lazy(() => import("./modules/crm/pages/portal/MinhasCampanhasPage"));
-const NovaCampanhaPage = lazy(() => import("./modules/crm/pages/portal/NovaCampanhaPage"));
-const MinhaRedePage = lazy(() => import("./modules/crm/pages/portal/MinhaRedePage"));
-const ReceitaHostPage = lazy(() => import("./modules/crm/pages/portal/ReceitaHostPage"));
-const FinanceiroClientePage = lazy(() => import("./modules/crm/pages/portal/FinanceiroClientePage"));
-const ContratoVigentePage = lazy(() => import("./modules/crm/pages/portal/ContratoVigentePage"));
-const InsercoesPorDiaPage = lazy(() => import("./modules/crm/pages/portal/InsercoesPorDiaPage"));
-const OcupacaoRedePage = lazy(() => import("./modules/crm/pages/portal/OcupacaoRedePage"));
-const ProdutosPage = lazy(() => import("./modules/crm/pages/portal/ProdutosPage"));
-const OfertasPage = lazy(() => import("./modules/crm/pages/portal/OfertasPage"));
-const OnboardingPage = lazy(() => import("./modules/crm/pages/portal/OnboardingPage"));
-const ExpansaoPage = lazy(() => import("./modules/crm/pages/portal/ExpansaoPage"));
-const BrandKitPage = lazy(() => import("./modules/crm/pages/portal/BrandKitPage"));
-const AssetLibraryPage = lazy(() => import("./modules/crm/pages/portal/AssetLibraryPage"));
-const EncartePage = lazy(() => import("./modules/crm/pages/portal/EncartePage"));
-const BibliotecaIA = lazy(() => import("./modules/crm/pages/portal/BibliotecaIA"));
-const PlaylistsClientePage = lazy(() => import("./modules/crm/pages/portal/PlaylistsClientePage"));
-const MinhaEquipePage = lazy(() => import("./modules/crm/pages/portal/MinhaEquipePage"));
-const ConfiguracoesPortalPage = lazy(() => import("./modules/crm/pages/portal/ConfiguracoesPortalPage"));
+const CustomerPortalLayout = lazyWithRetry(() => import("./modules/crm/layout/CustomerPortalLayout"));
+const MeusPontosPage = lazyWithRetry(() => import("./modules/crm/pages/portal/MeusPontosPage"));
+const MinhasCampanhasPage = lazyWithRetry(() => import("./modules/crm/pages/portal/MinhasCampanhasPage"));
+const NovaCampanhaPage = lazyWithRetry(() => import("./modules/crm/pages/portal/NovaCampanhaPage"));
+const MinhaRedePage = lazyWithRetry(() => import("./modules/crm/pages/portal/MinhaRedePage"));
+const ReceitaHostPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ReceitaHostPage"));
+const FinanceiroClientePage = lazyWithRetry(() => import("./modules/crm/pages/portal/FinanceiroClientePage"));
+const ContratoVigentePage = lazyWithRetry(() => import("./modules/crm/pages/portal/ContratoVigentePage"));
+const InsercoesPorDiaPage = lazyWithRetry(() => import("./modules/crm/pages/portal/InsercoesPorDiaPage"));
+const OcupacaoRedePage = lazyWithRetry(() => import("./modules/crm/pages/portal/OcupacaoRedePage"));
+const ProdutosPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ProdutosPage"));
+const OfertasPage = lazyWithRetry(() => import("./modules/crm/pages/portal/OfertasPage"));
+const OnboardingPage = lazyWithRetry(() => import("./modules/crm/pages/portal/OnboardingPage"));
+const ExpansaoPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ExpansaoPage"));
+const BrandKitPage = lazyWithRetry(() => import("./modules/crm/pages/portal/BrandKitPage"));
+const AssetLibraryPage = lazyWithRetry(() => import("./modules/crm/pages/portal/AssetLibraryPage"));
+const EncartePage = lazyWithRetry(() => import("./modules/crm/pages/portal/EncartePage"));
+const BibliotecaIA = lazyWithRetry(() => import("./modules/crm/pages/portal/BibliotecaIA"));
+const PlaylistsClientePage = lazyWithRetry(() => import("./modules/crm/pages/portal/PlaylistsClientePage"));
+const MinhaEquipePage = lazyWithRetry(() => import("./modules/crm/pages/portal/MinhaEquipePage"));
+const ConfiguracoesPortalPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ConfiguracoesPortalPage"));
 
-const DashboardHome = lazy(() => import("./pages/dashboard/DashboardHome"));
-const Medias = lazy(() => import("./pages/dashboard/Medias"));
-const Playlists = lazy(() => import("./pages/dashboard/Playlists"));
-const Screens = lazy(() => import("./pages/dashboard/Screens"));
-const ScreenDetails = lazy(() => import("./pages/dashboard/ScreenDetails"));
-const Widgets = lazy(() => import("./pages/dashboard/Widgets"));
-const Schedule = lazy(() => import("./pages/dashboard/Schedule"));
-const ExternalLinks = lazy(() => import("./pages/dashboard/ExternalLinks"));
-const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
-const History = lazy(() => import("./pages/dashboard/History"));
-const Reports = lazy(() => import("./pages/dashboard/Reports"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const Settings = lazy(() => import("./pages/dashboard/Settings"));
-const AdminUsers = lazy(() => import("./pages/dashboard/AdminUsers"));
-const Player = lazy(() => import("./pages/Player"));
-const WidgetPlayer = lazy(() => import("./pages/WidgetPlayer"));
-const LinkPlayer = lazy(() => import("./pages/LinkPlayer"));
-const WebPlayerDemo = lazy(() => import("./components/player/WebPlayerDemo"));
-const AdminSolicitacaoAprovacao = lazy(() => import("./pages/admin/AdminSolicitacaoAprovacao"));
-const CentralDashboard = lazy(() => import("./pages/Central/CentralDashboard"));
+const DashboardHome = lazyWithRetry(() => import("./pages/dashboard/DashboardHome"));
+const Medias = lazyWithRetry(() => import("./pages/dashboard/Medias"));
+const Playlists = lazyWithRetry(() => import("./pages/dashboard/Playlists"));
+const Screens = lazyWithRetry(() => import("./pages/dashboard/Screens"));
+const ScreenDetails = lazyWithRetry(() => import("./pages/dashboard/ScreenDetails"));
+const Widgets = lazyWithRetry(() => import("./pages/dashboard/Widgets"));
+const Schedule = lazyWithRetry(() => import("./pages/dashboard/Schedule"));
+const ExternalLinks = lazyWithRetry(() => import("./pages/dashboard/ExternalLinks"));
+const Analytics = lazyWithRetry(() => import("./pages/dashboard/Analytics"));
+const History = lazyWithRetry(() => import("./pages/dashboard/History"));
+const Reports = lazyWithRetry(() => import("./pages/dashboard/Reports"));
+const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
+const Settings = lazyWithRetry(() => import("./pages/dashboard/Settings"));
+const AdminUsers = lazyWithRetry(() => import("./pages/dashboard/AdminUsers"));
+const Player = lazyWithRetry(() => import("./pages/Player"));
+const WidgetPlayer = lazyWithRetry(() => import("./pages/WidgetPlayer"));
+const LinkPlayer = lazyWithRetry(() => import("./pages/LinkPlayer"));
+const WebPlayerDemo = lazyWithRetry(() => import("./components/player/WebPlayerDemo"));
+const AdminSolicitacaoAprovacao = lazyWithRetry(() => import("./pages/admin/AdminSolicitacaoAprovacao"));
+const CentralDashboard = lazyWithRetry(() => import("./pages/Central/CentralDashboard"));
 
 const queryClient = new QueryClient();
 
@@ -135,6 +192,12 @@ import { RequireApproval } from "@/components/auth/RouteGuards";
 import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
 
 const App = () => {
+  // Remove a flag de recovery após inicialização bem-sucedida,
+  // desarmando o loop-protection para futuras navegações na mesma sessão.
+  useEffect(() => {
+    sessionStorage.removeItem(SM_CHUNK_RECOVERY_KEY);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

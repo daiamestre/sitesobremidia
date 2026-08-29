@@ -7,8 +7,10 @@ import { clientsClaim } from 'workbox-core';
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
-self.skipWaiting();
-clientsClaim();
+// NOTA: skipWaiting e clientsClaim removidos da ativação automática.
+// O SW novo agora entra em 'waiting' até que o usuário feche e reabra todas as abas.
+// Isso evita que a sessão ativa perca acesso aos chunks já em uso (ChunkLoadError).
+// A ativação controlada permanece disponível via mensagem SKIP_WAITING.
 
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, NetworkOnly } from 'workbox-strategies';
