@@ -40,7 +40,7 @@ export default function Auth() {
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   
-  const { signIn, signUp, user, isApproved, profile, workspaceRoute, solicitacaoStatus, perfilNome } = useAuth();
+  const { signIn, signUp, user, isApproved, profile, workspaceRoute, solicitacaoStatus, perfilNome, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -210,7 +210,8 @@ export default function Auth() {
   };
 
   // Mostrar mensagem de negação de acesso se usuário existe mas não está aprovado
-  if (user && !isApproved) {
+  // (Oculta temporariamente se estiver carregando a sessão ou submetendo o form)
+  if (!isLoading && !authLoading && user && !isApproved) {
     const statusMessage = 
       solicitacaoStatus === 'REJECTED' ? 'Seu cadastro não possui autorização para acesso.' :
       solicitacaoStatus === 'SUSPENDED' ? 'Seu acesso está temporariamente suspenso.' :
