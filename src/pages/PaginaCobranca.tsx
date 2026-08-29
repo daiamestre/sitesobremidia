@@ -83,35 +83,14 @@ export default function PaginaCobranca() {
     fetchBilling();
   }, [codigo, identificador]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
 
-  if (error || !data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <Card className="max-w-md w-full border-red-200 shadow-lg">
-          <CardContent className="pt-6 flex flex-col items-center text-center space-y-4">
-            <AlertCircle className="w-16 h-16 text-red-500" />
-            <h2 className="text-2xl font-bold text-gray-900">Acesso Negado</h2>
-            <p className="text-gray-600 font-medium">404 - {error}</p>
-            <p className="text-sm text-gray-500">Por favor, verifique se a URL está correta ou entre em contato com o suporte caso acredite ser um erro.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   // Derived values
-  const isPaid = data.status === 'PAGO' || data.saldo <= 0;
-  const isCanceled = data.status === 'CANCELADO' || data.status === 'CANCELADA';
-  const dataVenc = new Date(data.vencimento);
+  const isPaid = data?.status === 'PAGO' || (data?.saldo !== undefined && data.saldo <= 0);
+  const isCanceled = data?.status === 'CANCELADO' || data?.status === 'CANCELADA';
+  const dataVenc = data ? new Date(data.vencimento) : new Date();
   const dataHoje = new Date();
-  const isOverdue = !isPaid && !isCanceled && (data.status === 'VENCIDO' || dataVenc < dataHoje);
+  const isOverdue = !isPaid && !isCanceled && (data?.status === 'VENCIDO' || dataVenc < dataHoje);
   
   let diasAtraso = 0;
   if (isOverdue) {
@@ -129,8 +108,8 @@ export default function PaginaCobranca() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'public_consult',
-            public_identifier: codigo,
-            public_token: identificador
+            codigo_operacional: codigo,
+            public_identifier: identificador
           })
         });
         const json = await res.json();
@@ -162,8 +141,8 @@ export default function PaginaCobranca() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'public_pdf',
-          public_identifier: codigo,
-          public_token: identificador
+          codigo_operacional: codigo,
+          public_identifier: identificador
         })
       });
       const json = await res.json();
@@ -181,6 +160,29 @@ export default function PaginaCobranca() {
       setDownloadingPdf(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#22004A] p-4 text-[#F2F2F2]">
+        <Card className="max-w-md w-full bg-[#1B003A]/60 backdrop-blur-md border border-red-500/30 shadow-lg">
+          <CardContent className="pt-6 flex flex-col items-center text-center space-y-4">
+            <AlertCircle className="w-16 h-16 text-red-500" />
+            <h2 className="text-2xl font-bold text-[#FFFFFF]">Acesso Negado</h2>
+            <p className="text-[#F2F2F2]/80 font-medium">404 - {error}</p>
+            <p className="text-sm text-[#F2F2F2]/60">Por favor, verifique se a URL está correta ou entre em contato com o suporte caso acredite ser um erro.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const statusColor = isPaid 
     ? 'text-[#25D366] bg-[#25D366]/10 border-[#25D366]/30 shadow-[0_0_15px_rgba(37,211,102,0.2)]'
