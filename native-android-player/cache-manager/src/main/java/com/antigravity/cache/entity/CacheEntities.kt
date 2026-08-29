@@ -15,7 +15,8 @@ data class CachedPlaylist(
     val resolution: String = "16x9",
     val heartbeatIntervalSeconds: Int = 60,
     val seamlessTransition: Boolean = true,
-    val cacheNextMedia: Boolean = true
+    val cacheNextMedia: Boolean = true,
+    val audioEnabled: Boolean = false
 )
 
 @Entity(tableName = "media_item")

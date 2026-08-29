@@ -83,6 +83,14 @@ class OTAUpdateManager(
 
             val apkFile = File(context.getExternalFilesDir(null), "update_$versionName.apk")
             if (apkFile.exists()) apkFile.delete()
+            
+            // [P1-01] Storage Guard
+            val usableSpace = context.getExternalFilesDir(null)?.usableSpace ?: 0L
+            if (usableSpace < 250_000_000L) { // 250 MB
+                Logger.e("OTA", "STORAGE GUARD: Espaço insuficiente para OTA. Disponível: ${usableSpace / 1024 / 1024}MB. Exigido: 250MB.")
+                return
+            }
+
             Logger.i("OTA", "Downloading update to: ${apkFile.absolutePath}")
 
             val result = downloader.downloadFile(url, apkFile)
@@ -188,6 +196,46 @@ class OTAUpdateManager(
     }
 
     private fun installApk(file: File) {
+        val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+        if (dpm.isDeviceOwnerApp(context.packageName)) {
+            installApkSilently(file)
+        } else {
+            installApkWithIntent(file)
+        }
+    }
+
+    private fun installApkSilently(file: File) {
+        try {
+            Logger.i("OTA", "Device Owner detected. Starting Silent Install via PackageInstaller.")
+            val packageInstaller = context.packageManager.packageInstaller
+            val params = android.content.pm.PackageInstaller.SessionParams(android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            val sessionId = packageInstaller.createSession(params)
+            val session = packageInstaller.openSession(sessionId)
+            
+            val out = session.openWrite("package", 0, -1)
+            val input = FileInputStream(file)
+            input.copyTo(out)
+            session.fsync(out)
+            input.close()
+            out.close()
+            
+            // Usando BootReceiver provisório para receber callback do PackageInstaller
+            val intent = Intent(context, com.antigravity.player.receiver.BootReceiver::class.java)
+            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                context,
+                sessionId,
+                intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
+            )
+            session.commit(pendingIntent.intentSender)
+            Logger.i("OTA", "PackageInstaller session committed.")
+        } catch (e: Exception) {
+            Logger.e("OTA", "Silent install failed: ${e.message}")
+            installApkWithIntent(file)
+        }
+    }
+
+    private fun installApkWithIntent(file: File) {
         try {
             val apkUri: Uri = FileProvider.getUriForFile(
                 context,
@@ -201,6 +249,9 @@ class OTAUpdateManager(
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             
+            // [EXIT COUNTER P0] O instalador externo e configuracao necessaria do
+            // proprio Player: nao conta como saida/abandono do usuario.
+            DeviceControl.suppressExitCountUntilMs = System.currentTimeMillis() + 120_000L
             context.startActivity(intent)
             Logger.i("OTA", "Installation intent fired successfully.")
         } catch (e: Exception) {

@@ -99,17 +99,6 @@ class PersistentHeartbeatService : Service() {
                         version = "1.0",
                         ipAddress = "N/A"
                     )
-                    
-                    // [SCALE 10K] Lightweight Pulse -> device_health via HeartbeatManager
-                    try {
-                        val heartbeat = com.antigravity.sync.service.HeartbeatManager(
-                            context = applicationContext,
-                            deviceId = screenId
-                        )
-                        heartbeat.sendPulse(currentMediaId = null)
-                    } catch (e: Exception) {
-                        Logger.w("HEARTBEAT_PROC", "Pulse to device_health skipped: ${e.message}")
-                    }
                 } catch (e: Exception) {
                     Logger.e("HEARTBEAT_PROC", "Falha no envio do Heartbeat: ${e.message}")
                 }

@@ -51,6 +51,9 @@ class ExoPlayerRenderer(
     private var lastMediaDurationMs: Long = 0L
     private var lastPrepareStartTime: Long = 0L
     
+    // [SINGLE POINT OF AUTHORITY]
+    private var audioPolicyEnabled: Boolean = false
+    
     var onMediaItemTransition: ((String, Long) -> Unit)? = null
     var onPlaybackEnded: ((isSuccess: Boolean) -> Unit)? = null
     var onVideoSizeChanged: ((width: Int, height: Int) -> Unit)? = null
@@ -104,22 +107,35 @@ class ExoPlayerRenderer(
                 // [CRITICAL] WakeLock: Prevent CPU sleep during playback + WiFi lock for streaming
                 setWakeMode(C.WAKE_MODE_NETWORK)
                 
-                // [ANTI-AUDIO-CRASH] Fix para "pcmWrite failed" em TV Boxes de lote genérico.
-                // Revertido setAudioAttributes pois causou IllegalArgumentException: Invalid audio session ID no emulador API 31.
-                // Manteremos apenas a mitigação de Volume.
-                
-                // 2. Muta o player se o Hardware for muito defasado, para que o Driver ALSA não trave a GPU.
+                // [P0-A] Política "Nascer Mudo": O Player NUNCA pode vazar áudio antes da transição.
+                // Isso também previne o crash "pcmWrite failed" em TV Boxes de lote genérico.
+                volume = 0f
+                audioPolicyEnabled = false // Nasce 100% mudo
                 if (com.antigravity.media.exoplayer.ChipsetDetector.getRecommendedProfile() == com.antigravity.media.exoplayer.ChipsetDetector.HardwareProfile.LEGACY_STABILITY) {
-                    volume = 0f
-                    Logger.w("PLAYER_$instanceName", "Hardware Fraco Detectado: Áudio Mutado para prevenir travamento do Driver (pcmWrite null).")
+                    Logger.w("PLAYER_$instanceName", "Hardware Fraco Detectado (TV Box Legada).")
                 }
                 
-                // Video Scaling Mode
-                try {
-                   this.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-                } catch (e: Exception) {}
+                // Video Scaling Mode - fill screen without black bars (crop excess)
+                // CENTER_CROP behavior: scale to fill, maintain aspect ratio, crop excess
+                // Never stretch/distort the media
+                this.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
 
                 addListener(object : Player.Listener {
+                    override fun onVolumeChanged(newVolume: Float) {
+                        val currentPolicy = audioPolicyEnabled
+                        val screenId = currentScreenId ?: "unknown"
+                        val mediaId = currentlyPreparedMediaId ?: "unknown"
+                        
+                        if (!currentPolicy && newVolume > 0f) {
+                            // [AUDIO_POLICY_VIOLATION] Interceptado e achatado atomicamente!
+                            this@apply.volume = 0f
+                            val stackTrace = android.util.Log.getStackTraceString(Throwable())
+                            Logger.e("AUDIO_POLICY_VIOLATION", "[AUDIO_POLICY_VIOLATION] timestamp=${System.currentTimeMillis()} screenId=$screenId playlistId=unknown mediaId=$mediaId playerInstanceId=$instanceName oldVolume=0.0 newVolume=$newVolume callback=onVolumeChanged StackTrace:\n$stackTrace")
+                        } else {
+                            Logger.i("AUDIO_FORENSIC", "[AUDIO_FORENSIC] timestamp=${System.currentTimeMillis()} screen_id=$screenId playlist_id=unknown media_id=$mediaId player_instance=$instanceName audioPolicyEnabled=$currentPolicy requestedVolume=$newVolume actualVolume=$newVolume audioEnabled=$currentPolicy event=onVolumeChanged thread=${Thread.currentThread().name}")
+                        }
+                    }
+
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         Logger.d("PLAYER_$instanceName", "State: $playbackState")
                         when (playbackState) {
@@ -240,20 +256,32 @@ class ExoPlayerRenderer(
         }
 
         // Determine URI: prefer local if valid, fallback to remote
-        // [HARDENING] Perform secondary disk check in default media directory as absolute fallback
-        // [CRITICAL FIX] Use Uri.fromFile to automatically encode spaces (e.g. "MIDI 1.mp4") into valid file:// URIs
+        val safeHash = mediaItem.hash.replace(Regex("[^a-zA-Z0-9_-]"), "")
+        val hashedFile = File(File(context.filesDir, "media_content"), "${mediaItem.id}_$safeHash.dat")
         val fallbackFile = File(File(context.filesDir, "media_content"), "${mediaItem.id}.dat")
         val uriString = when {
             localPath != null && File(localPath).exists() && File(localPath).length() > 0 -> Uri.fromFile(File(localPath)).toString()
+            safeHash.isNotBlank() && hashedFile.exists() && hashedFile.length() > 0 -> Uri.fromFile(hashedFile).toString()
             fallbackFile.exists() && fallbackFile.length() > 0 -> Uri.fromFile(fallbackFile).toString()
             else -> mediaItem.remoteUrl.replace(" ", "%20")
         }
         
         val uri = Uri.parse(uriString)
-        val exoMediaItem = ExoMediaItem.Builder()
+        val exoMediaItemBuilder = ExoMediaItem.Builder()
             .setUri(uri)
             .setMediaId(mediaItem.id)
-            .build()
+
+        if (mediaItem.type == MediaType.IMAGE) {
+            exoMediaItemBuilder.setImageDurationMs(mediaItem.durationSeconds * 1000L)
+        } else if (mediaItem.type == MediaType.VIDEO && mediaItem.durationSeconds > 0) {
+            exoMediaItemBuilder.setClippingConfiguration(
+                ExoMediaItem.ClippingConfiguration.Builder()
+                    .setEndPositionMs(mediaItem.durationSeconds * 1000L)
+                    .build()
+            )
+        }
+            
+        val exoMediaItem = exoMediaItemBuilder.build()
             
         exoPlayer?.let { player ->
             currentlyPreparedMediaId = mediaItem.id
@@ -306,19 +334,32 @@ class ExoPlayerRenderer(
             
             
             // Use same integrity-aware URI resolution pattern
-            // [HARDENING] Perform secondary disk check in default media directory as absolute fallback
+            val safeHash = item.hash.replace(Regex("[^a-zA-Z0-9_-]"), "")
+            val hashedFile = File(File(context.filesDir, "media_content"), "${item.id}_$safeHash.dat")
             val fallbackFile = File(File(context.filesDir, "media_content"), "${item.id}.dat")
             val uriString = when {
                 useLocal && localPath != null -> "file://$localPath"
+                safeHash.isNotBlank() && hashedFile.exists() && hashedFile.length() > 0 -> "file://${hashedFile.absolutePath}"
                 fallbackFile.exists() && fallbackFile.length() > 0 -> "file://${fallbackFile.absolutePath}"
                 else -> item.remoteUrl
             }
             
             val uri = Uri.parse(uriString)
-            val exoItem = ExoMediaItem.Builder()
+            val exoItemBuilder = ExoMediaItem.Builder()
                 .setUri(uri)
                 .setMediaId(item.id)
-                .build()
+
+            if (item.type == MediaType.IMAGE) {
+                exoItemBuilder.setImageDurationMs(item.durationSeconds * 1000L)
+            } else if (item.type == MediaType.VIDEO && item.durationSeconds > 0) {
+                exoItemBuilder.setClippingConfiguration(
+                    ExoMediaItem.ClippingConfiguration.Builder()
+                        .setEndPositionMs(item.durationSeconds * 1000L)
+                        .build()
+                )
+            }
+                
+            val exoItem = exoItemBuilder.build()
                 
             // [ESTRATÉGIA DE VALIDAÇÃO] Limpa lixo antes do pre-buffer também
             player.stop()
@@ -352,8 +393,26 @@ class ExoPlayerRenderer(
         _playbackState.value = RendererState.IDLE
     }
 
-    fun setAudioEnabled(enabled: Boolean) {
-        exoPlayer?.volume = if (enabled) 1.0f else 0.0f
+    val instanceIdentifier: String get() = instanceName
+    var currentScreenId: String? = null
+
+    fun setAudioEnabled(
+        enabled: Boolean,
+        reason: String = "UNSPECIFIED",
+        screenId: String? = null,
+        playlistId: String? = null,
+        mediaId: String? = null
+    ) {
+        val oldPolicy = audioPolicyEnabled
+        audioPolicyEnabled = enabled
+        val targetVolume = if (enabled) 1.0f else 0.0f
+        exoPlayer?.volume = targetVolume
+        
+        val actualScreenId = screenId ?: currentScreenId ?: "unknown"
+        val actualMediaId = mediaId ?: currentlyPreparedMediaId ?: "unknown"
+        val stackTrace = if (enabled) "\nStackTrace:\n" + android.util.Log.getStackTraceString(Throwable()) else ""
+        
+        Logger.i("AUDIO_FORENSIC", "[AUDIO_FORENSIC] timestamp=${System.currentTimeMillis()} screen_id=$actualScreenId playlist_id=$playlistId media_id=$actualMediaId player_instance=$instanceName oldPolicy=$oldPolicy audioPolicyEnabled=$enabled requestedVolume=$targetVolume actualVolume=${exoPlayer?.volume} audioEnabled=$enabled event=setAudioEnabled($enabled) reason=$reason thread=${Thread.currentThread().name}$stackTrace")
     }
 
     override fun getPlaybackState(): Flow<RendererState> = _playbackState.asStateFlow()

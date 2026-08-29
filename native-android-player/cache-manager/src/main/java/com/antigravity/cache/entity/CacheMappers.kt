@@ -20,7 +20,8 @@ fun Playlist.toCache(): CachedPlaylist {
         resolution = this.resolution,
         heartbeatIntervalSeconds = this.heartbeatIntervalSeconds,
         seamlessTransition = this.seamlessTransition,
-        cacheNextMedia = this.cacheNextMedia
+        cacheNextMedia = this.cacheNextMedia,
+        audioEnabled = this.audioEnabled
     )
 }
 
@@ -46,17 +47,23 @@ fun MediaItem.toCache(playlistId: String): CachedMediaItem {
 // --- Cache -> Domain ---
 
 fun CachedPlaylist.toDomain(items: List<CachedMediaItem>): Playlist {
+    val playlistOrientation = when (this.resolution?.lowercase()?.trim()) {
+        "9x16", "9:16", "portrait", "vertical" -> "portrait"
+        "16x9", "16:9", "landscape", "horizontal" -> "landscape"
+        else -> this.orientation
+    }
     return Playlist(
         id = this.id,
         name = this.name,
         version = this.version,
         items = items.map { it.toDomain() },
         isEmergency = this.isEmergency,
-        orientation = this.orientation,
+        orientation = playlistOrientation ?: "landscape",
         resolution = this.resolution,
         heartbeatIntervalSeconds = this.heartbeatIntervalSeconds,
         seamlessTransition = this.seamlessTransition,
-        cacheNextMedia = this.cacheNextMedia
+        cacheNextMedia = this.cacheNextMedia,
+        audioEnabled = this.audioEnabled
     )
 }
 

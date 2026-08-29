@@ -72,28 +72,17 @@ class MainActivity : AppCompatActivity() {
 
         setupWebView()
         
-        // CRITICAL FIX: CACHE CLEAR DISABLED TO PREVENT ANR (System UI Freeze)
-        // webView.clearCache(true) 
-        // webView.clearHistory()
-        // android.webkit.WebStorage.getInstance().deleteAllData()
-        
-        // FORCE REDIRECT TO VERCEL IF ENABLED
+        // Load the React App (Local Assets First to guarantee offline operation and prevent white screen)
         if (USE_REMOTE_DEBUG) {
             Log.w("MainActivity", "⚠️ RUNNING IN REMOTE DEBUG MODE: $REMOTE_DEBUG_URL")
             webView.loadUrl(REMOTE_DEBUG_URL)
-            return
+        } else if (checkAssetsIntegrity()) {
+            Log.i("MainActivity", "🚀 Loading Bundled Local Assets: file:///android_asset/public/index.html")
+            webView.loadUrl("file:///android_asset/public/index.html")
+        } else {
+            Log.w("MainActivity", "⚠️ Local assets not found. Falling back to Remote URL: $REMOTE_DEBUG_URL")
+            webView.loadUrl(REMOTE_DEBUG_URL)
         }
-
-        // Load the React App (Local)
-        // Load the React App
-        // Load the React App
-        // FORCE LOAD REMOTE URL
-        // Load the React App (Local)
-        // Load the React App
-        // Load the React App
-        // FORCE LOAD REMOTE URL
-        Log.i("MainActivity", "🚀 Loading Remote URL: $REMOTE_DEBUG_URL")
-        webView.loadUrl(REMOTE_DEBUG_URL)
 
         // --- HARDWARE LOCKS (IMMORTAL MODE) ---
         acquireSystemLocks()
@@ -162,11 +151,9 @@ class MainActivity : AppCompatActivity() {
         }
         settings.mediaPlaybackRequiresUserGesture = false
         settings.allowFileAccess = true
-        // [SECURITY HARDENING P0] Restrição de acesso a file://:
-        // remove allowUniversalAccessFromFileURLs; file URLs negados por padrão.
+        settings.allowFileAccessFromFileURLs = true
+        settings.allowContentAccess = true
         settings.allowUniversalAccessFromFileURLs = false
-        settings.allowFileAccessFromFileURLs = false
-        settings.allowContentAccess = false
         
         // Cache Strategy: Use disk cache aggressively if offline
         settings.cacheMode = WebSettings.LOAD_DEFAULT 
@@ -333,6 +320,13 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         
         hideSystemUI()
+
+        // Notify React layer that app resumed from settings or other activities
+        try {
+            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('nativeResume'));", null)
+        } catch (e: Exception) {
+            Log.w("MainActivity", "Failed to dispatch nativeResume: ${e.message}")
+        }
 
         // SAFE INIT: Delay risky operations to allow UI to render first
         // This prevents crash loops if the system is sluggish

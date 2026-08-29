@@ -62,10 +62,14 @@ object SupabaseModule {
                         request.headers["Authorization"] = "Bearer $token"
                     }
                     
-                    val deviceId = SessionManager.deviceIdentityHash
-                        ?: SessionManager.currentUserId
-                        ?: "UNKNOWN_DEVICE"
-                    request.headers["X-Device-ID"] = deviceId
+                    val deviceId = SessionManager.deviceIdentityHash ?: SessionManager.currentUserId
+                    if (!deviceId.isNullOrBlank() && deviceId != "UNKNOWN_DEVICE" && deviceId != "UNKNOWN") {
+                        request.headers["X-Device-ID"] = deviceId
+                    }
+
+                    // [OBSERVABILITY] Tenant context (screen UUID) + correlation
+                    SessionManager.currentUUID?.let { request.headers["X-Tenant-ID"] = it }
+                    SessionManager.currentCorrelationId?.let { request.headers["X-Correlation-ID"] = it }
                 }
             })
         }

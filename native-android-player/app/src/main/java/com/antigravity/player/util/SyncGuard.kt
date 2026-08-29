@@ -32,6 +32,14 @@ class SyncGuard(private val activity: Activity) {
         overlayContainer?.setOnClickListener {}
     }
 
+    private var lockWatchdogHandler: android.os.Handler? = null
+    private val lockWatchdogRunnable = Runnable {
+        if (isLocked()) {
+            Logger.w("SYNC_GUARD", "Safety Watchdog: Auto-releasing SyncGuard lock after timeout.")
+            releaseLock()
+        }
+    }
+
     fun lockScreen(message: String = "Sincronizando Mídias...", showDeviceId: String? = null) {
         activity.runOnUiThread {
             overlayContainer?.visibility = View.VISIBLE
@@ -44,6 +52,13 @@ class SyncGuard(private val activity: Activity) {
             } ?: run {
                 deviceIdText?.visibility = View.GONE
             }
+
+            // Arm failsafe watchdog (25s max lock)
+            if (lockWatchdogHandler == null) {
+                lockWatchdogHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            }
+            lockWatchdogHandler?.removeCallbacks(lockWatchdogRunnable)
+            lockWatchdogHandler?.postDelayed(lockWatchdogRunnable, 25000L)
         }
     }
 
@@ -58,6 +73,7 @@ class SyncGuard(private val activity: Activity) {
      */
     fun releaseLock() {
         activity.runOnUiThread {
+            lockWatchdogHandler?.removeCallbacks(lockWatchdogRunnable)
             if (overlayContainer?.visibility == View.VISIBLE) {
                 Logger.i("SYNC_GUARD", "Sync Complete. Releasing UI Lock.")
                 overlayContainer?.visibility = View.GONE

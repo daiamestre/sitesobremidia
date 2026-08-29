@@ -72,4 +72,8 @@ interface PlayerRepository {
     suspend fun reportRemoteError(type: String, message: String, stackTrace: String, stats: Map<String, Any> = emptyMap())
     suspend fun updateMediaLocalPath(mediaId: String, path: String)
     suspend fun hasLocalMedia(): Boolean
+    
+    // [BINDING UNIVERSAL] 
+    suspend fun unpairScreen(screenId: String, deviceId: String)
+    suspend fun clearLocalDatabase()
 }

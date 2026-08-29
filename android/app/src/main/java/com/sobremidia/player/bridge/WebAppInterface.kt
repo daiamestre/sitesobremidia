@@ -1,6 +1,8 @@
 package com.sobremidia.player.bridge
 
 import android.content.Context
+import android.os.Build
+import android.util.Charsets
 import android.webkit.JavascriptInterface
 import android.widget.Toast
 import org.json.JSONObject
@@ -13,11 +15,19 @@ class WebAppInterface(private val context: Context) {
 
     @JavascriptInterface
     fun getDeviceId(): String {
-        val deviceId = android.provider.Settings.Secure.getString(
+        val androidId = android.provider.Settings.Secure.getString(
             context.contentResolver,
             android.provider.Settings.Secure.ANDROID_ID
-        )
-        return deviceId ?: "unknown"
+        ) ?: "unknown"
+        val fingerprint = android.os.Build.FINGERPRINT ?: "unknown"
+        val raw = "sobremidia::device::$androidId::$fingerprint"
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(raw.toByteArray(Charsets.UTF_8))
+            digest.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            raw.hashCode().toString(16).padStart(16, '0')
+        }
     }
 
     @JavascriptInterface
@@ -40,8 +50,65 @@ class WebAppInterface(private val context: Context) {
     }
 
     @JavascriptInterface
+    fun isOverlayGranted(): Boolean {
+        val granted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            android.provider.Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+        android.util.Log.i("OVERLAY", "[OVERLAY] packageName=${context.packageName}, canDrawOverlays=$granted")
+        return granted
+    }
+
+    @JavascriptInterface
+    fun requestOverlayPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            android.util.Log.i("OVERLAY", "[OVERLAY] opening overlay settings for ${context.packageName}")
+            try {
+                val intent = android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:" + context.packageName)
+                ).apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                android.util.Log.w("OVERLAY", "[OVERLAY] specific package intent failed, trying generic intent", e)
+                try {
+                    val fallbackIntent = android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+                    ).apply {
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(fallbackIntent)
+                } catch (e2: Exception) {
+                    android.util.Log.e("OVERLAY", "[OVERLAY] generic overlay intent also failed", e2)
+                }
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun isHomeLauncher(): Boolean {
+        val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+            addCategory(android.content.Intent.CATEGORY_HOME)
+        }
+        val resolveInfo = context.packageManager.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+        return resolveInfo?.activityInfo?.packageName == context.packageName
+    }
+
+    @JavascriptInterface
+    fun requestSetLauncher() {
+        val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+            addCategory(android.content.Intent.CATEGORY_HOME)
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    }
+
+    @JavascriptInterface
     fun getDeviceStatus(): String {
-        val overlayPermission = true
+        val overlayPermission = isOverlayGranted()
 
         val metrics = context.resources.displayMetrics
         val orientation = context.resources.configuration.orientation
@@ -50,6 +117,7 @@ class WebAppInterface(private val context: Context) {
         return JSONObject().apply {
             put("deviceId", getDeviceId())
             put("overlayGranted", overlayPermission)
+            put("isHomeLauncher", isHomeLauncher())
             put("isOnline", isOnline())
             put("manufacturer", android.os.Build.MANUFACTURER)
             put("model", android.os.Build.MODEL)

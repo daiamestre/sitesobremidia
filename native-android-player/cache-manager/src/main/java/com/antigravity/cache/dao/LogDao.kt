@@ -17,6 +17,9 @@ interface LogDao {
 
     @Query("DELETE FROM play_logs WHERE id IN (SELECT id FROM play_logs ORDER BY startedAt ASC LIMIT :count)")
     suspend fun deleteOldestLogs(count: Int)
+
+    @Query("DELETE FROM play_logs")
+    suspend fun clearAll()
 }
 
 /**
@@ -32,6 +35,9 @@ interface OfflineLogDao {
 
     @Delete
     suspend fun deleteLog(log: com.antigravity.cache.entity.OfflinePlaybackLog)
+
+    @Query("DELETE FROM offline_playback_logs WHERE id IN (:ids)")
+    suspend fun deleteLogs(ids: List<Long>)
 
     @Query("DELETE FROM offline_playback_logs")
     suspend fun clearAll()

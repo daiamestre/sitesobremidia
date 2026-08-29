@@ -38,7 +38,7 @@ class PlayerViewModel(
     // ==================
     // GATEKEEPER STATE
     // ==================
-    private val _playerState = MutableStateFlow(PlayerUIState.SYNCING)
+    private val _playerState = MutableStateFlow(PlayerUIState.AUTH)
     val playerState: StateFlow<PlayerUIState> = _playerState.asStateFlow()
 
     private val _isPlaylistReady = MutableStateFlow(false)
@@ -168,13 +168,24 @@ class PlayerViewModel(
         }
     }
 
+    private var preparingTimeoutJob: kotlinx.coroutines.Job? = null
+
     fun prepararPrimeiraMidia() {
         // Assegura que estamos no estado intermediário, mantendo o bloqueio de tela
         _playerState.value = PlayerUIState.PREPARING
+        preparingTimeoutJob?.cancel()
+        preparingTimeoutJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(5000)
+            if (_playerState.value == PlayerUIState.PREPARING) {
+                Logger.w("GATEKEEPER", "Failsafe Gatekeeper Timeout atingido (5s). Liberando tela.")
+                confirmarMidiaPronta()
+            }
+        }
     }
 
     fun confirmarMidiaPronta() {
         // [ZERO-GAP] Agora sim, o motor avisou que o frame está na memória! Liberamos a tela.
+        preparingTimeoutJob?.cancel()
         _isPlaylistReady.value = true
         _playerState.value = PlayerUIState.PLAYING
     }

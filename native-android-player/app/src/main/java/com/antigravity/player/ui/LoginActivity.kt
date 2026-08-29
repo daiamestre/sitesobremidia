@@ -71,6 +71,7 @@ class LoginActivity : AppCompatActivity() {
                     
                     val intent = Intent(this@LoginActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java)
                     startActivity(intent)
+                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                     finish()
                 } else {
                     loading.visibility = View.GONE

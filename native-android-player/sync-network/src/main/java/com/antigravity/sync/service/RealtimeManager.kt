@@ -78,7 +78,7 @@ class RealtimeManager(
                 val backoffSeconds = try {
                     val exp = java.lang.Math.pow(2.0, (attempt - 1).toDouble()).toLong() * 5
                     if (exp > 30) 30L else exp
-                } catch (_: Exception) { 30L }
+                } catch (e: Exception) { 30L }
 
                 Logger.w("REALTIME", "Connection failed (${e.message}). Retrying in ${backoffSeconds}s...")
                 kotlinx.coroutines.delay(backoffSeconds * 1000L)

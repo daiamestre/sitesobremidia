@@ -27,23 +27,12 @@ object AspectRatioManager {
 
             if (viewWidth == 0 || viewHeight == 0) return@post
 
-            val scaleX = viewWidth.toFloat() / videoWidth.toFloat()
-            val scaleY = viewHeight.toFloat() / videoHeight.toFloat()
-
-            // [SEAMLESS ENGINE] Preenchimento total da tela:
-            // Usa o maior fator de escala (Math.max) para preencher os dois eixos,
-            // permitindo que o vídeo vaze um pouco pelas bordas se a proporção não bater.
-            val scale = Math.max(scaleX, scaleY)
-
-            // Escalona as dimensões do conteúdo renderizado para o tamanho da View
-            val finalWidth = (videoWidth * scale).toInt()
-            val finalHeight = (videoHeight * scale).toInt()
-
-            // Aplica a proporção (scaleX/scaleY) na própria View
-            targetView.scaleX = finalWidth.toFloat() / viewWidth.toFloat()
-            targetView.scaleY = finalHeight.toFloat() / viewHeight.toFloat()
-
-            Logger.d("ASPECT_RATIO", "Video: ${videoWidth}x${videoHeight} | View: ${viewWidth}x${viewHeight} | Scale: X=${targetView.scaleX}, Y=${targetView.scaleY}")
+            // [CORREÇÃO P0] O AspectRatioManager antigo forçava um Math.max() 
+            // que dava zoom e cortava as bordas do conteúdo, violando o Aspect Ratio original.
+            // Esta lógica foi depreciada em favor do app:resize_mode="fit" nativo do ExoPlayer.
+            
+            // Não manipulamos mais targetView.scaleX ou scaleY manualmente.
+            Logger.d("ASPECT_RATIO", "Video: ${videoWidth}x${videoHeight} | View: ${viewWidth}x${viewHeight} | Scaling bypass applied (Using Native ExoPlayer FIT)")
         }
     }
 }

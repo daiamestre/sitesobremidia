@@ -1,3 +1,4 @@
+@file:OptIn(kotlinx.serialization.InternalSerializationApi::class)
 package com.antigravity.player.data
 
 import java.io.File
@@ -23,6 +24,7 @@ import com.antigravity.core.util.TimeManager
 import com.antigravity.core.domain.model.RegionalConfig
 import com.antigravity.player.di.ServiceLocator
 import com.antigravity.player.util.PlaybackBufferManager
+import com.antigravity.sync.service.PlayerSessionState
 import com.antigravity.player.worker.MediaDownloadWorker
 import com.antigravity.sync.dto.*
 import com.antigravity.sync.service.MediaDownloader
@@ -85,8 +87,8 @@ class PlayerRepositoryImpl(
                         id, name,
                         playlist_items (
                             id, position, duration,
-                            medias:media!playlist_items_media_id_fkey (id, name, file_url, file_type),
-                            widgets:widgets!playlist_items_widget_id_fkey (id, name, widget_type, config)
+                            media:media!playlist_items_media_id_fkey (id, name, file_url, file_type),
+                            widget:widgets!playlist_items_widget_id_fkey (id, name, widget_type, config)
                         )
                     )
                 """.trimIndent())) {
@@ -160,7 +162,7 @@ class PlayerRepositoryImpl(
                     val widget = item.widget
                     val itemUrl = if (widget != null) {
                          val baseWidgetUrl = "native_widget://${widget.type.lowercase()}/${widget.id}"
-                         val configJson = widget.configuration
+                         val configJson = widget.configJson
                          if (!configJson.isNullOrBlank()) {
                              "$baseWidgetUrl?config=${java.net.URLEncoder.encode(configJson, "UTF-8")}"
                          } else {
@@ -214,30 +216,130 @@ class PlayerRepositoryImpl(
     }
 
     override suspend fun syncWithRemote(): Result<Unit> = withContext(Dispatchers.IO) {
-        if (syncMutex.isLocked) {
+        // [P0 FIX] Thread Safety absoluta. Evita sobreposição se 2 nudges chegam no mesmo ms.
+        if (!syncMutex.tryLock()) {
             Logger.w("SYNC", "Sync already in progress. Skipping redundant request.")
             return@withContext Result.success(Unit)
         }
         
-        syncMutex.withLock {
-            try {
-                Logger.i("SYNC", "--- Starting Industrial Sync Cycle ---")
+        try {
+            Logger.i("SYNC", "[SYNC_STARTED] --- Starting Industrial Sync Cycle ---")
                 
-                // 1. Fetch Remote Data with Resilience
-                val remotePlaylist = try {
-                    remoteDataSource.getPlaylistForScreen(deviceId)
-                } catch (e: Exception) {
-                    val msg = e.message ?: "Unknown Connection Error"
-                    Logger.e("SYNC", "Remote fetch failed: $msg. Triggering Silent Local Fallback.")
-                    // [RESILIENCE] Silent Fallback: if network fails, we trust our local cache
-                    return@withLock loadLocalCacheInternal(e)
+            // [DETERMINISTIC IDENTITY P0] Garante que a identidade de hardware está pronta
+            val hardwareDeviceId = try {
+                SessionManager.awaitIdentity()
+            } catch (e: Exception) {
+                Logger.e("SYNC", "[IDENTITY_FAILED] Identidade de hardware não disponível: ${e.message}")
+                _syncProgress.value = "Aguardando Identidade do Dispositivo..."
+                return@withContext Result.failure(e)
+            }
+            
+            val repoScreenId = this@PlayerRepositoryImpl.deviceId
+            val targetScreenId = SessionManager.currentUUID
+                ?: (if (!repoScreenId.isNullOrBlank() && repoScreenId != "UNKNOWN" && repoScreenId != hardwareDeviceId) repoScreenId else null)
+                ?: SessionManager.currentUserId
+                ?: ""
+
+            if (targetScreenId.isBlank() || targetScreenId == "UNKNOWN") {
+                Logger.w("SYNC", "[SCREEN_ID_MISSING] Nenhum ID de tela configurado. Aguardando pareamento.")
+                _syncProgress.value = "Aguardando seleção de tela..."
+                return@withContext Result.failure(Exception("NO_SCREEN_ID"))
+            }
+
+            // 1. Fetch Remote Data with Resilience
+            val remotePlaylist = try {
+                Logger.i("SYNC", "[PLAYLIST_REQUEST] Solicitando playlist para tela: $targetScreenId (Device Hash: ${hardwareDeviceId.take(8)}...)")
+                val pair = remoteDataSource.getPlaylistForScreen(targetScreenId, hardwareDeviceId)
+                if (pair != null) {
+                    val device = pair.first
+                    val playlist = pair.second
+                    
+                    // Dashboard Settings Extraction: Playlist Resolution is the Sovereign Canvas Contract
+                    
+                    // [VERDADE OPERACIONAL]: A orientação física (finalOrientation) é obrigatoriamente
+                    // a do device. A resolução da playlist não dita a rotação da Activity.
+                    val finalOrientation = device.orientation ?: "landscape"
+                    
+                    Logger.i("ORIENTATION_CONTRACT", """
+                        [ORIENTATION_CONTRACT]
+                        screenOrientation=${device.orientation}
+                        screenResolution=${device.resolution}
+                        playlistResolution=${playlist.resolution}
+                        effectiveOrientation=$finalOrientation
+                    """.trimIndent())
+
+                    SessionManager.currentOrientation = finalOrientation
+                    try {
+                        val prefs = context.getSharedPreferences("player_prefs", android.content.Context.MODE_PRIVATE)
+                        prefs.edit().putString("current_orientation", finalOrientation).apply()
+                    } catch (e: Exception) {}
+                    SessionManager.currentScreenName = device.name ?: "Player ${device.customId ?: device.id}"
+                    SessionManager.currentUserId = device.customId ?: device.id
+                    SessionManager.currentUUID = device.id 
+                    
+                    // [BUGFIX] Reset the Singleton suspension lock upon proven authorization
+                    SessionManager.triggerScreenActive(true)
+                    SessionManager.transitionTo(PlayerSessionState.AUTHORIZED)
+
+                    // [PAYLOAD INTEGRITY P0] Se o payload veio sem nenhum item de mídia/widget,
+                    // NUNCA sobrescrever um cache local saudável (proteção contra regressão de RPC).
+                    if (playlist.items.isEmpty()) {
+                        Logger.e("SYNC", "[PAYLOAD_INTEGRITY] RPC retornou playlist sem itens utilizáveis. Mantendo cache local.")
+                        throw Exception("PAYLOAD_INVALID")
+                    }
+
+                    playlist
+                } else null
+            } catch (e: Exception) {
+                val msg = e.message ?: "Unknown Connection Error"
+                
+                // [CLASSIFICAÇÃO DE ERROS - ZERO TRUST + OFFLINE FIRST]
+                when (msg) {
+                    "SCREEN_SUSPENDED", "SCREEN_ACCESS_DENIED", "DEVICE_REVOKED", "DEVICE_ACCESS_DENIED" -> {
+                        Logger.e("SYNC", "[SCREEN_SUSPENDED] Bloqueio estrutural confirmado pelo servidor: $msg")
+                        
+                        // [CACHE SECURITY P0] Purgar cache imediatamente em caso de revogação/suspensão comprovada
+                        playerDao.deleteAllPlaylists()
+                        playerDao.deleteAllMediaItems()
+                        _activePlaylist.value = null
+                        
+                        val blockText = if (msg == "SCREEN_SUSPENDED") "Sistema Temporariamente Suspenso" else "Acesso Negado: $msg"
+                        SessionManager.triggerScreenActive(false, blockText)
+                        sendHeartbeat("ONLINE | BLOCKED_SECURITY: $msg", null, null)
+                        _syncProgress.value = "Bloqueio: $msg"
+                        return@withContext Result.failure(e)
+                    }
+
+                    "DEVICE_ALREADY_BOUND", "DEVICE_BINDING_MISMATCH" -> {
+                        Logger.e("SYNC", "[DEVICE_BINDING_MISMATCH] Conflito de hardware ID detectado pelo servidor.")
+                        SessionManager.transitionTo(PlayerSessionState.BINDING_ERROR)
+                        _syncProgress.value = "Aparelho não vinculado a esta tela (Re-pareamento no Painel)"
+                        sendHeartbeat("ONLINE | BINDING_MISMATCH", null, null)
+                        return@withContext Result.failure(e)
+                    }
+
+                    "NO_PLAYLIST_ASSIGNED", "PLAYLIST_NOT_FOUND", "PLAYLIST_EMPTY" -> {
+                        Logger.w("SYNC", "[PLAYLIST_EMPTY] Tela ativa, porém sem mídias programadas ($msg).")
+                        _syncProgress.value = "Aguardando programação de mídias no painel..."
+                        sendHeartbeat("ONLINE | NO_PLAYLIST", null, null)
+                        // Não destrói cache agressivamente; aguarda programação
+                        return@withContext Result.failure(e)
+                    }
+
+                    else -> {
+                        // [OFFLINE-FIRST RESILIENCE] Falhas transitórias de rede/timeout/HTTP 500 NUNCA bloqueiam o player
+                        Logger.w("SYNC", "[OFFLINE_MODE] Falha de comunicação transitória ($msg). Acionando cache offline local.")
+                        SessionManager.transitionTo(PlayerSessionState.OFFLINE)
+                        return@withContext loadLocalCacheInternal(e)
+                    }
                 }
+            }
 
                 if (remotePlaylist != null) {
                     // [HYGIENE] JSON Validation placeholder - if we have an ID, we assume it's valid enough to proceed
                     if (remotePlaylist.id.isBlank()) {
                         Logger.e("SYNC", "Invalid Remote Playlist: ID is blank. Fallback to cache.")
-                        return@withLock loadLocalCacheInternal(Exception("Invalid remote playlist ID"))
+                        return@withContext loadLocalCacheInternal(Exception("Invalid remote playlist ID"))
                     }
 
                     // 0. Check if screen is active
@@ -250,7 +352,7 @@ class PlayerRepositoryImpl(
                             initRemoteCommands()
                             isRealtimeStarted = true
                         }
-                        return@withLock Result.success(Unit)
+                        return@withContext Result.success(Unit)
                     }
 
                     val newConfigSignature = calculateConfigSignature(remotePlaylist)
@@ -263,6 +365,12 @@ class PlayerRepositoryImpl(
                         val validIds = remotePlaylist.items.map { it.id }
                         fileStorageManager.purgeOrphanedFiles(validIds)
                         
+                        // [HOT-SWAP ORIENTATION] Even if cache is hit, orientation must be enforced
+                        if (remotePlaylist.orientation != SessionManager.currentOrientation) {
+                            SessionManager.currentOrientation = remotePlaylist.orientation
+                            SessionManager.triggerRotation(remotePlaylist.orientation)
+                        }
+                        
                         emitPlaylistFromCache()
                         sendHeartbeat("ONLINE | IDLE", null, null)
                         
@@ -271,7 +379,7 @@ class PlayerRepositoryImpl(
                             initRemoteCommands()
                             isRealtimeStarted = true
                         }
-                        return@withLock Result.success(Unit)
+                        return@withContext Result.success(Unit)
                     }
 
                     if (!isCacheValid) {
@@ -282,16 +390,9 @@ class PlayerRepositoryImpl(
                         _syncProgress.value = "Novas configurações detectadas..."
                     }
 
-                    // [DEEP CLEANUP] Se o ID da playlist mudou completamente (ex: deletou e criou outra no painel), limpe tudo.
-                    val cachedPlaylist = playerDao.getActivePlaylist()
-                    if (cachedPlaylist != null && cachedPlaylist.id != remotePlaylist.id) {
-                        Logger.w("SYNC", "Nova Playlist detectada! Aplicando Limpeza Profunda (Hard Reset)...")
-                        // Mata fisicamente a pasta de arquivos
-                        fileStorageManager.deleteAll()
-                        // Mata as tabelas de rastreamento do Room para forçar Download do Zero
-                        playerDao.deleteAllPlaylists()
-                        playerDao.deleteAllMediaItems()
-                    }
+                    // [FASE 2] HARD RESET REMOVIDO
+                    // O banco de dados e os arquivos só serão limpos APÓS a confirmação de que 
+                    // a nova playlist (Atomic Swap) foi 100% baixada e validada com sucesso.
 
                     // 2. Hot-Swap Orientation
                     val oldOrientation = SessionManager.currentOrientation
@@ -300,21 +401,24 @@ class PlayerRepositoryImpl(
                         reportActionApplied("OrientationChange", remotePlaylist.orientation)
                     }
 
-                    // [INDUSTRIAL] Save playlist structure FIRST (This triggers the Hard Reset in DAO)
-                    _syncProgress.value = "Salvando configurações..."
-                    saveToLocalCache(remotePlaylist)
-
+                    // [FASE 3] ATOMIC SWAP - Download First, Commit Later
                     // 4. Download only new/missing media
                     _syncProgress.value = "Sincronizando novas mídias..."
                     syncContent(remotePlaylist)
                     
                     // [PROFESSIONAL REPRODUCTION MODE] 
-                    // BLOQUEIO DE REDE: Não sai da tela de sincronia se o cache não estiver 100% íntegro pós-download.
+                    // Valida integridade do cache após o download ANTES de comitar no Room
                     val isSyncComplete = verifyCacheIntegrity(remotePlaylist)
                     if (!isSyncComplete) {
-                        Logger.e("SYNC", "Falha Crítica de Sincronia: Faltam arquivos ou arquivos estão corrompidos após o Sync.")
-                        throw Exception("Download Incompleto. Retentando...")
+                        Logger.e("SYNC", "Aviso de Sincronia: Falha na integridade do cache. Abortando Atomic Swap para proteger a reprodução atual.")
+                        throw Exception("Atomic Swap abortado. Mídias pendentes ou corrompidas.")
                     }
+                    
+                    Logger.i("SYNC", "Integridade do Cache 100% verificada com sucesso. Aplicando Atomic Swap (Commit).")
+
+                    // [INDUSTRIAL] Save playlist structure ONLY AFTER successful download
+                    _syncProgress.value = "Salvando configurações..."
+                    saveToLocalCache(remotePlaylist)
 
                     // 5. Garbage Collection (Physical Removal)
                     // [CACHE_CLEANER] 1. Purgar os orfãos usando StorageManager local
@@ -322,8 +426,8 @@ class PlayerRepositoryImpl(
                     fileStorageManager.purgeOrphanedFiles(validIds)
                     
                     // [CACHE_CLEANER] 2. Nova estratégia de varredura profunda (Limpeza Obsoleta Anti-TVBox Full)
-                    // Extrai a lista de nomes físicos exatos (.dat) que a playlist atual exige
-                    val nomesArquivosOficiais = remotePlaylist.items.map { "${it.id}.dat" }
+                    // Extrai a lista de nomes físicos exatos (.dat) que a playlist atual exige (agora com Hash)
+                    val nomesArquivosOficiais = remotePlaylist.items.map { fileStorageManager.getFileForMedia(it.id, it.hash).name }
                     com.antigravity.player.util.CacheManager.limparCacheObsoleto(context, nomesArquivosOficiais)
 
                     // 7. Emit & Handshake
@@ -340,14 +444,15 @@ class PlayerRepositoryImpl(
                     }
                     Result.success(Unit)
                 } else {
-                    Logger.w("SYNC", "Playlist null from server. Falling back to cache.")
-                    loadLocalCacheInternal(Exception("Remote playlist null"))
+                    Logger.w("SYNC", "Playlist structure is missing but no exception was thrown.")
+                    loadLocalCacheInternal(Exception("PAYLOAD_INVALID"))
                 }
             } catch (e: Exception) {
                 Logger.e("SYNC", "Critical crash in syncWithRemote: ${e.message}")
                 loadLocalCacheInternal(e)
+            } finally {
+                syncMutex.unlock()
             }
-        }
     }
 
     private fun initRemoteCommands() {
@@ -396,7 +501,7 @@ class PlayerRepositoryImpl(
     private fun calculateConfigSignature(playlist: Playlist): String {
         // [PRECISION] Signature MUST capture ID order to trigger re-sort instantly
         val itemsPart = playlist.items.joinToString("|") { 
-            "${it.id}:${it.hash ?: it.remoteUrl.hashCode()}:${it.orderIndex}" 
+            "${it.id}:${it.hash}:${it.orderIndex}" 
         }
         return "${playlist.id}:${playlist.orientation}:${playlist.heartbeatIntervalSeconds}:$itemsPart".hashCode().toString()
     }
@@ -407,8 +512,7 @@ class PlayerRepositoryImpl(
                 item.type != com.antigravity.core.domain.model.MediaType.IMAGE) {
                 return@all true // Widgets and Links don't have local files
             }
-            val file = fileStorageManager.getFileForMedia(item.id)
-            file.exists() && file.length() > 0
+            fileStorageManager.doesFileExistAndMatchHash(item.id, item.hash)
         }
     }
 
@@ -420,7 +524,7 @@ class PlayerRepositoryImpl(
         val itemsToSync = playlist.items.filter { item ->
             (item.type == com.antigravity.core.domain.model.MediaType.VIDEO || 
              item.type == com.antigravity.core.domain.model.MediaType.IMAGE) &&
-            !fileStorageManager.doesFileExistAndMatchHash(item.id, item.hash ?: "")
+            !fileStorageManager.doesFileExistAndMatchHash(item.id, item.hash)
         }
 
         if (itemsToSync.isEmpty()) {
@@ -436,7 +540,7 @@ class PlayerRepositoryImpl(
                 .setInputData(androidx.work.workDataOf(
                     "media_id" to item.id,
                     "url" to item.remoteUrl,
-                    "hash" to (item.hash ?: "")
+                    "hash" to item.hash
                 ))
                 .setBackoffCriteria(
                     androidx.work.BackoffPolicy.EXPONENTIAL,
@@ -485,7 +589,7 @@ class PlayerRepositoryImpl(
         // Preserve existing localPaths from cache for items already downloaded
         val existingItems = try {
             playerDao.getItemsForPlaylist(playlist.id).associateBy { it.id }
-        } catch (_: Exception) { emptyMap() }
+        } catch (e: Exception) { emptyMap() }
 
         val cachedItems = playlist.items.map { item ->
             val file = fileStorageManager.getFileForMedia(item.id)
@@ -544,7 +648,6 @@ class PlayerRepositoryImpl(
             val verifiedItems = playlist.items
             
             _activePlaylist.value = playlist.copy(items = verifiedItems)
-            Result.success(Unit)
 
             // [INDUSTRIAL] Post-Mortem Detection: Identify unexpected power loss
             if (!isPostMortemDone) {
@@ -558,7 +661,13 @@ class PlayerRepositoryImpl(
                 Logger.w("REPOS", "Cache incompleto (${verifiedItems.size}/${playlist.items.size}). Sincronismo Delta solicitado.")
             }
             
-            Result.success(Unit)
+            if (cause != null) {
+                Logger.w("SYNC", "Cache carregado devido a falha: ${cause.message}. Propagando falha para a Telemetria.")
+                sendHeartbeat("ONLINE | SYNC_FAILED_CACHE", null, null)
+                Result.failure(cause)
+            } else {
+                Result.success(Unit)
+            }
         } else {
             Result.failure(cause ?: Exception("Sem cache disponível"))
         }
@@ -700,51 +809,60 @@ class PlayerRepositoryImpl(
         networkMutex.withLock {
             try {
                 val offlineLogDao = ServiceLocator.getOfflineLogDao(context)
-                val logs = offlineLogDao.getAllPendingLogs()
+                val allLogs = offlineLogDao.getAllPendingLogs()
                 
-                if (logs.isEmpty()) {
+                if (allLogs.isEmpty()) {
                     Logger.d("SYNC_LOGS", "No pending logs found in industrial buffer. Skipping.")
                     return@withLock Result.success(Unit)
                 }
 
-                Logger.i("SYNC_LOGS", "Preparing sealed upload of ${logs.size} logs for Screen ID: $deviceId")
+                Logger.i("SYNC_LOGS", "Preparing sealed upload of ${allLogs.size} logs for Screen ID: $deviceId")
 
-                val dtos = logs.filter { 
-                    // [HYGIENE] Never send garbage to Supabase
-                    it.media_id.isNotBlank() && it.screen_id.isNotBlank() && it.media_id != "null"
-                }.map { log ->
-                    PlayLogDto(
-                        screenId = log.screen_id,
-                        mediaId = log.media_id,
-                        duration = log.duration,
-                        startedAt = log.started_at,
-                        status = "COMPLETED"
-                    )
+                // [HARDENING] Process logs in batches of 100 to prevent OOM and payload size limits
+                val chunks = allLogs.chunked(100)
+                var totalUploaded = 0
+
+                for (chunk in chunks) {
+                    val validLogs = chunk.filter { 
+                        // [HYGIENE] Never send garbage to Supabase
+                        it.media_id.isNotBlank() && it.screen_id.isNotBlank() && it.media_id != "null"
+                    }
+
+                    if (validLogs.isEmpty()) {
+                        // Purge this garbage chunk
+                        offlineLogDao.deleteLogs(chunk.map { it.id })
+                        continue
+                    }
+
+                    val dtos = validLogs.map { log ->
+                        PlayLogDto(
+                            screenId = log.screen_id,
+                            mediaId = log.media_id,
+                            duration = log.duration,
+                            startedAt = log.started_at,
+                            status = "COMPLETED"
+                        )
+                    }
+
+                    // Attempt upload
+                    remoteDataSource.insertPlayLogs(dtos)
+                    
+                    // If successful (no exception), delete this specific chunk from Room
+                    offlineLogDao.deleteLogs(chunk.map { it.id })
+                    totalUploaded += validLogs.size
                 }
-
-                if (dtos.isEmpty()) {
-                    Logger.w("SYNC_LOGS", "Batch filtered to zero valid logs. Purging garbage.")
-                    offlineLogDao.clearAll()
-                    return@withLock Result.success(Unit)
-                }
-
-                Logger.d("SYNC_LOGS", "First DTO Sample: Screen=${dtos.first().screenId}, Media=${dtos.first().mediaId}, Date=${dtos.first().startedAt}")
                 
-                remoteDataSource.insertPlayLogs(dtos)
-                
-                offlineLogDao.clearAll()
-                
-                Logger.i("SYNC_LOGS", "Sync Complete. ${logs.size} logs purged from industrial buffer.")
+                Logger.i("SYNC_LOGS", "Sync Complete. $totalUploaded logs uploaded and purged from industrial buffer.")
                 Result.success(Unit)
             } catch (e: Exception) {
-                Logger.e("SYNC_LOGS", "Serialized Sync Failed: ${e.message}")
+                Logger.e("SYNC_LOGS", "Serialized Sync Failed (Batch may be incomplete): ${e.message}")
                 Result.failure(e)
             }
         }
     }
 
     override suspend fun reportRemoteError(type: String, message: String, stackTrace: String, stats: Map<String, Any>) {
-        remoteDataSource.insertErrorLog(deviceId, type, message, stackTrace, stats)
+        remoteDataSource.insertErrorLog(deviceId, type, message, stackTrace)
     }
 
     override suspend fun updateMediaLocalPath(mediaId: String, path: String) {
@@ -831,5 +949,15 @@ class PlayerRepositoryImpl(
         if (!dir.exists()) return@withContext false
         val files = dir.listFiles()
         return@withContext files?.any { file -> file.isFile && file.length() > 0 } ?: false
+    }
+
+    override suspend fun unpairScreen(screenId: String, deviceId: String) {
+        remoteDataSource.unpairScreen(screenId, deviceId)
+    }
+
+    override suspend fun clearLocalDatabase() = withContext(Dispatchers.IO) {
+        playerDao.deleteAllPlaylists()
+        playerDao.deleteAllMediaItems()
+        logDao.clearAll()
     }
 }

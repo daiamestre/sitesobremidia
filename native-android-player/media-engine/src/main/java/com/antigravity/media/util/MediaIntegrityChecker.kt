@@ -34,36 +34,20 @@ object MediaIntegrityChecker {
      * Returns false if the file is corrupted, truncated, or unsupported.
      */
     fun isVideoPlayable(file: File): Boolean {
+        // [CRITICAL FIX] MediaMetadataRetriever is notoriously unreliable on cheap TV Boxes and older Androids.
+        // It often returns null for METADATA_KEY_HAS_VIDEO or throws exceptions, causing perfectly valid
+        // videos to be classified as corrupt and deleted.
+        // ExoPlayer is much more robust. We should just check if the file is reasonably sized,
+        // and let ExoPlayer handle codec errors gracefully.
         if (!isFileValid(file)) return false
-
-        val retriever = MediaMetadataRetriever()
-        return try {
-            retriever.setDataSource(file.absolutePath)
-            
-            // Try to extract duration — if this fails, the file is corrupt
-            val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-            val duration = durationStr?.toLongOrNull() ?: 0L
-            
-            if (duration <= 0) {
-                Log.w(TAG, "Video has no valid duration: ${file.name}")
-                return false
-            }
-
-            // Try to extract a frame — confirms decoder can read the file
-            val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)
-            if (hasVideo != "yes") {
-                Log.w(TAG, "File has no video track: ${file.name}")
-                return false
-            }
-
-            Log.i(TAG, "Video validated: ${file.name} (${duration}ms, ${file.length()} bytes)")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Integrity check failed for ${file.name}: ${e.message}")
-            false
-        } finally {
-            try { retriever.release() } catch (_: Exception) {}
+        
+        // Assume valid if it has a reasonable size (> 100KB for a video)
+        if (file.length() < 100 * 1024) {
+            Log.w(TAG, "Video file suspiciously small (${file.length()} bytes): ${file.name}")
+            return false
         }
+        
+        return true
     }
 
     /**

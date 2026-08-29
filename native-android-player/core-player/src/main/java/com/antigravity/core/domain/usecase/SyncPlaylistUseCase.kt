@@ -25,15 +25,11 @@ class SyncPlaylistUseCase(
             val result = repository.syncWithRemote()
             
             if (result.isSuccess) {
-                  // [RACE CONDITION FIX] Wait for the first valid emission (max 10s)
-                  val currentPlaylist = withTimeoutOrNull(10000) {
+                  // [RACE CONDITION FIX] Wait briefly for the first emission if needed
+                  withTimeoutOrNull(3000) {
                       repository.getActivePlaylist()
-                          .filter { it != null && it.items.isNotEmpty() }
+                          .filterNotNull()
                           .first()
-                  }
-
-                  if (currentPlaylist == null) {
-                      return Result.failure(IllegalStateException("Tempo esgotado aguardando playlist sincronizada."))
                   }
             }
             

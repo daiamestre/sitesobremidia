@@ -15,7 +15,8 @@ data class Playlist(
     // Professional Player Logic
     val heartbeatIntervalSeconds: Int = 60,
     val seamlessTransition: Boolean = true,
-    val cacheNextMedia: Boolean = true
+    val cacheNextMedia: Boolean = true,
+    val audioEnabled: Boolean = false
 ) {
     fun isValid(): Boolean {
         return items.isNotEmpty()

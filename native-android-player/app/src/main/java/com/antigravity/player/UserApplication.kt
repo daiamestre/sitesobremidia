@@ -45,6 +45,11 @@ class UserApplication : Application() {
         try {
             GlobalErrorReporter.install(this)
 
+            // [DETERMINISTIC IDENTITY P0] Executa e fixa a identidade no primeiro milissegundo de boot
+            val hardwareHash = com.antigravity.player.util.DeviceControl.getHardwareIdentity(this)
+            SessionManager.setIdentity(hardwareHash)
+            Logger.i("IDENTITY", "[IDENTITY_READY] Hardware Identity Hash gerado com sucesso.")
+
             val bufferManager = PlaybackBufferManager(this)
             val networkMonitor = NetworkMonitor(this)
 

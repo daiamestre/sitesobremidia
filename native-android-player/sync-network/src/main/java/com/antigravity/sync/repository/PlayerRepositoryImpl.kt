@@ -8,6 +8,7 @@ import com.antigravity.core.domain.repository.PlaylistState
 import com.antigravity.sync.dto.DeviceRemoteDTO
 import com.antigravity.sync.service.MediaDownloader
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.postgrest.rpc
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.PostgresAction
@@ -155,4 +156,18 @@ class PlayerRepositoryImpl(
     override suspend fun reportRemoteError(type: String, message: String, stackTrace: String, stats: Map<String, Any>) {}
     override suspend fun updateMediaLocalPath(mediaId: String, path: String) {}
     override suspend fun hasLocalMedia(): Boolean = false
+
+    // [BINDING UNIVERSAL]
+    override suspend fun unpairScreen(screenId: String, deviceId: String) {
+        try {
+            supabasePostgrest.rpc(
+                "player_unpair_screen",
+                mapOf("p_screen_id" to screenId, "p_device_id" to deviceId)
+            )
+        } catch (e: Exception) {
+            Logger.e("SYNC", "Failed unpair: ${e.message}")
+        }
+    }
+    
+    override suspend fun clearLocalDatabase() {}
 }

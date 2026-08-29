@@ -1,7 +1,14 @@
+@file:OptIn(kotlinx.serialization.InternalSerializationApi::class)
 package com.antigravity.sync.dto
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+
+@Serializable
+data class RpcResponseDTO(
+    val status: String,
+    val data: DeviceRemoteDTO? = null
+)
 
 @Serializable
 data class DeviceRemoteDTO(
@@ -23,6 +30,9 @@ data class DeviceRemoteDTO(
 data class PlaylistRemoteDTO(
     val id: String,
     val name: String,
+    @SerialName("playlist_resolution") val playlistResolution: String? = null,
+    @SerialName("resolution") val resolutionFallback: String? = null,
+    @SerialName("audio_enabled") val audioEnabled: Boolean = false,
     @SerialName("playlist_items") val items: List<RemotePlaylistItemDTO> = emptyList()
 )
 
@@ -36,8 +46,9 @@ data class RemotePlaylistItemDTO(
     @SerialName("days_of_week") val daysOfWeek: String? = null,
     
     // Objetos aninhados (Joins do Supabase)
-    @SerialName("medias") val media: MediaRemoteDTO? = null,
-    @SerialName("widgets") val widget: WidgetRemoteDTO? = null,
+    @SerialName("media") val media: MediaRemoteDTO? = null,
+    @SerialName("widget") val widget: WidgetRemoteDTO? = null,
+    @SerialName("external_link") val externalLink: RemoteExternalLink? = null,
     
     // Campo auxiliar para o seu Repository injetar o caminho local após o download
     var localPath: String? = null 
@@ -55,6 +66,16 @@ data class MediaRemoteDTO(
 @Serializable
 data class WidgetRemoteDTO(
     val id: String,
-    val type: String, // 'clock', 'weather', etc.
-    val configuration: String? // JSON string com as configs do widget
-)
+    val name: String? = null,
+    @SerialName("widget_type") val widgetType: String? = null,
+    @SerialName("type") val typeProperty: String? = null,
+    @SerialName("config") val configRaw: kotlinx.serialization.json.JsonElement? = null,
+    val configuration: kotlinx.serialization.json.JsonElement? = null
+) {
+    val type: String
+        get() = widgetType ?: typeProperty ?: "clock"
+
+    @kotlinx.serialization.InternalSerializationApi
+    val configJson: String?
+        get() = configuration?.toString() ?: configRaw?.toString()
+}

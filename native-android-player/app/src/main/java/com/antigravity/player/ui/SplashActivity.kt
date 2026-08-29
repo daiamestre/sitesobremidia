@@ -48,16 +48,33 @@ class SplashActivity : AppCompatActivity() {
         if (routingStarted) return
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            if (!android.provider.Settings.canDrawOverlays(this)) {
+            val hasOverlay = android.provider.Settings.canDrawOverlays(this)
+            android.util.Log.i("OVERLAY", "[OVERLAY] packageName=$packageName, canDrawOverlays=$hasOverlay")
+            if (!hasOverlay) {
                 if (!isRequestingPermission) {
                     isRequestingPermission = true
-                    val intent = android.content.Intent(
-                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        android.net.Uri.parse("package:$packageName")
-                    )
-                    overlayPermissionLauncher.launch(intent)
+                    android.util.Log.i("OVERLAY", "[OVERLAY] opening overlay settings for $packageName")
+                    try {
+                        val intent = android.content.Intent(
+                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:$packageName")
+                        )
+                        overlayPermissionLauncher.launch(intent)
+                    } catch (e: Exception) {
+                        android.util.Log.w("OVERLAY", "[OVERLAY] specific package intent failed, trying generic intent", e)
+                        try {
+                            val fallback = android.content.Intent(
+                                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+                            )
+                            overlayPermissionLauncher.launch(fallback)
+                        } catch (e2: Exception) {
+                            android.util.Log.e("OVERLAY", "[OVERLAY] generic overlay intent also failed", e2)
+                        }
+                    }
                 }
                 return
+            } else {
+                android.util.Log.i("OVERLAY", "[OVERLAY] overlay permission granted")
             }
         }
         
@@ -105,6 +122,7 @@ class SplashActivity : AppCompatActivity() {
                 
                 val intent = Intent(this@SplashActivity, com.antigravity.player.MainActivity::class.java)
                 startActivity(intent)
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                 finish()
                 return@launch
             }
@@ -128,6 +146,7 @@ class SplashActivity : AppCompatActivity() {
             }
             
             startActivity(intent)
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
             finish()
         }
     }

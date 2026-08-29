@@ -29,15 +29,17 @@ object HardwareConstraintManager {
         
         if (profile == ChipsetDetector.HardwareProfile.LEGACY_STABILITY) {
              // MODO ESTABILIDADE: 1080p Fixo para evitar superaquecimento
+             // Allow 1920x1920 to support BOTH Landscape (1920x1080) and Portrait (1080x1920)
              builder
-                .setMaxVideoSize(1920, 1080)
+                .setMaxVideoSize(1920, 1920)
                 .setMaxVideoBitrate(15_000_000)
                 .setViewportSize(1920, 1080, true)
-                .setExceedVideoConstraintsIfNecessary(false)
+                // Se exceder (ex: cliente enviou 4K), tentamos rodar mesmo assim em vez de falhar e ficar só com áudio (famosa tela da Logo infinita)
+                .setExceedVideoConstraintsIfNecessary(true)
         } else {
              // MODO ALTA PERFORMANCE: Liberar 4K nativo
              builder
-                .setMaxVideoSize(3840, 2160)
+                .setMaxVideoSize(3840, 3840)
                 .setViewportSize(3840, 2160, true)
                 .setExceedVideoConstraintsIfNecessary(true)
         }

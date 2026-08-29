@@ -9,7 +9,8 @@ data class RemotePlaylist(
     val name: String,
     // Note: Supabase joins are handled via Postgrest, assume embedded items if queried correctly
     // or fetched separately. For simplicity, we define the structure here.
-    @SerialName("playlist_items") val items: List<RemotePlaylistItem> = emptyList()
+    @SerialName("playlist_items") val items: List<RemotePlaylistItem> = emptyList(),
+    @SerialName("audio_enabled") val audioEnabled: Boolean = false
 )
 
 @Serializable
@@ -71,4 +72,26 @@ data class AppReleaseDto(
     @SerialName("is_mandatory") val is_mandatory: Boolean = false,
     // [SECURITY HARDENING FASE J] Hash SHA-256 do APK (integridade OTA)
     @SerialName("sha256") val sha256: String? = null
+)
+
+@Serializable
+data class AuthorizedScreenDto(
+    val id: String,
+    @SerialName("custom_id") val customId: String?,
+    val name: String,
+    @SerialName("is_active") val isActive: Boolean,
+    @SerialName("bound_device_id") val boundDeviceId: String?
+)
+
+@Serializable
+data class AuthorizedScreensResponse(
+    val status: String,
+    val data: List<AuthorizedScreenDto> = emptyList(),
+    val message: String? = null
+)
+
+@Serializable
+data class RpcStatusResponse(
+    val status: String,
+    val message: String? = null
 )

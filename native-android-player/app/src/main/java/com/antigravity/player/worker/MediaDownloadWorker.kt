@@ -41,7 +41,14 @@ class MediaDownloadWorker(
         val repository = ServiceLocator.getRepository(applicationContext)
         val storageManager = ServiceLocator.getFileStorageManager(applicationContext)
         
-        val file = storageManager.getFileForMedia(mediaId)
+        // [P1 FIX] Storage Full Threshold
+        if (storageManager.isStorageCritical(95)) {
+             Logger.e("DOWNLOAD", "STORAGE FULL (>95%). Aborting download to prevent freezing.")
+             repository.reportDownloadProgress(deviceId, mediaId, -1)
+             return Result.retry()
+        }
+
+        val file = storageManager.getFileForMedia(mediaId, expectedHash)
 
         return try {
             // 1. Check if file already exists and matches hash (Delta Update logic)

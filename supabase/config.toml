@@ -1,1 +1,4 @@
 project_id = "bhwsybgsyvvhqtkdqozb"
+
+[functions.inter-billing-engine]
+verify_jwt = false

@@ -1,4 +1,6 @@
-﻿plugins {
+import java.util.Properties
+
+plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.20"
@@ -17,7 +19,7 @@ android {
         // supabase.properties (gitignored). NUNCA hardcodar a chave anon no repo.
         // Valores placeholder: build compila, runtime falha com erro claro
         // atÃ© o operador criar o arquivo local (ver supabase.properties.example).
-        val supabaseProps = java.util.Properties().apply {
+        val supabaseProps = Properties().apply {
             val f = rootProject.file("supabase.properties")
             if (f.exists()) f.inputStream().use { load(it) }
         }

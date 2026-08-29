@@ -1,13 +1,15 @@
+@file:OptIn(kotlinx.serialization.InternalSerializationApi::class)
 package com.antigravity.sync.service
 
 import com.antigravity.core.domain.model.MediaItem
 import com.antigravity.core.domain.model.MediaType
 import com.antigravity.core.domain.model.Playlist
 import com.antigravity.core.util.Logger
-import com.antigravity.core.util.TimeManager
 import com.antigravity.sync.dto.*
 import io.github.jan.supabase.postgrest.*
 import io.github.jan.supabase.postgrest.query.*
+import io.github.jan.supabase.postgrest.query.filter.FilterOperation
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.*
 import io.github.jan.supabase.storage.*
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +17,9 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import com.antigravity.sync.storage.TokenStorage
 
 class RemoteDataSource {
@@ -33,71 +38,137 @@ class RemoteDataSource {
         }
     }
 
+    // [IDEMPOTENCY] Cache de IDs de comandos já processados para evitar re-execução em reconnects
+    private val processedCommandIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
     // [HIGH-END] Realtime Handshake: PostgreSQL CDC via Websockets (Yeloo Style)
     suspend fun subscribeToRealtimeSync(screenToken: String, playlistId: String?, scope: CoroutineScope) {
         val channel = client.realtime.channel("yeloo_sync_channel")
         
-        // 1. Devices Subscription: Monitor for screen/device config changes (including orientation/active)
+        // 1. Screens Subscription: O canal oficial do Dashboard (is_active, audio_enabled, orientation, playlist_id)
+        val screenUuid = SessionManager.currentUUID ?: tokenStorage?.getUUID()
+        if (screenUuid != null) {
+            val screenFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "screens"
+                filter(FilterOperation("id", FilterOperator.EQ, screenUuid))
+            }
+            
+            screenFlow.onEach { action ->
+                Logger.i("REALTIME", "Screen Update Detected via CDC! Action: ${action.javaClass.simpleName}")
+                if (action is PostgresAction.Update) {
+                    try {
+                        // A. Checa Tela Ativa (is_active)
+                        val isActiveStr = action.record["is_active"]?.toString()?.replace("\"", "")
+                        val isActive = isActiveStr?.toBooleanStrictOrNull()
+                        if (isActive != null && isActive != SessionManager.isScreenActive) {
+                            Logger.w("REALTIME", ">>> Screen active changed via Realtime: $isActive")
+                            SessionManager.triggerScreenActive(isActive)
+                        }
+
+                        // B. Checa Rotação (orientation) e Playlist na tabela screens
+                        val remoteOrientation = action.record["orientation"]?.toString()?.replace("\"", "")
+                        val remotePlaylistId = action.record["playlist_id"]?.toString()?.replace("\"", "")
+                        if (!remotePlaylistId.isNullOrBlank() || (!remoteOrientation.isNullOrBlank() && remoteOrientation != SessionManager.currentOrientation)) {
+                            Logger.i("REALTIME", ">>> Screen configuration or orientation changed via Realtime ($remoteOrientation). Triggering sync nudge...")
+                            SessionManager.triggerSyncNudge()
+                        }
+                    } catch (e: Exception) {
+                        Logger.e("REALTIME", "Erro ao processar alteração em screens: ${e.message}")
+                    }
+                }
+            }.launchIn(scope)
+        }
+
+        // 2. Devices Subscription (Fallback / Compatibilidade)
         val deviceFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "devices"
-            filter = "screen_token=eq.$screenToken"
+            filter(FilterOperation("screen_token", FilterOperator.EQ, screenToken))
         }
         
         deviceFlow.onEach { action ->
             Logger.i("REALTIME", "Device Update Detected via CDC! Action: ${action.javaClass.simpleName}")
-            // Trigger a full sync nudge when device config changes
             SessionManager.triggerSyncNudge()
         }.launchIn(scope)
 
-        // 2. Playlists Subscription: Monitor the actual playlist content
+        // 3. Playlists Subscription: Monitor the actual playlist content
         if (playlistId != null) {
             val playlistFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "playlists"
-                filter = "id=eq.$playlistId"
+                filter(FilterOperation("id", FilterOperator.EQ, playlistId))
             }
             
-            playlistFlow.onEach { action ->
+            playlistFlow.onEach { _ ->
                 Logger.i("REALTIME", "Playlist Header Update Detected! Triggering download...")
                 SessionManager.triggerSyncNudge()
             }.launchIn(scope)
 
-            // 3. Playlist Items Subscription: Critical for Media Add/Remove/Sort
+            // 4. Playlist Items Subscription: Critical for Media Add/Remove/Sort
             val playlistItemsFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "playlist_items"
-                filter = "playlist_id=eq.$playlistId"
+                filter(FilterOperation("playlist_id", FilterOperator.EQ, playlistId))
             }
 
-            playlistItemsFlow.onEach { action ->
+            playlistItemsFlow.onEach { _ ->
                 Logger.i("REALTIME", "Playlist Items Updated! Triggering download...")
                 SessionManager.triggerSyncNudge()
             }.launchIn(scope)
         }
 
         channel.subscribe()
-        Logger.i("REALTIME", "Subscribed to Websockets for Screen Token: $screenToken")
+        Logger.i("REALTIME", "Subscribed to Websockets for Screen Token: $screenToken (UUID: $screenUuid)")
     }
 
-    // [INDUSTRIAL] Realtime Command Listener: The "Soberana" Remote control
+    // [INDUSTRIAL] Realtime Command Listener: The "Soberana" Remote control (com Idempotência)
     suspend fun subscribeToRemoteCommands(screenUuid: String, scope: CoroutineScope) {
         Logger.w("SYNC_SNIFFER", ">>> ATTEMPTING COMMAND SUBSCRIPTION FOR UUID: $screenUuid")
         val channel = client.realtime.channel("remote_commands_channel")
         
         val commandFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "remote_commands"
-            filter = "screen_id=eq.$screenUuid"
+            filter(FilterOperation("screen_id", FilterOperator.EQ, screenUuid))
         }
         
         commandFlow.onEach { action ->
-            if (action is PostgresAction.Insert) {
-                val command = action.record["command"]?.toString()?.replace("\"", "")
-                val commandId = action.record["id"]?.toString()?.replace("\"", "")
-                
-                if (command != null && commandId != null) {
-                    Logger.w("SYNC_SNIFFER", "!!! COMMAND PACKET RECEIVED: $command (ID: $commandId)")
-                    SessionManager.triggerRemoteCommand(command, commandId)
-                } else {
-                    Logger.e("SYNC_SNIFFER", "### MALFORMED COMMAND PACKET: cmd=$command, id=$commandId")
+            val record = when (action) {
+                is PostgresAction.Insert -> action.record
+                is PostgresAction.Update -> action.record
+                else -> null
+            } ?: return@onEach
+
+            val status = record["status"]?.toString()?.replace("\"", "")
+            val command = record["command"]?.toString()?.replace("\"", "")
+            val commandId = record["id"]?.toString()?.replace("\"", "")
+            
+            // Verifica se o comando possui um dispositivo de destino específico (ex: unpair direcionado ao aparelho antigo)
+            val payloadElement = record["payload"]
+            val targetDeviceId = when (payloadElement) {
+                is kotlinx.serialization.json.JsonObject -> payloadElement["target_device_id"]?.jsonPrimitive?.contentOrNull
+                is Map<*, *> -> (payloadElement["target_device_id"] ?: payloadElement["targetDeviceId"])?.toString()?.replace("\"", "")
+                else -> null
+            }
+
+            if (targetDeviceId != null && SessionManager.boundDeviceId != null && targetDeviceId != SessionManager.boundDeviceId) {
+                Logger.w("UNPAIR", "[UNPAIR] Comando $command (ID: $commandId) direcionado ao aparelho $targetDeviceId, ignorado por este dispositivo (${SessionManager.boundDeviceId})")
+                return@onEach
+            }
+            
+            // Processa apenas comandos pendentes e com identificadores válidos
+            if (command != null && commandId != null && (status == null || status == "pending")) {
+                if (processedCommandIds.contains(commandId)) {
+                    Logger.w("SYNC_SNIFFER", "Ignorando comando duplicado (já processado): $commandId ($command)")
+                    return@onEach
                 }
+                processedCommandIds.add(commandId)
+                // Limpa histórico para evitar leak de memória (mantém os últimos 200)
+                if (processedCommandIds.size > 200) {
+                    val iterator = processedCommandIds.iterator()
+                    repeat(50) { if (iterator.hasNext()) { iterator.next(); iterator.remove() } }
+                }
+                
+                Logger.w("SYNC_SNIFFER", "!!! COMMAND PACKET RECEIVED: $command (ID: $commandId)")
+                SessionManager.triggerRemoteCommand(command, commandId)
+            } else if (command == null || commandId == null) {
+                Logger.e("SYNC_SNIFFER", "### MALFORMED COMMAND PACKET: cmd=$command, id=$commandId")
             }
         }.launchIn(scope)
         
@@ -121,83 +192,120 @@ class RemoteDataSource {
         }
     }
 
-    // [INDUSTRIAL] Command Acknowledgement
-    suspend fun acknowledgeCommand(commandId: String, status: String) {
+    // [INDUSTRIAL] Command Acknowledgement (Normalizado e Seguro com Payload)
+    suspend fun acknowledgeCommand(
+        commandId: String, 
+        status: String, 
+        errorMessage: String? = null,
+        extraPayload: Map<String, Any>? = null
+    ) {
         try {
-            client.from("remote_commands").update(
-                mapOf("status" to status, "executed_at" to getIsoTimestamp())
-            ) {
+            val payloadMap = mutableMapOf<String, Any>()
+            if (!errorMessage.isNullOrBlank()) {
+                payloadMap["error_message"] = errorMessage
+                payloadMap["status_note"] = errorMessage
+            }
+            extraPayload?.let { payloadMap.putAll(it) }
+
+            val updateData = mutableMapOf<String, Any>(
+                "status" to status,
+                "executed_at" to getIsoTimestamp()
+            )
+            if (payloadMap.isNotEmpty()) {
+                updateData["payload"] = payloadMap
+            }
+
+            client.from("remote_commands").update(updateData) {
                 filter { eq("id", commandId) }
             }
+            Logger.i("COMMANDS", "Command $commandId acknowledged with status '$status'")
         } catch (e: Exception) {
-            Logger.e("COMMANDS", "Failed to acknowledge command: ${e.message}")
+            Logger.e("COMMANDS", "Failed to acknowledge command $commandId: ${e.message}")
+        }
+    }
+
+    // Fetch authorized screens for the logged-in user
+    suspend fun getAuthorizedScreens(): List<com.antigravity.sync.dto.AuthorizedScreenDto> {
+        Logger.i("SYNC", "SCREEN DISCOVERY START: Fetching authorized screens for session...")
+        val response = try {
+            client.postgrest.rpc(
+                "get_authorized_screens_for_player"
+            ).decodeAs<com.antigravity.sync.dto.AuthorizedScreensResponse>()
+        } catch (e: Exception) {
+            Logger.e("SYNC", "SCREEN DISCOVERY ERROR: Failed to fetch authorized screens via RPC: ${e.message}")
+            throw e
+        }
+
+        if (response.status == "SUCCESS") {
+            Logger.i("SYNC", "SCREEN DISCOVERY SUCCESS: Found ${response.data.size} authorized screen(s).")
+            return response.data
+        } else {
+            Logger.e("SYNC", "SCREEN DISCOVERY DENIED: Status=${response.status}, Message=${response.message}")
+            throw Exception(response.message ?: response.status)
+        }
+    }
+
+    // Unpair a screen
+    suspend fun unpairScreen(screenId: String, deviceId: String) {
+        val response = try {
+            client.postgrest.rpc(
+                "player_unpair_screen",
+                mapOf("p_screen_id" to screenId, "p_device_id" to deviceId)
+            ).decodeAs<com.antigravity.sync.dto.RpcStatusResponse>()
+        } catch (e: Exception) {
+            Logger.e("SYNC", "Failed to unpair screen via RPC: ${e.message}")
+            throw e
+        }
+
+        if (response.status != "SUCCESS") {
+            Logger.w("SYNC", "Unpair failed or wasn't bound: ${response.status}")
         }
     }
 
     // Fetch the playlist assigned to this screen (Yeloo Style)
-    suspend fun getPlaylistForScreen(identifier: String): Playlist? {
-        val normalizedId = identifier.trim().uppercase()
-        Logger.i("SYNC", "Starting Full Sync for Device: $normalizedId")
+    suspend fun getPlaylistForScreen(identifier: String, deviceId: String): Pair<com.antigravity.sync.dto.DeviceRemoteDTO, Playlist>? {
+        val normalizedId = identifier.trim()
+        Logger.i("SYNC", "Starting Full Sync for Device: $normalizedId with Binding ID: $deviceId")
         
-        // 1. Fetch Device with nested Playlist Items and Media/Widgets (Golden Tip Query)
-        val device = try {
-            client.from("screens")
-                .select(columns = io.github.jan.supabase.postgrest.query.Columns.raw("""
-                    id, 
-                    name,
-                    custom_id,
-                    playlist_id,
-                    orientation,
-                    resolution,
-                    playlists (
-                        id,
-                        name,
-                        playlist_items (
-                            id, position, duration,
-                            medias:media!playlist_items_media_id_fkey (id, name, file_url, file_type),
-                            widgets:widgets!playlist_items_widget_id_fkey (id, name, widget_type, config)
-                        )
-                    )
-                """.trimIndent())) {
-                   filter {
-                       or {
-                           eq("custom_id", identifier.trim())
-                           eq("custom_id", identifier.trim().uppercase())
-                           eq("custom_id", identifier.trim().lowercase())
-                           if (identifier.length > 20) { 
-                               eq("id", identifier.trim())
-                           }
-                       }
-                   }
-                }.decodeSingleOrNull<com.antigravity.sync.dto.DeviceRemoteDTO>()
+        val response = try {
+            client.postgrest.rpc(
+                "get_player_playlist_for_screen",
+                mapOf("p_identifier" to normalizedId, "p_device_id" to deviceId)
+            ).decodeAs<com.antigravity.sync.dto.RpcResponseDTO>()
         } catch (e: Exception) {
-            Logger.e("SYNC", "Failed to fetch device data: ${e.message}")
+            Logger.e("SYNC", "Failed to fetch device data via RPC: ${e.message}")
             throw e
         }
 
-        if (device == null) {
-            throw Exception("[PERMANENT] Dispositivo não encontrado. Verifique o Screen Token: $identifier")
+        when (response.status) {
+            "SCREEN_NOT_FOUND" -> throw Exception("SCREEN_NOT_FOUND")
+            "SCREEN_SUSPENDED" -> throw Exception("SCREEN_SUSPENDED")
+            "SCREEN_ACCESS_DENIED" -> throw Exception("SCREEN_ACCESS_DENIED")
+            "DEVICE_ACCESS_DENIED" -> throw Exception("DEVICE_ACCESS_DENIED")
+            "DEVICE_ALREADY_BOUND" -> throw Exception("DEVICE_ALREADY_BOUND")
+            "PLAYLIST_ACCESS_DENIED" -> throw Exception("PLAYLIST_ACCESS_DENIED")
+            "NO_PLAYLIST_ASSIGNED" -> throw Exception("NO_PLAYLIST_ASSIGNED")
+            "PLAYLIST_NOT_FOUND" -> throw Exception("PLAYLIST_NOT_FOUND")
+            "PLAYLIST_EMPTY" -> throw Exception("PLAYLIST_EMPTY")
+            "SUCCESS" -> {
+                val device = response.data ?: throw Exception("PAYLOAD_INVALID")
+                val playlist = device.playlists ?: throw Exception("PAYLOAD_INVALID")
+                
+                // Dashboard Settings Extraction: Playlist Resolution is the Sovereign Canvas Contract
+                val effectivePlaylistRes = playlist.playlistResolution ?: playlist.resolutionFallback
+                
+                // [VERDADE OPERACIONAL]: A orientação física da Activity (Android) é ditada exclusivamente pelo hardware/device.
+                // A playlist_resolution NÃO DEVE governar a requestedOrientation.
+                val orientation = device.orientation ?: "landscape"
+                
+                val resolution = effectivePlaylistRes ?: device.resolution ?: "16x9"
+                
+                tokenStorage?.saveUUID(device.id)
+
+                return Pair(device, mapToProfessionalDomain(device, playlist, orientation, resolution))
+            }
+            else -> throw Exception("RPC_ERROR")
         }
-
-        // Dashboard Settings Extraction
-        val orientation = device.orientation ?: "landscape"
-        val resolution = device.resolution ?: "16x9"
-        
-        SessionManager.currentOrientation = orientation
-        SessionManager.currentScreenName = device.name ?: "Player ${device.screenToken}"
-        SessionManager.currentUserId = device.screenToken
-        SessionManager.currentUUID = device.id 
-        
-        tokenStorage?.saveUUID(device.id)
-
-        val playlist = device.playlists
-        if (playlist == null) {
-             Logger.w("SYNC", "Device found but no Playlist assigned.")
-             return null
-        }
-
-        // 2. Map to Domain
-        return mapToProfessionalDomain(device, playlist, orientation, resolution)
     }
 
     suspend fun updateScreenActionStatus(id: String, action: String, value: String) {
@@ -228,6 +336,7 @@ class RemoteDataSource {
         val domainItems = rawItems.mapNotNull { item ->
             val media = item.media
             val widget = item.widget
+            val externalLink = item.externalLink
 
             val itemId: String
             val itemName: String
@@ -249,10 +358,10 @@ class RemoteDataSource {
                 }
                 widget != null -> {
                     itemId = widget.id
-                    itemName = "Widget ${widget.type}"
+                    itemName = widget.name ?: "Widget ${widget.type}"
                     itemType = MediaType.WEB_WIDGET
                     val baseWidgetUrl = "native_widget://${widget.type.lowercase()}/${widget.id}"
-                    val configJson = widget.configuration
+                    val configJson = widget.configJson
                     itemUrl = if (!configJson.isNullOrBlank()) {
                         "$baseWidgetUrl?config=${java.net.URLEncoder.encode(configJson, "UTF-8")}"
                     } else {
@@ -260,9 +369,16 @@ class RemoteDataSource {
                     }
                     itemHash = itemUrl.hashCode().toString()
                 }
-                // Users new list focuses on medias/widgets
+                externalLink != null -> {
+                    itemId = externalLink.id
+                    itemName = externalLink.title
+                    itemType = MediaType.WEB_WIDGET
+                    itemUrl = externalLink.url
+                    itemHash = itemUrl.hashCode().toString()
+                }
+                // Users new list focuses on medias/widgets/links
                 else -> {
-                    Logger.e("SYNC", "FILTERED: Item ${item.id} (Pos: ${item.position}) has no valid Media or Widget metadata.")
+                    Logger.e("SYNC", "FILTERED: Item ${item.id} (Pos: ${item.position}) has no valid Media, Widget, or ExternalLink metadata.")
                     return@mapNotNull null
                 }
             }
@@ -292,7 +408,8 @@ class RemoteDataSource {
             resolution = resolution,
             heartbeatIntervalSeconds = 60,
             seamlessTransition = true,
-            cacheNextMedia = true
+            cacheNextMedia = true,
+            audioEnabled = playlist.audioEnabled
         )
     }
 
@@ -313,21 +430,30 @@ class RemoteDataSource {
     }
 
     // [REFINED] Error Reporting to 'device_logs'
+    // [P0 FIX] Schema real: device_id (uuid, FK devices.id), log_type,
+    // message, occurrence_time. O payload antigo usava colunas inexistentes
+    // (error_type/stack_trace/hardware_info) e o INSERT falhava sempre.
+    // device_id DEVE ser o UUID do device vinculado (devices.id), resolvido
+    // pelo fn_device_bind — a RLS exige devices do próprio tenant.
     suspend fun insertErrorLog(
-        screenId: String,
+        deviceId: String,
         type: String,
         message: String,
-        stackTrace: String,
-        stats: Map<String, Any> = emptyMap()
+        stackTrace: String
     ) {
+        // Fail-safe: sem device vinculado (devices.id), não há como registrar
+        // um log válido (FK + RLS). O erro fica apenas no logcat local.
+        val boundDeviceId = SessionManager.boundDeviceId
+        if (boundDeviceId.isNullOrBlank() || deviceId.isBlank()) {
+            com.antigravity.core.util.Logger.w("ERROR_SYNC", "Error log skipped (sem device vinculado): $type")
+            return
+        }
         try {
             val params = mapOf(
-                "device_id" to screenId,
-                "error_type" to type,
-                "message" to message,
-                "stack_trace" to stackTrace,
-                "hardware_info" to stats,
-                "created_at" to getIsoTimestamp()
+                "device_id" to boundDeviceId,
+                "log_type" to type,
+                "message" to (message + "\n" + stackTrace).take(4000),
+                "occurrence_time" to getIsoTimestamp()
             )
             client.from("device_logs").insert(params)
             com.antigravity.core.util.Logger.i("ERROR_SYNC", "Persistent error log sent to 'device_logs'")
@@ -548,41 +674,47 @@ class RemoteDataSource {
     }
 
     // [OFFLINE ANALYTICS] Descarregamento Diário Assíncrono do Cofre
+    // [P1 FIX] A RPC process_display_analytics_batch NÃO existe no banco
+    // (nem a tabela display_stats). O painel lê playback_logs — o cofre é
+    // roteado para insertPlayLogs (mesmo canal offline-first do buffer Room).
     suspend fun uploadAnalyticsBatch(logs: List<Map<String, Any>>): Boolean {
         if (logs.isEmpty()) return true
-        
-        // Converte o List de Maps de volta para um formato JSON escalável que
-        // a RPC process_display_analytics_batch (PostgreSQL) consiga interpretar e iterar.
-        val jsonArray = kotlinx.serialization.json.buildJsonArray {
-            logs.forEach { log ->
-                add(kotlinx.serialization.json.buildJsonObject {
-                    put("screen_id", log["screen_id"].toString())
-                    put("media_id", log["media_id"].toString())
-                    put("media_name", log["media_name"].toString())
-                    put("duration_seconds", log["duration_seconds"] as Int)
-                    put("played_at", log["played_at"].toString())
-                })
-            }
+
+        val dtos = logs.mapNotNull { log ->
+            val screenId = log["screen_id"]?.toString()
+                ?.takeIf { it.isNotBlank() && it != "null" } ?: return@mapNotNull null
+            val mediaId = log["media_id"]?.toString()
+                ?.takeIf { it.isNotBlank() && it != "null" } ?: return@mapNotNull null
+            val duration = (log["duration_seconds"] as? Number)?.toInt() ?: 0
+            val startedAt = log["played_at"]?.toString() ?: getIsoTimestamp()
+            PlayLogDto(
+                screenId = screenId,
+                mediaId = mediaId,
+                duration = duration,
+                startedAt = startedAt,
+                status = "COMPLETED"
+            )
         }
-        val rpcParams = kotlinx.serialization.json.buildJsonObject {
-            put("payload", jsonArray)
+        if (dtos.isEmpty()) {
+            com.antigravity.core.util.Logger.w("SYNC_ANALYTICS", "Batch filtrado a zero logs válidos. Purged.")
+            return true
         }
 
         return try {
-            com.antigravity.core.util.Logger.w("SYNC_ANALYTICS", ">>> INICIANDO DESCARGA BATCH: ${logs.size} EXIBIÇÕES")
-            client.postgrest.rpc("process_display_analytics_batch", rpcParams)
-            com.antigravity.core.util.Logger.i("SYNC_ANALYTICS", ">>> BATCH [OK]. O painel estatístico foi atualizado.")
+            com.antigravity.core.util.Logger.w("SYNC_ANALYTICS", ">>> INICIANDO DESCARGA BATCH: ${dtos.size} EXIBIÇÕES -> playback_logs")
+            insertPlayLogs(dtos)
+            com.antigravity.core.util.Logger.i("SYNC_ANALYTICS", ">>> BATCH [OK]. O painel estatístico foi atualizado (playback_logs).")
             true
         } catch (e: Exception) {
             val errorBody = (e as? io.github.jan.supabase.exceptions.RestException)?.description ?: e.message
-            
+
             // Automatic Retry on JWT Expired specifically for Analytics Batch
             if (errorBody?.contains("JWT expired", ignoreCase = true) == true || errorBody?.contains("401", ignoreCase = true) == true) {
                 appContext?.let { ctx ->
                     try {
                         com.antigravity.core.util.Logger.w("SYNC_ANALYTICS", "JWT Expirado durante Batch. Refazendo Sessão...")
                         com.antigravity.sync.repository.AuthRepository().forceRefreshSession(ctx)
-                        client.postgrest.rpc("process_display_analytics_batch", rpcParams)
+                        insertPlayLogs(dtos)
                         com.antigravity.core.util.Logger.i("SYNC_ANALYTICS", ">>> BATCH [OK] (Após refresh de JWT).")
                         return true
                     } catch (retryEx: Exception) {
@@ -591,7 +723,7 @@ class RemoteDataSource {
                     }
                 }
             }
-            
+
             com.antigravity.core.util.Logger.e("SYNC_ANALYTICS", "### REJEIÇÃO BATCH [REST ERROR]: $errorBody")
             false
         }
@@ -610,6 +742,27 @@ class RemoteDataSource {
         }
     }
 
+    // [DEVICE IDENTITY - FIX] Sucesso detectado por PARSE JSON, nao por substring.
+    // O corpo pode conter espacos ("ok": true) e a substring "\"ok\":true"
+    // nunca casava: boundDeviceId ficava null (firstBind eterno) e o attest
+    // nunca era executado pelo app.
+    private fun parseRpcOkResult(body: String?): Pair<Boolean, kotlinx.serialization.json.JsonObject?> {
+        if (body.isNullOrBlank()) return false to null
+        return try {
+            val obj = kotlinx.serialization.json.Json.parseToJsonElement(body)
+                as? kotlinx.serialization.json.JsonObject
+            val okVal = obj?.get("ok")
+            val ok = when (okVal) {
+                is kotlinx.serialization.json.JsonPrimitive -> okVal.booleanOrNull ?: (okVal.contentOrNull == "true")
+                else -> false
+            }
+            ok to obj
+        } catch (e: Exception) {
+            Logger.w("DEVICE_ID", "RPC result parse failed: ${e.message}")
+            false to null
+        }
+    }
+
     // [DEVICE IDENTITY] Bind/activate hardware identity to screen (tenant-safe RPC)
     suspend fun bindDevice(identityHash: String, screenUuid: String): Boolean {
         if (identityHash.isBlank() || screenUuid.isBlank()) return false
@@ -621,13 +774,18 @@ class RemoteDataSource {
                     put("p_screen_id", screenUuid)
                 }
             )
-            val ok = result.data?.toString()?.contains("\"ok\":true") == true
+            val body = result.data.toString()
+            val (ok, obj) = parseRpcOkResult(body)
             if (ok) {
-                SessionManager.boundDeviceId = result.data?.toString()
+                // [P0 FIX] boundDeviceId DEVE ser o UUID real (devices.id),
+                // não o JSON inteiro da resposta. device_logs.device_id é FK
+                // -> devices(id) e a RLS exige o device do próprio tenant.
+                val deviceId = obj?.get("device_id")?.jsonPrimitive?.contentOrNull
+                SessionManager.boundDeviceId = deviceId ?: body
                 SessionManager.isDeviceRevoked = false
-                Logger.i("DEVICE_ID", "Device bound successfully to screen $screenUuid")
+                Logger.i("DEVICE_ID", "Device bound successfully to screen $screenUuid (device_id=$deviceId)")
             } else {
-                val err = result.data?.toString().orEmpty()
+                val err = body
                 Logger.e("DEVICE_ID", "Device bind rejected: $err")
                 if (err.contains("revoked", ignoreCase = true)) {
                     SessionManager.isDeviceRevoked = true
@@ -652,7 +810,7 @@ class RemoteDataSource {
                 }
             )
             val body = result.data?.toString().orEmpty()
-            val ok = body.contains("\"ok\":true")
+            val (ok, _) = parseRpcOkResult(body)
             if (!ok) {
                 Logger.e("DEVICE_ID", "Device attestation rejected: $body")
                 if (body.contains("revoked", ignoreCase = true)) {

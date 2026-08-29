@@ -30,20 +30,33 @@ class FileStorageManager(private val context: Context) : com.antigravity.core.do
         File(context.filesDir, "media_content").apply { mkdirs() }
     }
 
-    fun getFileForMedia(mediaId: String): File {
-        return File(mediaDir, "$mediaId.dat") // Using generic extension to avoid intent-filter mess
+    fun getFileForMedia(mediaId: String, hash: String = ""): File {
+        // [DOUBLE BUFFERING P0] Incluir Hash no nome do arquivo protege o ExoPlayer
+        // de ter sua mídia sobrescrita em quente se o ID for o mesmo mas o conteúdo mudar.
+        val safeHash = hash.replace(Regex("[^a-zA-Z0-9_-]"), "")
+        val suffix = if (safeHash.isNotBlank()) "_$safeHash" else ""
+        return File(mediaDir, "$mediaId$suffix.dat")
     }
 
     fun doesFileExistAndMatchHash(mediaId: String, expectedHash: String): Boolean {
-        val file = getFileForMedia(mediaId)
-        if (!file.exists() || file.length() == 0L) return false
+        // 1. Tenta o modelo novo com hash no nome
+        val fileHashed = getFileForMedia(mediaId, expectedHash)
+        if (fileHashed.exists() && fileHashed.length() > 0L) {
+            // Se o arquivo tem o hash no nome, confiamos que foi validado no download
+            // (Para ultra paranoia, poderia recalcular o hash aqui, mas impacta performance)
+            return true
+        }
+
+        // 2. Tenta o modelo legado (apenas ID.dat)
+        val fileLegacy = getFileForMedia(mediaId, "")
+        if (!fileLegacy.exists() || fileLegacy.length() == 0L) return false
         
         // [YELOO] Smart Hash: Support MD5 (32 chars) for backend compatibility.
         if (expectedHash.length != 32 && expectedHash.length != 64) {
              return true // Fallback for legacy URL-based hashes
         }
         
-        return calculateHash(file) == expectedHash
+        return calculateHash(fileLegacy) == expectedHash
     }
 
     fun writeStreamToFile(mediaId: String, inputStream: InputStream): File {
@@ -97,11 +110,17 @@ class FileStorageManager(private val context: Context) : com.antigravity.core.do
 
     /**
      * [INDUSTRIAL] Purge files not in the provided list.
+     * Agora suporta buscar o ID como substring para não deletar arquivos ID_HASH.dat.
      */
     fun purgeOrphanedFiles(validMediaIds: List<String>) {
-        val validFileNames = validMediaIds.map { "$it.dat" }.toSet()
+        val validPrefixes = validMediaIds.map { it }
         mediaDir.listFiles()?.forEach { file ->
-            if (!validFileNames.contains(file.name)) {
+            val fileName = file.name
+            // Se o arquivo não começa com NENHUM dos IDs válidos seguidos por _ ou ., é órfão
+            val isOrphan = validPrefixes.none { prefix ->
+                fileName == "$prefix.dat" || fileName.startsWith("${prefix}_")
+            }
+            if (isOrphan) {
                 com.antigravity.core.util.Logger.i("STORAGE", "Purging orphaned file: ${file.name}")
                 file.delete()
             }

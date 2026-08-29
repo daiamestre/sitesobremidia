@@ -19,7 +19,7 @@ import com.antigravity.cache.dao.LogAuditoriaDao
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [CachedPlaylist::class, CachedMediaItem::class, CachedPlayLog::class, OfflinePlaybackLog::class, ConfiguracaoEntity::class, LogAuditoriaEntity::class], version = 10, exportSchema = false)
+@Database(entities = [CachedPlaylist::class, CachedMediaItem::class, CachedPlayLog::class, OfflinePlaybackLog::class, ConfiguracaoEntity::class, LogAuditoriaEntity::class], version = 11, exportSchema = false)
 abstract class PlayerDatabase : RoomDatabase() {
 
     abstract fun playerDao(): PlayerDao
@@ -64,6 +64,13 @@ abstract class PlayerDatabase : RoomDatabase() {
             }
         }
 
+        // [P0] Adição da política de áudio persistida na Playlist
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE playlist ADD COLUMN audioEnabled INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): PlayerDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -71,7 +78,7 @@ abstract class PlayerDatabase : RoomDatabase() {
                     PlayerDatabase::class.java,
                     "player_database"
                 )
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
