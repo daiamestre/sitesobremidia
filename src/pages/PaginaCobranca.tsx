@@ -41,6 +41,33 @@ interface PublicBillingData {
   pagamentos: PagamentoPublico[];
 }
 
+export interface ResolvedPaymentMethods {
+  showPix: boolean;
+  showBoleto: boolean;
+  hasBoth: boolean;
+  hasAny: boolean;
+}
+
+export function resolvePaymentMethods(metodosGateway: string[] | string | null | undefined): ResolvedPaymentMethods {
+  if (!metodosGateway) {
+    return { showPix: false, showBoleto: false, hasBoth: false, hasAny: false };
+  }
+
+  let list: string[] = [];
+  if (Array.isArray(metodosGateway)) {
+    list = metodosGateway.map(m => String(m).trim().toUpperCase());
+  } else if (typeof metodosGateway === 'string') {
+    list = metodosGateway.split(',').map(m => m.trim().toUpperCase());
+  }
+
+  const showPix = list.includes('PIX');
+  const showBoleto = list.includes('BOLETO');
+  const hasBoth = showPix && showBoleto;
+  const hasAny = showPix || showBoleto;
+
+  return { showPix, showBoleto, hasBoth, hasAny };
+}
+
 export default function PaginaCobranca() {
   const { codigo, identificador } = useParams<{ codigo: string; identificador: string }>();
   const [loading, setLoading] = useState(true);
@@ -54,13 +81,14 @@ export default function PaginaCobranca() {
   const [copied, setCopied] = useState<'linha' | 'pix' | null>(null);
   const [activeTab, setActiveTab] = useState<'pix' | 'boleto' | null>(null);
 
-  // Selecionar a primeira aba disponível assim que a resposta do banco chegar
+  // Selecionar a aba padrão baseando-se nos métodos autorizados pelo ERP
   useEffect(() => {
-    if (bankData) {
-      if (bankData.pix?.pixCopiaECola) setActiveTab('pix');
-      else if (bankData.boleto?.linhaDigitavel) setActiveTab('boleto');
+    if (data && !activeTab) {
+      const { showPix, showBoleto } = resolvePaymentMethods(data.metodos_gateway);
+      if (showPix) setActiveTab('pix');
+      else if (showBoleto) setActiveTab('boleto');
     }
-  }, [bankData]);
+  }, [data, activeTab]);
 
   useEffect(() => {
     async function fetchBilling() {
@@ -71,9 +99,9 @@ export default function PaginaCobranca() {
       }
 
       try {
-        const { data: result, error: rpcError } = await supabase.rpc('rpc_get_public_billing', {
+        const { data: result, error: rpcError } = await (supabase.rpc as any)('rpc_get_public_billing', {
           p_codigo: codigo,
-          p_identifier: identificador,
+          p_identifier: identificador
         });
 
         if (rpcError) {
@@ -108,27 +136,89 @@ export default function PaginaCobranca() {
     diasAtraso = differenceInDays(dataHoje, dataVenc);
   }
 
+  // GATE 6.4 — Métodos autorizados pelo ERP (intenção soberana de metodos_gateway)
+  const { showPix: hasPix, showBoleto: hasBoleto, hasAny, hasBoth } = resolvePaymentMethods(data?.metodos_gateway);
+
+  // Aba efetiva derivada estritamente da autorização soberana do ERP
+  const effectiveTab = hasBoth ? (activeTab || 'pix') : (hasPix ? 'pix' : (hasBoleto ? 'boleto' : null));
+
+  // [GATE-6.4] PUBLIC BILLING TRACE — sem secrets
+  useEffect(() => {
+    if (data) {
+      console.log('[GATE-6.4] PUBLIC BILLING TRACE', {
+        public_identifier: data.public_identifier,
+        codigo_operacional: data.codigo_operacional,
+        metodos_gateway_from_rpc: data.metodos_gateway,
+        payment_methods_resolved: { hasPix, hasBoleto, hasAny, hasBoth },
+        effectiveTab,
+        pix_response: bankData?.pix ? 'PRESENT' : 'ABSENT',
+        boleto_response: bankData?.boleto ? 'PRESENT' : 'ABSENT',
+        bankData: { pix: bankData?.pix ? 'PRESENT' : 'ABSENT', boleto: bankData?.boleto ? 'PRESENT' : 'ABSENT' },
+        pixCopiaECola: bankData?.pix?.pixCopiaECola ? 'PRESENT' : 'ABSENT',
+        linhaDigitavel: bankData?.boleto?.linhaDigitavel ? 'PRESENT' : 'ABSENT',
+        fallback_rendered: !hasAny,
+      });
+    }
+  }, [data, bankData, hasPix, hasBoleto, hasAny, hasBoth, effectiveTab]);
+
   useEffect(() => {
     async function fetchBankData() {
       if (!data || isPaid || isCanceled) return;
       setBankLoading(true);
       setBankError(null);
       try {
-        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'public_consult',
-            codigo_operacional: codigo,
-            public_identifier: identificador
-          })
-        });
-        const json = await res.json();
-        if (json.success) {
-          setBankData(json.data);
-        } else {
-          setBankError(json.error || 'Gateway indisponível');
+        const { showPix: hasPix, showBoleto: hasBoleto } = resolvePaymentMethods(data.metodos_gateway);
+
+        let pixResult: any = null;
+        let boletoResult: any = null;
+
+        // Se o CRM autorizou PIX, consulta a engine nativa inter-pix-engine
+        if (hasPix) {
+          try {
+            const resPix = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-pix-engine`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'public_consult',
+                codigo_operacional: codigo,
+                public_identifier: identificador
+              })
+            });
+            const jsonPix = await resPix.json();
+            if (jsonPix.success && jsonPix.data?.pix) {
+              pixResult = jsonPix.data.pix;
+            }
+          } catch (e) {
+            console.error('[PaginaCobranca] Erro ao consultar PIX:', e);
+          }
         }
+
+        // Se o CRM autorizou BOLETO, consulta inter-billing-engine
+        if (hasBoleto) {
+          try {
+            const resBoleto = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'public_consult',
+                codigo_operacional: codigo,
+                public_identifier: identificador
+              })
+            });
+            const jsonBoleto = await resBoleto.json();
+            if (jsonBoleto.success && jsonBoleto.data?.boleto) {
+              boletoResult = jsonBoleto.data.boleto;
+            }
+          } catch (e) {
+            console.error('[PaginaCobranca] Erro ao consultar Boleto:', e);
+          }
+        }
+
+        setBankData({
+          pix: hasPix ? pixResult : undefined,
+          boleto: hasBoleto ? boletoResult : undefined
+        });
+
       } catch (err) {
         setBankError('Erro de conexão ao consultar banco');
       } finally {
@@ -449,16 +539,20 @@ export default function PaginaCobranca() {
                         Por favor, efetue o pagamento diretamente na conta informada pela equipe.
                       </div>
                     </div>
-                  ) : bankData ? (
+                  ) : !hasAny ? (
+                    <p className="text-xs text-[#F2F2F2]/50 text-center bg-white/5 border border-white/10 py-6 rounded-xl">
+                      Nenhuma forma de pagamento está disponível para esta cobrança no momento.
+                    </p>
+                  ) : (
                     <div className="space-y-6">
                       
-                      {/* SELETOR DE MÉTODO - Só exibe se houver ambos */}
-                      {bankData.pix?.pixCopiaECola && bankData.boleto?.linhaDigitavel && (
+                      {/* SELETOR DE MÉTODO - Exibe SOMENTE se o ERP autorizou ambos */}
+                      {hasBoth && (
                         <div className="flex bg-[#1B003A] border border-white/10 rounded-lg p-1 gap-1">
                           <button
                             onClick={() => setActiveTab('pix')}
                             className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${
-                              activeTab === 'pix' 
+                              effectiveTab === 'pix' 
                                 ? 'bg-[#5D1BFF] text-white shadow-md' 
                                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                             }`}
@@ -468,7 +562,7 @@ export default function PaginaCobranca() {
                           <button
                             onClick={() => setActiveTab('boleto')}
                             className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${
-                              activeTab === 'boleto' 
+                              effectiveTab === 'boleto' 
                                 ? 'bg-[#5D1BFF] text-white shadow-md' 
                                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                             }`}
@@ -478,44 +572,57 @@ export default function PaginaCobranca() {
                         </div>
                       )}
 
-                      {/* PIX */}
-                      {bankData.pix?.pixCopiaECola && (activeTab === 'pix' || (!bankData.boleto?.linhaDigitavel)) && (
+                      {/* PIX - Renderiza SOMENTE se autorizado pelo ERP e for a aba efetiva */}
+                      {hasPix && effectiveTab === 'pix' && (
                         <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
                           <div className="flex items-center gap-2 text-sm font-bold text-[#FFFFFF]">
                             <QrCode className="w-4 h-4 text-[#25D366]" />
                             Pagamento via PIX
                           </div>
-                          <div className="bg-white p-3 rounded-xl flex justify-center">
-                            <img
-                              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(bankData.pix.pixCopiaECola)}`}
-                              alt="QR Code PIX"
-                              className="w-[160px] h-[160px]"
-                              loading="lazy"
-                            />
-                          </div>
-                          <div className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
-                            <p className="text-xs text-[#F2F2F2]/70">Pix Copia e Cola — copie o código abaixo e cole no app do seu banco:</p>
-                            <div className="relative">
-                              <input 
-                                type="text" 
-                                readOnly 
-                                value={bankData.pix.pixCopiaECola} 
-                                className="w-full bg-[#1B003A] border border-white/10 rounded-lg py-2.5 pl-3 pr-24 text-xs font-mono text-[#F2F2F2]/80 focus:outline-none"
-                              />
-                              <button 
-                                onClick={() => handleCopy(bankData.pix.pixCopiaECola, 'pix')}
-                                className="absolute right-1 top-1 bottom-1 px-3 bg-[#5D1BFF] hover:bg-[#8A2EFF] transition-colors rounded-md text-xs font-bold flex items-center gap-1"
-                              >
-                                {copied === 'pix' ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                                {copied === 'pix' ? 'Copiado' : 'Copiar'}
-                              </button>
+                          {bankData?.pix?.pixCopiaECola ? (
+                            <>
+                              <div className="bg-white p-3 rounded-xl flex justify-center">
+                                <img
+                                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(bankData.pix.pixCopiaECola)}`}
+                                  alt="QR Code PIX"
+                                  className="w-[160px] h-[160px]"
+                                  loading="lazy"
+                                />
+                              </div>
+                              <div className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
+                                <p className="text-xs text-[#F2F2F2]/70">Pix Copia e Cola — copie o código abaixo e cole no app do seu banco:</p>
+                                <div className="relative">
+                                  <input 
+                                    type="text" 
+                                    readOnly 
+                                    value={bankData.pix.pixCopiaECola} 
+                                    className="w-full bg-[#1B003A] border border-white/10 rounded-lg py-2.5 pl-3 pr-24 text-xs font-mono text-[#F2F2F2]/80 focus:outline-none"
+                                  />
+                                  <button 
+                                    onClick={() => handleCopy(bankData.pix.pixCopiaECola, 'pix')}
+                                    className="absolute right-1 top-1 bottom-1 px-3 bg-[#5D1BFF] hover:bg-[#8A2EFF] transition-colors rounded-md text-xs font-bold flex items-center gap-1"
+                                  >
+                                    {copied === 'pix' ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                    {copied === 'pix' ? 'Copiado' : 'Copiar'}
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          ) : bankLoading ? (
+                            <div className="text-center py-8">
+                              <Loader2 className="w-8 h-8 text-[#25D366] animate-spin mx-auto mb-3" />
+                              <p className="text-sm text-[#F2F2F2]/70">Preparando QR Code PIX com o banco...</p>
                             </div>
-                          </div>
+                          ) : (
+                            <div className="text-center py-6 bg-white/5 border border-white/10 rounded-xl">
+                              <p className="text-xs text-[#F2F2F2]/70">PIX autorizado. Aguardando sincronização com o banco.</p>
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* BOLETO */}
-                      {bankData.boleto?.linhaDigitavel && (activeTab === 'boleto' || (!bankData.pix?.pixCopiaECola)) && (
+                      {/* BOLETO - Renderiza SOMENTE se autorizado pelo ERP e for a aba efetiva */}
+                      {hasBoleto && effectiveTab === 'boleto' && (
                         <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
                           <div className="flex items-center justify-between text-sm font-bold text-[#FFFFFF]">
                             <div className="flex items-center gap-2">
@@ -531,42 +638,50 @@ export default function PaginaCobranca() {
                               PDF
                             </button>
                           </div>
-                          <div className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
-                            <p className="text-xs text-[#F2F2F2]/70">Linha digitável — copie e pague no seu banco:</p>
-                            <div className="relative">
-                              <input 
-                                type="text" 
-                                readOnly 
-                                value={bankData.boleto.linhaDigitavel} 
-                                className="w-full bg-[#1B003A] border border-white/10 rounded-lg py-2.5 pl-3 pr-24 text-xs font-mono text-[#F2F2F2]/80 focus:outline-none"
-                              />
-                              <button 
-                                onClick={() => handleCopy(bankData.boleto.linhaDigitavel, 'linha')}
-                                className="absolute right-1 top-1 bottom-1 px-3 bg-[#5D1BFF] hover:bg-[#8A2EFF] transition-colors rounded-md text-xs font-bold flex items-center gap-1"
+                          {bankData?.boleto?.linhaDigitavel ? (
+                            <div className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
+                              <p className="text-xs text-[#F2F2F2]/70">Linha digitável — copie e pague no seu banco:</p>
+                              <div className="relative">
+                                <input 
+                                  type="text" 
+                                  readOnly 
+                                  value={bankData.boleto.linhaDigitavel} 
+                                  className="w-full bg-[#1B003A] border border-white/10 rounded-lg py-2.5 pl-3 pr-24 text-xs font-mono text-[#F2F2F2]/80 focus:outline-none"
+                                />
+                                <button 
+                                  onClick={() => handleCopy(bankData.boleto.linhaDigitavel, 'linha')}
+                                  className="absolute right-1 top-1 bottom-1 px-3 bg-[#5D1BFF] hover:bg-[#8A2EFF] transition-colors rounded-md text-xs font-bold flex items-center gap-1"
+                                >
+                                  {copied === 'linha' ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                  {copied === 'linha' ? 'Copiado' : 'Copiar'}
+                                </button>
+                              </div>
+                              {bankData.boleto.codigoBarras && (
+                                <p className="text-[11px] text-[#F2F2F2]/50 font-mono break-all">Código de barras: {bankData.boleto.codigoBarras}</p>
+                              )}
+                              <p className="text-[11px] text-[#F2F2F2]/40">Visualizar/Baixar boleto em PDF pelo botão acima.</p>
+                            </div>
+                          ) : bankLoading ? (
+                            <div className="text-center py-8">
+                              <Loader2 className="w-8 h-8 text-[#8A2EFF] animate-spin mx-auto mb-3" />
+                              <p className="text-sm text-[#F2F2F2]/70">Preparando Boleto Bancário...</p>
+                            </div>
+                          ) : (
+                            <div className="bg-white/5 border border-white/10 p-6 rounded-xl text-center space-y-3">
+                              <p className="text-xs text-[#F2F2F2]/70">Boleto autorizado. Você pode baixar a 2ª via em PDF diretamente:</p>
+                              <button
+                                onClick={handleDownloadPdf}
+                                disabled={downloadingPdf}
+                                className="text-xs font-bold bg-[#5D1BFF] hover:bg-[#8A2EFF] text-white px-4 py-2 rounded-lg flex items-center gap-2 mx-auto transition-colors disabled:opacity-50"
                               >
-                                {copied === 'linha' ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                                {copied === 'linha' ? 'Copiado' : 'Copiar'}
+                                {downloadingPdf ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                                Baixar Boleto em PDF
                               </button>
                             </div>
-                            {bankData.boleto.codigoBarras && (
-                              <p className="text-[11px] text-[#F2F2F2]/50 font-mono break-all">Código de barras: {bankData.boleto.codigoBarras}</p>
-                            )}
-                            <p className="text-[11px] text-[#F2F2F2]/40">Visualizar/Baixar boleto em PDF pelo botão acima.</p>
-                          </div>
+                          )}
                         </div>
                       )}
                       
-                      
-                      {!bankData.pix?.pixCopiaECola && !bankData.boleto?.linhaDigitavel && (
-                        <p className="text-xs text-[#F2F2F2]/50 text-center bg-white/5 border border-white/10 py-6 rounded-xl">
-                          Nenhuma forma de pagamento está disponível para esta cobrança no momento.
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                       <Loader2 className="w-8 h-8 text-[#5D1BFF] animate-spin mx-auto mb-3" />
-                       <p className="text-sm text-[#F2F2F2]/70">Consultando disponibilidade no banco...</p>
                     </div>
                   )}
                 </div>

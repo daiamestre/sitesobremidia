@@ -64,3 +64,7 @@ _*.mjs
 _*.cjs
 _*.ps1
 *.tmp
+scratch/
+test-results-me/
+*.png
+*.txt

@@ -19,6 +19,52 @@ function sanitizeError(msg: string): string {
             .slice(0, 800);
 }
 
+// === Geração de Payload PIX EMV (BR Code Direto) ===
+function formatPixLength(str: string) {
+  return str.length.toString().padStart(2, '0');
+}
+function tlv(id: string, value: string) {
+  return `${id}${formatPixLength(value)}${value}`;
+}
+function crc16(payload: string) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < payload.length; i++) {
+      crc ^= (payload.charCodeAt(i) << 8);
+      for (let j = 0; j < 8; j++) {
+          if ((crc & 0x8000) > 0) crc = (crc << 1) ^ 0x1021;
+          else crc = crc << 1;
+      }
+      crc &= 0xFFFF;
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+function generatePixPayload(key: string, amount: number, name: string, city: string, txid: string) {
+  const payloadFormat = tlv('00', '01');
+  const pointOfInit = tlv('01', '11');
+  const gui = tlv('00', 'br.gov.bcb.pix');
+  const pixKey = tlv('01', key);
+  const merchantAccountInfo = tlv('26', `${gui}${pixKey}`);
+  const mcc = tlv('52', '0000');
+  const currency = tlv('53', '986');
+  
+  let amountStr = '';
+  if (amount > 0) {
+      const formattedAmount = Number(amount).toFixed(2);
+      amountStr = tlv('54', formattedAmount);
+  }
+  
+  const country = tlv('58', 'BR');
+  const mName = tlv('59', name.substring(0, 25));
+  const mCity = tlv('60', city.substring(0, 15));
+  const finalTxId = (txid && txid.length > 0) ? txid.replace(/-/g, '').substring(0, 25) : '***';
+  const addData = tlv('62', tlv('05', finalTxId));
+  
+  const payload = `${payloadFormat}${pointOfInit}${merchantAccountInfo}${mcc}${currency}${amountStr}${country}${mName}${mCity}${addData}6304`;
+  const crc = crc16(payload);
+  return `${payload}${crc}`;
+}
+
+
 function normalizeCert(raw: string): string {
   // Supabase secrets podem armazenar PEM com \n escapado ou quebras reais
   if (!raw) return raw;
@@ -268,106 +314,131 @@ serve(async (req) => {
       const srv = createClient(supabaseUrlSrv, serviceRoleKey);
 
       const { data: cb } = await srv.from('contas_receber')
-        .select('inter_codigo_solicitacao, codigo_operacional, metodos_gateway, valor, data_vencimento')
+        .select('id, inter_codigo_solicitacao, codigo_operacional, metodos_gateway, valor, data_vencimento, status, saldo')
         .eq('public_identifier', pId)
         .maybeSingle();
 
       if (!cb || cb.codigo_operacional !== pCodigo) {
         return new Response(JSON.stringify({ error: 'Cobrança não encontrada ou inválida', code: 'NOT_FOUND_OR_UNAUTHORIZED' }), { status: 404, headers: corsHeaders });
       }
-      // Cobrança existe mas ainda não emitida no Banco Inter (sem codigoSolicitacao) -> retornar estrutura vazia coerente
-      if (!cb.inter_codigo_solicitacao) {
-        if (action === 'public_pdf') {
-          return new Response(JSON.stringify({ error: 'Boleto ainda não emitido', code: 'NOT_ISSUED' }), { status: 404, headers: corsHeaders });
-        }
-        return new Response(JSON.stringify({
-          success: true,
-          data: {
-            cobranca: {
-              valorNominal: (cb as any).valor,
-              dataVencimento: (cb as any).data_vencimento,
-              situacao: 'AGUARDANDO_EMISSAO'
-            },
-            boleto: undefined,
-            pix: undefined
-          }
-        }), { headers: corsHeaders });
-      }
-
-      let httpClient: any;
-      try {
-        httpClient = await getInterClient();
-        await getOAuthToken(httpClient);
-      } catch (e: any) {
-        return new Response(JSON.stringify({ error: 'Erro de gateway financeiro' }), { status: 502, headers: corsHeaders });
-      }
-
-      const endpoint = action === 'public_pdf' 
-        ? getInterCobrancaUrl() + `/${cb.inter_codigo_solicitacao}/pdf`
-        : getInterCobrancaUrl() + `/${cb.inter_codigo_solicitacao}`;
-
-      const reqInter = await fetch(endpoint, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${oauthCache?.token}` },
-        client: httpClient
-      });
-
-      const dataStr = await reqInter.text();
-      if (!reqInter.ok) return new Response(JSON.stringify({ error: 'Erro ao consultar banco' }), { status: 502, headers: corsHeaders });
-      
-      let parsed: any;
-      try { parsed = JSON.parse(dataStr); } catch (e) { parsed = {}; }
-      
-      if (action === 'public_pdf') {
-        return new Response(JSON.stringify({ success: true, pdf: parsed.pdf }), { headers: corsHeaders });
-      }
 
       const permitidos = cb.metodos_gateway || ['PIX', 'BOLETO'];
       const allowPix = permitidos.includes('PIX');
       const allowBoleto = permitidos.includes('BOLETO');
 
-      // --- Debug seguro: retorna chaves top-level e chaves de cobranca (sem dados sensíveis) ---
-      if ((body as any).debug_structure === true) {
-        const topKeys = Object.keys(parsed || {});
-        const cobrancaKeys = Object.keys(parsed?.cobranca || {});
-        const pixKeys = Object.keys(parsed?.pix || parsed?.cobranca?.pix || {});
-        const boletoKeys = Object.keys(parsed?.boleto || parsed?.cobranca?.boleto || {});
-        return new Response(JSON.stringify({
-          success: true,
-          _debug: { topKeys, cobrancaKeys, pixKeys, boletoKeys, metodos_gateway: permitidos }
-        }), { headers: corsHeaders });
+      if (!allowBoleto && action === 'public_pdf') {
+        return new Response(JSON.stringify({ error: 'Boleto não disponível para esta cobrança', code: 'NOT_AUTHORIZED' }), { status: 403, headers: corsHeaders });
       }
 
-      // --- Parser robusto de PIX: Inter v3 Produção pode retornar em múltiplas estruturas ---
-      // Estrutura 1: parsed.pix.pixCopiaECola
-      // Estrutura 2: parsed.cobranca.pix.pixCopiaECola
-      // Estrutura 3: parsed.cobranca.pix (com campo emv ou payload)
-      // Estrutura 4: parsed.pixQrCode ou parsed.qrCode
-      const pixObj = parsed.pix || parsed.cobranca?.pix || parsed.pixQrCode || null;
-      const pixCopiaECola = pixObj?.pixCopiaECola || pixObj?.payload || pixObj?.emv
-        || parsed.cobranca?.pixCopiaECola || parsed.pixCopiaECola || null;
-      const pixTxid = pixObj?.txid || pixObj?.endToEndId || parsed.cobranca?.txid || parsed.txid || null;
+      let httpClient: any;
+      let oauthToken: string = '';
+      try {
+        httpClient = await getInterClient();
+        oauthToken = await getOAuthToken(httpClient);
+      } catch (_e: any) {
+        // Fallback silencioso se gateway bancário offline
+      }
 
-      // --- Parser robusto de BOLETO ---
-      const boletoObj = parsed.boleto || parsed.cobranca?.boleto || null;
-      const linhaDigitavel = boletoObj?.linhaDigitavel || boletoObj?.linha_digitavel || null;
-      const codigoBarras = boletoObj?.codigoBarras || boletoObj?.codigo_barras || null;
+      let codigoSolicitacao = cb.inter_codigo_solicitacao;
+      let linhaDigitavel: string | null = null;
+      let codigoBarras: string | null = null;
+
+      // JIT Emission de Boleto se autorizado pelo CRM e ainda não emitido
+      if (allowBoleto && !codigoSolicitacao && cb.status !== 'PAGA' && cb.status !== 'CANCELADA' && Number(cb.valor) > 0 && httpClient && oauthToken) {
+        try {
+          const seuNumero = (cb.codigo_operacional || cb.id).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15);
+          const valorNominal = Number(cb.valor);
+          const dataVencimento = cb.data_vencimento ? cb.data_vencimento.slice(0, 10) : new Date(Date.now() + 86400000 * 5).toISOString().slice(0, 10);
+
+          const payloadInter = {
+            seuNumero,
+            valorNominal: isFinite(valorNominal) && valorNominal > 0 ? Number(valorNominal.toFixed(2)) : 10.00,
+            dataVencimento,
+            numDiasAgenda: 60,
+            formasRecebimento: ['BOLETO'],
+            pagador: {
+              tipoPessoa: "FISICA",
+              nome: "Cliente SobreMidia",
+              endereco: "Rua Principal",
+              numero: "100",
+              bairro: "Centro",
+              cidade: "Belo Horizonte",
+              uf: "MG",
+              cep: "30130000",
+              email: "financeiro@sobremidia.com",
+              cpfCnpj: "85332361076",
+            },
+          };
+
+          const reqIssue = await fetch(getInterCobrancaUrl(), {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${oauthToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payloadInter),
+            client: httpClient,
+          });
+
+          if (reqIssue.ok) {
+            const issueData = await reqIssue.json();
+            codigoSolicitacao = issueData.codigoSolicitacao || issueData.codigo_solicitacao;
+            if (codigoSolicitacao) {
+              await srv.from('contas_receber').update({
+                inter_codigo_solicitacao: String(codigoSolicitacao),
+                inter_seu_numero: seuNumero,
+                inter_status: 'ISSUED',
+              }).eq('id', cb.id);
+            }
+          }
+        } catch (_errIssue) {
+          // Non-blocking
+        }
+      }
+
+      // Se temos codigoSolicitacao e httpClient, buscar detalhes ou PDF
+      if (codigoSolicitacao && httpClient && oauthToken) {
+        try {
+          const endpoint = action === 'public_pdf' 
+            ? getInterCobrancaUrl() + `/${codigoSolicitacao}/pdf`
+            : getInterCobrancaUrl() + `/${codigoSolicitacao}`;
+
+          const reqInter = await fetch(endpoint, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${oauthToken}` },
+            client: httpClient
+          });
+
+          if (reqInter.ok) {
+            const parsed = await reqInter.json();
+            if (action === 'public_pdf') {
+              return new Response(JSON.stringify({ success: true, pdf: parsed.pdf }), { headers: corsHeaders });
+            }
+            const boletoObj = parsed.boleto || parsed.cobranca?.boleto || null;
+            linhaDigitavel = boletoObj?.linhaDigitavel || boletoObj?.linha_digitavel || null;
+            codigoBarras = boletoObj?.codigoBarras || boletoObj?.codigo_barras || null;
+          }
+        } catch (_errFetch) {}
+      }
+
+      if (action === 'public_pdf') {
+        return new Response(JSON.stringify({ error: 'PDF de Boleto indisponível no momento', code: 'PDF_UNAVAILABLE' }), { status: 404, headers: corsHeaders });
+      }
 
       const safeData = {
         success: true,
         data: {
           cobranca: {
-            valorNominal: parsed.cobranca?.valorNominal,
-            dataVencimento: parsed.cobranca?.dataVencimento,
-            situacao: parsed.cobranca?.situacao,
+            valorNominal: cb.valor,
+            dataVencimento: cb.data_vencimento,
+            situacao: cb.status,
+            saldo: cb.saldo
           },
-          boleto: (linhaDigitavel && allowBoleto) ? {
-            linhaDigitavel,
-            codigoBarras,
-          } : undefined,
-          pix: (pixCopiaECola && allowPix) ? {
-            pixCopiaECola,
-            txid: pixTxid
+          boleto: allowBoleto ? {
+            linhaDigitavel: linhaDigitavel || undefined,
+            codigoBarras: codigoBarras || undefined,
+            codigoSolicitacao: codigoSolicitacao || undefined,
+            disponivel: true
           } : undefined
         }
       };

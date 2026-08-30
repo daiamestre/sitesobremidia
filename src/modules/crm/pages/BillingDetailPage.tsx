@@ -370,19 +370,62 @@ export default function BillingDetailPage() {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token;
       if (!token) { toast({ title: 'Sessão expirada', variant: 'destructive' }); return; }
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ action: 'issue', cobranca_id: cobranca.id })
-      });
-      const json = await res.json();
-      if (!res.ok || json.error) {
-        toast({ title: 'Falha ao emitir', description: json.error || json.details || 'Erro no gateway', variant: 'destructive' });
+
+      const permitidos = cobranca.metodos_gateway || ['PIX', 'BOLETO'];
+      const hasPix = permitidos.includes('PIX');
+      const hasBoleto = permitidos.includes('BOLETO');
+
+      let pixOk = false;
+      let boletoOk = false;
+      const errors: string[] = [];
+
+      // 1. Emissão PIX Nativo (se autorizado pelo CRM)
+      if (hasPix && !(cobranca as any).inter_pix_copia_e_cola) {
+        try {
+          const resPix = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-pix-engine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ action: 'issue', cobranca_id: cobranca.id })
+          });
+          const jsonPix = await resPix.json();
+          if (resPix.ok && jsonPix.success) {
+            pixOk = true;
+          } else {
+            errors.push(`PIX: ${jsonPix.error || jsonPix.details || 'Falha'}`);
+          }
+        } catch (e: any) {
+          errors.push(`PIX: ${e.message}`);
+        }
+      }
+
+      // 2. Emissão BOLETO (se autorizado pelo CRM)
+      if (hasBoleto && !(cobranca as any).inter_codigo_solicitacao) {
+        try {
+          const resBoleto = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ action: 'issue', cobranca_id: cobranca.id })
+          });
+          const jsonBoleto = await resBoleto.json();
+          if (resBoleto.ok && jsonBoleto.success) {
+            boletoOk = true;
+          } else {
+            errors.push(`Boleto: ${jsonBoleto.error || jsonBoleto.details || 'Falha'}`);
+          }
+        } catch (e: any) {
+          errors.push(`Boleto: ${e.message}`);
+        }
+      }
+
+      if (errors.length > 0 && !pixOk && !boletoOk) {
+        toast({ title: 'Falha ao emitir', description: errors.join(' | '), variant: 'destructive' });
         return;
       }
-      toast({ title: 'Cobrança emitida', description: `Código ${json.codigoSolicitacao || ''} gerado no Banco Inter.` });
+
+      const desc = [pixOk ? 'PIX gerado com sucesso.' : '', boletoOk ? 'Boleto gerado com sucesso.' : ''].filter(Boolean).join(' ');
+      toast({ title: 'Cobrança emitida no Banco Inter', description: desc || 'Operação realizada com sucesso.' });
       invalidar();
-    } catch (e:any) {
+    } catch (e: any) {
       toast({ title: 'Erro de rede', description: e.message, variant: 'destructive' });
     } finally { setEmitindo(false); }
   };
@@ -394,19 +437,30 @@ export default function BillingDetailPage() {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token;
       if (!token) { toast({ title: 'Sessão expirada', variant: 'destructive' }); return; }
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ action: 'consult', cobranca_id: cobranca.id })
-      });
-      const json = await res.json();
-      if (!res.ok || json.error) {
-        toast({ title: 'Consulta falhou', description: json.error || json.details || 'Erro', variant: 'destructive' });
-        return;
+
+      const permitidos = cobranca.metodos_gateway || ['PIX', 'BOLETO'];
+      const hasPix = permitidos.includes('PIX') && !!(cobranca as any).inter_pix_txid;
+      const hasBoleto = permitidos.includes('BOLETO') && !!(cobranca as any).inter_codigo_solicitacao;
+
+      if (hasPix) {
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-pix-engine`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ action: 'consult', cobranca_id: cobranca.id })
+        });
       }
-      toast({ title: 'Situação atualizada', description: `Situação: ${json.data?.cobranca?.situacao || '—'}` });
+
+      if (hasBoleto) {
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inter-billing-engine`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ action: 'consult', cobranca_id: cobranca.id })
+        });
+      }
+
+      toast({ title: 'Situação atualizada', description: 'Consulta bancária sincronizada com sucesso.' });
       invalidar();
-    } catch (e:any) {
+    } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally { setConsultando(false); }
   };
@@ -485,12 +539,12 @@ export default function BillingDetailPage() {
               <Check className="h-4 w-4" /> Marcar como paga
             </Button>
           )}
-          {! (cobranca as any).inter_codigo_solicitacao && situacao !== 'PAGA' && situacao !== 'CANCELADA' && (
+          {!((cobranca as any).inter_codigo_solicitacao || (cobranca as any).inter_pix_copia_e_cola) && situacao !== 'PAGA' && situacao !== 'CANCELADA' && (
             <Button variant="outline" onClick={handleEmitirInter} disabled={emitindo || processando} className="border-violet-500/40 text-violet-300 hover:bg-violet-500/10 gap-2 text-xs">
               {emitindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Emitir no Banco Inter
             </Button>
           )}
-          {(cobranca as any).inter_codigo_solicitacao && (
+          {((cobranca as any).inter_codigo_solicitacao || (cobranca as any).inter_pix_txid) && (
             <Button variant="outline" onClick={handleConsultarInter} disabled={consultando || processando} className="border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 gap-2 text-xs">
               {consultando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Consultar Inter
             </Button>
