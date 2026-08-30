@@ -364,9 +364,9 @@ serve(async (req) => {
     const srv = createClient(supabaseUrlSrv, serviceRoleKey);
 
     // ==================================================================
-    // 1. ACTION: TEST PREFLIGHT
+    // 1. ACTION: TEST PREFLIGHT / PREFLIGHT
     // ==================================================================
-    if (action === 'test_preflight') {
+    if (action === 'test_preflight' || action === 'preflight') {
       let httpClient: any = null;
       let clientError: string | null = null;
       try { httpClient = await getInterPixClient(); } catch (e: any) { clientError = sanitizeError(e.message); }

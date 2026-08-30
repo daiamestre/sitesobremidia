@@ -20,16 +20,28 @@ function getStatusText(data: { status: string; valor_pago: number; saldo: number
   return 'EM ABERTO';
 }
 
-// Renderização condicional PIX/BOLETO no portal — extraída de PaginaCobranca
-function visibleMethods(bankData: { pix?: { pixCopiaECola?: string }; boleto?: { linhaDigitavel?: string } } | null, permitidos: string[]) {
-  // Edge mantém regra: só exibe se artefato existe E permitido
-  const allowPix = permitidos.includes('PIX');
-  const allowBoleto = permitidos.includes('BOLETO');
-  const hasPixArtefact = !!bankData?.pix?.pixCopiaECola;
-  const hasBoletoArtefact = !!bankData?.boleto?.linhaDigitavel;
-  const pixVisible = hasPixArtefact && allowPix;
-  const boletoVisible = hasBoletoArtefact && allowBoleto;
-  return { pixVisible, boletoVisible };
+// Renderização condicional PIX/BOLETO no portal — estritamente sincronizada com PaginaCobranca.tsx
+import { resolvePaymentMethods } from '@/pages/PaginaCobranca';
+
+function computePaymentDOMState(
+  metodosGateway: string[] | string | null | undefined,
+  activeTab: 'pix' | 'boleto' | null = null,
+  bankData?: { pix?: { pixCopiaECola?: string }; boleto?: { linhaDigitavel?: string } } | null
+) {
+  const { showPix: hasPix, showBoleto: hasBoleto, hasAny, hasBoth } = resolvePaymentMethods(metodosGateway);
+  const effectiveTab = hasBoth ? (activeTab || 'pix') : (hasPix ? 'pix' : (hasBoleto ? 'boleto' : null));
+
+  return {
+    hasPix,
+    hasBoleto,
+    hasBoth,
+    hasAny,
+    effectiveTab,
+    isNoPaymentRendered: !hasAny,
+    isTabSwitcherRendered: hasBoth,
+    isPixRendered: hasPix && effectiveTab === 'pix',
+    isBoletoRendered: hasBoleto && effectiveTab === 'boleto',
+  };
 }
 
 describe('P0 Forense — Status Financeiro (REC-2026-047423)', () => {
@@ -77,60 +89,63 @@ describe('P0 Forense — Status Financeiro (REC-2026-047423)', () => {
 });
 
 describe('P0 Forense — Métodos Gateway e Renderização no Portal', () => {
-  const pixArtefact = { pixCopiaECola: '000201...pix...' };
-  const boletoArtefact = { linhaDigitavel: '00190.00009 ...' };
-
-  it('Caso 1: metodos_gateway=[PIX] com artefato PIX => PIX visível, Boleto oculto', () => {
-    const { pixVisible, boletoVisible } = visibleMethods({ pix: pixArtefact, boleto: boletoArtefact }, ['PIX']);
-    expect(pixVisible).toBe(true);
-    expect(boletoVisible).toBe(false);
+  it('Caso 1: metodos_gateway=[PIX] => PIX renderizado, Boleto oculto, sem seletor de abas', () => {
+    const state = computePaymentDOMState(['PIX']);
+    expect(state.hasPix).toBe(true);
+    expect(state.hasBoleto).toBe(false);
+    expect(state.isPixRendered).toBe(true);
+    expect(state.isBoletoRendered).toBe(false);
+    expect(state.isTabSwitcherRendered).toBe(false);
+    expect(state.isNoPaymentRendered).toBe(false);
   });
 
-  it('Caso 2: metodos_gateway=[BOLETO] com artefato Boleto => Boleto visível, PIX oculto', () => {
-    const { pixVisible, boletoVisible } = visibleMethods({ pix: pixArtefact, boleto: boletoArtefact }, ['BOLETO']);
-    expect(pixVisible).toBe(false);
-    expect(boletoVisible).toBe(true);
+  it('Caso 2: metodos_gateway=[BOLETO] => Boleto renderizado, PIX oculto, sem seletor de abas', () => {
+    const state = computePaymentDOMState(['BOLETO']);
+    expect(state.hasPix).toBe(false);
+    expect(state.hasBoleto).toBe(true);
+    expect(state.isPixRendered).toBe(false);
+    expect(state.isBoletoRendered).toBe(true);
+    expect(state.isTabSwitcherRendered).toBe(false);
+    expect(state.isNoPaymentRendered).toBe(false);
   });
 
-  it('Caso 3: metodos_gateway=[PIX,BOLETO] com ambos artefatos => ambos visíveis (PIX+BOLETO)', () => {
-    const { pixVisible, boletoVisible } = visibleMethods({ pix: pixArtefact, boleto: boletoArtefact }, ['PIX', 'BOLETO']);
-    expect(pixVisible).toBe(true);
-    expect(boletoVisible).toBe(true);
+  it('Caso 3: metodos_gateway=[PIX,BOLETO] => ambos autorizados, seletor de abas ativo', () => {
+    const statePix = computePaymentDOMState(['PIX', 'BOLETO'], 'pix');
+    expect(statePix.hasBoth).toBe(true);
+    expect(statePix.isTabSwitcherRendered).toBe(true);
+    expect(statePix.isPixRendered).toBe(true);
+    expect(statePix.isBoletoRendered).toBe(false);
+
+    const stateBoleto = computePaymentDOMState(['PIX', 'BOLETO'], 'boleto');
+    expect(stateBoleto.hasBoth).toBe(true);
+    expect(stateBoleto.isTabSwitcherRendered).toBe(true);
+    expect(stateBoleto.isPixRendered).toBe(false);
+    expect(stateBoleto.isBoletoRendered).toBe(true);
   });
 
-  it('Caso 4: nenhum artefato disponível => fail-closed, nenhum botão falso', () => {
-    const { pixVisible, boletoVisible } = visibleMethods(null, ['PIX', 'BOLETO']);
-    expect(pixVisible).toBe(false);
-    expect(boletoVisible).toBe(false);
+  it('Caso 4: sem método autorizado (array vazio []) => Fail-Closed com mensagem de indisponibilidade', () => {
+    const state = computePaymentDOMState([]);
+    expect(state.hasAny).toBe(false);
+    expect(state.isNoPaymentRendered).toBe(true);
+    expect(state.isPixRendered).toBe(false);
+    expect(state.isBoletoRendered).toBe(false);
+    expect(state.isTabSwitcherRendered).toBe(false);
   });
 
-  it('Caso 4b: sem método autorizado (array vazio) => nenhum visível mesmo com artefatos', () => {
-    const { pixVisible, boletoVisible } = visibleMethods({ pix: pixArtefact, boleto: boletoArtefact }, []);
-    expect(pixVisible).toBe(false);
-    expect(boletoVisible).toBe(false);
+  it('Caso 4b: sem método autorizado (null) => Fail-Closed', () => {
+    const state = computePaymentDOMState(null);
+    expect(state.hasAny).toBe(false);
+    expect(state.isNoPaymentRendered).toBe(true);
+    expect(state.isPixRendered).toBe(false);
+    expect(state.isBoletoRendered).toBe(false);
   });
 
-  it('Caso 5: método autorizado mas artefato inexistente => não fingir', () => {
-    // CRM autorizou PIX mas Inter não retornou pixCopiaECola
-    const { pixVisible, boletoVisible } = visibleMethods({ pix: undefined, boleto: boletoArtefact }, ['PIX', 'BOLETO']);
-    expect(pixVisible).toBe(false);
-    expect(boletoVisible).toBe(true);
-  });
-
-  it('Caso 5b: autorizou BOLETO mas sem linhaDigitavel => não mostrar Boleto', () => {
-    const { pixVisible, boletoVisible } = visibleMethods({ pix: pixArtefact, boleto: undefined }, ['PIX', 'BOLETO']);
-    expect(pixVisible).toBe(true);
-    expect(boletoVisible).toBe(false);
-  });
-
-  it('CRM → persistência → Inter → RPC → Portal: metodos_gateway deve ser consistente', () => {
-    // Simula persistência: o que o CRM grava deve ser o que o RPC retorna
-    const gravado: string[] = ['PIX'];
-    const rpcRetornado: string[] = ['PIX']; // simulado
-    expect(rpcRetornado).toEqual(gravado);
-    const { pixVisible, boletoVisible } = visibleMethods({ pix: pixArtefact, boleto: undefined }, rpcRetornado);
-    expect(pixVisible).toBe(true);
-    expect(boletoVisible).toBe(false);
+  it('Caso 5: Desacoplamento - ausência temporária de artefato bancário NÃO retira autorização', () => {
+    // Quando PIX e BOLETO são autorizados mas o banco ainda não gerou QR/Linha:
+    const state = computePaymentDOMState(['PIX', 'BOLETO'], 'pix');
+    expect(state.hasPix).toBe(true);
+    expect(state.hasBoleto).toBe(true);
+    expect(state.isNoPaymentRendered).toBe(false); // NUNCA deve exibir "Nenhuma forma disponível"
   });
 });
 
