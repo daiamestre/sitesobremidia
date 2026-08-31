@@ -418,12 +418,12 @@ export default function PaginaCobranca() {
   const statusText = getStatusText();
 
   return (
-    <div className="min-h-screen bg-[#22004A] text-[#F2F2F2] py-10 px-4 sm:px-6 lg:px-8 font-sans relative">
-      {/* Background Glow Effects */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-[#5D1BFF] rounded-full blur-[120px] opacity-20 pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[#8A2EFF] rounded-full blur-[150px] opacity-10 pointer-events-none"></div>
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[#22004A] text-[#F2F2F2] py-10 px-4 sm:px-6 lg:px-8 font-sans relative box-border">
+      {/* Background Glow Effects - responsive, never exceed viewport */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(800px,90vw)] h-[min(500px,60vw)] max-w-full bg-[#5D1BFF] rounded-full blur-[120px] opacity-20 pointer-events-none" aria-hidden="true"></div>
+      <div className="absolute bottom-0 left-0 w-[min(500px,70vw)] h-[min(500px,70vw)] max-w-full bg-[#8A2EFF] rounded-full blur-[150px] opacity-10 pointer-events-none" aria-hidden="true"></div>
 
-      <div className="max-w-4xl mx-auto space-y-8 relative z-10">
+      <div className="max-w-4xl w-full mx-auto space-y-8 relative z-10 min-w-0 box-border">
         
         {/* =======================
             CABEÇALHO 
@@ -433,24 +433,34 @@ export default function PaginaCobranca() {
             GATE 6.5 — URL HUMANIZADA
             GATE 6.7 — CABEÇALHO CANÔNICO ANUNCIANTE
         ======================= */}
-        <div className="text-center space-y-2 mb-10">
+        <div className="text-center space-y-3 mb-10 w-full max-w-full min-w-0 px-2 box-border">
+          {/* 0. Logo SOBRE MÍDIA — acima do nome da empresa (missão correção produção) */}
+          <div className="flex justify-center mb-3">
+            <img
+              src="/logo-3d.png"
+              alt="SOBRE MÍDIA"
+              className="h-12 sm:h-14 md:h-16 w-auto max-w-[220px] sm:max-w-[260px] object-contain drop-shadow-xl select-none pointer-events-none"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
           {/* 1. Empresa emissora - canônico Gate 6.7 */}
-          <p className="text-sm font-semibold tracking-widest text-[#F2F2F2]/50 uppercase">
+          <p className="text-sm font-semibold tracking-widest text-[#F2F2F2]/50 uppercase break-words">
             {billingPresentation.issuerName}
           </p>
 
           {/* 2. Nome do estabelecimento - cadastro oficial */}
-          <h1 className="text-3xl font-extrabold tracking-tight text-[#FFFFFF] uppercase drop-shadow-md" data-testid="establishment-name">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#FFFFFF] uppercase drop-shadow-md break-words leading-tight" data-testid="establishment-name">
             {billingPresentation.establishmentName}
           </h1>
 
           {/* 3. Título da fatura - mês canônico */}
-          <h2 className="text-lg font-semibold text-[#8A2EFF] tracking-wider" data-testid="invoice-title">
+          <h2 className="text-base sm:text-lg font-semibold text-[#8A2EFF] tracking-wider break-words" data-testid="invoice-title">
             {billingPresentation.invoiceTitle}
           </h2>
 
           {/* 4. Serviço contratado - canônico ANUNCIANTE */}
-          <p className="text-sm text-[#F2F2F2]/60 italic" data-testid="service-name">
+          <p className="text-sm text-[#F2F2F2]/60 italic break-words px-2" data-testid="service-name">
             {billingPresentation.serviceName}
           </p>
 
@@ -473,14 +483,14 @@ export default function PaginaCobranca() {
         {/* =======================
             HERO FINANCEIRO 
         ======================= */}
-        <div className="bg-[#1B003A]/60 backdrop-blur-xl border border-[#5D1BFF]/30 rounded-2xl p-8 sm:p-12 text-center shadow-2xl relative overflow-hidden group hover:border-[#8A2EFF]/50 transition-colors duration-500">
+        <div className="bg-[#1B003A]/60 backdrop-blur-xl border border-[#5D1BFF]/30 rounded-2xl p-6 sm:p-8 lg:p-12 text-center shadow-2xl relative overflow-hidden group hover:border-[#8A2EFF]/50 transition-colors duration-500 w-full max-w-full min-w-0 box-border">
           <div className="absolute inset-0 bg-gradient-to-b from-[#5D1BFF]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           
           <h3 className="text-sm font-semibold uppercase tracking-widest text-[#F2F2F2]/70 mb-2">
             {isPaid ? 'Cobrança quitada' : 'Saldo em aberto'}
           </h3>
           
-          <div className={`text-5xl sm:text-7xl font-extrabold tracking-tight mb-4 drop-shadow-lg ${isPaid ? 'text-[#25D366]' : 'text-[#FFFFFF]'}`}>
+          <div className={`text-3xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight mb-4 drop-shadow-lg break-all ${isPaid ? 'text-[#25D366]' : 'text-[#FFFFFF]'}`}>
             {formatMoney(isPaid ? data.valor_pago : saldoCorreto)}
           </div>
           

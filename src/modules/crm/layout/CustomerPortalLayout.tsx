@@ -213,7 +213,7 @@ export default function CustomerPortalLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+    <div className="min-h-screen w-full max-w-full bg-slate-950 text-white flex flex-col overflow-x-clip">
       {/* ── Header ── */}
       <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-slate-950/90 backdrop-blur-xl flex-shrink-0">
         <div className="flex h-16 items-center justify-between px-4 gap-4">
@@ -268,7 +268,7 @@ export default function CustomerPortalLayout() {
       </header>
 
       {/* ── Layout Principal ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 w-full max-w-full overflow-hidden overflow-x-clip min-w-0">
         {/* ── Sidebar Lateral Persistente (desktop) — oculta em mobile para drawer ── */}
         <aside
           className={cn(
@@ -429,8 +429,10 @@ export default function CustomerPortalLayout() {
         )}
 
         {/* ── Conteúdo Principal — pb-20 evita sobreposição do MobileBottomNav ── */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8">
-          <Outlet context={{ modalidade, cliente, isAnunciante: isAnuncianteOuHibrido, isHost: isHostOuHibrido }} />
+        <main className="flex-1 w-full max-w-full min-w-0 overflow-y-auto overflow-x-clip p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8 box-border">
+          <div className="w-full max-w-full min-w-0">
+            <Outlet context={{ modalidade, cliente, isAnunciante: isAnuncianteOuHibrido, isHost: isHostOuHibrido }} />
+          </div>
         </main>
       </div>
 

@@ -109,7 +109,7 @@ export default function EncartePage() {
     .filter(Boolean);
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="p-4 sm:p-8 w-full max-w-[1600px] min-w-0 mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 box-border overflow-x-clip">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 print:hidden">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Encarte Digital</h1>

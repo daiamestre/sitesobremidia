@@ -20,8 +20,8 @@ export const STEPS = [
 
 export function CrmStepper({ currentStep, onStepClick }: StepperProps) {
   return (
-    <div className="w-full bg-slate-900/80 border border-white/10 backdrop-blur-xl p-4 sm:p-5 rounded-2xl shadow-xl overflow-x-auto custom-scrollbar mb-6">
-      <div className="flex items-center justify-between min-w-[700px]">
+    <div className="w-full max-w-full bg-slate-900/80 border border-white/10 backdrop-blur-xl p-4 sm:p-5 rounded-2xl shadow-xl overflow-x-auto custom-scrollbar mb-6 box-border">
+      <div className="flex items-center justify-between min-w-[700px] max-w-full">
         {STEPS.map((step, index) => {
           const isCompleted = step.id < currentStep;
           const isCurrent = step.id === currentStep;

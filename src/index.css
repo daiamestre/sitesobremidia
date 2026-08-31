@@ -106,18 +106,38 @@
     @apply border-border;
   }
 
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
   html {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-x: clip;
     -webkit-overflow-scrolling: touch;
+    /* scrollbar-gutter stable reservava faixa fixa à direita (área azulada / segunda viewport) em mobile — removido */
+    scrollbar-gutter: auto;
   }
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-x: clip;
     -webkit-overflow-scrolling: touch;
   }
 
   #root {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   /* Player fullscreen isolation — only the player should lock scroll, not the whole app.
@@ -682,8 +702,11 @@ img, video, canvas, svg {
 
 /* Container responsivo global — padding adaptado por breakpoint */
 .container-responsive {
+  width: 100%;
+  max-width: 100%;
   padding-left: 1rem;
   padding-right: 1rem;
+  box-sizing: border-box;
 }
 @media (min-width: 640px) {
   .container-responsive { padding-left: 1.5rem; padding-right: 1.5rem; }
@@ -691,6 +714,42 @@ img, video, canvas, svg {
 @media (min-width: 1024px) {
   .container-responsive { padding-left: 2rem; padding-right: 2rem; }
 }
+
+/* Flex/Grid children: prevent overflow beyond viewport */
+.flex, .grid {
+  min-width: 0;
+  max-width: 100%;
+}
+.flex > *, .grid > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Imagens e mídias nunca forçam overflow */
+img, video, canvas, svg, iframe {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+pre, code {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+/* Wrapper global: todo filho direto de #root deve respeitar viewport */
+#root > div, #root > main, #root > section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Tabelas e cards nunca forçam página além do viewport */
+table { max-width: 100%; }
+td, th { word-break: break-word; overflow-wrap: anywhere; }
 
 /* Notebook otimização — sidebar não consome espaço excessivo em 1280x720 / 1366x768 */
 @media (min-width: 1024px) and (max-height: 800px) {

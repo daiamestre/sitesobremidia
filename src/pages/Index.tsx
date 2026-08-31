@@ -223,12 +223,12 @@ export default function Index() {
     { icon: Zap, title: 'Área Corporativa', description: 'Administração, gestão e controle da organização', link: '/auth/corporate', highlight: true },
   ];
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Background effects */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-primary/15 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px]" />
+    return (
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-background box-border">
+      {/* Background effects — responsive, never exceed viewport */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none max-w-full">
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-full max-w-[800px] h-[500px] bg-primary/15 rounded-full blur-[120px] max-w-full" />
+        <div className="absolute bottom-0 right-1/4 w-full max-w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px] max-w-full" />
       </div>
 
       {/* Header */}

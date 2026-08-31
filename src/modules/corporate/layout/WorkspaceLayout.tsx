@@ -29,19 +29,21 @@ export default function WorkspaceLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background text-foreground overflow-hidden">
-        <div className="hidden md:block">
+      <div className="min-h-screen flex w-full max-w-full bg-background text-foreground overflow-hidden overflow-x-clip">
+        <div className="hidden md:block flex-shrink-0">
           <CrmSidebar />
         </div>
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetContent side="left" className="p-0 w-72 bg-slate-950 border-white/10 overflow-y-auto">
+          <SheetContent side="left" className="p-0 w-72 max-w-[85vw] bg-slate-950 border-white/10 overflow-y-auto">
             <CrmSidebar onNavigate={() => setMobileOpen(false)} />
           </SheetContent>
         </Sheet>
-        <main className="flex-1 flex flex-col min-w-0 min-h-screen">
+        <main className="flex-1 flex flex-col min-w-0 max-w-full min-h-screen overflow-x-clip">
           <CrmHeader onMenuClick={() => setMobileOpen(true)} />
-          <div className="flex-1 overflow-y-auto w-full p-4 sm:p-6 lg:p-8 bg-background animate-in fade-in duration-300">
-            <Outlet />
+          <div className="flex-1 overflow-y-auto overflow-x-clip w-full max-w-full min-w-0 p-4 sm:p-6 lg:p-8 bg-background animate-in fade-in duration-300 box-border">
+            <div className="w-full max-w-full min-w-0">
+              <Outlet />
+            </div>
           </div>
         </main>
       </div>

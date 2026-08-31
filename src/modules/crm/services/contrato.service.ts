@@ -99,9 +99,13 @@ export class ContratoService {
 
   /**
    * Seleciona o modelo de contrato (ANUNCIANTE ou PARCEIRO) para a proposta
+   * P0: propostaId tornou-se opcional — CADASTRO é autoridade. Quando propostaId
+   * ausente, usa clienteId/pontoId direto sem quebrar template/preview.
    */
   async selectContractModel(payload: {
-    propostaId: string;
+    propostaId?: string | null;
+    clienteId?: string | null;
+    pontoId?: string | null;
     tipoContrato: 'ANUNCIANTE' | 'PARCEIRO';
     templateId: string;
     templateNome: string;
@@ -109,33 +113,73 @@ export class ContratoService {
     usuarioResponsavelId: string;
   }): Promise<{ success: boolean; contratoId?: string; error?: string }> {
     try {
-      // 1. Busca dados da proposta para vincular contrato
-      const { data: proposta, error: propErr } = await supabase
-        .from('propostas')
-        .select(`*, cliente:clientes(*), empresa:empresas(*)`)
-        .eq('id', payload.propostaId)
-        .single();
+      // 1. Resolve vínculo: proposta (legado) ou cadastro direto (P0)
+      let empresa_operadora_id: string | null = null;
+      let cliente_id: string | null = payload.clienteId || null;
+      let ponto_id: string | null = payload.pontoId || null;
+      let representante_id: string | null = null;
+      let proposta: any = null;
+      let empresaId: string | null = null;
 
-      if (propErr || !proposta) {
-        return { success: false, error: 'Proposta não encontrada.' };
+      if (payload.propostaId) {
+        const { data: prop, error: propErr } = await supabase
+          .from('propostas')
+          .select(`*, cliente:clientes(*), empresa:empresas(*)`)
+          .eq('id', payload.propostaId)
+          .single();
+        if (!propErr && prop) {
+          proposta = prop;
+          empresa_operadora_id = proposta.empresa_operadora_id;
+          cliente_id = proposta.cliente_id;
+          representante_id = proposta.representante_id;
+          const { data: emp } = await supabase.from('empresas').select('id').eq('cliente_id', proposta.cliente_id).single();
+          empresaId = emp?.id || null;
+        } else if (payload.clienteId || payload.pontoId) {
+          // proposta não encontrada mas cadastro direto fornecido — não bloquear (P0 §7)
+        } else {
+          return { success: false, error: 'Proposta não encontrada.' };
+        }
       }
 
-      const { data: empresa } = await supabase
-        .from('empresas')
-        .select('id')
-        .eq('cliente_id', proposta.cliente_id)
-        .single();
-
-      if (!empresa) {
-        return { success: false, error: 'Empresa vinculada ao cliente não encontrada.' };
+      // Cadastro direto (quando proposta não existe ou é fluxo P0)
+      if (!proposta) {
+        if (cliente_id) {
+          const { data: cli } = await supabase.from('clientes').select('id, empresa_operadora_id, representante_id').eq('id', cliente_id).maybeSingle();
+          if (cli) {
+            empresa_operadora_id = cli.empresa_operadora_id;
+            representante_id = cli.representante_id;
+            const { data: emp2 } = await supabase.from('empresas').select('id').eq('cliente_id', cliente_id).maybeSingle();
+            empresaId = emp2?.id || null;
+          }
+        } else if (ponto_id) {
+          const { data: pt } = await supabase.from('pontos').select('id, empresa_operadora_id').eq('id', ponto_id).maybeSingle();
+          if (pt) empresa_operadora_id = pt.empresa_operadora_id;
+        }
+        // fallback: resolver empresa_operadora via usuário responsável
+        if (!empresa_operadora_id) {
+          const { data: usr } = await supabase.from('usuarios').select('empresa_operadora_id').eq('id', payload.usuarioResponsavelId).maybeSingle();
+          empresa_operadora_id = usr?.empresa_operadora_id || null;
+        }
       }
 
-      // 2. Verifica se contrato já existe para a proposta
-      const { data: existingContract } = await supabase
-        .from('contratos')
-        .select('id, numero_contrato, versao_atual')
-        .eq('proposta_id', payload.propostaId)
-        .maybeSingle();
+      if (!empresa_operadora_id) {
+        return { success: false, error: 'Tenant não resolvido para criação de contrato.' };
+      }
+
+      // 2. Verifica contrato existente (por proposta ou por cadastro direto)
+      let existingContract: any = null;
+      if (payload.propostaId) {
+        const { data } = await supabase.from('contratos').select('id, numero_contrato, versao_atual').eq('proposta_id', payload.propostaId).maybeSingle();
+        existingContract = data;
+      }
+      if (!existingContract && cliente_id) {
+        const { data } = await supabase.from('contratos').select('id, numero_contrato, versao_atual').eq('cliente_id', cliente_id).eq('tipo_contrato', payload.tipoContrato).is('deleted_at', null).maybeSingle();
+        existingContract = data;
+      }
+      if (!existingContract && ponto_id) {
+        const { data } = await supabase.from('contratos').select('id, numero_contrato, versao_atual').eq('ponto_id', ponto_id).eq('tipo_contrato', payload.tipoContrato).is('deleted_at', null).maybeSingle();
+        existingContract = data;
+      }
 
       const nowIso = new Date().toISOString();
       let contratoId: string;
@@ -156,21 +200,21 @@ export class ContratoService {
           })
           .eq('id', contratoId);
       } else {
-        // Gera número de contrato atômico via fn_gerar_numero_contrato_atomo
-        const numeroContrato = await this.getNextContractNumberAtomo(proposta.empresa_operadora_id);
-
+        const numeroContrato = await this.getNextContractNumberAtomo(empresa_operadora_id!);
         const dataInicio = new Date().toISOString().split('T')[0];
         const dataFim = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
+        const valorMensal = proposta?.valor_final ?? 0;
+        const formaPagamento = proposta?.forma_pagamento ?? 'PIX';
         const { data: newCtr, error: ctrErr } = await supabase
           .from('contratos')
           .insert({
-            empresa_operadora_id: proposta.empresa_operadora_id,
+            empresa_operadora_id: empresa_operadora_id!,
             numero_contrato: numeroContrato,
-            cliente_id: proposta.cliente_id,
-            empresa_id: empresa.id,
-            representante_id: proposta.representante_id,
-            proposta_id: proposta.id,
+            cliente_id: cliente_id,
+            empresa_id: empresaId,
+            ponto_id: ponto_id,
+            representante_id: representante_id,
+            proposta_id: proposta?.id || null,
             tipo_contrato: payload.tipoContrato,
             template_id: payload.templateId,
             template_nome: payload.templateNome,
@@ -179,28 +223,26 @@ export class ContratoService {
             data_selecao: nowIso,
             status_documento: 'RASCUNHO',
             status_workflow: 'AGUARDANDO_ASSINATURA',
-            valor_mensal: proposta.valor_final,
-            forma_pagamento: proposta.forma_pagamento,
+            valor_mensal: valorMensal,
+            forma_pagamento: formaPagamento,
             data_inicio: dataInicio,
             data_fim: dataFim,
-          })
+          } as any)
           .select('id')
           .single();
-
         if (ctrErr || !newCtr) {
           return { success: false, error: ctrErr?.message || 'Falha ao criar registro de contrato.' };
         }
         contratoId = newCtr.id;
       }
 
-      // 3. Registra Log de Auditoria: CONTRATO_SELECIONADO
       await supabase.from('contrato_auditoria').insert({
         contrato_id: contratoId,
         evento: 'CONTRATO_SELECIONADO',
         usuario_id: payload.usuarioResponsavelId,
         tipo_contrato: payload.tipoContrato,
         versao: payload.templateVersao,
-        detalhes: { template_nome: payload.templateNome, proposta_id: payload.propostaId },
+        detalhes: { template_nome: payload.templateNome, proposta_id: payload.propostaId || null, cliente_id, ponto_id },
       });
 
       return { success: true, contratoId };
@@ -420,6 +462,41 @@ export class ContratoService {
     } catch {
       return [];
     }
+  }
+
+  // P0 — Vínculo automático CADASTRO → CONTRATO (fonte única: resolveContractTypeFromCadastroType)
+  async ensureContractForCadastro(params: {
+    cadastroType: 'ANUNCIANTE' | 'PONTO_PARCEIRO' | 'GESTOR_MIDIAS';
+    clienteId?: string | null;
+    pontoId?: string | null;
+    usuarioResponsavelId: string;
+  }): Promise<{ success: boolean; contratoId?: string | null; tipoContrato?: string | null; error?: string }> {
+    const { resolveContractTypeFromCadastroType } = await import('./contractResolver.service');
+    const tipo = resolveContractTypeFromCadastroType(params.cadastroType);
+    if (!tipo) return { success: true, contratoId: null, tipoContrato: null }; // GESTOR_MIDIAS → sem contrato
+    // buscar template oficial
+    const { data: tpl } = await supabase.from('contrato_templates').select('id,nome,versao').eq('tipo_contrato', tipo).eq('ativo', true).limit(1).maybeSingle();
+    if (!tpl) return { success: false, error: `Template oficial ${tipo} não encontrado.` };
+    const res = await this.selectContractModel({
+      tipoContrato: tipo,
+      templateId: tpl.id,
+      templateNome: (tpl as any).nome,
+      templateVersao: (tpl as any).versao,
+      usuarioResponsavelId: params.usuarioResponsavelId,
+      clienteId: params.clienteId || null,
+      pontoId: params.pontoId || null,
+      propostaId: null,
+    });
+    return { success: res.success, contratoId: res.contratoId || null, tipoContrato: tipo, error: res.error };
+  }
+
+  // PDFs oficiais estáticos (public/official-contracts) — sem proposta
+  async getOfficialTemplateUrl(tipoContrato: 'ANUNCIANTE' | 'PARCEIRO'): Promise<{ url: string; fileName: string }> {
+    const map: Record<string, { url: string; fileName: string }> = {
+      ANUNCIANTE: { url: '/official-contracts/contrato-anunciante.pdf', fileName: 'contrato-anunciante.pdf' },
+      PARCEIRO: { url: '/official-contracts/contrato-parceria.pdf', fileName: 'contrato-parceria.pdf' },
+    };
+    return map[tipoContrato] || map.ANUNCIANTE;
   }
 }
 

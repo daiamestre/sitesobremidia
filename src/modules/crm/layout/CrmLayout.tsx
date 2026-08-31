@@ -8,7 +8,7 @@ export default function CrmLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
+    <div className="min-h-screen w-full max-w-full bg-background text-foreground flex overflow-hidden overflow-x-clip">
       {/* Sidebar Fixo na Esquerda para Desktop */}
       <div className="hidden md:block">
         <CrmSidebar />
@@ -22,10 +22,12 @@ export default function CrmLayout() {
       </Sheet>
 
       {/* Área Principal de Conteúdo */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 max-w-full min-h-screen overflow-x-clip">
         <CrmHeader onMenuClick={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-background">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto overflow-x-clip p-4 sm:p-6 lg:p-8 bg-background w-full max-w-full min-w-0 box-border">
+          <div className="w-full max-w-full min-w-0">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

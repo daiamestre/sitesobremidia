@@ -204,7 +204,7 @@ const App = () => {
         <AuthProvider>
           <BrowserRouter>
             <CrmSessionProvider>
-              <div className="animate-in fade-in duration-300">
+              <div className="animate-in fade-in duration-300 w-full max-w-full min-w-0 overflow-x-clip box-border">
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
                   {/* PUBLIC ROUTES */}

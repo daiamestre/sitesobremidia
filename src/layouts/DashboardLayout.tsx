@@ -28,7 +28,7 @@ export function DashboardLayout() {
   }
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex min-h-screen min-h-[100dvh] w-full max-w-full bg-background overflow-hidden overflow-x-clip">
       {/* Desktop Sidebar */}
       <div className="hidden md:block">
         <Sidebar />
@@ -36,12 +36,12 @@ export function DashboardLayout() {
 
       {/* Mobile Drawer */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="p-0 w-72 bg-sidebar border-sidebar-border overflow-y-auto">
+        <SheetContent side="left" className="p-0 w-72 max-w-[85vw] bg-sidebar border-sidebar-border overflow-y-auto">
           <Sidebar onNavigate={() => setMobileOpen(false)} hideCollapse />
         </SheetContent>
       </Sheet>
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-hidden overflow-x-clip">
         {/* Mobile Header */}
         <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-sidebar-border bg-sidebar flex-shrink-0">
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} aria-label="Abrir menu">
@@ -50,9 +50,9 @@ export function DashboardLayout() {
           <span className="font-display font-bold text-sidebar-foreground">SOBRE MÍDIA</span>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-4 sm:p-6 lg:p-8">
-            <div key={location.pathname} className="animate-slide-up-fade">
+        <main className="flex-1 overflow-y-auto overflow-x-clip">
+          <div className="p-4 sm:p-6 lg:p-8 w-full max-w-full min-w-0 box-border">
+            <div key={location.pathname} className="animate-slide-up-fade w-full max-w-full min-w-0">
               <Outlet />
             </div>
           </div>
