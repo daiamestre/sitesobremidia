@@ -204,12 +204,43 @@ export default function PontoParceiroWizardPage() {
     try {
       const payload: NovoPontoParceiroPayload = { ...form, nome: form.nomeFantasia, fotoCapaUrl: fotoCapa || undefined, fotosUrls: fotos };
       const r = await prospeccaoService.criarPontoParceiro(payload);
-      try {
+      // Contrato PARCEIRO — BLOQUEANTE §7
+      {
         const { data: { user } } = await supabase.auth.getUser();
         const { contratoService } = await import('../../services/contrato.service');
         const resCt = await contratoService.ensureContractForCadastro({ cadastroType: 'PONTO_PARCEIRO', pontoId: (r as any).id || (r as any).ponto_id || null, usuarioResponsavelId: user?.id || '' });
-        if (!resCt.success) console.warn('[Ponto] auto contrato falhou:', resCt.error);
-      } catch (e) { console.warn('[Ponto] auto contrato erro:', (e as any)?.message); }
+        if (!resCt.success) {
+          setErro('Falha ao criar contrato de Parceria: ' + (resCt.error || 'erro desconhecido') + ' — Finalização bloqueada (§7).');
+          setSalvando(false);
+          return;
+        }
+      }
+      // Login do parceiro quando e-mail informado — BLOQUEANTE §7 (exceto já existe)
+      if (form.email.trim()) {
+        const emailLogin = form.email.trim().toLowerCase();
+        try {
+          const { data: perfilParc } = await supabase.from('perfis').select('id').eq('nome', 'PARCEIRO').maybeSingle();
+          if (perfilParc?.id) {
+            const { corporateUsersService } = await import('@/services/corporateUsers.service');
+            const rLogin = await corporateUsersService.provisionarUsuarioDireto({
+              nome: form.nomeFantasia || form.razaoSocial || 'Parceiro',
+              email: emailLogin,
+              telefone: (form.telefone || form.whatsapp || '').replace(/\D/g, '') || undefined,
+              perfilId: perfilParc.id,
+              clienteId: null,
+            });
+            if (!rLogin.success && rLogin.error !== 'EMAIL_JA_CADASTRADO') {
+              setErro('Ponto criado e contrato vinculado, mas falha ao criar login do Parceiro: ' + (rLogin.error || 'erro') + ' — Finalização bloqueada (§7).');
+              setSalvando(false);
+              return;
+            }
+          }
+        } catch (e: any) {
+          setErro('Falha ao criar login do Parceiro: ' + (e?.message || 'erro') + ' — Finalização bloqueada.');
+          setSalvando(false);
+          return;
+        }
+      }
       setConcluido({ codigo: r.codigo_publico });
     } catch (e: any) {
       setErro(e?.message || 'Erro ao cadastrar ponto parceiro.');

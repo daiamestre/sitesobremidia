@@ -427,11 +427,16 @@ if (name === 'cnpj') {
       }
     }
 
-    // 1.6 P0 — VÍNCULO AUTOMÁTICO CONTRATO DE ANUNCIANTE (sem proposta obrigatória)
-    try {
+    // 1.6 P0 — VÍNCULO AUTOMÁTICO CONTRATO DE ANUNCIANTE (sem proposta obrigatória) — BLOQUEANTE §7
+    {
       const { contratoService } = await import('../../services/contrato.service');
-      await contratoService.ensureContractForCadastro({ cadastroType: 'ANUNCIANTE', clienteId: finalClienteId!, usuarioResponsavelId: user?.id || '' });
-    } catch (e) { console.warn('[Wizard] auto contrato anunciante falhou (não bloqueia):', (e as any)?.message); }
+      const ctRes = await contratoService.ensureContractForCadastro({ cadastroType: 'ANUNCIANTE', clienteId: finalClienteId!, usuarioResponsavelId: user?.id || '' });
+      if (!ctRes.success) {
+        setIsSubmitting(false);
+        toast({ title: 'Falha ao criar contrato de Anunciante', description: ctRes.error || 'Não foi possível vincular o contrato. Finalização bloqueada (§7).', variant: 'destructive' });
+        return;
+      }
+    }
 
     // 2. Grava a proposta comercial atrelada ao cliente e ao representante
     const resProp = await propostaService.create({
@@ -496,7 +501,8 @@ if (name === 'cnpj') {
           .maybeSingle();
         if (perfErr || !perfilAnun?.id) throw new Error('Perfil ANUNCIANTE indisponível.');
 
-        const r = await corporateUsersService.criarUsuario({
+        // P0 §5/§6: provisionamento DIRETO com senha inicial backend (não fluxo de aprovação)
+        const r = await corporateUsersService.provisionarUsuarioDireto({
           nome: formData.nomeFantasia || formData.razaoSocial || formData.contatoNome || 'Anunciante',
           email: emailLogin,
           telefone: formData.telefone || undefined,
@@ -514,20 +520,18 @@ if (name === 'cnpj') {
           setProvisionando(false);
           return;
         }
+        // Falha de login é BLOQUEANTE §7 — não finaliza
         setProvisionamento({ estado: 'falhou', detalhe: r.error ?? 'erro desconhecido' });
+        setProvisionando(false);
+        toast({ title: 'Falha ao criar login do Anunciante', description: r.error || 'Não foi possível criar o acesso. Finalização bloqueada (§7).', variant: 'destructive' });
+        return;
       } catch (e: any) {
         console.error('[Wizard] provisionamento do acesso falhou:', e?.message);
         setProvisionamento({ estado: 'falhou', detalhe: e?.message ?? 'erro desconhecido' });
+        setProvisionando(false);
+        toast({ title: 'Falha ao criar login do Anunciante', description: e?.message || 'Erro inesperado no provisionamento. Finalização bloqueada.', variant: 'destructive' });
+        return;
       }
-      setProvisionando(false);
-
-      toast({
-        title: 'Acesso automático não pôde ser criado',
-        description:
-          'O cadastro foi concluído, mas o provisionamento falhou. Use a Central de Acessos para criar o acesso deste anunciante.',
-        variant: 'destructive',
-      });
-      navigate(`${basePath}/clientes`);
     } else {
       toast({
         title: 'Cliente criado, mas falha na proposta',
