@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { contratoService, ContratoTemplateRecord, ContratoCompleto } from '../services/contrato.service';
 import { contratoDocumentoService } from '../services/contratoDocumento.service';
 import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { supabase } from '@/integrations/supabase/client';
+import { getOfficialPdfForTipoContrato } from '../services/contractResolver.service';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

@@ -418,19 +418,20 @@ if (name === 'cnpj') {
     }
 
     // 1.5 Sincroniza a seleção de PONTOS PARCEIROS (missão §7-§10).
-    // Best-effort: não bloqueia a criação do cliente, mas avisa em caso de falha.
     if (finalClienteId && pontosSelecionados.size > 0) {
       try {
         await prospeccaoService.selecionarPontos(finalClienteId, Array.from(pontosSelecionados));
       } catch (errSync) {
         console.error('[Wizard] Falha ao sincronizar pontos de prospecção:', errSync);
-        toast({
-          title: 'Atenção',
-          description: 'Cliente salvo, mas houve falha ao vincular os pontos selecionados. Vincule-os novamente no detalhe do cliente.',
-          variant: 'destructive',
-        });
+        toast({ title: 'Atenção', description: 'Cliente salvo, mas houve falha ao vincular os pontos selecionados. Vincule-os novamente no detalhe do cliente.', variant: 'destructive' });
       }
     }
+
+    // 1.6 P0 — VÍNCULO AUTOMÁTICO CONTRATO DE ANUNCIANTE (sem proposta obrigatória)
+    try {
+      const { contratoService } = await import('../../services/contrato.service');
+      await contratoService.ensureContractForCadastro({ cadastroType: 'ANUNCIANTE', clienteId: finalClienteId!, usuarioResponsavelId: user?.id || '' });
+    } catch (e) { console.warn('[Wizard] auto contrato anunciante falhou (não bloqueia):', (e as any)?.message); }
 
     // 2. Grava a proposta comercial atrelada ao cliente e ao representante
     const resProp = await propostaService.create({

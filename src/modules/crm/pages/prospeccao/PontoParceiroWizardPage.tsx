@@ -202,13 +202,14 @@ export default function PontoParceiroWizardPage() {
     setSalvando(true);
     setErro(null);
     try {
-      const payload: NovoPontoParceiroPayload = {
-        ...form,
-        nome: form.nomeFantasia,
-        fotoCapaUrl: fotoCapa || undefined,
-        fotosUrls: fotos,
-      };
+      const payload: NovoPontoParceiroPayload = { ...form, nome: form.nomeFantasia, fotoCapaUrl: fotoCapa || undefined, fotosUrls: fotos };
       const r = await prospeccaoService.criarPontoParceiro(payload);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { contratoService } = await import('../../services/contrato.service');
+        const resCt = await contratoService.ensureContractForCadastro({ cadastroType: 'PONTO_PARCEIRO', pontoId: (r as any).id || (r as any).ponto_id || null, usuarioResponsavelId: user?.id || '' });
+        if (!resCt.success) console.warn('[Ponto] auto contrato falhou:', resCt.error);
+      } catch (e) { console.warn('[Ponto] auto contrato erro:', (e as any)?.message); }
       setConcluido({ codigo: r.codigo_publico });
     } catch (e: any) {
       setErro(e?.message || 'Erro ao cadastrar ponto parceiro.');
