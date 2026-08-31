@@ -2,6 +2,17 @@
     "version": 2,
     "rewrites": [
         {
+            "source": "/cobranca/:path*",
+            "has": [
+                {
+                    "type": "header",
+                    "key": "user-agent",
+                    "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|googlebot|facebookcatalog).*"
+                }
+            ],
+            "destination": "/api/cobranca-og?path=/cobranca/:path*"
+        },
+        {
             "source": "/((?!.*\\.).*)",
             "destination": "/index.html"
         }
