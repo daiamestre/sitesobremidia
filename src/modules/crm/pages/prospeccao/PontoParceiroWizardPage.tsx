@@ -214,6 +214,11 @@ export default function PontoParceiroWizardPage() {
           setSalvando(false);
           return;
         }
+        if (!resCt.contratoId) {
+          setErro('Contrato criado sem ID — finalização bloqueada (§7).');
+          setSalvando(false);
+          return;
+        }
       }
       // Login do parceiro quando e-mail informado — BLOQUEANTE §7 (exceto já existe)
       if (form.email.trim()) {

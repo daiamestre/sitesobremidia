@@ -121,6 +121,7 @@ export function IntelligentCommercialWizard() {
   const navigate = useNavigate();
   const location = useLocation();
   const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+  const clientType = location.state?.clientType as 'ANUNCIANTE' | 'PONTO_PARCEIRO' | undefined;
   const { toast } = useToast();
   const { user, empresaOperadoraId, representante, isOwner, perfilNome } = useAuth();
 
@@ -427,13 +428,19 @@ if (name === 'cnpj') {
       }
     }
 
-    // 1.6 P0 — VÍNCULO AUTOMÁTICO CONTRATO DE ANUNCIANTE (sem proposta obrigatória) — BLOQUEANTE §7
+    // 1.6 P0 — VÍNCULO AUTOMÁTICO CONTRATO DE CADASTRO (baseado no tipo selecionado na triagem)
+    const cadastroType = clientType || 'ANUNCIANTE';
     {
       const { contratoService } = await import('../../services/contrato.service');
-      const ctRes = await contratoService.ensureContractForCadastro({ cadastroType: 'ANUNCIANTE', clienteId: finalClienteId!, usuarioResponsavelId: user?.id || '' });
+      const ctRes = await contratoService.ensureContractForCadastro({ cadastroType, clienteId: finalClienteId!, usuarioResponsavelId: user?.id || '' });
       if (!ctRes.success) {
         setIsSubmitting(false);
         toast({ title: 'Falha ao criar contrato de Anunciante', description: ctRes.error || 'Não foi possível vincular o contrato. Finalização bloqueada (§7).', variant: 'destructive' });
+        return;
+      }
+      if (!ctRes.contratoId) {
+        setIsSubmitting(false);
+        toast({ title: 'Contrato criado sem ID', description: 'O contrato foi criado mas não retornou ID. Verifique o banco de dados.', variant: 'destructive' });
         return;
       }
     }

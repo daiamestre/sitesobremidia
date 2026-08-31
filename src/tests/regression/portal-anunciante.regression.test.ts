@@ -316,7 +316,7 @@ describe('[REGRESSÃO] Provisionamento automático pelo REPRESENTANTE', () => {
       path.join(process.cwd(), 'src', 'modules', 'crm', 'components', 'forms', 'IntelligentCommercialWizard.tsx'),
       'utf8',
     );
-    expect(wiz).toContain('corporateUsersService.criarUsuario');
+    expect(wiz).toContain('corporateUsersService.provisionarUsuarioDireto');
     expect(wiz).toContain("eq('nome', 'ANUNCIANTE')");
     expect(wiz).toContain('EMAIL_JA_CADASTRADO');
     expect(wiz).toContain('Central de Acessos');
