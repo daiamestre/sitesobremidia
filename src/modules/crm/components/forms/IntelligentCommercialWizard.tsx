@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { clienteService, ClienteCompleto } from '../../services/cliente.service';
 import { clienteFormSchema, UFS_VALIDAS, normalizarCnpj, normalizarCep } from '../../validators/cliente.validator';
@@ -119,6 +119,8 @@ function mapPerfilParaCrmRole(perfilNome: string | null): CrmRole {
 
 export function IntelligentCommercialWizard() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
   const { toast } = useToast();
   const { user, empresaOperadoraId, representante, isOwner, perfilNome } = useAuth();
 
@@ -524,14 +526,14 @@ if (name === 'cnpj') {
           'O cadastro foi concluído, mas o provisionamento falhou. Use a Central de Acessos para criar o acesso deste anunciante.',
         variant: 'destructive',
       });
-      navigate('/representantes/clientes');
+      navigate(`${basePath}/clientes`);
     } else {
       toast({
         title: 'Cliente criado, mas falha na proposta',
         description: resProp.error || 'O cliente foi persistido; revise a proposta diretamente no CRM.',
         variant: 'destructive',
       });
-      navigate(`/representantes/clientes/${finalClienteId}`);
+      navigate(`${basePath}/clientes/${finalClienteId}`);
     }
   };
 
@@ -557,9 +559,17 @@ if (name === 'cnpj') {
               </p>
             </div>
           </div>
-          <Badge className="bg-primary/20 text-primary border-primary/30 px-3 py-1 font-bold text-xs">
-            Etapa {step} de 4
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-primary/20 text-primary border-primary/30 px-3 py-1 font-bold text-xs">
+              Etapa {step} de 4
+            </Badge>
+            <Button variant="outline" size="sm" onClick={() => navigate(`${basePath}/clientes/novo`)} className="border-white/10 text-slate-300 hover:text-white text-xs h-8">
+              Voltar ao Gate
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate(`${basePath}/clientes`)} className="text-slate-400 hover:text-white text-xs h-8">
+              Cancelar
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-4 gap-2 pt-2">
@@ -1407,7 +1417,7 @@ if (name === 'cnpj') {
               className="w-full mt-2"
               data-testid="btn-concluir-pos-provisionamento"
               disabled={provisionando}
-              onClick={() => navigate('/representantes/clientes')}
+              onClick={() => navigate(`${basePath}/clientes`)}
             >
               Concluir
             </Button>

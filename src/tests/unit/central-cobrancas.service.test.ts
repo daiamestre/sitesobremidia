@@ -105,6 +105,7 @@ describe('Central de Cobranças — FinanceiroService.createCobranca', () => {
   });
 
   it('insere em contas_receber com status PENDENTE e parcela padrão', async () => {
+    enqueue({ modalidade: 'GERAL' }); // consumo 0: lookup clientes modalidade (GATE 6.7)
     enqueue('COB-2026-000001'); // consumo 1: rpc gerar_numero_documento
     enqueue([{ id: 'novo-id' }]); // consumo 2: insert contas_receber
     const resultado = await financeiroService.createCobranca({
@@ -132,6 +133,7 @@ describe('Central de Cobranças — FinanceiroService.createCobranca', () => {
   });
 
   it('propaga erro do banco', async () => {
+    enqueue({ modalidade: 'GERAL' }); // consumo 0: lookup clientes modalidade
     enqueue('COB-2026-000001'); // consumo 1: rpc gerar_numero_documento
     enqueue(null, { message: 'violacao' }); // consumo 2: insert contas_receber
     const resultado = await financeiroService.createCobranca({

@@ -66,11 +66,8 @@ export function CrmSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     // Dashboard aponta para rotas existentes em CADA painel (corrige o 404 do
     // painel de representantes: /representantes/corporate não existe)
     { label: 'Dashboard', icon: Home, path: isWorkspace ? '/workspace/corporate' : '/representantes/dashboard' },
-    // NOVA PROSPECÇÃO (missão P0/P1): entrada dos 3 cadastros (Anunciante/
-    // Ponto Parceiro/Gestor de Mídias) no painel do representante.
-    ...(!isWorkspace
-      ? [{ label: 'Nova Prospecção', icon: Target, path: '/representantes/prospeccao' }]
-      : []),
+    // GATE 6.7 — CLIENT TYPE GATE unificado: mesma porta para REPRESENTANTE/ADM/OWNER
+    { label: 'Nova Prospecção', icon: Target, path: `${basePath}/clientes/novo` },
     // Gestor de Mídias Digital Signage
     ...(isWorkspace
       ? [

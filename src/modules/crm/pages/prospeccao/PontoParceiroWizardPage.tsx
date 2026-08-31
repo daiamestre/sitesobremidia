@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Store, User, MapPin, Tv, Camera, ClipboardCheck,
   ArrowLeft, ArrowRight, Loader2, CheckCircle2, Upload, X,
@@ -113,6 +113,8 @@ function Area({ label, value, onChange, placeholder }: {
 
 export default function PontoParceiroWizardPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
   const [passo, setPasso] = useState(1);
   const [form, setForm] = useState<FormState>(VAZIO);
   const [fotoCapa, setFotoCapa] = useState<string>('');
@@ -241,10 +243,10 @@ export default function PontoParceiroWizardPage() {
                 Cadastrar outro ponto
               </button>
               <button
-                onClick={() => navigate('/representantes/dashboard')}
+                onClick={() => navigate(`${basePath}/clientes`)}
                 className="px-5 py-2.5 rounded-xl gradient-primary glow-primary text-white text-sm font-bold"
               >
-                Voltar ao dashboard
+                Voltar
               </button>
             </div>
           </CardContent>
@@ -454,8 +456,8 @@ export default function PontoParceiroWizardPage() {
         </CardContent>
 
         <div className="px-6 pb-5 flex items-center justify-between">
-          <Button variant="outline" disabled={passo === 1 || salvando} onClick={() => { setErro(null); setPasso((p) => Math.max(1, p - 1)); }} className="border-slate-700 text-slate-300 rounded-xl gap-2">
-            <ArrowLeft className="h-4 w-4" /> Voltar
+          <Button variant="outline" disabled={salvando} onClick={() => { setErro(null); if (passo === 1) navigate(`${basePath}/clientes/novo`); else setPasso((p) => Math.max(1, p - 1)); }} className="border-slate-700 text-slate-300 rounded-xl gap-2">
+            <ArrowLeft className="h-4 w-4" /> {passo === 1 ? 'Voltar ao Gate' : 'Voltar'}
           </Button>
           {passo < 6 ? (
             <Button onClick={avancar} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">

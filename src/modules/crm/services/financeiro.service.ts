@@ -502,6 +502,14 @@ export class FinanceiroService {
     if (!payload.dataVencimento) return { success: false, error: 'Informe a data de vencimento.' };
     try {
       const valorNorm = Number(payload.valor);
+      // Gate 6.7: determinar origem ANUNCIANTE via cliente.modalidade (não inferir por texto)
+      let billingOriginType: string | null = (payload as any).billingOriginType || (payload as any).billing_origin_type || null;
+      if (!billingOriginType) {
+        try {
+          const { data: cli } = await supabase.from('clientes').select('modalidade').eq('id', payload.clienteId).maybeSingle();
+          billingOriginType = (cli as any)?.modalidade === 'ANUNCIANTE' ? 'ANUNCIANTE' : 'GERAL';
+        } catch { billingOriginType = 'GERAL'; }
+      }
       const { data, error } = await supabase
         .from('contas_receber')
         .insert({
@@ -521,7 +529,9 @@ export class FinanceiroService {
           recorrencia: payload.recorrencia ?? 'AVULSA',
           notes: payload.descricao ?? null,
           metodos_gateway: payload.metodosGateway ?? ['PIX', 'BOLETO'],
-        })
+          // Gate 6.7: incluído apenas se coluna existir (rollback-safe: ignora erro de coluna inexistente)
+          ...(billingOriginType ? { billing_origin_type: billingOriginType } : {}),
+        } as any)
         .select('id')
         .single();
       if (error || !data) return { success: false, error: error?.message || 'Falha ao criar cobrança.' };
@@ -923,6 +933,7 @@ export interface CreateCobrancaPayload {
   recorrencia?: 'AVULSA' | 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
   descricao?: string;
   metodosGateway?: string[];
+  billingOriginType?: 'ANUNCIANTE' | 'GERAL' | 'PARCEIRO' | 'HOST' | 'OUTRO';
 }
 
 export function deriveCobrancaSituacao(status: string, dataVencimento: string | null | undefined, hoje: Date = new Date()): CobrancaSituacao {

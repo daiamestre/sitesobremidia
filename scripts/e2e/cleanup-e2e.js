@@ -13,6 +13,7 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import path from 'path';
+import { createSafeAuthAdmin } from '../utils/safeAuthAdmin.mjs';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
@@ -37,9 +38,10 @@ if (!supabaseUrl.includes('localhost') && process.argv[2] !== '--force') {
   process.exit(1);
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+const supabaseAdminRaw = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
+const supabaseAdmin = createSafeAuthAdmin(supabaseAdminRaw);
 
 async function cleanupE2E() {
   console.log(`🧹 Iniciando limpeza E2E para: ${testEmail}`);

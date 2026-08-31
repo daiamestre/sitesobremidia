@@ -37,6 +37,8 @@ if (!testEmail || !testPassword) {
   process.exit(1);
 }
 
+import { createSafeAuthAdmin } from '../utils/safeAuthAdmin.mjs';
+
 // ⚠️ PROTEÇÃO DE PRODUÇÃO: Exige flag explícita se a URL não for localhost
 if (!supabaseUrl.includes('localhost') && process.argv[2] !== '--force') {
   console.error('⚠️ ATENÇÃO: Você está apontando para um ambiente remoto.');
@@ -44,12 +46,13 @@ if (!supabaseUrl.includes('localhost') && process.argv[2] !== '--force') {
   process.exit(1);
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+const supabaseAdminRaw = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
   }
 });
+const supabaseAdmin = createSafeAuthAdmin(supabaseAdminRaw);
 
 async function provisionE2E() {
   console.log(`🚀 Iniciando provisionamento da infraestrutura E2E para: ${testEmail}`);

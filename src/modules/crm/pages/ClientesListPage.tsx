@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { clienteService, ClienteCompleto, rotaCliente } from '../services/cliente.service';
 import { Cliente360Modal } from '../components/Cliente360Modal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +14,8 @@ import { Plus, Search, Building2, MapPin, Trash2, Loader2, FileCheck, Eye, Penci
 
 export default function ClientesListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
   const { toast } = useToast();
   const { empresaOperadoraId, representante, user, isOwner } = useAuth();
 
@@ -106,7 +108,7 @@ export default function ClientesListPage() {
         </div>
 
         <Button
-          onClick={() => navigate('/representantes/clientes/novo')}
+          onClick={() => navigate(`${basePath}/clientes/novo`)}
           className="gradient-primary glow-primary font-bold text-sm px-5 py-2.5 rounded-xl shadow-xl hover:scale-105 transition-all gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -146,7 +148,7 @@ export default function ClientesListPage() {
           ) : filteredClientes.length === 0 ? (
             <div className="text-center py-12 text-slate-400 space-y-3">
               <p>Nenhum cliente comercial encontrado no banco de dados.</p>
-              <Button onClick={() => navigate('/representantes/clientes/novo')} variant="outline" className="border-white/10 text-white">
+              <Button onClick={() => navigate(`${basePath}/clientes/novo`)} variant="outline" className="border-white/10 text-white">
                 Cadastrar Primeiro Cliente
               </Button>
             </div>

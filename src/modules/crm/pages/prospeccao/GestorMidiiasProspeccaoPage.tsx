@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   MonitorPlay, ArrowLeft, ArrowRight, Loader2, CheckCircle2, KeyRound,
 } from 'lucide-react';
@@ -19,6 +19,8 @@ import { prospeccaoService } from '@/services/prospeccao.service';
 
 export default function GestorMidiiasProspeccaoPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
   const [form, setForm] = useState({
     nome: '', email: '', telefone: '', whatsapp: '',
     empresa: '', cpfCnpj: '', cargo: '',
@@ -97,9 +99,9 @@ export default function GestorMidiiasProspeccaoPage() {
                 className="px-5 py-2.5 rounded-xl border border-white/10 text-slate-200 text-sm hover:bg-white/5">
                 Cadastrar outro gestor
               </button>
-              <button onClick={() => navigate('/representantes/dashboard')}
+              <button onClick={() => navigate(`${basePath}/clientes`)}
                 className="px-5 py-2.5 rounded-xl gradient-primary glow-primary text-white text-sm font-bold">
-                Voltar ao dashboard
+                Voltar
               </button>
             </div>
           </CardContent>
@@ -186,9 +188,9 @@ export default function GestorMidiiasProspeccaoPage() {
           )}
 
           <div className="flex items-center justify-between pt-1">
-            <button onClick={() => navigate('/representantes/prospeccao')}
+            <button onClick={() => navigate(`${basePath}/clientes/novo`)}
               className="px-4 py-2.5 rounded-xl border border-white/10 text-slate-300 text-sm hover:bg-white/5 flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" /> Voltar
+              <ArrowLeft className="h-4 w-4" /> Voltar ao Gate
             </button>
             <button onClick={salvar} disabled={salvando}
               className="gradient-primary glow-primary font-bold rounded-xl px-6 py-2.5 text-white text-sm flex items-center gap-2 disabled:opacity-60">

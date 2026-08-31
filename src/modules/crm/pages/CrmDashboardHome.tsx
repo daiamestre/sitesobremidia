@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,8 @@ import { EmptyDashboard } from '../components/EmptyDashboard';
 
 export default function CrmDashboardHome() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
   const { empresaOperadoraId, representante, userName } = useCrmSession();
   const { isOwner } = useAuth();
 
@@ -142,7 +144,7 @@ export default function CrmDashboardHome() {
         </div>
 
         <Button
-          onClick={() => navigate('/representantes/clientes/novo')}
+          onClick={() => navigate(`${basePath}/clientes/novo`)}
           size="lg"
           className="gradient-primary glow-primary font-bold text-base px-6 py-3 rounded-xl shadow-xl transition-all duration-300 hover:scale-105 gap-2 relative z-10 w-full sm:w-auto"
         >

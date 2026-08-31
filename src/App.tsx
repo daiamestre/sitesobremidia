@@ -91,6 +91,7 @@ const DesempenhoRepresentantesPage = lazyWithRetry(() => import("./modules/crm/p
 const RepresentanteDetalhePage = lazyWithRetry(() => import("./modules/crm/pages/RepresentanteDetalhePage"));
 const ClientesListPage = lazyWithRetry(() => import("./modules/crm/pages/ClientesListPage"));
 const NovoClientePage = lazyWithRetry(() => import("./modules/crm/pages/NovoClientePage"));
+const NovoClienteWizardPage = lazyWithRetry(() => import("./modules/crm/pages/NovoClienteWizardPage"));
 const ClienteDetalhePage = lazyWithRetry(() => import("./modules/crm/pages/ClienteDetalhePage"));
 const EditarClientePage = lazyWithRetry(() => import("./modules/crm/pages/EditarClientePage"));
 const PropostasListPage = lazyWithRetry(() => import("./modules/crm/pages/PropostasListPage"));
@@ -208,7 +209,10 @@ const App = () => {
                   <Routes>
                   {/* PUBLIC ROUTES */}
                   <Route path="/" element={<Index />} />
+                  {/* PUBLIC BILLING ROUTES (Humanized & Legacy Compatible) */}
+                  <Route path="/cobranca/:estabelecimentoSlug/:faturaSlug/:codigo" element={<PaginaCobranca />} />
                   <Route path="/cobranca/:codigo/:identificador" element={<PaginaCobranca />} />
+                  <Route path="/cobranca/:codigo" element={<PaginaCobranca />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/corporate" element={<Auth />} />
                   <Route path="/auth/forgot-password" element={<ForgotPassword />} />
@@ -226,6 +230,7 @@ const App = () => {
                     <Route path="prospeccao/gestor" element={<GestorMidiiasProspeccaoPage />} />
                     <Route path="clientes" element={<ClientesListPage />} />
                     <Route path="clientes/novo" element={<NovoClientePage />} />
+                    <Route path="clientes/novo/anunciante" element={<NovoClienteWizardPage />} />
                     <Route path="clientes/editar/:id" element={<EditarClientePage />} />
                     <Route path="clientes/:id" element={<ClienteDetalhePage />} />
                     <Route path="propostas" element={<PropostasListPage />} />
@@ -349,6 +354,10 @@ const App = () => {
                     <Route path="representantes/:id" element={<RepresentanteDetalhePage />} />
                     <Route path="clientes" element={<ClientesListPage />} />
                     <Route path="clientes/novo" element={<NovoClientePage />} />
+                    <Route path="clientes/novo/anunciante" element={<NovoClienteWizardPage />} />
+                    <Route path="prospeccao" element={<NovaProspeccaoPage />} />
+                    <Route path="prospeccao/ponto-parceiro" element={<PontoParceiroWizardPage />} />
+                    <Route path="prospeccao/gestor" element={<GestorMidiiasProspeccaoPage />} />
                     <Route path="clientes/editar/:id" element={<EditarClientePage />} />
                     <Route path="clientes/:id" element={<ClienteDetalhePage />} />
                     <Route path="propostas" element={<PropostasListPage />} />

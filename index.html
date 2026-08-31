@@ -3,8 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
   <title>SOBRE MÍDIA Designer</title>
   <meta name="description" content="Sistema de Digital Signage - Gerencie suas telas e conteúdos" />
@@ -51,16 +50,13 @@
   <link rel="apple-touch-startup-image" href="/pwa-512x512.png" />
 
   <style>
-    /* Prevent overscroll/bounce effect on iOS */
-    html,
-    body {
-      overscroll-behavior: none;
+    /* GATE 7 — responsive scroll: never lock document scroll globally.
+       Player-only overscroll is handled in .player-fullscreen */
+    html {
       -webkit-overflow-scrolling: touch;
     }
-
-    /* Safe area insets for notched devices */
     body {
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      -webkit-overflow-scrolling: touch;
     }
   </style>
   <script>

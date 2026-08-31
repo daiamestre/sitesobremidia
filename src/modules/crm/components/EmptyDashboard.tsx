@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Briefcase, FileText, Users, ArrowUpRight } from 'lucide-react';
@@ -10,6 +10,8 @@ interface EmptyDashboardProps {
 
 export function EmptyDashboard({ userName = 'Representante' }: EmptyDashboardProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
 
   return (
     <div className="space-y-6 animate-fade-in my-8">
@@ -57,7 +59,7 @@ export function EmptyDashboard({ userName = 'Representante' }: EmptyDashboardPro
 
           <div className="pt-2">
             <Button
-              onClick={() => navigate('/representantes/clientes/novo')}
+              onClick={() => navigate(`${basePath}/clientes/novo`)}
               size="lg"
               className="gradient-primary glow-primary font-bold text-base px-8 py-4 h-12 rounded-xl shadow-2xl transition-all duration-300 hover:scale-105 inline-flex items-center gap-2"
             >

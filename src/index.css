@@ -106,23 +106,23 @@
     @apply border-border;
   }
 
+  html {
+    -webkit-overflow-scrolling: touch;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    -webkit-overflow-scrolling: touch;
   }
 
-  /* Fix: Force full height/width in Portrait to prevent white screen before rotation */
-  @media (orientation: portrait) {
-
-    body,
-    #root {
-      min-height: 100vh;
-      min-width: 100vw;
-      background-color: black;
-      /* Force black background */
-      overflow: hidden;
-    }
+  #root {
+    min-height: 100dvh;
   }
+
+  /* Player fullscreen isolation — only the player should lock scroll, not the whole app.
+     Previous global @media (orientation: portrait) { body,#root { overflow:hidden } }
+     broke mobile/tablet document scroll and has been removed (GATE 7). */
 
   h1,
   h2,

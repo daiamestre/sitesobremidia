@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { getHumanizedPublicBillingPath, resolveBillingPresentation } from '@/lib/billing';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle2, AlertCircle, Clock, FileText, Calendar, CreditCard, Receipt, FileSignature, AlertTriangle, MessageCircle, ExternalLink, Copy, QrCode, Download, Loader2 } from 'lucide-react';
@@ -39,6 +40,14 @@ interface PublicBillingData {
   contrato_tipo: string;
   servico_faturado: string;
   pagamentos: PagamentoPublico[];
+  // GATE 6.7 — campos canônicos
+  billing_origin_type?: string | null;
+  establishment_name?: string | null;
+  establishment_slug?: string | null;
+  invoice_month?: number | null;
+  invoice_year?: number | null;
+  service_name?: string | null;
+  issuer_name?: string | null;
 }
 
 export interface ResolvedPaymentMethods {
@@ -69,7 +78,29 @@ export function resolvePaymentMethods(metodosGateway: string[] | string | null |
 }
 
 export default function PaginaCobranca() {
-  const { codigo, identificador } = useParams<{ codigo: string; identificador: string }>();
+  // Route params — suporta 3 padrões:
+  // (A) /cobranca/:estabelecimentoSlug/:faturaSlug/:codigo  (humanizada)
+  // (B) /cobranca/:codigo/:identificador                    (legada)
+  // (C) /cobranca/:codigo                                   (curta)
+  const params = useParams<{
+    codigo?: string;
+    identificador?: string;
+    estabelecimentoSlug?: string;
+    faturaSlug?: string;
+  }>();
+  const navigate = useNavigate();
+
+  // Resolve o identificador canônico da cobrança:
+  // No padrão (A) o código real é o 3° segmento (:codigo).
+  // No padrão (B) pode ser tanto o :codigo quanto o :identificador.
+  // Sempre prioriza o segmento final como o código operacional/público.
+  const resolvedCodigo = params.codigo ?? '';
+  const resolvedIdentificador = params.identificador ?? params.codigo ?? '';
+  // Compat: se estiver no padrão (A), identificador == codigo (sem slug na RPC)
+  const isHumanizedRoute = !!params.estabelecimentoSlug;
+  // A chave financeira para a RPC é sempre o último segmento :codigo  
+  const codigo = resolvedCodigo;
+  const identificador = isHumanizedRoute ? resolvedCodigo : resolvedIdentificador;
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PublicBillingData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,16 +123,18 @@ export default function PaginaCobranca() {
 
   useEffect(() => {
     async function fetchBilling() {
-      if (!codigo || !identificador) {
+      if (!codigo) {
         setError('Link de cobrança inválido.');
         setLoading(false);
         return;
       }
 
       try {
+        // A RPC aceita (p_codigo, p_identifier) — passamos o codigo como ambos
+        // quando só temos um segmento ou quando é a rota humanizada
         const { data: result, error: rpcError } = await (supabase.rpc as any)('rpc_get_public_billing', {
           p_codigo: codigo,
-          p_identifier: identificador
+          p_identifier: identificador || codigo
         });
 
         if (rpcError) {
@@ -120,6 +153,76 @@ export default function PaginaCobranca() {
 
     fetchBilling();
   }, [codigo, identificador]);
+
+  // Apresentação determinística Gate 6.7 — fonte única
+  const billingPresentation = useMemo(() => resolveBillingPresentation(data), [data]);
+
+  // Open Graph & document title — derivado da cobrança canônica (Gate 6.7)
+  useEffect(() => {
+    if (!data) return;
+
+    const pres = billingPresentation;
+    const estabelecimentoNome = pres.establishmentName;
+    const faturaTitle = pres.invoiceTitle;
+    const serviceName = pres.serviceName;
+    const codigoOp = data.codigo_operacional || data.public_identifier || '';
+
+    // Título da página usa estabelecimento + fatura (ex: HOTEL MAXSUEL — Fatura Julho)
+    const docTitle = `${estabelecimentoNome.toUpperCase()} — ${faturaTitle} | ${pres.issuerName}`;
+    const ogTitle = `${estabelecimentoNome.toUpperCase()} — ${faturaTitle}`;
+    const ogDesc = `${serviceName} — Cobrança ${codigoOp} emitida por ${pres.issuerName}. Acesse e pague com PIX ou Boleto.`;
+    const canonicalUrl = getHumanizedPublicBillingPath({
+      establishment_name: pres.establishmentName,
+      establishment_slug: pres.establishmentSlug,
+      invoice_month: data.invoice_month,
+      competencia: data.competencia,
+      vencimento: data.vencimento,
+      codigo_operacional: data.codigo_operacional,
+      public_identifier: data.public_identifier,
+      cliente_nome: data.cliente_nome,
+    });
+    const fullUrl = `${window.location.origin}${canonicalUrl}`;
+
+    // Atualiza <title>
+    document.title = docTitle;
+
+    // Upsert Open Graph / Twitter meta tags
+    const setMeta = (property: string, content: string, attr = 'property') => {
+      let el = document.querySelector(`meta[${attr}="${property}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, property);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+
+    setMeta('og:title', ogTitle);
+    setMeta('og:description', ogDesc);
+    setMeta('og:url', fullUrl);
+    setMeta('og:type', 'website');
+    setMeta('og:site_name', pres.issuerName);
+    setMeta('twitter:card', 'summary', 'name');
+    setMeta('twitter:title', ogTitle, 'name');
+    setMeta('twitter:description', ogDesc, 'name');
+
+    // Canonical link
+    let link = document.querySelector('link[rel="canonical"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.setAttribute('rel', 'canonical');
+      document.head.appendChild(link);
+    }
+    link.setAttribute('href', fullUrl);
+
+    // GATE 6.5/6.7 — Redirecionamento canônico: se rota humanizada com slug obsoleto, sincroniza para URL determinística
+    // Slug NÃO é autoridade: a cobrança é validada pelo código. Nunca altera identidade por slug.
+    // Compat: não redireciona rota legada (/cobranca/:codigo/:identificador) para preservar compatibilidade direta
+    if (isHumanizedRoute && canonicalUrl && window.location.pathname !== canonicalUrl) {
+      // Evita loop: só redireciona quando slug/fatura divergem do canônico
+      navigate(canonicalUrl, { replace: true });
+    }
+  }, [data, isHumanizedRoute, navigate, billingPresentation]);
 
 
 
@@ -315,7 +418,7 @@ export default function PaginaCobranca() {
   const statusText = getStatusText();
 
   return (
-    <div className="min-h-screen bg-[#22004A] text-[#F2F2F2] py-10 px-4 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-[#22004A] text-[#F2F2F2] py-10 px-4 sm:px-6 lg:px-8 font-sans relative">
       {/* Background Glow Effects */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-[#5D1BFF] rounded-full blur-[120px] opacity-20 pointer-events-none"></div>
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[#8A2EFF] rounded-full blur-[150px] opacity-10 pointer-events-none"></div>
@@ -325,21 +428,42 @@ export default function PaginaCobranca() {
         {/* =======================
             CABEÇALHO 
         ======================= */}
-        <div className="text-center space-y-3 mb-10">
-          <h1 className="text-3xl font-extrabold tracking-widest text-[#FFFFFF] uppercase drop-shadow-md">
-            {data.empresa_nome || 'SOBRE MÍDIA'}
+        {/* =======================
+            CABEÇALHO PROFISSIONAL
+            GATE 6.5 — URL HUMANIZADA
+            GATE 6.7 — CABEÇALHO CANÔNICO ANUNCIANTE
+        ======================= */}
+        <div className="text-center space-y-2 mb-10">
+          {/* 1. Empresa emissora - canônico Gate 6.7 */}
+          <p className="text-sm font-semibold tracking-widest text-[#F2F2F2]/50 uppercase">
+            {billingPresentation.issuerName}
+          </p>
+
+          {/* 2. Nome do estabelecimento - cadastro oficial */}
+          <h1 className="text-3xl font-extrabold tracking-tight text-[#FFFFFF] uppercase drop-shadow-md" data-testid="establishment-name">
+            {billingPresentation.establishmentName}
           </h1>
-          <h2 className="text-lg font-medium text-[#F2F2F2]/80 uppercase tracking-wider">Sua cobrança</h2>
-          
-          <div className="mt-4 flex flex-col items-center gap-2">
-            <span className="text-2xl font-bold text-[#FFFFFF]">{data.cliente_nome}</span>
-            <span className="text-sm text-[#F2F2F2]/70 font-mono bg-[#1B003A]/60 px-4 py-1.5 rounded-md border border-[#5D1BFF]/30 backdrop-blur-sm">
+
+          {/* 3. Título da fatura - mês canônico */}
+          <h2 className="text-lg font-semibold text-[#8A2EFF] tracking-wider" data-testid="invoice-title">
+            {billingPresentation.invoiceTitle}
+          </h2>
+
+          {/* 4. Serviço contratado - canônico ANUNCIANTE */}
+          <p className="text-sm text-[#F2F2F2]/60 italic" data-testid="service-name">
+            {billingPresentation.serviceName}
+          </p>
+
+          {/* 5. Código operacional em destaque discreto (secundário - não é cabeçalho) */}
+          <div className="mt-2">
+            <span className="text-xs text-[#F2F2F2]/40 font-mono bg-[#1B003A]/60 px-3 py-1 rounded border border-[#5D1BFF]/20" data-testid="codigo-operacional">
               {data.codigo_operacional}
             </span>
           </div>
-          
-          <div className="mt-8 flex justify-center">
-            <div className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-full border font-bold text-sm uppercase tracking-wider backdrop-blur-md transition-all duration-300 hover:scale-105 ${statusColor}`}>
+
+          {/* 6. Status com ícone - dimensão independente do cabeçalho */}
+          <div className="mt-6 flex justify-center">
+            <div className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-full border font-bold text-sm uppercase tracking-wider backdrop-blur-md transition-all duration-300 hover:scale-105 ${statusColor}`} data-testid="status-badge">
               <StatusIcon className="w-5 h-5" />
               {statusText}
             </div>
