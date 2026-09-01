@@ -1,11 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Mail, Eye, Download, Loader2 } from 'lucide-react';
+import { Clock, Mail, Eye, Download, Loader2, PenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { digitalSignatureService } from '../../services/digitalSignature.service';
+import { SignatureCaptureModal } from './SignatureCaptureModal';
+import type { SignatureCaptureResult, SignatureSigner } from '../../types/assinatura.types';
 
 interface AssinaturaPendente {
   id: string;
@@ -15,7 +17,7 @@ interface AssinaturaPendente {
   signatario_nome?: string | null;
   signatario_email?: string | null;
   signatario_cpf_cnpj?: string | null;
-  contrato?: { id?: string | null; numero_contrato?: string | null } | null;
+  contrato?: { id?: string | null; numero_contrato?: string | null; tipo_contrato?: string | null } | null;
   eventos?: { evento: string; created_at: string }[] | null;
 }
 
@@ -24,6 +26,7 @@ export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes:
   const { usuario, user } = useAuth();
   const [signingId, setSigningId] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [modalAssinatura, setModalAssinatura] = useState<AssinaturaPendente | null>(null);
 
   const handleView = async (envelopeId: string) => {
     setViewingId(envelopeId);
@@ -67,25 +70,38 @@ export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes:
     }
   };
 
-  const handleSign = async (p: AssinaturaPendente) => {
+  const openSignatureModal = (p: AssinaturaPendente) => {
+    setModalAssinatura(p);
+  };
+
+  const handleSignatureCapture = async (result: SignatureCaptureResult) => {
+    const p = modalAssinatura;
+    setModalAssinatura(null);
+    if (!p || result.action === 'SKIPPED') {
+      return;
+    }
+
     const usuarioId = usuario?.id || user?.id;
     if (!p.contrato?.id || !usuarioId) return;
+
     setSigningId(p.id);
     try {
-      const result = await digitalSignatureService.signDocument(
+      const signResult = await digitalSignatureService.signDocument(
         p.envelope_id,
         usuarioId,
         {
-          nome: p.signatario_nome || '',
-          email: p.signatario_email || '',
-          cpfCnpj: p.signatario_cpf_cnpj || '',
+          nome: result.signer.nome || p.signatario_nome || '',
+          email: result.signer.email || p.signatario_email || '',
+          cpfCnpj: result.signer.cpfCnpj || p.signatario_cpf_cnpj || '',
+          signatureDataUrl: result.signatureDataUrl,
+          method: result.method,
         }
       );
-      if (result.success) {
+      if (signResult.success) {
         toast({ title: 'Documento Assinado!', description: 'PDF assinado gerado e armazenado com sucesso.' });
         onAssinaturaEvent?.();
       } else {
-        toast({ title: 'Erro na Assinatura', description: result.error || 'Falha ao assinar.', variant: 'destructive' });
+        toast({ title: 'Erro na Assinatura', description: signResult.error || 'Falha ao assinar.', variant: 'destructive' });
       }
     } catch (err: unknown) {
       toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
@@ -156,11 +172,11 @@ export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes:
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => handleSign(p)}
+                  onClick={() => openSignatureModal(p)}
                   disabled={signingId === p.id || !p.contrato?.id}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] h-7 gap-1"
                 >
-                  {signingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  {signingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <PenLine className="h-3 w-3" />}
                   <span>Assinar</span>
                 </Button>
               </div>
@@ -168,6 +184,22 @@ export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes:
           ))
         )}
       </CardContent>
+
+      {modalAssinatura && (
+        <SignatureCaptureModal
+          isOpen={!!modalAssinatura}
+          onClose={() => setModalAssinatura(null)}
+          onCapture={handleSignatureCapture}
+          signer={{
+            nome: modalAssinatura.signatario_nome || '',
+            email: modalAssinatura.signatario_email || '',
+            cpfCnpj: modalAssinatura.signatario_cpf_cnpj || '',
+          }}
+          contratoNumero={modalAssinatura.contrato?.numero_contrato || ''}
+          tipoContrato={modalAssinatura.contrato?.tipo_contrato || 'ANUNCIANTE'}
+          tituloDocumento="Assinatura de Contrato"
+        />
+      )}
     </Card>
   );
 }

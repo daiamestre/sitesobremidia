@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { customerCommerceService } from '../../services/customerCommerce.service';
 import { gerarDocumentoContrato, criarEnvelopeInterno, assinarDocumento } from '../../services/contratoDocumento.service';
+import { SignatureCaptureModal } from '../../components/signature/SignatureCaptureModal';
+import type { SignatureCaptureResult, SignatureSigner } from '../../types/assinatura.types';
 import type { ModalidadeCliente, EstabelecimentoDisponivel, CalculoPreco } from '@/types/customerPortal';
 import { formatCurrency } from '@/utils/formatters';
 
@@ -42,6 +44,12 @@ export default function OnboardingPage() {
 
   const [assinando, setAssinando] = useState(false);
   const [resultado, setResultado] = useState<{ numero_contrato?: string; assinado: boolean } | null>(null);
+
+  // Controle do modal de assinatura digital
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [pendingEnvelopeId, setPendingEnvelopeId] = useState<string | null>(null);
+  const [modalSigner, setModalSigner] = useState<SignatureSigner>({ nome: '' });
+  const [modalContratoNumero, setModalContratoNumero] = useState('');
 
   useEffect(() => {
     if (!loadingModalidade && hasActiveContract) {
@@ -126,31 +134,70 @@ export default function OnboardingPage() {
       return;
     }
 
-    const ass = await assinarDocumento(
-      envelope.assinaturaId,
-      {
-        nome: envelope.signatarioNome || usuario.nome,
-        email: envelope.signatarioEmail || usuario.email,
-        cpfCnpj: envelope.signatarioCpfCnpj || '',
-      },
-      undefined,
-      undefined,
-      usuario.id
-    );
+    // Configura signatário e abre modal visual (sem assinatura silenciosa)
+    const signerData: SignatureSigner = {
+      nome: envelope.signatarioNome || usuario.nome,
+      email: envelope.signatarioEmail || usuario.email,
+      cpfCnpj: envelope.signatarioCpfCnpj || '',
+    };
+    setModalSigner(signerData);
+    setModalContratoNumero(resultadoContrato.numero_contrato || '');
+    setPendingEnvelopeId(envelope.assinaturaId);
     setAssinando(false);
+    setShowSignatureModal(true);
+  };
 
-    if (!ass.success) {
-      toast({ title: 'Erro na assinatura', description: ass.error || 'Falha ao assinar o documento.', variant: 'destructive' });
-      setResultado({ numero_contrato: resultadoContrato.numero_contrato, assinado: false });
+  const handleSignatureCapture = async (captureResult: SignatureCaptureResult) => {
+    setShowSignatureModal(false);
+    if (!pendingEnvelopeId || !usuario) return;
+
+    if (captureResult.action === 'SKIPPED') {
+      toast({
+        title: 'Assinatura Postergada',
+        description: 'Seu contrato foi criado e permanecerá pendente para assinatura posterior no painel.',
+      });
+      setResultado({ numero_contrato: modalContratoNumero, assinado: false });
+      setStep(3);
       return;
     }
-    
-    toast({ title: 'Contrato assinado!', description: 'Bem-vindo à rede SOBRE MÍDIA. Redirecionando para o painel...' });
-    
-    // Redireciona para o portal e recarrega a página para atualizar o layout e o token
-    setTimeout(() => {
-      window.location.assign('/portal');
-    }, 2000);
+
+    setAssinando(true);
+    try {
+      const ass = await assinarDocumento(
+        pendingEnvelopeId,
+        {
+          nome: captureResult.signer.nome || modalSigner.nome || usuario.nome,
+          email: captureResult.signer.email || modalSigner.email || usuario.email,
+          cpfCnpj: captureResult.signer.cpfCnpj || modalSigner.cpfCnpj || '',
+          signatureDataUrl: captureResult.signatureDataUrl,
+          method: captureResult.method,
+        },
+        undefined,
+        undefined,
+        usuario.id
+      );
+
+      if (!ass.success) {
+        toast({ title: 'Erro na assinatura', description: ass.error || 'Falha ao assinar o documento.', variant: 'destructive' });
+        setResultado({ numero_contrato: modalContratoNumero, assinado: false });
+        setStep(3);
+        return;
+      }
+
+      toast({ title: 'Contrato assinado!', description: 'Bem-vindo à rede SOBRE MÍDIA. Redirecionando para o painel...' });
+      setResultado({ numero_contrato: modalContratoNumero, assinado: true });
+      setStep(3);
+
+      setTimeout(() => {
+        window.location.assign('/portal');
+      }, 2500);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Falha ao processar assinatura.', variant: 'destructive' });
+      setResultado({ numero_contrato: modalContratoNumero, assinado: false });
+      setStep(3);
+    } finally {
+      setAssinando(false);
+    }
   };
 
   return (
@@ -373,6 +420,18 @@ export default function OnboardingPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {showSignatureModal && (
+        <SignatureCaptureModal
+          isOpen={showSignatureModal}
+          onClose={() => setShowSignatureModal(false)}
+          onCapture={handleSignatureCapture}
+          signer={modalSigner}
+          contratoNumero={modalContratoNumero}
+          tipoContrato={modalidade || 'ANUNCIANTE'}
+          tituloDocumento="Contrato Oficial de Prestação de Serviços"
+        />
       )}
     </div>
   );

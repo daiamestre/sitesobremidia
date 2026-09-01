@@ -56,14 +56,22 @@ export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<h2>CONTRATO DE PRESTAÇÃO D
 <h3>2. DO VALOR E CONDIÇÕES DE PAGAMENTO</h3>
 <p>Pela prestação dos serviços contratados, a CONTRATANTE pagará o valor mensal de <strong>R$ {{VALOR_MENSAL}}</strong> através da forma de pagamento <strong>{{FORMA_PAGAMENTO}}</strong>, com vigência de {{DATA_INICIO}} a {{DATA_FIM}}.</p>
 <h3>3. DAS CLÁUSULAS JURÍDICAS INALTERÁVEIS</h3>
-<p>A veiculação observará a grade de programação estipulada e a conformidade com as normas legais de publicidade vigente.</p>`;
+<p>A veiculação observará a grade de programação estipulada e a conformidade com as normas legais de publicidade vigente.</p>
+<p>Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
+<p>___________________________________                                      ___________________________________</p>
+<p>SOBRE MÍDIA DESIGNER                                                          CONTRATANTE</p>`;
 
 export const CANONICAL_TEMPLATE_HTML_PARCEIRO = `<h2>CONTRATO DE PARCERIA E CESSÃO DE ESPAÇO FÍSICO PARA MÍDIA</h2>
 <p>Pelo presente instrumento, <strong>SOBRE MÍDIA PLATAFORMA DIGITAL</strong> e o ESTABELECIMENTO PARCEIRO <strong>{{RAZAO_SOCIAL}}</strong>, inscrito no CNPJ nº <strong>{{CNPJ}}</strong>, localizado na <strong>{{ENDERECO_UNIDADE}}</strong>, celebram o presente acordo de parceria.</p>
 <h3>1. DO OBJETO</h3>
 <p>Cessão de espaço físico na unidade <strong>{{NOME_UNIDADE}}</strong> para instalação e operação de <strong>{{QUANTIDADE_TELAS}}</strong> telas de mídia indoor corporativa.</p>
 <h3>2. DOS COMPROMISSOS</h3>
-<p>O parceiro compromete-se a manter os equipamentos energizados e conectados, enquanto a SOBRE MÍDIA garante a gestão completa da programação e manutenção de hardware.</p>`;
+<p>O parceiro compromete-se a manter os equipamentos energizados e conectados, enquanto a SOBRE MÍDIA garante a gestão completa da programação e manutenção de hardware.</p>
+<p>Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
+<p>___________________________________</p>
+<p>SOBRE MÍDIA</p>
+<p>___________________________________</p>
+<p>PARCEIRO</p>`;
 
 /**
  * Preenche o template substituindo placeholders com dados reais.
@@ -765,12 +773,73 @@ export async function registrarVisualizacaoAssinatura(assinaturaId: string, ip?:
   return { success: true };
 }
 
+export interface SignaturePlacement {
+  pageIndex?: number; // Se indefinido, usa a última página (pages.length - 1)
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * COORDENADAS CALIBRADAS EMPIRICAMENTE — Gate 2-B.4.1
+ *
+ * Sistema de coordenadas: pdf-lib (origem canto inferior esquerdo, y cresce para cima).
+ * jsPDF usa y com origem SUPERIOR e decresce, portanto:
+ *   pdfLibY = pageHeight - jsPdfY
+ *
+ * ANUNCIANTE:
+ *   A linha "___ CONTRATANTE" é renderizada no jsPDF y≈337.94
+ *   Em pdf-lib: y ≈ 841.89 - 337.94 = 503.95
+ *   A assinatura deve ficar ACIMA dessa linha: y = 510 (caixa de 45pt sobe até 555)
+ *   x = 320 (lado direito — campo CONTRATANTE)
+ *
+ * PARCEIRO:
+ *   A linha "PARCEIRO" é renderizada no jsPDF y≈371.61
+ *   Em pdf-lib: y ≈ 841.89 - 371.61 = 470.28
+ *   A assinatura deve ficar ACIMA dessa linha: y = 476
+ *   x = 64 (lado esquerdo — campo PARCEIRO)
+ *
+ * pageIndex: ausente => usa sempre a última página (comportamento seguro para contratos de 1 a N páginas).
+ */
+export const SIGNATURE_PLACEMENTS: Record<'ANUNCIANTE' | 'PARCEIRO' | 'DEFAULT', SignaturePlacement> = {
+  ANUNCIANTE: {
+    // Acima da linha "___ CONTRATANTE" no canto inferior direito
+    x: 320,
+    y: 510,
+    width: 205,
+    height: 45,
+  },
+  PARCEIRO: {
+    // Acima da linha "___ PARCEIRO" no canto inferior esquerdo
+    x: 64,
+    y: 476,
+    width: 200,
+    height: 45,
+  },
+  DEFAULT: {
+    x: 310,
+    y: 90,
+    width: 220,
+    height: 45,
+  },
+};
+
+export interface DadosAssinatura {
+  nome: string;
+  email?: string;
+  cpfCnpj?: string;
+  signatureDataUrl?: string;
+  method?: 'DRAWN' | 'TYPED';
+}
+
 /**
  * Assinatura REAL do documento via pdf-lib + RPC fn_assinar_contrato.
+ * Aplica overlay visual no campo de assinatura existente sem adicionar página.
  */
 export async function assinarDocumento(
   assinaturaId: string,
-  dadosSignatario: { nome: string; email: string; cpfCnpj: string },
+  dadosSignatario: DadosAssinatura,
   ip?: string,
   userAgent?: string,
   usuarioId?: string
@@ -788,7 +857,7 @@ export async function assinarDocumento(
 
     const { data: contrato, error: ctrErr } = await supabase
       .from('contratos')
-      .select('id, numero_contrato, empresa_operadora_id, versao_atual')
+      .select('id, numero_contrato, empresa_operadora_id, versao_atual, tipo_contrato')
       .eq('id', ass.contrato_id)
       .single();
 
@@ -799,53 +868,95 @@ export async function assinarDocumento(
     if (!res.ok) return { success: false, error: 'Falha ao obter o documento original.' };
     const originalBytes = new Uint8Array(await res.arrayBuffer());
 
-    const pdfDoc = await PDFDocument.load(originalBytes);
-    const signaturePage = pdfDoc.addPage([595.28, 841.89]);
-    const marginX = 64;
-    let yPos = 841.89 - 72;
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const headerColor = rgb(0.03, 0.31, 0.56);
-
-    signaturePage.drawText('PAGINA DE ASSINATURA DIGITAL', { x: marginX, y: yPos, size: 14, font: boldFont, color: headerColor });
-    yPos -= 28;
-
-    const agora = new Date();
-    const campos: Array<[string, string]> = [
-      ['Contrato', contrato.numero_contrato],
-      ['Nome do Signatario', dadosSignatario.nome],
-      ['E-mail', dadosSignatario.email],
-      ['CPF/CNPJ', dadosSignatario.cpfCnpj],
-      ['Data da Assinatura', agora.toLocaleString('pt-BR')],
-      ['Hash do Documento Original (SHA-256)', ass.document_hash || ''],
-      ['Provedor', 'ASSINADOR INTERNO SOBRE MIDIA'],
-      ['Carimbo do Tempo (UTC)', agora.toISOString()],
-    ];
-
-    for (const [label, value] of campos) {
-      signaturePage.drawText(`${label}:`, { x: marginX, y: yPos, size: 9, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
-      signaturePage.drawText(value, {
-        x: marginX + 150,
-        y: yPos,
-        size: 9,
-        font,
-        color: rgb(0.3, 0.3, 0.3),
-        maxWidth: 595.28 - marginX * 2 - 150,
-        lineHeight: 12,
-      });
-      yPos -= 18;
+    // GATE 2-B.4: Validação de integridade do documento original (FAIL CLOSED)
+    const downloadedHash = await sha256Hex(originalBytes);
+    if (ass.document_hash && downloadedHash !== ass.document_hash) {
+      return { success: false, error: 'O hash do documento original não corresponde ao registrado. Documento alterado ou corrompido.' };
     }
 
-    yPos -= 24;
-    signaturePage.drawLine({ start: { x: marginX, y: yPos }, end: { x: 595.28 - marginX, y: yPos }, thickness: 0.5, color: rgb(0.3, 0.3, 0.3) });
-    yPos -= 24;
-    signaturePage.drawText(dadosSignatario.nome, { x: marginX, y: yPos, size: 11, font, color: rgb(0.3, 0.3, 0.3) });
-    yPos -= 16;
-    signaturePage.drawText('(assinatura eletronica)', { x: marginX, y: yPos, size: 8, font, color: rgb(0.5, 0.5, 0.5) });
-    signaturePage.drawText(
-      'Documento assinado eletronicamente com carimbo do tempo. A integridade do conteudo original e garantida pelo hash SHA-256 registrado no banco de dados.',
-      { x: marginX, y: 40, size: 7, font, color: rgb(0.5, 0.5, 0.5), maxWidth: 595.28 - marginX * 2, lineHeight: 10 }
-    );
+    const pdfDoc = await PDFDocument.load(originalBytes);
+    const pages = pdfDoc.getPages();
+    if (pages.length === 0) {
+      return { success: false, error: 'Documento PDF vazio.' };
+    }
+
+    const tipoContrato = (contrato.tipo_contrato as 'ANUNCIANTE' | 'PARCEIRO') || 'ANUNCIANTE';
+    const placement = SIGNATURE_PLACEMENTS[tipoContrato] || SIGNATURE_PLACEMENTS.DEFAULT;
+    const targetPageIndex = placement.pageIndex !== undefined && placement.pageIndex < pages.length
+      ? placement.pageIndex
+      : pages.length - 1;
+    const targetPage = pages[targetPageIndex];
+
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const agora = new Date();
+
+    // Embed da imagem de assinatura (se fornecida via Canvas ou Typed pad)
+    if (dadosSignatario.signatureDataUrl && dadosSignatario.signatureDataUrl.includes(',')) {
+      try {
+        const base64Data = dadosSignatario.signatureDataUrl.split(',')[1];
+        let imgBytes: Uint8Array;
+        if (typeof Buffer !== 'undefined') {
+          imgBytes = new Uint8Array(Buffer.from(base64Data, 'base64'));
+        } else {
+          const binaryStr = atob(base64Data);
+          imgBytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            imgBytes[i] = binaryStr.charCodeAt(i);
+          }
+        }
+        const embeddedImg = await pdfDoc.embedPng(imgBytes);
+        targetPage.drawImage(embeddedImg, {
+          x: placement.x,
+          y: placement.y,
+          width: placement.width,
+          height: placement.height,
+        });
+      } catch (imgErr) {
+        console.warn('[contratoDocumentoService] Falha ao embutir imagem PNG, aplicando assinatura textual de fallback:', imgErr);
+        targetPage.drawText(dadosSignatario.nome, {
+          x: placement.x + 10,
+          y: placement.y + 15,
+          size: 11,
+          font: boldFont,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+      }
+    } else {
+      // Fallback textual limpo quando não há imagem capturada
+      targetPage.drawText(dadosSignatario.nome, {
+        x: placement.x + 10,
+        y: placement.y + 15,
+        size: 11,
+        font: boldFont,
+        color: rgb(0.1, 0.1, 0.1),
+      });
+    }
+
+    // Metadados da assinatura eletrônica sobre o campo do signatário
+    targetPage.drawText(`Assinado digitalmente por: ${dadosSignatario.nome}`, {
+      x: placement.x,
+      y: placement.y - 10,
+      size: 6.5,
+      font: boldFont,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+    targetPage.drawText(`Data/Hora: ${agora.toLocaleString('pt-BR')} (UTC: ${agora.toISOString()})`, {
+      x: placement.x,
+      y: placement.y - 18,
+      size: 5.5,
+      font,
+      color: rgb(0.35, 0.35, 0.35),
+    });
+    if (dadosSignatario.cpfCnpj) {
+      targetPage.drawText(`Doc: ${dadosSignatario.cpfCnpj} · Método: ${dadosSignatario.method || 'ELETRÔNICA'}`, {
+        x: placement.x,
+        y: placement.y - 25,
+        size: 5.5,
+        font,
+        color: rgb(0.35, 0.35, 0.35),
+      });
+    }
 
     const signedBytes = new Uint8Array(await pdfDoc.save());
     const signedHash = await sha256Hex(signedBytes);
@@ -871,6 +982,19 @@ export async function assinarDocumento(
     if (rpcErr || !rpcResult?.success) {
       return { success: false, error: rpcErr?.message || rpcResult?.error || 'Falha ao registrar a assinatura.' };
     }
+
+    await supabase.from('assinatura_eventos').insert({
+      assinatura_id: assinaturaId,
+      evento: 'ASSINADO',
+      detalhes: {
+        method: dadosSignatario.method || 'DRAWN',
+        document_hash: signedHash,
+        ip: ip || null,
+        user_agent: userAgent || null,
+        signatario: dadosSignatario.nome,
+        pdf_assinado_key: signedObjectKey,
+      },
+    });
 
     return { success: true, pdfAssinadoKey: signedObjectKey, documentHash: signedHash };
   } catch (err: any) {

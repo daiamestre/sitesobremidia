@@ -369,10 +369,20 @@ export class DigitalSignatureService {
 
   /**
    * Assina o documento digitalmente (ASSINADOR INTERNO):
-   * página de assinatura real (pdf-lib), hash SHA-256 real, upload do documento
+   * overlay de assinatura no PDF (pdf-lib), hash SHA-256 real, upload do documento
    * assinado para o R2 e persistência via RPC fn_assinar_contrato.
    */
-  async signDocument(envelopeId: string, usuarioId: string, dadosSignatario?: { nome: string; email: string; cpfCnpj: string }): Promise<{ success: boolean; signedDownloadUrl?: string; signedDocumentHash?: string; error?: string }> {
+  async signDocument(
+    envelopeId: string,
+    usuarioId: string,
+    dadosSignatario?: {
+      nome: string;
+      email?: string;
+      cpfCnpj?: string;
+      signatureDataUrl?: string;
+      method?: 'DRAWN' | 'TYPED';
+    }
+  ): Promise<{ success: boolean; signedDownloadUrl?: string; signedDocumentHash?: string; error?: string }> {
     try {
       const { data: ass } = await supabase
         .from('assinaturas')
@@ -389,6 +399,8 @@ export class DigitalSignatureService {
           nome: dadosSignatario?.nome || ass.signatario_nome || '',
           email: dadosSignatario?.email || ass.signatario_email || '',
           cpfCnpj: dadosSignatario?.cpfCnpj || ass.signatario_cpf_cnpj || '',
+          signatureDataUrl: dadosSignatario?.signatureDataUrl,
+          method: dadosSignatario?.method,
         },
         undefined,
         typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
