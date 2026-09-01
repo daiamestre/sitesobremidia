@@ -16,10 +16,11 @@ export interface ContratoCompleto {
   empresa_operadora_id: string;
   numero_contrato: string;
   numero_contrato_legivel?: string;
-  cliente_id: string;
-  empresa_id: string;
+  cliente_id: string | null;
+  empresa_id: string | null;
   representante_id: string | null;
-  proposta_id: string;
+  proposta_id: string | null;
+  ponto_id?: string | null;
   tipo_contrato?: 'ANUNCIANTE' | 'PARCEIRO';
   template_id?: string;
   template_nome?: string;
@@ -42,8 +43,10 @@ export interface ContratoCompleto {
   proposta?: any;
   cliente?: any;
   empresa?: any;
+  ponto?: any;
   itens?: any[];
 }
+
 
 export class ContratoService {
   /**
@@ -106,6 +109,7 @@ export class ContratoService {
     propostaId?: string | null;
     clienteId?: string | null;
     pontoId?: string | null;
+    contratoId?: string | null;
     tipoContrato: 'ANUNCIANTE' | 'PARCEIRO';
     templateId: string;
     templateNome: string;
@@ -124,7 +128,7 @@ export class ContratoService {
       if (payload.propostaId) {
         const { data: prop, error: propErr } = await supabase
           .from('propostas')
-          .select(`*, cliente:clientes(*), empresa:empresas(*)`)
+          .select(`*, cliente:clientes(*)`)
           .eq('id', payload.propostaId)
           .single();
         if (!propErr && prop) {
@@ -132,7 +136,11 @@ export class ContratoService {
           empresa_operadora_id = proposta.empresa_operadora_id;
           cliente_id = proposta.cliente_id;
           representante_id = proposta.representante_id;
-          const { data: emp } = await supabase.from('empresas').select('id').eq('cliente_id', proposta.cliente_id).single();
+          const { data: emp } = await supabase
+            .from('empresas')
+            .select('id')
+            .eq('cliente_id', proposta.cliente_id)
+            .maybeSingle();
           empresaId = emp?.id || null;
         } else if (payload.clienteId || payload.pontoId) {
           // proposta não encontrada mas cadastro direto fornecido — não bloquear (P0 §7)
@@ -166,9 +174,14 @@ export class ContratoService {
         return { success: false, error: 'Tenant não resolvido para criação de contrato.' };
       }
 
-      // 2. Verifica contrato existente (por proposta ou por cadastro direto)
+      // 2. Verifica contrato existente (por contratoId direto, proposta, cliente ou ponto)
       let existingContract: any = null;
-      if (payload.propostaId) {
+      // ORIGEM B/C: contratoId direto passado explicitamente
+      if (payload.contratoId) {
+        const { data } = await supabase.from('contratos').select('id, numero_contrato, versao_atual').eq('id', payload.contratoId).maybeSingle();
+        existingContract = data;
+      }
+      if (!existingContract && payload.propostaId) {
         const { data } = await supabase.from('contratos').select('id, numero_contrato, versao_atual').eq('proposta_id', payload.propostaId).maybeSingle();
         existingContract = data;
       }
@@ -262,9 +275,35 @@ export class ContratoService {
           *,
           proposta:propostas(*),
           cliente:clientes(*),
-          empresa:empresas(*)
+          empresa:empresas(*),
+          ponto:pontos(*)
         `)
         .eq('proposta_id', propostaId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return data as ContratoCompleto;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /**
+   * Busca dados completos de um contrato pelo contratoId direto (ORIGEM B e C).
+   * Suporta contratos criados sem proposta (cadastro direto de Anunciante ou Parceiro).
+   */
+  async findByContratoId(contratoId: string): Promise<ContratoCompleto | null> {
+    try {
+      const { data, error } = await supabase
+        .from('contratos')
+        .select(`
+          *,
+          proposta:propostas(*),
+          cliente:clientes(*),
+          empresa:empresas(*),
+          ponto:pontos(*)
+        `)
+        .eq('id', contratoId)
         .maybeSingle();
 
       if (error || !data) return null;
@@ -298,30 +337,6 @@ export class ContratoService {
       signedDownloadUrl,
       documentHash: resultado.documentHash,
     };
-  }
-
-  /**
-   * Busca um contrato pelo ID e retorna todos os dados relacionados
-   */
-  async findByContratoId(contratoId: string): Promise<ContratoCompleto | null> {
-    try {
-      const { data, error } = await supabase
-        .from('contratos')
-        .select(`
-          *,
-          proposta:propostas(*),
-          cliente:clientes(*),
-          empresa:empresas(*)
-        `)
-        .eq('id', contratoId)
-        .maybeSingle();
-
-      if (error || !data) return null;
-      return data as ContratoCompleto;
-    } catch (err) {
-      console.error('[ContratoService.findByContratoId] Erro:', err);
-      return null;
-    }
   }
 
   /**
@@ -447,7 +462,8 @@ export class ContratoService {
           *,
           proposta:propostas(*),
           cliente:clientes(*),
-          empresa:empresas(*)
+          empresa:empresas(*),
+          ponto:pontos(*)
         `)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
