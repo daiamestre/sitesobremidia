@@ -1,4 +1,4 @@
-﻿import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { jsPDF } from 'jspdf';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { uploadToR2 } from '@/lib/r2Upload';
@@ -48,6 +48,22 @@ const CAMPOS_OBRIGATORIOS: Record<'ANUNCIANTE' | 'PARCEIRO', string[]> = {
   ANUNCIANTE: ['RAZAO_SOCIAL', 'CNPJ', 'DATA_INICIO', 'DATA_FIM'],
   PARCEIRO:   ['RAZAO_SOCIAL', 'DATA_INICIO', 'DATA_FIM'],
 };
+
+export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<h2>CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE MÍDIA DIGITAL SIGNAGE</h2>
+<p>Pelo presente instrumento particular, de um lado <strong>SOBRE MÍDIA PLATAFORMA DIGITAL</strong> e de outro lado <strong>{{RAZAO_SOCIAL}}</strong>, inscrita no CNPJ sob o nº <strong>{{CNPJ}}</strong>, estabelecida em {{CIDADE}}/{{ESTADO}}, representada por {{REPRESENTANTE_LEGAL}}.</p>
+<h3>1. DO OBJETO</h3>
+<p>O presente contrato tem por objeto a prestação de serviços de exibição de mídias publicitárias e informativas na rede de telas da CONTRATADA para a campanha <strong>{{TITULO_CAMPANHA}}</strong>, composta por <strong>{{QUANTIDADE_TELAS}}</strong> telas/painéis.</p>
+<h3>2. DO VALOR E CONDIÇÕES DE PAGAMENTO</h3>
+<p>Pela prestação dos serviços contratados, a CONTRATANTE pagará o valor mensal de <strong>R$ {{VALOR_MENSAL}}</strong> através da forma de pagamento <strong>{{FORMA_PAGAMENTO}}</strong>, com vigência de {{DATA_INICIO}} a {{DATA_FIM}}.</p>
+<h3>3. DAS CLÁUSULAS JURÍDICAS INALTERÁVEIS</h3>
+<p>A veiculação observará a grade de programação estipulada e a conformidade com as normas legais de publicidade vigente.</p>`;
+
+export const CANONICAL_TEMPLATE_HTML_PARCEIRO = `<h2>CONTRATO DE PARCERIA E CESSÃO DE ESPAÇO FÍSICO PARA MÍDIA</h2>
+<p>Pelo presente instrumento, <strong>SOBRE MÍDIA PLATAFORMA DIGITAL</strong> e o ESTABELECIMENTO PARCEIRO <strong>{{RAZAO_SOCIAL}}</strong>, inscrito no CNPJ nº <strong>{{CNPJ}}</strong>, localizado na <strong>{{ENDERECO_UNIDADE}}</strong>, celebram o presente acordo de parceria.</p>
+<h3>1. DO OBJETO</h3>
+<p>Cessão de espaço físico na unidade <strong>{{NOME_UNIDADE}}</strong> para instalação e operação de <strong>{{QUANTIDADE_TELAS}}</strong> telas de mídia indoor corporativa.</p>
+<h3>2. DOS COMPROMISSOS</h3>
+<p>O parceiro compromete-se a manter os equipamentos energizados e conectados, enquanto a SOBRE MÍDIA garante a gestão completa da programação e manutenção de hardware.</p>`;
 
 /**
  * Preenche o template substituindo placeholders com dados reais.
@@ -232,8 +248,7 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     .select(`
       *,
       proposta:propostas(*),
-      cliente:clientes(*),
-      empresa:empresas(*)
+      cliente:clientes(*)
     `)
     .eq('id', contratoId)
     .single();
@@ -242,23 +257,68 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     throw new Error('Contrato nao encontrado.');
   }
 
-  const { data: template } = await supabase
-    .from('contrato_templates')
-    .select('*')
-    .eq('id', contrato.template_id)
-    .maybeSingle();
+  const tipoContrato = (contrato.tipo_contrato as 'ANUNCIANTE' | 'PARCEIRO') || 'ANUNCIANTE';
 
-  if (!template?.conteudo_html) {
-    throw new Error('Template oficial do contrato nao encontrado (conteudo_html ausente).');
+  let empresa: any = null;
+  if (contrato.empresa_id) {
+    const { data: emp } = await supabase
+      .from('empresas')
+      .select('*')
+      .eq('id', contrato.empresa_id)
+      .maybeSingle();
+    empresa = emp;
+  } else if (contrato.cliente_id) {
+    const { data: emp } = await supabase
+      .from('empresas')
+      .select('*')
+      .eq('cliente_id', contrato.cliente_id)
+      .maybeSingle();
+    empresa = emp;
   }
 
-  // Contato: via empresa (ANUNCIANTE) quando empresa_id disponivel
+  let template: any = null;
+  if (contrato.template_id) {
+    const { data: tpl } = await supabase
+      .from('contrato_templates')
+      .select('*')
+      .eq('id', contrato.template_id)
+      .maybeSingle();
+    template = tpl;
+  }
+
+  // Se template não estiver vinculado ou se o HTML for stub, busca o template oficial rico ativo
+  if (!template?.conteudo_html || template.conteudo_html.length < 200 || template.conteudo_html.includes('(preservado)')) {
+    const { data: activeTpls } = await supabase
+      .from('contrato_templates')
+      .select('*')
+      .eq('tipo_contrato', tipoContrato)
+      .eq('ativo', true)
+      .order('created_at', { ascending: true });
+
+    const bestTpl = activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)'));
+    if (bestTpl) {
+      template = bestTpl;
+    } else {
+      template = {
+        id: template?.id || `tpl-${tipoContrato.toLowerCase()}-canonical`,
+        nome: template?.nome || `Contrato de ${tipoContrato} — Oficial`,
+        tipo_contrato: tipoContrato,
+        versao: template?.versao || 1,
+        ativo: true,
+        conteudo_html: tipoContrato === 'PARCEIRO' ? CANONICAL_TEMPLATE_HTML_PARCEIRO : CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
+        pdf_anexo_key: template?.pdf_anexo_key || null,
+      };
+    }
+  }
+
+  // Contato: via empresa (ANUNCIANTE) quando empresa_id ou empresa.id disponível
   let contato: any = null;
-  if (contrato.empresa_id) {
+  const targetEmpresaId = contrato.empresa_id || empresa?.id;
+  if (targetEmpresaId) {
     const { data: ct } = await supabase
       .from('contatos')
       .select('*')
-      .eq('empresa_id', contrato.empresa_id)
+      .eq('empresa_id', targetEmpresaId)
       .order('is_principal', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -287,12 +347,12 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     .select('quantidade')
     .eq('contrato_id', contratoId);
 
-  const quantidadeTelas = (itens || []).reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0);
+  const quantidadeTelas = (itens || []).reduce((acc: number, item: any) => acc + (Number(item.quantidade) || 0), 0);
 
   return {
     contrato,
     proposta: contrato.proposta,
-    empresa: contrato.empresa,
+    empresa: empresa || (contrato as any).empresa,
     contato,
     ponto,
     template,

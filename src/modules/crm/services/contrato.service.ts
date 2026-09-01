@@ -490,8 +490,15 @@ export class ContratoService {
     const { resolveContractTypeFromCadastroType } = await import('./contractResolver.service');
     const tipo = resolveContractTypeFromCadastroType(params.cadastroType);
     if (!tipo) return { success: true, contratoId: null, tipoContrato: null }; // GESTOR_MIDIAS → sem contrato
-    // buscar template oficial
-    const { data: tpl } = await supabase.from('contrato_templates').select('id,nome,versao').eq('tipo_contrato', tipo).eq('ativo', true).limit(1).maybeSingle();
+    // buscar template oficial completo (não stub)
+    const { data: activeTpls } = await supabase
+      .from('contrato_templates')
+      .select('id,nome,versao,conteudo_html')
+      .eq('tipo_contrato', tipo)
+      .eq('ativo', true)
+      .order('created_at', { ascending: true });
+
+    const tpl = activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) || activeTpls?.[0];
     if (!tpl) return { success: false, error: `Template oficial ${tipo} não encontrado.` };
     const res = await this.selectContractModel({
       tipoContrato: tipo,

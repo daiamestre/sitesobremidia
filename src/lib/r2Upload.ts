@@ -12,7 +12,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
-const R2_PUBLIC_DOMAIN = import.meta.env.VITE_R2_PUBLIC_DOMAIN as string;
+const R2_PUBLIC_DOMAIN = (import.meta.env?.VITE_R2_PUBLIC_DOMAIN || '') as string;
 
 export interface PresignedUploadResult {
   publicUrl: string;

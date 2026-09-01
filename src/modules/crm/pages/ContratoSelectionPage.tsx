@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { contratoService, ContratoTemplateRecord, ContratoCompleto } from '../services/contrato.service';
-import { contratoDocumentoService } from '../services/contratoDocumento.service';
+import { contratoDocumentoService, CANONICAL_TEMPLATE_HTML_ANUNCIANTE, CANONICAL_TEMPLATE_HTML_PARCEIRO } from '../services/contratoDocumento.service';
 import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { supabase } from '@/integrations/supabase/client';
 import { getOfficialPdfForTipoContrato } from '../services/contractResolver.service';
@@ -322,6 +322,9 @@ export default function ContratoSelectionPage() {
     }
 
     let html = selectedTemplate.conteudo_html;
+    if (!html || html.length < 200 || html.includes('(preservado)')) {
+      html = isParceiro ? CANONICAL_TEMPLATE_HTML_PARCEIRO : CANONICAL_TEMPLATE_HTML_ANUNCIANTE;
+    }
     Object.entries(dados).forEach(([key, value]) => {
       html = html.replace(new RegExp(`{{${key}}}`, 'g'), value);
     });
@@ -548,7 +551,10 @@ export default function ContratoSelectionPage() {
               </CardHeader>
               <CardContent className="pt-2 pb-6 space-y-2">
                 <Button
-                  onClick={() => { const tpl = templates.find(t => t.tipo_contrato === 'ANUNCIANTE'); if (tpl) handleSelectModel(tpl); }}
+                  onClick={() => {
+                    const tpl = templates.find(t => t.tipo_contrato === 'ANUNCIANTE' && t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) || templates.find(t => t.tipo_contrato === 'ANUNCIANTE');
+                    if (tpl) handleSelectModel(tpl);
+                  }}
                   disabled={selectingType === 'ANUNCIANTE'}
                   className="w-full gradient-primary glow-primary font-bold rounded-xl h-11 shadow-lg gap-2"
                 >
@@ -579,7 +585,10 @@ export default function ContratoSelectionPage() {
               </CardHeader>
               <CardContent className="pt-2 pb-6 space-y-2">
                 <Button
-                  onClick={() => { const tpl = templates.find(t => t.tipo_contrato === 'PARCEIRO'); if (tpl) handleSelectModel(tpl); }}
+                  onClick={() => {
+                    const tpl = templates.find(t => t.tipo_contrato === 'PARCEIRO' && t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) || templates.find(t => t.tipo_contrato === 'PARCEIRO');
+                    if (tpl) handleSelectModel(tpl);
+                  }}
                   disabled={selectingType === 'PARCEIRO'}
                   className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl h-11 shadow-lg gap-2"
                 >
