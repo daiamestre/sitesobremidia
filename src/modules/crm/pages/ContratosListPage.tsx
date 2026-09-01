@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { contratoService, ContratoCompleto } from '@/modules/crm/services/contrato.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -42,7 +42,7 @@ const STATUS_DOC_MAP: Record<string, { label: string; icon: React.ReactNode }> =
 
 // ─── Contrato 360 Modal ───────────────────────────────────────────────────────
 
-function Contrato360Modal({ contrato, onClose }: { contrato: ContratoCompleto; onClose: () => void }) {
+function Contrato360Modal({ contrato, onClose, basePath }: { contrato: ContratoCompleto; onClose: () => void; basePath: string }) {
   const navigate = useNavigate();
   const { usuario } = useAuth();
   const { toast } = useToast();
@@ -125,11 +125,15 @@ function Contrato360Modal({ contrato, onClose }: { contrato: ContratoCompleto; o
               size="sm"
               className="border-white/10 text-white text-xs"
               onClick={() => {
-                // Resolvendo por contratoId (origem direta) ou propostaId (origem proposta)
+                // Navegação com base path dinâmico e suporte a origem com proposta, cliente ou ponto
                 if (contrato.proposta_id) {
-                  navigate(`/representantes/contratos/selecionar/${contrato.proposta_id}`);
+                  navigate(`${basePath}/contratos/selecionar/${contrato.proposta_id}`);
+                } else if (contrato.cliente_id) {
+                  navigate(`${basePath}/contratos/selecionar/direto?contratoId=${contrato.id}&clienteId=${contrato.cliente_id}`);
+                } else if (contrato.ponto_id) {
+                  navigate(`${basePath}/contratos/selecionar/direto?contratoId=${contrato.id}&pontoId=${contrato.ponto_id}`);
                 } else {
-                  navigate(`/representantes/contratos/selecionar/direto?contratoId=${contrato.id}`);
+                  navigate(`${basePath}/contratos/selecionar/direto?contratoId=${contrato.id}`);
                 }
               }}
             >
@@ -301,6 +305,8 @@ function Contrato360Modal({ contrato, onClose }: { contrato: ContratoCompleto; o
 
 export default function ContratosListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
   const { representante, isOwner, usuario } = useAuth();
   const { toast } = useToast();
 
@@ -357,7 +363,7 @@ export default function ContratosListPage() {
           </p>
         </div>
         <Button
-          onClick={() => navigate('/representantes/propostas')}
+          onClick={() => navigate(`${basePath}/propostas`)}
           className="gradient-primary glow-primary font-bold shadow-lg gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -431,7 +437,7 @@ export default function ContratosListPage() {
             <Button
               variant="outline"
               className="border-white/10 text-white"
-              onClick={() => navigate('/representantes/propostas')}
+              onClick={() => navigate(`${basePath}/propostas`)}
             >
               Ir para Propostas Comerciais
             </Button>
@@ -500,11 +506,15 @@ export default function ContratosListPage() {
                       className="w-full bg-primary/90 hover:bg-primary text-white text-xs gap-1 font-bold"
                       onClick={(e) => {
                         e.stopPropagation();
-                        // Resolvendo por contratoId (origem direta) ou propostaId (origem proposta)
+                        // Resolvendo por propostaId (origem proposta) ou clienteId / pontoId (origem direta)
                         if (c.proposta_id) {
-                          navigate(`/representantes/contratos/selecionar/${c.proposta_id}`);
+                          navigate(`${basePath}/contratos/selecionar/${c.proposta_id}`);
+                        } else if (c.cliente_id) {
+                          navigate(`${basePath}/contratos/selecionar/direto?contratoId=${c.id}&clienteId=${c.cliente_id}`);
+                        } else if (c.ponto_id) {
+                          navigate(`${basePath}/contratos/selecionar/direto?contratoId=${c.id}&pontoId=${c.ponto_id}`);
                         } else {
-                          navigate(`/representantes/contratos/selecionar/direto?contratoId=${c.id}`);
+                          navigate(`${basePath}/contratos/selecionar/direto?contratoId=${c.id}`);
                         }
                       }}
                     >
@@ -579,6 +589,7 @@ export default function ContratosListPage() {
         <Contrato360Modal
           contrato={contrato360}
           onClose={() => setContrato360(null)}
+          basePath={basePath}
         />
       )}
     </div>

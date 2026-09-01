@@ -113,6 +113,27 @@ export default function ContratoSelectionPage() {
     } else if (clienteIdParam) {
       const cliData = await clienteService.findById(clienteIdParam);
       setCliente(cliData);
+      const { data: existingCtr } = await supabase
+        .from('contratos')
+        .select('id')
+        .eq('cliente_id', clienteIdParam)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingCtr?.id) {
+        const fullCtr = await contratoService.findByContratoId(existingCtr.id);
+        if (fullCtr) {
+          setContratoExistente(fullCtr);
+          if (fullCtr.tipo_contrato) {
+            const matchedTpl = tplList.find(t => t.tipo_contrato === fullCtr.tipo_contrato);
+            if (matchedTpl) { setSelectedTemplate(matchedTpl); setMode('PREVIEW'); }
+          }
+          const { data: itens } = await supabase.from('itens_contrato').select('quantidade').eq('contrato_id', fullCtr.id);
+          const totalTelas = (itens || []).reduce((acc: number, item: any) => acc + (Number(item.quantidade) || 0), 0);
+          setQuantidadeTelas(totalTelas);
+        }
+      }
     } else if (pontoIdParam) {
       const { data: pontoData } = await supabase
         .from('pontos')
@@ -120,6 +141,27 @@ export default function ContratoSelectionPage() {
         .eq('id', pontoIdParam)
         .maybeSingle();
       if (pontoData) setPonto(pontoData);
+      const { data: existingCtr } = await supabase
+        .from('contratos')
+        .select('id')
+        .eq('ponto_id', pontoIdParam)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingCtr?.id) {
+        const fullCtr = await contratoService.findByContratoId(existingCtr.id);
+        if (fullCtr) {
+          setContratoExistente(fullCtr);
+          if (fullCtr.tipo_contrato) {
+            const matchedTpl = tplList.find(t => t.tipo_contrato === fullCtr.tipo_contrato);
+            if (matchedTpl) { setSelectedTemplate(matchedTpl); setMode('PREVIEW'); }
+          }
+          const { data: itens } = await supabase.from('itens_contrato').select('quantidade').eq('contrato_id', fullCtr.id);
+          const totalTelas = (itens || []).reduce((acc: number, item: any) => acc + (Number(item.quantidade) || 0), 0);
+          setQuantidadeTelas(totalTelas);
+        }
+      }
     }
 
     setLoading(false);
@@ -403,10 +445,10 @@ export default function ContratoSelectionPage() {
         </div>
         <Button variant="outline" onClick={() => {
           const basePath = window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
-          navigate(`${basePath}/clientes`);
+          navigate(`${basePath}/contratos`);
         }} className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
           <ArrowLeft className="h-4 w-4" />
-          Voltar para Carteira
+          Voltar para Contratos
         </Button>
       </div>
 

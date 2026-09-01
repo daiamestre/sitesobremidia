@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { clienteService, ClienteCompleto, rotaCliente } from '../services/cliente.service';
+import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { Cliente360Modal } from '../components/Cliente360Modal';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,13 +67,9 @@ export default function ClientesListPage() {
       .maybeSingle();
 
     if (prop?.id) {
-      navigate(`/representantes/contratos/selecionar/${prop.id}`);
+      navigate(`${basePath}/contratos/selecionar/${prop.id}`);
     } else {
-      toast({
-        title: 'Sem proposta vinculada',
-        description: 'Crie um atendimento comercial no formulário antes de selecionar o contrato.',
-        variant: 'destructive',
-      });
+      navigate(`${basePath}/contratos/selecionar/direto?clienteId=${clienteId}`);
     }
   };
 
@@ -178,7 +174,7 @@ export default function ClientesListPage() {
                     const contatoNome = ct?.nome || emp?.representante_legal || 'N/A';
                     const contatoInfo = emp?.whatsapp || emp?.email || 'N/A';
                     return (
-                      <TableRow key={cliente.id} className="border-white/10 hover:bg-white/5 cursor-pointer" onClick={() => navigate(rotaCliente(cliente))}>
+                      <TableRow key={cliente.id} className="border-white/10 hover:bg-white/5 cursor-pointer" onClick={() => navigate(`${basePath}/clientes/${encodeURIComponent(String(cliente.codigo_cliente ?? cliente.id))}`)}>
                         <TableCell>
                           <div className="font-bold text-white text-sm flex items-center gap-1">
                             <span className="text-xs text-primary font-mono mr-1">#{cliente.codigo_cliente}</span>
@@ -225,7 +221,7 @@ export default function ClientesListPage() {
                               size="sm"
                               variant="outline"
                               className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10 text-xs h-8 px-2.5 gap-1"
-                              onClick={() => navigate(`/representantes/clientes/editar/${cliente.codigo_cliente ?? cliente.id}`)}
+                              onClick={() => navigate(`${basePath}/clientes/editar/${cliente.codigo_cliente ?? cliente.id}`)}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                               Editar
