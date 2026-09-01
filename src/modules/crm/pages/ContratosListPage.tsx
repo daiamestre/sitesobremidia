@@ -125,11 +125,12 @@ function Contrato360Modal({ contrato, onClose }: { contrato: ContratoCompleto; o
               size="sm"
               className="border-white/10 text-white text-xs"
               onClick={() => {
-                if (!contrato.proposta_id) {
-                  toast({ title: 'Sem Proposta de Origem', description: 'Este contrato não possui proposta vinculada para edição.', variant: 'destructive' });
-                  return;
+                // Resolvendo por contratoId (origem direta) ou propostaId (origem proposta)
+                if (contrato.proposta_id) {
+                  navigate(`/representantes/contratos/selecionar/${contrato.proposta_id}`);
+                } else {
+                  navigate(`/representantes/contratos/selecionar/direto?contratoId=${contrato.id}`);
                 }
-                navigate(`/representantes/contratos/selecionar/${contrato.proposta_id}`);
               }}
             >
               Editar Contrato
@@ -163,8 +164,8 @@ function Contrato360Modal({ contrato, onClose }: { contrato: ContratoCompleto; o
                   { label: 'Tipo', value: contrato.tipo_contrato || '—' },
                   { label: 'Status Workflow', value: statusWf.label },
                   { label: 'Status Documento', value: statusDoc.label },
-                  { label: 'Cliente ID', value: contrato.cliente_id, mono: true },
-                  { label: 'Proposta de Origem', value: (contrato as any).proposta?.numero_proposta || contrato.proposta_id, mono: true },
+                  { label: 'Cliente / Ponto ID', value: contrato.cliente_id || contrato.ponto_id || '—', mono: true },
+                  { label: 'Origem', value: (contrato as any).proposta?.numero_proposta ? `Proposta ${(contrato as any).proposta.numero_proposta}` : (contrato.ponto_id ? `Ponto Parceiro (${(contrato as any).ponto?.nome || contrato.ponto_id})` : 'Cadastro Direto'), mono: false },
                   { label: 'Forma de Pagamento', value: contrato.forma_pagamento },
                   { label: 'Data Início', value: contrato.data_inicio },
                   { label: 'Data Fim', value: contrato.data_fim },
@@ -328,7 +329,7 @@ export default function ContratosListPage() {
   const totalAguardando = contratos.filter(c => ['AGUARDANDO_ASSINATURA', 'AGUARDANDO_PAGAMENTO'].includes(c.status_workflow)).length;
 
   const contratosFiltrados = contratos.filter(c => {
-    const empresaNome = ((c as any).empresa?.nome_fantasia || (c as any).empresa?.razao_social || '').toLowerCase();
+    const empresaNome = ((c as any).empresa?.nome_fantasia || (c as any).empresa?.razao_social || (c as any).ponto?.nome || (c as any).ponto?.nome_fantasia || '').toLowerCase();
     const matchBusca = !busca || empresaNome.includes(busca.toLowerCase()) || c.numero_contrato.toLowerCase().includes(busca.toLowerCase());
     const matchStatus = filtroStatus === 'TODOS' || c.status_workflow === filtroStatus;
     return matchBusca && matchStatus;
@@ -439,10 +440,10 @@ export default function ContratosListPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {contratosFiltrados.map((c) => {
-            const empresaNome = (c as any).empresa?.nome_fantasia || (c as any).empresa?.razao_social || 'Empresa';
+            const empresaNome = (c as any).empresa?.nome_fantasia || (c as any).empresa?.razao_social || (c as any).ponto?.nome || (c as any).ponto?.nome_fantasia || 'Empresa / Ponto Parceiro';
             const statusWf = STATUS_WORKFLOW_MAP[c.status_workflow] ?? { label: c.status_workflow, color: 'bg-slate-500/15 text-slate-400' };
             const statusDoc = STATUS_DOC_MAP[c.status_documento] ?? { label: c.status_documento, icon: null };
-            const propNome = (c as any).proposta?.numero_proposta || '—';
+            const propNome = (c as any).proposta?.numero_proposta || (c.ponto_id ? 'Ponto Parceiro' : 'Cadastro Direto');
             const isActive = c.status_workflow === 'CAMPANHA_ATIVA';
 
             return (
@@ -499,10 +500,11 @@ export default function ContratosListPage() {
                       className="w-full bg-primary/90 hover:bg-primary text-white text-xs gap-1 font-bold"
                       onClick={(e) => {
                         e.stopPropagation();
+                        // Resolvendo por contratoId (origem direta) ou propostaId (origem proposta)
                         if (c.proposta_id) {
                           navigate(`/representantes/contratos/selecionar/${c.proposta_id}`);
                         } else {
-                          toast({ title: 'Sem proposta vinculada', variant: 'destructive' });
+                          navigate(`/representantes/contratos/selecionar/direto?contratoId=${c.id}`);
                         }
                       }}
                     >

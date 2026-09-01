@@ -35,10 +35,11 @@ export interface ContratoCompleto {
   id: string;
   empresa_operadora_id: string;
   numero_contrato: string;
-  cliente_id: string;
-  empresa_id: string;
+  cliente_id: string | null;
+  ponto_id?: string | null;
+  empresa_id: string | null;
   representante_id: string | null;
-  proposta_id: string;
+  proposta_id: string | null;
   tipo_contrato?: 'ANUNCIANTE' | 'PARCEIRO';
   template_id?: string;
   template_nome?: string;
@@ -47,6 +48,7 @@ export interface ContratoCompleto {
   data_selecao?: string;
   status_documento: 'RASCUNHO' | 'GERADO' | 'ENVIADO' | 'ASSINADO' | 'CANCELADO';
   pdf_object_key?: string;
+  pdf_assinado_key?: string | null;
   valor_mensal: number;
   forma_pagamento: string;
   data_inicio: string;
@@ -57,6 +59,7 @@ export interface ContratoCompleto {
   cliente?: unknown;
   empresa?: unknown;
   proposta?: unknown;
+  ponto?: unknown;
 }
 
 export interface ContratoVigente {

@@ -236,6 +236,7 @@ const App = () => {
                     <Route path="propostas" element={<PropostasListPage />} />
                     <Route path="contratos" element={<ContratosListPage />} />
                     <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
+                    <Route path="contratos/selecionar/direto" element={<ContratoSelectionPage />} />
                     <Route path="campanhas" element={<ProductionListPage />} />
                     <Route path="pontos" element={<OccupancyDashboard />} />
                     <Route path="agenda" element={<ScheduleCalendarPage />} />
@@ -363,6 +364,7 @@ const App = () => {
                     <Route path="propostas" element={<PropostasListPage />} />
                      <Route path="contratos" element={<ContratosListPage />} />
                     <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
+                    <Route path="contratos/selecionar/direto" element={<ContratoSelectionPage />} />
                     <Route path="pi" element={<PedidoInsercaoListPage />} />
                     <Route path="pi/novo/:contratoId" element={<PedidoInsercaoPage />} />
                     <Route path="pi/:piId" element={<PedidoInsercaoPage />} />

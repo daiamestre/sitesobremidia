@@ -288,10 +288,10 @@ export default function PaginaCobranca() {
               })
             });
             const jsonPix = await resPix.json();
-            if (jsonPix.success && jsonPix.data?.pix) {
-              pixResult = jsonPix.data.pix;
-            }
-          } catch (e) {
+if (jsonPix.success && jsonPix.data?.pix) {
+                pixResult = jsonPix.data.pix;
+              }
+            } catch (e) {
             console.error('[PaginaCobranca] Erro ao consultar PIX:', e);
           }
         }
@@ -309,7 +309,7 @@ export default function PaginaCobranca() {
               })
             });
             const jsonBoleto = await resBoleto.json();
-            if (jsonBoleto.success && jsonBoleto.data?.boleto) {
+if (jsonBoleto.success && jsonBoleto.data?.boleto) {
               boletoResult = jsonBoleto.data.boleto;
             }
           } catch (e) {

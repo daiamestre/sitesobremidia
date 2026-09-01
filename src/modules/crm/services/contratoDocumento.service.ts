@@ -1,22 +1,15 @@
-import { supabase } from '@/integrations/supabase/client';
+﻿import { supabase } from '@/integrations/supabase/client';
 import { jsPDF } from 'jspdf';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { uploadToR2 } from '@/lib/r2Upload';
 
 /**
- * Serviço REAL de Documentos de Contrato.
+ * Servico REAL de Documentos de Contrato.
  *
- * Nada de HTML falso, fallback hardcoded ou UUID inventado:
- *  - O PDF é gerado como documento vetorial real (texto selecionável) a partir
- *    do texto jurídico oficial armazenado em `contrato_templates.conteudo_html`,
- *    preenchido EXCLUSIVAMENTE com dados reais do banco (sem valores fake).
- *  - O arquivo é enviado para o Cloudflare R2 (object key institucional
- *    `tenants/{tenant}/contratos/{id}/v{n}/...`).
- *  - Download/visualização passam por autorização real (RLS) via Edge Function
- *    `get-download-url`.
- *  - Assinatura: envelope ASSINADOR_INTERNO real, documento assinado com página
- *    de assinatura gerada via pdf-lib, hash SHA-256 real, persistência via RPC
- *    `fn_assinar_contrato` (SECURITY DEFINER) e auditoria completa.
+ * - PDF gerado como documento vetorial real a partir do template oficial.
+ * - Upload para Cloudflare R2 (object key institucional).
+ * - Download/visualizacao passam por autorizacao real (RLS) via Edge Function.
+ * - Assinatura: envelope ASSINADOR_INTERNO real, pdf-lib, hash SHA-256, RPC fn_assinar_contrato.
  */
 
 export interface DadosDocumentoContrato {
@@ -24,6 +17,7 @@ export interface DadosDocumentoContrato {
   proposta: any;
   empresa: any;
   contato: any;
+  ponto: any;
   template: any;
   operadora: any;
   quantidadeTelas: number;
@@ -47,23 +41,56 @@ function formatarData(iso?: string): string {
 }
 
 /**
- * Preenche o template substituindo SOMENTE placeholders com dados reais.
- * Falha (throw) se QUALQUER placeholder não tiver valor — proibido inventar.
+ * Campos OBRIGATORIOS por tipo de contrato.
+ * Ausencia bloqueia geracao com mensagem tecnica clara.
  */
-export function preencherTemplate(templateHtml: string, dados: Record<string, string>): string {
+const CAMPOS_OBRIGATORIOS: Record<'ANUNCIANTE' | 'PARCEIRO', string[]> = {
+  ANUNCIANTE: ['RAZAO_SOCIAL', 'CNPJ', 'DATA_INICIO', 'DATA_FIM'],
+  PARCEIRO:   ['RAZAO_SOCIAL', 'DATA_INICIO', 'DATA_FIM'],
+};
+
+/**
+ * Preenche o template substituindo placeholders com dados reais.
+ *
+ * Politica:
+ *   - Campo OBRIGATORIO ausente -> lanca erro tecnico claro.
+ *   - Campo OPCIONAL ausente    -> substitui por string vazia (nao inventa).
+ *   - Campo desconhecido        -> substitui por string vazia (graceful).
+ *
+ * O documento final NAO contera nenhum {{PLACEHOLDER}} nao resolvido.
+ */
+export function preencherTemplate(
+  templateHtml: string,
+  dados: Record<string, string>,
+  tipoContrato: 'ANUNCIANTE' | 'PARCEIRO' = 'ANUNCIANTE'
+): string {
   let html = templateHtml;
   const placeholders = [...new Set([...html.matchAll(/\{\{([A-Z_0-9]+)\}\}/g)].map((m) => m[1]))];
+  const obrigatorios = CAMPOS_OBRIGATORIOS[tipoContrato] || CAMPOS_OBRIGATORIOS.ANUNCIANTE;
+
   for (const ph of placeholders) {
     const valor = dados[ph];
-    if (!valor || String(valor).trim() === '') {
-      throw new Error(`Dado essencial ausente para o contrato: ${ph}. Preencha os dados reais antes de gerar o documento.`);
+    const temValor = valor !== undefined && valor !== null && String(valor).trim() !== '';
+
+    if (!temValor) {
+      if (obrigatorios.includes(ph)) {
+        throw new Error(
+          `Dado essencial ausente para contrato ${tipoContrato}: [${ph}]. ` +
+          `Preencha os dados reais antes de gerar o documento.`
+        );
+      }
+      html = html.replace(new RegExp(`\\{\\{${ph}\\}\\}`, 'g'), '');
+    } else {
+      html = html.replace(new RegExp(`\\{\\{${ph}\\}\\}`, 'g'), String(valor));
     }
-    html = html.replace(new RegExp(`\\{\\{${ph}\\}\\}`, 'g'), String(valor));
   }
+
+  // Garantia: substituir qualquer placeholder residual por vazio
   const restantes = [...html.matchAll(/\{\{([A-Z_0-9]+)\}\}/g)].map((m) => m[1]);
-  if (restantes.length > 0) {
-    throw new Error(`Template com placeholders não resolvidos: ${restantes.join(', ')}`);
+  for (const r of restantes) {
+    html = html.replace(new RegExp(`\\{\\{${r}\\}\\}`, 'g'), '');
   }
+
   return html;
 }
 
@@ -74,11 +101,11 @@ interface ElementoHtml {
   level: number;
 }
 
-/** Extrai texto estruturado (títulos/parágrafos/negrito) do HTML oficial do template. */
+/** Extrai texto estruturado do HTML oficial do template. */
 export function parseHtmlToElements(html: string): ElementoHtml[] {
   const elements: ElementoHtml[] = [];
   const tagStack: string[] = [];
-  const fullRegex = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g;
+  const fullRegex = /<(\/?)([ a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g;
   let match: RegExpExecArray | null;
   let lastIndex = 0;
 
@@ -133,9 +160,7 @@ export function parseHtmlToElements(html: string): ElementoHtml[] {
 }
 
 /**
- * Gera um PDF REAL (vetorial, texto selecionável, A4 multipágina) a partir do
- * texto jurídico renderizado do contrato. Mesmo padrão já usado no projeto
- * (jsPDF) nos relatórios do dashboard.
+ * Gera PDF REAL vetorial A4 a partir do texto juridico renderizado.
  */
 export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: string, tipoContrato: string, versao: number): Promise<Uint8Array> {
   const elements = parseHtmlToElements(htmlRenderizado);
@@ -165,9 +190,8 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
     }
   };
 
-  // Cabeçalho institucional
-  desenharLinha('SOBRE MÍDIA — PLATAFORMA DIGITAL DE MÍDIA', 14, true, [8, 79, 143]);
-  desenharLinha(`Contrato: ${numeroContrato}  |  Tipo: ${tipoContrato}  |  Versão: ${versao}`, 8, false, [102, 102, 102]);
+  desenharLinha('SOBRE MIDIA - PLATAFORMA DIGITAL DE MIDIA', 14, true, [8, 79, 143]);
+  desenharLinha(`Contrato: ${numeroContrato}  |  Tipo: ${tipoContrato}  |  Versao: ${versao}`, 8, false, [102, 102, 102]);
   y -= 10;
 
   for (const el of elements) {
@@ -177,14 +201,13 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
     if (isHeader) y -= 6;
   }
 
-  // Rodapé com paginação
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(128, 128, 128);
-    doc.text(`Página ${i} de ${totalPages}  |  SOBRE MÍDIA DIGITAL SIGNAGE LTDA`, marginX, 28);
+    doc.text(`Pagina ${i} de ${totalPages}  |  SOBRE MIDIA DIGITAL SIGNAGE LTDA`, marginX, 28);
   }
 
   return new Uint8Array(doc.output('arraybuffer'));
@@ -197,9 +220,11 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
 }
 
 /**
- * Busca TODOS os dados reais necessários para gerar o documento:
- * contrato, template, proposta, empresa, contato principal, operadora e
- * quantidade real de telas (soma de itens_contrato do contrato).
+ * Coleta TODOS os dados reais para gerar o documento.
+ * Suporta as tres origens:
+ *   - ANUNCIANTE + proposta  -> propostas + clientes + empresas
+ *   - ANUNCIANTE + direto    -> clientes + empresas
+ *   - PARCEIRO + ponto_id   -> pontos (sem exigir cliente_id ou empresa_id)
  */
 export async function coletarDadosReais(contratoId: string): Promise<DadosDocumentoContrato> {
   const { data: contrato, error: ctrErr } = await supabase
@@ -214,7 +239,7 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     .single();
 
   if (ctrErr || !contrato) {
-    throw new Error('Contrato não encontrado.');
+    throw new Error('Contrato nao encontrado.');
   }
 
   const { data: template } = await supabase
@@ -224,16 +249,32 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     .maybeSingle();
 
   if (!template?.conteudo_html) {
-    throw new Error('Template oficial do contrato não encontrado (conteudo_html ausente).');
+    throw new Error('Template oficial do contrato nao encontrado (conteudo_html ausente).');
   }
 
-  const { data: contato } = await supabase
-    .from('contatos')
-    .select('*')
-    .eq('empresa_id', contrato.empresa_id)
-    .order('is_principal', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Contato: via empresa (ANUNCIANTE) quando empresa_id disponivel
+  let contato: any = null;
+  if (contrato.empresa_id) {
+    const { data: ct } = await supabase
+      .from('contatos')
+      .select('*')
+      .eq('empresa_id', contrato.empresa_id)
+      .order('is_principal', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    contato = ct;
+  }
+
+  // Ponto Parceiro - fonte primaria para contratos PARCEIRO
+  let ponto: any = null;
+  if (contrato.ponto_id) {
+    const { data: pt } = await supabase
+      .from('pontos')
+      .select('*')
+      .eq('id', contrato.ponto_id)
+      .maybeSingle();
+    ponto = pt;
+  }
 
   const { data: operadora } = await supabase
     .from('empresa_operadora')
@@ -253,39 +294,137 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     proposta: contrato.proposta,
     empresa: contrato.empresa,
     contato,
+    ponto,
     template,
     operadora,
     quantidadeTelas,
   };
 }
 
-/** Mapeia os dados reais para os placeholders oficiais do template. */
+/**
+ * Mapeia dados reais para os placeholders do template.
+ * ANUNCIANTE: usa empresa + contato + proposta
+ * PARCEIRO:   usa ponto como fonte primaria
+ */
 export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<string, string> {
-  const { contrato, proposta, empresa, contato } = dados;
+  const { contrato, proposta, empresa, contato, ponto } = dados;
+  const tipoContrato = contrato?.tipo_contrato || 'ANUNCIANTE';
+
+  let razaoSocial = '';
+  let nomeFantasia = '';
+  let cnpj = '';
+  let responsavel = '';
+  let logradouro = '';
+  let numero = '';
+  let bairro = '';
+  let cidade = '';
+  let estado = '';
+  let cep = '';
+  let telefone = '';
+  let whatsapp = '';
+  let email = '';
+  let instagram = '';
+  let website = '';
+  let horarioInicio = '';
+  let horarioFim = '';
+  let diasSemana = '';
+
+  if (tipoContrato === 'PARCEIRO' && ponto) {
+    razaoSocial   = ponto.nome || ponto.razao_social || ponto.nome_fantasia || '';
+    nomeFantasia  = ponto.nome_fantasia || ponto.nome || '';
+    cnpj          = ponto.cnpj || '';
+    responsavel   = ponto.responsavel_nome || ponto.representante_legal || '';
+    logradouro    = ponto.logradouro || ponto.endereco || '';
+    numero        = ponto.numero || '';
+    bairro        = ponto.bairro || '';
+    cidade        = ponto.cidade || '';
+    estado        = ponto.estado || '';
+    cep           = ponto.cep || '';
+    telefone      = ponto.responsavel_telefone || ponto.telefone || '';
+    whatsapp      = ponto.whatsapp || ponto.responsavel_telefone || '';
+    email         = ponto.responsavel_email || ponto.email || '';
+    instagram     = ponto.instagram || '';
+    horarioInicio = ponto.horario_abertura || '';
+    horarioFim    = ponto.horario_fechamento || '';
+    diasSemana    = ponto.dias_funcionamento || '';
+  } else {
+    razaoSocial   = empresa?.razao_social || empresa?.nome_fantasia || '';
+    nomeFantasia  = empresa?.nome_fantasia || empresa?.razao_social || '';
+    cnpj          = empresa?.cnpj || '';
+    responsavel   = contato?.nome || empresa?.representante_legal || '';
+    logradouro    = empresa?.logradouro || '';
+    numero        = empresa?.numero || '';
+    bairro        = empresa?.bairro || '';
+    cidade        = empresa?.cidade || '';
+    estado        = empresa?.estado || '';
+    cep           = empresa?.cep || '';
+    telefone      = empresa?.telefone || contato?.telefone || '';
+    email         = empresa?.email || contato?.email || '';
+    instagram     = empresa?.instagram || '';
+    website       = empresa?.website || empresa?.site || '';
+  }
+
   const enderecoUnidade = [
-    [empresa?.logradouro, empresa?.numero].filter(Boolean).join(', '),
-    empresa?.bairro,
-    [empresa?.cidade, empresa?.estado].filter(Boolean).join('/'),
-  ].filter(Boolean).join(' — ');
+    [logradouro, numero].filter(Boolean).join(', '),
+    bairro,
+    [cidade, estado].filter(Boolean).join('/'),
+  ].filter(Boolean).join(' - ');
 
   return {
-    RAZAO_SOCIAL: empresa?.razao_social || empresa?.nome_fantasia || '',
-    CNPJ: empresa?.cnpj || '',
-    CIDADE: empresa?.cidade || '',
-    ESTADO: empresa?.estado || '',
-    REPRESENTANTE_LEGAL: contato?.nome || empresa?.representante_legal || '',
-    TITULO_CAMPANHA: proposta?.titulo_campanha || '',
-    QUANTIDADE_TELAS: String(dados.quantidadeTelas || 0),
-    VALOR_MENSAL: FORMATO_MOEDA.format(Number(contrato?.valor_mensal) || 0),
-    FORMA_PAGAMENTO: contrato?.forma_pagamento || '',
-    DATA_INICIO: formatarData(contrato?.data_inicio),
-    DATA_FIM: formatarData(contrato?.data_fim),
-    ENDERECO_UNIDADE: enderecoUnidade,
-    NOME_UNIDADE: empresa?.nome_fantasia || empresa?.razao_social || '',
+    RAZAO_SOCIAL:        razaoSocial,
+    NOME_FANTASIA:       nomeFantasia,
+    CNPJ:                cnpj,
+    CPF_CNPJ:            cnpj,
+    RESPONSAVEL:         responsavel,
+    REPRESENTANTE_LEGAL: responsavel,
+    LOGRADOURO:          logradouro,
+    NUMERO:              numero,
+    BAIRRO:              bairro,
+    CIDADE:              cidade,
+    ESTADO:              estado,
+    UF:                  estado,
+    CEP:                 cep,
+    ENDERECO_UNIDADE:    enderecoUnidade,
+    NOME_UNIDADE:        nomeFantasia || razaoSocial,
+    TELEFONE:            telefone,
+    WHATSAPP:            whatsapp,
+    EMAIL:               email,
+    INSTAGRAM:           instagram,
+    WEBSITE:             website,
+    DIAS_SEMANA:         diasSemana,
+    HORARIO_INICIO:      horarioInicio,
+    HORARIO_FIM:         horarioFim,
+    TITULO_CAMPANHA:     proposta?.titulo_campanha || '',
+    PACOTE_VEICULACAO:   proposta?.pacote_veiculacao || proposta?.plano || '',
+    PERIODO_VEICULACAO:  proposta?.periodo_veiculacao || '',
+    VALOR_MENSAL:        FORMATO_MOEDA.format(Number(contrato?.valor_mensal) || 0),
+    VALOR_A_VISTA:       FORMATO_MOEDA.format(Number(proposta?.valor_final) || 0),
+    DESCONTO:            proposta?.desconto ? FORMATO_MOEDA.format(Number(proposta.desconto)) : '',
+    ENTRADA:             proposta?.entrada ? FORMATO_MOEDA.format(Number(proposta.entrada)) : '',
+    NUMERO_PARCELAS:     proposta?.numero_parcelas ? String(proposta.numero_parcelas) : '',
+    PARCELAMENTO_CARTAO: proposta?.parcelamento_cartao || '',
+    VALOR_POR_SISTEMA:   '',
+    FORMA_PAGAMENTO:     contrato?.forma_pagamento || '',
+    DATA_VENCIMENTO_PRIMEIRA_FATURA: proposta?.data_vencimento_primeira || '',
+    QUANTIDADE_TELAS:    dados.quantidadeTelas > 0 ? String(dados.quantidadeTelas) : '',
+    QTD_TVS:             proposta?.qtd_tvs ? String(proposta.qtd_tvs) : '',
+    QTD_TOTENS:          proposta?.qtd_totens ? String(proposta.qtd_totens) : '',
+    QTD_PAINEIS_LED:     proposta?.qtd_paineis_led ? String(proposta.qtd_paineis_led) : '',
+    TOTAL_SISTEMAS:      dados.quantidadeTelas > 0 ? String(dados.quantidadeTelas) : '',
+    DATA_INICIO:                  formatarData(contrato?.data_inicio),
+    DATA_FIM:                     formatarData(contrato?.data_fim),
+    DATA_INICIO_VEICULACAO:       formatarData(contrato?.data_inicio),
+    DATA_FIM_VEICULACAO:          formatarData(contrato?.data_fim),
+    DATA_ASSINATURA:              formatarData(new Date().toISOString()),
+    LOCAL_ASSINATURA:             cidade || '',
+    FORO_COMARCA:                 cidade || '',
+    ASSINATURA_SOBRE_MIDIA:  '',
+    ASSINATURA_CONTRATANTE:  '',
+    ASSINATURA_PARCEIRO:     '',
   };
 }
 
-/** Obtém URL presigned de download com autorização real via Edge Function get-download-url. */
+/** Obtem URL presigned de download com autorizacao real via Edge Function. */
 export async function obterUrlDownload(objectKey: string): Promise<string> {
   const { data, error } = await supabase.functions.invoke('get-download-url', {
     body: { objectKey },
@@ -296,7 +435,7 @@ export async function obterUrlDownload(objectKey: string): Promise<string> {
   return data.signedUrl as string;
 }
 
-/** Baixa o documento real (blob) e dispara o download no dispositivo (PC e mobile). */
+/** Baixa o documento real e dispara o download no dispositivo. */
 export async function baixarDocumento(objectKey: string, fileName: string): Promise<void> {
   const signedUrl = await obterUrlDownload(objectKey);
   const res = await fetch(signedUrl);
@@ -314,13 +453,13 @@ export async function baixarDocumento(objectKey: string, fileName: string): Prom
   setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
 }
 
-/** Abre o documento em nova aba (visualização). */
+/** Abre o documento em nova aba. */
 export async function visualizarDocumento(objectKey: string): Promise<void> {
   const signedUrl = await obterUrlDownload(objectKey);
   window.open(signedUrl, '_blank', 'noopener');
 }
 
-/** Registra auditoria real de download do documento. */
+/** Registra auditoria de download do documento. */
 export async function registrarDownloadDocumento(contratoId: string, tipoContrato: string, usuarioId: string, objectKey: string): Promise<void> {
   await supabase.from('contrato_auditoria').insert({
     contrato_id: contratoId,
@@ -332,31 +471,34 @@ export async function registrarDownloadDocumento(contratoId: string, tipoContrat
 }
 
 /**
- * FLUXO REAL COMPLETO DE GERAÇÃO:
- * 1. Coleta dados reais (sem fallback — falha se essencial ausente)
- * 2. Renderiza o texto jurídico oficial
- * 3. Gera PDF vetorial real (jsPDF)
- * 4. Compõe com anexo oficial (pdf_anexo_key do template), se existir
- * 5. Calcula hash SHA-256 real
- * 6. Upload REAL para o Cloudflare R2 (object key institucional)
- * 7. Snapshot imutável em contrato_versoes + status + auditoria
+ * FLUXO COMPLETO DE GERACAO:
+ * 1. Coleta dados reais (ANUNCIANTE: empresa/cliente; PARCEIRO: ponto)
+ * 2. Renderiza template com politica obrigatorio/opcional
+ * 3. Gera PDF vetorial (jsPDF)
+ * 4. Compoe com anexo oficial do template, se existir
+ * 5. Hash SHA-256
+ * 6. Upload R2
+ * 7. Snapshot contrato_versoes + status + auditoria
  */
 export async function gerarDocumentoContrato(contratoId: string, usuarioId: string): Promise<ResultadoDocumento> {
   try {
     const dados = await coletarDadosReais(contratoId);
     const { contrato, template } = dados;
 
-    const htmlRenderizado = preencherTemplate(template.conteudo_html, montarDadosTemplate(dados));
+    const tipoContrato = (contrato.tipo_contrato as 'ANUNCIANTE' | 'PARCEIRO') || 'ANUNCIANTE';
 
-    let pdfBytes = await gerarPdfDoHtml(htmlRenderizado, contrato.numero_contrato, contrato.tipo_contrato || 'ANUNCIANTE', contrato.versao_atual || 1);
+    const htmlRenderizado = preencherTemplate(
+      template.conteudo_html,
+      montarDadosTemplate(dados),
+      tipoContrato
+    );
 
-    // Composição com anexo oficial do template (parceria) quando houver
+    let pdfBytes = await gerarPdfDoHtml(htmlRenderizado, contrato.numero_contrato, tipoContrato, contrato.versao_atual || 1);
+
     if (template.pdf_anexo_key) {
       const signedUrl = await obterUrlDownload(template.pdf_anexo_key);
       const res = await fetch(signedUrl);
-      if (!res.ok) {
-        throw new Error(`Anexo oficial do template indisponível (${res.status}).`);
-      }
+      if (!res.ok) throw new Error(`Anexo oficial do template indisponivel (${res.status}).`);
       const anexoBytes = new Uint8Array(await res.arrayBuffer());
       const anexoDoc = await PDFDocument.load(anexoBytes);
       const principalDoc = await PDFDocument.load(pdfBytes);
@@ -369,10 +511,8 @@ export async function gerarDocumentoContrato(contratoId: string, usuarioId: stri
     const novaVersao = contrato.versao_atual || 1;
     const objectKey = `tenants/${contrato.empresa_operadora_id}/contratos/${contrato.id}/v${novaVersao}/contrato_${contrato.numero_contrato}.pdf`;
 
-    // Upload REAL para R2 via presigned URL
     await uploadToR2(new Blob([pdfBytes], { type: 'application/pdf' }), objectKey, 'application/pdf', usuarioId);
 
-    // Snapshot imutável
     await supabase.from('contrato_versoes').insert({
       contrato_id: contrato.id,
       numero_versao: novaVersao,
@@ -383,17 +523,18 @@ export async function gerarDocumentoContrato(contratoId: string, usuarioId: stri
         dados_fonte: {
           proposta_id: contrato.proposta_id,
           cliente_id: contrato.cliente_id,
+          ponto_id: contrato.ponto_id,
           empresa_id: contrato.empresa_id,
           template_id: template.id,
           versao_atual: contrato.versao_atual,
+          tipo_contrato: tipoContrato,
         },
       },
-      motivo_alteracao: 'Geração oficial de documento PDF real (vetorial) a partir do template oficial',
+      motivo_alteracao: 'Geracao oficial de documento PDF real (vetorial) a partir do template oficial',
       pdf_url: objectKey,
       created_by: usuarioId,
     });
 
-    // Status do contrato
     const { error: updErr } = await supabase
       .from('contratos')
       .update({
@@ -403,16 +544,13 @@ export async function gerarDocumentoContrato(contratoId: string, usuarioId: stri
       })
       .eq('id', contrato.id);
 
-    if (updErr) {
-      throw new Error(`Falha ao atualizar contrato: ${updErr.message}`);
-    }
+    if (updErr) throw new Error(`Falha ao atualizar contrato: ${updErr.message}`);
 
-    // Auditoria
     await supabase.from('contrato_auditoria').insert({
       contrato_id: contrato.id,
       evento: 'CONTRATO_DOCUMENTO_GERADO',
       usuario_id: usuarioId,
-      tipo_contrato: contrato.tipo_contrato,
+      tipo_contrato: tipoContrato,
       versao: novaVersao,
       detalhes: {
         object_key: objectKey,
@@ -430,8 +568,8 @@ export async function gerarDocumentoContrato(contratoId: string, usuarioId: stri
 }
 
 /**
- * Cria envelope REAL de assinatura interna (ASSINADOR_INTERNO):
- * hash SHA-256 do PDF original real, envelope com timestamp+random reais.
+ * Cria envelope REAL de assinatura interna (ASSINADOR_INTERNO).
+ * Resolve signatario de empresa (ANUNCIANTE) ou ponto (PARCEIRO).
  */
 export async function criarEnvelopeInterno(contratoId: string, usuarioId?: string): Promise<{
   success: boolean;
@@ -445,31 +583,42 @@ export async function criarEnvelopeInterno(contratoId: string, usuarioId?: strin
   try {
     const { data: contrato, error: ctrErr } = await supabase
       .from('contratos')
-      .select(`
-        *,
-        empresa:empresas(*, contatos:contatos(*))
-      `)
+      .select(`*, empresa:empresas(*, contatos:contatos(*))`)
       .eq('id', contratoId)
       .single();
 
-    if (ctrErr || !contrato) return { success: false, error: 'Contrato não encontrado.' };
+    if (ctrErr || !contrato) return { success: false, error: 'Contrato nao encontrado.' };
     if (!contrato.pdf_object_key) return { success: false, error: 'Gere o documento do contrato antes de enviar para assinatura.' };
-    if (contrato.status_documento === 'ASSINADO') return { success: false, error: 'Contrato já assinado.' };
+    if (contrato.status_documento === 'ASSINADO') return { success: false, error: 'Contrato ja assinado.' };
     if (contrato.status_documento !== 'GERADO') {
-      return { success: false, error: `Documento com status ${contrato.status_documento} não pode ser enviado para assinatura.` };
+      return { success: false, error: `Documento com status ${contrato.status_documento} nao pode ser enviado para assinatura.` };
     }
 
-    // Hash SHA-256 REAL do PDF original
     const signedUrl = await obterUrlDownload(contrato.pdf_object_key);
     const res = await fetch(signedUrl);
-    if (!res.ok) return { success: false, error: 'PDF original indisponível para hash.' };
+    if (!res.ok) return { success: false, error: 'PDF original indisponivel para hash.' };
     const pdfBytes = new Uint8Array(await res.arrayBuffer());
     const documentHash = await sha256Hex(pdfBytes);
 
     const empresa = contrato.empresa;
-    const contato = empresa?.contatos?.[0];
+    const contatoEmp = empresa?.contatos?.[0];
+    let signatarioNome: string | null = contatoEmp?.nome || empresa?.representante_legal || null;
+    let signatarioEmail: string | null = empresa?.email || null;
+    let signatarioCnpj: string | null = empresa?.cnpj || null;
 
-    // Envelope real (timestamp + aleatório criptográfico — não é UUID fake)
+    if (contrato.tipo_contrato === 'PARCEIRO' && contrato.ponto_id && !signatarioNome) {
+      const { data: pt } = await supabase
+        .from('pontos')
+        .select('responsavel_nome, responsavel_email, cnpj')
+        .eq('id', contrato.ponto_id)
+        .maybeSingle();
+      if (pt) {
+        signatarioNome  = pt.responsavel_nome || null;
+        signatarioEmail = pt.responsavel_email || null;
+        signatarioCnpj  = pt.cnpj || null;
+      }
+    }
+
     const timestamp = Date.now().toString(36).toUpperCase();
     const randomBytes = new Uint8Array(8);
     crypto.getRandomValues(randomBytes);
@@ -485,9 +634,9 @@ export async function criarEnvelopeInterno(contratoId: string, usuarioId?: strin
         status: 'ENVIADO',
         envelope_id: envelopeId,
         document_hash: documentHash,
-        signatario_nome: contato?.nome || empresa?.representante_legal || null,
-        signatario_email: empresa?.email || null,
-        signatario_cpf_cnpj: empresa?.cnpj || null,
+        signatario_nome: signatarioNome,
+        signatario_email: signatarioEmail,
+        signatario_cpf_cnpj: signatarioCnpj,
         expira_em: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
         pdf_original_key: contrato.pdf_object_key,
       })
@@ -498,7 +647,6 @@ export async function criarEnvelopeInterno(contratoId: string, usuarioId?: strin
       return { success: false, error: `Falha ao criar envelope: ${assErr?.message}` };
     }
 
-    // Evento ENVIADO
     await supabase.from('assinatura_eventos').insert({
       assinatura_id: ass.id,
       evento: 'ENVIADO',
@@ -506,11 +654,10 @@ export async function criarEnvelopeInterno(contratoId: string, usuarioId?: strin
         provedor: 'ASSINADOR_INTERNO',
         document_hash: documentHash,
         usuario_id: usuarioId || null,
-        signatario: contato?.nome || empresa?.representante_legal || null,
+        signatario: signatarioNome,
       },
     });
 
-    // Contrato atualizado
     await supabase
       .from('contratos')
       .update({
@@ -522,7 +669,6 @@ export async function criarEnvelopeInterno(contratoId: string, usuarioId?: strin
       })
       .eq('id', contrato.id);
 
-    // Auditoria
     await supabase.from('contrato_auditoria').insert({
       contrato_id: contrato.id,
       evento: 'CONTRATO_ENVIADO_ASSINATURA',
@@ -536,16 +682,16 @@ export async function criarEnvelopeInterno(contratoId: string, usuarioId?: strin
       success: true,
       assinaturaId: ass.id,
       envelopeId,
-      signatarioNome: contato?.nome || empresa?.representante_legal || null,
-      signatarioEmail: empresa?.email || null,
-      signatarioCpfCnpj: empresa?.cnpj || null,
+      signatarioNome,
+      signatarioEmail,
+      signatarioCpfCnpj: signatarioCnpj,
     };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao enviar para assinatura.' };
   }
 }
 
-/** Registra visualização real do envelope (RPC SECURITY DEFINER). */
+/** Registra visualizacao real do envelope (RPC SECURITY DEFINER). */
 export async function registrarVisualizacaoAssinatura(assinaturaId: string, ip?: string, userAgent?: string): Promise<{ success: boolean; error?: string }> {
   const { data, error } = await supabase.rpc('fn_registrar_visualizacao_assinatura', {
     p_assinatura_id: assinaturaId,
@@ -554,19 +700,13 @@ export async function registrarVisualizacaoAssinatura(assinaturaId: string, ip?:
   });
   const result = (data ?? null) as { success?: boolean; error?: string } | null;
   if (error || !result?.success) {
-    return { success: false, error: error?.message || result?.error || 'Falha ao registrar visualização.' };
+    return { success: false, error: error?.message || result?.error || 'Falha ao registrar visualizacao.' };
   }
   return { success: true };
 }
 
 /**
- * Assinatura REAL do documento:
- * 1. Baixa o PDF original (autorizado)
- * 2. Gera a página de assinatura com dados reais (pdf-lib)
- * 3. Calcula hash SHA-256 do documento assinado
- * 4. Upload REAL do documento assinado para o R2
- * 5. RPC fn_assinar_contrato valida propriedade e persiste tudo (status,
- *    eventos, auditoria, liberação do PI)
+ * Assinatura REAL do documento via pdf-lib + RPC fn_assinar_contrato.
  */
 export async function assinarDocumento(
   assinaturaId: string,
@@ -582,9 +722,9 @@ export async function assinarDocumento(
       .eq('id', assinaturaId)
       .single();
 
-    if (assErr || !ass) return { success: false, error: 'Envelope de assinatura não encontrado.' };
-    if (ass.status === 'ASSINADO') return { success: false, error: 'Este documento já foi assinado.' };
-    if (!ass.pdf_original_key) return { success: false, error: 'Documento original indisponível.' };
+    if (assErr || !ass) return { success: false, error: 'Envelope de assinatura nao encontrado.' };
+    if (ass.status === 'ASSINADO') return { success: false, error: 'Este documento ja foi assinado.' };
+    if (!ass.pdf_original_key) return { success: false, error: 'Documento original indisponivel.' };
 
     const { data: contrato, error: ctrErr } = await supabase
       .from('contratos')
@@ -592,15 +732,13 @@ export async function assinarDocumento(
       .eq('id', ass.contrato_id)
       .single();
 
-    if (ctrErr || !contrato) return { success: false, error: 'Contrato vinculado não encontrado.' };
+    if (ctrErr || !contrato) return { success: false, error: 'Contrato vinculado nao encontrado.' };
 
-    // 1. PDF original real
     const signedUrl = await obterUrlDownload(ass.pdf_original_key);
     const res = await fetch(signedUrl);
     if (!res.ok) return { success: false, error: 'Falha ao obter o documento original.' };
     const originalBytes = new Uint8Array(await res.arrayBuffer());
 
-    // 2. Página de assinatura real (pdf-lib)
     const pdfDoc = await PDFDocument.load(originalBytes);
     const signaturePage = pdfDoc.addPage([595.28, 841.89]);
     const marginX = 64;
@@ -609,18 +747,18 @@ export async function assinarDocumento(
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const headerColor = rgb(0.03, 0.31, 0.56);
 
-    signaturePage.drawText('PÁGINA DE ASSINATURA DIGITAL', { x: marginX, y: yPos, size: 14, font: boldFont, color: headerColor });
+    signaturePage.drawText('PAGINA DE ASSINATURA DIGITAL', { x: marginX, y: yPos, size: 14, font: boldFont, color: headerColor });
     yPos -= 28;
 
     const agora = new Date();
     const campos: Array<[string, string]> = [
       ['Contrato', contrato.numero_contrato],
-      ['Nome do Signatário', dadosSignatario.nome],
+      ['Nome do Signatario', dadosSignatario.nome],
       ['E-mail', dadosSignatario.email],
       ['CPF/CNPJ', dadosSignatario.cpfCnpj],
       ['Data da Assinatura', agora.toLocaleString('pt-BR')],
       ['Hash do Documento Original (SHA-256)', ass.document_hash || ''],
-      ['Provedor', 'ASSINADOR INTERNO SOBRE MÍDIA'],
+      ['Provedor', 'ASSINADOR INTERNO SOBRE MIDIA'],
       ['Carimbo do Tempo (UTC)', agora.toISOString()],
     ];
 
@@ -643,23 +781,21 @@ export async function assinarDocumento(
     yPos -= 24;
     signaturePage.drawText(dadosSignatario.nome, { x: marginX, y: yPos, size: 11, font, color: rgb(0.3, 0.3, 0.3) });
     yPos -= 16;
-    signaturePage.drawText('(assinatura eletrônica)', { x: marginX, y: yPos, size: 8, font, color: rgb(0.5, 0.5, 0.5) });
+    signaturePage.drawText('(assinatura eletronica)', { x: marginX, y: yPos, size: 8, font, color: rgb(0.5, 0.5, 0.5) });
     signaturePage.drawText(
-      'Documento assinado eletronicamente com carimbo do tempo. A integridade do conteúdo original é garantida pelo hash SHA-256 registrado no banco de dados.',
+      'Documento assinado eletronicamente com carimbo do tempo. A integridade do conteudo original e garantida pelo hash SHA-256 registrado no banco de dados.',
       { x: marginX, y: 40, size: 7, font, color: rgb(0.5, 0.5, 0.5), maxWidth: 595.28 - marginX * 2, lineHeight: 10 }
     );
 
     const signedBytes = new Uint8Array(await pdfDoc.save());
     const signedHash = await sha256Hex(signedBytes);
 
-    // 4. Upload REAL do documento assinado para R2
     const signedObjectKey = `tenants/${contrato.empresa_operadora_id}/contratos/${contrato.id}/assinado_${contrato.numero_contrato}_v${contrato.versao_atual || 1}.pdf`;
     if (!usuarioId) {
-      return { success: false, error: 'Usuário autenticado não identificado para o upload do documento assinado.' };
+      return { success: false, error: 'Usuario autenticado nao identificado para o upload do documento assinado.' };
     }
     await uploadToR2(new Blob([signedBytes], { type: 'application/pdf' }), signedObjectKey, 'application/pdf', usuarioId);
 
-    // 5. RPC: valida propriedade, persiste status/eventos/auditoria e libera PI
     const { data: rpcData, error: rpcErr } = await supabase.rpc('fn_assinar_contrato', {
       p_assinatura_id: assinaturaId,
       p_signatario_nome: dadosSignatario.nome || null,
