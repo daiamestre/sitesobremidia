@@ -283,15 +283,15 @@ export default function PaginaCobranca() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 action: 'public_consult',
-                codigo_operacional: codigo,
-                public_identifier: identificador
+                codigo_operacional: data.codigo_operacional || codigo,
+                public_identifier: data.public_identifier || identificador
               })
             });
             const jsonPix = await resPix.json();
-if (jsonPix.success && jsonPix.data?.pix) {
-                pixResult = jsonPix.data.pix;
-              }
-            } catch (e) {
+            if (jsonPix.success && jsonPix.data?.pix) {
+              pixResult = jsonPix.data.pix;
+            }
+          } catch (e) {
             console.error('[PaginaCobranca] Erro ao consultar PIX:', e);
           }
         }
@@ -304,12 +304,12 @@ if (jsonPix.success && jsonPix.data?.pix) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 action: 'public_consult',
-                codigo_operacional: codigo,
-                public_identifier: identificador
+                codigo_operacional: data.codigo_operacional || codigo,
+                public_identifier: data.public_identifier || identificador
               })
             });
             const jsonBoleto = await resBoleto.json();
-if (jsonBoleto.success && jsonBoleto.data?.boleto) {
+            if (jsonBoleto.success && jsonBoleto.data?.boleto) {
               boletoResult = jsonBoleto.data.boleto;
             }
           } catch (e) {
@@ -345,15 +345,15 @@ if (jsonBoleto.success && jsonBoleto.data?.boleto) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'public_pdf',
-          codigo_operacional: codigo,
-          public_identifier: identificador
+          codigo_operacional: data?.codigo_operacional || codigo,
+          public_identifier: data?.public_identifier || identificador
         })
       });
       const json = await res.json();
       if (json.success && json.pdf) {
         const link = document.createElement("a");
         link.href = "data:application/pdf;base64," + json.pdf;
-        link.download = `boleto-${codigo}.pdf`;
+        link.download = `boleto-${data?.codigo_operacional || codigo}.pdf`;
         link.click();
       } else {
         alert("Boleto PDF indisponível no momento.");
