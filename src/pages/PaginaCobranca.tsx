@@ -224,6 +224,15 @@ export default function PaginaCobranca() {
     }
   }, [data, isHumanizedRoute, navigate, billingPresentation]);
 
+  // Sincroniza o background do documento com o tema da Cobrança Pública (elimina margem azul sob zoom/overscroll)
+  useEffect(() => {
+    const originalBg = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = '#22004A';
+    return () => {
+      document.body.style.backgroundColor = originalBg;
+    };
+  }, []);
+
 
 
   // Derived values — saldo correto com fallback quando DB retornar null (rollback-safe)
@@ -419,9 +428,11 @@ export default function PaginaCobranca() {
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[#22004A] text-[#F2F2F2] py-10 px-4 sm:px-6 lg:px-8 font-sans relative box-border">
-      {/* Background Glow Effects - responsive, never exceed viewport */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(800px,90vw)] h-[min(500px,60vw)] max-w-full bg-[#5D1BFF] rounded-full blur-[120px] opacity-20 pointer-events-none" aria-hidden="true"></div>
-      <div className="absolute bottom-0 left-0 w-[min(500px,70vw)] h-[min(500px,70vw)] max-w-full bg-[#8A2EFF] rounded-full blur-[150px] opacity-10 pointer-events-none" aria-hidden="true"></div>
+      {/* Background Glow Effects - safely clipped to prevent subpixel layout expansion */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(800px,90vw)] h-[min(500px,60vw)] max-w-full bg-[#5D1BFF] rounded-full blur-[120px] opacity-20"></div>
+        <div className="absolute bottom-0 left-0 w-[min(500px,70vw)] h-[min(500px,70vw)] max-w-full bg-[#8A2EFF] rounded-full blur-[150px] opacity-10"></div>
+      </div>
 
       <div className="max-w-4xl w-full mx-auto space-y-8 relative z-10 min-w-0 box-border">
         
@@ -514,32 +525,32 @@ export default function PaginaCobranca() {
         {/* =======================
             RESUMO FINANCEIRO (CARDS)
         ======================= */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card className="bg-[#1B003A]/40 backdrop-blur-md border border-white/10 hover:border-[#5D1BFF]/40 transition-colors shadow-lg">
-            <CardContent className="p-5 flex flex-col justify-center text-center h-full">
-              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-2">Valor original</span>
-              <span className="text-xl font-bold text-[#FFFFFF]">{formatMoney(data.valor_original)}</span>
+            <CardContent className="p-3.5 sm:p-5 flex flex-col justify-center text-center h-full">
+              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-1 sm:mb-2">Valor original</span>
+              <span className="text-base sm:text-xl font-bold text-[#FFFFFF]">{formatMoney(data.valor_original)}</span>
             </CardContent>
           </Card>
           
           <Card className="bg-[#1B003A]/40 backdrop-blur-md border border-white/10 hover:border-[#25D366]/40 transition-colors shadow-lg">
-            <CardContent className="p-5 flex flex-col justify-center text-center h-full">
-              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-2">Valor pago</span>
-              <span className="text-xl font-bold text-[#25D366] drop-shadow-[0_0_8px_rgba(37,211,102,0.3)]">{formatMoney(data.valor_pago)}</span>
+            <CardContent className="p-3.5 sm:p-5 flex flex-col justify-center text-center h-full">
+              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-1 sm:mb-2">Valor pago</span>
+              <span className="text-base sm:text-xl font-bold text-[#25D366] drop-shadow-[0_0_8px_rgba(37,211,102,0.3)]">{formatMoney(data.valor_pago)}</span>
             </CardContent>
           </Card>
           
           <Card className={`bg-[#1B003A]/60 backdrop-blur-md border transition-colors shadow-lg ${!isPaid && !isCanceled ? 'border-[#8A2EFF]/50 shadow-[0_0_20px_rgba(138,46,255,0.15)]' : 'border-white/10'}`}>
-            <CardContent className="p-5 flex flex-col justify-center text-center h-full">
-              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-2">Saldo em aberto</span>
-              <span className={`text-xl font-bold ${isPaid ? 'text-[#F2F2F2]/50' : 'text-[#FFFFFF]'}`}>{formatMoney(saldoCorreto)}</span>
+            <CardContent className="p-3.5 sm:p-5 flex flex-col justify-center text-center h-full">
+              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-1 sm:mb-2">Saldo em aberto</span>
+              <span className={`text-base sm:text-xl font-bold ${isPaid ? 'text-[#F2F2F2]/50' : 'text-[#FFFFFF]'}`}>{formatMoney(saldoCorreto)}</span>
             </CardContent>
           </Card>
           
           <Card className={`bg-[#1B003A]/40 backdrop-blur-md border transition-colors shadow-lg ${isOverdue ? 'border-[#FFD400]/40 shadow-[0_0_15px_rgba(255,212,0,0.1)]' : 'border-white/10 hover:border-[#5D1BFF]/40'}`}>
-            <CardContent className="p-5 flex flex-col justify-center text-center h-full">
-              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-2">Vencimento</span>
-              <span className={`text-xl font-bold ${isOverdue ? 'text-[#FFD400]' : 'text-[#FFFFFF]'}`}>{formatDate(data.vencimento)}</span>
+            <CardContent className="p-3.5 sm:p-5 flex flex-col justify-center text-center h-full">
+              <span className="text-xs font-semibold text-[#F2F2F2]/60 uppercase tracking-wider mb-1 sm:mb-2">Vencimento</span>
+              <span className={`text-base sm:text-xl font-bold ${isOverdue ? 'text-[#FFD400]' : 'text-[#FFFFFF]'}`}>{formatDate(data.vencimento)}</span>
             </CardContent>
           </Card>
         </div>
@@ -572,7 +583,7 @@ export default function PaginaCobranca() {
                     { label: 'Recorrência', value: data.recorrencia || '—' },
                     { label: 'Status', value: statusText }
                   ].map((item, idx) => (
-                    <div key={idx} className="px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-2 hover:bg-white/5 transition-colors">
+                    <div key={idx} className="px-4 sm:px-6 py-3.5 sm:py-4 grid grid-cols-1 sm:grid-cols-3 gap-2 hover:bg-white/5 transition-colors">
                       <dt className="text-[#F2F2F2]/60 font-medium">{item.label}</dt>
                       <dd className="sm:col-span-2 font-medium text-[#FFFFFF] flex items-center gap-2">
                         {item.icon && <item.icon className="w-4 h-4 text-[#5D1BFF]" />}
