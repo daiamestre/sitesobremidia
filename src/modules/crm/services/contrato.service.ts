@@ -204,6 +204,7 @@ export class ContratoService {
         await supabase
           .from('contratos')
           .update({
+            proposta_id: payload.propostaId || existingContract.proposta_id || null,
             tipo_contrato: payload.tipoContrato,
             template_id: payload.templateId,
             template_nome: payload.templateNome,
@@ -212,6 +213,10 @@ export class ContratoService {
             data_selecao: nowIso,
             status_documento: 'RASCUNHO',
             updated_at: nowIso,
+            ...(proposta ? {
+              valor_mensal: proposta.valor_final ?? 0,
+              forma_pagamento: proposta.forma_pagamento ?? 'PIX',
+            } : {}),
           })
           .eq('id', contratoId);
       } else {
@@ -487,6 +492,7 @@ export class ContratoService {
     cadastroType: 'ANUNCIANTE' | 'PONTO_PARCEIRO' | 'GESTOR_MIDIAS';
     clienteId?: string | null;
     pontoId?: string | null;
+    propostaId?: string | null;
     usuarioResponsavelId: string;
   }): Promise<{ success: boolean; contratoId?: string | null; tipoContrato?: string | null; error?: string }> {
     const tipo = resolveContractTypeFromCadastroType(params.cadastroType);
@@ -509,7 +515,7 @@ export class ContratoService {
       usuarioResponsavelId: params.usuarioResponsavelId,
       clienteId: params.clienteId || null,
       pontoId: params.pontoId || null,
-      propostaId: null,
+      propostaId: params.propostaId || null,
     });
     return { success: res.success, contratoId: res.contratoId || null, tipoContrato: tipo, error: res.error };
   }

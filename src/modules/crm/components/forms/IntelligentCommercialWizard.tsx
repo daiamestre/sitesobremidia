@@ -528,23 +528,6 @@ if (name === 'cnpj') {
       }
     }
 
-    // 1.6 P0 — VÍNCULO AUTOMÁTICO CONTRATO DE CADASTRO (baseado no tipo selecionado na triagem)
-    const cadastroType = clientType || 'ANUNCIANTE';
-    {
-      const { contratoService } = await import('../../services/contrato.service');
-      const ctRes = await contratoService.ensureContractForCadastro({ cadastroType, clienteId: finalClienteId!, usuarioResponsavelId: user?.id || '' });
-      if (!ctRes.success) {
-        setIsSubmitting(false);
-        toast({ title: 'Falha ao criar contrato de Anunciante', description: ctRes.error || 'Não foi possível vincular o contrato. Finalização bloqueada (§7).', variant: 'destructive' });
-        return;
-      }
-      if (!ctRes.contratoId) {
-        setIsSubmitting(false);
-        toast({ title: 'Contrato criado sem ID', description: 'O contrato foi criado mas não retornou ID. Verifique o banco de dados.', variant: 'destructive' });
-        return;
-      }
-    }
-
     // 2. Grava a proposta comercial atrelada ao cliente e ao representante
     const resProp = await propostaService.create({
       empresaOperadoraId,
@@ -559,6 +542,52 @@ if (name === 'cnpj') {
       dataFim: formData.dataFim,
       observacoes: formData.observacoesProposta,
     });
+
+    if (!resProp.success || !resProp.propostaId) {
+      setIsSubmitting(false);
+      toast({
+        title: 'Erro ao criar proposta',
+        description: resProp.error || 'Falha ao salvar proposta comercial.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // 3. P0 — VÍNCULO AUTOMÁTICO CONTRATO DE CADASTRO + PROPOSTA
+    const cadastroType = clientType || 'ANUNCIANTE';
+    let finalContratoId: string | null = null;
+    {
+      const { contratoService } = await import('../../services/contrato.service');
+      const ctRes = await contratoService.ensureContractForCadastro({
+        cadastroType,
+        clienteId: finalClienteId!,
+        propostaId: resProp.propostaId,
+        usuarioResponsavelId: user?.id || '',
+      });
+      if (!ctRes.success) {
+        setIsSubmitting(false);
+        toast({ title: 'Falha ao criar contrato de Anunciante', description: ctRes.error || 'Não foi possível vincular o contrato. Finalização bloqueada (§7).', variant: 'destructive' });
+        return;
+      }
+      if (!ctRes.contratoId) {
+        setIsSubmitting(false);
+        toast({ title: 'Contrato criado sem ID', description: 'O contrato foi criado mas não retornou ID. Verifique o banco de dados.', variant: 'destructive' });
+        return;
+      }
+      finalContratoId = ctRes.contratoId;
+      setContratoIdSalvo(finalContratoId);
+
+      // 4. GERAÇÃO AUTOMÁTICA DO DOCUMENTO PDF CONTRATUAL NO R2
+      try {
+        const { contratoDocumentoService } = await import('../../services/contratoDocumento.service');
+        const resDoc = await contratoDocumentoService.gerarDocumentoContrato(finalContratoId, user?.id || '');
+        if (resDoc.success && resDoc.objectKey) {
+          setPdfObjectKeySalvo(resDoc.objectKey);
+        }
+      } catch (errDoc) {
+        console.warn('[Wizard] Aviso na geração inicial do PDF no R2:', errDoc);
+      }
+    }
 
     setIsSubmitting(false);
 
