@@ -156,14 +156,54 @@ describe('GATE 2-B.3 — PDF Oficial, Template, Geração Real e Validação', (
       expect(htmlRenderizado).not.toContain('{{RAZAO_SOCIAL}}');
       expect(htmlRenderizado).not.toContain('{{ENDERECO_UNIDADE}}');
       expect(htmlRenderizado).not.toMatch(/\{\{[A-Z_0-9]+\}\}/);
+
+      // Verificação estrita das 7 Cláusulas Oficiais Canônicas
+      expect(htmlRenderizado).toContain('CLÁUSULA 01 — DO OBJETO');
+      expect(htmlRenderizado).toContain('CLÁUSULA 02 — SERVIÇOS REALIZADOS PELA SOBRE MÍDIA');
+      expect(htmlRenderizado).toContain('CLÁUSULA 03 — OBRIGAÇÕES DO ESTABELECIMENTO PARCEIRO');
+      expect(htmlRenderizado).toContain('03.1. Internet');
+      expect(htmlRenderizado).toContain('03.2. Energia Elétrica');
+      expect(htmlRenderizado).toContain('03.3. Comunicação de Problemas');
+      expect(htmlRenderizado).toContain('03.4. Proteção dos Equipamentos');
+      expect(htmlRenderizado).toContain('CLÁUSULA 04 — OBRIGAÇÕES DO GESTOR DE MÍDIA');
+      expect(htmlRenderizado).toContain('4.1.');
+      expect(htmlRenderizado).toContain('4.2.');
+      expect(htmlRenderizado).toContain('4.3.');
+      expect(htmlRenderizado).toContain('CLÁUSULA 05 — GRADE DE PROGRAMAÇÃO');
+      expect(htmlRenderizado).toContain('CLÁUSULA 06 — VIGÊNCIA E RESCISÃO');
+      expect(htmlRenderizado).toContain('6.1.');
+      expect(htmlRenderizado).toContain('A)');
+      expect(htmlRenderizado).toContain('B)');
+      expect(htmlRenderizado).toContain('CLÁUSULA 07 — CIÊNCIA DE CONTRATO / FORO / ASSINATURAS');
     });
 
-    it('gera PDF de PARCEIRO sem exigir CNPJ ou empresa_id', async () => {
-      const htmlRenderizado = `<h2>CONTRATO DE PARCERIA</h2><p>Parceiro: <strong>PADARIA CENTRAL</strong>, Unidade: <strong>Centro</strong></p><p>Vigência de 01/09/2026 a 01/09/2027.</p>`;
+    it('gera PDF de PARCEIRO com as 7 cláusulas sem exigir CNPJ ou empresa_id', async () => {
+      const dadosCompletos = {
+        RAZAO_SOCIAL: 'MERCADO PARCEIRO EXEMPLO LTDA',
+        CNPJ: '12.345.678/0001-99',
+        ENDERECO_UNIDADE: 'Av. Principal, 100 - Centro - Campina Grande/PB',
+        BAIRRO: 'Centro',
+        CIDADE: 'Campina Grande',
+        UF: 'PB',
+        RESPONSAVEL: 'João Silva',
+        TELEFONE: '(83) 98888-7777',
+        WHATSAPP: '(83) 98888-7777',
+        EMAIL: 'parceiro@exemplo.com.br',
+        INSTAGRAM: '@mercadoparceiro',
+        DIAS_SEMANA: 'Segunda a Sábado',
+        HORARIO_INICIO: '08:00',
+        HORARIO_FIM: '18:00',
+        DATA_INICIO: '01/09/2026',
+        DATA_FIM: '01/03/2027',
+        QUANTIDADE_TELAS: '1',
+        FORO_COMARCA: 'Campina Grande/PB',
+        DATA_ASSINATURA: '04/09/2026',
+      };
+      const htmlRenderizado = preencherTemplate(CANONICAL_TEMPLATE_HTML_PARCEIRO, dadosCompletos, 'PARCEIRO');
       const pdfBytes = await gerarPdfDoHtml(htmlRenderizado, 'CTR-PARC-2026-0001', 'PARCEIRO', 1);
 
       expect(pdfBytes).toBeInstanceOf(Uint8Array);
-      expect(pdfBytes.length).toBeGreaterThan(500);
+      expect(pdfBytes.length).toBeGreaterThan(1500);
 
       const headerStr = String.fromCharCode(...pdfBytes.slice(0, 5));
       expect(headerStr).toBe('%PDF-');
