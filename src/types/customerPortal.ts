@@ -118,10 +118,30 @@ export interface OfertaItemInput {
   destaque?: boolean;
 }
 
+export interface PontoPreco {
+  id: string;
+  empresa_operadora_id: string;
+  ponto_id: string;
+  periodicidade: 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
+  preco: number;
+  ativo: boolean;
+  vigencia_inicio: string;
+  vigencia_fim?: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by?: string | null;
+}
+
 export interface ContratoEstabelecimento {
   id: string;
   contrato_id: string;
   unidade_id: string;
+  ponto_id?: string | null;
+  periodicidade?: 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL' | null;
+  valor_tabela?: number | null;
+  desconto?: number | null;
+  subtotal?: number | null;
+  observacoes?: string | null;
   quantidade_telas: number;
   valor_unitario: number;
   ativo: boolean;

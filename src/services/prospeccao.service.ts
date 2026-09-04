@@ -75,7 +75,7 @@ export interface NovoPontoParceiroPayload {
   perfilPublico?: string;
   fotoCapaUrl?: string;
   fotosUrls?: string[];
-  modeloComercial: 'PERMUTA' | 'COMISSIONADO';
+  modeloComercial: 'PERMUTA' | 'COMISSIONADO' | 'COMISSIONADO_5';
   permutaDescricao?: string;
   permutaContrapartida?: string;
   permutaPeriodo?: string;
@@ -95,7 +95,7 @@ export function montarRegrasComerciais(p: NovoPontoParceiroPayload): string[] {
     if (p.permutaContrapartida) r.push('PERMUTA - Contrapartida: ' + p.permutaContrapartida);
     if (p.permutaPeriodo) r.push('PERMUTA - Periodo: ' + p.permutaPeriodo);
   } else {
-    if (p.percentualComissao != null) r.push('COMISSAO: ' + p.percentualComissao + '%');
+    r.push('COMISSAO: 5% (COMISSIONADO 5%)');
     if (p.baseCalculo) r.push('Base de calculo: ' + p.baseCalculo);
     if (p.vigencia) r.push('Vigencia: ' + p.vigencia);
   }
@@ -154,14 +154,12 @@ export class ProspeccaoService {
   }
 
   /**
-   * Cadastra PONTO PARCEIRO na tabela central `pontos` via RPC oficial
-   * criar_ponto_parceiro_prospeccao (20261101): validação server-side de
-   * escopo/ator, auditoria_logs, notificação na Central e código EST-
-   * gerado pelo trigger fn_set_codigo_publico.
+   * Cadastra PONTO PARCEIRO na tabela central `pontos` com Contrato de Parceria (GATE 4)
+   * via RPC atômica fn_cadastrar_ponto_parceiro_com_contrato.
    */
   async criarPontoParceiro(
     payload: NovoPontoParceiroPayload
-  ): Promise<{ id: string; codigo_publico: string | null }> {
+  ): Promise<{ id: string; codigo_publico: string | null; contrato_id?: string }> {
     const descricao = [
       payload.razaoSocial ? 'Razao social: ' + payload.razaoSocial : null,
       payload.cnpjCpf ? 'CPF/CNPJ: ' + payload.cnpjCpf : null,
@@ -176,8 +174,10 @@ export class ProspeccaoService {
       .filter(Boolean)
       .join(' | ');
 
-    const { data, error } = await rpcTyped<{ id: string; codigo_publico: string | null }>(
-      'criar_ponto_parceiro_prospeccao',
+    const modeloComercialFinal = payload.modeloComercial === 'PERMUTA' ? 'PERMUTA' : 'COMISSIONADO_5';
+
+    const { data, error } = await rpcTyped<{ id: string; codigo_publico: string | null; contrato_id?: string; success?: boolean; error?: string }>(
+      'fn_cadastrar_ponto_parceiro_com_contrato',
       {
         p_dados: {
           nome: (payload.nome ?? '').trim(),
@@ -193,20 +193,18 @@ export class ProspeccaoService {
           cidade: payload.cidade || null,
           estado: payload.estado ? payload.estado.toUpperCase().slice(0, 2) : null,
           quantidade_telas: Math.max(0, Number(payload.quantidadeTelas) || 0),
-          modelo_comercial: payload.modeloComercial,
-          percentual_comissao:
-            payload.modeloComercial === 'COMISSIONADO' && payload.percentualComissao != null
-              ? String(payload.percentualComissao)
-              : null,
+          modelo_comercial: modeloComercialFinal,
+          percentual_comissao: modeloComercialFinal === 'COMISSIONADO_5' ? '5.00' : null,
           regras_comerciais: montarRegrasComerciais(payload).join('\n'),
         },
       }
     );
     if (error) throw new Error(error.message);
-    return { id: String(data?.id ?? ''), codigo_publico: data?.codigo_publico ?? null };
+    if (data && data.success === false) throw new Error(data.error || 'Falha ao cadastrar ponto parceiro com contrato.');
+    return { id: String(data?.id ?? ''), codigo_publico: data?.codigo_publico ?? null, contrato_id: data?.contrato_id };
   }
 
-  /** Provisiona GESTOR DE MÍDIAS via mecanismo oficial (senha automática) */
+  /** Provisiona GESTOR DE MÍDIAS com Contrato de Gestão Operacional Obrigatório (GATE 4.1) */
   async provisionarGestor(dados: {
     nome: string;
     email: string;
@@ -218,7 +216,7 @@ export class ProspeccaoService {
     estado?: string;
     endereco?: string;
     observacoes?: string;
-  }): Promise<{ email: string; senha_inicial: string }> {
+  }): Promise<{ email: string; senha_inicial: string; contrato_id?: string }> {
     const perfilId = await this.buscarPerfilGestorId();
     const dadosExtra: Record<string, unknown> = {
       tipo_prospect: 'GESTOR_DE_MIDIAS',
@@ -237,7 +235,25 @@ export class ProspeccaoService {
       dadosExtra,
     });
     if (!r.success) throw new Error(r.error || 'Falha ao provisionar gestor.');
-    return { email: r.email ?? dados.email, senha_inicial: r.senha_inicial ?? '' };
+
+    // Consulta o contrato_id gerado atomicamente pelo banco para este gestor
+    let contratoId: string | undefined = undefined;
+    if (r.userId) {
+      const { data: ctrData } = await supabase
+        .from('contratos')
+        .select('id')
+        .eq('gestor_usuario_id', r.userId)
+        .eq('tipo_contrato', 'GESTOR')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ctrData?.id) {
+        contratoId = ctrData.id;
+      }
+    }
+
+    return { email: r.email ?? dados.email, senha_inicial: r.senha_inicial ?? '', contrato_id: contratoId };
   }
 
   private async buscarPerfilGestorId(): Promise<string> {

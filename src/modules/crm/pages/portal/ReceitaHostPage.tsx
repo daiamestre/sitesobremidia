@@ -1,23 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClienteModalidade } from '../../hooks/useClienteModalidade';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DollarSign, AlertCircle, TrendingUp, Calendar, CreditCard, Download } from 'lucide-react';
+import { DollarSign, AlertCircle, TrendingUp, Calendar, CreditCard, Download, Layers } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/utils/formatters';
+import { supabase } from '@/integrations/supabase/client';
 
-// Mock data until DB is fully mapped
-const MOCK_REVENUE_HISTORY = [
-  { id: '1', mes: 'Agosto/2026', valorBruto: 4500, taxa: 450, valorLiquido: 4050, status: 'PREVISTO', dataPagamento: '10/09/2026' },
-  { id: '2', mes: 'Julho/2026', valorBruto: 4200, taxa: 420, valorLiquido: 3780, status: 'PAGO', dataPagamento: '10/08/2026' },
-  { id: '3', mes: 'Junho/2026', valorBruto: 3900, taxa: 390, valorLiquido: 3510, status: 'PAGO', dataPagamento: '10/07/2026' },
-];
+export interface RepasseItemReal {
+  id: string;
+  competencia: string;
+  ponto_nome: string;
+  modelo_comercial: string;
+  percentual_aplicado: number;
+  anuncios_distintos: number;
+  valor_base: number;
+  valor_liquido: number;
+  status: string;
+  data_liquidacao: string;
+  data_pagamento: string | null;
+}
 
 export default function ReceitaHostPage() {
   const { isHost } = useClienteModalidade();
-  const [history] = useState(MOCK_REVENUE_HISTORY);
+  const [repasses, setRepasses] = useState<RepasseItemReal[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadRepasses() {
+      try {
+        const { data, error } = await supabase.rpc('listar_repasses_parceiro');
+        if (!error && data) {
+          setRepasses(data as RepasseItemReal[]);
+        }
+      } catch {
+        setRepasses([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadRepasses();
+  }, []);
 
   if (!isHost) {
     return (
@@ -31,7 +56,8 @@ export default function ReceitaHostPage() {
     );
   }
 
-  const totalLiquido = history.reduce((acc, m) => acc + m.valorLiquido, 0);
+  const totalLiquido = repasses.reduce((acc, m) => acc + (Number(m.valor_liquido) || 0), 0);
+  const repasseAtual = repasses.length > 0 ? Number(repasses[0].valor_liquido) || 0 : 0;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-fade-in pb-12">
@@ -56,7 +82,7 @@ export default function ReceitaHostPage() {
               <DollarSign className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-400">Ganhos Acumulados (3 meses)</p>
+              <p className="text-sm font-medium text-slate-400">Ganhos Acumulados (Repasses)</p>
               <h3 className="text-2xl font-bold text-white">{formatCurrency(totalLiquido)}</h3>
             </div>
           </CardContent>
@@ -68,8 +94,8 @@ export default function ReceitaHostPage() {
               <TrendingUp className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-400">Previsão Atual (Agosto)</p>
-              <h3 className="text-2xl font-bold text-white">{formatCurrency(MOCK_REVENUE_HISTORY[0].valorLiquido)}</h3>
+              <p className="text-sm font-medium text-slate-400">Última Apuração (5%)</p>
+              <h3 className="text-2xl font-bold text-white">{formatCurrency(repasseAtual)}</h3>
             </div>
           </CardContent>
         </Card>
@@ -80,8 +106,8 @@ export default function ReceitaHostPage() {
               <CreditCard className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-400">Próximo Pagamento</p>
-              <h3 className="text-2xl font-bold text-white">10/09/2026</h3>
+              <p className="text-sm font-medium text-slate-400">Total de Repasses</p>
+              <h3 className="text-2xl font-bold text-white">{repasses.length}</h3>
             </div>
           </CardContent>
         </Card>
@@ -91,41 +117,51 @@ export default function ReceitaHostPage() {
       <Card className="border border-white/10 bg-slate-900/70 overflow-hidden">
         <CardHeader className="bg-slate-950/50 pb-4">
           <CardTitle className="text-lg text-white flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" /> Histórico de Repasses
+            <Calendar className="h-5 w-5 text-primary" /> Histórico de Repasses (Comissionado 5%)
           </CardTitle>
-          <CardDescription>Detalhamento mensal das receitas geradas por suas telas.</CardDescription>
+          <CardDescription>Detalhamento por ponto parceiro e competência (PERMUTA não gera repasse financeiro).</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-slate-900/50">
-              <TableRow className="border-white/10">
-                <TableHead className="text-slate-300">Período</TableHead>
-                <TableHead className="text-slate-300 text-right">Valor Bruto</TableHead>
-                <TableHead className="text-slate-300 text-right">Taxa Administrativa</TableHead>
-                <TableHead className="text-slate-300 text-right">Valor Líquido</TableHead>
-                <TableHead className="text-slate-300 text-center">Status</TableHead>
-                <TableHead className="text-slate-300 text-right">Data de Pagamento</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {history.map((row) => (
-                <TableRow key={row.id} className="border-white/10 hover:bg-white/5 transition-colors">
-                  <TableCell className="font-medium text-slate-200">{row.mes}</TableCell>
-                  <TableCell className="text-right text-slate-300">{formatCurrency(row.valorBruto)}</TableCell>
-                  <TableCell className="text-right text-slate-400 text-sm">-{formatCurrency(row.taxa)}</TableCell>
-                  <TableCell className="text-right font-bold text-emerald-400">{formatCurrency(row.valorLiquido)}</TableCell>
-                  <TableCell className="text-center">
-                    {row.status === 'PAGO' ? (
-                      <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Pago</Badge>
-                    ) : (
-                      <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20">Previsto</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right text-slate-400 text-sm">{row.dataPagamento}</TableCell>
+          {loading ? (
+            <div className="p-8 text-center text-slate-400">Carregando repasses...</div>
+          ) : repasses.length === 0 ? (
+            <div className="p-8 text-center text-slate-400">Nenhum repasse registrado até o momento.</div>
+          ) : (
+            <Table>
+              <TableHeader className="bg-slate-900/50">
+                <TableRow className="border-white/10">
+                  <TableHead className="text-slate-300">Competência</TableHead>
+                  <TableHead className="text-slate-300">Ponto Parceiro</TableHead>
+                  <TableHead className="text-slate-300 text-center">Modelo</TableHead>
+                  <TableHead className="text-slate-300 text-center">Anúncios Distintos</TableHead>
+                  <TableHead className="text-slate-300 text-right">Base Econômica</TableHead>
+                  <TableHead className="text-slate-300 text-right">Repasse (5%)</TableHead>
+                  <TableHead className="text-slate-300 text-center">Status</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {repasses.map((row) => (
+                  <TableRow key={row.id} className="border-white/10 hover:bg-white/5 transition-colors">
+                    <TableCell className="font-medium text-slate-200">{row.competencia}</TableCell>
+                    <TableCell className="text-slate-300">{row.ponto_nome}</TableCell>
+                    <TableCell className="text-center text-slate-400">{row.modelo_comercial}</TableCell>
+                    <TableCell className="text-center font-bold text-slate-200">{row.anuncios_distintos}</TableCell>
+                    <TableCell className="text-right text-slate-300">{formatCurrency(Number(row.valor_base) || 0)}</TableCell>
+                    <TableCell className="text-right font-bold text-emerald-400">{formatCurrency(Number(row.valor_liquido) || 0)}</TableCell>
+                    <TableCell className="text-center">
+                      {row.status === 'PAGO' ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Pago</Badge>
+                      ) : row.status === 'DEVIDO' ? (
+                        <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20">Devido (5%)</Badge>
+                      ) : (
+                        <Badge className="bg-slate-500/10 text-slate-400 border-slate-500/20">{row.status}</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

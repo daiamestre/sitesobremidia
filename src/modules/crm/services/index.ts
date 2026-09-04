@@ -7,3 +7,6 @@ export * from './timeline.service';
 export * from './audit.service';
 export * from './automations.service';
 export * from './anuncianteAi.service';
+export * from './pontoPrecos.service';
+export * from './composicaoComercial.service';
+

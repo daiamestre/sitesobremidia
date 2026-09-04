@@ -44,9 +44,10 @@ function formatarData(iso?: string): string {
  * Campos OBRIGATORIOS por tipo de contrato.
  * Ausencia bloqueia geracao com mensagem tecnica clara.
  */
-const CAMPOS_OBRIGATORIOS: Record<'ANUNCIANTE' | 'PARCEIRO', string[]> = {
+const CAMPOS_OBRIGATORIOS: Record<'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR', string[]> = {
   ANUNCIANTE: ['RAZAO_SOCIAL', 'CNPJ', 'DATA_INICIO', 'DATA_FIM'],
   PARCEIRO:   ['RAZAO_SOCIAL', 'DATA_INICIO', 'DATA_FIM'],
+  GESTOR:     ['NOME_GESTOR', 'CPF_CNPJ', 'DATA_INICIO', 'DATA_FIM'],
 };
 
 export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<h2>CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE MÍDIA DIGITAL SIGNAGE</h2>
@@ -73,6 +74,22 @@ export const CANONICAL_TEMPLATE_HTML_PARCEIRO = `<h2>CONTRATO DE PARCERIA E CESS
 <p>___________________________________</p>
 <p>PARCEIRO</p>`;
 
+export const CANONICAL_TEMPLATE_HTML_GESTOR = `<h2>CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE GESTÃO OPERACIONAL DE DISPLAYS</h2>
+<p>Pelo presente instrumento particular, de um lado <strong>SOBRE MÍDIA PLATAFORMA DIGITAL</strong> e de outro lado o GESTOR OPERACIONAL <strong>{{NOME_GESTOR}}</strong>, portador do CPF/CNPJ sob o nº <strong>{{CPF_CNPJ}}</strong>, residente/estabelecido em {{CIDADE}}/{{ESTADO}}.</p>
+<h3>1. DO OBJETO</h3>
+<p>O presente contrato tem por objeto a prestação de serviços de gestão técnica, monitoramento operacional e operação de displays digitais e painéis conectados à plataforma SOBRE MÍDIA.</p>
+<h3>2. DAS OBRIGAÇÕES DO GESTOR</h3>
+<p>O GESTOR compromete-se a zelar pelo bom funcionamento dos equipamentos sob sua gestão, monitorar a conectividade dos dispositivos e seguir as diretrizes operacionais e de veiculação da plataforma.</p>
+<h3>3. DAS VEDAÇÕES</h3>
+<p>É terminantemente proibida a veiculação de conteúdos não autorizados, a alteração não homologada de hardwares ou o desvio de finalidade dos displays.</p>
+<h3>4. DA VIGÊNCIA E RESCISÃO</h3>
+<p>O presente instrumento vigorará de {{DATA_INICIO}} a {{DATA_FIM}}, podendo ser rescindido por descumprimento das normas operacionais.</p>
+<p>Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
+<p>___________________________________</p>
+<p>SOBRE MÍDIA</p>
+<p>___________________________________</p>
+<p>GESTOR OPERACIONAL</p>`;
+
 /**
  * Preenche o template substituindo placeholders com dados reais.
  *
@@ -86,7 +103,7 @@ export const CANONICAL_TEMPLATE_HTML_PARCEIRO = `<h2>CONTRATO DE PARCERIA E CESS
 export function preencherTemplate(
   templateHtml: string,
   dados: Record<string, string>,
-  tipoContrato: 'ANUNCIANTE' | 'PARCEIRO' = 'ANUNCIANTE'
+  tipoContrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' = 'ANUNCIANTE'
 ): string {
   let html = templateHtml;
   const placeholders = [...new Set([...html.matchAll(/\{\{([A-Z_0-9]+)\}\}/g)].map((m) => m[1]))];
@@ -802,7 +819,7 @@ export interface SignaturePlacement {
  *
  * pageIndex: ausente => usa sempre a última página (comportamento seguro para contratos de 1 a N páginas).
  */
-export const SIGNATURE_PLACEMENTS: Record<'ANUNCIANTE' | 'PARCEIRO' | 'DEFAULT', SignaturePlacement> = {
+export const SIGNATURE_PLACEMENTS: Record<'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' | 'DEFAULT', SignaturePlacement> = {
   ANUNCIANTE: {
     // Acima da linha "___ CONTRATANTE" no canto inferior direito
     x: 320,
@@ -812,6 +829,13 @@ export const SIGNATURE_PLACEMENTS: Record<'ANUNCIANTE' | 'PARCEIRO' | 'DEFAULT',
   },
   PARCEIRO: {
     // Acima da linha "___ PARCEIRO" no canto inferior esquerdo
+    x: 64,
+    y: 476,
+    width: 200,
+    height: 45,
+  },
+  GESTOR: {
+    // Acima da linha "___ GESTOR OPERACIONAL" no canto inferior esquerdo
     x: 64,
     y: 476,
     width: 200,

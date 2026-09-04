@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,10 +15,18 @@ import {
   ArrowLeftRight, PackageOpen, Send, CircleDollarSign, Search, Sparkles,
 } from 'lucide-react';
 import { customerCommerceService } from '../../services/customerCommerce.service';
+import { financeiroService } from '../../services/financeiro.service';
 import { supabase } from '@/integrations/supabase/client';
 import type { Expansao, EstabelecimentoDisponivel } from '@/types/customerPortal';
 import { formatCurrency } from '@/utils/formatters';
 import { AIPointSearch } from '../../components/portal/AIPointSearch';
+import {
+  SelecaoComercialDialog,
+  type PontoComercialTarget,
+  type ItemComposicaoComUI,
+} from '../../components/portal/SelecaoComercialDialog';
+import { AssinaturaContratoDialog } from '../../components/portal/AssinaturaContratoDialog';
+
 
 // ──────────────────────────────────────────────────────────────────────
 // PONTOS PARA ANUNCIAR (missão §29–§34): marketplace real de pontos
@@ -95,6 +104,118 @@ export default function ExpansaoPage() {
   const [pontoSolicitado, setPontoSolicitado] = useState<PontoParaAnunciar | null>(null);
   const [justificativaNovoPonto, setJustificativaNovoPonto] = useState('');
   const [enviandoNovoPonto, setEnviandoNovoPonto] = useState(false);
+
+  // Gate 1C — Estado da Composição Comercial
+  const [dialogSelecaoComercial, setDialogSelecaoComercial] = useState(false);
+  const [pontoTargetComercial, setPontoTargetComercial] = useState<PontoComercialTarget | null>(null);
+  const [composicaoComercial, setComposicaoComercial] = useState<ItemComposicaoComUI[]>([]);
+
+  const handleAdicionarItemComposicao = (novoItem: ItemComposicaoComUI) => {
+    setComposicaoComercial((prev) => [...prev, novoItem]);
+    toast({
+      title: 'Item adicionado à composição comercial',
+      description: `${novoItem.ponto_nome || novoItem.ponto_id} · ${novoItem.periodicidade} · ${formatCurrency(novoItem.subtotal)}`,
+    });
+  };
+
+  const handleRemoverItemComposicao = (index: number) => {
+    setComposicaoComercial((prev) => prev.filter((_, idx) => idx !== index));
+    toast({
+      title: 'Item removido da composição',
+    });
+  };
+
+  const navigate = useNavigate();
+  const [processandoJit, setProcessandoJit] = useState(false);
+  const [purchaseIntentId, setPurchaseIntentId] = useState(() => crypto.randomUUID());
+
+  // Gate 3 — Assinatura Digital do Contrato de Anunciante
+  const [dialogAssinaturaAberta, setDialogAssinaturaAberta] = useState(false);
+  const [contratoIdAssinatura, setContratoIdAssinatura] = useState<string | null>(null);
+  const [codigoOperacionalAssinatura, setCodigoOperacionalAssinatura] = useState<string | null>(null);
+  const [publicIdentifierAssinatura, setPublicIdentifierAssinatura] = useState<string | null>(null);
+  const [composicaoAssinatura, setComposicaoAssinatura] = useState<ItemComposicaoComUI[]>([]);
+
+  const handleFinalizarComposicaoJit = async () => {
+    if (!empresaOperadoraId) return;
+    if (composicaoComercial.length === 0) return;
+
+    setProcessandoJit(true);
+    try {
+      let clienteId = usuario?.cliente_id;
+      if (!clienteId && usuario?.id) {
+        const { data: usr } = await supabase.from('usuarios').select('cliente_id').eq('id', usuario.id).maybeSingle();
+        clienteId = usr?.cliente_id;
+      }
+      if (!clienteId) {
+        const { data: cli } = await supabase.from('clientes').select('id').eq('empresa_operadora_id', empresaOperadoraId).limit(1).maybeSingle();
+        clienteId = cli?.id;
+      }
+
+      if (!clienteId) {
+        toast({
+          title: 'Erro na contratação',
+          description: 'Identidade de anunciante não localizada para o usuário.',
+          variant: 'destructive',
+        });
+        setProcessandoJit(false);
+        return;
+      }
+
+      const res = await financeiroService.criarCobrancaJitExpansao({
+        empresaOperadoraId,
+        clienteId,
+        purchaseIntentId,
+        itens: composicaoComercial.map((i) => ({
+          ponto_id: i.ponto_id,
+          periodicidade: i.periodicidade,
+          subtotal: i.subtotal,
+          valor_tabela: i.valor_tabela,
+          desconto: i.desconto,
+          observacoes: i.observacoes,
+        })),
+      });
+
+      if (res.success && res.codigoOperacional && res.publicIdentifier) {
+        toast({
+          title: res.idempotente ? 'Cobrança localizada (Idempotente)' : 'Contrato JIT criado com sucesso!',
+          description: `Código ${res.codigoOperacional} — Prossiga para a Assinatura Digital do Contrato.`,
+        });
+
+        const itensCopia = [...composicaoComercial];
+        // Reset purchase intent for future new purchases
+        setPurchaseIntentId(crypto.randomUUID());
+        setComposicaoComercial([]);
+
+        // Se o contrato já estiver assinado, navegar direto para a fatura pública
+        if (res.statusDocumento === 'ASSINADO') {
+          const targetUrl = `/cobranca/${encodeURIComponent(res.codigoOperacional)}/${encodeURIComponent(res.publicIdentifier)}`;
+          navigate(targetUrl);
+        } else {
+          // Gate 3: Abrir diálogo de assinatura digital do contrato de ANUNCIANTE
+          setContratoIdAssinatura(res.contratoId);
+          setCodigoOperacionalAssinatura(res.codigoOperacional);
+          setPublicIdentifierAssinatura(res.publicIdentifier);
+          setComposicaoAssinatura(itensCopia);
+          setDialogAssinaturaAberta(true);
+        }
+      } else {
+        toast({
+          title: 'Falha ao gerar cobrança JIT',
+          description: res.error || 'Erro desconhecido ao processar pedido.',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Erro inesperado',
+        description: err?.message || 'Falha ao comunicar com o servidor.',
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessandoJit(false);
+    }
+  };
 
   // Solicitações de NOVO PONTO do próprio anunciante (tabela `solicitacoes`,
   // mesma da Central de Comunicação — nenhuma fila paralela)
@@ -236,7 +357,89 @@ export default function ExpansaoPage() {
         </div>
       </div>
 
+      {/* Gate 1C — Resumo de Composição Comercial Acumulada */}
+      {composicaoComercial.length > 0 && (
+        <Card className="border border-emerald-500/30 bg-emerald-500/10 p-5 rounded-2xl space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-xs font-bold mb-1">
+                Composição Comercial Ativa ({composicaoComercial.length} item
+                {composicaoComercial.length > 1 ? 'ns' : ''})
+              </Badge>
+              <h3 className="text-lg font-bold text-white">Resumo dos Itens Selecionados</h3>
+            </div>
+            <div className="text-right">
+              <span className="text-xs text-slate-400 block">Total Geral</span>
+              <span className="text-xl font-extrabold text-emerald-400">
+                {formatCurrency(
+                  composicaoComercial.reduce((acc, item) => acc + item.subtotal, 0)
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {composicaoComercial.map((item, idx) => (
+              <div
+                key={idx}
+                className="p-3.5 rounded-xl bg-slate-950/80 border border-white/10 space-y-1 relative group"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-white text-sm truncate">
+                    {item.ponto_nome || item.ponto_id}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] border-emerald-500/40 text-emerald-400 font-bold shrink-0"
+                  >
+                    {item.periodicidade}
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Tabela: {formatCurrency(item.valor_tabela)}
+                  {item.desconto > 0 && ` · Desc: ${formatCurrency(item.desconto)}`}
+                </p>
+                <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                  <span className="text-xs font-bold text-emerald-400">
+                    Subtotal: {formatCurrency(item.subtotal)}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleRemoverItemComposicao(idx)}
+                    className="h-6 text-[10px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2"
+                  >
+                    Remover
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={handleFinalizarComposicaoJit}
+              disabled={processandoJit || composicaoComercial.length === 0}
+              className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold gap-2 hover:from-emerald-500 hover:to-teal-500"
+            >
+              {processandoJit ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Gerando Cobrança JIT...
+                </>
+              ) : (
+                <>
+                  <CircleDollarSign className="w-4 h-4" />
+                  Finalizar Contratação & Ir para Pagamento
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="bg-slate-900/50 border border-white/10 rounded-xl p-1">
+
         <TabsList className="grid grid-cols-3 bg-transparent">
           <TabsTrigger value="marketplace" className="data-[state=active]:bg-white/10 data-[state=active]:text-white flex items-center gap-2">
             <MapPin className="h-4 w-4" /> Pontos Disponíveis
@@ -306,11 +509,26 @@ export default function ExpansaoPage() {
                             </span>
                           </p>
                         </div>
-                        <Button size="sm" onClick={() => { setPontoSolicitado(p); setJustificativaNovoPonto(''); }}>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setPontoTargetComercial({
+                              ponto_id: p.ponto_id,
+                              nome: p.nome,
+                              categoria: p.categoria,
+                              cidade: p.cidade,
+                              estado: p.estado,
+                              bairro: p.bairro,
+                              foto_url: p.foto_url,
+                            });
+                            setDialogSelecaoComercial(true);
+                          }}
+                        >
                           Anunciar neste ponto
                         </Button>
                       </div>
                     </CardContent>
+
                   </Card>
                 ))}
               </div>
@@ -584,6 +802,29 @@ export default function ExpansaoPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Gate 1C — Modal de Seleção Comercial */}
+      <SelecaoComercialDialog
+        ponto={pontoTargetComercial}
+        open={dialogSelecaoComercial}
+        onOpenChange={setDialogSelecaoComercial}
+        onAdicionarItem={handleAdicionarItemComposicao}
+        composicaoAtual={composicaoComercial}
+      />
+
+      {/* Gate 3 — Modal de Assinatura Digital do Contrato de Anunciante */}
+      <AssinaturaContratoDialog
+        open={dialogAssinaturaAberta}
+        onOpenChange={setDialogAssinaturaAberta}
+        contratoId={contratoIdAssinatura}
+        codigoOperacional={codigoOperacionalAssinatura}
+        publicIdentifier={publicIdentifierAssinatura}
+        composicao={composicaoAssinatura}
+        onSuccess={(codigo, identifier) => {
+          const targetUrl = `/cobranca/${encodeURIComponent(codigo)}/${encodeURIComponent(identifier)}`;
+          navigate(targetUrl);
+        }}
+      />
     </div>
   );
 }

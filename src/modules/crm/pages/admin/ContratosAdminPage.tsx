@@ -465,3 +465,6 @@ export function ContratosAdminPage() {
     </div>
   );
 }
+
+export default ContratosAdminPage;
+

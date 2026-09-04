@@ -99,12 +99,12 @@ export class ClienteService {
   }
 
   /**
-   * Cadastra um novo cliente comercial atômico no PostgreSQL
-   * Utiliza EXCLUSIVAMENTE a RPC atômica fn_cadastrar_cliente_atomo (publicada em produção),
-   * que garante transação, lock anti-concorrência de codigo_cliente e ROLLBACK completo.
+   * Cadastra um novo cliente comercial atômico no PostgreSQL com Contrato de Anunciante (GATE 4)
+   * Utiliza EXCLUSIVAMENTE a RPC atômica fn_cadastrar_cliente_com_contrato,
+   * que garante transação, lock anti-concorrência, criação do contrato de anunciante e ROLLBACK completo.
    * O representante_id é NULL para OWNER (regra validada na RPC e nas policies RLS).
    */
-  async create(payload: ClientePayload): Promise<{ success: boolean; clienteId?: string; error?: string }> {
+  async create(payload: ClientePayload): Promise<{ success: boolean; clienteId?: string; contratoId?: string; error?: string }> {
     try {
       if (!payload.empresaOperadoraId) {
         return { success: false, error: 'empresaOperadoraId (tenant) ausente no payload. Refaça o login.' };
@@ -113,7 +113,7 @@ export class ClienteService {
         return { success: false, error: 'Payload incompleto: nome fantasia, e-mail e WhatsApp são obrigatórios.' };
       }
 
-      const { data: rpcData, error: rpcError } = await supabase.rpc('fn_cadastrar_cliente_atomo', {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('fn_cadastrar_cliente_com_contrato', {
         p_empresa_operadora_id: payload.empresaOperadoraId,
         p_representante_id: payload.representanteId ?? null,
         p_status: payload.status || 'PROSPECT',
@@ -151,7 +151,7 @@ export class ClienteService {
         return { success: false, error: 'A RPC de cadastro não retornou resposta. Contate o suporte.' };
       }
 
-      const rpcRes = rpcData as unknown as { success?: boolean; error?: unknown; cliente_id?: string };
+      const rpcRes = rpcData as unknown as { success?: boolean; error?: unknown; cliente_id?: string; contrato_id?: string };
       if (!rpcRes.success) {
         const msg = String(rpcRes.error || 'Erro desconhecido na RPC.');
         if (msg.includes('empresas_cnpj_key') || msg.toLowerCase().includes('duplicate key')) {
@@ -166,11 +166,11 @@ export class ClienteService {
         return { success: false, error: msg };
       }
 
-      if (!rpcRes.cliente_id) {
-        return { success: false, error: 'A RPC retornou sucesso sem cliente_id. Contate o suporte.' };
+      if (!rpcRes.cliente_id || !rpcRes.contrato_id) {
+        return { success: false, error: 'A RPC retornou sucesso mas sem cliente_id ou contrato_id. Contate o suporte.' };
       }
 
-      return { success: true, clienteId: rpcRes.cliente_id };
+      return { success: true, clienteId: rpcRes.cliente_id, contratoId: rpcRes.contrato_id };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, error: msg || 'Erro inesperado no cadastro de cliente.' };

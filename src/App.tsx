@@ -132,6 +132,7 @@ const OperationalAnalytics = lazyWithRetry(() => import("./modules/crm/pages/Ope
 const OccupancyAnalytics = lazyWithRetry(() => import("./modules/crm/pages/OccupancyAnalytics"));
 const ExecutiveScorecard = lazyWithRetry(() => import("./modules/crm/pages/ExecutiveScorecard"));
 const ContractsSignaturePage = lazyWithRetry(() => import("./modules/crm/pages/ContractsSignaturePage"));
+const ContratosAdminPage = lazyWithRetry(() => import("./modules/crm/pages/admin/ContratosAdminPage").then((m) => ({ default: m.ContratosAdminPage })));
 const CustomerPortalDashboard = lazyWithRetry(() => import("./modules/crm/pages/CustomerPortalDashboard"));
 const MobileDashboard = lazyWithRetry(() => import("./modules/crm/pages/MobileDashboard"));
 const AcoesCentraisPage = lazyWithRetry(() => import("./modules/crm/pages/AcoesCentraisPage"));
@@ -191,7 +192,7 @@ const PageLoader = () => (
 );
 
 import { DashboardLayout } from "@/layouts/DashboardLayout";
-import { RequireApproval } from "@/components/auth/RouteGuards";
+import { RequireApproval, RequireRole } from "@/components/auth/RouteGuards";
 import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
 
 const App = () => {
@@ -235,8 +236,10 @@ const App = () => {
                     <Route path="clientes/:id" element={<ClienteDetalhePage />} />
                     <Route path="propostas" element={<PropostasListPage />} />
                     <Route path="contratos" element={<ContratosListPage />} />
+                    <Route path="admin/contratos" element={<RequireRole roles={['OWNER', 'ADMIN']}><ContratosAdminPage /></RequireRole>} />
                     <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
                     <Route path="contratos/selecionar/direto" element={<ContratoSelectionPage />} />
+
                     <Route path="campanhas" element={<ProductionListPage />} />
                     <Route path="pontos" element={<OccupancyDashboard />} />
                     <Route path="agenda" element={<ScheduleCalendarPage />} />
@@ -363,6 +366,7 @@ const App = () => {
                     <Route path="clientes/:id" element={<ClienteDetalhePage />} />
                     <Route path="propostas" element={<PropostasListPage />} />
                      <Route path="contratos" element={<ContratosListPage />} />
+                     <Route path="admin/contratos" element={<RequireRole roles={['OWNER', 'ADMIN']}><ContratosAdminPage /></RequireRole>} />
                     <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
                     <Route path="contratos/selecionar/direto" element={<ContratoSelectionPage />} />
                     <Route path="pi" element={<PedidoInsercaoListPage />} />

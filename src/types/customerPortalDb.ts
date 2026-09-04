@@ -1,6 +1,9 @@
 // ======================================================================
 // SOBRE MÍDIA CUSTOMER PORTAL — Tipos do banco estendido
 // Espelha o schema da migration 20260916_customer_portal_commerce_foundation
+// GATE 1A (20261209): adicionado suporte a ponto_precos, PontoPrecoInsert,
+// PontoPrecoUpdate e campos da composição comercial em
+// ContratoEstabelecimentoInsert.
 //
 // As tabelas/RPCs abaixo ainda não existem no tipo Database gerado pelo
 // Supabase CLI. Este tipo estende Database['public'] SEM `any`, mantendo
@@ -23,6 +26,7 @@ import type {
   PrecoAuditoria,
   Produto,
   ProdutoPreco,
+  PontoPreco,
 } from '@/types/customerPortal';
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -73,8 +77,34 @@ export interface ContratoEstabelecimentoInsert {
   unidade_id: string;
   quantidade_telas: number;
   valor_unitario: number;
+  // Campos adicionados no Gate 1A (migration 20261209) — composição comercial
+  ponto_id?: string | null;
+  periodicidade?: 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL' | null;
+  valor_tabela?: number | null;
+  desconto?: number | null;
+  subtotal?: number | null;
+  observacoes?: string | null;
   ativo?: boolean;
   created_by?: string | null;
+}
+
+// ── Matriz de preços por ponto (migration 20261209 — Gate 1A) ──────────────
+export interface PontoPrecoInsert {
+  empresa_operadora_id: string;
+  ponto_id: string;
+  periodicidade: 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
+  preco: number;
+  ativo?: boolean;
+  vigencia_inicio?: string | null;
+  vigencia_fim?: string | null;
+  created_by?: string | null;
+}
+
+export interface PontoPrecoUpdate {
+  periodicidade?: 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
+  preco?: number;
+  ativo?: boolean;
+  vigencia_fim?: string | null;
 }
 
 export interface ExpansaoItemInsert {
@@ -266,6 +296,28 @@ export interface CommerceTables {
         columns: ['unidade_id'];
         isOneToOne: true;
         referencedRelation: 'unidades';
+        referencedColumns: ['id'];
+      },
+    ];
+  };
+  // Tabela criada no Gate 1A (migration 20261209)
+  ponto_precos: {
+    Row: PontoPreco;
+    Insert: PontoPrecoInsert;
+    Update: PontoPrecoUpdate;
+    Relationships: [
+      {
+        foreignKeyName: 'ponto_precos_ponto_id_fkey';
+        columns: ['ponto_id'];
+        isOneToOne: false;
+        referencedRelation: 'pontos';
+        referencedColumns: ['id'];
+      },
+      {
+        foreignKeyName: 'ponto_precos_empresa_operadora_id_fkey';
+        columns: ['empresa_operadora_id'];
+        isOneToOne: false;
+        referencedRelation: 'empresa_operadora';
         referencedColumns: ['id'];
       },
     ];

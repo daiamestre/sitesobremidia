@@ -1,10 +1,10 @@
 /**
  * SOBRE MÍDIA — Resolver Central de Tipo de Cadastro → Tipo de Contrato
  * FONTE ÚNICA DE VERDADE (P0 §4)
- * GESTOR_MIDIAS → sem contrato (null)
+ * GESTOR_MIDIAS → null (Regra Canônica: GESTOR DE MÍDIAS não possui contrato automático)
  */
 export type CadastroType = 'ANUNCIANTE' | 'PONTO_PARCEIRO' | 'GESTOR_MIDIAS';
-export type TipoContrato = 'ANUNCIANTE' | 'PARCEIRO';
+export type TipoContrato = 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR';
 
 const MAP: Record<CadastroType, TipoContrato | null> = {
   ANUNCIANTE: 'ANUNCIANTE',
@@ -19,8 +19,9 @@ export function resolveContractTypeFromCadastroType(tipo: CadastroType | string 
 }
 
 export function isGestorSemContrato(tipo: CadastroType | string | null | undefined): boolean {
-  return resolveContractTypeFromCadastroType(tipo) === null;
+  return String(tipo).toUpperCase() === 'GESTOR_MIDIAS';
 }
+
 
 /**
  * PDFs oficiais — preserva nomes originais, expostos via public/official-contracts
@@ -43,11 +44,22 @@ export const OFFICIAL_PDFS = {
     pages: 2,
     tipoContrato: 'PARCEIRO' as TipoContrato,
   },
+  GESTOR: {
+    fileName: 'contrato-gestor.pdf',
+    originalName: 'CONTRATO DE GESTÃO DE MÍDIA DIGITAL.pdf',
+    publicPath: '/official-contracts/contrato-gestor.pdf',
+    storageKeyPrefix: 'contratos/templates_oficiais',
+    pages: 2,
+    tipoContrato: 'GESTOR' as TipoContrato,
+  },
 } as const;
 
 export function getOfficialPdfForTipoContrato(tipo: TipoContrato | null): typeof OFFICIAL_PDFS[keyof typeof OFFICIAL_PDFS] | null {
   if (!tipo) return null;
-  return tipo === 'ANUNCIANTE' ? OFFICIAL_PDFS.ANUNCIANTE : OFFICIAL_PDFS.PARCEIRO;
+  if (tipo === 'ANUNCIANTE') return OFFICIAL_PDFS.ANUNCIANTE;
+  if (tipo === 'PARCEIRO') return OFFICIAL_PDFS.PARCEIRO;
+  if (tipo === 'GESTOR') return OFFICIAL_PDFS.GESTOR;
+  return null;
 }
 
 export function getOfficialPdfForCadastro(tipo: CadastroType | string | null | undefined) {

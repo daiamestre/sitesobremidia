@@ -1,9 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import { contratoDocumentoService } from './contratoDocumento.service';
+import { resolveContractTypeFromCadastroType } from './contractResolver.service';
 
 export interface ContratoTemplateRecord {
   id: string;
-  tipo_contrato: 'ANUNCIANTE' | 'PARCEIRO';
+  tipo_contrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR';
   codigo_template: string;
   nome: string;
   descricao: string;
@@ -21,7 +22,8 @@ export interface ContratoCompleto {
   representante_id: string | null;
   proposta_id: string | null;
   ponto_id?: string | null;
-  tipo_contrato?: 'ANUNCIANTE' | 'PARCEIRO';
+  gestor_usuario_id?: string | null;
+  tipo_contrato?: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR';
   template_id?: string;
   template_nome?: string;
   template_versao?: number;
@@ -487,7 +489,6 @@ export class ContratoService {
     pontoId?: string | null;
     usuarioResponsavelId: string;
   }): Promise<{ success: boolean; contratoId?: string | null; tipoContrato?: string | null; error?: string }> {
-    const { resolveContractTypeFromCadastroType } = await import('./contractResolver.service');
     const tipo = resolveContractTypeFromCadastroType(params.cadastroType);
     if (!tipo) return { success: true, contratoId: null, tipoContrato: null }; // GESTOR_MIDIAS → sem contrato
     // buscar template oficial completo (não stub)

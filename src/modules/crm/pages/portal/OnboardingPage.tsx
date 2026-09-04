@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { customerCommerceService } from '../../services/customerCommerce.service';
 import { gerarDocumentoContrato, criarEnvelopeInterno, assinarDocumento } from '../../services/contratoDocumento.service';
+import { financeiroService } from '../../services/financeiro.service';
 import { SignatureCaptureModal } from '../../components/signature/SignatureCaptureModal';
 import type { SignatureCaptureResult, SignatureSigner } from '../../types/assinatura.types';
 import type { ModalidadeCliente, EstabelecimentoDisponivel, CalculoPreco } from '@/types/customerPortal';
@@ -44,6 +45,7 @@ export default function OnboardingPage() {
 
   const [assinando, setAssinando] = useState(false);
   const [resultado, setResultado] = useState<{ numero_contrato?: string; assinado: boolean } | null>(null);
+  const [createdContratoId, setCreatedContratoId] = useState<string | null>(null);
 
   // Controle do modal de assinatura digital
   const [showSignatureModal, setShowSignatureModal] = useState(false);
@@ -118,6 +120,7 @@ export default function OnboardingPage() {
       return;
     }
     const contratoId = resultadoContrato.contrato_id;
+    setCreatedContratoId(contratoId);
     toast({ title: 'Contrato criado', description: `${resultadoContrato.numero_contrato} — gerando documento oficial...` });
 
     const doc = await gerarDocumentoContrato(contratoId, usuario.id);
@@ -152,6 +155,10 @@ export default function OnboardingPage() {
     if (!pendingEnvelopeId || !usuario) return;
 
     if (captureResult.action === 'SKIPPED') {
+      // MICRO-GATE 5.3.1: Acoplamento financeiro de cobrança inicial no onboarding mesmo ao postergar assinatura
+      if (createdContratoId) {
+        await financeiroService.obterOuCriarCobrancaInicialOnboarding(createdContratoId, usuario.id);
+      }
       toast({
         title: 'Assinatura Postergada',
         description: 'Seu contrato foi criado e permanecerá pendente para assinatura posterior no painel.',
@@ -182,6 +189,17 @@ export default function OnboardingPage() {
         setResultado({ numero_contrato: modalContratoNumero, assinado: false });
         setStep(3);
         return;
+      }
+
+      // MICRO-GATE 5.3.1: Acoplamento Financeiro do Onboarding Self-Service pós-assinatura
+      if (createdContratoId) {
+        const cobRes = await financeiroService.obterOuCriarCobrancaInicialOnboarding(createdContratoId, usuario.id);
+        if (cobRes.success) {
+          toast({
+            title: 'Contrato Assinado & Cobrança Gerada',
+            description: `Cobrança de onboarding (${formatCurrency(cobRes.valor || 0)}) vinculada via ${cobRes.formaPagamento}.`,
+          });
+        }
       }
 
       toast({ title: 'Contrato assinado!', description: 'Bem-vindo à rede SOBRE MÍDIA. Redirecionando para o painel...' });

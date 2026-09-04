@@ -826,6 +826,212 @@ export class FinanceiroService {
       return [];
     }
   }
+
+  /**
+   * GATE 2: Criar Cobrança JIT Atômica e Idempotente para Expansão Comercial
+   */
+  async criarCobrancaJitExpansao(payload: {
+    empresaOperadoraId: string;
+    clienteId: string;
+    itens: Array<{
+      ponto_id: string;
+      periodicidade: string;
+      subtotal: number;
+      valor_tabela: number;
+      desconto?: number;
+      observacoes?: string;
+    }>;
+    purchaseIntentId?: string;
+    idempotencyKey?: string;
+    vencimentoDias?: number;
+  }): Promise<{
+    success: boolean;
+    idempotente?: boolean;
+    id?: string;
+    codigoOperacional?: string;
+    publicIdentifier?: string;
+    valor?: number;
+    vencimento?: string;
+    metodosGateway?: string[];
+    contratoId?: string;
+    expansaoId?: string;
+    error?: string;
+  }> {
+    try {
+      const compositionHash = canonicalizeComposicaoHash(payload.empresaOperadoraId, payload.clienteId, payload.itens);
+      const intentKey = payload.purchaseIntentId || payload.idempotencyKey || compositionHash;
+      const idempotencyKey = intentKey.startsWith('JIT-EXP-') ? intentKey : `JIT-EXP-${intentKey}`;
+
+      const { data, error } = await supabase.rpc('fn_criar_cobranca_jit_expansao', {
+        p_empresa_operadora_id: payload.empresaOperadoraId,
+        p_cliente_id: payload.clienteId,
+        p_itens: payload.itens,
+        p_idempotency_key: idempotencyKey,
+        p_vencimento_dias: payload.vencimentoDias || 5,
+        p_composition_hash: compositionHash,
+      });
+
+      if (error) {
+        logger.error('[FinanceiroService.criarCobrancaJitExpansao] Erro RPC:', error);
+        return { success: false, error: error.message };
+      }
+
+      const res = data as any;
+      if (!res || !res.success) {
+        return { success: false, error: res?.error || 'Falha ao processar cobrança JIT.' };
+      }
+
+      return {
+        success: true,
+        idempotente: !!res.idempotente,
+        id: res.id,
+        expansaoId: res.expansao_id,
+        codigoOperacional: res.codigo_operacional,
+        publicIdentifier: res.public_identifier,
+        valor: res.valor,
+        vencimento: res.vencimento,
+        metodosGateway: res.metodos_gateway,
+        contratoId: res.contrato_id,
+      };
+    } catch (err: any) {
+      logger.error('[FinanceiroService.criarCobrancaJitExpansao] Exceção:', err);
+      return { success: false, error: err?.message || 'Erro inesperado na cobrança JIT.' };
+    }
+  }
+
+  /**
+   * MICRO-GATE 5.3.1: Acoplamento Financeiro do Onboarding Self-Service
+   * Cria ou reutiliza (idempotente) a cobrança inicial para um contrato de onboarding assinado.
+   */
+  async obterOuCriarCobrancaInicialOnboarding(contratoId: string, usuarioId?: string): Promise<{
+    success: boolean;
+    cobrancaId?: string;
+    codigoOperacional?: string;
+    valor?: number;
+    formaPagamento?: string;
+    idempotente?: boolean;
+    error?: string;
+  }> {
+    try {
+      if (!contratoId) {
+        return { success: false, error: 'Identificador do contrato é obrigatório.' };
+      }
+
+      // 1. Buscar dados do contrato
+      const { data: contrato, error: ctrErr } = await (supabase as any)
+        .from('contratos')
+        .select('id, empresa_operadora_id, cliente_id, numero_contrato, valor_mensal, forma_pagamento, status_documento, status_workflow')
+        .eq('id', contratoId)
+        .maybeSingle();
+
+      if (ctrErr || !contrato) {
+        return { success: false, error: `Contrato não encontrado: ${ctrErr?.message || contratoId}` };
+      }
+
+      // 2. IDEMPOTÊNCIA & UNICIDADE: Verificar se a cobrança inicial já existe para este contrato
+      const { data: cobrancaExistente } = await (supabase as any)
+        .from('contas_receber')
+        .select('id, codigo_operacional, valor, status')
+        .eq('contrato_id', contratoId)
+        .eq('numero_parcela', 1)
+        .maybeSingle();
+
+      if (cobrancaExistente) {
+        return {
+          success: true,
+          cobrancaId: cobrancaExistente.id,
+          codigoOperacional: cobrancaExistente.codigo_operacional,
+          valor: cobrancaExistente.valor,
+          formaPagamento: contrato.forma_pagamento || 'PIX',
+          idempotente: true,
+        };
+      }
+
+      // 3. Obter o valor da composição contratada
+      const { data: ests } = await (supabase as any)
+        .from('contrato_estabelecimentos')
+        .select('valor_unitario, quantidade_telas')
+        .eq('contrato_id', contratoId);
+
+      let valorFinal = Number(contrato.valor_mensal || 0);
+      if (ests && ests.length > 0) {
+        const somaSubtotais = ests.reduce((acc: number, item: any) => {
+          const val = Number(item.valor_unitario || 0);
+          const qtd = Number(item.quantidade_telas || 1);
+          return acc + (val * qtd);
+        }, 0);
+        if (somaSubtotais > 0) valorFinal = somaSubtotais;
+      }
+
+      if (valorFinal <= 0) {
+        return { success: false, error: 'Valor da composição do contrato é inválido (<= 0).' };
+      }
+
+      // 4. Data de vencimento inicial: D+3
+      const dataVencimento = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      // 5. Mapear forma de pagamento contratual -> gateway métodos
+      const formaPag = (contrato.forma_pagamento || 'PIX').toUpperCase();
+      const metodosGateway = formaPag === 'BOLETO' ? ['BOLETO'] : ['PIX', 'BOLETO'];
+
+      // 6. Criar cobrança inicial
+      const res = await this.createCobranca({
+        empresaOperadoraId: contrato.empresa_operadora_id,
+        clienteId: contrato.cliente_id || '',
+        contratoId: contrato.id,
+        valor: valorFinal,
+        dataVencimento,
+        numeroParcela: 1,
+        totalParcelas: 3,
+        metodoCobranca: formaPag,
+        metodosGateway,
+        descricao: `Cobrança inicial de onboarding - Contrato ${contrato.numero_contrato}`,
+      });
+
+      if (!res.success || !res.cobrancaId) {
+        return { success: false, error: res.error || 'Falha ao gerar cobrança inicial de onboarding.' };
+      }
+
+      return {
+        success: true,
+        cobrancaId: res.cobrancaId,
+        valor: valorFinal,
+        formaPagamento: formaPag,
+        idempotente: false,
+      };
+    } catch (err: any) {
+      logger.error('[FinanceiroService.obterOuCriarCobrancaInicialOnboarding] Exceção:', err);
+      return { success: false, error: err?.message || 'Erro inesperado ao gerar cobrança inicial.' };
+    }
+  }
+}
+
+/**
+ * GATE 2: Canonicalização determinística do hash de composição comercial.
+ * Garante que [A,B] e [B,A] produzam a MESMA chave de idempotência.
+ */
+export function canonicalizeComposicaoHash(
+  empresaOperadoraId: string,
+  clienteId: string,
+  itens: Array<{ ponto_id: string; periodicidade: string; subtotal: number; valor_tabela: number; desconto?: number }>
+): string {
+  const sortedItens = [...itens].sort((a, b) => {
+    const pComp = (a.ponto_id || '').localeCompare(b.ponto_id || '');
+    if (pComp !== 0) return pComp;
+    return (a.periodicidade || '').localeCompare(b.periodicidade || '');
+  });
+
+  const canonicalPayload = `${empresaOperadoraId}:${clienteId}:` + sortedItens.map(
+    (i) => `${i.ponto_id}_${i.periodicidade}_${Number(i.valor_tabela || 0).toFixed(2)}_${Number(i.desconto || 0).toFixed(2)}_${Number(i.subtotal || 0).toFixed(2)}`
+  ).join('|');
+
+  let hash = 0;
+  for (let i = 0; i < canonicalPayload.length; i++) {
+    hash = ((hash << 5) - hash) + canonicalPayload.charCodeAt(i);
+    hash |= 0;
+  }
+  const hexHash = Math.abs(hash).toString(16).padStart(8, '0');
+  return `JIT-EXP-${hexHash}`;
 }
 
 const COBRANCA_SELECT =
