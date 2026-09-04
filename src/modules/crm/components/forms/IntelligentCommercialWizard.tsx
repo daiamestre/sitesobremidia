@@ -43,6 +43,7 @@ import {
 import { AssinaturaContratoDialog } from '../portal/AssinaturaContratoDialog';
 
 type FormaPagamento = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'BANK_TRANSFER';
+type Periodicidade = 'MENSAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
 
 interface WizardFormState {
   // Empresa
@@ -79,11 +80,12 @@ interface WizardFormState {
   dataInicio: string;
   dataFim: string;
   valorMensal: number;
+  periodicidade: Periodicidade;
   formaPagamento: FormaPagamento;
   observacoesProposta: string;
 }
 
-const STEP_LABELS = ['1. Cliente & Endereço', '2. Unidade & Contato', '3. Pontos Parceiros', '4. Mídia & Negociação', '5. Revisão & Salvar'];
+const STEP_LABELS = ['1. Cliente & Endereço', '2. Unidade & Contato', '3. Pontos Parceiros', '4. Mídia & Negociação', '5. Contrato & Assinatura', '6. Revisão & Salvar'];
 
 function formatCpfCnpj(value: string): string {
   const d = value.replace(/\D/g, '').slice(0, 14);
@@ -277,6 +279,7 @@ export function IntelligentCommercialWizard() {
     dataInicio: new Date().toISOString().split('T')[0],
     dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     valorMensal: 0,
+    periodicidade: 'MENSAL',
     formaPagamento: 'PIX',
     observacoesProposta: '',
   });
@@ -702,7 +705,7 @@ if (name === 'cnpj') {
           </div>
           <div className="flex items-center gap-2">
             <Badge className="bg-primary/20 text-primary border-primary/30 px-3 py-1 font-bold text-xs">
-              Etapa {step} de 4
+              Etapa {step} de 6
             </Badge>
             <Button variant="outline" size="sm" onClick={() => navigate(`${basePath}/clientes/novo`)} className="border-white/10 text-slate-300 hover:text-white text-xs h-8">
               Voltar ao Gate
@@ -713,7 +716,7 @@ if (name === 'cnpj') {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 pt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2">
           {STEP_LABELS.map((label, idx) => {
             const stepNum = idx + 1;
             const active = step === stepNum;
@@ -1296,7 +1299,25 @@ if (name === 'cnpj') {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs text-slate-200 font-semibold">Forma de Pagamento</Label>
+                  <Label className="text-xs text-slate-200 font-semibold">Periodicidade do Contrato *</Label>
+                  <Select
+                    value={formData.periodicidade}
+                    onValueChange={(val) => setFormData((p) => ({ ...p, periodicidade: val as Periodicidade }))}
+                  >
+                    <SelectTrigger className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10 text-white">
+                      <SelectItem value="MENSAL">Mensal</SelectItem>
+                      <SelectItem value="BIMESTRAL">Bimestral</SelectItem>
+                      <SelectItem value="TRIMESTRAL">Trimestral</SelectItem>
+                      <SelectItem value="SEMESTRAL">Semestral</SelectItem>
+                      <SelectItem value="ANUAL">Anual (12 Meses)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-200 font-semibold">Forma de Pagamento *</Label>
                   <Select
                     value={formData.formaPagamento}
                     onValueChange={(val) => setFormData((p) => ({ ...p, formaPagamento: val as FormaPagamento }))}
@@ -1326,11 +1347,11 @@ if (name === 'cnpj') {
             </div>
 
             <div className="flex justify-between pt-6 border-t border-white/10">
-              <Button variant="outline" onClick={() => setStep(2)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
+              <Button variant="outline" onClick={() => setStep(3)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
                 <ArrowLeft className="h-4 w-4" /> Voltar
               </Button>
               <Button onClick={() => setStep(5)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
-                <span>Próximo: Revisão & Salvamento</span>
+                <span>Próximo: Contrato & Assinatura</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -1338,79 +1359,101 @@ if (name === 'cnpj') {
         </Card>
       )}
 
-      {/* STEP 5: REVISÃO + CONTRATO + SALVAMENTO */}
+      {/* STEP 5: CONTRATO & ASSINATURA */}
       {step === 5 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
-              <FileText className="h-5 w-5 text-emerald-400" />
-              Etapa 5: Revisão, Contrato e Salvamento
+              <FileText className="h-5 w-5 text-purple-400" />
+              Etapa 5: Contrato & Assinatura
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs">
-              Revise as informações do cadastro, a proposta e a minuta do contrato antes de gravar no sistema.
+              Localização do contrato padrão vigente de Anunciante, preenchimento automático com os dados informados e disponibilização para visualização e assinatura.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
-                <h4 className="text-xs font-bold text-primary uppercase mb-2">Cliente & Responsável</h4>
-                <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
-                <p className="text-xs text-slate-300">Razão Social: {formData.razaoSocial || '—'}</p>
-                <p className="text-xs text-slate-300">CNPJ: {formData.cnpj || '—'}</p>
-                <p className="text-xs text-slate-400">Representante Legal: {formData.representanteLegal || '—'}</p>
-                <p className="text-xs text-slate-400">E-mail: {formData.email || '—'}</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
-                <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">Resumo Comercial</h4>
-                <p className="text-sm font-bold text-white">{formData.tituloCampanha || '—'}</p>
-                <p className="text-xs text-slate-300">Valor Mensal: {valorFormatado(formData.valorMensal)}</p>
-                <p className="text-xs text-slate-300">Forma de Pagamento: {formData.formaPagamento}</p>
-                <p className="text-xs text-slate-300">Vigência: {formData.dataInicio} → {formData.dataFim}</p>
-              </div>
-
-              {/* CARD DE CONTRATO NA REVISÃO */}
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-2 md:col-span-2">
-                <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
-                  <h4 className="text-xs font-bold text-purple-400 uppercase flex items-center gap-1.5">
-                    <FileText className="h-4 w-4 text-purple-400" /> Contrato de Anunciante (Vínculo Automático)
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div>
+                  <h4 className="text-sm font-bold text-purple-400 uppercase flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-purple-400" /> Contrato de Anunciante — Mídia Indoor Exclusiva
                   </h4>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                    AGUARDANDO ASSINATURA (OPCIONAL)
-                  </span>
+                  <p className="text-xs text-slate-400 mt-0.5">Template Padrão Vigente (TPL-ANUNCIANTE-OFICIAL)</p>
                 </div>
-                <p className="text-xs text-slate-300">
-                  Modelo: <strong className="text-white">Contrato de Anunciante — Mídia Indoor Exclusiva (12 meses)</strong>
-                </p>
-                <p className="text-xs text-slate-400">
-                  O contrato é vinculado ao cliente no salvamento. A assinatura pode ser realizada na conclusão ou posteriormente via Portal do Anunciante.
-                </p>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button
-                    type="button"
-                    disabled={gerandoDocumento}
-                    onClick={() => obterOuGerarContratoPersonalizado('visualizar')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                  >
-                    {gerandoDocumento ? <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-400" /> : <Eye className="h-3.5 w-3.5 text-purple-400" />} Visualizar Minuta (PDF Personalizado)
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={gerandoDocumento}
-                    onClick={() => obterOuGerarContratoPersonalizado('baixar')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                  >
-                    {gerandoDocumento ? <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" /> : <Download className="h-3.5 w-3.5 text-emerald-400" />} Baixar Minuta PDF
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={gerandoDocumento}
-                    onClick={() => obterOuGerarContratoPersonalizado('assinar')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white transition-colors cursor-pointer"
-                  >
-                    <PenTool className="h-3.5 w-3.5 text-white" /> Assinar Agora
-                  </Button>
+                <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30 px-3 py-1 font-bold text-xs">
+                  AGUARDANDO ASSINATURA (OPCIONAL)
+                </Badge>
+              </div>
+
+              {/* Preenchimento Automático do Contrato */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs bg-slate-900/90 p-4 rounded-xl border border-white/5">
+                <div>
+                  <span className="text-slate-400 block font-semibold">Anunciante</span>
+                  <span className="text-white font-bold">{formData.nomeFantasia || formData.razaoSocial || '—'}</span>
                 </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold">Representante / Responsável</span>
+                  <span className="text-slate-200">{formData.representanteLegal || '—'} ({formData.cargoRepresentante || 'Responsável'})</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold">CPF / CNPJ</span>
+                  <span className="text-slate-200">{formData.cnpj || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold">Endereço & Unidade</span>
+                  <span className="text-slate-200">{[formData.logradouro, formData.numero, formData.cidade, formData.estado].filter(Boolean).join(', ') || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold">Pontos & Telas Selecionadas</span>
+                  <span className="text-slate-200">{pontosSelecionados.size > 0 ? `${pontosSelecionados.size} Ponto(s) (${formData.quantidadeTelas} Telas)` : `${formData.quantidadeTelas} Telas`}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold">Valor & Periodicidade</span>
+                  <span className="text-emerald-400 font-bold">{valorFormatado(formData.valorMensal)} ({formData.periodicidade})</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold">Forma de Pagamento</span>
+                  <span className="text-slate-200">{formData.formaPagamento}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold">Vigência</span>
+                  <span className="text-slate-200">{formData.dataInicio} → {formData.dataFim}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-semibold">Status do Documento</span>
+                  <span className="text-purple-300 font-semibold">{pdfObjectKeySalvo ? 'Gerado no Cloudflare R2' : 'Pronto para Geração'}</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-200 flex items-center justify-between">
+                <span>O contrato é preenchido e vinculado automaticamente. Você pode visualizar o documento completo, baixá-lo em PDF ou assinar digitalmente agora.</span>
+              </div>
+
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Button
+                  type="button"
+                  disabled={gerandoDocumento}
+                  onClick={() => obterOuGerarContratoPersonalizado('visualizar')}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+                >
+                  {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : <Eye className="h-4 w-4 text-purple-400" />} Visualizar Contrato Completo
+                </Button>
+                <Button
+                  type="button"
+                  disabled={gerandoDocumento}
+                  onClick={() => obterOuGerarContratoPersonalizado('baixar')}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+                >
+                  {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : <Download className="h-4 w-4 text-emerald-400" />} Baixar Minuta PDF
+                </Button>
+                <Button
+                  type="button"
+                  disabled={gerandoDocumento}
+                  onClick={() => obterOuGerarContratoPersonalizado('assinar')}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-all cursor-pointer"
+                >
+                  <PenTool className="h-4 w-4 text-white" /> Assinar Agora
+                </Button>
               </div>
             </div>
 
@@ -1428,6 +1471,67 @@ if (name === 'cnpj') {
               />
             )}
 
+            <div className="flex justify-between pt-6 border-t border-white/10">
+              <Button variant="outline" onClick={() => setStep(4)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
+                <ArrowLeft className="h-4 w-4" /> Voltar
+              </Button>
+              <Button onClick={() => setStep(6)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
+                <span>Próximo: Revisão & Salvar</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* STEP 6: REVISÃO & SALVAR */}
+      {step === 6 && (
+        <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
+          <CardHeader className="border-b border-white/10">
+            <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+              Etapa 6: Revisão & Salvar
+            </CardTitle>
+            <CardDescription className="text-slate-300 text-xs">
+              Revise a síntese completa do cadastro do Anunciante, proposta comercial e status do contrato antes da gravação definitiva.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
+                <h4 className="text-xs font-bold text-primary uppercase mb-2">Cliente & Responsável</h4>
+                <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
+                <p className="text-xs text-slate-300">Razão Social: {formData.razaoSocial || '—'}</p>
+                <p className="text-xs text-slate-300">CNPJ: {formData.cnpj || '—'}</p>
+                <p className="text-xs text-slate-400">Representante Legal: {formData.representanteLegal || '—'}</p>
+                <p className="text-xs text-slate-400">E-mail: {formData.email || '—'}</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
+                <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">Resumo Comercial & Periodicidade</h4>
+                <p className="text-sm font-bold text-white">{formData.tituloCampanha || '—'}</p>
+                <p className="text-xs text-slate-300">Valor Mensal: {valorFormatado(formData.valorMensal)} ({formData.periodicidade})</p>
+                <p className="text-xs text-slate-300">Forma de Pagamento: {formData.formaPagamento}</p>
+                <p className="text-xs text-slate-300">Vigência: {formData.dataInicio} → {formData.dataFim}</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-2 md:col-span-2">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+                  <h4 className="text-xs font-bold text-purple-400 uppercase flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-purple-400" /> Vínculo Contratual de Anunciante
+                  </h4>
+                  <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-[10px]">
+                    CONTRATO DEFINITIVO VINCULADO
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Modelo: <strong className="text-white">Contrato de Anunciante — Mídia Indoor Exclusiva ({formData.periodicidade})</strong>
+                </p>
+                <p className="text-xs text-slate-400">
+                  Ao salvar, o contrato definitivo será registrado e associado ao anunciante, criando o documento R2, acesso ao portal e cobrança.
+                </p>
+              </div>
+            </div>
 
             <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 flex gap-3 items-start">
               <Info className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
@@ -1439,7 +1543,7 @@ if (name === 'cnpj') {
             </div>
 
             <div className="flex justify-between pt-6 border-t border-white/10">
-              <Button variant="outline" onClick={() => setStep(4)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
+              <Button variant="outline" onClick={() => setStep(5)} className="border-slate-700 text-slate-300 rounded-xl gap-2">
                 <ArrowLeft className="h-4 w-4" /> Voltar
               </Button>
               <Button

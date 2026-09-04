@@ -1,25 +1,27 @@
 /**
  * SOBRE MÍDIA — Resolver Central de Tipo de Cadastro → Tipo de Contrato
  * FONTE ÚNICA DE VERDADE (P0 §4)
- * GESTOR_MIDIAS → null (Regra Canônica: GESTOR DE MÍDIAS não possui contrato automático)
+ * GESTOR_MIDIAS → GESTOR (Contrato de Gestão Operacional de Displays e Signage)
  */
 export type CadastroType = 'ANUNCIANTE' | 'PONTO_PARCEIRO' | 'GESTOR_MIDIAS';
 export type TipoContrato = 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR';
 
-const MAP: Record<CadastroType, TipoContrato | null> = {
+const MAP: Record<string, TipoContrato | null> = {
   ANUNCIANTE: 'ANUNCIANTE',
   PONTO_PARCEIRO: 'PARCEIRO',
-  GESTOR_MIDIAS: null,
+  PARCEIRO: 'PARCEIRO',
+  GESTOR_MIDIAS: 'GESTOR',
+  GESTOR: 'GESTOR',
 };
 
 export function resolveContractTypeFromCadastroType(tipo: CadastroType | string | null | undefined): TipoContrato | null {
   if (!tipo) return null;
-  const key = String(tipo).toUpperCase() as CadastroType;
+  const key = String(tipo).toUpperCase();
   return MAP[key] ?? null;
 }
 
 export function isGestorSemContrato(tipo: CadastroType | string | null | undefined): boolean {
-  return String(tipo).toUpperCase() === 'GESTOR_MIDIAS';
+  return false;
 }
 
 

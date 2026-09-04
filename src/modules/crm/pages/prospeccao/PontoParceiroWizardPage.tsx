@@ -27,7 +27,8 @@ const PASSOS = [
   { n: 3, label: 'Endereço', icon: MapPin },
   { n: 4, label: 'Estrutura & Público', icon: Tv },
   { n: 5, label: 'Fotos', icon: Camera },
-  { n: 6, label: 'Comercial & Revisão', icon: ClipboardCheck },
+  { n: 6, label: 'Contrato & Assinatura', icon: FileText },
+  { n: 7, label: 'Comercial & Revisão', icon: ClipboardCheck },
 ];
 
 interface FormState {
@@ -248,7 +249,7 @@ export default function PontoParceiroWizardPage() {
     if (passo === 1 && form.nomeFantasia.trim().length < 2) return 'Informe o nome fantasia do estabelecimento.';
     if (passo === 2 && form.telefone.trim().length < 8 && form.whatsapp.trim().length < 8)
       return 'Informe ao menos um contato (telefone ou WhatsApp).';
-    if (passo === 6 && form.modeloComercial === 'COMISSIONADO') {
+    if (passo === 7 && form.modeloComercial === 'COMISSIONADO') {
       if (form.percentualComissao == null || form.percentualComissao <= 0 || form.percentualComissao > 100)
         return 'Informe um percentual de comissão válido (ex.: 8 a 10 conforme contrato).';
     }
@@ -259,7 +260,7 @@ export default function PontoParceiroWizardPage() {
     const v = validarPasso();
     if (v) return setErro(v);
     setErro(null);
-    setPasso((p) => Math.min(6, p + 1));
+    setPasso((p) => Math.min(7, p + 1));
   };
 
   const concluir = async () => {
@@ -286,32 +287,7 @@ export default function PontoParceiroWizardPage() {
           return;
         }
       }
-      // Login do parceiro quando e-mail informado — BLOQUEANTE §7 (exceto já existe)
-      if (form.email.trim()) {
-        const emailLogin = form.email.trim().toLowerCase();
-        try {
-          const { data: perfilParc } = await supabase.from('perfis').select('id').eq('nome', 'PARCEIRO').maybeSingle();
-          if (perfilParc?.id) {
-            const { corporateUsersService } = await import('@/services/corporateUsers.service');
-            const rLogin = await corporateUsersService.provisionarUsuarioDireto({
-              nome: form.nomeFantasia || form.razaoSocial || 'Parceiro',
-              email: emailLogin,
-              telefone: (form.telefone || form.whatsapp || '').replace(/\D/g, '') || undefined,
-              perfilId: perfilParc.id,
-              clienteId: null,
-            });
-            if (!rLogin.success && rLogin.error !== 'EMAIL_JA_CADASTRADO') {
-              setErro('Ponto criado e contrato vinculado, mas falha ao criar login do Parceiro: ' + (rLogin.error || 'erro') + ' — Finalização bloqueada (§7).');
-              setSalvando(false);
-              return;
-            }
-          }
-        } catch (e: any) {
-          setErro('Falha ao criar login do Parceiro: ' + (e?.message || 'erro') + ' — Finalização bloqueada.');
-          setSalvando(false);
-          return;
-        }
-      }
+      // Ponto Parceiro não possui login, portal ou cobrança (Regra de Isolamento).
       setConcluido({ codigo: r.codigo_publico });
     } catch (e: any) {
       setErro(e?.message || 'Erro ao cadastrar ponto parceiro.');
@@ -506,6 +482,62 @@ export default function PontoParceiroWizardPage() {
 
           {passo === 6 && (
             <div className="space-y-4">
+              <div className="rounded-xl border border-white/10 bg-slate-950/80 p-5 space-y-3">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-2">
+                  <h4 className="text-sm font-bold text-emerald-400 uppercase flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-emerald-400" /> Contrato de Parceria de Mídia Corporativa
+                  </h4>
+                  <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30 px-3 py-1 text-xs font-bold">
+                    AGUARDANDO ASSINATURA (OPCIONAL)
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Modelo Oficial: <strong className="text-white">Contrato de Parceria e Cessão de Espaço (TPL-PARCEIRO-OFICIAL)</strong>
+                </p>
+                <p className="text-xs text-slate-400">
+                  O contrato é preenchido automaticamente com os dados do estabelecimento, responsável e regras de parceria. A assinatura digital pode ser realizada agora ou posteriormente.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-900/90 p-4 rounded-xl border border-white/5 my-2">
+                  <div><span className="text-slate-400 block font-semibold">Ponto / Estabelecimento</span><span className="text-white font-bold">{form.nomeFantasia || '—'}</span></div>
+                  <div><span className="text-slate-400 block font-semibold">Responsável Legal</span><span className="text-slate-200">{form.responsavelNome || '—'} ({form.responsavelCargo || 'Responsável'})</span></div>
+                  <div><span className="text-slate-400 block font-semibold">CPF / CNPJ</span><span className="text-slate-200">{form.cnpjCpf || '—'}</span></div>
+                  <div><span className="text-slate-400 block font-semibold">Endereço</span><span className="text-slate-200">{[form.logradouro, form.numero, form.cidade, form.estado].filter(Boolean).join(', ') || '—'}</span></div>
+                  <div><span className="text-slate-400 block font-semibold">Modelo de Relacionamento</span><span className="text-emerald-400 font-bold">{form.modeloComercial}</span></div>
+                  <div><span className="text-slate-400 block font-semibold">Quantidade de Telas</span><span className="text-slate-200">{form.quantidadeTelas} Tela(s)</span></div>
+                </div>
+
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <Button
+                    type="button"
+                    disabled={gerandoDocumento}
+                    onClick={() => obterOuGerarContratoParceiro('visualizar')}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+                  >
+                    {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : <Eye className="h-4 w-4 text-emerald-400" />} Visualizar Minuta (PDF Personalizado)
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={gerandoDocumento}
+                    onClick={() => obterOuGerarContratoParceiro('baixar')}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+                  >
+                    {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-cyan-400" /> : <Download className="h-4 w-4 text-cyan-400" />} Baixar Minuta PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={gerandoDocumento}
+                    onClick={() => obterOuGerarContratoParceiro('assinar')}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-all cursor-pointer"
+                  >
+                    <PenTool className="h-4 w-4 text-white" /> Assinar Agora
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {passo === 7 && (
+            <div className="space-y-4">
               <div>
                 <Label className="text-slate-300 text-xs">Modelo de relacionamento *</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1.5">
@@ -544,7 +576,7 @@ export default function PontoParceiroWizardPage() {
               <Campo label="Contrato / observações comerciais" value={form.contratoObservacao} onChange={(v) => set('contratoObservacao', v)} placeholder="Vincular ao módulo de contratos na formalização" />
 
               <div className="rounded-xl border border-white/10 bg-slate-950/50 p-4 space-y-1.5">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Revisão</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Revisão Final da Parceria</p>
                 {resumo.map(([k, v]) =>
                   v ? (
                     <div key={k} className="flex gap-2 text-sm">
@@ -553,50 +585,6 @@ export default function PontoParceiroWizardPage() {
                     </div>
                   ) : null
                 )}
-              </div>
-
-              {/* CARD DE CONTRATO PARCEIRO NA REVISÃO */}
-              <div className="rounded-xl border border-white/10 bg-slate-950/80 p-4 space-y-2">
-                <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
-                  <h4 className="text-xs font-bold text-emerald-400 uppercase flex items-center gap-1.5">
-                    <FileText className="h-4 w-4 text-emerald-400" /> Contrato de Parceria (Vínculo Automático)
-                  </h4>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                    AGUARDANDO ASSINATURA (OPCIONAL)
-                  </span>
-                </div>
-                <p className="text-xs text-slate-300">
-                  Modelo: <strong className="text-white">Contrato de Parceria de Mídia Corporativa ({form.modeloComercial === 'PERMUTA' ? 'PERMUTA — Não Monetário' : 'COMISSIONADO 5%'})</strong>
-                </p>
-                <p className="text-xs text-slate-400">
-                  O contrato é vinculado ao ponto parceiro no salvamento. A assinatura pode ser realizada na conclusão ou posteriormente.
-                </p>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button
-                    type="button"
-                    disabled={gerandoDocumento}
-                    onClick={() => obterOuGerarContratoParceiro('visualizar')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                  >
-                    {gerandoDocumento ? <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" /> : <Eye className="h-3.5 w-3.5 text-emerald-400" />} Visualizar Minuta (PDF Personalizado)
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={gerandoDocumento}
-                    onClick={() => obterOuGerarContratoParceiro('baixar')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                  >
-                    {gerandoDocumento ? <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" /> : <Download className="h-3.5 w-3.5 text-cyan-400" />} Baixar Minuta PDF
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={gerandoDocumento}
-                    onClick={() => obterOuGerarContratoParceiro('assinar')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
-                  >
-                    <PenTool className="h-3.5 w-3.5 text-white" /> Assinar Agora
-                  </Button>
-                </div>
               </div>
             </div>
           )}
@@ -621,7 +609,7 @@ export default function PontoParceiroWizardPage() {
           <Button variant="outline" disabled={salvando} onClick={() => { setErro(null); if (passo === 1) navigate(`${basePath}/clientes/novo`); else setPasso((p) => Math.max(1, p - 1)); }} className="border-slate-700 text-slate-300 rounded-xl gap-2">
             <ArrowLeft className="h-4 w-4" /> {passo === 1 ? 'Voltar ao Gate' : 'Voltar'}
           </Button>
-          {passo < 6 ? (
+          {passo < 7 ? (
             <Button onClick={avancar} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
               Próximo: {PASSOS[passo].label} <ArrowRight className="h-4 w-4" />
             </Button>

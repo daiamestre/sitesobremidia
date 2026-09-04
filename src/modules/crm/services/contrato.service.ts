@@ -111,8 +111,9 @@ export class ContratoService {
     propostaId?: string | null;
     clienteId?: string | null;
     pontoId?: string | null;
+    gestorUsuarioId?: string | null;
     contratoId?: string | null;
-    tipoContrato: 'ANUNCIANTE' | 'PARCEIRO';
+    tipoContrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR';
     templateId: string;
     templateNome: string;
     templateVersao: number;
@@ -123,6 +124,7 @@ export class ContratoService {
       let empresa_operadora_id: string | null = null;
       let cliente_id: string | null = payload.clienteId || null;
       let ponto_id: string | null = payload.pontoId || null;
+      let gestor_usuario_id: string | null = payload.gestorUsuarioId || null;
       let representante_id: string | null = null;
       let proposta: any = null;
       let empresaId: string | null = null;
@@ -195,6 +197,10 @@ export class ContratoService {
         const { data } = await supabase.from('contratos').select('id, numero_contrato, versao_atual').eq('ponto_id', ponto_id).eq('tipo_contrato', payload.tipoContrato).is('deleted_at', null).maybeSingle();
         existingContract = data;
       }
+      if (!existingContract && gestor_usuario_id) {
+        const { data } = await supabase.from('contratos').select('id, numero_contrato, versao_atual').eq('gestor_usuario_id', gestor_usuario_id).eq('tipo_contrato', payload.tipoContrato).is('deleted_at', null).maybeSingle();
+        existingContract = data;
+      }
 
       const nowIso = new Date().toISOString();
       let contratoId: string;
@@ -233,6 +239,7 @@ export class ContratoService {
             cliente_id: cliente_id,
             empresa_id: empresaId,
             ponto_id: ponto_id,
+            gestor_usuario_id: gestor_usuario_id,
             representante_id: representante_id,
             proposta_id: proposta?.id || null,
             tipo_contrato: payload.tipoContrato,
@@ -492,11 +499,12 @@ export class ContratoService {
     cadastroType: 'ANUNCIANTE' | 'PONTO_PARCEIRO' | 'GESTOR_MIDIAS';
     clienteId?: string | null;
     pontoId?: string | null;
+    gestorUsuarioId?: string | null;
     propostaId?: string | null;
     usuarioResponsavelId: string;
   }): Promise<{ success: boolean; contratoId?: string | null; tipoContrato?: string | null; error?: string }> {
     const tipo = resolveContractTypeFromCadastroType(params.cadastroType);
-    if (!tipo) return { success: true, contratoId: null, tipoContrato: null }; // GESTOR_MIDIAS → sem contrato
+    if (!tipo) return { success: true, contratoId: null, tipoContrato: null };
     // buscar template oficial completo (não stub)
     const { data: activeTpls } = await supabase
       .from('contrato_templates')
@@ -515,6 +523,7 @@ export class ContratoService {
       usuarioResponsavelId: params.usuarioResponsavelId,
       clienteId: params.clienteId || null,
       pontoId: params.pontoId || null,
+      gestorUsuarioId: params.gestorUsuarioId || null,
       propostaId: params.propostaId || null,
     });
     return { success: res.success, contratoId: res.contratoId || null, tipoContrato: tipo, error: res.error };
