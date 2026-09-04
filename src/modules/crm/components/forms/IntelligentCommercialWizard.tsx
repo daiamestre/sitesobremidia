@@ -36,7 +36,11 @@ import {
   Briefcase,
   Info,
   AlertTriangle,
+  PenTool,
+  Eye,
+  Download,
 } from 'lucide-react';
+import { AssinaturaContratoDialog } from '../portal/AssinaturaContratoDialog';
 
 type FormaPagamento = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'BANK_TRANSFER';
 
@@ -146,6 +150,102 @@ export function IntelligentCommercialWizard() {
   const [isSearching, setIsSearching] = useState(false);
   const [isExistingClientSelected, setIsExistingClientSelected] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<ClienteCompleto | null>(null);
+
+  // Estado do Contrato Personalizado
+  const [contratoIdSalvo, setContratoIdSalvo] = useState<string | null>(null);
+  const [pdfObjectKeySalvo, setPdfObjectKeySalvo] = useState<string | null>(null);
+  const [gerandoDocumento, setGerandoDocumento] = useState(false);
+  const [dialogAssinaturaOpen, setDialogAssinaturaOpen] = useState(false);
+
+  const obterOuGerarContratoPersonalizado = async (acao: 'visualizar' | 'baixar' | 'assinar') => {
+    setGerandoDocumento(true);
+    try {
+      const { contratoDocumentoService } = await import('../../services/contratoDocumento.service');
+      const { contratoService } = await import('../../services/contrato.service');
+      
+      let cid = contratoIdSalvo;
+      if (!cid) {
+        let clienteId = selectedCliente?.id;
+        if (!clienteId) {
+          const resCli = await clienteService.create({
+            empresaOperadoraId,
+            representanteId: isOwner ? null : (representante?.id ?? null),
+            nomeFantasia: formData.nomeFantasia || 'Cliente Teste',
+            razaoSocial: formData.razaoSocial || formData.nomeFantasia || 'Cliente Teste Razao',
+            cnpj: normalizarCnpj(formData.cnpj) || '00000000000000',
+            segmento: formData.segmento,
+            telefone: formData.telefone.replace(/\D/g, ''),
+            whatsapp: formData.whatsapp.replace(/\D/g, ''),
+            email: formData.email,
+            cep: normalizarCep(formData.cep),
+            logradouro: formData.logradouro,
+            numero: formData.numero,
+            complemento: formData.complemento,
+            bairro: formData.bairro,
+            cidade: formData.cidade,
+            estado: formData.estado ? formData.estado.toUpperCase() : 'SP',
+            representanteLegal: formData.representanteLegal || 'Responsável Teste',
+            cargoRepresentante: formData.cargoRepresentante,
+            observacoes: formData.observacoes,
+            contatoNome: formData.contatoNome,
+            contatoCargo: formData.contatoCargo,
+            contatoEmail: formData.contatoEmail,
+            contatoTelefone: formData.contatoTelefone.replace(/\D/g, ''),
+          });
+          if (resCli.success && resCli.clienteId) {
+            clienteId = resCli.clienteId;
+            const { data: cliFull } = await supabase.from('clientes').select('*, empresas(*)').eq('id', clienteId).single();
+            if (cliFull) setSelectedCliente(cliFull as any);
+          }
+        }
+
+        if (!clienteId) {
+          toast({ title: 'Atenção', description: 'Informe o Nome Fantasia ou Razão Social para gerar a minuta personalizada.', variant: 'destructive' });
+          setGerandoDocumento(false);
+          return;
+        }
+
+        const resCt = await contratoService.ensureContractForCadastro({
+          cadastroType: 'ANUNCIANTE',
+          clienteId,
+          usuarioResponsavelId: user?.id || '',
+        });
+
+        if (!resCt.success || !resCt.contratoId) {
+          toast({ title: 'Erro ao vincular contrato', description: resCt.error || 'Falha ao criar contrato para o cadastro.', variant: 'destructive' });
+          setGerandoDocumento(false);
+          return;
+        }
+        cid = resCt.contratoId;
+        setContratoIdSalvo(cid);
+      }
+
+      let key = pdfObjectKeySalvo;
+      if (!key) {
+        const resDoc = await contratoDocumentoService.gerarDocumentoContrato(cid, user?.id || '');
+        if (!resDoc.success || !resDoc.objectKey) {
+          toast({ title: 'Erro na geração do PDF', description: resDoc.error || 'Falha ao renderizar minuta personalizada.', variant: 'destructive' });
+          setGerandoDocumento(false);
+          return;
+        }
+        key = resDoc.objectKey;
+        setPdfObjectKeySalvo(key);
+      }
+
+      if (acao === 'visualizar') {
+        await contratoDocumentoService.visualizarDocumento(key);
+      } else if (acao === 'baixar') {
+        await contratoDocumentoService.baixarDocumento(key, `Contrato_${formData.nomeFantasia || 'Anunciante'}.pdf`);
+      } else if (acao === 'assinar') {
+        setDialogAssinaturaOpen(true);
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro no contrato', description: err?.message || 'Falha ao processar contrato personalizado.', variant: 'destructive' });
+    } finally {
+      setGerandoDocumento(false);
+    }
+  };
+
 
   // Form State Unificado â€” NENHUM dado é descartado entre etapas
   const [formData, setFormData] = useState<WizardFormState>({
@@ -1257,24 +1357,48 @@ if (name === 'cnpj') {
                   O contrato é vinculado ao cliente no salvamento. A assinatura pode ser realizada na conclusão ou posteriormente via Portal do Anunciante.
                 </p>
                 <div className="flex flex-wrap gap-2 pt-2">
-                  <a
-                    href="/official-contracts/contrato-anunciante.pdf"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  <Button
+                    type="button"
+                    disabled={gerandoDocumento}
+                    onClick={() => obterOuGerarContratoPersonalizado('visualizar')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
                   >
-                    <Eye className="h-3.5 w-3.5 text-purple-400" /> Visualizar Minuta (PDF)
-                  </a>
-                  <a
-                    href="/official-contracts/contrato-anunciante.pdf"
-                    download="Contrato_Anunciante_Sobremidia.pdf"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+                    {gerandoDocumento ? <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-400" /> : <Eye className="h-3.5 w-3.5 text-purple-400" />} Visualizar Minuta (PDF Personalizado)
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={gerandoDocumento}
+                    onClick={() => obterOuGerarContratoPersonalizado('baixar')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
                   >
-                    <Download className="h-3.5 w-3.5 text-emerald-400" /> Baixar Minuta PDF
-                  </a>
+                    {gerandoDocumento ? <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" /> : <Download className="h-3.5 w-3.5 text-emerald-400" />} Baixar Minuta PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={gerandoDocumento}
+                    onClick={() => obterOuGerarContratoPersonalizado('assinar')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white transition-colors cursor-pointer"
+                  >
+                    <PenTool className="h-3.5 w-3.5 text-white" /> Assinar Agora
+                  </Button>
                 </div>
               </div>
             </div>
+
+            {dialogAssinaturaOpen && (
+              <AssinaturaContratoDialog
+                open={dialogAssinaturaOpen}
+                onOpenChange={setDialogAssinaturaOpen}
+                contratoId={contratoIdSalvo}
+                codigoOperacional={contratoIdSalvo ? `CTR-${contratoIdSalvo.slice(0, 8)}` : null}
+                publicIdentifier={contratoIdSalvo}
+                onSuccess={() => {
+                  toast({ title: 'Contrato assinado com sucesso!', description: 'O documento assinado foi armazenado no Cloudflare R2.' });
+                  setDialogAssinaturaOpen(false);
+                }}
+              />
+            )}
+
 
             <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 flex gap-3 items-start">
               <Info className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />

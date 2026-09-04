@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Store, User, MapPin, Tv, Camera, ClipboardCheck,
   ArrowLeft, ArrowRight, Loader2, CheckCircle2, Upload, X,
-  FileText, Eye, Download,
+  FileText, Eye, Download, PenTool,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { prospeccaoService, type NovoPontoParceiroPayload } from '@/services/prospeccao.service';
+import { AssinaturaContratoDialog } from '../../components/portal/AssinaturaContratoDialog';
+
 
 // CADASTRO DE PONTO PARCEIRO pelo REPRESENTANTE (missao §11-§19).
 // Entidade central `pontos` (codigo EST- automatico). Telas NAO sao
@@ -124,6 +126,69 @@ export default function PontoParceiroWizardPage() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [concluido, setConcluido] = useState<{ codigo: string | null } | null>(null);
+
+  // Estado do Contrato Personalizado
+  const [contratoIdSalvo, setContratoIdSalvo] = useState<string | null>(null);
+  const [pdfObjectKeySalvo, setPdfObjectKeySalvo] = useState<string | null>(null);
+  const [gerandoDocumento, setGerandoDocumento] = useState(false);
+  const [dialogAssinaturaOpen, setDialogAssinaturaOpen] = useState(false);
+
+  const obterOuGerarContratoParceiro = async (acao: 'visualizar' | 'baixar' | 'assinar') => {
+    setGerandoDocumento(true);
+    setErro(null);
+    try {
+      const { contratoDocumentoService } = await import('../../services/contratoDocumento.service');
+      const { contratoService } = await import('../../services/contrato.service');
+      
+      let cid = contratoIdSalvo;
+      if (!cid) {
+        const payload: NovoPontoParceiroPayload = { ...form, nome: form.nomeFantasia || 'Ponto Teste', fotoCapaUrl: fotoCapa || undefined, fotosUrls: fotos };
+        const r = await prospeccaoService.criarPontoParceiro(payload);
+        const pontoId = (r as any).id || (r as any).ponto_id;
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        const resCt = await contratoService.ensureContractForCadastro({
+          cadastroType: 'PONTO_PARCEIRO',
+          pontoId,
+          usuarioResponsavelId: user?.id || '',
+        });
+
+        if (!resCt.success || !resCt.contratoId) {
+          setErro('Falha ao criar contrato de Parceria: ' + (resCt.error || 'erro desconhecido'));
+          setGerandoDocumento(false);
+          return;
+        }
+        cid = resCt.contratoId;
+        setContratoIdSalvo(cid);
+      }
+
+      let key = pdfObjectKeySalvo;
+      if (!key) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const resDoc = await contratoDocumentoService.gerarDocumentoContrato(cid, user?.id || '');
+        if (!resDoc.success || !resDoc.objectKey) {
+          setErro('Falha ao renderizar PDF personalizado: ' + (resDoc.error || 'erro desconhecido'));
+          setGerandoDocumento(false);
+          return;
+        }
+        key = resDoc.objectKey;
+        setPdfObjectKeySalvo(key);
+      }
+
+      if (acao === 'visualizar') {
+        await contratoDocumentoService.visualizarDocumento(key);
+      } else if (acao === 'baixar') {
+        await contratoDocumentoService.baixarDocumento(key, `Contrato_Parceria_${form.nomeFantasia || 'Ponto'}.pdf`);
+      } else if (acao === 'assinar') {
+        setDialogAssinaturaOpen(true);
+      }
+    } catch (err: any) {
+      setErro(err?.message || 'Falha ao processar documento de parceria.');
+    } finally {
+      setGerandoDocumento(false);
+    }
+  };
+
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -507,25 +572,49 @@ export default function PontoParceiroWizardPage() {
                   O contrato é vinculado ao ponto parceiro no salvamento. A assinatura pode ser realizada na conclusão ou posteriormente.
                 </p>
                 <div className="flex flex-wrap gap-2 pt-2">
-                  <a
-                    href="/official-contracts/contrato-parceria.pdf"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  <Button
+                    type="button"
+                    disabled={gerandoDocumento}
+                    onClick={() => obterOuGerarContratoParceiro('visualizar')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
                   >
-                    <Eye className="h-3.5 w-3.5 text-emerald-400" /> Visualizar Minuta (PDF)
-                  </a>
-                  <a
-                    href="/official-contracts/contrato-parceria.pdf"
-                    download="Contrato_Parceria_Sobremidia.pdf"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+                    {gerandoDocumento ? <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" /> : <Eye className="h-3.5 w-3.5 text-emerald-400" />} Visualizar Minuta (PDF Personalizado)
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={gerandoDocumento}
+                    onClick={() => obterOuGerarContratoParceiro('baixar')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
                   >
-                    <Download className="h-3.5 w-3.5 text-cyan-400" /> Baixar Minuta PDF
-                  </a>
+                    {gerandoDocumento ? <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" /> : <Download className="h-3.5 w-3.5 text-cyan-400" />} Baixar Minuta PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={gerandoDocumento}
+                    onClick={() => obterOuGerarContratoParceiro('assinar')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
+                  >
+                    <PenTool className="h-3.5 w-3.5 text-white" /> Assinar Agora
+                  </Button>
                 </div>
               </div>
             </div>
           )}
+
+          {dialogAssinaturaOpen && (
+            <AssinaturaContratoDialog
+              open={dialogAssinaturaOpen}
+              onOpenChange={setDialogAssinaturaOpen}
+              contratoId={contratoIdSalvo}
+              codigoOperacional={contratoIdSalvo ? `CTR-${contratoIdSalvo.slice(0, 8)}` : null}
+              publicIdentifier={contratoIdSalvo}
+              onSuccess={() => {
+                setDialogAssinaturaOpen(false);
+              }}
+            />
+          )}
+
+
         </CardContent>
 
         <div className="px-6 pb-5 flex items-center justify-between">
