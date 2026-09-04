@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Store, User, MapPin, Tv, Camera, ClipboardCheck,
   ArrowLeft, ArrowRight, Loader2, CheckCircle2, Upload, X,
+  FileText, Eye, Download,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -487,6 +488,41 @@ export default function PontoParceiroWizardPage() {
                     </div>
                   ) : null
                 )}
+              </div>
+
+              {/* CARD DE CONTRATO PARCEIRO NA REVISÃO */}
+              <div className="rounded-xl border border-white/10 bg-slate-950/80 p-4 space-y-2">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+                  <h4 className="text-xs font-bold text-emerald-400 uppercase flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-emerald-400" /> Contrato de Parceria (Vínculo Automático)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                    AGUARDANDO ASSINATURA (OPCIONAL)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Modelo: <strong className="text-white">Contrato de Parceria de Mídia Corporativa ({form.modeloComercial === 'PERMUTA' ? 'PERMUTA — Não Monetário' : 'COMISSIONADO 5%'})</strong>
+                </p>
+                <p className="text-xs text-slate-400">
+                  O contrato é vinculado ao ponto parceiro no salvamento. A assinatura pode ser realizada na conclusão ou posteriormente.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <a
+                    href="/official-contracts/contrato-parceria.pdf"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  >
+                    <Eye className="h-3.5 w-3.5 text-emerald-400" /> Visualizar Minuta (PDF)
+                  </a>
+                  <a
+                    href="/official-contracts/contrato-parceria.pdf"
+                    download="Contrato_Parceria_Sobremidia.pdf"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5 text-cyan-400" /> Baixar Minuta PDF
+                  </a>
+                </div>
               </div>
             </div>
           )}

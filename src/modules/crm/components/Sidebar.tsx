@@ -91,9 +91,12 @@ export function CrmSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     { label: 'Campanhas', icon: Tv, path: `${basePath}/campanhas` },
     // Pontos de Exibição: /workspace/screens existe; no painel de representantes a rota é /representantes/pontos
     { label: 'Pontos de Exibição', icon: MapPin, path: isWorkspace ? '/workspace/screens' : '/representantes/pontos' },
-    // Pontos Parceiros (workspace): inventário comercial central (tabela `pontos`)
-    ...(isWorkspace && (isOwner || isAdmin)
-      ? [{ label: 'Pontos Parceiros', icon: Store, path: '/workspace/pontos-parceiros' }]
+    // Pontos Parceiros & Gestão de Contratos (OWNER / ADMIN)
+    ...((isOwner || isAdmin)
+      ? [
+          ...(isWorkspace ? [{ label: 'Pontos Parceiros', icon: Store, path: '/workspace/pontos-parceiros' }] : []),
+          { label: 'Gestão de Contratos', icon: ShieldCheck, path: '/workspace/admin/contratos' },
+        ]
       : []),
     { label: 'Agenda', icon: Calendar, path: `${basePath}/agenda` },
     { label: 'Financeiro', icon: DollarSign, path: `${basePath}/financeiro` },

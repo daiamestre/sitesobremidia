@@ -1201,7 +1201,7 @@ if (name === 'cnpj') {
                 <ArrowLeft className="h-4 w-4" /> Voltar
               </Button>
               <Button onClick={() => setStep(5)} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">
-                <span>Proximo: Revisao & Salvamento</span>
+                <span>Próximo: Revisão & Salvamento</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -1209,79 +1209,70 @@ if (name === 'cnpj') {
         </Card>
       )}
 
-      {/* STEP 4: REVISÃO + SALVAMENTO */}
+      {/* STEP 5: REVISÃO + CONTRATO + SALVAMENTO */}
       {step === 5 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
             <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
               <FileText className="h-5 w-5 text-emerald-400" />
-              Etapa 5: Revisão e Salvamento
+              Etapa 5: Revisão, Contrato e Salvamento
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs">
-              Revise exatamente o que será gravado no PostgreSQL. Nenhum campo é descartado entre as etapas.
+              Revise as informações do cadastro, a proposta e a minuta do contrato antes de gravar no sistema.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
-                <h4 className="text-xs font-bold text-primary uppercase mb-2">Cliente</h4>
-                <p className="text-sm font-bold text-white">{formData.nomeFantasia || 'â€”'}</p>
-                <p className="text-xs text-slate-300">Razao Social: {formData.razaoSocial || 'â€”'}</p>
-                <p className="text-xs text-slate-300">CNPJ: {formData.cnpj || 'â€”'}</p>
-                <p className="text-xs text-slate-400">Segmento: {formData.segmento || 'â€”'}</p>
-                <p className="text-xs text-slate-400">Status: {formData.status}</p>
-                <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {formData.telefone || 'â€”'}</p>
-                <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {formData.whatsapp || 'â€”'}</p>
-                <p className="text-xs text-slate-400 flex items-center gap-1 break-all"><Mail className="h-3 w-3" /> {formData.email || 'â€”'}</p>
+                <h4 className="text-xs font-bold text-primary uppercase mb-2">Cliente & Responsável</h4>
+                <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
+                <p className="text-xs text-slate-300">Razão Social: {formData.razaoSocial || '—'}</p>
+                <p className="text-xs text-slate-300">CNPJ: {formData.cnpj || '—'}</p>
+                <p className="text-xs text-slate-400">Representante Legal: {formData.representanteLegal || '—'}</p>
+                <p className="text-xs text-slate-400">E-mail: {formData.email || '—'}</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
-                <h4 className="text-xs font-bold text-primary uppercase mb-2">Endereço</h4>
-                <p className="text-xs text-slate-300">
-                  {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || 'â€”'}
-                </p>
-                <p className="text-xs text-slate-300">CEP: {formData.cep || 'â€”'}</p>
-                <p className="text-xs text-slate-300">{formData.cidade || 'â€”'}{formData.estado ? `/${formData.estado}` : ''}</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
-                <h4 className="text-xs font-bold text-primary uppercase mb-2">Responsável</h4>
-                <p className="text-xs text-slate-300">Representante Legal: {formData.representanteLegal || 'â€”'}</p>
-                <p className="text-xs text-slate-300">Cargo: {formData.cargoRepresentante || 'â€”'}</p>
-                {formData.observacoes && <p className="text-xs text-slate-400 whitespace-pre-wrap">Obs: {formData.observacoes}</p>}
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
-                <h4 className="text-xs font-bold text-primary uppercase mb-2">Unidade</h4>
-                <p className="text-sm font-bold text-white">{formData.nomeFantasia || 'â€”'}</p>
-                <p className="text-xs text-slate-300">
-                  {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || 'â€”'}
-                </p>
-                <p className="text-xs text-slate-300">CEP: {formData.cep || 'â€”'}</p>
-                <p className="text-xs text-slate-300">{formData.cidade || 'â€”'}{formData.estado ? `/${formData.estado}` : ''}</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
-                <h4 className="text-xs font-bold text-primary uppercase mb-2">Contato</h4>
-                <p className="text-xs text-slate-300">Nome: {formData.contatoNome || 'â€”'}</p>
-                <p className="text-xs text-slate-300">Cargo: {formData.contatoCargo || 'â€”'}</p>
-                <p className="text-xs text-slate-300">E-mail: {formData.contatoEmail || 'â€”'}</p>
-                <p className="text-xs text-slate-300">Telefone: {formData.contatoTelefone || 'â€”'}</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
-                <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">Mídia</h4>
-                <p className="text-sm font-bold text-white">{formData.tituloCampanha || 'â€”'}</p>
-                <p className="text-xs text-slate-300">Telas / Pontos: {numeroFormatado(formData.quantidadeTelas)} unidades</p>
-                <p className="text-xs text-slate-300">Duração: {formData.duracaoSegundos ? `${formData.duracaoSegundos}s` : 'â€”'}</p>
-                <p className="text-xs text-slate-300">Vigência: {formData.dataInicio} â†’ {formData.dataFim}</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-1.5">
-                <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">Negociação</h4>
-                <p className="text-sm font-bold text-white">{valorFormatado(formData.valorMensal)}</p>
+                <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">Resumo Comercial</h4>
+                <p className="text-sm font-bold text-white">{formData.tituloCampanha || '—'}</p>
+                <p className="text-xs text-slate-300">Valor Mensal: {valorFormatado(formData.valorMensal)}</p>
                 <p className="text-xs text-slate-300">Forma de Pagamento: {formData.formaPagamento}</p>
-                {formData.observacoesProposta && <p className="text-xs text-slate-400 whitespace-pre-wrap">Obs: {formData.observacoesProposta}</p>}
+                <p className="text-xs text-slate-300">Vigência: {formData.dataInicio} → {formData.dataFim}</p>
+              </div>
+
+              {/* CARD DE CONTRATO NA REVISÃO */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-2 md:col-span-2">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+                  <h4 className="text-xs font-bold text-purple-400 uppercase flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-purple-400" /> Contrato de Anunciante (Vínculo Automático)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                    AGUARDANDO ASSINATURA (OPCIONAL)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Modelo: <strong className="text-white">Contrato de Anunciante — Mídia Indoor Exclusiva (12 meses)</strong>
+                </p>
+                <p className="text-xs text-slate-400">
+                  O contrato é vinculado ao cliente no salvamento. A assinatura pode ser realizada na conclusão ou posteriormente via Portal do Anunciante.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <a
+                    href="/official-contracts/contrato-anunciante.pdf"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  >
+                    <Eye className="h-3.5 w-3.5 text-purple-400" /> Visualizar Minuta (PDF)
+                  </a>
+                  <a
+                    href="/official-contracts/contrato-anunciante.pdf"
+                    download="Contrato_Anunciante_Sobremidia.pdf"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5 text-emerald-400" /> Baixar Minuta PDF
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -1290,7 +1281,7 @@ if (name === 'cnpj') {
               <p className="text-xs text-slate-400">
                 {isOwner
                   ? ' Este cadastro será salvo como OWNER (representante_id NULL, conforme regra de autonomia administrativa).'
-                  : ` Este cadastro será vinculado ao representante autenticado (${representante?.id || 'â€”'}).`}
+                  : ` Este cadastro será vinculado ao representante autenticado (${representante?.id || '—'}).`}
               </p>
             </div>
 
@@ -1319,11 +1310,6 @@ if (name === 'cnpj') {
           </CardContent>
         </Card>
       )}
-
-      {/* ============================================================
-          CREDENCIAL INICIAL â€” acesso provisionado automaticamente.
-          Exibida UMA única vez ao representante para entrega ao cliente.
-          ============================================================ */}
       {provisionamento && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
