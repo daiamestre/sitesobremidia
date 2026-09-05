@@ -27,7 +27,8 @@ import {
   TrendingUp,
   Monitor,
   Store,
-  Target
+  Target,
+  PenLine
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -88,6 +89,7 @@ export function CrmSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     { label: 'Clientes', icon: Users, path: `${basePath}/clientes` },
     { label: 'Propostas', icon: FileText, path: `${basePath}/propostas` },
     { label: 'Contratos', icon: FileCheck, path: `${basePath}/contratos` },
+    { label: 'Assinaturas', icon: PenLine, path: `${basePath}/assinaturas` },
     { label: 'Campanhas', icon: Tv, path: `${basePath}/campanhas` },
     // Pontos de Exibição: /workspace/screens existe; no painel de representantes a rota é /representantes/pontos
     { label: 'Pontos de Exibição', icon: MapPin, path: isWorkspace ? '/workspace/screens' : '/representantes/pontos' },
@@ -110,7 +112,9 @@ export function CrmSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   // Central de Acessos: item administrativo delegado (OWNER ou users.view)
   if (isWorkspace && podeVerCentralAcessos) {
-    navItems.splice(14, 0, {
+    const agendaIndex = navItems.findIndex((i) => 'label' in i && i.label === 'Agenda');
+    const insertAt = agendaIndex !== -1 ? agendaIndex : 14;
+    navItems.splice(insertAt, 0, {
       label: 'Central de Acessos',
       icon: ShieldCheck,
       path: '/workspace/usuarios',

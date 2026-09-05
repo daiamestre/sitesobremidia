@@ -373,6 +373,7 @@ const App = () => {
                     <Route path="propostas" element={<PropostasListPage />} />
                      <Route path="contratos" element={<ContratosListPage />} />
                      <Route path="admin/contratos" element={<RequireRole roles={['OWNER', 'ADMIN']}><ContratosAdminPage /></RequireRole>} />
+                     <Route path="assinaturas" element={<ContractsSignaturePage />} />
                     <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
                     <Route path="contratos/selecionar/direto" element={<ContratoSelectionPage />} />
                     <Route path="pi" element={<PedidoInsercaoListPage />} />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { digitalSignatureService } from '../services/digitalSignature.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,9 +12,12 @@ import { WebhookMonitor } from '../components/signature/WebhookMonitor';
 
 export default function SignatureDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { empresaOperadoraId } = useAuth();
   const [assinaturas, setAssinaturas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
 
   const fetchSignatures = useCallback(async () => {
     setLoading(true);
@@ -50,7 +53,7 @@ export default function SignatureDashboard() {
           <p className="text-slate-300 text-xs">Integração E-Sign via Webhooks com Liberação Automática de PI</p>
         </div>
 
-        <Button onClick={() => navigate('/representantes/contratos')} variant="outline" className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
+        <Button onClick={() => navigate(`${basePath}/contratos`)} variant="outline" className="border-slate-700 text-slate-300 rounded-xl gap-2 text-xs">
           <ArrowLeft className="h-4 w-4" /> Voltar aos Contratos
         </Button>
       </div>
