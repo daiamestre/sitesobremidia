@@ -175,6 +175,10 @@ const Reports = lazyWithRetry(() => import("./pages/dashboard/Reports"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const Settings = lazyWithRetry(() => import("./pages/dashboard/Settings"));
 const AdminUsers = lazyWithRetry(() => import("./pages/dashboard/AdminUsers"));
+const MeuPerfilOwnerPage = lazyWithRetry(() => import("./pages/perfil/MeuPerfilOwnerPage"));
+const MeuPerfilRepresentantePage = lazyWithRetry(() => import("./pages/perfil/MeuPerfilRepresentantePage"));
+const MeuPerfilGestorPage = lazyWithRetry(() => import("./pages/perfil/MeuPerfilGestorPage"));
+const MeuPerfilAnunciantePage = lazyWithRetry(() => import("./pages/perfil/MeuPerfilAnunciantePage"));
 const Player = lazyWithRetry(() => import("./pages/Player"));
 const WidgetPlayer = lazyWithRetry(() => import("./pages/WidgetPlayer"));
 const LinkPlayer = lazyWithRetry(() => import("./pages/LinkPlayer"));
@@ -281,7 +285,7 @@ const App = () => {
                     <Route path="bi/scorecard" element={<ExecutiveScorecard />} />
                     <Route path="central" element={<CentralDashboard />} />
                     <Route path="configuracoes" element={<Settings />} />
-                    <Route path="perfil" element={<AdminUsers />} />
+                    <Route path="perfil" element={<MeuPerfilRepresentantePage />} />
                     <Route path="assinaturas" element={<ContractsSignaturePage />} />
                     <Route path="portal-cliente" element={<CustomerPortalDashboard />} />
                     <Route path="mobile" element={<MobileDashboard />} />
@@ -312,6 +316,7 @@ const App = () => {
                     <Route path="central" element={<CentralDashboard />} />
                     <Route path="playlists" element={<PlaylistsClientePage />} />
                     <Route path="equipe" element={<MinhaEquipePage />} />
+                    <Route path="perfil" element={<MeuPerfilAnunciantePage />} />
                     <Route path="configuracoes" element={<ConfiguracoesPortalPage />} />
                   </Route>
 
@@ -345,6 +350,7 @@ const App = () => {
                     <Route path="history" element={<History />} />
                     <Route path="reports" element={<Reports />} />
                     <Route path="central" element={<CentralDashboard />} />
+                    <Route path="perfil" element={<MeuPerfilGestorPage />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="admin/users" element={<AdminUsers />} />
                   </Route>
@@ -392,7 +398,7 @@ const App = () => {
                     <Route path="usuarios" element={<UsuariosAcessosPage />} />
                     <Route path="pontos-parceiros" element={<PontosParceirosPage />} />
                     <Route path="configuracoes" element={<Settings />} />
-                    <Route path="perfil" element={<AdminUsers />} />
+                    <Route path="perfil" element={<MeuPerfilOwnerPage />} />
                     <Route path="marketing" element={<CommercialDashboard />} />
                     <Route path="operations" element={<OperationDashboard />} />
                   </Route>
