@@ -448,8 +448,8 @@ export function ContratosAdminPage() {
 
       {/* Modal Nova Versão / Edição */}
       <Dialog open={!!novaVersaoTemplate} onOpenChange={() => setNovaVersaoTemplate(null)}>
-        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-6xl w-[96vw] h-[95vh] max-h-[95vh] flex flex-col p-4 md:p-6">
+          <DialogHeader className="shrink-0 pb-2 border-b">
             <DialogTitle className="flex items-center gap-2">
               <Copy className="h-5 w-5 text-blue-500" />
               Criar Nova Versão para: {novaVersaoTemplate?.nome}
@@ -459,28 +459,38 @@ export function ContratosAdminPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 overflow-y-auto pr-1 flex-1 flex flex-col min-h-0">
-            <div className="space-y-1">
-              <Label className="text-xs">Nome do Modelo</Label>
-              <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} />
+          <div className="flex-1 flex flex-col min-h-0 gap-3 pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Nome da Versão</Label>
+                <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Código Base</Label>
+                <Input value={novaVersaoTemplate?.codigo_template || ''} disabled className="h-8 text-xs bg-slate-50 dark:bg-slate-900" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Nova Versão Prevista</Label>
+                <Input value={`v${(novaVersaoTemplate?.versao || 1) + 1} (Padrão)`} disabled className="h-8 text-xs bg-slate-50 dark:bg-slate-900" />
+              </div>
             </div>
 
             <div className="flex-1 flex flex-col min-h-0">
               <ReadableContractEditor
-                value={formConteudo}
+                value={formConteudo || getCanonicalTemplateForTipo(novaVersaoTemplate?.tipo_contrato || tipoAtivo)}
                 onChange={setFormConteudo}
                 tipoContrato={novaVersaoTemplate?.tipo_contrato || tipoAtivo}
               />
             </div>
           </div>
 
-          <DialogFooter className="mt-2 pt-2 border-t">
+          <DialogFooter className="mt-2 pt-2 border-t shrink-0 flex items-center justify-between sm:justify-between">
             <Button variant="outline" onClick={() => setNovaVersaoTemplate(null)} disabled={isSubmitting}>
               Cancelar
             </Button>
             <Button onClick={handleSalvarNovaVersao} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Salvar Nova Versão
+              Salvar Nova Versão Oficial
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -488,8 +498,8 @@ export function ContratosAdminPage() {
 
       {/* Modal Novo Modelo */}
       <Dialog open={novoModeloOpen} onOpenChange={setNovoModeloOpen}>
-        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-6xl w-[96vw] h-[95vh] max-h-[95vh] flex flex-col p-4 md:p-6">
+          <DialogHeader className="shrink-0 pb-2 border-b">
             <DialogTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5 text-primary" />
               Criar Novo Modelo de Contrato ({tipoAtivo})
@@ -499,46 +509,49 @@ export function ContratosAdminPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 overflow-y-auto pr-1 flex-1 flex flex-col min-h-0">
-            <div className="grid grid-cols-2 gap-3">
+          <div className="flex-1 flex flex-col min-h-0 gap-3 pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
               <div className="space-y-1">
-                <Label className="text-xs">Nome do Modelo</Label>
+                <Label className="text-xs font-semibold">Nome do Modelo</Label>
                 <Input
                   placeholder="Ex: Contrato Anunciante 2026"
                   value={formNome}
                   onChange={(e) => setFormNome(e.target.value)}
+                  className="h-8 text-xs"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Código do Template (Exclusivo)</Label>
+                <Label className="text-xs font-semibold">Código do Template (Exclusivo)</Label>
                 <Input
                   placeholder="Ex: TPL-ANUNCIANTE-2026"
                   value={formCodigo}
                   onChange={(e) => setFormCodigo(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Descrição Opcional</Label>
+                <Input
+                  placeholder="Descrição resumida do modelo"
+                  value={formDescricao}
+                  onChange={(e) => setFormDescricao(e.target.value)}
+                  className="h-8 text-xs"
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Descrição Opcional</Label>
-              <Input
-                placeholder="Descrição resumida da finalidade do modelo"
-                value={formDescricao}
-                onChange={(e) => setFormDescricao(e.target.value)}
-              />
-            </div>
-
             <div className="flex-1 flex flex-col min-h-0">
               <ReadableContractEditor
-                value={formConteudo}
+                value={formConteudo || getCanonicalTemplateForTipo(tipoAtivo)}
                 onChange={setFormConteudo}
                 tipoContrato={tipoAtivo}
               />
             </div>
           </div>
 
-          <DialogFooter className="mt-2 pt-2 border-t">
+          <DialogFooter className="mt-2 pt-2 border-t shrink-0 flex items-center justify-between sm:justify-between">
             <Button variant="outline" onClick={() => setNovoModeloOpen(false)} disabled={isSubmitting}>
               Cancelar
             </Button>
@@ -552,6 +565,7 @@ export function ContratosAdminPage() {
     </div>
   );
 }
+
 
 export default ContratosAdminPage;
 

@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { TipoContrato } from './contractResolver.service';
 import {
   validarPlaceholdersTemplate,
+  getCanonicalTemplateForTipo,
   CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
   CANONICAL_TEMPLATE_HTML_PARCEIRO,
   CANONICAL_TEMPLATE_HTML_GESTOR,
@@ -88,15 +89,34 @@ export class ContratoModelosAdminService {
   }
 
   /**
+   * Obtém o template oficial canônico completo correspondente ao tipo.
+   */
+  obterTemplateOficialCompleto(tipo: TipoContrato): string {
+    return getCanonicalTemplateForTipo(tipo);
+  }
+
+  /**
    * Criar um novo modelo de contrato
    */
   async criarModelo(payload: CriarModeloPayload): Promise<{ success: boolean; templateId?: string; error?: string }> {
     try {
-      if (!payload.nome || !payload.codigoTemplate || !payload.conteudoHtml) {
-        return { success: false, error: 'Nome, código do template e conteúdo HTML são obrigatórios.' };
+      if (!payload.nome || !payload.codigoTemplate) {
+        return { success: false, error: 'Nome e código do template são obrigatórios.' };
       }
 
-      const validacao = validarPlaceholdersTemplate(payload.conteudoHtml);
+      // Garante que NUNCA nasça vazio: se vier vazio ou em branco, usa o oficial completo
+      const isVazio =
+        !payload.conteudoHtml ||
+        !payload.conteudoHtml.trim() ||
+        payload.conteudoHtml.trim() === '<p></p>' ||
+        payload.conteudoHtml.trim() === '<p><br></p>' ||
+        payload.conteudoHtml.trim() === '<div></div>';
+
+      const conteudoHtmlFinal = isVazio
+        ? this.obterTemplateOficialCompleto(payload.tipoContrato)
+        : payload.conteudoHtml!;
+
+      const validacao = validarPlaceholdersTemplate(conteudoHtmlFinal);
       if (!validacao.valido) {
         return {
           success: false,
@@ -113,7 +133,7 @@ export class ContratoModelosAdminService {
           nome: payload.nome.trim(),
           descricao: payload.descricao?.trim() || null,
           versao: 1,
-          conteudo_html: payload.conteudoHtml,
+          conteudo_html: conteudoHtmlFinal,
           ativo: true,
           is_default: payload.isDefault ?? false,
         })
@@ -144,7 +164,28 @@ export class ContratoModelosAdminService {
     novoNome?: string
   ): Promise<{ success: boolean; templateId?: string; versao?: number; error?: string }> {
     try {
-      const validacao = validarPlaceholdersTemplate(novoConteudoHtml);
+      // Se vier vazio, busca o template base ou oficial completo correspondente
+      let conteudoHtmlFinal = novoConteudoHtml;
+      const isVazio =
+        !conteudoHtmlFinal ||
+        !conteudoHtmlFinal.trim() ||
+        conteudoHtmlFinal.trim() === '<p></p>' ||
+        conteudoHtmlFinal.trim() === '<p><br></p>' ||
+        conteudoHtmlFinal.trim() === '<div></div>';
+
+      if (isVazio) {
+        const { data: currentTpl } = await supabase
+          .from('contrato_templates')
+          .select('tipo_contrato, conteudo_html')
+          .eq('id', templateId)
+          .single();
+        conteudoHtmlFinal =
+          currentTpl?.conteudo_html && currentTpl.conteudo_html.trim().length >= 200
+            ? currentTpl.conteudo_html
+            : this.obterTemplateOficialCompleto(currentTpl?.tipo_contrato || 'ANUNCIANTE');
+      }
+
+      const validacao = validarPlaceholdersTemplate(conteudoHtmlFinal);
       if (!validacao.valido) {
         return {
           success: false,
@@ -155,9 +196,10 @@ export class ContratoModelosAdminService {
       // 1. Tentar execução via RPC Server-side com Advisory Lock atômico (N+1 concorrente seguro)
       const { data, error } = await supabase.rpc('fn_criar_nova_versao_contrato_template', {
         p_template_id: templateId,
-        p_novo_conteudo_html: novoConteudoHtml,
+        p_novo_conteudo_html: conteudoHtmlFinal,
         p_novo_nome: novoNome?.trim() || null,
       });
+
 
       if (!error && data && typeof data === 'object' && 'success' in data) {
         const res = data as unknown as { success: boolean; template_id?: string; versao?: number; error?: string };

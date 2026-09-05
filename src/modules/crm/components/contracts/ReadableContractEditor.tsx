@@ -6,6 +6,7 @@ import {
   validarPlaceholdersTemplate,
   formatarDataExtensa,
   preencherTemplate,
+  getCanonicalTemplateForTipo,
 } from '@/modules/crm/services/contratoDocumento.service';
 import { TipoContrato } from '@/modules/crm/services/contractResolver.service';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -15,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   CheckCircle2, AlertTriangle, Eye, BookOpen,
-  Plus, Search, Bold, Italic, Underline
+  Plus, Search, Bold, Italic, Underline, ArrowDown, Move
 } from 'lucide-react';
 
 interface ReadableContractEditorProps {
@@ -107,18 +108,29 @@ export function sanitizeHtmlForPreview(rawHtml: string): string {
 }
 
 /**
+ * Cria o elemento HTML do chip do token para inserção na árvore visual.
+ * O elemento é não-editável diretamente (contenteditable="false") e arrastável (draggable="true")
+ * para permitir que o usuário reposicione dentro do documento.
+ */
+export function createTokenChipHtml(tokenName: string): string {
+  const label = HUMAN_TOKEN_LABELS[tokenName] || tokenName;
+  const isDesconhecido = !PLACEHOLDER_CATALOG[tokenName];
+
+  if (isDesconhecido) {
+    return `<span class="contract-token-chip inline-flex items-center px-2 py-0.5 rounded border border-rose-300 bg-rose-50 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-grab" contenteditable="false" draggable="true" data-token="${tokenName}" title="Campo não reconhecido: ${tokenName}">[${tokenName} — Não Reconhecido]</span>`;
+  }
+
+  return `<span class="contract-token-chip inline-flex items-center px-2 py-0.5 rounded border border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-grab hover:ring-1 hover:ring-blue-400" contenteditable="false" draggable="true" data-token="${tokenName}" title="Campo: ${label} (arraste para reposicionar)">[${label}]</span>`;
+}
+
+/**
  * Converte HTML canônico do template (contendo {{TOKEN}})
  * em HTML visual para edição direta no documento (com chips humanos não-editáveis).
  */
 export function templateToVisualHtml(templateHtml: string): string {
   if (!templateHtml) return '';
   return templateHtml.replace(/\{\{([A-Za-z0-9_]+)\}\}/g, (_match, token) => {
-    const label = HUMAN_TOKEN_LABELS[token] || token;
-    const isDesconhecido = !PLACEHOLDER_CATALOG[token];
-    if (isDesconhecido) {
-      return `<span class="inline-flex items-center px-2 py-0.5 rounded border border-rose-300 bg-rose-50 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-not-allowed" contenteditable="false" data-token="${token}" title="Campo não reconhecido: ${token}">[${token} — Não Reconhecido]</span>`;
-    }
-    return `<span class="contract-token-chip inline-flex items-center px-2 py-0.5 rounded border border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-default" contenteditable="false" data-token="${token}" title="Campo: ${label}">[${label}]</span>`;
+    return createTokenChipHtml(token);
   });
 }
 
@@ -141,14 +153,28 @@ export function ReadableContractEditor({
   const [categoriaFiltro, setCategoriaFiltro] = useState<PlaceholderCategoria | 'TODAS'>('TODAS');
   const [buscaToken, setBuscaToken] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
-  const lastCanonicalValueRef = useRef<string>(value || '');
+  const lastCanonicalValueRef = useRef<string>('');
+  const draggedElementRef = useRef<HTMLElement | null>(null);
+
+  // Template oficial canônico de fallback absoluto para garantir que NUNCA nasça vazio
+  const canonicalPadrao = useMemo(() => {
+    return getCanonicalTemplateForTipo(tipoContrato);
+  }, [tipoContrato]);
+
+  // Conteúdo canônico efetivo (garantia absoluta contra documentos em branco ou incompletos)
+  const canonicalEfetivo = useMemo(() => {
+    if (!value || value.trim().length < 200) {
+      return canonicalPadrao;
+    }
+    return value;
+  }, [value, canonicalPadrao]);
 
   // Validação em tempo real baseada no conteúdo canônico
   const validacao = useMemo(() => {
-    return validarPlaceholdersTemplate(value || '');
-  }, [value]);
+    return validarPlaceholdersTemplate(canonicalEfetivo);
+  }, [canonicalEfetivo]);
 
-  // Lista filtrada do catálogo de placeholders
+  // Lista filtrada do catálogo de placeholders (55 campos categorizados)
   const catalogoFiltrado = useMemo(() => {
     const list = Object.values(PLACEHOLDER_CATALOG);
     return list.filter((item) => {
@@ -162,17 +188,23 @@ export function ReadableContractEditor({
     });
   }, [categoriaFiltro, buscaToken]);
 
-  // Sincroniza o DOM do editor visual quando o template value mudar externamente
+  // Sincroniza o DOM do editor visual quando o template value mudar externamente ou nascer
   useEffect(() => {
     if (!editorRef.current) return;
     const currentEditorCanonical = visualHtmlToTemplate(editorRef.current.innerHTML);
-    if (value !== currentEditorCanonical && value !== lastCanonicalValueRef.current) {
-      editorRef.current.innerHTML = templateToVisualHtml(value || '');
-      lastCanonicalValueRef.current = value || '';
-    }
-  }, [value]);
 
-  // Trata input no editor visual
+    if (canonicalEfetivo !== currentEditorCanonical && canonicalEfetivo !== lastCanonicalValueRef.current) {
+      editorRef.current.innerHTML = templateToVisualHtml(canonicalEfetivo);
+      lastCanonicalValueRef.current = canonicalEfetivo;
+
+      // Se o valor de entrada estava vazio ou incompleto, notifica o pai com o template oficial completo imediatamente
+      if (!value || value.trim().length < 200) {
+        onChange(canonicalEfetivo);
+      }
+    }
+  }, [canonicalEfetivo, value, onChange]);
+
+  // Trata input no editor visual e atualiza o estado canônico
   const handleEditorInput = () => {
     if (!editorRef.current) return;
     const visualHtml = editorRef.current.innerHTML;
@@ -181,20 +213,35 @@ export function ReadableContractEditor({
     onChange(canonical);
   };
 
-  // Inserção do chip humano no ponto de seleção atual do documento
-  const handleInsertPlaceholder = (tokenName: string) => {
-    const label = HUMAN_TOKEN_LABELS[tokenName] || tokenName;
-    const chipHtml = `<span class="contract-token-chip inline-flex items-center px-2 py-0.5 rounded border border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-default" contenteditable="false" data-token="${tokenName}" title="Campo: ${label}">[${label}]</span>&nbsp;`;
-
+  /**
+   * Insere um chip de token no ponto exato fornecido (por coordenadas ou cursor ativo)
+   */
+  const insertTokenAtPoint = (tokenName: string, clientX?: number, clientY?: number) => {
+    const chipHtml = `${createTokenChipHtml(tokenName)}&nbsp;`;
     const editor = editorRef.current;
     if (!editor) return;
 
     editor.focus();
 
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
+    let range: Range | null = null;
+    if (clientX !== undefined && clientY !== undefined) {
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(clientX, clientY);
+      } else if ((document as any).caretPositionFromPoint) {
+        const pos = (document as any).caretPositionFromPoint(clientX, clientY);
+        if (pos) {
+          range = document.createRange();
+          range.setStart(pos.offsetNode, pos.offset);
+          range.collapse(true);
+        }
+      }
+    }
+
+    if (range && editor.contains(range.startContainer)) {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = chipHtml;
       const frag = document.createDocumentFragment();
@@ -207,19 +254,138 @@ export function ReadableContractEditor({
       if (lastNode) {
         range.setStartAfter(lastNode);
         range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
       }
     } else {
-      // Se não houver seleção ativa dentro do editor, adiciona ao final
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = chipHtml;
-      while (tempDiv.firstChild) {
-        editor.appendChild(tempDiv.firstChild);
+      // Se não há coordenadas válidas de drop, usa a seleção atual do editor
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+        const curRange = sel.getRangeAt(0);
+        curRange.deleteContents();
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = chipHtml;
+        const frag = document.createDocumentFragment();
+        let node: ChildNode | null;
+        let lastNode: ChildNode | null = null;
+        while ((node = tempDiv.firstChild)) {
+          lastNode = frag.appendChild(node);
+        }
+        curRange.insertNode(frag);
+        if (lastNode) {
+          curRange.setStartAfter(lastNode);
+          curRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(curRange);
+        }
+      } else {
+        // Se o cursor não estiver no editor, anexa no final do documento
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = chipHtml;
+        while (tempDiv.firstChild) {
+          editor.appendChild(tempDiv.firstChild);
+        }
       }
     }
 
     handleEditorInput();
+  };
+
+  // Inserção por clique
+  const handleInsertPlaceholder = (tokenName: string) => {
+    insertTokenAtPoint(tokenName);
+  };
+
+  // Drag over no documento: permite soltar e exibe o ponto de inserção
+  const handleDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/x-contract-token')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+
+      // Posiciona visualmente o caret onde o usuário está passando o mouse
+      if (document.caretRangeFromPoint) {
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (range && editorRef.current?.contains(range.startContainer)) {
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      }
+    }
+  };
+
+  // Drop no corpo do documento
+  const handleDrop = (e: React.DragEvent) => {
+    const tokenName = e.dataTransfer.getData('application/x-contract-token');
+    if (!tokenName) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Se for movimentação interna de um chip existente dentro do documento, remove a ocorrência anterior
+    const isInternal = e.dataTransfer.getData('application/x-internal-move') === 'true';
+    if (isInternal && draggedElementRef.current) {
+      draggedElementRef.current.remove();
+      draggedElementRef.current = null;
+    }
+
+    insertTokenAtPoint(tokenName, e.clientX, e.clientY);
+  };
+
+  // Início de drag a partir de um chip existente no editor (reordenamento/movimentação livre)
+  const handleEditorDragStart = (e: React.DragEvent) => {
+    const target = (e.target as HTMLElement)?.closest('[data-token]');
+    if (target) {
+      const tokenName = target.getAttribute('data-token');
+      if (tokenName) {
+        e.dataTransfer.setData('text/plain', `{{${tokenName}}}`);
+        e.dataTransfer.setData('application/x-contract-token', tokenName);
+        e.dataTransfer.setData('application/x-internal-move', 'true');
+        e.dataTransfer.effectAllowed = 'move';
+        draggedElementRef.current = target as HTMLElement;
+      }
+    }
+  };
+
+  // Drop na área inferior do documento (garante inserção sem restrições na parte final)
+  const handleDropAtBottom = (e: React.DragEvent) => {
+    const tokenName = e.dataTransfer.getData('application/x-contract-token');
+    if (!tokenName) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const isInternal = e.dataTransfer.getData('application/x-internal-move') === 'true';
+    if (isInternal && draggedElementRef.current) {
+      draggedElementRef.current.remove();
+      draggedElementRef.current = null;
+    }
+
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const chipHtml = `<p style="margin: 8px 0;">${createTokenChipHtml(tokenName)}</p>`;
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = chipHtml;
+    while (tempDiv.firstChild) {
+      editor.appendChild(tempDiv.firstChild);
+    }
+
+    editor.focus();
+    handleEditorInput();
+  };
+
+  // Clicar na área inferior para posicionar o cursor no final do documento
+  const handleFocusBottom = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
   };
 
   // Executa comandos básicos de formatação rica
@@ -230,9 +396,9 @@ export function ReadableContractEditor({
     handleEditorInput();
   };
 
-  // Amostra de prévia com dados de exemplo resolvidos (EXATAMENTE o mesmo documento, apenas com dados substituídos)
+  // Amostra de prévia com dados de exemplo resolvidos (EXATAMENTE a mesma folha documental)
   const htmlPreviaResolvida = useMemo(() => {
-    if (!value) return '<p class="text-muted-foreground p-4">Nenhum conteúdo para prévia.</p>';
+    const conteudo = canonicalEfetivo;
     try {
       const dadosExemplo: Record<string, string> = {
         RAZAO_SOCIAL: 'EMPRESA EXEMPLO LTDA',
@@ -301,16 +467,16 @@ export function ReadableContractEditor({
         </div>`;
       }
 
-      return preencherTemplate(value, dadosExemplo, tipoContrato);
+      return preencherTemplate(conteudo, dadosExemplo, tipoContrato);
     } catch (e: any) {
       return `<div class="p-4 border border-amber-300 bg-amber-50 text-amber-800 rounded">Erro ao renderizar prévia: ${e.message}</div>`;
     }
-  }, [value, validacao, tipoContrato]);
+  }, [canonicalEfetivo, validacao, tipoContrato]);
 
   return (
     <div className={`flex flex-col h-full space-y-3 ${className}`}>
       {/* Barra de Status de Validação */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg border bg-slate-50 dark:bg-slate-900 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg border bg-slate-50 dark:bg-slate-900 text-xs shrink-0">
         <div className="flex items-center gap-2">
           {validacao.valido ? (
             <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium">
@@ -340,7 +506,7 @@ export function ReadableContractEditor({
 
       {/* Tabs Principais: Editor Visual do Documento | Prévia Real (SEM ABA HTML) */}
       <Tabs value={tabAtiva} onValueChange={(v) => setTabAtiva(v as any)} className="flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between border-b pb-2">
+        <div className="flex items-center justify-between border-b pb-2 shrink-0">
           <TabsList className="grid grid-cols-2 w-72">
             <TabsTrigger value="editor" className="flex items-center gap-1.5 text-xs">
               <BookOpen className="h-3.5 w-3.5" />
@@ -353,14 +519,14 @@ export function ReadableContractEditor({
           </TabsList>
 
           <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            Clique no documento para editar cláusulas ou adicione campos pelos botões acima
+            Clique no documento ou arraste campos do catálogo para onde desejar
           </span>
         </div>
 
         {/* Tab 1: Editor Visual do Documento */}
-        <TabsContent value="editor" className="flex-1 flex flex-col gap-3 min-h-0 mt-2">
-          {/* Painel de Inserção de Campos Disponíveis */}
-          <div className="border rounded-lg p-2.5 bg-slate-50/70 dark:bg-slate-900/70 space-y-2">
+        <TabsContent value="editor" className="flex-1 flex flex-col gap-2.5 min-h-0 mt-2">
+          {/* Painel de Inserção de Campos Disponíveis (Clique ou Arrastar) */}
+          <div className="border rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-900/80 space-y-2 shrink-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap gap-1">
                 <Button
@@ -397,7 +563,7 @@ export function ReadableContractEditor({
               </div>
             </div>
 
-            {/* Botões de Inserção com Nomes Humanos em Português */}
+            {/* Botões de Inserção com Nomes Humanos em Português e suporte a Drag-and-Drop */}
             <ScrollArea className="h-20 w-full rounded border bg-white dark:bg-slate-950 p-2">
               <div className="flex flex-wrap gap-1.5">
                 {catalogoFiltrado.map((item) => {
@@ -406,11 +572,17 @@ export function ReadableContractEditor({
                     <button
                       key={item.nome}
                       type="button"
-                      title={`${item.descricao} (Origem: ${item.origem})`}
+                      draggable={true}
+                      title={`${item.descricao} (Origem: ${item.origem}) — Clique para inserir no cursor ou arraste para o documento`}
                       onClick={() => handleInsertPlaceholder(item.nome)}
-                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border bg-slate-100 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-blue-900/60 text-slate-700 dark:text-slate-200 transition-colors font-medium"
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', `{{${item.nome}}}`);
+                        e.dataTransfer.setData('application/x-contract-token', item.nome);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border bg-slate-100 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-blue-900/60 text-slate-700 dark:text-slate-200 transition-colors font-medium cursor-grab active:cursor-grabbing select-none shadow-2xs hover:shadow-xs"
                     >
-                      <Plus className="h-2.5 w-2.5 text-blue-600 dark:text-blue-400" />
+                      <Plus className="h-3 w-3 text-blue-600 dark:text-blue-400 shrink-0" />
                       <span>[{labelHumano}]</span>
                     </button>
                   );
@@ -422,10 +594,10 @@ export function ReadableContractEditor({
             </ScrollArea>
           </div>
 
-          {/* Área Principal de Edição Visual do Documento */}
-          <div className="flex-1 flex flex-col min-h-0 border rounded-lg bg-slate-100/90 dark:bg-slate-900/90 p-3 md:p-4 overflow-y-auto">
-            {/* Barra de Formatação Textual */}
-            <div className="max-w-3xl w-full mx-auto mb-2 flex items-center justify-between text-xs bg-white dark:bg-slate-950 px-3 py-1.5 rounded-md border shadow-2xs">
+          {/* Área Principal de Edição Visual do Documento (Altura Livre e Rolagem Fluida) */}
+          <div className="flex-1 flex flex-col min-h-0 border rounded-lg bg-slate-100/95 dark:bg-slate-900/95 overflow-hidden">
+            {/* Barra de Formatação Textual e Instruções */}
+            <div className="w-full bg-white dark:bg-slate-950 px-4 py-2 border-b flex items-center justify-between text-xs shrink-0 shadow-2xs">
               <div className="flex items-center gap-1">
                 <Button
                   type="button"
@@ -459,31 +631,57 @@ export function ReadableContractEditor({
                 </Button>
               </div>
 
-              <span className="text-[11px] text-muted-foreground font-sans">
-                Documento Visual Editável • Digite livremente no texto
-              </span>
+              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-[11px]">
+                <Move className="h-3 w-3 text-blue-500" />
+                <span>Arraste campos para qualquer lugar do documento ou clique para inserir</span>
+              </div>
             </div>
 
-            {/* Folha do Documento Editável (WYSIWYG Direto) */}
-            <div className="flex-1 max-w-3xl w-full mx-auto">
-              <div
-                ref={editorRef}
-                contentEditable
-                suppressContentEditableWarning
-                onInput={handleEditorInput}
-                onBlur={handleEditorInput}
-                className="bg-white dark:bg-slate-950 p-6 md:p-10 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm text-slate-900 dark:text-slate-100 min-h-[520px] focus:outline-none focus:ring-2 focus:ring-primary/20 leading-relaxed font-sans text-sm"
-              />
+            {/* Viewport de Rolagem Vertical Ampla */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
+              <div className="max-w-4xl mx-auto space-y-6">
+                {/* Folha do Documento Editável (WYSIWYG Direto) */}
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={handleEditorInput}
+                  onBlur={handleEditorInput}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onDragStart={handleEditorDragStart}
+                  className="bg-white dark:bg-slate-950 p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 min-h-[1400px] pb-24 focus:outline-none focus:ring-2 focus:ring-primary/20 leading-relaxed font-sans text-sm"
+                />
+
+                {/* Área Inferior Dinâmica e Acessível para Soltar ou Adicionar Conteúdo ao Final */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDrop={handleDropAtBottom}
+                  onClick={handleFocusBottom}
+                  className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-primary text-slate-500 hover:text-primary rounded-xl text-center text-xs transition-all cursor-pointer bg-white/70 dark:bg-slate-950/70 flex flex-col items-center justify-center gap-2 shadow-sm"
+                >
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    <ArrowDown className="h-4 w-4 text-primary" />
+                    <span>Região Inferior do Contrato</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground max-w-lg">
+                    Solte campos aqui para inseri-los no final do contrato, ou clique para posicionar o cursor e redigir novas cláusulas, anexos ou assinaturas adicionais.
+                  </p>
+                  <span className="text-[11px] px-3 py-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-medium">
+                    Superfície de Altura Livre • Espaço para Todo o Contrato
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </TabsContent>
 
         {/* Tab 2: Prévia Real com Dados de Amostra */}
         <TabsContent value="previa" className="flex-1 flex flex-col min-h-0 mt-2">
-          <div className="flex-1 overflow-y-auto p-3 md:p-4 border rounded-lg bg-slate-100/90 dark:bg-slate-900/90 shadow-inner">
-            <div className="max-w-3xl w-full mx-auto">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 border rounded-lg bg-slate-100/95 dark:bg-slate-900/95 shadow-inner scroll-smooth">
+            <div className="max-w-4xl mx-auto">
               <div
-                className="bg-white dark:bg-slate-950 p-6 md:p-10 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm text-slate-900 dark:text-slate-100 leading-relaxed font-sans text-sm"
+                className="bg-white dark:bg-slate-950 p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 leading-relaxed font-sans text-sm min-h-[1400px]"
                 dangerouslySetInnerHTML={{
                   __html: sanitizeHtmlForPreview(htmlPreviaResolvida),
                 }}

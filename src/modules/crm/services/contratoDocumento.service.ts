@@ -1021,6 +1021,17 @@ export const CANONICAL_TEMPLATE_HTML_GESTOR = `<div class="contract-container" s
 </div>`;
 
 /**
+ * Retorna o template oficial canônico completo por tipo de contrato.
+ * Garante que ANUNCIANTE, PARCEIRO e GESTOR sempre nasçam completos.
+ */
+export function getCanonicalTemplateForTipo(tipo: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' | string): string {
+  if (tipo === 'PARCEIRO' || tipo === 'PONTO_PARCEIRO') return CANONICAL_TEMPLATE_HTML_PARCEIRO;
+  if (tipo === 'GESTOR' || tipo === 'GESTOR_MIDIA') return CANONICAL_TEMPLATE_HTML_GESTOR;
+  return CANONICAL_TEMPLATE_HTML_ANUNCIANTE;
+}
+
+
+/**
  * Preenche o template substituindo placeholders com dados reais.
  *
  * Política estrita:
