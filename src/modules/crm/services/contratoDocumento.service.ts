@@ -618,7 +618,7 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     throw new Error('Contrato nao encontrado.');
   }
 
-  const tipoContrato = (contrato.tipo_contrato as 'ANUNCIANTE' | 'PARCEIRO') || 'ANUNCIANTE';
+  const tipoContrato = (contrato.tipo_contrato as 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR') || 'ANUNCIANTE';
 
   let empresa: any = null;
   if (contrato.empresa_id) {
@@ -666,7 +666,11 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
         tipo_contrato: tipoContrato,
         versao: template?.versao || 1,
         ativo: true,
-        conteudo_html: tipoContrato === 'PARCEIRO' ? CANONICAL_TEMPLATE_HTML_PARCEIRO : CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
+        conteudo_html: tipoContrato === 'PARCEIRO'
+          ? CANONICAL_TEMPLATE_HTML_PARCEIRO
+          : tipoContrato === 'GESTOR'
+          ? CANONICAL_TEMPLATE_HTML_GESTOR
+          : CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
         pdf_anexo_key: template?.pdf_anexo_key || null,
       };
     }
