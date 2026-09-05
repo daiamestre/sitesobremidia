@@ -277,8 +277,8 @@ describe('FASE 2 — Testes Anti-Regressão do Módulo de Contratos Oficiais', (
       expect(resolveContractTypeFromCadastroType('PONTO_PARCEIRO')).toBe('PARCEIRO');
     });
 
-    it('CT-012: GESTOR_MIDIAS resolve para null (sem contrato)', () => {
-      expect(resolveContractTypeFromCadastroType('GESTOR_MIDIAS')).toBeNull();
+    it('CT-012: GESTOR_MIDIAS resolve para GESTOR', () => {
+      expect(resolveContractTypeFromCadastroType('GESTOR_MIDIAS')).toBe('GESTOR');
     });
 
     it('CT-013: Entrada inválida ou vazia retorna null de forma segura', () => {

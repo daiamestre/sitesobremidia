@@ -4,12 +4,18 @@ import {
   ContratoTemplateAdminRecord,
 } from '@/modules/crm/services/contratoModelosAdmin.service';
 import { TipoContrato } from '@/modules/crm/services/contractResolver.service';
+import {
+  validarPlaceholdersTemplate,
+  CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
+  CANONICAL_TEMPLATE_HTML_PARCEIRO,
+  CANONICAL_TEMPLATE_HTML_GESTOR,
+} from '@/modules/crm/services/contratoDocumento.service';
+import { ReadableContractEditor } from '@/modules/crm/components/contracts/ReadableContractEditor';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -94,14 +100,51 @@ export function ContratosAdminPage() {
     }
   };
 
+  const getCanonicalTemplateForTipo = (tipo: TipoContrato): string => {
+    if (tipo === 'PARCEIRO') return CANONICAL_TEMPLATE_HTML_PARCEIRO;
+    if (tipo === 'GESTOR') return CANONICAL_TEMPLATE_HTML_GESTOR;
+    return CANONICAL_TEMPLATE_HTML_ANUNCIANTE;
+  };
+
   const handleAbrirNovaVersao = (tpl: ContratoTemplateAdminRecord) => {
     setNovaVersaoTemplate(tpl);
     setFormNome(tpl.nome);
-    setFormConteudo(tpl.conteudo_html);
+    // Se conteúdo for stub, herda o template canônico completo
+    if (!tpl.conteudo_html || tpl.conteudo_html.length < 200 || tpl.conteudo_html.includes('(preservado)')) {
+      setFormConteudo(getCanonicalTemplateForTipo(tpl.tipo_contrato));
+    } else {
+      setFormConteudo(tpl.conteudo_html);
+    }
+  };
+
+  const handleAbrirNovoModelo = () => {
+    const nomePadrao =
+      tipoAtivo === 'ANUNCIANTE'
+        ? 'Contrato de Anunciante — Oficial'
+        : tipoAtivo === 'PARCEIRO'
+        ? 'Contrato de Ponto Parceiro — Oficial'
+        : 'Contrato de Gestor de Mídias — Oficial';
+
+    setFormNome(nomePadrao);
+    setFormCodigo(`TPL-${tipoAtivo}-${Date.now().toString().slice(-4)}`);
+    setFormDescricao(`Modelo oficial completo para ${tipoAtivo}`);
+    setFormConteudo(getCanonicalTemplateForTipo(tipoAtivo));
+    setNovoModeloOpen(true);
   };
 
   const handleSalvarNovaVersao = async () => {
     if (!novaVersaoTemplate) return;
+
+    const validacao = validarPlaceholdersTemplate(formConteudo);
+    if (!validacao.valido) {
+      toast({
+        title: 'Publicação Bloqueada',
+        description: `Campo de contrato não reconhecido ou sem origem configurada: ${validacao.placeholdersDesconhecidos.map((p) => `{{${p}}}`).join(', ')}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await contratoModelosAdminService.criarNovaVersao(
@@ -132,6 +175,16 @@ export function ContratosAdminPage() {
   const handleSalvarNovoModelo = async () => {
     if (!formNome || !formCodigo || !formConteudo) {
       toast({ title: 'Campos obrigatórios', description: 'Preencha Nome, Código e Conteúdo.', variant: 'destructive' });
+      return;
+    }
+
+    const validacao = validarPlaceholdersTemplate(formConteudo);
+    if (!validacao.valido) {
+      toast({
+        title: 'Publicação Bloqueada',
+        description: `Campo de contrato não reconhecido ou sem origem configurada: ${validacao.placeholdersDesconhecidos.map((p) => `{{${p}}}`).join(', ')}`,
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -185,16 +238,7 @@ export function ContratosAdminPage() {
             Atualizar
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => {
-              setFormNome('');
-              setFormCodigo(`TPL-${tipoAtivo}-V1`);
-              setFormConteudo(`<h2>CONTRATO DE ${tipoAtivo}</h2><p>Inserir cláusulas contratuais aqui...</p>`);
-              setFormDescricao('');
-              setNovoModeloOpen(true);
-            }}
-          >
+          <Button size="sm" onClick={handleAbrirNovoModelo}>
             <Plus className="h-4 w-4 mr-2" />
             Novo Modelo
           </Button>
@@ -404,7 +448,7 @@ export function ContratosAdminPage() {
 
       {/* Modal Nova Versão / Edição */}
       <Dialog open={!!novaVersaoTemplate} onOpenChange={() => setNovaVersaoTemplate(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Copy className="h-5 w-5 text-blue-500" />
@@ -415,24 +459,22 @@ export function ContratosAdminPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 overflow-y-auto pr-2 flex-1">
+          <div className="space-y-3 overflow-y-auto pr-1 flex-1 flex flex-col min-h-0">
             <div className="space-y-1">
               <Label className="text-xs">Nome do Modelo</Label>
               <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Conteúdo HTML do Modelo</Label>
-              <Textarea
-                rows={12}
-                className="font-mono text-xs"
+            <div className="flex-1 flex flex-col min-h-0">
+              <ReadableContractEditor
                 value={formConteudo}
-                onChange={(e) => setFormConteudo(e.target.value)}
+                onChange={setFormConteudo}
+                tipoContrato={novaVersaoTemplate?.tipo_contrato || tipoAtivo}
               />
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="mt-2 pt-2 border-t">
             <Button variant="outline" onClick={() => setNovaVersaoTemplate(null)} disabled={isSubmitting}>
               Cancelar
             </Button>
@@ -446,19 +488,19 @@ export function ContratosAdminPage() {
 
       {/* Modal Novo Modelo */}
       <Dialog open={novoModeloOpen} onOpenChange={setNovoModeloOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5 text-primary" />
               Criar Novo Modelo de Contrato ({tipoAtivo})
             </DialogTitle>
             <DialogDescription className="text-xs">
-              O novo modelo será registrado e marcado como padrão de onboarding para a categoria {tipoAtivo}.
+              O novo modelo nasce a partir do contrato oficial completo e será registrado como padrão de onboarding para a categoria {tipoAtivo}.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 overflow-y-auto pr-2 flex-1">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3 overflow-y-auto pr-1 flex-1 flex flex-col min-h-0">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Nome do Modelo</Label>
                 <Input
@@ -487,18 +529,16 @@ export function ContratosAdminPage() {
               />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Conteúdo HTML do Modelo</Label>
-              <Textarea
-                rows={10}
-                className="font-mono text-xs"
+            <div className="flex-1 flex flex-col min-h-0">
+              <ReadableContractEditor
                 value={formConteudo}
-                onChange={(e) => setFormConteudo(e.target.value)}
+                onChange={setFormConteudo}
+                tipoContrato={tipoAtivo}
               />
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="mt-2 pt-2 border-t">
             <Button variant="outline" onClick={() => setNovoModeloOpen(false)} disabled={isSubmitting}>
               Cancelar
             </Button>

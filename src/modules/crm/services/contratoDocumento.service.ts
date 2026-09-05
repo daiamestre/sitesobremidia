@@ -33,16 +33,606 @@ export interface ResultadoDocumento {
 
 const FORMATO_MOEDA = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 
-function formatarData(iso?: string): string {
+export function formatarData(iso?: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('pt-BR');
+  return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 }
 
 /**
- * Campos OBRIGATORIOS por tipo de contrato.
- * Ausencia bloqueia geracao com mensagem tecnica clara.
+ * Formata data no padrão extenso pt-BR: 'DD de mês por extenso de YYYY'.
+ * Fuso horário obrigatório: America/Sao_Paulo.
+ * Exemplo: '05 de setembro de 2026'.
+ */
+export function formatarDataExtensa(data?: Date | string | null): string {
+  const d = data ? (typeof data === 'string' ? new Date(data) : data) : new Date();
+  if (isNaN(d.getTime())) {
+    return formatarDataExtensa(new Date());
+  }
+  const formatter = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+  return formatter.format(d);
+}
+
+export type PlaceholderCategoria = 'CADASTRO' | 'COMERCIAL' | 'FINANCEIRO' | 'DERIVADO' | 'SISTEMA' | 'MANUAL';
+export type PlaceholderTipo = 'texto' | 'data' | 'moeda' | 'numero' | 'endereco';
+
+export interface PlaceholderInfo {
+  nome: string;
+  descricao: string;
+  tipo: PlaceholderTipo;
+  origem: string;
+  resolver: string;
+  obrigatorio: boolean;
+  categoria: PlaceholderCategoria;
+}
+
+/**
+ * Catálogo Canônico Oficial de Placeholders do SOBRE MÍDIA.
+ * Todo token utilizado em modelos deve estar categorizado e documentado aqui.
+ */
+export const PLACEHOLDER_CATALOG: Record<string, PlaceholderInfo> = {
+  // CADASTRO
+  RAZAO_SOCIAL: {
+    nome: 'RAZAO_SOCIAL',
+    descricao: 'Razão Social ou Nome do cliente/anunciante/parceiro',
+    tipo: 'texto',
+    origem: 'empresas.razao_social / empresas.nome_fantasia / pontos.nome',
+    resolver: 'empresa?.razao_social || empresa?.nome_fantasia || ponto?.nome',
+    obrigatorio: true,
+    categoria: 'CADASTRO',
+  },
+  NOME_FANTASIA: {
+    nome: 'NOME_FANTASIA',
+    descricao: 'Nome Fantasia do estabelecimento comercial',
+    tipo: 'texto',
+    origem: 'empresas.nome_fantasia / pontos.nome_fantasia',
+    resolver: 'empresa?.nome_fantasia || ponto?.nome_fantasia || ponto?.nome',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  CNPJ: {
+    nome: 'CNPJ',
+    descricao: 'CPF ou CNPJ do contratante/parceiro',
+    tipo: 'texto',
+    origem: 'empresas.cnpj / pontos.cnpj',
+    resolver: 'empresa?.cnpj || ponto?.cnpj',
+    obrigatorio: true,
+    categoria: 'CADASTRO',
+  },
+  CPF_CNPJ: {
+    nome: 'CPF_CNPJ',
+    descricao: 'CPF ou CNPJ (compatibilidade geral e gestor)',
+    tipo: 'texto',
+    origem: 'empresas.cnpj / perfis.cpf_cnpj / pontos.cnpj',
+    resolver: 'empresa?.cnpj || ponto?.cnpj',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  RESPONSAVEL: {
+    nome: 'RESPONSAVEL',
+    descricao: 'Nome do responsável legal ou contato principal',
+    tipo: 'texto',
+    origem: 'contatos.nome / empresas.representante_legal / pontos.responsavel_nome',
+    resolver: 'contato?.nome || empresa?.representante_legal || ponto?.responsavel_nome',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  REPRESENTANTE_LEGAL: {
+    nome: 'REPRESENTANTE_LEGAL',
+    descricao: 'Nome do representante legal da empresa',
+    tipo: 'texto',
+    origem: 'empresas.representante_legal / contatos.nome',
+    resolver: 'contato?.nome || empresa?.representante_legal',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  NOME_GESTOR: {
+    nome: 'NOME_GESTOR',
+    descricao: 'Nome completo do gestor de mídias',
+    tipo: 'texto',
+    origem: 'usuarios.nome / contatos.nome',
+    resolver: 'responsavel || razaoSocial',
+    obrigatorio: true,
+    categoria: 'CADASTRO',
+  },
+  LOGRADOURO: {
+    nome: 'LOGRADOURO',
+    descricao: 'Logradouro / Rua do endereço comercial',
+    tipo: 'texto',
+    origem: 'empresas.logradouro / pontos.logradouro',
+    resolver: 'empresa?.logradouro || ponto?.logradouro',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  NUMERO: {
+    nome: 'NUMERO',
+    descricao: 'Número do endereço',
+    tipo: 'texto',
+    origem: 'empresas.numero / pontos.numero',
+    resolver: 'empresa?.numero || ponto?.numero',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  COMPLEMENTO: {
+    nome: 'COMPLEMENTO',
+    descricao: 'Complemento do endereço (sala, bloco, etc.)',
+    tipo: 'texto',
+    origem: 'empresas.complemento / pontos.complemento',
+    resolver: 'empresa?.complemento || ponto?.complemento',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  BAIRRO: {
+    nome: 'BAIRRO',
+    descricao: 'Bairro do estabelecimento',
+    tipo: 'texto',
+    origem: 'empresas.bairro / pontos.bairro',
+    resolver: 'empresa?.bairro || ponto?.bairro',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  CIDADE: {
+    nome: 'CIDADE',
+    descricao: 'Cidade do estabelecimento',
+    tipo: 'texto',
+    origem: 'empresas.cidade / pontos.cidade',
+    resolver: 'empresa?.cidade || ponto?.cidade',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  ESTADO: {
+    nome: 'ESTADO',
+    descricao: 'Estado da Federação (UF)',
+    tipo: 'texto',
+    origem: 'empresas.estado / pontos.estado',
+    resolver: 'empresa?.estado || ponto?.estado',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  UF: {
+    nome: 'UF',
+    descricao: 'Sigla do Estado (UF)',
+    tipo: 'texto',
+    origem: 'empresas.estado / pontos.estado',
+    resolver: 'empresa?.estado || ponto?.estado',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  CEP: {
+    nome: 'CEP',
+    descricao: 'Código de Endereçamento Postal',
+    tipo: 'texto',
+    origem: 'empresas.cep / pontos.cep',
+    resolver: 'empresa?.cep || ponto?.cep',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  ENDERECO_UNIDADE: {
+    nome: 'ENDERECO_UNIDADE',
+    descricao: 'Endereço completo estruturado (Rua, Nº - Bairro - Cidade/UF)',
+    tipo: 'endereco',
+    origem: 'Derivado estruturado de logradouro, número, bairro e cidade/UF',
+    resolver: 'montarEnderecoUnidade()',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  NOME_UNIDADE: {
+    nome: 'NOME_UNIDADE',
+    descricao: 'Nome ou identificação da unidade / ponto parceiro',
+    tipo: 'texto',
+    origem: 'pontos.nome / empresas.nome_fantasia',
+    resolver: 'ponto?.nome || empresa?.nome_fantasia',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  TELEFONE: {
+    nome: 'TELEFONE',
+    descricao: 'Telefone de contato principal',
+    tipo: 'texto',
+    origem: 'empresas.telefone / contatos.telefone / pontos.telefone',
+    resolver: 'empresa?.telefone || contato?.telefone || ponto?.telefone',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  WHATSAPP: {
+    nome: 'WHATSAPP',
+    descricao: 'WhatsApp comercial',
+    tipo: 'texto',
+    origem: 'pontos.whatsapp / contatos.telefone / empresas.telefone',
+    resolver: 'ponto?.whatsapp || contato?.telefone || empresa?.telefone',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  EMAIL: {
+    nome: 'EMAIL',
+    descricao: 'E-mail de contato principal',
+    tipo: 'texto',
+    origem: 'empresas.email / contatos.email / pontos.email',
+    resolver: 'empresa?.email || contato?.email || ponto?.email',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  INSTAGRAM: {
+    nome: 'INSTAGRAM',
+    descricao: 'Perfil do Instagram (@perfil)',
+    tipo: 'texto',
+    origem: 'empresas.instagram / pontos.instagram',
+    resolver: 'empresa?.instagram || ponto?.instagram',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+  WEBSITE: {
+    nome: 'WEBSITE',
+    descricao: 'Website ou página institucional',
+    tipo: 'texto',
+    origem: 'empresas.website',
+    resolver: 'empresa?.website',
+    obrigatorio: false,
+    categoria: 'CADASTRO',
+  },
+
+  // COMERCIAL
+  DATA_INICIO: {
+    nome: 'DATA_INICIO',
+    descricao: 'Data de início de vigência / veiculação (DD/MM/AAAA)',
+    tipo: 'data',
+    origem: 'contratos.data_inicio',
+    resolver: 'formatarData(contrato.data_inicio)',
+    obrigatorio: true,
+    categoria: 'COMERCIAL',
+  },
+  DATA_FIM: {
+    nome: 'DATA_FIM',
+    descricao: 'Data de término de vigência / veiculação (DD/MM/AAAA)',
+    tipo: 'data',
+    origem: 'contratos.data_fim',
+    resolver: 'formatarData(contrato.data_fim)',
+    obrigatorio: true,
+    categoria: 'COMERCIAL',
+  },
+  DATA_INICIO_VEICULACAO: {
+    nome: 'DATA_INICIO_VEICULACAO',
+    descricao: 'Data de início de veiculação (DD/MM/AAAA)',
+    tipo: 'data',
+    origem: 'contratos.data_inicio',
+    resolver: 'formatarData(contrato.data_inicio)',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  DATA_FIM_VEICULACAO: {
+    nome: 'DATA_FIM_VEICULACAO',
+    descricao: 'Data de término de veiculação (DD/MM/AAAA)',
+    tipo: 'data',
+    origem: 'contratos.data_fim',
+    resolver: 'formatarData(contrato.data_fim)',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  PERIODO_VEICULACAO: {
+    nome: 'PERIODO_VEICULACAO',
+    descricao: 'Prazo / Período de veiculação acordado (ex: 12 meses)',
+    tipo: 'texto',
+    origem: 'propostas.periodo_veiculacao',
+    resolver: 'proposta?.periodo_veiculacao',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  DIAS_SEMANA: {
+    nome: 'DIAS_SEMANA',
+    descricao: 'Dias da semana de exibição (ex: Segunda a Sábado)',
+    tipo: 'texto',
+    origem: 'pontos.dias_funcionamento / propostas.dias_semana',
+    resolver: 'ponto?.dias_funcionamento || "Segunda a Sábado"',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  HORARIO_INICIO: {
+    nome: 'HORARIO_INICIO',
+    descricao: 'Horário diário de início da exibição (ex: 08:00)',
+    tipo: 'texto',
+    origem: 'pontos.horario_abertura',
+    resolver: 'ponto?.horario_abertura || "08:00"',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  HORARIO_FIM: {
+    nome: 'HORARIO_FIM',
+    descricao: 'Horário diário de término da exibição (ex: 22:00)',
+    tipo: 'texto',
+    origem: 'pontos.horario_fechamento',
+    resolver: 'ponto?.horario_fechamento || "22:00"',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  PACOTE_VEICULACAO: {
+    nome: 'PACOTE_VEICULACAO',
+    descricao: 'Nome do pacote / plano de veiculação comercial',
+    tipo: 'texto',
+    origem: 'propostas.pacote_veiculacao / propostas.plano',
+    resolver: 'proposta?.pacote_veiculacao || proposta?.plano',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  QUANTIDADE_TELAS: {
+    nome: 'QUANTIDADE_TELAS',
+    descricao: 'Quantidade de telas / sistemas contratados',
+    tipo: 'numero',
+    origem: 'itens_contrato (somatório) / propostas.quantidade_telas',
+    resolver: 'String(dados.quantidadeTelas)',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  QTD_TVS: {
+    nome: 'QTD_TVS',
+    descricao: 'Quantidade de TVs instaladas',
+    tipo: 'numero',
+    origem: 'propostas.qtd_tvs',
+    resolver: 'String(proposta.qtd_tvs)',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  QTD_TOTENS: {
+    nome: 'QTD_TOTENS',
+    descricao: 'Quantidade de Totens instalados',
+    tipo: 'numero',
+    origem: 'propostas.qtd_totens',
+    resolver: 'String(proposta.qtd_totens)',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  QTD_PAINEIS_LED: {
+    nome: 'QTD_PAINEIS_LED',
+    descricao: 'Quantidade de Painéis de LED instalados',
+    tipo: 'numero',
+    origem: 'propostas.qtd_paineis_led',
+    resolver: 'String(proposta.qtd_paineis_led)',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  TOTAL_SISTEMAS: {
+    nome: 'TOTAL_SISTEMAS',
+    descricao: 'Total geral de sistemas de veiculação',
+    tipo: 'numero',
+    origem: 'itens_contrato (somatório)',
+    resolver: 'String(dados.quantidadeTelas)',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+  TITULO_CAMPANHA: {
+    nome: 'TITULO_CAMPANHA',
+    descricao: 'Título ou identificador da campanha de mídia',
+    tipo: 'texto',
+    origem: 'propostas.titulo_campanha',
+    resolver: 'proposta?.titulo_campanha',
+    obrigatorio: false,
+    categoria: 'COMERCIAL',
+  },
+
+  // FINANCEIRO
+  VALOR_MENSAL: {
+    nome: 'VALOR_MENSAL',
+    descricao: 'Valor da mensalidade do contrato (R$ formatado)',
+    tipo: 'moeda',
+    origem: 'contratos.valor_mensal',
+    resolver: 'FORMATO_MOEDA.format(contrato.valor_mensal)',
+    obrigatorio: false,
+    categoria: 'FINANCEIRO',
+  },
+  VALOR_A_VISTA: {
+    nome: 'VALOR_A_VISTA',
+    descricao: 'Valor total à vista negociado',
+    tipo: 'moeda',
+    origem: 'propostas.valor_final',
+    resolver: 'FORMATO_MOEDA.format(proposta.valor_final)',
+    obrigatorio: false,
+    categoria: 'FINANCEIRO',
+  },
+  DESCONTO: {
+    nome: 'DESCONTO',
+    descricao: 'Valor de desconto concedido',
+    tipo: 'moeda',
+    origem: 'propostas.desconto',
+    resolver: 'FORMATO_MOEDA.format(proposta.desconto)',
+    obrigatorio: false,
+    categoria: 'FINANCEIRO',
+  },
+  ENTRADA: {
+    nome: 'ENTRADA',
+    descricao: 'Valor de entrada pago pelo contratante',
+    tipo: 'moeda',
+    origem: 'propostas.entrada',
+    resolver: 'FORMATO_MOEDA.format(proposta.entrada)',
+    obrigatorio: false,
+    categoria: 'FINANCEIRO',
+  },
+  NUMERO_PARCELAS: {
+    nome: 'NUMERO_PARCELAS',
+    descricao: 'Número total de parcelas do plano',
+    tipo: 'numero',
+    origem: 'propostas.numero_parcelas',
+    resolver: 'String(proposta.numero_parcelas)',
+    obrigatorio: false,
+    categoria: 'FINANCEIRO',
+  },
+  PARCELAMENTO_CARTAO: {
+    nome: 'PARCELAMENTO_CARTAO',
+    descricao: 'Detalhamento do parcelamento via cartão de crédito',
+    tipo: 'texto',
+    origem: 'propostas.parcelamento_cartao',
+    resolver: 'proposta?.parcelamento_cartao',
+    obrigatorio: false,
+    categoria: 'FINANCEIRO',
+  },
+  VALOR_POR_SISTEMA: {
+    nome: 'VALOR_POR_SISTEMA',
+    descricao: 'Valor individual por sistema instalado',
+    tipo: 'moeda',
+    origem: 'propostas.valor_por_sistema',
+    resolver: 'FORMATO_MOEDA.format(proposta.valor_por_sistema)',
+    obrigatorio: false,
+    categoria: 'FINANCEIRO',
+  },
+  FORMA_PAGAMENTO: {
+    nome: 'FORMA_PAGAMENTO',
+    descricao: 'Forma de pagamento (PIX, Boleto, Cartão de Crédito)',
+    tipo: 'texto',
+    origem: 'contratos.forma_pagamento',
+    resolver: 'contrato?.forma_pagamento',
+    obrigatorio: false,
+    categoria: 'FINANCEIRO',
+  },
+  DATA_VENCIMENTO_PRIMEIRA_FATURA: {
+    nome: 'DATA_VENCIMENTO_PRIMEIRA_FATURA',
+    descricao: 'Data de vencimento da primeira fatura (DD/MM/AAAA)',
+    tipo: 'data',
+    origem: 'propostas.data_vencimento_primeira',
+    resolver: 'formatarData(proposta.data_vencimento_primeira)',
+    obrigatorio: false,
+    categoria: 'FINANCEIRO',
+  },
+
+  // DERIVADO
+  LOCAL_ASSINATURA: {
+    nome: 'LOCAL_ASSINATURA',
+    descricao: 'Local da assinatura no formato "Cidade / UF" (ex: Caruaru / PE)',
+    tipo: 'texto',
+    origem: 'empresas.cidade + empresas.estado ou pontos.cidade + pontos.estado',
+    resolver: '${cidade} / ${uf}',
+    obrigatorio: false,
+    categoria: 'DERIVADO',
+  },
+  DATA_ASSINATURA: {
+    nome: 'DATA_ASSINATURA',
+    descricao: 'Data da assinatura por extenso no fuso America/Sao_Paulo (ex: 05 de setembro de 2026)',
+    tipo: 'data',
+    origem: 'Data do sistema em America/Sao_Paulo (pt-BR)',
+    resolver: 'formatarDataExtensa(new Date())',
+    obrigatorio: false,
+    categoria: 'DERIVADO',
+  },
+  FORO_COMARCA: {
+    nome: 'FORO_COMARCA',
+    descricao: 'Foro da comarca eleita para resolução de controvérsias',
+    tipo: 'texto',
+    origem: 'Cidade do estabelecimento ou Caruaru',
+    resolver: 'cidade || "Caruaru"',
+    obrigatorio: false,
+    categoria: 'DERIVADO',
+  },
+
+  // SISTEMA
+  NUMERO_CONTRATO: {
+    nome: 'NUMERO_CONTRATO',
+    descricao: 'Código identificador operacional do contrato',
+    tipo: 'texto',
+    origem: 'contratos.numero_contrato',
+    resolver: 'contrato.numero_contrato',
+    obrigatorio: false,
+    categoria: 'SISTEMA',
+  },
+  VERSAO_CONTRATO: {
+    nome: 'VERSAO_CONTRATO',
+    descricao: 'Versão numérica do contrato',
+    tipo: 'numero',
+    origem: 'contratos.versao_atual',
+    resolver: 'String(contrato.versao_atual)',
+    obrigatorio: false,
+    categoria: 'SISTEMA',
+  },
+  TIPO_CONTRATO: {
+    nome: 'TIPO_CONTRATO',
+    descricao: 'Tipo/Categoria do contrato (ANUNCIANTE, PARCEIRO, GESTOR)',
+    tipo: 'texto',
+    origem: 'contratos.tipo_contrato',
+    resolver: 'contrato.tipo_contrato',
+    obrigatorio: false,
+    categoria: 'SISTEMA',
+  },
+
+  // MANUAL
+  ASSINATURA_SOBRE_MIDIA: {
+    nome: 'ASSINATURA_SOBRE_MIDIA',
+    descricao: 'Espaço / Selo da assinatura SOBRE MÍDIA',
+    tipo: 'texto',
+    origem: 'Assinador digital',
+    resolver: '""',
+    obrigatorio: false,
+    categoria: 'MANUAL',
+  },
+  ASSINATURA_CONTRATANTE: {
+    nome: 'ASSINATURA_CONTRATANTE',
+    descricao: 'Espaço / Selo da assinatura do Contratante',
+    tipo: 'texto',
+    origem: 'Assinador digital',
+    resolver: '""',
+    obrigatorio: false,
+    categoria: 'MANUAL',
+  },
+  ASSINATURA_PARCEIRO: {
+    nome: 'ASSINATURA_PARCEIRO',
+    descricao: 'Espaço / Selo da assinatura do Parceiro',
+    tipo: 'texto',
+    origem: 'Assinador digital',
+    resolver: '""',
+    obrigatorio: false,
+    categoria: 'MANUAL',
+  },
+};
+
+/**
+ * Detecta todos os placeholders no padrão {{NOME_DO_CAMPO}} dentro do HTML do template.
+ */
+export function detectarPlaceholders(templateHtml: string): string[] {
+  if (!templateHtml) return [];
+  const matches = [...templateHtml.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)];
+  return [...new Set(matches.map((m) => m[1]))];
+}
+
+export interface ValidacaoPlaceholdersResultado {
+  valido: boolean;
+  erros: string[];
+  placeholdersEncontrados: string[];
+  placeholdersDesconhecidos: string[];
+  placeholdersValidos: string[];
+}
+
+/**
+ * Valida os placeholders do template contra o catálogo canônico.
+ * Se houver tokens não catalogados, retorna valido = false com lista descritiva de erros.
+ */
+export function validarPlaceholdersTemplate(templateHtml: string): ValidacaoPlaceholdersResultado {
+  const encontrados = detectarPlaceholders(templateHtml);
+  const desconhecidos: string[] = [];
+  const validos: string[] = [];
+  const erros: string[] = [];
+
+  for (const ph of encontrados) {
+    if (PLACEHOLDER_CATALOG[ph]) {
+      validos.push(ph);
+    } else {
+      desconhecidos.push(ph);
+      erros.push(`Campo de contrato não reconhecido ou sem origem configurada: {{${ph}}}`);
+    }
+  }
+
+  return {
+    valido: desconhecidos.length === 0,
+    erros,
+    placeholdersEncontrados: encontrados,
+    placeholdersDesconhecidos: desconhecidos,
+    placeholdersValidos: validos,
+  };
+}
+
+/**
+ * Campos OBRIGATÓRIOS por tipo de contrato.
+ * Ausência bloqueia geração com mensagem técnica clara.
  */
 const CAMPOS_OBRIGATORIOS: Record<'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR', string[]> = {
   ANUNCIANTE: ['RAZAO_SOCIAL', 'CNPJ', 'DATA_INICIO', 'DATA_FIM'],
@@ -163,7 +753,11 @@ export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<div class="contract-containe
     <h4 style="margin: 0 0 6px; font-size: 12px; font-weight: bold; color: #1e3a8a;">GRADE DE HORÁRIOS, VEICULAÇÃO E PAGAMENTO</h4>
     <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
       <tr>
-        <td style="padding: 2px 4px; font-weight: bold; width: 35%;">Período de Veiculação:</td>
+        <td style="padding: 2px 4px; font-weight: bold; width: 35%;">Campanha / Identificação:</td>
+        <td style="padding: 2px 4px;">{{TITULO_CAMPANHA}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 4px; font-weight: bold;">Período de Veiculação:</td>
         <td style="padding: 2px 4px;">De {{DATA_INICIO}} a {{DATA_FIM}} ({{PERIODO_VEICULACAO}})</td>
       </tr>
       <tr>
@@ -184,7 +778,7 @@ export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<div class="contract-containe
       </tr>
       <tr>
         <td style="padding: 2px 4px; font-weight: bold;">Valor Mensal:</td>
-        <td style="padding: 2px 4px;">R$ {{VALOR_MENSAL}}</td>
+        <td style="padding: 2px 4px;">{{VALOR_MENSAL}}</td>
       </tr>
       <tr>
         <td style="padding: 2px 4px; font-weight: bold;">Forma de Pagamento:</td>
@@ -429,23 +1023,28 @@ export const CANONICAL_TEMPLATE_HTML_GESTOR = `<div class="contract-container" s
 /**
  * Preenche o template substituindo placeholders com dados reais.
  *
- * Politica:
- *   - Campo OBRIGATORIO ausente -> lanca erro tecnico claro.
- *   - Campo OPCIONAL ausente    -> substitui por string vazia (nao inventa).
- *   - Campo desconhecido        -> substitui por string vazia (graceful).
- *
- * O documento final NAO contera nenhum {{PLACEHOLDER}} nao resolvido.
+ * Política estrita:
+ *   - Valida placeholders contra o catálogo canônico (bloqueia tokens desconhecidos).
+ *   - Campo OBRIGATÓRIO ausente -> lança erro técnico claro.
+ *   - Campo OPCIONAL ausente    -> substitui por string vazia (não inventa dados).
+ *   - Nenhum {{PLACEHOLDER}} não resolvido permanecerá no documento final.
  */
 export function preencherTemplate(
   templateHtml: string,
   dados: Record<string, string>,
   tipoContrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' = 'ANUNCIANTE'
 ): string {
+  const validacao = validarPlaceholdersTemplate(templateHtml);
+  if (!validacao.valido) {
+    throw new Error(
+      `Campo de contrato não reconhecido ou sem origem configurada: ${validacao.placeholdersDesconhecidos.map((p) => `{{${p}}}`).join(', ')}`
+    );
+  }
+
   let html = templateHtml;
-  const placeholders = [...new Set([...html.matchAll(/\{\{([A-Z_0-9]+)\}\}/g)].map((m) => m[1]))];
   const obrigatorios = CAMPOS_OBRIGATORIOS[tipoContrato] || CAMPOS_OBRIGATORIOS.ANUNCIANTE;
 
-  for (const ph of placeholders) {
+  for (const ph of validacao.placeholdersValidos) {
     const valor = dados[ph];
     const temValor = valor !== undefined && valor !== null && String(valor).trim() !== '';
 
@@ -462,10 +1061,12 @@ export function preencherTemplate(
     }
   }
 
-  // Garantia: substituir qualquer placeholder residual por vazio
-  const restantes = [...html.matchAll(/\{\{([A-Z_0-9]+)\}\}/g)].map((m) => m[1]);
-  for (const r of restantes) {
-    html = html.replace(new RegExp(`\\{\\{${r}\\}\\}`, 'g'), '');
+  // Garantia: verificar se sobrou qualquer placeholder {{...}} não resolvido
+  const restantes = [...html.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)].map((m) => m[1]);
+  if (restantes.length > 0) {
+    throw new Error(
+      `Campo de contrato não reconhecido ou sem origem configurada: ${restantes.map((r) => `{{${r}}}`).join(', ')}`
+    );
   }
 
   return html;
@@ -795,6 +1396,10 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
     [cidade, estado].filter(Boolean).join('/'),
   ].filter(Boolean).join(' - ');
 
+  const cidadeAssinatura = (cidade || empresa?.cidade || ponto?.cidade || 'Caruaru').trim();
+  const estadoAssinatura = (estado || empresa?.estado || ponto?.estado || 'PE').trim().toUpperCase();
+  const localAssinatura = estadoAssinatura ? `${cidadeAssinatura} / ${estadoAssinatura}` : cidadeAssinatura;
+
   return {
     RAZAO_SOCIAL:        razaoSocial,
     NOME_FANTASIA:       nomeFantasia,
@@ -829,9 +1434,9 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
     ENTRADA:             proposta?.entrada ? FORMATO_MOEDA.format(Number(proposta.entrada)) : '',
     NUMERO_PARCELAS:     proposta?.numero_parcelas ? String(proposta.numero_parcelas) : '',
     PARCELAMENTO_CARTAO: proposta?.parcelamento_cartao || '',
-    VALOR_POR_SISTEMA:   '',
+    VALOR_POR_SISTEMA:   proposta?.valor_por_sistema ? FORMATO_MOEDA.format(Number(proposta.valor_por_sistema)) : '',
     FORMA_PAGAMENTO:     contrato?.forma_pagamento || '',
-    DATA_VENCIMENTO_PRIMEIRA_FATURA: proposta?.data_vencimento_primeira || '',
+    DATA_VENCIMENTO_PRIMEIRA_FATURA: formatarData(proposta?.data_vencimento_primeira),
     QUANTIDADE_TELAS:    dados.quantidadeTelas > 0 ? String(dados.quantidadeTelas) : '',
     QTD_TVS:             proposta?.qtd_tvs ? String(proposta.qtd_tvs) : '',
     QTD_TOTENS:          proposta?.qtd_totens ? String(proposta.qtd_totens) : '',
@@ -841,9 +1446,12 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
     DATA_FIM:                     formatarData(contrato?.data_fim),
     DATA_INICIO_VEICULACAO:       formatarData(contrato?.data_inicio),
     DATA_FIM_VEICULACAO:          formatarData(contrato?.data_fim),
-    DATA_ASSINATURA:              formatarData(new Date().toISOString()),
-    LOCAL_ASSINATURA:             cidade || '',
-    FORO_COMARCA:                 cidade || '',
+    DATA_ASSINATURA:              formatarDataExtensa(new Date()),
+    LOCAL_ASSINATURA:             localAssinatura,
+    FORO_COMARCA:                 cidade || empresa?.cidade || ponto?.cidade || 'Caruaru',
+    NUMERO_CONTRATO:              contrato?.numero_contrato || '',
+    VERSAO_CONTRATO:              String(contrato?.versao_atual || 1),
+    TIPO_CONTRATO:                tipoContrato,
     ASSINATURA_SOBRE_MIDIA:  '',
     ASSINATURA_CONTRATANTE:  '',
     ASSINATURA_PARCEIRO:     '',
@@ -912,10 +1520,11 @@ export async function gerarDocumentoContrato(contratoId: string, usuarioId: stri
     const { contrato, template } = dados;
 
     const tipoContrato = (contrato.tipo_contrato as 'ANUNCIANTE' | 'PARCEIRO') || 'ANUNCIANTE';
+    const dadosTemplate = montarDadosTemplate(dados);
 
     const htmlRenderizado = preencherTemplate(
       template.conteudo_html,
-      montarDadosTemplate(dados),
+      dadosTemplate,
       tipoContrato
     );
 
@@ -946,6 +1555,11 @@ export async function gerarDocumentoContrato(contratoId: string, usuarioId: stri
         html_renderizado: htmlRenderizado,
         document_hash: documentHash,
         pdf_object_key: objectKey,
+        dados_template: dadosTemplate,
+        versao_numero: novaVersao,
+        template_id: template.id,
+        gerado_em: new Date().toISOString(),
+        timezone: 'America/Sao_Paulo',
         dados_fonte: {
           proposta_id: contrato.proposta_id,
           cliente_id: contrato.cliente_id,

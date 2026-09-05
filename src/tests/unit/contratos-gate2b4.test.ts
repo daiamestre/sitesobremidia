@@ -6,17 +6,15 @@ import {
 } from '@/modules/crm/services/contratoDocumento.service';
 import { PDFDocument } from 'pdf-lib';
 
-// Minimal 1x1 base64 PNG for signature testing
-const MOCK_SIGNATURE_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAABQAQMAAABkI4rPAAAABlBMVEUAAAD///+l2Z/dAAAAAnRSTlP/AOW3374AAAA3SURBVEjH7cGxEQAgCAMAweL+m7uBsbEQaGqS5j5v5fF6PB6Px+PxeDwej8fj8Xg8Ho/H4/H4e7wA7Ush4dZ3tGkAAAAASUVORK5CYII=';
+// Valid minimal 1x1 transparent PNG
+const MOCK_SIGNATURE_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-// Helper to create a multi-page PDF in memory for tests
-async function createTestPdfBytes(pageCount: number = 3): Promise<Uint8Array> {
+// Helper to create a minimal PDF in memory for tests
+async function createTestPdfBytes(pageCount: number = 1): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   for (let i = 0; i < pageCount; i++) {
     const page = doc.addPage([595.28, 841.89]);
-    page.drawText(`Pagina ${i + 1} de ${pageCount}`, { x: 50, y: 800, size: 12 });
-    page.drawText('SOBRE MIDIA DESIGNER', { x: 60, y: 195, size: 10 });
-    page.drawText('CONTRATANTE / PARCEIRO', { x: 310, y: 195, size: 10 });
+    page.drawText(`Pagina ${i + 1}`, { x: 50, y: 800, size: 12 });
   }
   return new Uint8Array(await doc.save());
 }

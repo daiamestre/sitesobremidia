@@ -1,5 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
 import { TipoContrato } from './contractResolver.service';
+import {
+  validarPlaceholdersTemplate,
+  CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
+  CANONICAL_TEMPLATE_HTML_PARCEIRO,
+  CANONICAL_TEMPLATE_HTML_GESTOR,
+} from './contratoDocumento.service';
 
 export interface ContratoTemplateAdminRecord {
   id: string;
@@ -27,6 +33,8 @@ export interface CriarModeloPayload {
   conteudoHtml: string;
   isDefault?: boolean;
 }
+
+export { CANONICAL_TEMPLATE_HTML_ANUNCIANTE, CANONICAL_TEMPLATE_HTML_PARCEIRO, CANONICAL_TEMPLATE_HTML_GESTOR };
 
 export class ContratoModelosAdminService {
   /**
@@ -88,6 +96,14 @@ export class ContratoModelosAdminService {
         return { success: false, error: 'Nome, código do template e conteúdo HTML são obrigatórios.' };
       }
 
+      const validacao = validarPlaceholdersTemplate(payload.conteudoHtml);
+      if (!validacao.valido) {
+        return {
+          success: false,
+          error: `Campo de contrato não reconhecido ou sem origem configurada: ${validacao.placeholdersDesconhecidos.map((p) => `{{${p}}}`).join(', ')}`,
+        };
+      }
+
       const { data, error } = await supabase
         .from('contrato_templates')
         .insert({
@@ -128,6 +144,14 @@ export class ContratoModelosAdminService {
     novoNome?: string
   ): Promise<{ success: boolean; templateId?: string; versao?: number; error?: string }> {
     try {
+      const validacao = validarPlaceholdersTemplate(novoConteudoHtml);
+      if (!validacao.valido) {
+        return {
+          success: false,
+          error: `Campo de contrato não reconhecido ou sem origem configurada: ${validacao.placeholdersDesconhecidos.map((p) => `{{${p}}}`).join(', ')}`,
+        };
+      }
+
       // 1. Tentar execução via RPC Server-side com Advisory Lock atômico (N+1 concorrente seguro)
       const { data, error } = await supabase.rpc('fn_criar_nova_versao_contrato_template', {
         p_template_id: templateId,
