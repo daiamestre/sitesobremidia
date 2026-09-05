@@ -234,122 +234,169 @@ export function ContratosAdminPage() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {modelos.map((tpl) => (
-                <Card
-                  key={tpl.id}
-                  className={`relative flex flex-col justify-between transition-all ${
-                    tpl.is_default ? 'border-primary/50 bg-primary/5 shadow-sm' : 'border-border/60'
-                  }`}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <Badge variant={tpl.empresa_operadora_id ? 'outline' : 'secondary'} className="text-[10px]">
-                        {tpl.empresa_operadora_id ? 'Tenant Específico' : 'Global'}
-                      </Badge>
+              {modelos.map((tpl) => {
+                const lenKb = ((tpl.conteudo_html?.length || 0) / 1024).toFixed(1);
+                const isOficial = tpl.codigo_template.toUpperCase().includes('OFICIAL');
+                const totalPlaceholders = (tpl.conteudo_html?.match(/\{\{([A-Z_0-9]+)\}\}/g) || []).length;
 
-                      <div className="flex items-center gap-1">
-                        <Badge variant="outline" className="text-[10px] bg-background">
-                          v{tpl.versao}
+                return (
+                  <Card
+                    key={tpl.id}
+                    className={`relative flex flex-col justify-between transition-all ${
+                      tpl.is_default ? 'border-primary/50 bg-primary/5 shadow-sm' : 'border-border/60'
+                    }`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <Badge variant={tpl.empresa_operadora_id ? 'outline' : 'secondary'} className="text-[10px]">
+                          {tpl.empresa_operadora_id ? 'Tenant Específico' : 'Global'}
                         </Badge>
-                        {tpl.is_default && (
-                          <Badge className="bg-emerald-600 text-white text-[10px] flex items-center gap-1">
-                            <Star className="h-3 w-3 fill-current" /> Padrão
+
+                        <div className="flex items-center gap-1">
+                          {isOficial && (
+                            <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              Oficial
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-[10px] bg-background">
+                            v{tpl.versao}
                           </Badge>
-                        )}
+                          {tpl.is_default && (
+                            <Badge className="bg-emerald-600 text-white text-[10px] flex items-center gap-1">
+                              <Star className="h-3 w-3 fill-current" /> Padrão
+                            </Badge>
+                          )}
+                        </div>
                       </div>
+
+                      <CardTitle className="text-base font-semibold line-clamp-1">{tpl.nome}</CardTitle>
+                      <CardDescription className="text-xs font-mono text-muted-foreground mt-1 flex items-center justify-between">
+                        <span>{tpl.codigo_template}</span>
+                        <span className="text-[11px] font-sans text-muted-foreground">{lenKb} KB • {totalPlaceholders} variáveis</span>
+                      </CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4 text-xs text-muted-foreground flex-1">
+                      {tpl.descricao && <p className="line-clamp-2 italic">{tpl.descricao}</p>}
+
+                      <div className="flex items-center justify-between border-t border-border/40 pt-3 text-[11px]">
+                        <span>Aplicado em:</span>
+                        <span className="font-semibold text-foreground">
+                          {tpl.total_contratos_aplicados || 0} contrato(s)
+                        </span>
+                      </div>
+                    </CardContent>
+
+                    {/* Ações */}
+                    <div className="p-4 pt-0 border-t border-border/40 flex items-center justify-between gap-2 mt-auto">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Visualizar Cláusulas e Prévia"
+                          onClick={() => setPreviewTemplate(tpl)}
+                        >
+                          <Eye className="h-4 w-4 text-primary" />
+                        </Button>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Criar Nova Versão"
+                          onClick={() => handleAbrirNovaVersao(tpl)}
+                        >
+                          <Edit3 className="h-4 w-4 text-blue-500" />
+                        </Button>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title={tpl.ativo ? 'Desativar Modelo' : 'Ativar Modelo'}
+                          onClick={() => handleToggleAtivo(tpl.id, tpl.ativo)}
+                        >
+                          <Power className={`h-4 w-4 ${tpl.ativo ? 'text-emerald-500' : 'text-slate-400'}`} />
+                        </Button>
+                      </div>
+
+                      {!tpl.is_default && tpl.ativo && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs text-primary border-primary/30 hover:bg-primary/10"
+                          onClick={() => handleDefinirPadrao(tpl.id)}
+                        >
+                          <Star className="h-3.5 w-3.5 mr-1" />
+                          Tornar Padrão
+                        </Button>
+                      )}
                     </div>
-
-                    <CardTitle className="text-base font-semibold line-clamp-1">{tpl.nome}</CardTitle>
-                    <CardDescription className="text-xs font-mono text-muted-foreground mt-1">
-                      {tpl.codigo_template}
-                    </CardDescription>
-                  </CardHeader>
-
-                  <CardContent className="space-y-4 text-xs text-muted-foreground flex-1">
-                    {tpl.descricao && <p className="line-clamp-2 italic">{tpl.descricao}</p>}
-
-                    <div className="flex items-center justify-between border-t border-border/40 pt-3 text-[11px]">
-                      <span>Aplicado em:</span>
-                      <span className="font-semibold text-foreground">
-                        {tpl.total_contratos_aplicados || 0} contrato(s)
-                      </span>
-                    </div>
-                  </CardContent>
-
-                  {/* Ações */}
-                  <div className="p-4 pt-0 border-t border-border/40 flex items-center justify-between gap-2 mt-auto">
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title="Visualizar Preview"
-                        onClick={() => setPreviewTemplate(tpl)}
-                      >
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title="Criar Nova Versão"
-                        onClick={() => handleAbrirNovaVersao(tpl)}
-                      >
-                        <Edit3 className="h-4 w-4 text-blue-500" />
-                      </Button>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title={tpl.ativo ? 'Desativar Modelo' : 'Ativar Modelo'}
-                        onClick={() => handleToggleAtivo(tpl.id, tpl.ativo)}
-                      >
-                        <Power className={`h-4 w-4 ${tpl.ativo ? 'text-emerald-500' : 'text-slate-400'}`} />
-                      </Button>
-                    </div>
-
-                    {!tpl.is_default && tpl.ativo && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs text-primary border-primary/30 hover:bg-primary/10"
-                        onClick={() => handleDefinirPadrao(tpl.id)}
-                      >
-                        <Star className="h-3.5 w-3.5 mr-1" />
-                        Tornar Padrão
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
       </Tabs>
 
-      {/* Modal Preview Sanitizado */}
+      {/* Modal Preview Sanitizado com Visualização Completa de Cláusulas */}
       <Dialog open={!!previewTemplate} onOpenChange={() => setPreviewTemplate(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[88vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              Preview: {previewTemplate?.nome} (v{previewTemplate?.versao})
-            </DialogTitle>
-            <DialogDescription className="font-mono text-xs">
-              Código: {previewTemplate?.codigo_template} | Tipo: {previewTemplate?.tipo_contrato}
-            </DialogDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <DialogTitle className="flex items-center gap-2 text-lg">
+                  <FileText className="h-5 w-5 text-primary" />
+                  {previewTemplate?.nome}
+                </DialogTitle>
+                <DialogDescription className="font-mono text-xs mt-1 flex items-center gap-2">
+                  <span>Código: <strong>{previewTemplate?.codigo_template}</strong></span>
+                  <span>•</span>
+                  <span>Versão: <strong>v{previewTemplate?.versao}</strong></span>
+                  <span>•</span>
+                  <span>Tipo: <strong>{previewTemplate?.tipo_contrato}</strong></span>
+                  {previewTemplate?.is_default && (
+                    <>
+                      <span>•</span>
+                      <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5 inline" /> Modelo Padrão
+                      </span>
+                    </>
+                  )}
+                </DialogDescription>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs shrink-0"
+                onClick={() => {
+                  if (previewTemplate?.conteudo_html) {
+                    navigator.clipboard.writeText(previewTemplate.conteudo_html);
+                    toast({ title: 'HTML Copiado', description: 'Código HTML do contrato copiado para a área de transferência.' });
+                  }
+                }}
+              >
+                <Copy className="h-3.5 w-3.5 mr-1" />
+                Copiar HTML
+              </Button>
+            </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto p-4 border rounded-md bg-white text-black text-xs font-serif leading-relaxed">
+          <div className="flex-1 overflow-y-auto p-6 border rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-inner">
             <div
+              className="bg-white dark:bg-slate-950 p-6 md:p-8 rounded border border-slate-200 dark:border-slate-800 shadow-sm max-w-3xl mx-auto"
               dangerouslySetInnerHTML={{
                 __html: sanitizeHtmlForPreview(previewTemplate?.conteudo_html || '<p>Sem conteúdo HTML.</p>'),
               }}
             />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex items-center justify-between sm:justify-between">
+            <div className="text-xs text-muted-foreground">
+              {((previewTemplate?.conteudo_html?.length || 0) / 1024).toFixed(1)} KB • Cláusulas Oficiais Ativas
+            </div>
             <Button variant="outline" onClick={() => setPreviewTemplate(null)}>
-              Fechar
+              Fechar Visualização
             </Button>
           </DialogFooter>
         </DialogContent>

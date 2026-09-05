@@ -50,17 +50,163 @@ const CAMPOS_OBRIGATORIOS: Record<'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR', string[]
   GESTOR:     ['NOME_GESTOR', 'CPF_CNPJ', 'DATA_INICIO', 'DATA_FIM'],
 };
 
-export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<h2>CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE MÍDIA DIGITAL SIGNAGE</h2>
-<p>Pelo presente instrumento particular, de um lado <strong>SOBRE MÍDIA PLATAFORMA DIGITAL</strong> e de outro lado <strong>{{RAZAO_SOCIAL}}</strong>, inscrita no CNPJ sob o nº <strong>{{CNPJ}}</strong>, estabelecida em {{CIDADE}}/{{ESTADO}}, representada por {{REPRESENTANTE_LEGAL}}.</p>
-<h3>1. DO OBJETO</h3>
-<p>O presente contrato tem por objeto a prestação de serviços de exibição de mídias publicitárias e informativas na rede de telas da CONTRATADA para a campanha <strong>{{TITULO_CAMPANHA}}</strong>, composta por <strong>{{QUANTIDADE_TELAS}}</strong> telas/painéis.</p>
-<h3>2. DO VALOR E CONDIÇÕES DE PAGAMENTO</h3>
-<p>Pela prestação dos serviços contratados, a CONTRATANTE pagará o valor mensal de <strong>R$ {{VALOR_MENSAL}}</strong> através da forma de pagamento <strong>{{FORMA_PAGAMENTO}}</strong>, com vigência de {{DATA_INICIO}} a {{DATA_FIM}}.</p>
-<h3>3. DAS CLÁUSULAS JURÍDICAS INALTERÁVEIS</h3>
-<p>A veiculação observará a grade de programação estipulada e a conformidade com as normas legais de publicidade vigente.</p>
-<p>Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
-<p>___________________________________                                      ___________________________________</p>
-<p>SOBRE MÍDIA DESIGNER                                                          CONTRATANTE</p>`;
+export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<div class="contract-container" style="font-family: Arial, sans-serif; font-size: 12px; line-height: 1.45; color: #111827;">
+  <div style="text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 14px;">
+    <p style="margin: 0; font-size: 11px; font-weight: bold; color: #1e3a8a;">SOBRE MÍDIA DESIGNER, Av. Agamenon Magalhães, 1019 - Maurício de Nassau, Caruaru - PE, CEP 55012-140</p>
+    <p style="margin: 2px 0; font-size: 11px; color: #4b5563;">Tel: (81) 99884-4677 | E-mail: sobremidiadesigner@gmail.com | Site: www.sobremidiadesigner.com.br</p>
+    <h3 style="margin: 8px 0 0; font-size: 14px; color: #111827; font-weight: bold; text-transform: uppercase;">CONTRATO DE SERVIÇO E VEICULAÇÃO DE PUBLICIDADE POR MEIO DIGITAL EM MÍDIA INDOOR – SOBRE MÍDIA DESIGNER</h3>
+  </div>
+
+  <div style="margin-bottom: 12px; background-color: #f9fafb; padding: 10px; border-radius: 4px; border: 1px solid #e5e7eb;">
+    <h4 style="margin: 0 0 6px; font-size: 12px; font-weight: bold; color: #1e3a8a;">DADOS DO CONTRATANTE - ESTABELECIMENTO COMERCIAL</h4>
+    <table style="width: 100%; font-size: 11px; border-collapse: collapse; margin-bottom: 8px;">
+      <tr>
+        <td style="padding: 2px 0; width: 50%;"><strong>Nome/Razão Social:</strong> {{RAZAO_SOCIAL}}</td>
+        <td style="padding: 2px 0; width: 50%;"><strong>Responsável:</strong> {{RESPONSAVEL}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>CPF/CNPJ:</strong> {{CNPJ}}</td>
+        <td style="padding: 2px 0;"><strong>Endereço:</strong> {{ENDERECO_UNIDADE}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>Bairro:</strong> {{BAIRRO}}</td>
+        <td style="padding: 2px 0;"><strong>Cidade/UF:</strong> {{CIDADE}} / {{UF}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>CEP:</strong> {{CEP}}</td>
+        <td style="padding: 2px 0;"><strong>E-mail:</strong> {{EMAIL}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;" colspan="2"><strong>Instagram / Website:</strong> {{INSTAGRAM}} {{WEBSITE}}</td>
+      </tr>
+    </table>
+
+    <h4 style="margin: 8px 0 6px; font-size: 12px; font-weight: bold; color: #1e3a8a; border-top: 1px solid #e5e7eb; padding-top: 6px;">DADOS DO CONTRATADO - SOBRE MÍDIA DESIGNER</h4>
+    <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
+      <tr>
+        <td style="padding: 2px 0; width: 50%;"><strong>Nome/Razão Social:</strong> Sobre Mídia Designer</td>
+        <td style="padding: 2px 0; width: 50%;"><strong>Responsável:</strong> Jairan Santos</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>CPF/CNPJ:</strong> 44.899.400/0002-57</td>
+        <td style="padding: 2px 0;"><strong>Endereço:</strong> Av. Agamenon Magalhães, Nº 1019</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>Bairro:</strong> Maurício de Nassau</td>
+        <td style="padding: 2px 0;"><strong>Cidade/UF:</strong> Caruaru / PE</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>CEP:</strong> 55012-140</td>
+        <td style="padding: 2px 0;"><strong>E-mail:</strong> sobremidiadesigner@gmail.com</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;" colspan="2"><strong>Instagram / Website:</strong> @sobremidiadesigner | www.sobremidiadesigner.com.br</td>
+      </tr>
+    </table>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <p style="text-align: justify; margin: 0 0 8px; font-size: 11.5px;">Pelo presente instrumento as partes acima identificadas têm, entre si, justo e acertado o presente contrato de serviço de marketing visual e publicidade digital em monitores de Mídia indoor que se regerá pelas cláusulas seguintes.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 01 - NOSSO SERVIÇO</h4>
+    <p style="text-align: justify; margin: 0;">O serviço oferecido pela SOBRE MÍDIA DESIGNER é anúncios publicitários na forma de vídeos e stories animados em 3D de alta qualidade em uma rede de telas de LED TVS ou TOTEM, visando locais estratégicos com grande fluxo de pessoas como: lotéricas, padarias, restaurantes, hotéis, clínicas, farmácias, etc. Impactando diretamente os consumidores da região de interesse do anunciante, oferecemos o serviço de publicidade exclusiva que apresenta vídeos apenas do cliente em seu próprio estabelecimento construindo uma marca forte e comunicativa, visando prender a atenção do seu cliente e do seu provável cliente. O contratante também tem a possibilidade de usar apenas o nosso sistema em sua TELA ou TV, sendo assim ciente por essa cláusula o mesmo aceita e concorda que passará stories, vídeos, fotos e anúncios de outros estabelecimentos da região em suas telas. Ao concordar, o seu comercial, fotos e vídeos também passará em outros estabelecimentos da sua cidade, construindo uma marca forte e comunicativa em parceria com a SOBRE MÍDIA DESIGNER.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 02 - SISTEMA INTELIGENTE</h4>
+    <p style="text-align: justify; margin: 0;">Nossas TELAS e TOTEM têm a função inteligente, ligando no horário de abertura do seu estabelecimento e desligando ao término da jornada de trabalho, tudo automatizado pelo nosso sistema. A automação inteligente reduz os desgastes dos aparelhos e a demanda de manutenções no local, sendo responsabilidade da empresa contratada a rever, reparar e resolver ocorrências em até 72 horas se caso preciso.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 03 - NOSSO CONTEÚDO</h4>
+    <p style="text-align: justify; margin: 0;">Criamos roteiros de vídeos e imagens pensado no seu estabelecimento com qualidade e clareza nas informações que é passada, o conteúdo apresentado na suas telas são estratégias validadas e que trazem retorno visíveis para sua empresa. Fica ciente o contratante que conteúdos externos produzido por terceiros ou por si próprio é de sua total responsabilidade. A empresa contratada não se responsabiliza e não garante fluidez e qualidade nos conteúdos que é fornecidos. NÃO ACEITAMOS IMAGENS EXPLÍCITAS, CONTEÚDOS COM BAIXA VISIBILIDADE OU JOGOS e/ou APOSTAS.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 04 - PLANO EXCLUSIVO</h4>
+    <p style="text-align: justify; margin: 0;">No plano exclusivo o contratante recebe 10 mídias grátis podendo rodar até 30 mídias exclusivas de até 30 segundos cada, fazendo o ciclo de 15 minutos. O contratante tem o poder de montar sua grade de anúncios do jeito que preferir, seja mostrando novos produtos ou destacando promoções relevantes. O marketing visual exclusivo trabalhado da forma certa tem a função de despertar o desejo das pessoas e quase sempre o instinto humano vai querer vivenciar aquilo que está sendo mostrado na tela, a mídia gera uma conexão e sugere algo que não se encontra em qualquer lugar. Fica a critério do contratante rodar anúncios de notícias, esportes, hora certa e clima da região.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 05 - PLANO SISTEMA</h4>
+    <p style="text-align: justify; margin: 0;">No plano sistema o contratante recebe apenas 5 mídias grátis podendo rodar até 8 mídias exclusivas de até 30 segundos cada, fazendo o ciclo de 2:40 minutos. No plano sistema o contratante é incluso no grupo de anunciantes da região permitindo assim rodar anúncios de outros estabelecimentos em suas telas. ESSE CASO NÃO SE APLICA AOS SEUS CONCORRENTES DIRETO.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 06 - RESPONSABILIDADE DO CONTRATANTE</h4>
+    <p style="text-align: justify; margin: 0;">Nossos aparelhos são novos e sempre revisados, a nossa responsabilidade é garantir a fluidez e o bom funcionamento dos equipamentos fornecidos. Nosso kit contém: tela de LCD ou TVs acompanhado de um mine computador portátil e quase sempre uma moldura personalizada da loja. É dever do contratante/responsável informar possíveis problemas de tela desligada, tela sem exibir vídeos ou programações desatualizadas. O responsável pelo local tem a obrigação de manter todas as TELAS, MONITORES e TOTENS sempre ligados. A integridade desses aparelhos dentro do estabelecimento é de suma responsabilidade do contratante. Se constatado mau uso sobre os aparelhos o estabelecimento será prontamente notificado.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 07 - CONDIÇÕES DE PAGAMENTOS</h4>
+    <p style="text-align: justify; margin: 0;">Toda véspera do vencimento de fatura o contratante receberá uma notificação por E-mail, WhatsApp e SMS contendo todas as formas de pagamentos, incluindo CHAVE PIX, QRCODE ou BOLETO com vencimento em até 3 dias úteis. Diante do não pagamento na data prevista será acrescido juros de mora de 0,13% (treze centavos) ao dia sobre o valor total do débito calculado da data do vencimento até a data do efetivo pagamento. Multa moratória de 2% (dois por cento) calculada sobre o valor do débito, cobrada de uma única vez.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 08 - RENOVAÇÃO DE CONTRATO</h4>
+    <p style="text-align: justify; margin: 0;">Esse presente contrato de publicidade digital representado pelas partes jurídica/Física poderá ser prorrogado automaticamente na ausência de manifestação do contratante. Tendo previsto o cancelamento do seguinte contrato, é obrigatório a notificação com antecedência mínima de 30 (trinta) dias antes do vencimento por e-mail ou WhatsApp.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 09 - RESCISÃO CONTRATUAL</h4>
+    <p style="text-align: justify; margin: 0;">As partes poderão rescindir o presente contrato a qualquer momento, desde que seja cumprida pelo menos 50% do contrato firmado. Assim o contratado não perde por completo o investimento pensando no ponto referido. Em caso de QUEBRA DE CONTRATO subsequente a contratação ou sem o cumprimento dos 50% do referido contrato, será cobrado 25% do valor da mensalidade sobre os meses restantes. Em caso de cancelamento, o PARCEIRO se compromete a saldar e liquidar, eventuais débitos e pendências existentes e vencidas, no prazo máximo de 30 dias. Fica ciente o contratante que ao término do contrato todos os aparelhos fornecidos pela Sobre Mídia Designer serão devolvidos em perfeitas condições assim como foram instalados.</p>
+  </div>
+
+  <div style="margin-bottom: 10px; background-color: #f8fafc; padding: 8px; border-radius: 4px; border: 1px solid #e2e8f0;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">POLÍTICA DE PRIVACIDADE</h4>
+    <p style="text-align: justify; margin: 0; font-size: 11px;">Os dados fornecidos através do nosso cadastro serão utilizados unicamente para a elaboração de contrato. Não divulgamos ou utilizamos os dados fornecidos para qualquer outra finalidade sem a sua autorização. Nós da SOBRE MÍDIA DESIGNER temos como princípio a discrição, o respeito e o profissionalismo com nossos clientes.</p>
+  </div>
+
+  <div style="margin-bottom: 12px; border: 1px solid #d1d5db; padding: 8px 10px; border-radius: 4px; background-color: #f8fafc;">
+    <h4 style="margin: 0 0 6px; font-size: 12px; font-weight: bold; color: #1e3a8a;">GRADE DE HORÁRIOS, VEICULAÇÃO E PAGAMENTO</h4>
+    <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+      <tr>
+        <td style="padding: 2px 4px; font-weight: bold; width: 35%;">Período de Veiculação:</td>
+        <td style="padding: 2px 4px;">De {{DATA_INICIO}} a {{DATA_FIM}} ({{PERIODO_VEICULACAO}})</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 4px; font-weight: bold;">Dias da Semana:</td>
+        <td style="padding: 2px 4px;">{{DIAS_SEMANA}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 4px; font-weight: bold;">Horário de Funcionamento:</td>
+        <td style="padding: 2px 4px;">{{HORARIO_INICIO}} às {{HORARIO_FIM}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 4px; font-weight: bold;">Pacote de Veiculação:</td>
+        <td style="padding: 2px 4px;">{{PACOTE_VEICULACAO}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 4px; font-weight: bold;">Quantidade de Telas / Sistemas:</td>
+        <td style="padding: 2px 4px;">{{QUANTIDADE_TELAS}} sistema(s)</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 4px; font-weight: bold;">Valor Mensal:</td>
+        <td style="padding: 2px 4px;">R$ {{VALOR_MENSAL}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 4px; font-weight: bold;">Forma de Pagamento:</td>
+        <td style="padding: 2px 4px;">{{FORMA_PAGAMENTO}}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div style="margin-bottom: 16px;">
+    <p style="text-align: justify; margin: 0 0 8px; font-size: 11px;">Autorizo a veiculação de material publicitário pelo prazo acima descrito, declarando que os arquivos e imagens foram conferidos e autorizados.</p>
+    <p style="text-align: center; margin: 0 0 16px;">Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
+    
+    <div style="display: flex; justify-content: space-between; margin-top: 20px; padding-top: 14px;">
+      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA DESIGNER</p>
+      </div>
+      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">{{RAZAO_SOCIAL}} (CONTRATANTE)</p>
+      </div>
+    </div>
+  </div>
+</div>`;
 
 export const CANONICAL_TEMPLATE_HTML_PARCEIRO = `<div class="contract-container" style="font-family: Arial, sans-serif; font-size: 12px; line-height: 1.45; color: #111827;">
   <div style="text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 14px;">
@@ -200,21 +346,85 @@ export const CANONICAL_TEMPLATE_HTML_PARCEIRO = `<div class="contract-container"
   </div>
 </div>`;
 
-export const CANONICAL_TEMPLATE_HTML_GESTOR = `<h2>CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE GESTÃO OPERACIONAL DE DISPLAYS</h2>
-<p>Pelo presente instrumento particular, de um lado <strong>SOBRE MÍDIA PLATAFORMA DIGITAL</strong> e de outro lado o GESTOR OPERACIONAL <strong>{{NOME_GESTOR}}</strong>, portador do CPF/CNPJ sob o nº <strong>{{CPF_CNPJ}}</strong>, residente/estabelecido em {{CIDADE}}/{{ESTADO}}.</p>
-<h3>1. DO OBJETO</h3>
-<p>O presente contrato tem por objeto a prestação de serviços de gestão técnica, monitoramento operacional e operação de displays digitais e painéis conectados à plataforma SOBRE MÍDIA.</p>
-<h3>2. DAS OBRIGAÇÕES DO GESTOR</h3>
-<p>O GESTOR compromete-se a zelar pelo bom funcionamento dos equipamentos sob sua gestão, monitorar a conectividade dos dispositivos e seguir as diretrizes operacionais e de veiculação da plataforma.</p>
-<h3>3. DAS VEDAÇÕES</h3>
-<p>É terminantemente proibida a veiculação de conteúdos não autorizados, a alteração não homologada de hardwares ou o desvio de finalidade dos displays.</p>
-<h3>4. DA VIGÊNCIA E RESCISÃO</h3>
-<p>O presente instrumento vigorará de {{DATA_INICIO}} a {{DATA_FIM}}, podendo ser rescindido por descumprimento das normas operacionais.</p>
-<p>Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
-<p>___________________________________</p>
-<p>SOBRE MÍDIA</p>
-<p>___________________________________</p>
-<p>GESTOR OPERACIONAL</p>`;
+export const CANONICAL_TEMPLATE_HTML_GESTOR = `<div class="contract-container" style="font-family: Arial, sans-serif; font-size: 12px; line-height: 1.45; color: #111827;">
+  <div style="text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 14px;">
+    <p style="margin: 0; font-size: 11px; font-weight: bold; color: #1e3a8a;">SOBRE MÍDIA DESIGNER LTDA., Av. Agamenon Magalhães, 1019 - Maurício de Nassau, Caruaru - PE, CEP 55012-140</p>
+    <p style="margin: 2px 0; font-size: 11px; color: #4b5563;">Tel: (81) 99884-4677 | E-mail: sobremidiadesigner@gmail.com | Site: www.sobremidiadesigner.com.br</p>
+    <h3 style="margin: 8px 0 0; font-size: 14px; color: #111827; font-weight: bold; text-transform: uppercase;">CONTRATO DE GESTÃO DE MÍDIA DIGITAL</h3>
+    <p style="margin: 4px 0 0; font-size: 11px; font-weight: bold; color: #4b5563;">GESTOR DE MÍDIAS</p>
+  </div>
+
+  <div style="margin-bottom: 12px; background-color: #f9fafb; padding: 10px; border-radius: 4px; border: 1px solid #e5e7eb;">
+    <h4 style="margin: 0 0 6px; font-size: 12px; font-weight: bold; color: #1e3a8a;">DADOS DAS PARTES</h4>
+    <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
+      <tr>
+        <td style="padding: 2px 0; width: 50%;"><strong>Contratante:</strong> SOBRE MÍDIA DESIGNER LTDA.</td>
+        <td style="padding: 2px 0; width: 50%;"><strong>CNPJ:</strong> 44.899.400/0002-57</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>Gestor de Mídias:</strong> {{NOME_GESTOR}}</td>
+        <td style="padding: 2px 0;"><strong>CPF/CNPJ:</strong> {{CPF_CNPJ}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>Endereço/Cidade:</strong> {{ENDERECO_UNIDADE}} {{CIDADE}}/{{UF}}</td>
+        <td style="padding: 2px 0;"><strong>Contato:</strong> {{TELEFONE}} / {{EMAIL}}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <p style="text-align: justify; margin: 0 0 8px; font-size: 11.5px;">SOBRE MÍDIA DESIGNER LTDA. e o GESTOR DE MÍDIAS identificado no cadastro realizado na plataforma, resolvem estabelecer as seguintes condições para atuação na gestão da rede de mídia digital da SOBRE MÍDIA.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">1. OBJETO</h4>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>1.1.</strong> O presente contrato estabelece as regras básicas para atuação do GESTOR DE MÍDIAS na operação da rede.</p>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>1.2.</strong> A rede é composta por estabelecimentos parceiros, pontos comerciais e telas digitais da SOBRE MÍDIA.</p>
+    <p style="text-align: justify; margin: 0;"><strong>1.3.</strong> O GESTOR atuará nos pontos e equipamentos que lhe forem atribuídos pela SOBRE MÍDIA.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">2. COMO FUNCIONA A REDE SOBRE MÍDIA</h4>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>2.1.</strong> A SOBRE MÍDIA estabelece parcerias com estabelecimentos comerciais (PONTOS PARCEIROS).</p>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>2.2.</strong> ANUNCIANTES contratam espaços de mídia para exibição de conteúdos publicitários.</p>
+    <p style="text-align: justify; margin: 0;"><strong>2.3.</strong> O GESTOR participa da operação da rede, acompanhando os pontos, telas e ocorrências atribuídas.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">3. ATRIBUIÇÕES DO GESTOR</h4>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>3.1.</strong> Acompanhar o funcionamento das telas e equipamentos e comunicar problemas técnicos ou danos.</p>
+    <p style="text-align: justify; margin: 0;"><strong>3.2.</strong> Preservar equipamentos, materiais e credenciais e cumprir as políticas da SOBRE MÍDIA.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">4. POLÍTICAS DA REDE E LIMITES DE ATUAÇÃO</h4>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>4.1. Conteúdo:</strong> Nenhum conteúdo deverá ser inserido/alterado sem autorização da SOBRE MÍDIA.</p>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>4.2. Confidencialidade:</strong> Manter sigilo sobre informações comerciais, técnicas e operacionais.</p>
+    <p style="text-align: justify; margin: 0;"><strong>4.3. Limites:</strong> O GESTOR não pode assinar contratos, alterar preços ou receber valores pela SOBRE MÍDIA.</p>
+  </div>
+
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">5. REMUNERAÇÃO, VIGÊNCIA E ACEITE</h4>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>5.1.</strong> Remuneração conforme instrumento complementar específico. Este contrato provisório não gera comissão automática.</p>
+    <p style="text-align: justify; margin: 0;"><strong>5.2.</strong> Vigência de {{DATA_INICIO}} a {{DATA_FIM}} para homologação técnica e testes do sistema SOBRE MÍDIA.</p>
+  </div>
+
+  <div style="margin-bottom: 16px;">
+    <h4 style="margin: 0 0 8px; font-size: 12px; font-weight: bold; color: #1e3a8a;">ASSINATURAS E ANEXOS</h4>
+    <p style="text-align: center; margin: 0 0 16px;">Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
+    
+    <div style="display: flex; justify-content: space-between; margin-top: 20px; padding-top: 14px;">
+      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA DESIGNER LTDA.</p>
+        <p style="margin: 2px 0 0; font-size: 10px; color: #6b7280;">Assinatura Digital Autorizada</p>
+      </div>
+      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">{{NOME_GESTOR}} (GESTOR)</p>
+        <p style="margin: 2px 0 0; font-size: 10px; color: #6b7280;">Assinatura Digital do Gestor</p>
+      </div>
+    </div>
+  </div>
+</div>`;
 
 /**
  * Preenche o template substituindo placeholders com dados reais.
@@ -588,6 +798,7 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
     CPF_CNPJ:            cnpj,
     RESPONSAVEL:         responsavel,
     REPRESENTANTE_LEGAL: responsavel,
+    NOME_GESTOR:         responsavel || razaoSocial || nomeFantasia,
     LOGRADOURO:          logradouro,
     NUMERO:              numero,
     BAIRRO:              bairro,
