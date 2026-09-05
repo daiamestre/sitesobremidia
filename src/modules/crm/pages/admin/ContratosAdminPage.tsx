@@ -219,8 +219,8 @@ export function ContratosAdminPage() {
         isDefault: true,
       });
 
-      if (!res.success) {
-        toast({ title: 'Falha ao criar modelo', description: res.error, variant: 'destructive' });
+      if (!res.success || !res.templateId) {
+        toast({ title: 'Falha ao criar modelo', description: res.error || 'Identificador do modelo não retornado pelo servidor.', variant: 'destructive' });
         return;
       }
 

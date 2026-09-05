@@ -125,31 +125,34 @@ export class ContratoModelosAdminService {
         };
       }
 
-      const { data, error } = await supabase
-        .from('contrato_templates')
-        .insert({
-          empresa_operadora_id: payload.empresaOperadoraId || null,
-          tipo_contrato: payload.tipoContrato,
-          codigo_template: payload.codigoTemplate.trim().toUpperCase(),
-          nome: payload.nome.trim(),
-          descricao: payload.descricao?.trim() || null,
-          versao: 1,
-          conteudo_html: conteudoHtmlFinal,
-          ativo: true,
-          is_default: payload.isDefault ?? false,
-        })
-        .select('id')
-        .single();
+      // Invocação da RPC Server-side com autorização, isolamento multi-tenant e lock atômico
+      const { data, error } = await supabase.rpc('fn_criar_modelo_contrato_template', {
+        p_tipo_contrato: payload.tipoContrato,
+        p_codigo_template: payload.codigoTemplate.trim().toUpperCase(),
+        p_nome: payload.nome.trim(),
+        p_conteudo_html: conteudoHtmlFinal,
+        p_descricao: payload.descricao?.trim() || null,
+        p_empresa_operadora_id: payload.empresaOperadoraId || null,
+        p_is_default: payload.isDefault ?? false,
+      });
+
+      if (!error && data && typeof data === 'object' && 'success' in data) {
+        const res = data as unknown as { success: boolean; template_id?: string; id?: string; error?: string };
+        if (!res.success) {
+          return { success: false, error: res.error || 'Falha ao criar modelo de contrato.' };
+        }
+        const templateId = res.template_id || res.id;
+        if (!templateId) {
+          return { success: false, error: 'Servidor não retornou o identificador único (UUID) do modelo criado.' };
+        }
+        return { success: true, templateId };
+      }
 
       if (error) {
         return { success: false, error: `Falha ao criar modelo: ${error.message}` };
       }
 
-      if (payload.isDefault && data?.id) {
-        await this.definirComoPadrao(data.id);
-      }
-
-      return { success: true, templateId: data?.id };
+      return { success: false, error: 'Resposta inesperada ao criar modelo de contrato.' };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, error: msg };
