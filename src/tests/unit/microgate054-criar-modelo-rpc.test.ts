@@ -52,6 +52,9 @@ describe('MICRO-GATE 05.4 — Criação Segura de Modelos via RPC', () => {
       p_is_default: true,
     });
 
+    // Garantia Antirregressão Incidente 5.5.1: NUNCA deve chamar supabase.from()
+    expect(supabase.from).not.toHaveBeenCalled();
+
     expect(res.success).toBe(true);
     expect(res.templateId).toBe('12345678-1234-1234-1234-123456789abc');
   });

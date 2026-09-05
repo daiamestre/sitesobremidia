@@ -140,20 +140,18 @@ describe('GATE 5.1 — ÁREA ADMINISTRATIVA DE GESTÃO DE CONTRATOS (MICRO-GATE 
     expect(camposProtegidos).toContain('empresa_operadora_id');
   });
 
-  it('T7 — [Regras Administrativas] toggleAtivo desativa template e remove is_default com segurança', async () => {
-    const mockUpdate = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    });
-
-    vi.mocked(supabase.from).mockReturnValue({
-      update: mockUpdate,
+  it('T7 — [Regras Administrativas] toggleAtivo invoca fn_toggle_contrato_template_ativo com segurança', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: { success: true, template_id: 'tpl-1', ativo: false },
+      error: null,
     } as any);
 
     const res = await contratoModelosAdminService.toggleAtivo('tpl-1', false);
     expect(res.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ is_default: false, ativo: false })
-    );
+    expect(supabase.rpc).toHaveBeenCalledWith('fn_toggle_contrato_template_ativo', {
+      p_template_id: 'tpl-1',
+      p_ativo: false,
+    });
   });
 
   it('T8 — [Migration Safety] DDL statements possuem cláusulas de idempotência (IF NOT EXISTS / DROP IF EXISTS)', () => {

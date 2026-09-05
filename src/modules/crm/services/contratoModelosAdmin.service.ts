@@ -198,78 +198,26 @@ export class ContratoModelosAdminService {
         };
       }
 
-      // 1. Tentar execução via RPC Server-side com Advisory Lock atômico (N+1 concorrente seguro)
+      // Invocação exclusiva da RPC Server-side com Advisory Lock atômico
       const { data, error } = await supabase.rpc('fn_criar_nova_versao_contrato_template', {
         p_template_id: templateId,
         p_novo_conteudo_html: conteudoHtmlFinal,
         p_novo_nome: novoNome?.trim() || null,
       });
 
-
       if (!error && data && typeof data === 'object' && 'success' in data) {
         const res = data as unknown as { success: boolean; template_id?: string; versao?: number; error?: string };
-        return { success: res.success, templateId: res.template_id, versao: res.versao, error: res.error };
-      }
-
-      // 2. Fallback de cliente (para mocks / testes unitários sem RPC mockada)
-      const { data: tpl, error: fetchErr } = await supabase
-        .from('contrato_templates')
-        .select('*')
-        .eq('id', templateId)
-        .single();
-
-      if (fetchErr || !tpl) {
-        return { success: false, error: 'Template original não encontrado.' };
-      }
-
-      const { count } = await supabase
-        .from('contratos')
-        .select('id', { count: 'exact', head: true })
-        .eq('template_id', templateId);
-
-      const possuiContratos = (count || 0) > 0;
-
-      if (!possuiContratos) {
-        const { error: updateErr } = await supabase
-          .from('contrato_templates')
-          .update({
-            nome: novoNome?.trim() || tpl.nome,
-            conteudo_html: conteudoHtmlFinal,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', templateId);
-
-        if (updateErr) {
-          return { success: false, error: `Falha ao atualizar rascunho: ${updateErr.message}` };
+        if (!res.success) {
+          return { success: false, error: res.error || 'Falha ao processar nova versão do template.' };
         }
-
-        return { success: true, templateId, versao: tpl.versao };
+        return { success: true, templateId: res.template_id, versao: res.versao };
       }
 
-      const novaVersaoNum = (tpl.versao || 1) + 1;
-
-      const { data: novaLinha, error: insertErr } = await supabase
-        .from('contrato_templates')
-        .insert({
-          empresa_operadora_id: tpl.empresa_operadora_id,
-          tipo_contrato: tpl.tipo_contrato,
-          codigo_template: tpl.codigo_template,
-          nome: novoNome?.trim() || tpl.nome,
-          descricao: tpl.descricao,
-          versao: novaVersaoNum,
-          conteudo_html: conteudoHtmlFinal,
-          ativo: true,
-          is_default: true,
-        })
-        .select('id')
-        .single();
-
-      if (insertErr || !novaLinha) {
-        return { success: false, error: `Falha ao criar nova versão: ${insertErr?.message}` };
+      if (error) {
+        return { success: false, error: `Falha ao processar nova versão: ${error.message}` };
       }
 
-      await this.definirComoPadrao(novaLinha.id);
-      return { success: true, templateId: novaLinha.id, versao: novaVersaoNum };
+      return { success: false, error: 'Resposta inesperada ao criar nova versão do template.' };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, error: msg };
@@ -302,20 +250,22 @@ export class ContratoModelosAdminService {
   }
 
   /**
-   * Ativa ou Desativa um modelo de contrato
+   * Ativa ou Desativa um modelo de contrato via RPC Server-side segura
    */
   async toggleAtivo(templateId: string, ativo: boolean): Promise<{ success: boolean; error?: string }> {
     try {
-      if (!ativo) {
-        await supabase
-          .from('contrato_templates')
-          .update({ is_default: false, ativo: false, updated_at: new Date().toISOString() })
-          .eq('id', templateId);
-      } else {
-        await supabase
-          .from('contrato_templates')
-          .update({ ativo: true, updated_at: new Date().toISOString() })
-          .eq('id', templateId);
+      const { data, error } = await supabase.rpc('fn_toggle_contrato_template_ativo', {
+        p_template_id: templateId,
+        p_ativo: ativo,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      const res = data as unknown as { success: boolean; error?: string };
+      if (!res.success) {
+        return { success: false, error: res.error || 'Falha ao alterar status do modelo.' };
       }
 
       return { success: true };
