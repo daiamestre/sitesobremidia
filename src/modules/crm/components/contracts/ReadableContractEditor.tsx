@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   PLACEHOLDER_CATALOG,
   PlaceholderInfo,
@@ -11,13 +11,11 @@ import { TipoContrato } from '@/modules/crm/services/contractResolver.service';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  CheckCircle2, AlertTriangle, FileCode, Eye, BookOpen,
-  Plus, Search, Sparkles, Layers, Info
+  CheckCircle2, AlertTriangle, Eye, BookOpen,
+  Plus, Search, Bold, Italic, Underline
 } from 'lucide-react';
 
 interface ReadableContractEditorProps {
@@ -35,6 +33,69 @@ const CATEGORIAS: { key: PlaceholderCategoria; label: string; cor: string }[] = 
   { key: 'SISTEMA', label: 'Sistema & Operação', cor: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200' },
 ];
 
+/**
+ * Mapeamento canônico de representação humana para exibição nos documentos em edição.
+ * O usuário NUNCA deve ver {{RAZAO_SOCIAL}} ou [RAZAO_SOCIAL] como código,
+ * e sim frases e termos humanos em português.
+ */
+export const HUMAN_TOKEN_LABELS: Record<string, string> = {
+  RAZAO_SOCIAL: 'Razão Social do Contratante',
+  NOME_FANTASIA: 'Nome Fantasia',
+  CNPJ: 'CPF/CNPJ',
+  CPF_CNPJ: 'CPF/CNPJ',
+  RESPONSAVEL: 'Responsável Legal',
+  REPRESENTANTE_LEGAL: 'Representante Legal',
+  NOME_GESTOR: 'Nome do Gestor',
+  LOGRADOURO: 'Logradouro',
+  NUMERO: 'Número',
+  COMPLEMENTO: 'Complemento',
+  BAIRRO: 'Bairro',
+  CIDADE: 'Cidade',
+  ESTADO: 'Estado',
+  UF: 'UF',
+  CEP: 'CEP',
+  ENDERECO_UNIDADE: 'Endereço do Contratante',
+  NOME_UNIDADE: 'Nome da Unidade',
+  TELEFONE: 'Telefone',
+  WHATSAPP: 'WhatsApp',
+  EMAIL: 'E-mail',
+  INSTAGRAM: 'Instagram',
+  WEBSITE: 'Website',
+  DATA_INICIO: 'Data de Início',
+  DATA_FIM: 'Data de Término',
+  DATA_INICIO_VEICULACAO: 'Data Início Veiculação',
+  DATA_FIM_VEICULACAO: 'Data Fim Veiculação',
+  PERIODO_VEICULACAO: 'Período de Veiculação',
+  DIAS_SEMANA: 'Dias da Semana',
+  HORARIO_INICIO: 'Horário de Início',
+  HORARIO_FIM: 'Horário de Término',
+  PACOTE_VEICULACAO: 'Pacote de Veiculação',
+  QUANTIDADE_TELAS: 'Quantidade de Telas',
+  QTD_TVS: 'Qtd de TVs',
+  QTD_TOTENS: 'Qtd de Totens',
+  QTD_PAINEIS_LED: 'Qtd Painéis de LED',
+  TOTAL_SISTEMAS: 'Total de Sistemas',
+  TITULO_CAMPANHA: 'Título da Campanha',
+  VALOR_MENSAL: 'Valor Mensal',
+  VALOR_A_VISTA: 'Valor à Vista',
+  DESCONTO: 'Desconto',
+  ENTRADA: 'Entrada',
+  NUMERO_PARCELAS: 'Número de Parcelas',
+  PARCELAMENTO_CARTAO: 'Parcelamento Cartão',
+  VALOR_POR_SISTEMA: 'Valor por Sistema',
+  FORMA_PAGAMENTO: 'Forma de Pagamento',
+  DATA_VENCIMENTO_PRIMEIRA_FATURA: 'Data 1ª Fatura',
+  LOCAL_ASSINATURA: 'Cidade / UF',
+  DATA_ASSINATURA: 'Data da Assinatura',
+  FORO_COMARCA: 'Foro / Comarca',
+  NUMERO_CONTRATO: 'Número do Contrato',
+  VERSAO_CONTRATO: 'Versão do Contrato',
+  TIPO_CONTRATO: 'Tipo do Contrato',
+  ASSINATURA_SOBRE_MIDIA: 'Assinatura Sobre Mídia',
+  ASSINATURA_CONTRATANTE: 'Assinatura Contratante',
+  ASSINATURA_PARCEIRO: 'Assinatura Parceiro',
+};
+
 export function sanitizeHtmlForPreview(rawHtml: string): string {
   if (!rawHtml) return '';
   return rawHtml
@@ -45,23 +106,49 @@ export function sanitizeHtmlForPreview(rawHtml: string): string {
     .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
 }
 
+/**
+ * Converte HTML canônico do template (contendo {{TOKEN}})
+ * em HTML visual para edição direta no documento (com chips humanos não-editáveis).
+ */
+export function templateToVisualHtml(templateHtml: string): string {
+  if (!templateHtml) return '';
+  return templateHtml.replace(/\{\{([A-Za-z0-9_]+)\}\}/g, (_match, token) => {
+    const label = HUMAN_TOKEN_LABELS[token] || token;
+    const isDesconhecido = !PLACEHOLDER_CATALOG[token];
+    if (isDesconhecido) {
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded border border-rose-300 bg-rose-50 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-not-allowed" contenteditable="false" data-token="${token}" title="Campo não reconhecido: ${token}">[${token} — Não Reconhecido]</span>`;
+    }
+    return `<span class="contract-token-chip inline-flex items-center px-2 py-0.5 rounded border border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-default" contenteditable="false" data-token="${token}" title="Campo: ${label}">[${label}]</span>`;
+  });
+}
+
+/**
+ * Converte o HTML editado visualmente de volta para o template canônico interno,
+ * substituindo os chips de tokens pelos seus placeholders correspondentes {{TOKEN}}.
+ */
+export function visualHtmlToTemplate(visualHtml: string): string {
+  if (!visualHtml) return '';
+  return visualHtml.replace(/<span[^>]*data-token=["']([A-Za-z0-9_]+)["'][^>]*>.*?<\/span>/gi, '{{$1}}');
+}
+
 export function ReadableContractEditor({
   value,
   onChange,
   tipoContrato = 'ANUNCIANTE',
   className = '',
 }: ReadableContractEditorProps) {
-  const [tabAtiva, setTabAtiva] = useState<'legivel' | 'html' | 'previa'>('legivel');
+  const [tabAtiva, setTabAtiva] = useState<'editor' | 'previa'>('editor');
   const [categoriaFiltro, setCategoriaFiltro] = useState<PlaceholderCategoria | 'TODAS'>('TODAS');
   const [buscaToken, setBuscaToken] = useState('');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastCanonicalValueRef = useRef<string>(value || '');
 
-  // Validação em tempo real
+  // Validação em tempo real baseada no conteúdo canônico
   const validacao = useMemo(() => {
     return validarPlaceholdersTemplate(value || '');
   }, [value]);
 
-  // Lista filtrada do catálogo
+  // Lista filtrada do catálogo de placeholders
   const catalogoFiltrado = useMemo(() => {
     const list = Object.values(PLACEHOLDER_CATALOG);
     return list.filter((item) => {
@@ -69,33 +156,81 @@ export function ReadableContractEditor({
       const matchBusca =
         !buscaToken ||
         item.nome.toLowerCase().includes(buscaToken.toLowerCase()) ||
-        item.descricao.toLowerCase().includes(buscaToken.toLowerCase());
+        item.descricao.toLowerCase().includes(buscaToken.toLowerCase()) ||
+        (HUMAN_TOKEN_LABELS[item.nome] || '').toLowerCase().includes(buscaToken.toLowerCase());
       return matchCat && matchBusca;
     });
   }, [categoriaFiltro, buscaToken]);
 
-  // Inserção do token no cursor
-  const handleInsertPlaceholder = (tokenName: string) => {
-    const token = `{{${tokenName}}}`;
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      onChange((value || '') + token);
-      return;
+  // Sincroniza o DOM do editor visual quando o template value mudar externamente
+  useEffect(() => {
+    if (!editorRef.current) return;
+    const currentEditorCanonical = visualHtmlToTemplate(editorRef.current.innerHTML);
+    if (value !== currentEditorCanonical && value !== lastCanonicalValueRef.current) {
+      editorRef.current.innerHTML = templateToVisualHtml(value || '');
+      lastCanonicalValueRef.current = value || '';
     }
+  }, [value]);
 
-    const start = textarea.selectionStart || 0;
-    const end = textarea.selectionEnd || 0;
-    const currentVal = value || '';
-    const updated = currentVal.substring(0, start) + token + currentVal.substring(end);
-    onChange(updated);
-
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + token.length, start + token.length);
-    }, 50);
+  // Trata input no editor visual
+  const handleEditorInput = () => {
+    if (!editorRef.current) return;
+    const visualHtml = editorRef.current.innerHTML;
+    const canonical = visualHtmlToTemplate(visualHtml);
+    lastCanonicalValueRef.current = canonical;
+    onChange(canonical);
   };
 
-  // Amostra de prévia com dados de exemplo resolvidos
+  // Inserção do chip humano no ponto de seleção atual do documento
+  const handleInsertPlaceholder = (tokenName: string) => {
+    const label = HUMAN_TOKEN_LABELS[tokenName] || tokenName;
+    const chipHtml = `<span class="contract-token-chip inline-flex items-center px-2 py-0.5 rounded border border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-default" contenteditable="false" data-token="${tokenName}" title="Campo: ${label}">[${label}]</span>&nbsp;`;
+
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    editor.focus();
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = chipHtml;
+      const frag = document.createDocumentFragment();
+      let node: ChildNode | null;
+      let lastNode: ChildNode | null = null;
+      while ((node = tempDiv.firstChild)) {
+        lastNode = frag.appendChild(node);
+      }
+      range.insertNode(frag);
+      if (lastNode) {
+        range.setStartAfter(lastNode);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    } else {
+      // Se não houver seleção ativa dentro do editor, adiciona ao final
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = chipHtml;
+      while (tempDiv.firstChild) {
+        editor.appendChild(tempDiv.firstChild);
+      }
+    }
+
+    handleEditorInput();
+  };
+
+  // Executa comandos básicos de formatação rica
+  const executeFormatting = (command: string) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand(command, false);
+    handleEditorInput();
+  };
+
+  // Amostra de prévia com dados de exemplo resolvidos (EXATAMENTE o mesmo documento, apenas com dados substituídos)
   const htmlPreviaResolvida = useMemo(() => {
     if (!value) return '<p class="text-muted-foreground p-4">Nenhum conteúdo para prévia.</p>';
     try {
@@ -159,7 +294,7 @@ export function ReadableContractEditor({
 
       if (!validacao.valido) {
         return `<div class="p-4 border border-rose-300 bg-rose-50 text-rose-800 rounded">
-          <p class="font-bold">⚠️ Prévia bloqueada por tokens não reconhecidos:</p>
+          <p class="font-bold">⚠️ Prévia bloqueada por campos não reconhecidos:</p>
           <ul class="list-disc pl-5 mt-2">
             ${validacao.placeholdersDesconhecidos.map((p) => `<li><code>{{${p}}}</code></li>`).join('')}
           </ul>
@@ -180,13 +315,13 @@ export function ReadableContractEditor({
           {validacao.valido ? (
             <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium">
               <CheckCircle2 className="h-4 w-4" />
-              <span>Modelo Válido ({validacao.placeholdersValidos.length} campos identificados)</span>
+              <span>Modelo Válido ({validacao.placeholdersValidos.length} campos identificados no documento)</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-semibold">
               <AlertTriangle className="h-4 w-4" />
               <span>
-                {validacao.placeholdersDesconhecidos.length} campo(s) desconhecido(s) bloquearão a publicação!
+                {validacao.placeholdersDesconhecidos.length} campo(s) desconhecido(s) bloquearão o salvamento!
               </span>
             </div>
           )}
@@ -195,41 +330,37 @@ export function ReadableContractEditor({
         {validacao.placeholdersDesconhecidos.length > 0 && (
           <div className="flex flex-wrap items-center gap-1">
             {validacao.placeholdersDesconhecidos.map((p) => (
-              <Badge key={p} variant="destructive" className="font-mono text-[10px] px-1.5 py-0.5">
-                {`{{${p}}}`}
+              <Badge key={p} variant="destructive" className="text-[10px] px-1.5 py-0.5">
+                {`[Campo Desconhecido: ${p}]`}
               </Badge>
             ))}
           </div>
         )}
       </div>
 
-      {/* Tabs Principais: Editor Legível (Padrão) | HTML Avançado | Prévia */}
+      {/* Tabs Principais: Editor Visual do Documento | Prévia Real (SEM ABA HTML) */}
       <Tabs value={tabAtiva} onValueChange={(v) => setTabAtiva(v as any)} className="flex-1 flex flex-col min-h-0">
         <div className="flex items-center justify-between border-b pb-2">
-          <TabsList className="grid grid-cols-3 w-80">
-            <TabsTrigger value="legivel" className="flex items-center gap-1 text-xs">
+          <TabsList className="grid grid-cols-2 w-72">
+            <TabsTrigger value="editor" className="flex items-center gap-1.5 text-xs">
               <BookOpen className="h-3.5 w-3.5" />
-              Editor Legível
+              Editor do Documento
             </TabsTrigger>
-            <TabsTrigger value="html" className="flex items-center gap-1 text-xs">
-              <FileCode className="h-3.5 w-3.5" />
-              Código HTML
-            </TabsTrigger>
-            <TabsTrigger value="previa" className="flex items-center gap-1 text-xs">
+            <TabsTrigger value="previa" className="flex items-center gap-1.5 text-xs">
               <Eye className="h-3.5 w-3.5" />
               Prévia Real
             </TabsTrigger>
           </TabsList>
 
           <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            Clique nos campos abaixo para inseri-los no contrato
+            Clique no documento para editar cláusulas ou adicione campos pelos botões acima
           </span>
         </div>
 
-        {/* Tab 1: Editor Legível */}
-        <TabsContent value="legivel" className="flex-1 flex flex-col gap-3 min-h-0 mt-2">
-          {/* Seletor Rápido de Placeholders */}
-          <div className="border rounded-lg p-2.5 bg-slate-50/50 dark:bg-slate-900/50 space-y-2">
+        {/* Tab 1: Editor Visual do Documento */}
+        <TabsContent value="editor" className="flex-1 flex flex-col gap-3 min-h-0 mt-2">
+          {/* Painel de Inserção de Campos Disponíveis */}
+          <div className="border rounded-lg p-2.5 bg-slate-50/70 dark:bg-slate-900/70 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap gap-1">
                 <Button
@@ -255,7 +386,7 @@ export function ReadableContractEditor({
                 ))}
               </div>
 
-              <div className="relative w-44">
+              <div className="relative w-48">
                 <Search className="h-3 w-3 absolute left-2 top-2 text-muted-foreground" />
                 <Input
                   placeholder="Buscar campo..."
@@ -266,21 +397,24 @@ export function ReadableContractEditor({
               </div>
             </div>
 
-            {/* Chips de Inserção Rápida */}
+            {/* Botões de Inserção com Nomes Humanos em Português */}
             <ScrollArea className="h-20 w-full rounded border bg-white dark:bg-slate-950 p-2">
               <div className="flex flex-wrap gap-1.5">
-                {catalogoFiltrado.map((item) => (
-                  <button
-                    key={item.nome}
-                    type="button"
-                    title={`${item.descricao} (Origem: ${item.origem})`}
-                    onClick={() => handleInsertPlaceholder(item.nome)}
-                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border bg-slate-100 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-blue-900/60 text-slate-700 dark:text-slate-200 transition-colors font-mono"
-                  >
-                    <Plus className="h-2.5 w-2.5 text-blue-600 dark:text-blue-400" />
-                    <span>[{item.nome}]</span>
-                  </button>
-                ))}
+                {catalogoFiltrado.map((item) => {
+                  const labelHumano = HUMAN_TOKEN_LABELS[item.nome] || item.nome;
+                  return (
+                    <button
+                      key={item.nome}
+                      type="button"
+                      title={`${item.descricao} (Origem: ${item.origem})`}
+                      onClick={() => handleInsertPlaceholder(item.nome)}
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border bg-slate-100 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-blue-900/60 text-slate-700 dark:text-slate-200 transition-colors font-medium"
+                    >
+                      <Plus className="h-2.5 w-2.5 text-blue-600 dark:text-blue-400" />
+                      <span>[{labelHumano}]</span>
+                    </button>
+                  );
+                })}
                 {catalogoFiltrado.length === 0 && (
                   <span className="text-xs text-muted-foreground p-1">Nenhum campo encontrado com esse filtro.</span>
                 )}
@@ -288,47 +422,73 @@ export function ReadableContractEditor({
             </ScrollArea>
           </div>
 
-          {/* Área Principal de Edição */}
-          <div className="flex-1 flex flex-col min-h-[260px]">
-            <Label className="text-xs font-semibold mb-1 text-slate-700 dark:text-slate-300">
-              Texto e Estrutura do Contrato (com tokens [CAMPO] legíveis)
-            </Label>
-            <Textarea
-              ref={textareaRef}
-              rows={14}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder="Cole ou redija o modelo de contrato com os campos..."
-              className="flex-1 font-mono text-xs leading-relaxed p-3 border rounded-lg resize-none"
-            />
-          </div>
-        </TabsContent>
+          {/* Área Principal de Edição Visual do Documento */}
+          <div className="flex-1 flex flex-col min-h-0 border rounded-lg bg-slate-100/90 dark:bg-slate-900/90 p-3 md:p-4 overflow-y-auto">
+            {/* Barra de Formatação Textual */}
+            <div className="max-w-3xl w-full mx-auto mb-2 flex items-center justify-between text-xs bg-white dark:bg-slate-950 px-3 py-1.5 rounded-md border shadow-2xs">
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  onClick={() => executeFormatting('bold')}
+                  title="Negrito"
+                >
+                  <Bold className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  onClick={() => executeFormatting('italic')}
+                  title="Itálico"
+                >
+                  <Italic className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  onClick={() => executeFormatting('underline')}
+                  title="Sublinhado"
+                >
+                  <Underline className="h-3.5 w-3.5" />
+                </Button>
+              </div>
 
-        {/* Tab 2: Código HTML Avançado */}
-        <TabsContent value="html" className="flex-1 flex flex-col gap-2 min-h-0 mt-2">
-          <div className="p-2.5 border rounded-lg bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 text-xs flex items-start gap-2">
-            <Info className="h-4 w-4 shrink-0 mt-0.5" />
-            <div>
-              <strong>Modo Técnico Avançado:</strong> Permite editar diretamente a árvore DOM HTML do contrato. Mantenha os placeholders no formato <code>{`{{NOME_DO_CAMPO}}`}</code>.
+              <span className="text-[11px] text-muted-foreground font-sans">
+                Documento Visual Editável • Digite livremente no texto
+              </span>
+            </div>
+
+            {/* Folha do Documento Editável (WYSIWYG Direto) */}
+            <div className="flex-1 max-w-3xl w-full mx-auto">
+              <div
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={handleEditorInput}
+                onBlur={handleEditorInput}
+                className="bg-white dark:bg-slate-950 p-6 md:p-10 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm text-slate-900 dark:text-slate-100 min-h-[520px] focus:outline-none focus:ring-2 focus:ring-primary/20 leading-relaxed font-sans text-sm"
+              />
             </div>
           </div>
-          <Textarea
-            rows={16}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="flex-1 font-mono text-xs leading-relaxed p-3 border rounded-lg resize-none"
-          />
         </TabsContent>
 
-        {/* Tab 3: Prévia em Tempo Real */}
+        {/* Tab 2: Prévia Real com Dados de Amostra */}
         <TabsContent value="previa" className="flex-1 flex flex-col min-h-0 mt-2">
-          <div className="flex-1 overflow-y-auto p-4 border rounded-lg bg-slate-100 dark:bg-slate-900 shadow-inner">
-            <div
-              className="bg-white dark:bg-slate-950 p-6 md:p-8 rounded-lg border shadow-sm max-w-3xl mx-auto text-slate-900 dark:text-slate-100"
-              dangerouslySetInnerHTML={{
-                __html: sanitizeHtmlForPreview(htmlPreviaResolvida),
-              }}
-            />
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 border rounded-lg bg-slate-100/90 dark:bg-slate-900/90 shadow-inner">
+            <div className="max-w-3xl w-full mx-auto">
+              <div
+                className="bg-white dark:bg-slate-950 p-6 md:p-10 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm text-slate-900 dark:text-slate-100 leading-relaxed font-sans text-sm"
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeHtmlForPreview(htmlPreviaResolvida),
+                }}
+              />
+            </div>
           </div>
         </TabsContent>
       </Tabs>
