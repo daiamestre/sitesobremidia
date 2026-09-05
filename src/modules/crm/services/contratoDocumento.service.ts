@@ -62,99 +62,139 @@ export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<h2>CONTRATO DE PRESTAÇÃO D
 <p>___________________________________                                      ___________________________________</p>
 <p>SOBRE MÍDIA DESIGNER                                                          CONTRATANTE</p>`;
 
-export const CANONICAL_TEMPLATE_HTML_PARCEIRO = `<div class="contract-container" style="font-family: Arial, sans-serif; font-size: 13px; line-height: 1.5; color: #1f2937;">
-  <div style="text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 12px; margin-bottom: 20px;">
-    <h2 style="margin: 0; color: #1e3a8a; font-size: 18px; text-transform: uppercase; font-weight: bold;">SOBRE MÍDIA DESIGNER</h2>
-    <p style="margin: 4px 0; font-size: 12px; color: #4b5563;">Rua Barão do Triunfo, 403, 10º Andar - Centro, Campina Grande - PB</p>
-    <p style="margin: 2px 0; font-size: 11px; color: #6b7280;">Contato: (83) 98119-9069 | E-mail: contato@sobremidia.com.br | www.sobremidia.com.br</p>
-    <h3 style="margin: 14px 0 0; font-size: 15px; color: #111827; font-weight: bold;">CONTRATO DE PARCERIA DE MÍDIA</h3>
+export const CANONICAL_TEMPLATE_HTML_PARCEIRO = `<div class="contract-container" style="font-family: Arial, sans-serif; font-size: 12px; line-height: 1.45; color: #111827;">
+  <div style="text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 14px;">
+    <p style="margin: 0; font-size: 11px; font-weight: bold; color: #1e3a8a;">SOBRE MÍDIA DESIGNER, Rua 17 de Dezembro, n°38 – CENTRO - Cachoerinha/PE, CEP 55380-000</p>
+    <p style="margin: 2px 0; font-size: 11px; color: #4b5563;">Tel: (81) 94862-5948 | E-mail: sobremidiadesigner@gmail.com | Site: www.sobremidiadesigner.my.canva.site/tvcorporativa</p>
+    <h3 style="margin: 8px 0 0; font-size: 14px; color: #111827; font-weight: bold; text-transform: uppercase;">CONTRATO DE PARCERIA ENTRE SOBRE MÍDIA &amp; ESTABELECIMENTO PARCEIRO</h3>
   </div>
 
-  <div style="margin-bottom: 16px; background-color: #f9fafb; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb;">
-    <h4 style="margin: 0 0 8px; font-size: 13px; font-weight: bold; color: #1e3a8a;">IDENTIFICAÇÃO DAS PARTES</h4>
-    <p style="margin: 4px 0;"><strong>CONTRATADA (SOBRE MÍDIA):</strong> SOBRE MÍDIA DESIGNER, inscrita no CNPJ sob o nº 00.000.000/0001-00, com sede em Campina Grande - PB, representada na forma de seus atos constitutivos.</p>
-    <p style="margin: 4px 0;"><strong>CONTRATANTE (ESTABELECIMENTO PARCEIRO):</strong> {{RAZAO_SOCIAL}}, inscrita no CNPJ sob o nº {{CNPJ}}, com endereço em {{ENDERECO_UNIDADE}}, Bairro {{BAIRRO}}, {{CIDADE}} - {{UF}}, neste ato representada por {{RESPONSAVEL}}, Telefone: {{TELEFONE}}, WhatsApp: {{WHATSAPP}}, E-mail: {{EMAIL}}, Instagram: {{INSTAGRAM}}.</p>
+  <div style="margin-bottom: 12px; background-color: #f9fafb; padding: 10px; border-radius: 4px; border: 1px solid #e5e7eb;">
+    <h4 style="margin: 0 0 6px; font-size: 12px; font-weight: bold; color: #1e3a8a;">DADOS DO CONTRATANTE – AGÊNCIA DE MÍDIA</h4>
+    <table style="width: 100%; font-size: 11px; border-collapse: collapse; margin-bottom: 8px;">
+      <tr>
+        <td style="padding: 2px 0; width: 50%;"><strong>Nome/Razão Social:</strong> Sobre Mídia Designer</td>
+        <td style="padding: 2px 0; width: 50%;"><strong>Responsável:</strong> Jairan Santos</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>CPF/CNPJ:</strong> 18.141.748/0001-70</td>
+        <td style="padding: 2px 0;"><strong>E-mail:</strong> sobremidiadesigner@gmail.com</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>Endereço:</strong> Av. Agamenon Magalhães, Nº 1019</td>
+        <td style="padding: 2px 0;"><strong>Bairro:</strong> Maurício de Nassau</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>Cidade:</strong> Caruaru</td>
+        <td style="padding: 2px 0;"><strong>UF:</strong> PE</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;" colspan="2"><strong>Website:</strong> www.sobremidiadesigner.com.br</td>
+      </tr>
+    </table>
+
+    <h4 style="margin: 8px 0 6px; font-size: 12px; font-weight: bold; color: #1e3a8a; border-top: 1px solid #e5e7eb; padding-top: 6px;">DADOS DA CONTRATADA - ESTABELECIMENTO PARCEIRO</h4>
+    <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
+      <tr>
+        <td style="padding: 2px 0; width: 50%;"><strong>Nome/Razão Social:</strong> {{RAZAO_SOCIAL}}</td>
+        <td style="padding: 2px 0; width: 50%;"><strong>Responsável:</strong> {{RESPONSAVEL}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>CPF/CNPJ:</strong> {{CNPJ}}</td>
+        <td style="padding: 2px 0;"><strong>Contato:</strong> {{TELEFONE}} / {{WHATSAPP}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>Endereço:</strong> {{ENDERECO_UNIDADE}}</td>
+        <td style="padding: 2px 0;"><strong>Bairro:</strong> {{BAIRRO}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>Cidade:</strong> {{CIDADE}}</td>
+        <td style="padding: 2px 0;"><strong>UF:</strong> {{UF}}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 0;"><strong>E-mail:</strong> {{EMAIL}}</td>
+        <td style="padding: 2px 0;"><strong>Instagram:</strong> {{INSTAGRAM}}</td>
+      </tr>
+    </table>
   </div>
 
-  <div style="margin-bottom: 14px;">
-    <p style="text-align: justify; margin: 0 0 10px;">Pelo presente instrumento particular, as partes acima qualificadas têm, entre si, justo e acordado o presente Contrato de Parceria para Veiculação de Conteúdo e Mídia Indoor, que se regerá pelas seguintes cláusulas e condições:</p>
+  <div style="margin-bottom: 10px;">
+    <p style="text-align: justify; margin: 0 0 8px; font-size: 11.5px;">As partes acima identificadas têm, entre si, justo e acertado o Presente Contrato De Parceria Entre SOBRE MÍDIA DESIGNER e EMPRESA PARCEIRA, que se regerá pelas cláusulas seguintes.</p>
   </div>
 
-  <div style="margin-bottom: 14px;">
-    <h4 style="margin: 0 0 6px; font-size: 13px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 01 — DO OBJETO</h4>
-    <p style="text-align: justify; margin: 0;">O presente contrato tem como objeto a parceria entre a SOBRE MÍDIA e o ESTABELECIMENTO PARCEIRO para a instalação de tela(s) informativa(s) e publicitária(s) em suas dependências, visando à veiculação de conteúdos informativos, institucionais e anúncios publicitários gerenciados pela rede SOBRE MÍDIA.</p>
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 01 – DO OBJETO</h4>
+    <p style="text-align: justify; margin: 0;">O objeto do presente Contrato é a PARCERIA ENTRE A SOBRE MÍDIA E ESTABELECIMENTO COMERCIAL referente à instalação de um tela/monitor de mídia e um mini PC portátil, oferecido pela SOBRE MÍDIA ou monitor cedido pela CONTRATADA.</p>
   </div>
 
-  <div style="margin-bottom: 14px;">
-    <h4 style="margin: 0 0 6px; font-size: 13px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 02 — SERVIÇOS REALIZADOS PELA SOBRE MÍDIA</h4>
-    <p style="text-align: justify; margin: 0;">A SOBRE MÍDIA será responsável pela criação, edição, veiculação e gerenciamento da grade de programação exibida na(s) tela(s), incluindo a inserção de conteúdos informativos (notícias, previsão do tempo, dicas e entretenimento) e anúncios de parceiros comerciais. A SOBRE MÍDIA compromete-se a não veicular anúncios de concorrentes diretos do ESTABELECIMENTO PARCEIRO no mesmo ponto físico sem sua prévia anuência.</p>
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 02 - SERVIÇOS REALIZADOS PELA SOBRE MÍDIA:</h4>
+    <p style="text-align: justify; margin: 0;">O GESTOR DE MÍDIA, prospectara no comercio local, empresas que tenham interesse em anunciar e comunicar a sua marca, serviço ou produto nas TELAS E MONITORES DE MIDIA, instalado no estabelecimento comercial PARCEIRO, desde que o mesmo não se sinta prejudicado e não passe anúncios de seus concorrentes.</p>
   </div>
 
-  <div style="margin-bottom: 14px;">
-    <h4 style="margin: 0 0 6px; font-size: 13px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 03 — OBRIGAÇÕES DO ESTABELECIMENTO PARCEIRO</h4>
-    <p style="text-align: justify; margin: 0 0 6px;">O ESTABELECIMENTO PARCEIRO compromete-se a manter a(s) tela(s) ligada(s) durante todo o seu horário de funcionamento comercial, vedada a alteração da programação, desligamento injustificado ou uso do equipamento para outros fins.</p>
-    <p style="text-align: justify; margin: 0 0 4px;"><strong>03.1. Internet:</strong> O ESTABELECIMENTO PARCEIRO disponibilizará acesso contínuo e estável à rede de internet (Wi-Fi ou cabeada) para sincronização e atualização dos conteúdos pela rede SOBRE MÍDIA.</p>
-    <p style="text-align: justify; margin: 0 0 6px;"><strong>03.2. Energia Elétrica:</strong> O ESTABELECIMENTO PARCEIRO fornecerá ponto de energia elétrica adequado para o funcionamento dos equipamentos instalados, como contrapartida direta pela gestão e gerenciamento gratuito da tela institucional.</p>
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 03 - OBRIGAÇÕES DO ESTABELECIMENTO PARCEIRO</h4>
+    <p style="text-align: justify; margin: 0 0 4px;">O PARCEIRO deverá ceder o espaço em seu estabelecimento comercial onde será instalado as telas e monitores oferecida pelo SOBRE MÍDIA, devendo manter a tela ligada durante todo o período combinado no quadro abaixo: O PARCEIRO fica expressamente proibido de sintonizar a tela em outras programações daquela que lhe foi acordado.</p>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>03. 1 -</strong> A internet será de responsabilidade do PARCEIRO.</p>
+    <p style="text-align: justify; margin: 0 0 6px;"><strong>03. 2 -</strong> A energia elétrica é fornecida pelo PARCEIRO. Em troca, o ESTABELECIMENTO terá a gestão e o gerenciamento completo de mídias e conteúdos de comunicação visual totalmente gratuitos até o término do vigente contrato.</p>
     
-    <div style="margin: 8px 0; border: 1px solid #d1d5db; padding: 8px; border-radius: 4px; background-color: #f8fafc;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+    <div style="margin: 6px 0; border: 1px solid #d1d5db; padding: 6px 10px; border-radius: 4px; background-color: #f8fafc;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
         <tr>
-          <td style="padding: 4px 8px; font-weight: bold; width: 25%;">Dias de Funcionamento:</td>
-          <td style="padding: 4px 8px;">{{DIAS_SEMANA}}</td>
+          <td style="padding: 3px 6px; font-weight: bold; width: 35%;">Dias da Semana de veiculação:</td>
+          <td style="padding: 3px 6px;">{{DIAS_SEMANA}}</td>
         </tr>
         <tr>
-          <td style="padding: 4px 8px; font-weight: bold;">Horário de Exibição:</td>
-          <td style="padding: 4px 8px;">{{HORARIO_INICIO}} às {{HORARIO_FIM}}</td>
+          <td style="padding: 3px 6px; font-weight: bold;">Faixa de horários diária:</td>
+          <td style="padding: 3px 6px;">{{HORARIO_INICIO}} às {{HORARIO_FIM}}</td>
         </tr>
         <tr>
-          <td style="padding: 4px 8px; font-weight: bold;">Vigência Operacional:</td>
-          <td style="padding: 4px 8px;">De {{DATA_INICIO}} a {{DATA_FIM}}</td>
+          <td style="padding: 3px 6px; font-weight: bold;">Dados do período de veiculação:</td>
+          <td style="padding: 3px 6px;">De {{DATA_INICIO}} a {{DATA_FIM}}</td>
         </tr>
         <tr>
-          <td style="padding: 4px 8px; font-weight: bold;">Quantidade de Telas:</td>
-          <td style="padding: 4px 8px;">{{QUANTIDADE_TELAS}} tela(s)</td>
+          <td style="padding: 3px 6px; font-weight: bold;">Quantidade de Telas / Monitores:</td>
+          <td style="padding: 3px 6px;">{{QUANTIDADE_TELAS}} tela(s)</td>
         </tr>
       </table>
     </div>
 
-    <p style="text-align: justify; margin: 4px 0;"><strong>03.3. Comunicação de Problemas:</strong> O ESTABELECIMENTO PARCEIRO deverá comunicar à SOBRE MÍDIA qualquer interrupção, falha técnica, oscilação ou anormalidade no funcionamento da tela no prazo máximo de 24 (vinte e quatro) horas.</p>
-    <p style="text-align: justify; margin: 4px 0 0;"><strong>03.4. Proteção dos Equipamentos:</strong> O ESTABELECIMENTO PARCEIRO zelará pela integridade física dos equipamentos instalados em seu espaço físico, proibindo a interferência de terceiros não autorizados nos dispositivos.</p>
+    <p style="text-align: justify; margin: 4px 0;"><strong>03. 3 -</strong> É dever do ESTABELECIMENTO PARCEIRO informar a SOBRE MÍDIA sobre possíveis problemas, como: tela desligada, tela sem exibir vídeo, programações desatualizadas, dentre outros problemas que afetem a exibição da programação.</p>
+    <p style="text-align: justify; margin: 4px 0 0;"><strong>03. 4 -</strong> O ESTABELECIMENTO PARCEIRO fica expressamente impedido de interferir de qualquer forma nas telas e demais equipamentos instalados pela SOBRE MÍDIA em seu estabelecimento, devendo zelar pela segurança dos equipamentos, como se fossem seus, durante a vigência do presente contrato.</p>
   </div>
 
-  <div style="margin-bottom: 14px;">
-    <h4 style="margin: 0 0 6px; font-size: 13px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 04 — OBRIGAÇÕES DO GESTOR DE MÍDIA</h4>
-    <p style="text-align: justify; margin: 0 0 4px;"><strong>4.1.</strong> A SOBRE MÍDIA e seus Gestores autorizados realizarão a comercialização exclusiva dos espaços publicitários, monitoramento remoto e suporte técnico para manter o sistema operacional e atualizado.</p>
-    <p style="text-align: justify; margin: 0 0 4px;"><strong>4.2.</strong> O software, sistema de gerenciamento, layouts e infraestrutura digital são de propriedade exclusiva da SOBRE MÍDIA, sendo expressamente vedada sua cópia, engenharia reversa, reprodução ou cessão a qualquer título.</p>
-    <p style="text-align: justify; margin: 0;"><strong>4.3.</strong> Os conteúdos veiculados respeitarão os padrões éticos, a legislação vigente e os direitos autorais, cabendo à SOBRE MÍDIA a moderação das campanhas veiculadas na rede.</p>
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 04 - OBRIGAÇÕES DO GESTOR DE MÍDIA</h4>
+    <p style="text-align: justify; margin: 0 0 4px;">A comercialização de espaços publicitários é de inteira responsabilidade da SOBRE MÍDIA e/ou seus parceiros, respeitando as regras do estabelecimento bem como as cláusulas estabelecidas no presente instrumento.</p>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>4.1 -</strong> O GESTOR DE MÍDIA monitorará o funcionamento dos equipamentos instalados nas dependências do estabelecimento comercial do PARCEIRO , verificando registros de ocorrências e SOLUCIONANDO OS PROBLEMAS e intervindo remotamente quando necessário, para correções no software e no conteúdo executado em cada MONITOR .</p>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>4.2 -</strong> A titularidade do software de controle de mídia, bem como todos os direitos dela decorrentes, será de responsabilidade da SOBRE MÍDIA , estando o PARCEIRO e seus colaboradores, expressamente proibidos de manusear, copiar ou fornecer a terceiros quaisquer informações relativas ao software.</p>
+    <p style="text-align: justify; margin: 0;"><strong>4.3 -</strong> A comercialização de espaços de mídia será de responsabilidade da SOBRE MÍDIA, respeitando as condições previstas do estabelecimento: • É proibido apresentar conteúdo de cunho, ideológico, exploração sexual ou preconceituoso; • Não constranger os clientes com conteúdo sexual, racista ou sexista; • Respeitar a legislação vigente, seja no que diz respeito à propriedade intelectual e aos direitos autorais de conteúdos audiovisuais, seja no que diz respeito à outras normas e leis vigentes.</p>
   </div>
 
-  <div style="margin-bottom: 14px;">
-    <h4 style="margin: 0 0 6px; font-size: 13px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 05 — GRADE DE PROGRAMAÇÃO</h4>
-    <p style="text-align: justify; margin: 0;">O ESTABELECIMENTO PARCEIRO terá direito à inserção de anúncio e conteúdo institucional próprio de até 30 (trinta) segundos na grade de exibição da tela instalada em seu ponto e/ou na rede SOBRE MÍDIA da cidade, conforme disponibilidade técnica e plano acordado, sem custo adicional de veiculação.</p>
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 05 – GRADE DE PROGRAMAÇÃO</h4>
+    <p style="text-align: justify; margin: 0;">Na grade de programação a SOBRE MÍDIA cederá espaço nas telas entorno da cidade e nos pontos onde a SOBRE MÍDIA possui uma ou mais telas ou monitores, veiculando seu anúncio de até 30 seg dentro de outros estabelecimentos comerciais, aumentando a sua visibilidade em nossa região e garantindo a entrega de suas mídis e conteúdos sem custos. A inserção das mídias será de responsabilidade do GESTOR DE MÍDIA.</p>
   </div>
 
-  <div style="margin-bottom: 14px;">
-    <h4 style="margin: 0 0 6px; font-size: 13px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 06 — VIGÊNCIA E RESCISÃO</h4>
-    <p style="text-align: justify; margin: 0 0 6px;">O presente contrato vigorará pelo prazo inicial de 6 (seis) meses a contar da data de sua assinatura, sendo renovado automaticamente por períodos sucessivos de 12 (doze) meses, caso não haja manifestação formal em contrário por qualquer das partes.</p>
-    <p style="text-align: justify; margin: 0 0 4px;"><strong>6.1.</strong> O contrato poderá ser rescindido motivadamente a qualquer tempo nas seguintes hipóteses:</p>
-    <p style="text-align: justify; margin: 0 0 4px; padding-left: 14px;"><strong>A)</strong> Descumprimento reiterado das obrigações contratuais por qualquer das partes, após notificação prévia não sanada no prazo de 10 (dez) dias úteis;</p>
-    <p style="text-align: justify; margin: 0 0 6px; padding-left: 14px;"><strong>B)</strong> Encerramento das atividades do estabelecimento ou inviabilidade técnica superveniente devidamente comprovada.</p>
-    <p style="text-align: justify; margin: 0;">A rescisão imotivada por iniciativa de qualquer das partes deverá ser comunicada por escrito com aviso prévio mínimo de 30 (trinta) dias, procedendo-se ao encerramento ordenado das veiculações e recolhimento dos equipamentos cedidos.</p>
+  <div style="margin-bottom: 10px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 06 - VIGÊNCIA E RESCISÃO</h4>
+    <p style="text-align: justify; margin: 0 0 4px;">A vigência deste contrato iniciará no momento em que o operador instalar as telas no estabelecimento do PARCEIRO e vigorará pelo prazo de 6 meses com renovação automática para 12 meses se não houver comunicação ou desistência de ambas as partes. caso haja uma comunicação expressa por qualquer uma das partes para desistência ou quebra de contrato por qualquer motivo elencado nesta cláusula, ficará o ESTABELECIMENTO PARCEIRO automaticamente proibido de utilizar o software, produtos e outros equipamentos que sejam de titularidade da SOBRE MÍDIA , bem como, o GESTOR DE MÍDIA ficará automaticamente impedido de utilizar o nome do PARCEIRO no seu portfólio de clientes.</p>
+    <p style="text-align: justify; margin: 0 0 4px;"><strong>6.1 -</strong> O presente contrato poderá ser rescindido mediante SOLICITAÇÃO EXPRESSA de uma das partes com o prazo mínimo de 30 (trinta) dias de antecedência. casos:</p>
+    <p style="text-align: justify; margin: 0 0 4px; padding-left: 12px;"><strong>A)</strong> Quando qualquer uma das partes não tenha mais interesse na continuidade do contrato, devendo comunicar prévia e formalmente à outra parte, agendando a data e hora desejada de seu desligamento e devolução/ retirada dos equipamentos;</p>
+    <p style="text-align: justify; margin: 0 0 4px; padding-left: 12px;"><strong>B)</strong> pelo descumprimento de qualquer das cláusulas previstas neste contrato; pelo ajuizamento de qualquer ação, contra uma parte, que venha a afetar a sua credibilidade ou idoneidade.</p>
   </div>
 
-  <div style="margin-bottom: 20px;">
-    <h4 style="margin: 0 0 6px; font-size: 13px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 07 — CIÊNCIA DE CONTRATO / FORO / ASSINATURAS</h4>
-    <p style="text-align: justify; margin: 0 0 16px;">As partes elegem o foro da comarca de {{FORO_COMARCA}} para dirimir quaisquer controvérsias oriundas deste instrumento, com renúncia expressa a qualquer outro, por mais privilegiado que seja.</p>
-    <p style="text-align: center; margin: 0 0 24px;">{{CIDADE}} - {{UF}}, {{DATA_ASSINATURA}}.</p>
+  <div style="margin-bottom: 16px;">
+    <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 07 – CIÊNCIA DE CONTRATO</h4>
+    <p style="text-align: justify; margin: 0 0 12px;">As partes elegem o Foro da Comarca da cidade de {{FORO_COMARCA}}, para dirimir qualquer demanda judicial relativa ao presente contrato, com exclusão de qualquer outro.</p>
+    <p style="text-align: center; margin: 0 0 20px;">Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
     
-    <div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px;">
-      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 6px;">
-        <p style="margin: 0; font-weight: bold; font-size: 12px;">SOBRE MÍDIA DESIGNER</p>
-        <p style="margin: 2px 0 0; font-size: 11px; color: #4b5563;">CONTRATADA</p>
+    <div style="display: flex; justify-content: space-between; margin-top: 24px; padding-top: 16px;">
+      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA</p>
       </div>
-      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 6px;">
-        <p style="margin: 0; font-weight: bold; font-size: 12px;">{{RAZAO_SOCIAL}}</p>
-        <p style="margin: 2px 0 0; font-size: 11px; color: #4b5563;">CONTRATANTE / ESTABELECIMENTO PARCEIRO</p>
+      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">{{RAZAO_SOCIAL}} (PARCEIRO)</p>
       </div>
     </div>
   </div>

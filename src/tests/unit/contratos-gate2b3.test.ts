@@ -157,24 +157,41 @@ describe('GATE 2-B.3 — PDF Oficial, Template, Geração Real e Validação', (
       expect(htmlRenderizado).not.toContain('{{ENDERECO_UNIDADE}}');
       expect(htmlRenderizado).not.toMatch(/\{\{[A-Z_0-9]+\}\}/);
 
-      // Verificação estrita das 7 Cláusulas Oficiais Canônicas
-      expect(htmlRenderizado).toContain('CLÁUSULA 01 — DO OBJETO');
-      expect(htmlRenderizado).toContain('CLÁUSULA 02 — SERVIÇOS REALIZADOS PELA SOBRE MÍDIA');
-      expect(htmlRenderizado).toContain('CLÁUSULA 03 — OBRIGAÇÕES DO ESTABELECIMENTO PARCEIRO');
-      expect(htmlRenderizado).toContain('03.1. Internet');
-      expect(htmlRenderizado).toContain('03.2. Energia Elétrica');
-      expect(htmlRenderizado).toContain('03.3. Comunicação de Problemas');
-      expect(htmlRenderizado).toContain('03.4. Proteção dos Equipamentos');
-      expect(htmlRenderizado).toContain('CLÁUSULA 04 — OBRIGAÇÕES DO GESTOR DE MÍDIA');
-      expect(htmlRenderizado).toContain('4.1.');
-      expect(htmlRenderizado).toContain('4.2.');
-      expect(htmlRenderizado).toContain('4.3.');
-      expect(htmlRenderizado).toContain('CLÁUSULA 05 — GRADE DE PROGRAMAÇÃO');
-      expect(htmlRenderizado).toContain('CLÁUSULA 06 — VIGÊNCIA E RESCISÃO');
-      expect(htmlRenderizado).toContain('6.1.');
+      // Verificação estrita das 7 Cláusulas Oficiais Literais
+      expect(htmlRenderizado).toContain('CLÁUSULA 01 – DO OBJETO');
+      expect(htmlRenderizado).toContain('CLÁUSULA 02 - SERVIÇOS REALIZADOS PELA SOBRE MÍDIA:');
+      expect(htmlRenderizado).toContain('CLÁUSULA 03 - OBRIGAÇÕES DO ESTABELECIMENTO PARCEIRO');
+      expect(htmlRenderizado).toContain('03. 1 -');
+      expect(htmlRenderizado).toContain('A internet será de responsabilidade do PARCEIRO.');
+      expect(htmlRenderizado).toContain('03. 2 -');
+      expect(htmlRenderizado).toContain('A energia elétrica é fornecida pelo PARCEIRO.');
+      expect(htmlRenderizado).toContain('03. 3 -');
+      expect(htmlRenderizado).toContain('É dever do ESTABELECIMENTO PARCEIRO informar a SOBRE MÍDIA sobre possíveis problemas');
+      expect(htmlRenderizado).toContain('03. 4 -');
+      expect(htmlRenderizado).toContain('O ESTABELECIMENTO PARCEIRO fica expressamente impedido de interferir');
+      expect(htmlRenderizado).toContain('CLÁUSULA 04 - OBRIGAÇÕES DO GESTOR DE MÍDIA');
+      expect(htmlRenderizado).toContain('4.1 -');
+      expect(htmlRenderizado).toContain('4.2 -');
+      expect(htmlRenderizado).toContain('4.3 -');
+      expect(htmlRenderizado).toContain('CLÁUSULA 05 – GRADE DE PROGRAMAÇÃO');
+      expect(htmlRenderizado).toContain('CLÁUSULA 06 - VIGÊNCIA E RESCISÃO');
+      expect(htmlRenderizado).toContain('6.1 -');
       expect(htmlRenderizado).toContain('A)');
       expect(htmlRenderizado).toContain('B)');
-      expect(htmlRenderizado).toContain('CLÁUSULA 07 — CIÊNCIA DE CONTRATO / FORO / ASSINATURAS');
+      expect(htmlRenderizado).toContain('CLÁUSULA 07 – CIÊNCIA DE CONTRATO');
+
+      // Prova de ausência de termos inventados/adicionados
+      expect(htmlRenderizado).not.toContain('24 (vinte e quatro) horas');
+      expect(htmlRenderizado).not.toContain('10 (dez) dias úteis');
+      expect(htmlRenderizado).not.not.toContain('inviabilidade técnica superveniente');
+      expect(htmlRenderizado).not.toContain('inviabilidade técnica');
+      expect(htmlRenderizado).not.toContain('encerramento das atividades');
+      expect(htmlRenderizado).not.toContain('Rua Barão do Triunfo');
+
+      // Prova de dados institucionais oficiais
+      expect(htmlRenderizado).toContain('Rua 17 de Dezembro, n°38 – CENTRO - Cachoerinha/PE');
+      expect(htmlRenderizado).toContain('Jairan Santos');
+      expect(htmlRenderizado).toContain('18.141.748/0001-70');
     });
 
     it('gera PDF de PARCEIRO com as 7 cláusulas sem exigir CNPJ ou empresa_id', async () => {
