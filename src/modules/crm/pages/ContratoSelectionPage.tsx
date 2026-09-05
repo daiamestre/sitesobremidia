@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { contratoService, ContratoTemplateRecord, ContratoCompleto } from '../services/contrato.service';
-import { contratoDocumentoService, CANONICAL_TEMPLATE_HTML_ANUNCIANTE, CANONICAL_TEMPLATE_HTML_PARCEIRO } from '../services/contratoDocumento.service';
+import { contratoDocumentoService, getCanonicalTemplateForTipo, isTemplateCompleto, CANONICAL_TEMPLATE_HTML_ANUNCIANTE, CANONICAL_TEMPLATE_HTML_PARCEIRO } from '../services/contratoDocumento.service';
 import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { supabase } from '@/integrations/supabase/client';
 import { getOfficialPdfForTipoContrato } from '../services/contractResolver.service';
@@ -322,8 +322,8 @@ export default function ContratoSelectionPage() {
     }
 
     let html = selectedTemplate.conteudo_html;
-    if (!html || html.length < 200 || html.includes('(preservado)')) {
-      html = isParceiro ? CANONICAL_TEMPLATE_HTML_PARCEIRO : CANONICAL_TEMPLATE_HTML_ANUNCIANTE;
+    if (!html || html.length < 200 || html.includes('(preservado)') || !isTemplateCompleto(html, selectedTemplate.tipo_contrato)) {
+      html = getCanonicalTemplateForTipo(selectedTemplate.tipo_contrato);
     }
     Object.entries(dados).forEach(([key, value]) => {
       html = html.replace(new RegExp(`{{${key}}}`, 'g'), value);

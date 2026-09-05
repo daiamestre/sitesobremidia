@@ -1026,9 +1026,38 @@ export const CANONICAL_TEMPLATE_HTML_GESTOR = `<div class="contract-container" s
  */
 export function getCanonicalTemplateForTipo(tipo: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' | string): string {
   if (tipo === 'PARCEIRO' || tipo === 'PONTO_PARCEIRO') return CANONICAL_TEMPLATE_HTML_PARCEIRO;
-  if (tipo === 'GESTOR' || tipo === 'GESTOR_MIDIA') return CANONICAL_TEMPLATE_HTML_GESTOR;
+  if (tipo === 'GESTOR' || tipo === 'GESTOR_MIDIA' || tipo === 'GESTOR_MIDIAS') return CANONICAL_TEMPLATE_HTML_GESTOR;
   return CANONICAL_TEMPLATE_HTML_ANUNCIANTE;
 }
+
+/**
+ * Verifica se o HTML de template contém as cláusulas e estruturas completas
+ * do tipo de contrato especificado, evitando stubs ou documentos incompletos.
+ */
+export function isTemplateCompleto(html?: string | null, tipo?: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' | string): boolean {
+  if (!html || html.trim().length < 1500) return false;
+  const t = (tipo || 'ANUNCIANTE').toUpperCase();
+  if (t === 'PARCEIRO' || t === 'PONTO_PARCEIRO') {
+    return (
+      (html.includes('CLÁUSULA 01') || html.includes('DO OBJETO')) &&
+      (html.includes('OBRIGAÇÕES DO ESTABELECIMENTO PARCEIRO') || html.includes('ESTABELECIMENTO PARCEIRO') || html.includes('PARCERIA')) &&
+      (html.includes('GRADE DE PROGRAMAÇÃO') || html.includes('VIGÊNCIA E RESCISÃO') || html.includes('CIÊNCIA DE CONTRATO'))
+    );
+  }
+  if (t === 'GESTOR' || t === 'GESTOR_MIDIA' || t === 'GESTOR_MIDIAS') {
+    return (
+      (html.includes('1. OBJETO') || html.includes('CONTRATO DE GESTÃO DE MÍDIA DIGITAL')) &&
+      (html.includes('ATRIBUIÇÕES DO GESTOR') || html.includes('GESTOR DE MÍDIAS')) &&
+      (html.includes('POLÍTICAS DA REDE') || html.includes('REMUNERAÇÃO, VIGÊNCIA E ACEITE'))
+    );
+  }
+  return (
+    (html.includes('CLÁUSULA 01 - NOSSO SERVIÇO') || html.includes('NOSSO SERVIÇO')) &&
+    (html.includes('POLÍTICA DE PRIVACIDADE') || html.includes('GRADE DE HORÁRIOS')) &&
+    (html.includes('RESCISÃO CONTRATUAL') || html.includes('RENOVAÇÃO DE CONTRATO'))
+  );
+}
+
 
 
 /**

@@ -6,6 +6,8 @@ import {
 import { TipoContrato } from '@/modules/crm/services/contractResolver.service';
 import {
   validarPlaceholdersTemplate,
+  getCanonicalTemplateForTipo,
+  isTemplateCompleto,
   CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
   CANONICAL_TEMPLATE_HTML_PARCEIRO,
   CANONICAL_TEMPLATE_HTML_GESTOR,
@@ -72,6 +74,30 @@ export function ContratosAdminPage() {
     carregarModelos();
   }, [carregarModelos]);
 
+  // Garantia absoluta: se o modal de Novo Modelo for aberto, assegura que o conteúdo canônico oficial esteja carregado
+  useEffect(() => {
+    if (novoModeloOpen) {
+      if (!isTemplateCompleto(formConteudo, tipoAtivo)) {
+        setFormConteudo(getCanonicalTemplateForTipo(tipoAtivo));
+      }
+      if (!formNome) {
+        setFormNome(
+          tipoAtivo === 'ANUNCIANTE'
+            ? 'Contrato de Anunciante — Oficial'
+            : tipoAtivo === 'PARCEIRO'
+            ? 'Contrato de Ponto Parceiro — Oficial'
+            : 'Contrato de Gestor de Mídias — Oficial'
+        );
+      }
+      if (!formCodigo) {
+        setFormCodigo(`TPL-${tipoAtivo}-${Date.now().toString().slice(-4)}`);
+      }
+      if (!formDescricao) {
+        setFormDescricao(`Modelo oficial completo para ${tipoAtivo}`);
+      }
+    }
+  }, [novoModeloOpen, tipoAtivo, formConteudo, formNome, formCodigo, formDescricao]);
+
   const handleDefinirPadrao = async (id: string) => {
     try {
       const res = await contratoModelosAdminService.definirComoPadrao(id);
@@ -100,17 +126,11 @@ export function ContratosAdminPage() {
     }
   };
 
-  const getCanonicalTemplateForTipo = (tipo: TipoContrato): string => {
-    if (tipo === 'PARCEIRO') return CANONICAL_TEMPLATE_HTML_PARCEIRO;
-    if (tipo === 'GESTOR') return CANONICAL_TEMPLATE_HTML_GESTOR;
-    return CANONICAL_TEMPLATE_HTML_ANUNCIANTE;
-  };
-
   const handleAbrirNovaVersao = (tpl: ContratoTemplateAdminRecord) => {
     setNovaVersaoTemplate(tpl);
     setFormNome(tpl.nome);
-    // Se conteúdo for stub, herda o template canônico completo
-    if (!tpl.conteudo_html || tpl.conteudo_html.length < 200 || tpl.conteudo_html.includes('(preservado)')) {
+    // Se conteúdo for stub ou incompleto, clona o template oficial canônico completo
+    if (!isTemplateCompleto(tpl.conteudo_html, tpl.tipo_contrato)) {
       setFormConteudo(getCanonicalTemplateForTipo(tpl.tipo_contrato));
     } else {
       setFormConteudo(tpl.conteudo_html);
@@ -271,7 +291,7 @@ export function ContratosAdminPage() {
               <p className="text-sm text-muted-foreground mt-1 mb-4">
                 Não existem modelos cadastrados para a categoria {tipoAtivo}.
               </p>
-              <Button size="sm" onClick={() => setNovoModeloOpen(true)}>
+              <Button size="sm" onClick={handleAbrirNovoModelo}>
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Primeiro Modelo
               </Button>
@@ -497,7 +517,18 @@ export function ContratosAdminPage() {
       </Dialog>
 
       {/* Modal Novo Modelo */}
-      <Dialog open={novoModeloOpen} onOpenChange={setNovoModeloOpen}>
+      <Dialog
+        open={novoModeloOpen}
+        onOpenChange={(open) => {
+          setNovoModeloOpen(open);
+          if (!open) {
+            setFormNome('');
+            setFormCodigo('');
+            setFormConteudo('');
+            setFormDescricao('');
+          }
+        }}
+      >
         <DialogContent className="max-w-6xl w-[96vw] h-[95vh] max-h-[95vh] flex flex-col p-4 md:p-6">
           <DialogHeader className="shrink-0 pb-2 border-b">
             <DialogTitle className="flex items-center gap-2">

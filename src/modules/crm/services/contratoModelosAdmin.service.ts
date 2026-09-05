@@ -3,6 +3,7 @@ import { TipoContrato } from './contractResolver.service';
 import {
   validarPlaceholdersTemplate,
   getCanonicalTemplateForTipo,
+  isTemplateCompleto,
   CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
   CANONICAL_TEMPLATE_HTML_PARCEIRO,
   CANONICAL_TEMPLATE_HTML_GESTOR,
@@ -179,10 +180,11 @@ export class ContratoModelosAdminService {
           .select('tipo_contrato, conteudo_html')
           .eq('id', templateId)
           .single();
+        const tipo = currentTpl?.tipo_contrato || 'ANUNCIANTE';
         conteudoHtmlFinal =
-          currentTpl?.conteudo_html && currentTpl.conteudo_html.trim().length >= 200
+          currentTpl?.conteudo_html && isTemplateCompleto(currentTpl.conteudo_html, tipo)
             ? currentTpl.conteudo_html
-            : this.obterTemplateOficialCompleto(currentTpl?.tipo_contrato || 'ANUNCIANTE');
+            : this.obterTemplateOficialCompleto(tipo);
       }
 
       const validacao = validarPlaceholdersTemplate(conteudoHtmlFinal);
@@ -229,7 +231,7 @@ export class ContratoModelosAdminService {
           .from('contrato_templates')
           .update({
             nome: novoNome?.trim() || tpl.nome,
-            conteudo_html: novoConteudoHtml,
+            conteudo_html: conteudoHtmlFinal,
             updated_at: new Date().toISOString(),
           })
           .eq('id', templateId);
@@ -252,7 +254,7 @@ export class ContratoModelosAdminService {
           nome: novoNome?.trim() || tpl.nome,
           descricao: tpl.descricao,
           versao: novaVersaoNum,
-          conteudo_html: novoConteudoHtml,
+          conteudo_html: conteudoHtmlFinal,
           ativo: true,
           is_default: true,
         })

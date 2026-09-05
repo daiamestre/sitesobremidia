@@ -7,6 +7,7 @@ import {
   formatarDataExtensa,
   preencherTemplate,
   getCanonicalTemplateForTipo,
+  isTemplateCompleto,
 } from '@/modules/crm/services/contratoDocumento.service';
 import { TipoContrato } from '@/modules/crm/services/contractResolver.service';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -110,17 +111,17 @@ export function sanitizeHtmlForPreview(rawHtml: string): string {
 /**
  * Cria o elemento HTML do chip do token para inserção na árvore visual.
  * O elemento é não-editável diretamente (contenteditable="false") e arrastável (draggable="true")
- * para permitir que o usuário reposicione dentro do documento.
+ * para permitir que o usuário reposicione dentro do documento ou remova clicando no botão 'x'.
  */
 export function createTokenChipHtml(tokenName: string): string {
   const label = HUMAN_TOKEN_LABELS[tokenName] || tokenName;
   const isDesconhecido = !PLACEHOLDER_CATALOG[tokenName];
 
   if (isDesconhecido) {
-    return `<span class="contract-token-chip inline-flex items-center px-2 py-0.5 rounded border border-rose-300 bg-rose-50 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-grab" contenteditable="false" draggable="true" data-token="${tokenName}" title="Campo não reconhecido: ${tokenName}">[${tokenName} — Não Reconhecido]</span>`;
+    return `<span class="contract-token-chip inline-flex items-center gap-1 px-2 py-0.5 rounded border border-rose-300 bg-rose-50 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-grab" contenteditable="false" draggable="true" data-token="${tokenName}" title="Campo não reconhecido: ${tokenName}">[${tokenName} — Não Reconhecido]<button type="button" class="remove-token-btn cursor-pointer font-bold hover:text-rose-600 px-0.5 bg-transparent border-0 inline text-xs leading-none" title="Remover este campo">&times;</button></span>`;
   }
 
-  return `<span class="contract-token-chip inline-flex items-center px-2 py-0.5 rounded border border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-grab hover:ring-1 hover:ring-blue-400" contenteditable="false" draggable="true" data-token="${tokenName}" title="Campo: ${label} (arraste para reposicionar)">[${label}]</span>`;
+  return `<span class="contract-token-chip inline-flex items-center gap-1 px-2 py-0.5 rounded border border-blue-300 bg-blue-50 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-700 text-xs font-semibold select-none align-baseline mx-0.5 cursor-grab hover:ring-1 hover:ring-blue-400" contenteditable="false" draggable="true" data-token="${tokenName}" title="Campo: ${label} (arraste para reposicionar ou clique no &times; para remover)">[${label}]<button type="button" class="remove-token-btn cursor-pointer font-bold hover:text-rose-600 px-0.5 bg-transparent border-0 inline text-xs leading-none" title="Remover este campo">&times;</button></span>`;
 }
 
 /**
@@ -140,7 +141,7 @@ export function templateToVisualHtml(templateHtml: string): string {
  */
 export function visualHtmlToTemplate(visualHtml: string): string {
   if (!visualHtml) return '';
-  return visualHtml.replace(/<span[^>]*data-token=["']([A-Za-z0-9_]+)["'][^>]*>.*?<\/span>/gi, '{{$1}}');
+  return visualHtml.replace(/<span[^>]*class="[^"]*contract-token-chip[^"]*"[^>]*data-token=["']([A-Za-z0-9_]+)["'][^>]*>[\s\S]*?<\/span>/gi, '{{$1}}');
 }
 
 export function ReadableContractEditor({
@@ -163,11 +164,11 @@ export function ReadableContractEditor({
 
   // Conteúdo canônico efetivo (garantia absoluta contra documentos em branco ou incompletos)
   const canonicalEfetivo = useMemo(() => {
-    if (!value || value.trim().length < 200) {
+    if (!value || value.trim().length < 200 || !isTemplateCompleto(value, tipoContrato)) {
       return canonicalPadrao;
     }
     return value;
-  }, [value, canonicalPadrao]);
+  }, [value, canonicalPadrao, tipoContrato]);
 
   // Validação em tempo real baseada no conteúdo canônico
   const validacao = useMemo(() => {
@@ -198,11 +199,11 @@ export function ReadableContractEditor({
       lastCanonicalValueRef.current = canonicalEfetivo;
 
       // Se o valor de entrada estava vazio ou incompleto, notifica o pai com o template oficial completo imediatamente
-      if (!value || value.trim().length < 200) {
+      if (!value || value.trim().length < 200 || !isTemplateCompleto(value, tipoContrato)) {
         onChange(canonicalEfetivo);
       }
     }
-  }, [canonicalEfetivo, value, onChange]);
+  }, [canonicalEfetivo, value, tipoContrato, onChange]);
 
   // Trata input no editor visual e atualiza o estado canônico
   const handleEditorInput = () => {
@@ -211,6 +212,19 @@ export function ReadableContractEditor({
     const canonical = visualHtmlToTemplate(visualHtml);
     lastCanonicalValueRef.current = canonical;
     onChange(canonical);
+  };
+
+  // Trata cliques no editor, permitindo remoção direta de chips pelo botão 'x'
+  const handleEditorClick = (e: React.MouseEvent) => {
+    const removeBtn = (e.target as HTMLElement)?.closest('.remove-token-btn');
+    if (removeBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const chip = removeBtn.closest('.contract-token-chip');
+      chip?.remove();
+      handleEditorInput();
+      return;
+    }
   };
 
   /**
@@ -647,6 +661,7 @@ export function ReadableContractEditor({
                   suppressContentEditableWarning
                   onInput={handleEditorInput}
                   onBlur={handleEditorInput}
+                  onClick={handleEditorClick}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
                   onDragStart={handleEditorDragStart}

@@ -14,9 +14,9 @@ describe('GATE 2-B.2 — Origens de Contrato e Navegação Direta', () => {
       expect(tipo).toBe('PARCEIRO');
     });
 
-    it('resolve null para GESTOR_MIDIAS (sem contrato)', () => {
+    it('resolve GESTOR para GESTOR_MIDIAS', () => {
       const tipo = resolveContractTypeFromCadastroType('GESTOR_MIDIAS');
-      expect(tipo).toBeNull();
+      expect(tipo).toBe('GESTOR');
     });
 
     it('retorna PDF oficial correspondente para ANUNCIANTE', () => {
