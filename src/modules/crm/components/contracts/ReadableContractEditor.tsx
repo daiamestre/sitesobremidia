@@ -27,7 +27,7 @@ interface ReadableContractEditorProps {
   className?: string;
 }
 
-const CATEGORIAS: { key: PlaceholderCategoria; label: string; cor: string }[] = [
+export const CATEGORIAS: { key: PlaceholderCategoria; label: string; cor: string }[] = [
   { key: 'CADASTRO', label: 'Cadastro & Partes', cor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200' },
   { key: 'COMERCIAL', label: 'Comercial & Grade', cor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200' },
   { key: 'FINANCEIRO', label: 'Financeiro & Pagto', cor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200' },
@@ -141,7 +141,7 @@ export function templateToVisualHtml(templateHtml: string): string {
  */
 export function visualHtmlToTemplate(visualHtml: string): string {
   if (!visualHtml) return '';
-  return visualHtml.replace(/<span[^>]*class="[^"]*contract-token-chip[^"]*"[^>]*data-token=["']([A-Za-z0-9_]+)["'][^>]*>[\s\S]*?<\/span>/gi, '{{$1}}');
+  return visualHtml.replace(/<span[^>]*data-token=["']([A-Za-z0-9_]+)["'][^>]*>[\s\S]*?<\/span>/gi, '{{$1}}');
 }
 
 export function ReadableContractEditor({
@@ -488,170 +488,102 @@ export function ReadableContractEditor({
   }, [canonicalEfetivo, validacao, tipoContrato]);
 
   return (
-    <div className={`flex flex-col h-full space-y-3 ${className}`}>
-      {/* Barra de Status de Validação */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg border bg-slate-50 dark:bg-slate-900 text-xs shrink-0">
-        <div className="flex items-center gap-2">
-          {validacao.valido ? (
-            <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium">
-              <CheckCircle2 className="h-4 w-4" />
-              <span>Modelo Válido ({validacao.placeholdersValidos.length} campos identificados no documento)</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-semibold">
-              <AlertTriangle className="h-4 w-4" />
-              <span>
-                {validacao.placeholdersDesconhecidos.length} campo(s) desconhecido(s) bloquearão o salvamento!
-              </span>
-            </div>
-          )}
+    <div className={`flex flex-col h-full w-full min-h-0 overflow-hidden bg-background ${className}`}>
+      {/* Top Bar de Ferramentas: Formatação Textual, Abas e Status de Validação */}
+      <div className="w-full bg-white dark:bg-slate-950 px-4 py-2 border-b flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 shadow-2xs z-10">
+        {/* Lado Esquerdo: Ferramentas de Formatação e Controles Rápidos */}
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            onClick={() => executeFormatting('bold')}
+            title="Negrito (Ctrl+B)"
+          >
+            <Bold className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            onClick={() => executeFormatting('italic')}
+            title="Itálico (Ctrl+I)"
+          >
+            <Italic className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            onClick={() => executeFormatting('underline')}
+            title="Sublinhado (Ctrl+U)"
+          >
+            <Underline className="h-4 w-4" />
+          </Button>
+
+          <div className="h-4 w-px bg-border mx-1" />
+
+          {/* Abas: Editor Visual vs Prévia Real */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border">
+            <button
+              type="button"
+              onClick={() => setTabAtiva('editor')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                tabAtiva === 'editor'
+                  ? 'bg-white dark:bg-slate-900 text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>Editor do Documento</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTabAtiva('previa')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                tabAtiva === 'previa'
+                  ? 'bg-white dark:bg-slate-900 text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>Prévia Real</span>
+            </button>
+          </div>
         </div>
 
-        {validacao.placeholdersDesconhecidos.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
-            {validacao.placeholdersDesconhecidos.map((p) => (
-              <Badge key={p} variant="destructive" className="text-[10px] px-1.5 py-0.5">
-                {`[Campo Desconhecido: ${p}]`}
-              </Badge>
-            ))}
+        {/* Lado Direito: Status de Validação e Dica Operacional */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-[11px] hidden lg:flex">
+            <Move className="h-3 w-3 text-blue-500" />
+            <span>Arraste campos do painel lateral para qualquer lugar do documento</span>
           </div>
-        )}
+
+          <div>
+            {validacao.valido ? (
+              <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Modelo Válido ({validacao.placeholdersValidos.length} campos)</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-rose-700 dark:text-rose-400 font-semibold bg-rose-50 dark:bg-rose-950/50 px-2.5 py-1 rounded-full border border-rose-200 dark:border-rose-800">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span>{validacao.placeholdersDesconhecidos.length} campo(s) desconhecido(s)</span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Tabs Principais: Editor Visual do Documento | Prévia Real (SEM ABA HTML) */}
-      <Tabs value={tabAtiva} onValueChange={(v) => setTabAtiva(v as any)} className="flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between border-b pb-2 shrink-0">
-          <TabsList className="grid grid-cols-2 w-72">
-            <TabsTrigger value="editor" className="flex items-center gap-1.5 text-xs">
-              <BookOpen className="h-3.5 w-3.5" />
-              Editor do Documento
-            </TabsTrigger>
-            <TabsTrigger value="previa" className="flex items-center gap-1.5 text-xs">
-              <Eye className="h-3.5 w-3.5" />
-              Prévia Real
-            </TabsTrigger>
-          </TabsList>
-
-          <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            Clique no documento ou arraste campos do catálogo para onde desejar
-          </span>
-        </div>
-
-        {/* Tab 1: Editor Visual do Documento */}
-        <TabsContent value="editor" className="flex-1 flex flex-col gap-2.5 min-h-0 mt-2">
-          {/* Painel de Inserção de Campos Disponíveis (Clique ou Arrastar) */}
-          <div className="border rounded-lg p-2.5 bg-slate-50/80 dark:bg-slate-900/80 space-y-2 shrink-0">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={categoriaFiltro === 'TODAS' ? 'default' : 'outline'}
-                  className="h-6 text-[11px] px-2"
-                  onClick={() => setCategoriaFiltro('TODAS')}
-                >
-                  Todos ({Object.keys(PLACEHOLDER_CATALOG).length})
-                </Button>
-                {CATEGORIAS.map((cat) => (
-                  <Button
-                    key={cat.key}
-                    type="button"
-                    size="sm"
-                    variant={categoriaFiltro === cat.key ? 'default' : 'outline'}
-                    className="h-6 text-[11px] px-2"
-                    onClick={() => setCategoriaFiltro(cat.key)}
-                  >
-                    {cat.label}
-                  </Button>
-                ))}
-              </div>
-
-              <div className="relative w-48">
-                <Search className="h-3 w-3 absolute left-2 top-2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar campo..."
-                  value={buscaToken}
-                  onChange={(e) => setBuscaToken(e.target.value)}
-                  className="h-7 text-xs pl-7"
-                />
-              </div>
-            </div>
-
-            {/* Botões de Inserção com Nomes Humanos em Português e suporte a Drag-and-Drop */}
-            <ScrollArea className="h-20 w-full rounded border bg-white dark:bg-slate-950 p-2">
-              <div className="flex flex-wrap gap-1.5">
-                {catalogoFiltrado.map((item) => {
-                  const labelHumano = HUMAN_TOKEN_LABELS[item.nome] || item.nome;
-                  return (
-                    <button
-                      key={item.nome}
-                      type="button"
-                      draggable={true}
-                      title={`${item.descricao} (Origem: ${item.origem}) — Clique para inserir no cursor ou arraste para o documento`}
-                      onClick={() => handleInsertPlaceholder(item.nome)}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', `{{${item.nome}}}`);
-                        e.dataTransfer.setData('application/x-contract-token', item.nome);
-                        e.dataTransfer.effectAllowed = 'copy';
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border bg-slate-100 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-blue-900/60 text-slate-700 dark:text-slate-200 transition-colors font-medium cursor-grab active:cursor-grabbing select-none shadow-2xs hover:shadow-xs"
-                    >
-                      <Plus className="h-3 w-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                      <span>[{labelHumano}]</span>
-                    </button>
-                  );
-                })}
-                {catalogoFiltrado.length === 0 && (
-                  <span className="text-xs text-muted-foreground p-1">Nenhum campo encontrado com esse filtro.</span>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-
-          {/* Área Principal de Edição Visual do Documento (Altura Livre e Rolagem Fluida) */}
-          <div className="flex-1 flex flex-col min-h-0 border rounded-lg bg-slate-100/95 dark:bg-slate-900/95 overflow-hidden">
-            {/* Barra de Formatação Textual e Instruções */}
-            <div className="w-full bg-white dark:bg-slate-950 px-4 py-2 border-b flex items-center justify-between text-xs shrink-0 shadow-2xs">
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0"
-                  onClick={() => executeFormatting('bold')}
-                  title="Negrito"
-                >
-                  <Bold className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0"
-                  onClick={() => executeFormatting('italic')}
-                  title="Itálico"
-                >
-                  <Italic className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0"
-                  onClick={() => executeFormatting('underline')}
-                  title="Sublinhado"
-                >
-                  <Underline className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-[11px]">
-                <Move className="h-3 w-3 text-blue-500" />
-                <span>Arraste campos para qualquer lugar do documento ou clique para inserir</span>
-              </div>
-            </div>
-
-            {/* Viewport de Rolagem Vertical Ampla */}
+      {/* Corpo Principal: Layout de 2 Colunas (Documento Dominante à Esquerda + Painel Lateral de Campos à Direita) */}
+      <div className="flex-1 flex flex-row min-h-0 w-full overflow-hidden">
+        {/* COLUNA ESQUERDA: Área Dominante de Edição do Documento / Prévia */}
+        <div className="flex-1 flex flex-col h-full min-h-0 bg-slate-100/90 dark:bg-slate-900/90 overflow-hidden">
+          {tabAtiva === 'editor' ? (
+            /* Viewport de Rolagem Vertical Ampla e Irrestrita */
             <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
               <div className="max-w-4xl mx-auto space-y-6">
                 {/* Folha do Documento Editável (WYSIWYG Direto) */}
@@ -665,7 +597,7 @@ export function ReadableContractEditor({
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
                   onDragStart={handleEditorDragStart}
-                  className="bg-white dark:bg-slate-950 p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 min-h-[1400px] pb-24 focus:outline-none focus:ring-2 focus:ring-primary/20 leading-relaxed font-sans text-sm"
+                  className="bg-white dark:bg-slate-950 p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 min-h-[1400px] pb-32 focus:outline-none focus:ring-2 focus:ring-primary/20 leading-relaxed font-sans text-sm"
                 />
 
                 {/* Área Inferior Dinâmica e Acessível para Soltar ou Adicionar Conteúdo ao Final */}
@@ -673,7 +605,7 @@ export function ReadableContractEditor({
                   onDragOver={handleDragOver}
                   onDrop={handleDropAtBottom}
                   onClick={handleFocusBottom}
-                  className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-primary text-slate-500 hover:text-primary rounded-xl text-center text-xs transition-all cursor-pointer bg-white/70 dark:bg-slate-950/70 flex flex-col items-center justify-center gap-2 shadow-sm"
+                  className="p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-primary text-slate-500 hover:text-primary rounded-xl text-center text-xs transition-all cursor-pointer bg-white/70 dark:bg-slate-950/70 flex flex-col items-center justify-center gap-2 shadow-sm mb-32"
                 >
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                     <ArrowDown className="h-4 w-4 text-primary" />
@@ -688,23 +620,115 @@ export function ReadableContractEditor({
                 </div>
               </div>
             </div>
-          </div>
-        </TabsContent>
+          ) : (
+            /* Prévia Real com Dados de Amostra */
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
+              <div className="max-w-4xl mx-auto pb-32">
+                <div
+                  className="bg-white dark:bg-slate-950 p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 leading-relaxed font-sans text-sm min-h-[1400px]"
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeHtmlForPreview(htmlPreviaResolvida),
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
-        {/* Tab 2: Prévia Real com Dados de Amostra */}
-        <TabsContent value="previa" className="flex-1 flex flex-col min-h-0 mt-2">
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 border rounded-lg bg-slate-100/95 dark:bg-slate-900/95 shadow-inner scroll-smooth">
-            <div className="max-w-4xl mx-auto">
-              <div
-                className="bg-white dark:bg-slate-950 p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 leading-relaxed font-sans text-sm min-h-[1400px]"
-                dangerouslySetInnerHTML={{
-                  __html: sanitizeHtmlForPreview(htmlPreviaResolvida),
-                }}
+        {/* COLUNA DIREITA: Painel Lateral Auxiliar de Campos Arrastáveis */}
+        <div className="w-80 md:w-88 shrink-0 h-full border-l bg-card dark:bg-slate-950 flex flex-col min-h-0 shadow-lg z-10">
+          {/* Header do Painel Lateral */}
+          <div className="p-3.5 border-b bg-slate-50/80 dark:bg-slate-900/80 shrink-0 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Move className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-bold text-foreground">Campos Disponíveis</span>
+              </div>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0.2">
+                {catalogoFiltrado.length} de {Object.keys(PLACEHOLDER_CATALOG).length}
+              </Badge>
+            </div>
+
+            {/* Campo de Busca Rápida */}
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+              <Input
+                placeholder="Buscar campo..."
+                value={buscaToken}
+                onChange={(e) => setBuscaToken(e.target.value)}
+                className="h-8 text-xs pl-8 bg-white dark:bg-slate-900"
               />
             </div>
+
+            {/* Filtro por Categorias */}
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setCategoriaFiltro('TODAS')}
+                className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${
+                  categoriaFiltro === 'TODAS'
+                    ? 'bg-blue-600 text-white border-blue-600 font-medium'
+                    : 'bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:text-foreground border-transparent'
+                }`}
+              >
+                Todas
+              </button>
+              {CATEGORIAS.map((cat) => (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setCategoriaFiltro(cat.key)}
+                  className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${
+                    categoriaFiltro === cat.key
+                      ? 'bg-blue-600 text-white border-blue-600 font-medium'
+                      : 'bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:text-foreground border-transparent'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          {/* Lista Vertical de Tokens Arrastáveis (Scroll Independente) */}
+          <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 min-h-0">
+            {catalogoFiltrado.map((item) => {
+              const labelHumano = HUMAN_TOKEN_LABELS[item.nome] || item.nome;
+              return (
+                <button
+                  key={item.nome}
+                  type="button"
+                  draggable={true}
+                  title={`${item.descricao} (Origem: ${item.origem}) — Clique para inserir no cursor ou arraste para o documento`}
+                  onClick={() => handleInsertPlaceholder(item.nome)}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', `{{${item.nome}}}`);
+                    e.dataTransfer.setData('application/x-contract-token', item.nome);
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
+                  className="w-full text-left p-2 rounded-lg border bg-white dark:bg-slate-900/90 hover:bg-blue-50 dark:hover:bg-blue-950/60 hover:border-blue-300 dark:hover:border-blue-700 transition-all flex items-start gap-2 group cursor-grab active:cursor-grabbing select-none shadow-2xs"
+                >
+                  <Plus className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                      [{labelHumano}]
+                    </div>
+                    <div className="text-[10px] text-muted-foreground line-clamp-1">
+                      {item.descricao}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+
+            {catalogoFiltrado.length === 0 && (
+              <div className="text-center py-8 text-xs text-muted-foreground">
+                Nenhum campo encontrado com o filtro atual.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

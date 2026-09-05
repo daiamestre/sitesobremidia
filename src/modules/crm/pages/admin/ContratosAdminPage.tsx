@@ -466,133 +466,161 @@ export function ContratosAdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Nova Versão / Edição */}
-      <Dialog open={!!novaVersaoTemplate} onOpenChange={() => setNovaVersaoTemplate(null)}>
-        <DialogContent className="max-w-6xl w-[96vw] h-[95vh] max-h-[95vh] flex flex-col p-4 md:p-6">
-          <DialogHeader className="shrink-0 pb-2 border-b">
-            <DialogTitle className="flex items-center gap-2">
-              <Copy className="h-5 w-5 text-blue-500" />
-              Criar Nova Versão para: {novaVersaoTemplate?.nome}
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              A nova versão assumirá o padrão automaticamente. Contratos celebrados anteriormente continuarão vinculados à v{novaVersaoTemplate?.versao} histórica.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 flex flex-col min-h-0 gap-3 pt-2">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Nome da Versão</Label>
-                <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} className="h-8 text-xs" />
+      {/* Editor em Tela Cheia — Nova Versão / Edição */}
+      {!!novaVersaoTemplate && (
+        <div className="fixed inset-0 z-50 w-screen h-screen bg-background flex flex-col overflow-hidden animate-in fade-in duration-200">
+          {/* Top Bar Compacta (52px) */}
+          <div className="h-14 px-4 bg-slate-900 text-white border-b border-slate-800 flex items-center justify-between gap-4 shrink-0 shadow-md">
+            {/* Lado Esquerdo: Título e Versão */}
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="p-1.5 rounded-md bg-blue-600/30 text-blue-400 border border-blue-500/30">
+                <Copy className="h-4 w-4 text-blue-400" />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Código Base</Label>
-                <Input value={novaVersaoTemplate?.codigo_template || ''} disabled className="h-8 text-xs bg-slate-50 dark:bg-slate-900" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Nova Versão Prevista</Label>
-                <Input value={`v${(novaVersaoTemplate?.versao || 1) + 1} (Padrão)`} disabled className="h-8 text-xs bg-slate-50 dark:bg-slate-900" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">Nova Versão</span>
+                  <Badge className="text-[10px] px-1.5 py-0 bg-blue-600 text-white">
+                    {novaVersaoTemplate.tipo_contrato}
+                  </Badge>
+                  <span className="text-xs text-slate-400 font-mono">
+                    v{(novaVersaoTemplate.versao || 1) + 1} (Padrão)
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col min-h-0">
-              <ReadableContractEditor
-                value={formConteudo || getCanonicalTemplateForTipo(novaVersaoTemplate?.tipo_contrato || tipoAtivo)}
-                onChange={setFormConteudo}
-                tipoContrato={novaVersaoTemplate?.tipo_contrato || tipoAtivo}
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="mt-2 pt-2 border-t shrink-0 flex items-center justify-between sm:justify-between">
-            <Button variant="outline" onClick={() => setNovaVersaoTemplate(null)} disabled={isSubmitting}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSalvarNovaVersao} disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Salvar Nova Versão Oficial
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Novo Modelo */}
-      <Dialog
-        open={novoModeloOpen}
-        onOpenChange={(open) => {
-          setNovoModeloOpen(open);
-          if (!open) {
-            setFormNome('');
-            setFormCodigo('');
-            setFormConteudo('');
-            setFormDescricao('');
-          }
-        }}
-      >
-        <DialogContent className="max-w-6xl w-[96vw] h-[95vh] max-h-[95vh] flex flex-col p-4 md:p-6">
-          <DialogHeader className="shrink-0 pb-2 border-b">
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5 text-primary" />
-              Criar Novo Modelo de Contrato ({tipoAtivo})
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              O novo modelo nasce a partir do contrato oficial completo e será registrado como padrão de onboarding para a categoria {tipoAtivo}.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 flex flex-col min-h-0 gap-3 pt-2">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Nome do Modelo</Label>
+            {/* Centro: Formulário Inline Compacto */}
+            <div className="flex-1 max-w-2xl flex items-center gap-2">
+              <div className="flex-1">
                 <Input
-                  placeholder="Ex: Contrato Anunciante 2026"
+                  placeholder="Nome da Versão"
                   value={formNome}
                   onChange={(e) => setFormNome(e.target.value)}
-                  className="h-8 text-xs"
+                  className="h-8 text-xs bg-slate-800 border-slate-700 text-white placeholder:text-slate-400 focus:border-blue-500"
                 />
               </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Código do Template (Exclusivo)</Label>
+              <div className="w-52">
                 <Input
-                  placeholder="Ex: TPL-ANUNCIANTE-2026"
-                  value={formCodigo}
-                  onChange={(e) => setFormCodigo(e.target.value)}
-                  className="h-8 text-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Descrição Opcional</Label>
-                <Input
-                  placeholder="Descrição resumida do modelo"
-                  value={formDescricao}
-                  onChange={(e) => setFormDescricao(e.target.value)}
-                  className="h-8 text-xs"
+                  value={`Código: ${novaVersaoTemplate.codigo_template}`}
+                  disabled
+                  className="h-8 text-xs bg-slate-800/60 border-slate-700/60 text-slate-400 font-mono"
                 />
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col min-h-0">
-              <ReadableContractEditor
-                value={formConteudo || getCanonicalTemplateForTipo(tipoAtivo)}
-                onChange={setFormConteudo}
-                tipoContrato={tipoAtivo}
-              />
+            {/* Lado Direito: Ações de Salvar e Fechar */}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setNovaVersaoTemplate(null)}
+                disabled={isSubmitting}
+                className="h-8 text-xs text-slate-300 hover:text-white hover:bg-slate-800"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSalvarNovaVersao}
+                disabled={isSubmitting}
+                className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 shadow-xs"
+              >
+                {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+                Salvar Nova Versão
+              </Button>
             </div>
           </div>
 
-          <DialogFooter className="mt-2 pt-2 border-t shrink-0 flex items-center justify-between sm:justify-between">
-            <Button variant="outline" onClick={() => setNovoModeloOpen(false)} disabled={isSubmitting}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSalvarNovoModelo} disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Salvar e Definir Padrão
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {/* Área do Editor em Tela Cheia (Duas Colunas) */}
+          <div className="flex-1 w-full h-full min-h-0 overflow-hidden">
+            <ReadableContractEditor
+              value={formConteudo || getCanonicalTemplateForTipo(novaVersaoTemplate.tipo_contrato || tipoAtivo)}
+              onChange={setFormConteudo}
+              tipoContrato={novaVersaoTemplate.tipo_contrato || tipoAtivo}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Editor em Tela Cheia — Novo Modelo */}
+      {novoModeloOpen && (
+        <div className="fixed inset-0 z-50 w-screen h-screen bg-background flex flex-col overflow-hidden animate-in fade-in duration-200">
+          {/* Top Bar Compacta (52px) */}
+          <div className="h-14 px-4 bg-slate-900 text-white border-b border-slate-800 flex items-center justify-between gap-4 shrink-0 shadow-md">
+            {/* Lado Esquerdo: Título e Tipo */}
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="p-1.5 rounded-md bg-blue-600/30 text-blue-400 border border-blue-500/30">
+                <Plus className="h-4 w-4 text-blue-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">Novo Modelo</span>
+                  <Badge className="text-[10px] px-1.5 py-0 bg-blue-600 text-white">{tipoAtivo}</Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* Centro: Formulário Inline Compacto (Nome, Código e Descrição) */}
+            <div className="flex-1 max-w-3xl flex items-center gap-2">
+              <div className="flex-1">
+                <Input
+                  placeholder="Nome do Modelo (ex: Contrato Anunciante 2026)"
+                  value={formNome}
+                  onChange={(e) => setFormNome(e.target.value)}
+                  className="h-8 text-xs bg-slate-800 border-slate-700 text-white placeholder:text-slate-400 focus:border-blue-500"
+                />
+              </div>
+              <div className="w-48">
+                <Input
+                  placeholder="Código (ex: TPL-ANUNCIANTE-2026)"
+                  value={formCodigo}
+                  onChange={(e) => setFormCodigo(e.target.value)}
+                  className="h-8 text-xs bg-slate-800 border-slate-700 text-white placeholder:text-slate-400 font-mono focus:border-blue-500"
+                />
+              </div>
+              <div className="w-56 hidden xl:block">
+                <Input
+                  placeholder="Descrição opcional..."
+                  value={formDescricao}
+                  onChange={(e) => setFormDescricao(e.target.value)}
+                  className="h-8 text-xs bg-slate-800 border-slate-700 text-white placeholder:text-slate-400 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Lado Direito: Ações de Salvar e Fechar */}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setNovoModeloOpen(false)}
+                disabled={isSubmitting}
+                className="h-8 text-xs text-slate-300 hover:text-white hover:bg-slate-800"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSalvarNovoModelo}
+                disabled={isSubmitting}
+                className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 shadow-xs"
+              >
+                {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+                Salvar Modelo
+              </Button>
+            </div>
+          </div>
+
+          {/* Área do Editor em Tela Cheia (Duas Colunas) */}
+          <div className="flex-1 w-full h-full min-h-0 overflow-hidden">
+            <ReadableContractEditor
+              value={formConteudo || getCanonicalTemplateForTipo(tipoAtivo)}
+              onChange={setFormConteudo}
+              tipoContrato={tipoAtivo}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
