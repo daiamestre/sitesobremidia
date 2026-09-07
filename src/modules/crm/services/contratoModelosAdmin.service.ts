@@ -274,6 +274,31 @@ export class ContratoModelosAdminService {
       return { success: false, error: msg };
     }
   }
+
+  /**
+   * Exclui um modelo de contrato via RPC Server-side segura
+   */
+  async excluirModelo(templateId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('fn_excluir_contrato_template', {
+        p_template_id: templateId,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      const res = data as unknown as { success: boolean; error?: string };
+      if (!res.success) {
+        return { success: false, error: res.error || 'Falha ao excluir o modelo de contrato.' };
+      }
+
+      return { success: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, error: msg };
+    }
+  }
 }
 
 export const contratoModelosAdminService = new ContratoModelosAdminService();

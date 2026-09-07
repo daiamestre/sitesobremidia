@@ -167,4 +167,17 @@ describe('GATE 5.1 — ÁREA ADMINISTRATIVA DE GESTÃO DE CONTRATOS (MICRO-GATE 
       expect(clause).toMatch(/IF NOT EXISTS|IF EXISTS|OR REPLACE/i);
     });
   });
+
+  it('T9 — [Exclusão de Modelo] excluirModelo invoca fn_excluir_contrato_template com segurança', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: { success: true, template_id: 'tpl-1', nome: 'Contrato Teste' },
+      error: null,
+    } as any);
+
+    const res = await contratoModelosAdminService.excluirModelo('tpl-1');
+    expect(res.success).toBe(true);
+    expect(supabase.rpc).toHaveBeenCalledWith('fn_excluir_contrato_template', {
+      p_template_id: 'tpl-1',
+    });
+  });
 });

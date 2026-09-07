@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   FileText, Plus, CheckCircle2, Clock, Shield, Star,
-  Eye, RefreshCw, Loader2, Edit3, Power, AlertCircle, Copy
+  Eye, RefreshCw, Loader2, Edit3, Power, AlertCircle, Copy, Trash2
 } from 'lucide-react';
 
 export function sanitizeHtmlForPreview(rawHtml: string): string {
@@ -46,6 +46,8 @@ export function ContratosAdminPage() {
   const [previewTemplate, setPreviewTemplate] = useState<ContratoTemplateAdminRecord | null>(null);
   const [novaVersaoTemplate, setNovaVersaoTemplate] = useState<ContratoTemplateAdminRecord | null>(null);
   const [novoModeloOpen, setNovoModeloOpen] = useState(false);
+  const [templateParaExcluir, setTemplateParaExcluir] = useState<ContratoTemplateAdminRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form State para Nova Versão / Novo Modelo
   const [formNome, setFormNome] = useState('');
@@ -123,6 +125,32 @@ export function ContratosAdminPage() {
       carregarModelos();
     } catch (err) {
       toast({ title: 'Erro inesperado', description: String(err), variant: 'destructive' });
+    }
+  };
+
+  const handleExcluirModelo = async () => {
+    if (!templateParaExcluir) return;
+    setIsDeleting(true);
+    try {
+      const res = await contratoModelosAdminService.excluirModelo(templateParaExcluir.id);
+      if (!res.success) {
+        toast({
+          title: 'Falha ao excluir modelo',
+          description: res.error || 'Não foi possível excluir o modelo de contrato.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      toast({
+        title: 'Modelo Excluído',
+        description: `O modelo "${templateParaExcluir.nome}" foi excluído com sucesso.`,
+      });
+      setTemplateParaExcluir(null);
+      carregarModelos();
+    } catch (err) {
+      toast({ title: 'Erro inesperado', description: String(err), variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -380,6 +408,16 @@ export function ContratosAdminPage() {
                         >
                           <Power className={`h-4 w-4 ${tpl.ativo ? 'text-emerald-500' : 'text-slate-400'}`} />
                         </Button>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Excluir Modelo de Contrato"
+                          className="hover:bg-red-500/10 text-slate-400 hover:text-red-400"
+                          onClick={() => setTemplateParaExcluir(tpl)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-400" />
+                        </Button>
                       </div>
 
                       {!tpl.is_default && tpl.ativo && (
@@ -621,6 +659,67 @@ export function ContratosAdminPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmação de Exclusão de Modelo de Contrato */}
+      <Dialog open={!!templateParaExcluir} onOpenChange={(open) => !open && !isDeleting && setTemplateParaExcluir(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-500">
+              <Trash2 className="h-5 w-5 text-red-500" />
+              Excluir Modelo de Contrato
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground pt-2 space-y-2">
+              <p>
+                Tem certeza que deseja excluir o modelo de contrato{' '}
+                <strong className="text-foreground">{templateParaExcluir?.nome}</strong> (
+                <span className="font-mono text-xs">{templateParaExcluir?.codigo_template}</span> v{templateParaExcluir?.versao})?
+              </p>
+              {Number(templateParaExcluir?.total_contratos_aplicados || 0) > 0 && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-md text-xs text-amber-600 dark:text-amber-300 mt-2">
+                  <p className="font-semibold flex items-center gap-1.5 mb-1">
+                    <AlertCircle className="h-4 w-4 text-amber-500" />
+                    Atenção: Modelo em uso
+                  </p>
+                  Este modelo já foi aplicado a{' '}
+                  <strong>{templateParaExcluir?.total_contratos_aplicados}</strong> contrato(s). A exclusão removerá o modelo da biblioteca, mantendo todos os contratos gerados e assinados intactos.
+                </div>
+              )}
+              {templateParaExcluir?.is_default && (
+                <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-md text-xs text-blue-600 dark:text-blue-300 mt-2">
+                  Este modelo está definido como <strong>Padrão</strong>. Ao excluí-lo, lembre-se de marcar outro modelo como padrão.
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setTemplateParaExcluir(null)}
+              disabled={isDeleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleExcluirModelo}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold gap-1.5"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Confirmar Exclusão
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
