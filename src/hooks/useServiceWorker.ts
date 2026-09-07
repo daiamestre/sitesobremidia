@@ -39,7 +39,7 @@ export function useServiceWorker() {
 
     const registerSW = async () => {
       try {
-        const registration = await navigator.serviceWorker.register('/sw-v303.js', {
+        const registration = await navigator.serviceWorker.register('/sw.js', {
           scope: '/',
         });
 

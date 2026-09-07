@@ -198,6 +198,7 @@ const PageLoader = () => (
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { RequireApproval, RequireRole } from "@/components/auth/RouteGuards";
 import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
+import { PWAProvider } from "@/components/pwa/PWAProvider";
 
 const App = () => {
   return (
@@ -208,10 +209,11 @@ const App = () => {
 
         <AuthProvider>
           <BrowserRouter>
-            <CrmSessionProvider>
-              <div className="animate-in fade-in duration-300 w-full max-w-full min-w-0 overflow-x-clip box-border">
-                <Suspense fallback={<PageLoader />}>
-                  <Routes>
+            <PWAProvider>
+              <CrmSessionProvider>
+                <div className="animate-in fade-in duration-300 w-full max-w-full min-w-0 overflow-x-clip box-border">
+                  <Suspense fallback={<PageLoader />}>
+                    <Routes>
                   {/* PUBLIC ROUTES */}
                   <Route path="/" element={<Index />} />
                   {/* PUBLIC BILLING ROUTES (Humanized & Legacy Compatible) */}
@@ -410,8 +412,9 @@ const App = () => {
               </Suspense>
             </div>
           </CrmSessionProvider>
-        </BrowserRouter>
-      </AuthProvider>
+        </PWAProvider>
+      </BrowserRouter>
+    </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
   );
