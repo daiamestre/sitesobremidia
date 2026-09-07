@@ -71,7 +71,7 @@ export class AnalyticsService {
       if (empresaOperadoraId) queryClientes = queryClientes.eq('empresa_operadora_id', empresaOperadoraId);
       const { count: qtdClientes } = await queryClientes;
 
-      let queryContratos = supabase.from('contratos').select('id', { count: 'exact' });
+      let queryContratos = supabase.from('contratos').select('id', { count: 'exact' }).is('deleted_at', null);
       if (empresaOperadoraId) queryContratos = queryContratos.eq('empresa_operadora_id', empresaOperadoraId);
       const { count: qtdContratos } = await queryContratos;
 

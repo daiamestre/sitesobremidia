@@ -65,6 +65,17 @@ export default function GestorMidiiasProspeccaoPage() {
         observacoes: form.observacoes,
       });
       setCredencial({ email: r.email, senha: r.senha_inicial, contratoId: r.contrato_id });
+
+      // Geração atômica de Snapshot / PDF / R2 para o contrato de Gestor
+      if (r.contrato_id) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          const { contratoDocumentoService } = await import('../../services/contratoDocumento.service');
+          await contratoDocumentoService.gerarDocumentoContrato(r.contrato_id, user?.id || '');
+        } catch (errDoc) {
+          console.warn('[GestorProspeccao] Aviso na geração inicial do PDF:', errDoc);
+        }
+      }
     } catch (e: any) {
       setErro(e?.message || 'Erro ao cadastrar gestor.');
     } finally {
@@ -260,7 +271,7 @@ export default function GestorMidiiasProspeccaoPage() {
                   <FileText className="h-3.5 w-3.5" /> Visualizar Contrato Completo
                 </button>
                 <a
-                  href="/templates/contrato_gestor_oficial.pdf"
+                  href="/official-contracts/contrato-gestor.pdf"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-lg border border-white/10 text-slate-300 text-xs font-semibold hover:bg-white/5 flex items-center gap-1.5"

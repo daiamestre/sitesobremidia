@@ -97,7 +97,7 @@ export class RepresentativeService {
       const { count: countClientes } = await queryClientes;
 
       // 2. Contratos Ativos
-      let queryContratos = supabase.from('contratos').select('id, valor_mensal');
+      let queryContratos = supabase.from('contratos').select('id, valor_mensal').is('deleted_at', null);
       if (empresaOperadoraId) queryContratos = queryContratos.eq('empresa_operadora_id', empresaOperadoraId);
       if (representanteId) queryContratos = queryContratos.eq('representante_id', representanteId);
       const { data: contratos } = await queryContratos;

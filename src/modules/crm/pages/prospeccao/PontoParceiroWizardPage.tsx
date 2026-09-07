@@ -286,6 +286,14 @@ export default function PontoParceiroWizardPage() {
           setSalvando(false);
           return;
         }
+
+        // Geração atômica de Snapshot / PDF / R2
+        try {
+          const { contratoDocumentoService } = await import('../../services/contratoDocumento.service');
+          await contratoDocumentoService.gerarDocumentoContrato(resCt.contratoId, user?.id || '');
+        } catch (errDoc) {
+          console.warn('[PontoParceiro] Aviso na geração inicial do PDF:', errDoc);
+        }
       }
       // Ponto Parceiro não possui login, portal ou cobrança (Regra de Isolamento).
       setConcluido({ codigo: r.codigo_publico });

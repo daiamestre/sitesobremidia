@@ -68,6 +68,7 @@ export default function FinanceiroClientePage() {
           .from('contratos')
           .select('id, numero_contrato_legivel, numero_contrato, data_inicio, data_fim, valor_mensal, status_workflow')
           .eq('cliente_id', usuario.cliente_id)
+          .is('deleted_at', null)
           .in('status_workflow', [...CONTRATOS_ATIVOS_STATUS])
           .order('data_inicio', { ascending: false })
           .limit(1);

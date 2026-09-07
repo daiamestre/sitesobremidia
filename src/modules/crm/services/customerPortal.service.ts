@@ -182,10 +182,11 @@ export class CustomerPortalService {
         .from('contratos')
         .select('*', { count: 'exact', head: true })
         .eq('cliente_id', clienteId)
+        .is('deleted_at', null)
         .in('status_workflow', STATUS_WORKFLOW_VIGENTE);
 
       // 2. Chamados Abertos (agrupando por todos os contratos do cliente)
-      const { data: contratos } = await supabase.from('contratos').select('id').eq('cliente_id', clienteId);
+      const { data: contratos } = await supabase.from('contratos').select('id').eq('cliente_id', clienteId).is('deleted_at', null);
       const contratoIds = contratos?.map(c => c.id) || [];
       let chamadosAbertos = 0;
       if (contratoIds.length > 0) {

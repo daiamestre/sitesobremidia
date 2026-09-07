@@ -193,7 +193,7 @@ export class ProspeccaoService {
           cidade: payload.cidade || null,
           estado: payload.estado ? payload.estado.toUpperCase().slice(0, 2) : null,
           quantidade_telas: Math.max(0, Number(payload.quantidadeTelas) || 0),
-          modelo_comercial: modeloComercialFinal,
+          modelo_comercial: payload.modeloComercial || 'PERMUTA',
           percentual_comissao: modeloComercialFinal === 'COMISSIONADO_5' ? '5.00' : null,
           regras_comerciais: montarRegrasComerciais(payload).join('\n'),
         },

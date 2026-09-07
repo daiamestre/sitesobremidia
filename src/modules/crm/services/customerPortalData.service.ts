@@ -68,6 +68,7 @@ export class CustomerPortalDataService {
           )
         `)
         .eq('cliente_id', clienteId)
+        .is('deleted_at', null)
         .in('status_documento', ['ASSINADO', 'ENVIADO', 'GERADO'])
         .order('data_inicio', { ascending: false })
         .limit(1);

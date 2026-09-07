@@ -71,6 +71,7 @@ export class SignatureProviderAdapter implements DigitalSignatureProvider {
         .from('contratos')
         .select('pdf_object_key')
         .eq('id', payload.contratoId)
+        .is('deleted_at', null)
         .single();
       if (contrato?.pdf_object_key) {
         downloadUrl = await contratoDocumentoService.obterUrlDownload(contrato.pdf_object_key);

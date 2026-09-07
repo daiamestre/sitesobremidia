@@ -218,6 +218,7 @@ class ComposicaoComercialService {
       .from('contratos')
       .select('id, empresa_operadora_id')
       .eq('id', contratoId)
+      .is('deleted_at', null)
       .maybeSingle();
 
     if (contratoErr || !contrato) {

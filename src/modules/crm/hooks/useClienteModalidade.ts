@@ -125,6 +125,7 @@ export function useClienteModalidade(): UseClienteModalidadeReturn {
         .from('contratos')
         .select('id', { count: 'exact', head: true })
         .eq('cliente_id', clienteId)
+        .is('deleted_at', null)
         .in('status_workflow', [...CONTRATOS_ATIVOS_STATUS]);
 
       if (error) {

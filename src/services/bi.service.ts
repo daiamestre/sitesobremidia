@@ -61,7 +61,7 @@ export class BiService {
       const receitaPendente = list.reduce((a, r) => a + (Number(r.valor_pendente) || 0), 0);
 
       // 2. Contratos Ativos & MRR
-      let queryCtr = supabase.from('contratos').select('valor_mensal').eq('status_workflow', 'CAMPANHA_ATIVA');
+      let queryCtr = supabase.from('contratos').select('valor_mensal').is('deleted_at', null).eq('status_workflow', 'CAMPANHA_ATIVA');
       if (empresaOperadoraId) queryCtr = queryCtr.eq('empresa_operadora_id', empresaOperadoraId);
       const { data: contratos } = await queryCtr;
 

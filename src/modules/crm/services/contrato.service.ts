@@ -207,14 +207,17 @@ export class ContratoService {
 
       if (existingContract) {
         contratoId = existingContract.id;
+        const targetTemplateId = payload.templateId || existingContract.template_id;
+        const targetTemplateNome = payload.templateNome || existingContract.template_nome;
+        const targetTemplateVersao = payload.templateVersao || existingContract.template_versao || 1;
         await supabase
           .from('contratos')
           .update({
             proposta_id: payload.propostaId || existingContract.proposta_id || null,
             tipo_contrato: payload.tipoContrato,
-            template_id: payload.templateId,
-            template_nome: payload.templateNome,
-            template_versao: payload.templateVersao,
+            template_id: targetTemplateId,
+            template_nome: targetTemplateNome,
+            template_versao: targetTemplateVersao,
             usuario_responsavel_id: payload.usuarioResponsavelId,
             data_selecao: nowIso,
             status_documento: 'RASCUNHO',
@@ -293,6 +296,7 @@ export class ContratoService {
           ponto:pontos(*)
         `)
         .eq('proposta_id', propostaId)
+        .is('deleted_at', null)
         .maybeSingle();
 
       if (error || !data) return null;
@@ -318,6 +322,7 @@ export class ContratoService {
           ponto:pontos(*)
         `)
         .eq('id', contratoId)
+        .is('deleted_at', null)
         .maybeSingle();
 
       if (error || !data) return null;
@@ -468,6 +473,56 @@ export class ContratoService {
     }
   }
 
+  /**
+   * AR-03.2 — Exclusão atômica de contrato com decisão híbrida (HARD_DELETE vs SOFT_DELETE).
+   * Executa a RPC transacional segura fn_excluir_contrato_atomo e aciona cleanup server-side de R2.
+   */
+  async excluirContrato(contratoId: string, motivo: string): Promise<{
+    success: boolean;
+    mode?: 'HARD_DELETE' | 'SOFT_DELETE';
+    already_deleted?: boolean;
+    error?: string;
+  }> {
+    try {
+      const { data, error } = await supabase.rpc('fn_excluir_contrato_atomo', {
+        p_contrato_id: contratoId,
+        p_motivo: motivo,
+      });
+
+      if (error) {
+        console.error('[ContratoService.excluirContrato] Erro RPC:', error);
+        return { success: false, error: error.message || 'Falha ao executar exclusão do contrato.' };
+      }
+
+      if (!data || data.success === false) {
+        return { success: false, error: data?.error || 'Erro na exclusão do contrato.' };
+      }
+
+      // Se for Hard Delete e houver chaves de storage para expurgar, aciona limpeza server-side
+      if (data.mode === 'HARD_DELETE' && Array.isArray(data.r2_keys_to_delete) && data.r2_keys_to_delete.length > 0) {
+        const uniqueKeys = Array.from(new Set<string>(data.r2_keys_to_delete.filter(Boolean)));
+        for (const objectKey of uniqueKeys) {
+          try {
+            await supabase.functions.invoke('delete-media-object', {
+              body: { objectKey },
+            });
+          } catch (r2Err) {
+            console.warn('[ContratoService.excluirContrato] Aviso na deleção R2 server-side:', r2Err);
+          }
+        }
+      }
+
+      return {
+        success: true,
+        mode: data.mode,
+        already_deleted: data.already_deleted,
+      };
+    } catch (err: any) {
+      console.error('[ContratoService.excluirContrato] Exceção:', err);
+      return { success: false, error: err?.message || 'Erro inesperado na exclusão do contrato.' };
+    }
+  }
+
   async findAll(representanteId?: string): Promise<ContratoCompleto[]> {
     try {
       let query = supabase
@@ -505,15 +560,75 @@ export class ContratoService {
   }): Promise<{ success: boolean; contratoId?: string | null; tipoContrato?: string | null; error?: string }> {
     const tipo = resolveContractTypeFromCadastroType(params.cadastroType);
     if (!tipo) return { success: true, contratoId: null, tipoContrato: null };
-    // buscar template oficial completo (não stub)
-    const { data: activeTpls } = await supabase
-      .from('contrato_templates')
-      .select('id,nome,versao,conteudo_html')
-      .eq('tipo_contrato', tipo)
-      .eq('ativo', true)
-      .order('created_at', { ascending: true });
 
-    const tpl = activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) || activeTpls?.[0];
+    // 1. Verifica se contrato já existe para a entidade
+    let existingContract: any = null;
+    if (params.propostaId) {
+      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('proposta_id', params.propostaId).maybeSingle();
+      existingContract = data;
+    }
+    if (!existingContract && params.clienteId) {
+      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('cliente_id', params.clienteId).eq('tipo_contrato', tipo).is('deleted_at', null).maybeSingle();
+      existingContract = data;
+    }
+    if (!existingContract && params.pontoId) {
+      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('ponto_id', params.pontoId).eq('tipo_contrato', tipo).is('deleted_at', null).maybeSingle();
+      existingContract = data;
+    }
+    if (!existingContract && params.gestorUsuarioId) {
+      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('gestor_usuario_id', params.gestorUsuarioId).eq('tipo_contrato', tipo).is('deleted_at', null).maybeSingle();
+      existingContract = data;
+    }
+
+    if (existingContract && existingContract.template_id) {
+      if (params.propostaId) {
+        await supabase.from('contratos').update({ proposta_id: params.propostaId }).eq('id', existingContract.id);
+      }
+      return { success: true, contratoId: existingContract.id, tipoContrato: tipo };
+    }
+
+    // 2. Resolver tenant para resolução do template padrão
+    let tenantId: string | null = null;
+    if (params.clienteId) {
+      const { data: cli } = await supabase.from('clientes').select('empresa_operadora_id').eq('id', params.clienteId).maybeSingle();
+      tenantId = cli?.empresa_operadora_id || null;
+    } else if (params.pontoId) {
+      const { data: pt } = await supabase.from('pontos').select('empresa_operadora_id').eq('id', params.pontoId).maybeSingle();
+      tenantId = pt?.empresa_operadora_id || null;
+    }
+    if (!tenantId && params.usuarioResponsavelId) {
+      const { data: usr } = await supabase.from('usuarios').select('empresa_operadora_id').eq('id', params.usuarioResponsavelId).maybeSingle();
+      tenantId = usr?.empresa_operadora_id || null;
+    }
+
+    // 3. Resolver template padrão canônico (via fn_obter_template_padrao ou query de default ativo)
+    let tpl: any = null;
+    if (tenantId) {
+      try {
+        const { data: rpcTpl, error: rpcErr } = await supabase.rpc('fn_obter_template_padrao', {
+          p_empresa_operadora_id: tenantId,
+          p_tipo_contrato: tipo,
+        });
+        if (!rpcErr && rpcTpl && (rpcTpl as any).length > 0) {
+          tpl = (rpcTpl as any)[0];
+        }
+      } catch (errTpl) {
+        console.warn('[ensureContractForCadastro] Fallback no resolver RPC:', errTpl);
+      }
+    }
+
+    if (!tpl) {
+      const { data: activeTpls } = await supabase
+        .from('contrato_templates')
+        .select('id,nome,versao,conteudo_html,is_default')
+        .eq('tipo_contrato', tipo)
+        .eq('ativo', true)
+        .order('is_default', { ascending: false })
+        .order('versao', { ascending: false });
+
+      tpl = activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) || activeTpls?.[0];
+    }
+
     if (!tpl) return { success: false, error: `Template oficial ${tipo} não encontrado.` };
     const res = await this.selectContractModel({
       tipoContrato: tipo,
@@ -525,6 +640,7 @@ export class ContratoService {
       pontoId: params.pontoId || null,
       gestorUsuarioId: params.gestorUsuarioId || null,
       propostaId: params.propostaId || null,
+      contratoId: existingContract?.id || null,
     });
     return { success: res.success, contratoId: res.contratoId || null, tipoContrato: tipo, error: res.error };
   }

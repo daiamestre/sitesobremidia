@@ -12,9 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import {
   FileText, Search, Filter, Loader2, RefreshCw, Plus,
   Calendar, DollarSign, Building2, CheckCircle2, XCircle,
-  Clock, Zap, BarChart3, TrendingUp, Eye, AlertTriangle, Download, PenLine
+  Clock, Zap, BarChart3, TrendingUp, Eye, AlertTriangle, Download, PenLine, Trash2
 } from 'lucide-react';
 import { contratoDocumentoService } from '@/modules/crm/services/contratoDocumento.service';
+import { ConfirmDeleteContractModal } from '@/modules/crm/components/ConfirmDeleteContractModal';
 
 // ─── Status Helpers ──────────────────────────────────────────────────────────
 
@@ -315,6 +316,13 @@ export default function ContratosListPage() {
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string>('TODOS');
   const [contrato360, setContrato360] = useState<ContratoCompleto | null>(null);
+  const [contratoParaExcluir, setContratoParaExcluir] = useState<ContratoCompleto | null>(null);
+
+  const canDeleteContracts = Boolean(
+    isOwner ||
+    usuario?.perfil?.nome?.toUpperCase() === 'ADMIN' ||
+    usuario?.role?.name?.toUpperCase() === 'ADMIN'
+  );
 
   const loadContratos = useCallback(async () => {
     setLoading(true);
@@ -577,6 +585,19 @@ export default function ContratosListPage() {
                       )}
                     </div>
                   )}
+                  {canDeleteContracts && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-1 border border-red-500/20 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs gap-1.5 font-medium"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setContratoParaExcluir(c);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Excluir Contrato
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -590,6 +611,19 @@ export default function ContratosListPage() {
           contrato={contrato360}
           onClose={() => setContrato360(null)}
           basePath={basePath}
+        />
+      )}
+
+      {/* Modal de Exclusão Controlada (AR-03.2) */}
+      {contratoParaExcluir && (
+        <ConfirmDeleteContractModal
+          contrato={contratoParaExcluir}
+          isOpen={!!contratoParaExcluir}
+          onClose={() => setContratoParaExcluir(null)}
+          onSuccess={() => {
+            setContratoParaExcluir(null);
+            loadContratos();
+          }}
         />
       )}
     </div>

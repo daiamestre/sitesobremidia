@@ -337,7 +337,7 @@ export default function ExpansaoPage() {
   const obterContratoVigente = async (): Promise<string | null> => {
     if (!usuario?.cliente_id) return null;
     try {
-      const { data } = await supabase.from('contratos').select('id').eq('cliente_id', usuario.cliente_id).in('status_workflow', ['EM_PRODUCAO', 'AGUARDANDO_APROVACAO', 'CAMPANHA_APROVADA', 'CAMPANHA_ATIVA']).limit(1).maybeSingle();
+      const { data } = await supabase.from('contratos').select('id').eq('cliente_id', usuario.cliente_id).is('deleted_at', null).in('status_workflow', ['EM_PRODUCAO', 'AGUARDANDO_APROVACAO', 'CAMPANHA_APROVADA', 'CAMPANHA_ATIVA']).limit(1).maybeSingle();
       return data?.id || null;
     } catch {
       return null;

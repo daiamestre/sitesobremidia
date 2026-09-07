@@ -62,7 +62,7 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
     try {
       const [propRes, contRes, finRes] = await Promise.all([
         supabase.from('propostas').select('*').eq('cliente_id', clienteId),
-        supabase.from('contratos').select('*').eq('cliente_id', clienteId),
+        supabase.from('contratos').select('*').eq('cliente_id', clienteId).is('deleted_at', null),
         supabase.from('contas_receber').select('*').eq('cliente_id', clienteId)
       ]);
 

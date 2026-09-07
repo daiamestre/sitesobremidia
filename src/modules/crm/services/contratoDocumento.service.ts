@@ -21,6 +21,8 @@ export interface DadosDocumentoContrato {
   template: any;
   operadora: any;
   quantidadeTelas: number;
+  gestorUsuario?: any;
+  gestorDadosExtra?: any;
 }
 
 export interface ResultadoDocumento {
@@ -1253,6 +1255,7 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
       cliente:clientes(*)
     `)
     .eq('id', contratoId)
+    .is('deleted_at', null)
     .single();
 
   if (ctrErr || !contrato) {
@@ -1288,32 +1291,60 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     template = tpl;
   }
 
-  // Se template não estiver vinculado ou se o HTML for stub, busca o template oficial rico ativo
+  // Se template não estiver vinculado ou se o HTML for stub, busca o template oficial rico ativo via resolver canônico
   if (!template?.conteudo_html || template.conteudo_html.length < 200 || template.conteudo_html.includes('(preservado)')) {
-    const { data: activeTpls } = await supabase
-      .from('contrato_templates')
-      .select('*')
-      .eq('tipo_contrato', tipoContrato)
-      .eq('ativo', true)
-      .order('created_at', { ascending: true });
+    if (contrato.empresa_operadora_id) {
+      try {
+        const { data: rpcTpls, error: rpcErr } = await supabase.rpc('fn_obter_template_padrao', {
+          p_empresa_operadora_id: contrato.empresa_operadora_id,
+          p_tipo_contrato: tipoContrato,
+        });
+        if (!rpcErr && rpcTpls && (rpcTpls as any).length > 0) {
+          const rpcTpl = (rpcTpls as any)[0];
+          if (rpcTpl && rpcTpl.conteudo_html && rpcTpl.conteudo_html.length > 200) {
+            template = {
+              id: rpcTpl.id,
+              nome: rpcTpl.nome,
+              codigo_template: rpcTpl.codigo_template,
+              versao: rpcTpl.versao,
+              conteudo_html: rpcTpl.conteudo_html,
+              tipo_contrato: tipoContrato,
+              ativo: true,
+            };
+          }
+        }
+      } catch (errPadrao) {
+        console.warn('[coletarDadosReais] Fallback no resolver RPC:', errPadrao);
+      }
+    }
 
-    const bestTpl = activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)'));
-    if (bestTpl) {
-      template = bestTpl;
-    } else {
-      template = {
-        id: template?.id || `tpl-${tipoContrato.toLowerCase()}-canonical`,
-        nome: template?.nome || `Contrato de ${tipoContrato} — Oficial`,
-        tipo_contrato: tipoContrato,
-        versao: template?.versao || 1,
-        ativo: true,
-        conteudo_html: tipoContrato === 'PARCEIRO'
-          ? CANONICAL_TEMPLATE_HTML_PARCEIRO
-          : tipoContrato === 'GESTOR'
-          ? CANONICAL_TEMPLATE_HTML_GESTOR
-          : CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
-        pdf_anexo_key: template?.pdf_anexo_key || null,
-      };
+    if (!template?.conteudo_html || template.conteudo_html.length < 200) {
+      const { data: activeTpls } = await supabase
+        .from('contrato_templates')
+        .select('*')
+        .eq('tipo_contrato', tipoContrato)
+        .eq('ativo', true)
+        .order('is_default', { ascending: false })
+        .order('versao', { ascending: false });
+
+      const bestTpl = activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)'));
+      if (bestTpl) {
+        template = bestTpl;
+      } else {
+        template = {
+          id: template?.id || `tpl-${tipoContrato.toLowerCase()}-canonical`,
+          nome: template?.nome || `Contrato de ${tipoContrato} — Oficial`,
+          tipo_contrato: tipoContrato,
+          versao: template?.versao || 1,
+          ativo: true,
+          conteudo_html: tipoContrato === 'PARCEIRO'
+            ? CANONICAL_TEMPLATE_HTML_PARCEIRO
+            : tipoContrato === 'GESTOR'
+            ? CANONICAL_TEMPLATE_HTML_GESTOR
+            : CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
+          pdf_anexo_key: template?.pdf_anexo_key || null,
+        };
+      }
     }
   }
 
@@ -1342,6 +1373,27 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     ponto = pt;
   }
 
+  // Gestor de Mídias - fonte primaria para contratos GESTOR
+  let gestorUsuario: any = null;
+  let gestorDadosExtra: any = null;
+  if (contrato.gestor_usuario_id) {
+    const { data: usr } = await supabase
+      .from('usuarios')
+      .select('id, nome, email, telefone, empresa_operadora_id, perfil:perfis(nome)')
+      .eq('id', contrato.gestor_usuario_id)
+      .maybeSingle();
+    gestorUsuario = usr;
+
+    const { data: sol } = await supabase
+      .from('solicitacoes_acesso')
+      .select('dados_cadastro')
+      .eq('usuario_id', contrato.gestor_usuario_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    gestorDadosExtra = sol?.dados_cadastro || null;
+  }
+
   const { data: operadora } = await supabase
     .from('empresa_operadora')
     .select('*')
@@ -1364,6 +1416,8 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
     template,
     operadora,
     quantidadeTelas,
+    gestorUsuario,
+    gestorDadosExtra,
   };
 }
 
@@ -1371,9 +1425,10 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
  * Mapeia dados reais para os placeholders do template.
  * ANUNCIANTE: usa empresa + contato + proposta
  * PARCEIRO:   usa ponto como fonte primaria
+ * GESTOR:     usa gestorUsuario e solicitacoes_acesso
  */
 export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<string, string> {
-  const { contrato, proposta, empresa, contato, ponto } = dados;
+  const { contrato, proposta, empresa, contato, ponto, gestorUsuario, gestorDadosExtra } = dados;
   const tipoContrato = contrato?.tipo_contrato || 'ANUNCIANTE';
 
   let razaoSocial = '';
@@ -1395,7 +1450,24 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
   let horarioFim = '';
   let diasSemana = '';
 
-  if (tipoContrato === 'PARCEIRO' && ponto) {
+  if (tipoContrato === 'GESTOR' && gestorUsuario) {
+    const extra = gestorDadosExtra || {};
+    razaoSocial   = gestorUsuario.nome || '';
+    nomeFantasia  = extra.empresa || gestorUsuario.nome || '';
+    cnpj          = extra.cpf_cnpj || extra.cpfCnpj || '';
+    responsavel   = gestorUsuario.nome || '';
+    logradouro    = extra.endereco || '';
+    numero        = extra.numero || '';
+    bairro        = extra.bairro || '';
+    cidade        = extra.cidade || '';
+    estado        = extra.estado || '';
+    cep           = extra.cep || '';
+    telefone      = gestorUsuario.telefone || '';
+    whatsapp      = extra.whatsapp || gestorUsuario.telefone || '';
+    email         = gestorUsuario.email || '';
+    instagram     = extra.instagram || '';
+    website       = extra.website || '';
+  } else if (tipoContrato === 'PARCEIRO' && ponto) {
     razaoSocial   = ponto.nome || ponto.razao_social || ponto.nome_fantasia || '';
     nomeFantasia  = ponto.nome_fantasia || ponto.nome || '';
     cnpj          = ponto.cnpj || '';
@@ -1665,6 +1737,7 @@ export async function criarEnvelopeInterno(contratoId: string, usuarioId?: strin
       .from('contratos')
       .select(`*, empresa:empresas(*, contatos:contatos(*))`)
       .eq('id', contratoId)
+      .is('deleted_at', null)
       .single();
 
     if (ctrErr || !contrato) return { success: false, error: 'Contrato nao encontrado.' };
@@ -1878,6 +1951,7 @@ export async function assinarDocumento(
       .from('contratos')
       .select('id, numero_contrato, empresa_operadora_id, versao_atual, tipo_contrato')
       .eq('id', ass.contrato_id)
+      .is('deleted_at', null)
       .single();
 
     if (ctrErr || !contrato) return { success: false, error: 'Contrato vinculado nao encontrado.' };

@@ -122,7 +122,7 @@ export async function fetchPontosStats(periodo: 'hoje'|'7d'|'30d'|'mes' = '30d')
   if(valores.length) receitaMedia = Math.round(valores.reduce((a,b)=>a+b,0)/valores.length);
   else {
     try {
-      const { data: contratos } = await (supabase as any).from('contratos').select('valor_total').limit(50);
+      const { data: contratos } = await (supabase as any).from('contratos').select('valor_total').is('deleted_at', null).limit(50);
       if(contratos && contratos.length) {
         const vals = contratos.map((c:any)=> Number(c.valor_total||0)).filter((n:number)=>n>0);
         if(vals.length) receitaMedia = Math.round(vals.reduce((a:number,b:number)=>a+b,0)/vals.length / Math.max(1,totalTelas||1));

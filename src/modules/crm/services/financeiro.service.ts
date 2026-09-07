@@ -688,6 +688,7 @@ export class FinanceiroService {
       let query = supabase
         .from('contratos')
         .select('id, numero_contrato, cliente_id, tipo_contrato, valor_mensal')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
       const { data, error } = await query;
@@ -704,7 +705,7 @@ export class FinanceiroService {
 
   async listTiposContrato(empresaOperadoraId?: string): Promise<string[]> {
     try {
-      let query = supabase.from('contratos').select('tipo_contrato').not('tipo_contrato', 'is', null);
+      let query = supabase.from('contratos').select('tipo_contrato').is('deleted_at', null).not('tipo_contrato', 'is', null);
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
       const { data, error } = await query;
       if (error) return [];
@@ -920,12 +921,12 @@ export class FinanceiroService {
       // 1. Buscar dados do contrato
       const { data: contrato, error: ctrErr } = await (supabase as any)
         .from('contratos')
-        .select('id, empresa_operadora_id, cliente_id, numero_contrato, valor_mensal, forma_pagamento, status_documento, status_workflow')
+        .select('id, empresa_operadora_id, cliente_id, numero_contrato, valor_mensal, forma_pagamento, status_documento, status_workflow, deleted_at')
         .eq('id', contratoId)
         .maybeSingle();
 
-      if (ctrErr || !contrato) {
-        return { success: false, error: `Contrato não encontrado: ${ctrErr?.message || contratoId}` };
+      if (ctrErr || !contrato || (contrato as any).deleted_at) {
+        return { success: false, error: `Contrato não encontrado ou excluído: ${ctrErr?.message || contratoId}` };
       }
 
       // 2. IDEMPOTÊNCIA & UNICIDADE: Verificar se a cobrança inicial já existe para este contrato
