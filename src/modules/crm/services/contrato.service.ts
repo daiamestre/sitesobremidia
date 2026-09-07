@@ -123,8 +123,8 @@ export class ContratoService {
       // 1. Resolve vínculo: proposta (legado) ou cadastro direto (P0)
       let empresa_operadora_id: string | null = null;
       let cliente_id: string | null = payload.clienteId || null;
-      let ponto_id: string | null = payload.pontoId || null;
-      let gestor_usuario_id: string | null = payload.gestorUsuarioId || null;
+      const ponto_id: string | null = payload.pontoId || null;
+      const gestor_usuario_id: string | null = payload.gestorUsuarioId || null;
       let representante_id: string | null = null;
       let proposta: any = null;
       let empresaId: string | null = null;

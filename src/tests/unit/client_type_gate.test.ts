@@ -47,7 +47,7 @@ describe('GATE 6.7 — Client Type Gate unificado', () => {
     expect(app).toContain("path=\"clientes/novo\" element={<NovoClientePage />}");
     // workspace também deve ter gate
     // contar ocorrências — deve ter pelo menos 2 (representantes e workspace)
-    const count = (app.match(/clientes\/novo\" element=\{<NovoClientePage/g) || []).length;
+    const count = (app.match(/clientes\/novo" element=\{<NovoClientePage/g) || []).length;
     expect(count).toBeGreaterThanOrEqual(2);
   });
 

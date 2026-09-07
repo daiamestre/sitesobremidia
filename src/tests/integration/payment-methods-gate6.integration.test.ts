@@ -65,7 +65,7 @@ describe('GATE 6 — PAYMENT METHODS INTEGRATION & CANONICAL CONTRACTS', () => {
   describe('GATE 6.2 & CENÁRIO A: PIX Nativo e Idempotência JIT (PAY-007, PAY-009, PAY-019)', () => {
     it('PAY-007 & PAY-009: 10 requisições simultâneas de emissão JIT geram exatamente 1 TXID e 1 payload oficial', async () => {
       let chamadasBancoInterCount = 0;
-      let cobrancaDbState = {
+      const cobrancaDbState = {
         id: 'cob-pix-001',
         valor: 150.00,
         inter_pix_txid: null as string | null,
