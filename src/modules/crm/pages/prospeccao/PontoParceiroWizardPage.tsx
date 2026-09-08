@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState, useEffect, useMemo, useId } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Store, User, MapPin, Tv, Camera, ClipboardCheck,
@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useId } from 'react';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
