@@ -1060,6 +1060,185 @@ export function isTemplateCompleto(html?: string | null, tipo?: 'ANUNCIANTE' | '
   );
 }
 
+/**
+ * Obtém o modelo de contrato padrão vigente para um tipo e tenant.
+ * Hierarquia: Tenant Default -> Global Default -> Template Oficial Canônico Completo.
+ */
+export async function obterTemplatePadraoVigente(
+  tipoContrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' | string,
+  empresaOperadoraId?: string | null
+): Promise<{
+  id: string;
+  codigo_template: string;
+  nome: string;
+  versao: number;
+  conteudo_html: string;
+  tipo_contrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR';
+}> {
+  const tipoNorm: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' =
+    tipoContrato === 'PARCEIRO' || tipoContrato === 'PONTO_PARCEIRO'
+      ? 'PARCEIRO'
+      : tipoContrato === 'GESTOR' || tipoContrato === 'GESTOR_MIDIAS' || tipoContrato === 'GESTOR_MIDIA'
+      ? 'GESTOR'
+      : 'ANUNCIANTE';
+
+  let tpl: any = null;
+
+  try {
+    const { data: rpcTpls, error: rpcErr } = await supabase.rpc('fn_obter_template_padrao', {
+      p_empresa_operadora_id: empresaOperadoraId || null,
+      p_tipo_contrato: tipoNorm,
+    });
+    if (!rpcErr && rpcTpls && (rpcTpls as any).length > 0) {
+      tpl = (rpcTpls as any)[0];
+    }
+  } catch (err) {
+    console.warn('[obterTemplatePadraoVigente] Fallback no RPC fn_obter_template_padrao:', err);
+  }
+
+  if (!tpl) {
+    try {
+      const { data: activeTpls } = await supabase
+        .from('contrato_templates')
+        .select('*')
+        .eq('tipo_contrato', tipoNorm)
+        .eq('ativo', true)
+        .order('is_default', { ascending: false })
+        .order('versao', { ascending: false });
+
+      tpl = activeTpls?.find((t) => t.is_default && t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) ||
+            activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) ||
+            activeTpls?.[0];
+    } catch (err) {
+      console.warn('[obterTemplatePadraoVigente] Falha na consulta de contrato_templates:', err);
+    }
+  }
+
+  const defaultCanonicalHtml = getCanonicalTemplateForTipo(tipoNorm);
+
+  const conteudoHtmlFinal =
+    tpl?.conteudo_html && tpl.conteudo_html.length > 200 && !tpl.conteudo_html.includes('(preservado)')
+      ? tpl.conteudo_html
+      : defaultCanonicalHtml;
+
+  return {
+    id: tpl?.id || `tpl-${tipoNorm.toLowerCase()}-canonical`,
+    codigo_template: tpl?.codigo_template || `TPL-${tipoNorm}-OFICIAL`,
+    nome: tpl?.nome || (tipoNorm === 'ANUNCIANTE' ? 'Contrato de Anunciante — Oficial' : tipoNorm === 'PARCEIRO' ? 'Contrato de Parceria — Oficial' : 'Contrato de Gestor de Mídias — Oficial'),
+    versao: tpl?.versao || 1,
+    conteudo_html: conteudoHtmlFinal,
+    tipo_contrato: tipoNorm,
+  };
+}
+
+/**
+ * Renderiza o HTML completo de um contrato para preview a partir de dados em memória do formulário.
+ */
+export function renderizarPreviewContrato(
+  tipoContrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' | string,
+  templateHtml: string,
+  form: Record<string, any>
+): string {
+  const tipoNorm: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' =
+    tipoContrato === 'PARCEIRO' || tipoContrato === 'PONTO_PARCEIRO'
+      ? 'PARCEIRO'
+      : tipoContrato === 'GESTOR' || tipoContrato === 'GESTOR_MIDIAS' || tipoContrato === 'GESTOR_MIDIA'
+      ? 'GESTOR'
+      : 'ANUNCIANTE';
+
+  const razaoSocial = String(form.razaoSocial || form.nomeFantasia || form.nome || form.responsavelNome || '').trim();
+  const nomeFantasia = String(form.nomeFantasia || form.razaoSocial || form.nome || '').trim();
+  const responsavel = String(form.responsavel || form.responsavelLegal || form.representanteLegal || form.responsavelNome || form.contatoNome || razaoSocial).trim();
+  const cnpj = String(form.cnpj || form.cnpjCpf || form.cpfCnpj || '').trim();
+  const logradouro = String(form.logradouro || form.endereco || '').trim();
+  const numero = String(form.numero || '').trim();
+  const bairro = String(form.bairro || '').trim();
+  const cidade = String(form.cidade || 'Caruaru').trim();
+  const estado = String(form.estado || form.uf || 'PE').trim().toUpperCase();
+  const cep = String(form.cep || '').trim();
+  const telefone = String(form.telefone || form.responsavelTelefone || form.contatoTelefone || '').trim();
+  const whatsapp = String(form.whatsapp || form.telefone || '').trim();
+  const email = String(form.email || form.responsavelEmail || form.contatoEmail || '').trim();
+  const instagram = String(form.instagram || form.siteRedes || '').trim();
+  const website = String(form.website || form.site || '').trim();
+
+  const enderecoUnidade = [
+    [logradouro, numero].filter(Boolean).join(', '),
+    bairro,
+    [cidade, estado].filter(Boolean).join('/'),
+  ].filter(Boolean).join(' - ');
+
+  const cidadeAssinatura = cidade || 'Caruaru';
+  const estadoAssinatura = estado || 'PE';
+  const localAssinatura = `${cidadeAssinatura} / ${estadoAssinatura}`;
+
+  const valorMensalNum = Number(form.valorMensal || form.valor || 0);
+  const valorMensalFmt = valorMensalNum > 0 ? FORMATO_MOEDA.format(valorMensalNum) : (form.valorMensalFormatted || 'A combinar');
+
+  const qtdTelas = form.quantidadeTelas || (form.pontosSelecionados?.size ? form.pontosSelecionados.size : 1);
+
+  const dadosMapeados: Record<string, string> = {
+    RAZAO_SOCIAL: razaoSocial || '—',
+    NOME_FANTASIA: nomeFantasia || '—',
+    CNPJ: cnpj || '—',
+    CPF_CNPJ: cnpj || '—',
+    RESPONSAVEL: responsavel || '—',
+    REPRESENTANTE_LEGAL: responsavel || '—',
+    NOME_GESTOR: responsavel || razaoSocial || '—',
+    LOGRADOURO: logradouro || '—',
+    NUMERO: numero || '—',
+    BAIRRO: bairro || '—',
+    CIDADE: cidade || 'Caruaru',
+    ESTADO: estado || 'PE',
+    UF: estado || 'PE',
+    CEP: cep || '—',
+    ENDERECO_UNIDADE: enderecoUnidade || '—',
+    NOME_UNIDADE: nomeFantasia || razaoSocial || '—',
+    TELEFONE: telefone || '—',
+    WHATSAPP: whatsapp || '—',
+    EMAIL: email || '—',
+    INSTAGRAM: instagram || '—',
+    WEBSITE: website || '—',
+    DIAS_SEMANA: form.diasSemana || form.horarioFuncionamento || 'Segunda a Sábado',
+    HORARIO_INICIO: form.horarioInicio || '08:00',
+    HORARIO_FIM: form.horarioFim || '22:00',
+    TITULO_CAMPANHA: form.tituloCampanha || (nomeFantasia ? `Campanha ${nomeFantasia}` : 'Campanha de Mídia Indoor'),
+    PACOTE_VEICULACAO: form.pacoteVeiculacao || form.periodicidade || 'Mídia Indoor Exclusiva',
+    PERIODO_VEICULACAO: form.periodoVeiculacao || form.vigencia || (form.dataInicio && form.dataFim ? `${form.dataInicio} a ${form.dataFim}` : '12 meses'),
+    VALOR_MENSAL: valorMensalFmt,
+    VALOR_A_VISTA: form.valorAVista ? FORMATO_MOEDA.format(Number(form.valorAVista)) : valorMensalFmt,
+    DESCONTO: form.desconto ? FORMATO_MOEDA.format(Number(form.desconto)) : '',
+    ENTRADA: form.entrada ? FORMATO_MOEDA.format(Number(form.entrada)) : '',
+    NUMERO_PARCELAS: form.numeroParcelas ? String(form.numeroParcelas) : '12',
+    PARCELAMENTO_CARTAO: form.parcelamentoCartao || '',
+    VALOR_POR_SISTEMA: form.valorPorSistema ? FORMATO_MOEDA.format(Number(form.valorPorSistema)) : '',
+    FORMA_PAGAMENTO: form.formaPagamento || 'PIX',
+    DATA_VENCIMENTO_PRIMEIRA_FATURA: form.dataVencimentoPrimeira ? formatarData(form.dataVencimentoPrimeira) : '',
+    QUANTIDADE_TELAS: String(qtdTelas),
+    QTD_TVS: form.qtdTvs ? String(form.qtdTvs) : '',
+    QTD_TOTENS: form.qtdTotens ? String(form.qtdTotens) : '',
+    QTD_PAINEIS_LED: form.qtdPaineisLed ? String(form.qtdPaineisLed) : '',
+    TOTAL_SISTEMAS: String(qtdTelas),
+    DATA_INICIO: form.dataInicio ? formatarData(form.dataInicio) : formatarData(new Date().toISOString()),
+    DATA_FIM: form.dataFim ? formatarData(form.dataFim) : formatarData(new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString()),
+    DATA_INICIO_VEICULACAO: form.dataInicio ? formatarData(form.dataInicio) : formatarData(new Date().toISOString()),
+    DATA_FIM_VEICULACAO: form.dataFim ? formatarData(form.dataFim) : formatarData(new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString()),
+    DATA_ASSINATURA: formatarDataExtensa(new Date()),
+    LOCAL_ASSINATURA: localAssinatura,
+    FORO_COMARCA: cidade || 'Caruaru',
+    NUMERO_CONTRATO: form.numeroContrato || 'CTR-NOVO',
+    VERSAO_CONTRATO: String(form.versao || 1),
+    TIPO_CONTRATO: tipoNorm,
+    ASSINATURA_SOBRE_MIDIA: '',
+    ASSINATURA_CONTRATANTE: '',
+    ASSINATURA_PARCEIRO: '',
+  };
+
+  const htmlBase = templateHtml && templateHtml.length > 200 ? templateHtml : getCanonicalTemplateForTipo(tipoNorm);
+
+  return preencherTemplate(htmlBase, dadosMapeados, tipoNorm);
+}
+
 
 
 /**
@@ -1497,9 +1676,13 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
     estado        = empresa?.estado || '';
     cep           = empresa?.cep || '';
     telefone      = empresa?.telefone || contato?.telefone || '';
+    whatsapp      = empresa?.whatsapp || empresa?.telefone || contato?.telefone || '';
     email         = empresa?.email || contato?.email || '';
     instagram     = empresa?.instagram || '';
     website       = empresa?.website || empresa?.site || '';
+    horarioInicio = ponto?.horario_abertura || proposta?.horario_inicio || (ponto?.horario_abertura && ponto?.horario_fechamento ? ponto.horario_abertura : '');
+    horarioFim    = ponto?.horario_fechamento || proposta?.horario_fim || '';
+    diasSemana    = ponto?.dias_funcionamento || proposta?.dias_semana || '';
   }
 
   const enderecoUnidade = [
@@ -2107,4 +2290,7 @@ export const contratoDocumentoService = {
   coletarDadosReais,
   montarDadosTemplate,
   preencherTemplate,
+  obterTemplatePadraoVigente,
+  renderizarPreviewContrato,
 };
+

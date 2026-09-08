@@ -12,9 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 import { prospeccaoService, type NovoPontoParceiroPayload } from '@/services/prospeccao.service';
 import { AssinaturaContratoDialog } from '../../components/portal/AssinaturaContratoDialog';
+import { contratoDocumentoService, renderizarPreviewContrato } from '../../services/contratoDocumento.service';
 
 
 // CADASTRO DE PONTO PARCEIRO pelo REPRESENTANTE (missao §11-§19).
@@ -133,6 +133,43 @@ export default function PontoParceiroWizardPage() {
   const [pdfObjectKeySalvo, setPdfObjectKeySalvo] = useState<string | null>(null);
   const [gerandoDocumento, setGerandoDocumento] = useState(false);
   const [dialogAssinaturaOpen, setDialogAssinaturaOpen] = useState(false);
+
+  // Template Padrão Vigente de Parceria e Preview
+  const [templatePadrao, setTemplatePadrao] = useState<{
+    id: string;
+    codigo_template: string;
+    nome: string;
+    versao: number;
+    conteudo_html: string;
+    tipo_contrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR';
+  } | null>(null);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
+
+  useEffect(() => {
+    if (passo === 6) {
+      setLoadingTemplate(true);
+      contratoDocumentoService
+        .obterTemplatePadraoVigente('PARCEIRO')
+        .then((tpl) => {
+          setTemplatePadrao(tpl);
+        })
+        .catch((err) => {
+          console.warn('[PontoParceiroWizardPage] Falha ao carregar template padrão de parceria:', err);
+        })
+        .finally(() => {
+          setLoadingTemplate(false);
+        });
+    }
+  }, [passo]);
+
+  const htmlRenderizadoPreview = useMemo(() => {
+    if (!templatePadrao) return '';
+    try {
+      return renderizarPreviewContrato('PARCEIRO', templatePadrao.conteudo_html, form);
+    } catch {
+      return templatePadrao.conteudo_html;
+    }
+  }, [templatePadrao, form]);
 
   const obterOuGerarContratoParceiro = async (acao: 'visualizar' | 'baixar' | 'assinar') => {
     setGerandoDocumento(true);
@@ -490,28 +527,44 @@ export default function PontoParceiroWizardPage() {
 
           {passo === 6 && (
             <div className="space-y-4">
-              <div className="rounded-xl border border-white/10 bg-slate-950/80 p-5 space-y-3">
-                <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-2">
-                  <h4 className="text-sm font-bold text-emerald-400 uppercase flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-emerald-400" /> Contrato de Parceria de Mídia Corporativa
-                  </h4>
+              <div className="rounded-xl border border-white/10 bg-slate-950/80 p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between border-b border-white/10 pb-3 mb-2 gap-2">
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-400 uppercase flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-emerald-400" /> {templatePadrao?.nome || 'Contrato de Parceria de Mídia Corporativa'}
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Template Padrão Vigente ({templatePadrao?.codigo_template || 'TPL-PARCEIRO-OFICIAL'} · v{templatePadrao?.versao || 1})
+                    </p>
+                  </div>
                   <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30 px-3 py-1 text-xs font-bold">
                     AGUARDANDO ASSINATURA (OPCIONAL)
                   </Badge>
                 </div>
-                <p className="text-xs text-slate-300">
-                  Modelo Oficial: <strong className="text-white">Contrato de Parceria e Cessão de Espaço (TPL-PARCEIRO-OFICIAL)</strong>
-                </p>
-                <p className="text-xs text-slate-400">
-                  O contrato é preenchido automaticamente com os dados do estabelecimento, responsável e regras de parceria. A assinatura digital pode ser realizada agora ou posteriormente.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-900/90 p-4 rounded-xl border border-white/5 my-2">
-                  <div><span className="text-slate-400 block font-semibold">Ponto / Estabelecimento</span><span className="text-white font-bold">{form.nomeFantasia || '—'}</span></div>
-                  <div><span className="text-slate-400 block font-semibold">Responsável Legal</span><span className="text-slate-200">{form.responsavelNome || '—'} ({form.responsavelCargo || 'Responsável'})</span></div>
-                  <div><span className="text-slate-400 block font-semibold">CPF / CNPJ</span><span className="text-slate-200">{form.cnpjCpf || '—'}</span></div>
-                  <div><span className="text-slate-400 block font-semibold">Endereço</span><span className="text-slate-200">{[form.logradouro, form.numero, form.cidade, form.estado].filter(Boolean).join(', ') || '—'}</span></div>
-                  <div><span className="text-slate-400 block font-semibold">Modelo de Relacionamento</span><span className="text-emerald-400 font-bold">{form.modeloComercial}</span></div>
-                  <div><span className="text-slate-400 block font-semibold">Quantidade de Telas</span><span className="text-slate-200">{form.quantidadeTelas} Tela(s)</span></div>
+
+                {/* Visualização Integral do Contrato em Documento Completo */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+                    <span className="font-semibold text-slate-300">Minuta Oficial de Parceria</span>
+                    <span>Role verticalmente para ler todas as cláusulas</span>
+                  </div>
+                  <div className="rounded-xl border border-slate-700 bg-white text-slate-900 shadow-2xl p-6 sm:p-8 max-h-[520px] overflow-y-auto">
+                    {loadingTemplate ? (
+                      <div className="py-16 flex flex-col items-center justify-center space-y-3">
+                        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                        <p className="text-xs text-slate-500 font-medium">Carregando minuta oficial completa...</p>
+                      </div>
+                    ) : (
+                      <div
+                        className="contract-document-render font-sans text-xs leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: htmlRenderizadoPreview }}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200 flex items-center justify-between">
+                  <span>O contrato é preenchido e vinculado automaticamente com os dados do ponto e regras de parceria. Você pode ler o documento integral acima, baixá-lo em PDF ou assinar digitalmente agora.</span>
                 </div>
 
                 <div className="flex flex-wrap gap-3 pt-2">
@@ -521,7 +574,7 @@ export default function PontoParceiroWizardPage() {
                     onClick={() => obterOuGerarContratoParceiro('visualizar')}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
                   >
-                    {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : <Eye className="h-4 w-4 text-emerald-400" />} Visualizar Minuta (PDF Personalizado)
+                    {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : <Eye className="h-4 w-4 text-emerald-400" />} Visualizar em Nova Aba
                   </Button>
                   <Button
                     type="button"

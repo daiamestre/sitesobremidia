@@ -9,8 +9,8 @@ import { auditService } from '../../services/audit.service';
 import { corporateUsersService } from '@/services/corporateUsers.service';
 import { prospeccaoService } from '@/services/prospeccao.service';
 import { SelecaoPontosParceiros } from '../prospeccao/SelecaoPontosParceiros';
-import { supabase } from '@/integrations/supabase/client';
 import type { CrmRole } from '../../types/rbac.types';
+import { contratoDocumentoService, renderizarPreviewContrato } from '../../services/contratoDocumento.service';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -159,6 +159,45 @@ export function IntelligentCommercialWizard() {
   const [gerandoDocumento, setGerandoDocumento] = useState(false);
   const [dialogAssinaturaOpen, setDialogAssinaturaOpen] = useState(false);
 
+  // Template Padrão Vigente e Preview Dinâmico em Tempo Real
+  const [templatePadrao, setTemplatePadrao] = useState<{
+    id: string;
+    codigo_template: string;
+    nome: string;
+    versao: number;
+    conteudo_html: string;
+    tipo_contrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR';
+  } | null>(null);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
+
+  useEffect(() => {
+    if (step === 5) {
+      setLoadingTemplate(true);
+      import('../../services/contratoDocumento.service').then(({ contratoDocumentoService }) => {
+        contratoDocumentoService
+          .obterTemplatePadraoVigente('ANUNCIANTE', empresaOperadoraId)
+          .then((tpl) => {
+            setTemplatePadrao(tpl);
+          })
+          .catch((err) => {
+            console.warn('[IntelligentCommercialWizard] Falha ao carregar template padrão:', err);
+          })
+          .finally(() => {
+            setLoadingTemplate(false);
+          });
+      });
+    }
+  }, [step, empresaOperadoraId]);
+
+  const htmlRenderizadoPreview = useMemo(() => {
+    if (!templatePadrao) return '';
+    try {
+      return renderizarPreviewContrato('ANUNCIANTE', templatePadrao.conteudo_html, formData);
+    } catch {
+      return templatePadrao.conteudo_html;
+    }
+  }, [templatePadrao, formData]);
+
   const obterOuGerarContratoPersonalizado = async (acao: 'visualizar' | 'baixar' | 'assinar') => {
     setGerandoDocumento(true);
     try {
@@ -169,42 +208,50 @@ export function IntelligentCommercialWizard() {
       if (!cid) {
         let clienteId = selectedCliente?.id;
         if (!clienteId) {
+          const nomeFinal = formData.nomeFantasia.trim() || formData.razaoSocial.trim() || 'Cliente Anunciante';
+          const razaoFinal = formData.razaoSocial.trim() || formData.nomeFantasia.trim() || 'Cliente Anunciante Razao';
+          const emailFinal = formData.email.trim() || 'contato@anunciante.com.br';
+          const whatsappFinal = formData.whatsapp.replace(/\D/g, '') || formData.telefone.replace(/\D/g, '') || '81999999999';
+
           const resCli = await clienteService.create({
             empresaOperadoraId,
             representanteId: isOwner ? null : (representante?.id ?? null),
-            nomeFantasia: formData.nomeFantasia || 'Cliente Teste',
-            razaoSocial: formData.razaoSocial || formData.nomeFantasia || 'Cliente Teste Razao',
-            cnpj: normalizarCnpj(formData.cnpj) || '00000000000000',
+            nomeFantasia: nomeFinal,
+            razaoSocial: razaoFinal,
+            cnpj: normalizarCnpj(formData.cnpj) || undefined,
             segmento: formData.segmento,
             telefone: formData.telefone.replace(/\D/g, ''),
-            whatsapp: formData.whatsapp.replace(/\D/g, ''),
-            email: formData.email,
+            whatsapp: whatsappFinal,
+            email: emailFinal,
             cep: normalizarCep(formData.cep),
             logradouro: formData.logradouro,
             numero: formData.numero,
             complemento: formData.complemento,
             bairro: formData.bairro,
-            cidade: formData.cidade,
-            estado: formData.estado ? formData.estado.toUpperCase() : 'SP',
-            representanteLegal: formData.representanteLegal || 'Responsável Teste',
+            cidade: formData.cidade || 'Caruaru',
+            estado: formData.estado ? formData.estado.toUpperCase() : 'PE',
+            representanteLegal: formData.representanteLegal || nomeFinal,
             cargoRepresentante: formData.cargoRepresentante,
             observacoes: formData.observacoes,
-            contatoNome: formData.contatoNome,
+            contatoNome: formData.contatoNome || formData.representanteLegal || nomeFinal,
             contatoCargo: formData.contatoCargo,
-            contatoEmail: formData.contatoEmail,
-            contatoTelefone: formData.contatoTelefone.replace(/\D/g, ''),
+            contatoEmail: formData.contatoEmail || emailFinal,
+            contatoTelefone: formData.contatoTelefone.replace(/\D/g, '') || whatsappFinal,
           });
+
           if (resCli.success && resCli.clienteId) {
             clienteId = resCli.clienteId;
             const { data: cliFull } = await supabase.from('clientes').select('*, empresas(*)').eq('id', clienteId).single();
             if (cliFull) setSelectedCliente(cliFull as any);
+          } else {
+            toast({
+              title: 'Atenção ao gerar minuta',
+              description: resCli.error || 'Preencha os dados cadastrais do anunciante antes de gerar o documento.',
+              variant: 'destructive',
+            });
+            setGerandoDocumento(false);
+            return;
           }
-        }
-
-        if (!clienteId) {
-          toast({ title: 'Atenção', description: 'Informe o Nome Fantasia ou Razão Social para gerar a minuta personalizada.', variant: 'destructive' });
-          setGerandoDocumento(false);
-          return;
         }
 
         const resCt = await contratoService.ensureContractForCadastro({
@@ -237,7 +284,7 @@ export function IntelligentCommercialWizard() {
       if (acao === 'visualizar') {
         await contratoDocumentoService.visualizarDocumento(key);
       } else if (acao === 'baixar') {
-        await contratoDocumentoService.baixarDocumento(key, `Contrato_${formData.nomeFantasia || 'Anunciante'}.pdf`);
+        await contratoDocumentoService.baixarDocumento(key, `Contrato_${formData.nomeFantasia || formData.razaoSocial || 'Anunciante'}.pdf`);
       } else if (acao === 'assinar') {
         setDialogAssinaturaOpen(true);
       }
@@ -1368,65 +1415,48 @@ if (name === 'cnpj') {
               Etapa 5: Contrato & Assinatura
             </CardTitle>
             <CardDescription className="text-slate-300 text-xs">
-              Localização do contrato padrão vigente de Anunciante, preenchimento automático com os dados informados e disponibilização para visualização e assinatura.
+              Visualização integral da minuta oficial de Anunciante preenchida em tempo real. Leia todo o documento diretamente abaixo e assine digitalmente para prosseguir.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
             <div className="p-4 rounded-xl bg-slate-950/80 border border-white/10 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex flex-wrap items-center justify-between border-b border-white/10 pb-3 gap-2">
                 <div>
                   <h4 className="text-sm font-bold text-purple-400 uppercase flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-purple-400" /> Contrato de Anunciante — Mídia Indoor Exclusiva
+                    <FileText className="h-4 w-4 text-purple-400" /> {templatePadrao?.nome || 'Contrato de Anunciante — Mídia Indoor Exclusiva'}
                   </h4>
-                  <p className="text-xs text-slate-400 mt-0.5">Template Padrão Vigente (TPL-ANUNCIANTE-OFICIAL)</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Template Padrão Vigente ({templatePadrao?.codigo_template || 'TPL-ANUNCIANTE-OFICIAL'} · v{templatePadrao?.versao || 1})
+                  </p>
                 </div>
                 <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30 px-3 py-1 font-bold text-xs">
                   AGUARDANDO ASSINATURA (OPCIONAL)
                 </Badge>
               </div>
 
-              {/* Preenchimento Automático do Contrato */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs bg-slate-900/90 p-4 rounded-xl border border-white/5">
-                <div>
-                  <span className="text-slate-400 block font-semibold">Anunciante</span>
-                  <span className="text-white font-bold">{formData.nomeFantasia || formData.razaoSocial || '—'}</span>
+              {/* Visualização Integral do Contrato em Documento Completo */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+                  <span className="font-semibold text-slate-300">Minuta Oficial Personalizada</span>
+                  <span>Role verticalmente para ler todas as cláusulas</span>
                 </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">Representante / Responsável</span>
-                  <span className="text-slate-200">{formData.representanteLegal || '—'} ({formData.cargoRepresentante || 'Responsável'})</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">CPF / CNPJ</span>
-                  <span className="text-slate-200">{formData.cnpj || '—'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">Endereço & Unidade</span>
-                  <span className="text-slate-200">{[formData.logradouro, formData.numero, formData.cidade, formData.estado].filter(Boolean).join(', ') || '—'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">Pontos & Telas Selecionadas</span>
-                  <span className="text-slate-200">{pontosSelecionados.size > 0 ? `${pontosSelecionados.size} Ponto(s) (${formData.quantidadeTelas} Telas)` : `${formData.quantidadeTelas} Telas`}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">Valor & Periodicidade</span>
-                  <span className="text-emerald-400 font-bold">{valorFormatado(formData.valorMensal)} ({formData.periodicidade})</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">Forma de Pagamento</span>
-                  <span className="text-slate-200">{formData.formaPagamento}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">Vigência</span>
-                  <span className="text-slate-200">{formData.dataInicio} → {formData.dataFim}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">Status do Documento</span>
-                  <span className="text-purple-300 font-semibold">{pdfObjectKeySalvo ? 'Gerado no Cloudflare R2' : 'Pronto para Geração'}</span>
+                <div className="rounded-xl border border-slate-700 bg-white text-slate-900 shadow-2xl p-6 sm:p-8 max-h-[520px] overflow-y-auto">
+                  {loadingTemplate ? (
+                    <div className="py-16 flex flex-col items-center justify-center space-y-3">
+                      <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                      <p className="text-xs text-slate-500 font-medium">Carregando minuta oficial completa...</p>
+                    </div>
+                  ) : (
+                    <div
+                      className="contract-document-render font-sans text-xs leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: htmlRenderizadoPreview }}
+                    />
+                  )}
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-200 flex items-center justify-between">
-                <span>O contrato é preenchido e vinculado automaticamente. Você pode visualizar o documento completo, baixá-lo em PDF ou assinar digitalmente agora.</span>
+                <span>O contrato é preenchido e vinculado automaticamente a partir do template padrão oficial. Você pode ler integralmente o texto acima, baixá-lo em PDF ou assinar digitalmente agora.</span>
               </div>
 
               <div className="flex flex-wrap gap-3 pt-2">
@@ -1436,7 +1466,7 @@ if (name === 'cnpj') {
                   onClick={() => obterOuGerarContratoPersonalizado('visualizar')}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
                 >
-                  {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : <Eye className="h-4 w-4 text-purple-400" />} Visualizar Contrato Completo
+                  {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : <Eye className="h-4 w-4 text-purple-400" />} Visualizar em Nova Aba
                 </Button>
                 <Button
                   type="button"
