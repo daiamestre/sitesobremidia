@@ -362,6 +362,7 @@ describe('GATE 1B — PontoPrecosService + ComposicaoComercialService', () => {
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({
             data: { id: 'some-id', empresa_operadora_id: tenantParaRetornar },
             error: null,

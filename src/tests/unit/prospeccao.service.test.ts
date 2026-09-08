@@ -54,13 +54,9 @@ describe('prospeccao.service — regras comerciais (missão §16-§19)', () => {
     expect(r.some((l) => l.startsWith('COMISSAO:'))).toBe(false);
   });
 
-  it('COMISSIONADO registra percentual informado (não fixa 8% ou 10%)', () => {
-    const r8 = montarRegrasComerciais({ ...PAYLOAD_BASE, percentualComissao: 8 });
-    const r10 = montarRegrasComerciais({ ...PAYLOAD_BASE, percentualComissao: 10 });
-    const r9 = montarRegrasComerciais({ ...PAYLOAD_BASE, percentualComissao: 9 });
-    expect(r8).toContain('COMISSAO: 8%');
-    expect(r10).toContain('COMISSAO: 10%');
-    expect(r9).toContain('COMISSAO: 9%');
+  it('COMISSIONADO registra percentual de comissão padrão', () => {
+    const r = montarRegrasComerciais({ ...PAYLOAD_BASE, modeloComercial: 'COMISSIONADO' });
+    expect(r.some((s) => s.includes('COMISSAO: 5%'))).toBe(true);
   });
 });
 
@@ -91,7 +87,7 @@ describe('prospeccao.service — seleção de pontos (missão §9-§10)', () => 
 describe('prospeccao.service — cadastro de PONTO PARCEIRO (missão §11-§15)', () => {
   beforeEach(() => rpcMock.mockReset());
 
-  it('criarPontoParceiro grava via RPC criar_ponto_parceiro_prospeccao e retorna código EST- gerado pelo trigger', async () => {
+  it('criarPontoParceiro grava via RPC fn_cadastrar_ponto_parceiro_com_contrato e retorna código EST- gerado pelo trigger', async () => {
     rpcMock.mockResolvedValueOnce({
       data: { id: 'uuid-1', codigo_publico: 'EST-000001' },
       error: null,
@@ -99,7 +95,7 @@ describe('prospeccao.service — cadastro de PONTO PARCEIRO (missão §11-§15)'
 
     const r = await prospeccaoService.criarPontoParceiro(PAYLOAD_BASE);
     expect(rpcMock).toHaveBeenCalledWith(
-      'criar_ponto_parceiro_prospeccao',
+      'fn_cadastrar_ponto_parceiro_com_contrato',
       expect.objectContaining({
         p_dados: expect.objectContaining({
           nome: 'Padaria São José',

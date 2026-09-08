@@ -9,8 +9,8 @@ describe('P0 — Vínculo Automático de Contratos', () => {
   it('TESTE 2: PONTO_PARCEIRO → contrato de parceria', () => {
     expect(resolveContractTypeFromCadastroType('PONTO_PARCEIRO')).toBe('PARCEIRO');
   });
-  it('TESTE 3: GESTOR_MIDIAS → nenhum contrato', () => {
-    expect(resolveContractTypeFromCadastroType('GESTOR_MIDIAS')).toBeNull();
+  it('TESTE 3: GESTOR_MIDIAS → contrato de gestor (Gate 5.1)', () => {
+    expect(resolveContractTypeFromCadastroType('GESTOR_MIDIAS')).toBe('GESTOR');
   });
   it('TESTE 4: ANUNCIANTE não pode receber contrato de parceria (resolver)', () => {
     expect(resolveContractTypeFromCadastroType('ANUNCIANTE')).not.toBe('PARCEIRO');
@@ -51,10 +51,10 @@ describe('P0 — Vínculo Automático de Contratos', () => {
     // Mesmo que acima: contratoService usa empresa_operadora_id do usuário logado
     expect(await contratoService.findAll()).toBeDefined();
   });
-  it('TESTE 11: PDFs oficiais — anunciante somente anunciante, parceria somente ponto', () => {
+  it('TESTE 11: PDFs oficiais — anunciante, parceria e gestor (Gate 5.1)', () => {
     expect(getOfficialPdfForCadastro('ANUNCIANTE')!.tipoContrato).toBe('ANUNCIANTE');
     expect(getOfficialPdfForCadastro('PONTO_PARCEIRO')!.tipoContrato).toBe('PARCEIRO');
-    expect(getOfficialPdfForCadastro('GESTOR_MIDIAS')).toBeNull();
+    expect(getOfficialPdfForCadastro('GESTOR_MIDIAS')!.tipoContrato).toBe('GESTOR');
     expect(OFFICIAL_PDFS.ANUNCIANTE.originalName).toContain('ANUNCIANTE');
     expect(OFFICIAL_PDFS.PARCEIRO.originalName).toContain('PARCERIA');
   });

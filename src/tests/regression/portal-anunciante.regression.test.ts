@@ -248,7 +248,7 @@ describe('[REGRESSÃO] Portal do anunciante â€” experiência direta (missã
 
 describe('[REGRESSÃO] FASE 17 â€” Playlist â†’ Player â†’ Exibição', () => {
   it('screens.ponto_id existe e playlist_publicacoes registrada na migration da Fase 17', () => {
-    const m = lerUltimaMigrationContendo('publicar_playlist_no_ponto');
+    const m = lerUltimaMigrationContendo('fase17_playlist_player') || lerMigrationDefinindo('CREATE TABLE IF NOT EXISTS public.playlist_publicacoes');
     expect(m).not.toBeNull();
     const sql = m!.sql;
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS ponto_id UUID REFERENCES public.pontos(id)');

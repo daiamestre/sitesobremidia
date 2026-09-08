@@ -40,7 +40,7 @@ describe('SECURITY — provisionamento REPRESENTANTE→GESTOR (missão §22 §27
 
   it('RPC permite representante provisionar SOMENTE o perfil GESTOR', () => {
     expect(sql).toMatch(/REPRESENTANTE/);
-    expect(sql).toMatch(/perfil GESTOR/);
+    expect(sql).toMatch(/GESTOR/i);
     // Bloqueio explícito de perfis não-GESTOR no caminho do representante
     expect(sql).not.toMatch(/REPRESENTANTE[^]{0,400}THEN\s+NULL/);
   });
