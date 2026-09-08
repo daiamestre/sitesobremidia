@@ -120,6 +120,10 @@ export class ContratoService {
     usuarioResponsavelId: string;
   }): Promise<{ success: boolean; contratoId?: string; error?: string }> {
     try {
+      if (!payload.templateId || typeof payload.templateId !== 'string' || payload.templateId.trim() === '') {
+        return { success: false, error: 'Template ID inválido ou ausente.' };
+      }
+
       // 1. Resolve vínculo: proposta (legado) ou cadastro direto (P0)
       let empresa_operadora_id: string | null = null;
       let cliente_id: string | null = payload.clienteId || null;
@@ -559,7 +563,14 @@ export class ContratoService {
     usuarioResponsavelId: string;
   }): Promise<{ success: boolean; contratoId?: string | null; tipoContrato?: string | null; error?: string }> {
     const tipo = resolveContractTypeFromCadastroType(params.cadastroType);
-    if (!tipo) return { success: true, contratoId: null, tipoContrato: null };
+    if (!tipo) {
+      return {
+        success: false,
+        contratoId: null,
+        tipoContrato: null,
+        error: `Tipo de cadastro inválido ou não suportado para vinculação de contrato (${String(params.cadastroType)}).`,
+      };
+    }
 
     // 1. Verifica se contrato já existe para a entidade
     let existingContract: any = null;
@@ -580,7 +591,7 @@ export class ContratoService {
       existingContract = data;
     }
 
-    if (existingContract && existingContract.template_id) {
+    if (existingContract && existingContract.template_id && typeof existingContract.template_id === 'string' && existingContract.template_id.trim() !== '') {
       if (params.propostaId) {
         await supabase.from('contratos').update({ proposta_id: params.propostaId }).eq('id', existingContract.id);
       }
@@ -629,7 +640,9 @@ export class ContratoService {
       tpl = activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) || activeTpls?.[0];
     }
 
-    if (!tpl) return { success: false, error: `Template oficial ${tipo} não encontrado.` };
+    if (!tpl || !tpl.id || typeof tpl.id !== 'string' || tpl.id.trim() === '') {
+      return { success: false, error: `Template oficial ${tipo} não encontrado ou sem identificador válido.` };
+    }
     const res = await this.selectContractModel({
       tipoContrato: tipo,
       templateId: tpl.id,
