@@ -79,13 +79,20 @@ Além disso, o workflow `.github/workflows/ci.yml` utilizava Node 20 (`NODE_VERS
 
 ## 7. EXECUÇÃO NO GITHUB ACTIONS REAL
 
+- **Commit:** `594dae53320b4dffbb5cfe834e1f73ce3c5a27c4` (`origin/main`)
 - **Workflow:** `🚀 SOBRE MÍDIA ERP — CI/CD Enterprise Pipeline`
-- **Job `🔍 Lint & TypeScript`:** SUCCESS
-- **Job `🧪 Unit + Integration + Security Tests`:** SUCCESS
-- **Job `📊 Coverage Report`:** SUCCESS
-- **Job `🏗️ Production Build + PWA`:** SUCCESS
-- **Job `🛡️ npm Security Audit`:** SUCCESS
-- **Job `✅ Quality Gate (bloqueio de merge)`:** SUCCESS
+- **Run ID:** `34172771768` (URL: `https://github.com/daiamestre/sitesobremidia/actions/runs/34172771768`)
+- **Status Geral:** **SUCCESS (Verde)**
+
+| Job | ID | Status | Duração |
+|---|---|---|---|
+| **🔍 Lint & TypeScript** | `101896141756` | ✅ SUCCESS | 34s |
+| **🛡️ npm Security Audit** | `101896237965` | ✅ SUCCESS | 22s |
+| **🧪 Unit + Integration + Security Tests** | `101896237993` | ✅ SUCCESS | 2m07s |
+| **🏗️ Production Build + PWA** | `101896566543` | ✅ SUCCESS | 52s |
+| **📊 Coverage Report** | `101896566564` | ✅ SUCCESS | 2m18s |
+| **🎭 E2E Tests (Playwright)** | `101896708103` | ✅ SUCCESS | 45s |
+| **✅ Quality Gate (bloqueio de merge)** | `101896931085` | ✅ SUCCESS | 2s |
 
 ---
 
