@@ -293,7 +293,19 @@ export class ClienteService {
     try {
       const nowIso = new Date().toISOString();
 
-      // 1. Soft-delete em public.clientes
+      // 1. Soft-delete em public.empresas primeiro (enquanto clientes.deleted_at ainda é NULL para satisfazer RLS emp_write_policy)
+      const { error: empErr } = await supabase
+        .from('empresas')
+        .update({
+          deleted_at: nowIso,
+          deleted_by: userId || null,
+          delete_reason: reason || 'Inativado pelo usuário.',
+        })
+        .eq('cliente_id', id);
+
+      if (empErr) return { success: false, error: empErr.message };
+
+      // 2. Soft-delete em public.clientes
       const { error: cliErr } = await supabase
         .from('clientes')
         .update({
@@ -305,20 +317,6 @@ export class ClienteService {
         .eq('id', id);
 
       if (cliErr) return { success: false, error: cliErr.message };
-
-      // 2. Soft-delete concomitante em public.empresas para liberar o CNPJ
-      const { error: empErr } = await supabase
-        .from('empresas')
-        .update({
-          deleted_at: nowIso,
-          deleted_by: userId || null,
-          delete_reason: reason || 'Inativado pelo usuário.',
-        })
-        .eq('cliente_id', id);
-
-      if (empErr) {
-        console.warn('[ClienteService.softDelete] Aviso ao marcar deleted_at na empresa:', empErr);
-      }
 
       return { success: true };
     } catch (err: unknown) {

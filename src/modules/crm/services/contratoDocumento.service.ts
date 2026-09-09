@@ -2259,23 +2259,7 @@ export async function assinarDocumento(
       return { success: false, error: rpcErr?.message || rpcResult?.error || 'Falha ao registrar a assinatura.' };
     }
 
-    try {
-      await supabase.from('assinatura_eventos').insert({
-        assinatura_id: assinaturaId,
-        evento: 'ASSINADO',
-        detalhes: {
-          method: dadosSignatario.method || 'DRAWN',
-          document_hash: signedHash,
-          ip: ip || null,
-          user_agent: userAgent || null,
-          signatario: dadosSignatario.nome,
-          pdf_assinado_key: signedObjectKey,
-        },
-      });
-    } catch (evtErr) {
-      console.warn('[contratoDocumentoService.assinarDocumento] Evento adicional já persistido na RPC:', evtErr);
-    }
-
+    // Evento de assinatura ('ASSINADO') é persistido atomicamente no PostgreSQL pela RPC fn_assinar_contrato (sem duplicações)
     return { success: true, pdfAssinadoKey: signedObjectKey, documentHash: signedHash };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao assinar o documento.' };

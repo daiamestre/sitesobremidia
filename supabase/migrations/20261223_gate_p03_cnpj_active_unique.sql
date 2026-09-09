@@ -13,7 +13,7 @@ CREATE UNIQUE INDEX idx_empresas_cnpj_unique_active
   ON public.empresas (cnpj) 
   WHERE deleted_at IS NULL AND cnpj IS NOT NULL;
 
--- 3. Atualizar a RPC fn_cadastrar_cliente_com_contrato para tratar erros com integridade
+-- 3. Atualizar a RPC fn_cadastrar_cliente_com_contrato com validação de CNPJ ativo
 CREATE OR REPLACE FUNCTION public.fn_cadastrar_cliente_com_contrato(
   p_empresa_operadora_id UUID,
   p_representante_id UUID,
@@ -99,9 +99,8 @@ BEGIN
       WHERE e.cnpj = p_cnpj
         AND e.deleted_at IS NULL
         AND c.deleted_at IS NULL
-        AND c.empresa_operadora_id = p_empresa_operadora_id
     ) THEN
-      RETURN jsonb_build_object('success', false, 'error', 'duplicate key value violates unique constraint "empresas_cnpj_key"');
+      RETURN jsonb_build_object('success', false, 'error', 'CNPJ já cadastrado para outro cliente ativo.');
     END IF;
   END IF;
 
@@ -124,7 +123,7 @@ BEGIN
   ) VALUES (
     v_cliente_id,
     COALESCE(NULLIF(p_razao_social, ''), p_nome_fantasia),
-    p_nome_fantasia, NULLIF(trim(p_cnpj), ''), p_segmento,
+    p_nome_fantasia, p_cnpj, p_segmento,
     p_telefone, p_whatsapp, p_email, p_cep, p_logradouro, p_numero, p_complemento,
     p_bairro, p_cidade, p_estado, p_representante_legal, p_cargo_representante, p_observacoes
   ) RETURNING id INTO v_empresa_id;
@@ -141,31 +140,28 @@ BEGIN
     ) RETURNING id INTO v_contato_id;
   END IF;
 
-  -- Resolução do Template Padrão Oficial
+  -- Resolução do Template Padrão (Gate 5.1 / Micro-Gate 5.1.2)
   SELECT t.id, t.nome, t.versao INTO v_tpl_id, v_tpl_nome, v_tpl_versao
   FROM public.fn_obter_template_padrao(p_empresa_operadora_id, 'ANUNCIANTE') t;
 
   v_numero_contrato := public.fn_gerar_numero_contrato_atomo(p_empresa_operadora_id);
 
   INSERT INTO public.contratos (
-    empresa_operadora_id, cliente_id,
+    empresa_operadora_id, cliente_id, empresa_id, representante_id,
     template_id, template_nome, template_versao, versao_atual,
     numero_contrato, tipo_contrato, valor_mensal, forma_pagamento,
     data_inicio, data_fim, status_documento, status_workflow
   ) VALUES (
-    p_empresa_operadora_id, v_cliente_id,
+    p_empresa_operadora_id, v_cliente_id, v_empresa_id, p_representante_id,
     v_tpl_id, v_tpl_nome, COALESCE(v_tpl_versao, 1), COALESCE(v_tpl_versao, 1),
     v_numero_contrato, 'ANUNCIANTE', 0.00, 'PIX',
-    CURRENT_DATE, CURRENT_DATE + INTERVAL '12 months',
-    'MINUTA', 'AGUARDANDO_ASSINATURA'
+    CURRENT_DATE, (CURRENT_DATE + INTERVAL '1 year')::DATE,
+    'RASCUNHO', 'AGUARDANDO_PAGAMENTO'
   ) RETURNING id INTO v_contrato_id;
 
-  INSERT INTO public.contrato_auditoria (
-    contrato_id, evento, usuario_id, tipo_contrato, versao, detalhes
-  ) VALUES (
-    v_contrato_id, 'CONTRATO_CRIADO', v_user_id, 'ANUNCIANTE', COALESCE(v_tpl_versao, 1),
-    jsonb_build_object('origem', 'fn_cadastrar_cliente_com_contrato', 'codigo_cliente', v_next_code, 'template_id', v_tpl_id)
-  );
+  IF v_contrato_id IS NULL THEN
+    RAISE EXCEPTION 'Falha ao criar o contrato atômico do anunciante.';
+  END IF;
 
   RETURN jsonb_build_object(
     'success', true,
