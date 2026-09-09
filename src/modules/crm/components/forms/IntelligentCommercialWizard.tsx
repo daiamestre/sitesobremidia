@@ -667,6 +667,14 @@ if (name === 'cnpj') {
       } catch (errDoc) {
         console.warn('[Wizard] Aviso na geração inicial do PDF no R2:', errDoc);
       }
+
+      // 4.5 ACOPLAMENTO FINANCEIRO — GERAÇÃO DA COBRANÇA INICIAL NO ERP (idempotente)
+      try {
+        const { financeiroService } = await import('../../services/financeiro.service');
+        await financeiroService.obterOuCriarCobrancaInicialOnboarding(finalContratoId, user?.id || '');
+      } catch (errFin) {
+        console.warn('[Wizard] Aviso na geração inicial da cobrança:', errFin);
+      }
     }
 
     setIsSubmitting(false);

@@ -964,6 +964,19 @@ export class FinanceiroService {
         if (somaSubtotais > 0) valorFinal = somaSubtotais;
       }
 
+      if (valorFinal <= 0 && contrato.cliente_id) {
+        const { data: prop } = await (supabase as any)
+          .from('propostas')
+          .select('valor_final, valor_total')
+          .eq('cliente_id', contrato.cliente_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (prop) {
+          valorFinal = Number(prop.valor_final || prop.valor_total || 0);
+        }
+      }
+
       if (valorFinal <= 0) {
         return { success: false, error: 'Valor da composição do contrato é inválido (<= 0).' };
       }

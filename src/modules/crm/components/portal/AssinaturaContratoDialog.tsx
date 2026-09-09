@@ -168,7 +168,14 @@ export function AssinaturaContratoDialog({
         throw new Error(signRes.error || 'Falha na execução do pipeline de assinatura digital.');
       }
 
-      // 3. Sucesso real confirmado pela RPC fn_assinar_contrato
+      // 3. Sucesso real confirmado pela RPC fn_assinar_contrato -> Acoplamento financeiro (idempotente)
+      try {
+        const { financeiroService } = await import('../../services/financeiro.service');
+        await financeiroService.obterOuCriarCobrancaInicialOnboarding(contratoId, usuarioId);
+      } catch (errFin) {
+        console.warn('[AssinaturaContratoDialog] Aviso na criação da cobrança inicial:', errFin);
+      }
+
       setStep('SUCESSO');
       toast({
         title: 'Contrato Assinado com Sucesso!',
