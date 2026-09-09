@@ -146,6 +146,41 @@ export function IntelligentCommercialWizard() {
   const [provisionamento, setProvisionamento] = useState<EstadoProvisionamento | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Form State Unificado — NENHUM dado é descartado entre etapas
+  const [formData, setFormData] = useState<WizardFormState>({
+    nomeFantasia: '',
+    razaoSocial: '',
+    cnpj: '',
+    segmento: '',
+    telefone: '',
+    whatsapp: '',
+    email: '',
+    cep: '',
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+    representanteLegal: '',
+    cargoRepresentante: '',
+    status: StatusCliente.PROSPECT,
+    observacoes: '',
+    contatoNome: '',
+    contatoCargo: '',
+    contatoEmail: '',
+    contatoTelefone: '',
+    tituloCampanha: '',
+    duracaoSegundos: 0,
+    quantidadeTelas: 0,
+    dataInicio: new Date().toISOString().split('T')[0],
+    dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    valorMensal: 0,
+    periodicidade: 'MENSAL',
+    formaPagamento: 'PIX',
+    observacoesProposta: '',
+  });
+
   // Busca e Seleção de Cliente Existente
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ClienteCompleto[]>([]);
@@ -294,42 +329,6 @@ export function IntelligentCommercialWizard() {
       setGerandoDocumento(false);
     }
   };
-
-
-  // Form State Unificado â€” NENHUM dado é descartado entre etapas
-  const [formData, setFormData] = useState<WizardFormState>({
-    nomeFantasia: '',
-    razaoSocial: '',
-    cnpj: '',
-    segmento: '',
-    telefone: '',
-    whatsapp: '',
-    email: '',
-    cep: '',
-    logradouro: '',
-    numero: '',
-    complemento: '',
-    bairro: '',
-    cidade: '',
-    estado: '',
-    representanteLegal: '',
-    cargoRepresentante: '',
-    status: StatusCliente.PROSPECT,
-    observacoes: '',
-    contatoNome: '',
-    contatoCargo: '',
-    contatoEmail: '',
-    contatoTelefone: '',
-    tituloCampanha: '',
-    duracaoSegundos: 0,
-    quantidadeTelas: 0,
-    dataInicio: new Date().toISOString().split('T')[0],
-    dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    valorMensal: 0,
-    periodicidade: 'MENSAL',
-    formaPagamento: 'PIX',
-    observacoesProposta: '',
-  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
