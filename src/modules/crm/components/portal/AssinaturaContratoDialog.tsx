@@ -21,6 +21,14 @@ import { supabase } from '@/integrations/supabase/client';
 
 const contratoService = new ContratoService();
 
+export interface DadosAssinaturaFinal {
+  signatureDataUrl: string;
+  signatarioNome: string;
+  signatarioCpfCnpj?: string;
+  metodo: 'DRAWN' | 'TYPED';
+  dataAssinatura: string;
+}
+
 export interface AssinaturaContratoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,7 +36,8 @@ export interface AssinaturaContratoDialogProps {
   codigoOperacional: string | null;
   publicIdentifier: string | null;
   composicao?: ItemComposicaoComUI[];
-  onSuccess: (codigoOperacional: string, publicIdentifier: string) => void;
+  signatarioSugerido?: string;
+  onSuccess: (codigoOperacional: string, publicIdentifier: string, dadosAssinatura?: DadosAssinaturaFinal) => void;
 }
 
 export type ModalidadeAssinatura = 'DRAWN' | 'TYPED';
@@ -125,6 +134,7 @@ export function AssinaturaContratoDialog({
   codigoOperacional,
   publicIdentifier,
   composicao = [],
+  signatarioSugerido,
   onSuccess,
 }: AssinaturaContratoDialogProps) {
   const { user } = useAuth();
@@ -145,6 +155,7 @@ export function AssinaturaContratoDialog({
   const [signatarioCpfCnpj, setSignatarioCpfCnpj] = useState('');
   const [signatarioEmail, setSignatarioEmail] = useState('');
   const [padEmpty, setPadEmpty] = useState(true);
+  const [dadosAssinaturaRealizados, setDadosAssinaturaRealizados] = useState<DadosAssinaturaFinal | null>(null);
 
   // Total da composição comercial
   const totalMensalComposicao = composicao.reduce((acc, item) => acc + (item.subtotal || 0), 0);
@@ -166,16 +177,22 @@ export function AssinaturaContratoDialog({
           const contato = emp?.contatos?.[0] || cli?.contatos?.[0];
 
           // Signatário oficial: Representante do Contratante (NUNCA o operador/admin logado)
-          const nomeOficial =
-            contato?.nome ||
-            emp?.representante_legal ||
-            cli?.representante_legal ||
-            cli?.contato_nome ||
-            emp?.nome_fantasia ||
-            emp?.razao_social ||
-            cli?.nome_fantasia ||
-            cli?.razao_social ||
-            '';
+          const candidatos = [
+            contato?.nome,
+            emp?.representante_legal,
+            cli?.representante_legal,
+            cli?.contato_nome,
+            signatarioSugerido,
+            emp?.nome_fantasia,
+            emp?.razao_social,
+            cli?.nome_fantasia,
+            cli?.razao_social,
+          ].filter(Boolean) as string[];
+
+          // Excluir qualquer valor que contenha nomes administrativos de fallback
+          const nomeValido = candidatos.find(
+            (c) => !/sobre\s*m[íi]dia|admin|operador|sistema/i.test(c.trim())
+          ) || candidatos[0] || '';
 
           const emailOficial =
             contato?.email ||
@@ -190,7 +207,7 @@ export function AssinaturaContratoDialog({
             cli?.cpf_cnpj ||
             '';
 
-          setSignatarioNome(nomeOficial);
+          setSignatarioNome(nomeValido);
           setSignatarioEmail(emailOficial);
           setSignatarioCpfCnpj(docOficial);
 
@@ -204,7 +221,7 @@ export function AssinaturaContratoDialog({
         setLoadingContrato(false);
       });
     }
-  }, [open, contratoId]);
+  }, [open, contratoId, signatarioSugerido]);
 
   // Manipulador de submissão da assinatura
   const handleFinalizarAssinatura = async () => {
@@ -294,6 +311,20 @@ export function AssinaturaContratoDialog({
         throw new Error(signRes.error || 'Falha na execução do pipeline de assinatura digital.');
       }
 
+      const dadosFinal: DadosAssinaturaFinal = {
+        signatureDataUrl,
+        signatarioNome: signatarioNome.trim(),
+        signatarioCpfCnpj: signatarioCpfCnpj.trim() || undefined,
+        metodo: modalidade,
+        dataAssinatura: new Intl.DateTimeFormat('pt-BR', {
+          timeZone: 'America/Sao_Paulo',
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        }).format(new Date()),
+      };
+      setDadosAssinaturaRealizados(dadosFinal);
+
       // 3. Sucesso real confirmado pela RPC fn_assinar_contrato -> Acoplamento financeiro (idempotente)
       try {
         const { financeiroService } = await import('../../services/financeiro.service');
@@ -323,14 +354,21 @@ export function AssinaturaContratoDialog({
   const handleProsseguirParaPagamento = () => {
     if (codigoOperacional && publicIdentifier) {
       onOpenChange(false);
-      onSuccess(codigoOperacional, publicIdentifier);
+      onSuccess(codigoOperacional, publicIdentifier, dadosAssinaturaRealizados || undefined);
     }
+  };
+
+  const handleOpenChangeWrapper = (nextOpen: boolean) => {
+    if (!nextOpen && step === 'SUCESSO' && codigoOperacional && publicIdentifier) {
+      onSuccess(codigoOperacional, publicIdentifier, dadosAssinaturaRealizados || undefined);
+    }
+    onOpenChange(nextOpen);
   };
 
   const officialPdf = OFFICIAL_PDFS.ANUNCIANTE;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChangeWrapper}>
       <DialogContent className="bg-slate-950 border border-white/10 text-white max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">

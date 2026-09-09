@@ -192,6 +192,15 @@ export function IntelligentCommercialWizard() {
   // Estado do Contrato Personalizado
   const [contratoIdSalvo, setContratoIdSalvo] = useState<string | null>(null);
   const [pdfObjectKeySalvo, setPdfObjectKeySalvo] = useState<string | null>(null);
+  const [pdfAssinadoKeySalvo, setPdfAssinadoKeySalvo] = useState<string | null>(null);
+  const [contratoStatus, setContratoStatus] = useState<'RASCUNHO' | 'GERADO' | 'ASSINADO'>('RASCUNHO');
+  const [dadosAssinaturaFinal, setDadosAssinaturaFinal] = useState<{
+    dataUrl?: string;
+    signatarioNome?: string;
+    signatarioCpfCnpj?: string;
+    metodo?: 'DRAWN' | 'TYPED' | string;
+    dataAssinatura?: string;
+  } | null>(null);
   const [gerandoDocumento, setGerandoDocumento] = useState(false);
   const [dialogAssinaturaOpen, setDialogAssinaturaOpen] = useState(false);
 
@@ -222,17 +231,67 @@ export function IntelligentCommercialWizard() {
             setLoadingTemplate(false);
           });
       });
+
+      // Se contratoIdSalvo já existir, verificar status do contrato e envelope de assinatura
+      if (contratoIdSalvo) {
+        supabase
+          .from('contratos')
+          .select('id, status_documento, pdf_assinado_key, pdf_object_key, documento_assinado_em')
+          .eq('id', contratoIdSalvo)
+          .maybeSingle()
+          .then(async ({ data: ctr }) => {
+            if (ctr && ctr.status_documento === 'ASSINADO') {
+              setContratoStatus('ASSINADO');
+              if (ctr.pdf_assinado_key) {
+                setPdfAssinadoKeySalvo(ctr.pdf_assinado_key);
+              }
+              const { data: ass } = await supabase
+                .from('assinaturas')
+                .select('signatario_nome, signatario_cpf_cnpj, assinado_em, document_hash')
+                .eq('contrato_id', contratoIdSalvo)
+                .eq('status', 'ASSINADO')
+                .order('assinado_em', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              if (ass) {
+                setDadosAssinaturaFinal((prev) => ({
+                  dataUrl: prev?.dataUrl || '',
+                  signatarioNome: ass.signatario_nome || prev?.signatarioNome || formData.representanteLegal || formData.contatoNome || formData.nomeFantasia,
+                  signatarioCpfCnpj: ass.signatario_cpf_cnpj || prev?.signatarioCpfCnpj || formData.cnpj,
+                  dataAssinatura: ass.assinado_em
+                    ? new Intl.DateTimeFormat('pt-BR', {
+                        timeZone: 'America/Sao_Paulo',
+                        day: '2-digit',
+                        month: 'long',
+                        year: 'numeric',
+                      }).format(new Date(ass.assinado_em))
+                    : prev?.dataAssinatura,
+                  metodo: prev?.metodo || 'DRAWN',
+                }));
+              }
+            }
+          })
+          .catch((err) => {
+            console.warn('[IntelligentCommercialWizard] Erro ao verificar status do contrato:', err);
+          });
+      }
     }
-  }, [step, empresaOperadoraId]);
+  }, [step, empresaOperadoraId, contratoIdSalvo, formData]);
 
   const htmlRenderizadoPreview = useMemo(() => {
     if (!templatePadrao) return '';
     try {
-      return renderizarPreviewContrato('ANUNCIANTE', templatePadrao.conteudo_html, formData);
+      return renderizarPreviewContrato(
+        'ANUNCIANTE',
+        templatePadrao.conteudo_html,
+        formData,
+        contratoStatus === 'ASSINADO' ? dadosAssinaturaFinal : null
+      );
     } catch {
       return templatePadrao.conteudo_html;
     }
-  }, [templatePadrao, formData]);
+  }, [templatePadrao, formData, contratoStatus, dadosAssinaturaFinal]);
 
   const obterOuGerarContratoPersonalizado = async (acao: 'visualizar' | 'baixar' | 'assinar') => {
     setGerandoDocumento(true);
@@ -308,22 +367,32 @@ export function IntelligentCommercialWizard() {
         setContratoIdSalvo(cid);
       }
 
-      let key = pdfObjectKeySalvo;
+      let key = contratoStatus === 'ASSINADO' && pdfAssinadoKeySalvo ? pdfAssinadoKeySalvo : pdfObjectKeySalvo;
       if (!key) {
-        const resDoc = await contratoDocumentoService.gerarDocumentoContrato(cid, user?.id || '');
-        if (!resDoc.success || !resDoc.objectKey) {
-          toast({ title: 'Erro na geração do PDF', description: resDoc.error || 'Falha ao renderizar minuta personalizada.', variant: 'destructive' });
-          setGerandoDocumento(false);
-          return;
+        if (contratoStatus === 'ASSINADO') {
+          const { data: ctr } = await supabase.from('contratos').select('pdf_assinado_key, pdf_object_key').eq('id', cid).single();
+          if (ctr?.pdf_assinado_key) {
+            key = ctr.pdf_assinado_key;
+            setPdfAssinadoKeySalvo(key);
+          }
         }
-        key = resDoc.objectKey;
-        setPdfObjectKeySalvo(key);
+        if (!key) {
+          const resDoc = await contratoDocumentoService.gerarDocumentoContrato(cid, user?.id || '');
+          if (!resDoc.success || !resDoc.objectKey) {
+            toast({ title: 'Erro na geração do PDF', description: resDoc.error || 'Falha ao renderizar minuta personalizada.', variant: 'destructive' });
+            setGerandoDocumento(false);
+            return;
+          }
+          key = resDoc.objectKey;
+          setPdfObjectKeySalvo(key);
+        }
       }
 
       if (acao === 'visualizar') {
         await contratoDocumentoService.visualizarDocumento(key);
       } else if (acao === 'baixar') {
-        await contratoDocumentoService.baixarDocumento(key, `Contrato_${formData.nomeFantasia || formData.razaoSocial || 'Anunciante'}.pdf`);
+        const prefix = contratoStatus === 'ASSINADO' ? 'Contrato_Assinado_' : 'Contrato_';
+        await contratoDocumentoService.baixarDocumento(key, `${prefix}${formData.nomeFantasia || formData.razaoSocial || 'Anunciante'}.pdf`);
       } else if (acao === 'assinar') {
         setDialogAssinaturaOpen(true);
       }
@@ -1468,15 +1537,23 @@ if (name === 'cnpj') {
                     Template Padrão Vigente ({templatePadrao?.codigo_template || 'TPL-ANUNCIANTE-OFICIAL'} · v{templatePadrao?.versao || 1})
                   </p>
                 </div>
-                <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30 px-3 py-1 font-bold text-xs">
-                  AGUARDANDO ASSINATURA (OPCIONAL)
-                </Badge>
+                {contratoStatus === 'ASSINADO' ? (
+                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 px-3 py-1 font-bold text-xs flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> CONTRATO ASSINADO DIGITALMENTE
+                  </Badge>
+                ) : (
+                  <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30 px-3 py-1 font-bold text-xs">
+                    AGUARDANDO ASSINATURA (OPCIONAL)
+                  </Badge>
+                )}
               </div>
 
               {/* Visualização Integral do Contrato em Documento Completo */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-                  <span className="font-semibold text-slate-300">Minuta Oficial Personalizada</span>
+                  <span className="font-semibold text-slate-300">
+                    {contratoStatus === 'ASSINADO' ? 'Documento Oficial Assinado Digitalmente' : 'Minuta Oficial Personalizada'}
+                  </span>
                   <span>Role verticalmente para ler todas as cláusulas</span>
                 </div>
                 <div className="rounded-xl border border-slate-700 bg-white text-slate-900 shadow-2xl p-6 sm:p-8 max-h-[520px] overflow-y-auto">
@@ -1494,35 +1571,69 @@ if (name === 'cnpj') {
                 </div>
               </div>
 
-              <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-200 flex items-center justify-between">
-                <span>O contrato é preenchido e vinculado automaticamente a partir do template padrão oficial. Você pode ler integralmente o texto acima, baixá-lo em PDF ou assinar digitalmente agora.</span>
-              </div>
+              {contratoStatus === 'ASSINADO' ? (
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <span>
+                      Contrato oficial assinado digitalmente pelo Contratante (<strong>{dadosAssinaturaFinal?.signatarioNome || formData.representanteLegal || formData.nomeFantasia || 'Responsável'}</strong>). Certificado digitalmente e armazenado no Cloudflare R2.
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-200 flex items-center justify-between">
+                  <span>O contrato é preenchido e vinculado automaticamente a partir do template padrão oficial. Você pode ler integralmente o texto acima, baixá-lo em PDF ou assinar digitalmente agora.</span>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-3 pt-2">
-                <Button
-                  type="button"
-                  disabled={gerandoDocumento}
-                  onClick={() => obterOuGerarContratoPersonalizado('visualizar')}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
-                >
-                  {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : <Eye className="h-4 w-4 text-purple-400" />} Visualizar em Nova Aba
-                </Button>
-                <Button
-                  type="button"
-                  disabled={gerandoDocumento}
-                  onClick={() => obterOuGerarContratoPersonalizado('baixar')}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
-                >
-                  {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : <Download className="h-4 w-4 text-emerald-400" />} Baixar Minuta PDF
-                </Button>
-                <Button
-                  type="button"
-                  disabled={gerandoDocumento}
-                  onClick={() => obterOuGerarContratoPersonalizado('assinar')}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-all cursor-pointer"
-                >
-                  <PenTool className="h-4 w-4 text-white" /> Assinar Agora
-                </Button>
+                {contratoStatus === 'ASSINADO' ? (
+                  <>
+                    <Button
+                      type="button"
+                      disabled={gerandoDocumento}
+                      onClick={() => obterOuGerarContratoPersonalizado('visualizar')}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+                    >
+                      {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : <Eye className="h-4 w-4 text-purple-400" />} Visualizar Contrato Assinado
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={gerandoDocumento}
+                      onClick={() => obterOuGerarContratoPersonalizado('baixar')}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-all cursor-pointer"
+                    >
+                      {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : <Download className="h-4 w-4 text-white" />} Baixar Contrato Assinado PDF
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      disabled={gerandoDocumento}
+                      onClick={() => obterOuGerarContratoPersonalizado('visualizar')}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+                    >
+                      {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-purple-400" /> : <Eye className="h-4 w-4 text-purple-400" />} Visualizar em Nova Aba
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={gerandoDocumento}
+                      onClick={() => obterOuGerarContratoPersonalizado('baixar')}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+                    >
+                      {gerandoDocumento ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : <Download className="h-4 w-4 text-emerald-400" />} Baixar Minuta PDF
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={gerandoDocumento}
+                      onClick={() => obterOuGerarContratoPersonalizado('assinar')}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition-all cursor-pointer"
+                    >
+                      <PenTool className="h-4 w-4 text-white" /> Assinar Agora
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1533,7 +1644,18 @@ if (name === 'cnpj') {
                 contratoId={contratoIdSalvo}
                 codigoOperacional={contratoIdSalvo ? `CTR-${contratoIdSalvo.slice(0, 8)}` : null}
                 publicIdentifier={contratoIdSalvo}
-                onSuccess={() => {
+                signatarioSugerido={formData.representanteLegal || formData.contatoNome || formData.nomeFantasia}
+                onSuccess={(_codigo, _identifier, dadosAssinatura) => {
+                  setContratoStatus('ASSINADO');
+                  if (dadosAssinatura) {
+                    setDadosAssinaturaFinal({
+                      dataUrl: dadosAssinatura.signatureDataUrl,
+                      signatarioNome: dadosAssinatura.signatarioNome,
+                      signatarioCpfCnpj: dadosAssinatura.signatarioCpfCnpj,
+                      metodo: dadosAssinatura.metodo,
+                      dataAssinatura: dadosAssinatura.dataAssinatura,
+                    });
+                  }
                   toast({ title: 'Contrato assinado com sucesso!', description: 'O documento assinado foi armazenado no Cloudflare R2.' });
                   setDialogAssinaturaOpen(false);
                 }}

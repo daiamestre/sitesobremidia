@@ -1131,13 +1131,23 @@ export async function obterTemplatePadraoVigente(
   };
 }
 
+export interface DadosAssinaturaVisual {
+  dataUrl?: string;
+  signatarioNome?: string;
+  signatarioCpfCnpj?: string;
+  dataAssinatura?: string;
+  metodo?: 'DRAWN' | 'TYPED' | string;
+}
+
 /**
  * Renderiza o HTML completo de um contrato para preview a partir de dados em memória do formulário.
+ * Suporta injeção visual da assinatura do contratante/parceiro quando o contrato já estiver assinado.
  */
 export function renderizarPreviewContrato(
   tipoContrato: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' | string,
   templateHtml: string,
-  form: Record<string, any>
+  form: Record<string, any>,
+  assinaturaVisual?: DadosAssinaturaVisual | null
 ): string {
   const tipoNorm: 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' =
     tipoContrato === 'PARCEIRO' || tipoContrato === 'PONTO_PARCEIRO'
@@ -1236,7 +1246,75 @@ export function renderizarPreviewContrato(
 
   const htmlBase = templateHtml && templateHtml.length > 200 ? templateHtml : getCanonicalTemplateForTipo(tipoNorm);
 
-  return preencherTemplate(htmlBase, dadosMapeados, tipoNorm);
+  let htmlPreenchido = preencherTemplate(htmlBase, dadosMapeados, tipoNorm);
+
+  // Aplicação visual da assinatura na representação documental quando o contrato estiver assinado
+  if (assinaturaVisual && (assinaturaVisual.dataUrl || assinaturaVisual.signatarioNome)) {
+    const nomeSignatario = assinaturaVisual.signatarioNome || responsavel || razaoSocial;
+    const metodoLabel = assinaturaVisual.metodo === 'TYPED' ? 'Assinatura Digitada (TYPED)' : 'Digital Desenhada (DRAWN)';
+    const dataFmt = assinaturaVisual.dataAssinatura || formatarDataExtensa(new Date());
+
+    const imagemAssinaturaHtml = assinaturaVisual.dataUrl
+      ? `<div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;">
+          <img src="${assinaturaVisual.dataUrl}" alt="Assinatura do Contratante" style="max-height: 48px; max-width: 100%; object-fit: contain; margin: 0 auto 2px auto; display: block;" />
+        </div>`
+      : `<div style="min-height: 36px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px;">
+          <span style="font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-weight: bold; font-size: 14px; color: #1e293b;">
+            ${nomeSignatario}
+          </span>
+        </div>`;
+
+    if (tipoNorm === 'ANUNCIANTE') {
+      const blocoAssinadoAnunciante = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+        ${imagemAssinaturaHtml}
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">${razaoSocial} (CONTRATANTE)</p>
+          <p style="margin: 2px 0 0; font-size: 9px; color: #16a34a; font-weight: bold;">✓ Assinado digitalmente por ${nomeSignatario}</p>
+          <p style="margin: 0; font-size: 8px; color: #6b7280;">Data: ${dataFmt} · Método: ${metodoLabel}</p>
+        </div>
+      </div>`;
+
+      // Substitui o bloco padrão de assinatura do contratante
+      const regexAnunciante = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(CONTRATANTE\)<\/p>\s*<\/div>/is;
+      if (regexAnunciante.test(htmlPreenchido)) {
+        htmlPreenchido = htmlPreenchido.replace(regexAnunciante, blocoAssinadoAnunciante);
+      } else {
+        htmlPreenchido = htmlPreenchido.replace(/<div[^>]*>\s*<p[^>]*>[^<]*\(CONTRATANTE\)<\/p>\s*<\/div>/is, blocoAssinadoAnunciante);
+      }
+    } else if (tipoNorm === 'PARCEIRO') {
+      const blocoAssinadoParceiro = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+        ${imagemAssinaturaHtml}
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">${razaoSocial} (PARCEIRO)</p>
+          <p style="margin: 2px 0 0; font-size: 9px; color: #16a34a; font-weight: bold;">✓ Assinado digitalmente por ${nomeSignatario}</p>
+          <p style="margin: 0; font-size: 8px; color: #6b7280;">Data: ${dataFmt} · Método: ${metodoLabel}</p>
+        </div>
+      </div>`;
+
+      const regexParceiro = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(PARCEIRO\)<\/p>\s*<\/div>/is;
+      if (regexParceiro.test(htmlPreenchido)) {
+        htmlPreenchido = htmlPreenchido.replace(regexParceiro, blocoAssinadoParceiro);
+      } else {
+        htmlPreenchido = htmlPreenchido.replace(/<div[^>]*>\s*<p[^>]*>[^<]*\(PARCEIRO\)<\/p>\s*<\/div>/is, blocoAssinadoParceiro);
+      }
+    } else if (tipoNorm === 'GESTOR') {
+      const blocoAssinadoGestor = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+        ${imagemAssinaturaHtml}
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">${responsavel || razaoSocial} (GESTOR)</p>
+          <p style="margin: 2px 0 0; font-size: 9px; color: #16a34a; font-weight: bold;">✓ Assinado digitalmente por ${nomeSignatario}</p>
+          <p style="margin: 0; font-size: 8px; color: #6b7280;">Data: ${dataFmt} · Método: ${metodoLabel}</p>
+        </div>
+      </div>`;
+
+      const regexGestor = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(GESTOR\)<\/p>(?:\s*<p[^>]*>.*?<\/p>)?\s*<\/div>/is;
+      if (regexGestor.test(htmlPreenchido)) {
+        htmlPreenchido = htmlPreenchido.replace(regexGestor, blocoAssinadoGestor);
+      }
+    }
+  }
+
+  return htmlPreenchido;
 }
 
 
