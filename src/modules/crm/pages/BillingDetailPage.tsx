@@ -29,6 +29,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRbac } from '@/hooks/useRbac';
+import { supabase } from '@/integrations/supabase/client';
 import {
   financeiroService,
   deriveCobrancaSituacao,

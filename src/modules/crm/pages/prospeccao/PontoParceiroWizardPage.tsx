@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { prospeccaoService, type NovoPontoParceiroPayload } from '@/services/prospeccao.service';
 import { AssinaturaContratoDialog } from '../../components/portal/AssinaturaContratoDialog';
 import { contratoDocumentoService, renderizarPreviewContrato } from '../../services/contratoDocumento.service';
+import { supabase } from '@/integrations/supabase/client';
 
 
 // CADASTRO DE PONTO PARCEIRO pelo REPRESENTANTE (missao §11-§19).

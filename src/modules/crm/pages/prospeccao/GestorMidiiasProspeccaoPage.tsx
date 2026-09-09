@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { prospeccaoService } from '@/services/prospeccao.service';
+import { supabase } from '@/integrations/supabase/client';
 
 // ──────────────────────────────────────────────────────────────────────
 // CADASTRO DE GESTOR DE MÍDIAS pelo REPRESENTANTE (missão §20–§22)

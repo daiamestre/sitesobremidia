@@ -11,6 +11,7 @@ import { prospeccaoService } from '@/services/prospeccao.service';
 import { SelecaoPontosParceiros } from '../prospeccao/SelecaoPontosParceiros';
 import type { CrmRole } from '../../types/rbac.types';
 import { contratoDocumentoService, renderizarPreviewContrato } from '../../services/contratoDocumento.service';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
