@@ -321,8 +321,8 @@ export class ContratoService {
         .select(`
           *,
           proposta:propostas(*),
-          cliente:clientes(*),
-          empresa:empresas(*),
+          cliente:clientes(*, empresas(*, contatos(*))),
+          empresa:empresas(*, contatos(*)),
           ponto:pontos(*)
         `)
         .eq('id', contratoId)
@@ -330,6 +330,9 @@ export class ContratoService {
         .maybeSingle();
 
       if (error || !data) return null;
+      if (!data.empresa && (data as any).cliente?.empresas?.[0]) {
+        data.empresa = (data as any).cliente.empresas[0];
+      }
       return data as ContratoCompleto;
     } catch (err) {
       return null;

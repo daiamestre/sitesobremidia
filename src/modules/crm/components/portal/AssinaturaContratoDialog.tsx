@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import {
   FileText, CheckCircle2, AlertCircle, Loader2, PenTool, ArrowRight,
-  ShieldCheck, MapPin, Monitor, CircleDollarSign,
+  ShieldCheck, MapPin, CircleDollarSign, Type, Check,
 } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
 import { CanvasSignaturePad } from '../signature/CanvasSignaturePad';
@@ -31,6 +31,93 @@ export interface AssinaturaContratoDialogProps {
   onSuccess: (codigoOperacional: string, publicIdentifier: string) => void;
 }
 
+export type ModalidadeAssinatura = 'DRAWN' | 'TYPED';
+
+export interface ModeloAssinaturaDigitada {
+  id: number;
+  nome: string;
+  descricao: string;
+  fontFamily: string;
+  cssStyle: React.CSSProperties;
+  canvasFont: string;
+}
+
+export const MODELOS_ASSINATURA_DIGITADA: ModeloAssinaturaDigitada[] = [
+  {
+    id: 0,
+    nome: 'Modelo 1 — Script Clássica',
+    descricao: 'Estilo manuscrito fluido e tradicional',
+    fontFamily: '"Brush Script MT", "Dancing Script", cursive',
+    cssStyle: { fontFamily: '"Brush Script MT", "Dancing Script", cursive', fontStyle: 'italic', fontSize: '1.4rem' },
+    canvasFont: 'italic 46px "Brush Script MT", "Dancing Script", "Caveat", cursive',
+  },
+  {
+    id: 1,
+    nome: 'Modelo 2 — Caligráfica Moderna',
+    descricao: 'Traço marcante e expressivo de caligrafia',
+    fontFamily: '"Lucida Handwriting", "Great Vibes", cursive',
+    cssStyle: { fontFamily: '"Lucida Handwriting", "Great Vibes", cursive', fontStyle: 'italic', fontWeight: 'bold', fontSize: '1.25rem' },
+    canvasFont: 'italic bold 40px "Lucida Handwriting", "Great Vibes", "Caveat", cursive',
+  },
+  {
+    id: 2,
+    nome: 'Modelo 3 — Manuscrita Dinâmica',
+    descricao: 'Assinatura cursiva ágil e contemporânea',
+    fontFamily: '"Segoe Script", "Dancing Script", "Allura", cursive',
+    cssStyle: { fontFamily: '"Segoe Script", "Dancing Script", "Allura", cursive', fontStyle: 'italic', fontSize: '1.3rem' },
+    canvasFont: 'italic 42px "Segoe Script", "Dancing Script", "Allura", cursive',
+  },
+  {
+    id: 3,
+    nome: 'Modelo 4 — Formal Corporativa',
+    descricao: 'Serifada inclinada e sofisticada para contratos',
+    fontFamily: '"Playfair Display", "Georgia", "Times New Roman", serif',
+    cssStyle: { fontFamily: '"Playfair Display", "Georgia", "Times New Roman", serif', fontStyle: 'italic', fontWeight: 'bold', fontSize: '1.3rem', letterSpacing: '0.04em' },
+    canvasFont: 'italic bold 38px "Playfair Display", "Georgia", "Times New Roman", serif',
+  },
+];
+
+/**
+ * Gera uma imagem PNG em alta resolução da assinatura digitada a partir do nome e modelo escolhido.
+ */
+export function renderizarAssinaturaDigitadaPng(texto: string, modeloIndex: number): string {
+  if (typeof document === 'undefined') return '';
+  const canvas = document.createElement('canvas');
+  canvas.width = 600;
+  canvas.height = 140;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const modelo = MODELOS_ASSINATURA_DIGITADA[modeloIndex] || MODELOS_ASSINATURA_DIGITADA[0];
+
+  ctx.font = modelo.canvasFont;
+  ctx.fillStyle = '#0f172a';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(texto, canvas.width / 2, (canvas.height / 2) - 6);
+
+  // Traço decorativo refinado sob a assinatura
+  ctx.beginPath();
+  ctx.strokeStyle = '#2563eb';
+  ctx.lineWidth = 1.8;
+  const metrics = ctx.measureText(texto);
+  const textWidth = Math.min(metrics.width + 30, canvas.width - 60);
+  const startX = (canvas.width - textWidth) / 2;
+  const yLine = (canvas.height / 2) + 20;
+
+  ctx.moveTo(startX, yLine);
+  ctx.bezierCurveTo(
+    startX + textWidth * 0.35, yLine + 5,
+    startX + textWidth * 0.65, yLine - 3,
+    startX + textWidth, yLine + 2
+  );
+  ctx.stroke();
+
+  return canvas.toDataURL('image/png');
+}
+
 export function AssinaturaContratoDialog({
   open,
   onOpenChange,
@@ -40,7 +127,7 @@ export function AssinaturaContratoDialog({
   composicao = [],
   onSuccess,
 }: AssinaturaContratoDialogProps) {
-  const { usuario, user } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const canvasPadRef = useRef<CanvasSignaturePadRef>(null);
 
@@ -49,7 +136,11 @@ export function AssinaturaContratoDialog({
   const [contratoData, setContratoData] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Signatário state
+  // Modalidade de assinatura: DRAWN (desenhar) ou TYPED (digitar)
+  const [modalidade, setModalidade] = useState<ModalidadeAssinatura>('DRAWN');
+  const [modeloSelecionado, setModeloSelecionado] = useState<number>(0);
+
+  // Signatário state — vinculado estritamente aos dados do CONTRATANTE
   const [signatarioNome, setSignatarioNome] = useState('');
   const [signatarioCpfCnpj, setSignatarioCpfCnpj] = useState('');
   const [signatarioEmail, setSignatarioEmail] = useState('');
@@ -70,10 +161,39 @@ export function AssinaturaContratoDialog({
       contratoService.findByContratoId(contratoId).then((data) => {
         setContratoData(data);
         if (data) {
-          setSignatarioNome(data.cliente?.nome || usuario?.nome || user?.user_metadata?.full_name || '');
-          setSignatarioEmail(usuario?.email || user?.email || '');
-          setSignatarioCpfCnpj(data.cliente?.cpf_cnpj || '');
-          
+          const emp = data.empresa;
+          const cli = data.cliente;
+          const contato = emp?.contatos?.[0] || cli?.contatos?.[0];
+
+          // Signatário oficial: Representante do Contratante (NUNCA o operador/admin logado)
+          const nomeOficial =
+            contato?.nome ||
+            emp?.representante_legal ||
+            cli?.representante_legal ||
+            cli?.contato_nome ||
+            emp?.nome_fantasia ||
+            emp?.razao_social ||
+            cli?.nome_fantasia ||
+            cli?.razao_social ||
+            '';
+
+          const emailOficial =
+            contato?.email ||
+            emp?.email ||
+            cli?.contato_email ||
+            cli?.email ||
+            '';
+
+          const docOficial =
+            emp?.cnpj ||
+            cli?.cnpj ||
+            cli?.cpf_cnpj ||
+            '';
+
+          setSignatarioNome(nomeOficial);
+          setSignatarioEmail(emailOficial);
+          setSignatarioCpfCnpj(docOficial);
+
           if (data.status_documento === 'ASSINADO') {
             setStep('SUCESSO');
           }
@@ -84,11 +204,11 @@ export function AssinaturaContratoDialog({
         setLoadingContrato(false);
       });
     }
-  }, [open, contratoId, usuario, user]);
+  }, [open, contratoId]);
 
   // Manipulador de submissão da assinatura
   const handleFinalizarAssinatura = async () => {
-    if (step === 'PROCESSANDO') return; // Previne duplo envio simultâneo na UI
+    if (step === 'PROCESSANDO') return;
 
     if (!contratoId || !codigoOperacional || !publicIdentifier) {
       setErrorMessage('Identificadores do contrato ou cobrança não fornecidos.');
@@ -99,22 +219,29 @@ export function AssinaturaContratoDialog({
     if (!signatarioNome.trim()) {
       toast({
         title: 'Nome do Signatário Obrigatório',
-        description: 'Por favor, informe o nome completo do signatário.',
+        description: 'Por favor, informe o nome completo do responsável pelo contratante.',
         variant: 'destructive',
       });
       return;
     }
 
-    if (canvasPadRef.current?.isEmpty()) {
-      toast({
-        title: 'Assinatura Necessária',
-        description: 'Desenhe sua assinatura no painel antes de concluir.',
-        variant: 'destructive',
-      });
-      return;
+    let signatureDataUrl = '';
+
+    if (modalidade === 'DRAWN') {
+      if (canvasPadRef.current?.isEmpty()) {
+        toast({
+          title: 'Assinatura Necessária',
+          description: 'Desenhe sua assinatura no painel antes de concluir.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      signatureDataUrl = canvasPadRef.current?.toDataUrl() || '';
+    } else {
+      // Modalidade TYPED: renderiza o modelo estilizado escolhido para PNG DataURL
+      signatureDataUrl = renderizarAssinaturaDigitadaPng(signatarioNome.trim(), modeloSelecionado);
     }
 
-    const signatureDataUrl = canvasPadRef.current?.toDataUrl();
     if (!signatureDataUrl) {
       toast({
         title: 'Falha na Captura',
@@ -128,7 +255,7 @@ export function AssinaturaContratoDialog({
     setErrorMessage(null);
 
     try {
-      const usuarioId = user?.id || usuario?.id;
+      const usuarioId = user?.id;
       if (!usuarioId) {
         throw new Error('Usuário não autenticado.');
       }
@@ -136,7 +263,6 @@ export function AssinaturaContratoDialog({
       // 1. Garantir que o documento PDF base e o envelope de assinatura existam
       let envelopeRes = await contratoDocumentoService.criarEnvelopeInterno(contratoId, usuarioId);
       if (!envelopeRes.success) {
-        // Tentar gerar o documento base primeiro se o envelope não existia
         const pdfGenRes = await contratoDocumentoService.gerarDocumentoContrato(contratoId, usuarioId);
         if (!pdfGenRes.success) {
           throw new Error(pdfGenRes.error || 'Falha ao gerar o documento PDF base do contrato.');
@@ -157,7 +283,7 @@ export function AssinaturaContratoDialog({
           email: signatarioEmail.trim() || undefined,
           cpfCnpj: signatarioCpfCnpj.trim() || undefined,
           signatureDataUrl,
-          method: 'DRAWN',
+          method: modalidade,
         },
         '127.0.0.1',
         window.navigator.userAgent,
@@ -179,7 +305,7 @@ export function AssinaturaContratoDialog({
       setStep('SUCESSO');
       toast({
         title: 'Contrato Assinado com Sucesso!',
-        description: 'Documento assinado e registrado com SHA-256 e R2.',
+        description: 'Documento assinado pelo Contratante e registrado com SHA-256 no Cloudflare R2.',
       });
 
     } catch (err: any) {
@@ -254,7 +380,7 @@ export function AssinaturaContratoDialog({
                 </div>
                 <h3 className="text-xl font-bold text-white">Contrato Assinado com Sucesso!</h3>
                 <p className="text-sm text-slate-300 max-w-md mx-auto">
-                  O documento foi assinado digitalmente, assinado via SHA-256 e armazenado com segurança.
+                  O documento oficial foi assinado digitalmente pelo Contratante, certificado via SHA-256 e armazenado com segurança no Cloudflare R2.
                 </p>
                 <div className="p-4 rounded-xl bg-slate-900 border border-white/10 text-left max-w-md mx-auto text-xs space-y-2">
                   <div className="flex justify-between">
@@ -266,8 +392,14 @@ export function AssinaturaContratoDialog({
                     <span className="text-amber-400 font-bold">AGUARDANDO_PAGAMENTO</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Signatário:</span>
-                    <span className="text-white font-medium">{signatarioNome}</span>
+                    <span className="text-slate-400">Signatário Oficial:</span>
+                    <span className="text-white font-bold">{signatarioNome}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Método de Assinatura:</span>
+                    <span className="text-purple-300 font-medium">
+                      {modalidade === 'DRAWN' ? 'Digital Desenhada (DRAWN)' : `Digital Digitada (TYPED — ${MODELOS_ASSINATURA_DIGITADA[modeloSelecionado]?.nome})`}
+                    </span>
                   </div>
                 </div>
                 <Button
@@ -283,9 +415,9 @@ export function AssinaturaContratoDialog({
             {step === 'PROCESSANDO' && (
               <div className="py-12 flex flex-col items-center justify-center space-y-4">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <h3 className="text-lg font-bold text-white">Processando Assinatura Digital...</h3>
+                <h3 className="text-lg font-bold text-white">Processando Assinatura Digital do Contratante...</h3>
                 <p className="text-xs text-slate-400 max-w-sm text-center">
-                  Gerando PDF final vetorial, calculando hash SHA-256, realizando upload R2 e registrando assinatura transacional...
+                  Aplicando assinatura no documento oficial, calculando hash SHA-256, realizando upload R2 e registrando assinatura transacional no PostgreSQL...
                 </p>
               </div>
             )}
@@ -293,7 +425,20 @@ export function AssinaturaContratoDialog({
             {/* ETAPA DE VISUALIZAÇÃO OU ASSINATURA */}
             {(step === 'VISUALIZACAO' || step === 'ASSINATURA') && (
               <>
-                {/* RESUMO COMERCIAL (FONTE DE VALORES: COMPOSIÇÃO / CONTRATO) */}
+                {/* BANNER OFICIAL DO SIGNATÁRIO DO CONTRATANTE */}
+                <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-200 space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-300 uppercase tracking-wider">
+                    <ShieldCheck className="h-4 w-4 text-purple-400 shrink-0" /> Você está assinando como CONTRATANTE
+                  </div>
+                  <p className="text-sm font-extrabold text-white">
+                    {signatarioNome || 'Responsável pelo Contratante'}
+                  </p>
+                  <p className="text-xs text-slate-300">
+                    CPF / CNPJ: {signatarioCpfCnpj || 'Conforme cadastro do contratante'}
+                  </p>
+                </div>
+
+                {/* RESUMO COMERCIAL */}
                 <div className="p-4 rounded-xl bg-slate-900/80 border border-white/10 space-y-3">
                   <div className="flex items-center justify-between border-b border-white/10 pb-2">
                     <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -372,48 +517,141 @@ export function AssinaturaContratoDialog({
                   </div>
                 </div>
 
-                {/* MODALIDADE: APENAS ASSINATURA */}
+                {/* ETAPA DE ASSINATURA COM DUAS MODALIDADES */}
                 {step === 'ASSINATURA' && (
                   <div className="space-y-4 border-t border-white/10 pt-4">
+                    {/* SELEÇÃO DE MODALIDADE: DESENHADA VS DIGITADA */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-300 font-semibold block">
+                        Escolha a Modalidade de Assinatura do Contratante:
+                      </Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setModalidade('DRAWN')}
+                          className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-bold transition-all cursor-pointer ${
+                            modalidade === 'DRAWN'
+                              ? 'border-purple-500 bg-purple-500/20 text-white shadow-lg shadow-purple-500/10'
+                              : 'border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-900'
+                          }`}
+                        >
+                          <PenTool className="h-4 w-4 text-purple-400" />
+                          <span>Opção A: Assinatura Desenhada (Touch/Mouse)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setModalidade('TYPED')}
+                          className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-bold transition-all cursor-pointer ${
+                            modalidade === 'TYPED'
+                              ? 'border-purple-500 bg-purple-500/20 text-white shadow-lg shadow-purple-500/10'
+                              : 'border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-900'
+                          }`}
+                        >
+                          <Type className="h-4 w-4 text-purple-400" />
+                          <span>Opção B: Assinatura Digitada (4 Modelos)</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* DADOS DO SIGNATÁRIO */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <Label className="text-xs text-slate-300 mb-1 block">Nome do Signatário *</Label>
+                        <Label className="text-xs text-slate-300 mb-1 block">Nome do Responsável / Signatário *</Label>
                         <Input
                           value={signatarioNome}
                           onChange={(e) => setSignatarioNome(e.target.value)}
-                          placeholder="Nome completo"
+                          placeholder="Nome completo do responsável"
                           className="bg-slate-900 border-white/10 text-white text-xs"
                         />
                       </div>
                       <div>
-                        <Label className="text-xs text-slate-300 mb-1 block">CPF / CNPJ</Label>
+                        <Label className="text-xs text-slate-300 mb-1 block">CPF / CNPJ do Contratante</Label>
                         <Input
                           value={signatarioCpfCnpj}
                           onChange={(e) => setSignatarioCpfCnpj(e.target.value)}
-                          placeholder="000.000.000-00"
+                          placeholder="000.000.000-00 ou CNPJ"
                           className="bg-slate-900 border-white/10 text-white text-xs"
                         />
                       </div>
                     </div>
 
-                    <div>
-                      <Label className="text-xs text-slate-300 mb-1.5 flex items-center justify-between">
-                        <span className="flex items-center gap-1.5">
-                          <PenTool className="h-3.5 w-3.5 text-primary" /> Assinatura Digital no Painel *
-                        </span>
-                        <span className="text-[11px] text-slate-400">Desenhe sua assinatura abaixo</span>
-                      </Label>
+                    {/* OPÇÃO A: CANVAS DRAWN */}
+                    {modalidade === 'DRAWN' && (
+                      <div>
+                        <Label className="text-xs text-slate-300 mb-1.5 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <PenTool className="h-3.5 w-3.5 text-primary" /> Painel de Assinatura Manual (Dedo ou Mouse) *
+                          </span>
+                          <span className="text-[11px] text-slate-400">Desenhe sua assinatura no quadro abaixo</span>
+                        </Label>
 
-                      <div className="p-2 rounded-xl bg-slate-900 border border-white/10">
-                        <CanvasSignaturePad
-                          ref={canvasPadRef}
-                          onStrokeChange={(empty) => setPadEmpty(empty)}
-                          lineColor="#6366f1"
-                          strokeWidth={3}
-                          height={160}
-                        />
+                        <div className="p-2 rounded-xl bg-slate-900 border border-white/10">
+                          <CanvasSignaturePad
+                            ref={canvasPadRef}
+                            onStrokeChange={(empty) => setPadEmpty(empty)}
+                            lineColor="#2563eb"
+                            strokeWidth={3}
+                            height={150}
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* OPÇÃO B: TYPED WITH 4 VISUAL MODELS */}
+                    {modalidade === 'TYPED' && (
+                      <div className="space-y-3">
+                        <Label className="text-xs text-slate-300 flex items-center gap-1.5">
+                          <Type className="h-3.5 w-3.5 text-primary" /> Escolha o modelo visual para a sua assinatura digitada:
+                        </Label>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {MODELOS_ASSINATURA_DIGITADA.map((modelo) => {
+                            const isSelected = modeloSelecionado === modelo.id;
+                            return (
+                              <div
+                                key={modelo.id}
+                                onClick={() => setModeloSelecionado(modelo.id)}
+                                className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                                  isSelected
+                                    ? 'border-purple-500 bg-purple-500/15 shadow-md shadow-purple-500/10 ring-1 ring-purple-500'
+                                    : 'border-white/10 bg-slate-900/80 hover:bg-slate-900 hover:border-white/20'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] font-semibold text-slate-400">
+                                    {modelo.nome}
+                                  </span>
+                                  <div
+                                    className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                                      isSelected
+                                        ? 'border-purple-400 bg-purple-500 text-white'
+                                        : 'border-slate-600 bg-transparent'
+                                    }`}
+                                  >
+                                    {isSelected && <Check className="h-3 w-3" />}
+                                  </div>
+                                </div>
+
+                                {/* Preview da assinatura digitada estilizada */}
+                                <div className="py-2 px-3 rounded-lg bg-white/5 border border-white/5 text-center min-h-[56px] flex items-center justify-center">
+                                  <span
+                                    style={modelo.cssStyle}
+                                    className="text-white tracking-wide select-none"
+                                  >
+                                    {signatarioNome.trim() || 'Assinatura do Contratante'}
+                                  </span>
+                                </div>
+
+                                <p className="text-[10px] text-slate-500 italic">
+                                  {modelo.descricao}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -436,7 +674,7 @@ export function AssinaturaContratoDialog({
                 disabled={loadingContrato}
                 className="bg-gradient-to-r from-primary to-purple-500 text-white font-bold gap-2"
               >
-                <PenTool className="h-4 w-4" /> Ir para Assinatura
+                <PenTool className="h-4 w-4" /> Ir para Assinatura do Contratante
               </Button>
             </div>
           )}
@@ -452,10 +690,10 @@ export function AssinaturaContratoDialog({
               </Button>
               <Button
                 onClick={handleFinalizarAssinatura}
-                disabled={padEmpty || !signatarioNome.trim()}
+                disabled={!signatarioNome.trim() || (modalidade === 'DRAWN' && padEmpty)}
                 className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold gap-2 shadow-lg hover:shadow-emerald-500/20"
               >
-                <ShieldCheck className="h-4 w-4" /> Concluir Assinatura Digital
+                <ShieldCheck className="h-4 w-4" /> Concluir Assinatura Digital do Contratante
               </Button>
             </div>
           )}

@@ -1293,63 +1293,155 @@ export function preencherTemplate(
   return html;
 }
 
-interface ElementoHtml {
+export interface ElementoHtml {
   tag: string;
   text: string;
   isBold: boolean;
   level: number;
+  cells?: string[];
 }
 
-/** Extrai texto estruturado do HTML oficial do template. */
+function decodificarEntidadesHtml(str?: string | null): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&ndash;/g, '–')
+    .replace(/&mdash;/g, '—');
+}
+
+/** Extrai texto estruturado e blocos do HTML oficial do template. */
 export function parseHtmlToElements(html: string): ElementoHtml[] {
   const elements: ElementoHtml[] = [];
-  const tagStack: string[] = [];
-  const fullRegex = /<(\/?)([ a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g;
-  let match: RegExpExecArray | null;
-  let lastIndex = 0;
+  if (!html) return elements;
 
-  while ((match = fullRegex.exec(html)) !== null) {
-    const isClosing = match[1] === '/';
-    const tagName = match[2].toLowerCase();
-    const matchIndex = match.index;
+  // Se estiver em ambiente com DOMParser (navegador ou JSDOM)
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
 
-    if (matchIndex > lastIndex) {
-      const textContent = html.slice(lastIndex, matchIndex).trim();
-      if (textContent) {
-        const cleanText = textContent.replace(/<[^>]+>/g, '').trim();
-        if (cleanText) {
-          const headerTag = tagStack.find((t) => ['h1', 'h2', 'h3', 'h4'].includes(t));
-          elements.push({
-            tag: headerTag || 'p',
-            text: cleanText,
-            isBold: tagStack.includes('strong') || tagStack.includes('b'),
-            level: headerTag ? parseInt(headerTag.charAt(1), 10) : 0,
-          });
+      const percorrerNo = (node: Node) => {
+        if (!node) return;
+
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          const tag = el.tagName.toLowerCase();
+
+          if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
+            const text = decodificarEntidadesHtml(el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (text) {
+              elements.push({
+                tag,
+                text,
+                isBold: true,
+                level: parseInt(tag.charAt(1), 10),
+              });
+            }
+            return;
+          }
+
+          if (tag === 'tr') {
+            const cells: string[] = [];
+            el.querySelectorAll('td, th').forEach((cell) => {
+              const cellText = decodificarEntidadesHtml(cell.textContent || '').replace(/\s+/g, ' ').trim();
+              if (cellText) cells.push(cellText);
+            });
+            if (cells.length > 0) {
+              elements.push({
+                tag: 'tr',
+                text: cells.join(' | '),
+                isBold: false,
+                level: 0,
+                cells,
+              });
+            }
+            return;
+          }
+
+          if (tag === 'p' || tag === 'li') {
+            const text = decodificarEntidadesHtml(el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (text) {
+              const isClause = /^CL[AÁ]USULA\s+\d+/i.test(text) || /^POL[IÍ]TICA DE PRIVACIDADE/i.test(text) || /^GRADE DE HOR[AÁ]RIOS/i.test(text);
+              elements.push({
+                tag: isClause ? 'h4' : tag,
+                text,
+                isBold: isClause,
+                level: isClause ? 4 : 0,
+              });
+            }
+            return;
+          }
+
+          // Para tags de container (div, table, tbody, etc.), percorre os nós filhos
+          for (let i = 0; i < el.childNodes.length; i++) {
+            percorrerNo(el.childNodes[i]);
+          }
         }
-      }
-    }
+      };
 
-    if (isClosing) {
-      const idx = tagStack.lastIndexOf(tagName);
-      if (idx >= 0) tagStack.splice(idx, 1);
-    } else {
-      tagStack.push(tagName);
+      percorrerNo(doc.body);
+      if (elements.length > 0) return elements;
+    } catch {
+      // Fallback para parser regex em caso de exceção no DOMParser
     }
-
-    lastIndex = match.index + match[0].length;
   }
 
-  if (lastIndex < html.length) {
-    const textContent = html.slice(lastIndex).trim();
-    if (textContent) {
-      const cleanText = textContent.replace(/<[^>]+>/g, '').trim();
-      if (cleanText) {
-        const headerTag = tagStack.find((t) => ['h1', 'h2', 'h3', 'h4'].includes(t));
+  // Fallback robusto para SSR / Node.js / Vitest
+  const clean = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(h[1-6]|p|li|tr|div)>/gi, '</$1>\n');
+
+  const blockMatches = clean.match(/<(h[1-6]|p|li|tr)[^>]*>([\s\S]*?)<\/\1>/gi) || [];
+
+  for (const rawBlock of blockMatches) {
+    const matchTag = rawBlock.match(/^<([a-z0-9]+)[^>]*>([\s\S]*?)<\/\1>$/i);
+    if (!matchTag) continue;
+
+    const tag = matchTag[1].toLowerCase();
+    const inner = matchTag[2];
+
+    if (tag === 'tr') {
+      const cellMatches = inner.match(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi) || [];
+      const cells = cellMatches
+        .map((c) => decodificarEntidadesHtml(c.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()))
+        .filter(Boolean);
+
+      if (cells.length > 0) {
         elements.push({
-          tag: headerTag || 'p',
-          text: cleanText,
-          isBold: tagStack.includes('strong') || tagStack.includes('b'),
-          level: headerTag ? parseInt(headerTag.charAt(1), 10) : 0,
+          tag: 'tr',
+          text: cells.join(' | '),
+          isBold: false,
+          level: 0,
+          cells,
+        });
+      }
+    } else if (tag.startsWith('h')) {
+      const text = decodificarEntidadesHtml(inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+      if (text) {
+        elements.push({
+          tag,
+          text,
+          isBold: true,
+          level: parseInt(tag.charAt(1), 10),
+        });
+      }
+    } else if (tag === 'p' || tag === 'li') {
+      const text = decodificarEntidadesHtml(inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+      if (text) {
+        const isClause = /^CL[AÁ]USULA\s+\d+/i.test(text) || /^POL[IÍ]TICA DE PRIVACIDADE/i.test(text) || /^GRADE DE HOR[AÁ]RIOS/i.test(text);
+        elements.push({
+          tag: isClause ? 'h4' : tag,
+          text,
+          isBold: isClause,
+          level: isClause ? 4 : 0,
         });
       }
     }
@@ -1360,44 +1452,123 @@ export function parseHtmlToElements(html: string): ElementoHtml[] {
 
 /**
  * Gera PDF REAL vetorial A4 a partir do texto juridico renderizado.
+ * Preserva cláusulas completas, estrutura, títulos, dados e formatação.
  */
 export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: string, tipoContrato: string, versao: number): Promise<Uint8Array> {
   const elements = parseHtmlToElements(htmlRenderizado);
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageWidth = 595.28;
   const pageHeight = 841.89;
-  const marginX = 64;
-  const marginTop = 96;
-  const marginBottom = 72;
+  const marginX = 48;
+  const marginTop = 48;
+  const marginBottom = 48;
   const maxLineWidth = pageWidth - marginX * 2;
 
   doc.setFont('helvetica', 'normal');
   let y = pageHeight - marginTop;
 
-  const desenharLinha = (text: string, size: number, bold: boolean, color: [number, number, number]) => {
-    const linhas = doc.splitTextToSize(text, maxLineWidth) as string[];
-    for (const linha of linhas) {
-      if (y < marginBottom + 18) {
-        doc.addPage('a4', 'portrait');
-        y = pageHeight - marginTop;
-      }
-      doc.setFont('helvetica', bold ? 'bold' : 'normal');
-      doc.setFontSize(size);
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.text(linha, marginX, y);
-      y -= size * 1.35;
+  const quebrarPaginaSeNecessario = (alturaNecessaria: number) => {
+    if (y - alturaNecessaria < marginBottom) {
+      doc.addPage('a4', 'portrait');
+      y = pageHeight - marginTop;
+      return true;
     }
+    return false;
   };
 
-  desenharLinha('SOBRE MIDIA - PLATAFORMA DIGITAL DE MIDIA', 14, true, [8, 79, 143]);
-  desenharLinha(`Contrato: ${numeroContrato}  |  Tipo: ${tipoContrato}  |  Versao: ${versao}`, 8, false, [102, 102, 102]);
-  y -= 10;
+  // Cabeçalho Institucional da Primeira Página
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.setTextColor(15, 45, 100);
+  doc.text('SOBRE MÍDIA PLATAFORMA DIGITAL DE MÍDIA INDOOR', marginX, y);
+  y -= 13;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Contrato: ${numeroContrato}  |  Tipo: ${tipoContrato}  |  Versão: ${versao}`, marginX, y);
+  y -= 8;
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.5);
+  doc.line(marginX, y, pageWidth - marginX, y);
+  y -= 12;
 
   for (const el of elements) {
-    const isHeader = ['h1', 'h2', 'h3', 'h4'].includes(el.tag);
-    const fontSize = el.tag === 'h1' ? 15 : el.tag === 'h2' ? 13 : el.tag === 'h3' ? 11 : 9.5;
-    desenharLinha(el.text, fontSize, el.isBold || isHeader, isHeader ? [8, 79, 143] : [26, 26, 26]);
-    if (isHeader) y -= 6;
+    if (el.tag.startsWith('h')) {
+      const fontSize = el.level === 1 ? 11 : el.level === 2 ? 10.5 : el.level === 3 ? 10 : 9.5;
+      const lines = doc.splitTextToSize(el.text, maxLineWidth) as string[];
+      quebrarPaginaSeNecessario(lines.length * (fontSize * 1.3) + 8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(15, 45, 100);
+
+      for (const line of lines) {
+        if (y < marginBottom + 14) {
+          doc.addPage('a4', 'portrait');
+          y = pageHeight - marginTop;
+        }
+        doc.text(line, marginX, y);
+        y -= fontSize * 1.3;
+      }
+      y -= 3;
+    } else if (el.tag === 'tr' && el.cells && el.cells.length > 0) {
+      if (el.cells.length === 2) {
+        const colWidth = (maxLineWidth - 16) / 2;
+        const col1Lines = doc.splitTextToSize(el.cells[0], colWidth) as string[];
+        const col2Lines = doc.splitTextToSize(el.cells[1], colWidth) as string[];
+        const maxLines = Math.max(col1Lines.length, col2Lines.length);
+        const rowHeight = maxLines * 10.5 + 2;
+
+        quebrarPaginaSeNecessario(rowHeight);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(35, 35, 35);
+
+        const rowY = y;
+        for (let i = 0; i < col1Lines.length; i++) {
+          doc.text(col1Lines[i], marginX, rowY - (i * 10.5));
+        }
+        for (let i = 0; i < col2Lines.length; i++) {
+          doc.text(col2Lines[i], marginX + colWidth + 16, rowY - (i * 10.5));
+        }
+        y -= rowHeight;
+      } else {
+        const text = el.cells.join(' | ');
+        const lines = doc.splitTextToSize(text, maxLineWidth) as string[];
+        quebrarPaginaSeNecessario(lines.length * 10.5 + 2);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(35, 35, 35);
+
+        for (const line of lines) {
+          if (y < marginBottom + 14) {
+            doc.addPage('a4', 'portrait');
+            y = pageHeight - marginTop;
+          }
+          doc.text(line, marginX, y);
+          y -= 10.5;
+        }
+      }
+    } else {
+      const lines = doc.splitTextToSize(el.text, maxLineWidth) as string[];
+
+      doc.setFont('helvetica', el.isBold ? 'bold' : 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(el.isBold ? 15 : 35, el.isBold ? 45 : 35, el.isBold ? 100 : 35);
+
+      for (const line of lines) {
+        if (y < marginBottom + 14) {
+          doc.addPage('a4', 'portrait');
+          y = pageHeight - marginTop;
+        }
+        doc.text(line, marginX, y);
+        y -= 10.5;
+      }
+      y -= 3;
+    }
   }
 
   const totalPages = doc.getNumberOfPages();
@@ -1405,8 +1576,8 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
     doc.setPage(i);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
-    doc.setTextColor(128, 128, 128);
-    doc.text(`Pagina ${i} de ${totalPages}  |  SOBRE MIDIA DIGITAL SIGNAGE LTDA`, marginX, 28);
+    doc.setTextColor(130, 130, 130);
+    doc.text(`Página ${i} de ${totalPages}  |  SOBRE MÍDIA DIGITAL SIGNAGE LTDA — Documento Oficial de Contrato`, marginX, 24);
   }
 
   return new Uint8Array(doc.output('arraybuffer'));
@@ -1936,11 +2107,49 @@ export async function criarEnvelopeInterno(contratoId: string, usuarioId?: strin
     const pdfBytes = new Uint8Array(await res.arrayBuffer());
     const documentHash = await sha256Hex(pdfBytes);
 
-    const empresa = contrato.empresa;
+    let empresa = contrato.empresa;
+    let cliente: any = null;
+    if (!empresa && contrato.cliente_id) {
+      const { data: cli } = await supabase
+        .from('clientes')
+        .select('*, empresas(*, contatos(*))')
+        .eq('id', contrato.cliente_id)
+        .maybeSingle();
+      cliente = cli;
+      empresa = cli?.empresas?.[0] || null;
+    } else if (contrato.cliente_id) {
+      const { data: cli } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('id', contrato.cliente_id)
+        .maybeSingle();
+      cliente = cli;
+    }
+
     const contatoEmp = empresa?.contatos?.[0];
-    let signatarioNome: string | null = contatoEmp?.nome || empresa?.representante_legal || null;
-    let signatarioEmail: string | null = empresa?.email || null;
-    let signatarioCnpj: string | null = empresa?.cnpj || null;
+    let signatarioNome: string | null =
+      contatoEmp?.nome ||
+      empresa?.representante_legal ||
+      cliente?.representante_legal ||
+      cliente?.contato_nome ||
+      empresa?.nome_fantasia ||
+      empresa?.razao_social ||
+      cliente?.nome_fantasia ||
+      cliente?.razao_social ||
+      null;
+
+    let signatarioEmail: string | null =
+      contatoEmp?.email ||
+      empresa?.email ||
+      cliente?.contato_email ||
+      cliente?.email ||
+      null;
+
+    let signatarioCnpj: string | null =
+      empresa?.cnpj ||
+      cliente?.cnpj ||
+      cliente?.cpf_cnpj ||
+      null;
 
     if (contrato.tipo_contrato === 'PARCEIRO' && contrato.ponto_id && !signatarioNome) {
       const { data: pt } = await supabase
