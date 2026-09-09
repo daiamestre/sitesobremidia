@@ -2259,18 +2259,22 @@ export async function assinarDocumento(
       return { success: false, error: rpcErr?.message || rpcResult?.error || 'Falha ao registrar a assinatura.' };
     }
 
-    await supabase.from('assinatura_eventos').insert({
-      assinatura_id: assinaturaId,
-      evento: 'ASSINADO',
-      detalhes: {
-        method: dadosSignatario.method || 'DRAWN',
-        document_hash: signedHash,
-        ip: ip || null,
-        user_agent: userAgent || null,
-        signatario: dadosSignatario.nome,
-        pdf_assinado_key: signedObjectKey,
-      },
-    });
+    try {
+      await supabase.from('assinatura_eventos').insert({
+        assinatura_id: assinaturaId,
+        evento: 'ASSINADO',
+        detalhes: {
+          method: dadosSignatario.method || 'DRAWN',
+          document_hash: signedHash,
+          ip: ip || null,
+          user_agent: userAgent || null,
+          signatario: dadosSignatario.nome,
+          pdf_assinado_key: signedObjectKey,
+        },
+      });
+    } catch (evtErr) {
+      console.warn('[contratoDocumentoService.assinarDocumento] Evento adicional já persistido na RPC:', evtErr);
+    }
 
     return { success: true, pdfAssinadoKey: signedObjectKey, documentHash: signedHash };
   } catch (err: any) {

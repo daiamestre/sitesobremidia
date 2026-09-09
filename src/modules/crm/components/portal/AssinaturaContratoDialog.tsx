@@ -40,7 +40,7 @@ export function AssinaturaContratoDialog({
   composicao = [],
   onSuccess,
 }: AssinaturaContratoDialogProps) {
-  const { usuario } = useAuth();
+  const { usuario, user } = useAuth();
   const { toast } = useToast();
   const canvasPadRef = useRef<CanvasSignaturePadRef>(null);
 
@@ -70,8 +70,8 @@ export function AssinaturaContratoDialog({
       contratoService.findByContratoId(contratoId).then((data) => {
         setContratoData(data);
         if (data) {
-          setSignatarioNome(data.cliente?.nome || usuario?.nome || '');
-          setSignatarioEmail(usuario?.email || '');
+          setSignatarioNome(data.cliente?.nome || usuario?.nome || user?.user_metadata?.full_name || '');
+          setSignatarioEmail(usuario?.email || user?.email || '');
           setSignatarioCpfCnpj(data.cliente?.cpf_cnpj || '');
           
           if (data.status_documento === 'ASSINADO') {
@@ -84,7 +84,7 @@ export function AssinaturaContratoDialog({
         setLoadingContrato(false);
       });
     }
-  }, [open, contratoId, usuario]);
+  }, [open, contratoId, usuario, user]);
 
   // Manipulador de submissão da assinatura
   const handleFinalizarAssinatura = async () => {
@@ -128,7 +128,7 @@ export function AssinaturaContratoDialog({
     setErrorMessage(null);
 
     try {
-      const usuarioId = usuario?.id;
+      const usuarioId = user?.id || usuario?.id;
       if (!usuarioId) {
         throw new Error('Usuário não autenticado.');
       }

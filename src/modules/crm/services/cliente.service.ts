@@ -154,7 +154,7 @@ export class ClienteService {
       const rpcRes = rpcData as unknown as { success?: boolean; error?: unknown; cliente_id?: string; contrato_id?: string };
       if (!rpcRes.success) {
         const msg = String(rpcRes.error || 'Erro desconhecido na RPC.');
-        if (msg.includes('empresas_cnpj_key') || msg.toLowerCase().includes('duplicate key')) {
+        if (msg.includes('empresas_cnpj_key') || msg.includes('idx_empresas_cnpj_unique_active') || msg.toLowerCase().includes('duplicate key')) {
           return { success: false, error: 'CNPJ já cadastrado para outro cliente (constraint: empresas_cnpj_key). Verifique o número informado.' };
         }
         if (msg.includes('clientes_empresa_operadora_id_fkey')) {
@@ -287,11 +287,14 @@ export class ClienteService {
 
   /**
    * Inativa um cliente comercial preservando histórico (Soft Delete)
+   * e libera o CNPJ em empresas para novos cadastros
    */
   async softDelete(id: string, reason?: string, userId?: string): Promise<{ success: boolean; error?: string }> {
     try {
       const nowIso = new Date().toISOString();
-      const { error } = await supabase
+
+      // 1. Soft-delete em public.clientes
+      const { error: cliErr } = await supabase
         .from('clientes')
         .update({
           status: 'INACTIVE',
@@ -301,7 +304,22 @@ export class ClienteService {
         })
         .eq('id', id);
 
-      if (error) return { success: false, error: error.message };
+      if (cliErr) return { success: false, error: cliErr.message };
+
+      // 2. Soft-delete concomitante em public.empresas para liberar o CNPJ
+      const { error: empErr } = await supabase
+        .from('empresas')
+        .update({
+          deleted_at: nowIso,
+          deleted_by: userId || null,
+          delete_reason: reason || 'Inativado pelo usuário.',
+        })
+        .eq('cliente_id', id);
+
+      if (empErr) {
+        console.warn('[ClienteService.softDelete] Aviso ao marcar deleted_at na empresa:', empErr);
+      }
+
       return { success: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

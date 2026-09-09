@@ -277,7 +277,10 @@ export function IntelligentCommercialWizard() {
           if (resCli.success && resCli.clienteId) {
             clienteId = resCli.clienteId;
             const { data: cliFull } = await supabase.from('clientes').select('*, empresas(*)').eq('id', clienteId).single();
-            if (cliFull) setSelectedCliente(cliFull as any);
+            if (cliFull) {
+              setSelectedCliente(cliFull as any);
+              setIsExistingClientSelected(true);
+            }
           } else {
             toast({
               title: 'Atenção ao gerar minuta',
@@ -507,8 +510,8 @@ if (name === 'cnpj') {
       return;
     }
 
-    // 1. Se for cliente novo, cria no PostgreSQL via RPC atômica
-    if (!isExistingClientSelected || !finalClienteId) {
+    // 1. Se for cliente novo, cria no PostgreSQL via RPC atômica; se já existe (ou gerado na Etapa 5), atualiza
+    if (!finalClienteId) {
       const resCliente = await clienteService.create({
         empresaOperadoraId,
         representanteId: isOwner ? null : (representante?.id ?? null),
@@ -557,13 +560,41 @@ if (name === 'cnpj') {
         entidadeId: resCliente.clienteId,
         acao: 'INSERT',
         statusNovo: formData.status,
-        observacoes: `Cliente criado via Novo Cliente (wizard comercial)${isOwner ? ' â€” OWNER sem representante' : ''}`,
+        observacoes: `Cliente criado via Novo Cliente (wizard comercial)${isOwner ? ' — OWNER sem representante' : ''}`,
         dadosAlterados: {
           nome_fantasia: formData.nomeFantasia,
           razao_social: formData.razaoSocial || formData.nomeFantasia,
           cnpj: normalizarCnpj(formData.cnpj),
           representante_id: representante?.id || null,
         },
+      });
+    } else {
+      // Atualiza os dados do cliente se já foi criado na Etapa 5 ou selecionado na busca
+      await clienteService.update(finalClienteId, {
+        empresaOperadoraId,
+        representanteId: isOwner ? null : (representante?.id ?? null),
+        status: formData.status,
+        razaoSocial: formData.razaoSocial || formData.nomeFantasia,
+        nomeFantasia: formData.nomeFantasia,
+        cnpj: normalizarCnpj(formData.cnpj),
+        segmento: formData.segmento,
+        telefone: formData.telefone.replace(/\D/g, ''),
+        whatsapp: formData.whatsapp.replace(/\D/g, ''),
+        email: formData.email,
+        cep: normalizarCep(formData.cep),
+        logradouro: formData.logradouro,
+        numero: formData.numero,
+        complemento: formData.complemento,
+        bairro: formData.bairro,
+        cidade: formData.cidade,
+        estado: formData.estado.toUpperCase(),
+        representanteLegal: formData.representanteLegal,
+        cargoRepresentante: formData.cargoRepresentante,
+        observacoes: formData.observacoes,
+        contatoNome: formData.contatoNome,
+        contatoCargo: formData.contatoCargo,
+        contatoEmail: formData.contatoEmail,
+        contatoTelefone: formData.contatoTelefone.replace(/\D/g, ''),
       });
     }
 
