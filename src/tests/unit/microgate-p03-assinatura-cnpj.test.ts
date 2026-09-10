@@ -37,27 +37,31 @@ describe('MICRO-GATE P0.3 — Assinatura do Cliente + Reutilização de CNPJ ap�
   });
 
   describe('PROBLEMA B — Unicidade e Reutilização de CNPJ', () => {
-    it('deve bloquear CNPJ duplicado ativo retornando mensagem clara', async () => {
+    it('deve permitir cadastro com CNPJ existente retornando sucesso e novo contrato', async () => {
       vi.mocked(supabase.rpc).mockResolvedValue({
         data: {
-          success: false,
-          error: 'duplicate key value violates unique constraint "idx_empresas_cnpj_unique_active"',
+          success: true,
+          cliente_id: 'cli-001',
+          empresa_id: 'emp-001',
+          contrato_id: 'ctr-002',
+          empresa_reutilizada: true,
         },
         error: null,
       } as any);
 
       const res = await clienteService.create({
         empresaOperadoraId: 'op-tenant-001',
-        nomeFantasia: 'Empresa Duplicada',
+        nomeFantasia: 'Empresa com CNPJ Existente',
         cnpj: '12.345.678/0001-90',
-        email: 'dup@empresa.com.br',
+        email: 'novo@empresa.com.br',
         whatsapp: '81999990000',
         cidade: 'Caruaru',
         estado: 'PE',
       });
 
-      expect(res.success).toBe(false);
-      expect(res.error).toContain('CNPJ já cadastrado para outro cliente');
+      expect(res.success).toBe(true);
+      expect(res.clienteId).toBe('cli-001');
+      expect(res.contratoId).toBe('ctr-002');
     });
 
     it('deve cascatear o soft-delete para clientes e empresas', async () => {

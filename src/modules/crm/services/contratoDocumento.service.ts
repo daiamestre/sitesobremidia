@@ -1734,29 +1734,27 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
 
   // Se template não estiver vinculado ou se o HTML for stub, busca o template oficial rico ativo via resolver canônico
   if (!template?.conteudo_html || template.conteudo_html.length < 200 || template.conteudo_html.includes('(preservado)') || !isTemplateCompleto(template.conteudo_html, tipoContrato)) {
-    if (contrato.empresa_operadora_id) {
-      try {
-        const { data: rpcTpls, error: rpcErr } = await supabase.rpc('fn_obter_template_padrao', {
-          p_empresa_operadora_id: contrato.empresa_operadora_id,
-          p_tipo_contrato: tipoContrato,
-        });
-        if (!rpcErr && rpcTpls && (rpcTpls as any).length > 0) {
-          const rpcTpl = (rpcTpls as any)[0];
-          if (rpcTpl && rpcTpl.conteudo_html && isTemplateCompleto(rpcTpl.conteudo_html, tipoContrato)) {
-            template = {
-              id: rpcTpl.id,
-              nome: rpcTpl.nome,
-              codigo_template: rpcTpl.codigo_template,
-              versao: rpcTpl.versao,
-              conteudo_html: rpcTpl.conteudo_html,
-              tipo_contrato: tipoContrato,
-              ativo: true,
-            };
-          }
+    try {
+      const { data: rpcTpls, error: rpcErr } = await supabase.rpc('fn_obter_template_padrao', {
+        p_empresa_operadora_id: contrato.empresa_operadora_id || null,
+        p_tipo_contrato: tipoContrato,
+      });
+      if (!rpcErr && rpcTpls && (rpcTpls as any).length > 0) {
+        const rpcTpl = (rpcTpls as any)[0];
+        if (rpcTpl && rpcTpl.conteudo_html && isTemplateCompleto(rpcTpl.conteudo_html, tipoContrato)) {
+          template = {
+            id: rpcTpl.id,
+            nome: rpcTpl.nome,
+            codigo_template: rpcTpl.codigo_template,
+            versao: rpcTpl.versao,
+            conteudo_html: rpcTpl.conteudo_html,
+            tipo_contrato: tipoContrato,
+            ativo: true,
+          };
         }
-      } catch (errPadrao) {
-        console.warn('[coletarDadosReais] Fallback no resolver RPC:', errPadrao);
       }
+    } catch (errPadrao) {
+      console.warn('[coletarDadosReais] Fallback no resolver RPC:', errPadrao);
     }
 
     if (!template?.conteudo_html || !isTemplateCompleto(template.conteudo_html, tipoContrato)) {

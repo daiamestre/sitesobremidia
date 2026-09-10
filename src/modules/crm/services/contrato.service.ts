@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { contratoDocumentoService } from './contratoDocumento.service';
+import { contratoDocumentoService, isTemplateCompleto, getCanonicalTemplateForTipo } from './contratoDocumento.service';
 import { resolveContractTypeFromCadastroType } from './contractResolver.service';
 
 export interface ContratoTemplateRecord {
@@ -617,18 +617,19 @@ export class ContratoService {
 
     // 3. Resolver template padrão canônico (via fn_obter_template_padrao ou query de default ativo)
     let tpl: any = null;
-    if (tenantId) {
-      try {
-        const { data: rpcTpl, error: rpcErr } = await supabase.rpc('fn_obter_template_padrao', {
-          p_empresa_operadora_id: tenantId,
-          p_tipo_contrato: tipo,
-        });
-        if (!rpcErr && rpcTpl && (rpcTpl as any).length > 0) {
-          tpl = (rpcTpl as any)[0];
+    try {
+      const { data: rpcTpl, error: rpcErr } = await supabase.rpc('fn_obter_template_padrao', {
+        p_empresa_operadora_id: tenantId || null,
+        p_tipo_contrato: tipo,
+      });
+      if (!rpcErr && rpcTpl && (rpcTpl as any).length > 0) {
+        const candidate = (rpcTpl as any)[0];
+        if (candidate && candidate.conteudo_html && isTemplateCompleto(candidate.conteudo_html, tipo)) {
+          tpl = candidate;
         }
-      } catch (errTpl) {
-        console.warn('[ensureContractForCadastro] Fallback no resolver RPC:', errTpl);
       }
+    } catch (errTpl) {
+      console.warn('[ensureContractForCadastro] Fallback no resolver RPC:', errTpl);
     }
 
     if (!tpl) {
@@ -640,7 +641,9 @@ export class ContratoService {
         .order('is_default', { ascending: false })
         .order('versao', { ascending: false });
 
-      tpl = activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) || activeTpls?.[0];
+      tpl = activeTpls?.find((t) => t.is_default && t.conteudo_html && isTemplateCompleto(t.conteudo_html, tipo)) ||
+            activeTpls?.find((t) => t.conteudo_html && isTemplateCompleto(t.conteudo_html, tipo)) ||
+            activeTpls?.[0];
     }
 
     if (!tpl || !tpl.id || typeof tpl.id !== 'string' || tpl.id.trim() === '') {

@@ -52,6 +52,10 @@ export default function ContratoSelectionPage() {
 
   const [ponto, setPonto] = useState<any>(null);
 
+  // P0.3.5 — Preview canônico: idêntico ao PDF gerado (fonte única de verdade)
+  const [canonicalHtml, setCanonicalHtml] = useState<string>('');
+  const [loadingCanonical, setLoadingCanonical] = useState(false);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     const tplList = await contratoService.fetchTemplates();
@@ -171,6 +175,27 @@ export default function ContratoSelectionPage() {
     loadData();
   }, [loadData]);
 
+  // P0.3.5 — Carrega HTML canônico sempre que o contrato existente mudar.
+  // Usa obterHtmlContratoPorContratoId → coletarDadosReais → montarDadosTemplate → preencherTemplate
+  // Mesma cadeia usada por gerarDocumentoContrato e AssinaturaContratoDialog.
+  useEffect(() => {
+    if (!contratoExistente?.id) {
+      setCanonicalHtml('');
+      return;
+    }
+    setLoadingCanonical(true);
+    contratoDocumentoService
+      .obterHtmlContratoPorContratoId(contratoExistente.id)
+      .then((html) => {
+        setCanonicalHtml(html);
+      })
+      .catch((err) => {
+        console.warn('[ContratoSelectionPage] Falha ao carregar HTML canônico, usando fallback local:', err);
+        setCanonicalHtml('');
+      })
+      .finally(() => setLoadingCanonical(false));
+  }, [contratoExistente?.id]);
+
   const handleSelectModel = async (tpl: ContratoTemplateRecord) => {
     if (!user) return;
     setSelectingType(tpl.tipo_contrato);
@@ -210,127 +235,57 @@ export default function ContratoSelectionPage() {
 
   const renderFilledContractHTML = () => {
     if (!selectedTemplate) return '';
-    const tipoContrato = contratoExistente?.tipo_contrato || selectedTemplate.tipo_contrato;
-    const isParceiro = tipoContrato === 'PARCEIRO';
+    const tipoContrato = (contratoExistente?.tipo_contrato || selectedTemplate.tipo_contrato || 'ANUNCIANTE') as 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR';
 
     if (!proposta && !cliente && !contratoExistente && !ponto) {
       return '<div style="padding:16px;text-align:center;color:#94a3b8">Preview oficial disponivel via PDF.</div>';
     }
 
-    const quantidadeTelasReal = quantidadeTelas > 0 ? String(quantidadeTelas) : '';
-    let tituloCampanha = '';
-    if (proposta) {
-      if (proposta.titulo_campanha) tituloCampanha = proposta.titulo_campanha;
-      else if (proposta.observacoes) {
-        const m = proposta.observacoes.match(/\[Campanha:\s*(.+?)\]/);
-        tituloCampanha = m?.[1] || '';
-      }
-    }
+    const emp = cliente?.empresas?.[0];
+    const ct = emp?.contatos?.[0];
 
-    const dataInicio = contratoExistente?.data_inicio
-      ? new Date(contratoExistente.data_inicio).toLocaleDateString('pt-BR')
-      : new Date().toLocaleDateString('pt-BR');
-    const dataFim = contratoExistente?.data_fim
-      ? new Date(contratoExistente.data_fim).toLocaleDateString('pt-BR')
-      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR');
+    const formMock: Record<string, any> = {
+      razaoSocial: emp?.razao_social || emp?.nome_fantasia || ponto?.nome || ponto?.razao_social || '',
+      nomeFantasia: emp?.nome_fantasia || emp?.razao_social || ponto?.nome_fantasia || ponto?.nome || '',
+      cnpj: emp?.cnpj || ponto?.cnpj || '',
+      responsavel: ct?.nome || emp?.representante_legal || ponto?.responsavel_nome || ponto?.representante_legal || '',
+      logradouro: emp?.logradouro || ponto?.logradouro || ponto?.endereco || '',
+      numero: emp?.numero || ponto?.numero || '',
+      bairro: emp?.bairro || ponto?.bairro || '',
+      cidade: emp?.cidade || ponto?.cidade || 'Caruaru',
+      estado: emp?.estado || ponto?.estado || 'PE',
+      cep: emp?.cep || ponto?.cep || '',
+      telefone: emp?.telefone || ct?.telefone || ponto?.responsavel_telefone || ponto?.telefone || '',
+      whatsapp: emp?.whatsapp || ponto?.whatsapp || '',
+      email: emp?.email || ct?.email || ponto?.responsavel_email || ponto?.email || '',
+      instagram: emp?.instagram || ponto?.instagram || '',
+      website: emp?.website || emp?.site || ponto?.website || '',
+      diasSemana: ponto?.dias_funcionamento || proposta?.dias_semana || 'Segunda a Sábado',
+      horarioInicio: ponto?.horario_abertura || proposta?.horario_inicio || '08:00',
+      horarioFim: ponto?.horario_fechamento || proposta?.horario_fim || '22:00',
+      tituloCampanha: proposta?.titulo_campanha || (emp?.nome_fantasia ? `Campanha ${emp.nome_fantasia}` : 'Campanha de Mídia Indoor'),
+      pacoteVeiculacao: proposta?.pacote_veiculacao || proposta?.plano || 'Mídia Indoor Exclusiva',
+      periodoVeiculacao: proposta?.periodo_veiculacao || (contratoExistente?.data_inicio && contratoExistente?.data_fim ? `De ${new Date(contratoExistente.data_inicio).toLocaleDateString('pt-BR')} a ${new Date(contratoExistente.data_fim).toLocaleDateString('pt-BR')}` : '12 meses'),
+      valorMensal: Number(contratoExistente?.valor_mensal) || Number(proposta?.valor_final) || Number(proposta?.valor_total) || 0,
+      formaPagamento: contratoExistente?.forma_pagamento || proposta?.forma_pagamento || 'PIX',
+      quantidadeTelas: quantidadeTelas > 0 ? quantidadeTelas : (proposta?.quantidade_telas ? Number(proposta.quantidade_telas) : 1),
+      dataInicio: contratoExistente?.data_inicio ? new Date(contratoExistente.data_inicio).toISOString() : new Date().toISOString(),
+      dataFim: contratoExistente?.data_fim ? new Date(contratoExistente.data_fim).toISOString() : new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
+      numeroContrato: contratoExistente?.numero_contrato || 'CTR-NOVO',
+      versao: contratoExistente?.versao_atual || 1,
+    };
 
-    let dados: Record<string, string>;
-
-    if (isParceiro && ponto) {
-      // ORIGEM C: PONTO PARCEIRO — usa dados do ponto como fonte primária
-      const enderecoPonto = [
-        [ponto.logradouro || ponto.endereco, ponto.numero].filter(Boolean).join(', '),
-        ponto.bairro,
-        [ponto.cidade, ponto.estado].filter(Boolean).join('/'),
-      ].filter(Boolean).join(' - ');
-
-      dados = {
-        RAZAO_SOCIAL: ponto.nome || ponto.razao_social || ponto.nome_fantasia || '',
-        NOME_FANTASIA: ponto.nome_fantasia || ponto.nome || '',
-        CNPJ: ponto.cnpj || '',
-        CPF_CNPJ: ponto.cnpj || '',
-        RESPONSAVEL: ponto.responsavel_nome || ponto.representante_legal || '',
-        REPRESENTANTE_LEGAL: ponto.responsavel_nome || ponto.representante_legal || '',
-        LOGRADOURO: ponto.logradouro || ponto.endereco || '',
-        NUMERO: ponto.numero || '',
-        BAIRRO: ponto.bairro || '',
-        CIDADE: ponto.cidade || '',
-        ESTADO: ponto.estado || '',
-        UF: ponto.estado || '',
-        CEP: ponto.cep || '',
-        TELEFONE: ponto.responsavel_telefone || ponto.telefone || '',
-        WHATSAPP: ponto.whatsapp || ponto.responsavel_telefone || '',
-        EMAIL: ponto.responsavel_email || ponto.email || '',
-        INSTAGRAM: ponto.instagram || '',
-        ENDERECO_UNIDADE: enderecoPonto,
-        NOME_UNIDADE: ponto.nome_fantasia || ponto.nome || '',
-        HORARIO_INICIO: ponto.horario_abertura || '',
-        HORARIO_FIM: ponto.horario_fechamento || '',
-        DIAS_SEMANA: ponto.dias_funcionamento || '',
-        FORO_COMARCA: ponto.cidade || '',
-        LOCAL_ASSINATURA: ponto.cidade || '',
-        DATA_INICIO: dataInicio,
-        DATA_FIM: dataFim,
-        DATA_ASSINATURA: new Date().toLocaleDateString('pt-BR'),
-        QUANTIDADE_TELAS: quantidadeTelasReal,
-        ASSINATURA_SOBRE_MIDIA: '',
-        ASSINATURA_PARCEIRO: '',
-      };
-    } else {
-      // ORIGEM A/B: ANUNCIANTE — usa dados de empresa/contato/proposta
-      const emp = cliente?.empresas?.[0];
-      const ct = emp?.contatos?.[0];
-      const enderecoUnidade = (emp?.logradouro && emp?.numero)
-        ? `${emp.logradouro}, ${emp.numero}`
-        : (emp?.logradouro || '');
-
-      dados = {
-        RAZAO_SOCIAL: emp?.razao_social || emp?.nome_fantasia || '',
-        NOME_FANTASIA: emp?.nome_fantasia || emp?.razao_social || '',
-        CNPJ: emp?.cnpj || '',
-        CPF_CNPJ: emp?.cnpj || '',
-        CIDADE: emp?.cidade || '',
-        ESTADO: emp?.estado || '',
-        UF: emp?.estado || '',
-        CEP: emp?.cep || '',
-        LOGRADOURO: emp?.logradouro || '',
-        NUMERO: emp?.numero || '',
-        BAIRRO: emp?.bairro || '',
-        RESPONSAVEL: ct?.nome || emp?.representante_legal || '',
-        REPRESENTANTE_LEGAL: ct?.nome || emp?.representante_legal || '',
-        TELEFONE: emp?.telefone || ct?.telefone || '',
-        EMAIL: emp?.email || ct?.email || '',
-        INSTAGRAM: emp?.instagram || '',
-        WEBSITE: emp?.website || emp?.site || '',
-        TITULO_CAMPANHA: tituloCampanha,
-        QUANTIDADE_TELAS: quantidadeTelasReal,
-        TOTAL_SISTEMAS: quantidadeTelasReal,
-        VALOR_MENSAL: new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(Number(proposta?.valor_final || contratoExistente?.valor_mensal || 0)),
-        FORMA_PAGAMENTO: proposta?.forma_pagamento || contratoExistente?.forma_pagamento || '',
-        DATA_INICIO: dataInicio,
-        DATA_FIM: dataFim,
-        DATA_INICIO_VEICULACAO: dataInicio,
-        DATA_FIM_VEICULACAO: dataFim,
-        DATA_ASSINATURA: new Date().toLocaleDateString('pt-BR'),
-        LOCAL_ASSINATURA: emp?.cidade || '',
-        ENDERECO_UNIDADE: enderecoUnidade,
-        NOME_UNIDADE: emp?.nome_fantasia || emp?.razao_social || '',
-        NUMERO_PARCELAS: proposta?.numero_parcelas ? String(proposta.numero_parcelas) : '',
-        ASSINATURA_SOBRE_MIDIA: '',
-        ASSINATURA_CONTRATANTE: '',
-      };
-    }
-
-    let html = selectedTemplate.conteudo_html;
-    if (!html || html.length < 200 || html.includes('(preservado)') || !isTemplateCompleto(html, selectedTemplate.tipo_contrato)) {
-      html = getCanonicalTemplateForTipo(selectedTemplate.tipo_contrato);
-    }
-    Object.entries(dados).forEach(([key, value]) => {
-      html = html.replace(new RegExp(`{{${key}}}`, 'g'), value);
-    });
-    // Substituir qualquer placeholder residual por vazio (campos opcionais)
-    html = html.replace(/\{\{[A-Z_0-9]+\}\}/g, '');
-    return html;
+    return contratoDocumentoService.renderizarPreviewContrato(
+      tipoContrato,
+      selectedTemplate.conteudo_html,
+      formMock,
+      contratoExistente?.status_documento === 'ASSINADO'
+        ? {
+            signatarioNome: contratoExistente?.assinado_por || formMock.responsavel || formMock.razaoSocial,
+            dataAssinatura: contratoExistente?.documento_assinado_em ? new Date(contratoExistente.documento_assinado_em).toLocaleDateString('pt-BR') : undefined,
+          }
+        : null
+    );
   };
 
 
@@ -614,7 +569,7 @@ export default function ContratoSelectionPage() {
                 Pre-visualizacao do Contrato ({selectedTemplate.nome})
               </CardTitle>
               <CardDescription className="text-slate-400 text-xs">
-                Texto juridico preenchido automaticamente com dados reais do banco.
+                Texto jurídico preenchido com dados reais do banco — idêntico ao PDF oficial gerado.
                 {hasPDFGenerated && contratoExistente?.pdf_object_key && (
                   <span className="ml-2 text-emerald-400">Documento PDF ja gerado no storage</span>
                 )}
@@ -623,10 +578,20 @@ export default function ContratoSelectionPage() {
             <Badge className="bg-primary/20 text-primary border-primary/30">Status: {docStatus}</Badge>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
-            <div
-              className="p-6 rounded-xl bg-slate-950/90 border border-white/10 text-slate-200 text-sm leading-relaxed max-h-[400px] overflow-y-auto shadow-inner"
-              dangerouslySetInnerHTML={{ __html: renderFilledContractHTML() }}
-            />
+            {/* P0.3.5 — Preview canônico: idêntico ao PDF que será gerado */}
+            {loadingCanonical ? (
+              <div className="p-6 rounded-xl bg-slate-950/90 border border-white/10 flex items-center justify-center min-h-[200px] gap-3 text-slate-400">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm">Carregando pré-visualização oficial...</span>
+              </div>
+            ) : (
+              <div
+                className="p-6 rounded-xl bg-slate-950/90 border border-white/10 text-slate-200 text-sm leading-relaxed max-h-[400px] overflow-y-auto shadow-inner"
+                dangerouslySetInnerHTML={{
+                  __html: canonicalHtml || renderFilledContractHTML()
+                }}
+              />
+            )}
             <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={() => { setMode('SELECTION'); setDownloadUrl(null); }} className="border-slate-700 text-slate-300 rounded-xl text-xs gap-1.5">

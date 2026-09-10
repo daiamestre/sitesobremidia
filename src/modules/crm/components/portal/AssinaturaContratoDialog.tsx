@@ -156,6 +156,7 @@ export function AssinaturaContratoDialog({
   const [signatarioEmail, setSignatarioEmail] = useState('');
   const [padEmpty, setPadEmpty] = useState(true);
   const [dadosAssinaturaRealizados, setDadosAssinaturaRealizados] = useState<DadosAssinaturaFinal | null>(null);
+  const [htmlPreview, setHtmlPreview] = useState<string>('');
 
   // Total da composição comercial
   const totalMensalComposicao = composicao.reduce((acc, item) => acc + (item.subtotal || 0), 0);
@@ -219,6 +220,12 @@ export function AssinaturaContratoDialog({
       }).catch((err) => {
         console.error('[AssinaturaContratoDialog] Erro ao carregar contrato:', err);
         setLoadingContrato(false);
+      });
+
+      contratoDocumentoService.obterHtmlContratoPorContratoId(contratoId).then((html) => {
+        setHtmlPreview(html);
+      }).catch((err) => {
+        console.warn('[AssinaturaContratoDialog] Falha ao renderizar HTML oficial:', err);
       });
     }
   }, [open, contratoId, signatarioSugerido]);
@@ -527,11 +534,11 @@ export function AssinaturaContratoDialog({
                   )}
                 </div>
 
-                {/* DOCUMENTO OFICIAL DE ANUNCIANTE */}
+                {/* DOCUMENTO OFICIAL DE CONTRATO */}
                 <div className="p-4 rounded-xl bg-slate-900 border border-white/10 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      <FileText className="h-4 w-4 text-purple-400" /> Documento Oficial de Contrato
+                      <FileText className="h-4 w-4 text-purple-400" /> Documento Oficial de Contrato (TPL-ANUNCIANTE-OFICIAL)
                     </span>
                     <a
                       href={officialPdf.publicPath}
@@ -542,17 +549,25 @@ export function AssinaturaContratoDialog({
                       Abrir PDF Oficial
                     </a>
                   </div>
-                  <div className="p-3 rounded-lg bg-slate-950 border border-white/5 text-xs text-slate-300 font-mono max-h-36 overflow-y-auto leading-relaxed">
-                    <p className="font-bold text-slate-200 mb-1">CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE MÍDIA DIGITAL SIGNAGE</p>
-                    <p className="text-slate-400">
-                      Pelo presente instrumento particular, a SOBRE MÍDIA PLATAFORMA DIGITAL e a CONTRATANTE celebram o presente contrato para exibição publicitária na rede de displays.
-                    </p>
-                    <p className="mt-2 text-slate-400">
-                      Objeto: Prestação de serviços de veiculação em pontos de mídia indoor corporativa.
-                      Forma de Pagamento: {contratoData?.forma_pagamento || 'BOLETO/PIX'}.
-                      Vigência: {contratoData?.data_inicio ? new Date(contratoData.data_inicio).toLocaleDateString('pt-BR') : 'Data de Assinatura'} a {contratoData?.data_fim ? new Date(contratoData.data_fim).toLocaleDateString('pt-BR') : '12 meses'}.
-                    </p>
-                  </div>
+                  {htmlPreview ? (
+                    <div className="p-4 rounded-lg bg-white text-slate-900 border border-white/5 text-xs max-h-56 overflow-y-auto leading-relaxed shadow-inner">
+                      <div
+                        className="contract-document-render font-sans text-xs leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: htmlPreview }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-slate-950 border border-white/5 text-xs text-slate-300 font-mono max-h-36 overflow-y-auto leading-relaxed">
+                      <p className="font-bold text-slate-200 mb-1">CONTRATO DE SERVIÇO E VEICULAÇÃO DE PUBLICIDADE POR MEIO DIGITAL EM MÍDIA INDOOR – SOBRE MÍDIA DESIGNER</p>
+                      <p className="text-slate-400">
+                        Pelo presente instrumento particular, a SOBRE MÍDIA DESIGNER e o CONTRATANTE celebram o presente contrato para veiculação de publicidade em mídia digital indoor.
+                      </p>
+                      <p className="mt-2 text-slate-400">
+                        Vigência: {contratoData?.data_inicio ? new Date(contratoData.data_inicio).toLocaleDateString('pt-BR') : 'Data de Assinatura'} a {contratoData?.data_fim ? new Date(contratoData.data_fim).toLocaleDateString('pt-BR') : '12 meses'}.
+                        Forma de Pagamento: {contratoData?.forma_pagamento || 'PIX'}.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* ETAPA DE ASSINATURA COM DUAS MODALIDADES */}
