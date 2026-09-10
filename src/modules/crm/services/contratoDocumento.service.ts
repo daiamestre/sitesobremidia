@@ -37,6 +37,10 @@ const FORMATO_MOEDA = new Intl.NumberFormat('pt-BR', { style: 'currency', curren
 
 export function formatarData(iso?: string | null): string {
   if (!iso) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -1106,8 +1110,8 @@ export async function obterTemplatePadraoVigente(
         .order('is_default', { ascending: false })
         .order('versao', { ascending: false });
 
-      tpl = activeTpls?.find((t) => t.is_default && t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) ||
-            activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)')) ||
+      tpl = activeTpls?.find((t) => t.is_default && t.conteudo_html && isTemplateCompleto(t.conteudo_html, tipoNorm)) ||
+            activeTpls?.find((t) => t.conteudo_html && isTemplateCompleto(t.conteudo_html, tipoNorm)) ||
             activeTpls?.[0];
     } catch (err) {
       console.warn('[obterTemplatePadraoVigente] Falha na consulta de contrato_templates:', err);
@@ -1117,7 +1121,7 @@ export async function obterTemplatePadraoVigente(
   const defaultCanonicalHtml = getCanonicalTemplateForTipo(tipoNorm);
 
   const conteudoHtmlFinal =
-    tpl?.conteudo_html && tpl.conteudo_html.length > 200 && !tpl.conteudo_html.includes('(preservado)')
+    tpl?.conteudo_html && isTemplateCompleto(tpl.conteudo_html, tipoNorm)
       ? tpl.conteudo_html
       : defaultCanonicalHtml;
 
@@ -1341,6 +1345,15 @@ export function preencherTemplate(
   }
 
   let html = templateHtml;
+
+  // Prevenção do vício visual de duplicidade de moeda 'R$ R$' em templates que possuem 'R$ {{VALOR_MENSAL}}'
+  const placeholdersMonetarios = ['VALOR_MENSAL', 'VALOR_A_VISTA', 'DESCONTO', 'ENTRADA', 'VALOR_POR_SISTEMA'];
+  for (const ph of placeholdersMonetarios) {
+    if (dados[ph] && typeof dados[ph] === 'string' && dados[ph].startsWith('R$')) {
+      html = html.replace(new RegExp(`R\\$\\s*\\{\\{${ph}\\}\\}`, 'g'), `{{${ph}}}`);
+    }
+  }
+
   const obrigatorios = CAMPOS_OBRIGATORIOS[tipoContrato] || CAMPOS_OBRIGATORIOS.ANUNCIANTE;
 
   for (const ph of validacao.placeholdersValidos) {
@@ -1558,7 +1571,7 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10.5);
   doc.setTextColor(15, 45, 100);
-  doc.text('SOBRE MÍDIA PLATAFORMA DIGITAL DE MÍDIA INDOOR', marginX, y);
+  doc.text('SOBRE MÍDIA DESIGNER', marginX, y);
   y -= 13;
 
   doc.setFont('helvetica', 'normal');
@@ -1655,7 +1668,7 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(130, 130, 130);
-    doc.text(`Página ${i} de ${totalPages}  |  SOBRE MÍDIA DIGITAL SIGNAGE LTDA — Documento Oficial de Contrato`, marginX, 24);
+    doc.text(`Página ${i} de ${totalPages}  |  SOBRE MÍDIA DESIGNER — Documento Oficial de Contrato`, marginX, 24);
   }
 
   return new Uint8Array(doc.output('arraybuffer'));
@@ -1720,7 +1733,7 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
   }
 
   // Se template não estiver vinculado ou se o HTML for stub, busca o template oficial rico ativo via resolver canônico
-  if (!template?.conteudo_html || template.conteudo_html.length < 200 || template.conteudo_html.includes('(preservado)')) {
+  if (!template?.conteudo_html || template.conteudo_html.length < 200 || template.conteudo_html.includes('(preservado)') || !isTemplateCompleto(template.conteudo_html, tipoContrato)) {
     if (contrato.empresa_operadora_id) {
       try {
         const { data: rpcTpls, error: rpcErr } = await supabase.rpc('fn_obter_template_padrao', {
@@ -1729,7 +1742,7 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
         });
         if (!rpcErr && rpcTpls && (rpcTpls as any).length > 0) {
           const rpcTpl = (rpcTpls as any)[0];
-          if (rpcTpl && rpcTpl.conteudo_html && rpcTpl.conteudo_html.length > 200) {
+          if (rpcTpl && rpcTpl.conteudo_html && isTemplateCompleto(rpcTpl.conteudo_html, tipoContrato)) {
             template = {
               id: rpcTpl.id,
               nome: rpcTpl.nome,
@@ -1746,7 +1759,7 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
       }
     }
 
-    if (!template?.conteudo_html || template.conteudo_html.length < 200) {
+    if (!template?.conteudo_html || !isTemplateCompleto(template.conteudo_html, tipoContrato)) {
       const { data: activeTpls } = await supabase
         .from('contrato_templates')
         .select('*')
@@ -1755,7 +1768,7 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
         .order('is_default', { ascending: false })
         .order('versao', { ascending: false });
 
-      const bestTpl = activeTpls?.find((t) => t.conteudo_html && t.conteudo_html.length > 200 && !t.conteudo_html.includes('(preservado)'));
+      const bestTpl = activeTpls?.find((t) => t.conteudo_html && isTemplateCompleto(t.conteudo_html, tipoContrato));
       if (bestTpl) {
         template = bestTpl;
       } else {
@@ -1765,11 +1778,7 @@ export async function coletarDadosReais(contratoId: string): Promise<DadosDocume
           tipo_contrato: tipoContrato,
           versao: template?.versao || 1,
           ativo: true,
-          conteudo_html: tipoContrato === 'PARCEIRO'
-            ? CANONICAL_TEMPLATE_HTML_PARCEIRO
-            : tipoContrato === 'GESTOR'
-            ? CANONICAL_TEMPLATE_HTML_GESTOR
-            : CANONICAL_TEMPLATE_HTML_ANUNCIANTE,
+          conteudo_html: getCanonicalTemplateForTipo(tipoContrato),
           pdf_anexo_key: template?.pdf_anexo_key || null,
         };
       }
@@ -1934,6 +1943,34 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
     diasSemana    = ponto?.dias_funcionamento || proposta?.dias_semana || '';
   }
 
+  // Sanitização rigorosa: o signatário/responsável do CONTRATANTE NUNCA pode ser usuário administrativo da SOBRE MÍDIA
+  if (/sobre\s*m[íi]dia|admin|operador|sistema|administrador/i.test(responsavel)) {
+    responsavel = contato?.nome || empresa?.representante_legal || '';
+    if (/sobre\s*m[íi]dia|admin|operador|sistema|administrador/i.test(responsavel)) {
+      responsavel = razaoSocial || 'Representante Legal';
+    }
+  }
+  if (!responsavel) {
+    responsavel = razaoSocial || '—';
+  }
+
+  // Padrões operacionais canônicos para prevenir campos fragmentados ou vazios na grade comercial
+  if (!horarioInicio) horarioInicio = '08:00';
+  if (!horarioFim) horarioFim = '22:00';
+  if (!diasSemana) diasSemana = 'Segunda a Sábado';
+
+  const valorMensalNum = Number(contrato?.valor_mensal) || Number(proposta?.valor_final) || Number(proposta?.valor_total) || 0;
+  const valorMensalFmt = valorMensalNum > 0 ? FORMATO_MOEDA.format(valorMensalNum) : (contrato?.valor_mensal !== undefined && contrato?.valor_mensal !== null ? FORMATO_MOEDA.format(Number(contrato.valor_mensal)) : 'R$ 0,00');
+
+  const valorAVistaNum = Number(proposta?.valor_final) || Number(proposta?.valor_total) || valorMensalNum;
+  const valorAVistaFmt = valorAVistaNum > 0 ? FORMATO_MOEDA.format(valorAVistaNum) : valorMensalFmt;
+
+  const periodoVeiculacao = proposta?.periodo_veiculacao || (contrato?.data_inicio && contrato?.data_fim ? `De ${formatarData(contrato.data_inicio)} a ${formatarData(contrato.data_fim)}` : '12 meses');
+  const pacoteVeiculacao = proposta?.pacote_veiculacao || proposta?.plano || 'Mídia Indoor Exclusiva';
+  const tituloCampanha = proposta?.titulo_campanha || (nomeFantasia ? `Campanha ${nomeFantasia}` : 'Campanha de Mídia Indoor');
+  const formaPagamento = contrato?.forma_pagamento || proposta?.forma_pagamento || 'PIX';
+  const qtdTelasStr = dados.quantidadeTelas > 0 ? String(dados.quantidadeTelas) : (proposta?.quantidade_telas ? String(proposta.quantidade_telas) : '1');
+
   const enderecoUnidade = [
     [logradouro, numero].filter(Boolean).join(', '),
     bairro,
@@ -1955,11 +1992,11 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
     LOGRADOURO:          logradouro,
     NUMERO:              numero,
     BAIRRO:              bairro,
-    CIDADE:              cidade,
-    ESTADO:              estado,
-    UF:                  estado,
+    CIDADE:              cidade || 'Caruaru',
+    ESTADO:              estado || 'PE',
+    UF:                  estado || 'PE',
     CEP:                 cep,
-    ENDERECO_UNIDADE:    enderecoUnidade,
+    ENDERECO_UNIDADE:    enderecoUnidade || '—',
     NOME_UNIDADE:        nomeFantasia || razaoSocial,
     TELEFONE:            telefone,
     WHATSAPP:            whatsapp,
@@ -1969,23 +2006,23 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
     DIAS_SEMANA:         diasSemana,
     HORARIO_INICIO:      horarioInicio,
     HORARIO_FIM:         horarioFim,
-    TITULO_CAMPANHA:     proposta?.titulo_campanha || '',
-    PACOTE_VEICULACAO:   proposta?.pacote_veiculacao || proposta?.plano || '',
-    PERIODO_VEICULACAO:  proposta?.periodo_veiculacao || '',
-    VALOR_MENSAL:        FORMATO_MOEDA.format(Number(contrato?.valor_mensal) || 0),
-    VALOR_A_VISTA:       FORMATO_MOEDA.format(Number(proposta?.valor_final) || 0),
+    TITULO_CAMPANHA:     tituloCampanha,
+    PACOTE_VEICULACAO:   pacoteVeiculacao,
+    PERIODO_VEICULACAO:  periodoVeiculacao,
+    VALOR_MENSAL:        valorMensalFmt,
+    VALOR_A_VISTA:       valorAVistaFmt,
     DESCONTO:            proposta?.desconto ? FORMATO_MOEDA.format(Number(proposta.desconto)) : '',
     ENTRADA:             proposta?.entrada ? FORMATO_MOEDA.format(Number(proposta.entrada)) : '',
-    NUMERO_PARCELAS:     proposta?.numero_parcelas ? String(proposta.numero_parcelas) : '',
+    NUMERO_PARCELAS:     proposta?.numero_parcelas ? String(proposta.numero_parcelas) : '12',
     PARCELAMENTO_CARTAO: proposta?.parcelamento_cartao || '',
     VALOR_POR_SISTEMA:   proposta?.valor_por_sistema ? FORMATO_MOEDA.format(Number(proposta.valor_por_sistema)) : '',
-    FORMA_PAGAMENTO:     contrato?.forma_pagamento || '',
+    FORMA_PAGAMENTO:     formaPagamento,
     DATA_VENCIMENTO_PRIMEIRA_FATURA: formatarData(proposta?.data_vencimento_primeira),
-    QUANTIDADE_TELAS:    dados.quantidadeTelas > 0 ? String(dados.quantidadeTelas) : '',
+    QUANTIDADE_TELAS:    qtdTelasStr,
     QTD_TVS:             proposta?.qtd_tvs ? String(proposta.qtd_tvs) : '',
     QTD_TOTENS:          proposta?.qtd_totens ? String(proposta.qtd_totens) : '',
     QTD_PAINEIS_LED:     proposta?.qtd_paineis_led ? String(proposta.qtd_paineis_led) : '',
-    TOTAL_SISTEMAS:      dados.quantidadeTelas > 0 ? String(dados.quantidadeTelas) : '',
+    TOTAL_SISTEMAS:      qtdTelasStr,
     DATA_INICIO:                  formatarData(contrato?.data_inicio),
     DATA_FIM:                     formatarData(contrato?.data_fim),
     DATA_INICIO_VEICULACAO:       formatarData(contrato?.data_inicio),
@@ -2553,6 +2590,92 @@ export async function assinarDocumento(
   }
 }
 
+/**
+ * Obtém e renderiza o HTML canônico oficial preenchido para um contrato específico por ID.
+ * Se o contrato estiver ASSINADO, inclui a representação visual da assinatura do contratante.
+ * É a fonte canônica universal para pré-visualizações em Propostas, Contratos, Assinatura e Portal.
+ */
+export async function obterHtmlContratoPorContratoId(contratoId: string): Promise<string> {
+  const dadosDocumento = await coletarDadosReais(contratoId);
+  const { contrato, template } = dadosDocumento;
+  const tipoContrato = (contrato?.tipo_contrato as 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR') || 'ANUNCIANTE';
+
+  let templateHtml = template?.conteudo_html;
+  if (!templateHtml || templateHtml.length < 200 || templateHtml.includes('(preservado)') || !isTemplateCompleto(templateHtml, tipoContrato)) {
+    templateHtml = getCanonicalTemplateForTipo(tipoContrato);
+  }
+
+  const dadosMapeados = montarDadosTemplate(dadosDocumento);
+
+  let htmlPreenchido = preencherTemplate(templateHtml, dadosMapeados, tipoContrato);
+
+  // Se o contrato já estiver assinado, busca os dados da assinatura real para injetar visualmente
+  if (contrato?.status_documento === 'ASSINADO') {
+    const { data: ass } = await supabase
+      .from('assinaturas')
+      .select('signatario_nome, signatario_cpf_cnpj, assinado_em, metodo, dados_assinatura')
+      .eq('contrato_id', contratoId)
+      .eq('status', 'ASSINADO')
+      .order('assinado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const responsavelContratante = dadosMapeados.RESPONSAVEL || dadosMapeados.RAZAO_SOCIAL;
+    const nomeSignatario = ass?.signatario_nome || responsavelContratante;
+    const metodo = ass?.metodo || 'DRAWN';
+    const metodoLabel = metodo === 'TYPED' ? 'Assinatura Digitada (TYPED)' : 'Digital Desenhada (DRAWN)';
+    const dataFmt = ass?.assinado_em ? formatarDataExtensa(new Date(ass.assinado_em)) : formatarDataExtensa(new Date());
+
+    const dataUrl = (ass?.dados_assinatura as any)?.signatureDataUrl || (ass?.dados_assinatura as any)?.dataUrl || '';
+
+    const imagemAssinaturaHtml = dataUrl
+      ? `<div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;">
+          <img src="${dataUrl}" alt="Assinatura do Contratante" style="max-height: 48px; max-width: 100%; object-fit: contain; margin: 0 auto 2px auto; display: block;" />
+        </div>`
+      : `<div style="min-height: 36px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px;">
+          <span style="font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-weight: bold; font-size: 14px; color: #1e293b;">
+            ${nomeSignatario}
+          </span>
+        </div>`;
+
+    if (tipoContrato === 'ANUNCIANTE') {
+      const blocoAssinadoAnunciante = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+        ${imagemAssinaturaHtml}
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">${dadosMapeados.RAZAO_SOCIAL} (CONTRATANTE)</p>
+          <p style="margin: 2px 0 0; font-size: 9px; color: #16a34a; font-weight: bold;">✓ Assinado digitalmente por ${nomeSignatario}</p>
+          <p style="margin: 0; font-size: 8px; color: #6b7280;">Data: ${dataFmt} · Método: ${metodoLabel}</p>
+        </div>
+      </div>`;
+
+      const regexAnunciante = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(CONTRATANTE\)<\/p>\s*<\/div>/is;
+      if (regexAnunciante.test(htmlPreenchido)) {
+        htmlPreenchido = htmlPreenchido.replace(regexAnunciante, blocoAssinadoAnunciante);
+      } else {
+        htmlPreenchido = htmlPreenchido.replace(/<div[^>]*>\s*<p[^>]*>[^<]*\(CONTRATANTE\)<\/p>\s*<\/div>/is, blocoAssinadoAnunciante);
+      }
+    } else if (tipoContrato === 'PARCEIRO') {
+      const blocoAssinadoParceiro = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+        ${imagemAssinaturaHtml}
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">${dadosMapeados.RAZAO_SOCIAL} (PARCEIRO)</p>
+          <p style="margin: 2px 0 0; font-size: 9px; color: #16a34a; font-weight: bold;">✓ Assinado digitalmente por ${nomeSignatario}</p>
+          <p style="margin: 0; font-size: 8px; color: #6b7280;">Data: ${dataFmt} · Método: ${metodoLabel}</p>
+        </div>
+      </div>`;
+
+      const regexParceiro = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(PARCEIRO\)<\/p>\s*<\/div>/is;
+      if (regexParceiro.test(htmlPreenchido)) {
+        htmlPreenchido = htmlPreenchido.replace(regexParceiro, blocoAssinadoParceiro);
+      } else {
+        htmlPreenchido = htmlPreenchido.replace(/<div[^>]*>\s*<p[^>]*>[^<]*\(PARCEIRO\)<\/p>\s*<\/div>/is, blocoAssinadoParceiro);
+      }
+    }
+  }
+
+  return htmlPreenchido;
+}
+
 export const contratoDocumentoService = {
   gerarDocumentoContrato,
   criarEnvelopeInterno,
@@ -2567,5 +2690,6 @@ export const contratoDocumentoService = {
   preencherTemplate,
   obterTemplatePadraoVigente,
   renderizarPreviewContrato,
+  obterHtmlContratoPorContratoId,
 };
 
