@@ -575,23 +575,23 @@ export class ContratoService {
       };
     }
 
-    // 1. Verifica se contrato já existe para a entidade
+    // 1. Verifica se contrato de rascunho ou específico da proposta já existe para a entidade
     let existingContract: any = null;
     if (params.propostaId) {
-      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('proposta_id', params.propostaId).maybeSingle();
-      existingContract = data;
+      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('proposta_id', params.propostaId).limit(1);
+      existingContract = data?.[0] || null;
     }
     if (!existingContract && params.clienteId) {
-      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('cliente_id', params.clienteId).eq('tipo_contrato', tipo).is('deleted_at', null).maybeSingle();
-      existingContract = data;
+      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('cliente_id', params.clienteId).eq('tipo_contrato', tipo).eq('status_documento', 'RASCUNHO').is('deleted_at', null).order('created_at', { ascending: false }).limit(1);
+      existingContract = data?.[0] || null;
     }
     if (!existingContract && params.pontoId) {
-      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('ponto_id', params.pontoId).eq('tipo_contrato', tipo).is('deleted_at', null).maybeSingle();
-      existingContract = data;
+      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('ponto_id', params.pontoId).eq('tipo_contrato', tipo).eq('status_documento', 'RASCUNHO').is('deleted_at', null).order('created_at', { ascending: false }).limit(1);
+      existingContract = data?.[0] || null;
     }
     if (!existingContract && params.gestorUsuarioId) {
-      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('gestor_usuario_id', params.gestorUsuarioId).eq('tipo_contrato', tipo).is('deleted_at', null).maybeSingle();
-      existingContract = data;
+      const { data } = await supabase.from('contratos').select('id, numero_contrato, template_id, template_versao, tipo_contrato').eq('gestor_usuario_id', params.gestorUsuarioId).eq('tipo_contrato', tipo).eq('status_documento', 'RASCUNHO').is('deleted_at', null).order('created_at', { ascending: false }).limit(1);
+      existingContract = data?.[0] || null;
     }
 
     if (existingContract && existingContract.template_id && typeof existingContract.template_id === 'string' && existingContract.template_id.trim() !== '') {

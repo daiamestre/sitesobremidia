@@ -188,6 +188,7 @@ export function IntelligentCommercialWizard() {
   const [isSearching, setIsSearching] = useState(false);
   const [isExistingClientSelected, setIsExistingClientSelected] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<ClienteCompleto | null>(null);
+  const [cnpjExistenteInfo, setCnpjExistenteInfo] = useState<{ nome: string; codigo: number; clienteId: string } | null>(null);
 
   // Estado do Contrato Personalizado
   const [contratoIdSalvo, setContratoIdSalvo] = useState<string | null>(null);
@@ -203,6 +204,55 @@ export function IntelligentCommercialWizard() {
   } | null>(null);
   const [gerandoDocumento, setGerandoDocumento] = useState(false);
   const [dialogAssinaturaOpen, setDialogAssinaturaOpen] = useState(false);
+
+  // Verificação automática de CNPJ existente para reaproveitamento de empresa
+  useEffect(() => {
+    const rawCnpj = (formData.cnpj || '').replace(/\D/g, '');
+    if (rawCnpj.length === 14) {
+      clienteService
+        .findByCnpj(rawCnpj, empresaOperadoraId || undefined)
+        .then((cli) => {
+          if (cli) {
+            const emp = cli.empresas?.[0];
+            setCnpjExistenteInfo({
+              nome: emp?.nome_fantasia || emp?.razao_social || 'Cliente Cadastrado',
+              codigo: cli.codigo_cliente || 0,
+              clienteId: cli.id,
+            });
+            if (!selectedCliente) {
+              setSelectedCliente(cli);
+              setIsExistingClientSelected(true);
+            }
+            // Preenche campos cadastrais vazios com dados da empresa existente
+            setFormData((prev) => ({
+              ...prev,
+              nomeFantasia: prev.nomeFantasia || emp?.nome_fantasia || '',
+              razaoSocial: prev.razaoSocial || emp?.razao_social || '',
+              segmento: prev.segmento || emp?.segmento || '',
+              telefone: prev.telefone || emp?.telefone || '',
+              whatsapp: prev.whatsapp || emp?.whatsapp || '',
+              email: prev.email || emp?.email || '',
+              cep: prev.cep || emp?.cep || '',
+              logradouro: prev.logradouro || emp?.logradouro || '',
+              numero: prev.numero || emp?.numero || '',
+              complemento: prev.complemento || emp?.complemento || '',
+              bairro: prev.bairro || emp?.bairro || '',
+              cidade: prev.cidade || emp?.cidade || '',
+              estado: prev.estado || emp?.estado || '',
+              representanteLegal: prev.representanteLegal || emp?.representante_legal || '',
+              cargoRepresentante: prev.cargoRepresentante || emp?.cargo_representante || '',
+            }));
+          } else {
+            setCnpjExistenteInfo(null);
+          }
+        })
+        .catch(() => {
+          setCnpjExistenteInfo(null);
+        });
+    } else {
+      setCnpjExistenteInfo(null);
+    }
+  }, [formData.cnpj, empresaOperadoraId]);
 
   // Template Padrão Vigente e Preview Dinâmico em Tempo Real
   const [templatePadrao, setTemplatePadrao] = useState<{
@@ -336,6 +386,10 @@ export function IntelligentCommercialWizard() {
 
           if (resCli.success && resCli.clienteId) {
             clienteId = resCli.clienteId;
+            if (resCli.contratoId) {
+              cid = resCli.contratoId;
+              setContratoIdSalvo(cid);
+            }
             const { data: cliFull } = await supabase.from('clientes').select('*, empresas(*)').eq('id', clienteId).single();
             if (cliFull) {
               setSelectedCliente(cliFull as any);
@@ -580,8 +634,8 @@ if (name === 'cnpj') {
       return;
     }
 
-    // 1. Se for cliente novo, cria no PostgreSQL via RPC atômica; se já existe (ou gerado na Etapa 5), atualiza
-    if (!finalClienteId) {
+    // 1. Se contrato ainda não foi gerado nesta sessão, invoca a RPC atômica (reutiliza empresa se CNPJ existir e cria novo contrato)
+    if (!contratoIdSalvo) {
       const resCliente = await clienteService.create({
         empresaOperadoraId,
         representanteId: isOwner ? null : (representante?.id ?? null),
@@ -619,6 +673,9 @@ if (name === 'cnpj') {
         return;
       }
       finalClienteId = resCliente.clienteId;
+      if (resCliente.contratoId) {
+        setContratoIdSalvo(resCliente.contratoId);
+      }
 
       // Auditoria: registro da criação do cliente
       await auditService.log({
@@ -1001,6 +1058,18 @@ if (name === 'cnpj') {
                     className={`bg-slate-950/60 border-white/10 text-white rounded-xl h-11 ${errors.cnpj ? 'border-rose-500' : ''}`}
                   />
                   {errors.cnpj && <p className="text-[11px] text-rose-400">{errors.cnpj}</p>}
+                  {cnpjExistenteInfo && (
+                    <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs flex items-start gap-2 animate-fade-in mt-1">
+                      <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold text-white">CNPJ já cadastrado: </span>
+                        #{cnpjExistenteInfo.codigo} - {cnpjExistenteInfo.nome}.
+                        <p className="text-[11px] text-slate-300 mt-0.5">
+                          A empresa será vinculada à nova contratação. Você poderá criar um novo contrato normalmente.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">

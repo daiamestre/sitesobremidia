@@ -151,12 +151,9 @@ export class ClienteService {
         return { success: false, error: 'A RPC de cadastro não retornou resposta. Contate o suporte.' };
       }
 
-      const rpcRes = rpcData as unknown as { success?: boolean; error?: unknown; cliente_id?: string; contrato_id?: string };
+      const rpcRes = rpcData as unknown as { success?: boolean; error?: unknown; cliente_id?: string; contrato_id?: string; empresa_reutilizada?: boolean };
       if (!rpcRes.success) {
         const msg = String(rpcRes.error || 'Erro desconhecido na RPC.');
-        if (msg.includes('empresas_cnpj_key') || msg.includes('idx_empresas_cnpj_unique_active') || msg.toLowerCase().includes('duplicate key')) {
-          return { success: false, error: 'CNPJ já cadastrado para outro cliente (constraint: empresas_cnpj_key). Verifique o número informado.' };
-        }
         if (msg.includes('clientes_empresa_operadora_id_fkey')) {
           return { success: false, error: 'Tenant (empresa operadora) inválido. Refaça o login.' };
         }
@@ -174,6 +171,42 @@ export class ClienteService {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, error: msg || 'Erro inesperado no cadastro de cliente.' };
+    }
+  }
+
+  /**
+   * Localiza cliente/empresa pelo CNPJ ativo dentro do tenant
+   */
+  async findByCnpj(cnpj: string, empresaOperadoraId?: string): Promise<ClienteCompleto | null> {
+    try {
+      const clean = cnpj.replace(/\D/g, '');
+      if (!clean) return null;
+
+      let query = supabase
+        .from('clientes')
+        .select(`
+          *,
+          empresas(*, contatos(*)),
+          representante:representantes(*)
+        `)
+        .is('deleted_at', null);
+
+      if (empresaOperadoraId) {
+        query = query.eq('empresa_operadora_id', empresaOperadoraId);
+      }
+
+      const { data, error } = await query;
+      if (error || !data) return null;
+
+      const found = (data as ClienteCompleto[]).find((c) => {
+        const emp = c.empresas?.[0];
+        const empCnpjClean = (emp?.cnpj || '').replace(/\D/g, '');
+        return empCnpjClean === clean || emp?.cnpj === cnpj;
+      });
+
+      return found || null;
+    } catch {
+      return null;
     }
   }
 
