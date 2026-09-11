@@ -161,6 +161,7 @@ describe('MICRO-GATE P0.3.9 — CANONICAL CONTRACT SINGLE SOURCE OF TRUTH', () =
       return {
         select: () => ({
           eq: () => ({
+            maybeSingle: () => Promise.resolve({ data: null, error: null }),
             order: () => ({
               limit: () => ({
                 maybeSingle: () => Promise.resolve({ data: null, error: null }),

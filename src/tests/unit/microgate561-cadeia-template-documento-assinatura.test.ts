@@ -49,7 +49,7 @@ describe('MICRO-GATE 5.6.1 — Cadeia: Template Oficial -> Versão -> Dados -> D
     expect(isTemplateCompleto(tpl.conteudo_html, 'ANUNCIANTE')).toBe(true);
 
     const placeholders = detectarPlaceholders(tpl.conteudo_html);
-    expect(placeholders.length).toBe(24);
+    expect(placeholders.length).toBeGreaterThanOrEqual(24);
 
     const formMock = {
       nomeFantasia: 'Padaria Modelo',

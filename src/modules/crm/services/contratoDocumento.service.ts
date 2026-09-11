@@ -651,6 +651,7 @@ export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<div class="contract-containe
     <p style="margin: 0; font-size: 11px; font-weight: bold; color: #1e3a8a;">SOBRE MÍDIA DESIGNER, Av. Agamenon Magalhães, 1019 - Maurício de Nassau, Caruaru - PE, CEP 55012-140</p>
     <p style="margin: 2px 0; font-size: 11px; color: #4b5563;">Tel: (81) 99884-4677 | E-mail: sobremidiadesigner@gmail.com | Site: www.sobremidiadesigner.com.br</p>
     <h3 style="margin: 8px 0 0; font-size: 14px; color: #111827; font-weight: bold; text-transform: uppercase;">CONTRATO DE SERVIÇO E VEICULAÇÃO DE PUBLICIDADE POR MEIO DIGITAL EM MÍDIA INDOOR – SOBRE MÍDIA DESIGNER</h3>
+    <p style="margin: 3px 0 0; font-size: 10px; color: #4b5563;">Contrato Nº: {{NUMERO_CONTRATO}} | Versão: {{VERSAO_CONTRATO}}</p>
   </div>
 
   <div style="margin-bottom: 12px; background-color: #f9fafb; padding: 10px; border-radius: 4px; border: 1px solid #e5e7eb;">
@@ -1550,18 +1551,18 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageWidth = 595.28;
   const pageHeight = 841.89;
-  const marginX = 48;
-  const marginTop = 48;
-  const marginBottom = 48;
+  const marginX = 44;
+  const marginTop = 44;
+  const marginBottom = 44;
   const maxLineWidth = pageWidth - marginX * 2;
 
   doc.setFont('helvetica', 'normal');
-  let y = pageHeight - marginTop;
+  let y = marginTop;
 
   const quebrarPaginaSeNecessario = (alturaNecessaria: number) => {
-    if (y - alturaNecessaria < marginBottom) {
+    if (y + alturaNecessaria > pageHeight - marginBottom) {
       doc.addPage('a4', 'portrait');
-      y = pageHeight - marginTop;
+      y = marginTop;
       return true;
     }
     return false;
@@ -1572,44 +1573,44 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
   doc.setFontSize(10.5);
   doc.setTextColor(15, 45, 100);
   doc.text('SOBRE MÍDIA DESIGNER', marginX, y);
-  y -= 13;
+  y += 13;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 100, 100);
   doc.text(`Contrato: ${numeroContrato}  |  Tipo: ${tipoContrato}  |  Versão: ${versao}`, marginX, y);
-  y -= 8;
+  y += 8;
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.5);
   doc.line(marginX, y, pageWidth - marginX, y);
-  y -= 12;
+  y += 14;
 
   for (const el of elements) {
     if (el.tag.startsWith('h')) {
       const fontSize = el.level === 1 ? 11 : el.level === 2 ? 10.5 : el.level === 3 ? 10 : 9.5;
       const lines = doc.splitTextToSize(el.text, maxLineWidth) as string[];
-      quebrarPaginaSeNecessario(lines.length * (fontSize * 1.3) + 8);
+      quebrarPaginaSeNecessario(lines.length * (fontSize * 1.3) + 6);
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(fontSize);
       doc.setTextColor(15, 45, 100);
 
       for (const line of lines) {
-        if (y < marginBottom + 14) {
+        if (y + fontSize * 1.3 > pageHeight - marginBottom) {
           doc.addPage('a4', 'portrait');
-          y = pageHeight - marginTop;
+          y = marginTop;
         }
         doc.text(line, marginX, y);
-        y -= fontSize * 1.3;
+        y += fontSize * 1.3;
       }
-      y -= 3;
+      y += 3;
     } else if (el.tag === 'tr' && el.cells && el.cells.length > 0) {
       if (el.cells.length === 2) {
         const colWidth = (maxLineWidth - 16) / 2;
         const col1Lines = doc.splitTextToSize(el.cells[0], colWidth) as string[];
         const col2Lines = doc.splitTextToSize(el.cells[1], colWidth) as string[];
         const maxLines = Math.max(col1Lines.length, col2Lines.length);
-        const rowHeight = maxLines * 10.5 + 2;
+        const rowHeight = maxLines * 10 + 2;
 
         quebrarPaginaSeNecessario(rowHeight);
 
@@ -1619,28 +1620,28 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
 
         const rowY = y;
         for (let i = 0; i < col1Lines.length; i++) {
-          doc.text(col1Lines[i], marginX, rowY - (i * 10.5));
+          doc.text(col1Lines[i], marginX, rowY + (i * 10));
         }
         for (let i = 0; i < col2Lines.length; i++) {
-          doc.text(col2Lines[i], marginX + colWidth + 16, rowY - (i * 10.5));
+          doc.text(col2Lines[i], marginX + colWidth + 16, rowY + (i * 10));
         }
-        y -= rowHeight;
+        y += rowHeight;
       } else {
         const text = el.cells.join(' | ');
         const lines = doc.splitTextToSize(text, maxLineWidth) as string[];
-        quebrarPaginaSeNecessario(lines.length * 10.5 + 2);
+        quebrarPaginaSeNecessario(lines.length * 10 + 2);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(35, 35, 35);
 
         for (const line of lines) {
-          if (y < marginBottom + 14) {
+          if (y + 10 > pageHeight - marginBottom) {
             doc.addPage('a4', 'portrait');
-            y = pageHeight - marginTop;
+            y = marginTop;
           }
           doc.text(line, marginX, y);
-          y -= 10.5;
+          y += 10;
         }
       }
     } else {
@@ -1651,14 +1652,14 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
       doc.setTextColor(el.isBold ? 15 : 35, el.isBold ? 45 : 35, el.isBold ? 100 : 35);
 
       for (const line of lines) {
-        if (y < marginBottom + 14) {
+        if (y + 10.5 > pageHeight - marginBottom) {
           doc.addPage('a4', 'portrait');
-          y = pageHeight - marginTop;
+          y = marginTop;
         }
         doc.text(line, marginX, y);
-        y -= 10.5;
+        y += 10.5;
       }
-      y -= 3;
+      y += 2.5;
     }
   }
 
@@ -1668,7 +1669,7 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(130, 130, 130);
-    doc.text(`Página ${i} de ${totalPages}  |  SOBRE MÍDIA DESIGNER — Documento Oficial de Contrato`, marginX, 24);
+    doc.text(`Página ${i} de ${totalPages}  |  SOBRE MÍDIA DESIGNER — Documento Oficial de Contrato`, marginX, pageHeight - 20);
   }
 
   return new Uint8Array(doc.output('arraybuffer'));
@@ -2560,29 +2561,29 @@ export interface SignaturePlacement {
  */
 export const SIGNATURE_PLACEMENTS: Record<'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' | 'DEFAULT', SignaturePlacement> = {
   ANUNCIANTE: {
-    // Acima da linha "___ CONTRATANTE" no canto inferior direito
-    x: 320,
-    y: 510,
-    width: 205,
+    // Acima da linha "___ CONTRATANTE" no canto direito da última página
+    x: 310,
+    y: 350,
+    width: 215,
     height: 45,
   },
   PARCEIRO: {
-    // Acima da linha "___ PARCEIRO" no canto inferior esquerdo
+    // Acima da linha "___ PARCEIRO" no canto esquerdo da última página
     x: 64,
-    y: 476,
+    y: 350,
     width: 200,
     height: 45,
   },
   GESTOR: {
-    // Acima da linha "___ GESTOR OPERACIONAL" no canto inferior esquerdo
+    // Acima da linha "___ GESTOR OPERACIONAL" no canto esquerdo da última página
     x: 64,
-    y: 476,
+    y: 350,
     width: 200,
     height: 45,
   },
   DEFAULT: {
     x: 310,
-    y: 90,
+    y: 350,
     width: 220,
     height: 45,
   },
