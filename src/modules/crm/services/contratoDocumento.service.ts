@@ -1644,18 +1644,24 @@ async function renderizarHtmlParaPdfNavegador(
     // Altura em pixels do canvas correspondente a uma página utilizável do PDF
     const canvasPageHeight = (usableHeight / usableWidth) * canvas.width;
 
-    // Identifica pontos de quebra de página explícitos (ex: Cláusula 06, .page-break, style page-break-before)
-    const breakElements = Array.from(
-      container.querySelectorAll('.page-break, [data-page-break], [style*="page-break-before"], [style*="break-before"]')
-    );
+    // Identifica pontos de quebra de página explícitos (especificamente o bloco da Cláusula 06)
+    const breakElements: HTMLElement[] = [];
+    const pageBreakClassEls = container.querySelectorAll('.page-break, [data-page-break]');
+    for (const el of pageBreakClassEls) {
+      if (el !== container && el !== container.firstElementChild) {
+        breakElements.push(el as HTMLElement);
+      }
+    }
 
-    // Também detecta Cláusula 06 explicitamente caso venha de template salvo sem a classe
-    const allHeadings = Array.from(container.querySelectorAll('h4, div'));
-    for (const el of allHeadings) {
-      if (/CL[AÁ]USULA\s+(06|6)\b/i.test(el.textContent || '')) {
-        const parentBlock = el.tagName === 'DIV' ? el : el.closest('div') || el;
-        if (!breakElements.includes(parentBlock)) {
-          breakElements.push(parentBlock);
+    // Se não encontrou pela classe, busca especificamente pelo container direto da Cláusula 06
+    if (breakElements.length === 0) {
+      const h4s = container.querySelectorAll('h4');
+      for (const h4 of h4s) {
+        if (/CL[AÁ]USULA\s+(06|6)\b/i.test(h4.textContent || '')) {
+          const parentDiv = h4.parentElement;
+          if (parentDiv && parentDiv !== container && parentDiv !== container.firstElementChild) {
+            breakElements.push(parentDiv as HTMLElement);
+          }
         }
       }
     }
@@ -1663,12 +1669,13 @@ async function renderizarHtmlParaPdfNavegador(
     const containerRect = container.getBoundingClientRect();
     const scaleRatio = canvas.width / (container.clientWidth || 794);
 
+    // Considera apenas quebras válidas que estejam após pelo menos 400px de conteúdo (evita página em branco no topo)
     const explicitBreakYs: number[] = breakElements
       .map((el) => {
         const elRect = el.getBoundingClientRect();
         return Math.round((elRect.top - containerRect.top) * scaleRatio);
       })
-      .filter((y) => y > 50 && y < canvas.height - 50)
+      .filter((y) => y > 400 && y < canvas.height - 200)
       .sort((a, b) => a - b);
 
     // Constrói os pontos de corte (slice points)
@@ -1676,7 +1683,7 @@ async function renderizarHtmlParaPdfNavegador(
     let lastY = 0;
 
     for (const bY of explicitBreakYs) {
-      if (bY > lastY + 50) {
+      if (bY > lastY + 200) {
         while (bY - lastY > canvasPageHeight) {
           lastY += canvasPageHeight;
           slicePoints.push(lastY);
@@ -1692,15 +1699,23 @@ async function renderizarHtmlParaPdfNavegador(
     }
     slicePoints.push(canvas.height);
 
+    // Constrói a lista de fatias reais garantindo que não existam fatias vazias ou espúrias
+    const validSlices: { startY: number; sliceHeight: number }[] = [];
     for (let i = 0; i < slicePoints.length - 1; i++) {
-      if (i > 0) {
-        doc.addPage('a4', 'portrait');
-      }
-
       const startY = slicePoints[i];
       const endY = slicePoints[i + 1];
       const sliceHeight = endY - startY;
-      if (sliceHeight <= 0) continue;
+      if (sliceHeight >= 80) {
+        validSlices.push({ startY, sliceHeight });
+      }
+    }
+
+    for (let pageIdx = 0; pageIdx < validSlices.length; pageIdx++) {
+      const { startY, sliceHeight } = validSlices[pageIdx];
+
+      if (pageIdx > 0) {
+        doc.addPage('a4', 'portrait');
+      }
 
       const pageCanvas = document.createElement('canvas');
       pageCanvas.width = canvas.width;
