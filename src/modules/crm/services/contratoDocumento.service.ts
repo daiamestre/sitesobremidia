@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { jsPDF } from 'jspdf';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { uploadToR2 } from '@/lib/r2Upload';
+import html2canvas from 'html2canvas';
 
 /**
  * Servico REAL de Documentos de Contrato.
@@ -1543,10 +1544,116 @@ export function parseHtmlToElements(html: string): ElementoHtml[] {
 }
 
 /**
- * Gera PDF REAL vetorial A4 a partir do texto juridico renderizado.
- * Preserva cláusulas completas, estrutura, títulos, dados e formatação.
+ * Renderiza o HTML exatamente como no navegador usando html2canvas e converte para PDF A4 em alta definição.
+ * Preserva 100% da identidade visual, cores, cabeçalho institucional, bordas, tabelas, caixas e assinaturas.
  */
-export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: string, tipoContrato: string, versao: number): Promise<Uint8Array> {
+async function renderizarHtmlParaPdfNavegador(
+  htmlRenderizado: string,
+  numeroContrato: string,
+  tipoContrato: string,
+  versao: number
+): Promise<Uint8Array> {
+  const container = document.createElement('div');
+  container.className = 'pdf-render-canvas-container';
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '794px'; // A4 width em 96 DPI
+  container.style.padding = '36px 40px';
+  container.style.backgroundColor = '#ffffff';
+  container.style.color = '#111827';
+  container.style.boxSizing = 'border-box';
+  container.style.fontFamily = 'Arial, "Helvetica Neue", Helvetica, sans-serif';
+  container.style.lineHeight = '1.45';
+  container.style.zIndex = '-99999';
+  container.innerHTML = htmlRenderizado;
+  document.body.appendChild(container);
+
+  try {
+    // Aguarda carregamento de todas as imagens (ex: assinaturas, logotipos)
+    const images = container.querySelectorAll('img');
+    if (images.length > 0) {
+      await Promise.all(
+        Array.from(images).map((img) => {
+          if (img.complete) return Promise.resolve(null);
+          return new Promise((res) => {
+            img.onload = () => res(null);
+            img.onerror = () => res(null);
+          });
+        })
+      );
+    }
+
+    const canvas = await html2canvas(container, {
+      scale: 2, // 2x alta definição
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      windowWidth: 794,
+    });
+
+    const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+    const pageWidth = 595.28;
+    const pageHeight = 841.89;
+    const marginX = 24;
+    const marginY = 24;
+    const usableWidth = pageWidth - marginX * 2; // 547.28 pt
+    const usableHeight = pageHeight - marginY * 2; // 793.89 pt
+
+    // Altura em pixels do canvas correspondente a uma página utilizável do PDF
+    const canvasPageHeight = (usableHeight / usableWidth) * canvas.width;
+
+    let currentY = 0;
+    let pageIndex = 0;
+
+    while (currentY < canvas.height) {
+      if (pageIndex > 0) {
+        doc.addPage('a4', 'portrait');
+      }
+
+      const sliceHeight = Math.min(canvasPageHeight, canvas.height - currentY);
+
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceHeight;
+      const ctx = pageCanvas.getContext('2d');
+
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        ctx.drawImage(
+          canvas,
+          0, currentY, canvas.width, sliceHeight,
+          0, 0, canvas.width, sliceHeight
+        );
+
+        const imgData = pageCanvas.toDataURL('image/jpeg', 0.98);
+        const pdfSliceHeight = (sliceHeight / canvas.width) * usableWidth;
+        doc.addImage(imgData, 'JPEG', marginX, marginY, usableWidth, pdfSliceHeight);
+      }
+
+      currentY += sliceHeight;
+      pageIndex++;
+    }
+
+    return new Uint8Array(doc.output('arraybuffer'));
+  } finally {
+    if (container.parentNode) {
+      container.parentNode.removeChild(container);
+    }
+  }
+}
+
+/**
+ * Fallback vetorial para testes em Node.js/Vitest/JSDOM sem ambiente gráfico real.
+ */
+function renderizarPdfVetorialFallback(
+  htmlRenderizado: string,
+  numeroContrato: string,
+  tipoContrato: string,
+  versao: number
+): Uint8Array {
   const elements = parseHtmlToElements(htmlRenderizado);
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageWidth = 595.28;
@@ -1567,23 +1674,6 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
     }
     return false;
   };
-
-  // Cabeçalho Institucional da Primeira Página
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
-  doc.setTextColor(15, 45, 100);
-  doc.text('SOBRE MÍDIA DESIGNER', marginX, y);
-  y += 13;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Contrato: ${numeroContrato}  |  Tipo: ${tipoContrato}  |  Versão: ${versao}`, marginX, y);
-  y += 8;
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.5);
-  doc.line(marginX, y, pageWidth - marginX, y);
-  y += 14;
 
   for (const el of elements) {
     if (el.tag.startsWith('h')) {
@@ -1673,6 +1763,34 @@ export async function gerarPdfDoHtml(htmlRenderizado: string, numeroContrato: st
   }
 
   return new Uint8Array(doc.output('arraybuffer'));
+}
+
+/**
+ * Gera PDF REAL vetorial A4 a partir do texto juridico renderizado.
+ * No navegador, renderiza o HTML com 100% de fidelidade visual usando html2canvas.
+ * Em ambiente Node.js / testes, usa fallback vetorial.
+ */
+export async function gerarPdfDoHtml(
+  htmlRenderizado: string,
+  numeroContrato: string,
+  tipoContrato: string,
+  versao: number
+): Promise<Uint8Array> {
+  const isBrowserReal =
+    typeof window !== 'undefined' &&
+    typeof document !== 'undefined' &&
+    typeof document.createElement === 'function' &&
+    typeof navigator !== 'undefined' &&
+    !navigator.userAgent?.includes('jsdom');
+
+  if (isBrowserReal) {
+    try {
+      return await renderizarHtmlParaPdfNavegador(htmlRenderizado, numeroContrato, tipoContrato, versao);
+    } catch (err) {
+      console.warn('[gerarPdfDoHtml] Falha na renderização visual html2canvas, usando fallback vetorial:', err);
+    }
+  }
+  return renderizarPdfVetorialFallback(htmlRenderizado, numeroContrato, tipoContrato, versao);
 }
 
 /** Hash SHA-256 real do documento (hex). */
@@ -2192,48 +2310,46 @@ export async function gerarPreviewPdfContrato(
   let htmlRenderizado = preencherTemplate(templatePadrao.conteudo_html, dadosMapeados, tipoContrato);
 
   // Injeta visualmente a assinatura do contratante se o contrato já estiver assinado
-  if (contrato.status_documento === 'ASSINADO') {
-    const { data: ass } = await supabase
-      .from('assinaturas')
-      .select('signatario_nome, signatario_cpf_cnpj, assinado_em, metodo, dados_assinatura')
-      .eq('contrato_id', contratoId)
-      .eq('status', 'ASSINADO')
-      .order('assinado_em', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const { data: ass } = await supabase
+    .from('assinaturas')
+    .select('signatario_nome, signatario_cpf_cnpj, assinado_em, metodo, dados_assinatura')
+    .eq('contrato_id', contratoId)
+    .eq('status', 'ASSINADO')
+    .order('assinado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    if (ass) {
-      const responsavelContratante = dadosMapeados.RESPONSAVEL || dadosMapeados.RAZAO_SOCIAL;
-      const nomeSignatario = ass.signatario_nome || responsavelContratante;
-      const metodo = ass.metodo || 'DRAWN';
-      const metodoLabel = metodo === 'TYPED' ? 'Assinatura Digitada (TYPED)' : 'Digital Desenhada (DRAWN)';
-      const dataFmt = ass.assinado_em ? formatarDataExtensa(new Date(ass.assinado_em)) : formatarDataExtensa(new Date());
-      const dataUrl = (ass.dados_assinatura as any)?.signatureDataUrl || (ass.dados_assinatura as any)?.dataUrl || '';
+  if (ass || contrato.status_documento === 'ASSINADO') {
+    const responsavelContratante = dadosMapeados.RESPONSAVEL || dadosMapeados.RAZAO_SOCIAL;
+    const nomeSignatario = ass?.signatario_nome || responsavelContratante;
+    const metodo = ass?.metodo || 'DRAWN';
+    const metodoLabel = metodo === 'TYPED' ? 'Assinatura Digitada (TYPED)' : 'Digital Desenhada (DRAWN)';
+    const dataFmt = ass?.assinado_em ? formatarDataExtensa(new Date(ass.assinado_em)) : formatarDataExtensa(new Date());
+    const dataUrl = (ass?.dados_assinatura as any)?.signatureDataUrl || (ass?.dados_assinatura as any)?.dataUrl || '';
 
-      const imagemAssinaturaHtml = dataUrl
-        ? `<div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;">
-            <img src="${dataUrl}" alt="Assinatura do Contratante" style="max-height: 48px; max-width: 100%; object-fit: contain; margin: 0 auto 2px auto; display: block;" />
-          </div>`
-        : `<div style="min-height: 36px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px;">
-            <span style="font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-weight: bold; font-size: 14px; color: #1e293b;">
-              ${nomeSignatario}
-            </span>
-          </div>`;
+    const imagemAssinaturaHtml = dataUrl
+      ? `<div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;">
+          <img src="${dataUrl}" alt="Assinatura do Contratante" style="max-height: 48px; max-width: 100%; object-fit: contain; margin: 0 auto 2px auto; display: block;" />
+        </div>`
+      : `<div style="min-height: 36px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px;">
+          <span style="font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-weight: bold; font-size: 14px; color: #1e293b;">
+            ${nomeSignatario}
+          </span>
+        </div>`;
 
-      const labelContratante = tipoContrato === 'PARCEIRO' ? 'PARCEIRO' : 'CONTRATANTE';
-      const blocoAssinado = `<div style="width: 45%; text-align: center; padding-top: 4px;">
-        ${imagemAssinaturaHtml}
-        <div style="border-top: 1px solid #111827; padding-top: 4px;">
-          <p style="margin: 0; font-weight: bold; font-size: 11px;">${dadosMapeados.RAZAO_SOCIAL} (${labelContratante})</p>
-          <p style="margin: 2px 0 0; font-size: 9px; color: #16a34a; font-weight: bold;">✓ Assinado digitalmente por ${nomeSignatario}</p>
-          <p style="margin: 0; font-size: 8px; color: #6b7280;">Data: ${dataFmt} · Método: ${metodoLabel}</p>
-        </div>
-      </div>`;
+    const labelContratante = tipoContrato === 'PARCEIRO' ? 'PARCEIRO' : tipoContrato === 'GESTOR' ? 'GESTOR' : 'CONTRATANTE';
+    const blocoAssinado = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+      ${imagemAssinaturaHtml}
+      <div style="border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">${dadosMapeados.RAZAO_SOCIAL} (${labelContratante})</p>
+        <p style="margin: 2px 0 0; font-size: 9px; color: #16a34a; font-weight: bold;">✓ Assinado digitalmente por ${nomeSignatario}</p>
+        <p style="margin: 0; font-size: 8px; color: #6b7280;">Data: ${dataFmt} · Método: ${metodoLabel}</p>
+      </div>
+    </div>`;
 
-      const regex = new RegExp(`<div[^>]*>\\s*<p[^>]*>[^<]*(${labelContratante})[^<]*</p>\\s*</div>`, 'is');
-      if (regex.test(htmlRenderizado)) {
-        htmlRenderizado = htmlRenderizado.replace(regex, blocoAssinado);
-      }
+    const regex = new RegExp(`<div[^>]*>\\s*<p[^>]*>[^<]*(${labelContratante})[^<]*</p>\\s*</div>`, 'is');
+    if (regex.test(htmlRenderizado)) {
+      htmlRenderizado = htmlRenderizado.replace(regex, blocoAssinado);
     }
   }
 
