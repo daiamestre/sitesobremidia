@@ -323,29 +323,20 @@ export default function ContratoSelectionPage() {
 
   const handleDownloadPDF = async () => {
     if (!contratoExistente?.id) return;
-    const result = await contratoService.getContractDownloadUrl(contratoExistente.id);
-    if (result.success && result.downloadUrl) {
-      try {
-        await contratoDocumentoService.baixarDocumento(contratoExistente.pdf_object_key || '', result.fileName || `Contrato_${contratoExistente.numero_contrato}.pdf`);
-        if (user && contratoExistente.tipo_contrato) {
-          await contratoDocumentoService.registrarDownloadDocumento(contratoExistente.id, contratoExistente.tipo_contrato, user.id, contratoExistente.pdf_object_key || '');
-        }
-        toast({ title: 'Download iniciado' });
-      } catch (err: any) {
-        toast({ title: 'Erro no Download', description: err?.message, variant: 'destructive' });
-      }
-    } else {
-      toast({ title: 'Erro no Download', description: result.error, variant: 'destructive' });
+    try {
+      await contratoDocumentoService.baixarDocumentoContrato(contratoExistente.id, user?.id);
+      toast({ title: 'Download iniciado' });
+    } catch (err: any) {
+      toast({ title: 'Erro no Download', description: err?.message || 'Não foi possível baixar o documento.', variant: 'destructive' });
     }
   };
 
   const handleViewPDF = async () => {
     if (!contratoExistente?.id) return;
-    const result = await contratoService.getContractDownloadUrl(contratoExistente.id);
-    if (result.success && result.downloadUrl) {
-      window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
-    } else {
-      toast({ title: 'Erro na Visualizacao', description: result.error, variant: 'destructive' });
+    try {
+      await contratoDocumentoService.visualizarDocumentoContrato(contratoExistente.id);
+    } catch (err: any) {
+      toast({ title: 'Erro na Visualizacao', description: err?.message || 'Não foi possível abrir o documento.', variant: 'destructive' });
     }
   };
 

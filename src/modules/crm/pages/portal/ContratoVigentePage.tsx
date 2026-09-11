@@ -67,21 +67,18 @@ export default function ContratoVigentePage() {
   };
 
   const handleVisualizar = async () => {
-    if (!contrato?.pdf_object_key) return;
+    if (!contrato?.id) return;
     try {
-      await contratoDocumentoService.visualizarDocumento(contrato.pdf_object_key);
+      await contratoDocumentoService.visualizarDocumentoContrato(contrato.id);
     } catch (err: any) {
       toast({ title: 'Erro', description: err?.message || 'Não foi possível abrir o documento.', variant: 'destructive' });
     }
   };
 
   const handleBaixar = async () => {
-    if (!contrato?.pdf_object_key) return;
+    if (!contrato?.id) return;
     try {
-      await contratoDocumentoService.baixarDocumento(contrato.pdf_object_key, `Contrato_${contrato.numero_contrato}.pdf`);
-      if (usuario?.id) {
-        await contratoDocumentoService.registrarDownloadDocumento(contrato.id, '', usuario.id, contrato.pdf_object_key);
-      }
+      await contratoDocumentoService.baixarDocumentoContrato(contrato.id, usuario?.id);
       toast({ title: 'Download iniciado', description: 'Documento do contrato baixado.' });
     } catch (err: any) {
       toast({ title: 'Erro', description: err?.message || 'Não foi possível baixar o documento.', variant: 'destructive' });
@@ -89,9 +86,9 @@ export default function ContratoVigentePage() {
   };
 
   const handleVisualizarAssinado = async () => {
-    if (!contrato?.pdf_assinado_key) return;
+    if (!contrato?.id) return;
     try {
-      await contratoDocumentoService.visualizarDocumento(contrato.pdf_assinado_key);
+      await contratoDocumentoService.visualizarDocumentoContrato(contrato.id);
     } catch (err: any) {
       toast({ title: 'Erro', description: err?.message || 'Não foi possível abrir o documento assinado.', variant: 'destructive' });
     }
@@ -346,40 +343,12 @@ export default function ContratoVigentePage() {
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-3">
-                {contrato.pdf_object_key && (
-                  <>
-                    <Button onClick={handleVisualizar} variant="outline" className="border-white/10 bg-slate-950/50 text-white hover:bg-slate-800">
-                      <Eye className="h-4 w-4 mr-2" /> Visualizar Contrato
-                    </Button>
-                    <Button onClick={handleBaixar} variant="outline" className="border-white/10 bg-slate-950/50 text-white hover:bg-slate-800">
-                      <Download className="h-4 w-4 mr-2" /> Baixar Contrato
-                    </Button>
-                  </>
-                )}
-                {contrato.pdf_assinado_key && (
-                  <>
-                    <Button onClick={handleVisualizarAssinado} variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20">
-                      <Eye className="h-4 w-4 mr-2" /> Ver Documento Assinado
-                    </Button>
-                    <Button
-                      onClick={async () => {
-                        try {
-                          await contratoDocumentoService.baixarDocumento(contrato.pdf_assinado_key!, `Contrato_Assinado_${contrato.numero_contrato}.pdf`);
-                          if (usuario?.id) {
-                            await contratoDocumentoService.registrarDownloadDocumento(contrato.id, contrato.tipo_contrato || '', usuario.id, contrato.pdf_assinado_key!);
-                          }
-                          toast({ title: 'Download iniciado', description: 'Documento assinado baixado.' });
-                        } catch (err: any) {
-                          toast({ title: 'Erro', description: err?.message || 'Não foi possível baixar o documento assinado.', variant: 'destructive' });
-                        }
-                      }}
-                      variant="outline"
-                      className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
-                    >
-                      <Download className="h-4 w-4 mr-2" /> Baixar PDF Assinado
-                    </Button>
-                  </>
-                )}
+                <Button onClick={handleVisualizar} variant="outline" className="border-white/10 bg-slate-950/50 text-white hover:bg-slate-800">
+                  <Eye className="h-4 w-4 mr-2" /> Visualizar Contrato
+                </Button>
+                <Button onClick={handleBaixar} variant="outline" className="border-white/10 bg-slate-950/50 text-white hover:bg-slate-800">
+                  <Download className="h-4 w-4 mr-2" /> Baixar Contrato
+                </Button>
               </div>
               {contrato.status_documento === 'ENVIADO' && contrato.assinatura_envelope_id && (
                 <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">

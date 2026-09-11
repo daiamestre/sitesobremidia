@@ -56,21 +56,18 @@ function Contrato360Modal({ contrato, onClose, basePath }: { contrato: ContratoC
   const [tab, setTab] = useState(0);
 
   const handleVisualizar = async () => {
-    if (!contrato.pdf_object_key) return;
+    if (!contrato.id) return;
     try {
-      await contratoDocumentoService.visualizarDocumento(contrato.pdf_object_key);
+      await contratoDocumentoService.visualizarDocumentoContrato(contrato.id);
     } catch (err: any) {
       toast({ title: 'Erro', description: err?.message || 'Não foi possível abrir o documento.', variant: 'destructive' });
     }
   };
 
   const handleBaixar = async () => {
-    if (!contrato.pdf_object_key) return;
+    if (!contrato.id) return;
     try {
-      await contratoDocumentoService.baixarDocumento(contrato.pdf_object_key, `Contrato_${contrato.numero_contrato}.pdf`);
-      if (usuario?.id) {
-        await contratoDocumentoService.registrarDownloadDocumento(contrato.id, contrato.tipo_contrato || '', usuario.id, contrato.pdf_object_key);
-      }
+      await contratoDocumentoService.baixarDocumentoContrato(contrato.id, usuario?.id);
       toast({ title: 'Download iniciado', description: 'Documento do contrato baixado.' });
     } catch (err: any) {
       toast({ title: 'Erro', description: err?.message || 'Não foi possível baixar o documento.', variant: 'destructive' });
@@ -78,9 +75,9 @@ function Contrato360Modal({ contrato, onClose, basePath }: { contrato: ContratoC
   };
 
   const handleVisualizarAssinado = async () => {
-    if (!contrato.pdf_assinado_key) return;
+    if (!contrato.id) return;
     try {
-      await contratoDocumentoService.visualizarDocumento(contrato.pdf_assinado_key);
+      await contratoDocumentoService.visualizarDocumentoContrato(contrato.id);
     } catch (err: any) {
       toast({ title: 'Erro', description: err?.message || 'Não foi possível abrir o documento assinado.', variant: 'destructive' });
     }
@@ -199,7 +196,7 @@ function Contrato360Modal({ contrato, onClose, basePath }: { contrato: ContratoC
                           </Button>
                         </>
                       )}
-                      {contrato.pdf_assinado_key && (
+                      {contrato.status_documento === 'ASSINADO' && (
                         <Button variant="outline" size="sm" className="border-emerald-500/30 text-emerald-400 text-xs gap-1 hover:bg-emerald-500/10" onClick={handleVisualizarAssinado}>
                           <CheckCircle2 className="h-3.5 w-3.5" /> Ver Assinado
                         </Button>
@@ -529,7 +526,7 @@ export default function ContratosListPage() {
                       <FileText className="h-3.5 w-3.5" /> Editar / Gerar PDF
                     </Button>
                   </div>
-                  {c.pdf_object_key && (
+                  {(c.pdf_object_key || c.pdf_assinado_key) && (
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -538,10 +535,7 @@ export default function ContratosListPage() {
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
-                            await contratoDocumentoService.baixarDocumento(c.pdf_object_key!, `Contrato_${c.numero_contrato}.pdf`);
-                            if (usuario?.id) {
-                              await contratoDocumentoService.registrarDownloadDocumento(c.id, c.tipo_contrato || '', usuario.id, c.pdf_object_key!);
-                            }
+                            await contratoDocumentoService.baixarDocumentoContrato(c.id, usuario?.id);
                             toast({ title: 'Download iniciado', description: 'Documento do contrato baixado.' });
                           } catch (err: any) {
                             toast({ title: 'Erro', description: err?.message || 'Não foi possível baixar o documento.', variant: 'destructive' });
@@ -557,7 +551,7 @@ export default function ContratosListPage() {
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
-                            await contratoDocumentoService.visualizarDocumento(c.pdf_object_key!);
+                            await contratoDocumentoService.visualizarDocumentoContrato(c.id);
                           } catch (err: any) {
                             toast({ title: 'Erro', description: err?.message || 'Não foi possível abrir o documento.', variant: 'destructive' });
                           }
@@ -565,24 +559,6 @@ export default function ContratosListPage() {
                       >
                         <Eye className="h-3.5 w-3.5" /> Ver PDF
                       </Button>
-                      {c.pdf_assinado_key && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full border-emerald-500/30 text-emerald-400 text-xs gap-1 hover:bg-emerald-500/10"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                              await contratoDocumentoService.baixarDocumento(c.pdf_assinado_key!, `Contrato_Assinado_${c.numero_contrato}.pdf`);
-                              toast({ title: 'Download iniciado', description: 'PDF assinado baixado.' });
-                            } catch (err: any) {
-                              toast({ title: 'Erro', description: err?.message || 'Não foi possível baixar o documento assinado.', variant: 'destructive' });
-                            }
-                          }}
-                        >
-                          <Download className="h-3.5 w-3.5" /> Baixar Assinado
-                        </Button>
-                      )}
                     </div>
                   )}
                   {canDeleteContracts && (

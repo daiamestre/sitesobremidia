@@ -367,27 +367,17 @@ export class ContratoService {
 
   /**
    * Gera URL presigned de download do PDF original com autorização REAL
-   * (Edge Function get-download-url + RLS do banco).
+   * Gera URL presigned de download com autorização REAL
+   * (Edge Function get-download-url + RLS do banco) via Resolver Canônico Universal.
    */
-  async getContractDownloadUrl(contratoId: string): Promise<{ success: boolean; downloadUrl?: string; fileName?: string; error?: string }> {
+  async getContractDownloadUrl(contratoId: string): Promise<{ success: boolean; downloadUrl?: string; fileName?: string; isAssinado?: boolean; error?: string }> {
     try {
-      const { data: contrato, error: fetchErr } = await supabase
-        .from('contratos')
-        .select('pdf_object_key, numero_contrato, tipo_contrato, empresa_operadora_id')
-        .eq('id', contratoId)
-        .single();
-
-      if (fetchErr || !contrato) return { success: false, error: 'Contrato não encontrado.' };
-      if (!contrato.pdf_object_key) return { success: false, error: 'PDF do contrato não foi gerado.' };
-
-      const downloadUrl = await contratoDocumentoService.obterUrlDownload(contrato.pdf_object_key);
-
-      const fileName = `Contrato_${contrato.tipo_contrato || 'Anunciante'}_${contrato.numero_contrato}.pdf`;
-
+      const doc = await contratoDocumentoService.resolverDocumentoContrato(contratoId);
       return {
         success: true,
-        downloadUrl,
-        fileName,
+        downloadUrl: doc.downloadUrl,
+        fileName: doc.fileName,
+        isAssinado: doc.isAssinado,
       };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Erro ao obter URL de download.' };
@@ -395,32 +385,36 @@ export class ContratoService {
   }
 
   /**
-   * Gera URL presigned de download do PDF ASSINADO com autorização REAL.
+   * Gera URL presigned de download do PDF ASSINADO com autorização REAL via Resolver Canônico.
    */
   async getSignedDocumentDownloadUrl(contratoId: string): Promise<{ success: boolean; downloadUrl?: string; fileName?: string; signedAt?: string; error?: string }> {
     try {
-      const { data: contrato, error: fetchErr } = await supabase
-        .from('contratos')
-        .select('pdf_assinado_key, numero_contrato, tipo_contrato, documento_assinado_em')
-        .eq('id', contratoId)
-        .single();
-
-      if (fetchErr || !contrato) return { success: false, error: 'Contrato não encontrado.' };
-      if (!contrato.pdf_assinado_key) return { success: false, error: 'Documento assinado não disponível.' };
-
-      const downloadUrl = await contratoDocumentoService.obterUrlDownload(contrato.pdf_assinado_key);
-
-      const fileName = `Contrato_Assinado_${contrato.tipo_contrato || 'Anunciante'}_${contrato.numero_contrato}.pdf`;
-
+      const doc = await contratoDocumentoService.resolverDocumentoContrato(contratoId);
+      if (!doc.isAssinado) {
+        return { success: false, error: 'Documento assinado não disponível para este contrato.' };
+      }
       return {
         success: true,
-        downloadUrl,
-        fileName,
-        signedAt: contrato.documento_assinado_em,
+        downloadUrl: doc.downloadUrl,
+        fileName: doc.fileName,
       };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Erro ao obter URL de download.' };
     }
+  }
+
+  /**
+   * Visualiza o documento canônico oficial do contrato.
+   */
+  async visualizarDocumento(contratoId: string): Promise<string> {
+    return contratoDocumentoService.visualizarDocumentoContrato(contratoId);
+  }
+
+  /**
+   * Baixa o documento canônico oficial do contrato.
+   */
+  async baixarDocumento(contratoId: string, usuarioId?: string): Promise<{ blob: Blob; fileName: string; downloadUrl: string }> {
+    return contratoDocumentoService.baixarDocumentoContrato(contratoId, usuarioId);
   }
 
   /**
