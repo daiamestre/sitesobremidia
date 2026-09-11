@@ -223,14 +223,48 @@ export default function ContratoSelectionPage() {
     }
   };
 
-  const handlePreviewOfficial = (tipo: 'ANUNCIANTE' | 'PARCEIRO') => {
-    const pdf = getOfficialPdfForTipoContrato(tipo);
-    if (pdf) window.open(pdf.publicPath, '_blank', 'noopener,noreferrer');
+  const handlePreviewOfficial = async (tipo: 'ANUNCIANTE' | 'PARCEIRO') => {
+    try {
+      // Usa o template padrão já carregado do banco (is_default=true)
+      const tpl = templates.find(t => t.tipo_contrato === tipo && t.is_default && t.conteudo_html && t.conteudo_html.length > 200)
+             || templates.find(t => t.tipo_contrato === tipo && t.conteudo_html && t.conteudo_html.length > 200);
+      if (!tpl) {
+        toast({ title: 'Template não encontrado', description: `Nenhum template padrão de ${tipo} disponível.`, variant: 'destructive' });
+        return;
+      }
+      const { gerarPdfDoHtml, preencherTemplate } = await import('../services/contratoDocumento.service');
+      const htmlRenderizado = preencherTemplate(tpl.conteudo_html, {}, tipo as 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR');
+      const bytes = await gerarPdfDoHtml(htmlRenderizado, `MODELO-${tipo}`, tipo, tpl.versao || 1);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Falha ao gerar preview.', variant: 'destructive' });
+    }
   };
 
-  const handleDownloadOfficial = (tipo: 'ANUNCIANTE' | 'PARCEIRO') => {
-    const pdf = getOfficialPdfForTipoContrato(tipo);
-    if (pdf) { const a = document.createElement('a'); a.href = pdf.publicPath; a.download = pdf.fileName; a.click(); }
+  const handleDownloadOfficial = async (tipo: 'ANUNCIANTE' | 'PARCEIRO') => {
+    try {
+      const tpl = templates.find(t => t.tipo_contrato === tipo && t.is_default && t.conteudo_html && t.conteudo_html.length > 200)
+             || templates.find(t => t.tipo_contrato === tipo && t.conteudo_html && t.conteudo_html.length > 200);
+      if (!tpl) {
+        toast({ title: 'Template não encontrado', description: `Nenhum template padrão de ${tipo} disponível.`, variant: 'destructive' });
+        return;
+      }
+      const { gerarPdfDoHtml, preencherTemplate } = await import('../services/contratoDocumento.service');
+      const htmlRenderizado = preencherTemplate(tpl.conteudo_html, {}, tipo as 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR');
+      const bytes = await gerarPdfDoHtml(htmlRenderizado, `MODELO-${tipo}`, tipo, tpl.versao || 1);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `Contrato_${tipo}_Oficial.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err?.message || 'Falha ao baixar PDF.', variant: 'destructive' });
+    }
   };
 
   const renderFilledContractHTML = () => {

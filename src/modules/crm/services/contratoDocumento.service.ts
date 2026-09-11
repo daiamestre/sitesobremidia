@@ -2146,9 +2146,10 @@ export async function resolverDocumentoContrato(contratoId: string): Promise<Doc
 }
 
 /**
- * Gera o PDF oficial do contrato em memória usando o motor corrigido + template padrão da Central de Contratos.
+ * Gera o PDF oficial do contrato em memória usando o motor corrigido + template padrão ATUAL da Central de Contratos.
+ * SEMPRE usa o template marcado como is_default=true via fn_obter_template_padrao — nunca o template_id histórico do contrato.
+ * Isso garante que qualquer mudança de padrão na Central de Contratos seja refletida imediatamente em todo o sistema.
  * Não salva nada no R2 nem altera o banco — exclusivamente in-memory.
- * Garante que visualizar/baixar entregue sempre o documento idêntico ao da Central de Contratos.
  */
 export async function gerarPreviewPdfContrato(
   contratoId: string
@@ -2157,25 +2158,91 @@ export async function gerarPreviewPdfContrato(
     throw new Error('ID do contrato é obrigatório para geração do preview.');
   }
 
-  // Reutiliza obterHtmlContratoPorContratoId que já: busca dados reais + template oficial + preenche + injeta assinatura visual
-  const htmlRenderizado = await obterHtmlContratoPorContratoId(contratoId);
-
-  // Busca metadados do contrato para o cabeçalho do PDF
-  const { data: contrato } = await supabase
+  // Busca dados do contrato (sem template_id — o template padrão será resolvido abaixo)
+  const { data: contrato, error: ctrErr } = await supabase
     .from('contratos')
-    .select('numero_contrato, tipo_contrato, versao_atual')
+    .select(`
+      id, numero_contrato, tipo_contrato, versao_atual, empresa_operadora_id,
+      status_documento,
+      proposta:propostas(*),
+      cliente:clientes(*)
+    `)
     .eq('id', contratoId)
-    .maybeSingle();
+    .is('deleted_at', null)
+    .single();
 
-  const numeroContrato = contrato?.numero_contrato || contratoId;
-  const tipoContrato = contrato?.tipo_contrato || 'ANUNCIANTE';
-  const versao = contrato?.versao_atual || 1;
+  if (ctrErr || !contrato) {
+    throw new Error(`Contrato não encontrado (ID: ${contratoId}).`);
+  }
+
+  const tipoContrato = (contrato.tipo_contrato as 'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR') || 'ANUNCIANTE';
+  const numeroContrato = contrato.numero_contrato || contratoId;
+  const versao = contrato.versao_atual || 1;
+
+  // SEMPRE busca o template padrão ATUAL da Central de Contratos — ignora template_id histórico do contrato
+  const templatePadrao = await obterTemplatePadraoVigente(tipoContrato, contrato.empresa_operadora_id || null);
+
+  // Coleta todos os dados reais para preencher os placeholders
+  const dadosDocumento = await coletarDadosReais(contratoId);
+
+  // Substitui o template pelos dados reais do contrato porém com o template padrão atual
+  const dadosMapeados = montarDadosTemplate(dadosDocumento);
+
+  // Usa o HTML do template padrão atual (não o histórico do contrato)
+  let htmlRenderizado = preencherTemplate(templatePadrao.conteudo_html, dadosMapeados, tipoContrato);
+
+  // Injeta visualmente a assinatura do contratante se o contrato já estiver assinado
+  if (contrato.status_documento === 'ASSINADO') {
+    const { data: ass } = await supabase
+      .from('assinaturas')
+      .select('signatario_nome, signatario_cpf_cnpj, assinado_em, metodo, dados_assinatura')
+      .eq('contrato_id', contratoId)
+      .eq('status', 'ASSINADO')
+      .order('assinado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (ass) {
+      const responsavelContratante = dadosMapeados.RESPONSAVEL || dadosMapeados.RAZAO_SOCIAL;
+      const nomeSignatario = ass.signatario_nome || responsavelContratante;
+      const metodo = ass.metodo || 'DRAWN';
+      const metodoLabel = metodo === 'TYPED' ? 'Assinatura Digitada (TYPED)' : 'Digital Desenhada (DRAWN)';
+      const dataFmt = ass.assinado_em ? formatarDataExtensa(new Date(ass.assinado_em)) : formatarDataExtensa(new Date());
+      const dataUrl = (ass.dados_assinatura as any)?.signatureDataUrl || (ass.dados_assinatura as any)?.dataUrl || '';
+
+      const imagemAssinaturaHtml = dataUrl
+        ? `<div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;">
+            <img src="${dataUrl}" alt="Assinatura do Contratante" style="max-height: 48px; max-width: 100%; object-fit: contain; margin: 0 auto 2px auto; display: block;" />
+          </div>`
+        : `<div style="min-height: 36px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 4px;">
+            <span style="font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-weight: bold; font-size: 14px; color: #1e293b;">
+              ${nomeSignatario}
+            </span>
+          </div>`;
+
+      const labelContratante = tipoContrato === 'PARCEIRO' ? 'PARCEIRO' : 'CONTRATANTE';
+      const blocoAssinado = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+        ${imagemAssinaturaHtml}
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">${dadosMapeados.RAZAO_SOCIAL} (${labelContratante})</p>
+          <p style="margin: 2px 0 0; font-size: 9px; color: #16a34a; font-weight: bold;">✓ Assinado digitalmente por ${nomeSignatario}</p>
+          <p style="margin: 0; font-size: 8px; color: #6b7280;">Data: ${dataFmt} · Método: ${metodoLabel}</p>
+        </div>
+      </div>`;
+
+      const regex = new RegExp(`<div[^>]*>\\s*<p[^>]*>[^<]*(${labelContratante})[^<]*</p>\\s*</div>`, 'is');
+      if (regex.test(htmlRenderizado)) {
+        htmlRenderizado = htmlRenderizado.replace(regex, blocoAssinado);
+      }
+    }
+  }
 
   const bytes = await gerarPdfDoHtml(htmlRenderizado, numeroContrato, tipoContrato, versao);
   const fileName = `Contrato_${numeroContrato}.pdf`;
 
   return { bytes, fileName, tipoContrato, numeroContrato };
 }
+
 
 /**
  * Visualização Canônica Universal de Documento Contratual.
