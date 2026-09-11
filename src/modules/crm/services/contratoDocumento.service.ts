@@ -2084,7 +2084,7 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
 
   const periodoVeiculacao = proposta?.periodo_veiculacao || (contrato?.data_inicio && contrato?.data_fim ? `De ${formatarData(contrato.data_inicio)} a ${formatarData(contrato.data_fim)}` : '12 meses');
   const pacoteVeiculacao = proposta?.pacote_veiculacao || proposta?.plano || 'Mídia Indoor Exclusiva';
-  const tituloCampanha = proposta?.titulo_campanha || (nomeFantasia ? `Campanha ${nomeFantasia}` : 'Campanha de Mídia Indoor');
+  const tituloCampanha = proposta?.titulo_campanha || '';
   const formaPagamento = contrato?.forma_pagamento || proposta?.forma_pagamento || 'PIX';
   const qtdTelasStr = dados.quantidadeTelas > 0 ? String(dados.quantidadeTelas) : (proposta?.quantidade_telas ? String(proposta.quantidade_telas) : '1');
 
@@ -2792,27 +2792,27 @@ export const SIGNATURE_PLACEMENTS: Record<'ANUNCIANTE' | 'PARCEIRO' | 'GESTOR' |
   ANUNCIANTE: {
     // Acima da linha "___ CONTRATANTE" no canto direito da última página
     x: 310,
-    y: 350,
+    y: 510,
     width: 215,
     height: 45,
   },
   PARCEIRO: {
     // Acima da linha "___ PARCEIRO" no canto esquerdo da última página
     x: 64,
-    y: 350,
+    y: 476,
     width: 200,
     height: 45,
   },
   GESTOR: {
     // Acima da linha "___ GESTOR OPERACIONAL" no canto esquerdo da última página
     x: 64,
-    y: 350,
+    y: 476,
     width: 200,
     height: 45,
   },
   DEFAULT: {
     x: 310,
-    y: 350,
+    y: 510,
     width: 220,
     height: 45,
   },
