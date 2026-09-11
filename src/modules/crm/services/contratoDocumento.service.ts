@@ -1584,8 +1584,72 @@ export function parseHtmlToElements(html: string): ElementoHtml[] {
 }
 
 /**
+ * Separa o HTML do contrato em exatamente 2 páginas lógicas canônicas:
+ * - Página 1: Cabeçalho, Partes, Preâmbulo, Cláusulas 01 a 05
+ * - Página 2: Cláusula 06 em diante (ou equivalente), Políticas, Grade e Assinaturas
+ */
+export function separarHtmlEmPaginas(html: string, tipoContrato: string): string[] {
+  if (!html || typeof html !== 'string' || html.trim() === '') return [html || ''];
+
+  let splitIndex = -1;
+
+  // 1. Tenta dividir pela classe .page-break ou data-page-break
+  const pageBreakMatch = html.match(/<div[^>]*class=["'][^"']*page-break[^"']*["'][^>]*>/i) ||
+                         html.match(/<[^>]+data-page-break[^>]*>/i);
+  if (pageBreakMatch && pageBreakMatch.index !== undefined && pageBreakMatch.index > 50) {
+    splitIndex = pageBreakMatch.index;
+  }
+
+  // 2. Se não encontrou, busca pela Cláusula 06 (padrão Anunciante)
+  if (splitIndex === -1) {
+    const c06Match = html.match(/<div[^>]*>\s*<h4[^>]*>[^<]*CL[AÁ]USULA\s+(06|6)\b/i) ||
+                     html.match(/<h4[^>]*>[^<]*CL[AÁ]USULA\s+(06|6)\b/i);
+    if (c06Match && c06Match.index !== undefined && c06Match.index > 50) {
+      splitIndex = c06Match.index;
+    }
+  }
+
+  // 3. Fallbacks específicos por tipo de contrato
+  if (splitIndex === -1 && tipoContrato === 'PARCEIRO') {
+    const c04Match = html.match(/<div[^>]*>\s*<h4[^>]*>[^<]*CL[AÁ]USULA\s+(04|4)\b/i) ||
+                     html.match(/<h4[^>]*>[^<]*CL[AÁ]USULA\s+(04|4)\b/i);
+    if (c04Match && c04Match.index !== undefined && c04Match.index > 50) {
+      splitIndex = c04Match.index;
+    }
+  }
+
+  if (splitIndex === -1 && tipoContrato === 'GESTOR') {
+    const c04GestorMatch = html.match(/<div[^>]*>\s*<h4[^>]*>[^<]*4\.\s*POL[IÍ]TICAS/i) ||
+                           html.match(/<h4[^>]*>[^<]*4\.\s*POL[IÍ]TICAS/i);
+    if (c04GestorMatch && c04GestorMatch.index !== undefined && c04GestorMatch.index > 50) {
+      splitIndex = c04GestorMatch.index;
+    }
+  }
+
+  // Se não houver ponto de divisão claro, entrega o HTML em página única
+  if (splitIndex === -1) {
+    return [html];
+  }
+
+  let part1 = html.substring(0, splitIndex).trim();
+  let part2 = html.substring(splitIndex).trim();
+
+  // Garante fechamento de tag em part1
+  if (!part1.endsWith('</div>')) {
+    part1 += '</div>';
+  }
+
+  // Garante reabertura do container mestre em part2
+  if (!part2.startsWith('<div class="contract-container"')) {
+    part2 = `<div class="contract-container" style="font-family: Arial, sans-serif; font-size: 12px; line-height: 1.45; color: #111827;">${part2}`;
+  }
+
+  return [part1, part2];
+}
+
+/**
  * Renderiza o HTML exatamente como no navegador usando html2canvas e converte para PDF A4 em alta definição.
- * Preserva 100% da identidade visual, cores, cabeçalho institucional, bordas, tabelas, caixas e assinaturas.
+ * Renderiza cada página do documento isoladamente, eliminando qualquer chance de páginas em branco ou desvios de corte.
  */
 async function renderizarHtmlParaPdfNavegador(
   htmlRenderizado: string,
@@ -1593,156 +1657,69 @@ async function renderizarHtmlParaPdfNavegador(
   tipoContrato: string,
   versao: number
 ): Promise<Uint8Array> {
-  const container = document.createElement('div');
-  container.className = 'pdf-render-canvas-container';
-  container.style.position = 'fixed';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  container.style.width = '794px'; // A4 width em 96 DPI
-  container.style.padding = '36px 40px';
-  container.style.backgroundColor = '#ffffff';
-  container.style.color = '#111827';
-  container.style.boxSizing = 'border-box';
-  container.style.fontFamily = 'Arial, "Helvetica Neue", Helvetica, sans-serif';
-  container.style.lineHeight = '1.45';
-  container.style.zIndex = '-99999';
-  container.innerHTML = htmlRenderizado;
-  document.body.appendChild(container);
+  const paginasHtml = separarHtmlEmPaginas(htmlRenderizado, tipoContrato);
+  const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+  const pageWidth = 595.28;
+  const marginX = 24;
+  const marginY = 24;
+  const usableWidth = pageWidth - marginX * 2; // 547.28 pt
 
-  try {
-    // Aguarda carregamento de todas as imagens (ex: assinaturas, logotipos)
-    const images = container.querySelectorAll('img');
-    if (images.length > 0) {
-      await Promise.all(
-        Array.from(images).map((img) => {
-          if (img.complete) return Promise.resolve(null);
-          return new Promise((res) => {
-            img.onload = () => res(null);
-            img.onerror = () => res(null);
-          });
-        })
-      );
+  for (let pIdx = 0; pIdx < paginasHtml.length; pIdx++) {
+    if (pIdx > 0) {
+      doc.addPage('a4', 'portrait');
     }
 
-    const canvas = await html2canvas(container, {
-      scale: 2, // 2x alta definição
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-      windowWidth: 794,
-    });
+    const container = document.createElement('div');
+    container.className = `pdf-render-canvas-container page-${pIdx + 1}`;
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '794px'; // A4 width em 96 DPI
+    container.style.padding = '36px 40px';
+    container.style.backgroundColor = '#ffffff';
+    container.style.color = '#111827';
+    container.style.boxSizing = 'border-box';
+    container.style.fontFamily = 'Arial, "Helvetica Neue", Helvetica, sans-serif';
+    container.style.lineHeight = '1.45';
+    container.style.zIndex = '-99999';
+    container.innerHTML = paginasHtml[pIdx];
+    document.body.appendChild(container);
 
-    const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
-    const pageWidth = 595.28;
-    const pageHeight = 841.89;
-    const marginX = 24;
-    const marginY = 24;
-    const usableWidth = pageWidth - marginX * 2; // 547.28 pt
-    const usableHeight = pageHeight - marginY * 2; // 793.89 pt
-
-    // Altura em pixels do canvas correspondente a uma página utilizável do PDF
-    const canvasPageHeight = (usableHeight / usableWidth) * canvas.width;
-
-    // Identifica pontos de quebra de página explícitos (especificamente o bloco da Cláusula 06)
-    const breakElements: HTMLElement[] = [];
-    const pageBreakClassEls = container.querySelectorAll('.page-break, [data-page-break]');
-    for (const el of pageBreakClassEls) {
-      if (el !== container && el !== container.firstElementChild) {
-        breakElements.push(el as HTMLElement);
-      }
-    }
-
-    // Se não encontrou pela classe, busca especificamente pelo container direto da Cláusula 06
-    if (breakElements.length === 0) {
-      const h4s = container.querySelectorAll('h4');
-      for (const h4 of h4s) {
-        if (/CL[AÁ]USULA\s+(06|6)\b/i.test(h4.textContent || '')) {
-          const parentDiv = h4.parentElement;
-          if (parentDiv && parentDiv !== container && parentDiv !== container.firstElementChild) {
-            breakElements.push(parentDiv as HTMLElement);
-          }
-        }
-      }
-    }
-
-    const containerRect = container.getBoundingClientRect();
-    const scaleRatio = canvas.width / (container.clientWidth || 794);
-
-    // Considera apenas quebras válidas que estejam após pelo menos 400px de conteúdo (evita página em branco no topo)
-    const explicitBreakYs: number[] = breakElements
-      .map((el) => {
-        const elRect = el.getBoundingClientRect();
-        return Math.round((elRect.top - containerRect.top) * scaleRatio);
-      })
-      .filter((y) => y > 400 && y < canvas.height - 200)
-      .sort((a, b) => a - b);
-
-    // Constrói os pontos de corte (slice points)
-    const slicePoints: number[] = [0];
-    let lastY = 0;
-
-    for (const bY of explicitBreakYs) {
-      if (bY > lastY + 200) {
-        while (bY - lastY > canvasPageHeight) {
-          lastY += canvasPageHeight;
-          slicePoints.push(lastY);
-        }
-        slicePoints.push(bY);
-        lastY = bY;
-      }
-    }
-
-    while (canvas.height - lastY > canvasPageHeight) {
-      lastY += canvasPageHeight;
-      slicePoints.push(lastY);
-    }
-    slicePoints.push(canvas.height);
-
-    // Constrói a lista de fatias reais garantindo que não existam fatias vazias ou espúrias
-    const validSlices: { startY: number; sliceHeight: number }[] = [];
-    for (let i = 0; i < slicePoints.length - 1; i++) {
-      const startY = slicePoints[i];
-      const endY = slicePoints[i + 1];
-      const sliceHeight = endY - startY;
-      if (sliceHeight >= 80) {
-        validSlices.push({ startY, sliceHeight });
-      }
-    }
-
-    for (let pageIdx = 0; pageIdx < validSlices.length; pageIdx++) {
-      const { startY, sliceHeight } = validSlices[pageIdx];
-
-      if (pageIdx > 0) {
-        doc.addPage('a4', 'portrait');
-      }
-
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = canvas.width;
-      pageCanvas.height = sliceHeight;
-      const ctx = pageCanvas.getContext('2d');
-
-      if (ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-        ctx.drawImage(
-          canvas,
-          0, startY, canvas.width, sliceHeight,
-          0, 0, canvas.width, sliceHeight
+    try {
+      // Aguarda carregamento de todas as imagens (ex: assinaturas, logotipos)
+      const images = container.querySelectorAll('img');
+      if (images.length > 0) {
+        await Promise.all(
+          Array.from(images).map((img) => {
+            if (img.complete) return Promise.resolve(null);
+            return new Promise((res) => {
+              img.onload = () => res(null);
+              img.onerror = () => res(null);
+            });
+          })
         );
-
-        const imgData = pageCanvas.toDataURL('image/jpeg', 0.98);
-        const pdfSliceHeight = (sliceHeight / canvas.width) * usableWidth;
-        doc.addImage(imgData, 'JPEG', marginX, marginY, usableWidth, pdfSliceHeight);
       }
-    }
 
-    return new Uint8Array(doc.output('arraybuffer'));
-  } finally {
-    if (container.parentNode) {
-      container.parentNode.removeChild(container);
+      const canvas = await html2canvas(container, {
+        scale: 2, // 2x alta definição
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 794,
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      const pdfHeight = (canvas.height / canvas.width) * usableWidth;
+      doc.addImage(imgData, 'JPEG', marginX, marginY, usableWidth, pdfHeight);
+    } finally {
+      if (container.parentNode) {
+        container.parentNode.removeChild(container);
+      }
     }
   }
+
+  return new Uint8Array(doc.output('arraybuffer'));
 }
 
 /**
@@ -3240,5 +3217,6 @@ export const contratoDocumentoService = {
   obterTemplatePadraoVigente,
   renderizarPreviewContrato,
   obterHtmlContratoPorContratoId,
+  separarHtmlEmPaginas,
 };
 
