@@ -2146,36 +2146,69 @@ export async function resolverDocumentoContrato(contratoId: string): Promise<Doc
 }
 
 /**
- * P0.3.11 — Visualização Canônica Universal de Documento Contratual.
- * Garante que qualquer tela abra exatamente o artefato canônico resolvido.
+ * Gera o PDF oficial do contrato em memória usando o motor corrigido + template padrão da Central de Contratos.
+ * Não salva nada no R2 nem altera o banco — exclusivamente in-memory.
+ * Garante que visualizar/baixar entregue sempre o documento idêntico ao da Central de Contratos.
  */
-export async function visualizarDocumentoContrato(contratoId: string): Promise<string> {
-  const doc = await resolverDocumentoContrato(contratoId);
-  if (typeof window !== 'undefined') {
-    window.open(doc.downloadUrl, '_blank', 'noopener,noreferrer');
+export async function gerarPreviewPdfContrato(
+  contratoId: string
+): Promise<{ bytes: Uint8Array; fileName: string; tipoContrato: string; numeroContrato: string }> {
+  if (!contratoId || typeof contratoId !== 'string' || contratoId.trim() === '') {
+    throw new Error('ID do contrato é obrigatório para geração do preview.');
   }
-  return doc.downloadUrl;
+
+  // Reutiliza obterHtmlContratoPorContratoId que já: busca dados reais + template oficial + preenche + injeta assinatura visual
+  const htmlRenderizado = await obterHtmlContratoPorContratoId(contratoId);
+
+  // Busca metadados do contrato para o cabeçalho do PDF
+  const { data: contrato } = await supabase
+    .from('contratos')
+    .select('numero_contrato, tipo_contrato, versao_atual')
+    .eq('id', contratoId)
+    .maybeSingle();
+
+  const numeroContrato = contrato?.numero_contrato || contratoId;
+  const tipoContrato = contrato?.tipo_contrato || 'ANUNCIANTE';
+  const versao = contrato?.versao_atual || 1;
+
+  const bytes = await gerarPdfDoHtml(htmlRenderizado, numeroContrato, tipoContrato, versao);
+  const fileName = `Contrato_${numeroContrato}.pdf`;
+
+  return { bytes, fileName, tipoContrato, numeroContrato };
 }
 
 /**
- * P0.3.11 — Download Canônico Universal de Documento Contratual.
- * Baixa exatamente o binário resolvido pelo resolver canônico e dispara o download local.
+ * Visualização Canônica Universal de Documento Contratual.
+ * Gera o PDF on-the-fly com o motor corrigido + template oficial — sem servir arquivos antigos do R2.
+ */
+export async function visualizarDocumentoContrato(contratoId: string): Promise<string> {
+  const { bytes, fileName } = await gerarPreviewPdfContrato(contratoId);
+  if (typeof window !== 'undefined' && typeof URL !== 'undefined') {
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const objectUrl = URL.createObjectURL(blob);
+    window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    // Libera o object URL após 60s para não vazar memória
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    return objectUrl;
+  }
+  return '';
+}
+
+/**
+ * Download Canônico Universal de Documento Contratual.
+ * Gera o PDF on-the-fly com o motor corrigido + template oficial e dispara download — sem servir arquivos antigos do R2.
  */
 export async function baixarDocumentoContrato(
   contratoId: string,
   usuarioId?: string
 ): Promise<{ blob: Blob; fileName: string; downloadUrl: string; doc: DocumentoContratoResolvido }> {
-  const doc = await resolverDocumentoContrato(contratoId);
-  const res = await fetch(doc.downloadUrl);
-  if (!res.ok) {
-    throw new Error(`Falha no download do documento (${res.status}): ${res.statusText}`);
-  }
-  const blob = await res.blob();
-  if (typeof document !== 'undefined') {
+  const { bytes, fileName, tipoContrato } = await gerarPreviewPdfContrato(contratoId);
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  if (typeof document !== 'undefined' && typeof URL !== 'undefined') {
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = objectUrl;
-    link.download = doc.fileName;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -2183,12 +2216,25 @@ export async function baixarDocumentoContrato(
   }
   if (usuarioId) {
     try {
-      await registrarDownloadDocumento(contratoId, doc.tipoContrato, usuarioId, doc.storageKey);
+      await registrarDownloadDocumento(contratoId, tipoContrato, usuarioId, `preview-gerado-${contratoId}`);
     } catch (auditErr) {
       console.warn('[contratoDocumentoService] Falha ao registrar auditoria de download:', auditErr);
     }
   }
-  return { blob, fileName: doc.fileName, downloadUrl: doc.downloadUrl, doc };
+  // Mantém assinatura de retorno compatível com código existente
+  const doc = await resolverDocumentoContrato(contratoId).catch(() => ({
+    contratoId,
+    numeroContrato: '',
+    tipoContrato,
+    statusWorkflow: '',
+    statusDocumento: '',
+    isAssinado: false,
+    storageKey: '',
+    downloadUrl: '',
+    fileName,
+    templateId: null,
+  })) as DocumentoContratoResolvido;
+  return { blob, fileName, downloadUrl: '', doc };
 }
 
 /** Baixa o documento real e dispara o download no dispositivo por chave de storage. */
@@ -2843,6 +2889,7 @@ export async function obterHtmlContratoPorContratoId(contratoId: string): Promis
 
 export const contratoDocumentoService = {
   gerarDocumentoContrato,
+  gerarPreviewPdfContrato,
   criarEnvelopeInterno,
   registrarVisualizacaoAssinatura,
   assinarDocumento,

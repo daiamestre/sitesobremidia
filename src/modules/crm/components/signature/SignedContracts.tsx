@@ -4,7 +4,7 @@ import { CheckCircle2, Download, Eye, Hourglass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { digitalSignatureService } from '../../services/digitalSignature.service';
+import { contratoDocumentoService } from '../../services/contratoDocumento.service';
 
 interface AssinaturaAssinada {
   id: string;
@@ -21,26 +21,25 @@ export function SignedContracts({ assinados, onAssinaturaEvent }: { assinados: A
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const handleDownloadSigned = async (a: AssinaturaAssinada) => {
-    const envelopeId = a.envelope_id;
-    if (!envelopeId) {
-      toast({ title: 'Erro', description: 'Envelope não identificado.', variant: 'destructive' });
+    const contratoId = a.contrato_id;
+    if (!contratoId) {
+      toast({ title: 'Erro', description: 'Contrato não identificado.', variant: 'destructive' });
       return;
     }
 
     setDownloadingId(a.id);
     try {
-      const result = await digitalSignatureService.downloadSignedDocument(envelopeId);
-      if (result.pdfUrl) {
-        const link = document.createElement('a');
-        link.href = result.pdfUrl;
-        link.download = result.fileName || `Contrato_Assinado_${a.contrato?.numero_contrato || a.id}.pdf`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        toast({ title: 'Erro', description: 'PDF assinado não disponível.', variant: 'destructive' });
-      }
+      const { bytes, fileName } = await contratoDocumentoService.gerarPreviewPdfContrato(contratoId);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = fileName || `Contrato_Assinado_${a.contrato?.numero_contrato || a.id}.pdf`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
     } catch (err: unknown) {
       toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     } finally {
@@ -49,16 +48,18 @@ export function SignedContracts({ assinados, onAssinaturaEvent }: { assinados: A
   };
 
   const handleViewSigned = async (a: AssinaturaAssinada) => {
-    const envelopeId = a.envelope_id;
-    if (!envelopeId) return;
+    const contratoId = a.contrato_id;
+    if (!contratoId) {
+      toast({ title: 'Erro', description: 'Contrato não identificado.', variant: 'destructive' });
+      return;
+    }
 
     try {
-      const result = await digitalSignatureService.downloadSignedDocument(envelopeId);
-      if (result.pdfUrl) {
-        window.open(result.pdfUrl, '_blank', 'noopener,noreferrer');
-      } else {
-        toast({ title: 'Erro', description: 'PDF assinado não disponível.', variant: 'destructive' });
-      }
+      const { bytes } = await contratoDocumentoService.gerarPreviewPdfContrato(contratoId);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
     } catch (err: unknown) {
       toast({ title: 'Erro', description: err instanceof Error ? err.message : String(err), variant: 'destructive' });
     }
@@ -104,6 +105,7 @@ export function SignedContracts({ assinados, onAssinaturaEvent }: { assinados: A
                   size="sm"
                   variant="outline"
                   onClick={() => handleViewSigned(a)}
+                  disabled={downloadingId === a.id}
                   className="border-slate-500/30 text-slate-300 rounded-xl text-[10px] h-7 gap-1"
                 >
                   <Eye className="h-3 w-3" />
