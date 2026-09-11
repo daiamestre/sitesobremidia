@@ -72,7 +72,10 @@ export function SignatureDetails({ assinatura, onActionComplete }: SignatureDeta
     }
   };
 
-  const isSigned = assinatura.status === 'ASSINADO' || !!assinatura.pdf_assinado_key;
+  // P0.3.11.2 — GAP 2 FECHADO: regra canônica de assinatura válida.
+  // AMBAS as condições são obrigatórias: status = 'ASSINADO' E pdf_assinado_key presente.
+  // Uso de '||' permitia que uma key existente em assinatura CANCELADA fosse tratada como válida.
+  const isSigned = assinatura.status === 'ASSINADO' && !!assinatura.pdf_assinado_key;
 
   return (
     <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">

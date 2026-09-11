@@ -124,19 +124,28 @@ export class SignatureProviderAdapter implements DigitalSignatureProvider {
     }
   }
 
+  /**
+   * P0.3.11.2 — GAP 2 FECHADO.
+   * Retorna URL do PDF assinado SOMENTE se existir assinatura com:
+   *   status = 'ASSINADO' AND pdf_assinado_key IS NOT NULL.
+   * NÃO entrega documento de assinatura CANCELADA, EXPIRADA, PENDENTE ou ENVIADA,
+   * mesmo que exista pdf_assinado_key no registro.
+   * NÃO faz fallback silencioso para pdf_original_key — falha controlada.
+   */
   async downloadSignedDocument(envelopeId: string): Promise<{ pdfUrl: string; fileName?: string }> {
     try {
       const { data: ass } = await supabase
         .from('assinaturas')
-        .select('pdf_assinado_key, pdf_original_key')
+        .select('pdf_assinado_key, status')
         .eq('envelope_id', envelopeId)
-        .single();
+        .eq('status', 'ASSINADO')
+        .maybeSingle();
 
-      const key = ass?.pdf_assinado_key || ass?.pdf_original_key;
-      if (!key) return { pdfUrl: '' };
+      // Sem assinatura válida: status != ASSINADO ou key ausente → falha controlada.
+      if (!ass?.pdf_assinado_key) return { pdfUrl: '' };
 
-      const pdfUrl = await contratoDocumentoService.obterUrlDownload(key);
-      return { pdfUrl, fileName: key.split('/').pop() };
+      const pdfUrl = await contratoDocumentoService.obterUrlDownload(ass.pdf_assinado_key);
+      return { pdfUrl, fileName: ass.pdf_assinado_key.split('/').pop() };
     } catch {
       return { pdfUrl: '' };
     }

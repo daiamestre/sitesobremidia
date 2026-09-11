@@ -282,48 +282,40 @@ export function IntelligentCommercialWizard() {
           });
       });
 
-      // Se contratoIdSalvo já existir, verificar status do contrato e envelope de assinatura
+      // P0.3.11.2 — GAP 1 FECHADO: contratos.pdf_assinado_key NÃO é mais carregado em estado.
+      // O status do contrato é obtido somente de assinaturas.status = 'ASSINADO' (fonte canônica).
+      // Entrega de documentos vai exclusivamente por visualizarDocumentoContrato/baixarDocumentoContrato.
       if (contratoIdSalvo) {
         supabase
-          .from('contratos')
-          .select('id, status_documento, pdf_assinado_key, pdf_object_key, documento_assinado_em')
-          .eq('id', contratoIdSalvo)
+          .from('assinaturas')
+          .select('signatario_nome, signatario_cpf_cnpj, assinado_em, document_hash, status')
+          .eq('contrato_id', contratoIdSalvo)
+          .eq('status', 'ASSINADO')
+          .order('assinado_em', { ascending: false })
+          .limit(1)
           .maybeSingle()
-          .then(async ({ data: ctr }) => {
-            if (ctr && ctr.status_documento === 'ASSINADO') {
+          .then(async ({ data: ass }) => {
+            if (ass) {
+              // Assinatura canônica válida encontrada — atualiza estado visual.
               setContratoStatus('ASSINADO');
-              if (ctr.pdf_assinado_key) {
-                setPdfAssinadoKeySalvo(ctr.pdf_assinado_key);
-              }
-              const { data: ass } = await supabase
-                .from('assinaturas')
-                .select('signatario_nome, signatario_cpf_cnpj, assinado_em, document_hash')
-                .eq('contrato_id', contratoIdSalvo)
-                .eq('status', 'ASSINADO')
-                .order('assinado_em', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-              if (ass) {
-                setDadosAssinaturaFinal((prev) => ({
-                  dataUrl: prev?.dataUrl || '',
-                  signatarioNome: ass.signatario_nome || prev?.signatarioNome || formData.representanteLegal || formData.contatoNome || formData.nomeFantasia,
-                  signatarioCpfCnpj: ass.signatario_cpf_cnpj || prev?.signatarioCpfCnpj || formData.cnpj,
-                  dataAssinatura: ass.assinado_em
-                    ? new Intl.DateTimeFormat('pt-BR', {
-                        timeZone: 'America/Sao_Paulo',
-                        day: '2-digit',
-                        month: 'long',
-                        year: 'numeric',
-                      }).format(new Date(ass.assinado_em))
-                    : prev?.dataAssinatura,
-                  metodo: prev?.metodo || 'DRAWN',
-                }));
-              }
+              setDadosAssinaturaFinal((prev) => ({
+                dataUrl: prev?.dataUrl || '',
+                signatarioNome: ass.signatario_nome || prev?.signatarioNome || formData.representanteLegal || formData.contatoNome || formData.nomeFantasia,
+                signatarioCpfCnpj: ass.signatario_cpf_cnpj || prev?.signatarioCpfCnpj || formData.cnpj,
+                dataAssinatura: ass.assinado_em
+                  ? new Intl.DateTimeFormat('pt-BR', {
+                      timeZone: 'America/Sao_Paulo',
+                      day: '2-digit',
+                      month: 'long',
+                      year: 'numeric',
+                    }).format(new Date(ass.assinado_em))
+                  : prev?.dataAssinatura,
+                metodo: prev?.metodo || 'DRAWN',
+              }));
             }
           })
           .catch((err) => {
-            console.warn('[IntelligentCommercialWizard] Erro ao verificar status do contrato:', err);
+            console.warn('[IntelligentCommercialWizard] Erro ao verificar assinatura canônica:', err);
           });
       }
     }
@@ -412,7 +404,7 @@ export function IntelligentCommercialWizard() {
           usuarioResponsavelId: user?.id || '',
         });
 
-        if (!resCt.success || !resCt.contratoId) {
+      if (!resCt.success || !resCt.contratoId) {
           toast({ title: 'Erro ao vincular contrato', description: resCt.error || 'Falha ao criar contrato para o cadastro.', variant: 'destructive' });
           setGerandoDocumento(false);
           return;
@@ -421,32 +413,24 @@ export function IntelligentCommercialWizard() {
         setContratoIdSalvo(cid);
       }
 
-      let key = contratoStatus === 'ASSINADO' && pdfAssinadoKeySalvo ? pdfAssinadoKeySalvo : pdfObjectKeySalvo;
-      if (!key) {
-        if (contratoStatus === 'ASSINADO') {
-          const { data: ctr } = await supabase.from('contratos').select('pdf_assinado_key, pdf_object_key').eq('id', cid).single();
-          if (ctr?.pdf_assinado_key) {
-            key = ctr.pdf_assinado_key;
-            setPdfAssinadoKeySalvo(key);
-          }
+      // P0.3.11.2 — GAP 1 FECHADO: hasDoc usa somente pdfObjectKeySalvo.
+      // pdfAssinadoKeySalvo NÃO é autoridade — não é mais carregado de contratos.pdf_assinado_key.
+      // Entrega vai sempre pelo resolver canônico (visualizarDocumentoContrato/baixarDocumentoContrato).
+      const hasDoc = !!pdfObjectKeySalvo;
+      if (!hasDoc) {
+        const resDoc = await contratoDocumentoService.gerarDocumentoContrato(cid, user?.id || '');
+        if (!resDoc.success || !resDoc.objectKey) {
+          toast({ title: 'Erro na geração do PDF', description: resDoc.error || 'Falha ao renderizar minuta personalizada.', variant: 'destructive' });
+          setGerandoDocumento(false);
+          return;
         }
-        if (!key) {
-          const resDoc = await contratoDocumentoService.gerarDocumentoContrato(cid, user?.id || '');
-          if (!resDoc.success || !resDoc.objectKey) {
-            toast({ title: 'Erro na geração do PDF', description: resDoc.error || 'Falha ao renderizar minuta personalizada.', variant: 'destructive' });
-            setGerandoDocumento(false);
-            return;
-          }
-          key = resDoc.objectKey;
-          setPdfObjectKeySalvo(key);
-        }
+        setPdfObjectKeySalvo(resDoc.objectKey);
       }
 
       if (acao === 'visualizar') {
-        await contratoDocumentoService.visualizarDocumento(key);
+        await contratoDocumentoService.visualizarDocumentoContrato(cid);
       } else if (acao === 'baixar') {
-        const prefix = contratoStatus === 'ASSINADO' ? 'Contrato_Assinado_' : 'Contrato_';
-        await contratoDocumentoService.baixarDocumento(key, `${prefix}${formData.nomeFantasia || formData.razaoSocial || 'Anunciante'}.pdf`);
+        await contratoDocumentoService.baixarDocumentoContrato(cid, user?.id);
       } else if (acao === 'assinar') {
         setDialogAssinaturaOpen(true);
       }
@@ -456,6 +440,7 @@ export function IntelligentCommercialWizard() {
       setGerandoDocumento(false);
     }
   };
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

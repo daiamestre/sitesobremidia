@@ -2048,7 +2048,149 @@ export async function obterUrlDownload(objectKey: string): Promise<string> {
   return data.signedUrl as string;
 }
 
-/** Baixa o documento real e dispara o download no dispositivo. */
+export interface DocumentoContratoResolvido {
+  contratoId: string;
+  numeroContrato: string;
+  tipoContrato: string;
+  statusWorkflow: string;
+  statusDocumento: string;
+  isAssinado: boolean;
+  storageKey: string;
+  downloadUrl: string;
+  fileName: string;
+  templateId?: string | null;
+}
+
+/**
+ * P0.3.11 — SINGLE SOURCE OF TRUTH CANÔNICO PARA DOCUMENTOS CONTRATUAIS
+ *
+ * Resolve de forma determinística e com fail-closed o documento canônico oficial
+ * de qualquer contrato do sistema:
+ *  - Se ASSINADO (ou possui pdf_assinado_key): entrega o pdf_assinado_key
+ *  - Se NÃO ASSINADO (GERADO/ENVIADO/etc): entrega o pdf_object_key
+ *  - Se ausente ou excluído: FAIL-CLOSED imediato com erro descritivo.
+ *  - NUNCA faz fallback para contratos alheios, templates estáticos desatualizados
+ *    ou arquivos arbitrários no storage.
+ */
+export async function resolverDocumentoContrato(contratoId: string): Promise<DocumentoContratoResolvido> {
+  if (!contratoId || typeof contratoId !== 'string' || contratoId.trim() === '') {
+    throw new Error('ID do contrato é obrigatório para resolução documental.');
+  }
+
+  const { data: contrato, error: ctrErr } = await supabase
+    .from('contratos')
+    .select('id, numero_contrato, tipo_contrato, status_workflow, status_documento, pdf_object_key, pdf_assinado_key, template_id, deleted_at, empresa_operadora_id')
+    .eq('id', contratoId)
+    .maybeSingle();
+
+  if (ctrErr || !contrato) {
+    throw new Error(`Contrato não encontrado (ID: ${contratoId}).`);
+  }
+
+  if (contrato.deleted_at) {
+    throw new Error(`O contrato ${contrato.numero_contrato || contratoId} foi cancelado/excluído e não possui documento ativo.`);
+  }
+
+  // P0.3.11.2 — GAP 3 FECHADO: consulta assinaturas SEMPRE, independentemente dos campos
+  // derivados de contratos (status_documento / pdf_assinado_key).
+  // Motivo: contratos.status_documento e contratos.pdf_assinado_key podem estar stale.
+  // A única autoridade canônica é: assinaturas.status = 'ASSINADO' AND assinaturas.pdf_assinado_key IS NOT NULL.
+  let storageKey: string | null = null;
+  let isAssinado = false;
+  let fileName: string = '';
+
+  // Consulta assinaturas para TODO contratoId — sem condição derivada.
+  const { data: ass } = await supabase
+    .from('assinaturas')
+    .select('pdf_assinado_key, pdf_original_key, status')
+    .eq('contrato_id', contratoId)
+    .eq('status', 'ASSINADO')
+    .order('assinado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (ass?.pdf_assinado_key) {
+    // Assinatura VÁLIDA encontrada (status = ASSINADO + key presente) — entrega o documento assinado canônico.
+    storageKey = ass.pdf_assinado_key;
+    isAssinado = true;
+    fileName = `Contrato_Assinado_${contrato.numero_contrato || contrato.id}.pdf`;
+  } else {
+    // Sem assinatura válida (cancelada / expirada / inexistente / sem key):
+    // fallback SOMENTE para pdf_object_key (documento original não assinado).
+    // NUNCA usar contrato.pdf_assinado_key como fallback.
+    storageKey = contrato.pdf_object_key || null;
+    isAssinado = false;
+    fileName = `Contrato_${contrato.numero_contrato || contrato.id}.pdf`;
+  }
+
+  // FAIL CLOSED: se nenhuma chave canônica existir, recusa entrega
+  if (!storageKey) {
+    throw new Error(`O documento do contrato ${contrato.numero_contrato || contratoId} ainda não foi gerado ou está indisponível.`);
+  }
+
+  const downloadUrl = await obterUrlDownload(storageKey);
+
+  return {
+    contratoId: contrato.id,
+    numeroContrato: contrato.numero_contrato,
+    tipoContrato: contrato.tipo_contrato || 'ANUNCIANTE',
+    statusWorkflow: contrato.status_workflow,
+    statusDocumento: contrato.status_documento,
+    isAssinado,
+    storageKey,
+    downloadUrl,
+    fileName,
+    templateId: contrato.template_id,
+  };
+}
+
+/**
+ * P0.3.11 — Visualização Canônica Universal de Documento Contratual.
+ * Garante que qualquer tela abra exatamente o artefato canônico resolvido.
+ */
+export async function visualizarDocumentoContrato(contratoId: string): Promise<string> {
+  const doc = await resolverDocumentoContrato(contratoId);
+  if (typeof window !== 'undefined') {
+    window.open(doc.downloadUrl, '_blank', 'noopener,noreferrer');
+  }
+  return doc.downloadUrl;
+}
+
+/**
+ * P0.3.11 — Download Canônico Universal de Documento Contratual.
+ * Baixa exatamente o binário resolvido pelo resolver canônico e dispara o download local.
+ */
+export async function baixarDocumentoContrato(
+  contratoId: string,
+  usuarioId?: string
+): Promise<{ blob: Blob; fileName: string; downloadUrl: string; doc: DocumentoContratoResolvido }> {
+  const doc = await resolverDocumentoContrato(contratoId);
+  const res = await fetch(doc.downloadUrl);
+  if (!res.ok) {
+    throw new Error(`Falha no download do documento (${res.status}): ${res.statusText}`);
+  }
+  const blob = await res.blob();
+  if (typeof document !== 'undefined') {
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = doc.fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+  }
+  if (usuarioId) {
+    try {
+      await registrarDownloadDocumento(contratoId, doc.tipoContrato, usuarioId, doc.storageKey);
+    } catch (auditErr) {
+      console.warn('[contratoDocumentoService] Falha ao registrar auditoria de download:', auditErr);
+    }
+  }
+  return { blob, fileName: doc.fileName, downloadUrl: doc.downloadUrl, doc };
+}
+
+/** Baixa o documento real e dispara o download no dispositivo por chave de storage. */
 export async function baixarDocumento(objectKey: string, fileName: string): Promise<void> {
   const signedUrl = await obterUrlDownload(objectKey);
   const res = await fetch(signedUrl);
@@ -2066,10 +2208,34 @@ export async function baixarDocumento(objectKey: string, fileName: string): Prom
   setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
 }
 
-/** Abre o documento em nova aba. */
+/** Abre o documento em nova aba por chave de storage. */
 export async function visualizarDocumento(objectKey: string): Promise<void> {
   const signedUrl = await obterUrlDownload(objectKey);
   window.open(signedUrl, '_blank', 'noopener');
+}
+
+/**
+ * P0.3.11 — Single Source of Truth documental.
+ * Retorna a object key do PDF assinado SOMENTE se existir uma assinatura
+ * com status = 'ASSINADO' (válida) associada ao contrato.
+ * Retorna null se a assinatura foi cancelada, expirada ou não existe.
+ *
+ * NUNCA usar contrato.pdf_assinado_key diretamente para entrega de documento
+ * assinado — sempre usar esta função para garantir validade da assinatura.
+ */
+export async function obterKeyDocumentoAssinado(contratoId: string): Promise<string | null> {
+  if (!contratoId) return null;
+  const { data, error } = await supabase
+    .from('assinaturas')
+    .select('pdf_assinado_key, status')
+    .eq('contrato_id', contratoId)
+    .eq('status', 'ASSINADO')
+    .order('assinado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data?.pdf_assinado_key) return null;
+  return data.pdf_assinado_key;
 }
 
 /** Registra auditoria de download do documento. */
@@ -2682,6 +2848,10 @@ export const contratoDocumentoService = {
   obterUrlDownload,
   baixarDocumento,
   visualizarDocumento,
+  obterKeyDocumentoAssinado,
+  resolverDocumentoContrato,
+  visualizarDocumentoContrato,
+  baixarDocumentoContrato,
   registrarDownloadDocumento,
   coletarDadosReais,
   montarDadosTemplate,
