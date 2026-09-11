@@ -732,7 +732,7 @@ export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<div class="contract-containe
     <p style="text-align: justify; margin: 0;">No plano sistema o contratante recebe apenas 5 mídias grátis podendo rodar até 8 mídias exclusivas de até 30 segundos cada, fazendo o ciclo de 2:40 minutos. No plano sistema o contratante é incluso no grupo de anunciantes da região permitindo assim rodar anúncios de outros estabelecimentos em suas telas. ESSE CASO NÃO SE APLICA AOS SEUS CONCORRENTES DIRETO.</p>
   </div>
 
-  <div style="margin-bottom: 10px;">
+  <div class="page-break" style="page-break-before: always; break-before: page; margin-bottom: 10px;">
     <h4 style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #1e3a8a;">CLÁUSULA 06 - RESPONSABILIDADE DO CONTRATANTE</h4>
     <p style="text-align: justify; margin: 0;">Nossos aparelhos são novos e sempre revisados, a nossa responsabilidade é garantir a fluidez e o bom funcionamento dos equipamentos fornecidos. Nosso kit contém: tela de LCD ou TVs acompanhado de um mine computador portátil e quase sempre uma moldura personalizada da loja. É dever do contratante/responsável informar possíveis problemas de tela desligada, tela sem exibir vídeos ou programações desatualizadas. O responsável pelo local tem a obrigação de manter todas as TELAS, MONITORES e TOTENS sempre ligados. A integridade desses aparelhos dentro do estabelecimento é de suma responsabilidade do contratante. Se constatado mau uso sobre os aparelhos o estabelecimento será prontamente notificado.</p>
   </div>
@@ -800,11 +800,17 @@ export const CANONICAL_TEMPLATE_HTML_ANUNCIANTE = `<div class="contract-containe
     <p style="text-align: center; margin: 0 0 16px;">Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
     
     <div style="display: flex; justify-content: space-between; margin-top: 20px; padding-top: 14px;">
-      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
-        <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA DESIGNER</p>
+      <div style="width: 45%; text-align: center; padding-top: 4px;">
+        <div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;"></div>
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA DESIGNER</p>
+        </div>
       </div>
-      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
-        <p style="margin: 0; font-weight: bold; font-size: 11px;">{{RAZAO_SOCIAL}} (CONTRATANTE)</p>
+      <div style="width: 45%; text-align: center; padding-top: 4px;">
+        <div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;"></div>
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">{{RAZAO_SOCIAL}} (CONTRATANTE)</p>
+        </div>
       </div>
     </div>
   </div>
@@ -938,11 +944,17 @@ export const CANONICAL_TEMPLATE_HTML_PARCEIRO = `<div class="contract-container"
     <p style="text-align: center; margin: 0 0 20px;">Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
     
     <div style="display: flex; justify-content: space-between; margin-top: 24px; padding-top: 16px;">
-      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
-        <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA</p>
+      <div style="width: 45%; text-align: center; padding-top: 4px;">
+        <div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;"></div>
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA</p>
+        </div>
       </div>
-      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
-        <p style="margin: 0; font-weight: bold; font-size: 11px;">{{RAZAO_SOCIAL}} (PARCEIRO)</p>
+      <div style="width: 45%; text-align: center; padding-top: 4px;">
+        <div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;"></div>
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">{{RAZAO_SOCIAL}} (PARCEIRO)</p>
+        </div>
       </div>
     </div>
   </div>
@@ -1016,13 +1028,19 @@ export const CANONICAL_TEMPLATE_HTML_GESTOR = `<div class="contract-container" s
     <p style="text-align: center; margin: 0 0 16px;">Local: {{LOCAL_ASSINATURA}}, Data: {{DATA_ASSINATURA}}</p>
     
     <div style="display: flex; justify-content: space-between; margin-top: 20px; padding-top: 14px;">
-      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
-        <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA DESIGNER LTDA.</p>
-        <p style="margin: 2px 0 0; font-size: 10px; color: #6b7280;">Assinatura Digital Autorizada</p>
+      <div style="width: 45%; text-align: center; padding-top: 4px;">
+        <div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;"></div>
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA DESIGNER LTDA.</p>
+          <p style="margin: 2px 0 0; font-size: 10px; color: #6b7280;">Assinatura Digital Autorizada</p>
+        </div>
       </div>
-      <div style="width: 45%; text-align: center; border-top: 1px solid #111827; padding-top: 4px;">
-        <p style="margin: 0; font-weight: bold; font-size: 11px;">{{NOME_GESTOR}} (GESTOR)</p>
-        <p style="margin: 2px 0 0; font-size: 10px; color: #6b7280;">Assinatura Digital do Gestor</p>
+      <div style="width: 45%; text-align: center; padding-top: 4px;">
+        <div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;"></div>
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">{{NOME_GESTOR}} (GESTOR)</p>
+          <p style="margin: 2px 0 0; font-size: 10px; color: #6b7280;">Assinatura Digital do Gestor</p>
+        </div>
       </div>
     </div>
   </div>
@@ -1281,7 +1299,7 @@ export function renderizarPreviewContrato(
       </div>`;
 
       // Substitui o bloco padrão de assinatura do contratante
-      const regexAnunciante = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(CONTRATANTE\)<\/p>\s*<\/div>/is;
+      const regexAnunciante = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>[\s\S]*?\(CONTRATANTE\)[\s\S]*?<\/div>\s*(?:<\/div>)?/is;
       if (regexAnunciante.test(htmlPreenchido)) {
         htmlPreenchido = htmlPreenchido.replace(regexAnunciante, blocoAssinadoAnunciante);
       } else {
@@ -1297,7 +1315,7 @@ export function renderizarPreviewContrato(
         </div>
       </div>`;
 
-      const regexParceiro = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(PARCEIRO\)<\/p>\s*<\/div>/is;
+      const regexParceiro = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>[\s\S]*?\(PARCEIRO\)[\s\S]*?<\/div>\s*(?:<\/div>)?/is;
       if (regexParceiro.test(htmlPreenchido)) {
         htmlPreenchido = htmlPreenchido.replace(regexParceiro, blocoAssinadoParceiro);
       } else {
@@ -1313,10 +1331,24 @@ export function renderizarPreviewContrato(
         </div>
       </div>`;
 
-      const regexGestor = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(GESTOR\)<\/p>(?:\s*<p[^>]*>.*?<\/p>)?\s*<\/div>/is;
+      const regexGestor = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>[\s\S]*?\(GESTOR\)[\s\S]*?<\/div>\s*(?:<\/div>)?/is;
       if (regexGestor.test(htmlPreenchido)) {
         htmlPreenchido = htmlPreenchido.replace(regexGestor, blocoAssinadoGestor);
+      } else {
+        htmlPreenchido = htmlPreenchido.replace(/<div[^>]*>\s*<p[^>]*>[^<]*\(GESTOR\)<\/p>\s*<\/div>/is, blocoAssinadoGestor);
       }
+    }
+
+    // Garante alinhamento milimétrico da linha de assinatura da SOBRE MÍDIA DESIGNER com a linha do CONTRATANTE
+    const regexSobreMidia = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>[\s\S]*?SOBRE M[IÍ]DIA[\s\S]*?<\/div>\s*(?:<\/div>)?/is;
+    const blocoSobreMidiaAlinhado = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+      <div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;"></div>
+      <div style="border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA DESIGNER</p>
+      </div>
+    </div>`;
+    if (regexSobreMidia.test(htmlPreenchido)) {
+      htmlPreenchido = htmlPreenchido.replace(regexSobreMidia, blocoSobreMidiaAlinhado);
     }
   }
 
@@ -1380,6 +1412,14 @@ export function preencherTemplate(
   if (restantes.length > 0) {
     throw new Error(
       `Campo de contrato não reconhecido ou sem origem configurada: ${restantes.map((r) => `{{${r}}}`).join(', ')}`
+    );
+  }
+
+  // Garante que a Cláusula 06 inicie sempre no topo da página 2
+  if (html.includes('CLÁUSULA 06') && !html.includes('page-break-before')) {
+    html = html.replace(
+      /<div([^>]*)>\s*(<h4[^>]*>CLÁUSULA 06\s*[-–]\s*RESPONSABILIDADE DO CONTRATANTE<\/h4>)/gi,
+      '<div class="page-break" style="page-break-before: always; break-before: page; margin-bottom: 10px;"$1>$2'
     );
   }
 
@@ -1604,15 +1644,63 @@ async function renderizarHtmlParaPdfNavegador(
     // Altura em pixels do canvas correspondente a uma página utilizável do PDF
     const canvasPageHeight = (usableHeight / usableWidth) * canvas.width;
 
-    let currentY = 0;
-    let pageIndex = 0;
+    // Identifica pontos de quebra de página explícitos (ex: Cláusula 06, .page-break, style page-break-before)
+    const breakElements = Array.from(
+      container.querySelectorAll('.page-break, [data-page-break], [style*="page-break-before"], [style*="break-before"]')
+    );
 
-    while (currentY < canvas.height) {
-      if (pageIndex > 0) {
+    // Também detecta Cláusula 06 explicitamente caso venha de template salvo sem a classe
+    const allHeadings = Array.from(container.querySelectorAll('h4, div'));
+    for (const el of allHeadings) {
+      if (/CL[AÁ]USULA\s+(06|6)\b/i.test(el.textContent || '')) {
+        const parentBlock = el.tagName === 'DIV' ? el : el.closest('div') || el;
+        if (!breakElements.includes(parentBlock)) {
+          breakElements.push(parentBlock);
+        }
+      }
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const scaleRatio = canvas.width / (container.clientWidth || 794);
+
+    const explicitBreakYs: number[] = breakElements
+      .map((el) => {
+        const elRect = el.getBoundingClientRect();
+        return Math.round((elRect.top - containerRect.top) * scaleRatio);
+      })
+      .filter((y) => y > 50 && y < canvas.height - 50)
+      .sort((a, b) => a - b);
+
+    // Constrói os pontos de corte (slice points)
+    const slicePoints: number[] = [0];
+    let lastY = 0;
+
+    for (const bY of explicitBreakYs) {
+      if (bY > lastY + 50) {
+        while (bY - lastY > canvasPageHeight) {
+          lastY += canvasPageHeight;
+          slicePoints.push(lastY);
+        }
+        slicePoints.push(bY);
+        lastY = bY;
+      }
+    }
+
+    while (canvas.height - lastY > canvasPageHeight) {
+      lastY += canvasPageHeight;
+      slicePoints.push(lastY);
+    }
+    slicePoints.push(canvas.height);
+
+    for (let i = 0; i < slicePoints.length - 1; i++) {
+      if (i > 0) {
         doc.addPage('a4', 'portrait');
       }
 
-      const sliceHeight = Math.min(canvasPageHeight, canvas.height - currentY);
+      const startY = slicePoints[i];
+      const endY = slicePoints[i + 1];
+      const sliceHeight = endY - startY;
+      if (sliceHeight <= 0) continue;
 
       const pageCanvas = document.createElement('canvas');
       pageCanvas.width = canvas.width;
@@ -1624,7 +1712,7 @@ async function renderizarHtmlParaPdfNavegador(
         ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
         ctx.drawImage(
           canvas,
-          0, currentY, canvas.width, sliceHeight,
+          0, startY, canvas.width, sliceHeight,
           0, 0, canvas.width, sliceHeight
         );
 
@@ -1632,9 +1720,6 @@ async function renderizarHtmlParaPdfNavegador(
         const pdfSliceHeight = (sliceHeight / canvas.width) * usableWidth;
         doc.addImage(imgData, 'JPEG', marginX, marginY, usableWidth, pdfSliceHeight);
       }
-
-      currentY += sliceHeight;
-      pageIndex++;
     }
 
     return new Uint8Array(doc.output('arraybuffer'));
@@ -1676,6 +1761,16 @@ function renderizarPdfVetorialFallback(
   };
 
   for (const el of elements) {
+    if (
+      (el.tag.startsWith('h') || el.isBold) &&
+      (el.text.includes('CLÁUSULA 06') || el.text.includes('CLÁUSULA 6') || el.text.includes('RESPONSABILIDADE DO CONTRATANTE'))
+    ) {
+      if (y > marginTop + 40) {
+        doc.addPage('a4', 'portrait');
+        y = marginTop;
+      }
+    }
+
     if (el.tag.startsWith('h')) {
       const fontSize = el.level === 1 ? 11 : el.level === 2 ? 10.5 : el.level === 3 ? 10 : 9.5;
       const lines = doc.splitTextToSize(el.text, maxLineWidth) as string[];
@@ -2350,6 +2445,18 @@ export async function gerarPreviewPdfContrato(
     const regex = new RegExp(`<div[^>]*>\\s*<p[^>]*>[^<]*(${labelContratante})[^<]*</p>\\s*</div>`, 'is');
     if (regex.test(htmlRenderizado)) {
       htmlRenderizado = htmlRenderizado.replace(regex, blocoAssinado);
+    }
+
+    // Garante alinhamento milimétrico da linha de assinatura da SOBRE MÍDIA DESIGNER com a linha do CONTRATANTE
+    const regexSobreMidia = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>\s*(SOBRE M[IÍ]DIA[^<]*)<\/p>\s*(?:<p[^>]*>[^<]*<\/p>\s*)?<\/div>/is;
+    const blocoSobreMidiaAlinhado = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+      <div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;"></div>
+      <div style="border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA DESIGNER</p>
+      </div>
+    </div>`;
+    if (regexSobreMidia.test(htmlRenderizado)) {
+      htmlRenderizado = htmlRenderizado.replace(regexSobreMidia, blocoSobreMidiaAlinhado);
     }
   }
 
@@ -3042,7 +3149,7 @@ export async function obterHtmlContratoPorContratoId(contratoId: string): Promis
         </div>
       </div>`;
 
-      const regexAnunciante = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(CONTRATANTE\)<\/p>\s*<\/div>/is;
+      const regexAnunciante = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>[\s\S]*?\(CONTRATANTE\)[\s\S]*?<\/div>\s*(?:<\/div>)?/is;
       if (regexAnunciante.test(htmlPreenchido)) {
         htmlPreenchido = htmlPreenchido.replace(regexAnunciante, blocoAssinadoAnunciante);
       } else {
@@ -3058,12 +3165,40 @@ export async function obterHtmlContratoPorContratoId(contratoId: string): Promis
         </div>
       </div>`;
 
-      const regexParceiro = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>\s*<p[^>]*>.*?\(PARCEIRO\)<\/p>\s*<\/div>/is;
+      const regexParceiro = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>[\s\S]*?\(PARCEIRO\)[\s\S]*?<\/div>\s*(?:<\/div>)?/is;
       if (regexParceiro.test(htmlPreenchido)) {
         htmlPreenchido = htmlPreenchido.replace(regexParceiro, blocoAssinadoParceiro);
       } else {
         htmlPreenchido = htmlPreenchido.replace(/<div[^>]*>\s*<p[^>]*>[^<]*\(PARCEIRO\)<\/p>\s*<\/div>/is, blocoAssinadoParceiro);
       }
+    } else if (tipoContrato === 'GESTOR') {
+      const blocoAssinadoGestor = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+        ${imagemAssinaturaHtml}
+        <div style="border-top: 1px solid #111827; padding-top: 4px;">
+          <p style="margin: 0; font-weight: bold; font-size: 11px;">${responsavelContratante} (GESTOR)</p>
+          <p style="margin: 2px 0 0; font-size: 9px; color: #16a34a; font-weight: bold;">✓ Assinado digitalmente por ${nomeSignatario}</p>
+          <p style="margin: 0; font-size: 8px; color: #6b7280;">Data: ${dataFmt} · Método: ${metodoLabel}</p>
+        </div>
+      </div>`;
+
+      const regexGestor = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>[\s\S]*?\(GESTOR\)[\s\S]*?<\/div>\s*(?:<\/div>)?/is;
+      if (regexGestor.test(htmlPreenchido)) {
+        htmlPreenchido = htmlPreenchido.replace(regexGestor, blocoAssinadoGestor);
+      } else {
+        htmlPreenchido = htmlPreenchido.replace(/<div[^>]*>\s*<p[^>]*>[^<]*\(GESTOR\)<\/p>\s*<\/div>/is, blocoAssinadoGestor);
+      }
+    }
+
+    // Garante alinhamento milimétrico da linha de assinatura da SOBRE MÍDIA DESIGNER com a linha do CONTRATANTE
+    const regexSobreMidia = /<div[^>]*style="[^"]*width:\s*45%[^"]*"[^>]*>[\s\S]*?SOBRE M[IÍ]DIA[\s\S]*?<\/div>\s*(?:<\/div>)?/is;
+    const blocoSobreMidiaAlinhado = `<div style="width: 45%; text-align: center; padding-top: 4px;">
+      <div style="min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-bottom: 4px;"></div>
+      <div style="border-top: 1px solid #111827; padding-top: 4px;">
+        <p style="margin: 0; font-weight: bold; font-size: 11px;">SOBRE MÍDIA DESIGNER</p>
+      </div>
+    </div>`;
+    if (regexSobreMidia.test(htmlPreenchido)) {
+      htmlPreenchido = htmlPreenchido.replace(regexSobreMidia, blocoSobreMidiaAlinhado);
     }
   }
 
