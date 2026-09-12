@@ -61,6 +61,14 @@ const invalidContract = { agent_id: 'fake' };
 const validationResult = validateAgentContract(invalidContract);
 assert(validationResult.length > 0, 'Contrato com campos obrigatórios ausentes é rejeitado');
 
+// Teste de Imutabilidade Profunda (Deep Freeze) no Registry
+assert(Object.isFrozen(archAgent), 'Agent root object é congelado (Object.isFrozen)');
+assert(Object.isFrozen(archAgent.skills), 'Agent.skills array é profundamente congelado');
+assert(Object.isFrozen(archAgent.tools), 'Agent.tools array é profundamente congelado');
+assert(Object.isFrozen(archAgent.permissions), 'Agent.permissions objeto é profundamente congelado');
+assert(Object.isFrozen(archAgent.permissions.allowed_paths), 'Agent.permissions.allowed_paths é profundamente congelado');
+assert(Object.isFrozen(archAgent.budget), 'Agent.budget objeto é profundamente congelado');
+
 // Teste de registro com Skill inexistente
 let skillErrorCaught = false;
 try {
