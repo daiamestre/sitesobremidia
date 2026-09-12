@@ -20,3 +20,4 @@ export * from './orchestrator.mjs';
 export * from './skill_runtime.mjs';
 export * from './audit.mjs';
 export * from './governance.mjs';
+export * from './entrypoint.mjs';
