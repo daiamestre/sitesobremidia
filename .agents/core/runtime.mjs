@@ -12,8 +12,9 @@ import { SkillLoader } from './skill_loader.mjs';
 import { PermissionEngine } from './permissions.mjs';
 import { memoryManager } from './memory.mjs';
 import { HandoffManager } from './handoff.mjs';
-import { validateAgentTask, validateDiscoveryResult } from './contracts.mjs';
+import { validateAgentTask, validateDiscoveryResult, validateProjectProfile } from './contracts.mjs';
 import { ProjectDiscovery, DiscoveryPolicy } from './project_discovery.mjs';
+import { ProjectProfileLoader } from './project_profile.mjs';
 import { defaultExecutionAdapter, SingleExecutorAdapter } from './executor.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,11 +66,12 @@ export class AgentRuntime {
       });
     }
 
+    const targetWorkspace = task.workspace_root || context.workspace_root || process.cwd();
+
     // 3. Avaliar Discovery Policy e Obter/Validar DiscoveryResult
     let projectDiscovery = null;
     const isProjectAware = DiscoveryPolicy.isProjectAware(task);
     if (isProjectAware) {
-      const targetWorkspace = task.workspace_root || context.workspace_root || process.cwd();
       const existingDiscovery = context.project || context.project_discovery;
 
       if (existingDiscovery) {
@@ -135,7 +137,44 @@ export class AgentRuntime {
       projectDiscovery = context.project || context.project_discovery || null;
     }
 
-    // 4. Vincular e Carregar Skills (Canonical Skill Loader)
+    // 4. Carregar e Validar Project Profile (Conhecimento Documental / Arquitetural)
+    let projectProfile = null;
+    if (context.profile || context.project_profile) {
+      const existingProfile = context.profile || context.project_profile;
+      const profileErrors = validateProjectProfile(existingProfile);
+      if (profileErrors.length > 0) {
+        lifecycle.transitionTo('BLOCKED', `ProjectProfile fornecido no context é inválido: ${profileErrors.join(', ')}`);
+        return this._recordExecution({
+          execution_id: executionId,
+          agent_id: agent.agent_id,
+          task_id: task.task_id,
+          status: lifecycle.getState(),
+          executor_type: this.executionAdapter.executor_type,
+          started_at: new Date().toISOString(),
+          finished_at: new Date().toISOString(),
+          error: `ProjectProfile inválido rejeitado: ${profileErrors.join(', ')}`
+        });
+      }
+      projectProfile = existingProfile;
+    } else {
+      try {
+        projectProfile = ProjectProfileLoader.load(targetWorkspace);
+      } catch (profErr) {
+        lifecycle.transitionTo('BLOCKED', `Falha ao carregar ProjectProfile: ${profErr.message}`);
+        return this._recordExecution({
+          execution_id: executionId,
+          agent_id: agent.agent_id,
+          task_id: task.task_id,
+          status: lifecycle.getState(),
+          executor_type: this.executionAdapter.executor_type,
+          started_at: new Date().toISOString(),
+          finished_at: new Date().toISOString(),
+          error: `ProjectProfile falhou: ${profErr.message}`
+        });
+      }
+    }
+
+    // 5. Vincular e Carregar Skills (Canonical Skill Loader)
     let loadedSkills = [];
     try {
       loadedSkills = SkillLoader.loadSkillsForAgent(agent);
@@ -153,11 +192,30 @@ export class AgentRuntime {
       });
     }
 
-    // 5. Inicializar Contexto de Memória
-    memoryManager.set('TASK', `current_task:${task.task_id}`, task, agent.agent_id);
+    // 6. Inicializar Contexto de Memória Isolada
+    const execMemory = memoryManager.createExecutionContextMemory(agent.agent_id, task.task_id, targetWorkspace);
+    memoryManager.set('TASK', `current_task:${task.task_id}`, task, {
+      agent_id: agent.agent_id,
+      task_id: task.task_id,
+      workspace_root: targetWorkspace
+    });
+
     if (projectDiscovery) {
-      memoryManager.set('PROJECT', 'discovery_result', projectDiscovery, agent.agent_id);
+      memoryManager.set('PROJECT', 'discovery_result', projectDiscovery, {
+        agent_id: agent.agent_id,
+        task_id: task.task_id,
+        workspace_root: targetWorkspace
+      });
     }
+
+    if (projectProfile) {
+      memoryManager.set('PROJECT', 'project_profile', projectProfile, {
+        agent_id: agent.agent_id,
+        task_id: task.task_id,
+        workspace_root: targetWorkspace
+      });
+    }
+
     if (context.handoff) {
       // Validar handoff de entrada se fornecido
       const handoffValidation = HandoffManager.validateHandoff(context.handoff);
@@ -174,10 +232,14 @@ export class AgentRuntime {
           error: `Handoff inválido bloqueou execução do agente '${agent.agent_id}'.`
         });
       }
-      memoryManager.set('AGENT', `received_handoff:${context.handoff.handoff_id}`, context.handoff, agent.agent_id);
+      memoryManager.set('AGENT', `received_handoff:${context.handoff.handoff_id}`, context.handoff, {
+        agent_id: agent.agent_id,
+        task_id: task.task_id,
+        workspace_root: targetWorkspace
+      });
     }
 
-    lifecycle.transitionTo('READY', 'Skills vinculadas, discovery validado e contexto de memória isolado carregado.');
+    lifecycle.transitionTo('READY', 'Skills vinculadas, profile carregado, discovery validado e memória isolada inicializada.');
 
     return {
       execution_id: executionId,
@@ -186,6 +248,7 @@ export class AgentRuntime {
       lifecycle,
       loadedSkills,
       projectDiscovery,
+      projectProfile,
       context,
       execute: async (actionHandler) => {
         lifecycle.transitionTo('RUNNING', 'Execução iniciada pelo executor.');
@@ -198,10 +261,7 @@ export class AgentRuntime {
             task,
             skills: loadedSkills,
             getSkill: (skillId) => loadedSkills.find(s => s.skill_id === skillId) || null,
-            memory: {
-              get: (scope, key) => memoryManager.get(scope, key, agent.agent_id),
-              set: (scope, key, val) => memoryManager.set(scope, key, val, agent.agent_id)
-            },
+            memory: execMemory,
             checkPermission: (tool, path, op) => {
               if (tool && !PermissionEngine.checkToolPermission(agent, tool).allowed) return false;
               if (path && !PermissionEngine.checkPathPermission(agent, path).allowed) return false;
@@ -210,7 +270,7 @@ export class AgentRuntime {
             }
           };
 
-          // Injetar propriedades imutáveis de discovery no executionContext
+          // Injetar propriedades imutáveis no executionContext
           Object.defineProperty(executionContext, 'project', {
             value: projectDiscovery,
             writable: false,
@@ -219,6 +279,18 @@ export class AgentRuntime {
           });
           Object.defineProperty(executionContext, 'project_discovery', {
             value: projectDiscovery,
+            writable: false,
+            configurable: false,
+            enumerable: true
+          });
+          Object.defineProperty(executionContext, 'profile', {
+            value: projectProfile,
+            writable: false,
+            configurable: false,
+            enumerable: true
+          });
+          Object.defineProperty(executionContext, 'project_profile', {
+            value: projectProfile,
             writable: false,
             configurable: false,
             enumerable: true

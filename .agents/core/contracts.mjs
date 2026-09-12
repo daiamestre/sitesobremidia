@@ -18,7 +18,26 @@ export const VALID_MEMORY_SCOPES = [
   'PROJECT',
   'TASK',
   'AGENT',
-  'EXECUTION'
+  'EXECUTION',
+  'SESSION'
+];
+
+export const VALID_MEMORY_KINDS = [
+  'DECISION',
+  'FACT',
+  'EVIDENCE',
+  'NOTE',
+  'STATE',
+  'CONTEXT',
+  'TASK_DATA'
+];
+
+export const VALID_MEMORY_STATUSES = [
+  'ACTIVE',
+  'ARCHIVED',
+  'STALE',
+  'SUPERSEDED',
+  'EXPIRED'
 ];
 
 export const VALID_DISCOVERY_STATUSES = [
@@ -338,6 +357,125 @@ export function validateDiscoveryResult(result) {
   // 15. Discovered At
   if (!result.discovered_at || typeof result.discovered_at !== 'string') {
     errors.push("Campo obrigatório 'discovered_at' ausente ou inválido.");
+  }
+
+  return errors;
+}
+
+export function validateMemoryRecord(record) {
+  const errors = [];
+  if (!record || typeof record !== 'object') {
+    return ['MemoryRecord nulo ou não é um objeto.'];
+  }
+
+  // 1. Schema Version
+  if (!record.schema_version || typeof record.schema_version !== 'string' || !/^\d+\.\d+\.\d+$/.test(record.schema_version)) {
+    errors.push("Campo obrigatório 'schema_version' ausente ou inválido (formato semver esperado).");
+  }
+
+  // 2. Memory ID
+  if (!record.memory_id || typeof record.memory_id !== 'string') {
+    errors.push("Campo obrigatório 'memory_id' ausente ou inválido.");
+  }
+
+  // 3. Project ID & Workspace Root
+  if (record.project_id !== undefined && typeof record.project_id !== 'string') {
+    errors.push("Campo 'project_id' deve ser string.");
+  }
+  if (record.workspace_root !== undefined && typeof record.workspace_root !== 'string') {
+    errors.push("Campo 'workspace_root' deve ser string.");
+  }
+
+  // 4. Scope
+  if (!record.scope || !VALID_MEMORY_SCOPES.includes(record.scope)) {
+    errors.push(`Campo 'scope' inválido (${record.scope}). Permitidos: ${VALID_MEMORY_SCOPES.join(', ')}.`);
+  }
+
+  // 5. Kind
+  if (record.kind && !VALID_MEMORY_KINDS.includes(record.kind)) {
+    errors.push(`Campo 'kind' inválido (${record.kind}). Permitidos: ${VALID_MEMORY_KINDS.join(', ')}.`);
+  }
+
+  // 6. Content
+  if (record.content === undefined) {
+    errors.push("Campo obrigatório 'content' indefinido.");
+  }
+
+  // 7. Source / Provenance
+  if (!record.source || typeof record.source !== 'object') {
+    errors.push("Campo obrigatório 'source' ausente ou não é objeto.");
+  } else {
+    if (!record.source.source_agent_id || typeof record.source.source_agent_id !== 'string') {
+      errors.push("Campo 'source.source_agent_id' ausente ou inválido.");
+    }
+    if (record.source.source_task_id !== undefined && typeof record.source.source_task_id !== 'string') {
+      errors.push("Campo 'source.source_task_id' deve ser string.");
+    }
+  }
+
+  // 8. Timestamps
+  if (!record.created_at || typeof record.created_at !== 'string') {
+    errors.push("Campo obrigatório 'created_at' ausente ou inválido.");
+  }
+  if (record.updated_at !== undefined && typeof record.updated_at !== 'string') {
+    errors.push("Campo 'updated_at' deve ser string.");
+  }
+  if (record.expires_at !== undefined && record.expires_at !== null && typeof record.expires_at !== 'string') {
+    errors.push("Campo 'expires_at' deve ser string ou null.");
+  }
+
+  // 9. Status
+  if (record.status && !VALID_MEMORY_STATUSES.includes(record.status)) {
+    errors.push(`Campo 'status' inválido (${record.status}). Permitidos: ${VALID_MEMORY_STATUSES.join(', ')}.`);
+  }
+
+  return errors;
+}
+
+export function validateProjectProfile(profile) {
+  const errors = [];
+  if (!profile || typeof profile !== 'object') {
+    return ['ProjectProfile nulo ou não é um objeto.'];
+  }
+
+  // 1. Schema Version
+  if (!profile.schema_version || typeof profile.schema_version !== 'string' || !/^\d+\.\d+\.\d+$/.test(profile.schema_version)) {
+    errors.push("Campo obrigatório 'schema_version' ausente ou inválido (formato semver esperado).");
+  }
+
+  // 2. Project ID & Name
+  if (!profile.project_id || typeof profile.project_id !== 'string') {
+    errors.push("Campo obrigatório 'project_id' ausente ou inválido.");
+  }
+  if (!profile.project_name || typeof profile.project_name !== 'string') {
+    errors.push("Campo obrigatório 'project_name' ausente ou inválido.");
+  }
+
+  // 3. Architecture & Stack
+  if (!profile.architecture || (typeof profile.architecture !== 'string' && typeof profile.architecture !== 'object')) {
+    errors.push("Campo obrigatório 'architecture' ausente ou inválido.");
+  }
+  if (!profile.stack || typeof profile.stack !== 'object') {
+    errors.push("Campo obrigatório 'stack' ausente ou não é objeto.");
+  }
+
+  // 4. Arrays
+  if (profile.modules && !Array.isArray(profile.modules)) {
+    errors.push("Campo 'modules' deve ser array.");
+  }
+  if (profile.conventions && !Array.isArray(profile.conventions)) {
+    errors.push("Campo 'conventions' deve ser array.");
+  }
+  if (profile.invariants && !Array.isArray(profile.invariants)) {
+    errors.push("Campo 'invariants' deve ser array.");
+  }
+  if (profile.constraints && !Array.isArray(profile.constraints)) {
+    errors.push("Campo 'constraints' deve ser array.");
+  }
+
+  // 5. Source
+  if (!profile.source || typeof profile.source !== 'string') {
+    errors.push("Campo obrigatório 'source' ausente ou inválido.");
   }
 
   return errors;
