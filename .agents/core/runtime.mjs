@@ -12,7 +12,7 @@ import { SkillLoader } from './skill_loader.mjs';
 import { PermissionEngine } from './permissions.mjs';
 import { memoryManager } from './memory.mjs';
 import { HandoffManager } from './handoff.mjs';
-import { validateAgentTask, validateDiscoveryResult, validateProjectProfile } from './contracts.mjs';
+import { validateAgentTask, validateDiscoveryResult, validateProjectProfile, deepFreeze } from './contracts.mjs';
 import { ProjectDiscovery, DiscoveryPolicy } from './project_discovery.mjs';
 import { ProjectProfileLoader } from './project_profile.mjs';
 import { defaultExecutionAdapter, SingleExecutorAdapter } from './executor.mjs';
@@ -234,7 +234,11 @@ export class AgentRuntime {
 
     if (context.handoff) {
       // Validar handoff de entrada se fornecido
-      const handoffValidation = HandoffManager.validateHandoff(context.handoff);
+      const handoffValidation = HandoffManager.validateHandoff(context.handoff, {
+        expected_task_id: task.task_id,
+        expected_destination: agent.agent_id,
+        expected_workspace: targetWorkspace
+      });
       if (!handoffValidation.valid) {
         lifecycle.transitionTo('BLOCKED', `Handoff de entrada rejeitado: ${handoffValidation.errors.join(', ')}`);
         return this._recordExecution({
@@ -245,9 +249,10 @@ export class AgentRuntime {
           executor_type: this.executionAdapter.executor_type,
           started_at: new Date().toISOString(),
           finished_at: new Date().toISOString(),
-          error: `Handoff inválido bloqueou execução do agente '${agent.agent_id}'.`
+          error: `Handoff inválido bloqueou execução do agente '${agent.agent_id}': ${handoffValidation.errors.join('; ')}`
         });
       }
+      HandoffManager.consumeHandoff(context.handoff.handoff_id);
       memoryManager.set('AGENT', `received_handoff:${context.handoff.handoff_id}`, context.handoff, {
         agent_id: agent.agent_id,
         task_id: task.task_id,
@@ -335,6 +340,12 @@ export class AgentRuntime {
           });
           Object.defineProperty(executionContext, 'project_profile', {
             value: projectProfile,
+            writable: false,
+            configurable: false,
+            enumerable: true
+          });
+          Object.defineProperty(executionContext, 'handoff', {
+            value: context.handoff ? deepFreeze(context.handoff) : null,
             writable: false,
             configurable: false,
             enumerable: true

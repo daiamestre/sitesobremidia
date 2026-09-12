@@ -197,6 +197,34 @@ export function validateAgentTask(task) {
   return errors;
 }
 
+export const VALID_HANDOFF_STATUSES = [
+  'READY',
+  'IN_PROGRESS',
+  'BLOCKED',
+  'COMPLETED'
+];
+
+export function validateEvidence(evidence) {
+  const errors = [];
+  if (!evidence || typeof evidence !== 'object') {
+    return ['Evidência nula ou não é um objeto.'];
+  }
+
+  if (typeof evidence.command !== 'string' || evidence.command.trim().length === 0) {
+    errors.push("Campo 'command' da evidência ausente ou inválido.");
+  }
+
+  if (typeof evidence.exit_code !== 'number' || !Number.isInteger(evidence.exit_code)) {
+    errors.push("Campo 'exit_code' da evidência deve ser um número inteiro.");
+  }
+
+  if (evidence.summary !== undefined && typeof evidence.summary !== 'string') {
+    errors.push("Campo 'summary' da evidência deve ser string.");
+  }
+
+  return errors;
+}
+
 export function validateAgentResult(result) {
   const errors = [];
   if (!result || typeof result !== 'object') {
@@ -213,6 +241,86 @@ export function validateAgentResult(result) {
 
   if (!Array.isArray(result.evidence)) {
     errors.push("Campo obrigatório 'evidence' deve ser um array.");
+  } else {
+    for (let i = 0; i < result.evidence.length; i++) {
+      const ev = result.evidence[i];
+      const evErrors = validateEvidence(ev);
+      if (evErrors.length > 0) {
+        errors.push(`Evidência [${i}] inválida: ${evErrors.join(', ')}`);
+      }
+      if (result.success === true && ev && typeof ev.exit_code === 'number' && ev.exit_code !== 0) {
+        errors.push(`Inconsistência de evidência [${i}]: resultado declara success=true mas evidência reporta falha (exit_code=${ev.exit_code}).`);
+      }
+    }
+  }
+
+  if (result.files_touched !== undefined && !Array.isArray(result.files_touched)) {
+    errors.push("Campo 'files_touched' deve ser um array de strings.");
+  }
+
+  return errors;
+}
+
+export function validateHandoffContract(handoff) {
+  const errors = [];
+  if (!handoff || typeof handoff !== 'object') {
+    return ['Handoff nulo ou não é um objeto.'];
+  }
+
+  if (!handoff.handoff_id || typeof handoff.handoff_id !== 'string') {
+    errors.push("Campo obrigatório 'handoff_id' ausente ou inválido.");
+  }
+
+  if (!handoff.task_id || typeof handoff.task_id !== 'string') {
+    errors.push("Campo obrigatório 'task_id' ausente ou inválido.");
+  }
+
+  const fromAgent = handoff.from || handoff.source_agent_id;
+  if (!fromAgent || typeof fromAgent !== 'string') {
+    errors.push("Campo obrigatório de origem ('from'/'source_agent_id') ausente ou inválido.");
+  }
+
+  const toAgent = handoff.to || handoff.destination_agent_id;
+  if (!toAgent || typeof toAgent !== 'string') {
+    errors.push("Campo obrigatório de destino ('to'/'destination_agent_id') ausente ou inválido.");
+  }
+
+  if (handoff.status !== undefined && !VALID_HANDOFF_STATUSES.includes(handoff.status)) {
+    errors.push(`Status de handoff inválido (${handoff.status}). Permitidos: ${VALID_HANDOFF_STATUSES.join(', ')}.`);
+  }
+
+  if (!handoff.objective || typeof handoff.objective !== 'string') {
+    errors.push("Campo obrigatório 'objective' ausente ou vazio.");
+  }
+
+  if (!handoff.completed_work || typeof handoff.completed_work !== 'string') {
+    errors.push("Campo obrigatório 'completed_work' ausente ou vazio.");
+  }
+
+  if (!Array.isArray(handoff.evidence) || handoff.evidence.length === 0) {
+    errors.push("Campo obrigatório 'evidence' ausente ou vazio. Handoff exige pelo menos 1 evidência comprovada.");
+  } else {
+    for (let i = 0; i < handoff.evidence.length; i++) {
+      const ev = handoff.evidence[i];
+      const evErrors = validateEvidence(ev);
+      if (evErrors.length > 0) {
+        errors.push(`Evidência [${i}] inválida no handoff: ${evErrors.join(', ')}`);
+      } else if (ev.exit_code !== 0) {
+        errors.push(`Evidência [${i}] no handoff rejeitada: comando '${ev.command}' possui exit_code=${ev.exit_code} (esperado 0).`);
+      }
+    }
+  }
+
+  if (handoff.files_changed !== undefined && !Array.isArray(handoff.files_changed)) {
+    errors.push("Campo 'files_changed' deve ser um array.");
+  }
+
+  if (handoff.tests_run !== undefined && !Array.isArray(handoff.tests_run)) {
+    errors.push("Campo 'tests_run' deve ser um array.");
+  }
+
+  if (!handoff.next_action || typeof handoff.next_action !== 'string') {
+    errors.push("Campo obrigatório 'next_action' ausente ou vazio.");
   }
 
   return errors;
