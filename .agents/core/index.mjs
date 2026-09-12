@@ -20,4 +20,5 @@ export * from './orchestrator.mjs';
 export * from './skill_runtime.mjs';
 export * from './audit.mjs';
 export * from './governance.mjs';
+export * from './governed_tool_bridge.mjs';
 export * from './entrypoint.mjs';

@@ -17,6 +17,7 @@ import { ProjectDiscovery, DiscoveryPolicy } from './project_discovery.mjs';
 import { ProjectProfileLoader } from './project_profile.mjs';
 import { defaultExecutionAdapter, SingleExecutorAdapter } from './executor.mjs';
 import { skillRuntime } from './skill_runtime.mjs';
+import { governedToolBridge } from './governed_tool_bridge.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -295,6 +296,16 @@ export class AgentRuntime {
                 execution_id: executionId,
                 action,
                 input,
+                workspace_root: targetWorkspace
+              }, executionContext, options);
+            },
+            executeTool: async (toolName, toolArgs = {}, options = {}) => {
+              return await governedToolBridge.executeGovernedTool({
+                tool: toolName,
+                agent_id: agent.agent_id,
+                task_id: task.task_id,
+                execution_id: executionId,
+                arguments: toolArgs,
                 workspace_root: targetWorkspace
               }, executionContext, options);
             },
