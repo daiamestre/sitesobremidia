@@ -27,6 +27,9 @@ export class ProjectDiscovery {
    */
   static discover(customRoot = process.cwd()) {
     const projectRoot = path.resolve(customRoot);
+    if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) {
+      throw new Error(`[PROJECT DISCOVERY ERROR]: Workspace root '${projectRoot}' não existe ou não é um diretório acessível.`);
+    }
     const warnings = [];
     const evidenceList = [];
 
@@ -440,3 +443,95 @@ export class ProjectDiscovery {
     return deepFreeze(rawResult);
   }
 }
+
+export class DiscoveryPolicy {
+  /**
+   * Tipos de tarefas canônicos que realizam operações no projeto e exigem discovery.
+   */
+  static PROJECT_AWARE_TYPES = [
+    'IMPLEMENTATION',
+    'ARCHITECTURE',
+    'DATABASE',
+    'FORENSIC',
+    'QA',
+    'FEATURE',
+    'BUGFIX',
+    'AUDIT',
+    'REFACTOR',
+    'BUILD',
+    'SECURITY',
+    'TEST',
+    'DEPLOYMENT',
+    'HOTFIX',
+    'MIGRATION',
+    'OPTIMIZATION',
+    'ARCHITECTURE_AND_AUDIT'
+  ];
+
+  /**
+   * Tipos de tarefas puramente conceituais ou textuais que não exigem discovery.
+   */
+  static NON_PROJECT_TYPES = [
+    'NON_PROJECT',
+    'CONCEPTUAL',
+    'TEXT_ONLY',
+    'CONVERSATION',
+    'GENERAL',
+    'GENERAL_ORCHESTRATION'
+  ];
+
+  /**
+   * Determina deterministicamente se uma tarefa requer Discovery do projeto.
+   *
+   * @param {Object} task
+   * @returns {boolean}
+   */
+  static isProjectAware(task) {
+    if (!task || typeof task !== 'object') return false;
+
+    // 1. Flag booleana explícita na tarefa (precedência máxima)
+    if (typeof task.is_project_aware === 'boolean') {
+      return task.is_project_aware;
+    }
+    if (typeof task.requires_discovery === 'boolean') {
+      return task.requires_discovery;
+    }
+
+    // 2. Tipo explícito de tarefa (case-insensitive)
+    if (task.type && typeof task.type === 'string') {
+      const normType = task.type.toUpperCase().trim();
+      if (this.NON_PROJECT_TYPES.includes(normType)) return false;
+      if (this.PROJECT_AWARE_TYPES.includes(normType)) return true;
+    }
+    if (task.task_type && typeof task.task_type === 'string') {
+      const normTaskType = task.task_type.toUpperCase().trim();
+      if (this.NON_PROJECT_TYPES.includes(normTaskType)) return false;
+      if (this.PROJECT_AWARE_TYPES.includes(normTaskType)) return true;
+    }
+
+    // 3. Presença explícita de workspace_root ou target_paths
+    if (task.workspace_root || (Array.isArray(task.target_paths) && task.target_paths.length > 0)) {
+      return true;
+    }
+
+    // 4. Default: Tarefas no sistema operam sobre o workspace por padrão
+    return true;
+  }
+
+  /**
+   * Avalia a política e retorna objeto detalhado de decisão.
+   *
+   * @param {Object} task
+   * @returns {{ required: boolean, reason: string }}
+   */
+  static evaluate(task) {
+    const required = this.isProjectAware(task);
+    return {
+      required,
+      reason: required
+        ? `Tarefa '${task?.task_id || 'UNKNOWN'}' classificada como PROJECT-AWARE. Discovery é obrigatório.`
+        : `Tarefa '${task?.task_id || 'UNKNOWN'}' classificada como NON-PROJECT. Discovery dispensado.`
+    };
+  }
+}
+
