@@ -142,6 +142,21 @@ export async function runMicroGate014Pilot() {
     throw new Error(`Orquestração falhou: ${orchestrationResult.error}`);
   }
 
+  // 7. Duplicate Completion Verification in Pilot (Idempotent No-Op)
+  console.log('\n🛡️ 7. DUPLICATE COMPLETION VERIFICATION: Testando segunda chamada de conclusão sobre a mesma tarefa...');
+  const duplicateAttempt = await orchestrator.orchestrateTask(rawTask, async () => {
+    throw new Error('Handler NÃO deve executar em tentativa duplicada!');
+  });
+
+  console.log(`   Status: ${duplicateAttempt.status}`);
+  console.log(`   Is Idempotent No-Op: ${duplicateAttempt.is_idempotent_noop}`);
+  console.log(`   Duplicate Prevented: ${duplicateAttempt.duplicate_prevented}`);
+  console.log(`   Completion ID Preservado: ${duplicateAttempt.completion_id === orchestrationResult.completion_id}`);
+
+  if (!duplicateAttempt.is_idempotent_noop || !duplicateAttempt.duplicate_prevented) {
+    throw new Error('Falha na prevenção de conclusão duplicada no piloto!');
+  }
+
   console.log('\n=================================================================');
   console.log('🎉 [MICRO-GATE 0.14]: PILOTO DE TASK ORCHESTRATION CONCLUÍDO COM 100% DE SUCESSO!');
   console.log('=================================================================\n');

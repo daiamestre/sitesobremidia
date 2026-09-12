@@ -531,23 +531,90 @@ async function runAdversarialSuite() {
     assert(false, 'ORC-21', 'Duplicate execution', err.message);
   }
 
-  // ORC-22: duplicate completion validation
+  // ORC-22: duplicate completion governance & idempotency verification
   try {
-    const task = TaskNormalizer.normalize({ task_id: 'TASK-DUP-COMP', objective: 'Test completion', task_type: 'NON_PROJECT' });
+    const task = TaskNormalizer.normalize({ task_id: 'TASK-DUP-COMP-01', objective: 'Test completion governance and idempotency', task_type: 'NON_PROJECT' });
     const plan = ExecutionPlanner.createPlan(task);
     const execResults = [{
       step_id: plan.steps[0].step_id,
       agent_id: plan.steps[0].agent_id,
       task_id: task.task_id,
       status: 'COMPLETED',
-      result: { success: true, summary: 'Pass' },
-      evidence: [{ command: 'echo pass', exit_code: 0, summary: 'PASS' }]
+      result: { success: true, summary: 'Pass 1' },
+      evidence: [{ command: 'echo pass-1', exit_code: 0, summary: 'PASS' }]
     }];
 
-    const val1 = CompletionAuthority.validateCompletion({ task, plan, executionResults: execResults });
-    assert(val1.completed === true, 'ORC-22', 'Completion authority validates completed execution');
+    // 1. Primeira conclusão válida via CompletionAuthority
+    const completion1 = CompletionAuthority.declareCompletion({ task, plan, executionResults: execResults });
+    const comp1Success = completion1.completed === true &&
+                         completion1.status === 'COMPLETED' &&
+                         typeof completion1.completion_id === 'string' &&
+                         typeof completion1.completed_at === 'string';
+
+    // 2. Segunda tentativa de conclusão com mesma tarefa/plano (Idempotent No-Op)
+    const completion2 = CompletionAuthority.declareCompletion({ task, plan, executionResults: execResults });
+    const comp2Idempotent = completion2.completed === true &&
+                            completion2.status === 'COMPLETED' &&
+                            completion2.is_idempotent_noop === true &&
+                            completion2.duplicate_prevented === true &&
+                            completion2.completion_id === completion1.completion_id &&
+                            completion2.completed_at === completion1.completed_at;
+
+    // 3. Terceira tentativa com modo explícito de rejeição (reject_if_already_completed)
+    const completion3 = CompletionAuthority.declareCompletion({
+      task,
+      plan,
+      executionResults: execResults,
+      options: { reject_if_already_completed: true }
+    });
+    const comp3Rejected = completion3.completed === false &&
+                          completion3.status === 'BLOCKED' &&
+                          completion3.is_duplicate === true;
+
+    // 4. Teste em nível de TaskOrchestrator: Execução inicial vs Replay
+    const testOrch = new TaskOrchestrator();
+    let handlerExecutionCount = 0;
+    const taskObj = {
+      task_id: 'TASK-ORCH-DUP-01',
+      objective: 'Orchestrator duplicate completion test',
+      task_type: 'NON_PROJECT'
+    };
+
+    const orchRes1 = await testOrch.orchestrateTask(taskObj, async () => {
+      handlerExecutionCount++;
+      return {
+        success: true,
+        summary: 'First real execution',
+        evidence: [{ command: 'echo orch-1', exit_code: 0, summary: 'PASS' }]
+      };
+    });
+
+    const orchRes2 = await testOrch.orchestrateTask(taskObj, async () => {
+      handlerExecutionCount++;
+      return {
+        success: true,
+        summary: 'Second execution that should not run',
+        evidence: [{ command: 'echo orch-2', exit_code: 0, summary: 'PASS' }]
+      };
+    });
+
+    const orchRes3 = await testOrch.orchestrateTask(taskObj, async () => {}, { reject_duplicate_task: true });
+
+    const orchIdempotencyValid = orchRes1.status === 'COMPLETED' &&
+                                 orchRes2.status === 'COMPLETED' &&
+                                 orchRes2.is_idempotent_noop === true &&
+                                 orchRes2.duplicate_prevented === true &&
+                                 handlerExecutionCount === 1 && // Handler NUNCA executou pela 2ª vez
+                                 orchRes3.status === 'BLOCKED' &&
+                                 orchRes3.is_duplicate_blocked === true;
+
+    assert(
+      comp1Success && comp2Idempotent && comp3Rejected && orchIdempotencyValid,
+      'ORC-22',
+      'Duplicate completion strictly governed: Idempotent No-Op preserves state without side-effects & rejection mode blocks'
+    );
   } catch (err) {
-    assert(false, 'ORC-22', 'Duplicate completion', err.message);
+    assert(false, 'ORC-22', 'Duplicate completion governance', err.message);
   }
 
   // ORC-23: invalid AgentResult
