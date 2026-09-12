@@ -13,7 +13,7 @@ import { validateEvidence, deepFreeze } from './contracts.mjs';
 import { ProjectDiscovery } from './project_discovery.mjs';
 import { DatabaseSupabaseGuard } from '../skills/database-supabase-guard/scripts/guard_db.mjs';
 import { auditLogger } from './audit.mjs';
-import { SkillDependencyGovernance } from './governance.mjs';
+import { SkillDependencyGovernance, HighRiskGovernance, highRiskGovernance } from './governance.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -361,6 +361,26 @@ export class SkillRuntime {
           output: null,
           evidence: [],
           errors: [`Permissão de operação negada pelo PermissionEngine: ${opPerm.reason}`],
+          started_at: startedAt,
+          completed_at: new Date().toISOString()
+        });
+      }
+    }
+
+    // 7.1 Validar High-Risk Governance se a operação for classificada como de alto risco
+    const targetResource = input.target_resource || input.command || input.sql || input.operation || '';
+    if (HighRiskGovernance.isHighRiskOperation(action, targetResource) || input.is_high_risk) {
+      if (!highRiskGovernance.canExecute(input.approval_request_id)) {
+        return deepFreeze({
+          success: false,
+          skill_id,
+          agent_id,
+          task_id,
+          execution_id,
+          action,
+          output: null,
+          evidence: [],
+          errors: [`[HIGH-RISK SECURITY VIOLATION]: Operação de alto risco '${action}' bloqueada fail-closed. Solicitação de aprovação '${input.approval_request_id || 'NENHUMA'}' não autorizada.`],
           started_at: startedAt,
           completed_at: new Date().toISOString()
         });
