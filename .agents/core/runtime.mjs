@@ -66,6 +66,22 @@ export class AgentRuntime {
       });
     }
 
+    // 2.1 Validar Elegibilidade do Agente para a Tarefa (Capabilities & Task Types)
+    const eligibility = registry.isEligibleForTask(agent.agent_id, task);
+    if (!eligibility.eligible) {
+      lifecycle.transitionTo('BLOCKED', `Agente '${agent.agent_id}' não é elegível para a tarefa: ${eligibility.reason}`);
+      return this._recordExecution({
+        execution_id: executionId,
+        agent_id: agent.agent_id,
+        task_id: task.task_id,
+        status: lifecycle.getState(),
+        executor_type: this.executionAdapter.executor_type,
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        error: `Inelegibilidade de agente/capacidade: ${eligibility.reason}`
+      });
+    }
+
     const targetWorkspace = task.workspace_root || context.workspace_root || process.cwd();
 
     // 3. Avaliar Discovery Policy e Obter/Validar DiscoveryResult
@@ -259,6 +275,10 @@ export class AgentRuntime {
             execution_id: executionId,
             agent,
             task,
+            capabilities: agent.capabilities || [],
+            hasCapability: (capId) => (agent.capabilities || []).includes(capId),
+            tools: agent.tools || [],
+            permissions: agent.permissions || {},
             skills: loadedSkills,
             getSkill: (skillId) => loadedSkills.find(s => s.skill_id === skillId) || null,
             memory: execMemory,
@@ -271,6 +291,30 @@ export class AgentRuntime {
           };
 
           // Injetar propriedades imutáveis no executionContext
+          Object.defineProperty(executionContext, 'agent', {
+            value: agent,
+            writable: false,
+            configurable: false,
+            enumerable: true
+          });
+          Object.defineProperty(executionContext, 'capabilities', {
+            value: agent.capabilities || [],
+            writable: false,
+            configurable: false,
+            enumerable: true
+          });
+          Object.defineProperty(executionContext, 'tools', {
+            value: agent.tools || [],
+            writable: false,
+            configurable: false,
+            enumerable: true
+          });
+          Object.defineProperty(executionContext, 'permissions', {
+            value: agent.permissions || {},
+            writable: false,
+            configurable: false,
+            enumerable: true
+          });
           Object.defineProperty(executionContext, 'project', {
             value: projectDiscovery,
             writable: false,

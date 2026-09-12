@@ -61,6 +61,44 @@ export const VALID_PACKAGE_MANAGERS = [
   'UNKNOWN'
 ];
 
+export const VALID_CAPABILITIES = [
+  'TASK_ORCHESTRATION',
+  'SYSTEM_ARCHITECTURE',
+  'CODE_IMPLEMENTATION',
+  'DATABASE_MANAGEMENT',
+  'FORENSIC_AUDITING',
+  'QUALITY_ASSURANCE',
+  'PROJECT_DISCOVERY'
+];
+
+export const VALID_AGENT_STATUSES = [
+  'ACTIVE',
+  'DISABLED',
+  'DEPRECATED'
+];
+
+export function validateCapability(capability) {
+  const errors = [];
+  if (!capability || (typeof capability !== 'object' && typeof capability !== 'string')) {
+    return ['Capacidade nula ou inválida.'];
+  }
+
+  const capId = typeof capability === 'string' ? capability : capability.capability_id;
+  if (!capId || typeof capId !== 'string') {
+    errors.push("Campo obrigatório 'capability_id' ausente ou inválido.");
+  } else if (!VALID_CAPABILITIES.includes(capId)) {
+    errors.push(`Identificador de capacidade '${capId}' não é uma capacidade canônica reconhecida. Válidas: [${VALID_CAPABILITIES.join(', ')}].`);
+  }
+
+  if (typeof capability === 'object') {
+    if (capability.name !== undefined && typeof capability.name !== 'string') {
+      errors.push("Campo 'name' da capacidade deve ser string.");
+    }
+  }
+
+  return errors;
+}
+
 export function validateAgentContract(contract) {
   const errors = [];
   if (!contract || typeof contract !== 'object') {
@@ -69,6 +107,17 @@ export function validateAgentContract(contract) {
 
   if (!contract.agent_id || typeof contract.agent_id !== 'string') {
     errors.push("Campo obrigatório 'agent_id' ausente ou inválido.");
+  } else {
+    const trimmedId = contract.agent_id.trim();
+    if (trimmedId.length === 0) {
+      errors.push("Campo 'agent_id' não pode ser vazio.");
+    } else if (/\s/.test(contract.agent_id)) {
+      errors.push("Campo 'agent_id' não pode conter espaços em branco.");
+    } else if (/[/\\]|\.\./.test(contract.agent_id)) {
+      errors.push("Campo 'agent_id' não pode conter separadores de caminho ou path traversal.");
+    } else if (!/^[a-zA-Z0-9_-]+$/.test(contract.agent_id)) {
+      errors.push("Campo 'agent_id' deve conter apenas caracteres alfanuméricos, hífen ou underscore.");
+    }
   }
 
   if (!contract.name || typeof contract.name !== 'string') {
@@ -85,6 +134,10 @@ export function validateAgentContract(contract) {
 
   if (!contract.objective || typeof contract.objective !== 'string') {
     errors.push("Campo obrigatório 'objective' ausente ou inválido.");
+  }
+
+  if (contract.status !== undefined && !VALID_AGENT_STATUSES.includes(contract.status)) {
+    errors.push(`Status de agente inválido (${contract.status}). Permitidos: ${VALID_AGENT_STATUSES.join(', ')}.`);
   }
 
   if (!Array.isArray(contract.skills)) {
@@ -106,6 +159,22 @@ export function validateAgentContract(contract) {
 
   if (!VALID_MEMORY_SCOPES.includes(contract.memory_scope)) {
     errors.push(`Escopo de memória 'memory_scope' inválido (${contract.memory_scope}). Permitidos: ${VALID_MEMORY_SCOPES.join(', ')}.`);
+  }
+
+  if (contract.capabilities !== undefined) {
+    if (!Array.isArray(contract.capabilities)) {
+      errors.push("Campo 'capabilities' deve ser um array de strings de capacidades canônicas.");
+    } else {
+      for (const cap of contract.capabilities) {
+        if (!VALID_CAPABILITIES.includes(cap)) {
+          errors.push(`Capacidade '${cap}' não é uma capacidade canônica reconhecida. Permitidas: [${VALID_CAPABILITIES.join(', ')}].`);
+        }
+      }
+    }
+  }
+
+  if (contract.task_types !== undefined && !Array.isArray(contract.task_types)) {
+    errors.push("Campo 'task_types' deve ser um array de strings.");
   }
 
   return errors;
