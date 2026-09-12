@@ -16,6 +16,7 @@ import { validateAgentTask, validateDiscoveryResult, validateProjectProfile, dee
 import { ProjectDiscovery, DiscoveryPolicy } from './project_discovery.mjs';
 import { ProjectProfileLoader } from './project_profile.mjs';
 import { defaultExecutionAdapter, SingleExecutorAdapter } from './executor.mjs';
+import { skillRuntime } from './skill_runtime.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -286,6 +287,17 @@ export class AgentRuntime {
             permissions: agent.permissions || {},
             skills: loadedSkills,
             getSkill: (skillId) => loadedSkills.find(s => s.skill_id === skillId) || null,
+            executeSkill: async (skillId, action, input = {}, options = {}) => {
+              return await skillRuntime.executeSkill({
+                skill_id: skillId,
+                agent_id: agent.agent_id,
+                task_id: task.task_id,
+                execution_id: executionId,
+                action,
+                input,
+                workspace_root: targetWorkspace
+              }, executionContext, options);
+            },
             memory: execMemory,
             checkPermission: (tool, path, op) => {
               if (tool && !PermissionEngine.checkToolPermission(agent, tool).allowed) return false;
