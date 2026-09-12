@@ -18,7 +18,8 @@ import { TaskRouter } from './router.mjs';
 import { DiscoveryPolicy, ProjectDiscovery } from './project_discovery.mjs';
 import { HandoffManager } from './handoff.mjs';
 import { runtime as defaultRuntime, AgentRuntime } from './runtime.mjs';
-import { AgentLifecycle } from './lifecycle.mjs';
+import { AgentLifecycle, TaskLifecycle } from './lifecycle.mjs';
+import { auditLogger } from './audit.mjs';
 
 /**
  * Normalizador canônico de tarefas brutas.
@@ -345,6 +346,22 @@ export class CompletionAuthority {
     });
 
     completedExecutionsRegistry.set(completionKey, completionRecord);
+
+    try {
+      auditLogger.recordEvent({
+        event_type: 'COMPLETION_SEALED',
+        task_id: task.task_id,
+        execution_id: plan.plan_id,
+        status: 'COMPLETED',
+        metadata: {
+          completion_id: completionRecord.completion_id,
+          execution_count: completionRecord.execution_count,
+          evidence_count: completionRecord.evidence_count,
+          handoff_count: completionRecord.handoff_count
+        }
+      });
+    } catch {}
+
     return completionRecord;
   }
 
@@ -466,7 +483,9 @@ export class TaskOrchestrator {
       };
     }
 
+
     const executionResults = [];
+
     const handoffs = [];
     let currentHandoff = options.handoff || null;
 

@@ -74,7 +74,61 @@ export const VALID_CAPABILITIES = [
 export const VALID_AGENT_STATUSES = [
   'ACTIVE',
   'DISABLED',
-  'DEPRECATED'
+  'DEPRECATED',
+  'RETIRED'
+];
+
+export const VALID_TASK_LIFECYCLE_STATES = [
+  'RECEIVED',
+  'NORMALIZED',
+  'ROUTED',
+  'PLANNED',
+  'EXECUTING',
+  'HANDOFF',
+  'COMPLETING',
+  'COMPLETED',
+  'FAILED',
+  'BLOCKED',
+  'CANCELLED'
+];
+
+export const VALID_AGENT_LIFECYCLE_STATES = [
+  'DISCOVERED',
+  'REGISTERED',
+  'VALIDATED',
+  'ENABLED',
+  'AVAILABLE',
+  'EXECUTING',
+  'DISABLED',
+  'DEPRECATED',
+  'RETIRED'
+];
+
+export const VALID_SKILL_LIFECYCLE_STATES = [
+  'DISCOVERED',
+  'REGISTERED',
+  'VALIDATED',
+  'ENABLED',
+  'AVAILABLE',
+  'EXECUTABLE',
+  'DISABLED',
+  'DEPRECATED',
+  'RETIRED'
+];
+
+export const VALID_HIGH_RISK_OPERATIONS = [
+  'DESTRUCTIVE_DATABASE',
+  'PRODUCTION_MUTATION',
+  'DEPLOYMENT',
+  'IRREVERSIBLE_OPERATION',
+  'SECURITY_SENSITIVE'
+];
+
+export const VALID_APPROVAL_STATUSES = [
+  'REQUESTED',
+  'PENDING_APPROVAL',
+  'APPROVED',
+  'REJECTED'
 ];
 
 export function validateCapability(capability) {
@@ -843,5 +897,84 @@ export function deepFreeze(obj, seen = new WeakSet()) {
   }
 
   return Object.freeze(obj);
+}
+
+export function validateHighRiskApprovalRequest(request) {
+  const errors = [];
+  if (!request || typeof request !== 'object') {
+    return ['Requisição de aprovação de alto risco nula ou não é um objeto.'];
+  }
+
+  if (!request.request_id || typeof request.request_id !== 'string') {
+    errors.push("Campo obrigatório 'request_id' ausente ou inválido.");
+  }
+
+  if (!request.task_id || typeof request.task_id !== 'string') {
+    errors.push("Campo obrigatório 'task_id' ausente ou inválido.");
+  }
+
+  if (!request.agent_id || typeof request.agent_id !== 'string') {
+    errors.push("Campo obrigatório 'agent_id' ausente ou inválido.");
+  }
+
+  if (!request.operation_type || !VALID_HIGH_RISK_OPERATIONS.includes(request.operation_type)) {
+    errors.push(`Tipo de operação de alto risco inválido (${request.operation_type}). Permitidos: [${VALID_HIGH_RISK_OPERATIONS.join(', ')}].`);
+  }
+
+  if (!request.target_resource || typeof request.target_resource !== 'string') {
+    errors.push("Campo obrigatório 'target_resource' ausente ou inválido.");
+  }
+
+  if (!request.status || !VALID_APPROVAL_STATUSES.includes(request.status)) {
+    errors.push(`Status de aprovação inválido (${request.status}). Permitidos: [${VALID_APPROVAL_STATUSES.join(', ')}].`);
+  }
+
+  return errors;
+}
+
+export function validateAuditTrailEvent(event) {
+  const errors = [];
+  if (!event || typeof event !== 'object') {
+    return ['Evento de audit trail nulo ou não é um objeto.'];
+  }
+
+  if (!event.event_id || typeof event.event_id !== 'string') {
+    errors.push("Campo obrigatório 'event_id' ausente ou inválido.");
+  }
+
+  if (!event.timestamp || typeof event.timestamp !== 'string') {
+    errors.push("Campo obrigatório 'timestamp' ausente ou inválido.");
+  }
+
+  if (!event.event_type || typeof event.event_type !== 'string') {
+    errors.push("Campo obrigatório 'event_type' ausente ou inválido.");
+  }
+
+  if (!event.task_id || typeof event.task_id !== 'string') {
+    errors.push("Campo obrigatório 'task_id' ausente ou inválido.");
+  }
+
+  return errors;
+}
+
+export function validateSkillDependency(dependency) {
+  const errors = [];
+  if (!dependency || typeof dependency !== 'object') {
+    return ['Dependência de skill nula ou não é um objeto.'];
+  }
+
+  if (!dependency.source_skill_id || typeof dependency.source_skill_id !== 'string') {
+    errors.push("Campo obrigatório 'source_skill_id' ausente ou inválido.");
+  }
+
+  if (!dependency.target_skill_id || typeof dependency.target_skill_id !== 'string') {
+    errors.push("Campo obrigatório 'target_skill_id' ausente ou inválido.");
+  }
+
+  if (dependency.source_skill_id === dependency.target_skill_id) {
+    errors.push(`Auto-dependência circular detectada para a skill '${dependency.source_skill_id}'.`);
+  }
+
+  return errors;
 }
 

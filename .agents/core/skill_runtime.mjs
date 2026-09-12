@@ -12,6 +12,8 @@ import { PermissionEngine } from './permissions.mjs';
 import { validateEvidence, deepFreeze } from './contracts.mjs';
 import { ProjectDiscovery } from './project_discovery.mjs';
 import { DatabaseSupabaseGuard } from '../skills/database-supabase-guard/scripts/guard_db.mjs';
+import { auditLogger } from './audit.mjs';
+import { SkillDependencyGovernance } from './governance.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -161,6 +163,44 @@ export class SkillRuntime {
         started_at: startedAt,
         completed_at: new Date().toISOString()
       });
+    }
+
+    // 1.1 Validar Lifecycle da Skill (Status Executável)
+    if (this.skillRegistry.getSkillStatus && !this.skillRegistry.isSkillExecutable(skill_id)) {
+      const skillStatus = this.skillRegistry.getSkillStatus(skill_id);
+      return deepFreeze({
+        success: false,
+        skill_id,
+        agent_id,
+        task_id,
+        execution_id,
+        action,
+        output: null,
+        evidence: [],
+        errors: [`Skill '${skill_id}' está com status '${skillStatus}' e não pode ser executada.`],
+        started_at: startedAt,
+        completed_at: new Date().toISOString()
+      });
+    }
+
+    // 1.2 Validar Compatibilidade de Versão (se especificada)
+    if (request.required_version) {
+      const skillMeta = this.skillRegistry.getSkillSummary(skill_id);
+      if (skillMeta && skillMeta.version !== request.required_version) {
+        return deepFreeze({
+          success: false,
+          skill_id,
+          agent_id,
+          task_id,
+          execution_id,
+          action,
+          output: null,
+          evidence: [],
+          errors: [`Incompatibilidade de versão para a skill '${skill_id}': requer '${request.required_version}', encontrada '${skillMeta.version || 'sem_versão'}'.`],
+          started_at: startedAt,
+          completed_at: new Date().toISOString()
+        });
+      }
     }
 
     // 2. Validar que o Agente existe e está ATIVO no AgentRegistry
@@ -383,9 +423,24 @@ export class SkillRuntime {
       });
 
       this.executedSkillActions.set(actionKey, finalResult);
+
+      try {
+        auditLogger.recordEvent({
+          event_type: 'SKILL_EXECUTED',
+          task_id,
+          execution_id,
+          agent_id,
+          skill_id,
+          action,
+          status: finalResult.success ? 'COMPLETED' : 'FAILED',
+          evidence: finalResult.evidence,
+          error: finalResult.errors.length > 0 ? finalResult.errors.join('; ') : null
+        });
+      } catch {}
+
       return finalResult;
     } catch (err) {
-      return deepFreeze({
+      const errResult = deepFreeze({
         success: false,
         skill_id,
         agent_id,
@@ -398,8 +453,24 @@ export class SkillRuntime {
         started_at: startedAt,
         completed_at: new Date().toISOString()
       });
+
+      try {
+        auditLogger.recordEvent({
+          event_type: 'SKILL_EXECUTION_EXCEPTION',
+          task_id,
+          execution_id,
+          agent_id,
+          skill_id,
+          action,
+          status: 'FAILED',
+          error: err.message
+        });
+      } catch {}
+
+      return errResult;
     }
   }
+
 
   /**
    * Roteamento e execução dos procedimentos canônicos das skills operacionais.

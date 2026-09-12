@@ -18,5 +18,5 @@ export * from './project_discovery.mjs';
 export * from './project_profile.mjs';
 export * from './orchestrator.mjs';
 export * from './skill_runtime.mjs';
-
-
+export * from './audit.mjs';
+export * from './governance.mjs';
