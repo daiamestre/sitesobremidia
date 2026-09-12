@@ -85,23 +85,86 @@ assert(skillErrorCaught, 'Registry rejeita registro de agente com Skill inexiste
 console.log('\n--- 2. AGENT LIFECYCLE ---');
 const lc = new AgentLifecycle('CREATED', 'test-exec-01');
 assert(lc.getState() === 'CREATED', 'Lifecycle inicializa em CREATED');
+assert(lc.isTerminal() === false, 'CREATED.isTerminal() === false');
 
 lc.transitionTo('READY', 'Pronto para execução');
 assert(lc.getState() === 'READY', 'Transição CREATED -> READY válida');
+assert(lc.isTerminal() === false, 'READY.isTerminal() === false');
 
 lc.transitionTo('RUNNING', 'Iniciando');
 assert(lc.getState() === 'RUNNING', 'Transição READY -> RUNNING válida');
+assert(lc.isTerminal() === false, 'RUNNING.isTerminal() === false');
 
 lc.transitionTo('COMPLETED', 'Finalizado');
-assert(lc.getState() === 'COMPLETED' && lc.isTerminal(), 'Transição RUNNING -> COMPLETED válida (terminal)');
+assert(lc.getState() === 'COMPLETED' && lc.isTerminal() === true, 'Transição RUNNING -> COMPLETED válida (COMPLETED é o único estado terminal)');
 
-let illegalTransitionCaught = false;
+// Provas de imutabilidade a partir de COMPLETED
+let illegalCompletedToRunning = false;
 try {
   lc.transitionTo('RUNNING', 'Transição ilegal a partir de terminal');
 } catch {
-  illegalTransitionCaught = true;
+  illegalCompletedToRunning = true;
 }
-assert(illegalTransitionCaught, 'Lifecycle bloqueia transição ilegal a partir de estado terminal');
+assert(illegalCompletedToRunning, 'COMPLETED -> RUNNING bloqueado');
+
+let illegalCompletedToReady = false;
+try {
+  lc.transitionTo('READY', 'Transição ilegal a partir de terminal');
+} catch {
+  illegalCompletedToReady = true;
+}
+assert(illegalCompletedToReady, 'COMPLETED -> READY bloqueado');
+
+let illegalCompletedToFailed = false;
+try {
+  lc.transitionTo('FAILED', 'Transição ilegal a partir de terminal');
+} catch {
+  illegalCompletedToFailed = true;
+}
+assert(illegalCompletedToFailed, 'COMPLETED -> FAILED bloqueado');
+
+// Provas de terminalidade dos demais estados
+const lcWaiting = new AgentLifecycle('CREATED', 'test-waiting');
+lcWaiting.transitionTo('READY');
+lcWaiting.transitionTo('RUNNING');
+lcWaiting.transitionTo('WAITING');
+assert(lcWaiting.isTerminal() === false, 'WAITING.isTerminal() === false');
+
+const lcBlocked = new AgentLifecycle('CREATED', 'test-blocked');
+lcBlocked.transitionTo('BLOCKED');
+assert(lcBlocked.isTerminal() === false, 'BLOCKED.isTerminal() === false');
+
+// Provas canônicas de FAILED (não terminal, retryable via READY)
+const lcFailed = new AgentLifecycle('CREATED', 'test-failed');
+lcFailed.transitionTo('READY');
+lcFailed.transitionTo('RUNNING');
+lcFailed.transitionTo('FAILED', 'Falha na execução');
+assert(lcFailed.getState() === 'FAILED', 'Transição RUNNING -> FAILED válida');
+assert(lcFailed.isTerminal() === false, 'FAILED.isTerminal() === false (FAILED é retryable)');
+
+// FAILED -> RUNNING proibido
+let illegalFailedToRunning = false;
+try {
+  lcFailed.transitionTo('RUNNING');
+} catch {
+  illegalFailedToRunning = true;
+}
+assert(illegalFailedToRunning, 'FAILED -> RUNNING bloqueado (deve passar por READY)');
+
+// FAILED -> COMPLETED proibido
+let illegalFailedToCompleted = false;
+try {
+  lcFailed.transitionTo('COMPLETED');
+} catch {
+  illegalFailedToCompleted = true;
+}
+assert(illegalFailedToCompleted, 'FAILED -> COMPLETED bloqueado');
+
+// FAILED -> READY permitido (caminho canônico de retry)
+lcFailed.transitionTo('READY', 'Retry explícito');
+assert(lcFailed.getState() === 'READY', 'FAILED -> READY permitido para retry');
+lcFailed.transitionTo('RUNNING', 'Reexecução');
+assert(lcFailed.getState() === 'RUNNING', 'READY -> RUNNING após retry permitido');
 
 // 3. CANONICAL SKILL RUNTIME & DISCOVERY TESTS
 console.log('\n--- 3. CANONICAL SKILL DISCOVERY, RESOLUTION & CONTENT DELIVERY ---');
