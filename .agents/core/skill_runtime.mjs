@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import { canonicalSkillRegistry } from './skill_registry.mjs';
 import { registry } from './registry.mjs';
 import { PermissionEngine } from './permissions.mjs';
-import { validateEvidence, deepFreeze } from './contracts.mjs';
+import { validateEvidence, deepFreeze, VALID_HIGH_RISK_OPERATIONS } from './contracts.mjs';
 import { ProjectDiscovery } from './project_discovery.mjs';
 import { DatabaseSupabaseGuard } from '../skills/database-supabase-guard/scripts/guard_db.mjs';
 import { auditLogger } from './audit.mjs';
@@ -368,8 +368,12 @@ export class SkillRuntime {
     }
 
     // 7.1 Validar High-Risk Governance se a operação for classificada como de alto risco
-    const targetResource = input.target_resource || input.command || input.sql || input.operation || '';
-    if (HighRiskGovernance.isHighRiskOperation(action, targetResource) || input.is_high_risk) {
+    const isHighRisk = (
+      input.is_high_risk === true ||
+      VALID_HIGH_RISK_OPERATIONS.includes(action) ||
+      (input.required_operation && VALID_HIGH_RISK_OPERATIONS.includes(input.required_operation))
+    );
+    if (isHighRisk) {
       if (!highRiskGovernance.canExecute(input.approval_request_id)) {
         return deepFreeze({
           success: false,
