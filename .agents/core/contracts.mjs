@@ -180,6 +180,40 @@ export function validateAgentContract(contract) {
   return errors;
 }
 
+export const VALID_TASK_TYPES = [
+  'IMPLEMENTATION',
+  'ARCHITECTURE',
+  'DATABASE',
+  'FORENSIC',
+  'QA',
+  'FEATURE',
+  'BUGFIX',
+  'AUDIT',
+  'REFACTOR',
+  'BUILD',
+  'SECURITY',
+  'TEST',
+  'DEPLOYMENT',
+  'HOTFIX',
+  'MIGRATION',
+  'OPTIMIZATION',
+  'ARCHITECTURE_AND_AUDIT',
+  'GENERAL_ORCHESTRATION',
+  'ORCHESTRATION',
+  'NON_PROJECT',
+  'CONCEPTUAL',
+  'TEXT_ONLY',
+  'CONVERSATION',
+  'GENERAL',
+  'DESIGN',
+  'SPECIFICATION',
+  'CONSTRUCTION',
+  'FIX',
+  'INVESTIGATION',
+  'DIAGNOSIS',
+  'VERIFICATION'
+];
+
 export function validateAgentTask(task) {
   const errors = [];
   if (!task || typeof task !== 'object') {
@@ -192,6 +226,135 @@ export function validateAgentTask(task) {
 
   if (!task.objective || typeof task.objective !== 'string') {
     errors.push("Campo obrigatório 'objective' ausente ou inválido.");
+  }
+
+  return errors;
+}
+
+export function validateCanonicalTask(task) {
+  const errors = [];
+  if (!task || typeof task !== 'object') {
+    return ['Tarefa canônica nula ou não é um objeto.'];
+  }
+
+  if (!task.task_id || typeof task.task_id !== 'string') {
+    errors.push("Campo obrigatório 'task_id' ausente ou inválido.");
+  } else {
+    const trimmedId = task.task_id.trim();
+    if (trimmedId.length === 0) {
+      errors.push("Campo 'task_id' não pode ser vazio.");
+    } else if (/\s/.test(task.task_id)) {
+      errors.push("Campo 'task_id' não pode conter espaços em branco.");
+    } else if (/[/\\]|\.\./.test(task.task_id)) {
+      errors.push("Campo 'task_id' não pode conter separadores de caminho ou path traversal.");
+    }
+  }
+
+  if (!task.objective || typeof task.objective !== 'string' || task.objective.trim().length === 0) {
+    errors.push("Campo obrigatório 'objective' ausente ou vazio.");
+  }
+
+  const taskType = task.task_type || task.type;
+  if (!taskType || typeof taskType !== 'string') {
+    errors.push("Campo obrigatório 'task_type'/'type' ausente ou inválido.");
+  } else {
+    const normType = taskType.trim().toUpperCase();
+    if (!VALID_TASK_TYPES.includes(normType)) {
+      errors.push(`Tipo de tarefa '${taskType}' não é um tipo canônico reconhecido.`);
+    }
+  }
+
+  if (task.workspace_root !== undefined && typeof task.workspace_root !== 'string') {
+    errors.push("Campo 'workspace_root' deve ser string.");
+  }
+
+  if (typeof task.is_project_aware !== 'boolean') {
+    errors.push("Campo obrigatório 'is_project_aware' deve ser booleano.");
+  }
+
+  if (task.required_capabilities !== undefined) {
+    if (!Array.isArray(task.required_capabilities)) {
+      errors.push("Campo 'required_capabilities' deve ser um array.");
+    } else {
+      for (const cap of task.required_capabilities) {
+        if (!VALID_CAPABILITIES.includes(cap)) {
+          errors.push(`Capacidade '${cap}' não é uma capacidade canônica reconhecida.`);
+        }
+      }
+    }
+  }
+
+  if (task.preferred_agent !== undefined && task.preferred_agent !== null && typeof task.preferred_agent !== 'string') {
+    errors.push("Campo 'preferred_agent' deve ser string ou null.");
+  }
+
+  if (task.target_paths !== undefined && !Array.isArray(task.target_paths)) {
+    errors.push("Campo 'target_paths' deve ser um array.");
+  }
+
+  if (task.constraints !== undefined && !Array.isArray(task.constraints)) {
+    errors.push("Campo 'constraints' deve ser um array.");
+  }
+
+  if (task.parent_task_id !== undefined && task.parent_task_id !== null && typeof task.parent_task_id !== 'string') {
+    errors.push("Campo 'parent_task_id' deve ser string ou null.");
+  }
+
+  if (task.created_at !== undefined && typeof task.created_at !== 'string') {
+    errors.push("Campo 'created_at' deve ser string ISO.");
+  }
+
+  return errors;
+}
+
+export function validateExecutionPlan(plan) {
+  const errors = [];
+  if (!plan || typeof plan !== 'object') {
+    return ['Plano de execução nulo ou não é um objeto.'];
+  }
+
+  if (!plan.plan_id || typeof plan.plan_id !== 'string') {
+    errors.push("Campo obrigatório 'plan_id' ausente ou inválido.");
+  }
+
+  if (!plan.task_id || typeof plan.task_id !== 'string') {
+    errors.push("Campo obrigatório 'task_id' ausente ou inválido.");
+  }
+
+  if (!plan.selected_agent || typeof plan.selected_agent !== 'string') {
+    errors.push("Campo obrigatório 'selected_agent' ausente ou inválido.");
+  }
+
+  if (typeof plan.is_project_aware !== 'boolean') {
+    errors.push("Campo obrigatório 'is_project_aware' deve ser booleano.");
+  }
+
+  if (!Array.isArray(plan.steps) || plan.steps.length === 0) {
+    errors.push("Campo obrigatório 'steps' deve ser um array não-vazio de etapas de execução.");
+  } else {
+    for (let i = 0; i < plan.steps.length; i++) {
+      const step = plan.steps[i];
+      if (!step || typeof step !== 'object') {
+        errors.push(`Etapa [${i}] deve ser um objeto válido.`);
+        continue;
+      }
+      if (!step.step_id || typeof step.step_id !== 'string') {
+        errors.push(`Etapa [${i}] sem 'step_id' válido.`);
+      }
+      if (typeof step.step_index !== 'number' || !Number.isInteger(step.step_index)) {
+        errors.push(`Etapa [${i}] sem 'step_index' numérico inteiro.`);
+      }
+      if (!step.agent_id || typeof step.agent_id !== 'string') {
+        errors.push(`Etapa [${i}] sem 'agent_id' válido.`);
+      }
+      if (!step.objective || typeof step.objective !== 'string') {
+        errors.push(`Etapa [${i}] sem 'objective' válido.`);
+      }
+    }
+  }
+
+  if (plan.created_at !== undefined && typeof plan.created_at !== 'string') {
+    errors.push("Campo 'created_at' deve ser string ISO.");
   }
 
   return errors;
