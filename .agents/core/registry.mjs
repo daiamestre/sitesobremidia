@@ -21,7 +21,7 @@ const CORE_AGENTS_DEFINITION = [
       read: true,
       write: true,
       execute: true,
-      allowed_paths: ['.agents/']
+      allowed_paths: ['.agents/', 'scratch/']
     },
     capabilities: ['TASK_ORCHESTRATION', 'PROJECT_DISCOVERY'],
     task_types: ['GENERAL_ORCHESTRATION', 'ORCHESTRATION'],
@@ -41,7 +41,7 @@ const CORE_AGENTS_DEFINITION = [
       read: true,
       write: false,
       execute: false,
-      allowed_paths: ['src/', 'supabase/', '.agents/']
+      allowed_paths: ['src/', 'supabase/', '.agents/', 'scratch/']
     },
     capabilities: ['SYSTEM_ARCHITECTURE', 'PROJECT_DISCOVERY'],
     task_types: ['ARCHITECTURE', 'DESIGN', 'SPECIFICATION'],
@@ -61,7 +61,7 @@ const CORE_AGENTS_DEFINITION = [
       read: true,
       write: true,
       execute: true,
-      allowed_paths: ['src/', 'supabase/', '.agents/']
+      allowed_paths: ['src/', 'supabase/', '.agents/', 'scratch/']
     },
     capabilities: ['CODE_IMPLEMENTATION'],
     task_types: ['IMPLEMENTATION', 'CONSTRUCTION', 'FIX'],
@@ -81,7 +81,7 @@ const CORE_AGENTS_DEFINITION = [
       read: true,
       write: true,
       execute: true,
-      allowed_paths: ['supabase/', '.agents/']
+      allowed_paths: ['supabase/', '.agents/', 'scratch/']
     },
     capabilities: ['DATABASE_MANAGEMENT'],
     task_types: ['DATABASE', 'MIGRATION', 'RLS'],
@@ -101,7 +101,7 @@ const CORE_AGENTS_DEFINITION = [
       read: true,
       write: false,
       execute: true,
-      allowed_paths: ['src/', 'supabase/', '.agents/']
+      allowed_paths: ['src/', 'supabase/', '.agents/', 'scratch/']
     },
     capabilities: ['FORENSIC_AUDITING', 'PROJECT_DISCOVERY'],
     task_types: ['FORENSIC', 'AUDIT', 'INVESTIGATION', 'DIAGNOSIS'],
@@ -121,7 +121,7 @@ const CORE_AGENTS_DEFINITION = [
       read: true,
       write: false,
       execute: true,
-      allowed_paths: ['src/tests/', '.agents/']
+      allowed_paths: ['src/tests/', '.agents/', 'scratch/']
     },
     capabilities: ['QUALITY_ASSURANCE'],
     task_types: ['QA', 'TESTING', 'VERIFICATION'],
@@ -219,6 +219,47 @@ class AgentRegistry {
     }
     return agent.capabilities;
   }
+
+  addCapabilityToAgent(agentId, capability) {
+    if (this._sealed) {
+      throw new Error(`[REGISTRY ERROR]: Registry está selado. Adição de capacidade não permitida.`);
+    }
+    const agent = this.getAgent(agentId);
+    if (!agent) {
+      throw new Error(`[REGISTRY ERROR]: Agente '${agentId}' não encontrado para adição de capacidade.`);
+    }
+    const cleanCap = capability.trim().toUpperCase();
+    if (agent.capabilities.includes(cleanCap)) {
+      return agent;
+    }
+    const updated = {
+      ...agent,
+      capabilities: [...agent.capabilities, cleanCap]
+    };
+    this.agents.set(agent.agent_id, deepFreeze(updated));
+    return this.agents.get(agent.agent_id);
+  }
+
+  bindSkillToAgent(agentId, skillId) {
+    if (this._sealed) {
+      throw new Error(`[REGISTRY ERROR]: Registry está selado. Vinculação de skill não permitida.`);
+    }
+    const agent = this.getAgent(agentId);
+    if (!agent) {
+      throw new Error(`[REGISTRY ERROR]: Agente '${agentId}' não encontrado para vinculação de skill.`);
+    }
+    const cleanSkill = skillId.trim();
+    if (agent.skills.includes(cleanSkill)) {
+      return agent;
+    }
+    const updated = {
+      ...agent,
+      skills: [...agent.skills, cleanSkill]
+    };
+    this.agents.set(agent.agent_id, deepFreeze(updated));
+    return this.agents.get(agent.agent_id);
+  }
+
 
   isEligibleForTask(agentId, task) {
     const agent = this.getAgent(agentId);

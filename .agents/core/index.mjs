@@ -21,4 +21,12 @@ export * from './skill_runtime.mjs';
 export * from './audit.mjs';
 export * from './governance.mjs';
 export * from './governed_tool_bridge.mjs';
+export * from './target_discovery.mjs';
+export * from './capability_discovery.mjs';
 export * from './entrypoint.mjs';
+export * from './production_lifecycle.mjs';
+export * from './credential_runtime.mjs';
+export * from './evolution_engine.mjs';
+
+
+

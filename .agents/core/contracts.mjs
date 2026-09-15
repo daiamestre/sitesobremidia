@@ -71,6 +71,16 @@ export const VALID_CAPABILITIES = [
   'PROJECT_DISCOVERY'
 ];
 
+export function registerCanonicalCapability(capabilityId) {
+  if (typeof capabilityId === 'string' && capabilityId.trim().length > 0) {
+    const cleanId = capabilityId.trim().toUpperCase();
+    if (!VALID_CAPABILITIES.includes(cleanId)) {
+      VALID_CAPABILITIES.push(cleanId);
+    }
+  }
+}
+
+
 export const VALID_AGENT_STATUSES = [
   'ACTIVE',
   'DISABLED',
@@ -977,4 +987,224 @@ export function validateSkillDependency(dependency) {
 
   return errors;
 }
+
+export function validateTargetDiscoveryResult(result) {
+  const errors = [];
+  if (!result || typeof result !== 'object') {
+    return ['TargetDiscoveryResult nulo ou não é um objeto.'];
+  }
+
+  if (!result.schema_version || typeof result.schema_version !== 'string' || !/^\d+\.\d+\.\d+$/.test(result.schema_version)) {
+    errors.push("Campo obrigatório 'schema_version' ausente ou inválido (esperado semver).");
+  }
+
+  if (!result.objective || typeof result.objective !== 'string') {
+    errors.push("Campo obrigatório 'objective' ausente ou vazio.");
+  }
+
+  if (!Array.isArray(result.target_paths)) {
+    errors.push("Campo obrigatório 'target_paths' deve ser um array de strings.");
+  } else {
+    for (let i = 0; i < result.target_paths.length; i++) {
+      if (typeof result.target_paths[i] !== 'string') {
+        errors.push(`Item em 'target_paths[${i}]' deve ser string.`);
+      }
+    }
+  }
+
+  if (!Array.isArray(result.candidate_modules)) {
+    errors.push("Campo obrigatório 'candidate_modules' deve ser um array de strings.");
+  }
+
+  if (result.candidate_tables !== undefined && !Array.isArray(result.candidate_tables)) {
+    errors.push("Campo 'candidate_tables' deve ser um array de strings.");
+  }
+
+  if (result.evidence !== undefined && !Array.isArray(result.evidence)) {
+    errors.push("Campo 'evidence' deve ser um array.");
+  } else if (Array.isArray(result.evidence)) {
+    for (let i = 0; i < result.evidence.length; i++) {
+      const ev = result.evidence[i];
+      const evErrors = validateEvidence(ev);
+      if (evErrors.length > 0) {
+        errors.push(`Evidência [${i}] em TargetDiscoveryResult inválida: ${evErrors.join(', ')}`);
+      }
+    }
+  }
+
+  if (result.constraints !== undefined && !Array.isArray(result.constraints)) {
+    errors.push("Campo 'constraints' deve ser um array.");
+  }
+
+  if (!result.discovered_at || typeof result.discovered_at !== 'string') {
+    errors.push("Campo obrigatório 'discovered_at' ausente ou inválido.");
+  }
+
+  return errors;
+}
+
+export function validateCapabilityDiscoveryResult(result) {
+  const errors = [];
+  if (!result || typeof result !== 'object') {
+    return ['CapabilityDiscoveryResult nulo ou não é um objeto.'];
+  }
+
+  if (!result.task_id || typeof result.task_id !== 'string') {
+    errors.push("Campo obrigatório 'task_id' ausente ou inválido.");
+  }
+
+  if (!result.objective || typeof result.objective !== 'string') {
+    errors.push("Campo obrigatório 'objective' ausente ou vazio.");
+  }
+
+  if (!result.primary_capability || typeof result.primary_capability !== 'string') {
+    errors.push("Campo obrigatório 'primary_capability' ausente ou inválido.");
+  }
+
+  if (!Array.isArray(result.matched_capabilities)) {
+    errors.push("Campo obrigatório 'matched_capabilities' deve ser um array.");
+  }
+
+  if (!Array.isArray(result.eligible_agents)) {
+    errors.push("Campo obrigatório 'eligible_agents' deve ser um array.");
+  }
+
+  if (!result.recommended_agent || typeof result.recommended_agent !== 'string') {
+    errors.push("Campo obrigatório 'recommended_agent' ausente ou inválido.");
+  }
+
+  if (!result.discovered_at || typeof result.discovered_at !== 'string') {
+    errors.push("Campo obrigatório 'discovered_at' ausente ou inválido.");
+  }
+  return errors;
+}
+
+export const VALID_CAPABILITY_GAP_TYPES = [
+  'CAPABILITY_MISSING',
+  'ACTION_MISSING',
+  'SKILL_MISSING',
+  'AGENT_CAPABILITY_MISSING',
+  'ROUTING_LIMITATION',
+  'DISCOVERY_LIMITATION',
+  'TOOL_LIMITATION',
+  'INTEGRATION_LIMITATION',
+  'RUNTIME_LIMITATION',
+  'TESTING_LIMITATION',
+  'DEPLOYMENT_LIMITATION',
+  'GOVERNANCE_LIMITATION',
+  'EXTERNAL_DEPENDENCY',
+  'AUTHORIZATION_REQUIRED',
+  'TRUE_UNSOLVABLE_EXTERNAL_BLOCK'
+];
+
+export const VALID_EVOLUTION_STATUSES = [
+  'EVOLUTION_PROPOSED',
+  'EVOLUTION_BUILDING',
+  'EVOLUTION_TESTING',
+  'EVOLUTION_VALIDATING',
+  'EVOLUTION_APPROVED',
+  'EVOLUTION_PROMOTED',
+  'EVOLUTION_REJECTED',
+  'EVOLUTION_ROLLED_BACK',
+  'EVOLUTION_BLOCKED_EXTERNAL'
+];
+
+export function validateCapabilityGap(gap) {
+  const errors = [];
+  if (!gap || typeof gap !== 'object') {
+    return ['CapabilityGap nulo ou não é um objeto.'];
+  }
+  if (!gap.gap_id || typeof gap.gap_id !== 'string') {
+    errors.push("Campo obrigatório 'gap_id' ausente ou inválido.");
+  }
+  if (!gap.gap_type || !VALID_CAPABILITY_GAP_TYPES.includes(gap.gap_type)) {
+    errors.push(`Campo 'gap_type' inválido. Válidos: [${VALID_CAPABILITY_GAP_TYPES.join(', ')}].`);
+  }
+  if (!gap.task_id || typeof gap.task_id !== 'string') {
+    errors.push("Campo obrigatório 'task_id' ausente ou inválido.");
+  }
+  if (!gap.description || typeof gap.description !== 'string') {
+    errors.push("Campo obrigatório 'description' ausente ou vazio.");
+  }
+  if (typeof gap.is_solvable_internally !== 'boolean') {
+    errors.push("Campo booleano 'is_solvable_internally' é obrigatório.");
+  }
+  return errors;
+}
+
+export function validateEvolutionPlan(plan) {
+  const errors = [];
+  if (!plan || typeof plan !== 'object') {
+    return ['EvolutionPlan nulo ou não é um objeto.'];
+  }
+  if (!plan.evolution_id || typeof plan.evolution_id !== 'string') {
+    errors.push("Campo obrigatório 'evolution_id' ausente ou inválido.");
+  }
+  if (!plan.task_id || typeof plan.task_id !== 'string') {
+    errors.push("Campo obrigatório 'task_id' ausente ou inválido.");
+  }
+  if (!plan.problem || typeof plan.problem !== 'string') {
+    errors.push("Campo obrigatório 'problem' ausente.");
+  }
+  if (!plan.limitation || typeof plan.limitation !== 'string') {
+    errors.push("Campo obrigatório 'limitation' ausente.");
+  }
+  if (!plan.root_cause || typeof plan.root_cause !== 'string') {
+    errors.push("Campo obrigatório 'root_cause' ausente.");
+  }
+  if (!plan.capability_gap || typeof plan.capability_gap !== 'object') {
+    errors.push("Campo obrigatório 'capability_gap' ausente ou inválido.");
+  }
+  if (!plan.affected_component || typeof plan.affected_component !== 'string') {
+    errors.push("Campo obrigatório 'affected_component' ausente.");
+  }
+  if (!plan.required_capability || typeof plan.required_capability !== 'string') {
+    errors.push("Campo obrigatório 'required_capability' ausente.");
+  }
+  if (!plan.implementation_strategy || typeof plan.implementation_strategy !== 'string') {
+    errors.push("Campo obrigatório 'implementation_strategy' ausente.");
+  }
+  if (!Array.isArray(plan.files_or_modules)) {
+    errors.push("Campo 'files_or_modules' deve ser um array.");
+  }
+  if (!Array.isArray(plan.tests_required)) {
+    errors.push("Campo 'tests_required' deve ser um array.");
+  }
+  if (!Array.isArray(plan.security_checks)) {
+    errors.push("Campo 'security_checks' deve ser um array.");
+  }
+  if (!Array.isArray(plan.regression_checks)) {
+    errors.push("Campo 'regression_checks' deve ser um array.");
+  }
+  if (!plan.promotion_criteria || typeof plan.promotion_criteria !== 'object') {
+    errors.push("Campo 'promotion_criteria' deve ser um objeto.");
+  }
+  if (!plan.rollback_strategy || typeof plan.rollback_strategy !== 'string') {
+    errors.push("Campo 'rollback_strategy' ausente ou inválido.");
+  }
+  return errors;
+}
+
+export function validateEvolutionRecord(record) {
+  const errors = [];
+  if (!record || typeof record !== 'object') {
+    return ['EvolutionRecord nulo ou não é um objeto.'];
+  }
+  if (!record.evolution_id || typeof record.evolution_id !== 'string') {
+    errors.push("Campo obrigatório 'evolution_id' ausente ou inválido.");
+  }
+  if (!record.status || !VALID_EVOLUTION_STATUSES.includes(record.status)) {
+    errors.push(`Status de evolução '${record.status}' inválido.`);
+  }
+  if (!record.timestamp || typeof record.timestamp !== 'string') {
+    errors.push("Campo obrigatório 'timestamp' ausente ou inválido.");
+  }
+  if (!record.triggering_task || typeof record.triggering_task !== 'string') {
+    errors.push("Campo obrigatório 'triggering_task' ausente.");
+  }
+  return errors;
+}
+
+
+
 

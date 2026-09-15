@@ -97,4 +97,41 @@ export class PermissionEngine {
 
     return { allowed: true };
   }
+
+  static checkCredentialAccess(caller, provider, purpose) {
+    const authorizedCallers = [
+      'VercelDeployManager',
+      'SupabaseDeployManager',
+      'ProductionLifecycle',
+      'architect',
+      'builder',
+      'ProductionHomologator'
+    ];
+    const validProviders = ['vercel', 'supabase'];
+    const validPurposes = ['production_deploy', 'preview_deploy', 'database_migration'];
+
+    if (!caller || !authorizedCallers.includes(caller)) {
+      return {
+        allowed: false,
+        reason: `Chamador '${caller}' não está autorizado a solicitar credenciais de infraestrutura.`
+      };
+    }
+
+    if (!provider || !validProviders.includes(provider)) {
+      return {
+        allowed: false,
+        reason: `Provider de credencial '${provider}' inválido ou não suportado.`
+      };
+    }
+
+    if (!purpose || !validPurposes.includes(purpose)) {
+      return {
+        allowed: false,
+        reason: `Finalidade de credencial '${purpose}' inválida para o provider '${provider}'.`
+      };
+    }
+
+    return { allowed: true };
+  }
 }
+
