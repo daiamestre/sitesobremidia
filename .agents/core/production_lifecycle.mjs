@@ -28,7 +28,12 @@ export class DeployScopeDiscovery {
    * @returns {object} DeployScope imutável
    */
   static discoverScope({ files_touched = [], workspace_root = process.cwd(), task = null }) {
-    const normalizedFiles = files_touched.map((f) => {
+    const rawFiles = [...files_touched];
+    if (rawFiles.length === 0 && Array.isArray(task?.target_paths)) {
+      rawFiles.push(...task.target_paths);
+    }
+
+    const normalizedFiles = rawFiles.map((f) => {
       let rel = path.isAbsolute(f) ? path.relative(workspace_root, f) : f;
       return rel.replace(/\\/g, '/');
     });
@@ -193,7 +198,68 @@ export class ProductionCommitManager {
  * 3. Gestor Canônico de Deploy na Vercel
  */
 export class VercelDeployManager {
-  static async executeDeploy({ commit_sha, workspace_root = process.cwd(), scope }) {
+  /**
+   * Consulta a API / CLI da Vercel para inspecionar o deployment atualmente ativo em produção.
+   */
+  static inspectCurrentProduction({ workspace_root = process.cwd(), token = null } = {}) {
+    let resolvedToken = token;
+    let leaseToDestroy = null;
+
+    if (!resolvedToken) {
+      const credRes = CredentialResolver.resolveCredential({
+        provider: 'vercel',
+        purpose: 'production_deploy',
+        caller: 'VercelDeployManager'
+      });
+      if (credRes.success && credRes.lease) {
+        resolvedToken = credRes.lease.getToken();
+        leaseToDestroy = credRes.lease;
+      }
+    }
+
+    if (!resolvedToken) {
+      return { success: false, reason: 'Sem credencial Vercel para inspeção.' };
+    }
+
+    try {
+      const inspectRes = spawnSync('npx', ['vercel', 'inspect', 'https://sitesobremidia.vercel.app'], {
+        cwd: workspace_root,
+        encoding: 'utf8',
+        shell: true,
+        env: { ...process.env, VERCEL_TOKEN: resolvedToken },
+        timeout: 25000
+      });
+
+      const output = (inspectRes.stdout || '') + '\n' + (inspectRes.stderr || '');
+      const idMatch = output.match(/id\s+([a-zA-Z0-9_]+)/);
+      const statusMatch = output.match(/status\s+●?\s*([a-zA-Z0-9_]+)/);
+      const targetMatch = output.match(/target\s+([a-zA-Z0-9_]+)/);
+      const urlMatch = output.match(/url\s+(https:\/\/[^\s]+)/);
+      const createdMatch = output.match(/created\s+([^\n\r]+)/);
+
+      return {
+        success: Boolean(idMatch),
+        deployment_id: idMatch ? idMatch[1] : null,
+        status: statusMatch ? statusMatch[1] : null,
+        target: targetMatch ? targetMatch[1] : null,
+        url: urlMatch ? urlMatch[1] : null,
+        created_at: createdMatch ? createdMatch[1].trim() : null,
+        output: CredentialSanitizer.redact(output.trim())
+      };
+    } catch (err) {
+      return { success: false, reason: err.message };
+    } finally {
+      if (leaseToDestroy) leaseToDestroy.destroy();
+    }
+  }
+
+  static async executeDeploy({
+    commit_sha,
+    workspace_root = process.cwd(),
+    scope,
+    allow_reuse_if_deployed = false,
+    deployed_commit_sha = null
+  }) {
     if (!scope || !scope.vercel_deploy_required) {
       return deepFreeze({ required: false, status: 'SKIPPED' });
     }
@@ -256,7 +322,26 @@ export class VercelDeployManager {
         });
       }
 
-      // 3. Se autorizado, executar deploy de produção com compactação tgz para respeitar limites de upload
+      // 3. Verificar se já existe deployment para este exato commit (se permitido reuse)
+      if (allow_reuse_if_deployed && deployed_commit_sha && deployed_commit_sha === commit_sha) {
+        const inspectExisting = VercelDeployManager.inspectCurrentProduction({ workspace_root, token });
+        if (inspectExisting.success && inspectExisting.status === 'Ready') {
+          return deepFreeze({
+            required: true,
+            status: 'SUCCESS',
+            target: 'VERCEL',
+            deployment_id: inspectExisting.deployment_id,
+            deployment_url: inspectExisting.url || 'https://sitesobremidia.vercel.app',
+            commit_sha,
+            verified_remote: true,
+            reused: true,
+            safe_credential_metadata: lease.toSafeMetadata(),
+            deployed_at: inspectExisting.created_at || new Date().toISOString()
+          });
+        }
+      }
+
+      // 4. Se autorizado, executar deploy de produção com compactação tgz para respeitar limites de upload
       const deployProc = spawnSync('npx', ['vercel', 'deploy', '--prod', '--yes', '--archive=tgz'], {
         cwd: workspace_root,
         encoding: 'utf8',
@@ -281,12 +366,18 @@ export class VercelDeployManager {
 
       const urlMatch = sanitizedOutput.match(/https:\/\/[^\s]+\.vercel\.app/);
 
+      // 5. Inspeção remota imediata para obter o deployment_id autêntico e confirmar status Ready
+      const inspectPost = VercelDeployManager.inspectCurrentProduction({ workspace_root, token });
+      const verifiedId = inspectPost.deployment_id || (sanitizedOutput.match(/dpl_[a-zA-Z0-9]+/)?.[0] || null);
+
       return deepFreeze({
         required: true,
         status: 'SUCCESS',
         target: 'VERCEL',
-        deployment_url: urlMatch ? urlMatch[0] : 'https://sitesobremidia.vercel.app',
+        deployment_id: verifiedId,
+        deployment_url: inspectPost.url || (urlMatch ? urlMatch[0] : 'https://sitesobremidia.vercel.app'),
         commit_sha,
+        verified_remote: Boolean(verifiedId),
         output: sanitizedOutput,
         safe_credential_metadata: lease.toSafeMetadata(),
         deployed_at: new Date().toISOString()
@@ -348,7 +439,7 @@ export class SupabaseDeployManager {
 }
 
 /**
- * 5. Verificador Pós-Deploy
+ * 5. Verificador Pós-Deploy Real (com verificação HTTP e inspeção de infraestrutura)
  */
 export class PostDeployVerifier {
   static async verify({ vercel_deploy, supabase_deploy, scope }) {
@@ -366,12 +457,69 @@ export class PostDeployVerifier {
       });
     }
 
+    if (scope.vercel_deploy_required && vercel_deploy?.status !== 'SUCCESS') {
+      return deepFreeze({
+        required: true,
+        status: 'FAILED',
+        reason: `Verificação pós-deploy falhou: deploy Vercel obrigatório não foi bem-sucedido (status: ${vercel_deploy?.status || 'NOT_ATTEMPTED'}).`,
+        verified_at: new Date().toISOString()
+      });
+    }
+
+    if (scope.supabase_deploy_required && supabase_deploy?.status !== 'SUCCESS') {
+      return deepFreeze({
+        required: true,
+        status: 'FAILED',
+        reason: `Verificação pós-deploy falhou: deploy Supabase obrigatório não foi bem-sucedido (status: ${supabase_deploy?.status || 'NOT_ATTEMPTED'}).`,
+        verified_at: new Date().toISOString()
+      });
+    }
+
+    const checks = [];
+    if (scope.vercel_deploy_required) {
+      const targetUrl = vercel_deploy?.deployment_url || 'https://sitesobremidia.vercel.app';
+      try {
+        const start = Date.now();
+        const res = await fetch(targetUrl, {
+          signal: AbortSignal.timeout(15000),
+          headers: { 'User-Agent': 'Antigravity-PostDeployVerifier/1.0' }
+        });
+        const latencyMs = Date.now() - start;
+        const vercelId = res.headers?.get('x-vercel-id') || 'unknown';
+
+        if (res.status === 200) {
+          checks.push({
+            target: 'production_url',
+            url: targetUrl,
+            status: 'PASS',
+            code: 200,
+            latency_ms: latencyMs,
+            vercel_id: vercelId
+          });
+        } else {
+          return deepFreeze({
+            required: true,
+            status: 'FAILED',
+            reason: `URL de produção '${targetUrl}' retornou HTTP ${res.status}`,
+            checks: [{ target: 'production_url', url: targetUrl, status: 'FAIL', code: res.status }],
+            verified_at: new Date().toISOString()
+          });
+        }
+      } catch (err) {
+        return deepFreeze({
+          required: true,
+          status: 'FAILED',
+          reason: `Falha na requisição HTTP pós-deploy: ${err.message}`,
+          checks: [{ target: 'production_url', url: targetUrl, status: 'FAIL', error: err.message }],
+          verified_at: new Date().toISOString()
+        });
+      }
+    }
+
     return deepFreeze({
       required: true,
       status: 'VERIFIED',
-      checks: [
-        { target: 'production_url', status: 'PASS', code: 200 }
-      ],
+      checks,
       verified_at: new Date().toISOString()
     });
   }
@@ -381,7 +529,7 @@ export class PostDeployVerifier {
  * 6. Homologação de Produção
  */
 export class ProductionHomologator {
-  static async homologate({ task, deploy_scope, vercel_deploy, supabase_deploy, post_deploy }) {
+  static async homologate({ task, deploy_scope, vercel_deploy, supabase_deploy, post_deploy, homologation_evidence = null }) {
     if (!deploy_scope || !deploy_scope.homologation_required) {
       return deepFreeze({ required: false, status: 'SKIPPED' });
     }
@@ -396,11 +544,21 @@ export class ProductionHomologator {
       });
     }
 
+    if (post_deploy && post_deploy.required && post_deploy.status !== 'VERIFIED') {
+      return deepFreeze({
+        required: true,
+        status: 'FAILED',
+        reason: `Homologação rejeitada: verificação pós-deploy não foi aprovada (status: ${post_deploy?.status || 'NOT_ATTEMPTED'}).`,
+        homologated_at: new Date().toISOString()
+      });
+    }
+
     return deepFreeze({
       required: true,
       status: 'HOMOLOGATED',
       task_id: task?.task_id || 'UNKNOWN',
       contextual_check: 'SUCCESS',
+      evidence_attached: Boolean(homologation_evidence),
       homologated_at: new Date().toISOString()
     });
   }
@@ -419,7 +577,10 @@ export class ProductionLifecycleEngine {
     task,
     files_touched = [],
     commit_message,
-    workspace_root = process.cwd()
+    workspace_root = process.cwd(),
+    allow_reuse_if_deployed = false,
+    deployed_commit_sha = null,
+    homologation_evidence = null
   }) {
     // 1. Descoberta do Escopo
     const scope = DeployScopeDiscovery.discoverScope({ files_touched, workspace_root, task });
@@ -440,7 +601,9 @@ export class ProductionLifecycleEngine {
     const vercelDeploy = await VercelDeployManager.executeDeploy({
       commit_sha: currentCommitSha,
       workspace_root,
-      scope
+      scope,
+      allow_reuse_if_deployed,
+      deployed_commit_sha
     });
 
     // 4. Deploy Supabase
@@ -450,7 +613,7 @@ export class ProductionLifecycleEngine {
       scope
     });
 
-    // 5. Pós-Deploy Verification
+    // 5. Pós-Deploy Verification Real
     const postDeploy = await PostDeployVerifier.verify({
       vercel_deploy: vercelDeploy,
       supabase_deploy: supabaseDeploy,
@@ -463,7 +626,8 @@ export class ProductionLifecycleEngine {
       deploy_scope: scope,
       vercel_deploy: vercelDeploy,
       supabase_deploy: supabaseDeploy,
-      post_deploy: postDeploy
+      post_deploy: postDeploy,
+      homologation_evidence
     });
 
     // 7. Determinar Bloqueio Externo ou Conclusão Integral
@@ -491,6 +655,24 @@ export class ProductionLifecycleEngine {
       homologation.reason ||
       null;
 
+    const hasFailure =
+      (scope.commit_required && (!commitResult || !commitResult.success)) ||
+      (scope.vercel_deploy_required && vercelDeploy.status !== 'SUCCESS') ||
+      (scope.supabase_deploy_required && supabaseDeploy.status !== 'SUCCESS') ||
+      (scope.post_deploy_verification_required && postDeploy.status !== 'VERIFIED') ||
+      (scope.homologation_required && homologation.status !== 'HOMOLOGATED');
+
+    const failedStage = hasFailure
+      ? (scope.commit_required && (!commitResult || !commitResult.success)) ? 'COMMIT'
+      : (scope.vercel_deploy_required && vercelDeploy.status !== 'SUCCESS') ? 'VERCEL_DEPLOY'
+      : (scope.supabase_deploy_required && supabaseDeploy.status !== 'SUCCESS') ? 'SUPABASE_DEPLOY'
+      : (scope.post_deploy_verification_required && postDeploy.status !== 'VERIFIED') ? 'POST_DEPLOY_VERIFICATION'
+      : (scope.homologation_required && homologation.status !== 'HOMOLOGATED') ? 'PRODUCTION_HOMOLOGATION'
+      : null
+      : null;
+
+    const allStagesCompleted = !hasBlockedExternal && !hasFailure;
+
     return deepFreeze({
       task_id: task?.task_id || 'UNKNOWN',
       scope,
@@ -501,7 +683,8 @@ export class ProductionLifecycleEngine {
       },
       post_deploy: postDeploy,
       homologation,
-      all_stages_completed: !hasBlockedExternal && (commitResult ? commitResult.success : true),
+      all_stages_completed: allStagesCompleted,
+      failed_stage: failedStage,
       blocked_external: hasBlockedExternal,
       blocked_stage: blockedStage,
       blocked_reason: blockedReason,

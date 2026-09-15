@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { canonicalSkillRegistry } from './skill_registry.mjs';
 import { registry } from './registry.mjs';
 import { PermissionEngine } from './permissions.mjs';
@@ -497,7 +497,364 @@ export class SkillRuntime {
 
 
   /**
-   * Roteamento e execução dos procedimentos canônicos das skills operacionais.
+   * Procura dinamicamente um arquivo handler para a skill e action em tempo de execução.
+   * Suporta convenção:
+   *  .agents/skills/<skill_id>/actions/<action>.mjs (.js)
+   *  .agents/skills/<skill_id>/handler.mjs (.js)
+   *  .opencode/skills/<skill_id>/actions/<action>.mjs (.js)
+   *  .opencode/skills/<skill_id>/handler.mjs (.js)
+   */
+  async _findAndLoadFileHandler(skill_id, action, targetWorkspace) {
+    const candidatePaths = [
+      path.join(targetWorkspace, '.agents', 'skills', skill_id, 'actions', action + '.mjs'),
+      path.join(targetWorkspace, '.agents', 'skills', skill_id, 'actions', action + '.js'),
+      path.join(targetWorkspace, '.agents', 'skills', skill_id, 'handler.mjs'),
+      path.join(targetWorkspace, '.agents', 'skills', skill_id, 'handler.js'),
+      path.join(targetWorkspace, '.opencode', 'skills', skill_id, 'actions', action + '.mjs'),
+      path.join(targetWorkspace, '.opencode', 'skills', skill_id, 'actions', action + '.js'),
+      path.join(targetWorkspace, '.opencode', 'skills', skill_id, 'handler.mjs'),
+      path.join(targetWorkspace, '.opencode', 'skills', skill_id, 'handler.js')
+    ];
+
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        try {
+          const mod = await import(pathToFileURL(p).href);
+          if (typeof mod[action] === 'function') {
+            return mod[action];
+          }
+          if (typeof mod.default === 'function') {
+            return mod.default;
+          }
+          if (typeof mod.execute === 'function') {
+            return mod.execute;
+          }
+        } catch (loadErr) {
+          throw new Error(`Falha ao carregar handler de arquivo para ${skill_id} (${p}): ${loadErr.message}`);
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Tabela canônica de procedimentos built-in das skills do SOBRE MÍDIA AI System.
+   */
+  _getBuiltinActionRegistry() {
+    return {
+      'project-discovery': {
+        scan_workspace: async ({ targetWorkspace }) => {
+          const disc = ProjectDiscovery.discover(targetWorkspace);
+          return {
+            success: true,
+            output: disc,
+            evidence: [{
+              command: `project-discovery:scan_workspace:${targetWorkspace}`,
+              exit_code: 0,
+              summary: `Project discovery executado com ${disc.evidence?.length || 0} evidências físicas`
+            }]
+          };
+        },
+        discover: async ({ targetWorkspace }) => {
+          const disc = ProjectDiscovery.discover(targetWorkspace);
+          return {
+            success: true,
+            output: disc,
+            evidence: [{
+              command: `project-discovery:discover:${targetWorkspace}`,
+              exit_code: 0,
+              summary: `Project discovery executado com ${disc.evidence?.length || 0} evidências físicas`
+            }]
+          };
+        },
+        scan_project: async ({ targetWorkspace }) => {
+          const disc = ProjectDiscovery.discover(targetWorkspace);
+          return {
+            success: true,
+            output: disc,
+            evidence: [{
+              command: `project-discovery:scan_project:${targetWorkspace}`,
+              exit_code: 0,
+              summary: `Project discovery executado com ${disc.evidence?.length || 0} evidências físicas`
+            }]
+          };
+        },
+        verify_stack: async ({ targetWorkspace }) => {
+          const pkgPath = path.join(targetWorkspace, 'package.json');
+          const hasPkg = fs.existsSync(pkgPath);
+          return {
+            success: true,
+            output: { hasPkg, targetWorkspace },
+            evidence: [{
+              command: 'project-discovery:verify_stack',
+              exit_code: 0,
+              summary: `Verificação de stack concluída (package.json: ${hasPkg})`
+            }]
+          };
+        },
+        inspect_manifests: async ({ targetWorkspace }) => {
+          const pkgPath = path.join(targetWorkspace, 'package.json');
+          const hasPkg = fs.existsSync(pkgPath);
+          return {
+            success: true,
+            output: { hasPkg, targetWorkspace },
+            evidence: [{
+              command: 'project-discovery:inspect_manifests',
+              exit_code: 0,
+              summary: `Verificação de stack concluída (package.json: ${hasPkg})`
+            }]
+          };
+        }
+      },
+
+      'forensic-auditor': {
+        audit_diff: async () => ({
+          success: true,
+          output: { diff_clean: true, forbidden_patterns_found: 0, summary: 'Auditoria forense (audit_diff) aprovada sem violações' },
+          evidence: [{ command: 'forensic-auditor:audit_diff', exit_code: 0, summary: 'Auditoria pericial audit_diff PASS' }]
+        }),
+        audit_memory_isolation: async () => ({
+          success: true,
+          output: { diff_clean: true, forbidden_patterns_found: 0, summary: 'Auditoria forense (audit_memory_isolation) aprovada sem violações' },
+          evidence: [{ command: 'forensic-auditor:audit_memory_isolation', exit_code: 0, summary: 'Auditoria pericial audit_memory_isolation PASS' }]
+        }),
+        verify_evidence: async () => ({
+          success: true,
+          output: { diff_clean: true, forbidden_patterns_found: 0, summary: 'Auditoria forense (verify_evidence) aprovada sem violações' },
+          evidence: [{ command: 'forensic-auditor:verify_evidence', exit_code: 0, summary: 'Auditoria pericial verify_evidence PASS' }]
+        }),
+        check_forbidden_patterns: async ({ input }) => {
+          const content = input?.content || '';
+          const forbidden = [
+            { pattern: /console\.log\(/g, name: 'console.log' },
+            { pattern: /debugger;/g, name: 'debugger' },
+            { pattern: /: any/g, name: 'any type' }
+          ];
+          const matches = forbidden.filter(f => f.pattern.test(content)).map(f => f.name);
+          return {
+            success: matches.length === 0,
+            output: { matches, has_violations: matches.length > 0 },
+            errors: matches.length > 0 ? [`Padrões proibidos encontrados: ${matches.join(', ')}`] : [],
+            evidence: [{
+              command: 'forensic-auditor:check_forbidden_patterns',
+              exit_code: matches.length === 0 ? 0 : 1,
+              summary: matches.length === 0 ? 'Nenhum padrão proibido encontrado PASS' : `Padrões proibidos detectados: ${matches.join(', ')}`
+            }]
+          };
+        }
+      },
+
+      'database-supabase-guard': {
+        validate_migration_sql: async ({ input }) => {
+          const sql = input?.sql_content || input?.sql || '';
+          const res = DatabaseSupabaseGuard.validateMigrationSql(sql);
+          return {
+            success: res.valid,
+            output: res,
+            errors: res.errors,
+            evidence: [{
+              command: 'database-supabase-guard:validate_migration_sql',
+              exit_code: res.valid ? 0 : 1,
+              summary: res.summary
+            }]
+          };
+        },
+        check_migration_safety: async ({ input }) => {
+          const sql = input?.sql_content || input?.sql || '';
+          const res = DatabaseSupabaseGuard.validateMigrationSql(sql);
+          return {
+            success: res.valid,
+            output: res,
+            errors: res.errors,
+            evidence: [{
+              command: 'database-supabase-guard:check_migration_safety',
+              exit_code: res.valid ? 0 : 1,
+              summary: res.summary
+            }]
+          };
+        },
+        validate_dml_sql: async ({ input }) => {
+          const sql = input?.sql_content || input?.sql || '';
+          const res = DatabaseSupabaseGuard.validateDmlSql(sql, input);
+          return {
+            success: res.valid,
+            output: res,
+            errors: res.errors,
+            evidence: [{
+              command: 'database-supabase-guard:validate_dml_sql',
+              exit_code: res.valid ? 0 : 1,
+              summary: res.summary
+            }]
+          };
+        },
+        check_dml_safety: async ({ input }) => {
+          const sql = input?.sql_content || input?.sql || '';
+          const res = DatabaseSupabaseGuard.validateDmlSql(sql, input);
+          return {
+            success: res.valid,
+            output: res,
+            errors: res.errors,
+            evidence: [{
+              command: 'database-supabase-guard:check_dml_safety',
+              exit_code: res.valid ? 0 : 1,
+              summary: res.summary
+            }]
+          };
+        },
+        discover_schema: async ({ targetWorkspace }) => {
+          const res = DatabaseSupabaseGuard.discoverLocalSchema(targetWorkspace);
+          return {
+            success: true,
+            output: res,
+            evidence: [{
+              command: 'database-supabase-guard:discover_schema',
+              exit_code: 0,
+              summary: res.summary
+            }]
+          };
+        },
+        discover_local_schema: async ({ targetWorkspace }) => {
+          const res = DatabaseSupabaseGuard.discoverLocalSchema(targetWorkspace);
+          return {
+            success: true,
+            output: res,
+            evidence: [{
+              command: 'database-supabase-guard:discover_local_schema',
+              exit_code: 0,
+              summary: res.summary
+            }]
+          };
+        },
+        check_rls_policies: async ({ input }) => {
+          const tableName = input?.table_name || 'test_table';
+          const policies = input?.policies || [];
+          const res = DatabaseSupabaseGuard.checkRlsPolicies(tableName, policies);
+          return {
+            success: res.is_fully_covered,
+            output: res,
+            errors: res.missing_operations.length > 0 ? [`Operações sem cobertura RLS: ${res.missing_operations.join(', ')}`] : [],
+            evidence: [{
+              command: `database-supabase-guard:check_rls_policies:${tableName}`,
+              exit_code: res.is_fully_covered ? 0 : 1,
+              summary: res.summary
+            }]
+          };
+        },
+        verify_rls: async ({ input }) => {
+          const tableName = input?.table_name || 'test_table';
+          const policies = input?.policies || [];
+          const res = DatabaseSupabaseGuard.checkRlsPolicies(tableName, policies);
+          return {
+            success: res.is_fully_covered,
+            output: res,
+            errors: res.missing_operations.length > 0 ? [`Operações sem cobertura RLS: ${res.missing_operations.join(', ')}`] : [],
+            evidence: [{
+              command: `database-supabase-guard:verify_rls:${tableName}`,
+              exit_code: res.is_fully_covered ? 0 : 1,
+              summary: res.summary
+            }]
+          };
+        },
+        check_remote_connection: async ({ input }) => {
+          const res = DatabaseSupabaseGuard.evaluateRemoteConnection(input?.env || process.env);
+          return {
+            success: res.connected,
+            output: res,
+            errors: res.connected ? [] : [res.reason],
+            evidence: res.evidence || [{
+              command: 'database-supabase-guard:check_remote_connection',
+              exit_code: res.connected ? 0 : 1,
+              summary: res.reason
+            }]
+          };
+        },
+        verify_remote: async ({ input }) => {
+          const res = DatabaseSupabaseGuard.evaluateRemoteConnection(input?.env || process.env);
+          return {
+            success: res.connected,
+            output: res,
+            errors: res.connected ? [] : [res.reason],
+            evidence: res.evidence || [{
+              command: 'database-supabase-guard:verify_remote',
+              exit_code: res.connected ? 0 : 1,
+              summary: res.reason
+            }]
+          };
+        },
+        execute_remote_migration: async ({ input }) => {
+          const sql = input?.sql_content || input?.sql || '';
+          const res = await DatabaseSupabaseGuard.executeRemoteMigration(sql, input?.env || process.env);
+          return {
+            success: res.success,
+            output: res,
+            errors: res.errors || [],
+            evidence: res.evidence || [{
+              command: 'database-supabase-guard:execute_remote_migration',
+              exit_code: res.success ? 0 : 1,
+              summary: res.summary
+            }]
+          };
+        }
+      },
+
+      'sobremidia-domain': {
+        verify_rules: async ({ action }) => ({
+          success: true,
+          output: { domain: 'SOBRE MÍDIA', rules_loaded: true, action },
+          evidence: [{ command: `sobremidia-domain:${action || 'verify_rules'}`, exit_code: 0, summary: 'Regras de domínio SOBRE MÍDIA verificadas PASS' }]
+        }),
+        check_portal_isolation: async ({ action }) => ({
+          success: true,
+          output: { domain: 'SOBRE MÍDIA', rules_loaded: true, action },
+          evidence: [{ command: `sobremidia-domain:${action}`, exit_code: 0, summary: 'Isolamento de portais SOBRE MÍDIA verificado PASS' }]
+        }),
+        audit_domain: async ({ action }) => ({
+          success: true,
+          output: { domain: 'SOBRE MÍDIA', rules_loaded: true, action },
+          evidence: [{ command: `sobremidia-domain:${action}`, exit_code: 0, summary: 'Auditoria de domínio SOBRE MÍDIA concluída PASS' }]
+        })
+      },
+
+      'orchestrator-core': {
+        plan_execution: async ({ action }) => ({
+          success: true,
+          output: { skill_id: 'orchestrator-core', action, orchestrated: true },
+          evidence: [{ command: `orchestrator-core:${action || 'plan_execution'}`, exit_code: 0, summary: 'Orquestração core verificada PASS' }]
+        }),
+        coordinate_agents: async ({ action }) => ({
+          success: true,
+          output: { skill_id: 'orchestrator-core', action, orchestrated: true },
+          evidence: [{ command: `orchestrator-core:${action}`, exit_code: 0, summary: 'Coordenação de agentes verificada PASS' }]
+        }),
+        verify_pipeline: async ({ action }) => ({
+          success: true,
+          output: { skill_id: 'orchestrator-core', action, orchestrated: true },
+          evidence: [{ command: `orchestrator-core:${action}`, exit_code: 0, summary: 'Pipeline verificado PASS' }]
+        })
+      },
+
+      'sobremidia-governanca': {
+        verify_governance: async ({ action }) => ({
+          success: true,
+          output: { skill_id: 'sobremidia-governanca', action, governed: true },
+          evidence: [{ command: `sobremidia-governanca:${action || 'verify_governance'}`, exit_code: 0, summary: 'Governança canônica SOBRE MÍDIA verificada PASS' }]
+        }),
+        audit_gate: async ({ action }) => ({
+          success: true,
+          output: { skill_id: 'sobremidia-governanca', action, governed: true },
+          evidence: [{ command: `sobremidia-governanca:${action}`, exit_code: 0, summary: 'Auditoria de gate SOBRE MÍDIA verificada PASS' }]
+        }),
+        verify_profile_isolation: async ({ action }) => ({
+          success: true,
+          output: { skill_id: 'sobremidia-governanca', action, governed: true },
+          evidence: [{ command: `sobremidia-governanca:${action}`, exit_code: 0, summary: 'Isolamento de perfis verificado PASS' }]
+        })
+      }
+    };
+  }
+
+  /**
+   * Roteamento e execução dos procedimentos canônicos e dinâmicos das skills operacionais.
    */
   async _dispatchSkillAction({
     skill_id,
@@ -509,161 +866,69 @@ export class SkillRuntime {
     targetWorkspace,
     executionContext
   }) {
-    // 1. Verificar se há handler customizado registrado
+    // 1. Verificar se há handler customizado registrado programaticamente
     if (this.customHandlers.has(skill_id) && this.customHandlers.get(skill_id).has(action)) {
       const customFn = this.customHandlers.get(skill_id).get(action);
-      return await customFn({ input, agent, targetWorkspace, executionContext });
+      return await customFn({ input, agent, targetWorkspace, executionContext, skill_id, action });
     }
 
-    // 2. Handlers Canônicos Embutidos
-
-    // --- SKILL: project-discovery ---
-    if (skill_id === 'project-discovery') {
-      if (action === 'scan_workspace' || action === 'discover' || action === 'scan_project') {
-        const disc = ProjectDiscovery.discover(targetWorkspace);
-        return {
-          success: true,
-          output: disc,
-          evidence: [{
-            command: `project-discovery:${action}:${targetWorkspace}`,
-            exit_code: 0,
-            summary: `Project discovery executado com ${disc.evidence?.length || 0} evidências físicas`
-          }]
-        };
-      }
-      if (action === 'verify_stack' || action === 'inspect_manifests') {
-        const pkgPath = path.join(targetWorkspace, 'package.json');
-        const hasPkg = fs.existsSync(pkgPath);
-        return {
-          success: true,
-          output: { hasPkg, targetWorkspace },
-          evidence: [{
-            command: `project-discovery:${action}`,
-            exit_code: 0,
-            summary: `Verificação de stack concluída (package.json: ${hasPkg})`
-          }]
-        };
-      }
+    // 2. Verificar catálogo de procedimentos embutidos (tabela canônica orientada a dados)
+    const builtinRegistry = this._getBuiltinActionRegistry();
+    if (builtinRegistry[skill_id] && typeof builtinRegistry[skill_id][action] === 'function') {
+      const builtinFn = builtinRegistry[skill_id][action];
+      return await builtinFn({ input, agent, targetWorkspace, executionContext, skill_id, action });
     }
 
-    // --- SKILL: forensic-auditor ---
-    if (skill_id === 'forensic-auditor') {
-      if (action === 'audit_diff' || action === 'audit_memory_isolation' || action === 'verify_evidence') {
-        return {
-          success: true,
-          output: {
-            diff_clean: true,
-            forbidden_patterns_found: 0,
-            summary: `Auditoria forense (${action}) aprovada sem violações`
-          },
-          evidence: [{
-            command: `forensic-auditor:${action}`,
-            exit_code: 0,
-            summary: `Auditoria pericial ${action} PASS`
-          }]
-        };
+    // 3. Resolução dinâmica de handler baseado em arquivo da Skill (.agents/skills ou .opencode/skills)
+    const fileHandler = await this._findAndLoadFileHandler(skill_id, action, targetWorkspace);
+    if (typeof fileHandler === 'function') {
+      const handlerRes = await fileHandler({ input, agent, targetWorkspace, executionContext, skill_id, action });
+      if (handlerRes && typeof handlerRes === 'object') {
+        return handlerRes;
       }
-      if (action === 'check_forbidden_patterns') {
-        const content = input.content || '';
-        const forbidden = [
-          { pattern: /console\.log\(/g, name: 'console.log' },
-          { pattern: /debugger;/g, name: 'debugger' },
-          { pattern: /: any/g, name: 'any type' }
-        ];
-        const matches = forbidden.filter(f => f.pattern.test(content)).map(f => f.name);
-        return {
-          success: matches.length === 0,
-          output: { matches, has_violations: matches.length > 0 },
-          errors: matches.length > 0 ? [`Padrões proibidos encontrados: ${matches.join(', ')}`] : [],
-          evidence: [{
-            command: 'forensic-auditor:check_forbidden_patterns',
-            exit_code: matches.length === 0 ? 0 : 1,
-            summary: matches.length === 0 ? 'Nenhum padrão proibido encontrado PASS' : `Padrões proibidos detectados: ${matches.join(', ')}`
-          }]
-        };
-      }
-    }
-
-    // --- SKILL: database-supabase-guard ---
-    if (skill_id === 'database-supabase-guard') {
-      if (action === 'validate_migration_sql' || action === 'check_migration_safety') {
-        const sql = input.sql_content || input.sql || '';
-        const res = DatabaseSupabaseGuard.validateMigrationSql(sql);
-        return {
-          success: res.valid,
-          output: res,
-          errors: res.errors,
-          evidence: [{
-            command: `database-supabase-guard:${action}`,
-            exit_code: res.valid ? 0 : 1,
-            summary: res.summary
-          }]
-        };
-      }
-      if (action === 'check_rls_policies' || action === 'verify_rls') {
-        const tableName = input.table_name || 'test_table';
-        const policies = input.policies || [];
-        const res = DatabaseSupabaseGuard.checkRlsPolicies(tableName, policies);
-        return {
-          success: res.is_fully_covered,
-          output: res,
-          errors: res.missing_operations.length > 0 ? [`Operações sem cobertura RLS: ${res.missing_operations.join(', ')}`] : [],
-          evidence: [{
-            command: `database-supabase-guard:${action}:${tableName}`,
-            exit_code: res.is_fully_covered ? 0 : 1,
-            summary: res.summary
-          }]
-        };
-      }
-    }
-
-    // --- SKILL: sobremidia-domain ---
-    if (skill_id === 'sobremidia-domain') {
       return {
         success: true,
-        output: { domain: 'SOBRE MÍDIA', rules_loaded: true, action },
+        output: handlerRes,
         evidence: [{
-          command: `sobremidia-domain:${action || 'verify_rules'}`,
+          command: `skill:${skill_id}:${action}:file_handler`,
           exit_code: 0,
-          summary: `Regras de domínio SOBRE MÍDIA (${action || 'verify_rules'}) verificadas PASS`
+          summary: `Handler de arquivo executado com sucesso para ${skill_id}:${action}`
         }]
       };
     }
 
-    // --- SKILL: orchestrator-core ---
-    if (skill_id === 'orchestrator-core') {
+    // 4. Execução genérica orientada a dados para ações declaradas no manifesto da Skill
+    const declaredActions = this.skillRegistry.getSkillActions(skill_id);
+    const isDeclared = declaredActions.length === 0 || declaredActions.includes(action);
+
+    if (isDeclared) {
       return {
         success: true,
-        output: { skill_id: 'orchestrator-core', action, orchestrated: true },
+        output: {
+          skill_id,
+          action,
+          executed: true,
+          mode: 'DATA_DRIVEN_GENERIC',
+          declared: declaredActions.includes(action),
+          timestamp: new Date().toISOString()
+        },
         evidence: [{
-          command: `orchestrator-core:${action || 'plan_execution'}`,
+          command: `skill:${skill_id}:${action}`,
           exit_code: 0,
-          summary: `Orquestração core (${action || 'plan_execution'}) verificada PASS`
+          summary: `Execução genérica da skill '${skill_id}' (${action}) concluída PASS`
         }]
       };
     }
 
-    // --- SKILL: sobremidia-governanca ---
-    if (skill_id === 'sobremidia-governanca') {
-      return {
-        success: true,
-        output: { skill_id: 'sobremidia-governanca', action, governed: true },
-        evidence: [{
-          command: `sobremidia-governanca:${action || 'verify_governance'}`,
-          exit_code: 0,
-          summary: `Governança canônica SOBRE MÍDIA (${action || 'verify_governance'}) verificada PASS`
-        }]
-      };
-    }
-
-    // Ação padrão genérica para outras skills registradas
+    // 5. Fail-closed: se a skill possui ações declaradas e a solicitada não foi declarada nem implementada
     return {
-      success: true,
-      output: { skill_id, action, executed: true },
+      success: false,
+      output: null,
+      errors: [`Action '${action}' não é declarada nem suportada na skill '${skill_id}'. Actions declaradas: [${declaredActions.join(', ')}]`],
       evidence: [{
         command: `skill:${skill_id}:${action}`,
-        exit_code: 0,
-        summary: `Execução genérica da skill '${skill_id}' (${action}) concluída`
+        exit_code: 1,
+        summary: `Action '${action}' não autorizada/declarada na skill '${skill_id}' FAIL`
       }]
     };
   }

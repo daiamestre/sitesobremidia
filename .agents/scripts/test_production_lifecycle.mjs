@@ -295,9 +295,18 @@ async function runTests() {
       },
       commit: { success: true, commit_sha: 'commit_123' },
       deploys: {
-        vercel: { status: 'SUCCESS', deployment_url: 'https://sitesobremidia.vercel.app' }
+        vercel: {
+          status: 'SUCCESS',
+          deployment_id: 'dpl_verified123',
+          commit_sha: 'commit_123',
+          deployment_url: 'https://sitesobremidia.vercel.app',
+          verified_remote: true
+        }
       },
-      post_deploy: { status: 'VERIFIED' },
+      post_deploy: {
+        status: 'VERIFIED',
+        checks: [{ target: 'production_url', status: 'PASS', code: 200 }]
+      },
       homologation: { status: 'HOMOLOGATED' }
     };
 

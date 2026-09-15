@@ -239,7 +239,8 @@ export class AgentRuntime {
       const handoffValidation = HandoffManager.validateHandoff(context.handoff, {
         expected_task_id: task.task_id,
         expected_destination: agent.agent_id,
-        expected_workspace: targetWorkspace
+        expected_workspace: targetWorkspace,
+        allow_replayed: context.allow_replayed_handoff === true || context.is_recovery === true || context.allow_replayed === true
       });
       if (!handoffValidation.valid) {
         lifecycle.transitionTo('BLOCKED', `Handoff de entrada rejeitado: ${handoffValidation.errors.join(', ')}`);

@@ -5,6 +5,8 @@
 
 import { registry } from './registry.mjs';
 import { DiscoveryPolicy } from './project_discovery.mjs';
+import { TargetDiscovery } from './target_discovery.mjs';
+import { CapabilityDiscovery } from './capability_discovery.mjs';
 
 export const TASK_TYPE_ROUTING = {
   // Builder (CODE_IMPLEMENTATION)
@@ -92,7 +94,7 @@ const KEYWORD_ROUTING_RULES = [
 ];
 
 export class TaskRouter {
-  static routeTask(task) {
+  static routeTask(task, options = {}) {
     if (!task || !task.objective) {
       throw new Error('[ROUTER ERROR]: Tarefa inválida ou sem objetivo definido.');
     }
@@ -100,6 +102,15 @@ export class TaskRouter {
     const text = `${task.task_id || ''} ${task.task_type || task.type || ''} ${task.objective} ${task.context || ''}`.toLowerCase();
     const isProjectAware = DiscoveryPolicy.isProjectAware(task);
     const discoveryPolicy = DiscoveryPolicy.evaluate(task);
+
+    let discoveredTargets = options.discovered_targets || null;
+    if (!discoveredTargets && isProjectAware && task.workspace_root) {
+      try {
+        discoveredTargets = TargetDiscovery.discoverTargets(task, task.workspace_root);
+      } catch {
+        discoveredTargets = null;
+      }
+    }
 
     // 1. Agente explicitamente solicitado na tarefa (precedência máxima de autoridade com validação estrita)
     const explicitAgentId = task.preferred_agent || task.agent_id || task.agent;
@@ -132,7 +143,8 @@ export class TaskRouter {
         required_skills: agent.skills || [],
         required_capabilities: requiredCaps,
         is_project_aware: isProjectAware,
-        discovery_policy: discoveryPolicy
+        discovery_policy: discoveryPolicy,
+        discovered_targets: discoveredTargets
       };
     }
 
@@ -168,7 +180,8 @@ export class TaskRouter {
           required_skills: agent ? agent.skills : [],
           required_capabilities: requiredCaps,
           is_project_aware: isProjectAware,
-          discovery_policy: discoveryPolicy
+          discovery_policy: discoveryPolicy,
+          discovered_targets: discoveredTargets
         };
       }
     }
@@ -199,7 +212,8 @@ export class TaskRouter {
             required_skills: agent ? agent.skills : [],
             required_capabilities: requiredCaps,
             is_project_aware: isProjectAware,
-            discovery_policy: discoveryPolicy
+            discovery_policy: discoveryPolicy,
+            discovered_targets: discoveredTargets
           };
         }
       }
@@ -222,14 +236,43 @@ export class TaskRouter {
           required_skills: candidate.skills || [],
           required_capabilities: task.required_capabilities,
           is_project_aware: isProjectAware,
-          discovery_policy: discoveryPolicy
+          discovery_policy: discoveryPolicy,
+          discovered_targets: discoveredTargets
         };
       } else {
         throw new Error(`[ROUTER ERROR]: Nenhum agente no Registry é elegível para as capacidades exigidas: [${task.required_capabilities.join(', ')}].`);
       }
     }
 
-    // 5. Fallback seguro para Orchestrator (Coordenação Central)
+    // 5. Descoberta Canônica de Capacidades (Data-Driven Capability Discovery)
+    try {
+      const capResult = CapabilityDiscovery.discoverCapabilities(task, {
+        workspace_root: task.workspace_root,
+        discovered_targets: discoveredTargets
+      });
+
+      if (capResult && capResult.recommended_agent && capResult.recommended_agent !== 'orchestrator') {
+        const agent = registry.getAgent(capResult.recommended_agent);
+        if (agent && agent.status === 'ACTIVE') {
+          return {
+            task_id: task.task_id,
+            classification: `CAPABILITY_${capResult.primary_capability}`,
+            selected_agent: agent.agent_id,
+            reason: `Roteamento por descoberta dinâmica de capacidades: '${capResult.primary_capability}'. Agente recomendado: ${agent.name}.`,
+            required_skills: agent.skills || [],
+            required_capabilities: capResult.matched_capabilities,
+            is_project_aware: isProjectAware,
+            discovery_policy: discoveryPolicy,
+            discovered_targets: discoveredTargets,
+            capability_discovery: capResult
+          };
+        }
+      }
+    } catch {
+      // Fallback seguro caso discovery falhe
+    }
+
+    // 6. Fallback seguro para Orchestrator (Coordenação Central)
     const orchestrator = registry.getAgent('orchestrator');
     const orchestratorCaps = orchestrator ? orchestrator.capabilities : ['TASK_ORCHESTRATION'];
     return {
@@ -240,7 +283,9 @@ export class TaskRouter {
       required_skills: orchestrator ? orchestrator.skills : [],
       required_capabilities: orchestratorCaps,
       is_project_aware: isProjectAware,
-      discovery_policy: discoveryPolicy
+      discovery_policy: discoveryPolicy,
+      discovered_targets: discoveredTargets
     };
   }
 }
+

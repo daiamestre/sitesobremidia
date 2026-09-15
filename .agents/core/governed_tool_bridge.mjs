@@ -464,3 +464,39 @@ export class GovernedToolBridge {
 }
 
 export const governedToolBridge = new GovernedToolBridge();
+
+// CLI Support for direct invocation by Antigravity / external callers
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
+  async function runCli() {
+    let rawInput = process.argv.slice(2).join(' ').trim();
+    if (!rawInput) {
+      // Read from stdin if available
+      try {
+        rawInput = fs.readFileSync(0, 'utf8').trim();
+      } catch {}
+    }
+    if (!rawInput) {
+      console.error(JSON.stringify({ success: false, errors: ['Payload de requisição JSON ausente. Forneça como argumento, arquivo ou stdin.'] }));
+      process.exit(1);
+    }
+
+    try {
+      let request;
+      if (rawInput.endsWith('.json') && fs.existsSync(rawInput)) {
+        request = JSON.parse(fs.readFileSync(rawInput, 'utf8'));
+      } else {
+        request = JSON.parse(rawInput);
+      }
+      const result = await governedToolBridge.executeGovernedTool(request);
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(result.success ? 0 : 1);
+    } catch (err) {
+      console.error(JSON.stringify({ success: false, errors: [`Erro ao processar requisição: ${err.message}`] }));
+      process.exit(1);
+    }
+  }
+
+  runCli();
+}
+
+

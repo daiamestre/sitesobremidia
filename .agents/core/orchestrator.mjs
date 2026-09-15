@@ -303,7 +303,8 @@ export class CompletionAuthority {
     plan,
     executionResults = [],
     handoffs = [],
-    production_lifecycle = null
+    production_lifecycle = null,
+    options = {}
   }) {
     const errors = [];
 
@@ -392,6 +393,30 @@ export class CompletionAuthority {
     }
 
     // 3. Validar ciclo de publicação e produção quando aplicável
+    const requiresLifecycle = Boolean(
+      options?.enforce_production_lifecycle ||
+      options?.require_deploy ||
+      (Array.isArray(task?.target_paths) && task.target_paths.some(p => {
+        const norm = String(p).replace(/\\/g, '/');
+        return norm.startsWith('src/') || norm.startsWith('supabase/') || norm.startsWith('public/') || norm.startsWith('api/') || norm === 'package.json';
+      })) ||
+      (Array.isArray(options?.files_touched) && options.files_touched.some(p => {
+        const norm = String(p).replace(/\\/g, '/');
+        return norm.startsWith('src/') || norm.startsWith('supabase/') || norm.startsWith('public/') || norm.startsWith('api/') || norm === 'package.json';
+      }))
+    );
+
+    if (requiresLifecycle && !production_lifecycle) {
+      errors.push('Ciclo de produção é OBRIGATÓRIO para tarefas com alterações de produto/banco, mas production_lifecycle está ausente.');
+      return {
+        completed: false,
+        status: 'BLOCKED',
+        blocked_stage: 'DEPLOY_SCOPE_DISCOVERY',
+        errors,
+        production_lifecycle: null
+      };
+    }
+
     if (production_lifecycle) {
       if (production_lifecycle.blocked_external) {
         return {
@@ -404,24 +429,50 @@ export class CompletionAuthority {
         };
       }
 
-      if (production_lifecycle.scope?.commit_required && !production_lifecycle.commit?.success) {
-        errors.push(`Commit obrigatório da tarefa não foi concluído: ${production_lifecycle.commit?.error || 'falha desconhecida'}`);
+      if (production_lifecycle.scope?.commit_required) {
+        if (!production_lifecycle.commit?.success || !production_lifecycle.commit?.commit_sha) {
+          errors.push(`Commit obrigatório da tarefa não foi concluído: ${production_lifecycle.commit?.error || 'falha desconhecida ou SHA ausente'}`);
+        }
       }
 
-      if (production_lifecycle.scope?.vercel_deploy_required && production_lifecycle.deploys?.vercel?.status !== 'SUCCESS') {
-        errors.push(`Deploy Vercel obrigatório não concluído (status: ${production_lifecycle.deploys?.vercel?.status}).`);
+      if (production_lifecycle.scope?.vercel_deploy_required) {
+        const vercel = production_lifecycle.deploys?.vercel;
+        if (!vercel || vercel.status !== 'SUCCESS') {
+          errors.push(`Deploy Vercel obrigatório não concluído (status: ${vercel?.status || 'NOT_ATTEMPTED'}).`);
+        } else if (!vercel.deployment_id) {
+          errors.push('Deploy Vercel reporta sucesso mas não possui deployment_id comprovado da infraestrutura.');
+        } else if (production_lifecycle.commit?.commit_sha && vercel.commit_sha && vercel.commit_sha !== production_lifecycle.commit.commit_sha) {
+          errors.push(`Inconsistência de commit: deploy Vercel (${vercel.commit_sha}) não corresponde ao commit da tarefa (${production_lifecycle.commit.commit_sha}).`);
+        }
       }
 
-      if (production_lifecycle.scope?.supabase_deploy_required && production_lifecycle.deploys?.supabase?.status !== 'SUCCESS') {
-        errors.push(`Deploy Supabase obrigatório não concluído (status: ${production_lifecycle.deploys?.supabase?.status}).`);
+      if (production_lifecycle.scope?.supabase_deploy_required) {
+        const sb = production_lifecycle.deploys?.supabase;
+        if (!sb || sb.status !== 'SUCCESS') {
+          errors.push(`Deploy Supabase obrigatório não concluído (status: ${sb?.status || 'NOT_ATTEMPTED'}).`);
+        }
       }
 
-      if (production_lifecycle.scope?.post_deploy_verification_required && production_lifecycle.post_deploy?.status !== 'VERIFIED') {
-        errors.push(`Verificação pós-deploy obrigatória não concluída (status: ${production_lifecycle.post_deploy?.status}).`);
+      if (production_lifecycle.scope?.post_deploy_verification_required) {
+        const pd = production_lifecycle.post_deploy;
+        if (!pd || pd.status !== 'VERIFIED') {
+          errors.push(`Verificação pós-deploy obrigatória não concluída (status: ${pd?.status || 'NOT_ATTEMPTED'}).`);
+        } else if (!Array.isArray(pd.checks) || !pd.checks.some(c => c.status === 'PASS' && c.code === 200)) {
+          errors.push('Verificação pós-deploy não possui evidência de verificação HTTP 200 bem-sucedida.');
+        }
       }
 
-      if (production_lifecycle.scope?.homologation_required && production_lifecycle.homologation?.status !== 'HOMOLOGATED') {
-        errors.push(`Homologação de produção obrigatória não concluída (status: ${production_lifecycle.homologation?.status}).`);
+      if (production_lifecycle.scope?.homologation_required) {
+        const hom = production_lifecycle.homologation;
+        if (!hom || hom.status !== 'HOMOLOGATED') {
+          errors.push(`Homologação de produção obrigatória não concluída (status: ${hom?.status || 'NOT_ATTEMPTED'}).`);
+        }
+      }
+    }
+
+    if (options?.declaration_only || options?.declared_status) {
+      if (errors.length > 0) {
+        errors.push(`Declaração verbal '${options.declared_status}' rejeitada: ausência de evidência operacional comprovada para todos os estágios obrigatórios.`);
       }
     }
 
@@ -470,13 +521,26 @@ export class CompletionAuthority {
       };
     }
 
-    const validation = this.validateCompletion({ task, plan, executionResults, handoffs, production_lifecycle });
+    const validation = this.validateCompletion({ task, plan, executionResults, handoffs, production_lifecycle, options });
     if (!validation.completed) {
       return validation;
     }
 
     const completionRecord = deepFreeze({
       completion_id: `CMP-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      certificate: {
+        certificate_id: `CERT-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        task_id: task.task_id,
+        plan_id: plan.plan_id,
+        status: 'PRODUCTION_VERIFIED',
+        commit_sha: production_lifecycle?.commit?.commit_sha || null,
+        vercel_deployment_id: production_lifecycle?.deploys?.vercel?.deployment_id || null,
+        vercel_deployment_url: production_lifecycle?.deploys?.vercel?.deployment_url || null,
+        supabase_files_applied: production_lifecycle?.deploys?.supabase?.files_applied || [],
+        post_deploy_verified: production_lifecycle?.post_deploy?.status === 'VERIFIED',
+        homologated: production_lifecycle?.homologation?.status === 'HOMOLOGATED',
+        sealed_at: new Date().toISOString()
+      },
       task_id: task.task_id,
       plan_id: plan.plan_id,
       status: 'COMPLETED',

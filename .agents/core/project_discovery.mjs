@@ -11,6 +11,9 @@ import {
   validateDiscoveryResult,
   deepFreeze
 } from './contracts.mjs';
+import { TargetDiscovery } from './target_discovery.mjs';
+
+export { TargetDiscovery };
 
 function computeSha256(content) {
   if (content === null || content === undefined) return '';
@@ -20,6 +23,13 @@ function computeSha256(content) {
 
 export class ProjectDiscovery {
   /**
+   * Executa a descoberta contextual de alvos para uma tarefa no workspace.
+   */
+  static discoverTargets(task, customRoot = process.cwd(), options = {}) {
+    return TargetDiscovery.discoverTargets(task, customRoot, options);
+  }
+
+  /**
    * Executa a descoberta física do projeto em um workspaceRoot determinado.
    *
    * @param {string} [customRoot] - Caminho raiz do projeto (padrão: process.cwd())
@@ -28,6 +38,7 @@ export class ProjectDiscovery {
   static discover(customRoot = process.cwd()) {
     const projectRoot = path.resolve(customRoot);
     if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) {
+
       throw new Error(`[PROJECT DISCOVERY ERROR]: Workspace root '${projectRoot}' não existe ou não é um diretório acessível.`);
     }
     const warnings = [];

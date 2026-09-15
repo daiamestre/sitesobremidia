@@ -94,14 +94,14 @@ async function runAllTests() {
     assert.strictEqual(result.success, true);
     assert.strictEqual(result.status, 'COMPLETED');
     const executedAgents = result.steps_executed.map(s => s.agent_id);
-    assert.deepStrictEqual(executedAgents, ['architect', 'database', 'forensic', 'qa']);
+    assert.deepStrictEqual(executedAgents, ['architect', 'database', 'qa', 'forensic']);
     assert.strictEqual(result.handoffs.length, 3);
   });
 
   // 4. Autonomous Skill Selection & Execution Without Caller Handlers
   await runAsyncTest('AEP-04', 'Zero actionHandlers provided by caller executes real canonical skills autonomously', async () => {
     orchestrator.reset();
-    const prompt = 'Auditoria forense de integridade de código';
+    const prompt = 'Auditoria forense de integridade dos contratos';
     const result = await executeAutonomousTask(prompt, { workspace_root: workspaceRoot });
 
     assert.strictEqual(result.success, true);
