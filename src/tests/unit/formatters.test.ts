@@ -3,9 +3,41 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { formatPercentage, formatBytes, formatCpfCnpj, formatCep, formatPhone } from '../../utils/formatters';
+import {
+  formatCurrency,
+  formatNumber,
+  formatDate,
+  formatDateTime,
+  formatPercentage,
+  formatBytes,
+  formatCpfCnpj,
+  formatCep,
+  formatPhone
+} from '../../utils/formatters';
 
 describe('formatters', () => {
+  it('formatCurrency formata valores monetarios', () => {
+    const formatted = formatCurrency(1500.5);
+    expect(formatted).toContain('1.500,50');
+  });
+
+  it('formatNumber formata inteiros e decimais', () => {
+    const formatted = formatNumber(10000);
+    expect(formatted).toBe('10.000');
+  });
+
+  it('formatDate formata datas validas', () => {
+    const formatted = formatDate('2026-09-15T12:00:00Z');
+    expect(formatted).toBeDefined();
+    expect(formatted.length).toBeGreaterThan(5);
+  });
+
+  it('formatDateTime formata data e hora validas', () => {
+    const formatted = formatDateTime('2026-09-15T12:00:00Z');
+    expect(formatted).toBeDefined();
+    expect(formatted.length).toBeGreaterThan(5);
+  });
+
   it('formatCpfCnpj formata CPF com 11 digitos', () => {
     expect(formatCpfCnpj('12345678901')).toBe('123.456.789-01');
   });
