@@ -476,7 +476,7 @@ export class PostDeployVerifier {
     }
 
     const checks = [];
-    if (scope.vercel_deploy_required) {
+    if (scope?.vercel_deploy_required || (vercel_deploy && vercel_deploy.status === 'SUCCESS')) {
       const targetUrl = vercel_deploy?.deployment_url || 'https://sitesobremidia.vercel.app';
       try {
         const start = Date.now();

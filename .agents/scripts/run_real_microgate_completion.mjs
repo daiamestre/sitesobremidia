@@ -103,7 +103,11 @@ async function main() {
   const postDeploy = await PostDeployVerifier.verify({
     vercel_deploy: vercelDeploy,
     supabase_deploy: supabaseDeploy,
-    scope: { post_deploy_verification_required: true }
+    scope: {
+      vercel_deploy_required: true,
+      supabase_deploy_required: true,
+      post_deploy_verification_required: true
+    }
   });
 
   console.log('Resultado Pós-Deploy:', {
@@ -160,8 +164,7 @@ async function main() {
   const plan = {
     plan_id: 'PLAN-MICRO-GATE-FALSE-COMPLETION',
     steps: [
-      { step_index: 0, agent_id: 'forensic-auditor', step_id: 'step-forensic' },
-      { step_index: 1, agent_id: 'builder', step_id: 'step-builder' }
+      { step_index: 0, agent_id: 'forensic-auditor', step_id: 'step-forensic' }
     ]
   };
 
@@ -172,15 +175,10 @@ async function main() {
       task_id: 'MICRO-GATE-FALSE-COMPLETION',
       status: 'COMPLETED',
       result: { success: true },
-      evidence: [{ command: 'audit_root_cause', exit_code: 0 }]
-    },
-    {
-      step_id: 'step-builder',
-      agent_id: 'builder',
-      task_id: 'MICRO-GATE-FALSE-COMPLETION',
-      status: 'COMPLETED',
-      result: { success: true },
-      evidence: [{ command: 'test_false_completion_gate', exit_code: 0 }]
+      evidence: [
+        { command: 'audit_root_cause', exit_code: 0 },
+        { command: 'test_false_completion_gate', exit_code: 0 }
+      ]
     }
   ];
 
