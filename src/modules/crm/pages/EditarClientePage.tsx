@@ -139,7 +139,8 @@ export default function EditarClientePage() {
       cidade: form.cidade || parsed.data.cidade || '',
       estado: form.estado || parsed.data.estado || '',
     };
-    const result = await clienteService.update(id, payload);
+    const targetId = cliente?.id || id;
+    const result = await clienteService.update(targetId, payload);
     setSaving(false);
 
     if (result.success) {

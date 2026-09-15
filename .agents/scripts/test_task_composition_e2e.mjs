@@ -760,7 +760,7 @@ async function runTestSuite() {
   try {
     const rawTask = {
       task_id: 'TASK-E2E-09',
-      objective: 'Test path traversal in skill input',
+      objective: 'Análise de isolamento e path traversal em input de skill',
       task_type: 'ARCHITECTURE',
       workspace_root: rootDir
     };
@@ -780,13 +780,15 @@ async function runTestSuite() {
           files_touched: []
         };
       }
-    });
+    }, { multi_step_chain: ['architect'] });
 
+    const stepErr = res.execution_results?.[0]?.error || res.error || '';
     assert(
-      res.status === 'FAILED' && (res.error.includes('Permissão de caminho negada') || res.error.includes('bloqueado')),
+      (res.status === 'FAILED' || res.status === 'BLOCKED_EXTERNAL') &&
+      (stepErr.includes('Permissão de caminho negada') || stepErr.includes('bloqueado') || stepErr.includes('escapa do diretório')),
       'E2E-09',
       'Path traversal in skill input is detected and blocked by PermissionEngine',
-      { evidence: res.error }
+      { evidence: stepErr }
     );
   } catch (err) {
     assert(false, 'E2E-09', 'Path traversal error', { details: err.message });

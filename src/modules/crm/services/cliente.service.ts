@@ -216,12 +216,28 @@ export class ClienteService {
    */
   async update(id: string, payload: ClientePayload): Promise<{ success: boolean; error?: string }> {
     try {
+      let targetUuid = id;
+      const ehCodigoOperacional = /^\d{1,9}$/.test(id);
+      if (ehCodigoOperacional) {
+        const { data: cliData, error: cliFindErr } = await supabase
+          .from('clientes')
+          .select('id')
+          .eq('codigo_cliente', Number(id))
+          .is('deleted_at', null)
+          .maybeSingle();
+
+        if (cliFindErr || !cliData?.id) {
+          return { success: false, error: `Cliente não encontrado para o identificador ${id}.` };
+        }
+        targetUuid = cliData.id;
+      }
+
       // 1. Atualiza o registro mestre em public.clientes
       if (payload.status) {
         const { error: statusError } = await supabase
           .from('clientes')
           .update({ status: payload.status })
-          .eq('id', id)
+          .eq('id', targetUuid)
           .is('deleted_at', null);
 
         if (statusError) {
@@ -233,7 +249,7 @@ export class ClienteService {
       const { data: empresa, error: empresaFindError } = await supabase
         .from('empresas')
         .select('id')
-        .eq('cliente_id', id)
+        .eq('cliente_id', targetUuid)
         .maybeSingle();
 
       if (empresaFindError) {
@@ -324,6 +340,22 @@ export class ClienteService {
    */
   async softDelete(id: string, reason?: string, userId?: string): Promise<{ success: boolean; error?: string }> {
     try {
+      let targetUuid = id;
+      const ehCodigoOperacional = /^\d{1,9}$/.test(id);
+      if (ehCodigoOperacional) {
+        const { data: cliData, error: cliFindErr } = await supabase
+          .from('clientes')
+          .select('id')
+          .eq('codigo_cliente', Number(id))
+          .is('deleted_at', null)
+          .maybeSingle();
+
+        if (cliFindErr || !cliData?.id) {
+          return { success: false, error: `Cliente não encontrado para o identificador ${id}.` };
+        }
+        targetUuid = cliData.id;
+      }
+
       const nowIso = new Date().toISOString();
 
       // 1. Soft-delete em public.empresas primeiro (enquanto clientes.deleted_at ainda é NULL para satisfazer RLS emp_write_policy)
@@ -334,7 +366,7 @@ export class ClienteService {
           deleted_by: userId || null,
           delete_reason: reason || 'Inativado pelo usuário.',
         })
-        .eq('cliente_id', id);
+        .eq('cliente_id', targetUuid);
 
       if (empErr) return { success: false, error: empErr.message };
 
@@ -347,7 +379,7 @@ export class ClienteService {
           deleted_by: userId || null,
           delete_reason: reason || 'Inativado pelo usuário.',
         })
-        .eq('id', id);
+        .eq('id', targetUuid);
 
       if (cliErr) return { success: false, error: cliErr.message };
 
