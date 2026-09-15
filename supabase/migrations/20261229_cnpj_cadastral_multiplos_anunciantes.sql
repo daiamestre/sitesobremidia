@@ -315,4 +315,47 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
+-- 5. Função atômica com pg_advisory_xact_lock por tenant para geração de numero_contrato sequencial robusto
+CREATE OR REPLACE FUNCTION public.fn_gerar_numero_contrato_atomo(
+  p_empresa_operadora_id UUID
+)
+RETURNS VARCHAR(40)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_lock_key BIGINT;
+  v_last_num BIGINT;
+  v_next_num BIGINT;
+  v_year VARCHAR(4);
+  v_numero_contrato VARCHAR(40);
+BEGIN
+  v_lock_key := hashtext('contrato_code_' || p_empresa_operadora_id::text);
+  PERFORM pg_advisory_xact_lock(v_lock_key);
+
+  v_year := TO_CHAR(NOW(), 'YYYY');
+
+  SELECT COALESCE(MAX(
+    CASE 
+      WHEN numero_contrato ~ ('^CTR-' || v_year || '-\d+$')
+      THEN CAST(SPLIT_PART(numero_contrato, '-', 3) AS BIGINT)
+      ELSE 0 
+    END
+  ), 0)
+  INTO v_last_num
+  FROM public.contratos
+  WHERE empresa_operadora_id = p_empresa_operadora_id;
+
+  v_next_num := v_last_num + 1;
+  IF v_next_num < 10000 THEN
+    v_numero_contrato := 'CTR-' || v_year || '-' || LPAD(v_next_num::text, 4, '0');
+  ELSE
+    v_numero_contrato := 'CTR-' || v_year || '-' || v_next_num::text;
+  END IF;
+
+  RETURN v_numero_contrato;
+END;
+$$;
+
 SELECT 'Migration 20261229 CNPJ Cadastral Multiplos Anunciantes aplicada com sucesso' AS status;
