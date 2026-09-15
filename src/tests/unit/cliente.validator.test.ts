@@ -100,6 +100,66 @@ describe('clienteFormSchema — validação real do cadastro de cliente', () => 
     expect(parsed.success).toBe(false);
   });
 
+  it('rejeita nome fantasia e razão social compostos apenas por espaços (trim)', () => {
+    const parsedNome = clienteFormSchema.safeParse({ ...baseForm, nomeFantasia: '   ' });
+    expect(parsedNome.success).toBe(false);
+    const parsedRazao = clienteFormSchema.safeParse({ ...baseForm, razaoSocial: '   ' });
+    expect(parsedRazao.success).toBe(false);
+  });
+
+  it('aceita e sanitiza e-mail com espaços acidentais nas bordas (autofill / mobile keyboard)', () => {
+    const parsed = clienteFormSchema.safeParse({ ...baseForm, email: '  contato@empresa.com  ' });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.email).toBe('contato@empresa.com');
+    }
+  });
+
+  it('aceita e sanitiza e-mail de contato com espaços acidentais nas bordas ou vazio com espaços', () => {
+    const parsedComEspacos = clienteFormSchema.safeParse({ ...baseForm, contatoEmail: '  carlos@empresa.com  ' });
+    expect(parsedComEspacos.success).toBe(true);
+    if (parsedComEspacos.success) {
+      expect(parsedComEspacos.data.contatoEmail).toBe('carlos@empresa.com');
+    }
+
+    const parsedVazioComEspacos = clienteFormSchema.safeParse({ ...baseForm, contatoEmail: '   ' });
+    expect(parsedVazioComEspacos.success).toBe(true);
+  });
+
+  it('contatoEmail: validação exata dos 6 casos canônicos (undefined, "", "   ", com espaços, normal, inválido)', () => {
+    // 1. undefined -> válido, retorna undefined
+    const p1 = clienteFormSchema.safeParse({ ...baseForm, contatoEmail: undefined });
+    expect(p1.success).toBe(true);
+    if (p1.success) expect(p1.data.contatoEmail).toBeUndefined();
+
+    // 2. "" -> válido, retorna ""
+    const p2 = clienteFormSchema.safeParse({ ...baseForm, contatoEmail: '' });
+    expect(p2.success).toBe(true);
+    if (p2.success) expect(p2.data.contatoEmail).toBe('');
+
+    // 3. "   " -> válido, sanitizado para "" via trim
+    const p3 = clienteFormSchema.safeParse({ ...baseForm, contatoEmail: '   ' });
+    expect(p3.success).toBe(true);
+    if (p3.success) expect(p3.data.contatoEmail).toBe('');
+
+    // 4. " contato@empresa.com " -> válido, sanitizado para "contato@empresa.com"
+    const p4 = clienteFormSchema.safeParse({ ...baseForm, contatoEmail: ' contato@empresa.com ' });
+    expect(p4.success).toBe(true);
+    if (p4.success) expect(p4.data.contatoEmail).toBe('contato@empresa.com');
+
+    // 5. "contato@empresa.com" -> válido, retorna "contato@empresa.com"
+    const p5 = clienteFormSchema.safeParse({ ...baseForm, contatoEmail: 'contato@empresa.com' });
+    expect(p5.success).toBe(true);
+    if (p5.success) expect(p5.data.contatoEmail).toBe('contato@empresa.com');
+
+    // 6. "email-invalido" -> rejeitado com erro em contatoEmail
+    const p6 = clienteFormSchema.safeParse({ ...baseForm, contatoEmail: 'email-invalido' });
+    expect(p6.success).toBe(false);
+    if (!p6.success) {
+      expect(p6.error.issues.some((i) => i.path[0] === 'contatoEmail')).toBe(true);
+    }
+  });
+
   it('normaliza CNPJ para apenas dígitos', () => {
     expect(normalizarCnpj('11.222.333/0001-81')).toBe('11222333000181');
   });

@@ -94,8 +94,8 @@ export function normalizarCep(cep: string): string {
  */
 export const clienteFormSchema = z
   .object({
-    nomeFantasia: z.string().min(2, 'Nome fantasia é obrigatório (mín. 2 caracteres).'),
-    razaoSocial: z.string().min(3, 'Razão social é obrigatória (mín. 3 caracteres).'),
+    nomeFantasia: z.string().trim().min(2, 'Nome fantasia é obrigatório (mín. 2 caracteres).'),
+    razaoSocial: z.string().trim().min(3, 'Razão social é obrigatória (mín. 3 caracteres).'),
     cnpj: z
       .string()
       .optional()
@@ -107,7 +107,7 @@ export const clienteFormSchema = z
       .string()
       .min(8, 'WhatsApp comercial é obrigatório (mín. 8 dígitos).')
       .refine((v) => /^\d{10,13}$/.test(v.replace(/\D/g, '')), 'WhatsApp comercial inválido. Use apenas números (DDD + número).'),
-    email: z.string().email('E-mail inválido. Verifique o formato.'),
+    email: z.string().trim().email('E-mail inválido. Verifique o formato.'),
     cidade: z.string().optional(),
     estado: z
       .string()
@@ -145,7 +145,15 @@ export const clienteFormSchema = z
 
     contatoNome: z.string().optional(),
     contatoCargo: z.string().optional(),
-    contatoEmail: z.string().email('E-mail do contato inválido.').optional().or(z.literal('')),
+    contatoEmail: z
+      .string()
+      .trim()
+      .optional()
+      .refine(
+        (v) => !v || z.string().email().safeParse(v).success,
+        'E-mail do contato inválido.'
+      )
+      .or(z.literal('')),
     contatoTelefone: z
       .string()
       .optional()

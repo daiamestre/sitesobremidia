@@ -444,8 +444,19 @@ export function IntelligentCommercialWizard() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-if (name === 'cnpj') {
+
+    // Limpa erro do campo alterado em tempo real
+    if (errors[name]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
+
+    if (name === 'cnpj') {
       setFormData((prev) => ({ ...prev, cnpj: formatCpfCnpj(value) }));
+      return;
     }
     if (name === 'cep') {
       setFormData((prev) => ({ ...prev, cep: formatCep(value) }));
