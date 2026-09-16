@@ -12,6 +12,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -48,8 +49,31 @@ class ScreenSelectionActivity : AppCompatActivity() {
         
         recyclerView.layoutManager = LinearLayoutManager(this)
         adapter = ScreensAdapter(emptyList()) { selectedScreen ->
-            if (selectedScreen.boundDeviceId != null && selectedScreen.boundDeviceId != com.antigravity.sync.service.SessionManager.deviceIdentityHash) {
-                Toast.makeText(this, "Esta tela já está em uso por outro aparelho.", Toast.LENGTH_SHORT).show()
+            val currentHardwareHash = com.antigravity.sync.service.SessionManager.deviceIdentityHash
+            if (selectedScreen.boundDeviceId != null && selectedScreen.boundDeviceId != currentHardwareHash) {
+                // Tela já em uso: autenticado pode transferir de forma legítima
+                AlertDialog.Builder(this)
+                    .setTitle("Transferir Tela")
+                    .setMessage("Esta tela (${selectedScreen.name}) já está vinculada a outro aparelho.\n\nDeseja desvincular o aparelho anterior e vincular a este dispositivo?")
+                    .setPositiveButton("Transferir") { _, _ ->
+                        loading.visibility = View.VISIBLE
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val unpairSuccess = try {
+                                com.antigravity.sync.service.RemoteDataSource().adminUnpairScreen(selectedScreen.id)
+                            } catch (e: Exception) { false }
+
+                            withContext(Dispatchers.Main) {
+                                loading.visibility = View.GONE
+                                if (unpairSuccess) {
+                                    saveScreenAndProceed(selectedScreen.id)
+                                } else {
+                                    Toast.makeText(this@ScreenSelectionActivity, "Falha ao transferir tela. Verifique sua conexão ou permissões.", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    }
+                    .setNegativeButton("Cancelar", null)
+                    .show()
                 return@ScreensAdapter
             }
             saveScreenAndProceed(selectedScreen.id)

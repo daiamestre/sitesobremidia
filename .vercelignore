@@ -1,19 +1,29 @@
-android/
+android
+android/**
+native-android-player
+native-android-player/**
+.agents
+.agents/**
+brain
+brain/**
 app/build/
 .gradle/
 local.properties
 *.apk
 *.aab
-node_modules/
-
-native-android-player/
-play-services-*.jar
+node_modules
+node_modules/**
 
 # Segredos de auditoria e lixo de testes (não publicar)
 check_schema.*
-audit/
-playwright-report/
-test-results/
+audit
+audit/**
+playwright-report
+playwright-report/**
+test-results
+test-results/**
+test-results-me
+test-results-me/**
 *.tsbuildinfo
 vite.config.ts.timestamp-*
 
@@ -22,13 +32,14 @@ vite.config.ts.timestamp-*
 tsc_app_*
 
 # Artefatos de auditoria/testes locais (P0-FIX)
-scratch/
-docs/
-audit/
-coverage/
-dev-dist/
-test-results/
-playwright-report/
+scratch
+scratch/**
+docs
+docs/**
+coverage
+coverage/**
+dev-dist
+dev-dist/**
 CREDENCIAIS*
 RELATORIO*
 RELATORO*
@@ -45,4 +56,13 @@ lint-results*.json
 screenshot*.png
 screen_*.png
 antes.json
-fase1_antes.json
+fase1_antes.json
+*.png
+*.jpg
+*.pdf
+*.log
+*.txt
+*.sql
+*.mjs
+*.cjs
+*.bak

@@ -245,7 +245,7 @@ class RemoteDataSource {
         }
     }
 
-    // Unpair a screen
+    // Unpair a screen (device self-unpair)
     suspend fun unpairScreen(screenId: String, deviceId: String) {
         val response = try {
             client.postgrest.rpc(
@@ -259,6 +259,20 @@ class RemoteDataSource {
 
         if (response.status != "SUCCESS") {
             Logger.w("SYNC", "Unpair failed or wasn't bound: ${response.status}")
+        }
+    }
+
+    // Admin/Owner unpair a screen (clears old device binding for legitimate transfer)
+    suspend fun adminUnpairScreen(screenId: String): Boolean {
+        return try {
+            val response = client.postgrest.rpc(
+                "admin_unpair_screen",
+                mapOf("p_screen_id" to screenId)
+            ).decodeAs<com.antigravity.sync.dto.RpcStatusResponse>()
+            response.status == "SUCCESS"
+        } catch (e: Exception) {
+            Logger.e("SYNC", "Failed to admin-unpair screen via RPC: ${e.message}")
+            false
         }
     }
 

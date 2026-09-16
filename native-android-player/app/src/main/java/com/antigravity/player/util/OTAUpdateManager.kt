@@ -209,6 +209,9 @@ class OTAUpdateManager(
             Logger.i("OTA", "Device Owner detected. Starting Silent Install via PackageInstaller.")
             val packageInstaller = context.packageManager.packageInstaller
             val params = android.content.pm.PackageInstaller.SessionParams(android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                params.setRequireUserAction(android.content.pm.PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            }
             val sessionId = packageInstaller.createSession(params)
             val session = packageInstaller.openSession(sessionId)
             
