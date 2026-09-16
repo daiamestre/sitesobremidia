@@ -89,15 +89,43 @@ export class DeployScopeDiscovery {
     const supabase_files = versionable_files.filter((f) => supabasePatterns.some((p) => p.test(f)));
     const supabase_deploy_required = supabase_files.length > 0;
 
-    // D) Pós-deploy e homologação: obrigatórios sempre que houver deploy
-    const post_deploy_verification_required = vercel_deploy_required || supabase_deploy_required;
-    const homologation_required = vercel_deploy_required || supabase_deploy_required;
+    // D) Android Player Pipeline: se houver alteração no player nativo ou contratos compartilhados com o player
+    const androidPatterns = [
+      /^native-android-player\//,
+      /^android\//
+    ];
+    const android_files = versionable_files.filter((f) => androidPatterns.some((p) => p.test(f)));
+
+    // Contratos compartilhados no backend que impactam diretamente o Player
+    const playerSharedContracts = [
+      'get_player_playlist_for_screen',
+      'admin_unpair_screen',
+      'screens',
+      'playlists',
+      'playlist_items',
+      'app_releases',
+      'device_heartbeats'
+    ];
+    const shared_contract_files = supabase_files.filter(f =>
+      playerSharedContracts.some(sc => f.toLowerCase().includes(sc.toLowerCase()))
+    );
+
+    const android_player_required = android_files.length > 0 || shared_contract_files.length > 0;
+    const canary_verification_required = android_player_required;
+    const ota_release_required = android_files.length > 0;
+
+    // E) Pós-deploy e homologação: obrigatórios sempre que houver deploy ou alteração de player
+    const post_deploy_verification_required = vercel_deploy_required || supabase_deploy_required || android_player_required;
+    const homologation_required = vercel_deploy_required || supabase_deploy_required || canary_verification_required;
 
     return deepFreeze({
       task_id: task?.task_id || 'UNKNOWN',
       commit_required,
       vercel_deploy_required,
       supabase_deploy_required,
+      android_player_required,
+      canary_verification_required,
+      ota_release_required,
       other_external_deploy_required: false,
       post_deploy_verification_required,
       homologation_required,
@@ -105,6 +133,8 @@ export class DeployScopeDiscovery {
       versionable_files,
       vercel_files,
       supabase_files,
+      android_files,
+      shared_contract_files,
       discovered_at: new Date().toISOString()
     });
   }

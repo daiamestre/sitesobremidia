@@ -398,16 +398,16 @@ export class CompletionAuthority {
       options?.require_deploy ||
       (Array.isArray(task?.target_paths) && task.target_paths.some(p => {
         const norm = String(p).replace(/\\/g, '/');
-        return norm.startsWith('src/') || norm.startsWith('supabase/') || norm.startsWith('public/') || norm.startsWith('api/') || norm === 'package.json';
+        return norm.startsWith('src/') || norm.startsWith('supabase/') || norm.startsWith('public/') || norm.startsWith('api/') || norm.startsWith('native-android-player/') || norm === 'package.json';
       })) ||
       (Array.isArray(options?.files_touched) && options.files_touched.some(p => {
         const norm = String(p).replace(/\\/g, '/');
-        return norm.startsWith('src/') || norm.startsWith('supabase/') || norm.startsWith('public/') || norm.startsWith('api/') || norm === 'package.json';
+        return norm.startsWith('src/') || norm.startsWith('supabase/') || norm.startsWith('public/') || norm.startsWith('api/') || norm.startsWith('native-android-player/') || norm === 'package.json';
       }))
     );
 
     if (requiresLifecycle && !production_lifecycle) {
-      errors.push('Ciclo de produção é OBRIGATÓRIO para tarefas com alterações de produto/banco, mas production_lifecycle está ausente.');
+      errors.push('Ciclo de produção é OBRIGATÓRIO para tarefas com alterações de produto/banco/player, mas production_lifecycle está ausente.');
       return {
         completed: false,
         status: 'BLOCKED',
@@ -450,6 +450,22 @@ export class CompletionAuthority {
         const sb = production_lifecycle.deploys?.supabase;
         if (!sb || sb.status !== 'SUCCESS') {
           errors.push(`Deploy Supabase obrigatório não concluído (status: ${sb?.status || 'NOT_ATTEMPTED'}).`);
+        }
+      }
+
+      // Validação do Pipeline Android Player e Canary Governance
+      if (production_lifecycle.scope?.android_player_required) {
+        const android = production_lifecycle.android_pipeline;
+        if (!android || !android.build?.success) {
+          errors.push(`Pipeline do Android Player obrigatório não concluído ou com falha de compilação: ${android?.build?.error || 'build não executado'}.`);
+        }
+        if (production_lifecycle.scope?.canary_verification_required) {
+          if (!android || !android.canary?.success || android.canary?.canary_status !== 'CANARY_PASSED') {
+            errors.push(`Homologação Canary obrigatória do Android Player não aprovada (status: ${android?.canary?.canary_status || 'NOT_ATTEMPTED'}).`);
+          }
+        }
+        if (android?.release_authority && !android.release_authority.certified) {
+          errors.push(`PlayerReleaseAuthority bloqueou a liberação: ${android.release_authority.reasons?.join(', ')}.`);
         }
       }
 

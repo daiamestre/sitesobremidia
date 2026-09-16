@@ -143,3 +143,42 @@ Para cada alteração, mapear e provar antes da conclusão:
 
 ---
 *Persistido em 2026-08-27 / Atualizado em 2026-09-16 — Autorização cirúrgica + governança SOBRE MÍDIA + Dependency Impact Gate.*
+
+## 14. ANDROID PLAYER COMO COMPONENTE DE PRIMEIRA CLASSE & AUTONOMOUS ENGINEERING
+
+> **O Android Player NÃO é um projeto separado. Ele é um CRITICAL PRODUCTION COMPONENT da plataforma SOBRE MÍDIA.**
+
+```
+SOBRE MÍDIA
+├── Web (React/Vite)
+├── Supabase (PostgreSQL/RLS/RPC)
+├── CRM & Financeiro
+├── Contratos & Assinaturas
+├── Screens & Hardware Pairing
+├── Playlists & Media Distribution
+└── Android Player (Native Kotlin / ExoPlayer / Room / OTA)
+```
+
+### Regra Permanente: System-Wide Integration
+> **Nenhuma feature está concluída enquanto os consumidores relevantes da estrutura modificada não estiverem comprovadamente funcionando.**
+
+```
+IMPLEMENTAÇÃO ≠ FEATURE CONCLUÍDA
+FEATURE CONCLUÍDA = IMPLEMENTAÇÃO + CONSUMIDORES + CONTRATOS + INTEGRAÇÃO + TESTES + PRODUÇÃO
+```
+
+### Ciclo Operacional Autônomo (Zero Manual Handoff):
+O agente NÃO deve depender do fluxo manual (abrir Android Studio → build manual → copiar APK → instalar manualmente). O sistema possui capacidade autônoma e governada para:
+```
+USER TASK → DISCOVERY → DEPENDENCY IMPACT → ARCHITECT → BUILDER
+  → GRADLE BUILD → AUTOMATED TESTS → CANARY PLAYER → REALISTIC HOMOLOGATION
+  → RELEASE AUTHORITY → OTA SILENT DISTRIBUTION → HEALTH CHECK → ROLLOUT / ROLLBACK
+```
+
+### Diretrizes Não-Negociáveis do Player:
+1. **Canary Obrigatório**: Nenhuma versão de produção é distribuída para a frota sem aprovação prévia em dispositivo Canary com backend e mídias reais.
+2. **Atualização Atômica de Playlist**: `Current Playlist → Download New → Validate → Resolve Media → Atomic Switch`. É estritamente PROIBIDO deletar a playlist atual antes da nova estar pronta para exibição.
+3. **Reprodução Ininterrupta no OTA**: Durante download, verificação de hash SHA-256 e preparação do pacote de atualização, o ExoPlayer NUNCA pode ser interrompido ou apresentar tela preta.
+4. **Proteção Anti-Downgrade & Integridade**: Instalações OTA exigem monotonicidade de `version_code`, checagem criptográfica rigorosa de SHA-256 (64 hex) e rollback automático em caso de falha de integridade.
+5. **Fail-Closed em Regressões de Hardware**: Se qualquer alteração quebrar pareamento, binding exclusivo ou playback offline, a `CompletionAuthority` rejeita a conclusão imediatamente (`STATUS: BLOCKED`).
+

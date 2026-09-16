@@ -127,6 +127,38 @@ const CORE_AGENTS_DEFINITION = [
     task_types: ['QA', 'TESTING', 'VERIFICATION'],
     memory_scope: 'TASK',
     budget: { max_files: 2, max_lines: 50 }
+  },
+  {
+    agent_id: 'android_engineer',
+    name: 'Android Player Specialist Agent',
+    version: '1.0.0',
+    status: 'ACTIVE',
+    role: 'Android Player & Edge Hardware Specialist',
+    objective: 'Executar engenharia autônoma do Android Player: descoberta de SDK/Gradle, compilação de APKs, testes de integração, homologação canary, gestão de releases OTA e monitoramento de saúde.',
+    skills: [
+      'android-player-engineering',
+      'player-regression-forensics',
+      'device-canary-validation',
+      'ota-release-management',
+      'sobremidia-domain'
+    ],
+    tools: ['view_file', 'list_dir', 'grep_search', 'run_command', 'write_to_file', 'replace_file_content'],
+    permissions: {
+      read: true,
+      write: true,
+      execute: true,
+      allowed_paths: ['native-android-player/', 'src/', 'supabase/', '.agents/', 'scratch/', 'docs/']
+    },
+    capabilities: [
+      'ANDROID_ENGINEERING',
+      'GRADLE_BUILD',
+      'CANARY_VALIDATION',
+      'OTA_MANAGEMENT',
+      'PLAYER_FORENSICS'
+    ],
+    task_types: ['ANDROID', 'PLAYER', 'OTA', 'CANARY', 'HARDWARE', 'EXOPLAYER'],
+    memory_scope: 'TASK',
+    budget: { max_files: 10, max_lines: 300 }
   }
 ];
 
