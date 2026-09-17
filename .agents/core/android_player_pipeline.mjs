@@ -217,7 +217,18 @@ export class PlayerContractValidator {
       return { valid: false, errors: ['Payload nulo ou inválido.'] };
     }
 
-    const validStatuses = ['SUCCESS', 'DEVICE_ALREADY_BOUND', 'SCREEN_NOT_FOUND', 'PLAYLIST_NOT_FOUND'];
+    const validStatuses = [
+      'SUCCESS',
+      'DEVICE_ALREADY_BOUND',
+      'SCREEN_NOT_FOUND',
+      'SCREEN_SUSPENDED',
+      'SCREEN_ACCESS_DENIED',
+      'DEVICE_ACCESS_DENIED',
+      'DEVICE_REVOKED',
+      'NO_PLAYLIST_ASSIGNED',
+      'PLAYLIST_NOT_FOUND',
+      'PLAYLIST_EMPTY'
+    ];
     if (!validStatuses.includes(payload.status)) {
       errors.push(`Status inválido (${payload.status}). Esperado um de: ${validStatuses.join(', ')}`);
     }
@@ -265,16 +276,55 @@ export class PlayerContractValidator {
  */
 export class PlayerCanaryValidator {
   /**
+   * Consulta dispositivos físicos e emuladores ativos via ADB.
+   */
+  static checkPhysicalDevices(workspace_root = process.cwd()) {
+    const env = AndroidEnvironmentDiscovery.discover({ workspace_root });
+    if (!env.adb_path || !fs.existsSync(env.adb_path)) {
+      return { has_device: false, devices: [], error: 'ADB não encontrado no host' };
+    }
+    try {
+      const res = spawnSync(env.adb_path, ['devices', '-l'], { encoding: 'utf8', timeout: 5000 });
+      if (res.status !== 0) {
+        return { has_device: false, devices: [], error: 'Falha ao executar adb devices' };
+      }
+      const lines = (res.stdout || '').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('List of devices'));
+      const activeDevices = lines.filter(l => l.includes('device') && !l.includes('offline'));
+      return { has_device: activeDevices.length > 0, devices: activeDevices, raw: res.stdout };
+    } catch (err) {
+      return { has_device: false, devices: [], error: err.message };
+    }
+  }
+
+  /**
    * Executa a sequência de homologação em dispositivo/ambiente Canary com dados reais.
    */
   static executeCanaryValidation({
     payload_response,
     offline_simulated = true,
     reconciliation_verified = true,
-    heartbeat_verified = true
+    heartbeat_verified = true,
+    require_physical_device = false,
+    workspace_root = process.cwd()
   } = {}) {
     const evidence = [];
     const errors = [];
+
+    // Verificação de Hardware Físico quando solicitado
+    const hardwareCheck = this.checkPhysicalDevices(workspace_root);
+    if (require_physical_device && !hardwareCheck.has_device) {
+      return deepFreeze({
+        success: false,
+        canary_status: 'BLOCKED_EXTERNAL',
+        reason: 'Nenhum dispositivo Android Canary físico ou emulador online detectado via ADB.',
+        blocked_stage: 'CANARY_DEVICE_CONNECTION',
+        dependency: 'PHYSICAL_ANDROID_DEVICE_OR_ONLINE_EMULATOR',
+        how_to_provide: 'Conectar TV Box/Smartphone via USB com depuração ADB ativa ou iniciar AVD (Pixel_5/Pixel_6).',
+        what_tests_remain: 'Instalação OTA silenciosa via PackageInstaller, renderização SurfaceView e teste de reboot.',
+        evidence: [{ phase: 'HARDWARE_DISCOVERY', has_device: false, error: hardwareCheck.error }],
+        errors: ['Dispositivo físico/emulador ausente para homologação Canary.']
+      });
+    }
 
     // 1. Validar contrato de payload recebido
     const contractRes = PlayerContractValidator.validatePayload(payload_response);
@@ -327,6 +377,7 @@ export class PlayerCanaryValidator {
       canary_status: canaryPassed ? 'CANARY_PASSED' : 'CANARY_FAILED',
       evidence,
       errors,
+      hardware_detected: hardwareCheck.has_device,
       validated_at: new Date().toISOString()
     });
   }

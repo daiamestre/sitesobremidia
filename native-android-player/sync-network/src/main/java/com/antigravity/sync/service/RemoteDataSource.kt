@@ -297,7 +297,7 @@ class RemoteDataSource {
             "SCREEN_ACCESS_DENIED" -> throw Exception("SCREEN_ACCESS_DENIED")
             "DEVICE_ACCESS_DENIED" -> throw Exception("DEVICE_ACCESS_DENIED")
             "DEVICE_ALREADY_BOUND" -> throw Exception("DEVICE_ALREADY_BOUND")
-            "PLAYLIST_ACCESS_DENIED" -> throw Exception("PLAYLIST_ACCESS_DENIED")
+            "DEVICE_REVOKED" -> throw Exception("DEVICE_REVOKED")
             "NO_PLAYLIST_ASSIGNED" -> throw Exception("NO_PLAYLIST_ASSIGNED")
             "PLAYLIST_NOT_FOUND" -> throw Exception("PLAYLIST_NOT_FOUND")
             "PLAYLIST_EMPTY" -> throw Exception("PLAYLIST_EMPTY")
