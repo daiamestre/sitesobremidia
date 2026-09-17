@@ -68,3 +68,8 @@ scratch/
 test-results-me/
 *.png
 *.txt
+
+# Nunca ignorar assets públicos da plataforma
+!public/**
+!public/**/*
+

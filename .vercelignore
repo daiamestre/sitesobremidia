@@ -57,12 +57,18 @@ screenshot*.png
 screen_*.png
 antes.json
 fase1_antes.json
-*.png
-*.jpg
-*.pdf
-*.log
-*.txt
-*.sql
-*.mjs
-*.cjs
-*.bak
+# Excluir apenas artefatos de teste/auditoria na raiz do workspace
+/*.png
+/*.jpg
+/*.pdf
+/*.log
+/*.txt
+/*.sql
+/*.mjs
+/*.cjs
+/*.bak
+
+# NUNCA ignorar assets públicos do sistema
+!public/**
+!public/**/*
+

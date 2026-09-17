@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         cleanupOutdatedCaches: true,
       },
-      includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
+      includeAssets: ['favicon.ico', 'favicon-32x32.png', 'favicon-16x16.png', 'logo-3d.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
       manifest: {
         name: 'SOBRE MÍDIA Designer',
         short_name: 'SOBRE MÍDIA',

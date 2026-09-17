@@ -21,7 +21,7 @@ export const Splash = ({ onComplete }: SplashProps) => {
             <div className="relative flex flex-col items-center justify-center">
                 {/* Main Logo Image */}
                 <img
-                    src="/logo.png"
+                    src="/logo-3d.png"
                     alt="Sobre Mídia Player"
                     className="w-48 h-48 object-contain mb-8 drop-shadow-2xl"
                 />
