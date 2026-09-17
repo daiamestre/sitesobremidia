@@ -209,12 +209,59 @@ OLDDEVICE001           offline transport_id:4
   assert(parsed[2].state === 'unauthorized', 'Dispositivo não autorizado classificado corretamente');
   assert(parsed[3].state === 'offline', 'Dispositivo offline classificado corretamente');
 
-  // 2.2 Target Selection em ambiente sem dispositivos
+  // 2.2 Target Selection: Condição 1 — Ausência de dispositivo → Bloqueio fail-closed
   const emptyCheck = PlayerCanaryValidator.selectTargetDevice({ workspace_root: workspaceRoot });
-  assert(emptyCheck.success === false, 'Target Selection falha se não há dispositivos físicos/emuladores online');
-  assert(['NO_DEVICE_AVAILABLE', 'NO_ADB'].includes(emptyCheck.status), 'Status apropriado retornado para ausência de hardware');
+  assert(emptyCheck.success === false, 'Condição 1: Ausência de dispositivos bloqueia target selection fail-closed');
+  assert(['NO_DEVICE_AVAILABLE', 'NO_ADB'].includes(emptyCheck.status), 'Condição 1: Status NO_DEVICE_AVAILABLE retornado para ausência de hardware');
 
-  console.log('✅ BLOCO 2 PASS: Classificação ADB e Target Device Selection operam com fail-closed.\n');
+  // Criar fixture com múltiplos dispositivos
+  const multiFixture = {
+    has_device: true,
+    device_state: 'MULTIPLE_DEVICES',
+    devices: parsed,
+    active_devices: parsed.filter(d => d.state === 'device')
+  };
+
+  // 2.3 Target Selection: Condição 2 — Múltiplos dispositivos sem preferência → Bloqueio (ambiguidade proibida)
+  const multiCheck = PlayerCanaryValidator.selectTargetDevice({ device_fixture: multiFixture });
+  assert(multiCheck.success === false, 'Condição 2: Múltiplos dispositivos sem serial explícito bloqueia com AMBIGUOUS_TARGET_SELECTION');
+  assert(multiCheck.status === 'AMBIGUOUS_TARGET_SELECTION', 'Condição 2: Status AMBIGUOUS_TARGET_SELECTION confirmado');
+
+  // 2.4 Target Selection: Condição 3 — Serial válido → Seleção inequívoca
+  const validCheck = PlayerCanaryValidator.selectTargetDevice({
+    preferred_serial: 'RF8M1234567',
+    device_fixture: multiFixture
+  });
+  assert(validCheck.success === true, 'Condição 3: Serial válido seleciona dispositivo com sucesso');
+  assert(validCheck.status === 'TARGET_SELECTED', 'Condição 3: Status TARGET_SELECTED confirmado');
+  assert(validCheck.target_device?.serial === 'RF8M1234567', 'Condição 3: Target device serial coincide com o solicitado');
+
+  // 2.5 Target Selection: Condição 4 — Tipo incompatível → Bloqueio
+  const typeMismatchCheck = PlayerCanaryValidator.selectTargetDevice({
+    preferred_serial: 'emulator-5554',
+    require_type: 'PHYSICAL_DEVICE',
+    device_fixture: multiFixture
+  });
+  assert(typeMismatchCheck.success === false, 'Condição 4: Tipo divergente (EMULATOR vs PHYSICAL_DEVICE) bloqueia com DEVICE_TYPE_MISMATCH');
+  assert(typeMismatchCheck.status === 'DEVICE_TYPE_MISMATCH', 'Condição 4: Status DEVICE_TYPE_MISMATCH confirmado');
+
+  // 2.6 Target Selection: Condição 5 — Serial inexistente → Bloqueio
+  const notFoundCheck = PlayerCanaryValidator.selectTargetDevice({
+    preferred_serial: 'NON_EXISTENT_SERIAL_999',
+    device_fixture: multiFixture
+  });
+  assert(notFoundCheck.success === false, 'Condição 5: Serial inexistente bloqueia com TARGET_NOT_FOUND');
+  assert(notFoundCheck.status === 'TARGET_NOT_FOUND', 'Condição 5: Status TARGET_NOT_FOUND confirmado');
+
+  // 2.7 Target Selection: Condição Extra — Dispositivo em estado offline/unauthorized → Bloqueio
+  const inactiveCheck = PlayerCanaryValidator.selectTargetDevice({
+    preferred_serial: '192.168.1.100:5555',
+    device_fixture: multiFixture
+  });
+  assert(inactiveCheck.success === false, 'Condição 6: Dispositivo unauthorized bloqueia com TARGET_NOT_ACTIVE');
+  assert(inactiveCheck.status === 'TARGET_NOT_ACTIVE', 'Condição 6: Status TARGET_NOT_ACTIVE confirmado');
+
+  console.log('✅ BLOCO 2 PASS: Classificação ADB e todas as 6 condições de Target Device Selection comprovadas.\n');
 
   // ---------------------------------------------------------------------------
   // BLOCO 3: CHANGE IMPACT ANALYZER & TEST SELECTION

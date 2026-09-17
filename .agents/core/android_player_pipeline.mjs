@@ -386,9 +386,10 @@ export class PlayerCanaryValidator {
   static selectTargetDevice({
     preferred_serial = null,
     require_type = null,
-    workspace_root = process.cwd()
+    workspace_root = process.cwd(),
+    device_fixture = null
   } = {}) {
-    const hardware = this.checkPhysicalDevices(workspace_root);
+    const hardware = device_fixture || this.checkPhysicalDevices(workspace_root);
     if (!hardware.has_device) {
       return deepFreeze({
         success: false,
