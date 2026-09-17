@@ -276,24 +276,189 @@ export class PlayerContractValidator {
  */
 export class PlayerCanaryValidator {
   /**
-   * Consulta dispositivos físicos e emuladores ativos via ADB.
+   * Converte a saída textual de 'adb devices -l' em registros estruturados e tipados.
+   */
+  static parseAdbDevicesOutput(rawOutput) {
+    const lines = (rawOutput || '').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('List of devices'));
+    const parsedDevices = [];
+
+    for (const line of lines) {
+      const parts = line.split(/\s+/);
+      if (parts.length < 2) continue;
+      const serial = parts[0];
+      const state = parts[1];
+
+      const props = {};
+      for (let i = 2; i < parts.length; i++) {
+        const propMatch = parts[i].match(/^([^:]+):(.*)$/);
+        if (propMatch) {
+          props[propMatch[1]] = propMatch[2];
+        }
+      }
+
+      const isEmulator = serial.startsWith('emulator-') ||
+        (props.model && /emulator|sdk_|generic|vbox|goldfish/i.test(props.model)) ||
+        (props.device && /emu|generic/i.test(props.device));
+
+      parsedDevices.push({
+        serial,
+        state,
+        type: isEmulator ? 'EMULATOR' : 'PHYSICAL_DEVICE',
+        model: props.model || 'UNKNOWN',
+        product: props.product || 'UNKNOWN',
+        device: props.device || 'UNKNOWN',
+        transport_id: props.transport_id || null,
+        raw_line: line
+      });
+    }
+
+    return parsedDevices;
+  }
+
+  /**
+   * Consulta dispositivos físicos e emuladores ativos via ADB com classificação de estado.
    */
   static checkPhysicalDevices(workspace_root = process.cwd()) {
     const env = AndroidEnvironmentDiscovery.discover({ workspace_root });
     if (!env.adb_path || !fs.existsSync(env.adb_path)) {
-      return { has_device: false, devices: [], error: 'ADB não encontrado no host' };
+      return deepFreeze({
+        has_device: false,
+        device_state: 'NO_ADB',
+        devices: [],
+        active_devices: [],
+        error: 'ADB não encontrado no host'
+      });
     }
     try {
       const res = spawnSync(env.adb_path, ['devices', '-l'], { encoding: 'utf8', timeout: 5000 });
       if (res.status !== 0) {
-        return { has_device: false, devices: [], error: 'Falha ao executar adb devices' };
+        return deepFreeze({
+          has_device: false,
+          device_state: 'ADB_ERROR',
+          devices: [],
+          active_devices: [],
+          error: 'Falha ao executar adb devices'
+        });
       }
-      const lines = (res.stdout || '').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('List of devices'));
-      const activeDevices = lines.filter(l => l.includes('device') && !l.includes('offline'));
-      return { has_device: activeDevices.length > 0, devices: activeDevices, raw: res.stdout };
+
+      const allDevices = this.parseAdbDevicesOutput(res.stdout);
+      const activeDevices = allDevices.filter(d => d.state === 'device');
+      const unauthorizedDevices = allDevices.filter(d => d.state === 'unauthorized');
+      const offlineDevices = allDevices.filter(d => d.state === 'offline');
+
+      let deviceState = 'NO_DEVICE';
+      if (allDevices.length === 0) {
+        deviceState = 'NO_DEVICE';
+      } else if (unauthorizedDevices.length > 0 && activeDevices.length === 0) {
+        deviceState = 'UNAUTHORIZED_DEVICE';
+      } else if (offlineDevices.length > 0 && activeDevices.length === 0) {
+        deviceState = 'OFFLINE_DEVICE';
+      } else if (activeDevices.length > 1) {
+        deviceState = 'MULTIPLE_DEVICES';
+      } else if (activeDevices.length === 1) {
+        deviceState = activeDevices[0].type === 'EMULATOR' ? 'EMULATOR' : 'PHYSICAL_DEVICE';
+      }
+
+      return deepFreeze({
+        has_device: activeDevices.length > 0,
+        device_state: deviceState,
+        total_count: allDevices.length,
+        active_count: activeDevices.length,
+        devices: allDevices,
+        active_devices: activeDevices,
+        raw: res.stdout
+      });
     } catch (err) {
-      return { has_device: false, devices: [], error: err.message };
+      return deepFreeze({
+        has_device: false,
+        device_state: 'EXECUTION_EXCEPTION',
+        devices: [],
+        active_devices: [],
+        error: err.message
+      });
     }
+  }
+
+  /**
+   * Seleciona e valida o dispositivo de destino de forma inequívoca e fail-closed.
+   * Impede terminantemente adb install cego em ambientes multi-device ou dispositivos não autorizados.
+   */
+  static selectTargetDevice({
+    preferred_serial = null,
+    require_type = null,
+    workspace_root = process.cwd()
+  } = {}) {
+    const hardware = this.checkPhysicalDevices(workspace_root);
+    if (!hardware.has_device) {
+      return deepFreeze({
+        success: false,
+        status: hardware.device_state === 'NO_ADB' ? 'ADB_UNAVAILABLE' : 'NO_DEVICE_AVAILABLE',
+        target_device: null,
+        reason: `Nenhum dispositivo Android ativo detectado via ADB (Estado: ${hardware.device_state}).`,
+        hardware_check: hardware
+      });
+    }
+
+    const activeList = hardware.active_devices;
+
+    if (preferred_serial) {
+      const match = activeList.find(d => d.serial === preferred_serial);
+      if (!match) {
+        const existsInactive = hardware.devices.find(d => d.serial === preferred_serial);
+        return deepFreeze({
+          success: false,
+          status: existsInactive ? 'TARGET_NOT_ACTIVE' : 'TARGET_NOT_FOUND',
+          target_device: null,
+          reason: existsInactive
+            ? `Dispositivo '${preferred_serial}' encontrado porém em estado '${existsInactive.state}' (não 'device').`
+            : `Dispositivo com serial '${preferred_serial}' não encontrado nos dispositivos ADB conectados.`,
+          available_active: activeList.map(d => d.serial)
+        });
+      }
+
+      if (require_type && match.type !== require_type) {
+        return deepFreeze({
+          success: false,
+          status: 'DEVICE_TYPE_MISMATCH',
+          target_device: null,
+          reason: `Dispositivo '${preferred_serial}' é do tipo '${match.type}', mas requer '${require_type}'.`
+        });
+      }
+
+      return deepFreeze({
+        success: true,
+        status: 'TARGET_SELECTED',
+        target_device: match,
+        reason: `Dispositivo '${match.serial}' selecionado com sucesso via serial explícito.`
+      });
+    }
+
+    if (activeList.length > 1) {
+      return deepFreeze({
+        success: false,
+        status: 'AMBIGUOUS_TARGET_SELECTION',
+        target_device: null,
+        reason: 'Múltiplos dispositivos conectados via ADB. A política de governança proíbe instalação sem target_serial explícito.',
+        candidates: activeList.map(d => ({ serial: d.serial, type: d.type, model: d.model }))
+      });
+    }
+
+    const soleDevice = activeList[0];
+    if (require_type && soleDevice.type !== require_type) {
+      return deepFreeze({
+        success: false,
+        status: 'DEVICE_TYPE_MISMATCH',
+        target_device: null,
+        reason: `Único dispositivo conectado '${soleDevice.serial}' é '${soleDevice.type}', mas requer '${require_type}'.`
+      });
+    }
+
+    return deepFreeze({
+      success: true,
+      status: 'TARGET_SELECTED',
+      target_device: soleDevice,
+      reason: `Dispositivo único '${soleDevice.serial}' (${soleDevice.type}) selecionado de forma inequívoca.`
+    });
   }
 
   /**
@@ -503,3 +668,146 @@ export class PlayerReleaseAuthority {
     });
   }
 }
+
+/**
+ * 7. Analisador de Impacto de Mudanças e Seleção de Testes Mínimos
+ * Mapeia arquivos modificados para componentes afetados, conjuntos mínimos de testes e nível de risco.
+ */
+export class AndroidChangeImpactAnalyzer {
+  static COMPONENT_RULES = [
+    {
+      component: 'REMOTE_DATA_SOURCE',
+      pattern: /RemoteDataSource|sync\/network|Retrofit|SupabaseApi/i,
+      affected_areas: ['Player Online Sync', 'Supabase RPC Contract', 'Playlist Deserialization'],
+      minimum_tests: ['contract tests', 'mapper tests', 'compileDebugSources'],
+      risk_level: 'CRITICAL_HIGH',
+      is_protected_surface: true,
+      requires_gate: 'ONLINE_CONTRACT_AUDIT'
+    },
+    {
+      component: 'PLAYER_REPOSITORY',
+      pattern: /PlayerRepository|LocalDataSource|OfflineStorage/i,
+      affected_areas: ['Data Reconciliation', 'Offline Cache', 'Atomic Switch'],
+      minimum_tests: ['repository unit tests', 'offline resilience tests', 'assembleDebug'],
+      risk_level: 'HIGH',
+      is_protected_surface: false,
+      requires_gate: null
+    },
+    {
+      component: 'SESSION_MANAGER',
+      pattern: /SessionManager|DeviceToken|Pairing|HardwareIdentity/i,
+      affected_areas: ['Hardware Token Binding', 'Screen Pairing', 'Exclusivity Enforcement'],
+      minimum_tests: ['session tests', 'hardware exclusivity tests', 'assembleDebug'],
+      risk_level: 'CRITICAL_HIGH',
+      is_protected_surface: true,
+      requires_gate: 'HARDWARE_BINDING_AUDIT'
+    },
+    {
+      component: 'ROOM_DATABASE',
+      pattern: /dao\/|entity\/|database\/|Room/i,
+      affected_areas: ['Local SQLite Schema', 'Proof of Play Persistence', 'Media Cache Ledger'],
+      minimum_tests: ['room migration tests', 'dao unit tests', 'assembleDebug'],
+      risk_level: 'HIGH',
+      is_protected_surface: true,
+      requires_gate: null
+    },
+    {
+      component: 'PLAYER_ENGINE',
+      pattern: /PlayerEngine|ExoPlayer|MediaEngine|SurfaceView|Playback/i,
+      affected_areas: ['ExoPlayer Loop', 'Video Decoding', 'Kiosk Black Screen Prevention'],
+      minimum_tests: ['playback tests', 'surfaceview tests', 'assembleDebug'],
+      risk_level: 'HIGH',
+      is_protected_surface: false,
+      requires_gate: null
+    },
+    {
+      component: 'OTA_UPDATE_SYSTEM',
+      pattern: /OTA|PackageInstaller|SilentInstall|UpdateManager/i,
+      affected_areas: ['Silent APK Install', 'Anti-Downgrade Check', 'Rollback Mechanism'],
+      minimum_tests: ['anti-downgrade tests', 'sha256 integrity tests', 'assembleDebug'],
+      risk_level: 'CRITICAL_HIGH',
+      is_protected_surface: true,
+      requires_gate: 'OTA_GOVERNANCE_AUDIT'
+    },
+    {
+      component: 'ANDROID_MANIFEST',
+      pattern: /AndroidManifest\.xml/i,
+      affected_areas: ['Device Admin Permissions', 'Boot Completed Receiver', 'Launcher Activity'],
+      minimum_tests: ['manifest verification', 'assembleDebug'],
+      risk_level: 'HIGH',
+      is_protected_surface: true,
+      requires_gate: null
+    },
+    {
+      component: 'GRADLE_BUILD_CONFIG',
+      pattern: /build\.gradle|settings\.gradle|gradle-wrapper|proguard/i,
+      affected_areas: ['Build Variants', 'Dependencies', 'ProGuard / R8 Obfuscation'],
+      minimum_tests: ['assembleDebug', 'dependency check'],
+      risk_level: 'MEDIUM_HIGH',
+      is_protected_surface: false,
+      requires_gate: null
+    },
+    {
+      component: 'SUPABASE_BACKEND',
+      pattern: /supabase\/migrations|schema\.sql|get_player_playlist/i,
+      affected_areas: ['PostgreSQL Remote RPC', 'RLS Policies', 'Schema Migrations'],
+      minimum_tests: ['database migration guard', 'remote contract test'],
+      risk_level: 'CRITICAL_HIGH',
+      is_protected_surface: true,
+      requires_gate: 'DATABASE_SUPABASE_GATE'
+    }
+  ];
+
+  static analyzeImpact(filesTouched = []) {
+    const touched = Array.isArray(filesTouched) ? filesTouched : [filesTouched];
+    const affectedComponents = new Set();
+    const affectedAreas = new Set();
+    const requiredTestSets = new Set();
+    const requiredGates = new Set();
+    let hasProtectedSurface = false;
+    let highestRisk = 'LOW';
+
+    const riskHierarchy = { LOW: 0, MEDIUM: 1, MEDIUM_HIGH: 2, HIGH: 3, CRITICAL_HIGH: 4 };
+
+    for (const file of touched) {
+      const normalizedPath = String(file).replace(/\\/g, '/');
+      let matched = false;
+
+      for (const rule of this.COMPONENT_RULES) {
+        if (rule.pattern.test(normalizedPath)) {
+          matched = true;
+          affectedComponents.add(rule.component);
+          rule.affected_areas.forEach(a => affectedAreas.add(a));
+          rule.minimum_tests.forEach(t => requiredTestSets.add(t));
+          if (rule.requires_gate) requiredGates.add(rule.requires_gate);
+          if (rule.is_protected_surface) hasProtectedSurface = true;
+
+          if (riskHierarchy[rule.risk_level] > riskHierarchy[highestRisk]) {
+            highestRisk = rule.risk_level;
+          }
+        }
+      }
+
+      if (!matched && normalizedPath.startsWith('native-android-player/')) {
+        affectedComponents.add('GENERIC_ANDROID_MODULE');
+        requiredTestSets.add('assembleDebug');
+        if (riskHierarchy['MEDIUM'] > riskHierarchy[highestRisk]) highestRisk = 'MEDIUM';
+      }
+    }
+
+    return deepFreeze({
+      files_count: touched.length,
+      files: touched,
+      affected_components: Array.from(affectedComponents),
+      affected_areas: Array.from(affectedAreas),
+      minimum_required_tests: Array.from(requiredTestSets),
+      required_gates: Array.from(requiredGates),
+      touches_protected_surface: hasProtectedSurface,
+      highest_risk_level: highestRisk,
+      requires_micro_gate: hasProtectedSurface || highestRisk === 'CRITICAL_HIGH',
+      timestamp: new Date().toISOString()
+    });
+  }
+}
+
+export { AndroidBuildManager as AndroidGradleBuilder };

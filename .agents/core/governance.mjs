@@ -36,8 +36,14 @@ export class HighRiskGovernance {
       lowerTarget.includes('rm -rf') ||
       lowerTarget.includes('git reset --hard') ||
       lowerTarget.includes('git clean -fd') ||
+      lowerTarget.includes('git clean -f') ||
       lowerTarget.includes('git push --force') ||
-      lowerTarget.includes('git push -f')
+      lowerTarget.includes('git push -f') ||
+      lowerTarget.includes('git add -a') ||
+      lowerTarget.includes('git add .') ||
+      lowerTarget.includes('git checkout -- .') ||
+      lowerTarget.includes('git restore .') ||
+      lowerTarget.includes('git restore --staged .')
     ) {
       return true;
     }
