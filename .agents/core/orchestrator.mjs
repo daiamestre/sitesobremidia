@@ -83,7 +83,9 @@ export class TaskNormalizer {
     } else {
       // Inferir a partir do objetivo textual se não especificado
       const text = objective.toLowerCase();
-      if (text.includes('banco') || text.includes('migration') || text.includes('rls') || text.includes('schema')) {
+      if (text.includes('android') || text.includes('player') || text.includes('apk') || text.includes('gradle') || text.includes('ota') || text.includes('exoplayer')) {
+        taskType = 'ANDROID_ENGINEERING';
+      } else if (text.includes('banco') || text.includes('migration') || text.includes('rls') || text.includes('schema')) {
         taskType = 'DATABASE';
       } else if (text.includes('auditoria') || text.includes('forense') || text.includes('diff') || text.includes('investig')) {
         taskType = 'FORENSIC';
@@ -97,6 +99,7 @@ export class TaskNormalizer {
         try {
           const cap = CapabilityDiscovery.discoverCapabilities(taskObj);
           switch (cap.primary_capability) {
+            case 'ANDROID_ENGINEERING': taskType = 'ANDROID_ENGINEERING'; break;
             case 'SYSTEM_ARCHITECTURE': taskType = 'ARCHITECTURE'; break;
             case 'DATABASE_MANAGEMENT': taskType = 'DATABASE'; break;
             case 'FORENSIC_AUDITING': taskType = 'FORENSIC'; break;
@@ -291,6 +294,21 @@ export class ExecutionPlanner {
 const completedExecutionsRegistry = new Map();
 
 /**
+ * Estados canônicos de conclusão técnica.
+ */
+export const COMPLETION_STATES = Object.freeze({
+  IMPLEMENTED: 'IMPLEMENTED',
+  EXECUTED: 'EXECUTED',
+  OBSERVED: 'OBSERVED',
+  VERIFIED: 'VERIFIED',
+  PROVEN: 'PROVEN',
+  NOT_PROVABLE: 'NOT_PROVABLE',
+  BLOCKED: 'BLOCKED',
+  INCOMPLETE: 'INCOMPLETE',
+  FAILED: 'FAILED'
+});
+
+/**
  * Autoridade Canônica de Conclusão de Tarefa.
  * Fonte única autoritativa para validar, selar e gerenciar o status terminal de conclusão.
  */
@@ -361,6 +379,9 @@ export class CompletionAuthority {
           }
           if (typeof ev.exit_code !== 'number' || ev.exit_code !== 0) {
             errors.push(`Evidência [${j}] no passo ${step.step_index} reporta falha (exit_code=${ev.exit_code}).`);
+          }
+          if (ev.functional_verified === false || ev.observed === false) {
+            errors.push(`Evidência [${j}] no passo ${step.step_index} possui exit_code 0 mas critério funcional não foi observado.`);
           }
         }
       }
@@ -460,8 +481,14 @@ export class CompletionAuthority {
           errors.push(`Pipeline do Android Player obrigatório não concluído ou com falha de compilação: ${android?.build?.error || 'build não executado'}.`);
         }
         if (production_lifecycle.scope?.canary_verification_required) {
-          if (!android || !android.canary?.success || android.canary?.canary_status !== 'CANARY_PASSED') {
-            errors.push(`Homologação Canary obrigatória do Android Player não aprovada (status: ${android?.canary?.canary_status || 'NOT_ATTEMPTED'}).`);
+          const canary = android?.canary;
+          const validCanaryStatuses = ['CANARY_PHYSICAL_PROVEN', 'CANARY_AVD_PROVEN'];
+          if (!android || !canary?.success || !validCanaryStatuses.includes(canary?.canary_status)) {
+            if (canary?.canary_status === 'CANARY_SANDBOX_PROVEN') {
+              errors.push('Homologação Canary obrigatória falhou: execução em sandbox não comprova validação em dispositivo real.');
+            } else {
+              errors.push(`Homologação Canary obrigatória do Android Player não aprovada (status: ${canary?.canary_status || 'NOT_ATTEMPTED'}).`);
+            }
           }
         }
         if (android?.release_authority && !android.release_authority.certified) {
@@ -493,9 +520,21 @@ export class CompletionAuthority {
     }
 
     const completed = errors.length === 0;
+    let completionState = 'FAILED';
+    if (completed) {
+      completionState = 'PROVEN';
+    } else if (production_lifecycle?.blocked_external) {
+      completionState = 'BLOCKED';
+    } else if (errors.some(e => /dispositivo ausente|hardware ausente|físico ausente|não conectado|BLOCKED_EXTERNAL|CANARY_PHYSICAL_HARDWARE_ABSENT/i.test(e))) {
+      completionState = 'NOT_PROVABLE';
+    } else if (errors.some(e => /não possui evidências|evidência ausente|incompleto|não concluído|ausente|vazio|falta/i.test(e))) {
+      completionState = 'INCOMPLETE';
+    }
+
     return {
       completed,
-      status: completed ? 'COMPLETED' : 'BLOCKED',
+      status: completed ? 'COMPLETED' : (production_lifecycle?.blocked_external ? 'BLOCKED_EXTERNAL' : 'BLOCKED'),
+      completion_state: completionState,
       errors,
       production_lifecycle
     };
@@ -559,7 +598,8 @@ export class CompletionAuthority {
       },
       task_id: task.task_id,
       plan_id: plan.plan_id,
-      status: 'COMPLETED',
+      status: validation.status || 'COMPLETED',
+      completion_state: validation.completion_state || 'PROVEN',
       completed: true,
       completed_at: new Date().toISOString(),
       execution_count: executionResults.length,

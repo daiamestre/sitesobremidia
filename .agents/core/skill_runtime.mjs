@@ -928,6 +928,14 @@ export class SkillRuntime {
             reconciliation_verified: input?.reconciliation_verified ?? true,
             heartbeat_verified: input?.heartbeat_verified ?? true,
             require_physical_device: input?.require_physical_device ?? false,
+            require_real_device: input?.require_real_device ?? false,
+            preferred_serial: input?.preferred_serial,
+            target_device: input?.target_device,
+            device_fixture: input?.device_fixture,
+            install_verified: input?.install_verified,
+            launch_verified: input?.launch_verified,
+            runtime_observed: input?.runtime_observed,
+            functional_criterion_verified: input?.functional_criterion_verified ?? true,
             workspace_root: targetWorkspace
           });
           return {
@@ -937,7 +945,12 @@ export class SkillRuntime {
             evidence: [{
               command: 'device-canary-validation:run_canary_homologation',
               exit_code: res.success ? 0 : 1,
-              summary: `Homologação Canary finalizada com status: ${res.canary_status}`
+              summary: `Homologação Canary finalizada com status: ${res.canary_status} (sandbox: ${res.is_sandbox})`,
+              canary_status: res.canary_status,
+              is_sandbox: res.is_sandbox,
+              is_hardware_proven: res.is_hardware_proven,
+              target_device: res.target_device?.serial || null,
+              target_type: res.target_device?.type || (res.is_sandbox ? 'SANDBOX' : 'UNKNOWN')
             }]
           };
         },

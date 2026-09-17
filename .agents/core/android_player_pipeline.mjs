@@ -471,25 +471,112 @@ export class PlayerCanaryValidator {
     reconciliation_verified = true,
     heartbeat_verified = true,
     require_physical_device = false,
-    workspace_root = process.cwd()
+    require_real_device = false,
+    workspace_root = process.cwd(),
+    device_fixture = null,
+    target_device = null,
+    preferred_serial = null,
+    install_verified = null,
+    launch_verified = null,
+    runtime_observed = null,
+    functional_criterion_verified = true
   } = {}) {
     const evidence = [];
     const errors = [];
 
-    // Verificação de Hardware Físico quando solicitado
-    const hardwareCheck = this.checkPhysicalDevices(workspace_root);
-    if (require_physical_device && !hardwareCheck.has_device) {
+    // 0. Verificação e Seleção de Hardware
+    const hardwareCheck = device_fixture || this.checkPhysicalDevices(workspace_root);
+
+    // 0.1 Falha se dispositivo físico for obrigatório e não houver dispositivo físico
+    if (require_physical_device) {
+      if (!hardwareCheck.has_device) {
+        return deepFreeze({
+          success: false,
+          canary_status: 'BLOCKED_EXTERNAL',
+          reason: 'Nenhum dispositivo Android Canary físico detectado via ADB.',
+          blocked_stage: 'CANARY_DEVICE_CONNECTION',
+          dependency: 'PHYSICAL_ANDROID_DEVICE',
+          how_to_provide: 'Conectar TV Box/Smartphone via USB com depuração ADB ativa.',
+          evidence: [{ phase: 'HARDWARE_DISCOVERY', has_device: false, error: hardwareCheck.error }],
+          errors: ['Dispositivo físico ausente para homologação Canary física.']
+        });
+      }
+      const activeDevs = hardwareCheck.active_devices || [];
+      const hasPhysical = activeDevs.some(d => d.type === 'PHYSICAL_DEVICE');
+      if (!hasPhysical) {
+        return deepFreeze({
+          success: false,
+          canary_status: 'BLOCKED_EXTERNAL',
+          reason: 'Dispositivo físico requerido, porém apenas emulador AVD foi detectado via ADB.',
+          blocked_stage: 'CANARY_DEVICE_TYPE_VERIFICATION',
+          dependency: 'PHYSICAL_ANDROID_DEVICE',
+          evidence: [{ phase: 'HARDWARE_DISCOVERY', has_device: true, active_types: activeDevs.map(d => d.type) }],
+          errors: ['Requer hardware físico real. Emulador AVD não supre CANARY_PHYSICAL_PROVEN.']
+        });
+      }
+    }
+
+    // 0.2 Falha se dispositivo real (físico ou AVD) for obrigatório e nenhum estiver conectado
+    if (require_real_device && !hardwareCheck.has_device) {
       return deepFreeze({
         success: false,
         canary_status: 'BLOCKED_EXTERNAL',
-        reason: 'Nenhum dispositivo Android Canary físico ou emulador online detectado via ADB.',
+        reason: 'Nenhum dispositivo Android Canary ativo (físico ou emulador) detectado via ADB.',
         blocked_stage: 'CANARY_DEVICE_CONNECTION',
         dependency: 'PHYSICAL_ANDROID_DEVICE_OR_ONLINE_EMULATOR',
         how_to_provide: 'Conectar TV Box/Smartphone via USB com depuração ADB ativa ou iniciar AVD (Pixel_5/Pixel_6).',
-        what_tests_remain: 'Instalação OTA silenciosa via PackageInstaller, renderização SurfaceView e teste de reboot.',
         evidence: [{ phase: 'HARDWARE_DISCOVERY', has_device: false, error: hardwareCheck.error }],
-        errors: ['Dispositivo físico/emulador ausente para homologação Canary.']
+        errors: ['Dispositivo físico ou emulador ausente para homologação Canary.']
       });
+    }
+
+    // 0.3 Validar estados anômalos de dispositivo (offline / unauthorized)
+    if (hardwareCheck.devices && hardwareCheck.devices.length > 0 && (hardwareCheck.active_devices || []).length === 0) {
+      if (hardwareCheck.device_state === 'UNAUTHORIZED_DEVICE' || hardwareCheck.devices.every(d => d.state === 'unauthorized')) {
+        return deepFreeze({
+          success: false,
+          canary_status: 'BLOCKED_EXTERNAL',
+          reason: 'Dispositivo detectado em estado unauthorized. Depuração USB precisa ser autorizada no dispositivo.',
+          blocked_stage: 'DEVICE_AUTHORIZATION',
+          dependency: 'ADB_USB_DEBUGGING_AUTHORIZATION',
+          evidence: [{ phase: 'DEVICE_STATE_CHECK', state: 'unauthorized' }],
+          errors: ['Dispositivo não autorizado via ADB (unauthorized).']
+        });
+      }
+      if (hardwareCheck.device_state === 'OFFLINE_DEVICE' || hardwareCheck.devices.every(d => d.state === 'offline')) {
+        return deepFreeze({
+          success: false,
+          canary_status: 'BLOCKED_EXTERNAL',
+          reason: 'Dispositivo detectado em estado offline via ADB.',
+          blocked_stage: 'DEVICE_CONNECTIVITY',
+          dependency: 'ADB_DEVICE_ONLINE_STATE',
+          evidence: [{ phase: 'DEVICE_STATE_CHECK', state: 'offline' }],
+          errors: ['Dispositivo em estado offline via ADB.']
+        });
+      }
+    }
+
+    // 0.4 Resolução do dispositivo alvo
+    let resolvedTargetDevice = target_device;
+    if (!resolvedTargetDevice && hardwareCheck.has_device) {
+      const targetSelect = this.selectTargetDevice({
+        preferred_serial,
+        workspace_root,
+        device_fixture: hardwareCheck
+      });
+      if (targetSelect.success) {
+        resolvedTargetDevice = targetSelect.target_device;
+        evidence.push({ phase: 'TARGET_SELECTION', success: true, target: resolvedTargetDevice });
+      } else {
+        return deepFreeze({
+          success: false,
+          canary_status: 'BLOCKED_EXTERNAL',
+          reason: targetSelect.reason,
+          blocked_stage: 'TARGET_SELECTION',
+          evidence: [{ phase: 'TARGET_SELECTION', success: false, reason: targetSelect.reason }],
+          errors: [targetSelect.reason]
+        });
+      }
     }
 
     // 1. Validar contrato de payload recebido
@@ -536,11 +623,66 @@ export class PlayerCanaryValidator {
       evidence.push({ phase: 'TELEMETRY_HEARTBEAT', success: true });
     }
 
+    // 6. Validar estágios de execução em dispositivo (quando reportados)
+    if (install_verified === false) {
+      errors.push('Canary: falha na verificação de instalação do APK no dispositivo.');
+      evidence.push({ phase: 'INSTALL_VERIFICATION', success: false });
+    } else if (install_verified === true) {
+      evidence.push({ phase: 'INSTALL_VERIFICATION', success: true });
+    }
+
+    if (launch_verified === false) {
+      errors.push('Canary: falha no launch do aplicativo (processo não iniciado ou atividade não em foreground).');
+      evidence.push({ phase: 'LAUNCH_VERIFICATION', success: false });
+    } else if (launch_verified === true) {
+      evidence.push({ phase: 'LAUNCH_VERIFICATION', success: true });
+    }
+
+    if (runtime_observed === false) {
+      errors.push('Canary: runtime do aplicativo não observado (crash ou freeze no boot).');
+      evidence.push({ phase: 'RUNTIME_OBSERVATION', success: false });
+    } else if (runtime_observed === true) {
+      evidence.push({ phase: 'RUNTIME_OBSERVATION', success: true });
+    }
+
+    if (functional_criterion_verified === false) {
+      errors.push('Canary: comando retornou exit code 0 porém critério funcional não foi observado.');
+      evidence.push({ phase: 'FUNCTIONAL_CRITERION', success: false });
+    } else {
+      evidence.push({ phase: 'FUNCTIONAL_CRITERION', success: true });
+    }
+
     const canaryPassed = errors.length === 0;
+
+    let canaryStatus = 'CANARY_FAILED';
+    let isSandbox = true;
+    let isAvd = false;
+    let isPhysical = false;
+
+    if (canaryPassed) {
+      if (resolvedTargetDevice) {
+        isSandbox = false;
+        if (resolvedTargetDevice.type === 'PHYSICAL_DEVICE') {
+          canaryStatus = 'CANARY_PHYSICAL_PROVEN';
+          isPhysical = true;
+        } else {
+          canaryStatus = 'CANARY_AVD_PROVEN';
+          isAvd = true;
+        }
+      } else {
+        canaryStatus = 'CANARY_SANDBOX_PROVEN';
+        isSandbox = true;
+      }
+    }
 
     return deepFreeze({
       success: canaryPassed,
-      canary_status: canaryPassed ? 'CANARY_PASSED' : 'CANARY_FAILED',
+      canary_status: canaryStatus,
+      is_sandbox: isSandbox,
+      is_hardware_proven: isPhysical || isAvd,
+      is_avd_proven: isAvd,
+      is_physical_proven: isPhysical,
+      target_device: resolvedTargetDevice,
       evidence,
       errors,
       hardware_detected: hardwareCheck.has_device,
@@ -643,8 +785,17 @@ export class PlayerReleaseAuthority {
       errors.push('Regressão de contrato detectada entre Supabase e Android Player.');
     }
 
-    if (!canary_result || !canary_result.success || canary_result.canary_status !== 'CANARY_PASSED') {
-      errors.push('Homologação em dispositivo Canary não aprovada. Rollout para produção terminantemente proibido.');
+    const validProductionCanary = ['CANARY_PHYSICAL_PROVEN', 'CANARY_AVD_PROVEN'];
+    if (!canary_result || !canary_result.success || !validProductionCanary.includes(canary_result.canary_status)) {
+      if (canary_result?.canary_status === 'CANARY_SANDBOX_PROVEN') {
+        errors.push('Homologação em sandbox não autoriza release de produção. Exige dispositivo AVD ou hardware físico comprovado.');
+      } else {
+        errors.push(`Homologação em dispositivo Canary não aprovada (status: ${canary_result?.canary_status || 'NOT_ATTEMPTED'}). Rollout para produção terminantemente proibido.`);
+      }
+    }
+
+    if (target_fleet === 'PHYSICAL_FLEET' && canary_result?.canary_status !== 'CANARY_PHYSICAL_PROVEN') {
+      errors.push('Rollout para frota física requer homologação comprovada em hardware físico (CANARY_PHYSICAL_PROVEN). Dispositivo emulador AVD não autoriza rollout em frota física.');
     }
 
     if (errors.length > 0) {

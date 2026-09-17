@@ -131,7 +131,7 @@ async function runTests() {
   });
 
   assert(canaryRes.success === true, 'device-canary-validation:run_canary_homologation executa com sucesso');
-  assert(canaryRes.output?.canary_status === 'CANARY_PASSED', 'Canary status aprovado no cenário controlado');
+  assert(['CANARY_AVD_PROVEN', 'CANARY_SANDBOX_PROVEN', 'CANARY_PHYSICAL_PROVEN'].includes(canaryRes.output?.canary_status), 'Canary status aprovado com classificação formal');
 
   // 1.4 ota-release-management: publish_ota_manifest
   const otaRes = await skillRuntime.executeSkill({
@@ -210,7 +210,10 @@ OLDDEVICE001           offline transport_id:4
   assert(parsed[3].state === 'offline', 'Dispositivo offline classificado corretamente');
 
   // 2.2 Target Selection: Condição 1 — Ausência de dispositivo → Bloqueio fail-closed
-  const emptyCheck = PlayerCanaryValidator.selectTargetDevice({ workspace_root: workspaceRoot });
+  const emptyCheck = PlayerCanaryValidator.selectTargetDevice({
+    workspace_root: workspaceRoot,
+    device_fixture: { has_device: false, device_state: 'NO_DEVICE', devices: [], active_devices: [] }
+  });
   assert(emptyCheck.success === false, 'Condição 1: Ausência de dispositivos bloqueia target selection fail-closed');
   assert(['NO_DEVICE_AVAILABLE', 'NO_ADB'].includes(emptyCheck.status), 'Condição 1: Status NO_DEVICE_AVAILABLE retornado para ausência de hardware');
 
