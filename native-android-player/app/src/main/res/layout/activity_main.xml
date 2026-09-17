@@ -11,8 +11,9 @@
         android:id="@+id/standbyImage"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="center"
-        android:src="@mipmap/ic_launcher_round"
+        android:scaleType="fitCenter"
+        android:padding="64dp"
+        android:src="@drawable/logo"
         android:background="#000000"
         android:visibility="visible"
         android:contentDescription="Standby Logo" />
@@ -133,9 +134,10 @@
 
             <!-- Logo -->
             <ImageView
-                android:layout_width="120dp"
-                android:layout_height="120dp"
-                android:src="@mipmap/ic_launcher_round"
+                android:layout_width="280dp"
+                android:layout_height="80dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/logo"
                 android:layout_marginBottom="32dp" />
 
             <!-- Warning Icon -->

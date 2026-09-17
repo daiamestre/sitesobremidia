@@ -18,9 +18,10 @@
 
         <!-- Logo -->
         <ImageView
-            android:layout_width="150dp"
-            android:layout_height="150dp"
-            android:src="@mipmap/ic_launcher_round"
+            android:layout_width="300dp"
+            android:layout_height="90dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/logo"
             android:layout_marginBottom="32dp"
             android:elevation="4dp"
             android:contentDescription="Syncing Logo"/>

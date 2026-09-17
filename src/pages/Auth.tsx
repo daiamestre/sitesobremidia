@@ -260,7 +260,14 @@ export default function Auth() {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md glass animate-fade-in border-white/10 bg-slate-900 text-white rounded-2xl">
           <CardHeader className="text-center">
-            <Logo className="justify-center mb-4" size="lg" />
+            <div className="flex flex-col items-center mb-2">
+              <img 
+                src="/logo-3d.png" 
+                alt="SOBRE MÍDIA" 
+                className="h-14 sm:h-16 w-auto object-contain mb-3 drop-shadow-md pointer-events-none select-none" 
+              />
+              <Logo className="justify-center" size="lg" />
+            </div>
             <CardTitle className="text-2xl font-display text-white">Acesso Não Liberado</CardTitle>
             <CardDescription className="text-slate-300 pt-2 text-sm font-medium">
               {statusMessage}
@@ -295,7 +302,14 @@ export default function Auth() {
 
       <Card className="w-full max-w-md glass animate-fade-in relative z-10">
         <CardHeader className="text-center">
-          <Logo className="justify-center mb-4" size="lg" />
+          <div className="flex flex-col items-center mb-2">
+            <img 
+              src="/logo-3d.png" 
+              alt="SOBRE MÍDIA" 
+              className="h-14 sm:h-16 w-auto object-contain mb-3 drop-shadow-md hover:scale-105 transition-transform duration-300 pointer-events-none select-none" 
+            />
+            <Logo className="justify-center" size="lg" />
+          </div>
           <CardTitle className="text-2xl font-display">Bem-vindo</CardTitle>
           <CardDescription className="text-muted-foreground">
             Plataforma profissional de Digital Signage

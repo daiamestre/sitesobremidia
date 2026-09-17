@@ -198,7 +198,12 @@ export default function RepresentantesAuth() {
       {/* Card de Login do Representante */}
       <Card className="w-full max-w-md border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl animate-fade-in relative z-10 rounded-2xl">
         <CardHeader className="text-center pb-6">
-          <div className="flex justify-center mb-4">
+          <div className="flex flex-col items-center mb-4">
+            <img 
+              src="/logo-3d.png" 
+              alt="SOBRE MÍDIA" 
+              className="h-14 sm:h-16 w-auto object-contain mb-3 drop-shadow-md hover:scale-105 transition-transform duration-300 pointer-events-none select-none" 
+            />
             <Logo size="lg" />
           </div>
           <div className="inline-flex items-center gap-2 justify-center px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-2">

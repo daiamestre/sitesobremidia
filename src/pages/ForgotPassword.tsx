@@ -64,7 +64,14 @@ export default function ForgotPassword() {
 
       <Card className="w-full max-w-md glass animate-fade-in relative z-10">
         <CardHeader className="text-center">
-          <Logo className="justify-center mb-4" size="lg" />
+          <div className="flex flex-col items-center mb-2">
+            <img 
+              src="/logo-3d.png" 
+              alt="SOBRE MÍDIA" 
+              className="h-14 sm:h-16 w-auto object-contain mb-3 drop-shadow-md hover:scale-105 transition-transform duration-300 pointer-events-none select-none" 
+            />
+            <Logo className="justify-center" size="lg" />
+          </div>
           <CardTitle className="text-2xl font-display">Recuperar Senha</CardTitle>
           <CardDescription className="text-muted-foreground">
             Informe seu e-mail de login para solicitar a redefinição

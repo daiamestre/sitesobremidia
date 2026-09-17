@@ -100,4 +100,58 @@ describe('Micro-Gate: SOBRE MÍDIA Visual Identity & Canonical Assets', () => {
     expect(rewrite).toBeDefined();
     expect(rewrite.destination).toBe('/logo-3d.png');
   });
+
+  it('9. [Web Login & Entry] Auth, Representantes, and ForgotPassword pages must consume /logo-3d.png', () => {
+    const authPath = path.join(rootDir, 'src/pages/Auth.tsx');
+    const repAuthPath = path.join(rootDir, 'src/pages/representantes/RepresentantesAuth.tsx');
+    const forgotPath = path.join(rootDir, 'src/pages/ForgotPassword.tsx');
+
+    const authContent = fs.readFileSync(authPath, 'utf8');
+    const repAuthContent = fs.readFileSync(repAuthPath, 'utf8');
+    const forgotContent = fs.readFileSync(forgotPath, 'utf8');
+
+    expect(authContent).toContain('src="/logo-3d.png"');
+    expect(repAuthContent).toContain('src="/logo-3d.png"');
+    expect(forgotContent).toContain('src="/logo-3d.png"');
+  });
+
+  it('10. [Android Canonical Asset] native-android-player res/drawable/logo.png must exist', () => {
+    const androidLogoPath = path.join(rootDir, 'native-android-player/app/src/main/res/drawable/logo.png');
+    expect(fs.existsSync(androidLogoPath), 'Android logo.png must exist').toBe(true);
+
+    const buf = fs.readFileSync(androidLogoPath);
+    expect(buf.length).toBeGreaterThan(50000);
+    // PNG signature
+    expect(buf[0]).toBe(0x89);
+    expect(buf[1]).toBe(0x50);
+    // Dimensions 1024x277
+    const width = buf.readUInt32BE(16);
+    const height = buf.readUInt32BE(20);
+    expect(width).toBe(1024);
+    expect(height).toBe(277);
+  });
+
+  it('11. [Android Player Layouts] All player layouts must consume @drawable/logo, never @mipmap/ic_launcher_round', () => {
+    const splashLayout = path.join(rootDir, 'native-android-player/app/src/main/res/layout/activity_splash.xml');
+    const mainLayout = path.join(rootDir, 'native-android-player/app/src/main/res/layout/activity_main.xml');
+    const syncLayout = path.join(rootDir, 'native-android-player/app/src/main/res/layout/sync_guard_screen.xml');
+    const loginLayout = path.join(rootDir, 'native-android-player/app/src/main/res/layout/activity_login.xml');
+
+    const splashContent = fs.readFileSync(splashLayout, 'utf8');
+    const mainContent = fs.readFileSync(mainLayout, 'utf8');
+    const syncContent = fs.readFileSync(syncLayout, 'utf8');
+    const loginContent = fs.readFileSync(loginLayout, 'utf8');
+
+    expect(splashContent).toContain('android:src="@drawable/logo"');
+    expect(splashContent).not.toContain('@mipmap/ic_launcher_round');
+
+    expect(mainContent).toContain('android:src="@drawable/logo"');
+    expect(mainContent).not.toContain('@mipmap/ic_launcher_round');
+
+    expect(syncContent).toContain('android:src="@drawable/logo"');
+    expect(syncContent).not.toContain('@mipmap/ic_launcher_round');
+
+    expect(loginContent).toContain('android:src="@drawable/logo"');
+    expect(loginContent).not.toContain('@mipmap/ic_launcher_round');
+  });
 });

@@ -17,9 +17,10 @@
         app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
-            android:src="@mipmap/ic_launcher_round"
-            android:layout_width="150dp"
-            android:layout_height="150dp"
+            android:src="@drawable/logo"
+            android:layout_width="320dp"
+            android:layout_height="90dp"
+            android:scaleType="fitCenter"
             android:layout_gravity="center"
             android:layout_marginBottom="32dp" />
 
