@@ -92,25 +92,41 @@ class RemoteDataSource {
 
         // 3. Playlists Subscription: Monitor the actual playlist content
         if (playlistId != null) {
+            // 3. Playlist Header Subscription: Critical for Metadata (Audio, Loop, Rotation)
             val playlistFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "playlists"
-                filter(FilterOperation("id", FilterOperator.EQ, playlistId))
             }
             
-            playlistFlow.onEach { _ ->
-                Logger.i("REALTIME", "Playlist Header Update Detected! Triggering download...")
-                SessionManager.triggerSyncNudge()
+            playlistFlow.onEach { action ->
+                val record = when (action) {
+                    is PostgresAction.Insert -> action.record
+                    is PostgresAction.Update -> action.record
+                    else -> null
+                }
+                val targetId = record?.get("id")?.toString()?.replace("\"", "")
+                if (targetId == null || targetId == playlistId) {
+                    Logger.i("REALTIME", "Playlist Header Update Detected! Triggering download...")
+                    SessionManager.triggerSyncNudge()
+                }
             }.launchIn(scope)
 
             // 4. Playlist Items Subscription: Critical for Media Add/Remove/Sort
             val playlistItemsFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "playlist_items"
-                filter(FilterOperation("playlist_id", FilterOperator.EQ, playlistId))
             }
 
-            playlistItemsFlow.onEach { _ ->
-                Logger.i("REALTIME", "Playlist Items Updated! Triggering download...")
-                SessionManager.triggerSyncNudge()
+            playlistItemsFlow.onEach { action ->
+                val record = when (action) {
+                    is PostgresAction.Insert -> action.record
+                    is PostgresAction.Update -> action.record
+                    is PostgresAction.Delete -> action.oldRecord
+                    else -> null
+                }
+                val targetPlaylistId = record?.get("playlist_id")?.toString()?.replace("\"", "")
+                if (targetPlaylistId == null || targetPlaylistId == playlistId) {
+                    Logger.i("REALTIME", "Playlist Items Updated! Triggering download...")
+                    SessionManager.triggerSyncNudge()
+                }
             }.launchIn(scope)
         }
 
@@ -125,7 +141,6 @@ class RemoteDataSource {
         
         val commandFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "remote_commands"
-            filter(FilterOperation("screen_id", FilterOperator.EQ, screenUuid))
         }
         
         commandFlow.onEach { action ->
@@ -134,6 +149,11 @@ class RemoteDataSource {
                 is PostgresAction.Update -> action.record
                 else -> null
             } ?: return@onEach
+
+            val targetScreenId = record["screen_id"]?.toString()?.replace("\"", "")
+            if (targetScreenId != null && targetScreenId != screenUuid) {
+                return@onEach
+            }
 
             val status = record["status"]?.toString()?.replace("\"", "")
             val command = record["command"]?.toString()?.replace("\"", "")

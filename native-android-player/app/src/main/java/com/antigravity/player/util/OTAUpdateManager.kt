@@ -222,8 +222,10 @@ class OTAUpdateManager(
             input.close()
             out.close()
             
-            // Usando BootReceiver provisório para receber callback do PackageInstaller
-            val intent = Intent(context, com.antigravity.player.receiver.BootReceiver::class.java)
+            // Receptor canônico dedicado para telemetria e governança do PackageInstaller
+            val intent = Intent(context, com.antigravity.player.receiver.OTAInstallReceiver::class.java).apply {
+                action = com.antigravity.player.receiver.OTAInstallReceiver.ACTION_INSTALL_STATUS
+            }
             val pendingIntent = android.app.PendingIntent.getBroadcast(
                 context,
                 sessionId,
@@ -231,7 +233,7 @@ class OTAUpdateManager(
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
             )
             session.commit(pendingIntent.intentSender)
-            Logger.i("OTA", "PackageInstaller session committed.")
+            Logger.i("OTA", "PackageInstaller session committed with canonical OTAInstallReceiver callback.")
         } catch (e: Exception) {
             Logger.e("OTA", "Silent install failed: ${e.message}")
             installApkWithIntent(file)

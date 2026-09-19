@@ -44,6 +44,16 @@ export const TASK_TYPE_ROUTING = {
   TESTING: { targetAgent: 'qa', requiredCapability: 'QUALITY_ASSURANCE', reason: 'Testes de integração e unidade requerem o QA Agent.' },
   VERIFICATION: { targetAgent: 'qa', requiredCapability: 'QUALITY_ASSURANCE', reason: 'Verificação de critérios de aceitação requer o QA Agent.' },
 
+  // Android Player & Hardware Specialist (ANDROID_ENGINEERING)
+  ANDROID_ENGINEERING: { targetAgent: 'android_engineer', requiredCapability: 'ANDROID_ENGINEERING', reason: 'Engenharia de Android Player, builds Gradle e releases requerem o Android Engineer Agent.' },
+  ANDROID: { targetAgent: 'android_engineer', requiredCapability: 'ANDROID_ENGINEERING', reason: 'Tarefas de desenvolvimento Android requerem o Android Engineer Agent.' },
+  PLAYER: { targetAgent: 'android_engineer', requiredCapability: 'ANDROID_ENGINEERING', reason: 'Engenharia de Player nativo e hardware requerem o Android Engineer Agent.' },
+  OTA: { targetAgent: 'android_engineer', requiredCapability: 'ANDROID_ENGINEERING', reason: 'Distribuição e releases OTA requerem o Android Engineer Agent.' },
+  CANARY: { targetAgent: 'android_engineer', requiredCapability: 'ANDROID_ENGINEERING', reason: 'Homologação e testes canary no Player requerem o Android Engineer Agent.' },
+  HARDWARE: { targetAgent: 'android_engineer', requiredCapability: 'ANDROID_ENGINEERING', reason: 'Pareamento de hardware e displays requerem o Android Engineer Agent.' },
+  EXOPLAYER: { targetAgent: 'android_engineer', requiredCapability: 'ANDROID_ENGINEERING', reason: 'Engine de mídia e reprodução ExoPlayer requerem o Android Engineer Agent.' },
+  GRADLE_BUILD: { targetAgent: 'android_engineer', requiredCapability: 'ANDROID_ENGINEERING', reason: 'Compilação de APKs e pipelines Gradle requerem o Android Engineer Agent.' },
+
   // Orchestrator (TASK_ORCHESTRATION)
   GENERAL_ORCHESTRATION: { targetAgent: 'orchestrator', requiredCapability: 'TASK_ORCHESTRATION', reason: 'Coordenação e orquestração central requerem o Orchestrator Agent.' },
   ORCHESTRATION: { targetAgent: 'orchestrator', requiredCapability: 'TASK_ORCHESTRATION', reason: 'Coordenação central de fluxo requer o Orchestrator Agent.' },
@@ -56,6 +66,13 @@ export const TASK_TYPE_ROUTING = {
 };
 
 const KEYWORD_ROUTING_RULES = [
+  {
+    type: 'ANDROID_ENGINEERING',
+    keywords: ['android', 'player', 'apk', 'gradle', 'ota', 'exoplayer', 'canary', 'tvbox', 'pairing'],
+    targetAgent: 'android_engineer',
+    requiredCapability: 'ANDROID_ENGINEERING',
+    reason: 'Tarefas de Android Player, APK, Gradle, OTA e hardware requerem o Android Engineer Agent.'
+  },
   {
     type: 'ARCHITECTURE',
     keywords: ['arquitetura', 'design', 'estrutura', 'modelagem', 'fluxo', 'blueprint', 'especificação'],

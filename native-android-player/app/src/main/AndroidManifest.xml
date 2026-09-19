@@ -55,13 +55,15 @@
         <activity 
             android:name=".ui.LoginActivity" 
             android:screenOrientation="fullSensor"
+            android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="false"/>
+            android:exported="true"/>
         <activity 
             android:name=".ui.ScreenSelectionActivity" 
             android:screenOrientation="fullSensor"
+            android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="false"/>
+            android:exported="true"/>
 
         <!-- [HEARTBEAT] Serviço Imortal para garantir status verde no Dashboard 24/7 -->
         <service
@@ -99,6 +101,14 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.REBOOT" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".receiver.OTAInstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.antigravity.player.OTA_INSTALL_STATUS" />
             </intent-filter>
         </receiver>
 

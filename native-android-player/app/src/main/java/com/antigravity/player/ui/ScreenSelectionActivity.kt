@@ -101,6 +101,16 @@ class ScreenSelectionActivity : AppCompatActivity() {
                         Toast.makeText(this@ScreenSelectionActivity, "Nenhuma tela disponível.", Toast.LENGTH_LONG).show()
                     } else {
                         adapter.updateData(activeScreens)
+                        val autoSelect = intent.getStringExtra("extra_select_screen_id")
+                        if (!autoSelect.isNullOrBlank()) {
+                            val target = activeScreens.find {
+                                it.id.equals(autoSelect, ignoreCase = true) ||
+                                (it.customId ?: "").equals(autoSelect, ignoreCase = true)
+                            }
+                            if (target != null) {
+                                saveScreenAndProceed(target.id)
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {

@@ -22,18 +22,24 @@ object CleanupManager {
 
             val arquivosNoDisco = pastaLocal.listFiles() ?: return
 
-            // No nosso sistema, os arquivos são salvos como "ID.dat"
-            val nomesArquivosAtivos = idsAtivos.map { id -> "$id.dat" }.toSet()
+            // No nosso sistema, os arquivos são salvos como "ID.dat" ou "ID_HASH.dat"
+            val validPrefixes = idsAtivos.toSet()
 
-            Logger.i("CLEANUP", "Iniciando faxina em ${arquivosNoDisco.size} arquivos...")
+            Logger.i("CLEANUP", "Iniciando faxina em ${arquivosNoDisco.size} arquivos com ${validPrefixes.size} IDs ativos...")
 
             var deletados = 0
             arquivosNoDisco.forEach { arquivo ->
-                // Só deletamos arquivos .dat que não estão na lista de IDs ativos
-                if (arquivo.isFile && arquivo.name.endsWith(".dat") && !nomesArquivosAtivos.contains(arquivo.name)) {
-                    if (arquivo.delete()) {
-                        deletados++
-                        Logger.d("CLEANUP", "Lixo removido: ${arquivo.name}")
+                if (arquivo.isFile && arquivo.name.endsWith(".dat")) {
+                    val fileName = arquivo.name
+                    // Se o arquivo pertence a algum dos IDs ativos (seja ID.dat ou ID_HASH.dat), preserva
+                    val isOrphan = validPrefixes.none { prefix ->
+                        fileName == "$prefix.dat" || fileName.startsWith("${prefix}_")
+                    }
+                    if (isOrphan) {
+                        if (arquivo.delete()) {
+                            deletados++
+                            Logger.d("CLEANUP", "Lixo removido: ${arquivo.name}")
+                        }
                     }
                 }
             }

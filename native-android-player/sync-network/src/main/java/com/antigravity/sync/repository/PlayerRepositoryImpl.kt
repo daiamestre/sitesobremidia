@@ -82,6 +82,7 @@ class PlayerRepositoryImpl(
                     }
                     
                     // Map to domain MediaItem
+                    val calculatedDuration = if (item.duration >= 1000) item.duration / 1000 else if (item.duration > 0) item.duration else 15L
                     domainItems.add(
                         MediaItem(
                             id = media.id,
@@ -91,7 +92,7 @@ class PlayerRepositoryImpl(
                                 "image" -> MediaType.IMAGE
                                 else -> MediaType.VIDEO
                             },
-                            durationSeconds = item.duration / 1000,
+                            durationSeconds = calculatedDuration,
                             remoteUrl = media.fileUrl,
                             localPath = localPath,
                             hash = expectedHash,
@@ -101,12 +102,13 @@ class PlayerRepositoryImpl(
                         )
                     )
                 } else {
+                    val itemDuration = if (item.duration >= 1000) item.duration / 1000 else if (item.duration > 0) item.duration else 15L
                     domainItems.add(
                         MediaItem(
                             id = item.id,
                             name = "Item ${item.position}",
                             type = MediaType.VIDEO,
-                            durationSeconds = item.duration / 1000,
+                            durationSeconds = itemDuration,
                             remoteUrl = "",
                             localPath = null,
                             hash = "",

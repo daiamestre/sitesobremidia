@@ -484,11 +484,7 @@ class MainActivity : AppCompatActivity() {
 
             // [ADVANCED KIOSK] Intelligent Boot & Service Initialization Flow
             lifecycleScope.launch {
-                // 1. Intelligent Boot Delay (ensure hardware readiness de decodificação de vídeo)
-                updateStatus("Aguardando Hardware (5s)...")
-                delay(5000)
-
-                // 2. Start Synchronization Loop (Cache-First)
+                // 1. Start Synchronization Loop (Cache-First) immediately
                 checkLocalCacheAndPlay()
                 
                 // 3. Start Screenshot Heartbeat (Proof of Life - 1 hour)
@@ -775,11 +771,9 @@ private fun checkLocalCacheAndPlay() {
                 applyScreenRotation(localPlaylist?.orientation)
                 
                 // 4. Inicia o loop de reprodução com os arquivos locais
-                // Aguarda 2000ms antes de iniciar os renders para que o WindowManager
-                // tenha finalizado a rotação e a GPU esteja estável
                 Handler(Looper.getMainLooper()).postDelayed({
                     startPlaybackLoop()
-                }, 2000)
+                }, 100)
 
                 // 5. APÓS iniciar o vídeo, dispara a sincronização em background (silenciosa)
                 // Para verificar se há atualizações, mas sem travar o início da reprodução
@@ -874,6 +868,10 @@ private fun checkLocalCacheAndPlay() {
                         startPlaybackLoop()
                     }
                 }
+                // Agendar próxima verificação periódica em 60 segundos
+                Handler(Looper.getMainLooper()).postDelayed({
+                    lifecycleScope.launch(Dispatchers.IO) { syncInBackground() }
+                }, 60000)
             } else {
                 val msg = result.exceptionOrNull()?.message ?: "Unknown"
                 if (msg.contains("JWT expired", ignoreCase = true) || msg.contains("401", ignoreCase = true)) {
@@ -1112,6 +1110,7 @@ withContext(Dispatchers.Main) {
             
             // 2. Troca simultânea instantânea (Visibility) sem delay artificial
             viewToFadeOut.visibility = View.INVISIBLE
+            viewToFadeIn.visibility = View.VISIBLE
             viewToFadeIn.alpha = 1f
             
             // 3. Limpa a Mídia Antiga para a Próxima Rodada (-RAM)
@@ -1120,10 +1119,10 @@ withContext(Dispatchers.Main) {
             oldPlayerView?.player?.clearMediaItems()
             
             // Cleanup de overlays inativos imediatamente
-            // NÃO mostrar standbyImage (logo) durante transição seamless!
+            // NÃO mostrar standbyImage (logo) durante reprodução ativa!
+            standbyImage.visibility = View.GONE
             staticImageLayer.visibility = View.GONE
             nativeWidgetContainer.visibility = View.GONE
-            // standbyImage permanece GONE/INVISIBLE durante transição para evitar tela preta/logo
             
             Logger.i("SEAMLESS_SWAP", "[SEAMLESS_SWAP] Troca visual limpa concluída via FirstFrame.")
         }
@@ -1550,7 +1549,7 @@ withContext(Dispatchers.Main) {
             previousLoop?.cancelAndJoin()
 
             logBlackBox("BOOT", "Armor Initialized")
-            delay(2000)
+            delay(100)
             
             val repository = ServiceLocator.getRepository(applicationContext)
             // Canal único para sinalização de fim de mídia (ExoPlayer)
@@ -2055,11 +2054,11 @@ withContext(Dispatchers.Main) {
     // [ESCAPE PROTOCOL] DIRECT ESCAPE MAINTENANCE MODE
     // ========================================================================
 
-    override fun onTouchEvent(event: android.view.MotionEvent?): Boolean {
+    override fun dispatchTouchEvent(event: android.view.MotionEvent?): Boolean {
         if (event?.action == android.view.MotionEvent.ACTION_DOWN) {
             triggerMaintenanceFree()
         }
-        return super.onTouchEvent(event)
+        return super.dispatchTouchEvent(event)
     }
 
     private fun triggerMaintenanceFree() {

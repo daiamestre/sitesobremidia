@@ -59,7 +59,7 @@ class PlayerRepositoryImpl(
 ) : PlayerRepository {
 
     private val _activePlaylist = MutableStateFlow<Playlist?>(null)
-    private val _syncProgress = MutableStateFlow<String>("Aguardando...")
+    private val _syncProgress = MutableStateFlow<String>("Iniciando sincronização...")
 
     // [STABILIZATION] Mutex to serialize network operations (Heartbeat vs Logs)
     private val networkMutex = Mutex()
@@ -140,6 +140,7 @@ class PlayerRepositoryImpl(
                     
                     val localPath = file.absolutePath
                     
+                    val calculatedDuration = if (item.duration >= 1000) item.duration / 1000 else if (item.duration > 0) item.duration else 15L
                     MediaItem(
                         id = media.id,
                         name = media.name,
@@ -148,7 +149,7 @@ class PlayerRepositoryImpl(
                             "image" -> MediaType.IMAGE
                             else -> MediaType.VIDEO
                         },
-                        durationSeconds = item.duration / 1000,
+                        durationSeconds = calculatedDuration,
                         remoteUrl = media.fileUrl,
                         localPath = localPath,
                         hash = expectedHash,
@@ -170,11 +171,12 @@ class PlayerRepositoryImpl(
                          }
                     } else ""
 
+                    val widgetDuration = if (item.duration >= 1000) item.duration / 1000 else if (item.duration > 0) item.duration else 15L
                     MediaItem(
                         id = item.id,
                         name = "Widget ${item.position}",
                         type = if (widget != null) MediaType.WEB_WIDGET else MediaType.VIDEO,
-                        durationSeconds = item.duration / 1000,
+                        durationSeconds = widgetDuration,
                         remoteUrl = itemUrl,
                         localPath = null,
                         hash = itemUrl.hashCode().toString(),
@@ -433,7 +435,7 @@ class PlayerRepositoryImpl(
                     // 7. Emit & Handshake
                     emitPlaylistFromCache()
                     SessionManager.lastConfigHash = newConfigSignature
-                    _syncProgress.value = "Pronto!"
+                    _syncProgress.value = "Mídias prontas. Iniciando reprodução..."
                     sendHeartbeat("ONLINE | UPDATED", null, null)
                     reportActionApplied("PlaylistUpdate", remotePlaylist.id)
 
@@ -592,12 +594,14 @@ class PlayerRepositoryImpl(
         } catch (e: Exception) { emptyMap() }
 
         val cachedItems = playlist.items.map { item ->
-            val file = fileStorageManager.getFileForMedia(item.id)
+            val fileWithHash = fileStorageManager.getFileForMedia(item.id, item.hash)
+            val fileLegacy = fileStorageManager.getFileForMedia(item.id, "")
+            val file = if (fileWithHash.exists() && fileWithHash.length() > 0) fileWithHash else fileLegacy
             val localPath = when {
                 // File exists on disk → use its path
                 file.exists() && file.length() > 0 -> file.absolutePath
                 // File not on disk but was in previous cache → preserve (download may be in progress)
-                else -> existingItems[item.id]?.localPath
+                else -> existingItems[item.id]?.localPath ?: fileWithHash.absolutePath
             }
             item.copy(localPath = localPath).toCache(playlist.id)
         }

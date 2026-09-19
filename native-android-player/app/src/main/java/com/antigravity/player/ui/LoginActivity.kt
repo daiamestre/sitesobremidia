@@ -36,6 +36,11 @@ class LoginActivity : AppCompatActivity() {
         val loginBtn = findViewById<Button>(R.id.login_button)
         val loading = findViewById<ProgressBar>(R.id.login_loading)
 
+        val autoEmail = intent.getStringExtra("extra_email")
+        val autoPass = intent.getStringExtra("extra_password")
+        if (!autoEmail.isNullOrBlank()) emailInput.setText(autoEmail)
+        if (!autoPass.isNullOrBlank()) passInput.setText(autoPass)
+
         // [UX 10-foot UI] Increase font for TVs
         if (isTV) {
             emailInput.textSize = 24f
@@ -69,7 +74,9 @@ class LoginActivity : AppCompatActivity() {
                     // 1. Redirect to Screen Selection (Correct Flow per user request)
                     Toast.makeText(this@LoginActivity, "Login realizado com sucesso!", Toast.LENGTH_SHORT).show()
                     
-                    val intent = Intent(this@LoginActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java)
+                    val intent = Intent(this@LoginActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java).apply {
+                        this@LoginActivity.intent.extras?.let { putExtras(it) }
+                    }
                     startActivity(intent)
                     overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                     finish()
@@ -80,6 +87,24 @@ class LoginActivity : AppCompatActivity() {
                     Toast.makeText(this@LoginActivity, "Autenticação falhou: $error", Toast.LENGTH_LONG).show()
                 }
             }
+        }
+        if (intent.getBooleanExtra("extra_auto_submit", false) && !autoEmail.isNullOrBlank() && !autoPass.isNullOrBlank()) {
+            loginBtn.post { loginBtn.performClick() }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val emailInput = findViewById<EditText>(R.id.email_input)
+        val passInput = findViewById<EditText>(R.id.password_input)
+        val loginBtn = findViewById<Button>(R.id.login_button)
+        val autoEmail = intent.getStringExtra("extra_email")
+        val autoPass = intent.getStringExtra("extra_password")
+        if (!autoEmail.isNullOrBlank()) emailInput.setText(autoEmail)
+        if (!autoPass.isNullOrBlank()) passInput.setText(autoPass)
+        if (intent.getBooleanExtra("extra_auto_submit", false) && !autoEmail.isNullOrBlank() && !autoPass.isNullOrBlank()) {
+            loginBtn.post { loginBtn.performClick() }
         }
     }
     // Locked to Portrait in Manifest

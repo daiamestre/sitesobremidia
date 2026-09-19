@@ -280,7 +280,16 @@ export const VALID_TASK_TYPES = [
   'FIX',
   'INVESTIGATION',
   'DIAGNOSIS',
-  'VERIFICATION'
+  'VERIFICATION',
+  // Android Player Task Types
+  'ANDROID_ENGINEERING',
+  'ANDROID',
+  'PLAYER',
+  'OTA',
+  'CANARY',
+  'HARDWARE',
+  'EXOPLAYER',
+  'GRADLE_BUILD'
 ];
 
 export function validateAgentTask(task) {

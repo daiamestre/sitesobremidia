@@ -43,9 +43,39 @@ class SelfHealingService : Service() {
 
     private val heartbeatRunnable = object : Runnable {
         override fun run() {
-            if (!isMaintenanceMode) {
+            val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
+            val maintUntil = prefs.getLong("pref_maintenance_until", 0L)
+            val now = System.currentTimeMillis()
+
+            if (isMaintenanceMode) {
+                // [MAINTENANCE RECOVERY P0] Checa se a janela de 3 minutos expirou
+                if (maintUntil > 0L && now >= maintUntil) {
+                    Logger.w("SELF_HEALING", "Janela de manutenção expirou ($maintUntil). Retomando soberania e modo Kiosk!")
+                    isMaintenanceMode = false
+                    focusLossCounter = 0
+                    prefs.edit().remove("pref_maintenance_until").apply()
+
+                    val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                    forceFocusToFront(am)
+
+                    // Notifica MainActivity para restaurar Kiosk
+                    try {
+                        val intent = Intent(this@SelfHealingService, com.antigravity.player.MainActivity::class.java).apply {
+                            putExtra("extra_restore_maintenance", true)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        }
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        Logger.e("SELF_HEALING", "Falha ao enviar intent de retorno para MainActivity: ${e.message}")
+                    }
+                }
+            } else {
+                if (maintUntil > 0L && now >= maintUntil) {
+                    prefs.edit().remove("pref_maintenance_until").apply()
+                }
+
                 // [ADVANCED KIOSK] Foreground Guarantee (Initial 10s)
-                if (!hasVerifiedInitialFocus && System.currentTimeMillis() - bootTime > 10_000L) {
+                if (!hasVerifiedInitialFocus && now - bootTime > 10_000L) {
                     Logger.i("KIOSK", "Verificação de foco pós-boot (10s).")
                     checkFocus()
                     hasVerifiedInitialFocus = true

@@ -39,9 +39,12 @@ class SplashActivity : AppCompatActivity() {
     private val overlayPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
-        // User returned from settings, check again
+        // User returned from settings, proceed with routing
         isRequestingPermission = false
-        checkOverlayPermission()
+        if (!routingStarted) {
+            routingStarted = true
+            checkRouting()
+        }
     }
 
     private fun checkOverlayPermission() {
@@ -138,11 +141,17 @@ class SplashActivity : AppCompatActivity() {
             com.antigravity.core.util.Logger.i("BOOT", "Routing Check: SessionValid=$isSessionValid, SavedScreen=$savedScreenId")
 
             val intent = if (!isSessionValid) {
-                Intent(this@SplashActivity, LoginActivity::class.java)
+                Intent(this@SplashActivity, LoginActivity::class.java).apply {
+                    this@SplashActivity.intent.extras?.let { putExtras(it) }
+                }
             } else if (savedScreenId == null) {
-                Intent(this@SplashActivity, ScreenSelectionActivity::class.java)
+                Intent(this@SplashActivity, ScreenSelectionActivity::class.java).apply {
+                    this@SplashActivity.intent.extras?.let { putExtras(it) }
+                }
             } else {
-                Intent(this@SplashActivity, com.antigravity.player.MainActivity::class.java)
+                Intent(this@SplashActivity, com.antigravity.player.MainActivity::class.java).apply {
+                    this@SplashActivity.intent.extras?.let { putExtras(it) }
+                }
             }
             
             startActivity(intent)
