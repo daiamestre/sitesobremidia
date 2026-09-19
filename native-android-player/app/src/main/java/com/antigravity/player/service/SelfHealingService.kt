@@ -44,16 +44,20 @@ class SelfHealingService : Service() {
     private val heartbeatRunnable = object : Runnable {
         override fun run() {
             val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-            val maintUntil = prefs.getLong("pref_maintenance_until", 0L)
+            val maintUntil = if (prefs.contains("maintenance_until")) {
+                prefs.getLong("maintenance_until", 0L)
+            } else {
+                prefs.getLong("pref_maintenance_until", 0L)
+            }
             val now = System.currentTimeMillis()
 
-            if (isMaintenanceMode) {
+            if (isMaintenanceMode || (maintUntil > 0L && now >= maintUntil)) {
                 // [MAINTENANCE RECOVERY P0] Checa se a janela de 3 minutos expirou
                 if (maintUntil > 0L && now >= maintUntil) {
                     Logger.w("SELF_HEALING", "Janela de manutenção expirou ($maintUntil). Retomando soberania e modo Kiosk!")
                     isMaintenanceMode = false
                     focusLossCounter = 0
-                    prefs.edit().remove("pref_maintenance_until").apply()
+                    prefs.edit().remove("maintenance_until").remove("pref_maintenance_until").apply()
 
                     val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                     forceFocusToFront(am)
@@ -71,7 +75,7 @@ class SelfHealingService : Service() {
                 }
             } else {
                 if (maintUntil > 0L && now >= maintUntil) {
-                    prefs.edit().remove("pref_maintenance_until").apply()
+                    prefs.edit().remove("maintenance_until").remove("pref_maintenance_until").apply()
                 }
 
                 // [ADVANCED KIOSK] Foreground Guarantee (Initial 10s)
@@ -179,6 +183,15 @@ class SelfHealingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "com.antigravity.player.ACTION_MAINTENANCE_MODE") {
+            isMaintenanceMode = intent.getBooleanExtra("is_active", false)
+            if (isMaintenanceMode) {
+                Logger.w("SELF_HEALING", "Blindagem Suspensa via onStartCommand: Modo Manutenção Ativo.")
+            } else {
+                Logger.i("SELF_HEALING", "Blindagem Retomada via onStartCommand: Modo Manutenção Encerrado.")
+                focusLossCounter = 0
+            }
+        }
         return START_STICKY
     }
 

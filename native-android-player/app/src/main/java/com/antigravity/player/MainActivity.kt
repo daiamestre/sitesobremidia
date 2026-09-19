@@ -308,7 +308,7 @@ class MainActivity : AppCompatActivity() {
                     releaseSystemBars()
                     scheduleMaintenanceRecoveryAlarm(maintUntil)
                 } else if (maintUntil > 0L) {
-                    restoreFromMaintenance()
+                    restoreFromMaintenance(force = true)
                 }
             } catch (e: Exception) {
                 Logger.e("ESCAPE_PROTOCOL", "Falha ao avaliar manutencao no boot: ${e.message}")
@@ -1754,7 +1754,8 @@ withContext(Dispatchers.Main) {
         setIntent(intent)
         // [MAINTENANCE RECOVERY] Alarme de 3 min entrega este intent quando a
         // Activity existe (singleInstance). Se morreu, onCreate cobre o caso.
-        evaluateMaintenanceState()
+        val isExplicitRestore = intent?.getBooleanExtra(EXTRA_RESTORE_MAINTENANCE, false) == true
+        evaluateMaintenanceState(force = isExplicitRestore)
     }
 
 
@@ -2098,8 +2099,11 @@ withContext(Dispatchers.Main) {
             // (para de brigar pelo foco durante a manutencao), congela o watchdog
             // de playback e agenda recuperacao via AlarmManager (sobrevive a morte
             // da Activity/processo).
-            val until = System.currentTimeMillis() + MAINTENANCE_TIMEOUT_MS
-            getSharedPreferences("player_prefs", MODE_PRIVATE).edit().putLong(PREF_MAINTENANCE_UNTIL, until).apply()
+            val prefs = getSharedPreferences("player_prefs", MODE_PRIVATE)
+            val testTimeout = prefs.getLong("test_maintenance_timeout_ms", 0L)
+            val timeoutMs = if (testTimeout > 0L) testTimeout else MAINTENANCE_TIMEOUT_MS
+            val until = System.currentTimeMillis() + timeoutMs
+            prefs.edit().putLong(PREF_MAINTENANCE_UNTIL, until).apply()
             notifySelfHealing(true)
             cancelPlaybackWatchdogAlarm()
             scheduleMaintenanceRecoveryAlarm(until)
@@ -2119,9 +2123,12 @@ withContext(Dispatchers.Main) {
         // 3. Timer rapido (caminho comum): 3 MINUTOS obrigatorios.
         // A restauracao real acontece em restoreFromMaintenance(), que tambem e
         // acionada pelo AlarmManager se a Activity/processo morrer no intervalo.
+        val prefs = getSharedPreferences("player_prefs", MODE_PRIVATE)
+        val testTimeout = prefs.getLong("test_maintenance_timeout_ms", 0L)
+        val timeoutMs = if (testTimeout > 0L) testTimeout else MAINTENANCE_TIMEOUT_MS
         maintenanceJob = lifecycleScope.launch {
-            delay(MAINTENANCE_TIMEOUT_MS)
-            restoreFromMaintenance()
+            delay(timeoutMs)
+            restoreFromMaintenance(force = true)
         }
     }
 
@@ -2131,18 +2138,21 @@ withContext(Dispatchers.Main) {
      * redundantes (timer in-process, AlarmManager/onNewIntent, onCreate,
      * onResume) convergem aqui sem dupla execucao.
      */
-    private fun restoreFromMaintenance() {
+    private fun restoreFromMaintenance(force: Boolean = false) {
         val prefs = getSharedPreferences("player_prefs", MODE_PRIVATE)
         val until = prefs.getLong(PREF_MAINTENANCE_UNTIL, 0L)
-        if (until <= 0L) return
         val now = System.currentTimeMillis()
-        if (now < until - 2000L) {
-            // Janela ainda vigente (ex.: onCreate renasceu no meio): so garante o alarme
-            scheduleMaintenanceRecoveryAlarm(until)
-            return
+        if (!force) {
+            if (until <= 0L) return
+            if (now < until - 2000L) {
+                // Janela ainda vigente (ex.: onCreate renasceu no meio): so garante o alarme
+                scheduleMaintenanceRecoveryAlarm(until)
+                return
+            }
         }
 
         prefs.edit().remove(PREF_MAINTENANCE_UNTIL).remove(PREF_EXIT_COUNT).putLong(PREF_LAST_EXIT_AT, 0L).apply()
+        cancelMaintenanceRecoveryAlarm()
         notifySelfHealing(false)
         Logger.i("ESCAPE_PROTOCOL", "Modo Kiosk Total restabelecido via Timer de Segurança.")
         if (isFinishing || isDestroyed) return
@@ -2176,10 +2186,11 @@ withContext(Dispatchers.Main) {
      * Avalia o estado da janela de manutencao persistida.
      * Chamado em onNewIntent/onResume (e no onCreate quando aplicavel).
      */
-    private fun evaluateMaintenanceState() {
+    private fun evaluateMaintenanceState(force: Boolean = false) {
         val until = getSharedPreferences("player_prefs", MODE_PRIVATE).getLong(PREF_MAINTENANCE_UNTIL, 0L)
-        if (until <= 0L) return
-        restoreFromMaintenance()
+        if (force || until > 0L) {
+            restoreFromMaintenance(force = force)
+        }
     }
 
     /**
@@ -2230,6 +2241,7 @@ withContext(Dispatchers.Main) {
                 putExtra("is_active", active)
             }
             sendBroadcast(i)
+            startService(i)
         } catch (e: Exception) {
             Logger.w("ESCAPE_PROTOCOL", "Falha ao notificar SelfHealing: ${e.message}")
         }
