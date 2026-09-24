@@ -54,7 +54,7 @@
             android:id="@+id/static_image_layer"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitCenter"
             android:visibility="invisible"
             android:background="@android:color/black" />
     </FrameLayout>
@@ -93,7 +93,8 @@
             android:shadowDx="2"
             android:shadowDy="2"
             android:shadowRadius="4"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/status_device_id"

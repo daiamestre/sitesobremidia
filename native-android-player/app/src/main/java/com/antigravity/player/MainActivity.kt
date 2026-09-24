@@ -8,7 +8,6 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
 import android.content.Intent
 import android.content.Context
 import android.app.AlarmManager
@@ -66,6 +65,17 @@ import kotlinx.coroutines.channels.Channel
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 
+import com.antigravity.core.domain.state.SurfaceState
+import com.antigravity.core.domain.state.PlayerRuntimeState
+import com.antigravity.core.domain.state.consumer.SurfaceTarget
+import com.antigravity.core.domain.state.consumer.RuntimeSurfaceConsumer
+import com.antigravity.core.domain.state.adapter.PlaybackStateAdapter
+import com.antigravity.core.domain.state.adapter.SyncStateAdapter
+import com.antigravity.core.domain.state.adapter.KioskStateAdapter
+import com.antigravity.core.domain.state.adapter.MaintenanceStateAdapter
+import com.antigravity.core.domain.state.adapter.SessionStateAdapter
+import com.antigravity.core.domain.state.adapter.NetworkStateAdapter
+import com.antigravity.core.domain.state.adapter.PlayerRuntimeStateComposer
 
 @OptIn(UnstableApi::class)
 class MainActivity : AppCompatActivity() {
@@ -89,6 +99,118 @@ class MainActivity : AppCompatActivity() {
     private lateinit var staticImageLayer: ImageView // Motor Estático
     private lateinit var nativeWidgetContainer: FrameLayout
     // WebViews removidas permanentemente (Widgets 100% Nativos)
+
+    // [P0.4.6] Canonical Runtime Surface Consumer
+    private lateinit var surfaceConsumer: RuntimeSurfaceConsumer
+
+    private val surfaceTarget = object : SurfaceTarget {
+        override fun showLoginSurface() {
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    val intent = Intent(this@MainActivity, com.antigravity.player.ui.LoginActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    }
+                    startActivity(intent)
+                    finish()
+                }
+            }
+        }
+
+        override fun showScreenSelectionSurface() {
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    val intent = Intent(this@MainActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    }
+                    startActivity(intent)
+                    finish()
+                }
+            }
+        }
+
+        override fun showSyncGuardSurface(message: String?) {
+            runOnUiThread {
+                syncGuard.lockScreen(message ?: "Sincronizando mídias...")
+                statusTextView.visibility = View.GONE
+                playerView1.visibility = View.INVISIBLE
+                playerView2.visibility = View.INVISIBLE
+                blockOverlay.visibility = View.GONE
+            }
+        }
+
+        override fun showMediaOnlySurface() {
+            runOnUiThread {
+                syncGuard.releaseLock()
+                statusTextView.visibility = View.GONE
+                blockOverlay.visibility = View.GONE
+                playerView1.visibility = View.VISIBLE
+                standbyImage.visibility = View.GONE
+            }
+        }
+
+        override fun showBlockedSurface(message: String?) {
+            runOnUiThread {
+                findViewById<TextView>(R.id.block_title)?.text = message ?: SessionManager.blockMessage ?: "TELA BLOQUEADA"
+                blockOverlay.visibility = View.VISIBLE
+                playerView1.visibility = View.GONE
+                playerView2.visibility = View.GONE
+                syncGuard.releaseLock()
+                statusTextView.visibility = View.GONE
+            }
+        }
+    }
+
+    // (P0.4.6) Aplica a projeção canônica SurfaceState através do RuntimeSurfaceConsumer.
+    fun applySurface(surface: SurfaceState, message: String? = null): SurfaceState {
+        return surfaceConsumer.applySurface(surface, message)
+    }
+
+    // (P0.4.6) Amostra o estado consolidado de runtime a partir dos 6 eixos canônicos.
+    fun sampleRuntimeState(): PlayerRuntimeState {
+        val currentRenderer = activePlayer ?: playerRenderer1
+        val playback = PlaybackStateAdapter.adaptExoPlayerState(
+            playbackState = currentRenderer.getPlayerInstance()?.playbackState ?: 1,
+            isPlaying = currentRenderer.getPlayerInstance()?.isPlaying ?: false,
+            mediaId = lastPlayedMediaId
+        )
+        val sync = SyncStateAdapter.adapt(
+            isSyncInProgress = isSyncInProgress
+        )
+        val kiosk = KioskStateAdapter.adapt(
+            isKioskEnforced = isKioskEnforced
+        )
+        val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
+        val maintenanceUntil = prefs.getLong("maintenance_until", 0L)
+        val maintenance = MaintenanceStateAdapter.adapt(
+            maintenanceUntilMs = maintenanceUntil,
+            currentTimeMs = System.currentTimeMillis()
+        )
+        val session = SessionStateAdapter.adapt(
+            sessionStateName = SessionManager.sessionState.value.name,
+            isDeviceRevoked = SessionManager.isDeviceRevoked,
+            isScreenActive = SessionManager.isScreenActive,
+            currentAccessToken = SessionManager.currentAccessToken,
+            currentUserId = SessionManager.currentUserId,
+            deviceIdentityHash = SessionManager.deviceIdentityHash,
+            blockMessage = SessionManager.blockMessage
+        )
+        val network = NetworkStateAdapter.adapt(
+            isConnected = com.antigravity.player.util.NetworkMonitor(applicationContext).isConnected.value
+        )
+        return PlayerRuntimeStateComposer.compose(
+            playback = playback,
+            sync = sync,
+            kiosk = kiosk,
+            maintenance = maintenance,
+            session = session,
+            network = network
+        )
+    }
+
+    // (P0.4.6) Sincroniza a superfície física com a projeção canônica do PlayerRuntimeState.
+    fun syncSurfaceWithCanonicalProjection(): SurfaceState {
+        return surfaceConsumer.consume(sampleRuntimeState())
+    }
     
     // [SELF-HEALING] Protocol Flags
     private var consecutiveGlobalFailures = 0
@@ -111,6 +233,11 @@ class MainActivity : AppCompatActivity() {
     private var maintenanceCounter = 0
     private var lastInputTime = 0L
     private var maintenanceJob: Job? = null
+
+    // [P0-FIX RC3] Bootstrap guard: prevents onWindowFocusChanged / onStop events
+    // that fire during the ScreenSelection→MainActivity transition from being counted
+    // as real user-initiated exits. Set to true after checkLocalCacheAndPlay() completes.
+    private var isBootstrapComplete = false
 
     companion object {
         // [EXIT COUNTER] Persistencia (sobrevive a recriacao da Activity/processo)
@@ -171,8 +298,13 @@ class MainActivity : AppCompatActivity() {
         // [ADAPTIVE UI] Detect hardware and set appropriate orientation from Session/Prefs
         val isTV = DeviceTypeUtil.isTelevision(applicationContext)
         val savedPrefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-        val initialOrientation = SessionManager.currentOrientation 
-            ?: savedPrefs.getString("current_orientation", if (isTV) "landscape" else "landscape")
+        val initialOrientation = SessionManager.currentOrientation
+            ?: savedPrefs.getString("current_orientation",
+                // [P0-FIX RC2] Correct mobile fallback: MOBILE starts in portrait until the
+                // first playlist sync delivers the content-defined orientation. The previous
+                // hardcoded "landscape" for MOBILE caused orientation whiplash (PORTRAIT in
+                // ScreenSelectionActivity → forced LANDSCAPE in MainActivity on mobile).
+                if (isTV) "landscape" else "portrait")
         applyScreenRotation(initialOrientation)
         
         // [MISSION CRITICAL] Native Immersive Mode (Zero-Touch)
@@ -190,6 +322,9 @@ class MainActivity : AppCompatActivity() {
         staticImageLayer = findViewById<ImageView>(R.id.static_image_layer)
         nativeWidgetContainer = findViewById<FrameLayout>(R.id.native_widget_container)
         
+        // [P0.4.6] Inicializa consumidor de projeção de superfície
+        surfaceConsumer = RuntimeSurfaceConsumer(surfaceTarget)
+        
         hideAllLayers()
         
         // Show Standby initially
@@ -198,6 +333,7 @@ class MainActivity : AppCompatActivity() {
         playerView1.visibility = View.INVISIBLE
         playerView2.visibility = View.INVISIBLE
         blockOverlay.visibility = View.GONE
+        statusTextView.visibility = View.GONE
 
         try {
             // [MISSION CRITICAL] Initialize Time Module (Persistent NTP Offset)
@@ -232,33 +368,24 @@ class MainActivity : AppCompatActivity() {
             }
 
             // [GATEKEEPER] Observer de Estado do Fluxo de Inicialização
+            // [P0.4.8] PlayerUIState continua orquestrando use cases e lifecycle interno do ViewModel.
+            // A decisão de superfície foi removida deste observer — ela flui exclusivamente pelo
+            // caminho canônico: RuntimeAuthorities → Adapters → PlayerRuntimeState
+            //   → SurfaceProjectionEngine → RuntimeSurfaceConsumer → SurfaceTarget.
+            // Os pontos de transição (startSyncAndPlay, onSyncSuccess, prepararPrimeiraMidia,
+            // confirmarMidiaPronta) já chamam syncSurfaceWithCanonicalProjection() diretamente.
             lifecycleScope.launch {
                 viewModel.playerState.collect { estado ->
-                    runOnUiThread {
-                        when (estado) {
-                            com.antigravity.player.ui.PlayerUIState.SYNCING -> {
-                                // BLOQUEIO: Garante que apenas a tela de sincronização apareça
-                                syncGuard.lockScreen("Sincronizando mídias...")
-                                statusTextView.visibility = View.VISIBLE
-                                playerView1.visibility = View.GONE
-                                playerView2.visibility = View.GONE
-                                
-                                // Log de depuração para o Mestre acompanhar
-                                android.util.Log.d("PLAYER_FLUXO", "Estado: SYNCING - Usuário retido na tela de carregamento.")
-                            }
-                            com.antigravity.player.ui.PlayerUIState.PLAYING -> {
-                                // LIBERAÇÃO: Só acontece quando o CacheManager termina tudo
-                                // Transição atômica: uma sobe enquanto a outra desce
-                                syncGuard.releaseLock()
-                                statusTextView.visibility = View.GONE
-                                playerView1.visibility = View.VISIBLE
-                                standbyImage.visibility = View.GONE
-
-                                // [SIGNAGE NOTIFICATION SHIELD] Dispositivo em operacao
-                                // signage dedicada: bloqueia heads-up notifications de
-                                // outros apps (WhatsApp, Shopee, etc.) via filtro oficial
-                                // do Android. O filtro anterior e guardado para restaurar
-                                // no modo manutencao/desvinculacao.
+                    when (estado) {
+                        com.antigravity.player.ui.PlayerUIState.SYNCING -> {
+                            android.util.Log.d("PLAYER_FLUXO", "Estado: SYNCING - Fluxo de sincronização em andamento.")
+                        }
+                        com.antigravity.player.ui.PlayerUIState.PLAYING -> {
+                            // [SIGNAGE NOTIFICATION SHIELD] Dispositivo em operacao signage dedicada:
+                            // bloqueia heads-up notifications de outros apps (WhatsApp, Shopee, etc.)
+                            // via filtro oficial do Android. O filtro anterior e guardado para restaurar
+                            // no modo manutencao/desvinculacao.
+                            runOnUiThread {
                                 if (DeviceControl.isNotificationPolicyAccessGranted(this@MainActivity)) {
                                     if (previousInterruptionFilter == android.app.NotificationManager.INTERRUPTION_FILTER_UNKNOWN) {
                                         previousInterruptionFilter = (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager).currentInterruptionFilter
@@ -267,21 +394,14 @@ class MainActivity : AppCompatActivity() {
                                         Logger.i("KIOSK", "Modo signage: heads-up notifications suprimidas.")
                                     }
                                 }
-
-                                android.util.Log.d("PLAYER_FLUXO", "Estado: PLAYING - Mídias prontas. Iniciando reprodução.")
                             }
-                            com.antigravity.player.ui.PlayerUIState.AUTH -> {
-                                android.util.Log.d("PLAYER_FLUXO", "Estado: AUTH - Conexão de tela.")
-                            }
-                            com.antigravity.player.ui.PlayerUIState.PREPARING -> {
-                                // O Observer mantém a tela de Sync Visível até termos o frame pintado.
-                                // Na prática: LockScreen continua visualmente
-                                syncGuard.lockScreen("Preparando Mídias...")
-                                statusTextView.visibility = View.VISIBLE
-                                playerView1.visibility = View.INVISIBLE
-                                playerView2.visibility = View.INVISIBLE
-                                android.util.Log.d("PLAYER_FLUXO", "Estado: PREPARING - Verificação de cache local e Pre-Roll.")
-                            }
+                            android.util.Log.d("PLAYER_FLUXO", "Estado: PLAYING - Mídias prontas. Reprodução iniciada.")
+                        }
+                        com.antigravity.player.ui.PlayerUIState.AUTH -> {
+                            android.util.Log.d("PLAYER_FLUXO", "Estado: AUTH - Conexão de tela.")
+                        }
+                        com.antigravity.player.ui.PlayerUIState.PREPARING -> {
+                            android.util.Log.d("PLAYER_FLUXO", "Estado: PREPARING - Verificação de cache local e Pre-Roll.")
                         }
                     }
                 }
@@ -358,7 +478,7 @@ class MainActivity : AppCompatActivity() {
                         ServiceLocator.resetRepository()
                         
                         if (!isFinishing && !isDestroyed) {
-                            Toast.makeText(this@MainActivity, "Redirecionando para Seleção de Tela...", Toast.LENGTH_LONG).show()
+                            Logger.i("NAVIGATION", "Redirecionando para Seleção de Tela...")
                         }
                         
                         isKioskEnforced = false
@@ -377,9 +497,6 @@ class MainActivity : AppCompatActivity() {
 
             statusTextView.setOnLongClickListener { resetScreenAction() }
             syncOverlay?.setOnLongClickListener { resetScreenAction() }
-            syncOverlay?.setOnClickListener {
-                Toast.makeText(this@MainActivity, "Mantenha pressionado por 2s para trocar a Tela", Toast.LENGTH_SHORT).show()
-            }
 
                // [OTA] Auto-Update Initial Check 
             lifecycleScope.launch {
@@ -401,19 +518,26 @@ class MainActivity : AppCompatActivity() {
                 val dmHeight = displayMetrics.heightPixels
                 val pvWidth = playerView1.width
                 val pvHeight = playerView1.height
+                val playlistOri = com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(
+                    SessionManager.currentOrientation
+                )
+                val deviceOri = com.antigravity.core.domain.model.DevicePhysicalOrientation.fromConfig(
+                    resources.configuration.orientation
+                )
+                val resolved = com.antigravity.core.domain.model.PresentationResolver.resolve(
+                    playlistOri,
+                    dmWidth,
+                    dmHeight,
+                    deviceOri
+                )
                 val ratio = if (height > 0) String.format(java.util.Locale.US, "%.2f", width.toFloat() / height) else "N/A"
                 val resMode = if (playerView1.resizeMode == androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT) "FIT" else "OTHER(${playerView1.resizeMode})"
                 
                 Logger.i("ORIENTATION_CONTRACT", """
-                    [ORIENTATION_CONTRACT]
-                    DISPLAY RAW: ${dmWidth}x${dmHeight}
-                    ANDROID CONFIGURATION: ${if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) "LANDSCAPE" else "PORTRAIT"}
-                    ACTIVITY ORIENTATION: ${requestedOrientation}
-                    SESSION ORIENTATION: ${SessionManager.currentOrientation}
+                    ${resolved.toLogString()}
                     PLAYER VIEW 1: ${pvWidth}x${pvHeight}
                     VIDEO: ${width}x${height} (Ratio: $ratio)
                     RESIZE MODE: $resMode
-                    CROP: false | STRETCH: false
                 """.trimIndent())
             }
             playerRenderer2.onVideoSizeChanged = { width, height ->
@@ -422,19 +546,26 @@ class MainActivity : AppCompatActivity() {
                 val dmHeight = displayMetrics.heightPixels
                 val pvWidth = playerView2.width
                 val pvHeight = playerView2.height
+                val playlistOri = com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(
+                    SessionManager.currentOrientation
+                )
+                val deviceOri = com.antigravity.core.domain.model.DevicePhysicalOrientation.fromConfig(
+                    resources.configuration.orientation
+                )
+                val resolved = com.antigravity.core.domain.model.PresentationResolver.resolve(
+                    playlistOri,
+                    dmWidth,
+                    dmHeight,
+                    deviceOri
+                )
                 val ratio = if (height > 0) String.format(java.util.Locale.US, "%.2f", width.toFloat() / height) else "N/A"
                 val resMode = if (playerView2.resizeMode == androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT) "FIT" else "OTHER(${playerView2.resizeMode})"
                 
                 Logger.i("ORIENTATION_CONTRACT", """
-                    [ORIENTATION_CONTRACT]
-                    DISPLAY RAW: ${dmWidth}x${dmHeight}
-                    ANDROID CONFIGURATION: ${if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) "LANDSCAPE" else "PORTRAIT"}
-                    ACTIVITY ORIENTATION: ${requestedOrientation}
-                    SESSION ORIENTATION: ${SessionManager.currentOrientation}
+                    ${resolved.toLogString()}
                     PLAYER VIEW 2: ${pvWidth}x${pvHeight}
                     VIDEO: ${width}x${height} (Ratio: $ratio)
                     RESIZE MODE: $resMode
-                    CROP: false | STRETCH: false
                 """.trimIndent())
             }
             
@@ -459,23 +590,14 @@ class MainActivity : AppCompatActivity() {
                  networkMonitor.isConnected.collect { isConnected ->
                      if (isConnected) {
                          if (!isFirstEmission) {
-                             runOnUiThread { 
-                                 if (!isFinishing && !isDestroyed) {
-                                     Toast.makeText(this@MainActivity, "Conexão Restaurada! Sincronizando...", Toast.LENGTH_SHORT).show() 
-                                 }
-                             }
+                             Logger.i("NETWORK", "Conexão Restaurada! Sincronizando em background...")
                              // Internet is back! Force Sync + Reconnect Realtime
                              com.antigravity.player.util.PlaybackBufferManager(applicationContext).flushPendingLogs()
                              lifecycleScope.launch(Dispatchers.IO) { syncInBackground() }
                          }
                      } else {
                          if (!isFirstEmission) {
-                             runOnUiThread { 
-                                 if (!isFinishing && !isDestroyed) {
-                                    updateStatus("Sem Internet. Modo Offline Ativo.")
-                                    Toast.makeText(this@MainActivity, "Sem Internet. Modo Offline Ativo.", Toast.LENGTH_LONG).show() 
-                                 }
-                             }
+                             Logger.w("NETWORK", "Sem Internet. Modo Offline Ativo (Playback ininterrupto).")
                          }
                      }
                      isFirstEmission = false
@@ -486,6 +608,12 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 // 1. Start Synchronization Loop (Cache-First) immediately
                 checkLocalCacheAndPlay()
+
+                // [P0-FIX RC3] Bootstrap is complete. Transition events from ScreenSelection
+                // (focus-loss, onStop during task switch) have now settled. From this point
+                // onward, registerValidExit() will count real user-initiated exits.
+                isBootstrapComplete = true
+                Logger.i("ESCAPE_PROTOCOL", "Bootstrap complete. Exit counter now active.")
                 
                 // 3. Start Screenshot Heartbeat (Proof of Life - 1 hour)
                 startScreenshotHeartbeat()
@@ -513,7 +641,7 @@ class MainActivity : AppCompatActivity() {
                     val autoCleanManager = AutoCleanManager(this@MainActivity)
                     autoCleanManager.onRestartRequested = {
                         if (!isFinishing && !isDestroyed) {
-                            Toast.makeText(this@MainActivity, "Manutenção Programada (Auto-Clean)...", Toast.LENGTH_SHORT).show()
+                            Logger.i("AUTO_CLEAN", "Manutenção Programada (Auto-Clean) em execução...")
                             if (::playerRenderer1.isInitialized) playerRenderer1.release()
                             if (::playerRenderer2.isInitialized) playerRenderer2.release()
                             startSyncAndPlay()
@@ -542,32 +670,38 @@ class MainActivity : AppCompatActivity() {
 
 
             // [BILLING BLOCK] Deactivation Listener: Block screen when admin disables
+            // [P0.4.8] screenActiveEvents preserva responsabilidades operacionais legítimas:
+            //   stop() dos renderers, reset do isSyncLoopRunning, syncInBackground.
+            // A decisão de superfície (BLOCKED/SYNC_GUARD) foi removida deste ponto —
+            // ela flui pelo caminho canônico via syncSurfaceWithCanonicalProjection().
+            // SessionManager.triggerScreenActive(false) já chama transitionTo(SUSPENDED),
+            // e SessionStateAdapter.adapt(isScreenActive=false) → SessionState.Suspended
+            //   → SurfaceProjectionEngine → SurfaceState.BLOCKED.
             lifecycleScope.launch {
                 SessionManager.screenActiveEvents.collect { isActive ->
                     Logger.w("BILLING", "Screen active state changed: $isActive")
                     runOnUiThread {
                         if (!isActive) {
-                            // BLOCK: Stop everything and show billing overlay
+                            // BLOCK: Stop everything (operational side effects — preservados)
                             playerRenderer1.stop()
                             playerRenderer2.stop()
                             isSyncLoopRunning = false
                             
-                            // Update dynamic message
-                            findViewById<TextView>(R.id.block_title)?.text = SessionManager.blockMessage
-                            
-                            blockOverlay.visibility = View.VISIBLE
-                            playerView1.visibility = View.GONE
-                            playerView2.visibility = View.GONE
-                            // standbyImage stays VISIBLE as Layer 0
+                            // [P0.4.8] Superfície via projeção canônica.
+                            // isScreenActive=false → SessionState.Suspended → SurfaceState.BLOCKED.
+                            syncSurfaceWithCanonicalProjection()
                             Logger.w("BILLING", "SCREEN BLOCKED by admin. Message: ${SessionManager.blockMessage}")
                         } else {
-                            // UNBLOCK: Hide overlay and resume
-                            blockOverlay.visibility = View.GONE
-                            statusTextView.visibility = View.VISIBLE
-                            updateStatus("Tela reativada! Sincronizando...")
-                            Logger.i("BILLING", "SCREEN UNBLOCKED. Resuming playback.")
-                            lifecycleScope.launch(Dispatchers.IO) {
-                                syncInBackground()
+                            // UNBLOCK: Only execute re-activation if screen was actually blocked
+                            val wasBlocked = blockOverlay.visibility == View.VISIBLE
+                            if (wasBlocked) {
+                                // [P0.4.8] Superfície via projeção canônica.
+                                // isScreenActive=true + Idle → SurfaceState.SYNC_GUARD.
+                                syncSurfaceWithCanonicalProjection()
+                                Logger.i("BILLING", "SCREEN UNBLOCKED. Resuming playback.")
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    syncInBackground()
+                                }
                             }
                         }
                     }
@@ -588,6 +722,16 @@ class MainActivity : AppCompatActivity() {
                     Logger.i("COMMAND", ">>> EVENT RECEIVED: $command (ID: $commandId)")
                     when (command) {
                         "screenshot", "take_screenshot" -> takeProofOfPlayScreenshot(commandId)
+                        "maintenance_open", "open_maintenance" -> {
+                            Logger.i("COMMAND", ">>> MAINTENANCE OPEN COMMAND RECEIVED (ID: $commandId)")
+                            ackRemoteCommand(commandId, "executed")
+                            runOnUiThread { enableSystemNavigation("remote_command") }
+                        }
+                        "maintenance_close", "close_maintenance" -> {
+                            Logger.i("COMMAND", ">>> MAINTENANCE CLOSE COMMAND RECEIVED (ID: $commandId)")
+                            ackRemoteCommand(commandId, "executed")
+                            runOnUiThread { restoreFromMaintenance(force = true) }
+                        }
                         "sync" -> {
                             ackRemoteCommand(commandId, "executed")
                             runOnUiThread { startSyncAndPlay() }
@@ -597,11 +741,11 @@ class MainActivity : AppCompatActivity() {
                             runOnUiThread { startSyncAndPlay() }
                         }
                         "rotate_portrait" -> {
-                            applyScreenRotation("portrait")
+                            applyScreenRotation("portrait", forcePhysicalLock = true)
                             ackRemoteCommand(commandId, "executed")
                         }
                         "rotate_landscape" -> {
-                            applyScreenRotation("landscape")
+                            applyScreenRotation("landscape", forcePhysicalLock = true)
                             ackRemoteCommand(commandId, "executed")
                         }
                         "reboot" -> {
@@ -610,20 +754,18 @@ class MainActivity : AppCompatActivity() {
                             
                             if (dpm.isDeviceOwnerApp(packageName)) {
                                 ackRemoteCommand(commandId, "executed")
-                                runOnUiThread {
-                                    Toast.makeText(this@MainActivity, "Comando Remoto: Reiniciando Player FÍSICO...", Toast.LENGTH_LONG).show()
-                                    Handler(Looper.getMainLooper()).postDelayed({
-                                        try {
-                                            dpm.reboot(componentName)
-                                        } catch (e: Exception) {
-                                            Logger.e("COMMAND", "Falha ao reiniciar o dispositivo: ${e.message}")
-                                            // Fallback para restart de App se houver exceção
-                                            val intent = Intent(this@MainActivity, SplashActivity::class.java)
-                                            startActivity(intent)
-                                            finish()
-                                        }
-                                    }, 2000)
-                                }
+                                Logger.i("COMMAND", "Comando Remoto: Reiniciando Player FÍSICO...")
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    try {
+                                        dpm.reboot(componentName)
+                                    } catch (e: Exception) {
+                                        Logger.e("COMMAND", "Falha ao reiniciar o dispositivo: ${e.message}")
+                                        // Fallback para restart de App se houver exceção
+                                        val intent = Intent(this@MainActivity, SplashActivity::class.java)
+                                        startActivity(intent)
+                                        finish()
+                                    }
+                                }, 2000)
                             } else {
                                 // Não mascarar limitação física (P0-04)
                                 ackRemoteCommand(commandId, "unsupported - Device Owner required for physical reboot")
@@ -650,7 +792,7 @@ class MainActivity : AppCompatActivity() {
                                     // [SIGNAGE NOTIFICATION SHIELD] Saiu do modo signage: restaura notificacoes
                                     DeviceControl.restoreInterruptionFilter(this@MainActivity, previousInterruptionFilter)
 
-                                    Toast.makeText(this@MainActivity, "Dispositivo desvinculado pelo painel.", Toast.LENGTH_LONG).show()
+                                    Logger.i("COMMAND", "Dispositivo desvinculado pelo painel.")
 
                                     // 3. Redireciona para ScreenSelectionActivity
                                     val intent = Intent(this@MainActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java).apply {
@@ -743,11 +885,11 @@ class MainActivity : AppCompatActivity() {
     }
 
 private fun checkLocalCacheAndPlay() {
-        lifecycleScope.launch(Dispatchers.Main) {
+        lifecycleScope.launch(Dispatchers.IO) {
             val repository = ServiceLocator.getRepository(applicationContext)
             
             // 1. Tenta buscar a última playlist salva no banco local
-            val cacheResult = repository.loadLocalCache()
+            repository.loadLocalCache()
             val localPlaylist = repository.getActivePlaylist().firstOrNull()
 
             // [FIX P3] Verificar se a screen ainda existe e está ativa no Dashboard.
@@ -760,44 +902,46 @@ private fun checkLocalCacheAndPlay() {
             // invalida o cache e força sync (que vai limpar o saved_screen_id)
             val hasLocalItems = localPlaylist != null && localPlaylist.items.isNotEmpty()
             
-            if (hasLocalItems && screenIdValid) {
-                Logger.i("OFFLINE_FIRST", "Cache local encontrado e screen válida. Iniciando reprodução imediata.")
-                
-                // 2. Trava a interface no estado PREPARING via Gatekeeper,
-                // para que a tela de Sync continue travando o fundo até o motor de fato começar o frame 0.
-                viewModel.prepararPrimeiraMidia()
-                
-                // 3. Aplica a orientação que já estava salva para este dispositivo
-                applyScreenRotation(localPlaylist?.orientation)
-                
-                // 4. Inicia o loop de reprodução com os arquivos locais
-                Handler(Looper.getMainLooper()).postDelayed({
-                    startPlaybackLoop()
-                }, 100)
+            withContext(Dispatchers.Main) {
+                if (hasLocalItems && screenIdValid) {
+                    Logger.i("OFFLINE_FIRST", "Cache local encontrado e screen válida. Iniciando reprodução imediata.")
+                    
+                    // 2. Trava a interface no estado PREPARING via Gatekeeper,
+                    // para que a tela de Sync continue travando o fundo até o motor de fato começar o frame 0.
+                    viewModel.prepararPrimeiraMidia()
+                    
+                    // 3. Aplica a orientação que já estava salva para este dispositivo
+                    applyScreenRotation(localPlaylist?.orientation)
+                    
+                    // 4. Inicia o loop de reprodução com os arquivos locais
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        startPlaybackLoop()
+                    }, 100)
 
-                // 5. APÓS iniciar o vídeo, dispara a sincronização em background (silenciosa)
-                // Para verificar se há atualizações, mas sem travar o início da reprodução
-                lifecycleScope.launch(Dispatchers.IO) {
-                    Logger.i("SYNC", "Verificando atualizações em segundo plano enquanto vídeo toca...")
-                    syncInBackground()
+                    // 5. APÓS iniciar o vídeo, dispara a sincronização em background (silenciosa)
+                    // Para verificar se há atualizações, mas sem travar o início da reprodução
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        Logger.i("SYNC", "Verificando atualizações em segundo plano enquanto vídeo toca...")
+                        syncInBackground()
+                    }
+                } else if (hasLocalItems && !screenIdValid) {
+                    // Screen foi deletada/órfã do Dashboard. Invalida o saved_screen_id e força re-pareamento.
+                    Logger.w("OFFLINE_FIRST", "Screen do cache foi removida do painel. Invalidação do saved_screen_id.")
+                    val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
+                    prefs.edit().remove("saved_screen_id").apply()
+                    SessionManager.currentUserId = null
+                    // Reinicia o fluxo sem screen ID - vai para seleção
+                    startSyncAndPlay()
+                } else if (!hasLocalItems && screenIdValid) {
+                    // Sem cache local, mas screen é válida no backend. Inicia sync para baixar playlist.
+                    Logger.i("OFFLINE_FIRST", "Sem cache local, screen válida no backend. Iniciando sincronização inicial.")
+                    startSyncAndPlay()
+                } else {
+                    // Caso não tenha NADA no cache (primeira execução ou screen inválida),
+                    // inicia o fluxo de sincronização visível
+                    Logger.w("OFFLINE_FIRST", "Sem cache local suficiente ou screen inválida. Aguardando sincronização inicial.")
+                    startSyncAndPlay()
                 }
-            } else if (hasLocalItems && !screenIdValid) {
-                // Screen foi deletada/órfã do Dashboard. Invalida o saved_screen_id e força re-pareamento.
-                Logger.w("OFFLINE_FIRST", "Screen do cache foi removida do painel. Invalidação do saved_screen_id.")
-                val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-                prefs.edit().remove("saved_screen_id").apply()
-                SessionManager.currentUserId = null
-                // Reinicia o fluxo sem screen ID - vai para seleção
-                startSyncAndPlay()
-            } else if (!hasLocalItems && screenIdValid) {
-                // Sem cache local, mas screen é válida no backend. Inicia sync para baixar playlist.
-                Logger.i("OFFLINE_FIRST", "Sem cache local, screen válida no backend. Iniciando sincronização inicial.")
-                startSyncAndPlay()
-            } else {
-                // Caso não tenha NADA no cache (primeira execução ou screen inválida),
-                // inicia o fluxo de sincronização visível
-                Logger.w("OFFLINE_FIRST", "Sem cache local suficiente ou screen inválida. Aguardando sincronização inicial.")
-                startSyncAndPlay()
             }
         }
     }
@@ -823,10 +967,10 @@ private fun checkLocalCacheAndPlay() {
             // Busca a screen na lista do backend por id, customId ou variações de caso
             val screenValida = authorizedScreens.any { screen ->
                 val idMatch = (
-                    (screen.id ?: "").equals(savedId, ignoreCase = true) ||
+                    screen.id.equals(savedId, ignoreCase = true) ||
                     (screen.customId ?: "").equals(savedId, ignoreCase = true)
                 )
-                val isActive = screen.isActive ?: false
+                val isActive = screen.isActive
                 idMatch && isActive
             }
             
@@ -901,11 +1045,13 @@ private fun checkLocalCacheAndPlay() {
             // [DEVICE IDENTITY] Attest hardware identity BEFORE syncing content
             attestDeviceIdentity()
             
-            // Sincronização VISÍVEL para primeira carga ou erro fatal de cache
+            // [P0.4.8] Superfície aplicada via caminho canônico.
+            // SessionStateAdapter → SessionState.Authorized → PlaybackState.Idle → SYNC_GUARD.
+            // Não mais via syncGuard.lockScreen() direto (decisão visual concorrente removida).
             updateStatus("Sincronizando mídias...", isError = false)
             runOnUiThread { 
-                syncGuard.lockScreen("Sincronizando mídias...") 
-                statusTextView.visibility = View.VISIBLE
+                syncSurfaceWithCanonicalProjection()
+                statusTextView.visibility = View.GONE
             }
             
             // [SMART_CLEANER] 2. Faxina Pré-Playlist: Limpa fantasmas antes de sincronizar o banco
@@ -945,13 +1091,13 @@ try {
                         val isAborted = errorMsg.contains("aborted", ignoreCase = true) || errorMsg.contains("timeout", ignoreCase = true)
                         Logger.e("SYNC", "Sync failed: $errorMsg. Is Aborted/Timeout: $isAborted")
                         
-                        lifecycleScope.launch(Dispatchers.IO) {
+                        lifecycleScope.launch(Dispatchers.IO) ioBlock@{
                             val localResult = repo.loadLocalCache()
                             if (localResult.isSuccess) {
                                 Logger.i("SYNC", "[RESILIENCE] Network failed ($errorMsg), mas cache local encontrado. Resumindo...")
                                 runOnUiThread { updateStatus("Modo Offline Ativo") }
                                 viewModel.prepararPrimeiraMidia()
-                                return@launch 
+                                return@ioBlock 
                             }
 
                             runOnUiThread { updateStatus("Erro: $errorMsg", isError = true) }
@@ -1024,7 +1170,7 @@ try {
     private fun showChangeScreenOption() {
         runOnUiThread {
             if (!isFinishing && !isDestroyed) {
-                Toast.makeText(this, "Dica: Mantenha pressionado o texto de status para trocar de tela.", Toast.LENGTH_LONG).show()
+                Logger.i("SCREEN_OPT", "Dica: Mantenha pressionado o texto de status para trocar de tela.")
             }
         }
     }
@@ -1123,6 +1269,7 @@ withContext(Dispatchers.Main) {
             standbyImage.visibility = View.GONE
             staticImageLayer.visibility = View.GONE
             nativeWidgetContainer.visibility = View.GONE
+            statusTextView.visibility = View.GONE
             
             Logger.i("SEAMLESS_SWAP", "[SEAMLESS_SWAP] Troca visual limpa concluída via FirstFrame.")
         }
@@ -1137,13 +1284,9 @@ withContext(Dispatchers.Main) {
 
     // [DIAGNÓSTICO VISUAL] Fim do jogo de adivinhação
     private fun exibirAlertaDeMidiaCorrompida(nomeMidia: String) {
-        runOnUiThread {
-            if (!isFinishing && !isDestroyed) {
-                val erroMsg = "⚠️ ERRO DE MÍDIA: [$nomeMidia]\nPrecisa de Re-upload"
-                Toast.makeText(this@MainActivity, erroMsg, Toast.LENGTH_LONG).show()
-                Logger.e("ANTIGRAVITY", erroMsg)
-            }
-        }
+        val erroMsg = "⚠️ ERRO DE MÍDIA: [$nomeMidia] Precisa de Re-upload"
+        Logger.e("ANTIGRAVITY", erroMsg)
+        logBlackBox("MEDIA_CORRUPT", erroMsg)
     }
 
     private fun startPersistentHeartbeat() {
@@ -1166,7 +1309,8 @@ withContext(Dispatchers.Main) {
         val storageManager = ServiceLocator.getFileStorageManager(applicationContext)
         val hashedFile = storageManager.getFileForMedia(item.id, item.hash)
         val legacyFile = java.io.File(java.io.File(filesDir, "media_content"), "${item.id}.dat")
-        val directPathFile = if (!item.localPath.isNullOrBlank()) java.io.File(item.localPath) else null
+        val directPath = item.localPath
+        val directPathFile = if (!directPath.isNullOrBlank()) java.io.File(directPath) else null
 
         val localFile = when {
             directPathFile != null && directPathFile.exists() && directPathFile.length() > 0 -> directPathFile
@@ -1189,10 +1333,6 @@ withContext(Dispatchers.Main) {
         
         val viewToFadeIn = if (currentPlayingEngine == playerRenderer1) playerView1 else playerView2
         val viewToFadeOut = if (currentPlayingEngine == playerRenderer1) playerView2 else playerView1
-        
-        var swapListener: androidx.media3.common.Player.Listener? = null
-        var capturedRawPlayer: androidx.media3.common.Player? = null
-
         runOnUiThread {
             viewToFadeIn.alpha = 0f 
             viewToFadeIn.visibility = View.VISIBLE
@@ -1212,7 +1352,6 @@ withContext(Dispatchers.Main) {
                     currentPlayingEngine?.prepare(resolvedItem)
                     
                     val rawPlayer = currentPlayingEngine?.getPlayerInstance()
-                    capturedRawPlayer = rawPlayer
                     
                     val listener = object : androidx.media3.common.Player.Listener {
                         private var swapped = false
@@ -1264,7 +1403,6 @@ withContext(Dispatchers.Main) {
                             }
                         }
                     }
-                    swapListener = listener
                     rawPlayer?.addListener(listener)
                     
                     currentPlayingEngine?.play() // Inicia reprodução
@@ -1347,7 +1485,8 @@ withContext(Dispatchers.Main) {
         val storageManager = ServiceLocator.getFileStorageManager(applicationContext)
         val hashedFile = storageManager.getFileForMedia(item.id, item.hash)
         val legacyFile = java.io.File(java.io.File(filesDir, "media_content"), "${item.id}.dat")
-        val directPathFile = if (!item.localPath.isNullOrBlank()) java.io.File(item.localPath) else null
+        val directPath = item.localPath
+        val directPathFile = if (!directPath.isNullOrBlank()) java.io.File(directPath) else null
 
         val localFile = when {
             directPathFile != null && directPathFile.exists() && directPathFile.length() > 0 -> directPathFile
@@ -1405,6 +1544,7 @@ withContext(Dispatchers.Main) {
             }).into(staticImageLayer)
             
             staticImageLayer.visibility = View.VISIBLE
+            statusTextView.visibility = View.GONE
             
             // Explicitly hide non-image layers to prevent overlap.
             // [DOUBLE BUFFERING] Usamos INVISIBLE invés de GONE para não quebrar as referências das Surfaces na memória
@@ -1428,14 +1568,6 @@ withContext(Dispatchers.Main) {
 
     private suspend fun engineWidget(item: MediaItem): Boolean {
         logBlackBox("ENGINE_WIDGET", "Native rendering: ${item.remoteUrl}")
-        
-        // Formato esperado da URL nativa: native_widget://[tipo]/[id]
-        val widgetType = if (item.remoteUrl.startsWith("native_widget://")) {
-            item.remoteUrl.substringAfter("native_widget://").substringBefore("/")
-        } else {
-            // Em caso de fallback onde o banco antigo guardava "weather" ou "clock" no nome
-            item.name.lowercase()
-        }
 
         // 1. Oculta todos os layers e mostra o container nativo
         runOnUiThread {
@@ -1493,16 +1625,6 @@ withContext(Dispatchers.Main) {
      */
     private fun playStandbyVideo() {
         val standbyUri = android.net.Uri.parse("asset:///standby.mp4")
-        val item = com.antigravity.core.domain.model.MediaItem(
-            id = "STANDBY_FALLBACK",
-            name = "Standby Loop",
-            type = com.antigravity.core.domain.model.MediaType.VIDEO,
-            remoteUrl = "",
-            durationSeconds = 60,
-            localPath = null,
-            hash = "",
-            orderIndex = 0
-        )
         
         lifecycleScope.launch {
             try {
@@ -1717,8 +1839,7 @@ withContext(Dispatchers.Main) {
                 }
             }
         }
-        // [ESCAPE PROTOCOL] Trigger maintenance mode on any key press
-        triggerMaintenanceFree()
+        // [MICRO-GATE P0.1] Normal remote keys / navigation keys MUST NOT trigger maintenance.
         return super.onKeyDown(keyCode, event)
     }
 
@@ -1756,6 +1877,40 @@ withContext(Dispatchers.Main) {
         // Activity existe (singleInstance). Se morreu, onCreate cobre o caso.
         val isExplicitRestore = intent?.getBooleanExtra(EXTRA_RESTORE_MAINTENANCE, false) == true
         evaluateMaintenanceState(force = isExplicitRestore)
+
+        // [P0-FIX RC2] Re-entry from ScreenSelectionActivity
+        // If returning to existing singleInstance MainActivity after screen selection,
+        // sync volatile state, restore Kiosk lock, and initiate the sync/playback loop.
+        val prefs = getSharedPreferences("player_prefs", MODE_PRIVATE)
+        val savedId = prefs.getString("saved_screen_id", null)
+        if (!savedId.isNullOrBlank()) {
+            Logger.i("NAVIGATION", "MainActivity.onNewIntent: Screen ID $savedId active. Initiating synchronization...")
+            // Clear any lingering maintenance or exit counters from selection navigation
+            prefs.edit().remove(PREF_MAINTENANCE_UNTIL).remove(PREF_EXIT_COUNT).putLong(PREF_LAST_EXIT_AT, 0L).apply()
+            cancelMaintenanceRecoveryAlarm()
+            maintenanceCounter = 0
+            lastInputTime = 0L
+
+            val rendererScreenId = if (::playerRenderer1.isInitialized) playerRenderer1.currentScreenId else null
+            val reentrySurface = resolveReentrySurface(sampleRuntimeState(), rendererScreenId, savedId)
+
+            SessionManager.currentUserId = savedId
+            SessionManager.currentUUID = savedId
+            if (::playerRenderer1.isInitialized) playerRenderer1.currentScreenId = savedId
+            if (::playerRenderer2.isInitialized) playerRenderer2.currentScreenId = savedId
+
+            isKioskEnforced = true
+            DeviceControl.enableKioskMode(this)
+            setFullscreenMode()
+
+            lifecycleScope.launch {
+                isBootstrapComplete = false
+                reentrySurface?.let { applySurface(it, "Sincronizando mídias...") }
+                checkLocalCacheAndPlay()
+                isBootstrapComplete = true
+                Logger.i("NAVIGATION", "MainActivity.onNewIntent: Bootstrap complete.")
+            }
+        }
     }
 
 
@@ -1835,7 +1990,7 @@ withContext(Dispatchers.Main) {
                 // 4. Force Sync 
                 withContext(Dispatchers.Main) {
                     if (!this@MainActivity.isFinishing && !this@MainActivity.isDestroyed) {
-                        Toast.makeText(this@MainActivity, "Reparo Automático: Atualizando Playlist...", Toast.LENGTH_LONG).show()
+                        Logger.w("SELF_HEALING", "Reparo Automático: Atualizando Playlist...")
                         startSyncAndPlay()
                     }
                 }
@@ -1881,31 +2036,75 @@ withContext(Dispatchers.Main) {
     private fun setFullscreenMode() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController?.hide(WindowInsetsCompat.Type.systemBars())
-        windowInsetsController?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
-    private fun applyScreenRotation(orientation: String?) {
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        setFullscreenMode()
+        val displayMetrics = resources.displayMetrics
+        val dmWidth = displayMetrics.widthPixels
+        val dmHeight = displayMetrics.heightPixels
+        val playlistOri = com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(
+            SessionManager.currentOrientation
+        )
+        val deviceOri = com.antigravity.core.domain.model.DevicePhysicalOrientation.fromConfig(newConfig.orientation)
+        val resolved = com.antigravity.core.domain.model.PresentationResolver.resolve(
+            playlistOri,
+            dmWidth,
+            dmHeight,
+            deviceOri
+        )
+        Logger.i("ORIENTATION_CONTRACT", """
+            [CONFIGURATION_CHANGED]
+            ${resolved.toLogString()}
+        """.trimIndent())
+        window.decorView.requestLayout()
+    }
+
+    private fun applyScreenRotation(orientation: String?, forcePhysicalLock: Boolean = false) {
         runOnUiThread {
-            when (orientation?.lowercase()?.trim()) {
-                "portrait", "retrato", "vertical", "9x16", "9:16" -> {
-                    Logger.i("ORIENTATION", "Forcing Portrait Mode (9:16)")
-                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                }
-                "landscape", "paisagem", "horizontal", "16x9", "16:9" -> {
-                    Logger.i("ORIENTATION", "Forcing Landscape Mode (16:9)")
-                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                }
-                else -> {
-                    Logger.i("ORIENTATION", "No valid orientation received: $orientation. Standardizing to Landscape.")
-                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                }
-            }
-            // Trigger layout recalculation immediately for hardware constraints
+            val canonicalOrientation = com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(
+                orientation
+            ).canonicalName
+            
+            SessionManager.currentOrientation = canonicalOrientation
             try {
                 val prefs = getSharedPreferences("player_prefs", android.content.Context.MODE_PRIVATE)
-                prefs.edit().putString("current_orientation", orientation ?: "landscape").apply()
+                prefs.edit().putString("current_orientation", canonicalOrientation).apply()
             } catch (e: Exception) {}
+
+            if (forcePhysicalLock) {
+                when (canonicalOrientation) {
+                    "portrait" -> {
+                        Logger.i("ORIENTATION", "Forcing Physical Portrait Lock (9:16)")
+                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    }
+                    "landscape" -> {
+                        Logger.i("ORIENTATION", "Forcing Physical Landscape Lock (16:9)")
+                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    }
+                }
+            }
+
+            val displayMetrics = resources.displayMetrics
+            val dmWidth = displayMetrics.widthPixels
+            val dmHeight = displayMetrics.heightPixels
+            val playlistOri = com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(
+                canonicalOrientation
+            )
+            val deviceOri = com.antigravity.core.domain.model.DevicePhysicalOrientation.fromConfig(
+                resources.configuration.orientation
+            )
+            val resolved = com.antigravity.core.domain.model.PresentationResolver.resolve(
+                playlistOri,
+                dmWidth,
+                dmHeight,
+                deviceOri
+            )
+            Logger.i("ORIENTATION_CONTRACT", resolved.toLogString())
+
             window.decorView.requestLayout()
         }
     }
@@ -2052,47 +2251,38 @@ withContext(Dispatchers.Main) {
     }
 
     // ========================================================================
-    // [ESCAPE PROTOCOL] DIRECT ESCAPE MAINTENANCE MODE
+    // [MICRO-GATE P0.1] KIOSK TOUCH & KEY ISOLATION
+    // Ordinary touchscreen taps (single, double, triple, repeated) during PLAYING
+    // are 100% ignored. Maintenance mode cannot be triggered by touch or keys.
     // ========================================================================
 
     override fun dispatchTouchEvent(event: android.view.MotionEvent?): Boolean {
-        if (event?.action == android.view.MotionEvent.ACTION_DOWN) {
-            triggerMaintenanceFree()
-        }
+        // [MICRO-GATE P0.1] Touch events during playing are passed normally to view hierarchy
+        // and NEVER trigger maintenance mode or count towards maintenance escape.
         return super.dispatchTouchEvent(event)
     }
 
-    private fun triggerMaintenanceFree() {
-        val currentTime = System.currentTimeMillis()
-        if (currentTime - lastInputTime > 1500) {
-            maintenanceCounter = 1
-        } else {
-            maintenanceCounter++
-        }
-        lastInputTime = currentTime
-
-        if (maintenanceCounter >= 3) {
-            enableSystemNavigation()
-            maintenanceCounter = 0
-        }
-    }
-
-    private fun enableSystemNavigation() {
+    /**
+     * [MICRO-GATE P0.1] ENTRADA EM MODO MANUTENÇÃO (EXCLUSIVAMENTE AUTENTICADA)
+     * Somente acionada por comando remoto autenticado ou mecanismo administrativo explícito.
+     * Totalmente silenciosa: sem Toast de entrada.
+     */
+    private fun enableSystemNavigation(source: String = "authenticated_command") {
+        Logger.i("KIOSK", "Ativando Modo Manutenção (origem: $source).")
         if (!isKioskEnforced) {
             // Se já estiver liberado, zera o timer e reinicia a janela de 3 min
             maintenanceJob?.cancel()
         } else {
             // 1. Pausa a blindagem (Kiosk Lock no onWindowFocusChanged)
             isKioskEnforced = false
-            Logger.w("ESCAPE_PROTOCOL", "Modo Manutenção ativado. System UI liberada e MoveTaskToFront bloqueado.")
+            Logger.w("ESCAPE_PROTOCOL", "Modo Manutenção ativado ($source). System UI liberada.")
 
             // [SIGNAGE NOTIFICATION SHIELD] Sai do modo dedicado: restaura notificacoes
             DeviceControl.restoreInterruptionFilter(this, previousInterruptionFilter)
 
-            // 2. Libera as barras de navegação (Home / Back Buttons) visíveis
+            // 2. Libera as barras de navegação (Home / Back Buttons) visíveis de forma silenciosa
             runOnUiThread {
                 releaseSystemBars()
-                Toast.makeText(this, "MODO DE MANUTENÇÃO: Sistema Liberado por 3 Min. Pressione Home para sair.", Toast.LENGTH_LONG).show()
             }
 
             // [MAINTENANCE P0] Persiste a janela, sincroniza o SelfHealingService
@@ -2120,7 +2310,7 @@ withContext(Dispatchers.Main) {
             }
         }
 
-        // 3. Timer rapido (caminho comum): 3 MINUTOS obrigatorios.
+        // 3. Timer da sessão de manutenção: 3 MINUTOS obrigatórios para retorno ao Kiosk.
         // A restauracao real acontece em restoreFromMaintenance(), que tambem e
         // acionada pelo AlarmManager se a Activity/processo morrer no intervalo.
         val prefs = getSharedPreferences("player_prefs", MODE_PRIVATE)
@@ -2133,10 +2323,10 @@ withContext(Dispatchers.Main) {
     }
 
     /**
-     * [MAINTENANCE P0] Retorno obrigatorio do controle apos a janela de 3 min.
-     * Idempotente: valida o deadline persistido antes de agir; chamadores
-     * redundantes (timer in-process, AlarmManager/onNewIntent, onCreate,
-     * onResume) convergem aqui sem dupla execucao.
+     * [MICRO-GATE P0.1] RETORNO SILENCIOSO E SEGURO DO CONTROLE AO KIOSK
+     * Retorno obrigatório do controle após a janela de manutenção de 3 min.
+     * Idempotente: valida o deadline persistido antes de agir.
+     * 100% SILENCIOSO: NENHUM Toast, Snackbar ou Overlay emitido ao retornar ao Kiosk.
      */
     private fun restoreFromMaintenance(force: Boolean = false) {
         val prefs = getSharedPreferences("player_prefs", MODE_PRIVATE)
@@ -2154,11 +2344,11 @@ withContext(Dispatchers.Main) {
         prefs.edit().remove(PREF_MAINTENANCE_UNTIL).remove(PREF_EXIT_COUNT).putLong(PREF_LAST_EXIT_AT, 0L).apply()
         cancelMaintenanceRecoveryAlarm()
         notifySelfHealing(false)
-        Logger.i("ESCAPE_PROTOCOL", "Modo Kiosk Total restabelecido via Timer de Segurança.")
+        Logger.i("ESCAPE_PROTOCOL", "Modo Kiosk Total restabelecido silenciosamente via Timer de Segurança.")
         if (isFinishing || isDestroyed) return
 
         runOnUiThread {
-            Toast.makeText(this@MainActivity, "Tempo Exgotado. Retomando Controle (Kiosk Lock).", Toast.LENGTH_LONG).show()
+            // [MICRO-GATE P0.1] RETORNO SILENCIOSO: NENHUM Toast emitido
             isKioskEnforced = true
             maintenanceCounter = 0
             lastInputTime = 0L
@@ -2194,16 +2384,16 @@ withContext(Dispatchers.Main) {
     }
 
     /**
-     * [EXIT COUNTER P0] Conta SOMENTE saidas reais provocadas pelo usuario ou
-     * perda efetiva de controle. Falsos positivos filtrados:
-     * - rotacao/configChanges (nao chegam a onStop nem perdem foco contavel);
-     * - dialogs internos (nao param a Activity);
-     * - debounce de 15s (focus-loss + onStop do mesmo episodio = 1 saida);
-     * - auto-reset apos 10 min estaveis (sem prisao permanente em manutencao);
-     * - navegacao intencional do proprio Player (isKioskEnforced=false antes).
+     * [EXIT COUNTER P0] Conta SOMENTE saídas reais para auditoria interna.
+     * [MICRO-GATE P0.1] Perdas de foco NUNCA acionam modo manutenção automaticamente.
+     * O SelfHealingService e o Handler de foco recuperam o Kiosk silenciosamente.
      */
     private fun registerValidExit() {
         if (!isKioskEnforced) return
+        if (!isBootstrapComplete) {
+            Logger.d("ESCAPE_PROTOCOL", "registerValidExit() ignorado: bootstrap ainda em progresso.")
+            return
+        }
         if (!::playerRenderer1.isInitialized) return // boot/interno
         val now = System.currentTimeMillis()
         if (now < DeviceControl.suppressExitCountUntilMs) return // config interna (ex.: instalador OTA)
@@ -2216,20 +2406,15 @@ withContext(Dispatchers.Main) {
         }
         val count = if (lastAt == 0L || now - lastAt > EXIT_COUNT_RESET_MS) 1 else prefs.getInt(PREF_EXIT_COUNT, 0) + 1
         prefs.edit().putInt(PREF_EXIT_COUNT, count).putLong(PREF_LAST_EXIT_AT, now).apply()
-        Logger.w("ESCAPE_PROTOCOL", "Saída válida registrada ($count/3).")
-
-        if (count >= 3) {
-            Logger.w("ESCAPE_PROTOCOL", "3 saídas válidas -> MODO MANUTENÇÃO (janela de 3 min).")
-            enableSystemNavigation()
-        }
+        Logger.w("ESCAPE_PROTOCOL", "Saída válida registrada ($count). Kiosk enforce ativo.")
     }
 
     /** Barras do sistema visiveis durante manutencao (usada na entrada e no boot renascido). */
     private fun releaseSystemBars() {
         try {
             val c = WindowCompat.getInsetsController(window, window.decorView)
-            c?.show(WindowInsetsCompat.Type.systemBars())
-            c?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+            c.show(WindowInsetsCompat.Type.systemBars())
+            c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         } catch (e: Exception) {}
     }
 
@@ -2306,7 +2491,6 @@ withContext(Dispatchers.Main) {
                 startActivity(Intent.createChooser(intent, "Exportar Logs de Auditoria"))
             } catch (e: Exception) {
                 Logger.e("EXPORT", "Falha ao exportar CSV: ${e.message}")
-                Toast.makeText(this, "Erro ao exportar relatório", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -2353,4 +2537,20 @@ withContext(Dispatchers.Main) {
             (getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pendingIntent)
         } catch (e: Exception) {}
     }
+}
+
+/**
+ * [P0.4.8R-F01] Superfície aplicada por MainActivity.onNewIntent() na re-entrada com saved_screen_id.
+ * onNewIntent também é disparado com mídia válida em reprodução (tecla HOME, watchdog AlarmManager,
+ * relaunch do UserApplication, retorno de manutenção). Retorna null quando nenhuma superfície deve ser
+ * aplicada: nesse caso não há efeito visual.
+ */
+internal fun resolveReentrySurface(
+    runtimeState: PlayerRuntimeState,
+    rendererScreenId: String?,
+    savedScreenId: String
+): SurfaceState? {
+    val isSameScreenPlaying = rendererScreenId == savedScreenId &&
+        com.antigravity.core.domain.state.projection.SurfaceProjectionEngine.project(runtimeState) == SurfaceState.MEDIA_ONLY
+    return if (isSameScreenPlaying) null else SurfaceState.SYNC_GUARD
 }

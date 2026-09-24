@@ -3,95 +3,189 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#050505">
+    android:background="#0F172A">
 
-    <LinearLayout
-        android:layout_width="450dp"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="32dp"
-        android:background="#121212"
+    <!-- Background Gradient Effect (Subtle Glow) -->
+    <View
+        android:layout_width="350dp"
+        android:layout_height="350dp"
+        android:background="@drawable/ic_launcher_background" 
+        android:alpha="0.1"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintEnd_toEndOf="parent" />
 
-        <ImageView
-            android:src="@drawable/logo"
-            android:layout_width="320dp"
-            android:layout_height="90dp"
-            android:scaleType="fitCenter"
-            android:layout_gravity="center"
-            android:layout_marginBottom="32dp" />
+    <androidx.cardview.widget.CardView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="#1E293B" 
+        app:cardCornerRadius="12dp"
+        app:cardElevation="8dp"
+        android:layout_marginHorizontal="24dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintWidth_max="450dp"> 
 
-        <com.google.android.material.textfield.TextInputLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Email"
-            app:boxBackgroundColor="#1A1A1A"
-            app:boxStrokeColor="#3F51B5"
-            app:boxCornerRadiusTopStart="8dp"
-            app:boxCornerRadiusTopEnd="8dp"
-            app:boxCornerRadiusBottomStart="8dp"
-            app:boxCornerRadiusBottomEnd="8dp"
-            android:textColorHint="#999999"
-            android:layout_marginBottom="16dp">
+            android:orientation="vertical"
+            android:padding="32dp"
+            android:gravity="center">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/email_input"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:textSize="20sp"
-                android:inputType="textEmailAddress"
+            <ImageView
+                android:id="@+id/app_logo"
+                android:layout_width="240dp"
+                android:layout_height="85dp"
+                android:scaleType="fitCenter"
+                android:adjustViewBounds="true"
+                android:src="@drawable/logo"
+                android:layout_marginBottom="20dp"
+                android:contentDescription="Sobre Mídia Logo"/>
+
+            <!-- Branding Header -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="10dp">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SOBRE"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:textColor="#F8FAFC"
+                    android:letterSpacing="0.05"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=" MÍDIA"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:textColor="#4F46E5"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=" PLAYER"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:textColor="#4F46E5"
+                    android:letterSpacing="0.05"/>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SEJA"
+                android:textSize="18sp"
+                android:textStyle="bold"
                 android:textColor="#FFFFFF"
-                android:nextFocusDown="@+id/password_input" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:letterSpacing="0.1"
+                android:layout_marginBottom="6dp"/>
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Senha"
-            app:boxBackgroundColor="#1A1A1A"
-            app:boxStrokeColor="#3F51B5"
-            app:boxCornerRadiusTopStart="8dp"
-            app:boxCornerRadiusTopEnd="8dp"
-            app:boxCornerRadiusBottomStart="8dp"
-            app:boxCornerRadiusBottomEnd="8dp"
-            android:textColorHint="#999999"
-            app:endIconMode="password_toggle"
-            app:endIconTint="#999999"
-            android:layout_marginBottom="24dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="BEM - VINDO"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="#F8FAFC"
+                android:letterSpacing="0.05"
+                android:layout_marginBottom="8dp"/>
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Faça login para gerenciar suas telas"
+                android:textSize="14sp"
+                android:textColor="#94A3B8"
+                android:layout_marginBottom="28dp"/>
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/password_input"
+            <!-- Email Field -->
+            <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:textSize="20sp"
-                android:inputType="textPassword"
-                android:textColor="#FFFFFF"
-                android:nextFocusDown="@+id/login_button" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:layout_height="wrap_content"
+                android:hint="Email"
+                app:boxBackgroundColor="#0F172A"
+                app:boxStrokeColor="#4F46E5"
+                app:boxCornerRadiusTopStart="8dp"
+                app:boxCornerRadiusTopEnd="8dp"
+                app:boxCornerRadiusBottomStart="8dp"
+                app:boxCornerRadiusBottomEnd="8dp"
+                android:textColorHint="#64748B"
+                app:hintTextColor="#4F46E5"
+                android:layout_marginBottom="16dp">
 
-        <Button
-            android:id="@+id/login_button"
-            android:layout_width="match_parent"
-            android:layout_height="70dp"
-            android:text="CONECTAR TELA"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:background="@drawable/btn_login_selector"
-            android:textColor="#FFFFFF"
-            android:layout_marginTop="8dp"
-            android:focusable="true"
-            android:clickable="true"
-            app:backgroundTint="@null" />
-            
-        <ProgressBar
-            android:id="@+id/login_loading"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:visibility="gone"
-            android:layout_gravity="center"
-            android:layout_marginTop="16dp" />
-    </LinearLayout>
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/email_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textEmailAddress"
+                    android:textColor="#F8FAFC"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:nextFocusDown="@+id/password_input"/>
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Password Field -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Senha"
+                app:boxBackgroundColor="#0F172A"
+                app:boxStrokeColor="#4F46E5"
+                app:boxCornerRadiusTopStart="8dp"
+                app:boxCornerRadiusTopEnd="8dp"
+                app:boxCornerRadiusBottomStart="8dp"
+                app:boxCornerRadiusBottomEnd="8dp"
+                android:textColorHint="#64748B"
+                app:hintTextColor="#4F46E5"
+                app:endIconMode="password_toggle"
+                app:endIconTint="#64748B"
+                android:layout_marginBottom="24dp">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/password_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPassword"
+                    android:textColor="#F8FAFC"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:nextFocusDown="@+id/login_button"/>
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <Button
+                android:id="@+id/login_button"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="ENTRAR"
+                android:textStyle="bold"
+                android:letterSpacing="0.1"
+                android:backgroundTint="#4F46E5" 
+                android:textColor="#FFFFFF"
+                android:stateListAnimator="@null"
+                android:focusable="true"
+                android:clickable="true"
+                app:cornerRadius="8dp"/>
+
+            <ProgressBar
+                android:id="@+id/login_loading"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:layout_marginTop="16dp"
+                android:indeterminateTint="#4F46E5"/>
+
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

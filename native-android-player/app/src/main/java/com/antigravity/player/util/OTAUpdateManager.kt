@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.antigravity.player.util
 
 import android.content.Context

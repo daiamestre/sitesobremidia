@@ -51,31 +51,48 @@ object CacheManager {
     }
 
     private fun baixarArquivo(urlString: String, destination: File) {
-        val url = URL(urlString)
-        val connection = url.openConnection() as java.net.HttpURLConnection
-        
-        // [ANTI-TIMEOUT FIX] Aumenta drasticamente o tempo limite para boxes e redes 3G lentas (60 segundos)
-        connection.connectTimeout = 60000 
-        connection.readTimeout = 60000
-        
-        connection.connect()
-        
-        if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
-            throw Exception("Falha HTTP: Código ${connection.responseCode}")
-        }
+        val tmpFile = File(destination.parentFile, "${destination.name}.tmp")
+        if (tmpFile.exists()) tmpFile.delete()
 
-        connection.inputStream.use { input ->
-            destination.outputStream().use { output ->
-                input.copyTo(output)
+        try {
+            val url = URL(urlString)
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            
+            // [ANTI-TIMEOUT FIX] Aumenta drasticamente o tempo limite para boxes e redes 3G lentas (60 segundos)
+            connection.connectTimeout = 60000 
+            connection.readTimeout = 60000
+            
+            connection.connect()
+            
+            if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
+                throw Exception("Falha HTTP: Código ${connection.responseCode}")
             }
-        }
-        
-        // 3. TRAVA DE SEGURANÇA: Se o arquivo ficou com 0 bytes, deleta na hora
-        if (destination.length() == 0L) {
-            destination.delete()
-            Logger.e("CACHE_SHIELD", "ERRO: Download resultou em 0 bytes. Arquivo descartado.")
-            throw Exception("Download size is 0 bytes")
+
+            java.io.FileOutputStream(tmpFile).use { fos ->
+                connection.inputStream.use { input ->
+                    input.copyTo(fos)
+                }
+                fos.flush()
+                fos.fd.sync()
+            }
+            
+            // 3. TRAVA DE SEGURANÇA: Se o arquivo ficou com 0 bytes, deleta na hora
+            if (tmpFile.length() == 0L) {
+                tmpFile.delete()
+                Logger.e("CACHE_SHIELD", "ERRO: Download resultou em 0 bytes. Arquivo descartado.")
+                throw Exception("Download size is 0 bytes")
+            }
+
+            // 4. ATOMIC SWAP: Promove o arquivo temporário para o destino final
+            if (destination.exists()) destination.delete()
+            if (!tmpFile.renameTo(destination)) {
+                tmpFile.copyTo(destination, overwrite = true)
+                tmpFile.delete()
+            }
             Logger.i("CACHE_SHIELD", "Download concluído com sucesso: ${destination.name}")
+        } catch (e: Exception) {
+            if (tmpFile.exists()) tmpFile.delete()
+            throw e
         }
     }
 

@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.antigravity.player.ui
 
 import android.content.Intent
@@ -49,11 +50,18 @@ class LoginActivity : AppCompatActivity() {
         }
 
         loginBtn.setOnClickListener {
-            val email = emailInput.text.toString()
-            val pass = passInput.text.toString()
+            val email = emailInput.text.toString().trim()
+            val pass = passInput.text.toString().trim()
 
             if (email.isBlank() || pass.isBlank()) {
                 Toast.makeText(this, "Preencha email e senha", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            val activeNet = cm?.activeNetworkInfo
+            if (activeNet == null || !activeNet.isConnected) {
+                Toast.makeText(this, "Sem conexão com a internet. Verifique o Wi-Fi ou cabo de rede do aparelho.", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
 
@@ -64,13 +72,9 @@ class LoginActivity : AppCompatActivity() {
                 val authResult = ServiceLocator.authRepository.signIn(email, pass, applicationContext)
                 
                 if (authResult.isSuccess) {
-                    val context = applicationContext
-                    val deviceId = com.antigravity.player.util.DeviceControl.getOrCreateDeviceId(context)
+                    // [INITIALIZE DEVICE ID]
+                    com.antigravity.player.util.DeviceControl.getOrCreateDeviceId(applicationContext)
                     
-                    // [SECURITY HARDENING] Sessão já persistida criptografada
-                    // pelo AuthRepository (TokenStorage / Android Keystore).
-                    // Não duplicamos mais o token em player_prefs (plaintext).
-
                     // 1. Redirect to Screen Selection (Correct Flow per user request)
                     Toast.makeText(this@LoginActivity, "Login realizado com sucesso!", Toast.LENGTH_SHORT).show()
                     
@@ -83,8 +87,17 @@ class LoginActivity : AppCompatActivity() {
                 } else {
                     loading.visibility = View.GONE
                     loginBtn.isEnabled = true
-                    val error = authResult.exceptionOrNull()?.message ?: "Login falhou"
-                    Toast.makeText(this@LoginActivity, "Autenticação falhou: $error", Toast.LENGTH_LONG).show()
+                    val exc = authResult.exceptionOrNull()
+                    val errorMsg = exc?.message.orEmpty()
+                    val friendlyMsg = when {
+                        errorMsg.contains("Unable to resolve host", ignoreCase = true) ||
+                        errorMsg.contains("UnknownHostException", ignoreCase = true) ->
+                            "Falha ao conectar com o servidor. Verifique a internet da sua TV/Aparelho."
+                        errorMsg.contains("Invalid login credentials", ignoreCase = true) ->
+                            "Email ou senha incorretos."
+                        else -> "Autenticação falhou: ${exc?.message ?: "Verifique suas credenciais e conexão."}"
+                    }
+                    Toast.makeText(this@LoginActivity, friendlyMsg, Toast.LENGTH_LONG).show()
                 }
             }
         }

@@ -205,13 +205,14 @@ class PlayerRepositoryImpl(
     }
 
     private suspend fun savePlaylistToRoomInternal(items: List<MediaItem>) {
+        val currentOri = SessionManager.currentOrientation ?: "landscape"
         val cachedPlaylist = com.antigravity.cache.entity.CachedPlaylist(
             id = deviceId,
             name = "Sync: ${java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}",
             version = System.currentTimeMillis(),
             isEmergency = false,
-            orientation = SessionManager.currentOrientation ?: "landscape",
-            resolution = "16x9"
+            orientation = currentOri,
+            resolution = if (currentOri == "portrait") "9x16" else "16x9"
         )
         val cachedItems = items.map { it.toCache(deviceId) }
         playerDao.insertPlaylistWithItems(cachedPlaylist, cachedItems)
@@ -257,23 +258,23 @@ class PlayerRepositoryImpl(
                     val playlist = pair.second
                     
                     // Dashboard Settings Extraction: Playlist Resolution is the Sovereign Canvas Contract
-                    
-                    // [VERDADE OPERACIONAL]: A orientação física (finalOrientation) é obrigatoriamente
-                    // a do device. A resolução da playlist não dita a rotação da Activity.
-                    val finalOrientation = device.orientation ?: "landscape"
+                    val sovereignOrientation = com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(
+                        playlist.resolution,
+                        device.orientation
+                    ).canonicalName
                     
                     Logger.i("ORIENTATION_CONTRACT", """
                         [ORIENTATION_CONTRACT]
                         screenOrientation=${device.orientation}
                         screenResolution=${device.resolution}
                         playlistResolution=${playlist.resolution}
-                        effectiveOrientation=$finalOrientation
+                        effectiveOrientation=$sovereignOrientation
                     """.trimIndent())
 
-                    SessionManager.currentOrientation = finalOrientation
+                    SessionManager.currentOrientation = sovereignOrientation
                     try {
                         val prefs = context.getSharedPreferences("player_prefs", android.content.Context.MODE_PRIVATE)
-                        prefs.edit().putString("current_orientation", finalOrientation).apply()
+                        prefs.edit().putString("current_orientation", sovereignOrientation).apply()
                     } catch (e: Exception) {}
                     SessionManager.currentScreenName = device.name ?: "Player ${device.customId ?: device.id}"
                     SessionManager.currentUserId = device.customId ?: device.id

@@ -93,7 +93,6 @@ object DeviceControl {
     fun isDeviceOwner(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return false
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
-        val componentName = ComponentName(context, com.antigravity.player.receiver.AdminReceiver::class.java)
         return dpm.isDeviceOwnerApp(context.packageName)
     }
 
@@ -121,6 +120,7 @@ object DeviceControl {
         return false
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun isAllFilesAccessGranted(context: android.content.Context): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             android.os.Environment.isExternalStorageManager()
@@ -213,7 +213,7 @@ object DeviceControl {
         }
 
         // 4. Return without saving to allow SplashActivity to route to ScreenSelection
-        return uniqueId!!
+        return uniqueId
     }
 
     /**

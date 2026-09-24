@@ -21,13 +21,16 @@ object DeviceTypeUtil {
             return DeviceProfile.valueOf(saved)
         }
 
-        // Auto Detection
-        val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
-        val profile = if (uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) {
-            DeviceProfile.TELEVISION
-        } else {
-            DeviceProfile.MOBILE
-        }
+        // Auto Detection: Support Android TV, Leanback, Smart TVs and TV Boxes (MXQ, Allwinner, Rockchip)
+        val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
+        val isTvUiMode = uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+        val pm = context.packageManager
+        val hasLeanback = pm.hasSystemFeature("android.software.leanback")
+        val hasTvFeature = pm.hasSystemFeature("android.hardware.type.television")
+        val noTouch = !pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN)
+        
+        val isTvDevice = isTvUiMode || hasLeanback || hasTvFeature || noTouch
+        val profile = if (isTvDevice) DeviceProfile.TELEVISION else DeviceProfile.MOBILE
 
         // Persist
         prefs.edit().putString(HEADER_PROFILE, profile.name).apply()

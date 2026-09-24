@@ -26,7 +26,7 @@ object SmartCacheCleaner {
             val currentPlaylist = repository.getActivePlaylist().firstOrNull()
             
             if (currentPlaylist != null) {
-                val activeIds = currentPlaylist?.items?.map { it.id } ?: emptyList()
+                val activeIds = currentPlaylist.items.map { it.id }
                 CleanupManager.executarFaxina(context, activeIds)
             } else {
                 com.antigravity.core.util.Logger.w("CACHE_CLEANER", "Playlist não encontrada para faxina automática.")

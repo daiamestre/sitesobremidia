@@ -327,16 +327,15 @@ class RemoteDataSource {
                 
                 // Dashboard Settings Extraction: Playlist Resolution is the Sovereign Canvas Contract
                 val effectivePlaylistRes = playlist.playlistResolution ?: playlist.resolutionFallback
-                
-                // [VERDADE OPERACIONAL]: A orientação física da Activity (Android) é ditada exclusivamente pelo hardware/device.
-                // A playlist_resolution NÃO DEVE governar a requestedOrientation.
-                val orientation = device.orientation ?: "landscape"
-                
                 val resolution = effectivePlaylistRes ?: device.resolution ?: "16x9"
+                val resolvedOrientation = com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(
+                    resolution,
+                    device.orientation
+                ).canonicalName
                 
                 tokenStorage?.saveUUID(device.id)
 
-                return Pair(device, mapToProfessionalDomain(device, playlist, orientation, resolution))
+                return Pair(device, mapToProfessionalDomain(device, playlist, resolvedOrientation, resolution))
             }
             else -> throw Exception("RPC_ERROR")
         }
@@ -360,6 +359,7 @@ class RemoteDataSource {
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun mapToProfessionalDomain(
         device: com.antigravity.sync.dto.DeviceRemoteDTO,
         playlist: com.antigravity.sync.dto.PlaylistRemoteDTO,
@@ -596,6 +596,7 @@ class RemoteDataSource {
         try {
             val payload = buildMap<String, Any?> {
                 put("device_id", deviceId)
+                put("status", status)
                 put("last_seen", getIsoTimestamp())
                 if (appVersion != null) put("app_version", appVersion)
                 if (storageUsagePercent != null) put("storage_usage_percent", storageUsagePercent)
@@ -843,7 +844,7 @@ class RemoteDataSource {
                     put("p_screen_id", screenUuid)
                 }
             )
-            val body = result.data?.toString().orEmpty()
+            val body = result.data.toString()
             val (ok, _) = parseRpcOkResult(body)
             if (!ok) {
                 Logger.e("DEVICE_ID", "Device attestation rejected: $body")
@@ -885,7 +886,7 @@ class RemoteDataSource {
                 if (ipAddress != null) put("p_ip_address", ipAddress)
             }
             val result = client.postgrest.rpc("fn_player_report_telemetry", json)
-            result.data?.toString()?.contains("\"ok\":true") == true
+            result.data.toString().contains("\"ok\":true")
         } catch (e: Exception) {
             Logger.w("TELEMETRY", "Telemetry report failed: ${e.message}")
             false

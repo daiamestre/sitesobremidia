@@ -1,8 +1,8 @@
+@file:Suppress("DEPRECATION")
 package com.antigravity.player.ui
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -19,7 +19,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.antigravity.player.MainActivity
 import com.antigravity.player.R
 import com.antigravity.player.di.ServiceLocator
-import com.antigravity.player.util.DeviceTypeUtil
 import com.antigravity.sync.dto.AuthorizedScreenDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -33,15 +32,13 @@ class ScreenSelectionActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // [ADAPTIVE UI] Detect hardware and set appropriate orientation
-        val isTV = DeviceTypeUtil.isTelevision(applicationContext)
-        requestedOrientation = if (isTV) {
-            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
-        
+
+        // [P0-FIX RC2] Orientation is controlled by Manifest (fullSensor) for ScreenSelection.
+        // Forcing PORTRAIT here was the source of orientation whiplash when transitioning to
+        // MainActivity (which starts in LANDSCAPE for TV or playlist-defined orientation).
+        // The Manifest's android:screenOrientation="fullSensor" + configChanges already handles
+        // both mobile and TV correctly without any requestedOrientation override.
+
         setContentView(R.layout.activity_screen_selection)
 
         loading = findViewById(R.id.selection_loading)
@@ -141,6 +138,17 @@ class ScreenSelectionActivity : AppCompatActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val autoSelect = intent?.getStringExtra("extra_select_screen_id")
+        if (!autoSelect.isNullOrBlank()) {
+            saveScreenAndProceed(autoSelect)
+        } else {
+            fetchScreens()
+        }
+    }
+
     private fun saveScreenAndProceed(screenId: String) {
         val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
         prefs.edit().putString("saved_screen_id", screenId).apply()
@@ -162,12 +170,21 @@ class ScreenSelectionActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 // [CRITICAL] Reset Repository to use NEW Screen ID immediately
                 ServiceLocator.resetRepository()
-                
+
                 Toast.makeText(this@ScreenSelectionActivity, "Conectado com Sucesso!", Toast.LENGTH_SHORT).show()
-                
-                // Start MainActivity (Sync Stage)
-                val intent = Intent(this@ScreenSelectionActivity, MainActivity::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+
+                // [P0-FIX RC1 & RC2] Navigation to MainActivity.
+                // MainActivity is singleInstance in its own task. We launch it with
+                // FLAG_ACTIVITY_NEW_TASK or FLAG_ACTIVITY_CLEAR_TOP or FLAG_ACTIVITY_SINGLE_TOP
+                // so that MainActivity is foregrounded reliably across task boundaries before
+                // ScreenSelectionActivity is finished.
+                val intent = Intent(this@ScreenSelectionActivity, MainActivity::class.java).apply {
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
+                }
                 startActivity(intent)
                 overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                 finish()

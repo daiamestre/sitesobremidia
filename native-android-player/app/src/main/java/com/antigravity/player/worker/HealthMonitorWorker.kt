@@ -14,7 +14,7 @@ class HealthMonitorWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        return try {
+        try {
             val authRepo = com.antigravity.sync.repository.AuthRepository()
             authRepo.ensureValidSession(applicationContext)
             
@@ -59,8 +59,6 @@ class HealthMonitorWorker(
             }
 
             val repoId = repository.deviceId
-            val shortId = if (repoId.length > 6) "...${repoId.takeLast(6)}" else repoId
-            val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
             
 
 

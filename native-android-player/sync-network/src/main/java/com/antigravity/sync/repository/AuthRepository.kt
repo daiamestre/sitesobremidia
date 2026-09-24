@@ -1,4 +1,4 @@
-﻿package com.antigravity.sync.repository
+package com.antigravity.sync.repository
 
 import io.ktor.client.HttpClient
 import io.ktor.client.request.post
@@ -14,8 +14,16 @@ import kotlinx.serialization.Serializable
 
 class AuthRepository {
 
-    // Simple Ktor Client for Auth Requests
-    private val client = HttpClient {
+    // Resilient OkHttp Client with RobustDns for Auth Requests (Smart TV / TV Box / Mobile)
+    private val client = HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
+        engine {
+            config {
+                dns(com.antigravity.sync.service.RobustDns)
+                connectTimeout(com.antigravity.sync.config.SupabaseConfig.TIMEOUT_CONNECT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+                readTimeout(com.antigravity.sync.config.SupabaseConfig.TIMEOUT_READ_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+                writeTimeout(com.antigravity.sync.config.SupabaseConfig.TIMEOUT_READ_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            }
+        }
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }

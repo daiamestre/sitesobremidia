@@ -47,7 +47,7 @@ fun MediaItem.toCache(playlistId: String): CachedMediaItem {
 // --- Cache -> Domain ---
 
 fun CachedPlaylist.toDomain(items: List<CachedMediaItem>): Playlist {
-    val playlistOrientation = when (this.resolution?.lowercase()?.trim()) {
+    val playlistOrientation = when (this.resolution.lowercase().trim()) {
         "9x16", "9:16", "portrait", "vertical" -> "portrait"
         "16x9", "16:9", "landscape", "horizontal" -> "landscape"
         else -> this.orientation
@@ -58,7 +58,7 @@ fun CachedPlaylist.toDomain(items: List<CachedMediaItem>): Playlist {
         version = this.version,
         items = items.map { it.toDomain() },
         isEmergency = this.isEmergency,
-        orientation = playlistOrientation ?: "landscape",
+        orientation = playlistOrientation,
         resolution = this.resolution,
         heartbeatIntervalSeconds = this.heartbeatIntervalSeconds,
         seamlessTransition = this.seamlessTransition,

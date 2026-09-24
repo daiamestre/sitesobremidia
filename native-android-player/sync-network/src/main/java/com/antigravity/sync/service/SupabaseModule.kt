@@ -26,6 +26,7 @@ object SupabaseModule {
         // Certificados inválidos agora são REJEITADOS (DENY).
         httpEngine = OkHttp.create {
             config {
+                dns(RobustDns)
                 connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)

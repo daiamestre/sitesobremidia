@@ -33,9 +33,9 @@ abstract class PlayerDatabase : RoomDatabase() {
         private var INSTANCE: PlayerDatabase? = null
 
         val MIGRATION_7_8 = object : Migration(7, 8) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE configuracoes_player ADD COLUMN tokenAcesso TEXT")
-                database.execSQL("ALTER TABLE configuracoes_player ADD COLUMN playerID TEXT")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE configuracoes_player ADD COLUMN tokenAcesso TEXT")
+                db.execSQL("ALTER TABLE configuracoes_player ADD COLUMN playerID TEXT")
             }
         }
 

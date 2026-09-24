@@ -114,6 +114,7 @@ object SessionManager {
     }
 
     fun setIdentityFailed(reason: String) {
+        android.util.Log.w("SessionManager", "Identity failed: $reason")
         _identityState.value = IdentityState.IDENTITY_FAILED
     }
 

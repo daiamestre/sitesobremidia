@@ -22,6 +22,7 @@ class MediaDownloader {
         }
         engine {
             config { // this: OkHttpClient.Builder
+                dns(RobustDns)
                 // [FIX] Explicitly set OkHttp timeouts (Ktor HttpTimeout might not propagate fully to Http2Streams)
                 connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)

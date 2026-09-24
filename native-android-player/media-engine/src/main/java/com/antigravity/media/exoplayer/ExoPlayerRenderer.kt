@@ -115,10 +115,8 @@ class ExoPlayerRenderer(
                     Logger.w("PLAYER_$instanceName", "Hardware Fraco Detectado (TV Box Legada).")
                 }
                 
-                // Video Scaling Mode - fill screen without black bars (crop excess)
-                // CENTER_CROP behavior: scale to fill, maintain aspect ratio, crop excess
-                // Never stretch/distort the media
-                this.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+                // [MICRO-GATE P0] Video Scaling Mode - preserve aspect ratio strictly without cropping or distortion
+                this.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
 
                 addListener(object : Player.Listener {
                     override fun onVolumeChanged(newVolume: Float) {

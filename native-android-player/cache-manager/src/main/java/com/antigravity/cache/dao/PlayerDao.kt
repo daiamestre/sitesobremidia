@@ -11,8 +11,8 @@ import com.antigravity.cache.entity.CachedPlaylist
 @Dao
 interface PlayerDao {
 
+    // [F-18] Somente @Transaction: com @Insert no mesmo método o Room gerava a delegação sem withTransaction.
     @Transaction
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistWithItems(playlist: CachedPlaylist, items: List<CachedMediaItem>) {
         // [HARD RESET] Force purge of all previous playlists/items to avoid "Ghost Media"
         // This ensures LIMIT 1 always returns the exact current sync state.

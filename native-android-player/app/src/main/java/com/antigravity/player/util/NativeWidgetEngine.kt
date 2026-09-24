@@ -163,7 +163,6 @@ object NativeWidgetEngine {
 
         // [FALLBACK HÍBRIDO] 2. Se a Extensão do Dashboard falhar, busque na Internet
         val cityName = RegionalContextManager.city.ifBlank { "São Paulo" }
-        val stateName = RegionalContextManager.state
         
         withContext(Dispatchers.IO) {
             try {

@@ -10,6 +10,7 @@
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
+            <certificates src="@raw/isrgrootx1" />
         </trust-anchors>
     </base-config>
 </network-security-config>

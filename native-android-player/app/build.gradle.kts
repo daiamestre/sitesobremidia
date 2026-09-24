@@ -49,8 +49,8 @@ android {
         applicationId = "com.antigravity.player"
         minSdk = 23
         targetSdk = 34
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 523
-        versionName = System.getenv("VERSION_NAME") ?: "5.2.3-MicroGate"
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 524
+        versionName = System.getenv("VERSION_NAME") ?: "5.2.4-MicroGate"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -134,7 +134,7 @@ android {
             signingConfig = signingConfigs.getByName("production")
         }
         debug {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (signingProps != null) signingConfigs.getByName("production") else signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -143,7 +143,6 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
-        freeCompilerArgs = listOf("-opt-in=androidx.media3.common.util.UnstableApi")
     }
 }
 
