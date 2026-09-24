@@ -7,7 +7,7 @@
     android:elevation="100dp"
     android:clickable="true"
     android:focusable="true"
-    android:visibility="gone">
+    android:visibility="visible">
 
     <LinearLayout
         android:layout_width="wrap_content"

@@ -6,17 +6,15 @@
     android:background="#000000"
     android:keepScreenOn="true">
 
-    <!-- Layer 0: Standby / Fallback Layer (Base layer, always visible if others are hidden) -->
+    <!-- Layer 0: camada base PRETA (sem logo). A tela preta com o logo da Sobre Midia foi removida: depois de
+         escolher a tela o usuario ve SO a "Sincronizando Midias" (sync_guard_overlay), nada antes nem por cima. -->
     <ImageView
         android:id="@+id/standbyImage"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="fitCenter"
-        android:padding="64dp"
-        android:src="@drawable/logo"
         android:background="#000000"
-        android:visibility="visible"
-        android:contentDescription="Standby Logo" />
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
 
     <!-- Layer 1: Principal Engine (Video & Static Images) -->
     <FrameLayout

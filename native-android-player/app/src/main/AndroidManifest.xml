@@ -89,7 +89,7 @@
             android:launchMode="singleInstance"
             android:hardwareAccelerated="true"
             android:stateNotNeeded="true"
-            android:theme="@style/Theme.Player"
+            android:theme="@style/Theme.Player.Main"
             android:screenOrientation="fullSensor"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode|smallestScreenSize|density">
             <intent-filter android:priority="1000">

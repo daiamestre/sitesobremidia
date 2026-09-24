@@ -19,6 +19,11 @@
         <item name="android:navigationBarColor">@color/black</item>
     </style>
 
+    <!-- Janela do Player: mesma cor da tela "Sincronizando Mídias", sem quadro preto antes do 1º desenho. -->
+    <style name="Theme.Player.Main" parent="Theme.Player">
+        <item name="android:windowBackground">#0F172A</item>
+    </style>
+
     <style name="Theme.Player.Launcher" parent="Theme.Player">
         <item name="android:windowBackground">@drawable/splash_screen</item>
     </style>

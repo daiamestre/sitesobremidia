@@ -330,6 +330,8 @@ class MainActivity : AppCompatActivity() {
         syncGuard.keepLockedWhile = {
             !::viewModel.isInitialized || PlayerFlowPolicy.keepSyncScreenLocked(viewModel.playerState.value)
         }
+        // Já no primeiro quadro: "Sincronizando Mídias" (e arma o timer de segurança) — nada aparece antes disso.
+        syncGuard.lockScreen()
         playerView1 = findViewById<PlayerView>(R.id.playerView1)
         playerView2 = findViewById<PlayerView>(R.id.playerView2)
         standbyImage = findViewById<ImageView>(R.id.standbyImage)
@@ -342,8 +344,9 @@ class MainActivity : AppCompatActivity() {
         
         hideAllLayers()
         
-        // Show Standby initially
-        standbyImage.visibility = View.VISIBLE
+        // A camada de standby (antes logo sobre preto) NÃO aparece no boot: o que o usuário vê primeiro é a
+        // tela de sincronização, já visível no layout (nada pode piscar antes dela).
+        standbyImage.visibility = View.GONE
         // [TEORIA DO SURFACE] Mantém invisível em vez de GONE no boot para o Surface ser criado imediatamente
         playerView1.visibility = View.INVISIBLE
         playerView2.visibility = View.INVISIBLE
