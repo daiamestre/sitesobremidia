@@ -164,3 +164,42 @@ class RealtimeAuthTest {
         assertTrue("canal de comandos deve autenticar antes de assinar", cmds.contains("ensureRealtimeAuth()"))
     }
 }
+
+/**
+ * F-42: reportDownloadProgress e upsertDeviceHealth enviavam mapas heterogeneos (Map<String, Any> / Map<String, Any?>)
+ * ao supabase-kt, que nao serializa `Any` — a mesma causa do ack (F-39). O erro era engolido em silencio:
+ * `download_status` ficou com 0 linhas mesmo com dezenas de downloads (provado em emulador: mídia baixada,
+ * progresso reportado, tabela vazia).
+ */
+class HeterogeneousMapSerializationTest {
+    private fun source(): String = listOf(
+        "../sync-network/src/main/java/com/antigravity/sync/service/RemoteDataSource.kt",
+        "sync-network/src/main/java/com/antigravity/sync/service/RemoteDataSource.kt"
+    ).map { File(it) }.first { it.isFile }.readText()
+
+    private fun body(startMarker: String, endMarker: String): String {
+        val t = source()
+        val a = t.indexOf(startMarker)
+        assertTrue("$startMarker nao encontrado", a >= 0)
+        val b = t.indexOf(endMarker, a)
+        assertTrue("$endMarker nao encontrado", b > a)
+        return t.substring(a, b)
+    }
+
+    @Test fun reportDownloadProgress_sendsAJsonObject() {
+        val b = body("suspend fun reportDownloadProgress(", "// [INDUSTRIAL] Command Acknowledgement")
+        assertTrue("o corpo do upsert deve ser JsonObject", b.contains("buildJsonObject"))
+        assertFalse("mapOf heterogeneo nao e serializavel", b.contains("mapOf("))
+    }
+
+    @Test fun reportDownloadProgress_noLongerFailsSilently() {
+        val b = body("suspend fun reportDownloadProgress(", "// [INDUSTRIAL] Command Acknowledgement")
+        assertTrue("a falha precisa ficar registrada no log", b.contains("Logger.w("))
+    }
+
+    @Test fun upsertDeviceHealth_sendsAJsonObject() {
+        val b = body("suspend fun upsertDeviceHealth(", "// [NEW] Update Screen Status")
+        assertTrue("o corpo do upsert deve ser JsonObject", b.contains("buildJsonObject"))
+        assertFalse("buildMap<String, Any?> nao e serializavel", b.contains("buildMap<String, Any?>"))
+    }
+}

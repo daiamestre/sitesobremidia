@@ -298,16 +298,20 @@ class RemoteDataSource {
     // [INDUSTRIAL] Download Visibility: Progress Reporting
     suspend fun reportDownloadProgress(deviceId: String, mediaId: String, progress: Int) {
         try {
-            val payload = mapOf(
-                "device_id" to deviceId,
-                "media_id" to mediaId,
-                "progress" to progress,
-                "updated_at" to getIsoTimestamp()
-            )
+            // JsonObject, NUNCA um mapa heterogeneo: o supabase-kt nao serializa "Any" e o upsert falhava SEMPRE
+            // (download_status ficou com 0 linhas), engolido pelo catch abaixo.
+            val payload = buildJsonObject {
+                put("device_id", deviceId)
+                put("media_id", mediaId)
+                put("progress", progress)
+                put("updated_at", getIsoTimestamp())
+            }
             // Upsert progress into download_status table
             client.from("download_status").upsert(payload, onConflict = "device_id,media_id")
         } catch (e: Exception) {
-            // Non-critical, ignore if reporting fails
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            // Nao critico para a reproducao, mas a falha nao pode mais sumir: fica no log.
+            Logger.w("DOWNLOAD_STATUS", "Falha ao reportar progresso (media=${mediaId}, progress=${progress}): ${e.message}")
         }
     }
 
@@ -716,7 +720,8 @@ class RemoteDataSource {
     ) {
         if (deviceId.isBlank() || deviceId == "N/A") return
         try {
-            val payload = buildMap<String, Any?> {
+            // JsonObject (um mapa com valores "Any?" nao e serializavel pelo supabase-kt).
+            val payload = buildJsonObject {
                 put("device_id", deviceId)
                 put("status", status)
                 put("last_seen", getIsoTimestamp())
