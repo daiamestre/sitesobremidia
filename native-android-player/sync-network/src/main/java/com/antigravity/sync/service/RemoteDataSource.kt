@@ -10,6 +10,7 @@ import io.github.jan.supabase.postgrest.*
 import io.github.jan.supabase.postgrest.query.*
 import io.github.jan.supabase.postgrest.query.filter.FilterOperation
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.realtime.*
 import io.github.jan.supabase.storage.*
 import kotlinx.coroutines.CoroutineScope
@@ -46,17 +47,44 @@ class RemoteDataSource {
 
     private companion object {
         const val COMMAND_POLL_MAX_AGE_MS = 120_000L
-        val COMMAND_POLL_SAFE = listOf("screenshot", "reload")
+        val COMMAND_POLL_SAFE = listOf("screenshot", "reload", "reboot")
+    }
+
+    /**
+     * O WebSocket do Realtime NAO passava pelo interceptor que injeta o JWT nas chamadas HTTP: entrava com a chave
+     * anonima. Consequencias provadas em emulador: o filtro em screens falhava ("invalid column for filter id", o papel
+     * anon nao tem SELECT) e, por RLS, nenhum evento chegava (todo comando vinha so pelo polling). Importar o JWT do
+     * Player no Auth faz o Realtime entrar (e renovar) como o usuario autenticado.
+     */
+    private suspend fun ensureRealtimeAuth() {
+        val token = SessionManager.currentAccessToken
+        if (token.isNullOrBlank() || token == "LOCAL_SESSION") return
+        try {
+            if (client.auth.currentAccessTokenOrNull() != token) {
+                client.auth.importAuthToken(token, refreshToken = "", retrieveUser = false, autoRefresh = false)
+                Logger.i("REALTIME", "JWT do Player aplicado ao Realtime (papel autenticado).")
+            }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Logger.w("REALTIME", "Falha ao aplicar o JWT ao Realtime: ${e.message}")
+        }
     }
 
     // [HIGH-END] Realtime Handshake: PostgreSQL CDC via Websockets (Yeloo Style)
     suspend fun subscribeToRealtimeSync(screenToken: String, playlistId: String?, scope: CoroutineScope) {
+        ensureRealtimeAuth()
         val channel = client.realtime.channel("yeloo_sync_channel")
+        // Canal PRÓPRIO para a tela (is_active/orientação/playlist_id). Antes ficava no mesmo canal de playlists/devices:
+        // uma tabela fora da publicação supabase_realtime faz o servidor derrubar o canal INTEIRO
+        // ("Unable to subscribe to changes ... table: playlists") e a Tela Ativa só chegava no polling de 60 s.
+        val screensChannel = client.realtime.channel("yeloo_screens_channel")
         
         // 1. Screens Subscription: O canal oficial do Dashboard (is_active, audio_enabled, orientation, playlist_id)
         val screenUuid = SessionManager.currentUUID ?: tokenStorage?.getUUID()
         if (screenUuid != null) {
-            val screenFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+            // Todo heartbeat (a cada 60 s) atualiza a linha de screens e chega aqui: só reage a MUDANÇA real de playlist.
+            var knownPlaylistId: String? = playlistId
+            val screenFlow = screensChannel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "screens"
                 filter(FilterOperation("id", FilterOperator.EQ, screenUuid))
             }
@@ -76,7 +104,9 @@ class RemoteDataSource {
                         // B. Checa Rotação (orientation) e Playlist na tabela screens
                         val remoteOrientation = action.record["orientation"]?.toString()?.replace("\"", "")
                         val remotePlaylistId = action.record["playlist_id"]?.toString()?.replace("\"", "")
-                        if (!remotePlaylistId.isNullOrBlank() || (!remoteOrientation.isNullOrBlank() && remoteOrientation != SessionManager.currentOrientation)) {
+                        val playlistChanged = !remotePlaylistId.isNullOrBlank() && remotePlaylistId != knownPlaylistId
+                        if (playlistChanged) knownPlaylistId = remotePlaylistId
+                        if (playlistChanged || (!remoteOrientation.isNullOrBlank() && remoteOrientation != SessionManager.currentOrientation)) {
                             Logger.i("REALTIME", ">>> Screen configuration or orientation changed via Realtime ($remoteOrientation). Triggering sync nudge...")
                             SessionManager.triggerSyncNudge()
                         }
@@ -87,16 +117,9 @@ class RemoteDataSource {
             }.launchIn(scope)
         }
 
-        // 2. Devices Subscription (Fallback / Compatibilidade)
-        val deviceFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-            table = "devices"
-            filter(FilterOperation("screen_token", FilterOperator.EQ, screenToken))
-        }
-        
-        deviceFlow.onEach { action ->
-            Logger.i("REALTIME", "Device Update Detected via CDC! Action: ${action.javaClass.simpleName}")
-            SessionManager.triggerSyncNudge()
-        }.launchIn(scope)
+        // 2. (removido) Devices: a tabela não está na publicação supabase_realtime (derrubava o canal) e cada heartbeat
+        //    do próprio aparelho dispararia uma sincronização. A configuração vem de screens/playlists/playlist_items.
+        screensChannel.subscribe()
 
         // 3. Playlists Subscription: Monitor the actual playlist content
         if (playlistId != null) {
@@ -145,6 +168,7 @@ class RemoteDataSource {
     // [INDUSTRIAL] Realtime Command Listener: The "Soberana" Remote control (com Idempotência)
     suspend fun subscribeToRemoteCommands(screenUuid: String, scope: CoroutineScope) {
         Logger.w("SYNC_SNIFFER", ">>> ATTEMPTING COMMAND SUBSCRIPTION FOR UUID: $screenUuid")
+        ensureRealtimeAuth()
         val channel = client.realtime.channel("remote_commands_channel")
         
         val commandFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
@@ -228,6 +252,7 @@ class RemoteDataSource {
             Logger.i("CMD_POLL", "Polling de comandos ativo para a tela $screenUuid (${intervalMs}ms)")
             while (isActive) {
                 try {
+                    ensureRealtimeAuth() // acompanha a renovação do JWT
                     pollPendingCommands(screenUuid)
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
@@ -301,12 +326,22 @@ class RemoteDataSource {
             }
             extraPayload?.let { payloadMap.putAll(it) }
 
-            val updateData = mutableMapOf<String, Any>(
-                "status" to status,
-                "executed_at" to getIsoTimestamp()
-            )
-            if (payloadMap.isNotEmpty()) {
-                updateData["payload"] = payloadMap
+            // JsonObject, NUNCA Map<String, Any>: o supabase-kt nao serializa "Any" e o ack falhava SEMPRE
+            // ("Serializer for class 'Any' is not found"), deixando todo comando "pending" para sempre.
+            val updateData = buildJsonObject {
+                put("status", status)
+                put("executed_at", getIsoTimestamp())
+                if (payloadMap.isNotEmpty()) {
+                    put("payload", buildJsonObject {
+                        payloadMap.forEach { (key, value) ->
+                            when (value) {
+                                is Boolean -> put(key, value)
+                                is Number -> put(key, value)
+                                else -> put(key, value.toString())
+                            }
+                        }
+                    })
+                }
             }
 
             // Ate 3 tentativas: um ack perdido deixa o painel carregando ate o timeout.

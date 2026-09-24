@@ -119,7 +119,7 @@
         android:id="@+id/block_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#E6000000"
+        android:background="#FF000000"
         android:elevation="100dp"
         android:clickable="true"
         android:focusable="true"

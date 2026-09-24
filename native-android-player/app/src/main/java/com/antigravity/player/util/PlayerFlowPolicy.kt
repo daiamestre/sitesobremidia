@@ -120,6 +120,18 @@ object PlayerFlowPolicy {
         }
     }
 
+    /**
+     * "Reiniciar Player": o mesmo comando pode chegar por Realtime e por polling, e o processo é recriado no meio.
+     * O id do último reinício atendido fica em SharedPreferences (sobrevive ao reinício); repetido = ignorado.
+     */
+    fun shouldRunRestart(commandId: String?, lastHandledId: String?): Boolean =
+        !commandId.isNullOrBlank() && commandId != lastHandledId
+
+    /** "Atualizar Player": o painel só recebe "executed" se a sincronização realmente aconteceu. */
+    fun updateAck(syncSucceeded: Boolean, error: String?): Pair<String, String?> =
+        if (syncSucceeded) "executed" to null
+        else "failed" to ("Falha ao atualizar o player: " + (error?.takeIf { it.isNotBlank() } ?: "sem conexão ou sem resposta do servidor"))
+
     /** Como o canvas (toda a tela do player) deve ser desenhado: tamanho, rotação e deslocamento. */
     data class CanvasTransform(val width: Int, val height: Int, val rotation: Float, val translationX: Float, val translationY: Float)
 

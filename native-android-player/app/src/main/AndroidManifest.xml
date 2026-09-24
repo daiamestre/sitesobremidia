@@ -52,8 +52,18 @@
             </intent-filter>
         </activity>
 
-        <activity 
-            android:name=".ui.LoginActivity" 
+        <!-- Ponte do "Reiniciar Player" (painel): processo proprio para reabrir o app apos encerrar o principal. -->
+        <activity
+            android:name=".ui.PlayerRestartActivity"
+            android:process=":restart"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <activity
+            android:name=".ui.LoginActivity"
             android:screenOrientation="fullSensor"
             android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"

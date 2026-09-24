@@ -706,6 +706,11 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (!isActive) {
                             // BLOCK: Stop everything (operational side effects — preservados)
+                            // O laço de reprodução precisa MORRER: só parar os renderers deixava o laço vivo,
+                            // que tocava a próxima mídia (e o áudio) por baixo do aviso de bloqueio.
+                            playbackLoopJob?.cancel()
+                            playbackLoopJob = null
+                            if (::playbackWatchdog.isInitialized) playbackWatchdog.stop()
                             playerRenderer1.stop()
                             playerRenderer2.stop()
                             isSyncLoopRunning = false
@@ -759,10 +764,7 @@ class MainActivity : AppCompatActivity() {
                             ackRemoteCommand(commandId, "executed")
                             runOnUiThread { startSyncAndPlay() }
                         }
-                        "reload" -> {
-                            ackRemoteCommand(commandId, "executed")
-                            runOnUiThread { startSyncAndPlay() }
-                        }
+                        "reload" -> updatePlayerNow(commandId)
                         "rotate_portrait" -> {
                             applyScreenRotation("portrait", forcePhysicalLock = true)
                             ackRemoteCommand(commandId, "executed")
@@ -771,7 +773,10 @@ class MainActivity : AppCompatActivity() {
                             applyScreenRotation("landscape", forcePhysicalLock = true)
                             ackRemoteCommand(commandId, "executed")
                         }
-                        "reboot" -> {
+                        // "Reiniciar Player" do painel: fecha e abre o Player (nova sincronização), sem depender de Device Owner.
+                        "reboot", "restart_player" -> restartPlayerApp(commandId)
+                        // Reinício FÍSICO do aparelho (só Device Owner). Não é enviado pelo botão do painel.
+                        "reboot_device" -> {
                             val dpm = getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
                             val componentName = android.content.ComponentName(this@MainActivity, com.antigravity.player.receiver.AdminReceiver::class.java)
                             
@@ -1006,7 +1011,8 @@ private fun checkLocalCacheAndPlay() {
         }
     }
 
-    private suspend fun syncInBackground() {
+    private suspend fun syncInBackground(): Boolean {
+        var succeeded = false
         val repo = ServiceLocator.getRepository(applicationContext)
         val syncUseCase = com.antigravity.core.domain.usecase.SyncPlaylistUseCase(repo)
         
@@ -1041,9 +1047,12 @@ private fun checkLocalCacheAndPlay() {
                         }
                     }
                 }
+                succeeded = true
+                lastBackgroundSyncError = null
                 scheduleNextBackgroundSync()
             } else {
                 val msg = result.exceptionOrNull()?.message ?: "Unknown"
+                lastBackgroundSyncError = msg
                 if (PlayerFlowPolicy.classifySyncError(msg) == PlayerFlowPolicy.SyncErrorAction.REAUTH) {
                     runOnUiThread { handleAuthError() }
                 }
@@ -1052,9 +1061,13 @@ private fun checkLocalCacheAndPlay() {
             }
         } catch (e: Exception) {
             Logger.e("SYNC", "Background sync error: ${e.message}")
+            lastBackgroundSyncError = e.message
             scheduleNextBackgroundSync()
         }
+        return succeeded
     }
+
+    @Volatile private var lastBackgroundSyncError: String? = null
 
     // Um único timer de sync periódico: cada execução cancela o agendamento anterior antes de
     // reagendar (antes, cada nudge/execução acumulava mais uma cadeia paralela de 60 s).
@@ -2029,6 +2042,88 @@ withContext(Dispatchers.Main) {
             } catch (e: Exception) {
                 Logger.e("SELF_HEALING", "Auto-Repair Failed: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * "Atualizar Player" (painel): sincroniza AGORA playlist, mídias (delta por hash) e sequência, sem tirar a
+     * mídia do ar se nada mudou. O painel só recebe "executed" depois da sincronização de verdade
+     * (antes confirmava no ato e a sincronização podia ser descartada por outra em andamento).
+     */
+    private fun updatePlayerNow(commandId: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            Logger.i("COMMAND", "Atualizar Player: sincronizando playlist, mídias e sequência (ID: $commandId)")
+            val ok = try {
+                syncInBackground()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                lastBackgroundSyncError = e.message
+                false
+            }
+            val (status, note) = PlayerFlowPolicy.updateAck(ok, lastBackgroundSyncError)
+            ServiceLocator.getRemoteDataSource().acknowledgeCommand(commandId, status, note)
+            Logger.i("COMMAND", "Atualizar Player concluído: $status ${note.orEmpty()}")
+        }
+    }
+
+    /**
+     * "Reiniciar Player" (painel): fecha e abre o Player como no primeiro acesso — a Splash reabre o app e ele volta
+     * na tela "Sincronizando Mídias" sincronizando de novo. Serve para tela travada (ex.: ExoPlayer congelado),
+     * por isso encerra o PROCESSO, não só a tela. O id do comando fica salvo: repetição (polling/Realtime) é ignorada.
+     */
+    private fun restartPlayerApp(commandId: String) {
+        val prefs = getSharedPreferences("player_prefs", MODE_PRIVATE)
+        if (!PlayerFlowPolicy.shouldRunRestart(commandId, prefs.getString("last_restart_command_id", null))) {
+            Logger.w("COMMAND", "Reiniciar Player ignorado (comando vazio ou já atendido): $commandId")
+            return
+        }
+        prefs.edit().putString("last_restart_command_id", commandId).commit()
+        Logger.w("COMMAND", ">>> REINICIANDO O PLAYER (ID: $commandId)")
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            // Confirma ANTES de fechar (o painel mostra "reiniciando"), com teto para não prender o reinício.
+            try {
+                kotlinx.coroutines.withTimeoutOrNull(6_000L) {
+                    ServiceLocator.getRemoteDataSource().acknowledgeCommand(commandId, "executed")
+                }
+            } catch (e: Exception) {
+                Logger.w("COMMAND", "ACK do reinício falhou: ${e.message}")
+            }
+            withContext(Dispatchers.Main) { relaunchPlayerProcess() }
+        }
+    }
+
+    private fun relaunchPlayerProcess() {
+        // Nada pode "roubar" a tela de volta nem ressuscitar o Player antes da hora durante o reinício.
+        isKioskEnforced = false
+        backgroundSyncHandler.removeCallbacks(backgroundSyncRunnable)
+        cancelPlaybackWatchdogAlarm()
+        playbackLoopJob?.cancel()
+        deviceFleetManager?.shutdown()
+        deviceFleetManager = null
+        try {
+            if (::playerRenderer1.isInitialized) playerRenderer1.release()
+            if (::playerRenderer2.isInitialized) playerRenderer2.release()
+        } catch (e: Exception) {
+            Logger.w("COMMAND", "Falha ao liberar renderers antes do reinício: ${e.message}")
+        }
+
+        try {
+            val bridge = Intent(this, com.antigravity.player.ui.PlayerRestartActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                putExtra(com.antigravity.player.ui.PlayerRestartActivity.EXTRA_MAIN_PID, android.os.Process.myPid())
+            }
+            startActivity(bridge)
+            finishAndRemoveTask()
+            // Se a ponte não derrubar o processo a tempo, derruba aqui (o novo nasce pela Splash aberta pela ponte).
+            Handler(Looper.getMainLooper()).postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 4_000L)
+        } catch (e: Exception) {
+            // Sem a ponte: reabre a Splash direto (reinicia dentro do mesmo processo, ainda re-sincroniza).
+            Logger.e("COMMAND", "Ponte de reinício indisponível (${e.message}); reabrindo pela Splash.")
+            startActivity(Intent(this, com.antigravity.player.ui.SplashActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            })
+            finish()
         }
     }
 

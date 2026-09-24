@@ -39,8 +39,16 @@ class UserApplication : Application() {
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** A ponte do "Reiniciar Player" roda no processo ":restart" e nao deve subir nada do Player. */
+    private fun isRestartBridgeProcess(): Boolean = try {
+        java.io.File("/proc/self/cmdline").readText().trim { it <= ' ' || it == '\u0000' }.endsWith(":restart")
+    } catch (e: Exception) {
+        false
+    }
+
     override fun onCreate() {
         super.onCreate()
+        if (isRestartBridgeProcess()) return
 
         try {
             GlobalErrorReporter.install(this)
