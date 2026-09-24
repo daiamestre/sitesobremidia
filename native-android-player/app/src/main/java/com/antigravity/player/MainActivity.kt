@@ -2071,9 +2071,44 @@ withContext(Dispatchers.Main) {
         windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
+    /**
+     * TV Box / Smart TV: 16x9 = TV deitada; 9x16 = TV virada em pé (totem). A TV ignora o pedido de orientação
+     * do app, então o player gira o PRÓPRIO canvas (toda a tela: vídeo, imagem, widget, sync e bloqueio) 90°
+     * quando a playlist não casa com o painel físico. Celular/tablet não passam por aqui (o sistema trava).
+     */
+    private fun applyTvCanvasOrientation() {
+        val content = findViewById<android.view.ViewGroup>(android.R.id.content) ?: return
+        val canvas = content.getChildAt(0) ?: return
+        if (content.width <= 0 || content.height <= 0) {
+            content.post { applyTvCanvasOrientation() }
+            return
+        }
+        val t = PlayerFlowPolicy.tvCanvasTransform(
+            isTelevision = DeviceTypeUtil.isTelevision(applicationContext),
+            canonicalOrientation = SessionManager.currentOrientation,
+            displayWidth = content.width,
+            displayHeight = content.height
+        )
+        val lp = canvas.layoutParams
+        val wantW = t?.width ?: android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        val wantH = t?.height ?: android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        val wantRot = t?.rotation ?: 0f
+        if (lp.width == wantW && lp.height == wantH && canvas.rotation == wantRot) return
+        lp.width = wantW
+        lp.height = wantH
+        canvas.layoutParams = lp
+        canvas.rotation = wantRot
+        canvas.translationX = t?.translationX ?: 0f
+        canvas.translationY = t?.translationY ?: 0f
+        Logger.i("ORIENTATION", "TV canvas: playlist=${SessionManager.currentOrientation} panel=${content.width}x${content.height} " +
+            (if (t != null) "-> ${t.width}x${t.height} rot=${t.rotation}" else "-> normal"))
+    }
+
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         setFullscreenMode()
+        // Painel mudou de tamanho/orientação: recalcula o canvas depois do novo layout.
+        findViewById<android.view.ViewGroup>(android.R.id.content)?.post { applyTvCanvasOrientation() }
         val displayMetrics = resources.displayMetrics
         val dmWidth = displayMetrics.widthPixels
         val dmHeight = displayMetrics.heightPixels
@@ -2117,6 +2152,7 @@ withContext(Dispatchers.Main) {
                 Logger.i("ORIENTATION", "Physical lock: $canonicalOrientation (playlist) -> requestedOrientation=$lock")
                 requestedOrientation = lock
             }
+            applyTvCanvasOrientation()
 
             val displayMetrics = resources.displayMetrics
             val dmWidth = displayMetrics.widthPixels

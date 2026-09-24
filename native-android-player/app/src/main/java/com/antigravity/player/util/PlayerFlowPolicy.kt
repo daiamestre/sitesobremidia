@@ -119,4 +119,33 @@ object PlayerFlowPolicy {
             else -> null
         }
     }
+
+    /** Como o canvas (toda a tela do player) deve ser desenhado: tamanho, rotação e deslocamento. */
+    data class CanvasTransform(val width: Int, val height: Int, val rotation: Float, val translationX: Float, val translationY: Float)
+
+    /** Rotação (graus, horário) aplicada ao canvas da TV quando a playlist não casa com a tela física. */
+    const val TV_CANVAS_ROTATION = 90f
+
+    /**
+     * TV Box / Smart TV: 16x9 = TV deitada; 9x16 = TV virada em pé (totem). A TV ignora pedido de orientação
+     * do app, então quando a orientação da playlist não bate com a tela física o player gira o canvas 90°
+     * e ele ocupa a tela inteira (sem faixas) para quem olha a TV virada. null = desenhar normal.
+     */
+    fun tvCanvasTransform(isTelevision: Boolean, canonicalOrientation: String?, displayWidth: Int, displayHeight: Int): CanvasTransform? {
+        if (!isTelevision || displayWidth <= 0 || displayHeight <= 0) return null
+        val panelIsLandscape = displayWidth >= displayHeight
+        val playlistIsLandscape = canonicalOrientation != "portrait"
+        // Tela física já casa com a playlist (inclusive TV Box que obedeceu ao pedido de orientação): nada a girar.
+        if (panelIsLandscape == playlistIsLandscape) return null
+        // Canvas lógico com os lados trocados, girado 90° em torno do próprio centro e centralizado no painel.
+        val w = displayHeight
+        val h = displayWidth
+        return CanvasTransform(
+            width = w,
+            height = h,
+            rotation = TV_CANVAS_ROTATION,
+            translationX = (displayWidth - w) / 2f,
+            translationY = (displayHeight - h) / 2f
+        )
+    }
 }
