@@ -30,6 +30,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { format, formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date-fns';
+import { hasNewScreenshot, screenshotFooterText } from '@/utils/screenshotStatus';
 import { ptBR } from 'date-fns/locale';
 import { Screen, ScreenStatus, Playlist, Media, Widget, WidgetConfig, ExternalLink, PlaylistItem as ModelPlaylistItem } from '@/types/models';
 import type { Database } from '@/integrations/supabase/types';
@@ -417,48 +418,52 @@ export default function ScreenDetails() {
         enabled: !!resolvedId
     });
 
-    // Device Health Query - fetch device health when screen has bound_device_id
-    const { data: deviceHealthData, isLoading: isLoadingDeviceHealth } = useQuery({
-        queryKey: ['device-health', screen?.bound_device_id],
+    // Device Info Query - identidade/hardware do aparelho (devices), achado pelo identity_hash vinculado.
+    // Filtra tambem por screen_id: o mesmo aparelho pode ter linhas antigas em outras telas.
+    const { data: deviceInfoData } = useQuery({
+        queryKey: ['device-info', screen?.bound_device_id, resolvedId],
         queryFn: async () => {
             if (!screen?.bound_device_id) return null;
-            
-            // Fetch from device_health table (current state)
+
+            const { data: rows, error } = await supabase
+                .from('devices')
+                .select('*')
+                .eq('identity_hash', screen.bound_device_id)
+                .order('last_seen', { ascending: false, nullsFirst: false })
+                .limit(5);
+
+            if (error) {
+                console.warn('Error fetching device info:', error);
+                return null;
+            }
+            const list = rows || [];
+            return list.find((d) => d.screen_id === resolvedId) || list[0] || null;
+        },
+        enabled: !!screen?.bound_device_id,
+        refetchInterval: 30000,
+    });
+
+    // Device Health Query - device_health.device_id e o UUID de devices.id (NAO o identity_hash de screens.bound_device_id;
+    // consultar pelo hash dava erro de UUID invalido e o cartao de saude ficava sempre vazio).
+    const { data: deviceHealthData, isLoading: isLoadingDeviceHealth } = useQuery({
+        queryKey: ['device-health', deviceInfoData?.id],
+        queryFn: async () => {
+            if (!deviceInfoData?.id) return null;
+
             const { data: health, error } = await supabase
                 .from('device_health')
                 .select('*')
-                .eq('device_id', screen.bound_device_id)
+                .eq('device_id', deviceInfoData.id)
                 .maybeSingle();
-            
+
             if (error) {
                 console.warn('Error fetching device health:', error);
                 return null;
             }
             return health;
         },
-        enabled: !!screen?.bound_device_id,
+        enabled: !!deviceInfoData?.id,
         refetchInterval: 30000, // Refresh every 30s
-    });
-
-    // Device Info Query - fetch extended device info from devices table
-    const { data: deviceInfoData } = useQuery({
-        queryKey: ['device-info', screen?.bound_device_id],
-        queryFn: async () => {
-            if (!screen?.bound_device_id) return null;
-            
-            const { data: info, error } = await supabase
-                .from('devices')
-                .select('*')
-                .eq('identity_hash', screen.bound_device_id)
-                .maybeSingle();
-            
-            if (error) {
-                console.warn('Error fetching device info:', error);
-                return null;
-            }
-            return info;
-        },
-        enabled: !!screen?.bound_device_id,
     });
 
     // Sync device health state
@@ -595,6 +600,7 @@ export default function ScreenDetails() {
 
                         if (status === 'executed' || status === 'success' || status?.startsWith('executed')) {
                             toast.success('📸 Screenshot recebido e atualizado!', {
+                                id: 'screenshot-ok',
                                 description: 'A imagem foi capturada agora mesmo pelo dispositivo.'
                             });
                             // Refresh React Query to update last_screenshot_at
@@ -647,14 +653,46 @@ export default function ScreenDetails() {
     }, [resolvedId, queryClient]);
 
 
+    // [SCREENSHOT] Fonte de verdade = o print chegou (last_screenshot_at mudou), nao so o ack do comando.
+    // Antes o botao ficava "Capturando..." ate o timeout quando o ack do player se perdia, mesmo com o print ja enviado.
+    const shotBeforeRequestRef = useRef<string | null>(null);
+    const lastScreenshotAt = screen?.last_screenshot_at ?? null;
+
+    // Enquanto espera o print, consulta a tela a cada 3 s (o Realtime pode nao entregar).
+    useEffect(() => {
+        if (!isCapturing || !resolvedId) return;
+        const timer = setInterval(() => {
+            queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] });
+        }, 3000);
+        return () => clearInterval(timer);
+    }, [isCapturing, resolvedId, queryClient]);
+
+    // Print novo (qualquer origem) => recarrega a imagem; se estava esperando, conclui a captura.
+    useEffect(() => {
+        if (!resolvedId || !lastScreenshotAt) return;
+        const img = document.getElementById('screenshot-preview') as HTMLImageElement | null;
+        if (img) img.src = `${supabaseConfig.url}/storage/v1/object/public/screenshots/${resolvedId}.jpg?t=${Date.now()}`;
+        if (isCapturing && hasNewScreenshot(shotBeforeRequestRef.current, lastScreenshotAt)) {
+            if (screenshotTimeoutRef.current) {
+                clearTimeout(screenshotTimeoutRef.current);
+                screenshotTimeoutRef.current = null;
+            }
+            setIsCapturing(false);
+            toast.success('📸 Screenshot recebido e atualizado!', { id: 'screenshot-ok' });
+        }
+        // isCapturing fica fora das dependencias de proposito: so reage a um print novo.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lastScreenshotAt, resolvedId]);
+
     // Handlers
     const handleSendCommand = async (command: 'reload' | 'reboot' | 'screenshot') => {
         if (!resolvedId) {
             toast.error("Erro: ID da tela não resolvido.");
             return;
         }
-        
+
         if (command === 'screenshot') {
+            shotBeforeRequestRef.current = lastScreenshotAt;
             setIsCapturing(true);
             if (screenshotTimeoutRef.current) {
                 clearTimeout(screenshotTimeoutRef.current);
@@ -1068,6 +1106,32 @@ export default function ScreenDetails() {
         </div>
     );
 
+    // Telemetria que o Player grava na propria tela a cada heartbeat (screens.*); valores em bytes/texto.
+    const ScreenHeartbeatSection = ({ screen }: { screen: Record<string, unknown> }) => {
+        const num = (v: unknown) => (v === null || v === undefined || v === '' || isNaN(Number(v)) ? undefined : Number(v));
+        const ram = num(screen.ram_usage);
+        const free = num(screen.free_space);
+        const temp = num(screen.cpu_temp);
+        const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v : 'N/A');
+        return (
+            <div className="rounded-lg bg-muted/30 p-4 border border-border/40">
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3">
+                    <Activity className="h-4 w-4 text-primary" /> Último Heartbeat da Tela
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div className="space-y-1"><span className="text-muted-foreground">Versão do Player</span><span className="font-medium">{text(screen.app_version) !== 'N/A' ? text(screen.app_version) : text(screen.version)}</span></div>
+                    <div className="space-y-1"><span className="text-muted-foreground">IP</span><span className="font-medium font-mono">{text(screen.ip_address)}</span></div>
+                    <div className="space-y-1"><span className="text-muted-foreground">RAM em uso</span><span className="font-medium">{formatBytes(ram)}</span></div>
+                    <div className="space-y-1"><span className="text-muted-foreground">Espaço livre</span><span className="font-medium">{formatBytes(free)}</span></div>
+                    <div className="space-y-1"><span className="text-muted-foreground">Temperatura</span><span className="font-medium">{formatTemperature(temp)}</span></div>
+                    <div className="space-y-1"><span className="text-muted-foreground">Uptime</span><span className="font-medium">{text(screen.uptime)}</span></div>
+                    <div className="space-y-1"><span className="text-muted-foreground">Hardware</span><span className="font-medium">{text(screen.hardware_version)}</span></div>
+                    <div className="space-y-1"><span className="text-muted-foreground">Último sinal</span><span className="font-medium">{screen.last_ping_at ? formatDistanceToNow(new Date(String(screen.last_ping_at)), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
+                </div>
+            </div>
+        );
+    };
+
     const DeviceNetworkSection = ({ health }: { health: DeviceHealth }) => (
         <div className="rounded-lg bg-muted/30 p-4 border border-border/40">
             <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3">
@@ -1407,9 +1471,7 @@ return (
                                     </div>
                                 </div>
                                 <div className="text-[11px] text-muted-foreground leading-snug">
-                                    {screen.last_screenshot_at
-                                        ? "Esta captura foi enviada automaticamente pelo Player para auditoria visual."
-                                        : "Aguardando o primeiro envio de captura do dispositivo vinculado."}
+                                    {screenshotFooterText(screen.last_screenshot_at, screen.last_screenshot_type)}
                                 </div>
                             </div>
                         </div>
@@ -1459,6 +1521,9 @@ return (
                                         {deviceInfo && (
                                             <DeviceHardwareSection deviceInfo={deviceInfo} />
                                         )}
+
+                                        {/* Ultimo heartbeat da tela (screens): aparece mesmo quando a telemetria detalhada ainda nao chegou */}
+                                        {!deviceHealth && <ScreenHeartbeatSection screen={screen} />}
 
                                         {/* Health Status */}
                                         {deviceHealth && (

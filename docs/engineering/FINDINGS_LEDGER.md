@@ -310,3 +310,20 @@
 - **Prova:** `TvCanvasRotationTest` — 3 de 6 falhavam antes, 6/6 depois; JVM 138/138. Emulador Android 16 com perfil TELEVISION forçado, painel em pé e playlist 16x9 → log `TV canvas: playlist=landscape panel=1080x2204 -> 2204x1080 rot=90.0`, vídeo ocupando o painel inteiro girado; 0 crashes.
 - **Montagem do totem:** o canvas gira 90° no sentido horário; a TV deve ser virada de modo que a lateral DIREITA dela fique para cima. Se instalada ao contrário, a imagem fica de cabeça para baixo (não há opção de inverter ainda).
 - **Não verificado:** TV Box/Smart TV física e playlist 9x16 em runtime (só teste unitário + simulação simétrica).
+
+### F-32 — Timestamps do Player 3 h atrasados ("último print 09:12" para um print de 12:12) (HIGH) — FIXED (JVM)
+- **Causa:** `TimeManager.currentTimeMillis()` soma o fuso de Brasília (-3 h) ao UTC (é "hora local" para agenda/exibição) e `RemoteDataSource.getIsoTimestamp()` rotulava esse valor com "Z". Evidência em produção: `last_screenshot_at = 12:12:05Z` para um upload feito às 15:12:05Z no Storage.
+- **Correção:** `TimeManager.utcMillis()` (UTC real) usado só em `getIsoTimestamp()` e no corte do polling de comandos. Agenda/exibição (`currentTimeMillis`) intocados. `TimeManagerUtcTest`.
+- **Aberto (não alterado de propósito):** `PlayerRepositoryImpl.registerPlayProof` usa `getSyncedDate()` com o mesmo desvio (played_at). Consumidores/relatórios de prova de exibição não foram auditados; alterar exige análise própria.
+
+### F-33 — Heartbeat pausado pelo screenshot sem prazo → dispositivo OFFLINE / botão carregando (HIGH) — FIXED (JVM); reprodução física não obtida
+- **Causa provável:** `ScreenshotCoordinator.isHeartbeatPaused` era liberado só no callback da captura/`finally` do upload. Sem callback (Activity destruída, PixelCopy travado) o `PersistentHeartbeatService` ficava em espera para sempre → `last_ping_at` velho → painel OFFLINE (janela de 3 min) e comando sem ack.
+- **Correção:** a pausa expira sozinha em 20 s (`MAX_PAUSE_MS`); vigia de 15 s na captura envia ack `failed`; ack do comando com até 3 tentativas. `ScreenshotHeartbeatPauseTest`.
+
+### F-34 — Fleet RPCs nunca aplicadas + checagem `"ok":true` nunca casava (HIGH) — FIXED no código; MIGRAÇÃO PENDENTE DE APLICAÇÃO EM PRODUÇÃO
+- **Causa:** `20260825_device_fleet.sql` ficou em `migrations_archive` (nunca aplicada). O Player chamava `fn_device_register_extended`/`fn_device_heartbeat_v2`/`fn_device_telemetry_batch` (inexistentes) e o painel lia colunas inexistentes de `devices`/`device_health`. Além disso o Postgres devolve `{"ok": true}` (com espaço) e o Player checava a substring sem espaço.
+- **Correção:** migração aditiva `supabase/migrations/20261231_device_fleet_dashboard_info.sql` (colunas, `device_telemetry`, 3 RPCs SECURITY DEFINER validando `fn_player_can_access_screen`, espelho em `screens`); `rpcResponseOk()` no Player. `FleetRpcOkTest`.
+
+### F-35 — Painel: cartão "Dispositivo Vinculado" vazio e screenshot preso (HIGH) — FIXED (vitest)
+- **Causa:** `device_health` era consultada por `screens.bound_device_id` (hash), mas `device_health.device_id` é o UUID de `devices.id` (erro de UUID inválido → sempre vazio). O card de screenshot só concluía pelo ack do comando e o rodapé dizia "enviada automaticamente" mesmo para print manual.
+- **Correção:** consulta de saúde por `devices.id`; conclusão da captura quando `last_screenshot_at` muda (polling 3 s enquanto espera); rodapé manual/automático; bloco "Último Heartbeat da Tela" (dados de `screens`) como fallback. `screenshotStatus.test.ts`.

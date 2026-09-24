@@ -254,6 +254,7 @@ class MainActivity : AppCompatActivity() {
         private const val PREF_EXIT_COUNT = "exit_count"
         private const val PREF_LAST_EXIT_AT = "last_exit_at"
         private const val PREF_MAINTENANCE_UNTIL = "maintenance_until"
+        private const val SCREENSHOT_CAPTURE_TIMEOUT_MS = 15_000L
         private const val ACTION_MAINTENANCE_MODE = "com.antigravity.player.ACTION_MAINTENANCE_MODE"
         private const val EXTRA_RESTORE_MAINTENANCE = "extra_restore_maintenance"
         private const val REQUEST_CODE_MAINTENANCE_RECOVERY = 4242
@@ -2203,7 +2204,29 @@ withContext(Dispatchers.Main) {
             // 2. Captura NA HORA (sem espera): UI + vídeo (PixelCopy no Android 8+; fallback próprio no 6/7).
             //    A imagem sai reduzida (lado maior <= 1280 px) e vive só em memória até o upload:
             //    NADA é gravado no aparelho.
-            com.antigravity.media.util.ScreenCapture.capture(window, window.decorView, Handler(Looper.getMainLooper())) { bitmap, error ->
+            // 2b. Vigia: se a captura nunca devolver (janela destruida, PixelCopy travado), o heartbeat volta
+            //     e o painel recebe "failed" em vez de ficar carregando / mostrar o aparelho offline.
+            val captureSettled = java.util.concurrent.atomic.AtomicBoolean(false)
+            val mainHandler = Handler(Looper.getMainLooper())
+            val captureWatchdog = Runnable {
+                if (captureSettled.compareAndSet(false, true)) {
+                    com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
+                    Logger.e("SCREENSHOT", "Captura sem resposta em ${SCREENSHOT_CAPTURE_TIMEOUT_MS}ms; heartbeat liberado")
+                    if (commandId != null) {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            ServiceLocator.getRemoteDataSource().acknowledgeCommand(commandId, "failed", "Captura sem resposta do player")
+                        }
+                    }
+                }
+            }
+            mainHandler.postDelayed(captureWatchdog, SCREENSHOT_CAPTURE_TIMEOUT_MS)
+
+            com.antigravity.media.util.ScreenCapture.capture(window, window.decorView, mainHandler) { bitmap, error ->
+                mainHandler.removeCallbacks(captureWatchdog)
+                if (!captureSettled.compareAndSet(false, true)) {
+                    bitmap?.recycle() // o vigia ja respondeu "failed"
+                    return@capture
+                }
                 if (bitmap != null) {
                     uploadScreenshotBitmap(bitmap, commandId)
                 } else {

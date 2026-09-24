@@ -309,6 +309,11 @@ class DeviceFleetManager(
 /**
  * Extensão para RemoteDataSource com novos métodos Device Fleet
  */
+private val OK_TRUE = Regex("\"ok\"\\s*:\\s*true")
+
+/** O Postgres devolve {"ok": true} (com espaco); a substring "\"ok\":true" nunca casava. */
+fun rpcResponseOk(body: String?): Boolean = body != null && OK_TRUE.containsMatchIn(body)
+
 suspend fun com.antigravity.sync.service.RemoteDataSource.registerDeviceExtended(
             identityHash: String,
             screenId: String,
@@ -341,7 +346,7 @@ suspend fun com.antigravity.sync.service.RemoteDataSource.registerDeviceExtended
                 }
                 
                 val result = postgrest.rpc("fn_device_register_extended", json)
-                result.data.toString().contains("\"ok\":true")
+                rpcResponseOk(result.data.toString())
             } catch (e: Exception) {
                 Logger.w("DEVICE_FLEET", "registerDeviceExtended falhou: ${e.message}")
                 false
@@ -395,7 +400,7 @@ suspend fun com.antigravity.sync.service.RemoteDataSource.registerDeviceExtended
                 }
                 
                 val result = postgrest.rpc("fn_device_heartbeat_v2", json)
-                result.data.toString().contains("\"ok\":true")
+                rpcResponseOk(result.data.toString())
             } catch (e: Exception) {
                 Logger.w("DEVICE_FLEET", "sendHeartbeatV2 falhou: ${e.message}")
                 false
@@ -418,7 +423,7 @@ suspend fun com.antigravity.sync.service.RemoteDataSource.registerDeviceExtended
                 }
                 
                 val result = postgrest.rpc("fn_device_telemetry_batch", json)
-                result.data.toString().contains("\"ok\":true")
+                rpcResponseOk(result.data.toString())
             } catch (e: Exception) {
                 Logger.w("DEVICE_FLEET", "sendTelemetryBatch falhou: ${e.message}")
                 false

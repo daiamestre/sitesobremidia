@@ -36,6 +36,13 @@ object TimeManager {
         return System.currentTimeMillis() + timeOffsetMs + (timezoneOffsetH * 3600000L)
     }
 
+    /**
+     * UTC real (relogio sincronizado, SEM somar o fuso). E o unico valor valido para timestamps enviados
+     * ao servidor com sufixo "Z" (last_screenshot_at, executed_at, ...). currentTimeMillis() e "hora local"
+     * para agenda/exibicao e gravava 3h atras quando rotulado como UTC.
+     */
+    fun utcMillis(): Long = System.currentTimeMillis() + timeOffsetMs
+
     fun getSyncedDate(): Date = Date(currentTimeMillis())
 
     suspend fun syncTime() = withContext(Dispatchers.IO) {

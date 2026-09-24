@@ -239,7 +239,7 @@ class RemoteDataSource {
     }
 
     private suspend fun pollPendingCommands(screenUuid: String) {
-        val cutoff = isoTimestampAt(com.antigravity.core.util.TimeManager.currentTimeMillis() - COMMAND_POLL_MAX_AGE_MS)
+        val cutoff = isoTimestampAt(com.antigravity.core.util.TimeManager.utcMillis() - COMMAND_POLL_MAX_AGE_MS)
         val rows = client.from("remote_commands")
             .select(columns = Columns.list("id", "command", "status", "payload")) {
                 filter {
@@ -309,11 +309,24 @@ class RemoteDataSource {
                 updateData["payload"] = payloadMap
             }
 
-            client.from("remote_commands").update(updateData) {
-                filter { eq("id", commandId) }
+            // Ate 3 tentativas: um ack perdido deixa o painel carregando ate o timeout.
+            var lastError: Exception? = null
+            for (attempt in 1..3) {
+                try {
+                    client.from("remote_commands").update(updateData) {
+                        filter { eq("id", commandId) }
+                    }
+                    Logger.i("COMMANDS", "Command $commandId acknowledged with status '$status' (tentativa $attempt)")
+                    return
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    lastError = e
+                    if (attempt < 3) delay(1_000L * attempt)
+                }
             }
-            Logger.i("COMMANDS", "Command $commandId acknowledged with status '$status'")
+            throw lastError ?: IllegalStateException("ack sem erro registrado")
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Logger.e("COMMANDS", "Failed to acknowledge command $commandId: ${e.message}")
         }
     }
@@ -844,7 +857,7 @@ class RemoteDataSource {
             val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
             sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
             // [MISSION CRITICAL] Use Synced Clock instead of System Clock
-            sdf.format(java.util.Date(com.antigravity.core.util.TimeManager.currentTimeMillis()))
+            sdf.format(java.util.Date(com.antigravity.core.util.TimeManager.utcMillis()))
         } catch (e: Exception) {
             // Fallback
             java.util.Date().toString()

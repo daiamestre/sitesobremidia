@@ -96,7 +96,7 @@ class PersistentHeartbeatService : Service() {
                     remoteDS.updateScreenStatus(
                         id = screenId,
                         status = status,
-                        version = "1.0",
+                        version = installedVersionName(),
                         ipAddress = "N/A"
                     )
                 } catch (e: Exception) {
@@ -127,6 +127,13 @@ class PersistentHeartbeatService : Service() {
                 }
             }
         }
+    }
+
+    /** Versao real instalada (screens.version deixava de ser "1.0" fixo e sobrescrever a versao correta do RPC). */
+    private fun installedVersionName(): String = try {
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0"
+    } catch (e: Exception) {
+        "1.0"
     }
 
     private fun acquireWakeLock() {
