@@ -222,3 +222,51 @@
 - **Fix:** remoção da anotação `@Insert` desse método (`PlayerDao.kt`). O Room passou a gerar `RoomDatabaseKt.withTransaction(__db, … DefaultImpls.insertPlaylistWithItems …)`. Foram adicionadas também duas dependências `androidTestImplementation` no `cache-manager`, apenas para teste.
 - **Proof after:** 2/2 testes no emulador; regressão JVM 101/101; `assembleRelease` OK.
 - **Pendente:** HARDWARE (durabilidade física após power loss).
+
+---
+
+## Fluxo do cliente + painel (2026-09-24) — v5.2.5
+
+> Correções de afirmações minhas anteriores: (1) eu havia dito que não existia sync periódico de reserva; **existe**: `syncInBackground` agenda a si mesmo a cada 60 s. (2) Suspeitei que o `PixelCopy` da janela não captaria o vídeo por ser SurfaceView; o `PlayerView` usa `texture_view`, mas mesmo assim o teste no emulador mostrou o vídeo **transparente** no `PixelCopy` (F-26).
+> Nível de prova: UNIT = JVM; EMULADOR = Android 9 real (Pixel_API28); NÃO VERIFICADO = precisa de login real / aparelho.
+
+### F-21 — Player voltava ao Login e se fechava logo após escolher a tela (HIGH) — FIXED (UNIT)
+- **Local:** `MainActivity.sampleRuntimeState()` → `SessionStateAdapter` → `SurfaceProjectionEngine` → `showLoginSurface()` (que faz `finish()`).
+- **Causa:** o `SessionManager` só sai de `UNKNOWN` no 1º sync bem-sucedido, e o token em memória some se o processo renasce (watchdog/OS). `UNKNOWN`/`INITIALIZING`/`AUTHENTICATING` ou token vazio projetavam "não autenticado" → LOGIN. O 1º `syncSurfaceWithCanonicalProjection()` (início de `startSyncAndPlay`, sem cache = logo após escolher a tela) fechava a `MainActivity`. Os testes existentes montavam o estado sempre como `AUTHORIZED`, então não pegavam.
+- **Prova antes:** `SessionSurfaceAtBootTest` — 3 dos 7 cenários falhavam (LOGIN em vez de SYNC_GUARD). **Depois:** 7/7.
+- **Correção:** `PlayerFlowPolicy.effectiveSessionInputs()`: com tela já escolhida neste aparelho (`saved_screen_id`), a sessão local é válida. Deslogado de verdade, sem tela, suspensa e revogada mantêm o comportamento.
+- **NÃO VERIFICADO:** o fluxo real de login → seleção → sync (exige credenciais e aparelho).
+
+### F-22 — Sync periódico reiniciava a reprodução a cada 60 s (MEDIUM) — FIXED (UNIT)
+- `syncInBackground` chamava `startPlaybackLoop()` após TODO sync com sucesso, mesmo sem mudança na playlist (o repositório devolve `success` também em "config inalterada"), cortando a mídia em exibição. Além disso, cada nudge/execução acumulava mais uma cadeia paralela de timers de 60 s.
+- **Correção:** reinicia só se a assinatura da playlist mudou (`shouldRestartPlaybackLoop`); um único timer (`scheduleNextBackgroundSync`). Testes: 4 dos 13 iniciais falhavam antes; 15/15 depois.
+
+### F-23 — Erros passageiros expulsavam o usuário (MEDIUM) — FIXED (UNIT)
+- Qualquer texto com "404" (ex.: arquivo de mídia) limpava `saved_screen_id` e mandava à seleção de tela; qualquer número contendo "401" era tratado como sessão expirada; uma exceção no boot mostrava "ERRO CRÍTICO: Reiniciando em 5s..." e ia ao Login soltando o kiosk.
+- **Correção:** `PlayerFlowPolicy.classifySyncError` (só `[PERMANENT]`/"Tela não encontrada" vai à seleção; só `JWT expired`/HTTP 401 isolado reautentica); o erro de boot agora tenta de novo em silêncio.
+
+### F-24 — Mensagens ao cliente no fluxo de login/seleção/sync (MEDIUM) — FIXED (UNIT p/ textos; UI não verificada)
+- Removidos: Toasts "Login realizado com sucesso!" e "Conectado com Sucesso!", o "Sessão Expirada" (a volta ao Login já comunica) e o "Erro ao buscar telas: <exceção>" (agora tenta de novo sozinho, com o indicador de carregamento).
+- A tela de sincronização só mostra "Sincronizando mídias..." ou o contador "Sincronizando: X de Y" (`sanitizeSyncProgress`). Mantidas, por serem ação do usuário que falhou: validação de email/senha, credenciais inválidas (agora sem texto técnico), falha ao transferir tela e "Nenhuma tela disponível".
+
+### F-25 — Toque longo na tela de sincronização desvinculava a tela sem proteção (MEDIUM) — FIXED (código; UI não testada)
+- `statusTextView`/overlay: toque longo executava `unpairScreen` no backend e ia à seleção. Agora é consumido com o kiosk ativo; só funciona na janela de manutenção. A troca de tela pelo cliente passa a ser feita pelo painel (Desvincular).
+
+### F-26 — Screenshot: vídeo preto e comandos sem plano B (HIGH) — FIXED
+- **Captura (EMULADOR 3/3):** o teste `ScreenCaptureTest` mostrou que o `PixelCopy` da janela devolve o `TextureView` transparente. Nova `media-engine/ScreenCapture`: PixelCopy (API 26+) + sobreposição do frame de cada `TextureView` visível; abaixo do Android 8 ou com PixelCopy falhando, desenho da hierarquia + TextureViews (antes: erro "Screenshot não suportado"). Imagem reduzida (lado maior ≤ 1280 px), poupando RAM/upload de TV Box fraca.
+- **Comandos:** só chegavam por WebSocket e só passavam a ser escutados após um sync bem-sucedido (sem playlist ou offline no boot = nunca). Agora ligam assim que a tela é conhecida e há polling de reserva a cada 10 s (`screenshot`/`reload` com até 2 min de idade, mesma deduplicação). **NÃO VERIFICADO em runtime** (precisa de tela pareada real).
+
+### F-27 — Tela de sincronização sumia antes da mídia e ficava sobre a mídia (MEDIUM) — FIXED (UNIT p/ política; UI não verificada)
+- O timer de segurança de 25 s soltava a tela aos 25 s mesmo sem mídia (aparecia o logo sobre preto no meio do download), e nenhum código a soltava quando o `ViewModel` entrava em `PLAYING`: o overlay ficava sobre a mídia até o timer (o comentário no código afirmava o contrário).
+- **Correção:** o timer só solta quando já há mídia (`keepSyncScreenLocked`) e `PLAYING` libera o overlay imediatamente (sem forçar PlayerView).
+
+### Verificações de produção (SOMENTE LEITURA, chave anon pública)
+- Realtime aceita `postgres_changes` em `screens`, `devices`, `playlists`, `playlist_items` e `remote_commands` (as 5 que o player escuta) — **confirmado**.
+- Bucket `screenshots` existe e é **público** (o painel lê por URL pública) — **confirmado**.
+- RPCs de frota (`fn_device_register_extended`, `fn_device_heartbeat_v2`, `fn_device_telemetry_batch`, F-03): **não verificável sem credencial** (o anon não enxerga nenhuma RPC). Seguem OPEN. O heartbeat que alimenta o painel usa `devices`/`device_health` diretamente e não depende delas.
+
+### Regras do proprietário (2026-09-24) — v5.2.6
+- **Avisos de sucesso restaurados:** "Login realizado com sucesso!" (Login) e "Conectado com Sucesso!" (seleção de tela) voltam a aparecer, por decisão do proprietário. Continuam removidos o "Sessão Expirada" e o "Erro ao buscar telas: <exceção>" (F-24).
+- **Tela de sincronização:** nome "Sincronizando Mídias" + contador ("2 de 5"); ao terminar, "Mídias sincronizadas" (visível por no mínimo 1,5 s) e então a mídia assume. Nenhum outro texto (aguarde/erro/bloqueio/etapas) é exibido. Depois disso nenhuma mensagem, Toast ou overlay é exibido sobre o player/mídia: o único overlay de texto é o de tela bloqueada (suspensão), que é estado do sistema. `PlayerFlowPolicy.sanitizeSyncProgress` / `remainingDoneVisibilityMs` — 18/18 testes; antes 4 falhavam.
+- **Screenshot:** captura imediata (removidos `System.gc()` e a espera de 2 s); o print vive só em memória (bitmap reciclado logo após a compressão, nada gravado no aparelho); o upload sobrescreve `screenshots/<tela>.jpg` (upsert), então há **um único print por tela no painel** e o anterior deixa de existir. O print automático (checagem a cada 6 h) usa o mesmo arquivo e agora é marcado como `heartbeat` ("Check de Mídia" no painel; antes saía como `manual`). Verificado: nenhum código do player nativo, do player web ou do painel grava histórico de prints; a tabela `screenshots_logs` não tem escritor.
+- **Web/Supabase:** nenhuma alteração necessária nesta entrega (o painel já lê o arquivo único e atualiza pelo ack do comando).

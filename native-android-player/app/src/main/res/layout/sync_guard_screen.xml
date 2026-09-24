@@ -40,7 +40,7 @@
             android:id="@+id/sync_guard_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Sincronizando mídias..."
+            android:text=""
             android:textColor="#FFFFFF"
             android:textSize="18sp"
             android:layout_marginTop="16dp"/>

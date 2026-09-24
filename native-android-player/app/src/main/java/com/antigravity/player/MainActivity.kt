@@ -36,6 +36,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import androidx.core.view.isVisible
 import com.antigravity.player.util.DeviceTypeUtil
+import com.antigravity.player.util.PlayerFlowPolicy
 import com.antigravity.player.util.SmartCacheCleaner
 import com.antigravity.player.service.ThermalGuard
 import com.antigravity.player.service.AutoCleanManager
@@ -185,12 +186,21 @@ class MainActivity : AppCompatActivity() {
             maintenanceUntilMs = maintenanceUntil,
             currentTimeMs = System.currentTimeMillis()
         )
+        // O SessionManager fica em UNKNOWN até o 1º sync ok e o token em memória some se o processo renasce:
+        // com a tela já escolhida neste aparelho a sessão local é válida (senão a projeção mandava ao Login
+        // e fechava o player logo depois de o usuário escolher a tela).
+        val sessionInputs = PlayerFlowPolicy.effectiveSessionInputs(
+            stateName = SessionManager.sessionState.value.name,
+            accessToken = SessionManager.currentAccessToken,
+            userId = SessionManager.currentUserId,
+            savedScreenId = prefs.getString("saved_screen_id", null)
+        )
         val session = SessionStateAdapter.adapt(
-            sessionStateName = SessionManager.sessionState.value.name,
+            sessionStateName = sessionInputs.stateName,
             isDeviceRevoked = SessionManager.isDeviceRevoked,
             isScreenActive = SessionManager.isScreenActive,
-            currentAccessToken = SessionManager.currentAccessToken,
-            currentUserId = SessionManager.currentUserId,
+            currentAccessToken = sessionInputs.accessToken,
+            currentUserId = sessionInputs.userId,
             deviceIdentityHash = SessionManager.deviceIdentityHash,
             blockMessage = SessionManager.blockMessage
         )
@@ -315,6 +325,10 @@ class MainActivity : AppCompatActivity() {
         // UI initialization
         statusTextView = findViewById<TextView>(R.id.status_text)
         syncGuard = com.antigravity.player.util.SyncGuard(this)
+        // O timer de segurança do SyncGuard só solta a tela quando já há mídia pronta (PLAYING).
+        syncGuard.keepLockedWhile = {
+            !::viewModel.isInitialized || PlayerFlowPolicy.keepSyncScreenLocked(viewModel.playerState.value)
+        }
         playerView1 = findViewById<PlayerView>(R.id.playerView1)
         playerView2 = findViewById<PlayerView>(R.id.playerView2)
         standbyImage = findViewById<ImageView>(R.id.standbyImage)
@@ -395,6 +409,11 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 }
                             }
+                            // PLAYING = mídia válida sendo exibida => superfície MEDIA_ONLY: a tela de
+                            // sincronização não pode ficar por cima (antes só sumia pelo timer de 25 s).
+                            // Só libera o overlay; não força nenhum PlayerView (A/B renderer).
+                            // ("Mídias sincronizadas" fica visível o tempo mínimo antes de a mídia assumir a tela.)
+                            syncGuard.releaseWhenMediaReady()
                             android.util.Log.d("PLAYER_FLUXO", "Estado: PLAYING - Mídias prontas. Reprodução iniciada.")
                         }
                         com.antigravity.player.ui.PlayerUIState.AUTH -> {
@@ -495,8 +514,11 @@ class MainActivity : AppCompatActivity() {
                 true
             }
 
-            statusTextView.setOnLongClickListener { resetScreenAction() }
-            syncOverlay?.setOnLongClickListener { resetScreenAction() }
+            // Com o kiosk ativo o toque longo é consumido e NÃO desvincula/troca a tela: depois de escolher
+            // a tela, o usuário não sai por aqui. A troca é feita pelo painel (Desvincular) ou na janela
+            // de manutenção (kiosk liberado).
+            statusTextView.setOnLongClickListener { if (isKioskEnforced) true else resetScreenAction() }
+            syncOverlay?.setOnLongClickListener { if (isKioskEnforced) true else resetScreenAction() }
 
                // [OTA] Auto-Update Initial Check 
             lifecycleScope.launch {
@@ -854,7 +876,7 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 SessionManager.syncEvents.collect {
                     Logger.i("REALTIME", "Sync nudge received! Re-syncing playlist from server...")
-                    isSyncLoopRunning = false // Allow new playback loop after sync
+                    // O reinício do laço é decidido em syncInBackground (só se a playlist mudou).
                     lifecycleScope.launch(Dispatchers.IO) {
                         syncInBackground()
                     }
@@ -864,23 +886,22 @@ class MainActivity : AppCompatActivity() {
             // 1. Observe Sync Progress (Enterprise Sync UI)
             lifecycleScope.launch {
                 ServiceLocator.getRepository(this@MainActivity).getSyncProgress().collect { progress ->
-                    syncGuard.updateProgress(progress)
-                    statusTextView.text = progress
+                    // Tela de sincronização: nome "Sincronizando Mídias" + contador; ao final "Mídias sincronizadas".
+                    // Textos de "aguarde"/erro/bloqueio internos não são exibidos ao usuário.
+                    val shown = PlayerFlowPolicy.sanitizeSyncProgress(progress)
+                    syncGuard.updateProgress(shown)
+                    statusTextView.text = shown
                 }
             }
             
         } catch (e: Exception) {
             Logger.e("CRITICAL_BOOT", e.message ?: "Unknown Boot Error")
-            updateStatus("ERRO CRÍTICO: Reiniciando em 5s...", isError = true)
-            
-            // [SELF-HEALING] Restart to Login on fatal boot failures
-            isKioskEnforced = false // [EXIT COUNTER] Navegacao intencional
+
+            // [SELF-HEALING] Nunca expulsa o usuário (Login) nem solta o kiosk por uma falha de boot:
+            // sem mensagem na tela, tenta reiniciar o fluxo local em silêncio.
             Handler(Looper.getMainLooper()).postDelayed({
-                val intent = Intent(this, com.antigravity.player.ui.LoginActivity::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                startActivity(intent)
-                finish()
-            }, 5000)
+                if (!isFinishing && !isDestroyed) checkLocalCacheAndPlay()
+            }, 10_000)
         }
     }
 
@@ -989,16 +1010,19 @@ private fun checkLocalCacheAndPlay() {
         val syncUseCase = com.antigravity.core.domain.usecase.SyncPlaylistUseCase(repo)
         
         try {
+            // Assinatura ANTES do sync: permite saber se ESTE sync mudou a playlist em exibição.
+            val signatureBefore = PlayerFlowPolicy.playlistSignature(repo.getActivePlaylist().firstOrNull())
             val result = syncUseCase()
             if (result.isSuccess) {
                 Logger.i("SYNC", "Sincronização de background concluída. Aplicando nova sequência...")
-                
+
                 // [NEW] Aciona a limpeza cirúrgica após baixar as novas mídias
                 SmartCacheCleaner.purgeOrphanedMedia(applicationContext)
-                
+
                 // Aplicar configurações silenciosamente (sem piscar a tela)
                 val currentPlaylist = repo.getActivePlaylist().firstOrNull()
                 currentPlaylist?.let { playlist ->
+                    val signatureAfter = PlayerFlowPolicy.playlistSignature(playlist)
                     runOnUiThread {
                         SessionManager.apply {
                             heartbeatIntervalSeconds = playlist.heartbeatIntervalSeconds
@@ -1006,32 +1030,41 @@ private fun checkLocalCacheAndPlay() {
                             cacheNextMedia = playlist.cacheNextMedia
                         }
                         applyScreenRotation(playlist.orientation)
-                        
-                        // [FIX] Restart playback loop to pick up new sequence and durations immediately
-                        isSyncLoopRunning = false
-                        startPlaybackLoop()
+
+                        // Reinicia o laço SOMENTE se este sync mudou a playlist (mídia nova/removida,
+                        // ordem, duração, agenda). Sem mudança, a mídia em exibição não é interrompida.
+                        val loopActive = isSyncLoopRunning && playbackLoopJob?.isActive == true
+                        if (PlayerFlowPolicy.shouldRestartPlaybackLoop(signatureBefore, signatureAfter, loopActive)) {
+                            isSyncLoopRunning = false
+                            startPlaybackLoop()
+                        }
                     }
                 }
-                // Agendar próxima verificação periódica em 60 segundos
-                Handler(Looper.getMainLooper()).postDelayed({
-                    lifecycleScope.launch(Dispatchers.IO) { syncInBackground() }
-                }, 60000)
+                scheduleNextBackgroundSync()
             } else {
                 val msg = result.exceptionOrNull()?.message ?: "Unknown"
-                if (msg.contains("JWT expired", ignoreCase = true) || msg.contains("401", ignoreCase = true)) {
+                if (PlayerFlowPolicy.classifySyncError(msg) == PlayerFlowPolicy.SyncErrorAction.REAUTH) {
                     runOnUiThread { handleAuthError() }
                 }
                 // Silenciosamente tenta de novo em 1 minuto
-                Handler(Looper.getMainLooper()).postDelayed({ 
-                    lifecycleScope.launch(Dispatchers.IO) { syncInBackground() }
-                }, 60000)
+                scheduleNextBackgroundSync()
             }
         } catch (e: Exception) {
             Logger.e("SYNC", "Background sync error: ${e.message}")
-            Handler(Looper.getMainLooper()).postDelayed({ 
-                lifecycleScope.launch(Dispatchers.IO) { syncInBackground() }
-            }, 60000)
+            scheduleNextBackgroundSync()
         }
+    }
+
+    // Um único timer de sync periódico: cada execução cancela o agendamento anterior antes de
+    // reagendar (antes, cada nudge/execução acumulava mais uma cadeia paralela de 60 s).
+    private val backgroundSyncHandler = Handler(Looper.getMainLooper())
+    private val backgroundSyncRunnable = Runnable {
+        lifecycleScope.launch(Dispatchers.IO) { syncInBackground() }
+    }
+
+    private fun scheduleNextBackgroundSync(delayMs: Long = 60_000L) {
+        backgroundSyncHandler.removeCallbacks(backgroundSyncRunnable)
+        backgroundSyncHandler.postDelayed(backgroundSyncRunnable, delayMs)
     }
 
     private fun startSyncAndPlay() {
@@ -1100,11 +1133,11 @@ try {
                                 return@ioBlock 
                             }
 
-                            runOnUiThread { updateStatus("Erro: $errorMsg", isError = true) }
-
-                            if (errorMsg.contains("JWT expired", ignoreCase = true) || errorMsg.contains("401", ignoreCase = true)) {
+                            // Sem mensagem de erro ao usuário: a tela de sincronização segue neutra.
+                            val action = PlayerFlowPolicy.classifySyncError(errorMsg)
+                            if (action == PlayerFlowPolicy.SyncErrorAction.REAUTH) {
                                 handleAuthError("Sessão Expirada (401)")
-                            } else if (errorMsg.contains("Tela não encontrada", ignoreCase = true) || errorMsg.contains("404", ignoreCase = true) || errorMsg.contains("[PERMANENT]", ignoreCase = true)) {
+                            } else if (action == PlayerFlowPolicy.SyncErrorAction.SELECT_SCREEN) {
                                 Logger.w("SYNC", "Tela Inválida ou não encontrada. Abrindo seleção de tela...")
                                 // [EXIT COUNTER] Navegacao intencional: nao conta como saida do usuario
                                 isKioskEnforced = false
@@ -1123,10 +1156,7 @@ try {
             } catch (e: Exception) {
                  val errorMsg = e.message ?: "Erro desconhecido"
                  Logger.e("SYNC", "Critical failure: $errorMsg", e)
-                 runOnUiThread { 
-                     syncGuard.releaseLock() 
-                     updateStatus("Falha Crítica: $errorMsg", isError = true)
-                 }
+                 // Sem mensagem de erro ao usuário: tenta de novo em silêncio (a tela de sync permanece).
                  Handler(Looper.getMainLooper()).postDelayed({ startSyncAndPlay() }, 10000)
             } finally {
                 isSyncInProgress = false
@@ -1805,7 +1835,8 @@ withContext(Dispatchers.Main) {
 
     override fun onDestroy() {
         super.onDestroy()
-        
+        backgroundSyncHandler.removeCallbacks(backgroundSyncRunnable)
+
         // [DEVICE FLEET] Encerra Device Fleet Manager
         deviceFleetManager?.shutdown()
         deviceFleetManager = null
@@ -2131,85 +2162,23 @@ withContext(Dispatchers.Main) {
 
     private fun takeProofOfPlayScreenshot(commandId: String? = null) {
         lifecycleScope.launch {
-            // [COMPATIBILITY] API < 26 (Android Nougat e anteriores)
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                Logger.w("SCREENSHOT", "PixelCopy não suportado na API ${Build.VERSION.SDK_INT} < 26. Tentando fallback via Canvas...")
-                try {
-                    val view = window.decorView
-                    if (view.width > 0 && view.height > 0) {
-                        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-                        val canvas = android.graphics.Canvas(bitmap)
-                        view.draw(canvas)
-                        uploadScreenshotBitmap(bitmap, commandId)
-                        return@launch
-                    }
-                } catch (e: Exception) {
-                    Logger.e("SCREENSHOT", "Canvas fallback falhou: ${e.message}")
-                }
-                
-                // Fallback não disponível ou falhou: avisa o Dashboard explicitamente
-                Logger.e("SCREENSHOT", "Screenshot não suportado na API ${Build.VERSION.SDK_INT}")
-                if (commandId != null) {
-                    ServiceLocator.getRemoteDataSource().acknowledgeCommand(
-                        commandId,
-                        "failed",
-                        "Screenshot não suportado nesta versão do Android (API ${Build.VERSION.SDK_INT} < 26)"
-                    )
-                }
-                return@launch
-            }
-
-            // 1. [SILENCIADOR] Bloqueia o tráfego do Heartbeat Service e processos secundários
+            // 1. [SILENCIADOR] Bloqueia o tráfego do Heartbeat Service enquanto o print sobe
             com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = true
-            
-            // 2. [LIXEIRO] Varre a RAM para liberar espaço na GPU de caixas baratas (O Pulo do Gato)
-            System.gc()
-            
-            // 3. Aguarda 2 segundos estritos para a CPU/Rede/Memória estarem em Idle total
-            delay(2000)
 
-            val view = window.decorView
-            if (view.width <= 0 || view.height <= 0) {
-                com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
-                Logger.e("SCREENSHOT", "Window decorView com dimensões inválidas (${view.width}x${view.height})")
-                if (commandId != null) {
-                    ServiceLocator.getRemoteDataSource().acknowledgeCommand(
-                        commandId,
-                        "failed",
-                        "View de exibição com dimensões inválidas (${view.width}x${view.height})"
-                    )
-                }
-                return@launch
-            }
-            
-            try {
-                val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-                PixelCopy.request(window, bitmap, { copyResult ->
-                    if (copyResult == PixelCopy.SUCCESS) {
-                        uploadScreenshotBitmap(bitmap, commandId)
-                    } else {
-                        com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
-                        Logger.e("SCREENSHOT", "PixelCopy falhou com código $copyResult")
-                        if (commandId != null) {
-                            lifecycleScope.launch(Dispatchers.IO) {
-                                ServiceLocator.getRemoteDataSource().acknowledgeCommand(
-                                    commandId,
-                                    "failed",
-                                    "PixelCopy falhou na GPU com código $copyResult"
-                                )
-                            }
+            // 2. Captura NA HORA (sem espera): UI + vídeo (PixelCopy no Android 8+; fallback próprio no 6/7).
+            //    A imagem sai reduzida (lado maior <= 1280 px) e vive só em memória até o upload:
+            //    NADA é gravado no aparelho.
+            com.antigravity.media.util.ScreenCapture.capture(window, window.decorView, Handler(Looper.getMainLooper())) { bitmap, error ->
+                if (bitmap != null) {
+                    uploadScreenshotBitmap(bitmap, commandId)
+                } else {
+                    com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
+                    Logger.e("SCREENSHOT", "Captura falhou: $error")
+                    if (commandId != null) {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            ServiceLocator.getRemoteDataSource().acknowledgeCommand(commandId, "failed", error ?: "Falha na captura")
                         }
                     }
-                }, Handler(Looper.getMainLooper()))
-            } catch (e: Exception) {
-                Logger.e("SCREENSHOT", "Hard Crash during capture: ${e.message}")
-                com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
-                if (commandId != null) {
-                    ServiceLocator.getRemoteDataSource().acknowledgeCommand(
-                        commandId,
-                        "failed",
-                        "Exceção durante captura: ${e.message}"
-                    )
                 }
             }
         }
@@ -2220,10 +2189,13 @@ withContext(Dispatchers.Main) {
             try {
                 val stream = java.io.ByteArrayOutputStream()
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 70, stream)
+                bitmap.recycle() // libera a memória do print assim que foi comprimido
                 val byteArray = stream.toByteArray()
-                
+
                 val screenId = getSharedPreferences("player_prefs", MODE_PRIVATE).getString("saved_screen_id", "UNKNOWN") ?: "UNKNOWN"
-                ServiceLocator.getRemoteDataSource().uploadScreenshot(screenId, byteArray, "manual")
+                // Um único print por tela no painel: o upload SOBRESCREVE screenshots/<tela>.jpg (upsert),
+                // então o anterior deixa de existir. Sem comando = print automático (checagem de mídia).
+                ServiceLocator.getRemoteDataSource().uploadScreenshot(screenId, byteArray, if (commandId == null) "heartbeat" else "manual")
                 
                 if (commandId != null) {
                     ServiceLocator.getRemoteDataSource().acknowledgeCommand(
@@ -2244,6 +2216,7 @@ withContext(Dispatchers.Main) {
                     )
                 }
             } finally {
+                if (!bitmap.isRecycled) bitmap.recycle()
                 // [LIBERAÇÃO] Devolve o controle ao Heartbeat
                 com.antigravity.player.util.ScreenshotCoordinator.isHeartbeatPaused = false
             }

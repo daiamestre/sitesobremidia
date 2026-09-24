@@ -33,18 +33,34 @@ class SyncGuard(private val activity: Activity) {
     }
 
     private var lockWatchdogHandler: android.os.Handler? = null
-    private val lockWatchdogRunnable = Runnable {
+
+    /**
+     * Enquanto retornar true (ainda não há mídia pronta), o timer de segurança NÃO solta a tela de
+     * sincronização: ele só rearma. Sem isso, numa 1ª sincronização longa a tela sumia aos 25 s e
+     * aparecia o logo sobre fundo preto.
+     */
+    var keepLockedWhile: (() -> Boolean)? = null
+
+    private val lockWatchdogRunnable = Runnable { onWatchdogTick() }
+
+    private fun onWatchdogTick() {
         if (isLocked()) {
-            Logger.w("SYNC_GUARD", "Safety Watchdog: Auto-releasing SyncGuard lock after timeout.")
-            releaseLock()
+            if (keepLockedWhile?.invoke() == true) {
+                lockWatchdogHandler?.postDelayed(lockWatchdogRunnable, 25000L)
+            } else {
+                Logger.w("SYNC_GUARD", "Safety Watchdog: Auto-releasing SyncGuard lock after timeout.")
+                releaseLock()
+            }
         }
     }
 
     fun lockScreen(message: String = "Sincronizando Mídias...", showDeviceId: String? = null) {
         activity.runOnUiThread {
             overlayContainer?.visibility = View.VISIBLE
-            titleText?.text = "Sobre Mídia Player"
-            statusText?.text = message
+            // Tela de sincronização: nome "Sincronizando Mídias" + contador; nada além disso.
+            titleText?.text = PlayerFlowPolicy.SYNC_SCREEN_TITLE
+            doneShownAtMs = 0L
+            statusText?.text = PlayerFlowPolicy.sanitizeSyncProgress(message)
             
             showDeviceId?.let {
                 deviceIdText?.visibility = View.VISIBLE
@@ -62,9 +78,36 @@ class SyncGuard(private val activity: Activity) {
         }
     }
 
+    /** Quando "Mídias sincronizadas" apareceu (0 = ainda não apareceu). Só a thread principal escreve. */
+    private var doneShownAtMs = 0L
+
+    /** Recebe o texto JÁ filtrado por PlayerFlowPolicy.sanitizeSyncProgress (contador, "sincronizadas" ou vazio). */
     fun updateProgress(progressMessage: String) {
         activity.runOnUiThread {
+            // Etapas internas (texto vazio) não apagam o contador que já está na tela.
+            if (progressMessage.isEmpty()) return@runOnUiThread
             statusText?.text = progressMessage
+            if (progressMessage == PlayerFlowPolicy.SYNC_DONE_TEXT) {
+                if (doneShownAtMs == 0L) doneShownAtMs = android.os.SystemClock.elapsedRealtime()
+            } else {
+                doneShownAtMs = 0L
+            }
+        }
+    }
+
+    /**
+     * Solta a tela para a mídia assumir. Se "Mídias sincronizadas" acabou de aparecer, espera o tempo
+     * mínimo de exibição para o cliente conseguir ler; sem essa mensagem, solta na hora.
+     */
+    fun releaseWhenMediaReady() {
+        activity.runOnUiThread {
+            val wait = PlayerFlowPolicy.remainingDoneVisibilityMs(doneShownAtMs, android.os.SystemClock.elapsedRealtime())
+            if (wait > 0L && isLocked()) {
+                if (lockWatchdogHandler == null) lockWatchdogHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                lockWatchdogHandler?.postDelayed({ releaseLock() }, wait)
+            } else {
+                releaseLock()
+            }
         }
     }
 

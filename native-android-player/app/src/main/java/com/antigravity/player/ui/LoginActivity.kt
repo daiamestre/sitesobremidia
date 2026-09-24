@@ -77,7 +77,7 @@ class LoginActivity : AppCompatActivity() {
                     
                     // 1. Redirect to Screen Selection (Correct Flow per user request)
                     Toast.makeText(this@LoginActivity, "Login realizado com sucesso!", Toast.LENGTH_SHORT).show()
-                    
+
                     val intent = Intent(this@LoginActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java).apply {
                         this@LoginActivity.intent.extras?.let { putExtras(it) }
                     }
@@ -95,7 +95,7 @@ class LoginActivity : AppCompatActivity() {
                             "Falha ao conectar com o servidor. Verifique a internet da sua TV/Aparelho."
                         errorMsg.contains("Invalid login credentials", ignoreCase = true) ->
                             "Email ou senha incorretos."
-                        else -> "Autenticação falhou: ${exc?.message ?: "Verifique suas credenciais e conexão."}"
+                        else -> "Não foi possível entrar. Verifique email, senha e a internet."
                     }
                     Toast.makeText(this@LoginActivity, friendlyMsg, Toast.LENGTH_LONG).show()
                 }

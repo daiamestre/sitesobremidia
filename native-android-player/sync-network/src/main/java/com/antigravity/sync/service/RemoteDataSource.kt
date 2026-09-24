@@ -13,6 +13,9 @@ import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.*
 import io.github.jan.supabase.storage.*
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.json.put
@@ -40,6 +43,11 @@ class RemoteDataSource {
 
     // [IDEMPOTENCY] Cache de IDs de comandos já processados para evitar re-execução em reconnects
     private val processedCommandIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    private companion object {
+        const val COMMAND_POLL_MAX_AGE_MS = 120_000L
+        val COMMAND_POLL_SAFE = listOf("screenshot", "reload")
+    }
 
     // [HIGH-END] Realtime Handshake: PostgreSQL CDC via Websockets (Yeloo Style)
     suspend fun subscribeToRealtimeSync(screenToken: String, playlistId: String?, scope: CoroutineScope) {
@@ -194,6 +202,72 @@ class RemoteDataSource {
         
         channel.subscribe()
         Logger.i("SYNC_SNIFFER", "### SUBSCRIPTION ACTIVE FOR UUID: $screenUuid")
+    }
+
+    @kotlinx.serialization.Serializable
+    private data class PendingCommandRow(
+        val id: String,
+        val command: String,
+        val status: String? = null,
+        val payload: kotlinx.serialization.json.JsonElement? = null
+    )
+
+    @Volatile
+    private var commandPollJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Plano B dos comandos do painel: consulta periódica dos comandos "pending" RECENTES desta tela.
+     * O Realtime continua sendo o caminho imediato; este laço cobre WebSocket caído/ainda não
+     * conectado (sem ele o "Timeout (30s)" do screenshot no painel era certo). Só comandos seguros
+     * para repetir (screenshot/reload), com no máximo 2 min de idade, e com a mesma deduplicação do Realtime.
+     */
+    @Synchronized
+    fun startCommandPolling(screenUuid: String, scope: CoroutineScope, intervalMs: Long = 10_000L) {
+        commandPollJob?.cancel()
+        commandPollJob = scope.launch {
+            Logger.i("CMD_POLL", "Polling de comandos ativo para a tela $screenUuid (${intervalMs}ms)")
+            while (isActive) {
+                try {
+                    pollPendingCommands(screenUuid)
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    Logger.w("CMD_POLL", "Falha ao consultar comandos: ${e.message}")
+                }
+                delay(intervalMs)
+            }
+        }
+    }
+
+    private suspend fun pollPendingCommands(screenUuid: String) {
+        val cutoff = isoTimestampAt(com.antigravity.core.util.TimeManager.currentTimeMillis() - COMMAND_POLL_MAX_AGE_MS)
+        val rows = client.from("remote_commands")
+            .select(columns = Columns.list("id", "command", "status", "payload")) {
+                filter {
+                    eq("screen_id", screenUuid)
+                    eq("status", "pending")
+                    isIn("command", COMMAND_POLL_SAFE)
+                    gte("created_at", cutoff)
+                }
+                order("created_at", Order.ASCENDING)
+                limit(10)
+            }.decodeList<PendingCommandRow>()
+
+        for (row in rows) {
+            val targetDeviceId = (row.payload as? kotlinx.serialization.json.JsonObject)
+                ?.get("target_device_id")?.jsonPrimitive?.contentOrNull
+            if (targetDeviceId != null && SessionManager.boundDeviceId != null && targetDeviceId != SessionManager.boundDeviceId) {
+                continue
+            }
+            if (!processedCommandIds.add(row.id)) continue // já tratado (Realtime ou ciclo anterior)
+            Logger.w("CMD_POLL", "Comando recebido por polling: ${row.command} (ID: ${row.id})")
+            SessionManager.triggerRemoteCommand(row.command, row.id)
+        }
+    }
+
+    private fun isoTimestampAt(epochMs: Long): String {
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        return sdf.format(java.util.Date(epochMs))
     }
 
     // [INDUSTRIAL] Download Visibility: Progress Reporting

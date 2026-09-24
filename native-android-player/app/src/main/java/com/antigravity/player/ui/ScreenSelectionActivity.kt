@@ -115,10 +115,10 @@ class ScreenSelectionActivity : AppCompatActivity() {
                     loading.visibility = View.GONE
                     
                     val msg = e.message ?: ""
-                    if (msg.contains("JWT expired", ignoreCase = true) || msg.contains("401", ignoreCase = true) || msg.contains("UNAUTHORIZED", ignoreCase = true)) {
-                        Toast.makeText(this@ScreenSelectionActivity, "Sessão Expirada. Faça login novamente.", Toast.LENGTH_LONG).show()
-                        
-                        // Clear session thoroughly
+                    if (msg.contains("JWT expired", ignoreCase = true) || msg.contains("UNAUTHORIZED", ignoreCase = true) ||
+                        com.antigravity.player.util.PlayerFlowPolicy.classifySyncError(msg) ==
+                        com.antigravity.player.util.PlayerFlowPolicy.SyncErrorAction.REAUTH) {
+                        // Clear session thoroughly (a própria volta ao Login indica a sessão expirada)
                         lifecycleScope.launch(Dispatchers.IO) {
                             ServiceLocator.authRepository.signOut(applicationContext)
                             withContext(Dispatchers.Main) {
@@ -130,8 +130,14 @@ class ScreenSelectionActivity : AppCompatActivity() {
                             }
                         }
                     } else {
-                        Toast.makeText(this@ScreenSelectionActivity, "Erro ao buscar telas: $msg", Toast.LENGTH_LONG).show()
+                        // Falha passageira (rede/servidor): sem mensagem técnica. Mantém o indicador de
+                        // carregamento e tenta de novo sozinho.
                         e.printStackTrace()
+                        loading.visibility = View.VISIBLE
+                        recyclerView.visibility = View.GONE
+                        recyclerView.postDelayed({
+                            if (!isFinishing && !isDestroyed) fetchScreens()
+                        }, 5000)
                     }
                 }
             }

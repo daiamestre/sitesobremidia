@@ -249,6 +249,12 @@ class PlayerRepositoryImpl(
                 return@withContext Result.failure(Exception("NO_SCREEN_ID"))
             }
 
+            // Comandos do painel (screenshot etc.) não dependem de haver playlist nem de sync bem-sucedido:
+            // liga assim que a tela é conhecida.
+            if (targetScreenId.length == 36 && targetScreenId.count { it == '-' } == 4) {
+                initRemoteCommands(targetScreenId)
+            }
+
             // 1. Fetch Remote Data with Resilience
             val remotePlaylist = try {
                 Logger.i("SYNC", "[PLAYLIST_REQUEST] Solicitando playlist para tela: $targetScreenId (Device Hash: ${hardwareDeviceId.take(8)}...)")
@@ -458,20 +464,32 @@ class PlayerRepositoryImpl(
             }
     }
 
-    private fun initRemoteCommands() {
+    // Idempotente: pode ser chamado cedo (assim que a tela é conhecida) e de novo após o sync.
+    private var isRemoteCommandsStarted = false
+
+    private fun initRemoteCommands(knownScreenUuid: String? = null) {
+        if (isRemoteCommandsStarted) return
+        isRemoteCommandsStarted = true
         repositoryScope.launch {
             try {
                 // [HARDENING] Realtime Filter: We MUST use the Supabase UUID, not the Custom ID
                 // Wait until SessionManager has the UUID (either from disk or network)
-                while (SessionManager.currentUUID == null) {
+                while (knownScreenUuid == null && SessionManager.currentUUID == null) {
                     Logger.w("REPOS", "Waiting for UUID resolution before subscribing to commands...")
                     delay(2000)
                 }
-                
-                val uuid = SessionManager.currentUUID!!
+
+                val uuid = knownScreenUuid ?: SessionManager.currentUUID!!
                 Logger.i("REPOS", "UUID Resolved: $uuid. Subscribing to Remote Commands...")
-                remoteDataSource.subscribeToRemoteCommands(uuid, repositoryScope)
+                try {
+                    remoteDataSource.subscribeToRemoteCommands(uuid, repositoryScope)
+                } catch (e: Exception) {
+                    Logger.e("REPOS", "Realtime de comandos falhou (${e.message}); seguindo com polling.")
+                }
+                // Plano B: comandos do painel (screenshot/reload) chegam mesmo com o WebSocket caído.
+                remoteDataSource.startCommandPolling(uuid, repositoryScope)
             } catch (e: Exception) {
+                isRemoteCommandsStarted = false
                 Logger.e("REPOS", "Remote Command Listener Failed: ${e.message}")
             }
         }
