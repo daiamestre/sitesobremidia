@@ -202,9 +202,15 @@ class DeviceInfoCollector(private val context: Context) {
         (totalBytes / (1024 * 1024)).takeIf { it > 0 }
     } catch (e: Exception) { null }
 
+    // NUNCA chamar GLES*.glGetString aqui: esta coleta roda em thread de fundo SEM contexto OpenGL e,
+    // em celulares modernos (reproduzido no Android 16), o driver faz null-deref nativo (SIGSEGV) e o
+    // processo morre ~10 s após a 1ª sincronização — o player "fechava na cara" do usuário.
+    // Crash nativo não é capturável por try/catch. Identificação do chip vem do sistema, sem GL.
     private fun getGpu(): String? = try {
-        // Fallback: tentar via GLES20
-        android.opengl.GLES20.glGetString(android.opengl.GLES20.GL_RENDERER)?.takeIf { it.isNotBlank() }
+        val soc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            listOf(Build.SOC_MANUFACTURER, Build.SOC_MODEL).filter { !it.isNullOrBlank() && it != Build.UNKNOWN }.joinToString(" ")
+        } else ""
+        soc.ifBlank { Build.HARDWARE?.takeIf { it.isNotBlank() && it != Build.UNKNOWN } }
     } catch (e: Exception) { null }
 
     private data class ScreenInfo(
