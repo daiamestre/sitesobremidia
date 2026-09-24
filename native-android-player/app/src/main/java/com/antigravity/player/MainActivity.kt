@@ -727,9 +727,7 @@ class MainActivity : AppCompatActivity() {
                                 // isScreenActive=true + Idle → SurfaceState.SYNC_GUARD.
                                 syncSurfaceWithCanonicalProjection()
                                 Logger.i("BILLING", "SCREEN UNBLOCKED. Resuming playback.")
-                                lifecycleScope.launch(Dispatchers.IO) {
-                                    syncInBackground()
-                                }
+                                resumeAfterReactivation()
                             }
                         }
                     }
@@ -1079,6 +1077,45 @@ private fun checkLocalCacheAndPlay() {
     private fun scheduleNextBackgroundSync(delayMs: Long = 60_000L) {
         backgroundSyncHandler.removeCallbacks(backgroundSyncRunnable)
         backgroundSyncHandler.postDelayed(backgroundSyncRunnable, delayMs)
+    }
+
+    /**
+     * Tela Ativa reativada no painel: a reprodução tem que voltar NA HORA. O bloqueio cancelou o laço de reprodução
+     * e o servidor pode ter apagado o cache local, então o sync silencioso de antes (que só reinicia o laço se a
+     * playlist MUDAR) deixava a tela em "Sincronizando Mídias" até o timeout de 25 s liberar um logo sobre preto.
+     * Agora: sincroniza (baixa/re-salva o que faltar) e reinicia o laço explicitamente; sem playlist pronta,
+     * cai no fluxo visível completo do primeiro acesso, que tenta de novo sozinho.
+     */
+    private fun resumeAfterReactivation() {
+        // Um sync iniciado durante o bloqueio não pode fazer a reativação ser ignorada.
+        isSyncInProgress = false
+        isSyncLoopRunning = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            val syncOk = try {
+                syncInBackground()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                false
+            }
+            val playlist = try {
+                ServiceLocator.getRepository(applicationContext).getActivePlaylist().firstOrNull()
+            } catch (e: Exception) {
+                null
+            }
+            withContext(Dispatchers.Main) {
+                if (isFinishing || isDestroyed || !SessionManager.isScreenActive) return@withContext
+                if (syncOk && playlist != null && playlist.items.isNotEmpty()) {
+                    Logger.i("BILLING", "Reativação: playlist pronta (${playlist.items.size} itens). Reiniciando a reprodução.")
+                    applyScreenRotation(playlist.orientation)
+                    isSyncLoopRunning = false
+                    viewModel.prepararPrimeiraMidia()
+                    startPlaybackLoop()
+                } else {
+                    Logger.w("BILLING", "Reativação: sem playlist pronta (sync=${syncOk}). Usando o fluxo visível de sincronização.")
+                    startSyncAndPlay()
+                }
+            }
+        }
     }
 
     private fun startSyncAndPlay() {

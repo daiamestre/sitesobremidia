@@ -311,6 +311,9 @@ class PlayerRepositoryImpl(
                         playerDao.deleteAllPlaylists()
                         playerDao.deleteAllMediaItems()
                         _activePlaylist.value = null
+                        // O cache foi apagado: a assinatura também. Sem isto, ao reativar o próximo sync via
+                        // "Config Unchanged and Cache Valid" e re-emitia a partir de um banco vazio (nada tocava).
+                        SessionManager.lastConfigHash = null
                         
                         val blockText = if (msg == "SCREEN_SUSPENDED") "Sistema Temporariamente Suspenso" else "Acesso Negado: $msg"
                         SessionManager.triggerScreenActive(false, blockText)

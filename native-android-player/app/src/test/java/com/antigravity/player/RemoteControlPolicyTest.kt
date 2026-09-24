@@ -203,3 +203,40 @@ class HeterogeneousMapSerializationTest {
         assertFalse("buildMap<String, Any?> nao e serializavel", b.contains("buildMap<String, Any?>"))
     }
 }
+
+/**
+ * F-43: reativar a Tela Ativa nao voltava a reproduzir. O bloqueio cancela o laco de reproducao e (via servidor)
+ * apaga o cache local mantendo `lastConfigHash`; a reativacao so fazia um sync silencioso que reinicia o laco
+ * se a playlist MUDAR (a playlist apagada volta identica/nula), entao nada tocava ate o SyncGuard liberar a
+ * tela aos 25 s (logo sobre preto) — igual ao tablet fisico.
+ */
+class ReactivationResumesPlaybackTest {
+    private fun read(path: String) = listOf(path, "../$path", "app/$path").map { File(it) }.first { it.isFile }.readText()
+    private fun main() = read("src/main/java/com/antigravity/player/MainActivity.kt")
+
+    @Test fun unblock_callsDedicatedResume() {
+        val t = main()
+        val start = t.indexOf("SessionManager.screenActiveEvents.collect")
+        val block = t.substring(start, start + 3000)
+        assertTrue("o desbloqueio deve chamar resumeAfterReactivation", block.contains("resumeAfterReactivation()"))
+    }
+
+    @Test fun resume_restartsTheLoopExplicitly() {
+        val t = main()
+        val a = t.indexOf("private fun resumeAfterReactivation")
+        assertTrue("resumeAfterReactivation nao encontrada", a >= 0)
+        val body = t.substring(a, a + 2500)
+        assertTrue(body.contains("startPlaybackLoop()"))
+        assertTrue("sem playlist pronta deve cair no fluxo visivel completo", body.contains("startSyncAndPlay()"))
+    }
+
+    @Test fun suspension_forcesAFullResyncOnReactivation() {
+        val t = listOf("src/main/java/com/antigravity/player/data/PlayerRepositoryImpl.kt", "app/src/main/java/com/antigravity/player/data/PlayerRepositoryImpl.kt")
+            .map { File(it) }.first { it.isFile }.readText()
+        val a = t.indexOf("\"SCREEN_SUSPENDED\", \"SCREEN_ACCESS_DENIED\"")
+        assertTrue(a >= 0)
+        val branch = t.substring(a, a + 1600)
+        assertTrue("o cache foi apagado: a assinatura tambem, senao o proximo sync acha 'nada mudou'",
+            branch.contains("SessionManager.lastConfigHash = null"))
+    }
+}
