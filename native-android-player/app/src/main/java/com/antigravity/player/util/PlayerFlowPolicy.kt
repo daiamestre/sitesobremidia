@@ -105,4 +105,18 @@ object PlayerFlowPolicy {
      */
     fun keepSyncScreenLocked(uiState: com.antigravity.player.ui.PlayerUIState): Boolean =
         uiState != com.antigravity.player.ui.PlayerUIState.PLAYING
+
+    /**
+     * Orientação física do player (ActivityInfo.SCREEN_ORIENTATION_*) ou null para não travar.
+     * Signage: a playlist manda. Em celular/tablet a tela fica TRAVADA na orientação da playlist e não gira
+     * com o sensor. Em TV (sem sensor) nada é forçado, salvo comando explícito do painel (rotate_*).
+     */
+    fun physicalOrientationLock(canonicalOrientation: String?, isTelevision: Boolean, forcedByPanel: Boolean): Int? {
+        if (isTelevision && !forcedByPanel) return null
+        return when (canonicalOrientation) {
+            "portrait" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            "landscape" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            else -> null
+        }
+    }
 }

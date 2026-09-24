@@ -2106,17 +2106,16 @@ withContext(Dispatchers.Main) {
                 prefs.edit().putString("current_orientation", canonicalOrientation).apply()
             } catch (e: Exception) {}
 
-            if (forcePhysicalLock) {
-                when (canonicalOrientation) {
-                    "portrait" -> {
-                        Logger.i("ORIENTATION", "Forcing Physical Portrait Lock (9:16)")
-                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                    }
-                    "landscape" -> {
-                        Logger.i("ORIENTATION", "Forcing Physical Landscape Lock (16:9)")
-                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                    }
-                }
+            // Signage: celular/tablet travam na orientação da playlist (não giram com o sensor);
+            // TV só trava por comando explícito do painel (rotate_*).
+            val lock = PlayerFlowPolicy.physicalOrientationLock(
+                canonicalOrientation,
+                isTelevision = DeviceTypeUtil.isTelevision(applicationContext),
+                forcedByPanel = forcePhysicalLock
+            )
+            if (lock != null && requestedOrientation != lock) {
+                Logger.i("ORIENTATION", "Physical lock: $canonicalOrientation (playlist) -> requestedOrientation=$lock")
+                requestedOrientation = lock
             }
 
             val displayMetrics = resources.displayMetrics

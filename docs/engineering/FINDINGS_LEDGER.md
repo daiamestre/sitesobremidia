@@ -296,3 +296,9 @@
 - **Correção:** `getGpu()` usa `Build.SOC_MANUFACTURER/SOC_MODEL` (API 31+) ou `Build.HARDWARE`, sem OpenGL. Teste de regressão `NoOffThreadGlCallsTest` impede nova chamada de `glGetString` no app.
 - **Prova depois:** mesmo cenário, 120 s aberto, mesmo PID, 0 crashes nativos, mídia tocando; reconexão da mesma tela e seleção com player vivo/não vivo também 60 s abertos. JVM 127/127.
 - **Achado paralelo (não corrigido):** exceções do supabase-kt no `DeviceFleetManager` imprimem o cabeçalho `Authorization: Bearer <JWT da sessão>` no logcat. Recomenda-se não logar `e.message` dessas exceções.
+
+### F-30 — Player no celular girava com o sensor em vez de respeitar a orientação da playlist (HIGH) — FIXED (RUNTIME emulador Android 16)
+- **Causa:** `MainActivity` é `screenOrientation="fullSensor"` e `applyScreenRotation()` só travava a orientação física quando chegava o comando remoto `rotate_*` (`forcePhysicalLock`). A orientação da playlist (16x9/9x16) só ajustava o enquadramento; o celular girava junto com a mão.
+- **Correção:** `PlayerFlowPolicy.physicalOrientationLock()` — celular/tablet travam SEMPRE na orientação da playlist (`SCREEN_ORIENTATION_LANDSCAPE`/`PORTRAIT`); TV mantém o comportamento anterior (só trava por comando do painel). Aplicado em todos os pontos que já chamavam `applyScreenRotation` (boot com orientação salva, sync, troca de playlist, Realtime).
+- **Prova:** `OrientationLockPolicyTest` — 2 de 5 falhavam antes (celular), 5/5 depois; JVM 132/132. Emulador Pixel_5 (Android 16), playlist 16x9: 5 giros físicos do aparelho → tela permanece `ROTATION_90` (paisagem); controle: o app Configurações gira normalmente (0 → 270) com o mesmo comando. 0 crashes.
+- **Não verificado em runtime:** playlist 9x16 no celular (coberta só pelo teste unitário) e TV Box física.
