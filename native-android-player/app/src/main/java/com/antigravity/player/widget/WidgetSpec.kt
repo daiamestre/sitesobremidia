@@ -9,7 +9,22 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import java.net.URLDecoder
 
-enum class WidgetKind { CLOCK, WEATHER, RSS, UNKNOWN }
+enum class WidgetKind { CLOCK, WEATHER, RSS, INSTITUTIONAL, UNKNOWN }
+
+/** Linha "rótulo — valor" do modelo Institucional (ex.: "Segunda a sexta" — "06:00 — 22:00"). */
+data class LinhaInfo(val rotulo: String, val valor: String)
+
+/** Conteúdo do modelo Institucional / Aviso (widgets.config). */
+data class Institucional(
+    val selo: String,
+    val titulo: String,
+    val texto: String,
+    val linhas: List<LinhaInfo>,
+    val contato: String?,
+    val endereco: String?,
+    val site: String?,
+    val cta: String?
+)
 
 /**
  * O que o painel gravou para o widget (widgets.config) e chega ao Player em `native_widget://<tipo>/<id>?config=<json>`.
@@ -35,7 +50,11 @@ data class WidgetSpec(
     val secondsPerItem: Int,
     val compact: Boolean,
     /** Modelo da Galeria de Widgets (config.template), ex.: "weather-futurista"; null = clássico. */
-    val template: String? = null
+    val template: String? = null,
+    val institucional: Institucional? = null,
+    /** Conteúdo do QR Code (qualquer modelo que o exiba) e a legenda. */
+    val qrConteudo: String? = null,
+    val qrLegenda: String? = null
 ) {
     /** Fundo do widget: a imagem da orientação da tela; se só existir a outra, usa ela (nunca fica sem fundo à toa). */
     fun backgroundFor(landscape: Boolean): String? =
@@ -53,6 +72,7 @@ object WidgetSpecParser {
         return when {
             t.contains("clock") || t.contains("relogio") || t.contains("relógio") -> WidgetKind.CLOCK
             t.contains("weather") || t.contains("clima") -> WidgetKind.WEATHER
+            t.contains("institutional") || t.contains("institucional") -> WidgetKind.INSTITUTIONAL
             t.contains("rss") || t.contains("news") || t.contains("noticia") || t.contains("notícia") -> WidgetKind.RSS
             else -> WidgetKind.UNKNOWN
         }
@@ -86,7 +106,21 @@ object WidgetSpecParser {
             maxItems = (int("maxItems") ?: DEFAULT_MAX_ITEMS).coerceIn(1, 20),
             secondsPerItem = (int("scrollSpeed") ?: DEFAULT_SECONDS_PER_ITEM).coerceIn(3, 60),
             compact = str("variant")?.lowercase() == "compact",
-            template = str("template")
+            template = str("template"),
+            institucional = if (kindOf(rawType) != WidgetKind.INSTITUTIONAL) null else Institucional(
+                selo = (str("selo") ?: "INFORMAÇÃO").uppercase(),
+                titulo = str("titulo") ?: "",
+                texto = str("texto") ?: "",
+                linhas = (cfg["linhas"] as? kotlinx.serialization.json.JsonArray).orEmpty().mapNotNull { el ->
+                    val o = el as? JsonObject ?: return@mapNotNull null
+                    val r = (o["rotulo"] as? JsonPrimitive)?.content?.trim().orEmpty()
+                    val v = (o["valor"] as? JsonPrimitive)?.content?.trim().orEmpty()
+                    if (r.isEmpty() && v.isEmpty()) null else LinhaInfo(r, v)
+                }.take(6),
+                contato = str("contato"), endereco = str("endereco"), site = str("site"), cta = str("cta")
+            ),
+            qrConteudo = str("qrConteudo"),
+            qrLegenda = str("qrLegenda")
         )
     }
 

@@ -29,6 +29,7 @@ import com.antigravity.player.widget.WidgetKind
 import com.antigravity.player.widget.WidgetSpec
 import com.antigravity.player.widget.WidgetSpecParser
 import com.antigravity.player.widget.BrasiliaTime
+import com.antigravity.player.widget.QrCode
 import com.antigravity.core.util.TimeManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
@@ -114,6 +115,7 @@ object NativeWidgetEngine {
                 WidgetKind.CLOCK -> buildClock(context, spec, background, w, h, base)
                 WidgetKind.WEATHER -> buildWeather(context, spec, background, w, h, base, payload as? WeatherPayload)
                 WidgetKind.RSS -> buildRss(context, spec, background, w, h, base, payload as? RssPayload)
+                WidgetKind.INSTITUTIONAL -> buildInstitutional(context, spec, background, w, h, base)
                 WidgetKind.UNKNOWN -> buildMessage(context, background, w, h, base, "Widget não suportado (${spec.rawType})")
             }
             container.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -418,6 +420,90 @@ object NativeWidgetEngine {
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         topo.addView(pill(context, selo, base * 0.028f, Marca.AMARELO, Marca.PROFUNDO, base))
         return topo
+    }
+
+    /** QR Code (branco, cantos arredondados) gerado na hora a partir do conteúdo configurado; null se inválido. */
+    private fun qrView(context: Context, conteudo: String?, tamanho: Int): View? {
+        val m = QrCode.matriz(conteudo, tamanho) ?: return null
+        val bmp = Bitmap.createBitmap(m.width, m.height, Bitmap.Config.RGB_565)
+        val linha = IntArray(m.width)
+        for (y in 0 until m.height) {
+            for (x in 0 until m.width) linha[x] = if (m.get(x, y)) Marca.PROFUNDO else Color.WHITE
+            bmp.setPixels(linha, 0, m.width, 0, y, m.width, 1)
+        }
+        return ImageView(context).apply {
+            setImageBitmap(bmp)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = tamanho * 0.06f }
+            val p = (tamanho * 0.04f).toInt(); setPadding(p, p, p, p)
+        }
+    }
+
+    // ------------------------------------------------------------------ Institucional / Aviso (identidade SOBRE MÍDIA)
+
+    private fun buildInstitutional(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float): View {
+        val info = spec.institucional ?: return buildMessage(context, bg, w, h, base, "Comunicado sem conteúdo")
+        val root = fundoMarca(context, bg, base)
+        val col = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = px(base * 0.05f); setPadding(pad, pad, pad, pad)
+        }
+        col.addView(cabecalhoMarca(context, info.selo, base), lp())
+        root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        val paisagem = w >= h
+        val miolo = LinearLayout(context).apply {
+            orientation = if (paisagem) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        col.addView(miolo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        val texto = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
+        val r = base * 0.02f
+        texto.addView(text(context, base * 0.08f, bold = true, lines = 3).apply {
+            text = info.titulo.ifBlank { "Comunicado" }; gravity = Gravity.START
+            setShadowLayer(r, 0f, 0f, Marca.LILAS); setPadding(px(r), px(r), px(r), px(r))
+        }, lp())
+        if (info.texto.isNotBlank()) {
+            texto.addView(text(context, base * 0.042f, color = Color.argb(235, 255, 255, 255), lines = 5).apply {
+                text = info.texto; gravity = Gravity.START
+            }, lp(top = px(base * 0.01f)))
+        }
+        info.linhas.forEach { l ->
+            val linha = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = vidro(base)
+                val ph = px(base * 0.025f); val pv = px(base * 0.014f); setPadding(ph, pv, ph, pv)
+            }
+            linha.addView(text(context, base * 0.036f, bold = true).apply { text = l.rotulo; gravity = Gravity.START },
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            linha.addView(text(context, base * 0.038f, bold = true, color = Marca.AMARELO).apply { text = l.valor; gravity = Gravity.END })
+            texto.addView(linha, lp(top = px(base * 0.012f)))
+        }
+        val contatos = listOfNotNull(info.contato, info.endereco, info.site)
+        if (contatos.isNotEmpty()) {
+            texto.addView(text(context, base * 0.03f, color = Color.argb(205, 255, 255, 255), lines = 2).apply {
+                text = contatos.joinToString("  •  "); gravity = Gravity.START
+            }, lp(top = px(base * 0.02f)))
+        }
+        info.cta?.let { cta ->
+            texto.addView(pill(context, cta, base * 0.034f, Color.parseColor("#25D366"), Color.parseColor("#0B2E17"), base),
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = px(base * 0.02f) })
+        }
+        miolo.addView(texto, if (paisagem) LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            else LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        val lado = px(base * 0.26f)
+        qrView(context, spec.qrConteudo, lado)?.let { qr ->
+            val bloco = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+            bloco.addView(qr, LinearLayout.LayoutParams(lado, lado))
+            bloco.addView(text(context, base * 0.026f, bold = true, color = Color.argb(230, 255, 255, 255)).apply {
+                text = spec.qrLegenda ?: "Aponte a câmera"
+            }, lp(top = px(base * 0.01f)))
+            miolo.addView(bloco, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                if (paisagem) marginStart = px(base * 0.04f) else topMargin = px(base * 0.04f)
+            })
+        }
+        return root
     }
 
     private fun buildWeatherFuturista(context: Context, spec: WidgetSpec, bg: Bitmap?, base: Float, data: WeatherPayload?): View {

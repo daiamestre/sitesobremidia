@@ -25,7 +25,7 @@ export const WIDGET_TEMPLATES: WidgetTemplateDef[] = [
   { id: 'rss-classic', tipo: 'rss', nome: 'Notícias (RSS)', descricao: 'Manchetes reais de um feed, em rotação, com barra de tempo.', suportaFundo: true, noPlayer: true },
   { id: 'weather-futurista', tipo: 'weather', nome: 'Clima Futurista', descricao: 'Peça vibrante com máxima, mínima e previsão dos próximos dias.', suportaFundo: true, noPlayer: true },
   { id: 'clock-futurista', tipo: 'clock', nome: 'Relógio Futurista', descricao: 'Relógio com glow e gradiente da identidade SOBRE MÍDIA.', suportaFundo: true, noPlayer: true },
-  { id: 'institutional-aviso', tipo: 'institutional', nome: 'Institucional / Aviso', descricao: 'Horário de funcionamento, comunicados, contato e QR Code.', suportaFundo: true, noPlayer: false },
+  { id: 'institutional-aviso', tipo: 'institutional', nome: 'Institucional / Aviso', descricao: 'Horário de funcionamento, comunicados, contato e QR Code.', suportaFundo: true, noPlayer: true },
   { id: 'offer-destaque', tipo: 'offer', nome: 'Oferta em destaque', descricao: 'Produto, preço "de/por" e QR Code a partir do cadastro de ofertas.', suportaFundo: true, noPlayer: false },
   { id: 'advertising-campanha', tipo: 'advertising', nome: 'Publicidade', descricao: 'Criativo da campanha com logo, CTA e QR Code.', suportaFundo: true, noPlayer: false },
   { id: 'social-post', tipo: 'social', nome: 'Conteúdo Social', descricao: 'Título, texto, imagem, autor e QR Code.', suportaFundo: true, noPlayer: false },

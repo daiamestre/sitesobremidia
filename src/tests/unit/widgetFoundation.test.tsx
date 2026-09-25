@@ -14,7 +14,7 @@ describe('Widget Engine W2 — fundação', () => {
     const ids = WIDGET_TEMPLATES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
     const prontos = WIDGET_TEMPLATES.filter((t) => t.noPlayer).map((t) => t.id).sort();
-    expect(prontos).toEqual(['clock-classic', 'clock-futurista', 'rss-classic', 'weather-classic', 'weather-futurista']);
+    expect(prontos).toEqual(['clock-classic', 'clock-futurista', 'institutional-aviso', 'rss-classic', 'weather-classic', 'weather-futurista']);
   });
 
   it('widget antigo (sem config.template) é tratado como o modelo clássico do tipo', () => {

@@ -4,6 +4,7 @@ import { WeatherWidget } from '../../player/WeatherWidgetComponent';
 import { RssWidget } from '../../player/RssWidget';
 import { WeatherFuturista } from '../../player/WeatherFuturista';
 import { ClockFuturista } from '../../player/ClockFuturista';
+import { InstitutionalWidget } from '../../player/InstitutionalWidget';
 
 interface WidgetPreviewProps {
     widgetType: WidgetType;
@@ -50,6 +51,9 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
                         )}
 
                         <div className="relative z-10 w-full h-full flex items-center justify-center">
+                            {widgetType === 'institutional' && (
+                                <InstitutionalWidget config={config} backgroundImage={bgImage} className="w-full h-full" />
+                            )}
                             {relogioFuturista && (
                                 <ClockFuturista showDate={config.showDate} showSeconds={config.showSeconds} backgroundImage={bgImage} className="w-full h-full" />
                             )}

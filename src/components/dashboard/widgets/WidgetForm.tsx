@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon, Building2, Plus, X } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { conteudoQrValido } from '@/lib/qrCode';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,6 +32,7 @@ const WIDGET_TYPES_OPTS = [
     { value: 'clock', label: 'Relógio', icon: Clock },
     { value: 'weather', label: 'Clima', icon: Cloud },
     { value: 'rss', label: 'Notícias (RSS)', icon: Newspaper },
+    { value: 'institutional', label: 'Institucional', icon: Building2 },
 ];
 
 const getDefaultConfig = (type: string): WidgetConfig => {
@@ -40,6 +43,13 @@ const getDefaultConfig = (type: string): WidgetConfig => {
             return { latitude: -23.5505, longitude: -46.6333, position: 'center', backgroundImageLandscape: null, backgroundImagePortrait: null };
         case 'rss':
             return { feedUrl: 'https://g1.globo.com/rss/g1/', maxItems: 5, scrollSpeed: 8, position: 'center', variant: 'full', backgroundImageLandscape: null, backgroundImagePortrait: null };
+        case 'institutional':
+            return {
+                selo: 'INFORMAÇÃO', titulo: 'Horário de funcionamento', texto: '',
+                linhas: [{ rotulo: 'Segunda a sexta', valor: '06:00 — 22:00' }, { rotulo: 'Sábado', valor: '08:00 — 18:00' }],
+                contato: '', endereco: '', site: '', cta: '', qrConteudo: '', qrLegenda: '',
+                backgroundImageLandscape: null, backgroundImagePortrait: null,
+            };
         default:
             return {};
     }
@@ -137,6 +147,14 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
             return;
         }
 
+        if (widgetType === 'institutional') {
+            if (!config.titulo?.trim()) { toast.error('Informe o título do comunicado.'); return; }
+            if (config.qrConteudo?.trim() && !conteudoQrValido(config.qrConteudo)) {
+                toast.error('QR Code: use um link (https://...), telefone (tel:) ou e-mail (mailto:).');
+                return;
+            }
+        }
+
         if (widgetType === 'weather') {
             if (config.latitude! < -90 || config.latitude! > 90) {
                 toast.error('Latitude inválida (-90 a 90)');
@@ -182,7 +200,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
 
                         <div className="space-y-2">
                             <Label>Tipo</Label>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 {WIDGET_TYPES_OPTS.map(type => {
                                     const Icon = type.icon;
                                     const isSelected = widgetType === type.value;
@@ -225,7 +243,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                         )}
 
                         {/* ORIENTATION & BG */}
-                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss') && (
+                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional') && (
                             <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                                 <Label className="text-sm font-semibold">Configuração de Fundo</Label>
                                 <div className="flex bg-muted rounded-lg p-1">
@@ -307,6 +325,39 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                         <div><Label>Longitude</Label><Input type="number" value={config.longitude} onChange={(e) => updateConfig('longitude', parseFloat(e.target.value))} /></div>
                                     </div>
                                     <div><Label>Nome do local (opcional)</Label><Input value={config.locationName || ''} placeholder="Ex: Manaus" onChange={(e) => updateConfig('locationName', e.target.value)} /></div>
+                                </div>
+                            )}
+
+                            {widgetType === 'institutional' && (
+                                <div className="space-y-3" data-testid="form-institucional">
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div className="col-span-1"><Label>Selo</Label><Input value={config.selo || ''} placeholder="AVISO" onChange={(e) => updateConfig('selo', e.target.value)} /></div>
+                                        <div className="col-span-2"><Label>Título</Label><Input value={config.titulo || ''} placeholder="Horário de funcionamento" onChange={(e) => updateConfig('titulo', e.target.value)} /></div>
+                                    </div>
+                                    <div><Label>Texto</Label><Textarea rows={3} value={config.texto || ''} placeholder="Ex.: Manutenção programada neste sábado." onChange={(e) => updateConfig('texto', e.target.value)} /></div>
+                                    <div className="space-y-2">
+                                        <Label>Linhas (ex.: dias e horários)</Label>
+                                        {(config.linhas || []).map((l, i) => (
+                                            <div key={i} className="flex gap-2">
+                                                <Input value={l.rotulo} placeholder="Segunda a sexta" onChange={(e) => setConfig((prev) => ({ ...prev, linhas: (prev.linhas || []).map((x, j) => (j === i ? { ...x, rotulo: e.target.value } : x)) }))} />
+                                                <Input value={l.valor} placeholder="06:00 — 22:00" onChange={(e) => setConfig((prev) => ({ ...prev, linhas: (prev.linhas || []).map((x, j) => (j === i ? { ...x, valor: e.target.value } : x)) }))} />
+                                                <Button type="button" variant="ghost" size="icon" aria-label="Remover linha" onClick={() => setConfig((prev) => ({ ...prev, linhas: (prev.linhas || []).filter((_, j) => j !== i) }))}><X className="h-4 w-4" /></Button>
+                                            </div>
+                                        ))}
+                                        {(config.linhas || []).length < 6 && (
+                                            <Button type="button" variant="outline" size="sm" onClick={() => setConfig((prev) => ({ ...prev, linhas: [...(prev.linhas || []), { rotulo: '', valor: '' }] }))}><Plus className="h-3.5 w-3.5 mr-1" /> Adicionar linha</Button>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><Label>Contato</Label><Input value={config.contato || ''} placeholder="(81) 99999-0000" onChange={(e) => updateConfig('contato', e.target.value)} /></div>
+                                        <div><Label>Site</Label><Input value={config.site || ''} placeholder="loja.com.br" onChange={(e) => updateConfig('site', e.target.value)} /></div>
+                                    </div>
+                                    <div><Label>Endereço</Label><Input value={config.endereco || ''} placeholder="Av. Principal, 100 — Centro" onChange={(e) => updateConfig('endereco', e.target.value)} /></div>
+                                    <div><Label>Chamada (botão)</Label><Input value={config.cta || ''} placeholder="Fale com a gente" onChange={(e) => updateConfig('cta', e.target.value)} /></div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><Label>QR Code — link</Label><Input value={config.qrConteudo || ''} placeholder="https://..." onChange={(e) => updateConfig('qrConteudo', e.target.value)} /></div>
+                                        <div><Label>Legenda do QR</Label><Input value={config.qrLegenda || ''} placeholder="Aponte a câmera" onChange={(e) => updateConfig('qrLegenda', e.target.value)} /></div>
+                                    </div>
                                 </div>
                             )}
 

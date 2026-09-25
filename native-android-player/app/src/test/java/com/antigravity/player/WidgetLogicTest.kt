@@ -161,4 +161,18 @@ class WidgetLogicTest {
         assertEquals("weather-futurista", WidgetSpecParser.parse(url("weather", """{"template":"weather-futurista"}""")).template)
         assertNull(WidgetSpecParser.parse(url("weather", "{}")).template)
     }
+
+    @Test
+    fun spec_institucional_lidoDaConfig() {
+        val s = WidgetSpecParser.parse(url("institutional", """{"selo":"aviso","titulo":"Horário de funcionamento","texto":"Venha!","linhas":[{"rotulo":"Segunda a sexta","valor":"06:00 — 22:00"},{"rotulo":"","valor":""}],"contato":"(81) 9999-0000","qrConteudo":"loja.com.br","qrLegenda":"Veja"}"""))
+        assertEquals(WidgetKind.INSTITUTIONAL, s.kind)
+        val i = s.institucional!!
+        assertEquals("AVISO", i.selo)
+        assertEquals("Horário de funcionamento", i.titulo)
+        assertEquals(1, i.linhas.size)
+        assertEquals("06:00 — 22:00", i.linhas[0].valor)
+        assertEquals("(81) 9999-0000", i.contato)
+        assertEquals("loja.com.br", s.qrConteudo)
+        assertNull(WidgetSpecParser.parse(url("clock", "{}")).institucional)
+    }
 }

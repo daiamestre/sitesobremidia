@@ -6,6 +6,7 @@ import { WeatherWidget } from "@/components/player/WeatherWidgetComponent";
 import { RssWidget } from "@/components/player/RssWidget";
 import { WeatherFuturista } from "@/components/player/WeatherFuturista";
 import { ClockFuturista } from "@/components/player/ClockFuturista";
+import { InstitutionalWidget } from "@/components/player/InstitutionalWidget";
 import "@/components/player/Player.css";
 
 const WidgetPlayer = () => {
@@ -51,6 +52,8 @@ const WidgetPlayer = () => {
         };
 
         switch (widget.widget_type) {
+            case 'institutional':
+                return <InstitutionalWidget config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
             case 'clock':
                 if (config.template === 'clock-futurista') {
                     return <ClockFuturista {...commonProps} showDate={config.showDate !== false} showSeconds={config.showSeconds === true} />;

@@ -44,7 +44,7 @@ export interface ExternalLink {
     is_active?: boolean;
 }
 
-export type WidgetType = 'clock' | 'weather' | 'rss';
+export type WidgetType = 'clock' | 'weather' | 'rss' | 'institutional';
 
 export interface WidgetConfig {
     // Modelo da Galeria de Widgets (src/lib/widgetCatalog.ts); ausente = clássico do tipo
@@ -70,6 +70,19 @@ export interface WidgetConfig {
     maxItems?: number;
     scrollSpeed?: number;
     variant?: 'full' | 'compact';
+
+    // Institucional / Aviso
+    selo?: string;
+    titulo?: string;
+    texto?: string;
+    linhas?: Array<{ rotulo: string; valor: string }>;
+    contato?: string;
+    endereco?: string;
+    site?: string;
+    cta?: string;
+    // QR Code (qualquer modelo que o exiba)
+    qrConteudo?: string;
+    qrLegenda?: string;
 }
 
 export type Widget = {
