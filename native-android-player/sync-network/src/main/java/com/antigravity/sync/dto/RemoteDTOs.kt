@@ -23,7 +23,8 @@ data class RemotePlaylistItem(
     @SerialName("duration") val duration: Long? = 10, // DB column is 'duration'
     @SerialName("start_time") val startTime: String? = null, // "08:00:00" -> Parser needs to handle this
     @SerialName("end_time") val endTime: String? = null,
-    @SerialName("days_of_week") val daysOfWeek: String? = null, // "1,2,3"
+    @Serializable(with = FlexibleDaysSerializer::class)
+    @SerialName("days_of_week") val daysOfWeek: String? = null, // "1,2,3" (aceita array JSON também)
     @SerialName("media") val media: RemoteMedia? = null,
     @SerialName("widget") val widget: RemoteWidget? = null,
     @SerialName("external_link") val externalLink: RemoteExternalLink? = null

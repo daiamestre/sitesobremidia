@@ -43,6 +43,7 @@ data class RemotePlaylistItemDTO(
     val duration: Long = 10000,
     @SerialName("start_time") val startTime: String? = null,
     @SerialName("end_time") val endTime: String? = null,
+    @Serializable(with = FlexibleDaysSerializer::class)
     @SerialName("days_of_week") val daysOfWeek: String? = null,
     
     // Objetos aninhados (Joins do Supabase)

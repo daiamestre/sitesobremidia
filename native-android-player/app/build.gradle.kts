@@ -49,8 +49,8 @@ android {
         applicationId = "com.antigravity.player"
         minSdk = 23
         targetSdk = 34
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 534
-        versionName = System.getenv("VERSION_NAME") ?: "5.3.4-MicroGate"
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 535
+        versionName = System.getenv("VERSION_NAME") ?: "5.3.5-MicroGate"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -181,6 +181,8 @@ dependencies {
     ksp("com.github.bumptech.glide:ksp:4.16.0")
 
     testImplementation("junit:junit:4.13.2")
+    // DTOs do RPC (RemotePlaylistItemDTO) sao decodificados em testes JVM
+    testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }

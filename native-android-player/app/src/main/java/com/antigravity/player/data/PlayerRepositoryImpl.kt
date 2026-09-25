@@ -11,7 +11,9 @@ import com.antigravity.cache.entity.ConfiguracaoEntity
 import com.antigravity.cache.entity.LogAuditoriaEntity
 import com.antigravity.cache.entity.OfflinePlaybackLog
 import com.antigravity.cache.entity.toCache
+import com.antigravity.cache.entity.toCacheRows
 import com.antigravity.cache.entity.toDomain
+import com.antigravity.cache.entity.toMediaId
 import com.antigravity.cache.storage.FileStorageManager
 import com.antigravity.core.config.PlayerConfig
 import com.antigravity.core.domain.model.Playlist
@@ -522,13 +524,9 @@ class PlayerRepositoryImpl(
         }
     }
 
-    private fun calculateConfigSignature(playlist: Playlist): String {
-        // [PRECISION] Signature MUST capture ID order to trigger re-sort instantly
-        val itemsPart = playlist.items.joinToString("|") { 
-            "${it.id}:${it.hash}:${it.orderIndex}" 
-        }
-        return "${playlist.id}:${playlist.orientation}:${playlist.heartbeatIntervalSeconds}:$itemsPart".hashCode().toString()
-    }
+    private fun calculateConfigSignature(playlist: Playlist): String =
+        // Inclui duração, horário e dias (ver PlayerFlowPolicy.configSignature): sem isso a edição não chegava ao Player.
+        com.antigravity.player.util.PlayerFlowPolicy.configSignature(playlist)
 
     private fun verifyCacheIntegrity(playlist: Playlist): Boolean {
         return playlist.items.all { item ->
@@ -612,10 +610,11 @@ class PlayerRepositoryImpl(
     private suspend fun saveToLocalCache(playlist: Playlist) {
         // Preserve existing localPaths from cache for items already downloaded
         val existingItems = try {
-            playerDao.getItemsForPlaylist(playlist.id).associateBy { it.id }
+            // Chave = id da MÍDIA (as linhas repetidas "id~N" compartilham o mesmo arquivo/caminho).
+            playerDao.getItemsForPlaylist(playlist.id).associateBy { it.id.toMediaId() }
         } catch (e: Exception) { emptyMap() }
 
-        val cachedItems = playlist.items.map { item ->
+        val itemsWithPaths = playlist.items.map { item ->
             val fileWithHash = fileStorageManager.getFileForMedia(item.id, item.hash)
             val fileLegacy = fileStorageManager.getFileForMedia(item.id, "")
             val file = if (fileWithHash.exists() && fileWithHash.length() > 0) fileWithHash else fileLegacy
@@ -625,9 +624,10 @@ class PlayerRepositoryImpl(
                 // File not on disk but was in previous cache → preserve (download may be in progress)
                 else -> existingItems[item.id]?.localPath ?: fileWithHash.absolutePath
             }
-            item.copy(localPath = localPath).toCache(playlist.id)
+            item.copy(localPath = localPath)
         }
-        playerDao.insertPlaylistWithItems(playlist.toCache(), cachedItems)
+        // Linhas com id único: a mesma mídia repetida na playlist não sobrescreve mais a ocorrência anterior.
+        playerDao.insertPlaylistWithItems(playlist.toCache(), itemsWithPaths.toCacheRows(playlist.id))
     }
 
     /**

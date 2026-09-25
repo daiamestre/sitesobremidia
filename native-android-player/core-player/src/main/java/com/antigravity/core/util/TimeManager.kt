@@ -139,9 +139,14 @@ object TimeManager {
         }
     }
     
+    /**
+     * Hora LOCAL do Brasil (fuso configurado, padrão GMT-3) como campos de calendário, em QUALQUER fuso do aparelho.
+     * O agendamento do painel (horário/dias) é gravado em hora local; antes este calendário usava o fuso do aparelho
+     * sobre um relógio que já somava o fuso, e só acertava com o aparelho em UTC (janelas 3 h adiantadas em Sao_Paulo).
+     */
     fun getSyncedCalendar(): Calendar {
-        val cal = Calendar.getInstance()
-        cal.timeInMillis = currentTimeMillis()
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        cal.timeInMillis = utcMillis() + timezoneOffsetH * 3600000L
         return cal
     }
     

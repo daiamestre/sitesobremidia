@@ -25,6 +25,27 @@ fun Playlist.toCache(): CachedPlaylist {
     )
 }
 
+/**
+ * A MESMA mídia pode aparecer várias vezes na playlist (ordem/horários diferentes). Como `CachedMediaItem.id` é a chave
+ * primária e é o id da mídia, a segunda ocorrência sobrescrevia a primeira (playlist de 3 itens virava 2, com a ordem
+ * e a duração erradas). A 1ª ocorrência mantém o id puro (compatível com caches/arquivos existentes); as demais recebem
+ * "id~N". Domínio, arquivos, logs e downloads continuam usando o id puro da mídia.
+ */
+const val DUPLICATE_ID_SEPARATOR = "~"
+
+fun cacheRowId(mediaId: String, occurrence: Int): String =
+    if (occurrence == 0) mediaId else "$mediaId$DUPLICATE_ID_SEPARATOR$occurrence"
+
+fun String.toMediaId(): String = substringBefore(DUPLICATE_ID_SEPARATOR)
+
+fun List<MediaItem>.toCacheRows(playlistId: String): List<CachedMediaItem> {
+    val seen = HashMap<String, Int>()
+    return map { item ->
+        val occurrence = seen.merge(item.id, 1, Int::plus)!! - 1
+        item.toCache(playlistId).copy(id = cacheRowId(item.id, occurrence))
+    }
+}
+
 fun MediaItem.toCache(playlistId: String): CachedMediaItem {
     return CachedMediaItem(
         id = this.id,
@@ -69,7 +90,7 @@ fun CachedPlaylist.toDomain(items: List<CachedMediaItem>): Playlist {
 
 fun CachedMediaItem.toDomain(): MediaItem {
     return MediaItem(
-        id = this.id,
+        id = this.id.toMediaId(),
         name = this.name,
         type = try { 
             val rawType = if (this.media_type != "video") this.media_type else this.type

@@ -547,7 +547,8 @@ class RemoteDataSource {
                 id = itemId,
                 name = itemName,
                 type = itemType,
-                durationSeconds = item.duration.toLong(), // duration in DB is already in seconds
+                // duration no banco já é em segundos; 0/negativo em imagem/widget vira o padrão (video 0 = video inteiro)
+                durationSeconds = com.antigravity.core.util.PlaybackDuration.effectiveSeconds(itemType, item.duration.toLong()),
                 remoteUrl = itemUrl,
                 localPath = null,
                 hash = itemHash,

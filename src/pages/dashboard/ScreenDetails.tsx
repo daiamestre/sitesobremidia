@@ -17,7 +17,7 @@ import {
     Power, RefreshCw, Camera, Save, Trash2, GripVertical, Plus, Image, Video,
     Music, Volume2, VolumeX, Smartphone, MonitorSmartphone, LayoutTemplate, ExternalLink as ExternalLinkIcon,
     Unlink, ShieldAlert, Image as ImageIcon,
-    Cpu, Activity, Wifi as WifiIcon
+    Cpu, Activity, Wifi as WifiIcon, ArrowUp, ArrowDown
 } from 'lucide-react';
 import {
     AlertDialog,
@@ -31,6 +31,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { format, formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date-fns';
 import { hasNewScreenshot, screenshotFooterText } from '@/utils/screenshotStatus';
+import { ItemDurationInput, ItemScheduleButton, type ScheduleUpdates } from '@/components/playlists/PlaylistItemControls';
+import { savePlaylistItems, scheduleSummary, hasSchedule, totalDurationSeconds, formatTotalDuration } from '@/lib/playlistItems';
+import { probeVideoDuration } from '@/lib/mediaDuration';
 import { ptBR } from 'date-fns/locale';
 import { Screen, ScreenStatus, Playlist, Media, Widget, WidgetConfig, ExternalLink, PlaylistItem as ModelPlaylistItem } from '@/types/models';
 import type { Database } from '@/integrations/supabase/types';
@@ -73,6 +76,10 @@ interface PlaylistItem {
     widget?: Widget | null;
     external_link?: ExternalLink | null;
     duration: number; // override duration
+    // Agendamento por item (horário local do Brasil; days: 0=Dom..6=Sáb)
+    start_time?: string | null;
+    end_time?: string | null;
+    days?: number[] | null;
 }
 
 // Types matching query response exactly, without implementing full Screen interface
@@ -267,6 +274,8 @@ export default function ScreenDetails() {
     // States
     const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([]);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const hasUnsavedChangesRef = useRef(false);
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
     const [isSaving, setIsSaving] = useState(false);
     const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
     const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
@@ -489,7 +498,10 @@ export default function ScreenDetails() {
     const isError = idError || (!!resolvedId && screenError);
 
     // Initialize/Sync Playlist Items
+    // Não sobrescreve edições NÃO SALVAS: a tela é recarregada a cada heartbeat/foco da aba e isso descartava em silêncio
+    // duração/agendamento/ordem que o usuário ainda estava editando (o botão "Salvar" continuava aceso).
     useEffect(() => {
+        if (hasUnsavedChangesRef.current) return;
         if (screen?.playlist_items) {
             const sorted = [...screen.playlist_items].sort((a, b) => a.position - b.position);
             setPlaylistItems(sorted);
@@ -790,6 +802,27 @@ export default function ScreenDetails() {
         setPlaylistItems([...playlistItems, newItem]);
         setHasUnsavedChanges(true);
         setMediaPickerOpen(false);
+
+        // A tabela media não guarda duração e o Player usa a do item como TETO: vídeo entrava com 10 s e era cortado.
+        if (media.file_type === 'video' && media.file_url) {
+            probeVideoDuration(media.file_url).then((seconds) => {
+                if (seconds) handleUpdateItem(newItem.id, { duration: seconds });
+            });
+        }
+    };
+
+    const handleUpdateItem = (itemId: string, updates: Partial<PlaylistItem> & ScheduleUpdates) => {
+        setPlaylistItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, ...updates } : i)));
+        setHasUnsavedChanges(true);
+    };
+
+    const handleMoveItem = (from: number, to: number) => {
+        if (to < 0 || to >= playlistItems.length) return;
+        const next = [...playlistItems];
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        setPlaylistItems(next);
+        setHasUnsavedChanges(true);
     };
 
     const handleAddWidget = (widget: Widget) => {
@@ -841,48 +874,20 @@ export default function ScreenDetails() {
         if (!screen?.playlist_id || !user?.id) return;
         setIsSaving(true);
         try {
-            // 1. Delete all current items for this playlist
-            const { error: deleteError } = await supabase
-                .from('playlist_items')
-                .delete()
-                .eq('playlist_id', screen.playlist_id);
-
-            if (deleteError) throw deleteError;
-
-            // 2. Prepare items to insert with user_id for RLS compliance
-            const itemsToInsert = playlistItems.map((item, index) => ({
-                playlist_id: screen.playlist_id,
-                media_id: item.media_id,
-                widget_id: item.widget_id,
-                external_link_id: item.external_link_id,
-                position: index,
-                duration: item.duration || 10
-            }));
-
-            if (itemsToInsert.length > 0) {
-                const { error: insertError } = await supabase
-                    .from('playlist_items')
-                    .insert(itemsToInsert);
-
-                if (insertError) throw insertError;
-            }
-
-            // Trigger Realtime Sync: Update the playlist itself to notify the player
-            await supabase
-                .from('playlists')
-                .update({ updated_at: new Date().toISOString() })
-                .eq('id', screen.playlist_id);
+            // Uma transação no banco (tudo ou nada): grava ordem, duração e agendamento e avisa o Player.
+            // Antes: DELETE de tudo + INSERT separados, sem start_time/end_time/days (apagava agendamentos e podia deixar a playlist vazia).
+            await savePlaylistItems(supabase, screen.playlist_id, playlistItems);
 
             toast.success('Playlist salva e sincronizada com o player!');
             setHasUnsavedChanges(false);
+            hasUnsavedChangesRef.current = false;
 
             // Reload EVERYTHING to ensure state is perfectly synced with DB
             await refetch();
         } catch (e: unknown) {
             console.error("Erro ao salvar playlist:", e);
             toast.error(`Erro ao salvar playlist: ${e instanceof Error ? e.message : String(e)}`);
-            // If insert failed, refetch to restore what's (potentially still) in DB
-            refetch();
+            // Nada foi alterado no banco (transação): mantém as edições na tela para o usuário tentar de novo.
         } finally {
             setIsSaving(false);
         }
@@ -1833,10 +1838,21 @@ return (
                                                 onDragStart={(e) => handleDragStart(e, index)}
                                                 onDragOver={(e) => e.preventDefault()}
                                                 onDrop={(e) => handleDrop(e, index)}
-                                                className="group flex items-center gap-3 p-2 bg-muted/30 hover:bg-muted/50 border border-transparent hover:border-border/50 rounded-lg transition-all cursor-move active:cursor-grabbing"
+                                                className="group flex flex-wrap items-center gap-x-3 gap-y-2 p-2 bg-muted/30 hover:bg-muted/50 border border-transparent hover:border-border/50 rounded-lg transition-all"
                                             >
-                                                <div className="text-muted-foreground cursor-grab active:cursor-grabbing p-1">
-                                                    <GripVertical className="h-4 w-4" />
+                                                <div className="flex items-center gap-1">
+                                                    <div className="text-muted-foreground cursor-grab active:cursor-grabbing p-1 hidden sm:block">
+                                                        <GripVertical className="h-4 w-4" />
+                                                    </div>
+                                                    {/* Toque/celular não arrasta: setas para reordenar */}
+                                                    <div className="flex flex-col sm:hidden">
+                                                        <button type="button" aria-label="Mover para cima" disabled={index === 0} onClick={() => handleMoveItem(index, index - 1)} className="p-0.5 text-muted-foreground disabled:opacity-30">
+                                                            <ArrowUp className="h-3.5 w-3.5" />
+                                                        </button>
+                                                        <button type="button" aria-label="Mover para baixo" disabled={index === playlistItems.length - 1} onClick={() => handleMoveItem(index, index + 1)} className="p-0.5 text-muted-foreground disabled:opacity-30">
+                                                            <ArrowDown className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 <div className="h-10 w-16 bg-black/20 rounded overflow-hidden flex-shrink-0 relative">
@@ -1861,27 +1877,43 @@ return (
                                                     )}
                                                 </div>
 
-                                                <div className="flex-1 min-w-0">
+                                                <div className="flex-1 min-w-[7rem]">
                                                     <p className="text-sm font-medium truncate">
                                                         {item.media?.name || item.widget?.name || item.external_link?.title || 'Sem título'}
                                                     </p>
-                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                        <Clock className="h-3 w-3" />
-                                                        <span>{item.duration}s</span>
+                                                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                                         <span className="text-[10px] uppercase font-bold opacity-50 px-1 bg-muted rounded">
                                                             {item.media ? 'Mídia' : item.widget ? 'Widget' : item.external_link ? 'Link' : ''}
                                                         </span>
+                                                        {hasSchedule(item) && (
+                                                            <span className="flex items-center gap-1 text-primary">
+                                                                <Clock className="h-3 w-3" />
+                                                                {scheduleSummary(item)}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
 
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    onClick={() => handleRemoveItem(index)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                                {/* Duração + agendamento + lixeira (sempre visíveis, inclusive no celular) */}
+                                                <div className="ml-auto flex items-center gap-1">
+                                                    <ItemDurationInput
+                                                        value={item.duration}
+                                                        onChange={(duration) => handleUpdateItem(item.id, { duration })}
+                                                    />
+                                                    <ItemScheduleButton
+                                                        item={item}
+                                                        onChange={(updates) => handleUpdateItem(item.id, updates)}
+                                                    />
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        aria-label="Remover da playlist"
+                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                        onClick={() => handleRemoveItem(index)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </div>
                                         ))}
 
@@ -1899,7 +1931,7 @@ return (
                             <div className="p-4 border-t border-border/50 bg-muted/10">
                                 <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
                                     <span>{playlistItems.length} mídias</span>
-                                    <span>{Math.floor(playlistItems.reduce((acc, i) => acc + (i.duration || 10), 0) / 60)}m {playlistItems.reduce((acc, i) => acc + (i.duration || 10), 0) % 60}s duração</span>
+                                    <span>{formatTotalDuration(totalDurationSeconds(playlistItems))} duração</span>
                                 </div>
                                 <Button
                                     className="w-full gap-2"

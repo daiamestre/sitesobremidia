@@ -1848,7 +1848,7 @@ withContext(Dispatchers.Main) {
                     if (skipOnFail) {
                         logBlackBox("RECOVERY", "Skipping failed item: ${item.name}")
                         // [CRITICAL FIX] Quarentena Ativa: Avisa o QueueManager e freia o CPU
-                        queueManager.quarantineItem(item.id, "EngineSkip (Hardware/Codec Reject)")
+                        queueManager.quarantineItem(item, "EngineSkip (Hardware/Codec Reject)")
                         runOnUiThread {
                             viewModel.confirmarMidiaPronta()
                             syncGuard.releaseLock()
@@ -1866,7 +1866,7 @@ withContext(Dispatchers.Main) {
                         standbyPlayer = temp
                         
                         // [CRITICAL FIX] Marca como tocado garantindo o avanço
-                        queueManager.markAsProcessed(item.id)
+                        queueManager.markAsProcessed(item)
 
                         // [AUDIT LOG - OFFLINE FIRST] Registra o sucesso da exibição no cofre local
                         com.antigravity.player.util.DisplayAnalyticsManager.registerPlayback(

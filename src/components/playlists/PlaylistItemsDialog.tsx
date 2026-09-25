@@ -2,16 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Plus, Trash2, GripVertical, Image, Video, Music, Clock, Loader2, Cloud, Newspaper, LayoutGrid, ArrowUp, ArrowDown, Link2, Calendar as CalendarIcon } from 'lucide-react';
+import { ItemDurationInput, ItemScheduleButton } from '@/components/playlists/PlaylistItemControls';
+import { savePlaylistItems, totalDurationSeconds } from '@/lib/playlistItems';
+import { probeVideoDuration } from '@/lib/mediaDuration';
+import { Plus, Trash2, GripVertical, Image, Video, Music, Clock, Loader2, Cloud, Newspaper, LayoutGrid, ArrowUp, ArrowDown, Link2 } from 'lucide-react';
 import { Playlist, Media, Widget, ExternalLink, PlaylistItem, WidgetType } from '@/types/models';
 
 // Extend Playlist type locally if needed, or rely on models.ts if it's updated there. 
@@ -293,6 +293,13 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     setHasUnsavedChanges(true);
     setShowPicker(false);
     toast.success('Mídia adicionada à lista');
+
+    // A tabela media não guarda duração e o Player usa a do item como TETO: vídeo entrava com 10 s e era cortado.
+    if (media.file_type === 'video' && media.file_url) {
+      probeVideoDuration(media.file_url).then((seconds) => {
+        if (seconds) setItems((prev) => prev.map((i) => (i.id === newItem.id ? { ...i, duration: seconds } : i)));
+      });
+    }
   };
 
   const addWidget = (widget: Widget) => {
@@ -341,12 +348,12 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
   };
 
   const updateDuration = (itemId: string, duration: number) => {
-    setItems(items.map(i => i.id === itemId ? { ...i, duration } : i));
+    setItems((prev) => prev.map(i => i.id === itemId ? { ...i, duration } : i));
     setHasUnsavedChanges(true);
   };
 
   const updateSchedule = (itemId: string, updates: { start_time?: string | null, end_time?: string | null, days?: number[] | null }) => {
-    setItems(items.map(i => i.id === itemId ? { ...i, ...updates } : i));
+    setItems((prev) => prev.map(i => i.id === itemId ? { ...i, ...updates } : i));
     setHasUnsavedChanges(true);
   };
 
@@ -354,26 +361,10 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     if (!playlist || !user) return;
     setIsSaving(true);
     try {
-      // 1. Delete all current items
-      await supabase.from('playlist_items').delete().eq('playlist_id', playlist.id);
-
-      // 2. Insert all items
-      const toInsert = items.map((item, index) => ({
-        playlist_id: playlist.id,
-        media_id: item.media_id,
-        widget_id: item.widget_id,
-        external_link_id: item.external_link_id,
-        position: index,
-        duration: item.duration
-      }));
-
-      if (toInsert.length > 0) {
-        const { error } = await supabase.from('playlist_items').insert(toInsert);
-        if (error) throw error;
-      }
-
-      // 3. Trigger Sync
-      await supabase.from('playlists').update({ updated_at: new Date().toISOString() }).eq('id', playlist.id);
+      // Uma transação no banco (tudo ou nada): ordem, duração E agendamento (start_time/end_time/days).
+      // Antes: DELETE sem checar erro + INSERT sem os campos de agendamento (o agendamento nunca era gravado e a
+      // playlist podia ficar vazia se o INSERT falhasse). O RPC também avisa o Player (updated_at).
+      await savePlaylistItems(supabase, playlist.id, items);
 
       toast.success('Playlist salva e sincronizada!');
       setHasUnsavedChanges(false);
@@ -388,7 +379,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
 
 
 
-  const totalDuration = items.reduce((acc, item) => acc + item.duration, 0);
+  const totalDuration = totalDurationSeconds(items);
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -494,7 +485,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, index)}
                       onDragEnd={handleDragEnd}
-                      className={`flex items-center gap-3 p-3 rounded-lg bg-muted/50 group transition-all ${draggedIndex === index ? 'opacity-50 scale-95' : ''
+                      className={`flex flex-wrap items-center gap-x-3 gap-y-2 p-3 rounded-lg bg-muted/50 group transition-all ${draggedIndex === index ? 'opacity-50 scale-95' : ''
                         } ${dragOverIndex === index ? 'ring-2 ring-primary ring-offset-2' : ''
                         }`}
                     >
@@ -527,7 +518,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
                       <div className="w-12 h-12 rounded overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
                         {getItemThumbnail(item)}
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-[7rem]">
                         <p className="text-sm font-medium truncate">
                           {getItemName(item)}
                         </p>
@@ -537,94 +528,25 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Label className="text-xs text-muted-foreground">Duração (s):</Label>
-                        <Input
-                          type="number"
-                          min={0}
+                      {/* Duração + agendamento + lixeira (mesmos controles da Lista de Reprodução da tela) */}
+                      <div className="ml-auto flex items-center gap-1">
+                        <ItemDurationInput
                           value={item.duration}
-                          onChange={(e) => updateDuration(item.id, parseInt(e.target.value) || 0)}
-                          className="w-20 h-8 font-mono"
-                          disabled={!!item.widget_id}
+                          onChange={(duration) => updateDuration(item.id, duration)}
                         />
+                        <ItemScheduleButton
+                          item={item}
+                          onChange={(updates) => updateSchedule(item.id, updates)}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Remover da playlist"
+                          onClick={() => removeItem(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
-
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={item.start_time || (item.days && item.days.length > 0) ? "text-primary hover:text-primary" : "text-muted-foreground hover:text-foreground"}
-                          >
-                            <CalendarIcon className="h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80">
-                          <div className="space-y-4">
-                            <h4 className="font-medium leading-none">Agendamento</h4>
-                            <p className="text-sm text-muted-foreground">Defina quando este item deve aparecer.</p>
-
-                            <div className="grid gap-2">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <Label htmlFor={`start-${item.id}`}>Início</Label>
-                                  <Input
-                                    id={`start-${item.id}`}
-                                    type="time"
-                                    value={item.start_time || ''}
-                                    onChange={(e) => updateSchedule(item.id, { start_time: e.target.value || null })}
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label htmlFor={`end-${item.id}`}>Fim</Label>
-                                  <Input
-                                    id={`end-${item.id}`}
-                                    type="time"
-                                    value={item.end_time || ''}
-                                    onChange={(e) => updateSchedule(item.id, { end_time: e.target.value || null })}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>Dias da Semana</Label>
-                              <ToggleGroup
-                                type="multiple"
-                                variant="outline"
-                                value={item.days?.map(String) || []}
-                                onValueChange={(val) => {
-                                  const nums = val.map(Number).sort((a, b) => a - b);
-                                  updateSchedule(item.id, { days: nums.length > 0 ? nums : null });
-                                }}
-                                className="flex justify-between"
-                              >
-                                {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
-                                  <ToggleGroupItem key={i} value={String(i)} className="h-8 w-8 p-0" title={['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][i]}>
-                                    {d}
-                                  </ToggleGroupItem>
-                                ))}
-                              </ToggleGroup>
-                              <p className="text-xs text-muted-foreground text-center">
-                                {item.days && item.days.length > 0
-                                  ? item.days.length === 7
-                                    ? 'Todos os dias'
-                                    : 'Apenas dias selecionados'
-                                  : 'Todos os dias (Padrão)'}
-                              </p>
-                            </div>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeItem(item.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
                     </div>
                   ))}
                 </div>

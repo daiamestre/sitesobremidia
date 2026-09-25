@@ -174,6 +174,10 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
   const [companyName, setCompanyName] = useState('');
   const [segment, setSegment] = useState('');
   const [mediaDuration, setMediaDuration] = useState(10);
+  // A tabela media NAO tem coluna de duracao (a duracao e por item de playlist). Ao EDITAR uma midia, so propaga a
+  // duracao para as playlists se o usuario realmente mexeu no campo; antes o valor padrao (10) sobrescrevia a duracao de
+  // todos os itens dessa midia em todas as playlists a cada edicao de nome.
+  const [durationTouched, setDurationTouched] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date>();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<'16x9' | '9x16'>('16x9');
@@ -185,7 +189,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     if (open && editMedia) {
       setMediaName(editMedia.name || '');
       setAspectRatio((editMedia.aspect_ratio as '16x9' | '9x16') || '16x9');
-      setMediaDuration((editMedia as any).duration || 10);
+      setMediaDuration(10);
+      setDurationTouched(false);
       setFiles([]); // Clear any stale files
     } else if (open) {
       // Reset for new upload
@@ -276,6 +281,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     const num = parseInt(value, 10);
     if (!isNaN(num) && num >= 1 && num <= 120) {
       setMediaDuration(num);
+      setDurationTouched(true);
     }
   };
 
@@ -552,7 +558,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       const updateData: Record<string, any> = {
         name: mediaName.trim(),
         aspect_ratio: aspectRatio,
-        duration: mediaDuration,
+        // (sem "duration": a coluna nao existe em media e o PostgREST recusava TODA edicao com PGRST204)
       };
 
       // If user selected a new file, upload it and replace old one
@@ -625,11 +631,13 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
 
       if (dbError) throw dbError;
 
-      // Update duration in playlist_items for all playlists containing this media
-      await supabase
-        .from('playlist_items')
-        .update({ duration: mediaDuration })
-        .eq('media_id', editMedia.id);
+      // Update duration in playlist_items for all playlists containing this media (somente se o usuario alterou)
+      if (durationTouched) {
+        await supabase
+          .from('playlist_items')
+          .update({ duration: mediaDuration })
+          .eq('media_id', editMedia.id);
+      }
 
       // Add to playlist if selected
       if (selectedPlaylistId && selectedPlaylistId !== 'none') {

@@ -51,6 +51,26 @@ object PlayerFlowPolicy {
     fun remainingDoneVisibilityMs(doneShownAtMs: Long, nowMs: Long): Long =
         if (doneShownAtMs <= 0L) 0L else maxOf(0L, SYNC_DONE_MIN_VISIBLE_MS - (nowMs - doneShownAtMs))
 
+    /**
+     * Assinatura de CONFIGURAÇÃO usada pelo sync para decidir "nada mudou". Precisa enxergar TUDO que o painel edita:
+     * antes só olhava id:hash:ordem, então mudar duração, horário ou dias de um item respondia "Config Unchanged and
+     * Cache Valid" e o Player nunca aplicava a edição (provado no emulador: Room seguia com 30 s após o painel gravar 12 s).
+     */
+    fun configSignature(playlist: Playlist): String {
+        val raw = buildString {
+            append(playlist.id).append(':').append(playlist.orientation).append(':').append(playlist.resolution)
+                .append(':').append(playlist.audioEnabled).append(':').append(playlist.heartbeatIntervalSeconds)
+            playlist.items.forEach {
+                append('|').append(it.id).append(':').append(it.hash).append(':').append(it.orderIndex)
+                    .append(':').append(it.durationSeconds).append(':').append(it.type)
+                    .append(':').append(it.startTime.orEmpty()).append(':').append(it.endTime.orEmpty())
+                    .append(':').append(it.daysOfWeek.orEmpty())
+            }
+        }
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(raw.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }.take(24)
+    }
+
     /** Assinatura do que efetivamente define a reprodução (ordem, duração, agenda, config). */
     fun playlistSignature(playlist: Playlist?): String? {
         if (playlist == null) return null
