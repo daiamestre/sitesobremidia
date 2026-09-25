@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { ItemDurationInput, ItemScheduleButton, ItemDuplicateButton } from '@/components/playlists/PlaylistItemControls';
 import { savePlaylistItems, totalDurationSeconds, duplicateItem, newTempItemId } from '@/lib/playlistItems';
-import { probeVideoDuration } from '@/lib/mediaDuration';
+import { probeVideoDurationMs, secondsForRealMs } from '@/lib/mediaDuration';
 import { Plus, Trash2, GripVertical, Image, Video, Music, Clock, Loader2, Cloud, Newspaper, LayoutGrid, ArrowUp, ArrowDown, Link2 } from 'lucide-react';
 import { Playlist, Media, Widget, ExternalLink, PlaylistItem, WidgetType } from '@/types/models';
 
@@ -162,7 +162,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .from('playlist_items')
         .select(`
           *,
-          media:media!playlist_items_media_id_fkey(id, name, file_url, file_path, file_type, thumbnail_url),
+          media:media!playlist_items_media_id_fkey(id, name, file_url, file_path, file_type, thumbnail_url, duration_ms),
           widget:widgets!playlist_items_widget_id_fkey(id, name, widget_type, config, is_active),
           external_link:external_links!playlist_items_external_link_id_fkey(id, title, url, platform, thumbnail_url, is_active)
         `)
@@ -285,7 +285,8 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       widget_id: null,
       external_link_id: null,
       position: items.length,
-      duration: media.duration ? Number(media.duration) : 10,
+      // Vídeo entra com o tempo exato dele (segundo cheio para cima: a tela toca a duração real, sem cortar)
+      duration: secondsForRealMs(media.duration_ms) ?? (media.duration ? Number(media.duration) : 10),
       media,
       created_at: new Date().toISOString()
     };
@@ -295,9 +296,10 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     toast.success('Mídia adicionada à lista');
 
     // A tabela media não guarda duração e o Player usa a do item como TETO: vídeo entrava com 10 s e era cortado.
-    if (media.file_type === 'video' && media.file_url) {
-      probeVideoDuration(media.file_url).then((seconds) => {
-        if (seconds) setItems((prev) => prev.map((i) => (i.id === newItem.id ? { ...i, duration: seconds } : i)));
+    if (media.file_type === 'video' && media.file_url && !media.duration_ms) {
+      probeVideoDurationMs(media.file_url).then((ms) => {
+        const seconds = secondsForRealMs(ms);
+        if (seconds) setItems((prev) => prev.map((i) => (i.id === newItem.id ? { ...i, duration: seconds, media: i.media ? { ...i.media, duration_ms: ms } : i.media } : i)));
       });
     }
   };
@@ -539,6 +541,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
                       <div className="ml-auto flex items-center gap-1">
                         <ItemDurationInput
                           value={item.duration}
+                          realMs={item.media?.file_type === 'video' ? item.media?.duration_ms : null}
                           onChange={(duration) => updateDuration(item.id, duration)}
                         />
                         <ItemScheduleButton

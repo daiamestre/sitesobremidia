@@ -30,6 +30,8 @@ export type Media = {
     aspect_ratio?: string;
     file_hash?: string;
     processing_status?: string | null;
+    /** Duração exata do vídeo/áudio em ms (null = desconhecida). */
+    duration_ms?: number | null;
 };
 
 

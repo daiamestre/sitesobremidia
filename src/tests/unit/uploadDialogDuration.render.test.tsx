@@ -5,15 +5,15 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 const stableAuth = { user: { id: 'u1' } };
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => stableAuth }));
 
-// Duração "real" de cada arquivo, por nome (vídeo 42 s, áudio 185 s, outro vídeo 7 s).
+// Duração EXATA (ms) de cada arquivo, por nome: vídeo 41,250 s, áudio 184,500 s, outro vídeo 6,928 s.
 vi.mock('@/lib/mediaDuration', async () => {
   const actual = await vi.importActual<typeof import('@/lib/mediaDuration')>('@/lib/mediaDuration');
-  const byName: Record<string, number> = { 'promo.mp4': 42, 'jingle.mp3': 185, 'curto.mp4': 7 };
+  const byName: Record<string, number> = { 'promo.mp4': 41_250, 'jingle.mp3': 184_500, 'curto.mp4': 6_928 };
   return {
     ...actual,
-    probeFileDuration: vi.fn(async (f: File) => byName[f.name] ?? null),
-    // mídia já existente (edição): lida pela URL
-    probeVideoDuration: vi.fn(async (url: string) => (url.includes('existente.mp4') ? 95 : null)),
+    probeFileDurationMs: vi.fn(async (f: File) => byName[f.name] ?? null),
+    // mídia já existente (edição) sem duração gravada: lida pela URL
+    probeVideoDurationMs: vi.fn(async (url: string) => (url.includes('existente.mp4') ? 94_120 : null)),
   };
 });
 
@@ -26,28 +26,38 @@ function addFiles(container: HTMLElement, files: File[]) {
   fireEvent.change(input, { target: { files } });
 }
 
-describe('Upload de Mídias — "Tempo de Mídia" já vem com o tempo da mídia adicionada', () => {
+describe('Upload de Mídias — "Tempo de Mídia" com a duração exata da mídia', () => {
   beforeAll(() => {
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }));
   });
 
   const field = () => screen.getByLabelText('Tempo de Mídia') as HTMLInputElement;
+  const hint = () => screen.getByTestId('upload-real-duration').textContent || '';
 
-  it('vídeo adicionado: o campo mostra a duração do vídeo', async () => {
+  it('vídeo adicionado: campo com o segundo cheio e a duração exata com milésimos', async () => {
     const { container } = render(<MediaUploadDialog open onOpenChange={() => {}} onUploadComplete={() => {}} />);
     expect(field().value).toBe('10'); // antes de adicionar: padrão
     addFiles(container, [file('promo.mp4', 'video/mp4')]);
+    await waitFor(() => expect(field().value).toBe('42')); // 41,250 s -> 42 (a tela toca os 41,250 s inteiros)
+    expect(await screen.findByText(/· 41,250 s/)).toBeInTheDocument(); // linha do arquivo
+    expect(hint()).toContain('41,250 s — a tela toca o vídeo inteiro');
+  });
+
+  it('Tempo de Mídia menor que o vídeo: avisa que a tela corta o final', async () => {
+    const { container } = render(<MediaUploadDialog open onOpenChange={() => {}} onUploadComplete={() => {}} />);
+    addFiles(container, [file('promo.mp4', 'video/mp4')]);
     await waitFor(() => expect(field().value).toBe('42'));
-    expect(await screen.findByText(/42s/)).toBeInTheDocument(); // e a linha do arquivo mostra o tempo
+    fireEvent.change(field(), { target: { value: '30' } });
+    await waitFor(() => expect(hint()).toContain('corta o final (toca 30,000 s)'));
   });
 
   it('áudio/vídeo com mais de 2 min: o campo mostra o tempo real (antes o máximo era 120)', async () => {
     const { container } = render(<MediaUploadDialog open onOpenChange={() => {}} onUploadComplete={() => {}} />);
     addFiles(container, [file('jingle.mp3', 'audio/mpeg')]);
     await waitFor(() => expect(field().value).toBe('185'));
-    // aparece na linha do arquivo e na dica do campo
-    expect(screen.getAllByText(/3m 5s/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/3m 5s/)).toBeInTheDocument(); // dica do campo
+    expect(screen.getByText(/· 184,500 s/)).toBeInTheDocument(); // linha do arquivo, exata
   });
 
   it('imagem adicionada: 10 s (imagem não tem duração própria)', async () => {
@@ -56,6 +66,7 @@ describe('Upload de Mídias — "Tempo de Mídia" já vem com o tempo da mídia 
     await waitFor(() => expect(field().value).toBe('42'));
     addFiles(container, [file('foto.jpg', 'image/jpeg')]);
     await waitFor(() => expect(field().value).toBe('10'));
+    expect(screen.queryByTestId('upload-real-duration')).toBeNull();
   });
 
   it('a cada mídia adicionada o campo acompanha a última', async () => {
@@ -64,19 +75,28 @@ describe('Upload de Mídias — "Tempo de Mídia" já vem com o tempo da mídia 
     await waitFor(() => expect(field().value).toBe('42'));
     addFiles(container, [file('curto.mp4', 'video/mp4')]);
     await waitFor(() => expect(field().value).toBe('7'));
+    expect(hint()).toContain('6,928 s');
   });
 
   it('editar uma mídia já existente (vídeo) mostra o tempo real dela no campo', async () => {
     const media = { id: 'm1', name: 'Existente', file_type: 'video', file_url: 'https://cdn/x/existente.mp4', aspect_ratio: '16x9' } as never;
     render(<MediaUploadDialog open onOpenChange={() => {}} onUploadComplete={() => {}} editMedia={media} />);
     await waitFor(() => expect(field().value).toBe('95'));
+    expect(hint()).toContain('94,120 s');
+  });
+
+  it('editar mídia com duração gravada (media.duration_ms) usa o valor exato sem ler o arquivo', async () => {
+    const media = { id: 'm2', name: 'Gravada', file_type: 'video', file_url: 'https://cdn/x/outra.mp4', aspect_ratio: '9x16', duration_ms: 17_764 } as never;
+    render(<MediaUploadDialog open onOpenChange={() => {}} onUploadComplete={() => {}} editMedia={media} />);
+    await waitFor(() => expect(field().value).toBe('18'));
+    expect(hint()).toContain('17,764 s');
   });
 
   it('se o usuário digitou um valor, novas mídias NÃO o sobrescrevem', async () => {
     const { container } = render(<MediaUploadDialog open onOpenChange={() => {}} onUploadComplete={() => {}} />);
     fireEvent.change(field(), { target: { value: '30' } });
     addFiles(container, [file('promo.mp4', 'video/mp4')]);
-    await screen.findByText(/42s/);
+    await screen.findByText(/· 41,250 s/);
     expect(field().value).toBe('30');
   });
 });

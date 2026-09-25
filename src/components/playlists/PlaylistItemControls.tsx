@@ -17,6 +17,7 @@ import {
   scheduleSummary,
   type EditableItem,
 } from '@/lib/playlistItems';
+import { formatDurationMs, playbackOf } from '@/lib/mediaDuration';
 
 /**
  * Controles por item da lista de reprodução (usados na tela do dispositivo e no editor da playlist):
@@ -28,9 +29,12 @@ interface DurationInputProps {
   onChange: (seconds: number) => void;
   disabled?: boolean;
   className?: string;
+  /** Duração exata do vídeo (ms). Mostra o tempo que a tela realmente toca, com milésimos. */
+  realMs?: number | null;
 }
 
-export function ItemDurationInput({ value, onChange, disabled, className }: DurationInputProps) {
+export function ItemDurationInput({ value, onChange, disabled, className, realMs }: DurationInputProps) {
+  const play = playbackOf(value, realMs);
   // Rascunho: permite apagar o campo para digitar outro número sem cair em 0.
   const [draft, setDraft] = useState(String(value));
   useEffect(() => setDraft(String(value)), [value]);
@@ -63,6 +67,17 @@ export function ItemDurationInput({ value, onChange, disabled, className }: Dura
         }}
       />
       <span className="text-xs text-muted-foreground">s</span>
+      {play && (
+        <span
+          className={`hidden sm:inline whitespace-nowrap rounded px-1.5 py-0.5 font-mono text-[11px] ${play.cut ? 'bg-amber-500/15 text-amber-500' : 'bg-emerald-500/15 text-emerald-500'}`}
+          title={play.cut
+            ? `Corta o vídeo: toca ${formatDurationMs(play.playsMs)} de ${formatDurationMs(realMs!)}`
+            : `Toca o vídeo inteiro: ${formatDurationMs(play.playsMs)}`}
+          data-testid="item-real-duration"
+        >
+          {play.cut ? `corta · ${formatDurationMs(realMs!)}` : formatDurationMs(play.playsMs)}
+        </span>
+      )}
     </div>
   );
 }

@@ -20,7 +20,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { uploadToR2WithProgress, uploadToR2 } from '@/lib/r2Upload';
 import { r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
 import { MAX_DURATION_SECONDS, clampDuration, formatTotalDuration } from '@/lib/playlistItems';
-import { defaultDurationForFile, durationForUpload, probeFileDuration, probeVideoDuration } from '@/lib/mediaDuration';
+import { defaultDurationForFile, durationForUpload, formatDurationMs, playbackOf, probeFileDurationMs, probeVideoDurationMs, secondsForRealMs } from '@/lib/mediaDuration';
 
 interface MediaUploadDialogProps {
   open: boolean;
@@ -38,6 +38,8 @@ interface UploadFile {
   thumbnailPreview?: string;
   /** Tempo da mídia (s): vídeo/áudio = duração real do arquivo; imagem = 10. Preenche "Tempo de Mídia". */
   durationSeconds?: number;
+  /** Duração EXATA do vídeo/áudio (ms), gravada em media.duration_ms. */
+  durationMs?: number | null;
 }
 
 const ACCEPTED_TYPES = {
@@ -178,6 +180,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
   const [companyName, setCompanyName] = useState('');
   const [segment, setSegment] = useState('');
   const [mediaDuration, setMediaDuration] = useState(10);
+  // Duração exata (ms) da mídia mostrada no campo "Tempo de Mídia" (null = imagem ou desconhecida)
+  const [mediaRealMs, setMediaRealMs] = useState<number | null>(null);
   // A tabela media NAO tem coluna de duracao (a duracao e por item de playlist). Ao EDITAR uma midia, so propaga a
   // duracao para as playlists se o usuario realmente mexeu no campo; antes o valor padrao (10) sobrescrevia a duracao de
   // todos os itens dessa midia em todas as playlists a cada edicao de nome.
@@ -196,13 +200,19 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       setMediaName(editMedia.name || '');
       setAspectRatio((editMedia.aspect_ratio as '16x9' | '9x16') || '16x9');
       setMediaDuration(10);
+      setMediaRealMs(null);
       setDurationTouched(false);
       setFiles([]); // Clear any stale files
       // Mídia já existente (vídeo/áudio): mostra o tempo real dela no campo. Não conta como "alterado": editar o nome
       // não mexe na duração dos itens das playlists.
       if ((editMedia.file_type === 'video' || editMedia.file_type === 'audio') && editMedia.file_url) {
-        probeVideoDuration(editMedia.file_url).then((seconds) => {
-          if (seconds && !durationTouchedRef.current) setMediaDuration(defaultDurationForFile(editMedia.file_type as 'video' | 'audio', seconds));
+        const known = (editMedia as { duration_ms?: number | null }).duration_ms ?? null;
+        (known ? Promise.resolve(known) : probeVideoDurationMs(editMedia.file_url)).then((ms) => {
+          const seconds = secondsForRealMs(ms);
+          if (seconds && !durationTouchedRef.current) {
+            setMediaRealMs(ms);
+            setMediaDuration(seconds);
+          }
         });
       }
     } else if (open) {
@@ -210,6 +220,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       setMediaName('');
       setAspectRatio('16x9');
       setMediaDuration(10);
+      setMediaRealMs(null);
     }
   }, [open, editMedia]);
 
@@ -264,12 +275,16 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     for (const newFile of newFiles) {
       const kind = getFileType(newFile.file.type);
       let seconds = defaultDurationForFile(kind, null);
+      let realMs: number | null = null;
       if (kind === 'video' || kind === 'audio') {
-        seconds = defaultDurationForFile(kind, await probeFileDuration(newFile.file));
-        setFiles(prev => prev.map(f => (f.file === newFile.file ? { ...f, durationSeconds: seconds } : f)));
+        // Duração EXATA lida do arquivo (ms); o Tempo de Mídia é o segundo cheio para cima -> a tela toca o vídeo inteiro.
+        realMs = await probeFileDurationMs(newFile.file);
+        seconds = secondsForRealMs(realMs) ?? defaultDurationForFile(kind, null);
+        setFiles(prev => prev.map(f => (f.file === newFile.file ? { ...f, durationSeconds: seconds, durationMs: realMs } : f)));
       }
       if (!durationTouchedRef.current) {
         setMediaDuration(seconds);
+        setMediaRealMs(realMs);
         if (editMedia) setDurationTouched(true);
       }
     }
@@ -488,7 +503,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
           mime_type: uploadFile.file.type,
           aspect_ratio: aspectRatio,
           thumbnail_url: thumbnailUrl,
-        })
+          ...(uploadFile.durationMs ? { duration_ms: uploadFile.durationMs } : {}),
+        } as never)
           .select()
           .single();
 
@@ -655,6 +671,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         updateData.file_type = getFileType(newFile.file.type);
         updateData.file_size = newFile.file.size;
         updateData.mime_type = newFile.file.type;
+        updateData.duration_ms = newFile.durationMs ?? null;
         if (thumbnailUrl) updateData.thumbnail_url = thumbnailUrl;
       }
 
@@ -861,6 +878,17 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                 segundos{mediaDuration >= 60 ? ` (= ${formatTotalDuration(clampDuration(mediaDuration))})` : ''}
               </span>
             </div>
+            {(() => {
+              const play = playbackOf(mediaDuration, mediaRealMs);
+              if (!play || !mediaRealMs) return null;
+              return (
+                <p className={`text-xs font-mono ${play.cut ? 'text-amber-500' : 'text-emerald-500'}`} data-testid="upload-real-duration">
+                  {play.cut
+                    ? `Duração real: ${formatDurationMs(mediaRealMs)} — com ${mediaDuration} s a tela corta o final (toca ${formatDurationMs(play.playsMs)}).`
+                    : `Duração real: ${formatDurationMs(mediaRealMs)} — a tela toca o vídeo inteiro.`}
+                </p>
+              );
+            })()}
           </div>
 
           {/* Agendamento */}
@@ -985,7 +1013,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                     <p className="text-sm font-medium truncate">{uploadFile.file.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatFileSize(uploadFile.file.size)}
-                      {uploadFile.durationSeconds ? ` · ${formatTotalDuration(uploadFile.durationSeconds)}` : ''}
+                      {uploadFile.durationMs ? ` · ${formatDurationMs(uploadFile.durationMs)}` : uploadFile.durationSeconds ? ` · ${formatTotalDuration(uploadFile.durationSeconds)}` : ''}
                     </p>
                     {uploadFile.status === 'uploading' && (
                       <div className="mt-1">

@@ -34,7 +34,7 @@ import { format, formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date
 import { hasNewScreenshot, screenshotFooterText } from '@/utils/screenshotStatus';
 import { ItemDurationInput, ItemScheduleButton, ItemDuplicateButton, type ScheduleUpdates } from '@/components/playlists/PlaylistItemControls';
 import { savePlaylistItems, scheduleSummary, hasSchedule, totalDurationSeconds, formatTotalDuration, duplicateItem, newTempItemId } from '@/lib/playlistItems';
-import { probeVideoDuration } from '@/lib/mediaDuration';
+import { probeVideoDurationMs, secondsForRealMs } from '@/lib/mediaDuration';
 import { ptBR } from 'date-fns/locale';
 import { Screen, ScreenStatus, Playlist, Media, Widget, WidgetConfig, ExternalLink, PlaylistItem as ModelPlaylistItem } from '@/types/models';
 import type { Database } from '@/integrations/supabase/types';
@@ -65,6 +65,7 @@ interface MediaItem {
     file_url: string;
     duration: number;
     file_type: string;
+    duration_ms?: number | null;
 }
 
 interface PlaylistItem {
@@ -334,7 +335,7 @@ export default function ScreenDetails() {
                     .from('playlist_items')
                     .select(`
                             *,
-                            media:media!playlist_items_media_id_fkey(id, name, file_path, file_url, file_type, thumbnail_url),
+                            media:media!playlist_items_media_id_fkey(id, name, file_path, file_url, file_type, thumbnail_url, duration_ms),
                             widget:widgets!playlist_items_widget_id_fkey(id, name, widget_type, config, is_active),
                             external_link:external_links!playlist_items_external_link_id_fkey(id, title, url, platform, thumbnail_url, is_active)
                         `)
@@ -716,13 +717,15 @@ export default function ScreenDetails() {
             id: `temp-${Date.now()}`, // temp id
             media_id: media.id,
             position: playlistItems.length,
-            duration: media.duration || 10, // default duration
+            // Vídeo entra com o tempo exato dele (segundo cheio para cima: a tela toca a duração real, sem cortar)
+            duration: secondsForRealMs(media.duration_ms) ?? (media.duration || 10),
             media: {
                 id: media.id,
                 name: media.name,
                 file_url: media.file_url,
                 duration: media.duration || 10,
-                file_type: media.file_type || 'image'
+                file_type: media.file_type || 'image',
+                duration_ms: media.duration_ms ?? null
             }
         };
         setPlaylistItems([...playlistItems, newItem]);
@@ -730,9 +733,10 @@ export default function ScreenDetails() {
         setMediaPickerOpen(false);
 
         // A tabela media não guarda duração e o Player usa a do item como TETO: vídeo entrava com 10 s e era cortado.
-        if (media.file_type === 'video' && media.file_url) {
-            probeVideoDuration(media.file_url).then((seconds) => {
-                if (seconds) handleUpdateItem(newItem.id, { duration: seconds });
+        if (media.file_type === 'video' && media.file_url && !media.duration_ms) {
+            probeVideoDurationMs(media.file_url).then((ms) => {
+                const seconds = secondsForRealMs(ms);
+                if (seconds) setPlaylistItems((prev) => prev.map((i) => (i.id === newItem.id ? { ...i, duration: seconds, media: i.media ? { ...i.media, duration_ms: ms } : i.media } : i)));
             });
         }
     };
@@ -1832,6 +1836,7 @@ return (
                                                 <div className="ml-auto flex items-center gap-1">
                                                     <ItemDurationInput
                                                         value={item.duration}
+                                                        realMs={item.media?.file_type === 'video' ? item.media?.duration_ms : null}
                                                         onChange={(duration) => handleUpdateItem(item.id, { duration })}
                                                     />
                                                     <ItemScheduleButton
