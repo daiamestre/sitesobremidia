@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { AlertStrip } from '@/components/central/AlertStrip';
 import { EmptyLine, MiniStat, SummaryCard, SummaryRow } from '@/components/central/SummaryCard';
 import {
-  diaMes, fetchResumoOwner, rotuloStatus, formatBRL, formatBRLCompacto, montarAlertas, saudacao, SemPermissaoError, tempoDesde,
+  cardsDoPerfil, diaMes, fetchResumoOwner, filtrarAlertas, rotuloStatus, formatBRL, formatBRLCompacto, montarAlertas, saudacao, SemPermissaoError, tempoDesde,
   type ResumoOwner,
 } from '@/lib/dashboardResumo';
 import { fetchPlaybackStats } from '@/lib/playbackStats';
@@ -47,6 +47,7 @@ export default function CorporateCommandCenter() {
     queryKey: ['central-dia-reps', inicioMes, hojeIso],
     queryFn: () => representantesGerenciaService.obterDesempenho({ periodoInicio: inicioMes, periodoFim: hojeIso, ordenar: 'receita' }),
     refetchInterval: ATUALIZAR_MS * 5,
+    enabled: cardsDoPerfil(usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : null)).has('representantes'),
   });
 
   const exibicoesSemana = useQuery({
@@ -56,7 +57,10 @@ export default function CorporateCommandCenter() {
   });
 
   const r = resumo.data;
-  const alertas = useMemo(() => (r ? montarAlertas(r, naoLidas) : []), [r, naoLidas]);
+  // Fonte oficial do perfil (AGENTS.md §7): perfil.nome, ou OWNER pelo is_owner
+  const perfilNome = usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : null);
+  const cards = useMemo(() => cardsDoPerfil(perfilNome), [perfilNome]);
+  const alertas = useMemo(() => (r ? filtrarAlertas(montarAlertas(r, naoLidas), cards) : []), [r, naoLidas, cards]);
   const agora = new Date();
   const nome = (usuario?.nome || user?.email || '').split(' ')[0];
 
@@ -109,15 +113,15 @@ export default function CorporateCommandCenter() {
 
       {/* Resumos por área */}
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(19rem,1fr))]">
-        <FinanceiroCard r={r} loading={resumo.isLoading} />
-        <CobrancasCard r={r} loading={resumo.isLoading} />
-        <TelasCard r={r} loading={resumo.isLoading} />
-        <RepresentantesCard dados={reps.data} loading={reps.isLoading} erro={reps.isError} />
-        <ComercialCard r={r} loading={resumo.isLoading} />
-        <ExibicoesCard pontos={exibicoesSemana.data} loading={exibicoesSemana.isLoading} />
-        <AgendaCard r={r} loading={resumo.isLoading} />
-        <AprovacoesCard r={r} loading={resumo.isLoading} naoLidas={naoLidas} />
-        <AtividadeCard r={r} loading={resumo.isLoading} />
+        {cards.has('financeiro') && <FinanceiroCard r={r} loading={resumo.isLoading} />}
+        {cards.has('cobrancas') && <CobrancasCard r={r} loading={resumo.isLoading} />}
+        {cards.has('telas') && <TelasCard r={r} loading={resumo.isLoading} />}
+        {cards.has('representantes') && <RepresentantesCard dados={reps.data} loading={reps.isLoading} erro={reps.isError} />}
+        {cards.has('comercial') && <ComercialCard r={r} loading={resumo.isLoading} />}
+        {cards.has('exibicoes') && <ExibicoesCard pontos={exibicoesSemana.data} loading={exibicoesSemana.isLoading} />}
+        {cards.has('agenda') && <AgendaCard r={r} loading={resumo.isLoading} />}
+        {cards.has('aprovacoes') && <AprovacoesCard r={r} loading={resumo.isLoading} naoLidas={naoLidas} />}
+        {cards.has('atividade') && <AtividadeCard r={r} loading={resumo.isLoading} />}
       </div>
     </div>
   );

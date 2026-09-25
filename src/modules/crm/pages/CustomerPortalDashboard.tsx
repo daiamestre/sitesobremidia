@@ -262,6 +262,7 @@ const MODALIDADE_CONFIG: Record<ModalidadePortal, {
 // COMPONENTE PRINCIPAL
 // ──────────────────────────────────────────────────────────────────────
 
+import { CentralDoDiaAnunciante } from '@/components/central/CentralDoDiaAnunciante';
 export default function CustomerPortalDashboard() {
   const navigate = useNavigate();
   const { empresaOperadoraId, usuario } = useAuth();
@@ -372,6 +373,9 @@ export default function CustomerPortalDashboard() {
           )}
         </div>
       </div>
+
+      {/* ── Seu dia: alertas de faturas/mensagens + resumos (o conteúdo abaixo continua igual) ── */}
+      <CentralDoDiaAnunciante naoLidas={naoLidas} mostrarCampanhas={isAnunciante} />
 
       {/* ── Ações Rápidas (missão §19) ── */}
       {acoesRapidas && acoesRapidas.length > 0 && (

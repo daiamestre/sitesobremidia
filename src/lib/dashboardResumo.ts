@@ -144,3 +144,33 @@ export function montarAlertas(r: ResumoOwner, mensagensNaoLidas = 0): Alerta[] {
   }
   return a;
 }
+
+// ------------------------------------------------------------------ o que cada perfil vê
+
+export type CardCentral =
+  | 'financeiro' | 'cobrancas' | 'telas' | 'representantes' | 'comercial' | 'exibicoes' | 'agenda' | 'aprovacoes' | 'atividade';
+
+const TODOS: CardCentral[] = ['financeiro', 'cobrancas', 'telas', 'representantes', 'comercial', 'exibicoes', 'agenda', 'aprovacoes', 'atividade'];
+
+const POR_PERFIL: Record<string, CardCentral[]> = {
+  FINANCEIRO: ['financeiro', 'cobrancas', 'aprovacoes', 'atividade'],
+  SUPERVISOR: ['telas', 'representantes', 'comercial', 'exibicoes', 'agenda', 'aprovacoes', 'atividade'],
+};
+
+const ALERTA_DO_CARD: Record<string, CardCentral | null> = {
+  telas: 'telas', vencidas: 'cobrancas', vencendo: 'cobrancas', aprovacoes: 'aprovacoes', mensagens: null, 'tudo-ok': null,
+};
+
+/** Cards da Central do Dia por perfil: Financeiro e Supervisor veem só a própria área; Owner/Admin/Gerente/Gestor veem tudo. */
+export function cardsDoPerfil(perfil: string | null | undefined): Set<CardCentral> {
+  return new Set(POR_PERFIL[(perfil || '').toUpperCase()] ?? TODOS);
+}
+
+/** Alertas visíveis para os cards do perfil (mensagens e "tudo em dia" valem para todos). */
+export function filtrarAlertas(alertas: Alerta[], cards: Set<CardCentral>): Alerta[] {
+  const f = alertas.filter((a) => {
+    const card = ALERTA_DO_CARD[a.id];
+    return card === undefined || card === null || cards.has(card);
+  });
+  return f.length ? f : [{ id: 'tudo-ok', nivel: 'ok', titulo: 'Tudo em dia', detalhe: 'nenhuma pendência na sua área', link: '/workspace' }];
+}

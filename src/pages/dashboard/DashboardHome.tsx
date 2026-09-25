@@ -6,6 +6,8 @@ import { fetchAlertDevices, sendRemoteCommand, fetchFleetSummary } from '@/servi
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { CentralDoDiaGestor } from '@/components/central/CentralDoDiaGestor';
+import { saudacao } from '@/lib/dashboardResumo';
 
 export default function DashboardHome() {
   const { profile } = useAuth();
@@ -43,24 +45,21 @@ export default function DashboardHome() {
     return 'warning'; // 2-10 min
   };
 
-  const stats = [
-    { icon: Monitor, label: 'Telas Ativas', value: '0', color: 'text-primary' },
-    { icon: ListVideo, label: 'Playlists', value: '0', color: 'text-accent' },
-    { icon: Image, label: 'Mídias', value: '0', color: 'text-success' },
-    { icon: Calendar, label: 'Agendamentos', value: '0', color: 'text-warning' },
-  ];
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Welcome Header */}
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-display font-bold">
-          Olá, {profile?.full_name?.split(' ')[0] || 'Usuário'}! 👋 <span className="text-xs font-normal text-white bg-red-600 px-2 py-1 rounded-full align-middle">v3.2 - ATUALIZADO</span>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">
+          {saudacao(new Date().getHours())}, {profile?.full_name?.split(' ')[0] || 'Usuário'}!
         </h1>
         <p className="text-muted-foreground">
-          Bem-vindo ao painel do SOBRE MÍDIA. Gerencie suas telas de Digital Signage.
+          Seu resumo do dia: telas, exibições, playlists e mídias. Clique em qualquer card para ver tudo.
         </p>
       </div>
+
+      {/* Central do Dia: alertas e resumos reais (substitui os números que eram fixos em 0) */}
+      <CentralDoDiaGestor />
 
       {/* [SCALE 10K] Fleet Health Monitor */}
       {fleet && fleet.total > 0 && (
@@ -182,22 +181,6 @@ export default function DashboardHome() {
         </div>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.label} className="glass hover:glow-primary transition-all duration-300">
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className={`p-3 rounded-lg bg-card ${stat.color}`}>
-                <stat.icon className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-3xl font-bold">{stat.value}</p>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
       {/* Quick Actions & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -12,6 +12,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { prospeccaoService, type KpisProspeccao } from '@/services/prospeccao.service';
 import { Store, MonitorPlay, UserPlus } from 'lucide-react';
+import { CentralDoDiaRepresentante } from '@/components/central/CentralDoDiaRepresentante';
 
 export default function RepresentativeDashboard() {
   const navigate = useNavigate();
@@ -100,6 +101,9 @@ export default function RepresentativeDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* CENTRAL DO DIA: alertas e resumos da carteira (o conteúdo abaixo continua igual) */}
+      <CentralDoDiaRepresentante />
 
       {/* KPIs DE PROSPECÇÃO (missão §25) */}
       {kpisPros && (
@@ -216,7 +220,7 @@ export default function RepresentativeDashboard() {
 
       {/* PAINEL TABS DO PORTAL */}
       <Tabs defaultValue="carteira" className="w-full space-y-4">
-        <TabsList className="bg-slate-900/90 border border-white/10 p-1 rounded-xl">
+        <TabsList className="h-auto flex-wrap justify-start bg-slate-900/90 border border-white/10 p-1 rounded-xl">
           <TabsTrigger value="carteira" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white text-xs gap-1.5">
             <Users className="h-3.5 w-3.5" /> Minha Carteira
           </TabsTrigger>
