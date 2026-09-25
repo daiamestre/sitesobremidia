@@ -47,6 +47,9 @@ export interface ExternalLink {
 export type WidgetType = 'clock' | 'weather' | 'rss';
 
 export interface WidgetConfig {
+    // Modelo da Galeria de Widgets (src/lib/widgetCatalog.ts); ausente = clássico do tipo
+    template?: string;
+    theme?: string;
     // Common
     backgroundImage?: string | null;
     backgroundImageLandscape?: string | null;

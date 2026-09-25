@@ -16,6 +16,10 @@ import { compressImage } from '@/utils/imageCompression';
 
 interface WidgetFormProps {
     initialData: Widget | null;
+    /** Tipo escolhido na Galeria de Widgets (novo widget). */
+    initialType?: WidgetType;
+    /** Modelo escolhido na Galeria de Widgets (novo widget). */
+    initialTemplate?: string;
     onSave: (data: Partial<Widget>) => Promise<void>;
     onCancel: () => void;
     renderPreview: (type: WidgetType, config: WidgetConfig, orientation: 'landscape' | 'portrait') => React.ReactNode;
@@ -40,7 +44,7 @@ const getDefaultConfig = (type: string): WidgetConfig => {
     }
 };
 
-export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: WidgetFormProps) {
+export function WidgetForm({ initialData, initialType, initialTemplate, onSave, onCancel, renderPreview }: WidgetFormProps) {
     const { user } = useAuth();
 
     // State
@@ -64,12 +68,13 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
             setConfig(initialData.config || {});
             setIsActive(initialData.is_active);
         } else {
+            const tipo = initialType ?? 'clock';
             setName('');
-            setWidgetType('clock');
-            setConfig(getDefaultConfig('clock'));
+            setWidgetType(tipo);
+            setConfig({ ...getDefaultConfig(tipo), ...(initialTemplate ? { template: initialTemplate } : {}) });
             setIsActive(true);
         }
-    }, [initialData]);
+    }, [initialData, initialType, initialTemplate]);
 
     const handleTypeChange = (type: WidgetType) => {
         setWidgetType(type);
@@ -147,7 +152,8 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
             await onSave({
                 name,
                 widget_type: widgetType,
-                config,
+                // Sem modelo escolhido = modelo clássico do tipo (a Galeria de Widgets sabe qual é)
+                config: { ...config, template: config.template || `${widgetType}-classic` },
                 is_active: isActive,
                 thumbnail_url: config.backgroundImageLandscape || config.backgroundImagePortrait || null
             });

@@ -10,6 +10,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { compressImage } from '@/utils/imageCompression';
 import { getCdnUrl } from '@/lib/r2Client';
 import { uploadToR2 } from '@/lib/r2Upload';
+import { widgetsQueUsamFundo } from '@/lib/widgetCatalog';
+import type { WidgetConfig } from '@/types/models';
 
 interface AssetFile {
     name: string;
@@ -116,7 +118,20 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
     };
 
     const handleDelete = async (fileName: string) => {
-        if (!user || !confirm('Excluir esta imagem permanentemente?')) return;
+        if (!user) return;
+        const objectKey = `${user.id}/widgets/${fileName}`;
+        // Um fundo é reutilizado por vários widgets (referência pelo arquivo, sem cópia): não pode sumir em uso.
+        const { data: meus, error: erroUso } = await supabase.from('widgets').select('name, config');
+        if (erroUso) {
+            toast.error('Não foi possível verificar se a imagem está em uso. Tente de novo.');
+            return;
+        }
+        const emUso = widgetsQueUsamFundo((meus as unknown as Array<{ name: string; config: WidgetConfig | null }>) || [], objectKey);
+        if (emUso.length) {
+            toast.error(`Esta imagem é o fundo de: ${emUso.map((w) => w.name).join(', ')}. Troque o fundo desses widgets antes de excluir.`);
+            return;
+        }
+        if (!confirm('Excluir esta imagem permanentemente?')) return;
 
         try {
             // [SECURITY FASE F] Delete via Edge Function autenticada
