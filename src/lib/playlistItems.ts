@@ -120,3 +120,23 @@ export async function savePlaylistItems(
   const count = (data as { count?: number } | null)?.count;
   return { count: typeof count === 'number' ? count : items.length };
 }
+
+/**
+ * Duplica o item `index`: a cópia entra logo depois do original, com a MESMA mídia/widget/link, duração e agendamento
+ * (o id é novo e a cópia é independente do original — os dias são clonados). A mesma mídia pode aparecer várias vezes na
+ * playlist (o banco, a gravação atômica e o Player aceitam). Imutável; renumera `position` quando o item tem esse campo.
+ */
+export function duplicateItem<T extends EditableItem>(items: T[], index: number, newId: string): T[] {
+  if (!Number.isInteger(index) || index < 0 || index >= items.length) return items;
+  const original = items[index];
+  const copy = { ...original, id: newId, days: original.days ? [...original.days] : original.days } as T;
+  const out = [...items.slice(0, index + 1), copy, ...items.slice(index + 1)];
+  return out.map((item, i) => ('position' in item ? ({ ...item, position: i } as T) : item));
+}
+
+let tempIdCounter = 0;
+/** Id provisório (só existe até salvar; o banco gera o definitivo). Único mesmo em cliques no mesmo milissegundo. */
+export function newTempItemId(prefix = 'temp-dup'): string {
+  tempIdCounter += 1;
+  return `${prefix}-${Date.now()}-${tempIdCounter}`;
+}

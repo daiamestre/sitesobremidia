@@ -8,8 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { ItemDurationInput, ItemScheduleButton } from '@/components/playlists/PlaylistItemControls';
-import { savePlaylistItems, totalDurationSeconds } from '@/lib/playlistItems';
+import { ItemDurationInput, ItemScheduleButton, ItemDuplicateButton } from '@/components/playlists/PlaylistItemControls';
+import { savePlaylistItems, totalDurationSeconds, duplicateItem, newTempItemId } from '@/lib/playlistItems';
 import { probeVideoDuration } from '@/lib/mediaDuration';
 import { Plus, Trash2, GripVertical, Image, Video, Music, Clock, Loader2, Cloud, Newspaper, LayoutGrid, ArrowUp, ArrowDown, Link2 } from 'lucide-react';
 import { Playlist, Media, Widget, ExternalLink, PlaylistItem, WidgetType } from '@/types/models';
@@ -340,6 +340,13 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     toast.success('Link adicionado à lista');
   };
 
+  // Duplicar: a cópia entra logo abaixo com a mesma mídia, duração e agendamento; vale depois de "Salvar Alterações".
+  const duplicateAt = (index: number) => {
+    setItems((prev) => duplicateItem(prev, index, newTempItemId()));
+    setHasUnsavedChanges(true);
+    toast.success('Item duplicado');
+  };
+
   const removeItem = (itemId: string) => {
     const newItems = items.filter(i => i.id !== itemId);
     updatePositions(newItems);
@@ -538,6 +545,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
                           item={item}
                           onChange={(updates) => updateSchedule(item.id, updates)}
                         />
+                        <ItemDuplicateButton onDuplicate={() => duplicateAt(index)} />
                         <Button
                           variant="ghost"
                           size="icon"

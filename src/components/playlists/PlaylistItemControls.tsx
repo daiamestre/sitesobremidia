@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -164,5 +164,28 @@ export function ItemScheduleButton({ item, onChange, disabled }: ScheduleButtonP
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+interface DuplicateButtonProps {
+  onDuplicate: () => void;
+  disabled?: boolean;
+}
+
+/** Duplica o item (cópia logo abaixo, com mesma mídia, duração e agendamento). Vale só depois de "Salvar". */
+export function ItemDuplicateButton({ onDuplicate, disabled }: DuplicateButtonProps) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      disabled={disabled}
+      onClick={onDuplicate}
+      aria-label="Duplicar mídia"
+      title="Duplicar mídia"
+      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+    >
+      <Copy className="h-4 w-4" />
+    </Button>
   );
 }

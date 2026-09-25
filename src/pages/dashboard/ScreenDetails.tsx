@@ -31,8 +31,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { format, formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date-fns';
 import { hasNewScreenshot, screenshotFooterText } from '@/utils/screenshotStatus';
-import { ItemDurationInput, ItemScheduleButton, type ScheduleUpdates } from '@/components/playlists/PlaylistItemControls';
-import { savePlaylistItems, scheduleSummary, hasSchedule, totalDurationSeconds, formatTotalDuration } from '@/lib/playlistItems';
+import { ItemDurationInput, ItemScheduleButton, ItemDuplicateButton, type ScheduleUpdates } from '@/components/playlists/PlaylistItemControls';
+import { savePlaylistItems, scheduleSummary, hasSchedule, totalDurationSeconds, formatTotalDuration, duplicateItem, newTempItemId } from '@/lib/playlistItems';
 import { probeVideoDuration } from '@/lib/mediaDuration';
 import { ptBR } from 'date-fns/locale';
 import { Screen, ScreenStatus, Playlist, Media, Widget, WidgetConfig, ExternalLink, PlaylistItem as ModelPlaylistItem } from '@/types/models';
@@ -814,6 +814,14 @@ export default function ScreenDetails() {
     const handleUpdateItem = (itemId: string, updates: Partial<PlaylistItem> & ScheduleUpdates) => {
         setPlaylistItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, ...updates } : i)));
         setHasUnsavedChanges(true);
+    };
+
+    // Duplicar: a cópia entra logo abaixo com a mesma mídia, duração e agendamento; vale depois de "Salvar Alterações"
+    // (gravação atômica; o Player aceita a mesma mídia repetida na playlist).
+    const handleDuplicateItem = (index: number) => {
+        setPlaylistItems((prev) => duplicateItem(prev, index, newTempItemId()));
+        setHasUnsavedChanges(true);
+        toast.success('Item duplicado. Clique em "Salvar Alterações" para enviar ao player.');
     };
 
     const handleMoveItem = (from: number, to: number) => {
@@ -1904,6 +1912,7 @@ return (
                                                         item={item}
                                                         onChange={(updates) => handleUpdateItem(item.id, updates)}
                                                     />
+                                                    <ItemDuplicateButton onDuplicate={() => handleDuplicateItem(index)} />
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
