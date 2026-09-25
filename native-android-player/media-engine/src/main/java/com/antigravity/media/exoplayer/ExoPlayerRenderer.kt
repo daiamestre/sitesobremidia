@@ -369,6 +369,55 @@ class ExoPlayerRenderer(
         }
     }
 
+    /**
+     * Anexa o PRÓXIMO clipe à playlist do MESMO ExoPlayer (TV Box de decodificador único: dois players decodificando ao mesmo
+     * tempo derrubam o codec). O ExoPlayer reaproveita o codec na virada e mantém o último quadro na tela: vídeo -> vídeo sem
+     * buraco preto. O clipe respeita o tempo configurado (corte no fim), como em [preBuffer]. Retorna o índice do clipe
+     * anexado na playlist do player, ou -1 se não foi possível.
+     */
+    suspend fun appendNext(item: MediaItem): Int {
+        val player = exoPlayer ?: return -1
+        val localPath = item.localPath
+        val hasLocal = localPath != null && withContext(Dispatchers.IO) { File(localPath).let { it.exists() && it.length() > 0 } }
+        val safeHash = item.hash.replace(Regex("[^a-zA-Z0-9_-]"), "")
+        val hashedFile = File(File(context.filesDir, "media_content"), "${item.id}_$safeHash.dat")
+        val fallbackFile = File(File(context.filesDir, "media_content"), "${item.id}.dat")
+        val uriString = when {
+            hasLocal && localPath != null -> "file://$localPath"
+            safeHash.isNotBlank() && hashedFile.exists() && hashedFile.length() > 0 -> "file://${hashedFile.absolutePath}"
+            fallbackFile.exists() && fallbackFile.length() > 0 -> "file://${fallbackFile.absolutePath}"
+            else -> item.remoteUrl
+        }
+        val builder = ExoMediaItem.Builder().setUri(Uri.parse(uriString)).setMediaId(item.id)
+        if (item.durationSeconds > 0) {
+            builder.setClippingConfiguration(
+                ExoMediaItem.ClippingConfiguration.Builder().setEndPositionMs(item.durationSeconds * 1000L).build()
+            )
+        }
+        player.addMediaItem(builder.build())
+        Logger.i("PLAYER_$instanceName", "Próximo clipe anexado (sem buraco): ${item.name} (índice ${player.mediaItemCount - 1})")
+        return player.mediaItemCount - 1
+    }
+
+    /** Remove o clipe anexado que ainda não começou (a playlist mudou antes da virada). */
+    fun removeAppended(index: Int) {
+        val player = exoPlayer ?: return
+        if (index in (player.currentMediaItemIndex + 1) until player.mediaItemCount) {
+            player.removeMediaItem(index)
+        }
+    }
+
+    /**
+     * A virada para o clipe anexado aconteceu: este item passa a ser o "atual" do renderizador e o que já tocou sai da
+     * playlist (mantém a memória baixa numa exibição contínua).
+     */
+    fun adoptCurrent(item: MediaItem) {
+        currentlyPreparedMediaId = item.id
+        currentPreparedItem = item
+        val player = exoPlayer ?: return
+        if (player.currentMediaItemIndex > 0) player.removeMediaItems(0, player.currentMediaItemIndex)
+    }
+
     override fun play() {
         if (exoPlayer == null) initializePlayer()
         exoPlayer?.play()

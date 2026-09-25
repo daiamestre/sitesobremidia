@@ -98,11 +98,72 @@ class MainActivity : AppCompatActivity() {
     private lateinit var playerView2: PlayerView
     private lateinit var standbyImage: ImageView
     private lateinit var staticImageLayer: ImageView // Motor Estático
+    private lateinit var staticImageLayer2: ImageView // Motor Estático (revezamento p/ cruzamento)
+    // Palco de reprodução profissional: tempo exato, pré-carga do próximo item e cruzamento entre mídias
+    private lateinit var playbackStage: com.antigravity.player.playback.PlaybackStage
     private lateinit var nativeWidgetContainer: FrameLayout
     // WebViews removidas permanentemente (Widgets 100% Nativos)
 
     // [P0.4.6] Canonical Runtime Surface Consumer
     private lateinit var surfaceConsumer: RuntimeSurfaceConsumer
+
+    // Ponte entre o palco de reprodução e o resto da Activity (arquivo local, widget, watchdog, tela de sincronização).
+    private val stageHooks = object : com.antigravity.player.playback.PlaybackStage.Hooks {
+        override suspend fun resolveFile(item: MediaItem): java.io.File? {
+            val storageManager = ServiceLocator.getFileStorageManager(applicationContext)
+            val hashedFile = storageManager.getFileForMedia(item.id, item.hash)
+            val legacyFile = java.io.File(java.io.File(filesDir, "media_content"), "${item.id}.dat")
+            val directPath = item.localPath
+            val directPathFile = if (!directPath.isNullOrBlank()) java.io.File(directPath) else null
+            val localFile = when {
+                directPathFile != null && directPathFile.exists() && directPathFile.length() > 0 -> directPathFile
+                hashedFile.exists() && hashedFile.length() > 0 -> hashedFile
+                legacyFile.exists() && legacyFile.length() > 0 -> legacyFile
+                else -> com.antigravity.player.util.CacheManager.verificarEBaixar(this@MainActivity, item.remoteUrl, hashedFile.name)
+            }
+            if (!localFile.exists() || localFile.length() <= 0L) {
+                Logger.e("PLAYBACK_STAGE", "Arquivo crítico ausente/0 bytes: ${item.name}")
+                exibirAlertaDeMidiaCorrompida(item.name)
+                return null
+            }
+            return localFile
+        }
+
+        override suspend fun renderWidget(item: MediaItem) {
+            com.antigravity.player.util.NativeWidgetEngine.renderWidget(this@MainActivity, nativeWidgetContainer, item.remoteUrl)
+        }
+
+        override fun mediaVisible() {
+            viewModel.confirmarMidiaPronta()
+            statusTextView.visibility = View.GONE
+            standbyImage.visibility = View.GONE
+        }
+
+        override fun videoShown(player: androidx.media3.common.Player, active: ExoPlayerRenderer, standby: ExoPlayerRenderer) {
+            activePlayer = active
+            standbyPlayer = standby
+            playbackWatchdog.watch(player)
+        }
+
+        override fun nonVideoShown() {
+            if (::playbackWatchdog.isInitialized) playbackWatchdog.stop()
+        }
+
+        override fun itemFinished() {
+            if (::playbackWatchdog.isInitialized) playbackWatchdog.reset()
+        }
+
+        // O detector força o EMULADOR em modo legado. Para TESTAR o caminho de decodificador duplo (aparelho moderno) no
+        // emulador: criar files/force_dual_decoder (depuração; em produção o arquivo não existe).
+        override fun isLegacyHardware(): Boolean =
+            com.antigravity.media.exoplayer.ChipsetDetector.getRecommendedProfile() ==
+                com.antigravity.media.exoplayer.ChipsetDetector.HardwareProfile.LEGACY_STABILITY &&
+                !java.io.File(filesDir, "force_dual_decoder").exists()
+
+        override fun log(state: String, details: String) {
+            logBlackBox(state, details)
+        }
+    }
 
     private val surfaceTarget = object : SurfaceTarget {
         override fun showLoginSurface() {
@@ -144,7 +205,9 @@ class MainActivity : AppCompatActivity() {
                 syncGuard.releaseLock()
                 statusTextView.visibility = View.GONE
                 blockOverlay.visibility = View.GONE
-                playerView1.visibility = View.VISIBLE
+                // Restaura a camada do item que está na tela (forçar o playerView1 aqui punha um retângulo preto por cima
+                // da imagem/vídeo quando a camada atual era outra).
+                if (::playbackStage.isInitialized) playbackStage.restoreShown()
                 standbyImage.visibility = View.GONE
             }
         }
@@ -337,12 +400,14 @@ class MainActivity : AppCompatActivity() {
         standbyImage = findViewById<ImageView>(R.id.standbyImage)
         blockOverlay = findViewById<FrameLayout>(R.id.block_overlay)
         staticImageLayer = findViewById<ImageView>(R.id.static_image_layer)
+        staticImageLayer2 = findViewById<ImageView>(R.id.static_image_layer2)
         nativeWidgetContainer = findViewById<FrameLayout>(R.id.native_widget_container)
         
         // [P0.4.6] Inicializa consumidor de projeção de superfície
         surfaceConsumer = RuntimeSurfaceConsumer(surfaceTarget)
         
         hideAllLayers()
+        com.antigravity.player.util.PlaybackProbe.startIfEnabled(this) // depuração: só liga com files/probe_enabled
         
         // A camada de standby (antes logo sobre preto) NÃO aparece no boot: o que o usuário vê primeiro é a
         // tela de sincronização, já visível no layout (nada pode piscar antes dela).
@@ -597,6 +662,19 @@ class MainActivity : AppCompatActivity() {
             
             activePlayer = playerRenderer1
             standbyPlayer = playerRenderer2
+
+            playbackStage = com.antigravity.player.playback.PlaybackStage(
+                activity = this,
+                scope = lifecycleScope,
+                layers = com.antigravity.player.playback.PlaybackStage.Layers(
+                    video1 = playerView1, video2 = playerView2,
+                    image1 = staticImageLayer, image2 = staticImageLayer2,
+                    widget = nativeWidgetContainer
+                ),
+                r1 = playerRenderer1,
+                r2 = playerRenderer2,
+                hooks = stageHooks
+            )
         
             // Attach ExoPlayers to Views
             playerView1.player = playerRenderer1.getPlayerInstance()
@@ -713,6 +791,7 @@ class MainActivity : AppCompatActivity() {
                             // que tocava a próxima mídia (e o áudio) por baixo do aviso de bloqueio.
                             playbackLoopJob?.cancel()
                             playbackLoopJob = null
+                            if (::playbackStage.isInitialized) playbackStage.forget()
                             if (::playbackWatchdog.isInitialized) playbackWatchdog.stop()
                             playerRenderer1.stop()
                             playerRenderer2.stop()
@@ -1386,320 +1465,17 @@ withContext(Dispatchers.Main) {
     // [INDUSTRIAL ENGINES] ISOLATED PLAYBACK MOTORS
     // ========================================================================
     
-    private suspend fun engineVideo(item: MediaItem, nextItem: MediaItem, audioEnabled: Boolean): Boolean {
-        logBlackBox("ENGINE_VIDEO", "Target: ${item.name}")
-        val durationMs = item.durationSeconds * 1000L
-        
-        val storageManager = ServiceLocator.getFileStorageManager(applicationContext)
-        val hashedFile = storageManager.getFileForMedia(item.id, item.hash)
-        val legacyFile = java.io.File(java.io.File(filesDir, "media_content"), "${item.id}.dat")
-        val directPath = item.localPath
-        val directPathFile = if (!directPath.isNullOrBlank()) java.io.File(directPath) else null
-
-        val localFile = when {
-            directPathFile != null && directPathFile.exists() && directPathFile.length() > 0 -> directPathFile
-            hashedFile.exists() && hashedFile.length() > 0 -> hashedFile
-            legacyFile.exists() && legacyFile.length() > 0 -> legacyFile
-            else -> com.antigravity.player.util.CacheManager.verificarEBaixar(this@MainActivity, item.remoteUrl, hashedFile.name)
-        }
-        
-        if (!localFile.exists() || localFile.length() <= 0L) {
-            Logger.e("ENGINE_VIDEO", "File critical failure: Mídia ${item.name} não existe ou tem 0 bytes.")
-            exibirAlertaDeMidiaCorrompida(item.name)
-            return true 
-        }
-
-        val resolvedItem = item.copy(localPath = localFile.absolutePath)
-        
-        val currentPlayingEngine = activePlayer
-        // Muta para cortar o estalo inicial
-        currentPlayingEngine?.setAudioEnabled(false, reason = "engineVideo_initial_mute", mediaId = item.id)
-        
-        val viewToFadeIn = if (currentPlayingEngine == playerRenderer1) playerView1 else playerView2
-        val viewToFadeOut = if (currentPlayingEngine == playerRenderer1) playerView2 else playerView1
-        runOnUiThread {
-            viewToFadeIn.alpha = 0f 
-            viewToFadeIn.visibility = View.VISIBLE
-
-            
-            lifecycleScope.launch {
-                try {
-                    // [SINGLE DECODER FIX] TV Boxes will crash the hardware codec (DecoderInitFailed)
-                    // if we try to prepare the activePlayer while the standbyPlayer is still holding the decoder!
-                    // For non-high-performance devices, we sacrifice seamless transition to ensure playback continues.
-                    val profile = com.antigravity.media.exoplayer.ChipsetDetector.getRecommendedProfile()
-                    if (profile == com.antigravity.media.exoplayer.ChipsetDetector.HardwareProfile.LEGACY_STABILITY) {
-                        standbyPlayer?.stop()
-                    }
-
-                    // Garante que o player ativo preparou este item
-                    currentPlayingEngine?.prepare(resolvedItem)
-                    
-                    val rawPlayer = currentPlayingEngine?.getPlayerInstance()
-                    
-                    val listener = object : androidx.media3.common.Player.Listener {
-                        private var swapped = false
-
-                        private fun executeSwap() {
-                            if (!swapped) {
-                                swapped = true
-                                runOnUiThread {
-                                    viewModel.confirmarMidiaPronta()
-                                    statusTextView.visibility = View.GONE
-                                    performSeamlessSwap(viewToFadeOut, viewToFadeIn, currentPlayingEngine, audioEnabled)
-                                    val p = currentPlayingEngine?.getPlayerInstance()
-                                    if (p != null) {
-                                        playbackWatchdog.watch(p)
-                                    }
-                                }
-                                rawPlayer?.removeListener(this)
-                            }
-                        }
-
-                        override fun onRenderedFirstFrame() {
-                            // [GATILHO PRIMARIO] Momento em que um frame REAL foi
-                            // apresentado na superficie. Unico ponto seguro para a
-                            // troca de visibilidade sem flash preto/logo.
-                            // (Correcao: antes, STATE_READY disparava primeiro e a
-                            // superficie ainda nao tinha frame -> tela preta + logo.)
-                            if (!swapped) {
-                                Logger.i("SEAMLESS_SWAP", "[SEAMLESS_SWAP] onRenderedFirstFrame recebido! Frame real na superficie. Swapping.")
-                                executeSwap()
-                            }
-                        }
-
-                        override fun onPlaybackStateChanged(playbackState: Int) {
-                            // [FALLBACK 1] Apenas sinaliza que o player buffers Ready.
-                            // A troca real eh gatilhoada pelo onRenderedFirstFrame (frame real na superficie).
-                            // O delayed anterior de 350ms causava tela preta + logo porque a superficie
-                            // ainda nao tinha frame desenhado. A flag swapped impede swap duplicado se
-                            // onRenderedFirstFrame Chegar antes.
-                            if (playbackState == androidx.media3.common.Player.STATE_READY && !swapped) {
-                                Logger.i("SEAMLESS_SWAP", "[SEAMLESS_SWAP] STATE_READY: recebido, mas swap sera conduzido por onRenderedFirstFrame.")
-                            }
-                        }
-
-                        override fun onIsPlayingChanged(isPlaying: Boolean) {
-                            // [FALLBACK 2] Rede de seguranca final para hardwares que
-                            // nao disparam nenhum dos dois eventos acima.
-                            if (isPlaying && !swapped) {
-                                Handler(Looper.getMainLooper()).postDelayed({ executeSwap() }, 1200)
-                            }
-                        }
-                    }
-                    rawPlayer?.addListener(listener)
-                    
-                    currentPlayingEngine?.play() // Inicia reprodução
-
-                    
-                } catch (e: Exception) {
-                    Logger.e("ANTIGRAVITY", "Exceção no Play Async: ${e.message}")
-                    runOnUiThread { 
-                        viewModel.confirmarMidiaPronta()
-                        viewToFadeOut.animate().alpha(0f).setDuration(300).start()
-                        standbyImage.visibility = View.VISIBLE 
-                    }
-                }
-            }
-        }
-        
-        // [V3 STRICT DOUBLE BUFFER ENGINE] Active Polling Frame Loop
-        val startTime = System.currentTimeMillis()
-        var nextPreloaded = false
-        
-        while (kotlinx.coroutines.currentCoroutineContext().isActive) {
-            val player = currentPlayingEngine?.getPlayerInstance()
-            if (player == null) {
-                delay(durationMs)
-                break
-            }
-            
-            val currentPos = player.currentPosition
-            val rawVideoDurationMs = if (player.duration > 0) player.duration else durationMs
-            val realDurationMs = if (durationMs > 0L) minOf(durationMs, rawVideoDurationMs) else rawVideoDurationMs
-            val remaining = realDurationMs - currentPos
-            
-            // 1. Gatilho de Pre-Buffering (Exatos 5 Segundos antes do Fim)
-            if (remaining <= 5000L && !nextPreloaded) {
-                val profile = com.antigravity.media.exoplayer.ChipsetDetector.getRecommendedProfile()
-                if (profile != com.antigravity.media.exoplayer.ChipsetDetector.HardwareProfile.LEGACY_STABILITY) {
-                    Logger.i("SEAMLESS_DIAGNOSTIC", "Buffer Readiness Triggered. Pre-Loading next: ${nextItem.name}")
-                    lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                        when (nextItem.type) {
-                            MediaType.VIDEO, MediaType.IMAGE -> {
-                                // [P0-A] Política de Áudio APLICADA ANTES DO PREPARE!
-                                standbyPlayer?.setAudioEnabled(audioEnabled, reason = "preBuffer", mediaId = nextItem.id)
-                                standbyPlayer?.preBuffer(nextItem)
-                            }
-                            else -> {}
-                        }
-                    }
-                } else {
-                    Logger.w("SEAMLESS_DIAGNOSTIC", "Hardware Fraco (1GB RAM): Pre-buffer desativado para economizar GPU/RAM.")
-                }
-                nextPreloaded = true
-            }
-            
-            // 2. Ponte de Corte (100ms antes do fim real para evitar a tela preta intrínseca de conclusão)
-            if (remaining <= 100L && currentPos > 0) {
-                Logger.i("SEAMLESS_DIAGNOSTIC", "Encerramento Seamless (-100ms). Devolvendo controle de engine.")
-                break
-            }
-            
-            // 3. Failsafe global
-            if (System.currentTimeMillis() - startTime > realDurationMs + 5000L) {
-                Logger.e("SEAMLESS_DIAGNOSTIC", "Tempo expirado forçadamente")
-                break
-            }
-            
-            delay(30) // Otimizado: 30ms (33Hz) economiza CPU/bateria em TV Boxes sem aquecer SoCs
-        }
-        
-        // [STABILITY] Reset watchdog for next item
-        playbackWatchdog.reset()
-        
-        return false
-    }
-
-    private suspend fun engineStatic(item: MediaItem): Boolean {
-        logBlackBox("ENGINE_STATIC", "Loading: ${item.name}")
-        val durationMs = item.durationSeconds * 1000L
-        
-        // [SURVIVOR PLAN] Ensure file exists locally before loading image
-        val storageManager = ServiceLocator.getFileStorageManager(applicationContext)
-        val hashedFile = storageManager.getFileForMedia(item.id, item.hash)
-        val legacyFile = java.io.File(java.io.File(filesDir, "media_content"), "${item.id}.dat")
-        val directPath = item.localPath
-        val directPathFile = if (!directPath.isNullOrBlank()) java.io.File(directPath) else null
-
-        val localFile = when {
-            directPathFile != null && directPathFile.exists() && directPathFile.length() > 0 -> directPathFile
-            hashedFile.exists() && hashedFile.length() > 0 -> hashedFile
-            legacyFile.exists() && legacyFile.length() > 0 -> legacyFile
-            else -> com.antigravity.player.util.CacheManager.verificarEBaixar(this@MainActivity, item.remoteUrl, hashedFile.name)
-        }
-        
-        // [ANTI-CAOS] Validação Física Categórica.
-        if (!localFile.exists() || localFile.length() <= 0L) {
-            Logger.e("ENGINE_STATIC", "File critical failure: Imagem ${item.name} não existe ou tem 0 bytes. Pulando.")
-            exibirAlertaDeMidiaCorrompida(item.name)
-            return true 
-        }
-        
-        // Use local path for Glide to ensure ZERO egress
-        val path = localFile.absolutePath
-        
-        runOnUiThread {
-            val profile = com.antigravity.media.exoplayer.ChipsetDetector.getRecommendedProfile()
-            val glideRequest = Glide.with(this@MainActivity)
-                .load(path)
-                .diskCacheStrategy(DiskCacheStrategy.ALL)
-            
-            // [PERFORMANCE] Downsample images on legacy/emulator hardware to save RAM
-            if (profile == com.antigravity.media.exoplayer.ChipsetDetector.HardwareProfile.LEGACY_STABILITY) {
-                glideRequest.override(1280, 720) 
-            }
-            
-            // [ZERO-GAP GATEKEEPER]
-            // Atrela o destravamento da tela de Sincronismo apenas quando a imagem for carregada no ImageView
-            glideRequest.listener(object : com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable> {
-                override fun onLoadFailed(
-                    e: com.bumptech.glide.load.engine.GlideException?,
-                    model: Any?,
-                    target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>,
-                    isFirstResource: Boolean
-                ): Boolean {
-                    Logger.e("ENGINE_STATIC", "Falha ao carregar imagem para o pre-roll: ${e?.message}")
-                    return false
-                }
-
-                override fun onResourceReady(
-                    resource: android.graphics.drawable.Drawable,
-                    model: Any,
-                    target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>?,
-                    dataSource: com.bumptech.glide.load.DataSource,
-                    isFirstResource: Boolean
-                ): Boolean {
-                    runOnUiThread {
-                        viewModel.confirmarMidiaPronta()
-                    }
-                    return false
-                }
-            }).into(staticImageLayer)
-            
-            staticImageLayer.visibility = View.VISIBLE
-            statusTextView.visibility = View.GONE
-            
-            // Explicitly hide non-image layers to prevent overlap.
-            // [DOUBLE BUFFERING] Usamos INVISIBLE invés de GONE para não quebrar as referências das Surfaces na memória
-            playerView1.visibility = View.INVISIBLE
-            playerView2.visibility = View.INVISIBLE
-            nativeWidgetContainer.visibility = View.GONE
-            standbyImage.visibility = View.GONE
-            
-            // [PERFORMANCE] Stop active video engine to free hardware decoders
-            // DO NOT stop standby player as it is pre-buffering the next item.
-            if (activePlayer == playerRenderer1) {
-                playerRenderer1.stop()
-            } else {
-                playerRenderer2.stop()
-            }
-        }
-        
-        delay(durationMs)
-        return false
-    }
-
-    private suspend fun engineWidget(item: MediaItem): Boolean {
-        logBlackBox("ENGINE_WIDGET", "Native rendering: ${item.remoteUrl}")
-
-        // 1. Oculta todos os layers e mostra o container nativo
-        runOnUiThread {
-            nativeWidgetContainer.visibility = View.VISIBLE
-            
-            // Oculta vídeo e imagem
-            // [DOUBLE BUFFERING] Usamos INVISIBLE invés de GONE para as Surfaces sobreviverem
-            playerView1.visibility = View.INVISIBLE
-            playerView2.visibility = View.INVISIBLE
-            staticImageLayer.visibility = View.GONE
-            standbyImage.visibility = View.GONE
-            
-            // Pausa processamento de vídeo do player ativo
-            // [HARD LIMITER] Para o engine, mas mantém o Hard-Bind
-            playerRenderer1.stop()
-            playerRenderer2.stop()
-        }
-
-        // 2. Renderiza a Interface diretamente no Layout Nativo do Android
-        com.antigravity.player.util.NativeWidgetEngine.renderWidget(this@MainActivity, nativeWidgetContainer, item.remoteUrl)
-
-        // [ZERO-GAP GATEKEEPER]
-        // Widgets nativos são carregados de forma quase instantânea na UI thread, 
-        // então assim que a view é populada, podemos liberar a tela de Sync.
-        runOnUiThread {
-            viewModel.confirmarMidiaPronta()
-        }
-
-        // 3. Aguarda duração programada
-        val durationMs = item.durationSeconds * 1000L
-        kotlinx.coroutines.delay(durationMs)
-        
-        return false
-    }
-
-    private suspend fun engineLink(item: MediaItem): Boolean {
-        return engineWidget(item) 
-    }
-
     private fun hideAllLayers() {
         runOnUiThread {
             // [TEORIA DO SURFACE] Mantém os players invisíveis em vez de GONE no reset geral,
             // para que a Surface se prepare antes que o primeiro vídeo toque.
             playerView1.visibility = View.INVISIBLE
             playerView2.visibility = View.INVISIBLE
-            staticImageLayer.visibility = View.GONE
+            staticImageLayer.visibility = View.INVISIBLE
+            if (::staticImageLayer2.isInitialized) staticImageLayer2.visibility = View.INVISIBLE
             standbyImage.visibility = View.GONE
             nativeWidgetContainer.visibility = View.GONE
+            if (::playbackStage.isInitialized) playbackStage.forget()
         }
     }
 
@@ -1753,6 +1529,7 @@ withContext(Dispatchers.Main) {
         val previousLoop = playbackLoopJob
         playbackLoopJob = lifecycleScope.launch {
             previousLoop?.cancelAndJoin()
+            if (::playbackStage.isInitialized) playbackStage.restartTimeline()
 
             logBlackBox("BOOT", "Armor Initialized")
             delay(100)
@@ -1833,17 +1610,8 @@ withContext(Dispatchers.Main) {
                     
                     Logger.i("AUDIO_FORENSIC", "[AUDIO_FORENSIC] screenId=${com.antigravity.sync.service.SessionManager.currentUserId} playlistId=${playlist.id} audioEnabled=${playlist.audioEnabled} playerInstanceId=${activePlayer?.instanceIdentifier} mediaId=${item.id} volume=${activePlayer?.getPlayerInstance()?.volume}")
                     // 3. EXECUÇÃO PELOS MOTORES (Isolamento de Hardware)
-                    val skipOnFail = when (item.type) {
-                        MediaType.VIDEO -> engineVideo(item, nextItem, playlist.audioEnabled)
-                        MediaType.IMAGE -> engineStatic(item)
-                        MediaType.WEB_WIDGET -> engineWidget(item)
-                        MediaType.EXTERNAL_LINK -> engineLink(item)
-                        MediaType.STREAM_RTSP, MediaType.STREAM_HLS -> engineVideo(item, nextItem, playlist.audioEnabled)
-                        else -> {
-                            logBlackBox("SKIP", "Untracked type: ${item.type}")
-                            true
-                        }
-                    }
+                    // O palco cuida do tempo exato, da pré-carga do próximo item e do cruzamento entre mídias.
+                    val skipOnFail = playbackStage.play(item, nextItem, playlist.audioEnabled)
 
                     if (skipOnFail) {
                         logBlackBox("RECOVERY", "Skipping failed item: ${item.name}")
@@ -1858,12 +1626,6 @@ withContext(Dispatchers.Main) {
                         logBlackBox("RECOVERY", "Aguardando 2000ms GPU cooldown.")
                         delay(2000L) 
                     } else {
-                        // 5. Swap de Players de Vídeo (SEMPRE)
-                        // This ensures the standbyPlayer (which just prebuffered nextItem)
-                        // becomes the activePlayer for the next loop iteration.
-                        val temp = activePlayer
-                        activePlayer = standbyPlayer
-                        standbyPlayer = temp
                         
                         // [CRITICAL FIX] Marca como tocado garantindo o avanço
                         queueManager.markAsProcessed(item)

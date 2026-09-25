@@ -55,6 +55,15 @@
             android:scaleType="fitCenter"
             android:visibility="invisible"
             android:background="@android:color/black" />
+
+        <!-- Segunda camada de imagem: revezamento com a primeira para o cruzamento imagem -> imagem sem piscar -->
+        <ImageView
+            android:id="@+id/static_image_layer2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:visibility="invisible"
+            android:background="@android:color/black" />
     </FrameLayout>
 
     <!-- Layer 2: Native Widget Engine Overlay -->
