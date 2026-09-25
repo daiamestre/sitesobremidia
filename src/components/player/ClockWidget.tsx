@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { brasiliaDateLong, brasiliaHour, brasiliaTime, useBrasiliaClock } from '@/lib/brasiliaTime';
 
 interface ClockWidgetProps {
     showDate?: boolean;
@@ -16,53 +15,31 @@ declare global {
     }
 }
 
+const saudacao = (hora: number) => (hora >= 5 && hora < 12 ? 'Bom dia' : hora >= 12 && hora < 18 ? 'Boa tarde' : 'Boa noite');
+
+/**
+ * Relógio + data SEMPRE no Horário de Brasília (America/Sao_Paulo), com o relógio corrigido pela hora do servidor.
+ * O fuso injetado pela ponte nativa/localStorage é ignorado de propósito: só a cidade/estado são usados na saudação.
+ */
 export function ClockWidget({ showDate = true, showSeconds = false, backgroundImage, className }: ClockWidgetProps) {
-    const [time, setTime] = useState(new Date());
-    const [city, setCity] = useState("Local");
-    const [state, setStateName] = useState("");
-    const [timezone, setTimezone] = useState<string | null>(null);
+    const agora = useBrasiliaClock(showSeconds);
+    const [city, setCity] = useState('Local');
+    const [state, setStateName] = useState('');
 
     useEffect(() => {
-        // [PUSH ARCHITECTURE] Native Android Bridge Callback
-        window.configurarWidget = (injectedCity: string, injectedState: string, injectedTz: string) => {
-            console.log(`[Pushed ConfigurarWidget] Relógio regionalizado para: ${injectedCity}-${injectedState}`);
+        window.configurarWidget = (injectedCity: string, injectedState: string) => {
             if (injectedCity) setCity(injectedCity);
             if (injectedState) setStateName(injectedState);
-            if (injectedTz && injectedTz !== "UTC" && injectedTz !== "null") setTimezone(injectedTz);
         };
-
-        // Fallback or previously stored check (optional, but good for Dev environments)
-        const storedCity = localStorage.getItem('player_city');
-        const storedState = localStorage.getItem('player_state');
-        const storedTz = localStorage.getItem('player_timezone');
-
-        if (storedCity && city === "Local") setCity(storedCity);
-        if (storedState && state === "") setStateName(storedState);
-        if (storedTz && storedTz !== "UTC" && timezone === null) setTimezone(storedTz);
-
-        const timer = setInterval(() => {
-            // Se tivermos timezone injetado, criamos a Data já ajustada (Simplificado sem date-fns-tz extra lib)
-            if (timezone) {
-                try {
-                    const tzTime = new Date(new Date().toLocaleString("en-US", { timeZone: timezone }));
-                    setTime(tzTime);
-                } catch (e) {
-                    setTime(new Date());
-                }
-            } else {
-                setTime(new Date());
-            }
-        }, 1000);
-        return () => clearInterval(timer);
-    }, [timezone]);
-
-    // Greeting logic
-    const getGreeting = () => {
-        const hour = time.getHours();
-        if (hour >= 5 && hour < 12) return "Bom dia";
-        if (hour >= 12 && hour < 18) return "Boa tarde";
-        return "Boa noite";
-    }
+        try {
+            const storedCity = localStorage.getItem('player_city');
+            const storedState = localStorage.getItem('player_state');
+            if (storedCity) setCity(storedCity);
+            if (storedState) setStateName(storedState);
+        } catch {
+            // armazenamento indisponível: sem cidade na saudação
+        }
+    }, []);
 
     return (
         <div className={cn("relative flex flex-col items-center justify-center p-4 text-white overflow-hidden", className)}>
@@ -74,16 +51,17 @@ export function ClockWidget({ showDate = true, showSeconds = false, backgroundIm
             )}
             <div className="relative z-10 flex flex-col items-center drop-shadow-2xl">
                 <p className="text-3xl font-medium mb-4 text-white/90">
-                    {getGreeting()}{city !== "Local" ? `, ${city} - ${state}` : ""}
+                    {saudacao(brasiliaHour(agora))}{city !== 'Local' ? `, ${city} - ${state}` : ''}
                 </p>
-                <h2 className="text-8xl font-black tracking-tighter">
-                    {format(time, showSeconds ? 'HH:mm:ss' : 'HH:mm')}
+                <h2 className="text-8xl font-black tracking-tighter tabular-nums" data-testid="clock-time">
+                    {brasiliaTime(agora, showSeconds)}
                 </h2>
                 {showDate && (
-                    <p className="text-3xl mt-4 font-light opacity-80 uppercase tracking-widest">
-                        {format(time, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                    <p className="text-3xl mt-4 font-light opacity-80 tracking-widest" data-testid="clock-date">
+                        {brasiliaDateLong(agora)}
                     </p>
                 )}
+                <p className="text-xs mt-3 tracking-[0.3em] text-white/60">HORÁRIO DE BRASÍLIA</p>
             </div>
         </div>
     );

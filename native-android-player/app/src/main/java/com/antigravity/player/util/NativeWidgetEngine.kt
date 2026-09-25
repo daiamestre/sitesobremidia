@@ -14,7 +14,6 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.TextClock
 import android.widget.TextView
 import androidx.core.widget.TextViewCompat
 import com.antigravity.core.util.Logger
@@ -28,6 +27,8 @@ import com.antigravity.player.widget.WeatherText
 import com.antigravity.player.widget.WidgetKind
 import com.antigravity.player.widget.WidgetSpec
 import com.antigravity.player.widget.WidgetSpecParser
+import com.antigravity.player.widget.BrasiliaTime
+import com.antigravity.core.util.TimeManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.request.RequestOptions
@@ -37,11 +38,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
@@ -223,14 +220,6 @@ object NativeWidgetEngine {
 
     // ------------------------------------------------------------------ visual
 
-    private fun zone(): TimeZone {
-        if (RegionalContextManager.isContextLoaded && RegionalContextManager.timezone != "UTC") {
-            val tz = TimeZone.getTimeZone(RegionalContextManager.timezone)
-            if (tz.id == RegionalContextManager.timezone) return tz
-        }
-        return TimeZone.getDefault()
-    }
-
     private fun px(v: Float) = v.toInt()
 
     private fun rootWith(context: Context, bg: Bitmap?, scrimAlpha: Int, colors: IntArray): FrameLayout {
@@ -287,45 +276,42 @@ object NativeWidgetEngine {
     private fun buildClock(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float): View {
         val root = rootWith(context, bg, 90, intArrayOf(Color.parseColor("#1e3c72"), Color.parseColor("#0b1330")))
         val box = content(context, spec.position, base)
-        val tz = zone()
         val color = runCatching { Color.parseColor(spec.textColor ?: "#FFFFFF") }.getOrDefault(Color.WHITE)
+        val soft = { a: Int -> Color.argb(a, Color.red(color), Color.green(color), Color.blue(color)) }
 
-        val greeting = text(context, base * 0.05f, color = Color.argb(230, Color.red(color), Color.green(color), Color.blue(color)))
+        val greeting = text(context, base * 0.05f, color = soft(230))
         box.addView(greeting, lp())
 
-        val clock = TextClock(context).apply {
-            timeZone = tz.id
-            format24Hour = if (spec.showSeconds) "HH:mm:ss" else "HH:mm"
-            format12Hour = if (spec.format24h) format24Hour else if (spec.showSeconds) "hh:mm:ss a" else "hh:mm a"
-            setTextColor(color)
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            maxLines = 1
-            includeFontPadding = false
+        // Horário de Brasília a partir do relógio SINCRONIZADO (NTP), nunca do fuso/relógio do aparelho.
+        val clock = text(context, base * 0.30f, bold = true, color = color).apply {
             setShadowLayer(base * 0.02f, 0f, base * 0.01f, Color.argb(170, 0, 0, 0))
         }
         fitOneLine(clock, base * 0.06f, base * 0.30f)
         box.addView(clock, lp(h = px(base * 0.32f), top = px(base * 0.02f)))
 
-        val date = text(context, base * 0.05f, color = Color.argb(220, Color.red(color), Color.green(color), Color.blue(color)))
-        date.letterSpacing = 0.12f
+        val date = text(context, base * 0.045f, color = soft(220)).apply { letterSpacing = 0.12f }
         if (spec.showDate) box.addView(date, lp(top = px(base * 0.02f)))
+
+        val label = text(context, base * 0.026f, color = soft(170)).apply { letterSpacing = 0.2f; text = "HORÁRIO DE BRASÍLIA" }
+        box.addView(label, lp(top = px(base * 0.03f)))
         root.addView(box)
 
-        val fmt = SimpleDateFormat("EEEE, d 'de' MMMM", Locale("pt", "BR")).apply { timeZone = tz }
-        val refresh = object : Runnable {
+        fun paint(now: Long) {
+            clock.text = BrasiliaTime.time(now, spec.showSeconds, spec.format24h)
+            date.text = BrasiliaTime.dateLong(now)
+            greeting.text = WeatherText.greeting(BrasiliaTime.hourOfDay(now))
+        }
+        val tick = object : Runnable {
             override fun run() {
                 if (!root.isAttachedToWindow && root.parent == null) return
-                val hour = Calendar.getInstance(tz).get(Calendar.HOUR_OF_DAY)
-                greeting.text = WeatherText.greeting(hour)
-                date.text = fmt.format(Date()).uppercase(Locale("pt", "BR"))
-                uiHandler.postDelayed(this, 20_000L)
+                val now = TimeManager.utcMillis()
+                paint(now)
+                // agenda na virada exata do próximo segundo/minuto: sem deriva e sem "pular" números
+                uiHandler.postDelayed(this, BrasiliaTime.msUntilNextTick(TimeManager.utcMillis(), spec.showSeconds))
             }
         }
-        val hour = Calendar.getInstance(tz).get(Calendar.HOUR_OF_DAY)
-        greeting.text = WeatherText.greeting(hour)
-        date.text = fmt.format(Date()).uppercase(Locale("pt", "BR"))
-        bindToLifecycle(root, refresh)
+        paint(TimeManager.utcMillis())
+        bindToLifecycle(root, tick)
         return root
     }
 
