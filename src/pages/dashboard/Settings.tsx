@@ -8,9 +8,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Shield, Bell, Loader2, Send } from 'lucide-react';
 import { toast } from 'sonner';
+import { SystemInfoCard } from '@/components/settings/SystemInfoCard';
 
 export default function Settings() {
-  const { profile, user } = useAuth();
+  const { profile, user, usuario } = useAuth();
+  // Fonte oficial do perfil (AGENTS.md §7): perfil.nome, ou OWNER pelo is_owner
+  const perfilNome = usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : null);
+  const isGestaoTopo = perfilNome === 'OWNER' || perfilNome === 'ADMIN';
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [offlineThreshold, setOfflineThreshold] = useState(5);
   const [isSaving, setIsSaving] = useState(false);
@@ -93,6 +97,8 @@ export default function Settings() {
         <h1 className="text-3xl font-display font-bold">Configurações</h1>
         <p className="text-muted-foreground">Gerencie suas preferências e dados da conta</p>
       </div>
+
+      {isGestaoTopo && <SystemInfoCard />}
 
       {/* Profile Card */}
       <Card className="glass">
