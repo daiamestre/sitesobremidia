@@ -111,32 +111,24 @@ class PlaybackEngineRulesTest {
     @Test fun fade_unknownEffectDefaultsToFade() =
         assertEquals(500L, TransitionPolicy.fadeMs(null, 6_000, true, false))
 
-    // ---------------- vídeo preenche o tempo configurado ----------------
-    @Test fun video_longerThanConfigured_isCutAtTheConfiguredTime() {
-        val p = VideoFillPlan.plan(configuredMs = 6_000, realMs = 15_000)
-        assertFalse(p.loop); assertEquals(6_000L, p.playMs)
+    // ---------------- vídeo x tempo configurado ----------------
+    @Test fun video_longerThanConfigured_isCutAtTheConfiguredTime() =
+        assertEquals(6_000L, VideoFillPlan.plan(configuredMs = 6_000, realMs = 15_000).playMs)
+
+    @Test fun video_shorterThanConfigured_playsOnceFully_neverRepeats() {
+        // ACADEMIA 3: 17,7 s real configurado em 23 s. A 5.4.0 voltava ao início e cortava aos 23 s (repetição distorcida
+        // no tablet Unisoc). Agora toca uma vez inteiro e a playlist segue.
+        assertEquals(17_700L, VideoFillPlan.plan(configuredMs = 23_000, realMs = 17_700).playMs)
     }
 
-    @Test fun video_shorterThanConfigured_loopsToFillTheTime() {
-        val p = VideoFillPlan.plan(configuredMs = 30_000, realMs = 12_000)
-        assertTrue("antes o vídeo de 12 s configurado em 30 s parava aos 12 s", p.loop)
-        assertEquals(30_000L, p.playMs)
-    }
+    @Test fun video_sameAsConfigured_playsOnce() =
+        assertEquals(12_000L, VideoFillPlan.plan(configuredMs = 12_000, realMs = 12_100).playMs)
 
-    @Test fun video_sameAsConfigured_playsOnce() {
-        val p = VideoFillPlan.plan(configuredMs = 12_000, realMs = 12_100)
-        assertFalse(p.loop); assertEquals(12_000L, p.playMs)
-    }
+    @Test fun video_configuredZero_meansFullVideo() =
+        assertEquals(9_400L, VideoFillPlan.plan(configuredMs = 0, realMs = 9_400).playMs)
 
-    @Test fun video_configuredZero_meansFullVideo() {
-        val p = VideoFillPlan.plan(configuredMs = 0, realMs = 9_400)
-        assertFalse(p.loop); assertEquals(9_400L, p.playMs)
-    }
-
-    @Test fun video_unknownRealLength_usesConfigured() {
-        val p = VideoFillPlan.plan(configuredMs = 8_000, realMs = -1)
-        assertFalse(p.loop); assertEquals(8_000L, p.playMs)
-    }
+    @Test fun video_unknownRealLength_usesConfigured() =
+        assertEquals(8_000L, VideoFillPlan.plan(configuredMs = 8_000, realMs = -1).playMs)
 
     // ---------------- pré-carga ----------------
     @Test fun preload_startsLeadBeforeTheEnd_butAfterTheFade() {

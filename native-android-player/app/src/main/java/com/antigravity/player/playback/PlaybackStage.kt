@@ -99,7 +99,6 @@ class PlaybackStage(
     private var shownRenderer: ExoPlayerRenderer? = null
     private var shownImageLayer: ImageView? = null
     private var lastVideoRenderer: ExoPlayerRenderer? = null
-    private var currentVideoLooping = false
 
     private var preloadJob: Job? = null
     private var preloadKey: String? = null
@@ -254,8 +253,7 @@ class PlaybackStage(
         // Com o corte configurado no ExoPlayer, player.duration = min(configurado, real).
         val plan = VideoFillPlan.plan(item.durationSeconds * 1000L, player.duration.takeIf { it > 0L } ?: -1L)
         val durMs = if (plan.playMs > 0L) plan.playMs else maxOf(item.durationSeconds, 10L) * 1000L
-        player.repeatMode = if (plan.loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-        currentVideoLooping = plan.loop
+        player.repeatMode = Player.REPEAT_MODE_OFF // vídeo nunca repete: toca uma vez (corta no tempo configurado se for maior)
 
         val slot = timeline.claim(durMs)
         awaitUntil(slot.startAt)
@@ -294,7 +292,7 @@ class PlaybackStage(
         // O prazo do item anterior já chegou: dá só uma janela curta para a virada natural; senão força já (esperar o fim do clipe
         // atrasaria o próximo item, pois o relógio do clipe começa só depois do primeiro quadro).
         val deadline = SystemClock.elapsedRealtime() + APPEND_TRANSITION_WAIT_MS
-        while (!currentVideoLooping && player.currentMediaItemIndex < p.appendedIndex && SystemClock.elapsedRealtime() < deadline) {
+        while (player.currentMediaItemIndex < p.appendedIndex && SystemClock.elapsedRealtime() < deadline) {
             delay(15)
         }
         if (player.currentMediaItemIndex < p.appendedIndex) {
@@ -305,8 +303,7 @@ class PlaybackStage(
 
         val plan = VideoFillPlan.plan(item.durationSeconds * 1000L, player.duration.takeIf { it > 0L } ?: -1L)
         val durMs = if (plan.playMs > 0L) plan.playMs else maxOf(item.durationSeconds, 10L) * 1000L
-        player.repeatMode = if (plan.loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-        currentVideoLooping = plan.loop
+        player.repeatMode = Player.REPEAT_MODE_OFF // vídeo nunca repete: toca uma vez (corta no tempo configurado se for maior)
 
         val slot = timeline.claim(durMs)
         awaitUntil(slot.startAt)

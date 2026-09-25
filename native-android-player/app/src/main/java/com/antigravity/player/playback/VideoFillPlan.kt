@@ -1,22 +1,20 @@
 package com.antigravity.player.playback
 
 /**
- * Como um vídeo ocupa o tempo configurado no painel ("Tempo de Mídia"):
+ * Quanto tempo um vídeo ocupa na tela, a partir do "Tempo de Mídia" do painel:
  * - configurado MENOR que o vídeo: corta exatamente no tempo configurado;
- * - configurado MAIOR que o vídeo: repete (loop) até completar o tempo (antes parava no fim do vídeo e a mídia ficava
- *   menos tempo que o configurado);
- * - configurado 0: vídeo inteiro.
+ * - configurado MAIOR que o vídeo: o vídeo toca INTEIRO uma única vez e a playlist segue (padrão de BrightSign, Yodeck,
+ *   Xibo). NÃO repete: a repetição para "preencher" (5.4.0) voltava ao início e cortava no meio — e no tablet Multilaser
+ *   (Unisoc SC9863a) a volta ao início saía distorcida/borrada;
+ * - configurado 0 ou duração real desconhecida: usa o que se sabe (vídeo inteiro / tempo configurado).
  */
 object VideoFillPlan {
-    /** Diferença mínima para preferir repetir em vez de deixar o último quadro parado. */
-    private const val LOOP_TOLERANCE_MS = 250L
 
-    data class Plan(val loop: Boolean, val playMs: Long)
+    data class Plan(val playMs: Long)
 
     fun plan(configuredMs: Long, realMs: Long): Plan = when {
-        configuredMs <= 0L -> Plan(loop = false, playMs = maxOf(realMs, 0L))
-        realMs <= 0L -> Plan(loop = false, playMs = configuredMs)
-        configuredMs > realMs + LOOP_TOLERANCE_MS -> Plan(loop = true, playMs = configuredMs)
-        else -> Plan(loop = false, playMs = configuredMs)
+        configuredMs <= 0L -> Plan(playMs = maxOf(realMs, 0L))
+        realMs <= 0L -> Plan(playMs = configuredMs)
+        else -> Plan(playMs = minOf(configuredMs, realMs))
     }
 }
