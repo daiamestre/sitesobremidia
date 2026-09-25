@@ -44,13 +44,13 @@ export function WidgetAssetsGallery({ onSelect }: WidgetAssetsGalleryProps) {
                 throw new Error(error?.message || 'Falha ao listar objetos');
             }
 
-            const files = data.items as Array<{ key: string; size: number; lastModified: string; etag: string }>;
+            const files = data.items as Array<{ key: string; size: number; lastModified: string; etag: string; url?: string | null }>;
 
             // Sort by LastModified desc
             files.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
 
             const processedAssets: AssetFile[] = files.map(file => {
-                const url = getCdnUrl(file.key);
+                const url = file.url || getCdnUrl(file.key);
                 const name = file.key.split('/').pop() || '';
                 return {
                     name: name,

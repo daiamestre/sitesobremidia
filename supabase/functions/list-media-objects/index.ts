@@ -218,7 +218,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const xml = await res.text();
-    const items = parseListXml(xml);
+    const publicDomain = (Deno.env.get("R2_PUBLIC_DOMAIN") || "").replace(/\/+$/, "");
+    // URL pública calculada NO SERVIDOR (o browser não precisa de VITE_R2_PUBLIC_DOMAIN no build)
+    const items = parseListXml(xml).map((it) => ({ ...it, url: publicDomain ? `${publicDomain}/${it.key}` : null }));
 
     return new Response(
       JSON.stringify({ items, prefix }),
