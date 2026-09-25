@@ -33,7 +33,9 @@ data class WidgetSpec(
     val feedUrl: String,
     val maxItems: Int,
     val secondsPerItem: Int,
-    val compact: Boolean
+    val compact: Boolean,
+    /** Modelo da Galeria de Widgets (config.template), ex.: "weather-futurista"; null = clássico. */
+    val template: String? = null
 ) {
     /** Fundo do widget: a imagem da orientação da tela; se só existir a outra, usa ela (nunca fica sem fundo à toa). */
     fun backgroundFor(landscape: Boolean): String? =
@@ -83,7 +85,8 @@ object WidgetSpecParser {
             feedUrl = httpUrlOrNull(str("feedUrl")) ?: "",
             maxItems = (int("maxItems") ?: DEFAULT_MAX_ITEMS).coerceIn(1, 20),
             secondsPerItem = (int("scrollSpeed") ?: DEFAULT_SECONDS_PER_ITEM).coerceIn(3, 60),
-            compact = str("variant")?.lowercase() == "compact"
+            compact = str("variant")?.lowercase() == "compact",
+            template = str("template")
         )
     }
 

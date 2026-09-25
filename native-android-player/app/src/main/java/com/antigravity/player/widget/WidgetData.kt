@@ -72,6 +72,12 @@ data class WeatherNow(
     val icon: WeatherIcon get() = WeatherText.describe(code, isDay).second
 }
 
+data class DayForecast(val dia: String, val max: Int, val min: Int, val code: Int) {
+    val icon: WeatherIcon get() = WeatherText.describe(code, true).second
+}
+
+data class WeatherForecast(val max: Int?, val min: Int?, val days: List<DayForecast>)
+
 object WeatherText {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -105,6 +111,43 @@ object WeatherText {
             )
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /**
+     * Máxima/mínima de hoje e os próximos dias do bloco "daily" da Open-Meteo
+     * (&daily=weather_code,temperature_2m_max,temperature_2m_min). null se o bloco não veio.
+     */
+    fun parseForecast(body: String): WeatherForecast? {
+        return try {
+            val daily = json.parseToJsonElement(body).jsonObject["daily"]?.jsonObject ?: return null
+            fun arr(key: String) = (daily[key] as? kotlinx.serialization.json.JsonArray)?.map { it as? JsonPrimitive }
+            val datas = arr("time")?.mapNotNull { it?.content } ?: return null
+            val maxs = arr("temperature_2m_max") ?: return null
+            val mins = arr("temperature_2m_min") ?: return null
+            val codes = arr("weather_code")
+            val dias = datas.indices.mapNotNull { i ->
+                val mx = maxs.getOrNull(i)?.doubleOrNull ?: return@mapNotNull null
+                val mn = mins.getOrNull(i)?.doubleOrNull ?: return@mapNotNull null
+                DayForecast(datas[i], Math.round(mx).toInt(), Math.round(mn).toInt(), codes?.getOrNull(i)?.doubleOrNull?.toInt() ?: 0)
+            }
+            if (dias.isEmpty()) null else WeatherForecast(dias.first().max, dias.first().min, dias)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private val DIAS = arrayOf("DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB")
+
+    /** "HOJE" para o primeiro dia; depois a sigla do dia da semana da data yyyy-MM-dd (calendário puro, sem fuso). */
+    fun rotuloDia(isoDate: String, indice: Int): String {
+        if (indice == 0) return "HOJE"
+        return try {
+            val (y, m, d) = isoDate.take(10).split("-").map { it.toInt() }
+            val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply { clear(); set(y, m - 1, d) }
+            DIAS[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+        } catch (e: Exception) {
+            isoDate.takeLast(5)
         }
     }
 

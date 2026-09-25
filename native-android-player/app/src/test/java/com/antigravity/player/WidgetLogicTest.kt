@@ -129,4 +129,36 @@ class WidgetLogicTest {
         assertEquals("Boa noite", WeatherText.greeting(23))
         assertEquals("Boa noite", WeatherText.greeting(3))
     }
+
+    @Test
+    fun forecast_parsesDailyBlock_maxMinAndNextDays() {
+        val body = """{"current":{"temperature_2m":29.2,"weather_code":0,"is_day":1},
+            "daily":{"time":["2026-09-25","2026-09-26","2026-09-27"],"weather_code":[0,2,61],
+            "temperature_2m_max":[32.4,31.0,28.6],"temperature_2m_min":[24.1,23.6,22.0]}}"""
+        val f = WeatherText.parseForecast(body)!!
+        assertEquals(32, f.max); assertEquals(24, f.min)
+        assertEquals(3, f.days.size)
+        assertEquals(WeatherIcon.RAIN, f.days[2].icon)
+        assertEquals(29, WeatherText.parseOpenMeteo(body)!!.temp)
+    }
+
+    @Test
+    fun forecast_missingDailyIsNull_notCrash() {
+        assertNull(WeatherText.parseForecast("""{"current":{"temperature_2m":20}}"""))
+        assertNull(WeatherText.parseForecast("lixo"))
+    }
+
+    @Test
+    fun rotuloDia_hojeEDiaDaSemanaPelaData() {
+        assertEquals("HOJE", WeatherText.rotuloDia("2026-09-25", 0))
+        assertEquals("SÁB", WeatherText.rotuloDia("2026-09-26", 1))
+        assertEquals("DOM", WeatherText.rotuloDia("2026-09-27", 2))
+        assertEquals("SEG", WeatherText.rotuloDia("2026-09-28", 3))
+    }
+
+    @Test
+    fun spec_template_lidoDaConfig() {
+        assertEquals("weather-futurista", WidgetSpecParser.parse(url("weather", """{"template":"weather-futurista"}""")).template)
+        assertNull(WidgetSpecParser.parse(url("weather", "{}")).template)
+    }
 }
