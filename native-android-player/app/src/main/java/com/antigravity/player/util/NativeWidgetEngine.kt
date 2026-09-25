@@ -23,6 +23,7 @@ import com.antigravity.player.widget.RssFeedParser
 import com.antigravity.player.widget.RssItem
 import com.antigravity.player.widget.WeatherIcon
 import com.antigravity.player.widget.WeatherNow
+import com.antigravity.player.widget.WeatherForecast
 import com.antigravity.player.widget.WeatherText
 import com.antigravity.player.widget.WidgetKind
 import com.antigravity.player.widget.WidgetSpec
@@ -70,7 +71,7 @@ object NativeWidgetEngine {
 
     private val uiHandler = Handler(Looper.getMainLooper())
 
-    private data class WeatherPayload(val now: WeatherNow?, val place: String?)
+    private data class WeatherPayload(val now: WeatherNow?, val place: String?, val forecast: WeatherForecast? = null)
     private data class RssPayload(val items: List<RssItem>, val source: String)
 
     private fun sizeOf(context: Context, container: FrameLayout): Pair<Int, Int> {
@@ -153,13 +154,15 @@ object NativeWidgetEngine {
         val cache = WidgetDataCache(context)
         val lat = spec.latitude ?: DEFAULT_LAT
         val lon = spec.longitude ?: DEFAULT_LON
-        val key = "weather:$lat,$lon"
+        // v2: a resposta agora inclui a previsão diária; respostas antigas (sem "daily") não podem ser reaproveitadas
+        val key = "weather2:$lat,$lon"
         val cached = cache.get(key)
         var body: String? = cached?.takeIf { System.currentTimeMillis() - it.second < WEATHER_FRESH_MS }?.first
         if (body == null) {
             body = try {
                 httpGet("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
-                    "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m&timezone=auto")
+                    "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m" +
+                    "&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=6&timezone=America%2FSao_Paulo")
                     ?.also { if (WeatherText.parseOpenMeteo(it) != null) cache.put(key, it) }
             } catch (e: Exception) {
                 Logger.w("WIDGET", "Clima sem rede, usando cache: ${e.message}")
@@ -167,12 +170,13 @@ object NativeWidgetEngine {
             } ?: cached?.first
         }
         val now = body?.let { WeatherText.parseOpenMeteo(it) }
-        return WeatherPayload(now, resolvePlace(cache, spec, lat, lon))
+        val forecast = body?.let { WeatherText.parseForecast(it) }
+        return WeatherPayload(now, resolvePlace(cache, spec, lat, lon), forecast)
     }
 
     private fun resolvePlace(cache: WidgetDataCache, spec: WidgetSpec, lat: Double, lon: Double): String? {
         spec.locationName?.let { return it }
-        val key = "place:$lat,$lon"
+        val key = "place2:$lat,$lon"
         cache.get(key)?.let { return it.first }
         try {
             val body = httpGet("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=$lat&longitude=$lon&localityLanguage=pt")
@@ -181,7 +185,9 @@ object NativeWidgetEngine {
                 // "Região Metropolitana de ..." não é nome de cidade: cai para o próximo campo.
                 val name = listOf("city", "locality", "principalSubdivision").map { obj.optString(it) }
                     .firstOrNull { it.isNotBlank() && !it.startsWith("Região", ignoreCase = true) }
-                if (name != null) { cache.put(key, name); return name }
+                // UF a partir de "BR-PE" -> "Recife — PE"
+                val uf = obj.optString("principalSubdivisionCode").substringAfter("-", "").takeIf { it.length == 2 }
+                if (name != null) { val nome = if (uf != null) "$name — $uf" else name; cache.put(key, nome); return nome }
             }
         } catch (e: Exception) {
             Logger.w("WIDGET", "Nome do local indisponível: ${e.message}")
@@ -273,7 +279,51 @@ object NativeWidgetEngine {
         return root
     }
 
+    // ------------------------------------------------------------------ Relógio Futurista (identidade SOBRE MÍDIA)
+
+    private fun buildClockFuturista(context: Context, spec: WidgetSpec, bg: Bitmap?, base: Float): View {
+        val root = fundoMarca(context, bg, base)
+        val col = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = px(base * 0.05f); setPadding(pad, pad, pad, pad)
+        }
+        col.addView(cabecalhoMarca(context, "HORÁRIO DE BRASÍLIA", base), lp())
+        val corpo = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        col.addView(corpo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        val saudacao = text(context, base * 0.05f, color = Color.argb(225, 255, 255, 255)).apply { letterSpacing = 0.06f }
+        corpo.addView(saudacao, lp())
+        val r = base * 0.03f
+        val hora = text(context, base * 0.30f, bold = true).apply {
+            setShadowLayer(r, 0f, 0f, Marca.LILAS); setPadding(px(r), px(r), px(r), px(r))
+        }
+        fitOneLine(hora, base * 0.08f, base * 0.34f)
+        corpo.addView(hora, lp(h = px(base * 0.40f)))
+        val data = pill(context, "", base * 0.04f, Color.argb(46, 255, 255, 255), Color.WHITE, base)
+        if (spec.showDate) corpo.addView(data, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.CENTER_HORIZONTAL; topMargin = px(base * 0.02f)
+        })
+
+        fun paint(now: Long) {
+            hora.text = BrasiliaTime.time(now, spec.showSeconds, spec.format24h)
+            data.text = BrasiliaTime.dateLong(now)
+            saudacao.text = WeatherText.greeting(BrasiliaTime.hourOfDay(now))
+        }
+        val tick = object : Runnable {
+            override fun run() {
+                if (!root.isAttachedToWindow && root.parent == null) return
+                paint(TimeManager.utcMillis())
+                uiHandler.postDelayed(this, BrasiliaTime.msUntilNextTick(TimeManager.utcMillis(), spec.showSeconds))
+            }
+        }
+        paint(TimeManager.utcMillis())
+        bindToLifecycle(root, tick)
+        return root
+    }
+
     private fun buildClock(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float): View {
+        if (spec.template == "clock-futurista") return buildClockFuturista(context, spec, bg, base)
         val root = rootWith(context, bg, 90, intArrayOf(Color.parseColor("#1e3c72"), Color.parseColor("#0b1330")))
         val box = content(context, spec.position, base)
         val color = runCatching { Color.parseColor(spec.textColor ?: "#FFFFFF") }.getOrDefault(Color.WHITE)
@@ -315,6 +365,138 @@ object NativeWidgetEngine {
         return root
     }
 
+    // ------------------------------------------------------------------ Clima Futurista (identidade SOBRE MÍDIA)
+
+    private object Marca {
+        val PROFUNDO = Color.parseColor("#22004A")
+        val ROXO = Color.parseColor("#5D1BFF")
+        val VIOLETA = Color.parseColor("#8A2EFF")
+        val LILAS = Color.parseColor("#B04DFF")
+        val AMARELO = Color.parseColor("#FFD400")
+    }
+
+    private fun pill(context: Context, texto: String, size: Float, fundo: Int, tinta: Int, base: Float): TextView =
+        text(context, size, bold = true, color = tinta).apply {
+            this.text = texto
+            letterSpacing = 0.12f
+            setShadowLayer(0f, 0f, 0f, 0)
+            background = GradientDrawable().apply { setColor(fundo); cornerRadius = base * 0.04f }
+            val ph = px(base * 0.03f); val pv = px(base * 0.012f); setPadding(ph, pv, ph, pv)
+        }
+
+    private fun vidro(base: Float) = GradientDrawable().apply {
+        setColor(Color.argb(38, 255, 255, 255)); cornerRadius = base * 0.035f
+        setStroke(px(base * 0.003f).coerceAtLeast(1), Color.argb(70, 255, 255, 255))
+    }
+
+    /** Fundo da identidade: gradiente + brilho; com foto, véu roxo por cima para garantir a leitura. */
+    private fun fundoMarca(context: Context, bg: Bitmap?, base: Float): FrameLayout {
+        val root = FrameLayout(context)
+        root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Marca.PROFUNDO, Marca.ROXO, Marca.VIOLETA))
+        val cheio = { FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) }
+        if (bg != null) {
+            root.addView(ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageBitmap(bg) }, cheio())
+        }
+        root.addView(View(context).apply {
+            background = GradientDrawable().apply {
+                gradientType = GradientDrawable.RADIAL_GRADIENT; gradientRadius = base * 0.9f
+                setGradientCenter(0.85f, 0.1f); colors = intArrayOf(Color.argb(150, 176, 77, 255), Color.argb(0, 176, 77, 255))
+            }
+        }, cheio())
+        root.addView(View(context).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                if (bg != null) intArrayOf(Color.argb(150, 34, 0, 74), Color.argb(95, 34, 0, 74), Color.argb(235, 34, 0, 74))
+                else intArrayOf(Color.argb(0, 34, 0, 74), Color.argb(120, 34, 0, 74)))
+        }, cheio())
+        return root
+    }
+
+    private fun cabecalhoMarca(context: Context, selo: String, base: Float): LinearLayout {
+        val topo = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        topo.addView(text(context, base * 0.032f, bold = true, color = Color.argb(215, 255, 255, 255)).apply {
+            text = "SOBRE MÍDIA"; letterSpacing = 0.28f; gravity = Gravity.START
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        topo.addView(pill(context, selo, base * 0.028f, Marca.AMARELO, Marca.PROFUNDO, base))
+        return topo
+    }
+
+    private fun buildWeatherFuturista(context: Context, spec: WidgetSpec, bg: Bitmap?, base: Float, data: WeatherPayload?): View {
+        val root = fundoMarca(context, bg, base)
+        val col = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = px(base * 0.05f); setPadding(pad, pad, pad, pad)
+        }
+        col.addView(cabecalhoMarca(context, "CLIMA AGORA", base), lp())
+        val corpo = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        col.addView(corpo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        val now = data?.now
+        if (now == null) {
+            // estado INDISPONÍVEL: nunca tela vazia
+            corpo.addView(ImageView(context).apply { setImageResource(R.drawable.ic_futuristic_cloud); alpha = 0.8f },
+                LinearLayout.LayoutParams(px(base * 0.24f), px(base * 0.24f)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+            corpo.addView(text(context, base * 0.05f, bold = true).apply { text = "Clima indisponível no momento" }, lp(top = px(base * 0.03f)))
+            corpo.addView(text(context, base * 0.032f, color = Color.argb(200, 255, 255, 255)).apply {
+                text = "os dados voltam assim que a conexão responder"
+            }, lp())
+            return root
+        }
+
+        corpo.addView(text(context, base * 0.05f, bold = true).apply {
+            text = (data.place ?: "Sua região").uppercase(Locale("pt", "BR")); letterSpacing = 0.14f
+        }, lp())
+        val linha = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        linha.addView(ImageView(context).apply { setImageResource(weatherDrawable(now.icon)); scaleType = ImageView.ScaleType.FIT_CENTER },
+            LinearLayout.LayoutParams(px(base * 0.24f), px(base * 0.24f)))
+        val tempCol = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.START }
+        tempCol.addView(text(context, base * 0.24f, bold = true).apply {
+            text = "${now.temp}°C"; gravity = Gravity.START
+            // brilho dentro da área do texto (padding = raio): sem o retângulo recortado em volta
+            val r = base * 0.03f
+            setShadowLayer(r, 0f, 0f, Marca.LILAS); setPadding(px(r), px(r), px(r), px(r))
+        })
+        tempCol.addView(text(context, base * 0.05f, color = Color.argb(235, 255, 255, 255)).apply { text = now.description; gravity = Gravity.START })
+        linha.addView(tempCol, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            marginStart = px(base * 0.035f)
+        })
+        corpo.addView(linha, lp(top = px(base * 0.015f)))
+
+        val f = data.forecast
+        val chips = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        fun chip(t: String) = pill(context, t, base * 0.034f, Color.argb(46, 255, 255, 255), Color.WHITE, base)
+        f?.max?.let { chips.addView(chip("MÁX. $it°")) }
+        chips.addView(chip("SENSAÇÃO ${now.feelsLike}°"), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            marginStart = px(base * 0.02f); marginEnd = px(base * 0.02f)
+        })
+        f?.min?.let { chips.addView(chip("MÍN. $it°")) }
+        corpo.addView(chips, lp(top = px(base * 0.025f)))
+
+        // próximos dias em painéis de vidro
+        val dias = f?.days?.take(5).orEmpty()
+        if (dias.isNotEmpty()) {
+            val faixa = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+            dias.forEachIndexed { i, d ->
+                val cartao = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; background = vidro(base)
+                    val p = px(base * 0.018f); setPadding(p, p, p, p)
+                }
+                cartao.addView(text(context, base * 0.03f, bold = true, color = if (i == 0) Marca.AMARELO else Color.WHITE).apply {
+                    text = WeatherText.rotuloDia(d.dia, i); letterSpacing = 0.1f
+                })
+                cartao.addView(ImageView(context).apply { setImageResource(weatherDrawable(d.icon)) },
+                    LinearLayout.LayoutParams(px(base * 0.075f), px(base * 0.075f)).apply { topMargin = px(base * 0.008f); bottomMargin = px(base * 0.008f) })
+                cartao.addView(text(context, base * 0.034f, bold = true).apply { text = "${d.max}°" })
+                cartao.addView(text(context, base * 0.026f, color = Color.argb(190, 255, 255, 255)).apply { text = "${d.min}°" })
+                faixa.addView(cartao, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = px(base * 0.008f); marginEnd = px(base * 0.008f)
+                })
+            }
+            col.addView(faixa, lp())
+        }
+        return root
+    }
+
     private fun weatherDrawable(icon: WeatherIcon): Int = when (icon) {
         WeatherIcon.SUN, WeatherIcon.MOON, WeatherIcon.PARTLY -> R.drawable.ic_ensolarado
         WeatherIcon.RAIN, WeatherIcon.STORM -> R.drawable.ic_chuva
@@ -322,6 +504,7 @@ object NativeWidgetEngine {
     }
 
     private fun buildWeather(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float, data: WeatherPayload?): View {
+        if (spec.template == "weather-futurista") return buildWeatherFuturista(context, spec, bg, base, data)
         val now = data?.now
         val colors = if (now?.isDay == false) intArrayOf(Color.parseColor("#141e30"), Color.parseColor("#243b55"))
         else intArrayOf(Color.parseColor("#2b6cb0"), Color.parseColor("#63b3ed"))

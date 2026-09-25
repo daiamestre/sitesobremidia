@@ -2,6 +2,8 @@ import { WidgetType, WidgetConfig } from '@/types/models';
 import { ClockWidget } from '../../player/ClockWidget';
 import { WeatherWidget } from '../../player/WeatherWidgetComponent';
 import { RssWidget } from '../../player/RssWidget';
+import { WeatherFuturista } from '../../player/WeatherFuturista';
+import { ClockFuturista } from '../../player/ClockFuturista';
 
 interface WidgetPreviewProps {
     widgetType: WidgetType;
@@ -17,6 +19,8 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
     };
 
     const bgImage = getBackgroundImage();
+    const futurista = widgetType === 'weather' && config.template === 'weather-futurista';
+    const relogioFuturista = widgetType === 'clock' && config.template === 'clock-futurista';
 
     return (
         <div className="w-full md:w-1/2 bg-zinc-900 relative flex items-center justify-center p-8 overflow-hidden">
@@ -30,7 +34,7 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
                 <div className="absolute inset-0 overflow-hidden">
                     <div className="w-full h-full relative">
                         {/* Background Layer for Preview */}
-                        {(widgetType === 'clock' || widgetType === 'weather') && (
+                        {!futurista && !relogioFuturista && (widgetType === 'clock' || widgetType === 'weather') && (
                             <div className="absolute inset-0 w-full h-full">
                                 {bgImage ? (
                                     <img
@@ -46,7 +50,10 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
                         )}
 
                         <div className="relative z-10 w-full h-full flex items-center justify-center">
-                            {widgetType === 'clock' && (
+                            {relogioFuturista && (
+                                <ClockFuturista showDate={config.showDate} showSeconds={config.showSeconds} backgroundImage={bgImage} className="w-full h-full" />
+                            )}
+                            {!relogioFuturista && widgetType === 'clock' && (
                                 <ClockWidget
                                     showDate={config.showDate}
                                     showSeconds={config.showSeconds}
@@ -54,7 +61,16 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
                                     className="w-full h-full"
                                 />
                             )}
-                            {widgetType === 'weather' && (
+                            {futurista && (
+                                <WeatherFuturista
+                                    latitude={config.latitude}
+                                    longitude={config.longitude}
+                                    locationName={config.locationName}
+                                    backgroundImage={bgImage}
+                                    className="w-full h-full"
+                                />
+                            )}
+                            {!futurista && widgetType === 'weather' && (
                                 <WeatherWidget
                                     latitude={config.latitude}
                                     longitude={config.longitude}

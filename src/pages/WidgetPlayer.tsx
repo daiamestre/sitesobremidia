@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { ClockWidget } from "@/components/player/ClockWidget";
 import { WeatherWidget } from "@/components/player/WeatherWidgetComponent";
 import { RssWidget } from "@/components/player/RssWidget";
+import { WeatherFuturista } from "@/components/player/WeatherFuturista";
+import { ClockFuturista } from "@/components/player/ClockFuturista";
 import "@/components/player/Player.css";
 
 const WidgetPlayer = () => {
@@ -50,6 +52,9 @@ const WidgetPlayer = () => {
 
         switch (widget.widget_type) {
             case 'clock':
+                if (config.template === 'clock-futurista') {
+                    return <ClockFuturista {...commonProps} showDate={config.showDate !== false} showSeconds={config.showSeconds === true} />;
+                }
                 return (
                     <ClockWidget
                         {...commonProps}
@@ -58,6 +63,9 @@ const WidgetPlayer = () => {
                     />
                 );
             case 'weather':
+                if (config.template === 'weather-futurista') {
+                    return <WeatherFuturista {...commonProps} latitude={config.latitude} longitude={config.longitude} locationName={config.locationName} />;
+                }
                 return (
                     <WeatherWidget
                         {...commonProps}

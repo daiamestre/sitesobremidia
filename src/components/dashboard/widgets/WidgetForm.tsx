@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { WidgetAssetsGallery } from './WidgetAssetsGallery';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { compressImage } from '@/utils/imageCompression';
+import { WIDGET_TEMPLATES } from '@/lib/widgetCatalog';
 
 interface WidgetFormProps {
     initialData: Widget | null;
@@ -198,6 +199,30 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                 })}
                             </div>
                         </div>
+
+                        {/* MODELO (Galeria de Widgets) */}
+                        {WIDGET_TEMPLATES.filter((t) => t.tipo === widgetType && t.noPlayer).length > 1 && (
+                            <div className="space-y-2">
+                                <Label>Modelo</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {WIDGET_TEMPLATES.filter((t) => t.tipo === widgetType && t.noPlayer).map((t) => {
+                                        const ativo = (config.template || `${widgetType}-classic`) === t.id;
+                                        return (
+                                            <button
+                                                key={t.id}
+                                                type="button"
+                                                onClick={() => updateConfig('template', t.id)}
+                                                data-testid={`modelo-${t.id}`}
+                                                className={`rounded-lg border p-3 text-left transition-all ${ativo ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'}`}
+                                            >
+                                                <span className="block text-sm font-medium">{t.nome}</span>
+                                                <span className="block text-xs text-muted-foreground">{t.descricao}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {/* ORIENTATION & BG */}
                         {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss') && (

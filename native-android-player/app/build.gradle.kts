@@ -49,8 +49,8 @@ android {
         applicationId = "com.antigravity.player"
         minSdk = 23
         targetSdk = 34
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 539
-        versionName = System.getenv("VERSION_NAME") ?: "5.5.2-MicroGate"
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 540
+        versionName = System.getenv("VERSION_NAME") ?: "5.5.3-MicroGate"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         

@@ -13,8 +13,8 @@ describe('Widget Engine W2 — fundação', () => {
   it('Galeria de Widgets: só modelos que o Player desenha podem ser criados; os demais ficam "Em breve"', () => {
     const ids = WIDGET_TEMPLATES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
-    const prontos = WIDGET_TEMPLATES.filter((t) => t.noPlayer).map((t) => t.tipo).sort();
-    expect(prontos).toEqual(['clock', 'rss', 'weather']);
+    const prontos = WIDGET_TEMPLATES.filter((t) => t.noPlayer).map((t) => t.id).sort();
+    expect(prontos).toEqual(['clock-classic', 'clock-futurista', 'rss-classic', 'weather-classic', 'weather-futurista']);
   });
 
   it('widget antigo (sem config.template) é tratado como o modelo clássico do tipo', () => {
