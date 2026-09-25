@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 describe('Micro-Gate: SOBRE MÍDIA Visual Identity & Canonical Assets', () => {
   const rootDir = path.resolve(__dirname, '../../../');
@@ -124,11 +125,14 @@ describe('Micro-Gate: SOBRE MÍDIA Visual Identity & Canonical Assets', () => {
     // PNG signature
     expect(buf[0]).toBe(0x89);
     expect(buf[1]).toBe(0x50);
-    // Dimensions 1024x277
+    // Logo oficial SOBRE MÍDIA (texto + play "Sm"), 383x207, em uso desde a 5.2.4. A exigência antiga (1024x277) era de
+    // um PRINT da tela de erro de build do Android Studio salvo por engano como logo.png em 2026-02; nunca pode voltar.
     const width = buf.readUInt32BE(16);
     const height = buf.readUInt32BE(20);
-    expect(width).toBe(1024);
-    expect(height).toBe(277);
+    expect(width).toBe(383);
+    expect(height).toBe(207);
+    const sha1 = crypto.createHash('sha1').update(buf).digest('hex');
+    expect(sha1.startsWith('60ada7fa40'), 'logo.png não pode ser o print do Android Studio').toBe(false);
   });
 
   it('11. [Android Player Layouts] All player layouts must consume @drawable/logo, never @mipmap/ic_launcher_round', () => {
