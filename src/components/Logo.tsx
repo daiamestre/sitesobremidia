@@ -4,9 +4,11 @@ import { Link } from 'react-router-dom';
 interface LogoProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
+  /** Só o ícone (menu lateral recolhido). */
+  iconOnly?: boolean;
 }
 
-export function Logo({ className, size = 'md' }: LogoProps) {
+export function Logo({ className, size = 'md', iconOnly = false }: LogoProps) {
   const sizeClasses = {
     sm: 'text-xl',
     md: 'text-2xl',
@@ -33,7 +35,7 @@ export function Logo({ className, size = 'md' }: LogoProps) {
           </svg>
         </div>
       </div>
-      <span className={cn('font-display font-bold tracking-tight', sizeClasses[size])}>
+      <span className={cn('font-display font-bold tracking-tight', sizeClasses[size], iconOnly && 'sr-only')}>
         <span className="text-foreground">SOBRE</span>
         <span className="bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent"> MÍDIA</span>
       </span>

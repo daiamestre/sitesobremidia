@@ -6,12 +6,14 @@ import { CrmSidebar } from "@/modules/crm/components/Sidebar";
 import { CrmHeader } from "@/modules/crm/components/Header";
 import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
 import { useState } from "react";
+import { useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 export default function WorkspaceLayout() {
   const { isAuthenticated, isApproved, loading } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, toggleSidebar] = useSidebarCollapsed("workspace");
 
   if (loading) {
     return (
@@ -30,8 +32,9 @@ export default function WorkspaceLayout() {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full max-w-full bg-background text-foreground overflow-hidden overflow-x-clip">
-        <div className="hidden md:block flex-shrink-0">
-          <CrmSidebar />
+        {/* Menu fixo só a partir de 1280 px (recolhível); abaixo disso abre por cima do conteúdo pelo botão do topo */}
+        <div className="hidden xl:block flex-shrink-0">
+          <CrmSidebar collapsed={sidebarCollapsed} />
         </div>
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent side="left" className="p-0 w-72 max-w-[85vw] bg-slate-950 border-white/10 overflow-y-auto">
@@ -39,7 +42,7 @@ export default function WorkspaceLayout() {
           </SheetContent>
         </Sheet>
         <main className="flex-1 flex flex-col min-w-0 max-w-full min-h-screen overflow-x-clip">
-          <CrmHeader onMenuClick={() => setMobileOpen(true)} />
+          <CrmHeader onMenuClick={() => setMobileOpen(true)} onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
           <div className="flex-1 overflow-y-auto overflow-x-clip w-full max-w-full min-w-0 p-4 sm:p-6 lg:p-8 bg-background animate-in fade-in duration-300 box-border">
             <div className="w-full max-w-full min-w-0">
               <Outlet />

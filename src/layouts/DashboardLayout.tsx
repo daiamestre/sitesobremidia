@@ -29,8 +29,8 @@ export function DashboardLayout() {
 
   return (
     <div className="flex min-h-screen min-h-[100dvh] w-full max-w-full bg-background overflow-hidden overflow-x-clip">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block">
+      {/* Menu fixo só a partir de 1280 px (recolhível); abaixo disso abre por cima do conteúdo pelo botão do topo */}
+      <div className="hidden xl:block flex-shrink-0">
         <Sidebar />
       </div>
 
@@ -43,7 +43,7 @@ export function DashboardLayout() {
 
       <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-hidden overflow-x-clip">
         {/* Mobile Header */}
-        <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-sidebar-border bg-sidebar flex-shrink-0">
+        <header className="xl:hidden flex items-center gap-3 px-4 py-3 border-b border-sidebar-border bg-sidebar flex-shrink-0">
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} aria-label="Abrir menu">
             <Menu className="h-5 w-5" />
           </Button>

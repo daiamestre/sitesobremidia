@@ -29,6 +29,7 @@ import {
   UserCircle,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
 
 const menuItems = [
   { icon: Inbox, label: 'Central', path: '/dashboard/central' },
@@ -44,7 +45,9 @@ const menuItems = [
 ];
 
 export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void; hideCollapse?: boolean } = {}) {
-  const [collapsed, setCollapsed] = useState(false);
+  // Recolhido no computador lembrado por navegador; na gaveta (tablet/celular) sempre aberto
+  const [collapsedPref, toggleCollapsed] = useSidebarCollapsed('gestor');
+  const collapsed = !hideCollapse && collapsedPref;
   const [isAdmin, setIsAdmin] = useState(false);
   const { signOut, profile, user, isOwner } = useAuth();
   const location = useLocation();
@@ -89,12 +92,12 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
     >
       {/* Logo */}
       <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
-        {!collapsed && <Logo size="sm" />}
+        <Logo size="sm" iconOnly={collapsed} className={collapsed ? 'hidden' : undefined} />
         {!hideCollapse && (
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={toggleCollapsed}
             className="ml-auto"
             aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
           >

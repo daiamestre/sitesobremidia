@@ -53,6 +53,9 @@ describe('Regressão — Estrutura do Representante congelada', () => {
   it('CustomerPortalLayout de ANUNCIANTE NÃO foi alterado por esta missão', () => {
     const s = src('modules/crm/layout/CustomerPortalLayout.tsx');
     expect(s).toContain('Portal do Anunciante');
-    expect(s).toContain('w-64 bg-slate-950');
+    // Menu lateral próprio do Portal preservado; desde a responsividade (2026-09-25, aprovada pelo proprietário) ele é
+    // recolhível no computador: 256 px aberto / 72 px só ícones.
+    expect(s).toContain('bg-slate-950 border-r border-white/10');
+    expect(s).toContain("sidebarCollapsed ? 'w-[72px]' : 'w-64'");
   });
 });

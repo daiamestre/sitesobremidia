@@ -8,8 +8,9 @@ import {
   Calendar, Megaphone, Library, ListVideo,
   TrendingUp, Rocket, Menu, X, Loader2, Building2, Palette,
   ShoppingBasket, BadgePercent, BookOpen, Users, Settings,
-  Briefcase, Home, MessageSquare, LifeBuoy,
+  Briefcase, Home, MessageSquare, LifeBuoy, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
+import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,7 @@ export default function CustomerPortalLayout() {
   const { total: totalNaoLidas } = useCentralUnread();
   const { modalidade, cliente, isLoading: loadingModalidade, hasActiveContract } = useClienteModalidade();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, toggleSidebar] = useSidebarCollapsed('portal');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const isAnuncianteOuHibrido = modalidade === 'ANUNCIANTE' || modalidade === 'HIBRIDO';
@@ -219,6 +221,17 @@ export default function CustomerPortalLayout() {
         <div className="flex h-16 items-center justify-between px-4 gap-4">
           {/* Logo + Modalidade */}
           <div className="flex items-center gap-3 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? 'Abrir menu lateral' : 'Recolher menu lateral'}
+              title={sidebarCollapsed ? 'Abrir menu lateral' : 'Recolher menu lateral'}
+              aria-expanded={!sidebarCollapsed}
+              className="hidden xl:inline-flex text-slate-300 hover:text-white hover:bg-white/10 h-9 w-9"
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+            </Button>
             <Link to="/portal" className="flex items-center gap-2">
               <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
                 SOBRE MÍDIA
@@ -258,7 +271,7 @@ export default function CustomerPortalLayout() {
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="xl:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Menu"
           >
@@ -272,7 +285,9 @@ export default function CustomerPortalLayout() {
         {/* ── Sidebar Lateral Persistente (desktop) — oculta em mobile para drawer ── */}
         <aside
           className={cn(
-            'hidden lg:flex w-64 bg-slate-950 border-r border-white/10 flex-shrink-0 flex-col overflow-y-auto sticky top-0 h-[calc(100vh-4rem)] z-30 select-none',
+            // Menu fixo só a partir de 1280 px (recolhível); abaixo disso abre por cima do conteúdo pelo botão do topo
+            'hidden xl:flex bg-slate-950 border-r border-white/10 flex-shrink-0 flex-col overflow-y-auto sticky top-0 h-[calc(100vh-4rem)] z-30 select-none transition-[width] duration-200',
+            sidebarCollapsed ? 'w-[72px]' : 'w-64',
           )}
         >
           {/* Navegação por grupos */}
@@ -282,29 +297,39 @@ export default function CustomerPortalLayout() {
               if (!items.length) return null;
               return (
                 <div key={group.label} className="pt-3">
-                  <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 select-none">
-                    {group.label}
-                  </p>
+                  {sidebarCollapsed ? (
+                    <div className="mx-2 mb-2 border-t border-white/10" aria-hidden />
+                  ) : (
+                    <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 select-none">
+                      {group.label}
+                    </p>
+                  )}
                   <div className="space-y-0.5">
                     {items.map((item) => (
                       <Link
                         key={item.path}
                         to={item.path}
                         onClick={() => setMobileMenuOpen(false)}
+                        title={sidebarCollapsed ? item.name : undefined}
+                        aria-label={sidebarCollapsed ? item.name : undefined}
                       >
                         <Button
                           variant="ghost"
                           size="sm"
                           className={cn(
-                            'w-full justify-start gap-2 rounded-xl text-sm transition-all duration-150',
+                            'relative w-full gap-2 rounded-xl text-sm transition-all duration-150',
+                            sidebarCollapsed ? 'justify-center px-0' : 'justify-start',
                             isActive(item.path)
                               ? 'bg-white/10 text-white font-semibold'
                               : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                           )}
                         >
                           <item.icon className="h-4 w-4 flex-shrink-0" />
-                          <span className="truncate">{item.name}</span>
-                          {item.badge !== undefined && item.badge > 0 && (
+                          {!sidebarCollapsed && <span className="truncate">{item.name}</span>}
+                          {sidebarCollapsed && item.badge !== undefined && item.badge > 0 && (
+                            <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-primary ring-2 ring-slate-950" />
+                          )}
+                          {!sidebarCollapsed && item.badge !== undefined && item.badge > 0 && (
                             <span className="min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center ml-auto flex-shrink-0">
                               {item.badge > 99 ? '99+' : item.badge}
                             </span>
@@ -319,15 +344,15 @@ export default function CustomerPortalLayout() {
           </nav>
 
           {/* Seção do usuário no rodapé da sidebar */}
-          <div className="p-3 border-t border-white/10 bg-slate-900/50 flex-shrink-0">
-            <div className="flex items-center gap-3 p-2 mb-2 rounded-xl bg-slate-900/80 border border-white/5">
+          <div className={cn('border-t border-white/10 bg-slate-900/50 flex-shrink-0', sidebarCollapsed ? 'p-2' : 'p-3')}>
+            <div className={cn('flex items-center gap-3 mb-2 rounded-xl bg-slate-900/80 border border-white/5', sidebarCollapsed ? 'p-1.5 justify-center' : 'p-2')}>
               <div
                 className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0"
                 title={user?.email}
               >
                 {(user?.name || 'A').charAt(0).toUpperCase()}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className={cn('min-w-0 flex-1', sidebarCollapsed && 'hidden')}>
                 <p className="text-xs font-bold text-white truncate" title={user?.name || ''}>
                   {user?.name || 'Anunciante'}
                 </p>
@@ -346,14 +371,14 @@ export default function CustomerPortalLayout() {
               className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/60 hover:text-red-300 font-semibold text-xs h-9 rounded-xl justify-center gap-2 transition-all"
             >
               <LogOut className="h-3.5 w-3.5" />
-              {isLoggingOut ? 'Encerrando...' : 'Sair do Portal'}
+              {!sidebarCollapsed && (isLoggingOut ? 'Encerrando...' : 'Sair do Portal')}
             </Button>
           </div>
         </aside>
 
         {/* ── Menu Mobile (overlay) ── */}
         {mobileMenuOpen && (
-          <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="fixed inset-0 z-40 xl:hidden">
             {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"

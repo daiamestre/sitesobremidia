@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   Inbox,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -27,7 +29,15 @@ import { centralService } from '@/services/central.service';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/utils/formatters';
 
-export function CrmHeader({ onMenuClick }: { onMenuClick?: () => void }) {
+interface CrmHeaderProps {
+  /** Abre o menu por cima do conteúdo (telas abaixo de 1280 px). */
+  onMenuClick?: () => void;
+  /** Recolhe/abre o menu fixo (computador, 1280 px ou mais). */
+  onToggleSidebar?: () => void;
+  sidebarCollapsed?: boolean;
+}
+
+export function CrmHeader({ onMenuClick, onToggleSidebar, sidebarCollapsed = false }: CrmHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { userInitials, userName, userEmail } = useCrmSession();
@@ -52,9 +62,22 @@ export function CrmHeader({ onMenuClick }: { onMenuClick?: () => void }) {
             size="icon"
             onClick={onMenuClick}
             aria-label="Abrir menu"
-            className="md:hidden text-slate-300 hover:text-white hover:bg-white/10 flex-shrink-0 h-9 w-9"
+            className="xl:hidden text-slate-300 hover:text-white hover:bg-white/10 flex-shrink-0 h-9 w-9"
           >
             <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        {onToggleSidebar && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleSidebar}
+            aria-label={sidebarCollapsed ? 'Abrir menu lateral' : 'Recolher menu lateral'}
+            title={sidebarCollapsed ? 'Abrir menu lateral' : 'Recolher menu lateral'}
+            aria-expanded={!sidebarCollapsed}
+            className="hidden xl:inline-flex text-slate-300 hover:text-white hover:bg-white/10 flex-shrink-0 h-9 w-9"
+          >
+            {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
           </Button>
         )}
         <div className="md:hidden flex-shrink-0">
