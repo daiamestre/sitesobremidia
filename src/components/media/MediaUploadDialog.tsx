@@ -19,6 +19,8 @@ import SparkMD5 from 'spark-md5';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadToR2WithProgress, uploadToR2 } from '@/lib/r2Upload';
 import { r2Config, getCdnUrl, CDN_CACHE_HEADERS } from '@/lib/r2Client';
+import { MAX_DURATION_SECONDS, clampDuration, formatTotalDuration } from '@/lib/playlistItems';
+import { defaultDurationForFile, durationForUpload, probeFileDuration, probeVideoDuration } from '@/lib/mediaDuration';
 
 interface MediaUploadDialogProps {
   open: boolean;
@@ -34,6 +36,8 @@ interface UploadFile {
   error?: string;
   thumbnailBlob?: Blob;
   thumbnailPreview?: string;
+  /** Tempo da mídia (s): vídeo/áudio = duração real do arquivo; imagem = 10. Preenche "Tempo de Mídia". */
+  durationSeconds?: number;
 }
 
 const ACCEPTED_TYPES = {
@@ -178,6 +182,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
   // duracao para as playlists se o usuario realmente mexeu no campo; antes o valor padrao (10) sobrescrevia a duracao de
   // todos os itens dessa midia em todas as playlists a cada edicao de nome.
   const [durationTouched, setDurationTouched] = useState(false);
+  const durationTouchedRef = useRef(false);
+  durationTouchedRef.current = durationTouched;
   const [scheduledDate, setScheduledDate] = useState<Date>();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<'16x9' | '9x16'>('16x9');
@@ -192,6 +198,13 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       setMediaDuration(10);
       setDurationTouched(false);
       setFiles([]); // Clear any stale files
+      // Mídia já existente (vídeo/áudio): mostra o tempo real dela no campo. Não conta como "alterado": editar o nome
+      // não mexe na duração dos itens das playlists.
+      if ((editMedia.file_type === 'video' || editMedia.file_type === 'audio') && editMedia.file_url) {
+        probeVideoDuration(editMedia.file_url).then((seconds) => {
+          if (seconds && !durationTouchedRef.current) setMediaDuration(defaultDurationForFile(editMedia.file_type as 'video' | 'audio', seconds));
+        });
+      }
     } else if (open) {
       // Reset for new upload
       setMediaName('');
@@ -232,13 +245,34 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         }
         return isAccepted;
       })
-      .map(file => ({
-        file,
-        progress: 0,
-        status: 'pending' as const,
-      }));
+      .map(file => {
+        const kind = getFileType(file.type);
+        return {
+          file,
+          progress: 0,
+          status: 'pending' as const,
+          // Imagem não tem duração própria (10 s); vídeo/áudio são lidos logo abaixo.
+          durationSeconds: kind === 'video' || kind === 'audio' ? undefined : defaultDurationForFile(kind, null),
+        };
+      });
 
     setFiles(prev => [...prev, ...newFiles]);
+
+    // TODA mídia adicionada mostra o tempo dela em "Tempo de Mídia" (o campo acompanha a última mídia adicionada,
+    // a menos que o usuário tenha digitado outro valor). Ao SUBSTITUIR o arquivo de uma mídia existente, o tempo novo
+    // também vale para as playlists onde ela já está (o campo mostra exatamente o que será salvo).
+    for (const newFile of newFiles) {
+      const kind = getFileType(newFile.file.type);
+      let seconds = defaultDurationForFile(kind, null);
+      if (kind === 'video' || kind === 'audio') {
+        seconds = defaultDurationForFile(kind, await probeFileDuration(newFile.file));
+        setFiles(prev => prev.map(f => (f.file === newFile.file ? { ...f, durationSeconds: seconds } : f)));
+      }
+      if (!durationTouchedRef.current) {
+        setMediaDuration(seconds);
+        if (editMedia) setDurationTouched(true);
+      }
+    }
 
     // Generate thumbnails for videos
     for (const newFile of newFiles) {
@@ -279,7 +313,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
 
   const handleDurationChange = (value: string) => {
     const num = parseInt(value, 10);
-    if (!isNaN(num) && num >= 1 && num <= 120) {
+    if (!isNaN(num) && num >= 1 && num <= MAX_DURATION_SECONDS) {
       setMediaDuration(num);
       setDurationTouched(true);
     }
@@ -497,7 +531,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
               playlist_id: selectedPlaylistId,
               media_id: data.id,
               position: newPosition,
-              duration: mediaDuration,
+              // cada arquivo leva o SEU tempo (ou o valor digitado, se o usuário editou o campo)
+              duration: durationForUpload({ touched: durationTouchedRef.current, typed: mediaDuration, detected: uploadFile.durationSeconds }),
               // Apply schedule if set
               start_time: null, // Simple upload doesn't set specific times per item yet, usually
               end_time: null,
@@ -817,12 +852,14 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                 id="mediaDuration"
                 type="number"
                 min={1}
-                max={120}
+                max={MAX_DURATION_SECONDS}
                 value={mediaDuration}
                 onChange={(e) => handleDurationChange(e.target.value)}
                 className="w-24"
               />
-              <span className="text-sm text-muted-foreground">segundos (1s - 2min)</span>
+              <span className="text-sm text-muted-foreground">
+                segundos{mediaDuration >= 60 ? ` (= ${formatTotalDuration(clampDuration(mediaDuration))})` : ''}
+              </span>
             </div>
           </div>
 
@@ -948,6 +985,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                     <p className="text-sm font-medium truncate">{uploadFile.file.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatFileSize(uploadFile.file.size)}
+                      {uploadFile.durationSeconds ? ` · ${formatTotalDuration(uploadFile.durationSeconds)}` : ''}
                     </p>
                     {uploadFile.status === 'uploading' && (
                       <div className="mt-1">
