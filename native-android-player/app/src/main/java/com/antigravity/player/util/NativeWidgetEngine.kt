@@ -30,6 +30,8 @@ import com.antigravity.player.widget.WidgetSpec
 import com.antigravity.player.widget.WidgetSpecParser
 import com.antigravity.player.widget.BrasiliaTime
 import com.antigravity.player.widget.QrCode
+import com.antigravity.player.widget.OfertaItem
+import com.antigravity.player.widget.OfertaText
 import com.antigravity.core.util.TimeManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
@@ -75,9 +77,20 @@ object NativeWidgetEngine {
     private data class WeatherPayload(val now: WeatherNow?, val place: String?, val forecast: WeatherForecast? = null)
     private data class RssPayload(val items: List<RssItem>, val source: String)
 
+    /**
+     * Tamanho em que o widget vai aparecer. O contêiner costuma ainda não ter sido medido (0x0) quando o widget é
+     * montado; antes caía no tamanho do display, que não é o do canvas do Player quando ele está girado (totem na
+     * TV Box, celular) -> modelo montado na orientação errada. Agora usa o ancestral já medido mais próximo (medidas
+     * no próprio canvas); o display só em último caso.
+     */
     private fun sizeOf(context: Context, container: FrameLayout): Pair<Int, Int> {
+        var v: View? = container
+        while (v != null) {
+            if (v.width > 0 && v.height > 0) return v.width to v.height
+            v = v.parent as? View
+        }
         val dm = context.resources.displayMetrics
-        return (container.width.takeIf { it > 0 } ?: dm.widthPixels) to (container.height.takeIf { it > 0 } ?: dm.heightPixels)
+        return dm.widthPixels to dm.heightPixels
     }
 
     /** Fundo e dados em paralelo, fora da thread principal. */
@@ -87,6 +100,7 @@ object NativeWidgetEngine {
             when (spec.kind) {
                 WidgetKind.WEATHER -> loadWeather(appContext, spec)
                 WidgetKind.RSS -> loadRss(appContext, spec)
+                WidgetKind.OFFER -> loadOfertaFotos(appContext, spec)
                 else -> null
             }
         }
@@ -105,6 +119,7 @@ object NativeWidgetEngine {
         val spec = WidgetSpecParser.parse(remoteUrl)
         val (w, h) = sizeOf(context, container)
         val base = min(w, h).toFloat()
+        Logger.i("WIDGET", "render ${spec.kind} ${w}x$h (container ${container.width}x${container.height})")
 
         // A tela só troca quando tudo está pronto (normalmente já aquecido pelo palco: leitura de cache).
         val (background, payload) = prefetch(appContext, spec, w, h)
@@ -116,6 +131,7 @@ object NativeWidgetEngine {
                 WidgetKind.WEATHER -> buildWeather(context, spec, background, w, h, base, payload as? WeatherPayload)
                 WidgetKind.RSS -> buildRss(context, spec, background, w, h, base, payload as? RssPayload)
                 WidgetKind.INSTITUTIONAL -> buildInstitutional(context, spec, background, w, h, base)
+                WidgetKind.OFFER -> buildOffer(context, spec, background, w, h, base, payload as? OfertaPayload)
                 WidgetKind.UNKNOWN -> buildMessage(context, background, w, h, base, "Widget não suportado (${spec.rawType})")
             }
             container.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -437,6 +453,190 @@ object NativeWidgetEngine {
             background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = tamanho * 0.06f }
             val p = (tamanho * 0.04f).toInt(); setPadding(p, p, p, p)
         }
+    }
+
+    // ------------------------------------------------------------------ Oferta (cadastro de ofertas, identidade SOBRE MÍDIA)
+
+    /** Fotos dos produtos (cache de disco do Glide: funcionam offline depois da primeira vez). */
+    private class OfertaPayload(val fotos: Map<String, Bitmap>)
+
+    private suspend fun loadOfertaFotos(context: Context, spec: WidgetSpec): OfertaPayload = coroutineScope {
+        val urls = spec.oferta?.itens.orEmpty().mapNotNull { it.imagemUrl }.distinct()
+        val lado = if (urls.size == 1) 720 else 360
+        val fotos = urls.map { u ->
+            async(Dispatchers.IO) {
+                u to try {
+                    Glide.with(context).asBitmap().load(u).apply(RequestOptions().fitCenter())
+                        .submit(lado, lado).get(BG_TIMEOUT_S, TimeUnit.SECONDS)
+                } catch (e: Exception) {
+                    Logger.w("WIDGET", "Foto do produto indisponível ($u): ${e.message}"); null
+                }
+            }
+        }.mapNotNull { it.await().let { (u, b) -> b?.let { u to it } } }.toMap()
+        OfertaPayload(fotos)
+    }
+
+    /** Preço de varejo: "R$" pequeno, reais grandes, centavos em cima (mesma composição do painel). */
+    private fun precoView(context: Context, valor: Double, size: Float): View {
+        val (inteiro, centavos) = OfertaText.partes(valor)
+        // Sem alinhar pela linha de base (padrão do LinearLayout): os centavos ficam no alto, como no painel.
+        val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP; isBaselineAligned = false }
+        val brilho = size * 0.05f
+        fun parte(t: String, s: Float) = text(context, s, bold = true, color = Marca.AMARELO).apply {
+            text = t; includeFontPadding = false; setShadowLayer(brilho, 0f, 0f, Color.argb(90, 255, 212, 0))
+            setPadding(px(brilho), px(brilho), px(brilho), px(brilho))
+        }
+        row.addView(parte("R$", size * 0.34f), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = px(size * 0.16f) })
+        row.addView(parte(inteiro, size))
+        row.addView(parte(",$centavos", size * 0.42f), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = px(size * 0.08f) })
+        return row
+    }
+
+    private fun dePorView(context: Context, item: OfertaItem, size: Float, base: Float, centro: Boolean): View {
+        val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = if (centro) Gravity.CENTER_HORIZONTAL else Gravity.START }
+        if (item.precoOriginal > item.precoOferta) {
+            col.addView(text(context, base * 0.03f, bold = true, color = Color.argb(190, 255, 255, 255)).apply {
+                val de = OfertaText.precoBR(item.precoOriginal)
+                text = android.text.SpannableString("DE $de POR").apply {
+                    setSpan(android.text.style.StrikethroughSpan(), 3, 3 + de.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        col.addView(precoView(context, item.precoOferta, size), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        return col
+    }
+
+    private fun fotoView(context: Context, bmp: Bitmap?, base: Float): View =
+        if (bmp != null) ImageView(context).apply {
+            setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER
+            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = base * 0.02f }
+            val p = px(base * 0.01f); setPadding(p, p, p, p)
+        } else text(context, base * 0.05f, bold = true, color = Color.argb(180, 255, 255, 255)).apply {
+            text = "%"; background = GradientDrawable().apply { setColor(Color.argb(38, 255, 255, 255)); cornerRadius = base * 0.02f }
+        }
+
+    private fun seloDesconto(context: Context, pct: Int, base: Float): View? =
+        if (pct <= 0) null else pill(context, "-$pct%", base * 0.03f, Color.parseColor("#25D366"), Color.parseColor("#0B2E17"), base)
+
+    private fun buildOffer(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float, data: OfertaPayload?): View {
+        val hoje = BrasiliaTime.isoDate(TimeManager.utcMillis())
+        val oferta = spec.oferta
+        val root = fundoMarca(context, bg, base)
+        val col = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = px(base * 0.045f); setPadding(pad, pad, pad, pad)
+        }
+        root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        // Nunca exibir preço fora da validade (servidor já não envia; esta é a trava do Player offline).
+        if (oferta == null || !OfertaText.vigente(oferta, hoje)) {
+            col.addView(cabecalhoMarca(context, "OFERTAS", base), lp())
+            col.addView(text(context, base * 0.07f, bold = true).apply { text = "Novas ofertas em breve" },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            return root
+        }
+
+        col.addView(cabecalhoMarca(context, "OFERTA", base), lp())
+        val r = base * 0.02f
+        col.addView(text(context, base * 0.07f, bold = true).apply {
+            text = oferta.titulo; gravity = Gravity.START
+            setShadowLayer(r, 0f, 0f, Marca.LILAS); setPadding(px(r), px(r), px(r), px(r))
+        }, lp(top = px(base * 0.01f)))
+
+        val paisagem = w >= h
+        val miolo = LinearLayout(context).apply {
+            orientation = if (paisagem) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        col.addView(miolo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        val fotos = data?.fotos.orEmpty()
+        val itens = oferta.itens
+
+        val conteudo: View = if (itens.size == 1) {
+            val item = itens[0]
+            val bloco = LinearLayout(context).apply {
+                orientation = if (paisagem) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+            }
+            val lado = px(base * 0.52f)
+            bloco.addView(fotoView(context, fotos[item.imagemUrl], base), LinearLayout.LayoutParams(lado, lado))
+            val info = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = if (paisagem) Gravity.START else Gravity.CENTER_HORIZONTAL
+            }
+            seloDesconto(context, OfertaText.desconto(item), base)?.let {
+                info.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
+            info.addView(text(context, base * 0.054f, bold = true, lines = 2).apply {
+                text = item.nome; gravity = if (paisagem) Gravity.START else Gravity.CENTER
+            }, lp(top = px(base * 0.012f)))
+            listOfNotNull(item.marca, item.unidade).takeIf { it.isNotEmpty() }?.let { extra ->
+                info.addView(text(context, base * 0.03f, color = Color.argb(190, 255, 255, 255)).apply {
+                    text = extra.joinToString(" · "); gravity = if (paisagem) Gravity.START else Gravity.CENTER
+                }, lp())
+            }
+            info.addView(dePorView(context, item, base * 0.17f, base, !paisagem), lp(top = px(base * 0.012f)))
+            bloco.addView(info, LinearLayout.LayoutParams(if (paisagem) 0 else ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, if (paisagem) 1f else 0f).apply {
+                if (paisagem) marginStart = px(base * 0.04f) else topMargin = px(base * 0.03f)
+            })
+            bloco
+        } else {
+            // Grade: 3 colunas na horizontal, 2 na vertical.
+            val colunas = if (paisagem) 3 else 2
+            val grade = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+            val gap = px(base * 0.02f)
+            itens.chunked(colunas).forEachIndexed { li, linhaItens ->
+                val linha = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+                for (c in 0 until colunas) {
+                    val item = linhaItens.getOrNull(c)
+                    val cel = FrameLayout(context)
+                    if (item != null) {
+                        cel.background = vidro(base)
+                        val card = LinearLayout(context).apply {
+                            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+                            val p = px(base * 0.018f); setPadding(p, p, p, p)
+                        }
+                        card.addView(fotoView(context, fotos[item.imagemUrl], base), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+                        card.addView(text(context, base * 0.032f, bold = true, lines = 2).apply { text = item.nome }, lp(top = px(base * 0.008f)))
+                        card.addView(dePorView(context, item, base * 0.08f, base, true), lp())
+                        cel.addView(card, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                        seloDesconto(context, OfertaText.desconto(item), base)?.let {
+                            cel.addView(it, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).apply {
+                                val m = px(base * 0.012f); setMargins(m, m, m, m)
+                            })
+                        }
+                    }
+                    linha.addView(cel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { if (c > 0) marginStart = gap })
+                }
+                grade.addView(linha, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply { if (li > 0) topMargin = gap })
+            }
+            grade
+        }
+        miolo.addView(conteudo, if (paisagem) LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+            else LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        val ladoQr = px(base * 0.24f)
+        qrView(context, spec.qrConteudo, ladoQr)?.let { qr ->
+            val bloco = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+            bloco.addView(qr, LinearLayout.LayoutParams(ladoQr, ladoQr))
+            bloco.addView(text(context, base * 0.026f, bold = true, color = Color.argb(230, 255, 255, 255)).apply {
+                text = spec.qrLegenda ?: "Aproveite"
+            }, lp(top = px(base * 0.01f)))
+            miolo.addView(bloco, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                if (paisagem) marginStart = px(base * 0.03f) else topMargin = px(base * 0.03f)
+            })
+        }
+
+        val rodape = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        rodape.addView(text(context, base * 0.028f, bold = true, color = Color.argb(215, 255, 255, 255)).apply {
+            text = OfertaText.validade(oferta.dataFim, hoje); gravity = Gravity.START
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        oferta.descricao?.let { d ->
+            rodape.addView(text(context, base * 0.026f, color = Color.argb(190, 255, 255, 255)).apply { text = d; gravity = Gravity.END },
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = px(base * 0.03f) })
+        }
+        col.addView(rodape, lp(top = px(base * 0.015f)))
+        return root
     }
 
     // ------------------------------------------------------------------ Institucional / Aviso (identidade SOBRE MÍDIA)

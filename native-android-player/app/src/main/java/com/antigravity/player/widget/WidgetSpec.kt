@@ -9,7 +9,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import java.net.URLDecoder
 
-enum class WidgetKind { CLOCK, WEATHER, RSS, INSTITUTIONAL, UNKNOWN }
+enum class WidgetKind { CLOCK, WEATHER, RSS, INSTITUTIONAL, OFFER, UNKNOWN }
 
 /** Linha "rótulo — valor" do modelo Institucional (ex.: "Segunda a sexta" — "06:00 — 22:00"). */
 data class LinhaInfo(val rotulo: String, val valor: String)
@@ -54,7 +54,9 @@ data class WidgetSpec(
     val institucional: Institucional? = null,
     /** Conteúdo do QR Code (qualquer modelo que o exiba) e a legenda. */
     val qrConteudo: String? = null,
-    val qrLegenda: String? = null
+    val qrLegenda: String? = null,
+    /** Oferta atual do cadastro (o servidor junta em config.oferta a cada sincronização; nunca gravada no widget). */
+    val oferta: Oferta? = null
 ) {
     /** Fundo do widget: a imagem da orientação da tela; se só existir a outra, usa ela (nunca fica sem fundo à toa). */
     fun backgroundFor(landscape: Boolean): String? =
@@ -73,6 +75,7 @@ object WidgetSpecParser {
             t.contains("clock") || t.contains("relogio") || t.contains("relógio") -> WidgetKind.CLOCK
             t.contains("weather") || t.contains("clima") -> WidgetKind.WEATHER
             t.contains("institutional") || t.contains("institucional") -> WidgetKind.INSTITUTIONAL
+            t == "offer" || t.contains("oferta") -> WidgetKind.OFFER
             t.contains("rss") || t.contains("news") || t.contains("noticia") || t.contains("notícia") -> WidgetKind.RSS
             else -> WidgetKind.UNKNOWN
         }
@@ -120,7 +123,8 @@ object WidgetSpecParser {
                 contato = str("contato"), endereco = str("endereco"), site = str("site"), cta = str("cta")
             ),
             qrConteudo = str("qrConteudo"),
-            qrLegenda = str("qrLegenda")
+            qrLegenda = str("qrLegenda"),
+            oferta = if (kindOf(rawType) != WidgetKind.OFFER) null else OfertaText.parse(cfg["oferta"])
         )
     }
 

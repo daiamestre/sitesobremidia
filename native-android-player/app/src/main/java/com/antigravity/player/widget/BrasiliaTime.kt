@@ -30,6 +30,9 @@ object BrasiliaTime {
     fun dateLong(utcMillis: Long): String =
         (fmt("EEEE").format(Date(utcMillis)) + " · " + fmt("d 'de' MMMM 'de' yyyy").format(Date(utcMillis))).uppercase(PT_BR)
 
+    /** "2026-09-25" — dia de hoje em Brasília (validade de ofertas). */
+    fun isoDate(utcMillis: Long): String = fmt("yyyy-MM-dd").format(Date(utcMillis))
+
     /** "25/09/2026" */
     fun dateShort(utcMillis: Long): String = fmt("dd/MM/yyyy").format(Date(utcMillis))
 

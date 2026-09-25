@@ -5,7 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon, Building2, Plus, X } from 'lucide-react';
+import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon, Building2, Plus, X, Tag } from 'lucide-react';
+import { customerCommerceService } from '@/modules/crm/services/customerCommerce.service';
+import type { Oferta } from '@/types/customerPortal';
+import { ofertaVigente } from '@/lib/ofertaWidget';
 import { Textarea } from '@/components/ui/textarea';
 import { conteudoQrValido } from '@/lib/qrCode';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -33,6 +36,7 @@ const WIDGET_TYPES_OPTS = [
     { value: 'weather', label: 'Clima', icon: Cloud },
     { value: 'rss', label: 'Notícias (RSS)', icon: Newspaper },
     { value: 'institutional', label: 'Institucional', icon: Building2 },
+    { value: 'offer', label: 'Oferta', icon: Tag },
 ];
 
 const getDefaultConfig = (type: string): WidgetConfig => {
@@ -50,6 +54,8 @@ const getDefaultConfig = (type: string): WidgetConfig => {
                 contato: '', endereco: '', site: '', cta: '', qrConteudo: '', qrLegenda: '',
                 backgroundImageLandscape: null, backgroundImagePortrait: null,
             };
+        case 'offer':
+            return { template: 'offer-destaque', ofertaId: '', qrConteudo: '', qrLegenda: '', backgroundImageLandscape: null, backgroundImagePortrait: null };
         default:
             return {};
     }
@@ -86,6 +92,14 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
             setIsActive(true);
         }
     }, [initialData, initialType, initialTemplate]);
+
+    // Ofertas visíveis para quem está logado (RLS do cadastro de ofertas). O widget guarda só o id.
+    const [ofertas, setOfertas] = useState<Oferta[] | null>(null);
+    useEffect(() => {
+        if (widgetType !== 'offer' || ofertas) return;
+        customerCommerceService.listarOfertas().then(setOfertas);
+    }, [widgetType, ofertas]);
+    const ofertaEscolhida = ofertas?.find((o) => o.id === config.ofertaId) ?? null;
 
     const handleTypeChange = (type: WidgetType) => {
         setWidgetType(type);
@@ -149,6 +163,14 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
 
         if (widgetType === 'institutional') {
             if (!config.titulo?.trim()) { toast.error('Informe o título do comunicado.'); return; }
+            if (config.qrConteudo?.trim() && !conteudoQrValido(config.qrConteudo)) {
+                toast.error('QR Code: use um link (https://...), telefone (tel:) ou e-mail (mailto:).');
+                return;
+            }
+        }
+
+        if (widgetType === 'offer') {
+            if (!config.ofertaId) { toast.error('Escolha a oferta do cadastro de ofertas.'); return; }
             if (config.qrConteudo?.trim() && !conteudoQrValido(config.qrConteudo)) {
                 toast.error('QR Code: use um link (https://...), telefone (tel:) ou e-mail (mailto:).');
                 return;
@@ -243,7 +265,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                         )}
 
                         {/* ORIENTATION & BG */}
-                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional') && (
+                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer') && (
                             <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                                 <Label className="text-sm font-semibold">Configuração de Fundo</Label>
                                 <div className="flex bg-muted rounded-lg p-1">
@@ -325,6 +347,35 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                         <div><Label>Longitude</Label><Input type="number" value={config.longitude} onChange={(e) => updateConfig('longitude', parseFloat(e.target.value))} /></div>
                                     </div>
                                     <div><Label>Nome do local (opcional)</Label><Input value={config.locationName || ''} placeholder="Ex: Manaus" onChange={(e) => updateConfig('locationName', e.target.value)} /></div>
+                                </div>
+                            )}
+
+                            {widgetType === 'offer' && (
+                                <div className="space-y-3" data-testid="form-oferta">
+                                    <div>
+                                        <Label>Oferta</Label>
+                                        <select
+                                            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                            value={config.ofertaId || ''}
+                                            onChange={(e) => updateConfig('ofertaId', e.target.value)}
+                                            data-testid="select-oferta"
+                                        >
+                                            <option value="">{ofertas === null ? 'Carregando ofertas…' : ofertas.length ? 'Escolha a oferta' : 'Nenhuma oferta cadastrada'}</option>
+                                            {(ofertas || []).map((o) => (
+                                                <option key={o.id} value={o.id}>{o.titulo} — {o.itens?.length ?? 0} produto(s) — até {o.data_fim.split('-').reverse().join('/')}</option>
+                                            ))}
+                                        </select>
+                                        <p className="mt-1 text-xs text-muted-foreground">Produtos e preços vêm do cadastro de Ofertas: alterou lá, a tela atualiza sozinha.</p>
+                                        {ofertaEscolhida && !ofertaVigente(ofertaEscolhida) && (
+                                            <p className="mt-1 text-xs font-medium text-amber-500" data-testid="aviso-oferta-fora-do-ar">
+                                                Esta oferta não está no ar e não aparece nas telas. Ela precisa estar aprovada, agendada ou publicada e dentro das datas ({ofertaEscolhida.data_inicio.split('-').reverse().join('/')} a {ofertaEscolhida.data_fim.split('-').reverse().join('/')}).
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><Label>QR Code — link</Label><Input value={config.qrConteudo || ''} placeholder="https://loja.com.br" onChange={(e) => updateConfig('qrConteudo', e.target.value)} /></div>
+                                        <div><Label>Legenda do QR</Label><Input value={config.qrLegenda || ''} placeholder="Aproveite" onChange={(e) => updateConfig('qrLegenda', e.target.value)} /></div>
+                                    </div>
                                 </div>
                             )}
 

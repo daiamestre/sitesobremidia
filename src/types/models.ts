@@ -44,7 +44,7 @@ export interface ExternalLink {
     is_active?: boolean;
 }
 
-export type WidgetType = 'clock' | 'weather' | 'rss' | 'institutional';
+export type WidgetType = 'clock' | 'weather' | 'rss' | 'institutional' | 'offer';
 
 export interface WidgetConfig {
     // Modelo da Galeria de Widgets (src/lib/widgetCatalog.ts); ausente = clássico do tipo
@@ -80,6 +80,8 @@ export interface WidgetConfig {
     endereco?: string;
     site?: string;
     cta?: string;
+    // Oferta: só a referência; preços e itens vêm do cadastro de ofertas
+    ofertaId?: string;
     // QR Code (qualquer modelo que o exiba)
     qrConteudo?: string;
     qrLegenda?: string;
