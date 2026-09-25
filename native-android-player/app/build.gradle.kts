@@ -49,8 +49,8 @@ android {
         applicationId = "com.antigravity.player"
         minSdk = 23
         targetSdk = 34
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 536
-        versionName = System.getenv("VERSION_NAME") ?: "5.4.0-MicroGate"
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 537
+        versionName = System.getenv("VERSION_NAME") ?: "5.5.0-MicroGate"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -150,6 +150,7 @@ dependencies {
     implementation(project(":core-player"))
     implementation(project(":sync-network"))
     implementation(project(":media-engine"))
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")

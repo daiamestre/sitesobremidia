@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { WidgetAssetsGallery } from './WidgetAssetsGallery';
 import { uploadToR2 } from '@/lib/r2Upload';
+import { compressImage } from '@/utils/imageCompression';
 
 interface WidgetFormProps {
     initialData: Widget | null;
@@ -83,16 +84,22 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
         const file = event.target.files?.[0];
         if (!file || !user) return;
 
+        if (!file.type.startsWith('image/')) {
+            toast.error('Apenas arquivos de imagem são permitidos.');
+            event.target.value = '';
+            return;
+        }
+
         setUploading(true);
         try {
-            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-            const sanitizedName = file.name.replace(/[^a-zA-Z0-9]/g, '_');
-            const fileName = `widget_${Date.now()}_${sanitizedName}.${fileExt}`;
-            // Organize widget assets in a specific folder
-            const { publicUrl, filePath } = await uploadToR2(
-                file,
+            // Mesma rotina da Galeria: reduz para no máx. 1920px (TV Box fraca não aguenta foto de 12 MP) e grava como JPG.
+            const blob = await compressImage(file, 1920, 0.85);
+            const sanitizedName = file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9]/g, '_');
+            const fileName = `widget_${Date.now()}_${sanitizedName}.jpg`;
+            const { publicUrl } = await uploadToR2(
+                blob,
                 `${user.id}/widgets/${fileName}`,
-                file.type,
+                'image/jpeg',
                 user.id
             );
 
@@ -102,13 +109,14 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
                 updateConfig('backgroundImagePortrait', publicUrl);
             }
 
-            toast.success('Imagem carregada com sucesso!');
+            toast.success('Imagem carregada! Clique em "Salvar Alterações" para aplicar ao widget.');
         } catch (error: unknown) {
             console.error('Upload error:', error);
             const errorMessage = error instanceof Error ? error.message : 'Falha no upload';
             toast.error(`Erro: ${errorMessage}`);
         } finally {
             setUploading(false);
+            event.target.value = '';
         }
     };
 
@@ -118,8 +126,8 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
             return;
         }
 
-        if (widgetType === 'rss' && !config.backgroundImageLandscape && !config.backgroundImagePortrait) {
-            toast.error('RSS requer imagem de fundo (Horizontal ou Vertical).');
+        if (widgetType === 'rss' && !/^https:\/\//i.test((config.feedUrl || '').trim())) {
+            toast.error('Informe a URL do feed RSS (começando com https://).');
             return;
         }
 
@@ -262,15 +270,22 @@ export function WidgetForm({ initialData, onSave, onCancel, renderPreview }: Wid
                             )}
 
                             {widgetType === 'weather' && (
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div><Label>Latitude</Label><Input type="number" value={config.latitude} onChange={(e) => updateConfig('latitude', parseFloat(e.target.value))} /></div>
-                                    <div><Label>Longitude</Label><Input type="number" value={config.longitude} onChange={(e) => updateConfig('longitude', parseFloat(e.target.value))} /></div>
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><Label>Latitude</Label><Input type="number" value={config.latitude} onChange={(e) => updateConfig('latitude', parseFloat(e.target.value))} /></div>
+                                        <div><Label>Longitude</Label><Input type="number" value={config.longitude} onChange={(e) => updateConfig('longitude', parseFloat(e.target.value))} /></div>
+                                    </div>
+                                    <div><Label>Nome do local (opcional)</Label><Input value={config.locationName || ''} placeholder="Ex: Manaus" onChange={(e) => updateConfig('locationName', e.target.value)} /></div>
                                 </div>
                             )}
 
                             {widgetType === 'rss' && (
                                 <div className="space-y-3">
                                     <div><Label>URL do Feed</Label><Input value={config.feedUrl} onChange={(e) => updateConfig('feedUrl', e.target.value)} /></div>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Faixa compacta (rodapé)</Label>
+                                        <Switch checked={config.variant === 'compact'} onCheckedChange={(v) => updateConfig('variant', v ? 'compact' : 'full')} />
+                                    </div>
                                     <div className="flex gap-2">
                                         <div className="flex-1"><Label>Máx. Itens</Label><Input type="number" value={config.maxItems} onChange={(e) => updateConfig('maxItems', parseInt(e.target.value))} /></div>
                                         <div className="flex-1"><Label>Segundos/Item</Label><Input type="number" value={config.scrollSpeed} onChange={(e) => updateConfig('scrollSpeed', parseInt(e.target.value))} /></div>

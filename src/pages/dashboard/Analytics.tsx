@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { fetchPlaybackStats } from '@/lib/playbackStats';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -46,41 +47,9 @@ export default function Analytics() {
                 .select('*', { count: 'exact', head: true })
                 .gte('created_at', yesterday.toISOString());
 
-            // 5. Playback Stats (Last 7 Days)
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-            sevenDaysAgo.setHours(0, 0, 0, 0);
-
-            const { data: playbackLogs } = await supabase
-                .from('playback_logs')
-                .select('started_at')
-                .gte('started_at', sevenDaysAgo.toISOString());
-
-            // Aggregate by Date
-            const playbackMap: Record<string, number> = {};
-            // Initialize last 7 days with 0
-            for (let i = 0; i < 7; i++) {
-                const d = new Date();
-                d.setDate(d.getDate() - i);
-                const key = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                playbackMap[key] = 0;
-            }
-
-            playbackLogs?.forEach((log) => {
-                const date = new Date(log.started_at);
-                const key = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                if (playbackMap[key] !== undefined) {
-                    playbackMap[key]++;
-                }
-            });
-
-            const playbackData = Object.entries(playbackMap)
-                .map(([date, count]) => ({ date, count }))
-                .sort((a, b) => {
-                    const [dayA, monthA] = a.date.split('/').map(Number);
-                    const [dayB, monthB] = b.date.split('/').map(Number);
-                    return (monthA - monthB) || (dayA - dayB);
-                });
+            // 5. Playback Stats (Last 7 Days) — agregado no banco (sem o teto de 1000 linhas do PostgREST)
+            const week = await fetchPlaybackStats(null, 'week');
+            const playbackData = week.map(p => ({ date: p.name, count: p.value }));
 
             return {
                 totalScreens,

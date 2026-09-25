@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { fetchPlaybackStats } from '@/lib/playbackStats';
 import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -298,83 +299,8 @@ export default function ScreenDetails() {
     // Fetch Stats
     const { data: statsData, isLoading: isLoadingStats } = useQuery({
         queryKey: ['screen-stats', resolvedId, statsPeriod],
-        queryFn: async () => {
-            if (!resolvedId) return [];
-
-            const now = new Date();
-            let start, end, formatLabel: (d: Date) => string;
-            const bucketKeys: string[] = [];
-            const buckets: Record<string, number> = {};
-
-            if (statsPeriod === 'today') {
-                start = startOfDay(now);
-                end = endOfDay(now);
-                formatLabel = (d) => format(d, 'HH:00');
-
-                // Pre-fill 24 hours
-                for (let i = 0; i <= 23; i++) {
-                    const temp = new Date(start);
-                    temp.setHours(i, 0, 0, 0);
-                    const label = formatLabel(temp);
-                    if (buckets[label] === undefined) {
-                        bucketKeys.push(label);
-                        buckets[label] = 0;
-                    }
-                }
-            } else if (statsPeriod === 'week') {
-                start = startOfDay(subDays(now, 6));
-                end = endOfDay(now);
-                formatLabel = (d) => format(d, 'dd/MM');
-
-                // Pre-fill 7 days
-                for (let i = 0; i < 7; i++) {
-                    const temp = new Date(now);
-                    temp.setDate(temp.getDate() - (6 - i));
-                    const label = formatLabel(temp);
-                    if (buckets[label] === undefined) {
-                        bucketKeys.push(label);
-                        buckets[label] = 0;
-                    }
-                }
-            } else { // month
-                start = startOfDay(subDays(now, 29));
-                end = endOfDay(now);
-                formatLabel = (d) => format(d, 'dd/MM');
-
-                // Pre-fill 30 days
-                for (let i = 0; i < 30; i++) {
-                    const temp = new Date(now);
-                    temp.setDate(temp.getDate() - (29 - i));
-                    const label = formatLabel(temp);
-                    if (buckets[label] === undefined) {
-                        bucketKeys.push(label);
-                        buckets[label] = 0;
-                    }
-                }
-            }
-
-            const { data, error } = await supabase
-                .from('playback_logs')
-                .select('started_at')
-                .eq('screen_id', resolvedId)
-                .gte('started_at', start.toISOString())
-                .lte('started_at', end.toISOString());
-
-            if (error) {
-                console.error("Stats Error:", error);
-                throw error;
-            }
-
-            data?.forEach((row) => {
-                const date = new Date(row.started_at);
-                const label = formatLabel(date);
-                if (buckets[label] !== undefined) {
-                    buckets[label]++;
-                }
-            });
-
-            return bucketKeys.map(key => ({ name: key, value: buckets[key] }));
-        },
+        // Contagem no banco (fn_playback_stats): o painel não pode contar linhas no navegador (teto de 1000 do PostgREST).
+        queryFn: async () => (resolvedId ? fetchPlaybackStats(resolvedId, statsPeriod) : []),
         refetchInterval: 10000,
         enabled: !!resolvedId
     });

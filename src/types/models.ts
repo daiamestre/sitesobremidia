@@ -58,6 +58,7 @@ export interface WidgetConfig {
     // Weather
     latitude?: number;
     longitude?: number;
+    locationName?: string;
 
     // RSS
     feedUrl?: string;

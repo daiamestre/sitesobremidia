@@ -8,6 +8,7 @@ import {
 interface WeatherWidgetProps {
     latitude?: number;
     longitude?: number;
+    locationName?: string;
     backgroundImage?: string | null;
     className?: string;
 }
@@ -50,7 +51,7 @@ const getWeatherDetails = (code: number, isDay: boolean) => {
     }
 };
 
-export function WeatherWidget({ latitude, longitude, backgroundImage, className }: WeatherWidgetProps) {
+export function WeatherWidget({ latitude, longitude, locationName, backgroundImage, className }: WeatherWidgetProps) {
     const [city, setCity] = useState("Local");
     const [state, setStateName] = useState("");
     const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -105,6 +106,11 @@ export function WeatherWidget({ latitude, longitude, backgroundImage, className 
             fetchWeather(injectedCity, latitude, longitude);
         };
 
+        // Coordenadas configuradas no painel: busca o clima na hora (antes só buscava com cidade injetada pelo Android/localStorage)
+        if (latitude !== undefined && longitude !== undefined && !Number.isNaN(latitude) && !Number.isNaN(longitude)) {
+            fetchWeather(city, latitude, longitude);
+        }
+
         // Fallback for standalone dev environments
         const storedCity = localStorage.getItem('player_city');
         const storedState = localStorage.getItem('player_state');
@@ -119,7 +125,7 @@ export function WeatherWidget({ latitude, longitude, backgroundImage, className 
         return () => clearInterval(interval);
     }, [latitude, longitude, city]);
 
-    const displayCity = city !== "Local" ? `${city} - ${state}` : "Sua Região";
+    const displayCity = locationName?.trim() || (city !== "Local" ? `${city} - ${state}` : "Sua Região");
     const bgGradient = weather?.isDay
         ? "bg-gradient-to-br from-blue-400 to-blue-600"
         : "bg-gradient-to-br from-slate-800 to-slate-950";

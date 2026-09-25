@@ -133,6 +133,10 @@ class MainActivity : AppCompatActivity() {
             com.antigravity.player.util.NativeWidgetEngine.renderWidget(this@MainActivity, nativeWidgetContainer, item.remoteUrl)
         }
 
+        override suspend fun warmWidget(item: MediaItem) {
+            com.antigravity.player.util.NativeWidgetEngine.warm(this@MainActivity, nativeWidgetContainer, item.remoteUrl)
+        }
+
         override fun mediaVisible() {
             viewModel.confirmarMidiaPronta()
             statusTextView.visibility = View.GONE

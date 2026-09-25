@@ -73,7 +73,7 @@ async function generatePresignedListUrl(params: {
   canonicalQueryParams.set("max-keys", "1000");
 
   const sortedQueryString = Array.from(canonicalQueryParams.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)) // SigV4: ordem por byte (maiúsculas 'X-Amz-*' antes de 'list-type'); localeCompare quebrava a assinatura
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
 
@@ -210,7 +210,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const res = await fetch(signedListUrl);
 
     if (!res.ok) {
-      console.error("[list-media-objects] R2 LIST falhou:", res.status, res.statusText);
+      console.error("[list-media-objects] R2 LIST falhou:", res.status, res.statusText, (await res.text()).slice(0, 300));
       return new Response(
         JSON.stringify({ error: "Falha ao listar objetos no R2." }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }

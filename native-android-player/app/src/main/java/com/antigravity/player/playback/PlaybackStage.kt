@@ -61,6 +61,9 @@ class PlaybackStage(
         /** Desenha o widget nativo no contêiner (Main). */
         suspend fun renderWidget(item: MediaItem)
 
+        /** Aquece fundo/dados do widget seguinte (rede e disco) para o tempo de exibição não atrasar. */
+        suspend fun warmWidget(item: MediaItem)
+
         /** Uma mídia está visível: libera a tela de sincronização, esconde status/standby. */
         fun mediaVisible()
 
@@ -431,6 +434,7 @@ class PlaybackStage(
         val leadMs = when (next?.let { kindOf(it) }) {
             Kind.VIDEO -> VIDEO_PRELOAD_LEAD_MS
             Kind.IMAGE -> IMAGE_PRELOAD_LEAD_MS
+            Kind.WIDGET -> WIDGET_WARMUP_LEAD_MS
             else -> -1L
         }
         val preloadAt = if (next != null && leadMs > 0L) PlaybackTimeline.preloadAt(slot.startAt, slot.endAt, fadeMs, leadMs) else -1L
@@ -463,7 +467,13 @@ class PlaybackStage(
         if (preloadKey == key) return
         discardPreload()
         val kind = kindOf(next) ?: return
-        if (kind == Kind.WIDGET) return
+        if (kind == Kind.WIDGET) {
+            preloadKey = key
+            preloadJob = scope.launch {
+                try { hooks.warmWidget(next) } catch (e: CancellationException) { throw e } catch (e: Exception) { /* só aquecimento */ }
+            }
+            return
+        }
         // Decodificador único (TV Box legada): com um vídeo na tela, o próximo vídeo é ANEXADO ao mesmo player (virada sem
         // buraco). Com imagem/widget na tela o decodificador está livre: pré-carga normal.
         val appendToCurrent = kind == Kind.VIDEO && hooks.isLegacyHardware() && shownKind == Kind.VIDEO && shownRenderer != null
@@ -548,6 +558,7 @@ class PlaybackStage(
         const val HOLD_TICK_MS = 30L
         const val VIDEO_PRELOAD_LEAD_MS = 5_000L
         const val IMAGE_PRELOAD_LEAD_MS = 2_500L
+        const val WIDGET_WARMUP_LEAD_MS = 6_000L
         const val VIDEO_READY_TIMEOUT_MS = 4_000L
         const val IMAGE_READY_TIMEOUT_MS = 3_000L
         const val APPEND_TRANSITION_WAIT_MS = 60L

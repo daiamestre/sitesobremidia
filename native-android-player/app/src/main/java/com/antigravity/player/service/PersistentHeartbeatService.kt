@@ -15,7 +15,6 @@ import com.antigravity.player.di.ServiceLocator
 import com.antigravity.sync.service.SessionManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.firstOrNull
-import java.util.Calendar
 
 /**
  * [O CORAÇÃO DE FERRO]
@@ -28,7 +27,6 @@ class PersistentHeartbeatService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var isRunning = false
-    private var lastSyncDay = -1
 
     override fun onCreate() {
         super.onCreate()
@@ -106,24 +104,12 @@ class PersistentHeartbeatService : Service() {
                 // Dorme estritamente 60 segundos exatos antes do próximo pulso
                 delay(60_000L)
                 
-                // [CONTABILIDADE DIÁRIA - ESTATÍSTICAS OFFLINE]
-                // Se virou o dia (passou da meia-noite) E já começou um novo loop de 60s,
-                // enviamos o pacote consolidado de exibições do dia inteiro para o Dashboard.
-                val currentDay = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
-                if (currentDay != lastSyncDay && lastSyncDay != -1) { // Ignora o primeiro trigger logo no boot
-                    try {
-                        com.antigravity.player.util.DisplayAnalyticsManager.syncWithDashboard(applicationContext)
-                        lastSyncDay = currentDay
-                    } catch (e: Exception) {
-                        Logger.e("HEARTBEAT_PROC", "Falha ao descarregar Analytics Diário: ${e.message}")
-                    }
-                } else if (lastSyncDay == -1) {
-                    // Inicializa a referência no boot pra não atirar a carga à toa logo de cara,
-                    // mas tenta mandar se sobrou lixo de ontem na primeira rodada
-                    try {
-                        com.antigravity.player.util.DisplayAnalyticsManager.syncWithDashboard(applicationContext)
-                    } catch (e: Exception) {}
-                    lastSyncDay = currentDay
+                // [ESTATÍSTICAS DE EXIBIÇÃO] A cada batimento envia o que estiver pendente no cofre (offline-first:
+                // se não há rede, os dados ficam guardados e saem na próxima rodada). Antes só saía à meia-noite.
+                try {
+                    com.antigravity.player.util.DisplayAnalyticsManager.syncWithDashboard(applicationContext)
+                } catch (e: Exception) {
+                    Logger.e("HEARTBEAT_PROC", "Falha ao descarregar Analytics: ${e.message}")
                 }
             }
         }

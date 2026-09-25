@@ -58,6 +58,7 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
                                 <WeatherWidget
                                     latitude={config.latitude}
                                     longitude={config.longitude}
+                                    locationName={config.locationName}
                                     backgroundImage={null} // BG handled by parent wrapper for preview
                                     className="w-full h-full"
                                 />

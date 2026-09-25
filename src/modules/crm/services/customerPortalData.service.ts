@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { fetchPlaybackTotals } from '@/lib/playbackStats';
 import { 
   PontoComLimite, 
   PontosResumo, 
@@ -234,19 +235,10 @@ export class CustomerPortalDataService {
         const telaIds = (locais || []).map(l => l.tela_id).filter(Boolean) as string[];
         const playbackMap: Record<string, { count: number; last_playback: string }> = {};
         if (telaIds.length > 0) {
-          const { data: playbacks } = await supabase
-            .from('playback_logs')
-            .select('screen_id, started_at')
-            .in('screen_id', telaIds)
-            .order('started_at', { ascending: false });
-          
-          if (playbacks) {
-            playbacks.forEach(p => {
-              if (!playbackMap[p.screen_id]) {
-                playbackMap[p.screen_id] = { count: 0, last_playback: p.started_at };
-              }
-              playbackMap[p.screen_id].count++;
-            });
+          // Agregado no banco: a consulta linha a linha era cortada em 1000 registros pelo PostgREST.
+          const totals = await fetchPlaybackTotals(telaIds);
+          for (const [screenId, t] of Object.entries(totals)) {
+            playbackMap[screenId] = { count: t.count, last_playback: t.last_playback || '' };
           }
         }
 
