@@ -580,3 +580,17 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Player:** `CoresWidget` (cores inválidas/ausentes -> padrão); `fundoMarca`/`cabecalhoMarca` aceitam as cores (demais widgets inalterados); Relógio/Clima sempre Futurista; renderizadores clássicos `buildClock`/`buildWeather` removidos (não eram mais chamados).
 - **Migração 20261250:** 4 widgets passaram ao Futurista na paleta padrão mantendo o fundo (lista e rollback no arquivo); só as 2 telas com "HORA HOTEL" mudaram de payload (HOTEL MAXSUEL, com Player 5.5.7 que já desenha o Futurista, e Mídia indoor).
 - **Prova:** painel — Galeria com 1 relógio/1 clima e capas vivas; Verde Esmeralda, amarelo personalizado (tom fechado, texto legível, selo branco), Azul Oceano salvo com capa viva; Clima em Pôr do Sol com dados reais. Emulador 5.5.9: relógio azul e clima Pôr do Sol idênticos à prévia; 0 ANR do app. Testes: `widgetPaletas.test.tsx` (7), `widgetFoundation.test.tsx` atualizado, `CoresWidgetTest` (3). JVM 193/193. APK 5.5.9 (546) SHA-256 `5da4dfd9c7fa073206e118affb7e9727ed0eeab5358b8a5a378044807dee251a` (15754724 bytes). Dados de teste apagados; playlist restaurada.
+
+### F-79 — Conteúdo irregular no banco de produção: 11 jogos inventados + 30 notícias G1/GE — REMOVIDO com preservação forense
+- **Origem:** um agente local fora do Claude Code, sem commit e sem transcrição, deixou rascunhos não versionados:
+  - `supabase/functions/sports-engine-sync`, que tinha a lista fixa `BASELINE_FIXTURES`;
+  - `supabase/functions/news-engine-sync`, com feeds da Globo;
+  - `supabase/migrations/20261245`–`20261247` e `src/lib/contentEngine.ts`.
+  Ele criou as tabelas `content_*` sem registro de migração e, em 26/09 entre 06:24 e 06:26 UTC, gravou 30 notícias e 11 jogos.
+- **Classificação:**
+  - Jogos: **FABRICATED**. `source = 'baseline'`, e nenhum confronto existe na data gravada, conforme cruzamento com openfootball CC0 e Wikipédia.
+  - Notícias: **UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE**. São artigos reais da Globo, sem licença de reuso; 10 deles de 2018 a 2023.
+- **Publicação:** nunca foram distribuídos nem exibidos: 0 exibições, 0 referências, nenhum código versionado lê as tabelas e as Edge Functions não foram publicadas.
+- **Remoção:** transação atômica apenas sobre os 41 IDs inventariados, com o pós-commit em 0 + 0; as outras 187 tabelas ficaram com contagem idêntica.
+- **Evidências:** `docs/engineering/evidence/F-79_limpeza_forense_conteudo/` (snapshots, manifesto, hashes, SQL executado, contagens antes e depois).
+- **Mantidos e não alterados:** as tabelas e a estrutura `content_*` (4 competições, 10 categorias), que serão reavaliadas no Sports/News Engine. Os rascunhos da outra sessão seguem no disco, sem commit, e não são publicados enquanto não passarem por revisão.

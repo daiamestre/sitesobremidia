@@ -1,0 +1,105 @@
+{
+  "finding": "F-79",
+  "gerado_em": "2026-09-26T06:58:38.645Z",
+  "ambiente": "produção Supabase bhwsybgsyvvhqtkdqozb (schema public)",
+  "baseline": {
+    "branch": "release/player-5.2.4",
+    "commit": "b9e683b"
+  },
+  "fase": "READ-ONLY FORENSIC PREFLIGHT (nenhum DELETE executado)",
+  "arquivos": {
+    "sports_fixtures_11.json": "b66b74a9c0178c7c5bd3593430179817bb9e14bc2183f82ac87f2c36832f2157",
+    "news_items_30.json": "15cef931bb212611a68a82112387f6ccadaf45be2fb29fab735a784493aa0b84",
+    "contexto_estrutural_nao_removido.json": "a6c1be2ff1c47e31820adcca749c70556e4d058df3619cc26d540e77242c1e13"
+  },
+  "alvos": {
+    "content_sports_fixtures": {
+      "quantidade": 11,
+      "classificacao": "FABRICATED",
+      "ids": [
+        "3f472a6a-f1eb-421e-88f0-2a81f6dc5b44",
+        "2429ecbb-d74c-4c47-ab7e-472b3fe0808d",
+        "aac3a2dd-b3a6-4426-8f67-c8e265a388a9",
+        "488b5613-5566-4e5f-a447-9424bd65e54d",
+        "3eb0d507-25c2-4143-a187-5be7b2513fac",
+        "39bb9c4c-eb05-4dbc-b5ae-565171712bed",
+        "e48b37dd-0f51-487d-a94c-6e9578467924",
+        "bac57c8d-e826-4613-bbf7-a77e942fd716",
+        "7c89d8d4-3b78-4405-a303-ceea4ac8864c",
+        "350d76b9-28a0-4b27-bdd1-924cd2555d18",
+        "e0d9ddc7-d8b4-4221-93b8-ae123f4f3fd6"
+      ]
+    },
+    "content_news_items": {
+      "quantidade": 30,
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "ids": [
+        "4a80c01a-95b0-418d-b377-488066336712",
+        "072e285f-e785-4f3e-8411-5905c57e0c5b",
+        "b944a949-a44d-46ea-8a38-bb15b5608393",
+        "ffdd42d1-bf5b-47c2-979c-1dc4db511d16",
+        "80bd238b-be14-4e03-b49a-1b9da5d5dc54",
+        "9939b19c-4308-461e-ad97-41bf32ac078c",
+        "cdab49b5-165c-4788-bbfe-1db52ee51a14",
+        "96a2c7b1-09cf-4831-bb8f-12dc843b2ded",
+        "38d9f707-f6f6-40ec-befc-b4eebd171ad6",
+        "2b70a7c1-3882-4454-8e03-e73ba7a0418d",
+        "f26cd795-66ec-4f89-96c5-5f8634b2f34b",
+        "50b709b7-083e-4cdb-b413-94c77b6fc1cf",
+        "0aa7b0f0-b73e-46c2-ad21-4377f4800781",
+        "5a86d6ef-4b37-467c-a4d8-93b5f3a480fc",
+        "8f6283e3-c55c-44d1-a51d-51a96b7b03a8",
+        "66282a29-73b9-446e-8a20-2411fa7f1abd",
+        "8a2a9032-7e27-462f-9717-3fad206561e8",
+        "44234cca-661e-4985-858c-315182a5eb71",
+        "b40eed7e-1505-4533-bdaa-aa8ce7c20949",
+        "0dc1a71a-3811-42d8-9bca-8dcff2fdecde",
+        "94f243ec-3640-4cfa-9bd8-52f40f6ec3dc",
+        "a3cc4ac9-308a-495b-8783-a6c640e2d5a0",
+        "6e868a75-41f1-4eda-92a9-8f494df04d15",
+        "d39a534f-6510-4539-a400-1bda03370263",
+        "a828a6fb-3fa8-4110-bde3-c53eb7cd1414",
+        "feff3b04-9721-41fc-bf51-8a30ce762348",
+        "80254d32-6044-4cf1-85f8-0254fcd8f989",
+        "c404c6ea-55f7-4213-aa03-8be1daaa9da1",
+        "65428c48-f1c4-44e7-906c-dc005530c12e",
+        "06225f05-69c6-4388-a9ef-45678d01f794"
+      ]
+    }
+  },
+  "origem": {
+    "processo": "agente local fora do Claude Code (sem transcrição CCD, sem registro em .agents/auditoria_logs)",
+    "arquivos_rascunho_sha256_16": {
+      "supabase/functions/sports-engine-sync/index.ts": "b81a880476f1e0aa (06:23:34Z)",
+      "supabase/functions/news-engine-sync/index.ts": "b9c93250de1540ec (06:23:20Z)",
+      "supabase/migrations/20261246_content_engine_news_sports.sql": "38f1c7088e784c8d (06:20:09Z)",
+      "supabase/migrations/20261247_content_engine_seed.sql": "dc985bb7d5c22756 (06:20:09Z)"
+    },
+    "insercao_noticias": "2026-09-26 06:24:11–06:24:35 UTC",
+    "insercao_jogos": "2026-09-26 06:26:41–06:26:52 UTC",
+    "commit": "nenhum (arquivos não versionados)",
+    "schema_migrations": "tabelas criadas sem registro de migração"
+  },
+  "dependencias": {
+    "fks_apontando_para_alvos": 0,
+    "triggers": 0,
+    "views": 0,
+    "realtime": false,
+    "referencias_indiretas_em_colunas_text_jsonb": 0,
+    "storage_objects": 0,
+    "funcoes_leitoras": [
+      "content_get_news_items",
+      "content_get_sports_fixtures",
+      "content_get_today_fixtures",
+      "fn_content_news_expirar",
+      "content_news_marcar_exibido"
+    ],
+    "consumidores_no_codigo_versionado": 0,
+    "edge_functions_publicadas": "nenhuma (sports-engine-sync/news-engine-sync não deployadas)",
+    "widget_no_player": "inexistente (WidgetKind sem SPORTS/NEWS)"
+  },
+  "estado_publicacao": {
+    "jogos": "CREATED (sem publicação, distribuição ou exibição)",
+    "noticias": "CREATED — status ACTIVE no banco, display_count=0, last_displayed_at nulo em 30/30; nunca DISTRIBUTED nem PLAYED"
+  }
+}

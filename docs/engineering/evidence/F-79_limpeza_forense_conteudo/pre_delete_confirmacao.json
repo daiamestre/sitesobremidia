@@ -1,0 +1,654 @@
+{
+  "confirmado_em": "2026-09-26T07:04:11.303Z",
+  "target_sports": 11,
+  "target_news": 30,
+  "total": 41,
+  "comparacao_com_snapshot": "41/41 idênticos (f79_verify: PRE-CHECK PASS)",
+  "registros": [
+    {
+      "id": "3f472a6a-f1eb-421e-88f0-2a81f6dc5b44",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "Brasileirão: Flamengo 2x1 Palmeiras",
+      "source": "baseline",
+      "source_url": null,
+      "status": "FINISHED",
+      "created_at": "2026-09-26T06:26:41.915902+00:00",
+      "updated_at": "2026-09-26T06:26:41.915902+00:00",
+      "relacoes": {
+        "competition_id": "7aa2cfea-1b51-421c-8ce5-5bb709e1f2e4"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "6fe26b5a6392f7740e94053f67af1ab5ecd371a19fc7dd03debece2cdd5cc625"
+    },
+    {
+      "id": "2429ecbb-d74c-4c47-ab7e-472b3fe0808d",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "Brasileirão: São Paulo 3x1 Corinthians",
+      "source": "baseline",
+      "source_url": null,
+      "status": "FINISHED",
+      "created_at": "2026-09-26T06:26:42.633947+00:00",
+      "updated_at": "2026-09-26T06:26:42.633947+00:00",
+      "relacoes": {
+        "competition_id": "7aa2cfea-1b51-421c-8ce5-5bb709e1f2e4"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "28e85688cb5505fd95204afb7e055c4894ea481918456263aeba76188297aab3"
+    },
+    {
+      "id": "aac3a2dd-b3a6-4426-8f67-c8e265a388a9",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "Brasileirão: Botafogo 1x0 Fluminense",
+      "source": "baseline",
+      "source_url": null,
+      "status": "FINISHED",
+      "created_at": "2026-09-26T06:26:43.447698+00:00",
+      "updated_at": "2026-09-26T06:26:43.447698+00:00",
+      "relacoes": {
+        "competition_id": "7aa2cfea-1b51-421c-8ce5-5bb709e1f2e4"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "85b1c9f0235fbbb6f222105529fbf31a7226e3cda7c9f46f594c61561de1a8d1"
+    },
+    {
+      "id": "488b5613-5566-4e5f-a447-9424bd65e54d",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "Brasileirão: Atlético-MG -x- Cruzeiro",
+      "source": "baseline",
+      "source_url": null,
+      "status": "SCHEDULED",
+      "created_at": "2026-09-26T06:26:44.22493+00:00",
+      "updated_at": "2026-09-26T06:26:44.22493+00:00",
+      "relacoes": {
+        "competition_id": "7aa2cfea-1b51-421c-8ce5-5bb709e1f2e4"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "71fd09819e288b653f8704c34f26c8614d4a538e7f2840cba3e030b33a9ba4a1"
+    },
+    {
+      "id": "3eb0d507-25c2-4143-a187-5be7b2513fac",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "Champions League: Real Madrid 5x2 Borussia Dortmund",
+      "source": "baseline",
+      "source_url": null,
+      "status": "FINISHED",
+      "created_at": "2026-09-26T06:26:44.980351+00:00",
+      "updated_at": "2026-09-26T06:26:44.980351+00:00",
+      "relacoes": {
+        "competition_id": "57382c61-c7e9-490c-bf66-9b4f68d97f38"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "e48978f55f3a568217e7b67d9b4200d7cec3854ff0fa548a7f0691547567e73a"
+    },
+    {
+      "id": "39bb9c4c-eb05-4dbc-b5ae-565171712bed",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "Champions League: Barcelona 4x1 Bayern de Munique",
+      "source": "baseline",
+      "source_url": null,
+      "status": "FINISHED",
+      "created_at": "2026-09-26T06:26:46.059522+00:00",
+      "updated_at": "2026-09-26T06:26:46.059522+00:00",
+      "relacoes": {
+        "competition_id": "57382c61-c7e9-490c-bf66-9b4f68d97f38"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "63b2f34cf9241abf4cb15ccc986b3c604145a21fcbb1e07c4a76dc80adf721a7"
+    },
+    {
+      "id": "e48b37dd-0f51-487d-a94c-6e9578467924",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "Champions League: Liverpool -x- Bayer Leverkusen",
+      "source": "baseline",
+      "source_url": null,
+      "status": "SCHEDULED",
+      "created_at": "2026-09-26T06:26:46.827665+00:00",
+      "updated_at": "2026-09-26T06:26:46.827665+00:00",
+      "relacoes": {
+        "competition_id": "57382c61-c7e9-490c-bf66-9b4f68d97f38"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "a0eee55fb80f08b2d5bbbbfb7f876c117b203fad982814715834dfb3ae9b3813"
+    },
+    {
+      "id": "bac57c8d-e826-4613-bbf7-a77e942fd716",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "Premier League: Arsenal 2x2 Liverpool",
+      "source": "baseline",
+      "source_url": null,
+      "status": "FINISHED",
+      "created_at": "2026-09-26T06:26:47.663802+00:00",
+      "updated_at": "2026-09-26T06:26:47.663802+00:00",
+      "relacoes": {
+        "competition_id": "4305fec8-b033-4a45-8333-0d2ad70ec20b"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "3742d343a99225ce6d2e6abf36f9b1ca43ec926a68cda3495a08902e96df2e77"
+    },
+    {
+      "id": "7c89d8d4-3b78-4405-a303-ceea4ac8864c",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "Premier League: Newcastle -x- Arsenal",
+      "source": "baseline",
+      "source_url": null,
+      "status": "SCHEDULED",
+      "created_at": "2026-09-26T06:26:50.977565+00:00",
+      "updated_at": "2026-09-26T06:26:50.977565+00:00",
+      "relacoes": {
+        "competition_id": "4305fec8-b033-4a45-8333-0d2ad70ec20b"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "277ed967fd10a35f4277c06a186583f6e3a861c43c78e28357b50d1ded8b720b"
+    },
+    {
+      "id": "350d76b9-28a0-4b27-bdd1-924cd2555d18",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "La Liga: Real Madrid 0x4 Barcelona",
+      "source": "baseline",
+      "source_url": null,
+      "status": "FINISHED",
+      "created_at": "2026-09-26T06:26:51.776188+00:00",
+      "updated_at": "2026-09-26T06:26:51.776188+00:00",
+      "relacoes": {
+        "competition_id": "d34f93d7-381f-47e6-9121-414b16ea5d4e"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "18c6dc63b72c5d10671fb62e584e0aefc4acb1c52faad5752207eac9e33a1def"
+    },
+    {
+      "id": "e0d9ddc7-d8b4-4221-93b8-ae123f4f3fd6",
+      "tabela": "public.content_sports_fixtures",
+      "nome": "La Liga: Atlético de Madrid -x- Las Palmas",
+      "source": "baseline",
+      "source_url": null,
+      "status": "SCHEDULED",
+      "created_at": "2026-09-26T06:26:52.691341+00:00",
+      "updated_at": "2026-09-26T06:26:52.691341+00:00",
+      "relacoes": {
+        "competition_id": "d34f93d7-381f-47e6-9121-414b16ea5d4e"
+      },
+      "classificacao": "FABRICATED",
+      "row_sha256": "6fb9b17f935a996259dbac775202e54a4b54ce0f3dd8ba07455c6aa7b25d7a78"
+    },
+    {
+      "id": "4a80c01a-95b0-418d-b377-488066336712",
+      "tabela": "public.content_news_items",
+      "nome": "Batalha de Rap Macapá terá duelos de rima e venda de comidas típicas no Mercado Central",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/ap/amapa/noticia/2023/05/05/batalha-de-rap-macapa-tera-duelos-de-rima-e-venda-de-comidas-tipicas-no-mercado-central.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:11.537209+00:00",
+      "updated_at": "2026-09-26T06:24:11.537209+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "fbac8b2dd8610d465bbbd40bc411f7be4ea49e9b7008ebf402b993c9d9163559"
+    },
+    {
+      "id": "072e285f-e785-4f3e-8411-5905c57e0c5b",
+      "tabela": "public.content_news_items",
+      "nome": "‘Maio Amarelo’ tem ações em escolas e ruas para prevenir acidentes no trânsito no AP",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/ap/amapa/noticia/2023/05/03/maio-amarelo-tem-acoes-em-escolas-e-passeio-ciclistico-para-alertar-pedestres-e-motoristas-no-ap.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:12.300018+00:00",
+      "updated_at": "2026-09-26T06:24:12.300018+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "c2c1f85b9623eeaa03662a661efef679b94d1e42de130b74702262091f6ed149"
+    },
+    {
+      "id": "b944a949-a44d-46ea-8a38-bb15b5608393",
+      "tabela": "public.content_news_items",
+      "nome": "Crianças autistas participam de sessão de terapia com cães do Bope em Macapá",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/ap/amapa/noticia/2023/04/28/criancas-autistas-participam-de-sessao-de-cinoterapia-com-caes-do-bope-em-macapa.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:13.10478+00:00",
+      "updated_at": "2026-09-26T06:24:13.10478+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "75e1452b22a3734143402542a619ae8fb2f33b7307137d9a6290122ba9ca64ee"
+    },
+    {
+      "id": "ffdd42d1-bf5b-47c2-979c-1dc4db511d16",
+      "tabela": "public.content_news_items",
+      "nome": "Jacaré de 2 metros é resgatado dentro do campus do Ifap em Macapá; é o 2º animal em 17 dias",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/ap/amapa/noticia/2022/05/06/jacare-de-2-metros-e-resgatado-dentro-do-campus-do-ifap-em-macapa-e-o-2o-animal-em-17-dias.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:13.839907+00:00",
+      "updated_at": "2026-09-26T06:24:13.839907+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "21fa76131a0c7d83dcfd25bf66ea5ef2f20ad849d264140fb4b5d6f1d84cb35d"
+    },
+    {
+      "id": "80bd238b-be14-4e03-b49a-1b9da5d5dc54",
+      "tabela": "public.content_news_items",
+      "nome": "Acusado do assassinato de duas crianças em Viçosa do Ceará é condenado a 50 anos de prisão",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/ce/ceara/noticia/2021/10/20/homem-e-condenado-a-50-anos-de-prisao-por-assassinato-de-duas-criancas-em-vicosa-do-ceara.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:14.644677+00:00",
+      "updated_at": "2026-09-26T06:24:14.644677+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "9d3bffb05c9abe8e0ff301c1b56543fb2f2736d2061e0f226601d36b02e3fe66"
+    },
+    {
+      "id": "9939b19c-4308-461e-ad97-41bf32ac078c",
+      "tabela": "public.content_news_items",
+      "nome": "Justiça determina o afastamento de Sydnei Pereira da Prefeitura de Anajatuba",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/ma/maranhao/noticia/2020/12/04/justica-determina-o-afastamento-de-sydnei-pereira-da-prefeitura-de-anajatuba-no-maranhao.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:15.418373+00:00",
+      "updated_at": "2026-09-26T06:24:15.418373+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "aaf1316919c9a23143e643f7bf0e64c35e830b32b1f3bcd1f77904ef089866cd"
+    },
+    {
+      "id": "cdab49b5-165c-4788-bbfe-1db52ee51a14",
+      "tabela": "public.content_news_items",
+      "nome": "Grupo empresarial deve pagar quase R$ 21 milhões por desvio de recursos da Cidade das Águas em Frutal",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/mg/triangulo-mineiro/noticia/2020/02/14/grupo-empresarial-deve-pagar-quase-r-21-milhoes-por-desvio-de-recursos-da-cidade-das-aguas-em-frutal.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:16.189117+00:00",
+      "updated_at": "2026-09-26T06:24:16.189117+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "5e8e3c41bb20867e0cd6378d419c11c2939d6f43e54a768ba6b51858e9af5128"
+    },
+    {
+      "id": "96a2c7b1-09cf-4831-bb8f-12dc843b2ded",
+      "tabela": "public.content_news_items",
+      "nome": "Carlinhos Maia apresenta show de humor 'Mas, Carlos!' pela primeira vez no AP",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/ap/amapa/noticia/2018/08/18/carlinhos-maia-apresenta-show-de-humor-mas-carlos-pela-primeira-vez-no-ap.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:17.072959+00:00",
+      "updated_at": "2026-09-26T06:24:17.072959+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "fba03fcc6bb4ab0dde95343ca29421708a194d9e737ef3f4806a55951fc53285"
+    },
+    {
+      "id": "38d9f707-f6f6-40ec-befc-b4eebd171ad6",
+      "tabela": "public.content_news_items",
+      "nome": "Michele Maycoth interpreta sucessos de Maria Gadú em noite romântica no AP",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/ap/amapa/noticia/2018/08/17/michele-maycoth-interpreta-sucessos-de-maria-gadu-em-noite-romantica-no-ap.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:17.782593+00:00",
+      "updated_at": "2026-09-26T06:24:17.782593+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "cd259258db2950985b3d8fd2d78fd4e8820dae7ac019bca8e18ffaf5e66e8e6b"
+    },
+    {
+      "id": "2b70a7c1-3882-4454-8e03-e73ba7a0418d",
+      "tabela": "public.content_news_items",
+      "nome": "Exposição 'Minha Aldeia' reúne fotografias inspiradas no cotidiano amapaense",
+      "source": "G1 Brasil",
+      "source_url": "https://g1.globo.com/ap/amapa/noticia/2018/08/08/exposicao-minha-aldeia-reune-fotografias-inspiradas-no-cotidiano-amapaense.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:18.612866+00:00",
+      "updated_at": "2026-09-26T06:24:18.612866+00:00",
+      "relacoes": {
+        "category_id": "ea159af2-a67f-43dd-8b6e-721a42ddaa5b",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "2f311d201e3c6efa77daeb868fbeb37740550a018fa5f0f7d1167b3bbd0a9c2c"
+    },
+    {
+      "id": "f26cd795-66ec-4f89-96c5-5f8634b2f34b",
+      "tabela": "public.content_news_items",
+      "nome": "Flamengo prega cautela com Valencia e confia em evolução; Jardim revela planejamento: \"Jogador que acredito\"",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/futebol/times/flamengo/noticia/2026/09/26/flamengo-prega-cautela-com-valencia-e-confia-em-evolucao-jardim-revela-planejamento-jogador-que-acredito.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:19.713795+00:00",
+      "updated_at": "2026-09-26T06:24:19.713795+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "398af2d02dd98ee1e59cbc29ded63e0cab8a4f0536b360f20eaaa00e86439d57"
+    },
+    {
+      "id": "50b709b7-083e-4cdb-b413-94c77b6fc1cf",
+      "tabela": "public.content_news_items",
+      "nome": "Mr. Olympia 2026: Ramon Dino tropeça, deixa bi escapar e termina em 3º lugar",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/fisiculturismo/noticia/2026/09/26/mr-olympia-2026-ramon-dino-nao-consegue-bicampeonato-e-termina-em-3o-lugar.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:20.482061+00:00",
+      "updated_at": "2026-09-26T06:24:20.482061+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "ad6546d46be8a702840c29b241aed7d81e386cc746e52178c80dd7db31ae7efb"
+    },
+    {
+      "id": "0aa7b0f0-b73e-46c2-ad21-4377f4800781",
+      "tabela": "public.content_news_items",
+      "nome": "Mr. Olympia 2026: Eduarda Bezerra confirma favoritismo e é bicampeã da Wellness",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/fisiculturismo/noticia/2026/09/26/mr-olympia-2026-eduarda-bezerra-confirma-favoritismo-e-e-bicampea-da-wellness.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:21.229793+00:00",
+      "updated_at": "2026-09-26T06:24:21.229793+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "ad9af5db67802834c72f1152737e78ee02673c1d7bb01ede39bddcd95f2b89cd"
+    },
+    {
+      "id": "5a86d6ef-4b37-467c-a4d8-93b5f3a480fc",
+      "tabela": "public.content_news_items",
+      "nome": "Mr. Olympia 2026: Derek Lunsford e Nick Walker fecham prévias da Open no centro do palco",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/fisiculturismo/noticia/2026/09/26/mr-olympia-2026-derek-lunsford-e-nick-walker-fecham-previas-da-open-no-centro-do-palco.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:22.02973+00:00",
+      "updated_at": "2026-09-26T06:24:22.02973+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "2155a5366f0111c07d572a3a2edd45e5cd72fc7b9b17142c106113093789e310"
+    },
+    {
+      "id": "8f6283e3-c55c-44d1-a51d-51a96b7b03a8",
+      "tabela": "public.content_news_items",
+      "nome": "Imprensa internacional repercute derrota da Itália na volta de Mancini: \"Feia, confusa e vaiada\"",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/futebol/futebol-internacional/noticia/2026/09/26/imprensa-internacional-repercute-derrota-da-italia-na-volta-de-mancini-feia-confusa-e-vaiada.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:22.841329+00:00",
+      "updated_at": "2026-09-26T06:24:22.841329+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "34dd5e858eaf04959620c75f606389781491a728cfa46ef9289ced5e98e9525c"
+    },
+    {
+      "id": "66282a29-73b9-446e-8a20-2411fa7f1abd",
+      "tabela": "public.content_news_items",
+      "nome": "Tuchel diz que Palmer, cortado, \"perde muitas oportunidades\" de mostrar serviço na seleção inglesa",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/futebol/futebol-internacional/futebol-ingles/noticia/2026/09/26/tuchel-diz-que-palmer-cortado-perde-muitas-oportunidades-de-mostrar-servico-na-selecao-inglesa.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:23.580045+00:00",
+      "updated_at": "2026-09-26T06:24:23.580045+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "0bdf68d99b05ba8ad168a261620f502c69e276c6792116380fb1011a50a94bf3"
+    },
+    {
+      "id": "8a2a9032-7e27-462f-9717-3fad206561e8",
+      "tabela": "public.content_news_items",
+      "nome": "Scaloni revela nova hierarquia de capitães da Argentina após aposentadoria de Messi",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/futebol/futebol-internacional/noticia/2026/09/26/scaloni-revela-nova-hierarquia-de-capitaes-da-argentina-apos-aposentadoria-de-messi.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:24.470879+00:00",
+      "updated_at": "2026-09-26T06:24:24.470879+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "0379f9e01c072d941d30a54d4bfe026dfeffa56c3a9aae0a146fe662ef295c12"
+    },
+    {
+      "id": "44234cca-661e-4985-858c-315182a5eb71",
+      "tabela": "public.content_news_items",
+      "nome": "Ramon Dino encontra CBum antes das finais do Mr. Olympia",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/fisiculturismo/noticia/2026/09/26/ramon-dino-encontra-cbum-antes-das-finais-do-mr-olympia.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:25.214188+00:00",
+      "updated_at": "2026-09-26T06:24:25.214188+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "1064851c94afaaec5b71b3deb02a8b84dd1b822d0b4b7e2b5bc2351fccf36027"
+    },
+    {
+      "id": "b40eed7e-1505-4533-bdaa-aa8ce7c20949",
+      "tabela": "public.content_news_items",
+      "nome": "Jornal espanhol destaca falha de Vozinha em derrota de Cabo Verde: \"Golpe de realidade\"",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/futebol/futebol-internacional/noticia/2026/09/26/jornal-espanhol-destaca-falha-de-vozinha-em-derrota-de-cabo-verde-golpe-de-realidade.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:26.133981+00:00",
+      "updated_at": "2026-09-26T06:24:26.133981+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "75a8b5a440833880c7e6a6f7de2bfe04b796668861d959507a4e4f4d3959c7de"
+    },
+    {
+      "id": "0dc1a71a-3811-42d8-9bca-8dcff2fdecde",
+      "tabela": "public.content_news_items",
+      "nome": "Zidane admite preocupação com lesão de Mbappé: \"Não está bem\"",
+      "source": "GE Esporte",
+      "source_url": "https://ge.globo.com/futebol/futebol-internacional/noticia/2026/09/26/zidane-admite-preocupacao-com-lesao-de-mbappe-nao-esta-bem.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:27.032551+00:00",
+      "updated_at": "2026-09-26T06:24:27.032551+00:00",
+      "relacoes": {
+        "category_id": "69c769df-a3ec-4087-9a2b-c3495f9ac7bc",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "f150cb315b37191b0e72a26054b60203cbe9a0f15dae9253d16f8af22fcff1e1"
+    },
+    {
+      "id": "94f243ec-3640-4cfa-9bd8-52f40f6ec3dc",
+      "tabela": "public.content_news_items",
+      "nome": "Morango cravejado: trend aumenta procura, mas chuvas prejudicam produção; preço sobe até 177%",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/economia/agronegocios/noticia/2026/09/26/morango-cravejado-trend-aumenta-procura-mas-chuvas-prejudicam-producao-preco-sobe-ate-177percent.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:28.255496+00:00",
+      "updated_at": "2026-09-26T06:24:28.255496+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "32523fe26ffebde0092dc243d45a5157de110073d954cd14c2c20f0ca1b9bc84"
+    },
+    {
+      "id": "a3cc4ac9-308a-495b-8783-a6c640e2d5a0",
+      "tabela": "public.content_news_items",
+      "nome": "Criminosos vendem pacotes de vídeos de abuso sexual infantil por R$ 10 no Telegram e usam PIX para receber",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/tecnologia/noticia/2026/09/26/criminosos-vendem-pacotes-de-videos-de-abuso-sexual-infantil-por-r-10-no-telegram-e-usam-pix-para-receber.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:29.143517+00:00",
+      "updated_at": "2026-09-26T06:24:29.143517+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "79ff573af62d7bc8b578a5c0ee837713c00cefca8d7b0435655a4664d4290cae"
+    },
+    {
+      "id": "6e868a75-41f1-4eda-92a9-8f494df04d15",
+      "tabela": "public.content_news_items",
+      "nome": "Saiba quais são as 100 melhores empresas para trabalhar no Brasil, segundo a revista Time",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/trabalho-e-carreira/noticia/2026/09/26/melhores-empresas-para-trabalhar-no-brasil.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:29.951354+00:00",
+      "updated_at": "2026-09-26T06:24:29.951354+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "c2899136fe83193ad33cc7a9a236d3352d49a4ea40c84c13b7ddcba5d128e2be"
+    },
+    {
+      "id": "d39a534f-6510-4539-a400-1bda03370263",
+      "tabela": "public.content_news_items",
+      "nome": "Por que ostentamos? O que a psicologia e a economia explicam sobre o consumo de luxo",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/saude/saude-mental/noticia/2026/09/26/por-que-ostentamos-o-que-a-psicologia-e-a-economia-explicam-sobre-o-consumo-de-luxo.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:30.748746+00:00",
+      "updated_at": "2026-09-26T06:24:30.748746+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "f961c2788bed16898e4f61d66a4afd01d47f792bef86ca481da63282709cf395"
+    },
+    {
+      "id": "a828a6fb-3fa8-4110-bde3-c53eb7cd1414",
+      "tabela": "public.content_news_items",
+      "nome": "Dívida boa existe? Entenda quando dever pode ajudar — ou prejudicar — seu bolso",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/g1-explica/noticia/2026/09/26/divida-boa-existe-entenda-quando-dever-pode-ajudar-ou-prejudicar-seu-bolso.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:31.639875+00:00",
+      "updated_at": "2026-09-26T06:24:31.639875+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "180f71c0d320c6d34b67177ca77fc1867564f83331d8832ed6a53a776730dde1"
+    },
+    {
+      "id": "feff3b04-9721-41fc-bf51-8a30ce762348",
+      "tabela": "public.content_news_items",
+      "nome": "Proibição das bets: governo prevê advertência, multa e suspensão das atividades para empresas que descumprirem regras",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/politica/noticia/2026/09/26/proibicao-das-bets-governo-preve-advertencia-multa-e-suspensao-das-atividades-para-empresas-que-descumprirem-regras.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:32.536286+00:00",
+      "updated_at": "2026-09-26T06:24:32.536286+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "b493f33dd4b29c06f11613f84bfac7660abef488e71e00b94832a23d3d577377"
+    },
+    {
+      "id": "80254d32-6044-4cf1-85f8-0254fcd8f989",
+      "tabela": "public.content_news_items",
+      "nome": "Bets e 'jogo do tigrinho' proibidos: tudo o que você precisa saber em 11 pontos",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/economia/noticia/2026/09/26/bets-e-jogo-do-tigrinho-proibidos-o-que-voce-precisa-saber.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:33.386874+00:00",
+      "updated_at": "2026-09-26T06:24:33.386874+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "3566d966db47130d04043a6bada4ba8006c4bdf15a0f3d2681966ec9f41369f4"
+    },
+    {
+      "id": "c404c6ea-55f7-4213-aa03-8be1daaa9da1",
+      "tabela": "public.content_news_items",
+      "nome": "TikTok firma acordo de até R$ 1,5 bilhão e terá de impor limite de 2 horas por dia",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/tecnologia/noticia/2026/09/25/tiktok-faz-acordo-de-ate-r-15-bilhao-apos-acusacoes-de-prejudicar-saude-mental-de-adolescentes.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:34.345449+00:00",
+      "updated_at": "2026-09-26T06:24:34.345449+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "4c43bd3919fc81429c181b5bf4f9533581682d0aeeb5ab5ad99a2448dd54cf26"
+    },
+    {
+      "id": "65428c48-f1c4-44e7-906c-dc005530c12e",
+      "tabela": "public.content_news_items",
+      "nome": "Governo anuncia Desenrola 3.0 para renegociar R$ 150 bilhões em dívidas",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/economia/noticia/2026/09/25/governo-anuncia-desenrola-30-para-renegociar-r-150-bilhoes-em-dividas.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:35.063559+00:00",
+      "updated_at": "2026-09-26T06:24:35.063559+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "caf04f6d46324e1f6b3668cd9af05a4b63376c044541ba7a59b428b75e88fcad"
+    },
+    {
+      "id": "06225f05-69c6-4388-a9ef-45678d01f794",
+      "tabela": "public.content_news_items",
+      "nome": "Governo envia projeto que criminaliza apostas e jogos online; penas podem chegar a seis anos de prisão",
+      "source": "G1 Economia",
+      "source_url": "https://g1.globo.com/economia/noticia/2026/09/25/governo-envia-projeto-que-criminaliza-apostas-e-jogos-online-penas-podem-chegar-a-seis-anos-de-prisao.ghtml",
+      "status": "ACTIVE",
+      "created_at": "2026-09-26T06:24:35.878024+00:00",
+      "updated_at": "2026-09-26T06:24:35.878024+00:00",
+      "relacoes": {
+        "category_id": "a1e9c21f-4cff-43b4-b1de-5519bbccc38e",
+        "source_id": null
+      },
+      "classificacao": "UNAUTHORIZED_SOURCE_FOR_CURRENT_CONTENT_PIPELINE",
+      "row_sha256": "77e82e80f6dc5e81be398300cf2954aaa43fc21ee292f32cb7e162386884081c"
+    }
+  ]
+}
