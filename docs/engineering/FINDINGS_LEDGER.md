@@ -645,3 +645,34 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **OF-F80-2:** o openfootball atualiza de 2 a 3 vezes por semana, então resultados chegam com atraso de até ~4 dias. É o limite da fonte gratuita; não há dado inventado para compensar.
 - **OF-F80-3:** o widget "Notícias (RSS)" comum ainda vem com o feed do G1 como padrão (`WidgetForm.getDefaultConfig`), e o usuário pode trocar. Recomenda-se decisão do proprietário sobre trocar o padrão pela Agência Brasil.
 - **OF-F80-4:** os rascunhos `20261245`–`20261247`, `src/lib/contentEngine.ts` e a alteração em `src/lib/biblioteca.ts` são da outra sessão e continuam sem commit. Não devem ser aplicados: a 20261246 recriaria políticas por empresa e RPCs do modelo antigo.
+
+### F-81 — "VIDEOS EM PE PARA MIDIA INDOR VARIADOS" transferidos para a Biblioteca de Mídias (empresa 7d62aaec) — DONE
+- **Pastas criadas** com o nome exato de origem, pela RPC do botão "Nova Pasta":
+
+  | Pasta | Arquivos |
+  |---|---|
+  | VIDEOS EM PE ACADEMIA | 9 |
+  | VIDEOS EM PE HAMBURGUERIA | 10 |
+  | VIDEOS EM PE LOJA VARIEDADES | 9 |
+  | VIDEOS EM PE MERCADO | 6 |
+  | VIDEOS EM PE PARA AÇAITERIA | 1 |
+  | VIDEOS EM PE PARA AÇOUGUE E FRIGORIFICO | 9 vídeos + 2 imagens |
+  | VIDEOS EM PE PARA PIZARARIA | 7 |
+  | **Total** | **53 arquivos, 374,5 MB** |
+
+- **Fluxo oficial:** diálogo "Adicionar mídia" da Biblioteca, com hash, duração exata, miniatura, URL assinada do R2 e `process-media`, seguido de `biblioteca_vincular_midias`. Feito no painel com a conta de TESTE `dbg.adm@sobremidia.test` (ADM da empresa, sessão por link mágico de admin, sem senha); a conta pessoal do proprietário não foi usada. Os arquivos chegaram à página por um servidor local temporário, encerrado ao final. A sessão foi apagada do disco e do navegador.
+- **Títulos:** o diálogo exige um único nome para envio múltiplo, então cada item foi renomeado com `biblioteca_editar_item` para "<Segmento> NN" (Academia 01…, Hamburgueria 01…, Loja de Variedades…, Mercado…, Açaiteria…, Açougue e Frigorífico…, Pizzaria…), com descrição e tags do segmento. A numeração segue a ordem de gravação.
+- **Proporção:**
+  - As dimensões reais foram medidas em todos os arquivos: 576×1024, 720×1280, 1080×1920, 2160×3840 e imagens 608×1080 e 735×1041, todos verticais.
+  - A Hamburgueria entrou como 16×9 porque o clique automático no "9x16" falhou. Foi corrigida por SQL pontual nos 10 IDs da pasta: a tabela `media` não tem política de UPDATE para o cliente, por projeto.
+- **Miniaturas:** 11 vídeos ficaram sem miniatura, porque o navegador interno não desenhou o quadro durante o envio. Foram geradas do próprio vídeo publicado, enviadas por `get-upload-url` e gravadas em `thumbnail_url` (só onde era nulo).
+- **Prova:**
+  - 53/53 itens, com contagem por pasta igual à do disco; 53/53 em 9x16; 53 hashes distintos (0 duplicatas); 51/51 vídeos com duração exata; 53/53 com miniatura ou imagem; 53/53 URLs públicas com resposta 200; `biblioteca = true` em todos, sem aparecer em "Minhas Mídias".
+  - A página da Biblioteca lista as 7 pastas com as contagens.
+  - Player 5.6.0 no emulador reproduziu "Academia 01" (`show item=Academia 01 kind=VIDEO`), com 0 ANR/crash. Playlist de homologação restaurada, 7/7 telas iguais à linha de base. Evidência em `evidence/F-81_biblioteca_videos_em_pe/`.
+
+### OPEN FINDINGS do F-81
+- **OF-F81-1 (direitos de uso):** vários arquivos têm nome de baixadores de redes sociais (`ssstik.io_*` = TikTok, `PinDown.io_@Rezeptfood147_*` = Pinterest), o que indica conteúdo de terceiros. O uso comercial na Biblioteca oficial exige licença ou autorização dos autores; a decisão é do proprietário.
+- **OF-F81-2 (compressão parada):** o workflow `compress-video` (repository_dispatch `novo_video`) não tem execuções, e todos os vídeos desde 25/09 ficam em `temp/`, inclusive os 7 anteriores a esta transferência. Eles tocam normalmente, mas "Açougue e Frigorífico 06" é 4K vertical (2160×3840, 174 MB), pesado para TV Box.
+- **OF-F81-3 (pastas vazias):** 11 pastas vazias (Datas Comemorativas, Loterias, Sorteios, Apostas Esportivas, SOBREMÍDIA NEWS, Esportes, Futebol, Brasileirão, Champions League, La Liga, Premier League) foram criadas na empresa pela outra sessão. Não foram alteradas; o proprietário decide se ficam.
+- **OF-F81-4 (diálogo de upload):** no envio múltiplo, todos os arquivos recebem o mesmo "Nome da Mídia", e as validações de nome, empresa e seguimento falham sem aviso visível. Registrado; a correção fica para a frente de UI, se o proprietário quiser.
