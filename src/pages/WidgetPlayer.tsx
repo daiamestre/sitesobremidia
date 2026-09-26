@@ -73,7 +73,7 @@ const WidgetPlayer = () => {
             case 'weather':
                 return <WeatherFuturista {...commonProps} cores={coresDoConfig(config)} latitude={config.latitude} longitude={config.longitude} locationName={config.locationName} />;
             case 'sports':
-                return <SportsWidget {...commonProps} config={config} cores={coresDoConfig(config)} dados={config.esportes ?? null} />;
+                return <SportsWidget {...commonProps} config={config} cores={coresDoConfig(config)} dados={config.esportes ?? null} widgetId={widget.id} modo={config.esportes ? "player" : "previa"} />;
             case 'rss':
                 return (
                     <RssWidget

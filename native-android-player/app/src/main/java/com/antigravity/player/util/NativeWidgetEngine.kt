@@ -39,6 +39,9 @@ import com.antigravity.player.widget.YoutubeLink
 import com.antigravity.player.widget.DadosEsportes
 import com.antigravity.player.widget.EsportesText
 import com.antigravity.player.widget.JogoEsporte
+import com.antigravity.player.widget.CursorEsportes
+import com.antigravity.player.widget.EsportesPaginas
+import com.antigravity.player.widget.PaginaEsportes
 import com.antigravity.core.util.TimeManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
@@ -85,6 +88,8 @@ object NativeWidgetEngine {
 
     private data class WeatherPayload(val now: WeatherNow?, val place: String?, val forecast: WeatherForecast? = null)
     private data class RssPayload(val items: List<RssItem>, val source: String, val rotulo: String = "NOTÍCIAS")
+    /** Esportes v2: todas as páginas, as 3 desta exibição (a partir do cursor) e os escudos delas já carregados. */
+    private data class EsportesPayload(val paginas: List<PaginaEsportes>, val indices: List<Int>, val hoje: String, val escudos: Map<String, Bitmap>)
 
     /**
      * Tamanho em que o widget vai aparecer. O contêiner costuma ainda não ter sido medido (0x0) quando o widget é
@@ -112,6 +117,7 @@ object NativeWidgetEngine {
                 WidgetKind.OFFER -> loadOfertaFotos(appContext, spec)
                 WidgetKind.ADVERTISING -> loadCriativos(appContext, spec, w, h)
                 WidgetKind.SOCIAL -> loadPostImagem(appContext, spec)
+                WidgetKind.SPORTS -> loadEsportes(appContext, spec)
                 else -> null
             }
         }
@@ -147,7 +153,9 @@ object NativeWidgetEngine {
                 WidgetKind.ADVERTISING -> buildAdvertising(context, spec, background, w, h, base, payload as? CampanhaPayload)
                 WidgetKind.SOCIAL -> buildSocial(context, spec, background, w, h, base, payload as? PostPayload)
                 WidgetKind.YOUTUBE -> buildYoutube(context, spec, background, w, h, base)
-                WidgetKind.SPORTS -> buildSports(context, spec, background, w, h, base)
+                // v2 (F-86) quando o servidor manda a janela por campeonato; senão, a lista antiga
+                WidgetKind.SPORTS -> (payload as? EsportesPayload)?.let { buildSportsV2(context, spec, background, base, it) }
+                    ?: buildSports(context, spec, background, w, h, base)
                 WidgetKind.UNKNOWN -> buildMessage(context, background, w, h, base, "Widget não suportado (${spec.rawType})")
             }
             container.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -1195,6 +1203,195 @@ object NativeWidgetEngine {
         linha.addView(centro, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             marginStart = px(base * 0.018f); marginEnd = px(base * 0.018f)
         })
+        linha.addView(nome(j.visitante, Gravity.START or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        return linha
+    }
+
+    // ------------------------------------------------------------------ Esportes v2 (F-86)
+
+    private const val PREFS_CURSOR_ESPORTES = "esportes_cursor"
+    /** Escudo pequeno, mas no 1º uso vem da rede: prazo próprio, maior que o do fundo (4 s estourava com cache vazio). */
+    private const val ESCUDO_TIMEOUT_S = 10L
+    /** Escudos da janela inteira já pedidos ao cache de disco neste processo (offline nas próximas exibições). */
+    private val escudosAquecidos = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    private fun lerCursorEsportes(context: Context, widgetId: String): CursorEsportes? {
+        if (widgetId.isBlank()) return null
+        val v = context.getSharedPreferences(PREFS_CURSOR_ESPORTES, Context.MODE_PRIVATE).getString(widgetId, null) ?: return null
+        val dia = v.substringBefore("|")
+        val proxima = v.substringAfter("|", "").toIntOrNull() ?: return null
+        return CursorEsportes(dia, proxima)
+    }
+
+    private fun gravarCursorEsportes(context: Context, widgetId: String, c: CursorEsportes) {
+        if (widgetId.isBlank()) return
+        context.getSharedPreferences(PREFS_CURSOR_ESPORTES, Context.MODE_PRIVATE).edit().putString(widgetId, "${c.dia}|${c.proxima}").apply()
+    }
+
+    /** Páginas desta exibição (continua de onde a anterior parou) e os escudos delas, fora da thread principal. */
+    private suspend fun loadEsportes(context: Context, spec: WidgetSpec): EsportesPayload? = coroutineScope {
+        val dados = spec.esportes ?: return@coroutineScope null
+        if (dados.layout < 2) return@coroutineScope null
+        val agora = TimeManager.utcMillis()
+        val hoje = EsportesPaginas.diaEmBrasilia(agora)
+        val paginas = EsportesPaginas.montar(dados.janela, dados.competicoes, agora)
+        val indices = EsportesPaginas.daExibicao(paginas.size, lerCursorEsportes(context, spec.widgetId), hoje)
+        val urls = indices.distinct().flatMap { i -> paginas[i].resultados + paginas[i].proximos }
+            .flatMap { listOf(it.escudoMandante, it.escudoVisitante) }.filterNotNull().distinct()
+        val escudos = urls.map { u ->
+            async(Dispatchers.IO) {
+                u to try {
+                    Glide.with(context).asBitmap().load(u).apply(RequestOptions().fitCenter())
+                        .submit(160, 160).get(ESCUDO_TIMEOUT_S, TimeUnit.SECONDS)
+                } catch (e: Exception) {
+                    Logger.w("WIDGET", "Escudo indisponível ($u): ${e.message}"); null
+                }
+            }
+        }.mapNotNull { it.await().let { (u, b) -> b?.let { u to it } } }.toMap()
+        // Os demais escudos da janela vão para o cache de disco em segundo plano (sem esperar): próximas páginas e exibições.
+        dados.janela.flatMap { listOf(it.escudoMandante, it.escudoVisitante) }.filterNotNull().distinct()
+            .filter { it !in urls && escudosAquecidos.add(it) }
+            .forEach { u -> runCatching { Glide.with(context).downloadOnly().load(u).submit() } }
+        EsportesPayload(paginas, indices, hoje, escudos)
+    }
+
+    /**
+     * Por campeonato: nome no topo + "Resultados e próximos jogos", até 3 resultados e 3 próximos jogos, escudo oficial
+     * ao lado de cada time. 3 páginas de 8 s por exibição (para na 3ª); o cursor é gravado a cada página mostrada.
+     * Mesma composição do painel (src/components/player/SportsWidget.tsx).
+     */
+    private fun buildSportsV2(context: Context, spec: WidgetSpec, bg: Bitmap?, base: Float, dados: EsportesPayload): View {
+        val cores = spec.cores ?: CoresWidget.PADRAO
+        val creditos = spec.esportes?.creditos ?: "Dados: openfootball (CC0) · Wikipédia (CC BY-SA)"
+        val root = fundoMarca(context, bg, base, cores)
+        val col = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = px(base * 0.04f); setPadding(pad, pad, pad, pad)
+        }
+        root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        col.addView(cabecalhoMarca(context, "⚽ FUTEBOL", base, cores), lp())
+        val area = FrameLayout(context)
+        col.addView(area, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        val rodape = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        rodape.addView(text(context, base * 0.019f, color = Color.argb(160, 255, 255, 255)).apply {
+            text = "Horário de Brasília · $creditos"; gravity = Gravity.START; setShadowLayer(0f, 0f, 0f, 0)
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val contador = text(context, base * 0.019f, color = Color.argb(160, 255, 255, 255))
+        rodape.addView(contador)
+        col.addView(rodape, lp(top = px(base * 0.012f)))
+
+        if (dados.indices.isEmpty()) {
+            area.addView(text(context, base * 0.036f, color = Color.argb(215, 255, 255, 255), lines = 2).apply {
+                text = "Sem jogos nos 3 dias anteriores nem nos próximos 3 dias."
+            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            return root
+        }
+        val total = dados.paginas.size
+        fun mostrar(indice: Int) {
+            area.removeAllViews()
+            area.addView(paginaEsportes(context, dados.paginas[indice], dados.hoje, dados.escudos, base, cores),
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            contador.text = if (total > 1) "${indice + 1}/$total" else ""
+            gravarCursorEsportes(context.applicationContext, spec.widgetId, EsportesPaginas.cursorDepois(indice, total, dados.hoje))
+        }
+        mostrar(dados.indices[0])
+        if (dados.indices.size > 1 && total > 1) {
+            var passo = 0
+            val periodoMs = EsportesPaginas.SEGUNDOS_POR_PAGINA * 1000L
+            val virar = object : Runnable {
+                override fun run() {
+                    if (!root.isAttachedToWindow && root.parent == null) return
+                    if (passo >= dados.indices.size - 1) return // fica na 3ª página até o item acabar
+                    passo++
+                    val alvo = dados.indices[passo]
+                    area.animate().alpha(0f).setDuration(250).withEndAction {
+                        mostrar(alvo)
+                        area.animate().alpha(1f).setDuration(250).start()
+                    }.start()
+                    if (passo < dados.indices.size - 1) uiHandler.postDelayed(this, periodoMs)
+                }
+            }
+            bindToLifecycle(root, virar, periodoMs)
+        }
+        return root
+    }
+
+    private fun paginaEsportes(context: Context, p: PaginaEsportes, hoje: String, escudos: Map<String, Bitmap>, base: Float, cores: CoresWidget): View {
+        val pagina = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val titulo = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+        titulo.addView(View(context).apply { setBackgroundColor(cores.selo) },
+            LinearLayout.LayoutParams(px(base * 0.009f).coerceAtLeast(3), ViewGroup.LayoutParams.MATCH_PARENT))
+        val textos = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(px(base * 0.018f), 0, 0, 0) }
+        textos.addView(text(context, base * 0.062f, bold = true).apply {
+            text = p.competicao.uppercase(Locale("pt", "BR")); gravity = Gravity.START; letterSpacing = 0.03f
+        }, lp())
+        textos.addView(text(context, base * 0.032f, color = Color.argb(220, 255, 255, 255)).apply {
+            text = "Resultados e próximos jogos"; gravity = Gravity.START
+        }, lp(top = px(base * 0.008f)))
+        titulo.addView(textos, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        pagina.addView(titulo, lp(top = px(base * 0.016f)))
+
+        val corpo = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
+        pagina.addView(corpo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        fun secao(rotulo: String, jogos: List<JogoEsporte>, encerrado: Boolean, topo: Int) {
+            if (jogos.isEmpty()) return
+            val cab = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            cab.addView(text(context, base * 0.025f, bold = true, color = cores.selo).apply {
+                text = rotulo; letterSpacing = 0.2f; setShadowLayer(0f, 0f, 0f, 0)
+            })
+            cab.addView(View(context).apply { setBackgroundColor(CoresWidget.comAlfa(cores.selo, 128)) },
+                LinearLayout.LayoutParams(0, px(base * 0.0015f).coerceAtLeast(1), 1f).apply { marginStart = px(base * 0.012f) })
+            corpo.addView(cab, lp(top = topo))
+            jogos.forEach { j -> corpo.addView(linhaJogoV2(context, j, hoje, escudos, base, cores, encerrado), lp(top = px(base * 0.01f))) }
+        }
+        secao("RESULTADOS", p.resultados, true, 0)
+        secao("PRÓXIMOS JOGOS", p.proximos, false, if (p.resultados.isEmpty()) 0 else px(base * 0.018f))
+        return pagina
+    }
+
+    private fun linhaJogoV2(context: Context, j: JogoEsporte, hoje: String, escudos: Map<String, Bitmap>, base: Float, cores: CoresWidget, encerrado: Boolean): View {
+        val linha = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.argb(23, 255, 255, 255)); cornerRadius = base * 0.014f
+                setStroke(px(base * 0.002f).coerceAtLeast(1), CoresWidget.comAlfa(cores.brilho, 90))
+            }
+            val ph = px(base * 0.02f); val pv = px(base * 0.009f); setPadding(ph, pv, ph, pv)
+        }
+        // Nome inteiro: até 2 linhas e a fonte diminui até caber (na vertical, "Deportivo A Coruña" era cortado)
+        fun nome(t: String, g: Int) = text(context, base * 0.039f, bold = true, lines = 2).apply {
+            text = t; gravity = g; ellipsize = android.text.TextUtils.TruncateAt.END
+            TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(this, px(base * 0.024f), px(base * 0.039f), 1, TypedValue.COMPLEX_UNIT_PX)
+        }
+        val lado = px(base * 0.074f)
+        val margem = px(base * 0.014f)
+        fun escudo(url: String?, time: String): View {
+            val bmp = url?.let { escudos[it] }
+            // Sem escudo conferido/carregado: iniciais — nunca o escudo de outro time
+            return if (bmp != null) ImageView(context).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER }
+            else text(context, base * 0.02f, bold = true).apply {
+                text = EsportesPaginas.iniciais(time)
+                background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.argb(51, 255, 255, 255)) }
+                setShadowLayer(0f, 0f, 0f, 0)
+            }
+        }
+        linha.addView(nome(j.mandante, Gravity.END or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        linha.addView(escudo(j.escudoMandante, j.mandante), LinearLayout.LayoutParams(lado, lado).apply { marginStart = margem })
+        val centro = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+        val principal = if (encerrado) "${j.placarMandante} × ${j.placarVisitante}" else (j.hora ?: "a definir")
+        centro.addView(pill(context, principal, base * 0.044f,
+            if (encerrado) cores.selo else Color.argb(41, 255, 255, 255),
+            if (encerrado) cores.seloTexto else Color.WHITE, base).apply { minWidth = px(base * 0.13f) },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        centro.addView(text(context, base * 0.019f, bold = true, color = Color.argb(195, 255, 255, 255)).apply {
+            text = EsportesPaginas.rotuloDia(j.data, hoje)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.CENTER_HORIZONTAL; topMargin = px(base * 0.004f)
+        })
+        linha.addView(centro, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            marginStart = margem; marginEnd = margem
+        })
+        linha.addView(escudo(j.escudoVisitante, j.visitante), LinearLayout.LayoutParams(lado, lado).apply { marginEnd = margem })
         linha.addView(nome(j.visitante, Gravity.START or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         return linha
     }

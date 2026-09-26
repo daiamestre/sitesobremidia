@@ -1,10 +1,11 @@
 /** Widget Esportes (painel/Player web) + Conteúdo automático na Biblioteca. Dados de TESTE (formato do servidor). */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, within, act } from '@testing-library/react';
 import { SportsWidget } from '@/components/player/SportsWidget';
 import { centroDoJogo, dataCurta, jogosVisiveis, type DadosEsportes, type JogoEsporte } from '@/lib/esportes';
 import { WidgetCatalog } from '@/components/dashboard/widgets/WidgetCatalog';
 import { templateDoWidget, WIDGET_TEMPLATES } from '@/lib/widgetCatalog';
+import type { JogoJanela } from '@/lib/esportesPaginas';
 
 const jogo = (o: Partial<JogoEsporte>): JogoEsporte => ({
   competicao: 'Brasileirão Série A', codigo: 'BSA', slug: 'brasileirao', rodada: 'Matchday 28', mandante: 'Flamengo', visitante: 'Bragantino',
@@ -14,7 +15,7 @@ const dados = (modo: DadosEsportes['modo'], jogos: JogoEsporte[]): DadosEsportes
   modo, fuso: 'America/Sao_Paulo', geradoEm: '2026-09-26T08:00:00Z', competicoes: [], jogos, creditos: 'Dados: openfootball (CC0) · Wikipédia (CC BY-SA)',
 });
 
-describe('Esportes — regras de exibição', () => {
+describe('Esportes — regras antigas (Players 5.6.0/5.6.1 ainda usam a lista "jogos")', () => {
   it('placar só para jogo encerrado; horário ou "a definir" para os demais', () => {
     expect(centroDoJogo(jogo({}))).toEqual({ principal: '2 × 1', encerrado: true });
     expect(centroDoJogo(jogo({ status: 'SCHEDULED', placarMandante: null, placarVisitante: null, hora: '20:00' }))).toEqual({ principal: '20:00', encerrado: false });
@@ -34,31 +35,91 @@ describe('Esportes — regras de exibição', () => {
   });
 });
 
-describe('Esportes — componente', () => {
-  it('mostra os jogos confirmados, placar e FINAL, com créditos e horário de Brasília', () => {
-    render(<SportsWidget config={{ modo: 'resultados' }} dados={dados('resultados', [jogo({}), jogo({ mandante: 'Corinthians', visitante: 'Fluminense', placarMandante: 1, placarVisitante: 3 })])} />);
-    const linhas = screen.getAllByTestId('sports-jogo');
-    expect(linhas).toHaveLength(2);
-    expect(within(linhas[0]).getByText('2 × 1')).toBeInTheDocument();
-    expect(within(linhas[0]).getByText('FINAL')).toBeInTheDocument();
-    expect(screen.getByTestId('sports-competicao')).toHaveTextContent('Brasileirão Série A');
-    expect(screen.getByText(/Horário de Brasília · Dados: openfootball/)).toBeInTheDocument();
-    expect(screen.getByText(/RESULTADOS/)).toBeInTheDocument();
+const jj = (slug: string, data: string, hora: string, mandante: string, visitante: string, placar: [number, number] | null, escudos = true): JogoJanela => ({
+  competicao: slug === 'brasileirao' ? 'Brasileirão Série A' : 'La Liga', codigo: slug === 'brasileirao' ? 'BSA' : 'PD', slug,
+  ordemCompeticao: slug === 'brasileirao' ? 0 : 2, mandante, visitante, placarMandante: placar?.[0] ?? null, placarVisitante: placar?.[1] ?? null,
+  status: placar ? 'FINISHED' : 'SCHEDULED', data, hora, kickoffUtc: new Date(`${data}T${hora}:00-03:00`).toISOString(),
+  escudoMandante: escudos ? `https://teste.exemplo/${mandante}.png` : null, escudoVisitante: escudos ? `https://teste.exemplo/${visitante}.png` : null,
+});
+const v2 = (janela: JogoJanela[]): DadosEsportes => ({
+  ...dados('resultados', []), layout: 2, referencia: '2026-10-10', janela,
+  competicoes: [
+    { slug: 'brasileirao', nome: 'Brasileirão Série A', codigo: 'BSA', cobertura: 'FULL', ordem: 0 },
+    { slug: 'la-liga', nome: 'La Liga', codigo: 'PD', cobertura: 'FULL', ordem: 2 },
+  ],
+});
+// Hoje = sábado 10/10/2026: resultados de qua/qui/sex, próximos de sáb/dom/seg. Jogos de TESTE.
+const JANELA = [
+  jj('brasileirao', '2026-10-07', '19:00', 'Flamengo', 'Palmeiras', [2, 1]),
+  jj('brasileirao', '2026-10-08', '20:00', 'Corinthians', 'Santos', [0, 0]),
+  jj('brasileirao', '2026-10-09', '21:00', 'Bahia', 'Vitória', [1, 3]),
+  jj('brasileirao', '2026-10-09', '21:30', 'Grêmio', 'Internacional', [2, 2], false),
+  jj('brasileirao', '2026-10-10', '16:00', 'São Paulo', 'Vasco', null),
+  jj('brasileirao', '2026-10-11', '18:30', 'Cruzeiro', 'Botafogo', null),
+  jj('la-liga', '2026-10-08', '16:00', 'Real Madrid', 'Barcelona', [3, 1]),
+];
+
+describe('Esportes v2 — componente (Player web)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(new Date('2026-10-10T12:00:00-03:00'));
+    localStorage.clear();
   });
-  it('sem jogo confirmado: avisa (no Player o servidor nem envia o widget)', () => {
-    render(<SportsWidget config={{ modo: 'hoje' }} dados={dados('hoje', [])} />);
-    expect(screen.getByTestId('sports-vazio')).toHaveTextContent('Sem jogos confirmados');
-    expect(screen.getByText(/JOGOS DE HOJE/)).toBeInTheDocument();
+  afterEach(() => { vi.useRealTimers(); localStorage.clear(); });
+
+  it('campeonato no topo + "Resultados e próximos jogos"; 3 resultados e os próximos, cada time com o próprio escudo', () => {
+    render(<SportsWidget config={{}} dados={v2(JANELA)} widgetId="w1" modo="player" />);
+    expect(screen.getByTestId('sports-competicao')).toHaveTextContent('Brasileirão Série A');
+    expect(screen.getByTestId('sports-subtitulo')).toHaveTextContent('Resultados e próximos jogos');
+    const res = within(screen.getByTestId('sports-secao-resultados')).getAllByTestId('sports-jogo');
+    expect(res.map((l) => l.textContent)).toEqual([
+      expect.stringMatching(/Flamengo.*2 × 1.*QUA 07\/10.*Palmeiras/),
+      expect.stringMatching(/Corinthians.*0 × 0.*QUI 08\/10.*Santos/),
+      expect.stringMatching(/Bahia.*1 × 3.*ONTEM.*Vitória/),
+    ]);
+    expect(within(res[0]).getByAltText('Escudo Flamengo')).toHaveAttribute('src', 'https://teste.exemplo/Flamengo.png');
+    expect(within(res[0]).getByAltText('Escudo Palmeiras')).toHaveAttribute('src', 'https://teste.exemplo/Palmeiras.png');
+    const prox = within(screen.getByTestId('sports-secao-proximos')).getAllByTestId('sports-jogo');
+    expect(prox.map((l) => l.textContent)).toEqual([
+      expect.stringMatching(/São Paulo.*16:00.*HOJE.*Vasco/),
+      expect.stringMatching(/Cruzeiro.*18:30.*AMANHÃ.*Botafogo/),
+    ]);
+    expect(screen.getByTestId('sports-pagina')).toHaveTextContent('1/3');
+  });
+
+  it('8 s por página, 3 páginas na exibição (Brasileirão 1/2, 2/2, La Liga) e para na 3ª; guarda onde parou', () => {
+    render(<SportsWidget config={{}} dados={v2(JANELA)} widgetId="w1" modo="player" />);
+    act(() => { vi.advanceTimersByTime(8000); });
+    expect(screen.getByTestId('sports-pagina')).toHaveTextContent('2/3');
+    const semEscudo = within(screen.getByTestId('sports-secao-resultados')).getAllByTestId('sports-jogo')[0];
+    // Sem escudo conferido: iniciais — nunca o escudo de outro time
+    expect(within(semEscudo).getAllByTestId('sports-escudo-reserva').map((e) => e.textContent)).toEqual(['GRÊ', 'INT']);
+    act(() => { vi.advanceTimersByTime(8000); });
+    expect(screen.getByTestId('sports-competicao')).toHaveTextContent('La Liga');
+    act(() => { vi.advanceTimersByTime(16000); });
+    expect(screen.getByTestId('sports-pagina')).toHaveTextContent('3/3');
+    expect(JSON.parse(localStorage.getItem('sm:esportes:cursor:w1')!)).toEqual({ dia: '2026-10-10', proxima: 0 });
+  });
+
+  it('próxima exibição continua de onde a anterior parou', () => {
+    localStorage.setItem('sm:esportes:cursor:w1', JSON.stringify({ dia: '2026-10-10', proxima: 2 }));
+    render(<SportsWidget config={{}} dados={v2(JANELA)} widgetId="w1" modo="player" />);
+    expect(screen.getByTestId('sports-competicao')).toHaveTextContent('La Liga');
+  });
+
+  it('sem jogos na janela: avisa (nas telas o servidor nem envia o widget)', () => {
+    render(<SportsWidget config={{}} dados={v2([])} widgetId="w1" modo="player" />);
+    expect(screen.getByTestId('sports-vazio')).toHaveTextContent('Sem jogos nos 3 dias anteriores nem nos próximos 3 dias');
   });
 });
 
 describe('Esportes — catálogo', () => {
-  it('modelos de Esportes e Notícias de Esportes na Galeria, com capa viva; RSS antigo continua "Notícias (RSS)"', () => {
+  it('um só modelo de Esportes ("Resultados e Próximos Jogos") e Notícias de Esportes; modelo antigo salvo cai nele', () => {
     render(<WidgetCatalog onUsar={vi.fn()} />);
-    for (const id of ['sports-resultados', 'sports-proximos', 'sports-hoje', 'rss-esportes']) expect(screen.getByTestId(`template-${id}`)).toBeInTheDocument();
+    for (const id of ['sports-resultados', 'rss-esportes']) expect(screen.getByTestId(`template-${id}`)).toBeInTheDocument();
     expect(screen.getByTestId('capa-sports-resultados')).toBeInTheDocument();
     expect(templateDoWidget('rss', {})?.id).toBe('rss-classic');
-    expect(templateDoWidget('sports', { template: 'sports-proximos' })?.id).toBe('sports-proximos');
-    expect(WIDGET_TEMPLATES.filter((t) => t.tipo === 'sports')).toHaveLength(3);
+    expect(templateDoWidget('sports', { template: 'sports-proximos' })?.id).toBe('sports-resultados');
+    expect(WIDGET_TEMPLATES.filter((t) => t.tipo === 'sports').map((t) => t.nome)).toEqual(['Resultados e Próximos Jogos']);
   });
 });

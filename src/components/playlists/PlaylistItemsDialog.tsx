@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { DURACAO_WIDGET_ESPORTES } from '@/lib/esportesPaginas';
 import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -314,7 +315,8 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       widget_id: widget.id,
       external_link_id: null,
       position: items.length,
-      duration: widget.widget_type === 'rss' ? 15 : 10,
+      // Esportes: 3 páginas x 8 s (F-86)
+      duration: widget.widget_type === 'sports' ? DURACAO_WIDGET_ESPORTES : widget.widget_type === 'rss' ? 15 : 10,
       widget,
       created_at: new Date().toISOString()
     };

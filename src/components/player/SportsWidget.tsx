@@ -1,26 +1,44 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { coresDoConfig, gradienteDe, rgba, type CoresWidget } from '@/lib/widgetPaletas';
 import type { WidgetConfig } from '@/types/models';
-import { buscarEsportes, centroDoJogo, dataCurta, jogosVisiveis, ROTULO_MODO, type DadosEsportes } from '@/lib/esportes';
+import { buscarDataDeExemplo, buscarEsportes, type DadosEsportes } from '@/lib/esportes';
+import {
+  cursorDepois, diaDaSemana, diaEmBrasilia, iniciaisDoTime, montarPaginas, paginasDaExibicao, rotuloDia, SEGUNDOS_POR_PAGINA,
+  type CursorEsportes, type JogoJanela, type PaginaEsportes,
+} from '@/lib/esportesPaginas';
 
-const SEGUNDOS_POR_PAGINA = 8;
+const CREDITOS = 'Dados: openfootball (CC0) · Wikipédia (CC BY-SA)';
+
+function lerCursor(widgetId?: string): CursorEsportes | null {
+  if (!widgetId) return null;
+  try {
+    const v = JSON.parse(localStorage.getItem(`sm:esportes:cursor:${widgetId}`) ?? 'null');
+    return v && typeof v.dia === 'string' && Number.isInteger(v.proxima) ? v : null;
+  } catch { return null; }
+}
+function gravarCursor(widgetId: string | undefined, c: CursorEsportes) {
+  if (!widgetId) return;
+  try { localStorage.setItem(`sm:esportes:cursor:${widgetId}`, JSON.stringify(c)); } catch { /* sem armazenamento: recomeça do início */ }
+}
 
 /**
- * Widget "Esportes" (identidade SOBRE MÍDIA, cores do widget). Só jogos confirmados pelo Sports Engine; horário de
- * Brasília; sem placar ao vivo. Mesma composição do Android Player (NativeWidgetEngine.buildSports).
- * `dados`: resolvidos pelo servidor (Player web); sem eles, o painel pede a prévia com a mesma regra.
+ * Widget "Esportes" v2 (F-86): por campeonato ("BRASILEIRÃO SÉRIE A" / "Resultados e próximos jogos"), até 3 resultados
+ * (D-3..D-1) + até 3 próximos jogos (hoje..D+2) por página, escudo oficial ao lado de cada time, 8 s por página.
+ * - modo "player" (Player web): 3 páginas por exibição e a próxima exibição continua de onde parou (cursor por widget);
+ * - modo "previa" (painel): passa por todas as páginas; sem jogos na janela de hoje, mostra um EXEMPLO com dados reais
+ *   da última rodada (marcado como exemplo — nas telas o widget fica fora da reprodução até voltar a ter jogos).
+ * Mesma composição do Android Player (NativeWidgetEngine.buildSportsV2).
  */
-export function SportsWidget({ config, dados: dadosServidor, backgroundImage, cores, className }: {
+export function SportsWidget({ config, dados: dadosServidor, backgroundImage, cores, className, widgetId, modo }: {
   config: WidgetConfig; dados?: DadosEsportes | null; backgroundImage?: string | null; cores?: CoresWidget; className?: string;
+  widgetId?: string; modo?: 'player' | 'previa';
 }) {
   const c = cores ?? coresDoConfig(config);
+  const modoExibicao = modo ?? (dadosServidor ? 'player' : 'previa');
   const [dados, setDados] = useState<DadosEsportes | null>(dadosServidor ?? null);
   const [estado, setEstado] = useState<'carregando' | 'ok' | 'erro'>(dadosServidor ? 'ok' : 'carregando');
-  const [pagina, setPagina] = useState(0);
-  const [porPagina, setPorPagina] = useState(4);
-  const raiz = useRef<HTMLDivElement>(null);
-  const chave = JSON.stringify([config.competicoes, config.modo, config.limite, config.time]);
+  const chave = JSON.stringify([config.competicoes, config.time]);
 
   useEffect(() => {
     if (dadosServidor) { setDados(dadosServidor); setEstado('ok'); return; }
@@ -28,8 +46,13 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
     setEstado('carregando');
     const t = setTimeout(async () => {
       try {
-        const d = await buscarEsportes(config);
-        if (!cancelado) { setDados(d); setEstado('ok'); setPagina(0); }
+        let d = await buscarEsportes(config);
+        // Janela de hoje vazia (ex.: Data FIFA): a prévia mostra como fica com a última rodada real.
+        if (!montarPaginas(d.janela ?? [], d.competicoes ?? [], Date.now()).length) {
+          const ref = await buscarDataDeExemplo(config).catch(() => null);
+          if (ref) d = await buscarEsportes(config, ref);
+        }
+        if (!cancelado) { setDados(d); setEstado('ok'); }
       } catch {
         if (!cancelado) setEstado('erro');
       }
@@ -38,90 +61,132 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chave, dadosServidor]);
 
-  // Vertical (9:16) cabe mais linhas por página.
-  useEffect(() => {
-    const el = raiz.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    // Nunca derruba a tela por causa da medição: sem ResizeObserver utilizável, fica em 4 por página.
-    let ro: ResizeObserver | null = null;
-    try {
-      ro = new ResizeObserver(([e]) => { if (e) setPorPagina(e.contentRect.height > e.contentRect.width * 1.2 ? 6 : 4); });
-      ro.observe(el);
-    } catch {
-      ro = null;
-    }
-    return () => ro?.disconnect();
-  }, []);
+  const agora = useMemo(() => (dados?.simulado && dados.agoraReferencia ? Date.parse(dados.agoraReferencia) : Date.now()), [dados]);
+  const hoje = diaEmBrasilia(agora);
+  const paginas = useMemo(() => montarPaginas(dados?.janela ?? [], dados?.competicoes ?? [], agora), [dados, agora]);
 
-  const jogos = useMemo(() => jogosVisiveis(dados), [dados]);
-  const paginas = Math.max(1, Math.ceil(jogos.length / porPagina));
+  // Sequência desta exibição: player = 3 páginas a partir do cursor; prévia = todas, em volta.
+  const sequencia = useMemo(() => (modoExibicao === 'player'
+    ? paginasDaExibicao(paginas.length, lerCursor(widgetId), hoje)
+    : paginas.map((_, i) => i)), [modoExibicao, paginas, widgetId, hoje]);
+  const [passo, setPasso] = useState(0);
+  useEffect(() => { setPasso(0); }, [sequencia]);
   useEffect(() => {
-    if (paginas < 2) { setPagina(0); return; }
-    const t = setInterval(() => setPagina((p) => (p + 1) % paginas), SEGUNDOS_POR_PAGINA * 1000);
-    return () => clearInterval(t);
-  }, [paginas]);
+    if (!sequencia.length) return;
+    if (modoExibicao === 'player') gravarCursor(widgetId, cursorDepois(sequencia[passo], paginas.length, hoje));
+    const ultimo = passo >= sequencia.length - 1;
+    if (modoExibicao === 'player' && ultimo) return; // fica na 3ª página até o item acabar
+    if (sequencia.length < 2) return;
+    const t = setTimeout(() => setPasso((p) => (p + 1) % sequencia.length), SEGUNDOS_POR_PAGINA * 1000);
+    return () => clearTimeout(t);
+  }, [passo, sequencia, modoExibicao, widgetId, paginas.length, hoje]);
 
-  const modo = dados?.modo ?? config.modo ?? 'resultados';
-  const visiveis = jogos.slice(pagina * porPagina, pagina * porPagina + porPagina);
-  const umaCompeticao = new Set(jogos.map((j) => j.slug)).size === 1 ? jogos[0]?.competicao : null;
+  const indice = sequencia[passo] ?? 0;
+  const pagina: PaginaEsportes | undefined = paginas[indice];
 
   return (
     <div
-      ref={raiz}
-      className={cn('relative flex h-full w-full flex-col overflow-hidden p-[4.5%] text-white', className)}
+      className={cn('relative flex h-full w-full flex-col overflow-hidden p-[4cqmin] text-white', className)}
       style={{ containerType: 'size', background: gradienteDe(c) }}
       data-testid="sports-widget"
     >
       {backgroundImage && <img src={backgroundImage} alt="" className="absolute inset-0 h-full w-full object-cover" />}
       <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at 85% 8%, ${rgba(c.brilho, 0.55)}, transparent 55%)` }} />
       <div className="pointer-events-none absolute inset-0" style={{ background: backgroundImage
-        ? `linear-gradient(180deg, ${rgba(c.c1, 0.72)} 0%, ${rgba(c.c1, 0.55)} 45%, ${rgba(c.c1, 0.94)} 100%)`
+        ? `linear-gradient(180deg, ${rgba(c.c1, 0.78)} 0%, ${rgba(c.c1, 0.6)} 45%, ${rgba(c.c1, 0.94)} 100%)`
         : `linear-gradient(180deg, ${rgba(c.c1, 0)} 0%, ${rgba(c.c1, 0.5)} 100%)` }} />
 
       <div className="relative z-10 flex items-center justify-between gap-2">
-        <span className="text-[clamp(8px,3cqmin,22px)] font-bold tracking-[0.28em] text-white/85">SOBRE MÍDIA</span>
-        <span className="rounded-full px-[1.2em] py-[0.35em] text-[clamp(7px,2.7cqmin,18px)] font-extrabold tracking-widest" style={{ background: c.selo, color: c.seloTexto }}>
-          ⚽ {ROTULO_MODO[modo]}
+        <span className="text-[2.6cqmin] font-bold tracking-[0.28em] text-white/85">SOBRE MÍDIA</span>
+        <span className="rounded-full px-[1.2em] py-[0.35em] text-[2.4cqmin] font-extrabold tracking-widest" style={{ background: c.selo, color: c.seloTexto }}>
+          ⚽ FUTEBOL
         </span>
       </div>
-      {umaCompeticao && (
-        <p className="relative z-10 mt-[1.5cqmin] text-[clamp(8px,3.6cqmin,26px)] font-bold uppercase tracking-wider text-white/90" data-testid="sports-competicao">{umaCompeticao}</p>
+
+      {dados?.simulado && modoExibicao === 'previa' && (
+        <p className="relative z-10 mt-[1cqmin] rounded-[1cqmin] bg-black/45 px-[1.6cqmin] py-[0.6cqmin] text-[2.1cqmin] font-semibold text-amber-200" data-testid="sports-exemplo">
+          EXEMPLO com a última rodada real (como estaria em {diaDaSemana(dados.referencia ?? hoje)}): sem jogos nos 3 dias anteriores nem nos próximos 3 dias,
+          o widget fica fora da reprodução nas telas até voltar a ter jogos.
+        </p>
       )}
 
-      <div className="relative z-10 mt-[2cqmin] flex flex-1 flex-col justify-center gap-[1.6cqmin]">
-        {visiveis.map((j) => {
-          const centro = centroDoJogo(j);
-          return (
-            <div key={`${j.slug}-${j.mandante}-${j.visitante}`} className="flex items-center gap-[1.8cqmin] rounded-[1.6cqmin] px-[2.2cqmin] py-[1.4cqmin]"
-              style={{ background: 'rgba(255,255,255,0.09)', border: `1px solid ${rgba(c.brilho, 0.35)}` }} data-testid="sports-jogo">
-              {!umaCompeticao && (
-                <span className="w-[8cqmin] shrink-0 text-[clamp(6px,2.3cqmin,15px)] font-extrabold tracking-wider" style={{ color: c.selo }}>{j.codigo}</span>
-              )}
-              <span className="min-w-0 flex-1 truncate text-right text-[clamp(8px,3.8cqmin,28px)] font-bold">{j.mandante}</span>
-              <span className="flex shrink-0 flex-col items-center">
-                <span className="min-w-[14cqmin] rounded-[1cqmin] px-[1.4cqmin] text-center text-[clamp(9px,4.4cqmin,32px)] font-black tabular-nums"
-                  style={centro.encerrado ? { background: c.selo, color: c.seloTexto } : { background: 'rgba(255,255,255,0.16)' }}>
-                  {centro.principal}
-                </span>
-                <span className="mt-[0.5cqmin] text-[clamp(6px,2.1cqmin,14px)] font-semibold uppercase text-white/75">
-                  {centro.encerrado ? 'FINAL' : dataCurta(j.data)}
-                </span>
-              </span>
-              <span className="min-w-0 flex-1 truncate text-left text-[clamp(8px,3.8cqmin,28px)] font-bold">{j.visitante}</span>
-            </div>
-          );
-        })}
-        {!visiveis.length && (
-          <p className="text-center text-[clamp(8px,3.6cqmin,24px)] text-white/80" data-testid="sports-vazio">
-            {estado === 'carregando' ? 'Carregando jogos…' : estado === 'erro' ? 'Não foi possível carregar os jogos agora.' : 'Sem jogos confirmados para exibir agora.'}
-          </p>
-        )}
-      </div>
+      {pagina ? (
+        <div key={`${indice}-${pagina.slug}`} className="relative z-10 mt-[1.6cqmin] flex min-h-0 flex-1 flex-col animate-in fade-in duration-300">
+          <div className="border-l-[0.9cqmin] pl-[1.8cqmin]" style={{ borderColor: c.selo }}>
+            <h2 className="text-[6.2cqmin] font-black uppercase leading-none tracking-wide" data-testid="sports-competicao">{pagina.competicao}</h2>
+            <p className="mt-[0.8cqmin] text-[3.2cqmin] font-semibold text-white/85" data-testid="sports-subtitulo">Resultados e próximos jogos</p>
+          </div>
+          <div className="mt-[1.8cqmin] flex min-h-0 flex-1 flex-col justify-center gap-[1.6cqmin]">
+            {pagina.resultados.length > 0 && (
+              <Secao titulo="RESULTADOS" cor={c.selo}>
+                {pagina.resultados.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} encerrado />)}
+              </Secao>
+            )}
+            {pagina.proximos.length > 0 && (
+              <Secao titulo="PRÓXIMOS JOGOS" cor={c.selo}>
+                {pagina.proximos.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} />)}
+              </Secao>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="relative z-10 flex flex-1 items-center justify-center text-center text-[3.6cqmin] text-white/80" data-testid="sports-vazio">
+          {estado === 'carregando' ? 'Carregando jogos…' : estado === 'erro' ? 'Não foi possível carregar os jogos agora.'
+            : 'Sem jogos nos 3 dias anteriores nem nos próximos 3 dias.'}
+        </p>
+      )}
 
-      <div className="relative z-10 mt-[1.5cqmin] flex items-center justify-between gap-2 text-[clamp(5px,1.9cqmin,13px)] text-white/60">
-        <span>Horário de Brasília · {dados?.creditos ?? 'Dados: openfootball (CC0) · Wikipédia (CC BY-SA)'}</span>
-        {paginas > 1 && <span className="tabular-nums">{pagina + 1}/{paginas}</span>}
+      <div className="relative z-10 mt-[1.2cqmin] flex items-center justify-between gap-2 text-[1.9cqmin] text-white/60">
+        <span>Horário de Brasília · {dados?.creditos ?? CREDITOS}</span>
+        {paginas.length > 1 && <span className="tabular-nums" data-testid="sports-pagina">{indice + 1}/{paginas.length}</span>}
       </div>
     </div>
+  );
+}
+
+function chaveJogo(j: JogoJanela) { return `${j.slug}-${j.data}-${j.mandante}-${j.visitante}`; }
+
+function Secao({ titulo, cor, children }: { titulo: string; cor: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-[1cqmin]" data-testid={`sports-secao-${titulo === 'RESULTADOS' ? 'resultados' : 'proximos'}`}>
+      <div className="flex items-center gap-[1.2cqmin]">
+        <span className="text-[2.5cqmin] font-extrabold tracking-[0.2em]" style={{ color: cor }}>{titulo}</span>
+        <span className="h-px flex-1" style={{ background: rgba(cor, 0.5) }} />
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function LinhaJogo({ j, hoje, cores, encerrado = false }: { j: JogoJanela; hoje: string; cores: CoresWidget; encerrado?: boolean }) {
+  const centro = encerrado ? `${j.placarMandante} × ${j.placarVisitante}` : (j.hora ?? 'a definir');
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto_auto_1fr] items-center gap-[1.4cqmin] rounded-[1.4cqmin] px-[2cqmin] py-[0.9cqmin]"
+      style={{ background: 'rgba(255,255,255,0.09)', border: `1px solid ${rgba(cores.brilho, 0.35)}` }} data-testid="sports-jogo">
+      <span className="min-w-0 line-clamp-2 break-words text-right text-[3.9cqmin] font-bold leading-tight">{j.mandante}</span>
+      <Escudo url={j.escudoMandante} nome={j.mandante} />
+      <span className="flex flex-col items-center">
+        <span className="min-w-[13cqmin] rounded-[1cqmin] px-[1.2cqmin] text-center text-[4.4cqmin] font-black tabular-nums"
+          style={encerrado ? { background: cores.selo, color: cores.seloTexto } : { background: 'rgba(255,255,255,0.16)' }}>
+          {centro}
+        </span>
+        <span className="mt-[0.4cqmin] text-[1.9cqmin] font-bold uppercase text-white/75">{rotuloDia(j.data, hoje)}</span>
+      </span>
+      <Escudo url={j.escudoVisitante} nome={j.visitante} />
+      <span className="min-w-0 line-clamp-2 break-words text-left text-[3.9cqmin] font-bold leading-tight">{j.visitante}</span>
+    </div>
+  );
+}
+
+/** Escudo oficial conferido; sem ele (ou se a imagem falhar), as iniciais — nunca o escudo de outro time. */
+function Escudo({ url, nome }: { url?: string | null; nome: string }) {
+  const [falhou, setFalhou] = useState(false);
+  if (url && !falhou) {
+    return <img src={url} alt={`Escudo ${nome}`} className="h-[7.4cqmin] w-[7.4cqmin] object-contain drop-shadow" onError={() => setFalhou(true)} data-testid="sports-escudo" />;
+  }
+  return (
+    <span className="flex h-[7.4cqmin] w-[7.4cqmin] items-center justify-center rounded-full bg-white/20 text-[2cqmin] font-black" data-testid="sports-escudo-reserva">
+      {iniciaisDoTime(nome)}
+    </span>
   );
 }

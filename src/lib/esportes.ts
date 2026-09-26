@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { WidgetConfig } from '@/types/models';
+import type { JogoJanela } from '@/lib/esportesPaginas';
 
 /**
  * Esportes e notícias prontos para os widgets (Sports Engine / motor de notícias — migração 20261251).
@@ -25,9 +26,16 @@ export interface DadosEsportes {
   modo: 'resultados' | 'proximos' | 'hoje';
   fuso: string;
   geradoEm: string;
-  competicoes: Array<{ slug: string; nome: string; codigo: string; cobertura: 'FULL' | 'PARTIAL' | 'UNAVAILABLE' }>;
+  competicoes: Array<{ slug: string; nome: string; codigo: string; cobertura: 'FULL' | 'PARTIAL' | 'UNAVAILABLE'; ordem?: number }>;
   jogos: JogoEsporte[];
   creditos: string;
+  /** v2 (F-86): jogos de D-3 a D+9 com escudos; o widget recorta resultados (D-3..D-1) e próximos (hoje..D+2). */
+  layout?: number;
+  referencia?: string;
+  janela?: JogoJanela[];
+  /** Prévia em outra data (dados reais daquela data): nunca vai para as telas. */
+  simulado?: boolean;
+  agoraReferencia?: string;
 }
 
 export interface NoticiaWidget { titulo: string; resumo: string | null; fonte: string; publicadoEm: string | null }
@@ -41,10 +49,19 @@ function configParaServidor(config: WidgetConfig) {
   return { competicoes: config.competicoes ?? [], modo: config.modo ?? 'resultados', limite: config.limite ?? 6, time: config.time ?? '' };
 }
 
-export async function buscarEsportes(config: WidgetConfig): Promise<DadosEsportes> {
-  const { data, error } = await supabase.rpc('content_esportes_preview' as never, { p_config: configParaServidor(config) } as never);
+export async function buscarEsportes(config: WidgetConfig, referencia?: string | null): Promise<DadosEsportes> {
+  const { data, error } = await supabase.rpc('content_esportes_preview' as never, {
+    p_config: configParaServidor(config), ...(referencia ? { p_referencia: referencia } : {}),
+  } as never);
   if (error) throw new Error(error.message);
   return data as unknown as DadosEsportes;
+}
+
+/** Data de exemplo (dados reais) quando a janela de hoje está vazia — ex.: pausa da Data FIFA. */
+export async function buscarDataDeExemplo(config: WidgetConfig): Promise<string | null> {
+  const { data, error } = await supabase.rpc('content_esportes_ultima_data_com_jogos' as never, { p_config: configParaServidor(config) } as never);
+  if (error) throw new Error(error.message);
+  return (data as unknown as string | null) ?? null;
 }
 
 export async function buscarNoticias(config: WidgetConfig): Promise<DadosNoticias> {

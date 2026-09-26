@@ -34,6 +34,8 @@ data class Institucional(
 data class WidgetSpec(
     val kind: WidgetKind,
     val rawType: String,
+    /** Id do widget (native_widget://<tipo>/<id>): chave da continuação do Esportes entre exibições. */
+    val widgetId: String = "",
     val backgroundLandscape: String?,
     val backgroundPortrait: String?,
     val backgroundAny: String?,
@@ -112,6 +114,7 @@ object WidgetSpecParser {
         return WidgetSpec(
             kind = kindOf(rawType),
             rawType = rawType,
+            widgetId = head.removePrefix("native_widget://").substringAfter("/", "").substringBefore("/"),
             backgroundLandscape = httpUrlOrNull(str("backgroundImageLandscape")),
             backgroundPortrait = httpUrlOrNull(str("backgroundImagePortrait")),
             backgroundAny = httpUrlOrNull(str("backgroundImage") ?: str("background_url")),

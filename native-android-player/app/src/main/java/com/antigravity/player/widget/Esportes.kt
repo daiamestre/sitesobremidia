@@ -26,10 +26,26 @@ data class JogoEsporte(
     val status: String,
     val data: String,          // YYYY-MM-DD (Brasília)
     val hora: String?,         // HH:MM (Brasília) ou null = a definir
-    val kickoffUtcMs: Long?
+    val kickoffUtcMs: Long?,
+    /** Escudo oficial conferido (cópia no Storage); null = mostra as iniciais, nunca o escudo de outro time. */
+    val escudoMandante: String? = null,
+    val escudoVisitante: String? = null,
+    val ordemCompeticao: Int = 99
 )
 
-data class DadosEsportes(val modo: String, val jogos: List<JogoEsporte>, val creditos: String)
+data class CompeticaoEsporte(val slug: String, val nome: String, val ordem: Int)
+
+/**
+ * layout 2 (F-86): janela D-3..D+9 por campeonato (o Player recorta pelo próprio relógio). layout 1 = lista antiga (modo).
+ */
+data class DadosEsportes(
+    val modo: String,
+    val jogos: List<JogoEsporte>,
+    val creditos: String,
+    val layout: Int = 1,
+    val janela: List<JogoEsporte> = emptyList(),
+    val competicoes: List<CompeticaoEsporte> = emptyList()
+)
 
 object EsportesText {
     private val PT_BR = Locale("pt", "BR")
@@ -43,24 +59,37 @@ object EsportesText {
         val o = el as? JsonObject ?: return null
         fun s(obj: JsonObject, k: String) = (obj[k] as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.takeIf { it.isNotEmpty() }
         fun i(obj: JsonObject, k: String) = (obj[k] as? JsonPrimitive)?.intOrNull
-        val jogos = (o["jogos"] as? JsonArray).orEmpty().mapNotNull { e ->
-            val j = e as? JsonObject ?: return@mapNotNull null
-            val mandante = s(j, "mandante") ?: return@mapNotNull null
-            val visitante = s(j, "visitante") ?: return@mapNotNull null
-            val data = s(j, "data")?.takeIf { DATA.matches(it) } ?: return@mapNotNull null
-            JogoEsporte(
+        fun jogoDe(e: Any?): JogoEsporte? {
+            val j = e as? JsonObject ?: return null
+            val mandante = s(j, "mandante") ?: return null
+            val visitante = s(j, "visitante") ?: return null
+            val data = s(j, "data")?.takeIf { DATA.matches(it) } ?: return null
+            return JogoEsporte(
                 codigo = s(j, "codigo") ?: "", competicao = s(j, "competicao") ?: "", slug = s(j, "slug") ?: "",
                 mandante = mandante, visitante = visitante,
                 placarMandante = i(j, "placarMandante"), placarVisitante = i(j, "placarVisitante"),
                 status = s(j, "status") ?: "SCHEDULED", data = data,
                 hora = s(j, "hora")?.takeIf { HORA.matches(it) },
-                kickoffUtcMs = s(j, "kickoffUtc")?.let(::isoParaMs)
+                kickoffUtcMs = s(j, "kickoffUtc")?.let(::isoParaMs),
+                escudoMandante = s(j, "escudoMandante")?.takeIf { it.startsWith("https://") },
+                escudoVisitante = s(j, "escudoVisitante")?.takeIf { it.startsWith("https://") },
+                ordemCompeticao = i(j, "ordemCompeticao") ?: 99
             )
-        }.take(12)
+        }
+        val jogos = (o["jogos"] as? JsonArray).orEmpty().mapNotNull(::jogoDe).take(12)
+        val janela = (o["janela"] as? JsonArray).orEmpty().mapNotNull(::jogoDe).take(300)
+        val competicoes = (o["competicoes"] as? JsonArray).orEmpty().mapNotNull { e ->
+            val c = e as? JsonObject ?: return@mapNotNull null
+            val slug = s(c, "slug") ?: return@mapNotNull null
+            CompeticaoEsporte(slug, s(c, "nome") ?: slug, i(c, "ordem") ?: 99)
+        }
         return DadosEsportes(
             modo = s(o, "modo")?.takeIf { it in setOf("resultados", "proximos", "hoje") } ?: "resultados",
             jogos = jogos,
-            creditos = s(o, "creditos") ?: "Dados: openfootball (CC0) · Wikipédia (CC BY-SA)"
+            creditos = s(o, "creditos") ?: "Dados: openfootball (CC0) · Wikipédia (CC BY-SA)",
+            layout = i(o, "layout") ?: 1,
+            janela = janela,
+            competicoes = competicoes
         )
     }
 

@@ -795,3 +795,47 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
     - vídeo próprio → disparo aceito pelo GitHub (o token salvo funciona).
   - **Proteção aplicada:** o workflow antigo "Compress Video" foi **desativado** no GitHub. Com o token válido, um disparo rodaria a versão antiga da `main` (H.265 + apagar original).
   - **Pendente de decisão:** o `repository_dispatch` só roda workflows da branch padrão (`main`), que também é a branch de produção da Vercel e está 60 commits atrás da release.
+
+### F-86 — Widget Esportes v2: resultados e próximos jogos por campeonato, janela de 3 dias, 3 + 3 por página, continuação entre exibições e escudos oficiais — DONE (Player 5.6.2)
+- **Pedido (26/09/2026):**
+  - separado por campeonato, com o nome no topo ("Brasileirão Série A") e "Resultados e próximos jogos" embaixo;
+  - resultados dos 3 dias anteriores e próximos jogos de hoje até 2 dias à frente (sábado → resultados de qua/qui/sex, próximos de sáb/dom/seg);
+  - 3 resultados + 3 próximos por página, 8 s cada, 3 páginas por exibição;
+  - na exibição seguinte continua de onde parou, até passar todos os jogos;
+  - só as competições marcadas;
+  - nome do time sempre com o escudo oficial do próprio time.
+- **Servidor (migração `20261256`, aditiva):**
+  - `config.esportes` ganha `layout=2`, `referencia` e `janela` (D-3..D+9, com `escudoMandante`/`escudoVisitante` e a ordem da competição). A lista antiga `jogos` continua igual para os Players 5.6.0/5.6.1.
+  - Regra de exibição: o widget só entra na playlist se houver resultado em D-3..D-1 ou jogo de hoje a D+2 ainda não começado. Sem isso (ex.: Data FIFA combinada de 21/09 a 06/10), ele sai da reprodução em vez de ocupar a tela vazio.
+  - Cron `esportes-virada-do-dia` (00:05 de Brasília) faz as telas ressincronizarem quando a janela anda.
+  - Prévia do painel (`content_esportes_preview(p_config, p_referencia)`): com a janela de hoje vazia, mostra um EXEMPLO, marcado como tal, com a última rodada real. Nunca vai para as telas.
+- **Escudos:**
+  - Tabela `content_sports_teams` e bucket público `escudos-times`.
+  - Edge Function `sports-escudos-sync` (cron semanal): nome gravado nos jogos → artigo do clube na Wikipédia, pelo mesmo vínculo que o Sports Engine usa para reconciliar → imagem principal do artigo (o escudo do infobox) → PNG 256 px no Storage.
+  - **Conferência visual 96/96** (20 Brasileirão, 20 Premier, 20 La Liga, 36 Champions = 86 times únicos): cada escudo é do time do nome. `verificado_em` gravado só onde o arquivo copiado é idêntico ao conferido (86/86).
+  - Escudo conferido nunca é trocado sozinho: se a Wikipédia mudar o arquivo, o conferido continua e a linha fica `pendente_revisao`.
+  - Time sem escudo conferido mostra as iniciais, nunca o escudo de outro time.
+- **Painel e Player web:**
+  - `src/lib/esportesPaginas.ts` (regra única) e `SportsWidget` v2.
+  - Catálogo com um só modelo ("Resultados e Próximos Jogos"); modelos antigos salvos caem nele.
+  - O formulário explica como o widget passa na tela.
+  - Duração padrão do item de Esportes na playlist: 24 s (3 × 8 s).
+- **Player Android 5.6.2 (549):**
+  - `EsportesPaginas.kt` (mesma regra, sem `java.time`) e `buildSportsV2`.
+  - Escudos carregados antes de o widget entrar (prazo de 10 s), e os demais da janela aquecidos no cache de disco para funcionar offline.
+  - Cursor por widget no aparelho (`esportes_cursor`), gravado a cada página mostrada.
+  - Nomes longos em até 2 linhas com fonte ajustável.
+- **Defeitos achados e corrigidos na validação:**
+  1. A prévia derrubava a página (`somarDias` lançava erro com data vazia). As funções de data não lançam mais; teste acrescentado.
+  2. Escudos com cache vazio estouravam o prazo de 4 s do fundo (Botafogo, Atlético-MG e Mirassol saíam com iniciais). Prazo próprio de 10 s e aquecimento; com dados limpos, todos carregaram.
+  3. Nomes longos cortados na vertical.
+- **Prova:**
+  - Testes web: `esportesPaginas` (9, inclusive o exemplo do sábado), `esportesWidget` (v2, 8), `escudosTimes` (3).
+  - JVM: `EsportesPaginasTest` (5), total 205/205.
+  - Teste instrumentado `EsportesRenderTest` no emulador: o widget desenhado pelo Player com a janela real de 19/09 e os escudos do Storage, 8 páginas em 16:9 e 9:16 (evidência em `evidence/F-86_esportes_v2/`).
+  - Na prévia do painel, com dados reais: 8 páginas; Brasileirão → Premier → La Liga.
+  - Release 5.6.2: SHA-256 `4e09679bacdd49d6677031bd42aa983543ae8f86f8ba10cc82e474e01f23a89f` (5 736 035 bytes), certificado de produção.
+- **Limites registrados:**
+  - O emulador de homologação ficou na tela de login depois da limpeza de dados do teste de cache frio. Entrar exige a senha da conta de teste, que não é digitada por agente.
+  - Escudos de clubes são marcas registradas: o uso comercial em telas de mídia é decisão e risco do proprietário.
+  - Hoje (Data FIFA) não há jogos na janela: o widget volta a aparecer nas telas em 07/10, na virada do dia.

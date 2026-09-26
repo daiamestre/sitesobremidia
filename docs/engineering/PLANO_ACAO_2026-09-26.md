@@ -11,6 +11,7 @@ As frentes são executadas **uma de cada vez**. A próxima só começa quando a 
 | 3 | Seletores de Mídia, Widget e Link (e Playlist) responsivos e com rolagem em PC, tablet e celular | **PASS** (F-82) |
 | 4 | Capa em todos os widgets + imagem de fundo em todos | **PASS** (F-83) |
 | 5 | Dashboard do Owner/ADM na área Gestor de Mídias + dashboards que ficam carregando | **PASS** (F-84) |
+| 6 | Pendências abertas (F-85) e widget Esportes v2 por campeonato com escudos (F-86) | **PASS** |
 
 ## 1. Sports Engine + Notícias de Esportes (custo zero)
 

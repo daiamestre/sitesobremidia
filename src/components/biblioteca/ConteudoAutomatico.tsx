@@ -5,7 +5,7 @@ import { SportsWidget } from '@/components/player/SportsWidget';
 import { RssWidget } from '@/components/player/RssWidget';
 import { MODO_DO_MODELO_ESPORTES, WIDGET_TEMPLATES } from '@/lib/widgetCatalog';
 
-const MODELOS = ['sports-resultados', 'sports-proximos', 'sports-hoje', 'rss-esportes'];
+const MODELOS = ['sports-resultados', 'rss-esportes'];
 
 /**
  * Conteúdo automático na Biblioteca (Content Library): esportes e notícias que o SOBRE MÍDIA atualiza sozinho.

@@ -24,9 +24,8 @@ export const WIDGET_TEMPLATES: WidgetTemplateDef[] = [
   { id: 'clock-futurista', tipo: 'clock', nome: 'Relógio Futurista', descricao: 'Hora e data no Horário de Brasília com glow; escolha a cor ou use uma imagem de fundo.', suportaFundo: true, noPlayer: true },
   { id: 'weather-futurista', tipo: 'weather', nome: 'Clima Futurista', descricao: 'Temperatura, máxima, mínima e próximos dias; escolha a cor ou use uma imagem de fundo.', suportaFundo: true, noPlayer: true },
   // Esportes (Sports Engine): só placares/jogos confirmados por duas fontes (openfootball + Wikipédia); sem placar ao vivo
-  { id: 'sports-resultados', tipo: 'sports', nome: 'Resultados do Futebol', descricao: 'Placares finais confirmados do Brasileirão, Premier League, La Liga e Champions League.', suportaFundo: true, noPlayer: true },
-  { id: 'sports-proximos', tipo: 'sports', nome: 'Próximos Jogos', descricao: 'Confrontos, datas e horários de Brasília dos próximos jogos, atualizados sozinhos.', suportaFundo: true, noPlayer: true },
-  { id: 'sports-hoje', tipo: 'sports', nome: 'Jogos de Hoje', descricao: 'Os jogos do dia com horário de Brasília e os resultados confirmados.', suportaFundo: true, noPlayer: true },
+  // Um modelo só (F-86): por campeonato, resultados dos 3 dias anteriores + próximos jogos até 2 dias à frente, com escudos
+  { id: 'sports-resultados', tipo: 'sports', nome: 'Resultados e Próximos Jogos', descricao: 'Por campeonato: resultados dos 3 dias anteriores e próximos jogos até 2 dias à frente, com o escudo oficial de cada time.', suportaFundo: true, noPlayer: true },
   { id: 'rss-classic', tipo: 'rss', nome: 'Notícias (RSS)', descricao: 'Manchetes reais de um feed, em rotação, com barra de tempo.', suportaFundo: true, noPlayer: true },
   { id: 'rss-esportes', tipo: 'rss', nome: 'Notícias de Esportes', descricao: 'Manchetes de esportes da Agência Brasil, atualizadas automaticamente.', suportaFundo: true, noPlayer: true },
   { id: 'institutional-aviso', tipo: 'institutional', nome: 'Institucional / Aviso', descricao: 'Horário de funcionamento, comunicados, contato e QR Code.', suportaFundo: true, noPlayer: true },
@@ -48,7 +47,7 @@ export const TIPOS_COM_PALETA = ['clock', 'weather'];
 /** Tipos com cores à escolha (paleta) na lateral da prévia; o Player lê config.cores. */
 export const TIPOS_COM_CORES = [...TIPOS_COM_PALETA, 'sports'];
 
-/** Esportes: o modelo define o modo (Resultados, Próximos jogos, Jogos de hoje). */
+/** Esportes: modo dos modelos antigos — só os Players 5.6.0/5.6.1 ainda leem (o 5.6.2 usa a janela por campeonato). */
 export const MODO_DO_MODELO_ESPORTES: Record<string, 'resultados' | 'proximos' | 'hoje'> = {
   'sports-resultados': 'resultados', 'sports-proximos': 'proximos', 'sports-hoje': 'hoje',
 };

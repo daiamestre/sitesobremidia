@@ -38,7 +38,7 @@ function artigoDeLink(s: string): string | null {
   return m ? m[1].trim() : null;
 }
 
-function limpar(s: string): string {
+export function limpar(s: string): string {
   return textoDeLink(s)
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<ref[\s\S]*?(<\/ref>|\/>)/g, '')

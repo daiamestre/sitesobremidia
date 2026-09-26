@@ -616,9 +616,10 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                             Só entram jogos confirmados por duas fontes (openfootball + Wikipédia); Champions League: duas revisões da Wikipédia. Sem placar ao vivo. Horário de Brasília.
                                         </p>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div><Label>Quantidade de jogos</Label><Input type="number" min={1} max={12} value={config.limite ?? 6} onChange={(e) => updateConfig('limite', Math.min(12, Math.max(1, parseInt(e.target.value) || 6)))} /></div>
-                                        <div><Label>Só de um time (opcional)</Label><Input value={config.time || ''} placeholder="Ex.: Flamengo" onChange={(e) => updateConfig('time', e.target.value)} /></div>
+                                    <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1" data-testid="esportes-como-passa">
+                                        <p><strong>Como passa na tela:</strong> cada competição marcada aparece separada, com o nome no topo e “Resultados e próximos jogos” embaixo.</p>
+                                        <p>Resultados dos <strong>3 dias anteriores</strong> e próximos jogos de <strong>hoje até 2 dias à frente</strong>, 3 resultados + 3 próximos jogos por página, <strong>8 segundos</strong> cada, com o escudo oficial de cada time.</p>
+                                        <p>Cada vez que o widget toca, passam 3 páginas (24 s); na vez seguinte ele continua de onde parou, até mostrar todos os jogos. Sem jogos nesse período (ex.: Data FIFA), o widget sai da reprodução e volta sozinho.</p>
                                     </div>
                                 </div>
                             )}
