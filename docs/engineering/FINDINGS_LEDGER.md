@@ -911,3 +911,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - O 1º desenho mostrou o subtítulo sobre o letreiro da arte. O espaço reservado passou a 25% da altura na horizontal (linhas a 80%) e 30% na vertical, com o subtítulo centralizado na vertical.
   - Resultado: taça + nome da arte, depois "RESULTADOS E PRÓXIMOS JOGOS" e os jogos, sem sobreposição (evidência `player564_*_arte.png`).
 - **Release 5.6.4 (551):** SHA-256 `2d0ca099d6f9d20486d115e74dbbf0fb4b46ade64ebfbf1c9ab70114f50db04b`, certificado de produção. Substitui a 5.6.3 no OTA pendente (aguarda a publicação do APK pelo proprietário).
+
+### F-89 — Esportes: taças da Premier, Champions e La Liga; textos centralizados; sem rodapé — DONE (Player 5.6.5)
+- **Taças:** as três foram recortadas localmente da imagem enviada pelo proprietário e colocadas nos fundos 16:9 e 9:16, no mesmo padrão da Copa do Brasil e do Brasileirão. O letreiro se ajusta à largura disponível (CHAMPIONS LEAGUE / PREMIER LEAGUE). URLs `?v=4` (migração `20261259`).
+- **Textos:**
+  - "RESULTADOS E PRÓXIMOS JOGOS" centralizado e maior (4,4% da menor dimensão, proporcional em 16:9 e 9:16).
+  - "RESULTADOS" e "PRÓXIMOS JOGOS" (amarelo) centralizados, com linha dos dois lados.
+- **Rodapé removido da tela** (pedido do proprietário): sem "Horário de Brasília", sem a fonte dos dados e sem o contador de páginas.
+  - A posição da página fica só para leitores de tela (`sr-only`).
+  - As fontes continuam registradas no banco (`creditos`) e nesta documentação.
+  - Nota: os fatos de jogo (placares, datas) vêm do openfootball (CC0) e da Wikipédia; não há texto da Wikipédia reproduzido na tela.
+- **Prova:** web 160/1622 (+2 testes: sem rodapé visível; rótulos centralizados); JVM 205/205.

@@ -15,9 +15,9 @@ function rng(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) /
 const TEMAS = {
   'copa-do-brasil':   { placa: 'dourada', taca: 'copa', linhas: ['COPA DO BRASIL'], estilo: 'ouro', particula: 'confete', tinta: null, brilho: '#ffcf4d' },
   brasileirao:        { placa: 'azul', taca: 'brasileirao', linhas: ['BRASILEIRÃO', 'SÉRIE A'], estilo: 'prata', particula: 'estrela', tinta: null, brilho: '#5aa9ff' },
-  'premier-league':   { placa: 'azul', taca: null, linhas: ['PREMIER LEAGUE'], estilo: 'prata', particula: 'faisca', tinta: '#6a1bb0', brilho: '#e0409a' },
-  'la-liga':          { placa: 'azul', taca: null, linhas: ['LA LIGA'], estilo: 'prata', particula: 'faisca', tinta: '#c0162c', brilho: '#ff7a3d' },
-  'champions-league': { placa: 'azul', taca: null, linhas: ['CHAMPIONS LEAGUE'], estilo: 'prata', particula: 'estrela', tinta: '#0b2d8a', brilho: '#b9d4ff' },
+  'premier-league':   { placa: 'azul', taca: 'premier', linhas: ['PREMIER LEAGUE'], estilo: 'prata', particula: 'faisca', tinta: '#6a1bb0', brilho: '#e0409a' },
+  'la-liga':          { placa: 'azul', taca: 'laliga', linhas: ['LA LIGA'], estilo: 'prata', particula: 'faisca', tinta: '#c0162c', brilho: '#ff7a3d' },
+  'champions-league': { placa: 'azul', taca: 'champions', linhas: ['CHAMPIONS LEAGUE'], estilo: 'prata', particula: 'estrela', tinta: '#0b2d8a', brilho: '#b9d4ff' },
 };
 
 function gradienteTexto(ctx, estilo, y0, y1) {
@@ -27,9 +27,11 @@ function gradienteTexto(ctx, estilo, y0, y1) {
   return g;
 }
 
-function texto(ctx, t, x, y, tam, estilo, alinhar) {
+function texto(ctx, t, x, y, tam, estilo, alinhar, larguraMax) {
   ctx.save();
   ctx.font = `900 ${tam}px Montserrat`;
+  // nome longo (ex.: CHAMPIONS LEAGUE): a letra diminui até caber na largura disponível
+  if (larguraMax) { const l = ctx.measureText(t).width; if (l > larguraMax) { tam = tam * (larguraMax / l); ctx.font = `900 ${tam}px Montserrat`; } }
   ctx.textAlign = alinhar; ctx.textBaseline = 'alphabetic';
   ctx.shadowColor = 'rgba(0,0,0,0.75)'; ctx.shadowBlur = tam * 0.25; ctx.shadowOffsetY = tam * 0.06;
   ctx.lineWidth = Math.max(3, tam * 0.07); ctx.strokeStyle = estilo === 'ouro' ? '#3a2600' : '#1b2536';
@@ -100,7 +102,7 @@ async function desenhar(slug, tema, W, H, ref, tacas) {
     }
     const tamA = tema.linhas.length > 1 ? H * 0.105 : H * 0.12;
     const yA = topo + (tema.linhas.length > 1 ? altura * 0.58 : altura * 0.72);
-    texto(ctx, tema.linhas[0], xTexto, yA, tamA, tema.estilo, 'left');
+    texto(ctx, tema.linhas[0], xTexto, yA, tamA, tema.estilo, 'left', W * 0.96 - xTexto);
     if (tema.linhas[1]) texto(ctx, tema.linhas[1], xTexto + 4, yA + H * 0.075, H * 0.055, 'prata', 'left');
   } else {
     const topo = H * 0.07;
@@ -111,7 +113,7 @@ async function desenhar(slug, tema, W, H, ref, tacas) {
       yTexto = topo + th + H * 0.05;
     }
     const tamA = Math.min(W * 0.115, (W * 0.9) / (tema.linhas[0].length * 0.62));
-    texto(ctx, tema.linhas[0], W / 2, yTexto, tamA, tema.estilo, 'center');
+    texto(ctx, tema.linhas[0], W / 2, yTexto, tamA, tema.estilo, 'center', W * 0.92);
     if (tema.linhas[1]) texto(ctx, tema.linhas[1], W / 2, yTexto + H * 0.035, W * 0.055, 'prata', 'center');
   }
   return new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.86));
@@ -121,7 +123,8 @@ async function desenhar(slug, tema, W, H, ref, tacas) {
   try {
     await document.fonts.load('900 80px Montserrat');
     const ref = await carregar('/ref3.png');
-    const tacas = { copa: await carregar('/recortes/copa_ref_recorte.png'), brasileirao: await carregar('/recortes/brasileirao_ref_recorte.png') };
+    const tacas = { copa: await carregar('/recortes/copa_ref_recorte.png'), brasileirao: await carregar('/recortes/brasileirao_ref_recorte.png'),
+      premier: await carregar('/recortes/premier_ref_recorte.png'), champions: await carregar('/recortes/champions_ref_recorte.png'), laliga: await carregar('/recortes/laliga_ref_recorte.png') };
     for (const [slug, tema] of Object.entries(TEMAS)) {
       for (const [suf, W, H] of [['h', 1920, 1080], ['v', 1080, 1920]]) {
         const blob = await desenhar(slug, tema, W, H, ref, tacas);

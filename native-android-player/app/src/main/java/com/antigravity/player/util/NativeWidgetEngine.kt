@@ -1286,7 +1286,6 @@ object NativeWidgetEngine {
      */
     private fun buildSportsV2(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float, dados: EsportesPayload): View {
         val cores = spec.cores ?: CoresWidget.PADRAO
-        val creditos = spec.esportes?.creditos ?: "Dados: openfootball (CC0) · Wikipédia (CC BY-SA)"
         val tema = bg == null && dados.fundos.isNotEmpty()
         val root = if (tema) FrameLayout(context).apply {
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(cores.c1, cores.c2, cores.c3))
@@ -1307,14 +1306,7 @@ object NativeWidgetEngine {
         col.addView(cabecalhoMarca(context, "⚽ FUTEBOL", base, cores), lp())
         val area = FrameLayout(context)
         col.addView(area, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        val rodape = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        rodape.addView(text(context, base * 0.019f, color = Color.argb(160, 255, 255, 255)).apply {
-            text = "Horário de Brasília · $creditos"; gravity = Gravity.START; setShadowLayer(0f, 0f, 0f, 0)
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val contador = text(context, base * 0.019f, color = Color.argb(160, 255, 255, 255))
-        rodape.addView(contador)
-        col.addView(rodape, lp(top = px(base * 0.012f)))
-
+        // Sem rodapé na tela (pedido do proprietário, F-89): nem fonte dos dados, nem horário, nem contador de páginas.
         if (dados.indices.isEmpty()) {
             area.addView(text(context, base * 0.036f, color = Color.argb(215, 255, 255, 255), lines = 2).apply {
                 text = "Sem jogos nos 3 dias anteriores nem nos próximos 3 dias."
@@ -1334,9 +1326,8 @@ object NativeWidgetEngine {
             val vertical = h > w * 1.2f
             area.addView(paginaEsportes(context, dados.paginas[indice], dados.hoje, dados.escudos, base, cores, tema,
                 espacoTitulo = if (tituloNaArte) px(h * (if (vertical) 0.3f else 0.25f)) else 0,
-                escala = if (tituloNaArte && !vertical) 0.8f else 1f, centralizarSubtitulo = vertical),
+                escala = if (tituloNaArte && !vertical) 0.8f else 1f),
                 FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            contador.text = if (total > 1) "${indice + 1}/$total" else ""
             gravarCursorEsportes(context.applicationContext, spec.widgetId, EsportesPaginas.cursorDepois(indice, total, dados.hoje))
         }
         mostrar(dados.indices[0])
@@ -1363,13 +1354,13 @@ object NativeWidgetEngine {
 
     private fun paginaEsportes(
         context: Context, p: PaginaEsportes, hoje: String, escudos: Map<String, Bitmap>, base: Float, cores: CoresWidget,
-        escuro: Boolean = false, espacoTitulo: Int = 0, escala: Float = 1f, centralizarSubtitulo: Boolean = false
+        escuro: Boolean = false, espacoTitulo: Int = 0, escala: Float = 1f
     ): View {
         val pagina = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         if (espacoTitulo > 0) {
             pagina.addView(View(context), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, espacoTitulo))
-            pagina.addView(text(context, base * 0.03f, bold = true, color = Color.argb(230, 255, 255, 255)).apply {
-                text = "RESULTADOS E PRÓXIMOS JOGOS"; gravity = if (centralizarSubtitulo) Gravity.CENTER else Gravity.START; letterSpacing = 0.18f
+            pagina.addView(text(context, base * 0.044f, bold = true).apply {
+                text = "RESULTADOS E PRÓXIMOS JOGOS"; gravity = Gravity.CENTER; letterSpacing = 0.16f
             }, lp())
             val corpoArte = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
             pagina.addView(corpoArte, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -1398,12 +1389,13 @@ object NativeWidgetEngine {
     private fun secoesEsportes(context: Context, corpo: LinearLayout, p: PaginaEsportes, hoje: String, escudos: Map<String, Bitmap>, base: Float, cores: CoresWidget, escuro: Boolean) {
         fun secao(rotulo: String, jogos: List<JogoEsporte>, encerrado: Boolean, topo: Int) {
             if (jogos.isEmpty()) return
-            val cab = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            cab.addView(text(context, base * 0.025f, bold = true, color = cores.selo).apply {
+            val cab = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+            fun linhaDivisoria() = View(context).apply { setBackgroundColor(CoresWidget.comAlfa(cores.selo, 128)) }
+            cab.addView(linhaDivisoria(), LinearLayout.LayoutParams(0, px(base * 0.0015f).coerceAtLeast(1), 1f).apply { marginEnd = px(base * 0.016f) })
+            cab.addView(text(context, base * 0.029f, bold = true, color = cores.selo).apply {
                 text = rotulo; letterSpacing = 0.2f; setShadowLayer(0f, 0f, 0f, 0)
             })
-            cab.addView(View(context).apply { setBackgroundColor(CoresWidget.comAlfa(cores.selo, 128)) },
-                LinearLayout.LayoutParams(0, px(base * 0.0015f).coerceAtLeast(1), 1f).apply { marginStart = px(base * 0.012f) })
+            cab.addView(linhaDivisoria(), LinearLayout.LayoutParams(0, px(base * 0.0015f).coerceAtLeast(1), 1f).apply { marginStart = px(base * 0.016f) })
             corpo.addView(cab, lp(top = topo))
             jogos.forEach { j -> corpo.addView(linhaJogoV2(context, j, hoje, escudos, base, cores, encerrado, escuro), lp(top = px(base * 0.01f))) }
         }

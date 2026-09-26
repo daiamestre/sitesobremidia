@@ -8,8 +8,6 @@ import {
   type CursorEsportes, type JogoJanela, type PaginaEsportes,
 } from '@/lib/esportesPaginas';
 
-const CREDITOS = 'Dados: openfootball (CC0) · Wikipédia (CC BY-SA)';
-
 function lerCursor(widgetId?: string): CursorEsportes | null {
   if (!widgetId) return null;
   try {
@@ -173,7 +171,7 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
             <div data-testid="sports-titulo-na-arte">
               <h2 className="sr-only" data-testid="sports-competicao">{pagina.competicao}</h2>
               <div style={{ height: vertical ? '30cqh' : '25cqh' }} />
-              <p className={cn('text-[3cqmin] font-bold uppercase tracking-[0.18em] text-white/90', vertical && 'text-center')} data-testid="sports-subtitulo">Resultados e próximos jogos</p>
+              <p className="text-center text-[4.4cqmin] font-extrabold uppercase leading-tight tracking-[0.16em] text-white drop-shadow" data-testid="sports-subtitulo">Resultados e próximos jogos</p>
             </div>
           ) : (
             <div className="border-l-[0.9cqmin] pl-[1.8cqmin]" style={{ borderColor: c.selo }}>
@@ -201,10 +199,8 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
         </p>
       )}
 
-      <div className="relative z-10 mt-[1.2cqmin] flex items-center justify-between gap-2 text-[1.9cqmin] text-white/60">
-        <span>Horário de Brasília · {dados?.creditos ?? CREDITOS}</span>
-        {paginas.length > 1 && <span className="tabular-nums" data-testid="sports-pagina">{indice + 1}/{paginas.length}</span>}
-      </div>
+      {/* Sem rodapé na tela (pedido do proprietário): a posição da página fica só para leitores de tela. */}
+      {paginas.length > 1 && <span className="sr-only" data-testid="sports-pagina">{indice + 1}/{paginas.length}</span>}
     </div>
   );
 }
@@ -214,8 +210,9 @@ function chaveJogo(j: JogoJanela) { return `${j.slug}-${j.data}-${j.mandante}-${
 function Secao({ titulo, cor, children }: { titulo: string; cor: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-[1cqmin]" data-testid={`sports-secao-${titulo === 'RESULTADOS' ? 'resultados' : 'proximos'}`}>
-      <div className="flex items-center gap-[1.2cqmin]">
-        <span className="text-[2.5cqmin] font-extrabold tracking-[0.2em]" style={{ color: cor }}>{titulo}</span>
+      <div className="flex items-center justify-center gap-[1.6cqmin]">
+        <span className="h-px flex-1" style={{ background: rgba(cor, 0.5) }} />
+        <span className="text-[2.9cqmin] font-extrabold tracking-[0.2em]" style={{ color: cor }} data-testid="sports-rotulo-secao">{titulo}</span>
         <span className="h-px flex-1" style={{ background: rgba(cor, 0.5) }} />
       </div>
       {children}

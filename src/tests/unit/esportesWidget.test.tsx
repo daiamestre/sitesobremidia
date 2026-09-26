@@ -179,3 +179,19 @@ describe('Esportes v2 — fundo com a taça e o nome da competição (F-88)', ()
     expect(screen.getByTestId('sports-competicao')).not.toHaveClass('sr-only');
   });
 });
+
+describe('Esportes v2 — tela limpa (F-89)', () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] }); vi.setSystemTime(new Date('2026-10-10T12:00:00-03:00')); localStorage.clear(); });
+  afterEach(() => { vi.useRealTimers(); localStorage.clear(); });
+
+  it('sem rodapé visível: nem a fonte dos dados, nem "Horário de Brasília", nem o contador de páginas', () => {
+    render(<SportsWidget config={{}} dados={v2(JANELA)} widgetId="w5" modo="player" />);
+    expect(screen.queryByText(/openfootball|Wikipédia|Horário de Brasília/)).toBeNull();
+    expect(screen.getByTestId('sports-pagina')).toHaveClass('sr-only');
+  });
+
+  it('RESULTADOS e PRÓXIMOS JOGOS centralizados (linha dos dois lados)', () => {
+    render(<SportsWidget config={{}} dados={v2(JANELA)} widgetId="w6" modo="player" />);
+    for (const r of screen.getAllByTestId('sports-rotulo-secao')) expect(r.parentElement).toHaveClass('justify-center');
+  });
+});
