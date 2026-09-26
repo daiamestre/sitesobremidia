@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon, Building2, Plus, X, Tag } from 'lucide-react';
+import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon, Building2, Plus, X, Tag, Megaphone } from 'lucide-react';
+import { listarCampanhasWidget, type CampanhaWidgetDados } from '@/lib/campanhaWidget';
 import { customerCommerceService } from '@/modules/crm/services/customerCommerce.service';
 import type { Oferta } from '@/types/customerPortal';
 import { ofertaVigente } from '@/lib/ofertaWidget';
@@ -37,6 +38,7 @@ const WIDGET_TYPES_OPTS = [
     { value: 'rss', label: 'Notícias (RSS)', icon: Newspaper },
     { value: 'institutional', label: 'Institucional', icon: Building2 },
     { value: 'offer', label: 'Oferta', icon: Tag },
+    { value: 'advertising', label: 'Publicidade', icon: Megaphone },
 ];
 
 const getDefaultConfig = (type: string): WidgetConfig => {
@@ -56,6 +58,8 @@ const getDefaultConfig = (type: string): WidgetConfig => {
             };
         case 'offer':
             return { template: 'offer-destaque', ofertaId: '', qrConteudo: '', qrLegenda: '', backgroundImageLandscape: null, backgroundImagePortrait: null };
+        case 'advertising':
+            return { template: 'advertising-campanha', campanhaId: '', cta: '', qrConteudo: '', qrLegenda: '', backgroundImageLandscape: null, backgroundImagePortrait: null };
         default:
             return {};
     }
@@ -100,6 +104,14 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
         customerCommerceService.listarOfertas().then(setOfertas);
     }, [widgetType, ofertas]);
     const ofertaEscolhida = ofertas?.find((o) => o.id === config.ofertaId) ?? null;
+
+    // Campanhas visíveis para quem está logado (RLS de campanhas). O widget guarda só o id.
+    const [campanhas, setCampanhas] = useState<CampanhaWidgetDados[] | null>(null);
+    useEffect(() => {
+        if (widgetType !== 'advertising' || campanhas) return;
+        listarCampanhasWidget().then(setCampanhas);
+    }, [widgetType, campanhas]);
+    const campanhaEscolhida = campanhas?.find((c) => c.id === config.campanhaId) ?? null;
 
     const handleTypeChange = (type: WidgetType) => {
         setWidgetType(type);
@@ -163,6 +175,14 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
 
         if (widgetType === 'institutional') {
             if (!config.titulo?.trim()) { toast.error('Informe o título do comunicado.'); return; }
+            if (config.qrConteudo?.trim() && !conteudoQrValido(config.qrConteudo)) {
+                toast.error('QR Code: use um link (https://...), telefone (tel:) ou e-mail (mailto:).');
+                return;
+            }
+        }
+
+        if (widgetType === 'advertising') {
+            if (!config.campanhaId) { toast.error('Escolha a campanha.'); return; }
             if (config.qrConteudo?.trim() && !conteudoQrValido(config.qrConteudo)) {
                 toast.error('QR Code: use um link (https://...), telefone (tel:) ou e-mail (mailto:).');
                 return;
@@ -265,7 +285,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                         )}
 
                         {/* ORIENTATION & BG */}
-                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer') && (
+                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising') && (
                             <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                                 <Label className="text-sm font-semibold">Configuração de Fundo</Label>
                                 <div className="flex bg-muted rounded-lg p-1">
@@ -347,6 +367,38 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                         <div><Label>Longitude</Label><Input type="number" value={config.longitude} onChange={(e) => updateConfig('longitude', parseFloat(e.target.value))} /></div>
                                     </div>
                                     <div><Label>Nome do local (opcional)</Label><Input value={config.locationName || ''} placeholder="Ex: Manaus" onChange={(e) => updateConfig('locationName', e.target.value)} /></div>
+                                </div>
+                            )}
+
+                            {widgetType === 'advertising' && (
+                                <div className="space-y-3" data-testid="form-publicidade">
+                                    <div>
+                                        <Label>Campanha</Label>
+                                        <select
+                                            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                            value={config.campanhaId || ''}
+                                            onChange={(e) => updateConfig('campanhaId', e.target.value)}
+                                            data-testid="select-campanha"
+                                        >
+                                            <option value="">{campanhas === null ? 'Carregando campanhas…' : campanhas.length ? 'Escolha a campanha' : 'Nenhuma campanha cadastrada'}</option>
+                                            {(campanhas || []).map((c) => (
+                                                <option key={c.id} value={c.id}>{c.titulo} — {c.criativos.length} criativo(s) — até {c.data_fim.split('-').reverse().join('/')}</option>
+                                            ))}
+                                        </select>
+                                        <p className="mt-1 text-xs text-muted-foreground">Os criativos (imagens) vêm da campanha: trocou lá, a tela atualiza sozinha. Vídeos da campanha entram na playlist como mídia.</p>
+                                        {campanhaEscolhida && (!campanhaEscolhida.vigente || campanhaEscolhida.criativos.length === 0) && (
+                                            <p className="mt-1 text-xs font-medium text-amber-500" data-testid="aviso-campanha-fora-do-ar">
+                                                {campanhaEscolhida.criativos.length === 0
+                                                    ? 'Esta campanha não tem criativo em imagem e não aparece nas telas.'
+                                                    : `Esta campanha não está no ar e não aparece nas telas. Ela precisa estar aprovada ou ativa e dentro das datas (${campanhaEscolhida.data_inicio.split('-').reverse().join('/')} a ${campanhaEscolhida.data_fim.split('-').reverse().join('/')}).`}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div><Label>Chamada (botão)</Label><Input value={config.cta || ''} placeholder="Compre já" onChange={(e) => updateConfig('cta', e.target.value)} /></div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><Label>QR Code — link</Label><Input value={config.qrConteudo || ''} placeholder="https://loja.com.br" onChange={(e) => updateConfig('qrConteudo', e.target.value)} /></div>
+                                        <div><Label>Legenda do QR</Label><Input value={config.qrLegenda || ''} placeholder="Saiba mais" onChange={(e) => updateConfig('qrLegenda', e.target.value)} /></div>
+                                    </div>
                                 </div>
                             )}
 

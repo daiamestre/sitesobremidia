@@ -10,7 +10,7 @@ import { WidgetQRCode } from './WidgetQRCode';
 
 const FUNDO = 'linear-gradient(135deg,#22004A 0%,#5D1BFF 55%,#8A2EFF 100%)';
 
-function Moldura({ backgroundImage, className, children, testId }: {
+export function Moldura({ backgroundImage, className, children, testId }: {
   backgroundImage?: string | null; className?: string; children: React.ReactNode; testId?: string;
 }) {
   return (
@@ -26,7 +26,7 @@ function Moldura({ backgroundImage, className, children, testId }: {
   );
 }
 
-function Cabecalho({ selo }: { selo: string }) {
+export function Cabecalho({ selo }: { selo: string }) {
   return (
     <div className="relative z-10 flex items-center justify-between">
       <span className="text-[clamp(8px,3.2cqmin,22px)] font-bold tracking-[0.28em] text-white/85">SOBRE MÍDIA</span>

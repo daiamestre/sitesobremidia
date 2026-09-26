@@ -9,7 +9,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import java.net.URLDecoder
 
-enum class WidgetKind { CLOCK, WEATHER, RSS, INSTITUTIONAL, OFFER, UNKNOWN }
+enum class WidgetKind { CLOCK, WEATHER, RSS, INSTITUTIONAL, OFFER, ADVERTISING, UNKNOWN }
 
 /** Linha "rótulo — valor" do modelo Institucional (ex.: "Segunda a sexta" — "06:00 — 22:00"). */
 data class LinhaInfo(val rotulo: String, val valor: String)
@@ -56,7 +56,11 @@ data class WidgetSpec(
     val qrConteudo: String? = null,
     val qrLegenda: String? = null,
     /** Oferta atual do cadastro (o servidor junta em config.oferta a cada sincronização; nunca gravada no widget). */
-    val oferta: Oferta? = null
+    val oferta: Oferta? = null,
+    /** Campanha atual (o servidor junta em config.campanha; nunca gravada no widget). */
+    val campanha: Campanha? = null,
+    /** Chamada (botão) — Publicidade. */
+    val cta: String? = null
 ) {
     /** Fundo do widget: a imagem da orientação da tela; se só existir a outra, usa ela (nunca fica sem fundo à toa). */
     fun backgroundFor(landscape: Boolean): String? =
@@ -76,6 +80,7 @@ object WidgetSpecParser {
             t.contains("weather") || t.contains("clima") -> WidgetKind.WEATHER
             t.contains("institutional") || t.contains("institucional") -> WidgetKind.INSTITUTIONAL
             t == "offer" || t.contains("oferta") -> WidgetKind.OFFER
+            t == "advertising" || t.contains("publicidade") -> WidgetKind.ADVERTISING
             t.contains("rss") || t.contains("news") || t.contains("noticia") || t.contains("notícia") -> WidgetKind.RSS
             else -> WidgetKind.UNKNOWN
         }
@@ -124,7 +129,9 @@ object WidgetSpecParser {
             ),
             qrConteudo = str("qrConteudo"),
             qrLegenda = str("qrLegenda"),
-            oferta = if (kindOf(rawType) != WidgetKind.OFFER) null else OfertaText.parse(cfg["oferta"])
+            oferta = if (kindOf(rawType) != WidgetKind.OFFER) null else OfertaText.parse(cfg["oferta"]),
+            campanha = if (kindOf(rawType) != WidgetKind.ADVERTISING) null else CampanhaText.parse(cfg["campanha"]),
+            cta = str("cta")
         )
     }
 

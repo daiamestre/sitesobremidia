@@ -8,6 +8,7 @@ import { WeatherFuturista } from "@/components/player/WeatherFuturista";
 import { ClockFuturista } from "@/components/player/ClockFuturista";
 import { InstitutionalWidget } from "@/components/player/InstitutionalWidget";
 import { OfferWidget } from "@/components/player/OfferWidget";
+import { AdvertisingWidget } from "@/components/player/AdvertisingWidget";
 import "@/components/player/Player.css";
 
 const WidgetPlayer = () => {
@@ -53,6 +54,8 @@ const WidgetPlayer = () => {
         };
 
         switch (widget.widget_type) {
+            case 'advertising':
+                return <AdvertisingWidget config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
             case 'offer':
                 return <OfferWidget config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
             case 'institutional':

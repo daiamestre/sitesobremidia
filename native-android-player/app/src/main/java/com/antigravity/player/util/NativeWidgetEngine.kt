@@ -32,6 +32,7 @@ import com.antigravity.player.widget.BrasiliaTime
 import com.antigravity.player.widget.QrCode
 import com.antigravity.player.widget.OfertaItem
 import com.antigravity.player.widget.OfertaText
+import com.antigravity.player.widget.CampanhaText
 import com.antigravity.core.util.TimeManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
@@ -101,6 +102,7 @@ object NativeWidgetEngine {
                 WidgetKind.WEATHER -> loadWeather(appContext, spec)
                 WidgetKind.RSS -> loadRss(appContext, spec)
                 WidgetKind.OFFER -> loadOfertaFotos(appContext, spec)
+                WidgetKind.ADVERTISING -> loadCriativos(appContext, spec, w, h)
                 else -> null
             }
         }
@@ -132,6 +134,7 @@ object NativeWidgetEngine {
                 WidgetKind.RSS -> buildRss(context, spec, background, w, h, base, payload as? RssPayload)
                 WidgetKind.INSTITUTIONAL -> buildInstitutional(context, spec, background, w, h, base)
                 WidgetKind.OFFER -> buildOffer(context, spec, background, w, h, base, payload as? OfertaPayload)
+                WidgetKind.ADVERTISING -> buildAdvertising(context, spec, background, w, h, base, payload as? CampanhaPayload)
                 WidgetKind.UNKNOWN -> buildMessage(context, background, w, h, base, "Widget não suportado (${spec.rawType})")
             }
             container.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -453,6 +456,112 @@ object NativeWidgetEngine {
             background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = tamanho * 0.06f }
             val p = (tamanho * 0.04f).toInt(); setPadding(p, p, p, p)
         }
+    }
+
+    // ------------------------------------------------------------------ Publicidade (campanha, identidade SOBRE MÍDIA)
+
+    /** Criativos da campanha já decodificados, na ordem (cache de disco do Glide: funcionam offline). */
+    private class CampanhaPayload(val criativos: List<Bitmap>)
+
+    private suspend fun loadCriativos(context: Context, spec: WidgetSpec, w: Int, h: Int): CampanhaPayload = coroutineScope {
+        val urls = spec.campanha?.criativos.orEmpty()
+        val lw = min(w, 1280).coerceAtLeast(320); val lh = min(h, 1280).coerceAtLeast(320)
+        val bitmaps = urls.map { u ->
+            async(Dispatchers.IO) {
+                try {
+                    Glide.with(context).asBitmap().load(u).apply(RequestOptions().fitCenter())
+                        .submit(lw, lh).get(BG_TIMEOUT_S, TimeUnit.SECONDS)
+                } catch (e: Exception) {
+                    Logger.w("WIDGET", "Criativo indisponível ($u): ${e.message}"); null
+                }
+            }
+        }.mapNotNull { it.await() }
+        CampanhaPayload(bitmaps)
+    }
+
+    private fun buildAdvertising(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float, data: CampanhaPayload?): View {
+        val hoje = BrasiliaTime.isoDate(TimeManager.utcMillis())
+        val campanha = spec.campanha
+        val criativos = data?.criativos.orEmpty()
+        val root = fundoMarca(context, bg, base)
+        val col = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = px(base * 0.045f); setPadding(pad, pad, pad, pad)
+        }
+        root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        col.addView(cabecalhoMarca(context, "PUBLICIDADE", base), lp())
+
+        // Campanha fora do ar (ou sem criativo carregado) nunca aparece: cartão neutro, sem o criativo.
+        if (campanha == null || !CampanhaText.vigente(campanha, hoje) || criativos.isEmpty()) {
+            col.addView(text(context, base * 0.07f, bold = true).apply { text = "Anuncie aqui" },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            return root
+        }
+
+        val paisagem = w >= h
+        val miolo = LinearLayout(context).apply { orientation = if (paisagem) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
+        col.addView(miolo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = px(base * 0.025f) })
+
+        // Criativos empilhados; só um visível por vez (troca com fade a cada SEGUNDOS_POR_CRIATIVO).
+        val palco = FrameLayout(context)
+        val imagens = criativos.mapIndexed { i, bmp ->
+            ImageView(context).apply {
+                setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; alpha = if (i == 0) 1f else 0f
+            }.also { palco.addView(it, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)) }
+        }
+        miolo.addView(palco, if (paisagem) LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+            else LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        val lado = LinearLayout(context).apply {
+            orientation = if (paisagem) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        val textos = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = if (paisagem) Gravity.CENTER_HORIZONTAL else Gravity.START
+        }
+        val r = base * 0.02f
+        if (campanha.titulo.isNotBlank()) {
+            textos.addView(text(context, base * 0.054f, bold = true, lines = 3).apply {
+                text = campanha.titulo; gravity = if (paisagem) Gravity.CENTER else Gravity.START
+                setShadowLayer(r, 0f, 0f, Marca.LILAS); setPadding(px(r), px(r), px(r), px(r))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        spec.cta?.let { cta ->
+            textos.addView(pill(context, cta, base * 0.034f, Color.parseColor("#25D366"), Color.parseColor("#0B2E17"), base),
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = px(base * 0.02f) })
+        }
+        lado.addView(textos, if (paisagem) LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            else LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val ladoQr = px(base * 0.24f)
+        qrView(context, spec.qrConteudo, ladoQr)?.let { qr ->
+            val bloco = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+            bloco.addView(qr, LinearLayout.LayoutParams(ladoQr, ladoQr))
+            bloco.addView(text(context, base * 0.026f, bold = true, color = Color.argb(230, 255, 255, 255)).apply {
+                text = spec.qrLegenda ?: "Saiba mais"
+            }, lp(top = px(base * 0.01f)))
+            lado.addView(bloco, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                if (paisagem) topMargin = px(base * 0.03f) else marginStart = px(base * 0.03f)
+            })
+        }
+        miolo.addView(lado, if (paisagem) LinearLayout.LayoutParams((w * 0.3f).toInt(), ViewGroup.LayoutParams.MATCH_PARENT).apply { marginStart = px(base * 0.03f) }
+            else LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = px(base * 0.03f) })
+
+        if (imagens.size > 1) {
+            var atual = 0
+            val passo = CampanhaText.SEGUNDOS_POR_CRIATIVO * 1000L
+            val troca = object : Runnable {
+                override fun run() {
+                    val proximo = (atual + 1) % imagens.size
+                    imagens[atual].animate().alpha(0f).setDuration(700).start()
+                    imagens[proximo].animate().alpha(1f).setDuration(700).start()
+                    atual = proximo
+                    uiHandler.postDelayed(this, passo)
+                }
+            }
+            bindToLifecycle(root, troca, passo)
+        }
+        return root
     }
 
     // ------------------------------------------------------------------ Oferta (cadastro de ofertas, identidade SOBRE MÍDIA)
