@@ -28,11 +28,13 @@ import {
   Banknote,
   UserCircle,
   Library,
+  LayoutDashboard,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
 
 const menuItems = [
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: Inbox, label: 'Central', path: '/dashboard/central' },
   { icon: Image, label: 'Minhas Mídias', path: '/dashboard/medias' },
   { icon: Library, label: 'Biblioteca de Mídias', path: '/dashboard/biblioteca' },
@@ -122,7 +124,7 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
           const isActive = location.pathname === item.path;
           return (
             <NavLink
-              key={item.path}
+              key={`${item.path}-${item.label}`}
               to={item.path}
               onClick={onNavigate}
               className={cn(

@@ -714,3 +714,46 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Testes: `widgetCapas` (5), JVM `YoutubeFundoTest` (2), JVM total 200/200.
   - APK 5.6.1: SHA-256 `6d20cea9657bf696f8ff9b5f0b78bb66d7cd4e77105f4941146fa63d163aa1e0` (15 765 980 bytes).
   - Evidência em `evidence/F-83_capas_widgets/`.
+
+### F-84 — Dashboard do Owner/ADM na área Gestor de Mídias + dashboards que "só ficam carregando" — DONE
+- **Antes:**
+  - A área Gestor de Mídias (`/dashboard`) não tinha item "Dashboard" no menu.
+  - O Owner/ADM via o painel do Gestor, que é por usuário, e não o da empresa.
+  - Havia um aviso de chave duplicada no menu: Central e Mensagens usam `/dashboard/central`.
+- **Dashboard do Owner/ADM:**
+  - Nova RPC `fn_dashboard_resumo_midias_owner` (migração `20261253`, SECURITY DEFINER), restrita a `fn_biblioteca_admin()`; os demais recebem `SEM_PERMISSAO`.
+  - Mostra dados reais da empresa inteira:
+    - telas online/offline/sem playlist e versão do Player, lida de `screens.version` (heartbeat);
+    - exibições de 7 dias, vindas de `playback_logs`;
+    - playlists, mídias, Biblioteca e widgets;
+    - saúde do conteúdo automático (esportes e notícias).
+  - Componente `CentralDoDiaMidiasOwner`, com alertas e cards; o Gestor continua com o `CentralDoDiaGestor`.
+  - Item "Dashboard" é o primeiro do menu; a chave do menu passou a ser `path-label`.
+- **Carregamento eterno, causa raiz reproduzida em teste:**
+  1. `AuthContext`: o `getSession()` inicial não tratava falha nem demora sem fim. Com o renovador de token falhando ou a rede travada, `loading` ficava `true` para sempre.
+  2. `RequireApproval`: a checagem da sessão real não tinha prazo.
+- **Correção mínima:**
+  - `AuthContext`: `catch` + `finally` e vigia de 15 s (`TEMPO_MAX_VERIFICACAO_MS`, em `src/lib/tempoLimites.ts`).
+  - `RequireApproval`: `Promise.race` com o mesmo prazo, **fail-closed**: sem sessão confirmada vai para o login, nunca libera o acesso.
+  - O caminho normal não mudou: `loading` só é liberado depois de `fetchUserData`.
+- **Prova:**
+  - `authCarregamento` (3) e `guardaCarregamento` (2) falhavam antes e passam depois; `dashboardMidiasOwner` (3).
+  - RPC por perfil:
+    - Owner real e ADM → mesmos dados da empresa;
+    - Owner de teste → só a própria empresa;
+    - Anunciante e Gestor → `SEM_PERMISSAO`;
+    - anon → permissão negada.
+  - Navegador, dev, carga até o conteúdo:
+
+    | Perfil | Rota | Tempo |
+    |---|---|---|
+    | Owner | `/dashboard` | 3,5 s, dashboard da empresa com 7 cards |
+    | Owner | `/workspace` | 3,3 s |
+    | Representante | `/representantes/dashboard` | 4,7 s |
+    | Anunciante | `/portal` | 1,6 s → troca de senha obrigatória, bloqueio respeitado |
+
+    Recarga com token vencido: 2,3 s.
+- **Achados de dados de teste, sem relação com a alteração e sem correção:**
+  - `e2e-t1-fluxob` tem 2 linhas em `solicitacoes_acesso`. O `.maybeSingle()` falha e a conta vê "Acesso Não Liberado". Nenhum usuário real tem duplicata (consulta: 0).
+  - As contas `e2e-anunciante-corp-*` não têm `cliente_id`, e o `CustomerPortalLayout` as manda para `/auth`.
+  - Não existe conta de Anunciante de teste completa, com cliente e sem troca de senha pendente.

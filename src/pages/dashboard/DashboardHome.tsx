@@ -7,10 +7,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { CentralDoDiaGestor } from '@/components/central/CentralDoDiaGestor';
+import { CentralDoDiaMidiasOwner } from '@/components/central/CentralDoDiaMidiasOwner';
 import { saudacao } from '@/lib/dashboardResumo';
 
 export default function DashboardHome() {
-  const { profile } = useAuth();
+  const { profile, perfilNome } = useAuth();
+  // Owner/ADM: dashboard da operação de mídia da EMPRESA; Gestor: o próprio. Perfil só pela fonte oficial (AGENTS.md §7):
+  // perfilNome = perfil?.nome || (is_owner ? 'OWNER' : null) — o flag is_owner sozinho não promove outro perfil.
+  const gestaoEmpresa = perfilNome === 'OWNER' || perfilNome === 'ADMIN';
   const [alerts, setAlerts] = useState<Awaited<ReturnType<typeof fetchAlertDevices>>>([]);
   const [fleet, setFleet] = useState<Awaited<ReturnType<typeof fetchFleetSummary>> | null>(null);
 
@@ -54,12 +58,14 @@ export default function DashboardHome() {
           {saudacao(new Date().getHours())}, {profile?.full_name?.split(' ')[0] || 'Usuário'}!
         </h1>
         <p className="text-muted-foreground">
-          Seu resumo do dia: telas, exibições, playlists e mídias. Clique em qualquer card para ver tudo.
+          {gestaoEmpresa
+            ? 'Operação de mídia da empresa: telas, Player, exibições, playlists, mídias, widgets e conteúdo automático. Clique em qualquer card para ver tudo.'
+            : 'Seu resumo do dia: telas, exibições, playlists e mídias. Clique em qualquer card para ver tudo.'}
         </p>
       </div>
 
       {/* Central do Dia: alertas e resumos reais (substitui os números que eram fixos em 0) */}
-      <CentralDoDiaGestor />
+      {gestaoEmpresa ? <CentralDoDiaMidiasOwner /> : <CentralDoDiaGestor />}
 
       {/* [SCALE 10K] Fleet Health Monitor */}
       {fleet && fleet.total > 0 && (

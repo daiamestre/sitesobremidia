@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { TEMPO_MAX_VERIFICACAO_MS } from '@/lib/tempoLimites';
 import { useRbac, RoleName } from '@/hooks/useRbac';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -49,8 +50,13 @@ export function RequireApproval({ children }: GuardProps) {
     async function verifyWithSupabase() {
       if (loading) return;
       try {
-        // Validação REAL com motor do Supabase Auth e não apenas estado local do React
-        const { data, error } = await supabase.auth.getSession();
+        // Validação REAL com motor do Supabase Auth e não apenas estado local do React.
+        // Com tempo máximo: rede travada deixava a tela protegida no spinner para sempre. Se não confirmar no prazo,
+        // conta como NÃO confirmada (fail-closed -> login), nunca libera acesso sem sessão comprovada.
+        const { data, error } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, rejeitar) => setTimeout(() => rejeitar(new Error('verificacao_sessao_tempo_esgotado')), TEMPO_MAX_VERIFICACAO_MS)),
+        ]);
         if (error || !data?.session || !data.session.user) {
           if (isAuthenticated) {
             await signOut();

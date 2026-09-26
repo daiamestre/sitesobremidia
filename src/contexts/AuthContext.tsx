@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { TEMPO_MAX_VERIFICACAO_MS } from '@/lib/tempoLimites';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { securityAuditService } from '@/services/securityAudit.service';
@@ -85,6 +86,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -181,18 +183,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // DEPOIS verifica sessão existente e valida com Supabase
+    // DEPOIS verifica sessão existente e valida com Supabase.
+    // A carga inicial SEMPRE termina: falha (getSession rejeitado) e demora sem fim (rede travada) deixavam `loading`
+    // true para sempre -> tela só carregando ao atualizar (Frente 5, reproduzido em authCarregamento.test.tsx).
+    let concluido = false;
+    const liberar = () => { if (!concluido) { concluido = true; setLoading(false); } };
+    const vigia = setTimeout(() => {
+      console.warn('[AuthContext] Verificação da sessão passou do tempo máximo; liberando a tela.');
+      liberar();
+    }, TEMPO_MAX_VERIFICACAO_MS);
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
-      
+
       if (existingSession?.user) {
         await fetchUserData(existingSession.user.id);
       }
-      setLoading(false);
+    }).catch((err) => {
+      console.warn('[AuthContext] Falha ao verificar a sessão:', err);
+    }).finally(() => {
+      clearTimeout(vigia);
+      liberar();
     });
 
-    return () => subscription.unsubscribe();
+    return () => { clearTimeout(vigia); subscription.unsubscribe(); };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: Error | null; status?: string; role?: string | null; routeRedirect?: string }> => {
