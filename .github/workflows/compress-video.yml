@@ -1,23 +1,41 @@
 name: Compress Video
 
+# Pipeline de compressão (F-85 / OF-F81-2). Disparado pela Edge Function process-media (repository_dispatch novo_video)
+# com { media_id, file_path } lidos do BANCO.
+# - Só comprime quando vale a pena: lado maior > 1920 px, bitrate > 6 Mbps ou codec diferente de H.264.
+# - H.264 (High, nível 4.1, yuv420p) + AAC, lado maior até 1920 px, faststart: decodificado por qualquer TV Box
+#   (o H.265 anterior não roda em parte dos aparelhos).
+# - Confere o resultado (duração igual ± 0,5 s e arquivo menor) antes de avisar o servidor; senão, "skipped".
+# - Envia o MD5 novo: o Player compara o MD5 do arquivo com media.file_hash.
+# - NÃO apaga o original: Players que ainda têm a URL antiga continuam baixando até sincronizar.
+
 on:
   repository_dispatch:
     types: [novo_video]
 
+concurrency:
+  group: compress-${{ github.event.client_payload.media_id }}
+  cancel-in-progress: false
+
 jobs:
   compress:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 60
+    env:
+      MEDIA_ID: ${{ github.event.client_payload.media_id }}
+      ORIGINAL_PATH: ${{ github.event.client_payload.file_path }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install FFmpeg and Rclone
+      - name: Validar entrada
         run: |
-          sudo apt update
-          sudo apt install -y ffmpeg rclone jq
+          [[ "$MEDIA_ID" =~ ^[0-9a-f-]{36}$ ]] || { echo "media_id inválido"; exit 1; }
+          [[ "$ORIGINAL_PATH" =~ ^[A-Za-z0-9._/-]+$ && "$ORIGINAL_PATH" != *..* ]] || { echo "file_path inválido"; exit 1; }
 
-      - name: Configure Rclone
+      - name: Instalar FFmpeg e Rclone
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg rclone jq
+
+      - name: Configurar Rclone
         run: |
           mkdir -p ~/.config/rclone
           cat <<EOF > ~/.config/rclone/rclone.conf
@@ -29,83 +47,59 @@ jobs:
           endpoint = https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
           EOF
 
-      - name: Download Original Video
+      - name: Baixar original
         run: |
-          FILE_PATH="${{ github.event.client_payload.file_path }}"
-          echo "Baixando $FILE_PATH..."
-          rclone copy "r2:${{ secrets.R2_BUCKET }}/$FILE_PATH" ./ --progress
-          # Obtém apenas o nome do arquivo
-          FILE_NAME=$(basename "$FILE_PATH")
-          echo "FILE_NAME=$FILE_NAME" >> $GITHUB_ENV
-          
-          # Verifica se o download funcionou
-          if [ ! -f "$FILE_NAME" ]; then
-            echo "Erro: Arquivo não encontrado após download"
-            exit 1
+          rclone copyto "r2:${{ secrets.R2_BUCKET }}/$ORIGINAL_PATH" ./original.bin
+          test -s original.bin
+
+      - name: Decidir e comprimir
+        run: |
+          W=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 original.bin)
+          H=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 original.bin)
+          CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 original.bin)
+          DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 original.bin)
+          BITS=$(ffprobe -v error -show_entries format=bit_rate -of csv=p=0 original.bin)
+          MAIOR=$(( W > H ? W : H ))
+          echo "original: ${W}x${H} codec=$CODEC dur=$DUR bitrate=$BITS"
+          if [ "$MAIOR" -le 1920 ] && [ "${BITS:-0}" -le 6000000 ] && [ "$CODEC" = "h264" ]; then
+            echo "RESULTADO=skipped" >> "$GITHUB_ENV"; echo "Já está leve e em H.264: nada a fazer."; exit 0
           fi
+          if [ "$W" -ge "$H" ]; then ESCALA="scale='min(1920,iw)':-2"; else ESCALA="scale=-2:'min(1920,ih)'"; fi
+          ffmpeg -hide_banner -loglevel error -i original.bin -map 0:v:0 -map 0:a:0? \
+            -vf "$ESCALA" -c:v libx264 -preset medium -crf 23 -profile:v high -level:v 4.1 -pix_fmt yuv420p \
+            -c:a aac -b:a 128k -movflags +faststart -y comprimido.mp4
+          DUR2=$(ffprobe -v error -show_entries format=duration -of csv=p=0 comprimido.mp4)
+          T1=$(stat -c %s original.bin); T2=$(stat -c %s comprimido.mp4)
+          echo "comprimido: dur=$DUR2 bytes $T1 -> $T2"
+          OK=$(awk -v a="$DUR" -v b="$DUR2" 'BEGIN{d=a-b; if(d<0)d=-d; print (d<=0.5)?1:0}')
+          if [ "$OK" != "1" ] || [ "$T2" -ge "$T1" ]; then
+            echo "RESULTADO=skipped" >> "$GITHUB_ENV"; echo "Resultado não compensa (duração ou tamanho): original mantido."; exit 0
+          fi
+          echo "RESULTADO=ready" >> "$GITHUB_ENV"
+          echo "NOVO_TAMANHO=$T2" >> "$GITHUB_ENV"
+          echo "NOVO_MD5=$(md5sum comprimido.mp4 | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
-      - name: Process Video with FFmpeg (H.265)
+      - name: Enviar comprimido
+        if: env.RESULTADO == 'ready'
         run: |
-          INPUT_FILE="${{ env.FILE_NAME }}"
-          OUTPUT_FILE="compressed_$INPUT_FILE"
-          
-          echo "Iniciando processamento FFmpeg: $INPUT_FILE -> $OUTPUT_FILE"
-          ffmpeg -i "$INPUT_FILE" -vcodec libx265 -crf 24 -preset slow -pix_fmt yuv420p -acodec aac -b:a 128k -y "$OUTPUT_FILE"
-          
-          echo "Processamento concluído."
-          echo "Tamanho original:"
-          ls -lh "$INPUT_FILE"
-          echo "Tamanho comprimido:"
-          ls -lh "$OUTPUT_FILE"
-          
-          echo "OUTPUT_FILE=$OUTPUT_FILE" >> $GITHUB_ENV
+          # temp/<id>.mp4 -> <id>.mp4 (desenho original); qualquer outro caminho -> c/<caminho>.mp4
+          SEM_EXT="${ORIGINAL_PATH%.*}"
+          if [[ "$ORIGINAL_PATH" == temp/* ]]; then NOVO="${SEM_EXT#temp/}.mp4"; else NOVO="c/${SEM_EXT}.mp4"; fi
+          rclone copyto comprimido.mp4 "r2:${{ secrets.R2_BUCKET }}/$NOVO" --s3-no-check-bucket \
+            --header-upload "Content-Type: video/mp4" --header-upload "Cache-Control: public, max-age=31536000, immutable"
+          echo "NOVO_PATH=$NOVO" >> "$GITHUB_ENV"
 
-      - name: Upload Compressed Video
-        run: |
-          ORIGINAL_PATH="${{ github.event.client_payload.file_path }}"
-          # O caminho final será igual ao original, mas sem a pasta 'temp/' na frente
-          FINAL_PATH="${ORIGINAL_PATH#temp/}"
-          OUTPUT_FILE="${{ env.OUTPUT_FILE }}"
-          
-          echo "Enviando $OUTPUT_FILE para r2:${{ secrets.R2_BUCKET }}/$FINAL_PATH..."
-          
-          # Envia com content type e cache control corretos
-          rclone copyto "$OUTPUT_FILE" "r2:${{ secrets.R2_BUCKET }}/$FINAL_PATH" --s3-no-check-bucket --s3-chunk-size=5M --header "Content-Type: video/mp4" --header "Cache-Control: public, max-age=31536000, immutable" --progress
-          
-          echo "FINAL_PATH=$FINAL_PATH" >> $GITHUB_ENV
-
-      - name: Delete Temporary Video
-        run: |
-          TEMP_PATH="${{ github.event.client_payload.file_path }}"
-          echo "Deletando arquivo temporário: $TEMP_PATH"
-          rclone delete "r2:${{ secrets.R2_BUCKET }}/$TEMP_PATH"
-
-      - name: Notify Supabase Webhook
+      - name: Avisar o servidor
         if: always()
+        env:
+          PIPELINE_SECRET: ${{ secrets.MEDIA_PIPELINE_SECRET }}
         run: |
-          MEDIA_ID="${{ github.event.client_payload.media_id }}"
-          FINAL_PATH="${{ env.FINAL_PATH }}"
-          STATUS_CODE="${{ job.status }}"
-          PUBLIC_DOMAIN="${{ secrets.R2_PUBLIC_DOMAIN }}"
-          
-          # Se tiver domínio público configurado, usa, senão constrói a URL direta (r2.dev não recomendado pra prod)
-          if [ -n "$PUBLIC_DOMAIN" ]; then
-            FILE_URL="https://$PUBLIC_DOMAIN/$FINAL_PATH"
+          if [ "${{ job.status }}" != "success" ]; then R="error"; else R="${RESULTADO:-error}"; fi
+          if [ "$R" = "ready" ]; then
+            PAYLOAD=$(jq -n --arg id "$MEDIA_ID" --arg o "$ORIGINAL_PATH" --arg p "$NOVO_PATH" --arg h "$NOVO_MD5" --argjson s "$NOVO_TAMANHO" \
+              '{media_id:$id, status:"ready", original_path:$o, file_path:$p, file_hash:$h, file_size:$s}')
           else
-            FILE_URL="https://pub-your-bucket-id.r2.dev/$FINAL_PATH" # Placeholder para fallback
+            PAYLOAD=$(jq -n --arg id "$MEDIA_ID" --arg r "$R" '{media_id:$id, status:$r}')
           fi
-
-          echo "Notificando Supabase. Job status: $STATUS_CODE"
-          
-          # Se o processo falhou em alguma etapa
-          if [ "$STATUS_CODE" != "success" ]; then
-            PAYLOAD=$(jq -n --arg id "$MEDIA_ID" '{media_id: $id, status: "error"}')
-          else
-            PAYLOAD=$(jq -n --arg id "$MEDIA_ID" --arg path "$FINAL_PATH" --arg url "$FILE_URL" '{media_id: $id, status: "ready", file_path: $path, file_url: $url}')
-          fi
-          
-          # A Edge Function do Supabase precisará de um header de autorização
-          curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/process-media-webhook" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-            -d "$PAYLOAD"
+          curl -sS -f -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/process-media" \
+            -H "Content-Type: application/json" -H "x-pipeline-secret: $PIPELINE_SECRET" -d "$PAYLOAD"

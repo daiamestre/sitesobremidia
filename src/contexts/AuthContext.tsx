@@ -138,6 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('solicitacoes_acesso')
         .select('status')
         .eq('auth_user_id', userId)
+        // Mais recente: com 2+ linhas o maybeSingle() falhava e a conta aprovada via "Acesso Não Liberado" (F-85).
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       let computedStatus: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'INACTIVE' | 'DELETED' | 'NOT_FOUND' = 'NOT_FOUND';

@@ -757,3 +757,41 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `e2e-t1-fluxob` tem 2 linhas em `solicitacoes_acesso`. O `.maybeSingle()` falha e a conta vê "Acesso Não Liberado". Nenhum usuário real tem duplicata (consulta: 0).
   - As contas `e2e-anunciante-corp-*` não têm `cliente_id`, e o `CustomerPortalLayout` as manda para `/auth`.
   - Não existe conta de Anunciante de teste completa, com cliente e sem troca de senha pendente.
+
+### F-85 — Pendências abertas dos F-80/F-81/F-84 — DONE, com 2 decisões do proprietário registradas
+- **OF-F81-1 (direitos de uso TikTok/Pinterest):** o proprietário declarou em 26/09/2026 que tem autorização de uso. Nada alterado.
+- **OF-F81-3 (11 pastas vazias):** o proprietário decidiu manter. Nada alterado.
+- **OF-F80-1 (`initializeDeviceFleet`) — REFUTADO:**
+  - O método é chamado após o sync bem-sucedido (`MainActivity`).
+  - Na tela real (ACADEMIA TELA 1), `devices.app_version`, `device_health` e `screens.version` batem (5.5.9). A divergência era do emulador, reinstalado várias vezes no dia.
+- **Versão da tela alternando (novo, achado ao validar o release 5.6.1):**
+  - `PlayerRepositoryImpl.sendHeartbeat` enviava a constante `PlayerConfig.APP_VERSION = "1.0.0"`; o `PersistentHeartbeatService` envia a versão real. `screens.version` alternava entre as duas.
+  - Com isso a trava W11 (`fn_widget_suportado_no_aparelho`) liberaria o widget Esportes só em parte do tempo num aparelho 5.6.x.
+  - Correção no servidor, para a frota atual: migração `20261254`, gatilho que mantém a versão real quando chega a constante "1.0.0" do mesmo aparelho. A troca de aparelho continua gravando.
+  - Correção no Player (próximo APK): o batimento passa a enviar a versão instalada.
+  - Prova: transação desfeita com 4 casos; depois de aplicado, 8 leituras em 160 s de batimentos reais do emulador → 5.6.1 estável.
+- **Feed padrão da Globo:** o widget Notícias novo passa a usar a Agência Brasil (`/rss/ultimasnoticias/feed.xml`, CC BY 4.0). Nenhum widget existente usava a Globo.
+- **Solicitação de acesso duplicada:**
+  - Com 2 linhas em `solicitacoes_acesso`, o `.maybeSingle()` falhava e a conta aprovada via "Acesso Não Liberado".
+  - O `AuthContext` passa a ler a mais recente (`order created_at desc` + `limit 1`).
+  - Teste `pendenciasF85`: falha sem a correção e passa com ela. Nenhum usuário real tem duplicata.
+- **OF-F81-4 (diálogo de upload):**
+  - No envio múltiplo, o nome digitado vira prefixo numerado ("Academia 01", "Academia 02"…), com dica no formulário.
+  - Campos obrigatórios vazios ficam marcados em vermelho com mensagem, além do aviso passageiro.
+- **OF-F81-2 (compressão parada) — pipeline refeito:**
+  - Causas:
+    - a coluna `processing_status` não existia;
+    - o retorno chamava uma função `process-media-webhook` inexistente, com um segredo inexistente no GitHub;
+    - o workflow convertia para H.265 (muitas TV Boxes não decodificam) e apagava o original;
+    - o hash não era atualizado. O Player compara o MD5 do arquivo com `media.file_hash` e rebaixaria o vídeo a cada sincronização.
+  - **Falha de segurança:** a `process-media` usava o `file_path` enviado pelo navegador, sem conferir dono. Qualquer usuário logado podia fazer o workflow baixar, sobrescrever e **apagar** qualquer objeto do R2.
+  - Correção:
+    - migração `20261255` (coluna aditiva; a RPC do Player monta a mídia campo a campo);
+    - `process-media` lê o caminho do banco e valida o escopo com `fn_r2_validate_object_scope`;
+    - o retorno é autenticado por `MEDIA_PIPELINE_SECRET` e grava arquivo, URL, MD5 e tamanho novos só se a mídia ainda aponta para o original;
+    - workflow em H.264 High 4.1, lado maior até 1920 px, faststart; só comprime quando vale a pena, confere a duração (±0,5 s) e o tamanho, e mantém o original.
+  - Prova:
+    - sem JWT → 401; segredo errado → 401; vídeo de outro usuário → 403;
+    - vídeo próprio → disparo aceito pelo GitHub (o token salvo funciona).
+  - **Proteção aplicada:** o workflow antigo "Compress Video" foi **desativado** no GitHub. Com o token válido, um disparo rodaria a versão antiga da `main` (H.265 + apagar original).
+  - **Pendente de decisão:** o `repository_dispatch` só roda workflows da branch padrão (`main`), que também é a branch de produção da Vercel e está 60 commits atrás da release.

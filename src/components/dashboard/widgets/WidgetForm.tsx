@@ -54,7 +54,8 @@ const getDefaultConfig = (type: string): WidgetConfig => {
         case 'weather':
             return { template: 'weather-futurista', ...escolhaDePaleta(PALETA_PADRAO), latitude: -23.5505, longitude: -46.6333, position: 'center', backgroundImageLandscape: null, backgroundImagePortrait: null };
         case 'rss':
-            return { feedUrl: 'https://g1.globo.com/rss/g1/', maxItems: 5, scrollSpeed: 8, position: 'center', variant: 'full', backgroundImageLandscape: null, backgroundImagePortrait: null };
+            // Agência Brasil (CC BY 4.0, com crédito): reuso permitido. O G1/Globo não autoriza reuso (auditoria F-79).
+            return { feedUrl: 'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml', maxItems: 5, scrollSpeed: 8, position: 'center', variant: 'full', backgroundImageLandscape: null, backgroundImagePortrait: null };
         case 'institutional':
             return {
                 selo: 'INFORMAÇÃO', titulo: 'Horário de funcionamento', texto: '',

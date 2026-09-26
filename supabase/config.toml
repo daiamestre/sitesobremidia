@@ -2,3 +2,6 @@ project_id = "bhwsybgsyvvhqtkdqozb"
 
 [functions.inter-billing-engine]
 verify_jwt = false
+[functions.process-media]
+# F-85: a função valida o JWT do usuário (getUser) e o retorno do workflow (x-pipeline-secret) por conta própria.
+verify_jwt = false

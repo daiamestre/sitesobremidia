@@ -770,7 +770,11 @@ class PlayerRepositoryImpl(
                 remoteDataSource.updateScreenStatus(
                     id = deviceId,
                     status = status,
-                    version = PlayerConfig.APP_VERSION,
+                    // Versão INSTALADA (a mesma do PersistentHeartbeatService). A constante PlayerConfig.APP_VERSION
+                    // ("1.0.0") fazia screens.version alternar e a trava de widgets (W11) oscilar — migração 20261254.
+                    version = try {
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: PlayerConfig.APP_VERSION
+                    } catch (e: Exception) { PlayerConfig.APP_VERSION },
                     ipAddress = ipAddress,
                     freeSpace = freeSpace?.toString(),
                     ramUsage = ramUsage?.toString(),

@@ -11,6 +11,7 @@ import { Upload, X, Image, Video, Music, FileIcon, CheckCircle2, Clock, Calendar
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { nomeParaEnvio } from '@/lib/nomeUpload';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -185,6 +186,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
   const [mediaName, setMediaName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [segment, setSegment] = useState('');
+  // Depois de uma tentativa de envio, os campos obrigatórios vazios ficam marcados (o aviso sozinho some em segundos).
+  const [mostrarErros, setMostrarErros] = useState(false);
   const [mediaDuration, setMediaDuration] = useState(10);
   // Duração exata (ms) da mídia mostrada no campo "Tempo de Mídia" (null = imagem ou desconhecida)
   const [mediaRealMs, setMediaRealMs] = useState<number | null>(null);
@@ -224,6 +227,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     } else if (open) {
       // Reset for new upload
       setMediaName('');
+      setMostrarErros(false);
       setAspectRatio('16x9');
       setMediaDuration(10);
       setMediaRealMs(null);
@@ -346,6 +350,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       return;
     }
 
+    if (!mediaName.trim() || !companyName.trim() || !segment) setMostrarErros(true);
+
     if (!mediaName.trim()) {
       toast.error('Por favor, preencha o nome da mídia');
       return;
@@ -456,8 +462,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
           throw presignedErr;
         }
 
-        // Use the custom name if provided, otherwise use original filename
-        const finalName = mediaName.trim() || uploadFile.file.name;
+        // Nome digitado; em envio múltiplo vira prefixo numerado ("Nome 01", "Nome 02"…). Sem nome: o do arquivo.
+        const finalName = nomeParaEnvio(mediaName, i, files.length) || uploadFile.file.name;
 
         // Upload thumbnail if exists
         let thumbnailUrl: string | null = null;
@@ -804,7 +810,15 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
               placeholder="Digite o nome da mídia"
               value={mediaName}
               onChange={(e) => setMediaName(e.target.value)}
+              aria-invalid={mostrarErros && !mediaName.trim()}
+              className={mostrarErros && !mediaName.trim() ? 'border-destructive' : undefined}
             />
+            {mostrarErros && !mediaName.trim() && <p className="text-xs text-destructive">Preencha o nome da mídia.</p>}
+            {!isEditMode && files.length > 1 && mediaName.trim() && (
+              <p className="text-xs text-muted-foreground" data-testid="dica-nomes">
+                {files.length} arquivos: serão salvos como “{nomeParaEnvio(mediaName, 0, files.length)}”, “{nomeParaEnvio(mediaName, 1, files.length)}”…
+              </p>
+            )}
           </div>
 
           {/* Nome da Empresa */}
@@ -815,14 +829,17 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
               placeholder="Digite o nome da empresa"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
+              aria-invalid={mostrarErros && !companyName.trim()}
+              className={mostrarErros && !companyName.trim() ? 'border-destructive' : undefined}
             />
+            {mostrarErros && !companyName.trim() && <p className="text-xs text-destructive">Preencha o nome da empresa.</p>}
           </div>
 
           {/* Seguimento */}
           <div className="space-y-2">
             <Label htmlFor="segment">Seguimento</Label>
             <Select value={segment} onValueChange={setSegment}>
-              <SelectTrigger>
+              <SelectTrigger aria-invalid={mostrarErros && !segment} className={mostrarErros && !segment ? 'border-destructive' : undefined}>
                 <SelectValue placeholder="Selecione o seguimento" />
               </SelectTrigger>
               <SelectContent>
@@ -833,6 +850,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                 ))}
               </SelectContent>
             </Select>
+            {mostrarErros && !segment && <p className="text-xs text-destructive">Selecione o seguimento.</p>}
           </div>
 
           {/* Proporção de Tela */}
