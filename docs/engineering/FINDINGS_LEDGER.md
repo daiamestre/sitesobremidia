@@ -839,3 +839,21 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - O emulador de homologação ficou na tela de login depois da limpeza de dados do teste de cache frio. Entrar exige a senha da conta de teste, que não é digitada por agente.
   - Escudos de clubes são marcas registradas: o uso comercial em telas de mídia é decisão e risco do proprietário.
   - Hoje (Data FIFA) não há jogos na janela: o widget volta a aparecer nas telas em 07/10, na virada do dia.
+
+### F-85 (continuação) — decisões do proprietário aplicadas
+- **`main` atualizada** (autorizada em 26/09/2026): avanço simples `d906c87..c74dc70`, sem perda (a `main` era ancestral da release).
+  - A Vercel publicou a `main` (`dpl_Hyndu9…`), o mesmo código da produção.
+  - O workflow "Deploy Supabase Edge Functions" disparou pela `main` e falhou por falta de token no GitHub. Nada foi publicado: `inter-billing-engine` segue na v39, de 30/08.
+- **Compressão ligada:**
+  - Workflow novo reativado.
+  - Causa adicional de "0 execuções desde sempre": o segredo `GITHUB_REPO` da função apontava para outro repositório, sem o workflow. O GitHub aceitava o disparo sem efeito. Corrigido para `daiamestre/sitesobremidia`; só a `process-media` usa a variável.
+- **OTA 5.6.2: NÃO publicado.**
+  - A criação da release pública no GitHub, para hospedar o APK, foi bloqueada pelas permissões da sessão de agente.
+  - O APK release 5.6.2 (SHA-256 `4e09679b…a89f`) está pronto.
+  - Falta o proprietário publicar a release (ou autorizar), rodar o workflow `publish-player-apk` para copiar ao R2 e registrar em `app_releases`.
+- **Compressão provada de ponta a ponta** (execução 36267796115):
+  - "Açougue e Frigorífico 06": 2160×3840 H.264 a 40,7 Mbps, 182,8 MB → 28,5 MB, com a mesma duração (35,92 s).
+  - A mídia passou a apontar para o arquivo novo com o MD5 novo (`f1cb9fd9…`, conferido no arquivo publicado), `processing_status = ready`.
+  - O original em `temp/` continua disponível.
+  - Não estava em playlist nenhuma, então nenhuma tela precisou baixar de novo.
+  - Os demais vídeos não foram reprocessados em massa: já são leves, e os que estão em playlist fariam as telas baixarem tudo de novo. Os envios novos passam pelo pipeline automaticamente.
