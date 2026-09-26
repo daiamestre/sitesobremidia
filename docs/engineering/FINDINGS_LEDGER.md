@@ -529,3 +529,22 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 ### OPEN FINDINGS registrados no W9 (fora do escopo, não alterados)
 - **OF-W9-1 — Links Externos não chegam à tela:** `playlist_items.external_link_id` existe e o Player tem o ramo de link, mas `get_player_playlist_for_screen` não envia `external_link` e o motor nativo mostra "Widget não suportado" para páginas web. Hoje 0 links cadastrados (sem impacto). Correção exige decidir quais páginas podem abrir na TV (WebView com lista de domínios permitidos) + RPC aditiva; para vídeo do YouTube usar o widget YouTube (W9).
 - **OF-W9-2 — Instagram oficial automático (oEmbed/Graph API)** exige app e token da Meta (não existem no projeto). Entregue o modelo por imagem enviada (sem raspagem). Automatizar requer o proprietário criar o app Meta e aprovar as permissões.
+
+### F-76 — Widget Engine W10: reauditoria final (2026-09-26) — DONE
+| Modelo | Fonte dos dados (sem duplicar) | Painel | Player nativo | Prova |
+|---|---|---|---|---|
+| Relógio clássico / Futurista | Horário de Brasília (NTP no Player, `fn_server_now` na web) | ✔ | ✔ | F-66, F-69 |
+| Clima clássico / Futurista | Open-Meteo + local com UF (cache offline) | ✔ | ✔ | F-68 |
+| Notícias (RSS) | feed do usuário (cache offline) | ✔ | ✔ | pré-existente |
+| Institucional / Aviso | `widgets.config` | ✔ | ✔ | F-71 (+F-73) |
+| Oferta em destaque | `ofertas`/`oferta_itens`/`produtos` resolvidos no servidor | ✔ | ✔ | F-72 |
+| Publicidade | `campanhas`/`campanha_midias` resolvidos no servidor | ✔ | ✔ | F-74 |
+| Conteúdo Social / Instagram | post enviado pelo usuário (imagem da Galeria) | ✔ | ✔ | F-75 |
+| YouTube | player oficial (embed) | ✔ | ✔ (WebView do item) | F-75 |
+| QR Code (todos os modelos) | gerado na hora | ✔ | ✔ | F-70 |
+- **Invariantes conferidas:** relógio sempre em America/Sao_Paulo; nenhuma cópia de produto, preço, campanha ou criativo (widget guarda só referência — conferido em `widgets.config`); oferta/campanha fora do ar nunca vai para a tela (servidor) e o Player confere a data de Brasília offline; mudança no cadastro ressincroniza as telas via Realtime (provado ~1-2 s); Galeria de Widgets ≠ Meus Widgets; fundo/imagem em uso protegidos; sem raspagem de rede social.
+- **Banco:** helpers `fn_widget_*` só executáveis pelo dono (API pública: 401 permission denied); funções de gatilho não publicadas pela API (404); 6 gatilhos de ressincronização ativos; `get_player_playlist_for_screen` com permissões preservadas; payload das 6 telas de produção idêntico do início ao fim dos micro-gates (as 2 telas de homologação só mudaram os ids dos itens ao restaurar a playlist de teste).
+- **Resíduos:** 0 ofertas/produtos/campanhas/criativos/widgets de teste; playlist de homologação restaurada (5 mídias); sessões temporárias apagadas.
+- **Suítes:** web 1531/1531; Player JVM 190/190; APK debug 5.5.7 (versionCode 544) em `native-android-player/app/build/outputs/apk/debug/`.
+- **Pendências (OPEN FINDINGS, não bloqueiam o Widget Engine):** OF-W7-1 (Encarte filtra status inexistente), OF-W7-2 (185 erros de tipo pré-existentes), OF-W9-1 (Links Externos não chegam à tela), OF-W9-2 (Instagram automático exige app Meta).
+- **Ação do proprietário:** instalar/distribuir o APK 5.5.7 nas telas (widgets novos e a correção de orientação F-73 só valem nas telas com 5.5.4+; os modelos Oferta/Publicidade/Social/YouTube exigem 5.5.5–5.5.7). Recomendado validar em 1 TV Box canário antes da frota (AGENTS.md §14).
