@@ -116,3 +116,6 @@ REVOKE ALL ON FUNCTION public.fn_widget_esportes_dados(jsonb, date) FROM PUBLIC,
 
 -- Escudos em JPG (alguns clubes só têm o escudo em JPG na Wikipédia).
 UPDATE storage.buckets SET allowed_mime_types = ARRAY['image/png', 'image/jpeg'] WHERE id = 'escudos-times';
+
+-- Arte revisada (sem a caixa do refletor atrás do cabeçalho): versão na URL para os aparelhos não usarem a cópia antiga do cache.
+UPDATE public.content_sports_competitions SET fundo_h_url = 'https://sitesobremidia.vercel.app/esportes/fundos/' || slug || '-h.jpg?v=2', fundo_v_url = 'https://sitesobremidia.vercel.app/esportes/fundos/' || slug || '-v.jpg?v=2' WHERE empresa_operadora_id IS NULL AND fundo_h_url IS NOT NULL;

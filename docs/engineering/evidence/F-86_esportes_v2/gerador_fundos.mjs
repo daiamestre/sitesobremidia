@@ -80,7 +80,7 @@ function bola() {
 function refletor(x, y) {
   let luzes = '';
   for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) luzes += `<circle cx="${(x - 27 + j * 18).toFixed(0)}" cy="${(y - 12 + i * 14).toFixed(0)}" r="6" fill="#ffffff"/>`;
-  return `<circle cx="${x}" cy="${y}" r="140" fill="url(#refl)"/><rect x="${x - 40}" y="${y - 24}" width="80" height="48" rx="6" fill="#1f2937" opacity="0.8"/>${luzes}`;
+  return `<circle cx="${x}" cy="${y}" r="140" fill="url(#refl)"/>`;
 }
 
 function rng(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
