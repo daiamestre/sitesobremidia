@@ -50,7 +50,7 @@ export function WidgetPreview({ widgetType, config, editOrientation, onConfigCha
                                 <SocialWidget widgetType={widgetType} config={config} backgroundImage={bgImage} className="w-full h-full" />
                             )}
                             {widgetType === 'youtube' && (
-                                <YouTubeWidget config={config} className="w-full h-full" />
+                                <YouTubeWidget config={config} backgroundImage={bgImage} className="w-full h-full" />
                             )}
                             {widgetType === 'advertising' && (
                                 <AdvertisingWidget config={config} backgroundImage={bgImage} className="w-full h-full" />

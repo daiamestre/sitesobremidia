@@ -146,7 +146,7 @@ object NativeWidgetEngine {
                 WidgetKind.OFFER -> buildOffer(context, spec, background, w, h, base, payload as? OfertaPayload)
                 WidgetKind.ADVERTISING -> buildAdvertising(context, spec, background, w, h, base, payload as? CampanhaPayload)
                 WidgetKind.SOCIAL -> buildSocial(context, spec, background, w, h, base, payload as? PostPayload)
-                WidgetKind.YOUTUBE -> buildYoutube(context, spec, w, h, base)
+                WidgetKind.YOUTUBE -> buildYoutube(context, spec, background, w, h, base)
                 WidgetKind.SPORTS -> buildSports(context, spec, background, w, h, base)
                 WidgetKind.UNKNOWN -> buildMessage(context, background, w, h, base, "Widget não suportado (${spec.rawType})")
             }
@@ -540,10 +540,11 @@ object NativeWidgetEngine {
      * Sem internet ou com erro de carga: cartão "indisponível" (nunca tela preta).
      */
     @android.annotation.SuppressLint("SetJavaScriptEnabled")
-    private fun buildYoutube(context: Context, spec: WidgetSpec, w: Int, h: Int, base: Float): View {
+    private fun buildYoutube(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float): View {
         val ref = spec.youtube ?: return buildMessage(context, null, w, h, base, "Link do YouTube inválido")
-        if (!temInternet(context)) return buildMessage(context, null, w, h, base, "Vídeo indisponível sem internet")
-        val root = FrameLayout(context).apply { setBackgroundColor(Color.BLACK) }
+        if (!temInternet(context)) return buildMessage(context, bg, w, h, base, "Vídeo indisponível sem internet")
+        // Com imagem de fundo: o vídeo (16:9) fica centralizado sobre o fundo da marca; sem fundo, tela cheia como antes.
+        val root = if (bg != null) fundoMarca(context, bg, base, spec.cores ?: CoresWidget.PADRAO) else FrameLayout(context).apply { setBackgroundColor(Color.BLACK) }
         val web = android.webkit.WebView(context)
         web.setBackgroundColor(Color.BLACK)
         web.settings.apply {
@@ -565,7 +566,7 @@ object NativeWidgetEngine {
                 if (!request.isForMainFrame) return
                 Logger.w("WIDGET", "YouTube indisponível: ${error.description}")
                 root.removeAllViews()
-                root.addView(buildMessage(context, null, w, h, base, "Vídeo indisponível no momento"),
+                root.addView(buildMessage(context, bg, w, h, base, "Vídeo indisponível no momento"),
                     FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             }
         }
@@ -573,8 +574,9 @@ object NativeWidgetEngine {
             <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head>
             <body><iframe src="${YoutubeLink.embedUrl(ref)}" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe></body></html>"""
         web.loadDataWithBaseURL(YOUTUBE_ORIGEM, html, "text/html", "UTF-8", null)
-        root.addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        root.addView(aviso, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        val (vw, vh) = if (bg != null) YoutubeLink.caixaSobreFundo(w, h) else ViewGroup.LayoutParams.MATCH_PARENT to ViewGroup.LayoutParams.MATCH_PARENT
+        root.addView(web, FrameLayout.LayoutParams(vw, vh, Gravity.CENTER))
+        root.addView(aviso, FrameLayout.LayoutParams(vw, vh, Gravity.CENTER))
         root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) {}
             override fun onViewDetachedFromWindow(v: View) {

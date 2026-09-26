@@ -9,7 +9,7 @@ As frentes são executadas **uma de cada vez**. A próxima só começa quando a 
 | 1 | Sports Engine a custo zero + Notícias de Esportes | **PASS** (F-80) |
 | 2 | Transferir "VIDEOS EM PE PARA MIDIA INDOR VARIADOS" para a Biblioteca de Mídias | **PASS** (F-81) |
 | 3 | Seletores de Mídia, Widget e Link (e Playlist) responsivos e com rolagem em PC, tablet e celular | **PASS** (F-82) |
-| 4 | Capa em todos os widgets + imagem de fundo em todos | pendente |
+| 4 | Capa em todos os widgets + imagem de fundo em todos | **PASS** (F-83) |
 | 5 | Dashboard do Owner/ADM na área Gestor de Mídias + dashboards que ficam carregando | pendente |
 
 ## 1. Sports Engine + Notícias de Esportes (custo zero)

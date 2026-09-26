@@ -33,7 +33,7 @@ export const WIDGET_TEMPLATES: WidgetTemplateDef[] = [
   { id: 'offer-destaque', tipo: 'offer', nome: 'Oferta em destaque', descricao: 'Produto, preço "de/por" e QR Code a partir do cadastro de ofertas.', suportaFundo: true, noPlayer: true },
   { id: 'advertising-campanha', tipo: 'advertising', nome: 'Publicidade', descricao: 'Criativo da campanha com logo, CTA e QR Code.', suportaFundo: true, noPlayer: true },
   { id: 'social-post', tipo: 'social', nome: 'Conteúdo Social', descricao: 'Título, texto, imagem, autor e QR Code.', suportaFundo: true, noPlayer: true },
-  { id: 'youtube-video', tipo: 'youtube', nome: 'YouTube', descricao: 'Vídeo, playlist ou canal do YouTube pelo player oficial.', suportaFundo: false, noPlayer: true },
+  { id: 'youtube-video', tipo: 'youtube', nome: 'YouTube', descricao: 'Vídeo, playlist ou canal do YouTube pelo player oficial.', suportaFundo: true, noPlayer: true },
   { id: 'instagram-post', tipo: 'instagram', nome: 'Instagram', descricao: 'Publicações do Instagram por meio oficial ou imagem enviada.', suportaFundo: true, noPlayer: true },
 ];
 

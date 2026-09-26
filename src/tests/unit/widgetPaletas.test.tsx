@@ -70,14 +70,17 @@ describe('Cores na tela', () => {
     expect(selo.style.background).toContain('rgb(255, 212, 0)');
   });
 
-  it('capa: imagem de fundo; sem imagem, o próprio widget; tipos sem capa viva -> nada', () => {
+  it('capa: imagem de fundo; sem imagem, o próprio widget (todos os tipos); tipo desconhecido -> nada', () => {
     const { unmount } = render(<CapaWidget widgetType="clock" config={{ backgroundImageLandscape: 'https://r2/f.jpg' }} nome="R" />);
     expect(screen.getByTestId('capa-imagem')).toHaveAttribute('src', 'https://r2/f.jpg');
     unmount();
     const r2 = render(<CapaWidget widgetType="weather" config={{ paleta: 'esmeralda' }} nome="C" />);
     expect(screen.getByTestId('capa-clima')).toBeInTheDocument();
     r2.unmount();
-    const { container } = render(<CapaWidget widgetType="rss" config={{}} nome="N" />);
+    const r3 = render(<CapaWidget widgetType="rss" config={{}} nome="N" />);
+    expect(screen.getByTestId('capa-noticias')).toBeInTheDocument();
+    r3.unmount();
+    const { container } = render(<CapaWidget widgetType="tipo-inexistente" config={{}} nome="X" />);
     expect(container).toBeEmptyDOMElement();
   });
 

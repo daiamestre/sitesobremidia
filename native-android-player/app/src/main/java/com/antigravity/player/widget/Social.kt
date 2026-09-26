@@ -35,6 +35,15 @@ object YoutubeLink {
         return if (ref.playlist) "https://www.youtube-nocookie.com/embed/videoseries?$base&list=$id"
         else "https://www.youtube-nocookie.com/embed/$id?$base&playlist=$id"
     }
+
+    /**
+     * Com imagem de fundo, o vídeo (16:9) fica centralizado sobre o fundo: até 94% da largura e 82% da altura.
+     * Mesma regra do painel (YouTubeWidget: width = min(94cqw, 82cqh * 16/9)). Retorna (largura, altura) em px.
+     */
+    fun caixaSobreFundo(w: Int, h: Int): Pair<Int, Int> {
+        val largura = minOf(w * 0.94f, h * 0.82f * 16f / 9f)
+        return largura.toInt() to (largura * 9f / 16f).toInt()
+    }
 }
 
 /** Post Social / Instagram montado com o que o usuário enviou (nada é buscado na rede social). */

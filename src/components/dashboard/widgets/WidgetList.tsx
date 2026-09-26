@@ -25,7 +25,8 @@ export function WidgetList({ widgets, onEdit, onDelete, onDuplicate, onPreview, 
                 const Icon = ICONE_TIPO[widget.widget_type as WidgetTypeId] || Clock;
                 const label = TIPO_LABEL[widget.widget_type as WidgetTypeId] || widget.widget_type;
                 const modelo = templateDoWidget(widget.widget_type, widget.config);
-                const capa = <CapaWidget widgetType={widget.widget_type} config={widget.config} thumbnailUrl={widget.thumbnail_url} nome={widget.name} />;
+                // Toda capa: imagem de fundo ou o próprio widget desenhado (CapaWidget só devolve null para tipo desconhecido)
+                const capa = CapaWidget({ widgetType: widget.widget_type, config: widget.config, thumbnailUrl: widget.thumbnail_url, nome: widget.name });
                 const temFundo = !!(widget.config?.backgroundImageLandscape || widget.config?.backgroundImagePortrait);
                 const corNome = ['clock', 'weather'].includes(widget.widget_type)
                     ? (PALETAS.find((p) => p.id === (widget.config?.paleta ?? 'sobremidia'))?.nome ?? 'Personalizada')
@@ -34,7 +35,7 @@ export function WidgetList({ widgets, onEdit, onDelete, onDuplicate, onPreview, 
                 return (
                     <Card key={widget.id} data-testid={`widget-${widget.id}`} className={`min-w-0 overflow-hidden transition-all hover:shadow-md ${!widget.is_active ? 'opacity-60' : ''}`}>
                         <button type="button" className="aspect-video w-full bg-muted relative overflow-hidden border-b block" onClick={() => onPreview?.(widget)} aria-label={`Prévia de ${widget.name}`}>
-                            {(widget.thumbnail_url || temFundo || ['clock', 'weather'].includes(widget.widget_type)) ? capa : (
+                            {capa ?? (
                                 <div className="w-full h-full flex items-center justify-center bg-primary/5">
                                     <Icon className="h-12 w-12 text-primary/20" />
                                 </div>

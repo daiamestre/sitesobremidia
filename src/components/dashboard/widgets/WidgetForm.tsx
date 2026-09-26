@@ -346,7 +346,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                         )}
 
                         {/* ORIENTATION & BG */}
-                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising' || widgetType === 'social' || widgetType === 'instagram' || widgetType === 'sports') && (
+                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising' || widgetType === 'social' || widgetType === 'instagram' || widgetType === 'sports' || widgetType === 'youtube') && (
                             <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                                 <Label className="text-sm font-semibold">Configuração de Fundo</Label>
                                 <div className="flex bg-muted rounded-lg p-1">

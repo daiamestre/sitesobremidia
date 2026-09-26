@@ -692,3 +692,25 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   | Celular 375×812 | 2 | 145×82 | sim |
 
   Em 740×360, o conteúdo tem 499 px e a área visível 226 px; a lista rolou 273 px e a última mídia ficou visível. Widget e Link sem itens mostram aviso de lista vazia.
+
+### F-83 — Capa em todos os widgets + imagem de fundo em todos (inclusive YouTube) — painel e Player 5.6.1 — DONE
+- **Antes:**
+  - Meus Widgets só tinha capa viva no Relógio, Clima e Esportes; os outros tipos sem fundo mostravam só um ícone apagado.
+  - A Galeria só tinha capa nesses 3 tipos.
+  - O YouTube não aceitava imagem de fundo (`suportaFundo: false`, e o Player não desenhava).
+- **Capa (`CapaWidget`):**
+  - usa a imagem de fundo quando existe;
+  - senão, desenha o próprio widget (Relógio, Clima, Esportes, Notícias, Institucional, Oferta, Publicidade, Social, Instagram);
+  - YouTube usa a miniatura oficial `i.ytimg.com/vi/<id>/hqdefault.jpg`, sem abrir o player;
+  - Publicidade sem campanha mostra o estado real "Anuncie aqui";
+  - Notícias, que usa texto de tamanho fixo, é desenhado em 640×360 e reduzido.
+- **Galeria:** todos os 13 modelos têm capa (`src/lib/widgetExemplos.ts`). São dados reais quando existem sem configuração (relógio, clima, jogos confirmados, manchetes da Agência Brasil). Oferta, Institucional, Social e Instagram usam conteúdo de exemplo com o selo "EXEMPLO", que nunca vai para tela nenhuma.
+- **Fundo no YouTube:**
+  - Painel: formulário, prévia e Player web.
+  - Player Android 5.6.1 (548), com `YoutubeLink.caixaSobreFundo`: com imagem, o vídeo 16:9 fica centralizado (até 94% da largura e 82% da altura) sobre o fundo da marca; sem imagem, tela cheia como antes. Players anteriores mostram o vídeo em tela cheia.
+- **Prova:**
+  - Galeria no navegador com os 13 modelos com capa.
+  - Emulador 5.6.1 com o widget de teste "YouTube com fundo" (Big Buck Bunny, CC): fundo com véu da marca e vídeo centralizado, 0 ANR/crash. Widget de teste removido; playlist de homologação idêntica e 7/7 telas iguais à linha de base.
+  - Testes: `widgetCapas` (5), JVM `YoutubeFundoTest` (2), JVM total 200/200.
+  - APK 5.6.1: SHA-256 `6d20cea9657bf696f8ff9b5f0b78bb66d7cd4e77105f4941146fa63d163aa1e0` (15 765 980 bytes).
+  - Evidência em `evidence/F-83_capas_widgets/`.

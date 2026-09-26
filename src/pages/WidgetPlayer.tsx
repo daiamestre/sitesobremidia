@@ -60,7 +60,7 @@ const WidgetPlayer = () => {
             case 'instagram':
                 return <SocialWidget widgetType={widget.widget_type} config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
             case 'youtube':
-                return <YouTubeWidget config={config} className="w-full h-full" />;
+                return <YouTubeWidget config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
             case 'advertising':
                 return <AdvertisingWidget config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
             case 'offer':
