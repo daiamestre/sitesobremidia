@@ -3,6 +3,7 @@ package com.antigravity.player.widget
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -34,7 +35,11 @@ data class JogoEsporte(
 )
 
 /** fundoH/fundoV (F-87): arte do campeonato (estádio, gramado, bola, taça) em 16:9 e 9:16; null = fundo de marca. */
-data class CompeticaoEsporte(val slug: String, val nome: String, val ordem: Int, val fundoH: String? = null, val fundoV: String? = null)
+data class CompeticaoEsporte(
+    val slug: String, val nome: String, val ordem: Int, val fundoH: String? = null, val fundoV: String? = null,
+    /** F-88: a arte já traz a taça e o nome no alto -> o título escrito sai e o conteúdo começa abaixo dela. */
+    val fundoComTitulo: Boolean = false
+)
 
 /**
  * layout 2 (F-86): janela D-3..D+9 por campeonato (o Player recorta pelo próprio relógio). layout 1 = lista antiga (modo).
@@ -83,7 +88,8 @@ object EsportesText {
             val c = e as? JsonObject ?: return@mapNotNull null
             val slug = s(c, "slug") ?: return@mapNotNull null
             CompeticaoEsporte(slug, s(c, "nome") ?: slug, i(c, "ordem") ?: 99,
-                s(c, "fundoH")?.takeIf { it.startsWith("https://") }, s(c, "fundoV")?.takeIf { it.startsWith("https://") })
+                s(c, "fundoH")?.takeIf { it.startsWith("https://") }, s(c, "fundoV")?.takeIf { it.startsWith("https://") },
+                (c["fundoComTitulo"] as? JsonPrimitive)?.booleanOrNull == true)
         }
         return DadosEsportes(
             modo = s(o, "modo")?.takeIf { it in setOf("resultados", "proximos", "hoje") } ?: "resultados",

@@ -134,6 +134,8 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
   // Fundo: o escolhido no widget; senão, o do campeonato da página (estádio, gramado, bola e taça).
   const fundoTema = backgroundImage ? null : (vertical ? comp?.fundoV : comp?.fundoH) ?? null;
   const temaAtivo = !!fundoTema;
+  // A arte do campeonato já traz a taça e o nome no alto (F-88): o título escrito sai e o conteúdo começa abaixo dela.
+  const tituloNaArte = temaAtivo && !!comp?.fundoComTitulo;
 
   return (
     <div
@@ -167,11 +169,19 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
 
       {pagina ? (
         <div key={`${indice}-${pagina.slug}`} className="relative z-10 mt-[1.6cqmin] flex min-h-0 flex-1 flex-col animate-in fade-in duration-300">
-          <div className="border-l-[0.9cqmin] pl-[1.8cqmin]" style={{ borderColor: c.selo }}>
-            <h2 className="text-[6.2cqmin] font-black uppercase leading-none tracking-wide" data-testid="sports-competicao">{pagina.competicao}</h2>
-            <p className="mt-[0.8cqmin] text-[3.2cqmin] font-semibold text-white/85" data-testid="sports-subtitulo">Resultados e próximos jogos</p>
-          </div>
-          <div className="mt-[1.8cqmin] flex min-h-0 flex-1 flex-col justify-center gap-[1.6cqmin]">
+          {tituloNaArte ? (
+            <div data-testid="sports-titulo-na-arte">
+              <h2 className="sr-only" data-testid="sports-competicao">{pagina.competicao}</h2>
+              <div style={{ height: vertical ? '17cqh' : '21cqh' }} />
+              <p className="text-[3cqmin] font-bold uppercase tracking-[0.18em] text-white/90" data-testid="sports-subtitulo">Resultados e próximos jogos</p>
+            </div>
+          ) : (
+            <div className="border-l-[0.9cqmin] pl-[1.8cqmin]" style={{ borderColor: c.selo }}>
+              <h2 className="text-[6.2cqmin] font-black uppercase leading-none tracking-wide" data-testid="sports-competicao">{pagina.competicao}</h2>
+              <p className="mt-[0.8cqmin] text-[3.2cqmin] font-semibold text-white/85" data-testid="sports-subtitulo">Resultados e próximos jogos</p>
+            </div>
+          )}
+          <div className="mt-[1.8cqmin] flex min-h-0 flex-1 flex-col justify-center gap-[1.6cqmin]" style={tituloNaArte && !vertical ? { zoom: 0.86 } : undefined}>
             {pagina.resultados.length > 0 && (
               <Secao titulo="RESULTADOS" cor={c.selo}>
                 {pagina.resultados.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} escuro={temaAtivo} encerrado />)}

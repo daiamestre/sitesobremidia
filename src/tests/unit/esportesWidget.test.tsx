@@ -159,3 +159,23 @@ describe('Esportes v2 — tudo aparece junto (F-87)', () => {
     expect(screen.getByTestId('sports-fundo-tema')).toHaveAttribute('src', 'https://teste.exemplo/fundo-brasileirao-h.jpg');
   });
 });
+
+describe('Esportes v2 — fundo com a taça e o nome da competição (F-88)', () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] }); vi.setSystemTime(new Date('2026-10-10T12:00:00-03:00')); localStorage.clear(); });
+  afterEach(() => { vi.useRealTimers(); localStorage.clear(); });
+
+  it('quando a arte já traz o nome, o título escrito sai (sem nome duplicado) e o subtítulo continua', () => {
+    const d = v2(JANELA);
+    d.competicoes = d.competicoes.map((c) => ({ ...c, fundoH: `https://teste.exemplo/${c.slug}-h.jpg`, fundoV: `https://teste.exemplo/${c.slug}-v.jpg`, fundoComTitulo: true }));
+    render(<SportsWidget config={{}} dados={d} widgetId="w3" modo="player" />);
+    expect(screen.getByTestId('sports-titulo-na-arte')).toBeInTheDocument();
+    expect(screen.getByTestId('sports-competicao')).toHaveClass('sr-only');
+    expect(screen.getByTestId('sports-subtitulo')).toHaveTextContent('Resultados e próximos jogos');
+  });
+
+  it('sem a arte (ou com fundo próprio do widget), o título escrito continua', () => {
+    render(<SportsWidget config={{}} dados={v2(JANELA)} widgetId="w4" modo="player" />);
+    expect(screen.queryByTestId('sports-titulo-na-arte')).toBeNull();
+    expect(screen.getByTestId('sports-competicao')).not.toHaveClass('sr-only');
+  });
+});

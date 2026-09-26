@@ -26,7 +26,7 @@ export interface DadosEsportes {
   modo: 'resultados' | 'proximos' | 'hoje';
   fuso: string;
   geradoEm: string;
-  competicoes: Array<{ slug: string; nome: string; codigo: string; cobertura: 'FULL' | 'PARTIAL' | 'UNAVAILABLE'; ordem?: number; fundoH?: string | null; fundoV?: string | null }>;
+  competicoes: Array<{ slug: string; nome: string; codigo: string; cobertura: 'FULL' | 'PARTIAL' | 'UNAVAILABLE'; ordem?: number; fundoH?: string | null; fundoV?: string | null; fundoComTitulo?: boolean }>;
   jogos: JogoEsporte[];
   creditos: string;
   /** v2 (F-86): jogos de D-3 a D+9 com escudos; o widget recorta resultados (D-3..D-1) e próximos (hoje..D+2). */

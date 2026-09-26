@@ -890,3 +890,20 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Player 5.6.3 (`EsportesRenderTest`, cache limpo): fundo do campeonato e todos os escudos na mesma exibição, em 16:9 e 9:16.
   - Arte revisada (sem a caixa do refletor atrás do cabeçalho), com `?v=2` nas URLs para renovar o cache dos aparelhos.
 - **Release 5.6.3 (550):** SHA-256 `6e91e20b36d9b4d3454e35328af027d42214e9e030ac61153009bad54467fbc2` (5 738 128 bytes), certificado de produção. Substitui a 5.6.2 no OTA, que continua aguardando a publicação do APK pelo proprietário.
+
+### F-88 — Fundos do widget Esportes no estilo da referência do proprietário (taça original + nome da competição) — DONE (Player 5.6.4)
+- **Pedido:** fundo "igual à terceira imagem" (estádio iluminado, taça original e nome da competição no alto), usando as fotos das taças enviadas pelo proprietário (Copa do Brasil e Brasileirão).
+- **Montagem** (gerador `evidence/F-86_esportes_v2/gerador_fundos_v2.html`, canvas no navegador, 1920×1080 e 1080×1920):
+  - o estádio é a própria faixa da referência (metade dourada = Copa, metade azul = Brasileirão), desfocado para esconder a baixa resolução;
+  - brilho dos refletores e partículas iguais aos da referência (confete dourado na Copa, estrelas azuis no Brasileirão);
+  - as taças das fotos do proprietário foram recortadas localmente, no navegador, sem enviar a imagem a nenhum serviço;
+  - nome em letreiro Montserrat 900: dourado na Copa, prateado no Brasileirão, com "SÉRIE A".
+- **Removido da referência:** a marca "NC NEWS" e os textos de terceiros ("Grandes competições…", "Viva o futebol brasileiro!", "Brasileirão é paixão!"). Não se publica marca de outra empresa nas telas.
+- **Premier League, La Liga e Champions:** mesmo estilo com a cor de cada uma, só com o nome, até o proprietário enviar as taças.
+- **Widget** (migração `20261258`, aditiva; `competicoes[].fundoComTitulo`):
+  - quando a arte traz o nome, o título escrito sai (sem nome duplicado) e o conteúdo começa abaixo do cabeçalho da arte;
+  - "Resultados e próximos jogos" continua visível;
+  - na horizontal, as linhas ficam 14% menores para caber abaixo do cabeçalho;
+  - vale para painel, Player web e Player 5.6.4 (551); os Players 5.6.3 ignoram o campo.
+- **Direitos:** as fotos das taças e a arte de referência foram fornecidas pelo proprietário, que responde pelo direito de uso comercial.
+- **Prova:** web 160/1620 (+2 testes do título na arte); JVM 205/205 (leitura de `fundoComTitulo`).

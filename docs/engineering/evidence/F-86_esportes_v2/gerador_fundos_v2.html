@@ -1,0 +1,135 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Fundos Esportes v2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,800;0,900;1,900&display=swap">
+<body style="background:#222;color:#fff;font-family:system-ui">
+<pre id="log">iniciando…</pre>
+<script>
+// Fundos do widget Esportes no estilo da referência do proprietário (estádio iluminado + taça + nome da competição no alto).
+// Estádio: recorte da própria referência (metade dourada = Copa, metade azul = Brasileirão). Taças: fotos enviadas pelo
+// proprietário, recortadas localmente. Sem textos/marcas de terceiros. Saída: JPG 1920x1080 e 1080x1920.
+const log = (t) => { document.getElementById('log').textContent += '\n' + t; };
+const carregar = (src) => new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => erro(new Error(src)); i.src = src; });
+function rng(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+
+const TEMAS = {
+  'copa-do-brasil':   { placa: 'dourada', taca: 'copa', linhas: ['COPA DO BRASIL'], estilo: 'ouro', particula: 'confete', tinta: null, brilho: '#ffcf4d' },
+  brasileirao:        { placa: 'azul', taca: 'brasileirao', linhas: ['BRASILEIRÃO', 'SÉRIE A'], estilo: 'prata', particula: 'estrela', tinta: null, brilho: '#5aa9ff' },
+  'premier-league':   { placa: 'azul', taca: null, linhas: ['PREMIER LEAGUE'], estilo: 'prata', particula: 'faisca', tinta: '#6a1bb0', brilho: '#e0409a' },
+  'la-liga':          { placa: 'azul', taca: null, linhas: ['LA LIGA'], estilo: 'prata', particula: 'faisca', tinta: '#c0162c', brilho: '#ff7a3d' },
+  'champions-league': { placa: 'azul', taca: null, linhas: ['CHAMPIONS LEAGUE'], estilo: 'prata', particula: 'estrela', tinta: '#0b2d8a', brilho: '#b9d4ff' },
+};
+
+function gradienteTexto(ctx, estilo, y0, y1) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  if (estilo === 'ouro') { g.addColorStop(0, '#fff3b8'); g.addColorStop(0.35, '#f5c542'); g.addColorStop(0.62, '#c98d12'); g.addColorStop(1, '#ffe08a'); }
+  else { g.addColorStop(0, '#ffffff'); g.addColorStop(0.45, '#dfe6f2'); g.addColorStop(0.62, '#9aa7bd'); g.addColorStop(1, '#f4f7fc'); }
+  return g;
+}
+
+function texto(ctx, t, x, y, tam, estilo, alinhar) {
+  ctx.save();
+  ctx.font = `900 ${tam}px Montserrat`;
+  ctx.textAlign = alinhar; ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,0.75)'; ctx.shadowBlur = tam * 0.25; ctx.shadowOffsetY = tam * 0.06;
+  ctx.lineWidth = Math.max(3, tam * 0.07); ctx.strokeStyle = estilo === 'ouro' ? '#3a2600' : '#1b2536';
+  ctx.strokeText(t, x, y);
+  ctx.shadowColor = 'transparent';
+  ctx.fillStyle = gradienteTexto(ctx, estilo, y - tam, y + tam * 0.1);
+  ctx.fillText(t, x, y);
+  ctx.restore();
+}
+
+function particulas(ctx, tipo, W, H, cor, seed) {
+  const r = rng(seed);
+  const n = tipo === 'confete' ? 90 : 60;
+  for (let i = 0; i < n; i++) {
+    const x = r() * W, y = H * (0.08 + r() * 0.6), s = (tipo === 'confete' ? 6 : 5) + r() * 12;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(r() * Math.PI); ctx.globalAlpha = 0.35 + r() * 0.55;
+    if (tipo === 'confete') { ctx.fillStyle = r() > 0.25 ? '#f2c13a' : '#fff1b0'; ctx.fillRect(-s / 2, -s / 4, s, s / 2); }
+    else if (tipo === 'estrela') {
+      ctx.fillStyle = cor; ctx.shadowColor = cor; ctx.shadowBlur = 12; ctx.beginPath();
+      for (let k = 0; k < 10; k++) { const a = (k * Math.PI) / 5 - Math.PI / 2, rr = k % 2 ? s * 0.42 : s; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+      ctx.closePath(); ctx.fill();
+    } else { ctx.fillStyle = cor; ctx.shadowColor = cor; ctx.shadowBlur = 14; ctx.beginPath(); ctx.arc(0, 0, s * 0.35, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+}
+
+async function desenhar(slug, tema, W, H, ref, tacas) {
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const vertical = H > W;
+  // 1) estádio da referência (só a faixa sem textos), cobrindo a tela, levemente desfocado
+  const sx = tema.placa === 'dourada' ? 0 : 688, sy = 262, sw = 688, sh = 428;
+  const esc = Math.max(W / sw, H / sh);
+  const dw = sw * esc, dh = sh * esc;
+  ctx.filter = `blur(${vertical ? 3 : 2.5}px) saturate(1.15) contrast(1.05)`;
+  ctx.drawImage(ref, sx, sy, sw, sh, (W - dw) / 2, H - dh + (vertical ? dh * 0.12 : dh * 0.06), dw, dh);
+  ctx.filter = 'none';
+  // céu escuro acima da arquibancada (a placa não cobre o topo na vertical)
+  const ceu = ctx.createLinearGradient(0, 0, 0, H * (vertical ? 0.42 : 0.3));
+  ceu.addColorStop(0, tema.placa === 'dourada' ? '#0d0a04' : '#030b1f'); ceu.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = ceu; ctx.fillRect(0, 0, W, H);
+  // 2) cor da competição (europeias: a placa azul ganha a cor de cada uma)
+  if (tema.tinta) { ctx.save(); ctx.globalCompositeOperation = 'color'; ctx.globalAlpha = 0.75; ctx.fillStyle = tema.tinta; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  // 3) luz dos refletores (brilho no alto) + escurecimento para leitura
+  ctx.save(); ctx.globalCompositeOperation = 'screen';
+  for (const [fx, fy, fr] of [[0.12, 0.02, 0.55], [0.88, 0.02, 0.55], [0.5, 0.0, 0.7]]) {
+    const g = ctx.createRadialGradient(W * fx, H * fy, 0, W * fx, H * fy, Math.max(W, H) * fr * 0.5);
+    g.addColorStop(0, tema.brilho + '66'); g.addColorStop(1, tema.brilho + '00'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  ctx.restore();
+  const leitura = ctx.createLinearGradient(0, 0, 0, H);
+  leitura.addColorStop(0, 'rgba(0,0,0,0.32)'); leitura.addColorStop(0.35, 'rgba(0,0,0,0.18)'); leitura.addColorStop(0.75, 'rgba(0,0,0,0.35)'); leitura.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.fillStyle = leitura; ctx.fillRect(0, 0, W, H);
+  const vinheta = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  vinheta.addColorStop(0, 'rgba(0,0,0,0)'); vinheta.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = vinheta; ctx.fillRect(0, 0, W, H);
+  // 4) partículas (confete dourado / estrelas / faíscas), como na referência
+  particulas(ctx, tema.particula, W, H, tema.brilho, slug.length * 97 + W);
+  // 5) cabeçalho: taça + nome da competição (faixa [0.10H, 0.31H] na horizontal; [0.07H, 0.28H] na vertical)
+  const taca = tema.taca ? tacas[tema.taca] : null;
+  if (!vertical) {
+    const topo = H * 0.1, altura = H * 0.24;
+    let xTexto = W * 0.035;
+    if (taca) {
+      const th = altura, tw = taca.width * (th / taca.height);
+      ctx.save(); ctx.shadowColor = tema.brilho; ctx.shadowBlur = 45; ctx.drawImage(taca, W * 0.03, topo, tw, th); ctx.restore();
+      xTexto = W * 0.03 + tw + W * 0.02;
+    }
+    const tamA = tema.linhas.length > 1 ? H * 0.105 : H * 0.12;
+    const yA = topo + (tema.linhas.length > 1 ? altura * 0.58 : altura * 0.72);
+    texto(ctx, tema.linhas[0], xTexto, yA, tamA, tema.estilo, 'left');
+    if (tema.linhas[1]) texto(ctx, tema.linhas[1], xTexto + 4, yA + H * 0.075, H * 0.055, 'prata', 'left');
+  } else {
+    const topo = H * 0.07;
+    let yTexto = H * 0.2;
+    if (taca) {
+      const th = H * 0.14, tw = taca.width * (th / taca.height);
+      ctx.save(); ctx.shadowColor = tema.brilho; ctx.shadowBlur = 50; ctx.drawImage(taca, (W - tw) / 2, topo, tw, th); ctx.restore();
+      yTexto = topo + th + H * 0.05;
+    }
+    const tamA = Math.min(W * 0.115, (W * 0.9) / (tema.linhas[0].length * 0.62));
+    texto(ctx, tema.linhas[0], W / 2, yTexto, tamA, tema.estilo, 'center');
+    if (tema.linhas[1]) texto(ctx, tema.linhas[1], W / 2, yTexto + H * 0.035, W * 0.055, 'prata', 'center');
+  }
+  return new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.86));
+}
+
+(async () => {
+  try {
+    await document.fonts.load('900 80px Montserrat');
+    const ref = await carregar('/ref3.png');
+    const tacas = { copa: await carregar('/recortes/copa_ref_recorte.png'), brasileirao: await carregar('/recortes/brasileirao_ref_recorte.png') };
+    for (const [slug, tema] of Object.entries(TEMAS)) {
+      for (const [suf, W, H] of [['h', 1920, 1080], ['v', 1080, 1920]]) {
+        const blob = await desenhar(slug, tema, W, H, ref, tacas);
+        await fetch(`/salvar?nome=${slug}-${suf}.jpg`, { method: 'POST', body: blob });
+        log(`${slug}-${suf}: ${blob.size} bytes`);
+      }
+    }
+    log('FIM');
+  } catch (e) { log('ERRO ' + e.message); }
+})();
+</script>
