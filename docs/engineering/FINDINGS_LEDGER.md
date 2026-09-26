@@ -885,3 +885,8 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:**
   - Testes web 160 arquivos / 1618; `copaDoBrasil` (5, com uma caixa real da página).
   - JVM 205/205, inclusive a leitura dos fundos (só https).
+- **Validação visual:**
+  - Painel com os fundos de produção: no instante em que a 1ª linha apareceu, 9/9 imagens (8 escudos + fundo) já estavam carregadas, com 0 pendentes.
+  - Player 5.6.3 (`EsportesRenderTest`, cache limpo): fundo do campeonato e todos os escudos na mesma exibição, em 16:9 e 9:16.
+  - Arte revisada (sem a caixa do refletor atrás do cabeçalho), com `?v=2` nas URLs para renovar o cache dos aparelhos.
+- **Release 5.6.3 (550):** SHA-256 `6e91e20b36d9b4d3454e35328af027d42214e9e030ac61153009bad54467fbc2` (5 738 128 bytes), certificado de produção. Substitui a 5.6.2 no OTA, que continua aguardando a publicação do APK pelo proprietário.
