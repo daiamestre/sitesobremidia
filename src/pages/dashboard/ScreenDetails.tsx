@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchPlaybackStats } from '@/lib/playbackStats';
 import { MediaThumbnail } from '@/components/media/MediaThumbnail';
+import { SeletorGrade, ItemSeletor } from '@/components/screens/SeletorGrade';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -1606,26 +1607,14 @@ return (
                                                 <Image className="h-4 w-4" /> Mídia
                                             </Button>
                                         </DialogTrigger>
-                                        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-                                            <DialogHeader>
-                                                <DialogTitle>Selecionar Mídia</DialogTitle>
-                                            </DialogHeader>
-                                            <ScrollArea className="flex-1 p-2">
-                                                <div className="grid grid-cols-3 gap-3">
-                                                    {availableMedia.map(media => (
-                                                        <div key={media.id}
-                                                            className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
-                                                            onClick={() => handleAddItem(media as unknown as Media)}
-                                                        >
-                                                            <MediaThumbnail media={media} showIcon={false} />
-                                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] truncate text-white">
-                                                                {media.name}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </ScrollArea>
-                                        </DialogContent>
+                                        <SeletorGrade titulo="Selecionar Mídia" testId="seletor-midia"
+                                            vazio={availableMedia.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma mídia em Minhas Mídias.</p>}>
+                                            {availableMedia.map(media => (
+                                                <ItemSeletor key={media.id} rotulo={media.name} onClick={() => handleAddItem(media as unknown as Media)}>
+                                                    <MediaThumbnail media={media} showIcon={false} />
+                                                </ItemSeletor>
+                                            ))}
+                                        </SeletorGrade>
                                     </Dialog>
 
                                     <Dialog open={widgetPickerOpen} onOpenChange={setWidgetPickerOpen}>
@@ -1634,33 +1623,21 @@ return (
                                                 <LayoutTemplate className="h-4 w-4" /> Widget
                                             </Button>
                                         </DialogTrigger>
-                                        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-                                            <DialogHeader>
-                                                <DialogTitle>Selecionar Widget</DialogTitle>
-                                            </DialogHeader>
-                                            <ScrollArea className="flex-1 p-2">
-                                                <div className="grid grid-cols-3 gap-3">
-                                                    {availableWidgets.map(widget => (
-                                                        <div key={widget.id}
-                                                            className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
-                                                            onClick={() => handleAddWidget(widget as unknown as Widget)}
-                                                        >
-                                                            {(widget.thumbnail_url || (widget.config as WidgetConfig | null)?.backgroundImageLandscape) ? (
-                                                                <img src={widget.thumbnail_url || (widget.config as WidgetConfig | null)?.backgroundImageLandscape || ''} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex flex-col items-center justify-center bg-primary/10">
-                                                                    <LayoutTemplate className="h-6 w-6 text-primary mb-1" />
-                                                                    <span className="text-[10px] uppercase font-bold text-primary">{widget.widget_type}</span>
-                                                                </div>
-                                                            )}
-                                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] truncate text-white">
-                                                                {widget.name}
-                                                            </div>
+                                        <SeletorGrade titulo="Selecionar Widget" testId="seletor-widget"
+                                            vazio={availableWidgets.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum widget criado. Crie em Widgets.</p>}>
+                                            {availableWidgets.map(widget => (
+                                                <ItemSeletor key={widget.id} rotulo={widget.name} onClick={() => handleAddWidget(widget as unknown as Widget)}>
+                                                    {(widget.thumbnail_url || (widget.config as WidgetConfig | null)?.backgroundImageLandscape) ? (
+                                                        <img src={widget.thumbnail_url || (widget.config as WidgetConfig | null)?.backgroundImageLandscape || ''} className="w-full h-full object-cover" alt="" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex flex-col items-center justify-center bg-primary/10">
+                                                            <LayoutTemplate className="h-6 w-6 text-primary mb-1" />
+                                                            <span className="text-[10px] uppercase font-bold text-primary">{widget.widget_type}</span>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            </ScrollArea>
-                                        </DialogContent>
+                                                    )}
+                                                </ItemSeletor>
+                                            ))}
+                                        </SeletorGrade>
                                     </Dialog>
 
                                     <Dialog open={linkPickerOpen} onOpenChange={setLinkPickerOpen}>
@@ -1669,33 +1646,21 @@ return (
                                                 <ExternalLinkIcon className="h-4 w-4" /> Link
                                             </Button>
                                         </DialogTrigger>
-                                        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-                                            <DialogHeader>
-                                                <DialogTitle>Selecionar Link Externo</DialogTitle>
-                                            </DialogHeader>
-                                            <ScrollArea className="flex-1 p-2">
-                                                <div className="grid grid-cols-3 gap-3">
-                                                    {availableLinks.map(link => (
-                                                        <div key={link.id}
-                                                            className="aspect-video bg-muted rounded-lg relative overflow-hidden cursor-pointer group hover:ring-2 hover:ring-primary"
-                                                            onClick={() => handleAddExternalLink(link)}
-                                                        >
-                                                            {link.thumbnail_url ? (
-                                                                <img src={link.thumbnail_url} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex flex-col items-center justify-center bg-blue-500/10">
-                                                                    <ExternalLinkIcon className="h-6 w-6 text-blue-500 mb-1" />
-                                                                    <span className="text-[10px] uppercase font-bold text-blue-500">Link</span>
-                                                                </div>
-                                                            )}
-                                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] truncate text-white">
-                                                                {link.title}
-                                                            </div>
+                                        <SeletorGrade titulo="Selecionar Link Externo" testId="seletor-link"
+                                            vazio={availableLinks.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum link externo cadastrado.</p>}>
+                                            {availableLinks.map(link => (
+                                                <ItemSeletor key={link.id} rotulo={link.title} onClick={() => handleAddExternalLink(link)}>
+                                                    {link.thumbnail_url ? (
+                                                        <img src={link.thumbnail_url} className="w-full h-full object-cover" alt="" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex flex-col items-center justify-center bg-blue-500/10">
+                                                            <ExternalLinkIcon className="h-6 w-6 text-blue-500 mb-1" />
+                                                            <span className="text-[10px] uppercase font-bold text-blue-500">Link</span>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            </ScrollArea>
-                                        </DialogContent>
+                                                    )}
+                                                </ItemSeletor>
+                                            ))}
+                                        </SeletorGrade>
                                     </Dialog>
                                 </div>
                             </div>
@@ -1727,12 +1692,7 @@ return (
 
                                     {/* Playlist Picker Dialog */}
                                     <Dialog open={playlistPickerOpen} onOpenChange={setPlaylistPickerOpen}>
-                                        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-                                            <DialogHeader>
-                                                <DialogTitle>Selecionar Playlist</DialogTitle>
-                                            </DialogHeader>
-                                            <ScrollArea className="flex-1 p-2">
-                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        <SeletorGrade titulo="Selecionar Playlist" testId="seletor-playlist">
                                                     {availablePlaylists.map(playlist => (
                                                         <div key={playlist.id}
                                                             className="bg-card border border-border/50 rounded-lg p-3 cursor-pointer hover:ring-2 hover:ring-primary transition-all flex flex-col gap-2 group"
@@ -1762,9 +1722,7 @@ return (
                                                             Nenhuma playlist encontrada.
                                                         </div>
                                                     )}
-                                                </div>
-                                            </ScrollArea>
-                                        </DialogContent>
+                                        </SeletorGrade>
                                     </Dialog>
                                 </div>
                             ) : (

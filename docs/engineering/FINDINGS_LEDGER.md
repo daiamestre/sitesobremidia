@@ -676,3 +676,19 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **OF-F81-2 (compressão parada):** o workflow `compress-video` (repository_dispatch `novo_video`) não tem execuções, e todos os vídeos desde 25/09 ficam em `temp/`, inclusive os 7 anteriores a esta transferência. Eles tocam normalmente, mas "Açougue e Frigorífico 06" é 4K vertical (2160×3840, 174 MB), pesado para TV Box.
 - **OF-F81-3 (pastas vazias):** 11 pastas vazias (Datas Comemorativas, Loterias, Sorteios, Apostas Esportivas, SOBREMÍDIA NEWS, Esportes, Futebol, Brasileirão, Champions League, La Liga, Premier League) foram criadas na empresa pela outra sessão. Não foram alteradas; o proprietário decide se ficam.
 - **OF-F81-4 (diálogo de upload):** no envio múltiplo, todos os arquivos recebem o mesmo "Nome da Mídia", e as validações de nome, empresa e seguimento falham sem aviso visível. Registrado; a correção fica para a frente de UI, se o proprietário quiser.
+
+### F-82 — Seletores "Selecionar Mídia / Widget / Link Externo / Playlist" (detalhe da tela) sem rolagem e gigantes — FIXED
+- **Reprodução (1366×612):** a janela ficava com 1233 px de largura e as miniaturas com 382×215 px. O conteúdo tinha 958 px, mas só 406 px eram visíveis, com `overflow: hidden`, então não era possível rolar.
+- **Causas:**
+  1. a regra global `.flex, .grid { max-width: 100% }` em `src/index.css` anula `max-w-2xl`. Ela não foi alterada, porque é global;
+  2. o `ScrollArea` com `flex-1` e sem `min-h-0` crescia até o tamanho do conteúdo em vez de rolar.
+- **Correção mínima:** `src/components/screens/SeletorGrade.tsx`, com largura e altura por `style` inline, rolagem nativa (toque, roda do mouse e barra) e colunas automáticas. Os 4 diálogos de `ScreenDetails.tsx` passaram a usá-lo, com as mesmas ações de clique e avisos de lista vazia.
+- **Prova no navegador:**
+
+  | Tamanho | Colunas | Miniatura | Janela dentro da tela |
+  |---|---|---|---|
+  | PC 1366×612 | 5 | 175×99 | sim |
+  | Tablet 768×1024 | 4 | 152×85 | sim |
+  | Celular 375×812 | 2 | 145×82 | sim |
+
+  Em 740×360, o conteúdo tem 499 px e a área visível 226 px; a lista rolou 273 px e a última mídia ficou visível. Widget e Link sem itens mostram aviso de lista vazia.
