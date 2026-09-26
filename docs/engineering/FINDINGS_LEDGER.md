@@ -907,3 +907,7 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - vale para painel, Player web e Player 5.6.4 (551); os Players 5.6.3 ignoram o campo.
 - **Direitos:** as fotos das taças e a arte de referência foram fornecidas pelo proprietário, que responde pelo direito de uso comercial.
 - **Prova:** web 160/1620 (+2 testes do título na arte); JVM 205/205 (leitura de `fundoComTitulo`).
+- **Encaixe validado no Player** (`EsportesRenderTest`, dados reais de 19/09):
+  - O 1º desenho mostrou o subtítulo sobre o letreiro da arte. O espaço reservado passou a 25% da altura na horizontal (linhas a 80%) e 30% na vertical, com o subtítulo centralizado na vertical.
+  - Resultado: taça + nome da arte, depois "RESULTADOS E PRÓXIMOS JOGOS" e os jogos, sem sobreposição (evidência `player564_*_arte.png`).
+- **Release 5.6.4 (551):** SHA-256 `2d0ca099d6f9d20486d115e74dbbf0fb4b46ade64ebfbf1c9ab70114f50db04b`, certificado de produção. Substitui a 5.6.3 no OTA pendente (aguarda a publicação do APK pelo proprietário).

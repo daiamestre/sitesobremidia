@@ -172,8 +172,8 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
           {tituloNaArte ? (
             <div data-testid="sports-titulo-na-arte">
               <h2 className="sr-only" data-testid="sports-competicao">{pagina.competicao}</h2>
-              <div style={{ height: vertical ? '17cqh' : '21cqh' }} />
-              <p className="text-[3cqmin] font-bold uppercase tracking-[0.18em] text-white/90" data-testid="sports-subtitulo">Resultados e próximos jogos</p>
+              <div style={{ height: vertical ? '30cqh' : '25cqh' }} />
+              <p className={cn('text-[3cqmin] font-bold uppercase tracking-[0.18em] text-white/90', vertical && 'text-center')} data-testid="sports-subtitulo">Resultados e próximos jogos</p>
             </div>
           ) : (
             <div className="border-l-[0.9cqmin] pl-[1.8cqmin]" style={{ borderColor: c.selo }}>
@@ -181,7 +181,7 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
               <p className="mt-[0.8cqmin] text-[3.2cqmin] font-semibold text-white/85" data-testid="sports-subtitulo">Resultados e próximos jogos</p>
             </div>
           )}
-          <div className="mt-[1.8cqmin] flex min-h-0 flex-1 flex-col justify-center gap-[1.6cqmin]" style={tituloNaArte && !vertical ? { zoom: 0.86 } : undefined}>
+          <div className="mt-[1.8cqmin] flex min-h-0 flex-1 flex-col justify-center gap-[1.6cqmin]" style={tituloNaArte && !vertical ? { zoom: 0.8 } : undefined}>
             {pagina.resultados.length > 0 && (
               <Secao titulo="RESULTADOS" cor={c.selo}>
                 {pagina.resultados.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} escuro={temaAtivo} encerrado />)}

@@ -1333,8 +1333,8 @@ object NativeWidgetEngine {
             val tituloNaArte = tema && dados.fundos[slugPagina] != null && spec.esportes?.competicoes?.firstOrNull { it.slug == slugPagina }?.fundoComTitulo == true
             val vertical = h > w * 1.2f
             area.addView(paginaEsportes(context, dados.paginas[indice], dados.hoje, dados.escudos, base, cores, tema,
-                espacoTitulo = if (tituloNaArte) px(h * (if (vertical) 0.17f else 0.21f)) else 0,
-                escala = if (tituloNaArte && !vertical) 0.86f else 1f),
+                espacoTitulo = if (tituloNaArte) px(h * (if (vertical) 0.3f else 0.25f)) else 0,
+                escala = if (tituloNaArte && !vertical) 0.8f else 1f, centralizarSubtitulo = vertical),
                 FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             contador.text = if (total > 1) "${indice + 1}/$total" else ""
             gravarCursorEsportes(context.applicationContext, spec.widgetId, EsportesPaginas.cursorDepois(indice, total, dados.hoje))
@@ -1363,13 +1363,13 @@ object NativeWidgetEngine {
 
     private fun paginaEsportes(
         context: Context, p: PaginaEsportes, hoje: String, escudos: Map<String, Bitmap>, base: Float, cores: CoresWidget,
-        escuro: Boolean = false, espacoTitulo: Int = 0, escala: Float = 1f
+        escuro: Boolean = false, espacoTitulo: Int = 0, escala: Float = 1f, centralizarSubtitulo: Boolean = false
     ): View {
         val pagina = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         if (espacoTitulo > 0) {
             pagina.addView(View(context), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, espacoTitulo))
             pagina.addView(text(context, base * 0.03f, bold = true, color = Color.argb(230, 255, 255, 255)).apply {
-                text = "RESULTADOS E PRÓXIMOS JOGOS"; gravity = Gravity.START; letterSpacing = 0.18f
+                text = "RESULTADOS E PRÓXIMOS JOGOS"; gravity = if (centralizarSubtitulo) Gravity.CENTER else Gravity.START; letterSpacing = 0.18f
             }, lp())
             val corpoArte = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
             pagina.addView(corpoArte, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
