@@ -922,3 +922,5 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - As fontes continuam registradas no banco (`creditos`) e nesta documentação.
   - Nota: os fatos de jogo (placares, datas) vêm do openfootball (CC0) e da Wikipédia; não há texto da Wikipédia reproduzido na tela.
 - **Prova:** web 160/1622 (+2 testes: sem rodapé visível; rótulos centralizados); JVM 205/205.
+- **Validação no Player 5.6.5** (`EsportesRenderTest`, dados reais de 19/09): Premier League (16:9) e La Liga (9:16) com a taça na arte, subtítulo e rótulos centralizados, sem rodapé.
+- **Release 5.6.5 (552):** SHA-256 `de9d47537106656bce28bb013fe303715242f4afb076c3e50a8c30147fc52399`, certificado de produção. Substitui a 5.6.4 no OTA pendente.
