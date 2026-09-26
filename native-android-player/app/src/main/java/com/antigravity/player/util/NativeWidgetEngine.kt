@@ -89,7 +89,11 @@ object NativeWidgetEngine {
     private data class WeatherPayload(val now: WeatherNow?, val place: String?, val forecast: WeatherForecast? = null)
     private data class RssPayload(val items: List<RssItem>, val source: String, val rotulo: String = "NOTÍCIAS")
     /** Esportes v2: todas as páginas, as 3 desta exibição (a partir do cursor) e os escudos delas já carregados. */
-    private data class EsportesPayload(val paginas: List<PaginaEsportes>, val indices: List<Int>, val hoje: String, val escudos: Map<String, Bitmap>)
+    private data class EsportesPayload(
+        val paginas: List<PaginaEsportes>, val indices: List<Int>, val hoje: String, val escudos: Map<String, Bitmap>,
+        /** slug -> fundo do campeonato já carregado (vazio quando o widget tem imagem de fundo própria). */
+        val fundos: Map<String, Bitmap> = emptyMap()
+    )
 
     /**
      * Tamanho em que o widget vai aparecer. O contêiner costuma ainda não ter sido medido (0x0) quando o widget é
@@ -117,7 +121,7 @@ object NativeWidgetEngine {
                 WidgetKind.OFFER -> loadOfertaFotos(appContext, spec)
                 WidgetKind.ADVERTISING -> loadCriativos(appContext, spec, w, h)
                 WidgetKind.SOCIAL -> loadPostImagem(appContext, spec)
-                WidgetKind.SPORTS -> loadEsportes(appContext, spec)
+                WidgetKind.SPORTS -> loadEsportes(appContext, spec, w, h)
                 else -> null
             }
         }
@@ -1229,7 +1233,7 @@ object NativeWidgetEngine {
     }
 
     /** Páginas desta exibição (continua de onde a anterior parou) e os escudos delas, fora da thread principal. */
-    private suspend fun loadEsportes(context: Context, spec: WidgetSpec): EsportesPayload? = coroutineScope {
+    private suspend fun loadEsportes(context: Context, spec: WidgetSpec, w: Int, h: Int): EsportesPayload? = coroutineScope {
         val dados = spec.esportes ?: return@coroutineScope null
         if (dados.layout < 2) return@coroutineScope null
         val agora = TimeManager.utcMillis()
@@ -1247,12 +1251,32 @@ object NativeWidgetEngine {
                     Logger.w("WIDGET", "Escudo indisponível ($u): ${e.message}"); null
                 }
             }
-        }.mapNotNull { it.await().let { (u, b) -> b?.let { u to it } } }.toMap()
+        }
+        // Fundo de cada campeonato destas páginas (F-87), na orientação da tela — só se o widget não tem fundo próprio.
+        val vertical = h > w * 1.2f
+        val usarTema = spec.backgroundFor(w >= h) == null
+        val fundosAsync = if (!usarTema) emptyList() else indices.map { paginas[it].slug }.distinct().mapNotNull { slug ->
+            val c = dados.competicoes.firstOrNull { it.slug == slug } ?: return@mapNotNull null
+            val url = (if (vertical) c.fundoV else c.fundoH) ?: return@mapNotNull null
+            async(Dispatchers.IO) {
+                slug to try {
+                    Glide.with(context).asBitmap().load(url).apply(RequestOptions().centerCrop())
+                        .submit(min(w, 1920).coerceAtLeast(320), min(h, 1920).coerceAtLeast(320)).get(ESCUDO_TIMEOUT_S, TimeUnit.SECONDS)
+                } catch (e: Exception) {
+                    Logger.w("WIDGET", "Fundo do campeonato indisponível ($url): ${e.message}"); null
+                }
+            }
+        }
+        val escudosProntos = escudos.mapNotNull { it.await().let { (u, b) -> b?.let { u to it } } }.toMap()
+        val fundos = fundosAsync.mapNotNull { it.await().let { (s, b) -> b?.let { s to it } } }.toMap()
         // Os demais escudos da janela vão para o cache de disco em segundo plano (sem esperar): próximas páginas e exibições.
         dados.janela.flatMap { listOf(it.escudoMandante, it.escudoVisitante) }.filterNotNull().distinct()
             .filter { it !in urls && escudosAquecidos.add(it) }
             .forEach { u -> runCatching { Glide.with(context).downloadOnly().load(u).submit() } }
-        EsportesPayload(paginas, indices, hoje, escudos)
+        if (usarTema) dados.competicoes.mapNotNull { if (vertical) it.fundoV else it.fundoH }
+            .filter { escudosAquecidos.add(it) }
+            .forEach { u -> runCatching { Glide.with(context).downloadOnly().load(u).submit() } }
+        EsportesPayload(paginas, indices, hoje, escudosProntos, fundos)
     }
 
     /**
@@ -1263,7 +1287,18 @@ object NativeWidgetEngine {
     private fun buildSportsV2(context: Context, spec: WidgetSpec, bg: Bitmap?, base: Float, dados: EsportesPayload): View {
         val cores = spec.cores ?: CoresWidget.PADRAO
         val creditos = spec.esportes?.creditos ?: "Dados: openfootball (CC0) · Wikipédia (CC BY-SA)"
-        val root = fundoMarca(context, bg, base, cores)
+        val tema = bg == null && dados.fundos.isNotEmpty()
+        val root = if (tema) FrameLayout(context).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(cores.c1, cores.c2, cores.c3))
+        } else fundoMarca(context, bg, base, cores)
+        // Fundo do campeonato da página (troca junto com a página); véu escuro por cima para a leitura.
+        val fundoTema = ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+        if (tema) {
+            root.addView(fundoTema, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            root.addView(View(context).apply {
+                background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.argb(90, 0, 0, 0), Color.argb(46, 0, 0, 0), Color.argb(115, 0, 0, 0)))
+            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
         val col = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             val pad = px(base * 0.04f); setPadding(pad, pad, pad, pad)
@@ -1289,7 +1324,11 @@ object NativeWidgetEngine {
         val total = dados.paginas.size
         fun mostrar(indice: Int) {
             area.removeAllViews()
-            area.addView(paginaEsportes(context, dados.paginas[indice], dados.hoje, dados.escudos, base, cores),
+            if (tema) {
+                val f = dados.fundos[dados.paginas[indice].slug]
+                fundoTema.setImageBitmap(f); fundoTema.visibility = if (f != null) View.VISIBLE else View.INVISIBLE
+            }
+            area.addView(paginaEsportes(context, dados.paginas[indice], dados.hoje, dados.escudos, base, cores, tema),
                 FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             contador.text = if (total > 1) "${indice + 1}/$total" else ""
             gravarCursorEsportes(context.applicationContext, spec.widgetId, EsportesPaginas.cursorDepois(indice, total, dados.hoje))
@@ -1316,7 +1355,7 @@ object NativeWidgetEngine {
         return root
     }
 
-    private fun paginaEsportes(context: Context, p: PaginaEsportes, hoje: String, escudos: Map<String, Bitmap>, base: Float, cores: CoresWidget): View {
+    private fun paginaEsportes(context: Context, p: PaginaEsportes, hoje: String, escudos: Map<String, Bitmap>, base: Float, cores: CoresWidget, escuro: Boolean = false): View {
         val pagina = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val titulo = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         titulo.addView(View(context).apply { setBackgroundColor(cores.selo) },
@@ -1342,19 +1381,20 @@ object NativeWidgetEngine {
             cab.addView(View(context).apply { setBackgroundColor(CoresWidget.comAlfa(cores.selo, 128)) },
                 LinearLayout.LayoutParams(0, px(base * 0.0015f).coerceAtLeast(1), 1f).apply { marginStart = px(base * 0.012f) })
             corpo.addView(cab, lp(top = topo))
-            jogos.forEach { j -> corpo.addView(linhaJogoV2(context, j, hoje, escudos, base, cores, encerrado), lp(top = px(base * 0.01f))) }
+            jogos.forEach { j -> corpo.addView(linhaJogoV2(context, j, hoje, escudos, base, cores, encerrado, escuro), lp(top = px(base * 0.01f))) }
         }
         secao("RESULTADOS", p.resultados, true, 0)
         secao("PRÓXIMOS JOGOS", p.proximos, false, if (p.resultados.isEmpty()) 0 else px(base * 0.018f))
         return pagina
     }
 
-    private fun linhaJogoV2(context: Context, j: JogoEsporte, hoje: String, escudos: Map<String, Bitmap>, base: Float, cores: CoresWidget, encerrado: Boolean): View {
+    private fun linhaJogoV2(context: Context, j: JogoEsporte, hoje: String, escudos: Map<String, Bitmap>, base: Float, cores: CoresWidget, encerrado: Boolean, escuro: Boolean = false): View {
         val linha = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             background = GradientDrawable().apply {
-                setColor(Color.argb(23, 255, 255, 255)); cornerRadius = base * 0.014f
-                setStroke(px(base * 0.002f).coerceAtLeast(1), CoresWidget.comAlfa(cores.brilho, 90))
+                // Sobre a arte do campeonato: linha escura translúcida para a leitura
+                setColor(if (escuro) Color.argb(158, 6, 10, 22) else Color.argb(23, 255, 255, 255)); cornerRadius = base * 0.014f
+                setStroke(px(base * 0.002f).coerceAtLeast(1), CoresWidget.comAlfa(cores.brilho, if (escuro) 70 else 90))
             }
             val ph = px(base * 0.02f); val pv = px(base * 0.009f); setPadding(ph, pv, ph, pv)
         }

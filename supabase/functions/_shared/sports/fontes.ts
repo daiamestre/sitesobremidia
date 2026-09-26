@@ -90,3 +90,72 @@ export function parseFootballBoxes(wikitext: string): JogoWikiBox[] {
   }
   return out;
 }
+
+// ------------------------------------------------------------------ Caixas clássicas (en.wikipedia, Copa do Brasil — F-87)
+
+const MESES_EN: Record<string, string> = {
+  january: '01', february: '02', march: '03', april: '04', may: '05', june: '06',
+  july: '07', august: '08', september: '09', october: '10', november: '11', december: '12',
+};
+
+/** "17 March 2026", "March 17, 2026" ou {{Start date|2026|3|17}} -> "2026-03-17"; qualquer outra coisa -> null. */
+export function lerDataEn(valor: string): string | null {
+  const sd = /\{\{\s*Start date\s*\|\s*(\d{4})\s*\|\s*(\d{1,2})\s*\|\s*(\d{1,2})/i.exec(valor);
+  if (sd) return `${sd[1]}-${sd[2].padStart(2, '0')}-${sd[3].padStart(2, '0')}`;
+  const t = limpar(valor);
+  let m = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(t);
+  if (m && MESES_EN[m[2].toLowerCase()]) return `${m[3]}-${MESES_EN[m[2].toLowerCase()]}-${m[1].padStart(2, '0')}`;
+  m = /^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/.exec(t);
+  if (m && MESES_EN[m[1].toLowerCase()]) return `${m[3]}-${MESES_EN[m[1].toLowerCase()]}-${m[2].padStart(2, '0')}`;
+  return null;
+}
+
+/** Placar do tempo normal no início do campo: "2–1", "1–1 (4–3 p)" -> [1,1]; ilegível -> null. */
+function placarInicial(valor: string): Placar | null {
+  const m = /^(\d{1,2})\s*[–—-]\s*(\d{1,2})(?:\s|$|\()/.exec(limpar(valor) + ' ');
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+
+export interface OpcoesCaixaClassica {
+  /** rótulo da Wikipédia -> nome de exibição (igual ao usado no Brasileirão, p/ o mesmo escudo conferido). */
+  exibicao?: Record<string, string>;
+  /** Cidades fora do horário de Brasília: o horário da fonte pode ser local, então o jogo não entra. */
+  locaisForaDoFuso?: string[];
+}
+
+/** Rótulo visível do time: sem links, negrito/itálico e predefinições (bandeiras). */
+export function rotuloDoTime(valor: string): string {
+  return limpar(valor.replace(/\{\{[^}]*\}\}/g, '')).replace(/'{2,}/g, '').trim();
+}
+
+/**
+ * Caixas {{football box collapsible}} / {{footballbox}} (usadas na página da Copa do Brasil em inglês).
+ * Só jogos com data legível; hora "HH:MM" tratada como horário de Brasília — por isso horário com outro UTC declarado ou
+ * jogo em cidade de outro fuso fica de fora (nunca publicar horário errado).
+ */
+export function parseCaixasClassicas(wikitext: string, op: OpcoesCaixaClassica = {}): JogoWikiBox[] {
+  const fora = (op.locaisForaDoFuso ?? []).map((c) => c.toLowerCase());
+  const out: JogoWikiBox[] = [];
+  for (const b of wikitext.matchAll(/\{\{\s*football\s?box(?:\s+collapsible)?\s*\n([\s\S]*?)\n\}\}/gi)) {
+    const bloco = b[1];
+    const campo = (k: string) => { const m = new RegExp('(?:^|\\n)\\s*\\|\\s*' + k + '\\s*=([^\\n]*)').exec(bloco); return m ? m[1].trim() : ''; };
+    const data = lerDataEn(campo('date'));
+    if (!data) continue;
+    const horaBruta = limpar(campo('time'));
+    const utc = /UTC\s*([+−-])\s*(\d{1,2})/i.exec(horaBruta);
+    if (utc && !(utc[1] !== '+' && utc[2] === '3')) continue; // horário declarado em outro fuso
+    const local = `${limpar(campo('location'))} ${limpar(campo('stadium'))}`.toLowerCase();
+    if (fora.some((c) => local.includes(c))) continue;
+    const h = /^(\d{1,2}):(\d{2})/.exec(horaBruta);
+    const ex = op.exibicao ?? {};
+    const r1 = rotuloDoTime(campo('team1'));
+    const r2 = rotuloDoTime(campo('team2'));
+    if (!r1 || !r2) continue;
+    out.push({
+      data, hora: h ? `${h[1].padStart(2, '0')}:${h[2]}` : null,
+      mandante: ex[r1] ?? r1, visitante: ex[r2] ?? r2,
+      placar: placarInicial(campo('score')), estadio: limpar(campo('stadium')).split(',')[0] || null,
+    });
+  }
+  return out;
+}

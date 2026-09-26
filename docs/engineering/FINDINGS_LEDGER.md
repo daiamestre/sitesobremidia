@@ -857,3 +857,31 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - O original em `temp/` continua disponível.
   - Não estava em playlist nenhuma, então nenhuma tela precisou baixar de novo.
   - Os demais vídeos não foram reprocessados em massa: já são leves, e os que estão em playlist fariam as telas baixarem tudo de novo. Os envios novos passam pelo pipeline automaticamente.
+
+### F-87 — Esportes: tudo aparece junto, fundos temáticos por campeonato, Copa do Brasil e escudo só conferido — DONE (Player 5.6.3)
+- **Escudos aparecendo aos poucos (painel e Player web):**
+  - Causa: cada escudo era um `<img>` carregado na hora em que a linha aparecia.
+  - Correção: ao chegar os dados, todos os escudos da janela e os fundos são baixados e decodificados antes da 1ª página (cache em memória; limite de segurança de 8 s). A troca de página não carrega mais nada e os 8 s só contam depois disso.
+  - Teste `esportesWidget` "tudo aparece junto": com imagens de teste lentas, nenhuma linha aparece antes; depois, todas de uma vez com o fundo do campeonato.
+  - No Android, o widget já era montado depois de carregar os escudos da exibição; agora também espera os fundos, e aquece no cache de disco os escudos e fundos da janela inteira para funcionar sem internet.
+- **Fundos temáticos:**
+  - Arte própria por campeonato (Brasileirão, Copa do Brasil, Premier League, La Liga, Champions): estádio à noite com refletores, arquibancada com torcida desfocada, gramado com as linhas, bola e a taça estilizada de cada competição.
+  - Em 16:9 e 9:16, ~45 KB cada, servidos pelo site (`public/esportes/fundos`; gerador em `evidence/F-86_esportes_v2/gerador_fundos.mjs`).
+  - Sem logotipos oficiais: os do Brasileirão e da La Liga levam patrocinador, inclusive de apostas.
+  - O widget troca o fundo a cada campeonato; uma imagem de fundo escolhida no widget continua tendo prioridade.
+  - Migração `20261257`: colunas `fundo_h_url`/`fundo_v_url` e `competicoes[].fundoH/fundoV` no payload (aditivo).
+- **Copa do Brasil (masculino):**
+  - A Wikipédia em português só tem as chaves, sem data nem horário por jogo; o openfootball 2026 não tem a Copa.
+  - A página "2026 Copa do Brasil" em inglês tem uma caixa por jogo, com data e horário.
+  - Configuração PARTIAL, como a Champions: publica o que duas revisões (≥ 30 min) confirmam.
+  - Parser novo `parseCaixasClassicas`, só para essa competição: horário tratado como de Brasília; jogos em cidade de outro fuso (MT, MS, RO, AM, RR, AC) ou com outro UTC declarado ficam de fora, para nunca mostrar horário errado.
+  - Nomes padronizados com o Brasileirão (Atlético-MG, Athletico-PR, Vasco, Bragantino).
+  - Execução real: 133 jogos lidos (17 fora por fuso), **132 publicados**, 1 pendente (Grêmio × Internacional da volta, sem placar na fonte). Quartas conferem com a imagem de referência do proprietário.
+  - As semifinais (1º e 8/11) já têm confrontos sorteados, mas ainda sem caixa com data e horário na fonte: entram assim que a fonte publicar.
+- **Escudo só conferido:**
+  - O payload só leva o escudo com `verificado_em`; sem conferência, as iniciais.
+  - Conferência visual dos 93 escudos novos da Copa (5 páginas): todos corretos. **179/179 conferidos**; Maranhão fica sem escudo (a fonte só tem GIF).
+- **Sincronização de escudos:** a Wikimedia recusava rajadas (429). Agora um download por vez, com intervalo, nova tentativa e aceite de JPG.
+- **Prova:**
+  - Testes web 160 arquivos / 1618; `copaDoBrasil` (5, com uma caixa real da página).
+  - JVM 205/205, inclusive a leitura dos fundos (só https).

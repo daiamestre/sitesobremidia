@@ -54,6 +54,7 @@ export const MODO_DO_MODELO_ESPORTES: Record<string, 'resultados' | 'proximos' |
 
 export const COMPETICOES_ESPORTES = [
   { slug: 'brasileirao', nome: 'Brasileirão Série A' },
+  { slug: 'copa-do-brasil', nome: 'Copa do Brasil' },
   { slug: 'premier-league', nome: 'Premier League' },
   { slug: 'la-liga', nome: 'La Liga' },
   { slug: 'champions-league', nome: 'Champions League' },

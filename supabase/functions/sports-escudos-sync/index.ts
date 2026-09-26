@@ -9,12 +9,24 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { COMPETICOES, USER_AGENT } from '../_shared/sports/competicoes.ts';
-import { caminhoEscudo, timesDaTabela, timesDosBoxes, type TimeDaFonte } from '../_shared/sports/escudos.ts';
+import { caminhoEscudo, timesDaTabela, timesDasCaixasClassicas, timesDosBoxes, type TimeDaFonte } from '../_shared/sports/escudos.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 const SEGREDO = Deno.env.get('CONTENT_ENGINE_SECRET');
 const BUCKET = 'escudos-times';
 const LIMITE_BYTES = 262144;
+/** A Wikimedia recusa (429) rajadas de downloads: um por vez, com intervalo, e nova tentativa após espera. */
+const INTERVALO_MS = 350;
+const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
+async function baixar(url: string): Promise<Response> {
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    const r = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    if (r.status !== 429) return r;
+    await r.body?.cancel();
+    await espera(2000 * (tentativa + 1));
+  }
+  return fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+}
 
 const resposta = (status: number, corpo: unknown) =>
   new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } });
@@ -60,7 +72,8 @@ Deno.serve(async (req) => {
       if (!nomes?.size) continue;
       const host = cfg.wikipedia.host;
       const wt = (await api(host, { action: 'parse', page: cfg.wikipedia.pagina, prop: 'wikitext', redirects: '1' })).parse.wikitext as string;
-      const fonte: TimeDaFonte[] = cfg.wikipedia.tipo === 'tabela' ? timesDaTabela(wt, cfg.exibicao) : timesDosBoxes(wt);
+      const fonte: TimeDaFonte[] = cfg.wikipedia.tipo === 'tabela' ? timesDaTabela(wt, cfg.exibicao)
+        : cfg.wikipedia.formato === 'classico' ? timesDasCaixasClassicas(wt, cfg.exibicaoPorRotulo) : timesDosBoxes(wt);
       const porRotulo = new Map(fonte.map((t) => [t.rotulo, t]));
       for (const nome of nomes) {
         if (alvo.has(nome)) continue;
@@ -117,12 +130,14 @@ Deno.serve(async (req) => {
         continue;
       }
       try {
-        const img = await fetch(r.thumb, { headers: { 'User-Agent': USER_AGENT } });
+        await espera(INTERVALO_MS);
+        const img = await baixar(r.thumb);
         const tipo = img.headers.get('content-type') ?? '';
         const bytes = new Uint8Array(await img.arrayBuffer());
-        if (!img.ok || !tipo.startsWith('image/png') || bytes.length === 0 || bytes.length > LIMITE_BYTES) throw new Error(`imagem ${img.status} ${tipo} ${bytes.length}`);
-        const caminho = caminhoEscudo(r.nome, r.sha1);
-        const up = await db.storage.from(BUCKET).upload(caminho, bytes, { contentType: 'image/png', upsert: true, cacheControl: '31536000' });
+        const png = tipo.startsWith('image/png');
+        if (!img.ok || !(png || tipo.startsWith('image/jpeg')) || bytes.length === 0 || bytes.length > LIMITE_BYTES) throw new Error(`imagem ${img.status} ${tipo} ${bytes.length}`);
+        const caminho = png ? caminhoEscudo(r.nome, r.sha1) : caminhoEscudo(r.nome, r.sha1).replace(/\.png$/, '.jpg');
+        const up = await db.storage.from(BUCKET).upload(caminho, bytes, { contentType: png ? 'image/png' : 'image/jpeg', upsert: true, cacheControl: '31536000' });
         if (up.error) throw up.error;
         const url = db.storage.from(BUCKET).getPublicUrl(caminho).data.publicUrl;
         const { error } = await db.from('content_sports_teams').upsert({

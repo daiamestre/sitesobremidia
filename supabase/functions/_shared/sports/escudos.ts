@@ -1,4 +1,4 @@
-import { limpar } from './fontes.ts';
+import { limpar, rotuloDoTime } from './fontes.ts';
 
 /**
  * Escudos oficiais (F-86): nome do time gravado nos jogos -> artigo do clube na Wikipédia.
@@ -32,6 +32,22 @@ export function timesDosBoxes(wikitext: string): TimeDaFonte[] {
       const m = new RegExp('\\n\\s*\\|\\s*' + k + '\\s*=([^\\n]*)').exec(b);
       if (!m) continue;
       const rotulo = limpar(m[1].trim());
+      const artigo = primeiroLink(m[1]);
+      if (rotulo && artigo && !vistos.has(rotulo)) vistos.set(rotulo, { rotulo, artigo, predefinicao: null });
+    }
+  }
+  return [...vistos.values()];
+}
+
+/** Caixas clássicas (Copa do Brasil, en.wikipedia): team1/team2 = "'''[[Artigo|Rótulo]]'''"; rótulo -> nome de exibição. */
+export function timesDasCaixasClassicas(wikitext: string, exibicao: Record<string, string> = {}): TimeDaFonte[] {
+  const vistos = new Map<string, TimeDaFonte>();
+  for (const b of wikitext.matchAll(/\{\{\s*football\s?box(?:\s+collapsible)?\s*\n([\s\S]*?)\n\}\}/gi)) {
+    for (const k of ['team1', 'team2']) {
+      const m = new RegExp('(?:^|\\n)\\s*\\|\\s*' + k + '\\s*=([^\\n]*)').exec(b[1]);
+      if (!m) continue;
+      const r = rotuloDoTime(m[1]);
+      const rotulo = exibicao[r] ?? r;
       const artigo = primeiroLink(m[1]);
       if (rotulo && artigo && !vistos.has(rotulo)) vistos.set(rotulo, { rotulo, artigo, predefinicao: null });
     }

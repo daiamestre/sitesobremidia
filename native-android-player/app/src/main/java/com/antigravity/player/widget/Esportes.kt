@@ -33,7 +33,8 @@ data class JogoEsporte(
     val ordemCompeticao: Int = 99
 )
 
-data class CompeticaoEsporte(val slug: String, val nome: String, val ordem: Int)
+/** fundoH/fundoV (F-87): arte do campeonato (estádio, gramado, bola, taça) em 16:9 e 9:16; null = fundo de marca. */
+data class CompeticaoEsporte(val slug: String, val nome: String, val ordem: Int, val fundoH: String? = null, val fundoV: String? = null)
 
 /**
  * layout 2 (F-86): janela D-3..D+9 por campeonato (o Player recorta pelo próprio relógio). layout 1 = lista antiga (modo).
@@ -81,7 +82,8 @@ object EsportesText {
         val competicoes = (o["competicoes"] as? JsonArray).orEmpty().mapNotNull { e ->
             val c = e as? JsonObject ?: return@mapNotNull null
             val slug = s(c, "slug") ?: return@mapNotNull null
-            CompeticaoEsporte(slug, s(c, "nome") ?: slug, i(c, "ordem") ?: 99)
+            CompeticaoEsporte(slug, s(c, "nome") ?: slug, i(c, "ordem") ?: 99,
+                s(c, "fundoH")?.takeIf { it.startsWith("https://") }, s(c, "fundoV")?.takeIf { it.startsWith("https://") })
         }
         return DadosEsportes(
             modo = s(o, "modo")?.takeIf { it in setOf("resultados", "proximos", "hoje") } ?: "resultados",

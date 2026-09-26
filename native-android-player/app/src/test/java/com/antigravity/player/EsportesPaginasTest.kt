@@ -86,7 +86,7 @@ class EsportesPaginasTest {
 
     @Test fun `le a janela v2 com escudos e competicoes do servidor`() {
         val json = Json.parseToJsonElement(
-            """{"modo":"resultados","layout":2,"jogos":[],"competicoes":[{"slug":"brasileirao","nome":"Brasileirão Série A","ordem":0}],
+            """{"modo":"resultados","layout":2,"jogos":[],"competicoes":[{"slug":"brasileirao","nome":"Brasileirão Série A","ordem":0,"fundoH":"https://sitesobremidia.vercel.app/esportes/fundos/brasileirao-h.jpg","fundoV":"http://inseguro/v.jpg"}],
                "janela":[{"slug":"brasileirao","competicao":"Brasileirão Série A","codigo":"BSA","ordemCompeticao":0,"mandante":"Flamengo","visitante":"Palmeiras",
                "placarMandante":2,"placarVisitante":1,"status":"FINISHED","data":"2026-10-07","hora":"19:00","kickoffUtc":"2026-10-07T22:00:00+00:00",
                "escudoMandante":"https://x.supabase.co/storage/v1/object/public/escudos-times/flamengo.png","escudoVisitante":"http://inseguro/p.png"}]}"""
@@ -94,6 +94,8 @@ class EsportesPaginasTest {
         val d = EsportesText.parse(json)!!
         assertEquals(2, d.layout)
         assertEquals("Brasileirão Série A", d.competicoes.single().nome)
+        assertEquals("https://sitesobremidia.vercel.app/esportes/fundos/brasileirao-h.jpg", d.competicoes.single().fundoH)
+        assertEquals(null, d.competicoes.single().fundoV) // só https
         val j = d.janela.single()
         assertEquals("https://x.supabase.co/storage/v1/object/public/escudos-times/flamengo.png", j.escudoMandante)
         assertEquals(null, j.escudoVisitante) // só https

@@ -9,8 +9,8 @@
  * Corpo opcional: { "trigger": "cron" | "manual", "forcar": true, "competicoes": ["brasileirao"] }
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
-import { COMPETICOES, OPENFOOTBALL_REPO, USER_AGENT, type ConfigCompeticao } from '../_shared/sports/competicoes.ts';
-import { parseFootballBoxes, parseOpenfootball, parseTabelaWiki } from '../_shared/sports/fontes.ts';
+import { COMPETICOES, LOCAIS_FORA_DE_BRASILIA, OPENFOOTBALL_REPO, USER_AGENT, type ConfigCompeticao } from '../_shared/sports/competicoes.ts';
+import { parseCaixasClassicas, parseFootballBoxes, parseOpenfootball, parseTabelaWiki } from '../_shared/sports/fontes.ts';
 import { reconciliarBoxes, reconciliarLiga, type Publicado, type Resultado } from '../_shared/sports/reconciliacao.ts';
 import { PARSER_VERSION, type JogoOpenfootball, type JogoWikiBox, type Leitura, type PartidaCanonica } from '../_shared/sports/tipos.ts';
 
@@ -240,7 +240,10 @@ async function processar(cfg: ConfigCompeticao, comp: { id: string; last_sync_at
       throw e;
     }
   } else {
-    // --- Champions (PARTIAL): revisão atual + revisão >= 30 min mais antiga
+    // --- Champions / Copa do Brasil (PARTIAL): revisão atual + revisão >= 30 min mais antiga
+    const lerCaixas = (wt: string) => cfg.wikipedia.formato === 'classico'
+      ? parseCaixasClassicas(wt, { exibicao: cfg.exibicaoPorRotulo, locaisForaDoFuso: LOCAIS_FORA_DE_BRASILIA })
+      : parseFootballBoxes(wt);
     const revs = await wikiRevisoes(cfg.wikipedia.host, cfg.wikipedia.pagina, 50);
     const atualRev = revs[0];
     const anteriorRev = revs.find((r) => Date.parse(atualRev.timestamp) - Date.parse(r.timestamp) >= REVISAO_MIN_DIFERENCA_MS) ?? null;
@@ -248,9 +251,9 @@ async function processar(cfg: ConfigCompeticao, comp: { id: string; last_sync_at
     if (!forcar && recente && ultima?.last_version === String(atualRev.revid)) return { competicao: cfg.slug, status: 'SEM_MUDANCA' };
     let atual: { leitura: Leitura; jogos: JogoWikiBox[] }; let anterior: { leitura: Leitura; jogos: JogoWikiBox[] } | null = null;
     try {
-      atual = { leitura: wikiLeitura(cfg.wikipedia.host, cfg.wikipedia.pagina, atualRev), jogos: parseFootballBoxes(await wikiTexto(cfg.wikipedia.host, atualRev.revid)) };
+      atual = { leitura: wikiLeitura(cfg.wikipedia.host, cfg.wikipedia.pagina, atualRev), jogos: lerCaixas(await wikiTexto(cfg.wikipedia.host, atualRev.revid)) };
       if (!atual.jogos.length) throw new Error('wikipedia_sem_jogos_ou_formato_mudou');
-      if (anteriorRev) anterior = { leitura: wikiLeitura(cfg.wikipedia.host, cfg.wikipedia.pagina, anteriorRev), jogos: parseFootballBoxes(await wikiTexto(cfg.wikipedia.host, anteriorRev.revid)) };
+      if (anteriorRev) anterior = { leitura: wikiLeitura(cfg.wikipedia.host, cfg.wikipedia.pagina, anteriorRev), jogos: lerCaixas(await wikiTexto(cfg.wikipedia.host, anteriorRev.revid)) };
     } catch (e) {
       await registrarSaude('wikipedia', cfg.slug, 'FAILED', { failure_reason: String((e as Error).message ?? e) });
       throw e;

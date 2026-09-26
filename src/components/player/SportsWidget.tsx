@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { coresDoConfig, gradienteDe, rgba, type CoresWidget } from '@/lib/widgetPaletas';
 import type { WidgetConfig } from '@/types/models';
@@ -17,6 +17,27 @@ function lerCursor(widgetId?: string): CursorEsportes | null {
     return v && typeof v.dia === 'string' && Number.isInteger(v.proxima) ? v : null;
   } catch { return null; }
 }
+/**
+ * Pré-carga: escudos e fundos são baixados E decodificados antes de a primeira página aparecer, e ficam guardados em
+ * memória — tudo entra junto, e trocar de página não carrega mais nada (pedido do proprietário: nada aparecendo aos poucos).
+ */
+const imagensProntas = new Map<string, Promise<void>>();
+function preCarregar(url: string): Promise<void> {
+  let p = imagensProntas.get(url);
+  if (!p) {
+    p = new Promise<void>((ok) => {
+      const img = new Image();
+      img.onload = () => { (img.decode ? img.decode() : Promise.resolve()).catch(() => undefined).then(() => ok()); };
+      img.onerror = () => { imagensProntas.delete(url); ok(); };
+      img.src = url;
+    });
+    imagensProntas.set(url, p);
+  }
+  return p;
+}
+/** Sem decodificação de imagem (ambiente de teste): nada a esperar. */
+const podePreCarregar = () => typeof window !== 'undefined' && typeof HTMLImageElement !== 'undefined' && 'decode' in HTMLImageElement.prototype;
+
 function gravarCursor(widgetId: string | undefined, c: CursorEsportes) {
   if (!widgetId) return;
   try { localStorage.setItem(`sm:esportes:cursor:${widgetId}`, JSON.stringify(c)); } catch { /* sem armazenamento: recomeça do início */ }
@@ -61,6 +82,32 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chave, dadosServidor]);
 
+  // Orientação da tela (fundo 16:9 ou 9:16 do campeonato).
+  const raiz = useRef<HTMLDivElement>(null);
+  const [vertical, setVertical] = useState(false);
+  useEffect(() => {
+    const el = raiz.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let ro: ResizeObserver | null = null;
+    try { ro = new ResizeObserver(([e]) => { if (e) setVertical(e.contentRect.height > e.contentRect.width * 1.2); }); ro.observe(el); } catch { ro = null; }
+    return () => ro?.disconnect();
+  }, []);
+
+  const aPreCarregar = useMemo(() => {
+    const u = new Set<string>();
+    for (const j of dados?.janela ?? []) { if (j.escudoMandante) u.add(j.escudoMandante); if (j.escudoVisitante) u.add(j.escudoVisitante); }
+    if (!backgroundImage) for (const comp of dados?.competicoes ?? []) { const f = vertical ? comp.fundoV : comp.fundoH; if (f) u.add(f); }
+    return [...u];
+  }, [dados, vertical, backgroundImage]);
+  const [pronto, setPronto] = useState(!podePreCarregar());
+  useEffect(() => {
+    if (!podePreCarregar() || !aPreCarregar.length) { setPronto(true); return; }
+    let vivo = true;
+    const limite = setTimeout(() => { if (vivo) setPronto(true); }, 8000); // rede muito lenta: mostra com o que chegou
+    Promise.all(aPreCarregar.map(preCarregar)).then(() => { if (vivo) { clearTimeout(limite); setPronto(true); } });
+    return () => { vivo = false; clearTimeout(limite); };
+  }, [aPreCarregar]);
+
   const agora = useMemo(() => (dados?.simulado && dados.agoraReferencia ? Date.parse(dados.agoraReferencia) : Date.now()), [dados]);
   const hoje = diaEmBrasilia(agora);
   const paginas = useMemo(() => montarPaginas(dados?.janela ?? [], dados?.competicoes ?? [], agora), [dados, agora]);
@@ -72,27 +119,35 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
   const [passo, setPasso] = useState(0);
   useEffect(() => { setPasso(0); }, [sequencia]);
   useEffect(() => {
-    if (!sequencia.length) return;
+    if (!sequencia.length || !pronto) return;
     if (modoExibicao === 'player') gravarCursor(widgetId, cursorDepois(sequencia[passo], paginas.length, hoje));
     const ultimo = passo >= sequencia.length - 1;
     if (modoExibicao === 'player' && ultimo) return; // fica na 3ª página até o item acabar
     if (sequencia.length < 2) return;
     const t = setTimeout(() => setPasso((p) => (p + 1) % sequencia.length), SEGUNDOS_POR_PAGINA * 1000);
     return () => clearTimeout(t);
-  }, [passo, sequencia, modoExibicao, widgetId, paginas.length, hoje]);
+  }, [passo, sequencia, modoExibicao, widgetId, paginas.length, hoje, pronto]);
 
   const indice = sequencia[passo] ?? 0;
-  const pagina: PaginaEsportes | undefined = paginas[indice];
+  const pagina: PaginaEsportes | undefined = pronto ? paginas[indice] : undefined;
+  const comp = pagina ? dados?.competicoes?.find((x) => x.slug === pagina.slug) : undefined;
+  // Fundo: o escolhido no widget; senão, o do campeonato da página (estádio, gramado, bola e taça).
+  const fundoTema = backgroundImage ? null : (vertical ? comp?.fundoV : comp?.fundoH) ?? null;
+  const temaAtivo = !!fundoTema;
 
   return (
     <div
+      ref={raiz}
       className={cn('relative flex h-full w-full flex-col overflow-hidden p-[4cqmin] text-white', className)}
       style={{ containerType: 'size', background: gradienteDe(c) }}
       data-testid="sports-widget"
     >
       {backgroundImage && <img src={backgroundImage} alt="" className="absolute inset-0 h-full w-full object-cover" />}
-      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at 85% 8%, ${rgba(c.brilho, 0.55)}, transparent 55%)` }} />
-      <div className="pointer-events-none absolute inset-0" style={{ background: backgroundImage
+      {fundoTema && <img src={fundoTema} alt="" className="absolute inset-0 h-full w-full object-cover" data-testid="sports-fundo-tema" />}
+      {!temaAtivo && <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at 85% 8%, ${rgba(c.brilho, 0.55)}, transparent 55%)` }} />}
+      <div className="pointer-events-none absolute inset-0" style={{ background: temaAtivo
+        ? 'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.45) 100%)'
+        : backgroundImage
         ? `linear-gradient(180deg, ${rgba(c.c1, 0.78)} 0%, ${rgba(c.c1, 0.6)} 45%, ${rgba(c.c1, 0.94)} 100%)`
         : `linear-gradient(180deg, ${rgba(c.c1, 0)} 0%, ${rgba(c.c1, 0.5)} 100%)` }} />
 
@@ -119,19 +174,19 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
           <div className="mt-[1.8cqmin] flex min-h-0 flex-1 flex-col justify-center gap-[1.6cqmin]">
             {pagina.resultados.length > 0 && (
               <Secao titulo="RESULTADOS" cor={c.selo}>
-                {pagina.resultados.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} encerrado />)}
+                {pagina.resultados.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} escuro={temaAtivo} encerrado />)}
               </Secao>
             )}
             {pagina.proximos.length > 0 && (
               <Secao titulo="PRÓXIMOS JOGOS" cor={c.selo}>
-                {pagina.proximos.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} />)}
+                {pagina.proximos.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} escuro={temaAtivo} />)}
               </Secao>
             )}
           </div>
         </div>
       ) : (
         <p className="relative z-10 flex flex-1 items-center justify-center text-center text-[3.6cqmin] text-white/80" data-testid="sports-vazio">
-          {estado === 'carregando' ? 'Carregando jogos…' : estado === 'erro' ? 'Não foi possível carregar os jogos agora.'
+          {estado === 'carregando' || (!pronto && paginas.length > 0) ? 'Carregando jogos…' : estado === 'erro' ? 'Não foi possível carregar os jogos agora.'
             : 'Sem jogos nos 3 dias anteriores nem nos próximos 3 dias.'}
         </p>
       )}
@@ -158,11 +213,11 @@ function Secao({ titulo, cor, children }: { titulo: string; cor: string; childre
   );
 }
 
-function LinhaJogo({ j, hoje, cores, encerrado = false }: { j: JogoJanela; hoje: string; cores: CoresWidget; encerrado?: boolean }) {
+function LinhaJogo({ j, hoje, cores, encerrado = false, escuro = false }: { j: JogoJanela; hoje: string; cores: CoresWidget; encerrado?: boolean; escuro?: boolean }) {
   const centro = encerrado ? `${j.placarMandante} × ${j.placarVisitante}` : (j.hora ?? 'a definir');
   return (
     <div className="grid grid-cols-[1fr_auto_auto_auto_1fr] items-center gap-[1.4cqmin] rounded-[1.4cqmin] px-[2cqmin] py-[0.9cqmin]"
-      style={{ background: 'rgba(255,255,255,0.09)', border: `1px solid ${rgba(cores.brilho, 0.35)}` }} data-testid="sports-jogo">
+      style={{ background: escuro ? 'rgba(6,10,22,0.62)' : 'rgba(255,255,255,0.09)', border: `1px solid ${rgba(cores.brilho, escuro ? 0.28 : 0.35)}` }} data-testid="sports-jogo">
       <span className="min-w-0 line-clamp-2 break-words text-right text-[3.9cqmin] font-bold leading-tight">{j.mandante}</span>
       <Escudo url={j.escudoMandante} nome={j.mandante} />
       <span className="flex flex-col items-center">

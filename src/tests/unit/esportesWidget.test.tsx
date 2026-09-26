@@ -123,3 +123,39 @@ describe('Esportes — catálogo', () => {
     expect(WIDGET_TEMPLATES.filter((t) => t.tipo === 'sports').map((t) => t.nome)).toEqual(['Resultados e Próximos Jogos']);
   });
 });
+
+describe('Esportes v2 — tudo aparece junto (F-87)', () => {
+  const pendentes: Array<() => void> = [];
+  let srcOriginal: PropertyDescriptor | undefined;
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(new Date('2026-10-10T12:00:00-03:00'));
+    localStorage.clear();
+    // Imagens de TESTE que só "chegam" quando o teste manda (como uma rede lenta).
+    (HTMLImageElement.prototype as unknown as { decode: () => Promise<void> }).decode = () => Promise.resolve();
+    srcOriginal = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+    Object.defineProperty(HTMLImageElement.prototype, 'src', {
+      configurable: true,
+      get() { return this.getAttribute('src') ?? ''; },
+      set(v: string) { this.setAttribute('src', v); pendentes.push(() => this.onload?.(new Event('load'))); },
+    });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (HTMLImageElement.prototype as unknown as { decode?: unknown }).decode;
+    if (srcOriginal) Object.defineProperty(HTMLImageElement.prototype, 'src', srcOriginal);
+    pendentes.length = 0;
+  });
+
+  it('nenhum jogo aparece antes de todos os escudos e o fundo carregarem; depois, tudo de uma vez com o fundo do campeonato', async () => {
+    const d = v2(JANELA);
+    d.competicoes = d.competicoes.map((c) => ({ ...c, fundoH: `https://teste.exemplo/fundo-${c.slug}-h.jpg`, fundoV: `https://teste.exemplo/fundo-${c.slug}-v.jpg` }));
+    render(<SportsWidget config={{}} dados={d} widgetId="w2" modo="player" />);
+    expect(screen.queryAllByTestId('sports-jogo')).toHaveLength(0);
+    expect(screen.getByTestId('sports-vazio')).toHaveTextContent('Carregando jogos');
+    await act(async () => { pendentes.splice(0).forEach((f) => f()); await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+    expect(screen.getAllByTestId('sports-jogo').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('sports-escudo').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('sports-fundo-tema')).toHaveAttribute('src', 'https://teste.exemplo/fundo-brasileirao-h.jpg');
+  });
+});
