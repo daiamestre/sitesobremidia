@@ -7,6 +7,8 @@ import { ClockFuturista } from '../../player/ClockFuturista';
 import { InstitutionalWidget } from '../../player/InstitutionalWidget';
 import { OfferWidget } from '../../player/OfferWidget';
 import { AdvertisingWidget } from '../../player/AdvertisingWidget';
+import { SocialWidget } from '../../player/SocialWidget';
+import { YouTubeWidget } from '../../player/YouTubeWidget';
 
 interface WidgetPreviewProps {
     widgetType: WidgetType;
@@ -53,6 +55,12 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
                         )}
 
                         <div className="relative z-10 w-full h-full flex items-center justify-center">
+                            {(widgetType === 'social' || widgetType === 'instagram') && (
+                                <SocialWidget widgetType={widgetType} config={config} backgroundImage={bgImage} className="w-full h-full" />
+                            )}
+                            {widgetType === 'youtube' && (
+                                <YouTubeWidget config={config} className="w-full h-full" />
+                            )}
                             {widgetType === 'advertising' && (
                                 <AdvertisingWidget config={config} backgroundImage={bgImage} className="w-full h-full" />
                             )}

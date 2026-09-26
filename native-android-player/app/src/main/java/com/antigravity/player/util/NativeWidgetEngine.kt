@@ -33,6 +33,8 @@ import com.antigravity.player.widget.QrCode
 import com.antigravity.player.widget.OfertaItem
 import com.antigravity.player.widget.OfertaText
 import com.antigravity.player.widget.CampanhaText
+import com.antigravity.player.widget.PostSocial
+import com.antigravity.player.widget.YoutubeLink
 import com.antigravity.core.util.TimeManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
@@ -57,6 +59,8 @@ import kotlin.math.min
 object NativeWidgetEngine {
 
     private const val BG_TIMEOUT_S = 4L
+    /** Origem https da página do player do YouTube (o YouTube recusa embed sem origem). */
+    private const val YOUTUBE_ORIGEM = "https://sitesobremidia.vercel.app/"
     private const val WEATHER_FRESH_MS = 15 * 60_000L
     private const val RSS_FRESH_MS = 5 * 60_000L
     private const val MAX_BODY_BYTES = 2_000_000L
@@ -103,6 +107,7 @@ object NativeWidgetEngine {
                 WidgetKind.RSS -> loadRss(appContext, spec)
                 WidgetKind.OFFER -> loadOfertaFotos(appContext, spec)
                 WidgetKind.ADVERTISING -> loadCriativos(appContext, spec, w, h)
+                WidgetKind.SOCIAL -> loadPostImagem(appContext, spec)
                 else -> null
             }
         }
@@ -135,6 +140,8 @@ object NativeWidgetEngine {
                 WidgetKind.INSTITUTIONAL -> buildInstitutional(context, spec, background, w, h, base)
                 WidgetKind.OFFER -> buildOffer(context, spec, background, w, h, base, payload as? OfertaPayload)
                 WidgetKind.ADVERTISING -> buildAdvertising(context, spec, background, w, h, base, payload as? CampanhaPayload)
+                WidgetKind.SOCIAL -> buildSocial(context, spec, background, w, h, base, payload as? PostPayload)
+                WidgetKind.YOUTUBE -> buildYoutube(context, spec, w, h, base)
                 WidgetKind.UNKNOWN -> buildMessage(context, background, w, h, base, "Widget não suportado (${spec.rawType})")
             }
             container.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -456,6 +463,160 @@ object NativeWidgetEngine {
             background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = tamanho * 0.06f }
             val p = (tamanho * 0.04f).toInt(); setPadding(p, p, p, p)
         }
+    }
+
+    // ------------------------------------------------------------------ Social / Instagram (post enviado pelo usuário)
+
+    private class PostPayload(val imagem: Bitmap?)
+
+    private fun loadPostImagem(context: Context, spec: WidgetSpec): PostPayload {
+        val url = spec.post?.imagemUrl ?: return PostPayload(null)
+        return PostPayload(try {
+            Glide.with(context).asBitmap().load(url).apply(RequestOptions().centerCrop())
+                .submit(720, 720).get(BG_TIMEOUT_S, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            Logger.w("WIDGET", "Imagem do post indisponível ($url): ${e.message}"); null
+        })
+    }
+
+    private fun corDaRede(rede: String): IntArray = when (rede) {
+        "instagram" -> intArrayOf(Color.parseColor("#F58529"), Color.parseColor("#DD2A7B"), Color.parseColor("#8134AF"))
+        "facebook" -> intArrayOf(Color.parseColor("#1877F2"), Color.parseColor("#1877F2"))
+        "linkedin" -> intArrayOf(Color.parseColor("#0A66C2"), Color.parseColor("#0A66C2"))
+        "tiktok", "x" -> intArrayOf(Color.parseColor("#111111"), Color.parseColor("#111111"))
+        else -> intArrayOf(Marca.ROXO, Marca.VIOLETA)
+    }
+
+    private fun buildSocial(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float, data: PostPayload?): View {
+        val post = spec.post ?: return buildMessage(context, bg, w, h, base, "Post sem conteúdo")
+        val root = fundoMarca(context, bg, base)
+        val col = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = px(base * 0.045f); setPadding(pad, pad, pad, pad)
+        }
+        root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        col.addView(cabecalhoMarca(context, post.seloRede, base), lp())
+
+        val paisagem = w >= h
+        val miolo = LinearLayout(context).apply {
+            orientation = if (paisagem) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        col.addView(miolo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = px(base * 0.025f) })
+
+        data?.imagem?.let { bmp ->
+            val lado = px(base * (if (paisagem) 0.62f else 0.5f))
+            miolo.addView(ImageView(context).apply {
+                setImageBitmap(bmp); scaleType = ImageView.ScaleType.CENTER_CROP
+                clipToOutline = true
+                outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: android.graphics.Outline) {
+                        outline.setRoundRect(0, 0, view.width, view.height, base * 0.025f)
+                    }
+                }
+            }, LinearLayout.LayoutParams(lado, lado))
+        }
+
+        val textos = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
+        val perfil = PostSocial.perfilComArroba(post.perfil)
+        if (perfil != null || post.autor != null) {
+            val linha = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            val bola = px(base * 0.09f)
+            linha.addView(text(context, base * 0.04f, bold = true).apply {
+                text = post.seloRede.take(1)
+                background = GradientDrawable(GradientDrawable.Orientation.BL_TR, corDaRede(post.rede)).apply { shape = GradientDrawable.OVAL }
+            }, LinearLayout.LayoutParams(bola, bola))
+            val nomes = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+            post.autor?.let { nomes.addView(text(context, base * 0.04f, bold = true).apply { text = it; gravity = Gravity.START }, lp()) }
+            perfil?.let { nomes.addView(text(context, base * 0.032f, color = Color.argb(205, 255, 255, 255)).apply { text = it; gravity = Gravity.START }, lp()) }
+            linha.addView(nomes, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = px(base * 0.02f) })
+            textos.addView(linha, lp())
+        }
+        val r = base * 0.02f
+        post.titulo?.let {
+            textos.addView(text(context, base * 0.064f, bold = true, lines = 3).apply {
+                text = it; gravity = Gravity.START
+                setShadowLayer(r, 0f, 0f, Marca.LILAS); setPadding(px(r), px(r), px(r), px(r))
+            }, lp(top = px(base * 0.015f)))
+        }
+        post.texto?.let {
+            textos.addView(text(context, base * 0.04f, color = Color.argb(235, 255, 255, 255), lines = 5).apply { text = it; gravity = Gravity.START },
+                lp(top = px(base * 0.01f)))
+        }
+        miolo.addView(textos, if (paisagem) LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = px(base * 0.04f) }
+            else LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = px(base * 0.03f) })
+
+        val ladoQr = px(base * 0.24f)
+        qrView(context, spec.qrConteudo, ladoQr)?.let { qr ->
+            val bloco = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+            bloco.addView(qr, LinearLayout.LayoutParams(ladoQr, ladoQr))
+            bloco.addView(text(context, base * 0.026f, bold = true, color = Color.argb(230, 255, 255, 255)).apply {
+                text = spec.qrLegenda ?: "Siga a gente"
+            }, lp(top = px(base * 0.01f)))
+            miolo.addView(bloco, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                if (paisagem) marginStart = px(base * 0.03f) else topMargin = px(base * 0.03f)
+            })
+        }
+        return root
+    }
+
+    // ------------------------------------------------------------------ YouTube (player oficial em WebView do próprio widget)
+
+    private fun temInternet(context: Context): Boolean = try {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+        caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    } catch (e: Exception) { true }
+
+    /**
+     * Player OFICIAL do YouTube (iframe). O WebView é criado só para este item e destruído quando sai da tela.
+     * Página com origem https (loadDataWithBaseURL) porque o YouTube recusa embed sem origem/referrer.
+     * Sem internet ou com erro de carga: cartão "indisponível" (nunca tela preta).
+     */
+    @android.annotation.SuppressLint("SetJavaScriptEnabled")
+    private fun buildYoutube(context: Context, spec: WidgetSpec, w: Int, h: Int, base: Float): View {
+        val ref = spec.youtube ?: return buildMessage(context, null, w, h, base, "Link do YouTube inválido")
+        if (!temInternet(context)) return buildMessage(context, null, w, h, base, "Vídeo indisponível sem internet")
+        val root = FrameLayout(context).apply { setBackgroundColor(Color.BLACK) }
+        val web = android.webkit.WebView(context)
+        web.setBackgroundColor(Color.BLACK)
+        web.settings.apply {
+            javaScriptEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            domStorageEnabled = true
+            allowFileAccess = false
+            allowContentAccess = false
+            setSupportMultipleWindows(false)
+        }
+        web.isFocusable = false
+        web.isFocusableInTouchMode = false
+        val aviso = text(context, base * 0.05f, bold = true, color = Color.argb(210, 255, 255, 255)).apply { text = "Carregando vídeo…" }
+        web.webViewClient = object : android.webkit.WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: android.webkit.WebView, request: android.webkit.WebResourceRequest): Boolean =
+                request.isForMainFrame // nunca sair do player (links do YouTube não abrem nada na tela)
+            override fun onPageFinished(view: android.webkit.WebView, url: String?) { aviso.visibility = View.GONE }
+            override fun onReceivedError(view: android.webkit.WebView, request: android.webkit.WebResourceRequest, error: android.webkit.WebResourceError) {
+                if (!request.isForMainFrame) return
+                Logger.w("WIDGET", "YouTube indisponível: ${error.description}")
+                root.removeAllViews()
+                root.addView(buildMessage(context, null, w, h, base, "Vídeo indisponível no momento"),
+                    FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            }
+        }
+        val html = """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+            <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head>
+            <body><iframe src="${YoutubeLink.embedUrl(ref)}" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe></body></html>"""
+        web.loadDataWithBaseURL(YOUTUBE_ORIGEM, html, "text/html", "UTF-8", null)
+        root.addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        root.addView(aviso, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {}
+            override fun onViewDetachedFromWindow(v: View) {
+                // Libera vídeo/memória na hora (TV Box fraca): o próximo item nunca herda o WebView.
+                web.stopLoading(); web.loadUrl("about:blank"); web.destroy()
+            }
+        })
+        return root
     }
 
     // ------------------------------------------------------------------ Publicidade (campanha, identidade SOBRE MÍDIA)

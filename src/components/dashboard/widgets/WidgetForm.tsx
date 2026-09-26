@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon, Building2, Plus, X, Tag, Megaphone } from 'lucide-react';
+import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon, Building2, Plus, X, Tag, Megaphone, Youtube, Instagram, MessageSquareQuote } from 'lucide-react';
+import { lerYoutube } from '@/lib/youtube';
 import { listarCampanhasWidget, type CampanhaWidgetDados } from '@/lib/campanhaWidget';
 import { customerCommerceService } from '@/modules/crm/services/customerCommerce.service';
 import type { Oferta } from '@/types/customerPortal';
@@ -39,6 +40,9 @@ const WIDGET_TYPES_OPTS = [
     { value: 'institutional', label: 'Institucional', icon: Building2 },
     { value: 'offer', label: 'Oferta', icon: Tag },
     { value: 'advertising', label: 'Publicidade', icon: Megaphone },
+    { value: 'social', label: 'Social', icon: MessageSquareQuote },
+    { value: 'instagram', label: 'Instagram', icon: Instagram },
+    { value: 'youtube', label: 'YouTube', icon: Youtube },
 ];
 
 const getDefaultConfig = (type: string): WidgetConfig => {
@@ -60,6 +64,15 @@ const getDefaultConfig = (type: string): WidgetConfig => {
             return { template: 'offer-destaque', ofertaId: '', qrConteudo: '', qrLegenda: '', backgroundImageLandscape: null, backgroundImagePortrait: null };
         case 'advertising':
             return { template: 'advertising-campanha', campanhaId: '', cta: '', qrConteudo: '', qrLegenda: '', backgroundImageLandscape: null, backgroundImagePortrait: null };
+        case 'youtube':
+            return { template: 'youtube-video', youtubeUrl: '' };
+        case 'social':
+        case 'instagram':
+            return {
+                template: type === 'instagram' ? 'instagram-post' : 'social-post', rede: type === 'instagram' ? 'instagram' : 'geral',
+                perfil: '', autor: '', titulo: '', texto: '', imagemPost: null, qrConteudo: '', qrLegenda: '',
+                backgroundImageLandscape: null, backgroundImagePortrait: null,
+            };
         default:
             return {};
     }
@@ -79,7 +92,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
 
     // Gallery State
     const [galleryOpen, setGalleryOpen] = useState(false);
-    const [galleryTarget, setGalleryTarget] = useState<'landscape' | 'portrait'>('landscape');
+    const [galleryTarget, setGalleryTarget] = useState<'landscape' | 'portrait' | 'post'>('landscape');
 
     // Load initial data
     useEffect(() => {
@@ -122,7 +135,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
         setConfig(prev => ({ ...prev, [key]: value }));
     };
 
-    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>, imageType: 'landscape' | 'portrait') => {
+    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>, imageType: 'landscape' | 'portrait' | 'post') => {
         const file = event.target.files?.[0];
         if (!file || !user) return;
 
@@ -145,7 +158,9 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                 user.id
             );
 
-            if (imageType === 'landscape') {
+            if (imageType === 'post') {
+                updateConfig('imagemPost', publicUrl);
+            } else if (imageType === 'landscape') {
                 updateConfig('backgroundImageLandscape', publicUrl);
             } else {
                 updateConfig('backgroundImagePortrait', publicUrl);
@@ -175,6 +190,22 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
 
         if (widgetType === 'institutional') {
             if (!config.titulo?.trim()) { toast.error('Informe o título do comunicado.'); return; }
+            if (config.qrConteudo?.trim() && !conteudoQrValido(config.qrConteudo)) {
+                toast.error('QR Code: use um link (https://...), telefone (tel:) ou e-mail (mailto:).');
+                return;
+            }
+        }
+
+        if (widgetType === 'youtube' && !lerYoutube(config.youtubeUrl)) {
+            toast.error('Informe o link de um vídeo, Shorts, live ou playlist do YouTube.');
+            return;
+        }
+
+        if (widgetType === 'social' || widgetType === 'instagram') {
+            if (!config.imagemPost && !config.titulo?.trim() && !config.texto?.trim()) {
+                toast.error('Informe a imagem, o título ou o texto do post.');
+                return;
+            }
             if (config.qrConteudo?.trim() && !conteudoQrValido(config.qrConteudo)) {
                 toast.error('QR Code: use um link (https://...), telefone (tel:) ou e-mail (mailto:).');
                 return;
@@ -285,7 +316,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                         )}
 
                         {/* ORIENTATION & BG */}
-                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising') && (
+                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising' || widgetType === 'social' || widgetType === 'instagram') && (
                             <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                                 <Label className="text-sm font-semibold">Configuração de Fundo</Label>
                                 <div className="flex bg-muted rounded-lg p-1">
@@ -367,6 +398,69 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                         <div><Label>Longitude</Label><Input type="number" value={config.longitude} onChange={(e) => updateConfig('longitude', parseFloat(e.target.value))} /></div>
                                     </div>
                                     <div><Label>Nome do local (opcional)</Label><Input value={config.locationName || ''} placeholder="Ex: Manaus" onChange={(e) => updateConfig('locationName', e.target.value)} /></div>
+                                </div>
+                            )}
+
+                            {widgetType === 'youtube' && (
+                                <div className="space-y-2" data-testid="form-youtube">
+                                    <Label>Link do YouTube</Label>
+                                    <Input value={config.youtubeUrl || ''} placeholder="https://www.youtube.com/watch?v=..." onChange={(e) => updateConfig('youtubeUrl', e.target.value)} data-testid="input-youtube" />
+                                    <p className="text-xs text-muted-foreground">
+                                        Vídeo, Shorts, live ou playlist (ou o id do canal "UC..."). Toca pelo player oficial do YouTube, sem som e repetindo; precisa de internet na tela.
+                                    </p>
+                                    {config.youtubeUrl?.trim() && (
+                                        lerYoutube(config.youtubeUrl)
+                                            ? <p className="text-xs font-medium text-emerald-500">{lerYoutube(config.youtubeUrl)!.tipo === 'video' ? 'Vídeo' : 'Playlist'} reconhecido(a).</p>
+                                            : <p className="text-xs font-medium text-amber-500">Link não reconhecido. Use o endereço do vídeo ou da playlist (@canal não é aceito).</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {(widgetType === 'social' || widgetType === 'instagram') && (
+                                <div className="space-y-3" data-testid="form-social">
+                                    {widgetType === 'social' && (
+                                        <div>
+                                            <Label>Rede</Label>
+                                            <select className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={config.rede || 'geral'} onChange={(e) => updateConfig('rede', e.target.value)}>
+                                                <option value="geral">Geral</option>
+                                                <option value="instagram">Instagram</option>
+                                                <option value="facebook">Facebook</option>
+                                                <option value="tiktok">TikTok</option>
+                                                <option value="linkedin">LinkedIn</option>
+                                                <option value="x">X</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><Label>Perfil</Label><Input value={config.perfil || ''} placeholder="@sualoja" onChange={(e) => updateConfig('perfil', e.target.value)} /></div>
+                                        <div><Label>Autor / nome</Label><Input value={config.autor || ''} placeholder="Sua Loja" onChange={(e) => updateConfig('autor', e.target.value)} /></div>
+                                    </div>
+                                    <div><Label>Título</Label><Input value={config.titulo || ''} placeholder="Novidade da semana" onChange={(e) => updateConfig('titulo', e.target.value)} /></div>
+                                    <div><Label>Texto</Label><Textarea rows={3} value={config.texto || ''} placeholder="Legenda do post" onChange={(e) => updateConfig('texto', e.target.value)} /></div>
+                                    <div className="space-y-2">
+                                        <Label>Imagem do post</Label>
+                                        <div className="flex items-center gap-3">
+                                            {config.imagemPost ? (
+                                                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded border bg-black">
+                                                    <img src={config.imagemPost} className="h-full w-full object-cover" alt="Post" />
+                                                    <button type="button" onClick={() => updateConfig('imagemPost', null)} className="absolute right-0 top-0 bg-red-500 p-1 text-white" aria-label="Remover imagem"><Trash2 className="h-3 w-3" /></button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded border border-dashed bg-muted text-xs text-muted-foreground">1080x1080</div>
+                                            )}
+                                            <div className="flex flex-1 flex-col gap-2">
+                                                <Input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'post')} disabled={uploading} className="text-xs" />
+                                                <Button type="button" variant="outline" size="sm" onClick={() => { setGalleryTarget('post'); setGalleryOpen(true); }} className="w-full text-xs">
+                                                    <ImageIcon className="mr-2 h-3 w-3" /> Abrir Galeria
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">Envie a imagem do post (a tela não busca nada na rede social).</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><Label>QR Code — link</Label><Input value={config.qrConteudo || ''} placeholder="https://instagram.com/sualoja" onChange={(e) => updateConfig('qrConteudo', e.target.value)} /></div>
+                                        <div><Label>Legenda do QR</Label><Input value={config.qrLegenda || ''} placeholder="Siga a gente" onChange={(e) => updateConfig('qrLegenda', e.target.value)} /></div>
+                                    </div>
                                 </div>
                             )}
 
@@ -504,7 +598,8 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                         <DialogTitle>Selecionar Imagem da Galeria</DialogTitle>
                     </DialogHeader>
                     <WidgetAssetsGallery onSelect={(url) => {
-                        if (galleryTarget === 'landscape') updateConfig('backgroundImageLandscape', url);
+                        if (galleryTarget === 'post') updateConfig('imagemPost', url);
+                        else if (galleryTarget === 'landscape') updateConfig('backgroundImageLandscape', url);
                         else updateConfig('backgroundImagePortrait', url);
                         setGalleryOpen(false);
                         toast.success('Imagem selecionada!');

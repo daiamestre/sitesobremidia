@@ -9,6 +9,8 @@ import { ClockFuturista } from "@/components/player/ClockFuturista";
 import { InstitutionalWidget } from "@/components/player/InstitutionalWidget";
 import { OfferWidget } from "@/components/player/OfferWidget";
 import { AdvertisingWidget } from "@/components/player/AdvertisingWidget";
+import { SocialWidget } from "@/components/player/SocialWidget";
+import { YouTubeWidget } from "@/components/player/YouTubeWidget";
 import "@/components/player/Player.css";
 
 const WidgetPlayer = () => {
@@ -54,6 +56,11 @@ const WidgetPlayer = () => {
         };
 
         switch (widget.widget_type) {
+            case 'social':
+            case 'instagram':
+                return <SocialWidget widgetType={widget.widget_type} config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
+            case 'youtube':
+                return <YouTubeWidget config={config} className="w-full h-full" />;
             case 'advertising':
                 return <AdvertisingWidget config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
             case 'offer':

@@ -44,7 +44,7 @@ export interface ExternalLink {
     is_active?: boolean;
 }
 
-export type WidgetType = 'clock' | 'weather' | 'rss' | 'institutional' | 'offer' | 'advertising';
+export type WidgetType = 'clock' | 'weather' | 'rss' | 'institutional' | 'offer' | 'advertising' | 'social' | 'instagram' | 'youtube';
 
 export interface WidgetConfig {
     // Modelo da Galeria de Widgets (src/lib/widgetCatalog.ts); ausente = clássico do tipo
@@ -84,6 +84,13 @@ export interface WidgetConfig {
     ofertaId?: string;
     // Publicidade: só a referência; título, datas e criativos vêm da campanha
     campanhaId?: string;
+    // YouTube (player oficial): link do vídeo, Shorts, live ou playlist
+    youtubeUrl?: string;
+    // Social / Instagram: post montado com o que o usuário enviou (sem raspar rede social)
+    rede?: 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'x' | 'geral';
+    perfil?: string;
+    autor?: string;
+    imagemPost?: string | null;
     // QR Code (qualquer modelo que o exiba)
     qrConteudo?: string;
     qrLegenda?: string;

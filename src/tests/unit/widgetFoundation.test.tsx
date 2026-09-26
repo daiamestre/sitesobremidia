@@ -14,7 +14,7 @@ describe('Widget Engine W2 — fundação', () => {
     const ids = WIDGET_TEMPLATES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
     const prontos = WIDGET_TEMPLATES.filter((t) => t.noPlayer).map((t) => t.id).sort();
-    expect(prontos).toEqual(['advertising-campanha', 'clock-classic', 'clock-futurista', 'institutional-aviso', 'offer-destaque', 'rss-classic', 'weather-classic', 'weather-futurista']);
+    expect(prontos).toEqual(['advertising-campanha', 'clock-classic', 'clock-futurista', 'instagram-post', 'institutional-aviso', 'offer-destaque', 'rss-classic', 'social-post', 'weather-classic', 'weather-futurista', 'youtube-video']);
   });
 
   it('widget antigo (sem config.template) é tratado como o modelo clássico do tipo', () => {
@@ -63,6 +63,7 @@ describe('Widget Engine W2 — fundação', () => {
     render(<WidgetCatalog onUsar={onUsar} />);
     fireEvent.click(within(screen.getByTestId('template-clock-classic')).getByRole('button', { name: 'Usar este modelo' }));
     expect(onUsar).toHaveBeenCalledWith(expect.objectContaining({ id: 'clock-classic', tipo: 'clock' }));
-    expect(within(screen.getByTestId('template-social-post')).getByRole('button')).toBeDisabled();
+    // W9: os 11 modelos já são desenhados pelo Player — nenhum fica desabilitado
+    expect(WIDGET_TEMPLATES.every((t) => !within(screen.getByTestId(`template-${t.id}`)).getByRole('button').hasAttribute('disabled'))).toBe(true);
   });
 });

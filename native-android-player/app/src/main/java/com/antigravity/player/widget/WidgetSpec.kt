@@ -9,7 +9,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import java.net.URLDecoder
 
-enum class WidgetKind { CLOCK, WEATHER, RSS, INSTITUTIONAL, OFFER, ADVERTISING, UNKNOWN }
+enum class WidgetKind { CLOCK, WEATHER, RSS, INSTITUTIONAL, OFFER, ADVERTISING, SOCIAL, YOUTUBE, UNKNOWN }
 
 /** Linha "rótulo — valor" do modelo Institucional (ex.: "Segunda a sexta" — "06:00 — 22:00"). */
 data class LinhaInfo(val rotulo: String, val valor: String)
@@ -60,7 +60,11 @@ data class WidgetSpec(
     /** Campanha atual (o servidor junta em config.campanha; nunca gravada no widget). */
     val campanha: Campanha? = null,
     /** Chamada (botão) — Publicidade. */
-    val cta: String? = null
+    val cta: String? = null,
+    /** Social / Instagram: post enviado pelo usuário. */
+    val post: PostSocial? = null,
+    /** YouTube: vídeo/playlist validado para o player oficial. */
+    val youtube: YoutubeRef? = null
 ) {
     /** Fundo do widget: a imagem da orientação da tela; se só existir a outra, usa ela (nunca fica sem fundo à toa). */
     fun backgroundFor(landscape: Boolean): String? =
@@ -81,6 +85,8 @@ object WidgetSpecParser {
             t.contains("institutional") || t.contains("institucional") -> WidgetKind.INSTITUTIONAL
             t == "offer" || t.contains("oferta") -> WidgetKind.OFFER
             t == "advertising" || t.contains("publicidade") -> WidgetKind.ADVERTISING
+            t == "social" || t.contains("instagram") -> WidgetKind.SOCIAL
+            t.contains("youtube") -> WidgetKind.YOUTUBE
             t.contains("rss") || t.contains("news") || t.contains("noticia") || t.contains("notícia") -> WidgetKind.RSS
             else -> WidgetKind.UNKNOWN
         }
@@ -131,7 +137,13 @@ object WidgetSpecParser {
             qrLegenda = str("qrLegenda"),
             oferta = if (kindOf(rawType) != WidgetKind.OFFER) null else OfertaText.parse(cfg["oferta"]),
             campanha = if (kindOf(rawType) != WidgetKind.ADVERTISING) null else CampanhaText.parse(cfg["campanha"]),
-            cta = str("cta")
+            cta = str("cta"),
+            post = if (kindOf(rawType) != WidgetKind.SOCIAL) null else PostSocial(
+                rede = PostSocial.redeDo(rawType, str("rede")),
+                perfil = str("perfil"), autor = str("autor"), titulo = str("titulo"), texto = str("texto"),
+                imagemUrl = httpUrlOrNull(str("imagemPost"))
+            ),
+            youtube = if (kindOf(rawType) != WidgetKind.YOUTUBE) null else YoutubeLink.ler(str("youtubeUrl"))
         )
     }
 
