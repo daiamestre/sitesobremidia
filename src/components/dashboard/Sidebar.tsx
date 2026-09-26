@@ -27,6 +27,7 @@ import {
   Briefcase,
   Banknote,
   UserCircle,
+  Library,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
@@ -34,6 +35,7 @@ import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
 const menuItems = [
   { icon: Inbox, label: 'Central', path: '/dashboard/central' },
   { icon: Image, label: 'Minhas Mídias', path: '/dashboard/medias' },
+  { icon: Library, label: 'Biblioteca de Mídias', path: '/dashboard/biblioteca' },
   { icon: ListVideo, label: 'Playlists', path: '/dashboard/playlists' },
   { icon: Monitor, label: 'Telas', path: '/dashboard/screens' },
   { icon: LayoutGrid, label: 'Widgets', path: '/dashboard/widgets' },

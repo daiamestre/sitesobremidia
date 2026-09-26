@@ -26,7 +26,10 @@ export interface PlaylistCliente {
 
 export interface PlaylistItem {
   id: string;
-  asset_id: string;
+  /** Mídia própria do anunciante (cliente_assets) — OU biblioteca_media_id (acervo oficial), nunca os dois. */
+  asset_id: string | null;
+  biblioteca_media_id?: string | null;
+  biblioteca?: { id: string; name: string; file_type: string; file_url: string; thumbnail_url: string | null; duration_ms: number | null } | null;
   ordem: number;
   duracao_segundos?: number | null;
   cobranca_id?: string | null;
@@ -86,7 +89,7 @@ export class PlaylistClienteService {
     const [{ data: itens, error: errItens }, { data: pontos, error: errPontos }] = await Promise.all([
       supabase
         .from('cliente_playlist_itens')
-        .select('*, asset:cliente_assets(id, nome, tipo, object_url, mime_type, tamanho, duracao)')
+        .select('*, asset:cliente_assets(id, nome, tipo, object_url, mime_type, tamanho, duracao), biblioteca:media!cliente_playlist_itens_biblioteca_media_id_fkey(id, name, file_type, file_url, thumbnail_url, duration_ms)')
         .in('playlist_id', ids)
         .order('ordem', { ascending: true }),
       supabase

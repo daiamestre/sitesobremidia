@@ -452,6 +452,7 @@ export default function ScreenDetails() {
                 .from('media')
                 .select('*')
                 .eq('user_id', user?.id)
+                .eq('biblioteca' as never, false as never) // conteúdo da Biblioteca entra pela própria Biblioteca
                 .order('name');
             if (error) throw error;
             return data || [];

@@ -11,6 +11,8 @@ export function useMedia(userId?: string) {
             .from('media')
             .select('*')
             .eq('user_id', userId)
+            // Conteúdo oficial da Biblioteca de Mídias fica na Biblioteca, não em "Minhas Mídias" de quem enviou
+            .eq('biblioteca' as never, false as never)
             .order('created_at', { ascending: false });
 
         if (error) throw error;

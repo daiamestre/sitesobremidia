@@ -100,3 +100,21 @@ describe('Upload de Mídias — "Tempo de Mídia" com a duração exata da mídi
     expect(field().value).toBe('30');
   });
 });
+
+describe('Upload de Mídias — modo Biblioteca de Mídias (mesmo uploader, sem caminho paralelo)', () => {
+  beforeAll(() => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+  });
+
+  it('título da pasta e sem "Adicionar à Playlist" (o destino é a pasta da Biblioteca)', () => {
+    render(<MediaUploadDialog open onOpenChange={() => {}} onUploadComplete={() => {}} semPlaylist titulo='Adicionar mídia em "Esporte Vídeos"' onUploadedIds={() => {}} />);
+    expect(screen.getByText('Adicionar mídia em "Esporte Vídeos"')).toBeInTheDocument();
+    expect(screen.queryByText('Adicionar à Playlist (Opcional)')).toBeNull();
+  });
+
+  it('modo normal (Minhas Mídias) continua igual: título e seletor de playlist', () => {
+    render(<MediaUploadDialog open onOpenChange={() => {}} onUploadComplete={() => {}} />);
+    expect(screen.getByText('Upload de Mídias', { selector: 'h2' })).toBeInTheDocument();
+    expect(screen.getByText('Adicionar à Playlist (Opcional)')).toBeInTheDocument();
+  });
+});

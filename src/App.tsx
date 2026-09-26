@@ -163,6 +163,8 @@ const ConfiguracoesPortalPage = lazyWithRetry(() => import("./modules/crm/pages/
 
 const DashboardHome = lazyWithRetry(() => import("./pages/dashboard/DashboardHome"));
 const Medias = lazyWithRetry(() => import("./pages/dashboard/Medias"));
+const Biblioteca = lazyWithRetry(() => import("./pages/dashboard/Biblioteca"));
+const BibliotecaPortalPage = lazyWithRetry(() => import("./modules/crm/pages/portal/BibliotecaPortalPage"));
 const Playlists = lazyWithRetry(() => import("./pages/dashboard/Playlists"));
 const Screens = lazyWithRetry(() => import("./pages/dashboard/Screens"));
 const ScreenDetails = lazyWithRetry(() => import("./pages/dashboard/ScreenDetails"));
@@ -312,6 +314,7 @@ const App = () => {
                     <Route path="expansao" element={<ExpansaoPage />} />
                     <Route path="brand-kit" element={<BrandKitPage />} />
                     <Route path="assets" element={<AssetLibraryPage />} />
+                    <Route path="biblioteca" element={<BibliotecaPortalPage />} />
                     <Route path="encarte" element={<EncartePage />} />
                     <Route path="biblioteca-ia" element={<BibliotecaIA />} />
                     <Route path="onboarding" element={<OnboardingPage />} />
@@ -342,6 +345,7 @@ const App = () => {
                   <Route path="/dashboard" element={<RequireApproval><DashboardLayout /></RequireApproval>}>
                     <Route index element={<DashboardHome />} />
                     <Route path="medias" element={<Medias />} />
+                    <Route path="biblioteca" element={<Biblioteca />} />
                     <Route path="playlists" element={<Playlists />} />
                     <Route path="screens" element={<Screens />} />
                     <Route path="screens/:id" element={<ScreenDetails />} />

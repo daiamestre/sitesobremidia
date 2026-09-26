@@ -31,7 +31,7 @@ export default function Analytics() {
             }).length || 0;
 
             // 2. Storage Usage (Approximation from media count/size if available or just count)
-            const { count: mediaCount } = await supabase.from('media').select('*', { count: 'exact', head: true });
+            const { count: mediaCount } = await supabase.from('media').select('*', { count: 'exact', head: true }).eq('biblioteca' as never, false as never);
 
             // 3. Playlists
             const { count: playlistCount } = await supabase.from('playlists').select('*', { count: 'exact', head: true });

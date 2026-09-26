@@ -5,7 +5,7 @@ import { useCentralUnread } from '@/hooks/useCentral';
 import { useClienteModalidade, type ModalidadePortal } from '../hooks/useClienteModalidade';
 import {
   LayoutDashboard, MapPin, LogOut, FileText,
-  Calendar, Megaphone, Library, ListVideo,
+  Calendar, Megaphone, Library, ListVideo, ImagePlus,
   TrendingUp, Rocket, Menu, X, Loader2, Building2, Palette,
   ShoppingBasket, BadgePercent, BookOpen, Users, Settings,
   Briefcase, Home, MessageSquare, LifeBuoy, PanelLeftClose, PanelLeftOpen,
@@ -71,7 +71,8 @@ export default function CustomerPortalLayout() {
       label: 'Minhas Mídias',
       somente: ['ANUNCIANTE', 'HIBRIDO'],
       items: [
-        { name: 'Biblioteca de Mídias', path: '/portal/assets',     icon: Library },
+        { name: 'Minhas Mídias',        path: '/portal/assets',     icon: ImagePlus },
+        { name: 'Biblioteca de Mídias', path: '/portal/biblioteca', icon: Library },
         { name: 'Brand Kit',            path: '/portal/brand-kit',  icon: Palette },
       ],
     },
@@ -150,6 +151,7 @@ export default function CustomerPortalLayout() {
       paths.add('/portal/configuracoes');
       paths.add('/portal/brand-kit');
       paths.add('/portal/assets');
+      paths.add('/portal/biblioteca');
       paths.add('/portal/ofertas');
       paths.add('/portal/produtos');
       paths.add('/portal/encarte');

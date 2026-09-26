@@ -176,6 +176,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
         .from('media')
         .select('*')
         .eq('user_id', user.id)
+        .eq('biblioteca' as never, false as never) // conteúdo da Biblioteca entra pela própria Biblioteca
         .order('created_at', { ascending: false });
 
       if (mediaError) throw mediaError;

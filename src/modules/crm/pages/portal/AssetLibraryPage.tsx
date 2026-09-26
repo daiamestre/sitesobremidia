@@ -130,7 +130,7 @@ export default function AssetLibraryPage() {
     <div className="p-8 space-y-8 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Asset Library</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Minhas Mídias</h1>
           <p className="text-muted-foreground mt-1">
             Gerencie logos, imagens promocionais e vídeos para suas campanhas e encartes.
           </p>

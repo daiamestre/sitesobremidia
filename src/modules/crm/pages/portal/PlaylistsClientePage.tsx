@@ -353,10 +353,13 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
           <div className="space-y-1.5">
             {(playlist?.itens ?? []).map((item) => (
               <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.03] border border-white/5">
-                {item.asset?.tipo === 'video'
+                {(item.asset?.tipo ?? item.biblioteca?.file_type) === 'video'
                   ? <Film className="h-4 w-4 text-purple-400 flex-shrink-0" />
                   : <ImageIcon className="h-4 w-4 text-sky-400 flex-shrink-0" />}
-                <span className="flex-1 text-sm truncate">{item.asset?.nome ?? item.asset_id}</span>
+                <span className="flex-1 text-sm truncate">{item.asset?.nome ?? item.biblioteca?.name ?? item.asset_id}</span>
+                {item.biblioteca_media_id && (
+                  <Badge variant="outline" className="text-[10px] border-sky-500/30 text-sky-400">Biblioteca</Badge>
+                )}
                 {item.cobranca_id && (
                   <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">pago</Badge>
                 )}

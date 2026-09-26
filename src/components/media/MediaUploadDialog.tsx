@@ -27,6 +27,12 @@ interface MediaUploadDialogProps {
   onOpenChange: (open: boolean) => void;
   onUploadComplete: () => void;
   editMedia?: Media | null;
+  /** Biblioteca de Mídias: recebe os ids das mídias criadas (mesmo upload/R2/thumbnail/duração) para vincular à pasta. */
+  onUploadedIds?: (ids: string[]) => Promise<void> | void;
+  /** Esconde "Adicionar à Playlist" (ex.: envio para a Biblioteca). */
+  semPlaylist?: boolean;
+  /** Título do diálogo (padrão: o atual). */
+  titulo?: string;
 }
 
 interface UploadFile {
@@ -166,7 +172,7 @@ const calculateFileMD5 = (file: File): Promise<string> => {
 
 
 
-export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMedia }: MediaUploadDialogProps) {
+export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMedia, onUploadedIds, semPlaylist, titulo }: MediaUploadDialogProps) {
   const { user } = useAuth();
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -368,6 +374,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     setIsUploading(true);
     let currentSuccessCount = 0;
     let currentErrorCount = 0;
+    const idsEnviados: string[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const uploadFile = files[i];
@@ -561,6 +568,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         }
 
         if (dbError) throw dbError;
+        if (data?.id) idsEnviados.push(data.id as string);
 
         // Update status to complete
         setFiles(prev => prev.map((f, idx) =>
@@ -578,6 +586,15 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         setFiles(prev => prev.map((f, idx) =>
           idx === i ? { ...f, status: 'error' as const, error: errorMessage } : f
         ));
+      }
+    }
+
+    if (onUploadedIds && idsEnviados.length > 0) {
+      try {
+        await onUploadedIds(idsEnviados);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'erro desconhecido';
+        toast.error(`Arquivos enviados, mas não entraram na pasta: ${msg}`);
       }
     }
 
@@ -756,7 +773,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditMode ? 'Editar Mídia' : 'Upload de Mídias'}</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Editar Mídia' : (titulo ?? 'Upload de Mídias')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -965,6 +982,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
           </div>
 
           {/* Adicionar à Playlist (Opcional) */}
+          {!semPlaylist && (
           <div className="space-y-2">
             <Label>{isEditMode ? 'Incluir na Playlist (Opcional)' : 'Adicionar à Playlist (Opcional)'}</Label>
             <div className="flex items-center gap-2">
@@ -984,6 +1002,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
               </Select>
             </div>
           </div>
+          )}
 
           {/* File List */}
           {files.length > 0 && (
