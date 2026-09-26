@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ClockWidget } from "@/components/player/ClockWidget";
-import { WeatherWidget } from "@/components/player/WeatherWidgetComponent";
 import { RssWidget } from "@/components/player/RssWidget";
 import { WeatherFuturista } from "@/components/player/WeatherFuturista";
 import { ClockFuturista } from "@/components/player/ClockFuturista";
@@ -11,6 +9,7 @@ import { OfferWidget } from "@/components/player/OfferWidget";
 import { AdvertisingWidget } from "@/components/player/AdvertisingWidget";
 import { SocialWidget } from "@/components/player/SocialWidget";
 import { YouTubeWidget } from "@/components/player/YouTubeWidget";
+import { coresDoConfig } from "@/lib/widgetPaletas";
 import "@/components/player/Player.css";
 
 const WidgetPlayer = () => {
@@ -67,28 +66,11 @@ const WidgetPlayer = () => {
                 return <OfferWidget config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
             case 'institutional':
                 return <InstitutionalWidget config={config} backgroundImage={commonProps.backgroundImage} className="w-full h-full" />;
+            // Relógio e Clima: modelo único (Futurista), nas cores escolhidas no widget
             case 'clock':
-                if (config.template === 'clock-futurista') {
-                    return <ClockFuturista {...commonProps} showDate={config.showDate !== false} showSeconds={config.showSeconds === true} />;
-                }
-                return (
-                    <ClockWidget
-                        {...commonProps}
-                        showDate={config.showDate !== false}
-                        showSeconds={config.showSeconds === true}
-                    />
-                );
+                return <ClockFuturista {...commonProps} cores={coresDoConfig(config)} showDate={config.showDate !== false} showSeconds={config.showSeconds === true} />;
             case 'weather':
-                if (config.template === 'weather-futurista') {
-                    return <WeatherFuturista {...commonProps} latitude={config.latitude} longitude={config.longitude} locationName={config.locationName} />;
-                }
-                return (
-                    <WeatherWidget
-                        {...commonProps}
-                        latitude={config.latitude}
-                        longitude={config.longitude}
-                    />
-                );
+                return <WeatherFuturista {...commonProps} cores={coresDoConfig(config)} latitude={config.latitude} longitude={config.longitude} locationName={config.locationName} />;
             case 'rss':
                 return (
                     <RssWidget

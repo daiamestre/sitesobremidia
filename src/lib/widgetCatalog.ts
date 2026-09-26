@@ -20,11 +20,10 @@ export interface WidgetTemplateDef {
 }
 
 export const WIDGET_TEMPLATES: WidgetTemplateDef[] = [
-  { id: 'clock-classic', tipo: 'clock', nome: 'Relógio + Data', descricao: 'Hora e data grandes no Horário de Brasília, com saudação do dia.', suportaFundo: true, noPlayer: true },
-  { id: 'weather-classic', tipo: 'weather', nome: 'Clima', descricao: 'Temperatura atual, sensação, umidade e vento da cidade escolhida.', suportaFundo: true, noPlayer: true },
+  // Relógio e Clima: modelo ÚNICO (Futurista), com cores à escolha e imagem de fundo opcional
+  { id: 'clock-futurista', tipo: 'clock', nome: 'Relógio Futurista', descricao: 'Hora e data no Horário de Brasília com glow; escolha a cor ou use uma imagem de fundo.', suportaFundo: true, noPlayer: true },
+  { id: 'weather-futurista', tipo: 'weather', nome: 'Clima Futurista', descricao: 'Temperatura, máxima, mínima e próximos dias; escolha a cor ou use uma imagem de fundo.', suportaFundo: true, noPlayer: true },
   { id: 'rss-classic', tipo: 'rss', nome: 'Notícias (RSS)', descricao: 'Manchetes reais de um feed, em rotação, com barra de tempo.', suportaFundo: true, noPlayer: true },
-  { id: 'weather-futurista', tipo: 'weather', nome: 'Clima Futurista', descricao: 'Peça vibrante com máxima, mínima e previsão dos próximos dias.', suportaFundo: true, noPlayer: true },
-  { id: 'clock-futurista', tipo: 'clock', nome: 'Relógio Futurista', descricao: 'Relógio com glow e gradiente da identidade SOBRE MÍDIA.', suportaFundo: true, noPlayer: true },
   { id: 'institutional-aviso', tipo: 'institutional', nome: 'Institucional / Aviso', descricao: 'Horário de funcionamento, comunicados, contato e QR Code.', suportaFundo: true, noPlayer: true },
   { id: 'offer-destaque', tipo: 'offer', nome: 'Oferta em destaque', descricao: 'Produto, preço "de/por" e QR Code a partir do cadastro de ofertas.', suportaFundo: true, noPlayer: true },
   { id: 'advertising-campanha', tipo: 'advertising', nome: 'Publicidade', descricao: 'Criativo da campanha com logo, CTA e QR Code.', suportaFundo: true, noPlayer: true },
@@ -38,10 +37,18 @@ export const TIPO_LABEL: Record<WidgetTypeId, string> = {
   advertising: 'Publicidade', social: 'Conteúdo Social', youtube: 'YouTube', instagram: 'Instagram',
 };
 
-/** Modelo de um widget salvo: o gravado em config.template, ou o clássico do tipo (widgets criados antes do catálogo). */
+/** Tipos com cores à escolha (paleta) na lateral da prévia. */
+export const TIPOS_COM_PALETA = ['clock', 'weather'];
+
+/** Modelo padrão do tipo (o primeiro do catálogo). Relógio e Clima: sempre o Futurista. */
+export function templatePadrao(tipo: string): string {
+  return WIDGET_TEMPLATES.find((t) => t.tipo === tipo)?.id ?? `${tipo}-classic`;
+}
+
+/** Modelo de um widget salvo: o gravado em config.template, ou o padrão do tipo (Relógio/Clima: sempre Futurista). */
 export function templateDoWidget(tipo: string, config: WidgetConfig | null | undefined): WidgetTemplateDef | undefined {
-  const id = (config as { template?: string } | null | undefined)?.template;
-  return WIDGET_TEMPLATES.find((t) => t.id === id) ?? WIDGET_TEMPLATES.find((t) => t.tipo === tipo && t.id.endsWith('-classic'));
+  const id = TIPOS_COM_PALETA.includes(tipo) ? templatePadrao(tipo) : (config as { template?: string } | null | undefined)?.template;
+  return WIDGET_TEMPLATES.find((t) => t.id === id) ?? WIDGET_TEMPLATES.find((t) => t.tipo === tipo);
 }
 
 /** Chave do objeto no armazenamento (R2) a partir da URL pública: é a identidade do fundo (um arquivo, muitos widgets). */

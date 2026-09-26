@@ -64,7 +64,9 @@ data class WidgetSpec(
     /** Social / Instagram: post enviado pelo usuário. */
     val post: PostSocial? = null,
     /** YouTube: vídeo/playlist validado para o player oficial. */
-    val youtube: YoutubeRef? = null
+    val youtube: YoutubeRef? = null,
+    /** Cores do Relógio/Clima Futurista escolhidas no painel (null = padrão SOBRE MÍDIA). */
+    val cores: CoresWidget? = null
 ) {
     /** Fundo do widget: a imagem da orientação da tela; se só existir a outra, usa ela (nunca fica sem fundo à toa). */
     fun backgroundFor(landscape: Boolean): String? =
@@ -143,7 +145,8 @@ object WidgetSpecParser {
                 perfil = str("perfil"), autor = str("autor"), titulo = str("titulo"), texto = str("texto"),
                 imagemUrl = httpUrlOrNull(str("imagemPost"))
             ),
-            youtube = if (kindOf(rawType) != WidgetKind.YOUTUBE) null else YoutubeLink.ler(str("youtubeUrl"))
+            youtube = if (kindOf(rawType) != WidgetKind.YOUTUBE) null else YoutubeLink.ler(str("youtubeUrl")),
+            cores = CoresWidget.parse(cfg["cores"])
         )
     }
 

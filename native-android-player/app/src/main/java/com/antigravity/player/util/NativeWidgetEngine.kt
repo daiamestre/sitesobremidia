@@ -30,6 +30,7 @@ import com.antigravity.player.widget.WidgetSpec
 import com.antigravity.player.widget.WidgetSpecParser
 import com.antigravity.player.widget.BrasiliaTime
 import com.antigravity.player.widget.QrCode
+import com.antigravity.player.widget.CoresWidget
 import com.antigravity.player.widget.OfertaItem
 import com.antigravity.player.widget.OfertaText
 import com.antigravity.player.widget.CampanhaText
@@ -134,8 +135,9 @@ object NativeWidgetEngine {
         withContext(Dispatchers.Main) {
             container.removeAllViews()
             val view: View = when (spec.kind) {
-                WidgetKind.CLOCK -> buildClock(context, spec, background, w, h, base)
-                WidgetKind.WEATHER -> buildWeather(context, spec, background, w, h, base, payload as? WeatherPayload)
+                // Relógio e Clima: modelo único (Futurista) — widgets antigos "clássicos" também
+                WidgetKind.CLOCK -> buildClockFuturista(context, spec, background, base)
+                WidgetKind.WEATHER -> buildWeatherFuturista(context, spec, background, base, payload as? WeatherPayload)
                 WidgetKind.RSS -> buildRss(context, spec, background, w, h, base, payload as? RssPayload)
                 WidgetKind.INSTITUTIONAL -> buildInstitutional(context, spec, background, w, h, base)
                 WidgetKind.OFFER -> buildOffer(context, spec, background, w, h, base, payload as? OfertaPayload)
@@ -310,12 +312,13 @@ object NativeWidgetEngine {
     // ------------------------------------------------------------------ Relógio Futurista (identidade SOBRE MÍDIA)
 
     private fun buildClockFuturista(context: Context, spec: WidgetSpec, bg: Bitmap?, base: Float): View {
-        val root = fundoMarca(context, bg, base)
+        val cores = spec.cores ?: CoresWidget.PADRAO
+        val root = fundoMarca(context, bg, base, cores)
         val col = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             val pad = px(base * 0.05f); setPadding(pad, pad, pad, pad)
         }
-        col.addView(cabecalhoMarca(context, "HORÁRIO DE BRASÍLIA", base), lp())
+        col.addView(cabecalhoMarca(context, "HORÁRIO DE BRASÍLIA", base, cores), lp())
         val corpo = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         col.addView(corpo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -324,7 +327,7 @@ object NativeWidgetEngine {
         corpo.addView(saudacao, lp())
         val r = base * 0.03f
         val hora = text(context, base * 0.30f, bold = true).apply {
-            setShadowLayer(r, 0f, 0f, Marca.LILAS); setPadding(px(r), px(r), px(r), px(r))
+            setShadowLayer(r, 0f, 0f, cores.brilho); setPadding(px(r), px(r), px(r), px(r))
         }
         fitOneLine(hora, base * 0.08f, base * 0.34f)
         corpo.addView(hora, lp(h = px(base * 0.40f)))
@@ -342,49 +345,6 @@ object NativeWidgetEngine {
             override fun run() {
                 if (!root.isAttachedToWindow && root.parent == null) return
                 paint(TimeManager.utcMillis())
-                uiHandler.postDelayed(this, BrasiliaTime.msUntilNextTick(TimeManager.utcMillis(), spec.showSeconds))
-            }
-        }
-        paint(TimeManager.utcMillis())
-        bindToLifecycle(root, tick)
-        return root
-    }
-
-    private fun buildClock(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float): View {
-        if (spec.template == "clock-futurista") return buildClockFuturista(context, spec, bg, base)
-        val root = rootWith(context, bg, 90, intArrayOf(Color.parseColor("#1e3c72"), Color.parseColor("#0b1330")))
-        val box = content(context, spec.position, base)
-        val color = runCatching { Color.parseColor(spec.textColor ?: "#FFFFFF") }.getOrDefault(Color.WHITE)
-        val soft = { a: Int -> Color.argb(a, Color.red(color), Color.green(color), Color.blue(color)) }
-
-        val greeting = text(context, base * 0.05f, color = soft(230))
-        box.addView(greeting, lp())
-
-        // Horário de Brasília a partir do relógio SINCRONIZADO (NTP), nunca do fuso/relógio do aparelho.
-        val clock = text(context, base * 0.30f, bold = true, color = color).apply {
-            setShadowLayer(base * 0.02f, 0f, base * 0.01f, Color.argb(170, 0, 0, 0))
-        }
-        fitOneLine(clock, base * 0.06f, base * 0.30f)
-        box.addView(clock, lp(h = px(base * 0.32f), top = px(base * 0.02f)))
-
-        val date = text(context, base * 0.045f, color = soft(220)).apply { letterSpacing = 0.12f }
-        if (spec.showDate) box.addView(date, lp(top = px(base * 0.02f)))
-
-        val label = text(context, base * 0.026f, color = soft(170)).apply { letterSpacing = 0.2f; text = "HORÁRIO DE BRASÍLIA" }
-        box.addView(label, lp(top = px(base * 0.03f)))
-        root.addView(box)
-
-        fun paint(now: Long) {
-            clock.text = BrasiliaTime.time(now, spec.showSeconds, spec.format24h)
-            date.text = BrasiliaTime.dateLong(now)
-            greeting.text = WeatherText.greeting(BrasiliaTime.hourOfDay(now))
-        }
-        val tick = object : Runnable {
-            override fun run() {
-                if (!root.isAttachedToWindow && root.parent == null) return
-                val now = TimeManager.utcMillis()
-                paint(now)
-                // agenda na virada exata do próximo segundo/minuto: sem deriva e sem "pular" números
                 uiHandler.postDelayed(this, BrasiliaTime.msUntilNextTick(TimeManager.utcMillis(), spec.showSeconds))
             }
         }
@@ -418,9 +378,9 @@ object NativeWidgetEngine {
     }
 
     /** Fundo da identidade: gradiente + brilho; com foto, véu roxo por cima para garantir a leitura. */
-    private fun fundoMarca(context: Context, bg: Bitmap?, base: Float): FrameLayout {
+    private fun fundoMarca(context: Context, bg: Bitmap?, base: Float, cores: CoresWidget = CoresWidget.PADRAO): FrameLayout {
         val root = FrameLayout(context)
-        root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Marca.PROFUNDO, Marca.ROXO, Marca.VIOLETA))
+        root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(cores.c1, cores.c2, cores.c3))
         val cheio = { FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) }
         if (bg != null) {
             root.addView(ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageBitmap(bg) }, cheio())
@@ -428,23 +388,23 @@ object NativeWidgetEngine {
         root.addView(View(context).apply {
             background = GradientDrawable().apply {
                 gradientType = GradientDrawable.RADIAL_GRADIENT; gradientRadius = base * 0.9f
-                setGradientCenter(0.85f, 0.1f); colors = intArrayOf(Color.argb(150, 176, 77, 255), Color.argb(0, 176, 77, 255))
+                setGradientCenter(0.85f, 0.1f); colors = intArrayOf(CoresWidget.comAlfa(cores.brilho, 150), CoresWidget.comAlfa(cores.brilho, 0))
             }
         }, cheio())
         root.addView(View(context).apply {
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                if (bg != null) intArrayOf(Color.argb(150, 34, 0, 74), Color.argb(95, 34, 0, 74), Color.argb(235, 34, 0, 74))
-                else intArrayOf(Color.argb(0, 34, 0, 74), Color.argb(120, 34, 0, 74)))
+                if (bg != null) intArrayOf(CoresWidget.comAlfa(cores.c1, 150), CoresWidget.comAlfa(cores.c1, 95), CoresWidget.comAlfa(cores.c1, 235))
+                else intArrayOf(CoresWidget.comAlfa(cores.c1, 0), CoresWidget.comAlfa(cores.c1, 120)))
         }, cheio())
         return root
     }
 
-    private fun cabecalhoMarca(context: Context, selo: String, base: Float): LinearLayout {
+    private fun cabecalhoMarca(context: Context, selo: String, base: Float, cores: CoresWidget = CoresWidget.PADRAO): LinearLayout {
         val topo = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         topo.addView(text(context, base * 0.032f, bold = true, color = Color.argb(215, 255, 255, 255)).apply {
             text = "SOBRE MÍDIA"; letterSpacing = 0.28f; gravity = Gravity.START
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        topo.addView(pill(context, selo, base * 0.028f, Marca.AMARELO, Marca.PROFUNDO, base))
+        topo.addView(pill(context, selo, base * 0.028f, cores.selo, cores.seloTexto, base))
         return topo
     }
 
@@ -977,12 +937,13 @@ object NativeWidgetEngine {
     }
 
     private fun buildWeatherFuturista(context: Context, spec: WidgetSpec, bg: Bitmap?, base: Float, data: WeatherPayload?): View {
-        val root = fundoMarca(context, bg, base)
+        val cores = spec.cores ?: CoresWidget.PADRAO
+        val root = fundoMarca(context, bg, base, cores)
         val col = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             val pad = px(base * 0.05f); setPadding(pad, pad, pad, pad)
         }
-        col.addView(cabecalhoMarca(context, "CLIMA AGORA", base), lp())
+        col.addView(cabecalhoMarca(context, "CLIMA AGORA", base, cores), lp())
         val corpo = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         col.addView(corpo, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -1010,7 +971,7 @@ object NativeWidgetEngine {
             text = "${now.temp}°C"; gravity = Gravity.START
             // brilho dentro da área do texto (padding = raio): sem o retângulo recortado em volta
             val r = base * 0.03f
-            setShadowLayer(r, 0f, 0f, Marca.LILAS); setPadding(px(r), px(r), px(r), px(r))
+            setShadowLayer(r, 0f, 0f, cores.brilho); setPadding(px(r), px(r), px(r), px(r))
         })
         tempCol.addView(text(context, base * 0.05f, color = Color.argb(235, 255, 255, 255)).apply { text = now.description; gravity = Gravity.START })
         linha.addView(tempCol, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -1037,7 +998,7 @@ object NativeWidgetEngine {
                     orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; background = vidro(base)
                     val p = px(base * 0.018f); setPadding(p, p, p, p)
                 }
-                cartao.addView(text(context, base * 0.03f, bold = true, color = if (i == 0) Marca.AMARELO else Color.WHITE).apply {
+                cartao.addView(text(context, base * 0.03f, bold = true, color = if (i == 0) cores.selo else Color.WHITE).apply {
                     text = WeatherText.rotuloDia(d.dia, i); letterSpacing = 0.1f
                 })
                 cartao.addView(ImageView(context).apply { setImageResource(weatherDrawable(d.icon)) },
@@ -1057,57 +1018,6 @@ object NativeWidgetEngine {
         WeatherIcon.SUN, WeatherIcon.MOON, WeatherIcon.PARTLY -> R.drawable.ic_ensolarado
         WeatherIcon.RAIN, WeatherIcon.STORM -> R.drawable.ic_chuva
         WeatherIcon.CLOUD, WeatherIcon.FOG, WeatherIcon.SNOW -> R.drawable.ic_futuristic_cloud
-    }
-
-    private fun buildWeather(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float, data: WeatherPayload?): View {
-        if (spec.template == "weather-futurista") return buildWeatherFuturista(context, spec, bg, base, data)
-        val now = data?.now
-        val colors = if (now?.isDay == false) intArrayOf(Color.parseColor("#141e30"), Color.parseColor("#243b55"))
-        else intArrayOf(Color.parseColor("#2b6cb0"), Color.parseColor("#63b3ed"))
-        val root = rootWith(context, bg, 105, colors)
-        val box = content(context, spec.position, base)
-
-        val place = data?.place
-        box.addView(text(context, base * 0.045f, color = Color.argb(230, 255, 255, 255)).apply {
-            text = if (place.isNullOrBlank()) "PREVISÃO DO TEMPO" else "PREVISÃO PARA ${place.uppercase(Locale("pt", "BR"))}"
-            letterSpacing = 0.08f
-        }, lp())
-
-        if (now == null) {
-            box.addView(ImageView(context).apply { setImageResource(R.drawable.ic_futuristic_cloud); alpha = 0.7f },
-                lp(w = px(base * 0.26f), h = px(base * 0.26f), top = px(base * 0.04f)).apply { gravity = Gravity.CENTER_HORIZONTAL })
-            box.addView(text(context, base * 0.05f).apply { text = "Clima indisponível no momento" }, lp(top = px(base * 0.03f)))
-            root.addView(box)
-            return root
-        }
-
-        val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        row.addView(ImageView(context).apply { setImageResource(weatherDrawable(now.icon)); scaleType = ImageView.ScaleType.FIT_CENTER },
-            LinearLayout.LayoutParams(px(base * 0.28f), px(base * 0.28f)))
-        val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
-        col.addView(text(context, base * 0.26f, bold = true).apply { text = "${now.temp}°"; gravity = Gravity.START })
-        col.addView(text(context, base * 0.055f).apply { text = now.description; gravity = Gravity.START })
-        row.addView(col, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = px(base * 0.04f) })
-        box.addView(row, lp(top = px(base * 0.03f)))
-
-        val panel = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply { setColor(Color.argb(70, 0, 0, 0)); cornerRadius = base * 0.03f; setStroke(px(base * 0.002f).coerceAtLeast(1), Color.argb(60, 255, 255, 255)) }
-            val p = px(base * 0.03f); setPadding(p, p, p, p)
-        }
-        fun info(label: String, value: String) = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-            addView(text(context, base * 0.028f, color = Color.argb(190, 255, 255, 255)).apply { text = label.uppercase(); letterSpacing = 0.08f })
-            addView(text(context, base * 0.05f, bold = true).apply { text = value })
-        }
-        val itemLp = { LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) }
-        panel.addView(info("Sensação", "${now.feelsLike}°C"), itemLp())
-        panel.addView(info("Umidade", "${now.humidity}%"), itemLp())
-        panel.addView(info("Vento", "${now.windKmh} km/h"), itemLp())
-        box.addView(panel, lp(top = px(base * 0.05f)))
-        root.addView(box)
-        return root
     }
 
     private fun buildRss(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float, data: RssPayload?): View {

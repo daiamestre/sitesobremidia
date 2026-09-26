@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Cloud, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Moon, Sun, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buscarClima, descreverClima, nomeDoLocal, rotuloDia, type DadosClima, type IconeClima } from '@/lib/weatherData';
+import { coresDoConfig, gradienteDe, rgba, type CoresWidget } from '@/lib/widgetPaletas';
 
 const ICONES: Record<IconeClima, LucideIcon> = {
   sol: Sun, lua: Moon, parcial: CloudSun, nuvem: Cloud, nevoa: CloudFog, chuva: CloudRain, neve: CloudSnow, tempestade: CloudLightning,
@@ -13,9 +14,12 @@ type Estado = 'LOADING' | 'READY' | 'UNAVAILABLE';
  * Modelo "Clima Futurista" (identidade SOBRE MÍDIA). Apenas APRESENTAÇÃO: os dados vêm de weatherData.ts.
  * Mesma composição do Android Player (NativeWidgetEngine.buildWeatherFuturista), para a prévia representar a tela.
  */
-export function WeatherFuturista({ latitude, longitude, locationName, backgroundImage, className }: {
+export function WeatherFuturista({ latitude, longitude, locationName, backgroundImage, className, cores }: {
   latitude?: number; longitude?: number; locationName?: string; backgroundImage?: string | null; className?: string;
+  /** cores escolhidas pelo usuário (paleta); sem = roxo SOBRE MÍDIA */
+  cores?: CoresWidget;
 }) {
+  const c = cores ?? coresDoConfig(null);
   const [dados, setDados] = useState<DadosClima | null>(null);
   const [local, setLocal] = useState<string | null>(null);
   const [estado, setEstado] = useState<Estado>('LOADING');
@@ -37,19 +41,19 @@ export function WeatherFuturista({ latitude, longitude, locationName, background
   return (
     <div
       className={cn('relative flex h-full w-full flex-col overflow-hidden p-[5%] text-white', className)}
-      style={{ containerType: 'size', background: 'linear-gradient(135deg,#22004A 0%,#5D1BFF 55%,#8A2EFF 100%)' }}
+      style={{ containerType: 'size', background: gradienteDe(c) }}
       data-testid="weather-futurista"
       data-estado={estado}
     >
       {backgroundImage && <img src={backgroundImage} alt="" className="absolute inset-0 h-full w-full object-cover" />}
-      <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(circle at 85% 10%, rgba(176,77,255,.6), transparent 55%)' }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at 85% 10%, ${rgba(c.brilho, 0.6)}, transparent 55%)` }} />
       <div className="pointer-events-none absolute inset-0" style={{ background: backgroundImage
-        ? 'linear-gradient(180deg, rgba(34,0,74,.6) 0%, rgba(34,0,74,.37) 45%, rgba(34,0,74,.92) 100%)'
-        : 'linear-gradient(180deg, rgba(34,0,74,0) 0%, rgba(34,0,74,.47) 100%)' }} />
+        ? `linear-gradient(180deg, ${rgba(c.c1, 0.6)} 0%, ${rgba(c.c1, 0.37)} 45%, ${rgba(c.c1, 0.92)} 100%)`
+        : `linear-gradient(180deg, ${rgba(c.c1, 0)} 0%, ${rgba(c.c1, 0.47)} 100%)` }} />
 
       <div className="relative z-10 flex items-center justify-between">
         <span className="text-[clamp(8px,3.2cqmin,22px)] font-bold tracking-[0.28em] text-white/85">SOBRE MÍDIA</span>
-        <span className="rounded-full bg-[#FFD400] px-[1.2em] py-[0.35em] text-[clamp(7px,2.8cqmin,18px)] font-extrabold tracking-widest text-[#22004A]">CLIMA AGORA</span>
+        <span className="rounded-full px-[1.2em] py-[0.35em] text-[clamp(7px,2.8cqmin,18px)] font-extrabold tracking-widest" style={{ background: c.selo, color: c.seloTexto }}>CLIMA AGORA</span>
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">
@@ -65,9 +69,9 @@ export function WeatherFuturista({ latitude, longitude, locationName, background
           <>
             <p className="text-[clamp(10px,5cqmin,34px)] font-bold tracking-[0.14em]">{(local || 'Sua região').toUpperCase()}</p>
             <div className="mt-[1.5%] flex items-center gap-[3.5cqmin]">
-              <Icone className="h-[22cqmin] w-[22cqmin] text-[#FFD400] drop-shadow-[0_0_24px_rgba(255,212,0,.45)]" strokeWidth={1.4} />
+              <Icone className="h-[22cqmin] w-[22cqmin]" style={{ color: c.selo, filter: `drop-shadow(0 0 24px ${rgba(c.selo, 0.45)})` }} strokeWidth={1.4} />
               <div className="text-left">
-                <p className="text-[clamp(28px,24cqmin,190px)] font-black leading-none" style={{ textShadow: '0 0 40px #B04DFF' }}>{dados.temp}°C</p>
+                <p className="text-[clamp(28px,24cqmin,190px)] font-black leading-none" style={{ textShadow: `0 0 40px ${c.brilho}` }}>{dados.temp}°C</p>
                 <p className="text-[clamp(10px,5cqmin,34px)] text-white/90">{desc.texto}</p>
               </div>
             </div>
@@ -86,7 +90,7 @@ export function WeatherFuturista({ latitude, longitude, locationName, background
             const I = ICONES[descreverClima(d.code, true).icone];
             return (
               <div key={d.dia} className="flex flex-col items-center rounded-[3.5cqmin] border border-white/25 bg-white/15 p-[1.8cqmin] backdrop-blur-sm">
-                <span className={cn('text-[clamp(7px,3cqmin,20px)] font-bold tracking-wider', i === 0 ? 'text-[#FFD400]' : 'text-white')}>{rotuloDia(d.dia, i)}</span>
+                <span className="text-[clamp(7px,3cqmin,20px)] font-bold tracking-wider" style={{ color: i === 0 ? c.selo : '#FFFFFF' }}>{rotuloDia(d.dia, i)}</span>
                 <I className="my-[0.8cqmin] h-[7.5cqmin] w-[7.5cqmin]" strokeWidth={1.6} />
                 <span className="text-[clamp(8px,3.4cqmin,22px)] font-bold">{d.max}°</span>
                 <span className="text-[clamp(7px,2.6cqmin,18px)] text-white/75">{d.min}°</span>

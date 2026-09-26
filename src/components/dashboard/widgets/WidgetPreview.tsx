@@ -1,6 +1,4 @@
 import { WidgetType, WidgetConfig } from '@/types/models';
-import { ClockWidget } from '../../player/ClockWidget';
-import { WeatherWidget } from '../../player/WeatherWidgetComponent';
 import { RssWidget } from '../../player/RssWidget';
 import { WeatherFuturista } from '../../player/WeatherFuturista';
 import { ClockFuturista } from '../../player/ClockFuturista';
@@ -9,14 +7,19 @@ import { OfferWidget } from '../../player/OfferWidget';
 import { AdvertisingWidget } from '../../player/AdvertisingWidget';
 import { SocialWidget } from '../../player/SocialWidget';
 import { YouTubeWidget } from '../../player/YouTubeWidget';
+import { coresDoConfig } from '@/lib/widgetPaletas';
+import { TIPOS_COM_PALETA } from '@/lib/widgetCatalog';
+import { PaletaPicker } from './PaletaPicker';
 
 interface WidgetPreviewProps {
     widgetType: WidgetType;
     config: WidgetConfig;
     editOrientation: 'landscape' | 'portrait';
+    /** Formulário aberto: mostra as cores (Relógio/Clima) na lateral direita da prévia. */
+    onConfigChange?: (patch: Partial<WidgetConfig>) => void;
 }
 
-export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPreviewProps) {
+export function WidgetPreview({ widgetType, config, editOrientation, onConfigChange }: WidgetPreviewProps) {
     const getBackgroundImage = () => {
         if (editOrientation === 'landscape') return config.backgroundImageLandscape;
         if (editOrientation === 'portrait') return config.backgroundImagePortrait;
@@ -24,11 +27,14 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
     };
 
     const bgImage = getBackgroundImage();
-    const futurista = widgetType === 'weather' && config.template === 'weather-futurista';
-    const relogioFuturista = widgetType === 'clock' && config.template === 'clock-futurista';
+    // Relógio e Clima têm um único modelo: o Futurista (widgets antigos "clássicos" também aparecem assim)
+    const futurista = widgetType === 'weather';
+    const relogioFuturista = widgetType === 'clock';
+    const cores = coresDoConfig(config);
+    const comPaleta = !!onConfigChange && TIPOS_COM_PALETA.includes(widgetType);
 
     return (
-        <div className="w-full md:w-1/2 bg-zinc-900 relative flex items-center justify-center p-8 overflow-hidden">
+        <div className="w-full md:w-1/2 bg-zinc-900 relative flex items-center justify-center gap-4 p-8 overflow-hidden">
             {/* Dynamic Container based on editOrientation */}
             <div
                 className={`relative bg-black shadow-2xl transition-all duration-500 ease-in-out border border-white/10 w-[320px] max-w-full ${editOrientation === 'portrait'
@@ -38,22 +44,6 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
             >
                 <div className="absolute inset-0 overflow-hidden">
                     <div className="w-full h-full relative">
-                        {/* Background Layer for Preview */}
-                        {!futurista && !relogioFuturista && (widgetType === 'clock' || widgetType === 'weather') && (
-                            <div className="absolute inset-0 w-full h-full">
-                                {bgImage ? (
-                                    <img
-                                        src={bgImage}
-                                        className="w-full h-full object-cover"
-                                        alt="Background"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-950" />
-                                )}
-                                <div className="absolute inset-0 bg-black/20" />
-                            </div>
-                        )}
-
                         <div className="relative z-10 w-full h-full flex items-center justify-center">
                             {(widgetType === 'social' || widgetType === 'instagram') && (
                                 <SocialWidget widgetType={widgetType} config={config} backgroundImage={bgImage} className="w-full h-full" />
@@ -71,15 +61,7 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
                                 <InstitutionalWidget config={config} backgroundImage={bgImage} className="w-full h-full" />
                             )}
                             {relogioFuturista && (
-                                <ClockFuturista showDate={config.showDate} showSeconds={config.showSeconds} backgroundImage={bgImage} className="w-full h-full" />
-                            )}
-                            {!relogioFuturista && widgetType === 'clock' && (
-                                <ClockWidget
-                                    showDate={config.showDate}
-                                    showSeconds={config.showSeconds}
-                                    backgroundImage={null} // BG handled by parent wrapper for preview
-                                    className="w-full h-full"
-                                />
+                                <ClockFuturista showDate={config.showDate} showSeconds={config.showSeconds} backgroundImage={bgImage} cores={cores} className="w-full h-full" />
                             )}
                             {futurista && (
                                 <WeatherFuturista
@@ -87,15 +69,7 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
                                     longitude={config.longitude}
                                     locationName={config.locationName}
                                     backgroundImage={bgImage}
-                                    className="w-full h-full"
-                                />
-                            )}
-                            {!futurista && widgetType === 'weather' && (
-                                <WeatherWidget
-                                    latitude={config.latitude}
-                                    longitude={config.longitude}
-                                    locationName={config.locationName}
-                                    backgroundImage={null} // BG handled by parent wrapper for preview
+                                    cores={cores}
                                     className="w-full h-full"
                                 />
                             )}
@@ -113,6 +87,7 @@ export function WidgetPreview({ widgetType, config, editOrientation }: WidgetPre
                     </div>
                 </div>
             </div>
+            {comPaleta && <PaletaPicker config={config} onChange={onConfigChange!} className="flex-shrink-0" />}
             <p className="absolute bottom-4 text-white/30 text-xs">
                 Exibindo modo: {editOrientation === 'landscape' ? 'Paisagem (16:9)' : 'Retrato (9:16)'}
             </p>

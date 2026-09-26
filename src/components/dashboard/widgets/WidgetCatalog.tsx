@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { TIPO_LABEL, WIDGET_TEMPLATES, type WidgetTemplateDef, type WidgetTypeId } from '@/lib/widgetCatalog';
+import { CapaWidget } from './CapaWidget';
 
 export const ICONE_TIPO: Record<WidgetTypeId, LucideIcon> = {
   clock: Clock, weather: Cloud, rss: Newspaper, institutional: Building2, offer: Tag, advertising: Megaphone,
@@ -21,6 +22,11 @@ export function WidgetCatalog({ onUsar }: { onUsar: (t: WidgetTemplateDef) => vo
             data-testid={`template-${t.id}`}
             className={cn('flex min-w-0 flex-col rounded-2xl border border-border/60 bg-card/80 p-4', !t.noPlayer && 'opacity-70')}
           >
+            {(t.tipo === 'clock' || t.tipo === 'weather') && (
+              <div className="-mx-4 -mt-4 mb-3 aspect-video overflow-hidden rounded-t-2xl border-b border-border/60" data-testid={`capa-${t.id}`}>
+                <CapaWidget widgetType={t.tipo} config={{}} nome={t.nome} />
+              </div>
+            )}
             <div className="flex items-start justify-between gap-2">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#5D1BFF] to-[#B04DFF] text-white shadow-lg shadow-[#5D1BFF]/30">
                 <Icon className="h-5 w-5" />

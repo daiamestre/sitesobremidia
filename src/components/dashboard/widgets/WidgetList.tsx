@@ -5,6 +5,8 @@ import { Pencil, Trash2, Copy, Eye, Clock } from 'lucide-react';
 import { Widget } from '@/types/models';
 import { TIPO_LABEL, templateDoWidget, type WidgetTypeId } from '@/lib/widgetCatalog';
 import { ICONE_TIPO } from './WidgetCatalog';
+import { CapaWidget } from './CapaWidget';
+import { PALETAS } from '@/lib/widgetPaletas';
 
 interface WidgetListProps {
     widgets: Widget[];
@@ -23,13 +25,16 @@ export function WidgetList({ widgets, onEdit, onDelete, onDuplicate, onPreview, 
                 const Icon = ICONE_TIPO[widget.widget_type as WidgetTypeId] || Clock;
                 const label = TIPO_LABEL[widget.widget_type as WidgetTypeId] || widget.widget_type;
                 const modelo = templateDoWidget(widget.widget_type, widget.config);
+                const capa = <CapaWidget widgetType={widget.widget_type} config={widget.config} thumbnailUrl={widget.thumbnail_url} nome={widget.name} />;
+                const temFundo = !!(widget.config?.backgroundImageLandscape || widget.config?.backgroundImagePortrait);
+                const corNome = ['clock', 'weather'].includes(widget.widget_type)
+                    ? (PALETAS.find((p) => p.id === (widget.config?.paleta ?? 'sobremidia'))?.nome ?? 'Personalizada')
+                    : null;
 
                 return (
                     <Card key={widget.id} data-testid={`widget-${widget.id}`} className={`min-w-0 overflow-hidden transition-all hover:shadow-md ${!widget.is_active ? 'opacity-60' : ''}`}>
                         <button type="button" className="aspect-video w-full bg-muted relative overflow-hidden border-b block" onClick={() => onPreview?.(widget)} aria-label={`Prévia de ${widget.name}`}>
-                            {widget.thumbnail_url ? (
-                                <img src={widget.thumbnail_url} alt={widget.name} className="w-full h-full object-cover" />
-                            ) : (
+                            {(widget.thumbnail_url || temFundo || ['clock', 'weather'].includes(widget.widget_type)) ? capa : (
                                 <div className="w-full h-full flex items-center justify-center bg-primary/5">
                                     <Icon className="h-12 w-12 text-primary/20" />
                                 </div>
@@ -56,7 +61,7 @@ export function WidgetList({ widgets, onEdit, onDelete, onDuplicate, onPreview, 
                         <CardContent className="text-sm space-y-2">
                             <div className="flex justify-between gap-2"><span className="text-muted-foreground">Tipo:</span><span className="truncate">{label}</span></div>
                             <div className="flex justify-between gap-2"><span className="text-muted-foreground">Modelo:</span><span className="truncate">{modelo?.nome ?? '—'}</span></div>
-                            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Fundo:</span><span>{widget.config?.backgroundImageLandscape || widget.config?.backgroundImagePortrait ? 'Imagem da galeria' : 'Padrão do modelo'}</span></div>
+                            <div className="flex justify-between gap-2"><span className="text-muted-foreground">Fundo:</span><span>{temFundo ? 'Imagem da galeria' : corNome ? `Cor: ${corNome}` : 'Padrão do modelo'}</span></div>
                             <div className="flex items-center justify-between gap-2">
                                 <span className="text-muted-foreground">Ativo nas telas:</span>
                                 {onToggleActive ? (

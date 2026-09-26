@@ -165,8 +165,8 @@ export default function Widgets() {
             initialTemplate={novoModelo?.id}
             onSave={handleSave}
             onCancel={() => setDialogOpen(false)}
-            renderPreview={(type, config, orientation) => (
-              <WidgetPreview widgetType={type} config={config} editOrientation={orientation} />
+            renderPreview={(type, config, orientation, onConfigChange) => (
+              <WidgetPreview widgetType={type} config={config} editOrientation={orientation} onConfigChange={onConfigChange} />
             )}
           />
         </DialogContent>

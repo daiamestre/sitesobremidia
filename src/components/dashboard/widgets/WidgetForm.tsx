@@ -20,7 +20,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { WidgetAssetsGallery } from './WidgetAssetsGallery';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { compressImage } from '@/utils/imageCompression';
-import { WIDGET_TEMPLATES } from '@/lib/widgetCatalog';
+import { WIDGET_TEMPLATES, TIPOS_COM_PALETA, templatePadrao } from '@/lib/widgetCatalog';
+import { escolhaDePaleta, PALETA_PADRAO } from '@/lib/widgetPaletas';
 
 interface WidgetFormProps {
     initialData: Widget | null;
@@ -30,7 +31,7 @@ interface WidgetFormProps {
     initialTemplate?: string;
     onSave: (data: Partial<Widget>) => Promise<void>;
     onCancel: () => void;
-    renderPreview: (type: WidgetType, config: WidgetConfig, orientation: 'landscape' | 'portrait') => React.ReactNode;
+    renderPreview: (type: WidgetType, config: WidgetConfig, orientation: 'landscape' | 'portrait', onConfigChange: (patch: Partial<WidgetConfig>) => void) => React.ReactNode;
 }
 
 const WIDGET_TYPES_OPTS = [
@@ -48,9 +49,9 @@ const WIDGET_TYPES_OPTS = [
 const getDefaultConfig = (type: string): WidgetConfig => {
     switch (type) {
         case 'clock':
-            return { showDate: true, showSeconds: false, position: 'center', backgroundImageLandscape: null, backgroundImagePortrait: null };
+            return { template: 'clock-futurista', ...escolhaDePaleta(PALETA_PADRAO), showDate: true, showSeconds: false, position: 'center', backgroundImageLandscape: null, backgroundImagePortrait: null };
         case 'weather':
-            return { latitude: -23.5505, longitude: -46.6333, position: 'center', backgroundImageLandscape: null, backgroundImagePortrait: null };
+            return { template: 'weather-futurista', ...escolhaDePaleta(PALETA_PADRAO), latitude: -23.5505, longitude: -46.6333, position: 'center', backgroundImageLandscape: null, backgroundImagePortrait: null };
         case 'rss':
             return { feedUrl: 'https://g1.globo.com/rss/g1/', maxItems: 5, scrollSpeed: 8, position: 'center', variant: 'full', backgroundImageLandscape: null, backgroundImagePortrait: null };
         case 'institutional':
@@ -99,7 +100,10 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
         if (initialData) {
             setName(initialData.name);
             setWidgetType(initialData.widget_type);
-            setConfig(initialData.config || {});
+            // Relógio/Clima antigos ("clássicos") abrem já no modelo único Futurista
+            setConfig(TIPOS_COM_PALETA.includes(initialData.widget_type)
+                ? { ...(initialData.config || {}), template: templatePadrao(initialData.widget_type) }
+                : (initialData.config || {}));
             setIsActive(initialData.is_active);
         } else {
             const tipo = initialType ?? 'clock';
@@ -244,8 +248,11 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
             await onSave({
                 name,
                 widget_type: widgetType,
-                // Sem modelo escolhido = modelo clássico do tipo (a Galeria de Widgets sabe qual é)
-                config: { ...config, template: config.template || `${widgetType}-classic` },
+                // Relógio/Clima: sempre o Futurista, com as cores resolvidas (o Player lê config.cores);
+                // demais tipos: o modelo escolhido ou o padrão do tipo
+                config: TIPOS_COM_PALETA.includes(widgetType)
+                    ? { ...config, template: templatePadrao(widgetType), ...escolhaDePaleta(config.paleta ?? PALETA_PADRAO, config.corBase) }
+                    : { ...config, template: config.template || templatePadrao(widgetType) },
                 is_active: isActive,
                 thumbnail_url: config.backgroundImageLandscape || config.backgroundImagePortrait || null
             });
@@ -297,7 +304,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                 <Label>Modelo</Label>
                                 <div className="grid grid-cols-2 gap-2">
                                     {WIDGET_TEMPLATES.filter((t) => t.tipo === widgetType && t.noPlayer).map((t) => {
-                                        const ativo = (config.template || `${widgetType}-classic`) === t.id;
+                                        const ativo = (config.template || templatePadrao(widgetType)) === t.id;
                                         return (
                                             <button
                                                 key={t.id}
@@ -589,7 +596,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
             </div>
 
             {/* RIGHT COLUMN: PREVIEW */}
-            {renderPreview(widgetType, config, editOrientation)}
+            {renderPreview(widgetType, config, editOrientation, (patch) => setConfig((prev) => ({ ...prev, ...patch })))}
 
             {/* GALLERY SELECTION DIALOG */}
             <Dialog open={galleryOpen} onOpenChange={setGalleryOpen}>

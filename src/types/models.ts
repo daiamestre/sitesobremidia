@@ -84,6 +84,10 @@ export interface WidgetConfig {
     ofertaId?: string;
     // Publicidade: só a referência; título, datas e criativos vêm da campanha
     campanhaId?: string;
+    // Cores do Relógio/Clima Futurista: paleta escolhida (id), cor base da Personalizada e as cores resolvidas (lidas pelo Player)
+    paleta?: string;
+    corBase?: string;
+    cores?: { c1: string; c2: string; c3: string; brilho: string; selo: string; seloTexto: string };
     // YouTube (player oficial): link do vídeo, Shorts, live ou playlist
     youtubeUrl?: string;
     // Social / Instagram: post montado com o que o usuário enviou (sem raspar rede social)

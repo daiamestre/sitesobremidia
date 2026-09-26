@@ -1,4 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+
+// A Galeria e os cards desenham o Relógio/Clima Futurista ao vivo: hora e clima sem rede no teste
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: async () => ({ data: null, error: { message: 'offline' } }) } }));
+vi.mock('@/lib/weatherData', async () => ({ ...(await vi.importActual<object>('@/lib/weatherData')), buscarClima: async () => null, nomeDoLocal: async () => null }));
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { chaveDoFundo, copiaDoWidget, templateDoWidget, widgetsQueUsamFundo, WIDGET_TEMPLATES } from '@/lib/widgetCatalog';
 import { WidgetList } from '@/components/dashboard/widgets/WidgetList';
@@ -14,11 +18,17 @@ describe('Widget Engine W2 — fundação', () => {
     const ids = WIDGET_TEMPLATES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
     const prontos = WIDGET_TEMPLATES.filter((t) => t.noPlayer).map((t) => t.id).sort();
-    expect(prontos).toEqual(['advertising-campanha', 'clock-classic', 'clock-futurista', 'instagram-post', 'institutional-aviso', 'offer-destaque', 'rss-classic', 'social-post', 'weather-classic', 'weather-futurista', 'youtube-video']);
+    // Relógio e Clima: modelo único (Futurista) — os clássicos saíram do catálogo
+    expect(prontos).toEqual(['advertising-campanha', 'clock-futurista', 'instagram-post', 'institutional-aviso', 'offer-destaque', 'rss-classic', 'social-post', 'weather-futurista', 'youtube-video']);
+    expect(WIDGET_TEMPLATES.filter((t) => t.tipo === 'clock').map((t) => t.id)).toEqual(['clock-futurista']);
+    expect(WIDGET_TEMPLATES.filter((t) => t.tipo === 'weather').map((t) => t.id)).toEqual(['weather-futurista']);
   });
 
-  it('widget antigo (sem config.template) é tratado como o modelo clássico do tipo', () => {
-    expect(templateDoWidget('clock', {})?.id).toBe('clock-classic');
+  it('relógio/clima antigos (sem modelo ou "clássicos") aparecem como o modelo único Futurista', () => {
+    expect(templateDoWidget('clock', {})?.id).toBe('clock-futurista');
+    expect(templateDoWidget('clock', { template: 'clock-classic' })?.id).toBe('clock-futurista');
+    expect(templateDoWidget('weather', { template: 'weather-classic' })?.id).toBe('weather-futurista');
+    expect(templateDoWidget('rss', {})?.id).toBe('rss-classic');
     expect(templateDoWidget('weather', { template: 'weather-futurista' })?.id).toBe('weather-futurista');
   });
 
@@ -48,7 +58,7 @@ describe('Widget Engine W2 — fundação', () => {
     render(<WidgetList widgets={[W('a', 'Relógio Loja', { backgroundImageLandscape: URL_AZUL })]} onEdit={onEdit} onDelete={onDelete}
       onDuplicate={onDuplicate} onPreview={onPreview} onToggleActive={onToggle} />);
     const card = screen.getByTestId('widget-a');
-    expect(within(card).getByText('Relógio + Data')).toBeInTheDocument();
+    expect(within(card).getByText('Relógio Futurista')).toBeInTheDocument();
     expect(within(card).getByText('Imagem da galeria')).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: 'Duplicar' }));
     fireEvent.click(within(card).getByRole('button', { name: 'Prévia' }));
@@ -61,9 +71,12 @@ describe('Widget Engine W2 — fundação', () => {
   it('Galeria de Widgets: "Usar este modelo" só nos disponíveis', () => {
     const onUsar = vi.fn();
     render(<WidgetCatalog onUsar={onUsar} />);
-    fireEvent.click(within(screen.getByTestId('template-clock-classic')).getByRole('button', { name: 'Usar este modelo' }));
-    expect(onUsar).toHaveBeenCalledWith(expect.objectContaining({ id: 'clock-classic', tipo: 'clock' }));
-    // W9: os 11 modelos já são desenhados pelo Player — nenhum fica desabilitado
+    fireEvent.click(within(screen.getByTestId('template-clock-futurista')).getByRole('button', { name: 'Usar este modelo' }));
+    expect(onUsar).toHaveBeenCalledWith(expect.objectContaining({ id: 'clock-futurista', tipo: 'clock' }));
+    // Relógio e Clima com capa viva do próprio modelo
+    expect(screen.getByTestId('capa-clock-futurista')).toBeInTheDocument();
+    expect(screen.getByTestId('capa-weather-futurista')).toBeInTheDocument();
+    // W9: os modelos já são desenhados pelo Player — nenhum fica desabilitado
     expect(WIDGET_TEMPLATES.every((t) => !within(screen.getByTestId(`template-${t.id}`)).getByRole('button').hasAttribute('disabled'))).toBe(true);
   });
 });
