@@ -1,0 +1,326 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+function json(status: number, body: object): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
+}
+
+interface RssItem {
+  title: string;
+  link: string;
+  pubDate?: string;
+  description?: string;
+  imageUrl?: string;
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function sha256(str: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function parseRss(xmlText: string): RssItem[] {
+  const items: RssItem[] = [];
+  const itemRegex = /<item[\s\S]*?>([\s\S]*?)<\/item>/gi;
+  const titleRegex = /<title>(?:<!\[CDATA\[([\s\S]*?)]]>|([\s\S]*?))<\/title>/i;
+  const linkRegex = /<link>(?:<!\[CDATA\[([\s\S]*?)]]>|([\s\S]*?))<\/link>/i;
+  const pubDateRegex = /<pubDate>([\s\S]*?)<\/pubDate>/i;
+  const descRegex = /<description>(?:<!\[CDATA\[([\s\S]*?)]]>|([\s\S]*?))<\/description>/i;
+
+  const extractAttribute = (tag: string, attr: string) => {
+    const regex = new RegExp(`${attr}=["']([^"']+)["']`, "i");
+    const match = tag.match(regex);
+    return match ? match[1] : null;
+  };
+
+  let match;
+  while ((match = itemRegex.exec(xmlText)) !== null) {
+    const itemContent = match[1];
+
+    const titleMatch = itemContent.match(titleRegex);
+    const linkMatch = itemContent.match(linkRegex);
+    const pubDateMatch = itemContent.match(pubDateRegex);
+    const descMatch = itemContent.match(descRegex);
+
+    let imageUrl = "";
+    const mediaContentMatch = itemContent.match(/<media:content[^>]*>/i);
+    const mediaGroupMatch = itemContent.match(/<media:group>([\s\S]*?)<\/media:group>/i);
+    const enclosureMatch = itemContent.match(/<enclosure[^>]*>/i);
+
+    if (mediaContentMatch) {
+      imageUrl = extractAttribute(mediaContentMatch[0], "url") || "";
+    }
+    if (!imageUrl && mediaGroupMatch) {
+      const innerMedia = mediaGroupMatch[1].match(/<media:content[^>]*>/i);
+      if (innerMedia) imageUrl = extractAttribute(innerMedia[0], "url") || "";
+    }
+    if (!imageUrl && enclosureMatch) {
+      const type = extractAttribute(enclosureMatch[0], "type") || "";
+      if (type.startsWith("image/") || !type) {
+        imageUrl = extractAttribute(enclosureMatch[0], "url") || "";
+      }
+    }
+    if (!imageUrl && descMatch) {
+      const descContent = descMatch[1] || descMatch[2] || "";
+      const imgMatch = descContent.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i);
+      if (imgMatch) imageUrl = imgMatch[1];
+    }
+
+    if (titleMatch) {
+      const rawTitle = titleMatch[1] || titleMatch[2] || "";
+      const rawDesc = descMatch ? descMatch[1] || descMatch[2] || "" : "";
+      const rawLink = linkMatch ? linkMatch[1] || linkMatch[2] || "" : "";
+
+      items.push({
+        title: stripHtml(rawTitle),
+        link: rawLink.trim(),
+        pubDate: pubDateMatch ? pubDateMatch[1].trim() : undefined,
+        description: stripHtml(rawDesc),
+        imageUrl: imageUrl.trim() || undefined,
+      });
+    }
+  }
+
+  return items;
+}
+
+const DEFAULT_SOURCES = [
+  { nome: "G1 - Brasil", slug: "brasil", url: "https://g1.globo.com/rss/g1/brasil/" },
+  { nome: "G1 - Economia", slug: "economia", url: "https://g1.globo.com/rss/g1/economia/" },
+  { nome: "GE - Globo Esporte", slug: "esportes", url: "https://ge.globo.com/rss/ge/" },
+  { nome: "G1 - Tecnologia", slug: "tecnologia", url: "https://g1.globo.com/rss/g1/tecnologia/" },
+  { nome: "G1 - Mundo", slug: "mundo", url: "https://g1.globo.com/rss/g1/mundo/" },
+];
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    let tenantId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user } } = await admin.auth.getUser(token);
+      if (user) {
+        const { data: userData } = await admin
+          .from("usuarios")
+          .select("empresa_operadora_id")
+          .eq("id", user.id)
+          .single();
+        if (userData?.empresa_operadora_id) {
+          tenantId = userData.empresa_operadora_id;
+        }
+      }
+    }
+
+    let body: { source_id?: string; tenant_id?: string } = {};
+    if (req.method === "POST") {
+      try { body = await req.json(); } catch { /* ignore */ }
+    }
+
+    if (body.tenant_id) tenantId = body.tenant_id;
+
+    if (!tenantId) {
+      const { data: tenant } = await admin
+        .from("empresa_operadora")
+        .select("id")
+        .limit(1)
+        .single();
+      tenantId = tenant?.id || null;
+    }
+
+    if (!tenantId) {
+      return json(400, { error: "tenant_nao_encontrado" });
+    }
+
+    // Auto-provision default sources if none exist for tenant
+    const { count: sourceCount } = await admin
+      .from("content_news_sources")
+      .select("id", { count: "exact", head: true })
+      .eq("empresa_operadora_id", tenantId);
+
+    if (!sourceCount || sourceCount === 0) {
+      const { data: cats } = await admin
+        .from("content_news_categories")
+        .select("id, slug")
+        .eq("empresa_operadora_id", tenantId);
+
+      const catMap = new Map((cats || []).map((c) => [c.slug, c.id]));
+
+      for (const src of DEFAULT_SOURCES) {
+        await admin.from("content_news_sources").insert({
+          empresa_operadora_id: tenantId,
+          category_id: catMap.get(src.slug) || null,
+          nome: src.nome,
+          tipo: "rss",
+          url: src.url,
+          ativo: true,
+          max_items: 20,
+          fetch_interval_minutes: 60,
+        });
+      }
+    }
+
+    // Query active sources
+    let query = admin
+      .from("content_news_sources")
+      .select("id, empresa_operadora_id, category_id, nome, url, max_items")
+      .eq("empresa_operadora_id", tenantId)
+      .eq("ativo", true);
+
+    if (body.source_id) {
+      query = query.eq("id", body.source_id);
+    }
+
+    const { data: sources, error: srcErr } = await query;
+    if (srcErr) throw srcErr;
+
+    let totalInserted = 0;
+    const results = [];
+
+    for (const source of sources || []) {
+      try {
+        const response = await fetch(source.url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (compatible; SOBREMIDIA-NewsEngine/1.0)",
+            "Accept": "application/rss+xml, application/xml, text/xml, */*",
+          },
+          signal: AbortSignal.timeout(12000),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const xmlText = await response.text();
+        const items = parseRss(xmlText);
+        const limitItems = items.slice(0, source.max_items || 20);
+
+        let sourceInserted = 0;
+        for (const item of limitItems) {
+          if (!item.title) continue;
+
+          const contentHash = await sha256(`${item.title}::${item.link || ""}`);
+          let publishedAt = new Date().toISOString();
+          if (item.pubDate) {
+            const parsed = new Date(item.pubDate);
+            if (!isNaN(parsed.getTime())) {
+              publishedAt = parsed.toISOString();
+            }
+          }
+
+          const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+          const { error: insErr } = await admin
+            .from("content_news_items")
+            .upsert(
+              {
+                empresa_operadora_id: source.empresa_operadora_id,
+                source_id: source.id,
+                category_id: source.category_id,
+                external_guid: item.link || null,
+                content_hash: contentHash,
+                title: item.title,
+                summary: item.description ? item.description.slice(0, 500) : null,
+                image_url: item.imageUrl || null,
+                source_name: source.nome,
+                source_url: source.url,
+                article_url: item.link || null,
+                published_at: publishedAt,
+                expires_at: expiresAt,
+                status: "ACTIVE",
+                is_active: true,
+                fetched_at: new Date().toISOString(),
+              },
+              { onConflict: "empresa_operadora_id,content_hash", ignoreDuplicates: true }
+            );
+
+          if (!insErr) {
+            sourceInserted++;
+          }
+        }
+
+        totalInserted += sourceInserted;
+
+        await admin
+          .from("content_news_sources")
+          .update({
+            last_fetch_at: new Date().toISOString(),
+            last_fetch_items: sourceInserted,
+            last_fetch_error: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", source.id);
+
+        results.push({
+          source_id: source.id,
+          nome: source.nome,
+          items_fetched: items.length,
+          items_saved: sourceInserted,
+          status: "SUCCESS",
+        });
+      } catch (err: any) {
+        await admin
+          .from("content_news_sources")
+          .update({
+            last_fetch_at: new Date().toISOString(),
+            last_fetch_error: err?.message || String(err),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", source.id);
+
+        results.push({
+          source_id: source.id,
+          nome: source.nome,
+          error: err?.message || String(err),
+          status: "ERROR",
+        });
+      }
+    }
+
+    // Call automatic expiration of old news
+    await admin.rpc("fn_content_news_expirar");
+
+    return json(200, {
+      success: true,
+      tenant_id: tenantId,
+      sources_processed: results.length,
+      items_inserted: totalInserted,
+      details: results,
+    });
+  } catch (error: any) {
+    console.error("[NewsEngineSync] Fatal error:", error);
+    return json(500, { error: error?.message || "internal_error" });
+  }
+});

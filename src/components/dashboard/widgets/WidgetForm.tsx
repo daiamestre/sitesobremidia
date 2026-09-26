@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon, Building2, Plus, X, Tag, Megaphone, Youtube, Instagram, MessageSquareQuote } from 'lucide-react';
+import { Loader2, Trash2, LayoutTemplate, Smartphone, Clock, Cloud, Newspaper, Image as ImageIcon, Building2, Plus, X, Tag, Megaphone, Youtube, Instagram, MessageSquareQuote, Trophy } from 'lucide-react';
 import { lerYoutube } from '@/lib/youtube';
 import { listarCampanhasWidget, type CampanhaWidgetDados } from '@/lib/campanhaWidget';
 import { customerCommerceService } from '@/modules/crm/services/customerCommerce.service';
@@ -20,7 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { WidgetAssetsGallery } from './WidgetAssetsGallery';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { compressImage } from '@/utils/imageCompression';
-import { WIDGET_TEMPLATES, TIPOS_COM_PALETA, templatePadrao } from '@/lib/widgetCatalog';
+import { WIDGET_TEMPLATES, TIPOS_COM_PALETA, TIPOS_COM_CORES, templatePadrao, MODO_DO_MODELO_ESPORTES, COMPETICOES_ESPORTES, FEED_AGENCIA_BRASIL_ESPORTES } from '@/lib/widgetCatalog';
 import { escolhaDePaleta, PALETA_PADRAO } from '@/lib/widgetPaletas';
 
 interface WidgetFormProps {
@@ -44,6 +44,7 @@ const WIDGET_TYPES_OPTS = [
     { value: 'social', label: 'Social', icon: MessageSquareQuote },
     { value: 'instagram', label: 'Instagram', icon: Instagram },
     { value: 'youtube', label: 'YouTube', icon: Youtube },
+    { value: 'sports', label: 'Esportes', icon: Trophy },
 ];
 
 const getDefaultConfig = (type: string): WidgetConfig => {
@@ -74,10 +75,25 @@ const getDefaultConfig = (type: string): WidgetConfig => {
                 perfil: '', autor: '', titulo: '', texto: '', imagemPost: null, qrConteudo: '', qrLegenda: '',
                 backgroundImageLandscape: null, backgroundImagePortrait: null,
             };
+        case 'sports':
+            return {
+                template: 'sports-resultados', modo: 'resultados', competicoes: COMPETICOES_ESPORTES.map((c) => c.slug), limite: 6, time: '',
+                ...escolhaDePaleta(PALETA_PADRAO), backgroundImageLandscape: null, backgroundImagePortrait: null,
+            };
         default:
             return {};
     }
 };
+
+/** O que cada modelo muda na configuração: Esportes -> o modo; Notícias de Esportes -> notícias automáticas da Agência Brasil. */
+function configDoModelo(tipo: string, template: string): Partial<WidgetConfig> {
+    if (tipo === 'sports') return { template, modo: MODO_DO_MODELO_ESPORTES[template] ?? 'resultados' };
+    if (tipo === 'rss' && template === 'rss-esportes') {
+        return { template, origem: 'agencia-brasil', categoria: 'esportes', feedUrl: FEED_AGENCIA_BRASIL_ESPORTES, maxItems: 8, scrollSpeed: 10 };
+    }
+    if (tipo === 'rss') return { template, origem: undefined, categoria: undefined };
+    return { template };
+}
 
 export function WidgetForm({ initialData, initialType, initialTemplate, onSave, onCancel, renderPreview }: WidgetFormProps) {
     const { user } = useAuth();
@@ -109,7 +125,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
             const tipo = initialType ?? 'clock';
             setName('');
             setWidgetType(tipo);
-            setConfig({ ...getDefaultConfig(tipo), ...(initialTemplate ? { template: initialTemplate } : {}) });
+            setConfig({ ...getDefaultConfig(tipo), ...(initialTemplate ? configDoModelo(tipo, initialTemplate) : {}) });
             setIsActive(true);
         }
     }, [initialData, initialType, initialTemplate]);
@@ -187,7 +203,12 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
             return;
         }
 
-        if (widgetType === 'rss' && !/^https:\/\//i.test((config.feedUrl || '').trim())) {
+        if (widgetType === 'sports' && !(config.competicoes?.length)) {
+            toast.error('Escolha ao menos uma competição.');
+            return;
+        }
+
+        if (widgetType === 'rss' && config.origem !== 'agencia-brasil' && !/^https:\/\//i.test((config.feedUrl || '').trim())) {
             toast.error('Informe a URL do feed RSS (começando com https://).');
             return;
         }
@@ -252,7 +273,9 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                 // demais tipos: o modelo escolhido ou o padrão do tipo
                 config: TIPOS_COM_PALETA.includes(widgetType)
                     ? { ...config, template: templatePadrao(widgetType), ...escolhaDePaleta(config.paleta ?? PALETA_PADRAO, config.corBase) }
-                    : { ...config, template: config.template || templatePadrao(widgetType) },
+                    : TIPOS_COM_CORES.includes(widgetType)
+                        ? { ...config, ...configDoModelo(widgetType, config.template || templatePadrao(widgetType)), ...escolhaDePaleta(config.paleta ?? PALETA_PADRAO, config.corBase) }
+                        : { ...config, template: config.template || templatePadrao(widgetType) },
                 is_active: isActive,
                 thumbnail_url: config.backgroundImageLandscape || config.backgroundImagePortrait || null
             });
@@ -309,7 +332,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                             <button
                                                 key={t.id}
                                                 type="button"
-                                                onClick={() => updateConfig('template', t.id)}
+                                                onClick={() => setConfig((prev) => ({ ...prev, ...configDoModelo(widgetType, t.id) }))}
                                                 data-testid={`modelo-${t.id}`}
                                                 className={`rounded-lg border p-3 text-left transition-all ${ativo ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'}`}
                                             >
@@ -323,7 +346,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                         )}
 
                         {/* ORIENTATION & BG */}
-                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising' || widgetType === 'social' || widgetType === 'instagram') && (
+                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising' || widgetType === 'social' || widgetType === 'instagram' || widgetType === 'sports') && (
                             <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                                 <Label className="text-sm font-semibold">Configuração de Fundo</Label>
                                 <div className="flex bg-muted rounded-lg p-1">
@@ -565,7 +588,53 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                 </div>
                             )}
 
-                            {widgetType === 'rss' && (
+                            {widgetType === 'sports' && (
+                                <div className="space-y-3" data-testid="form-esportes">
+                                    <div className="space-y-2">
+                                        <Label>Competições</Label>
+                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                            {COMPETICOES_ESPORTES.map((c) => {
+                                                const marcada = (config.competicoes ?? []).includes(c.slug);
+                                                return (
+                                                    <label key={c.slug} className={`flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm ${marcada ? 'border-primary bg-primary/10' : 'border-border'}`}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={marcada}
+                                                            data-testid={`competicao-${c.slug}`}
+                                                            onChange={() => setConfig((prev) => {
+                                                                const atual = prev.competicoes ?? [];
+                                                                return { ...prev, competicoes: marcada ? atual.filter((s) => s !== c.slug) : [...atual, c.slug] };
+                                                            })}
+                                                        />
+                                                        {c.nome}
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Só entram jogos confirmados por duas fontes (openfootball + Wikipédia); Champions League: duas revisões da Wikipédia. Sem placar ao vivo. Horário de Brasília.
+                                        </p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><Label>Quantidade de jogos</Label><Input type="number" min={1} max={12} value={config.limite ?? 6} onChange={(e) => updateConfig('limite', Math.min(12, Math.max(1, parseInt(e.target.value) || 6)))} /></div>
+                                        <div><Label>Só de um time (opcional)</Label><Input value={config.time || ''} placeholder="Ex.: Flamengo" onChange={(e) => updateConfig('time', e.target.value)} /></div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {widgetType === 'rss' && config.origem === 'agencia-brasil' && (
+                                <div className="space-y-3" data-testid="form-noticias-esportes">
+                                    <p className="rounded-lg border bg-muted/30 p-3 text-sm">
+                                        Manchetes de esportes da <strong>Agência Brasil</strong> (licença CC BY 4.0), atualizadas automaticamente a cada 30 minutos. A TV recebe as notícias prontas; nenhum endereço de feed é necessário.
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1"><Label>Máx. Itens</Label><Input type="number" value={config.maxItems} onChange={(e) => updateConfig('maxItems', parseInt(e.target.value))} /></div>
+                                        <div className="flex-1"><Label>Segundos/Item</Label><Input type="number" value={config.scrollSpeed} onChange={(e) => updateConfig('scrollSpeed', parseInt(e.target.value))} /></div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {widgetType === 'rss' && config.origem !== 'agencia-brasil' && (
                                 <div className="space-y-3">
                                     <div><Label>URL do Feed</Label><Input value={config.feedUrl} onChange={(e) => updateConfig('feedUrl', e.target.value)} /></div>
                                     <div className="flex items-center justify-between">

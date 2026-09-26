@@ -12,6 +12,7 @@ import {
   vincularMidias, type ContextoBiblioteca, type MidiaBiblioteca, type PastaBiblioteca, type TipoMidia,
 } from '@/lib/biblioteca';
 import { MidiaBibliotecaCard } from './MidiaBibliotecaCard';
+import { ConteudoAutomatico } from './ConteudoAutomatico';
 import { DestinoDialog, useDebounced } from './DestinoDialog';
 import { ConfirmarDialog, EditarMidiaDialog, EscolherPastaDialog, LixeiraDialog, PastaNomeDialog, PreviewDialog } from './BibliotecaDialogs';
 
@@ -120,6 +121,9 @@ export function BibliotecaMidias({ contexto }: { contexto: ContextoBiblioteca })
           ))}
         </div>
       </div>
+
+      {/* Conteúdo automático (esportes e notícias) — painel; no portal do Anunciante a Biblioteca segue só com mídias */}
+      {contexto === 'painel' && !pastaId && !modoBusca && <ConteudoAutomatico />}
 
       {/* Pastas */}
       {!pastaId && !modoBusca && (

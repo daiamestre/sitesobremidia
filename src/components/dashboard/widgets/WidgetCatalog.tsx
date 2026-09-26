@@ -1,13 +1,13 @@
-import { Clock, Cloud, Newspaper, Building2, Tag, Megaphone, MessageSquareQuote, Youtube, Instagram, Image as ImageIcon, type LucideIcon } from 'lucide-react';
+import { Clock, Cloud, Newspaper, Building2, Tag, Megaphone, MessageSquareQuote, Youtube, Instagram, Trophy, Image as ImageIcon, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { TIPO_LABEL, WIDGET_TEMPLATES, type WidgetTemplateDef, type WidgetTypeId } from '@/lib/widgetCatalog';
+import { MODO_DO_MODELO_ESPORTES, TIPO_LABEL, WIDGET_TEMPLATES, type WidgetTemplateDef, type WidgetTypeId } from '@/lib/widgetCatalog';
 import { CapaWidget } from './CapaWidget';
 
 export const ICONE_TIPO: Record<WidgetTypeId, LucideIcon> = {
   clock: Clock, weather: Cloud, rss: Newspaper, institutional: Building2, offer: Tag, advertising: Megaphone,
-  social: MessageSquareQuote, youtube: Youtube, instagram: Instagram,
+  social: MessageSquareQuote, youtube: Youtube, instagram: Instagram, sports: Trophy,
 };
 
 /** Galeria de Widgets: os MODELOS disponíveis. Escolher um abre o formulário já no tipo/modelo certo. */
@@ -22,9 +22,9 @@ export function WidgetCatalog({ onUsar }: { onUsar: (t: WidgetTemplateDef) => vo
             data-testid={`template-${t.id}`}
             className={cn('flex min-w-0 flex-col rounded-2xl border border-border/60 bg-card/80 p-4', !t.noPlayer && 'opacity-70')}
           >
-            {(t.tipo === 'clock' || t.tipo === 'weather') && (
+            {(t.tipo === 'clock' || t.tipo === 'weather' || t.tipo === 'sports') && (
               <div className="-mx-4 -mt-4 mb-3 aspect-video overflow-hidden rounded-t-2xl border-b border-border/60" data-testid={`capa-${t.id}`}>
-                <CapaWidget widgetType={t.tipo} config={{}} nome={t.nome} />
+                <CapaWidget widgetType={t.tipo} config={t.tipo === 'sports' ? { modo: MODO_DO_MODELO_ESPORTES[t.id], limite: 4 } : {}} nome={t.nome} />
               </div>
             )}
             <div className="flex items-start justify-between gap-2">

@@ -7,15 +7,16 @@ import { OfferWidget } from '../../player/OfferWidget';
 import { AdvertisingWidget } from '../../player/AdvertisingWidget';
 import { SocialWidget } from '../../player/SocialWidget';
 import { YouTubeWidget } from '../../player/YouTubeWidget';
+import { SportsWidget } from '../../player/SportsWidget';
 import { coresDoConfig } from '@/lib/widgetPaletas';
-import { TIPOS_COM_PALETA } from '@/lib/widgetCatalog';
+import { TIPOS_COM_CORES } from '@/lib/widgetCatalog';
 import { PaletaPicker } from './PaletaPicker';
 
 interface WidgetPreviewProps {
     widgetType: WidgetType;
     config: WidgetConfig;
     editOrientation: 'landscape' | 'portrait';
-    /** Formulário aberto: mostra as cores (Relógio/Clima) na lateral direita da prévia. */
+    /** Formulário aberto: mostra as cores (Relógio/Clima/Esportes) na lateral direita da prévia. */
     onConfigChange?: (patch: Partial<WidgetConfig>) => void;
 }
 
@@ -31,7 +32,7 @@ export function WidgetPreview({ widgetType, config, editOrientation, onConfigCha
     const futurista = widgetType === 'weather';
     const relogioFuturista = widgetType === 'clock';
     const cores = coresDoConfig(config);
-    const comPaleta = !!onConfigChange && TIPOS_COM_PALETA.includes(widgetType);
+    const comPaleta = !!onConfigChange && TIPOS_COM_CORES.includes(widgetType);
 
     return (
         <div className="w-full md:w-1/2 bg-zinc-900 relative flex items-center justify-center gap-4 p-8 overflow-hidden">
@@ -73,12 +74,17 @@ export function WidgetPreview({ widgetType, config, editOrientation, onConfigCha
                                     className="w-full h-full"
                                 />
                             )}
+                            {widgetType === 'sports' && (
+                                <SportsWidget config={config} backgroundImage={bgImage} cores={cores} className="w-full h-full" />
+                            )}
                             {widgetType === 'rss' && (
                                 <RssWidget
                                     feedUrl={config.feedUrl}
                                     maxItems={config.maxItems}
                                     scrollSpeed={config.scrollSpeed}
                                     variant={config.variant}
+                                    origem={config.origem}
+                                    categoria={config.categoria}
                                     backgroundImage={bgImage}
                                     className="w-full h-full"
                                 />

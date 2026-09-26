@@ -12,7 +12,8 @@ import { WidgetPreview } from '@/components/dashboard/widgets/WidgetPreview';
 import { WidgetAssetsGallery } from '@/components/dashboard/widgets/WidgetAssetsGallery';
 import { WidgetCatalog } from '@/components/dashboard/widgets/WidgetCatalog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { copiaDoWidget, type WidgetTemplateDef } from '@/lib/widgetCatalog';
+import { copiaDoWidget, WIDGET_TEMPLATES, type WidgetTemplateDef } from '@/lib/widgetCatalog';
+import { useSearchParams } from 'react-router-dom';
 
 export default function Widgets() {
   const { user } = useAuth();
@@ -48,6 +49,16 @@ export default function Widgets() {
     setNovoModelo(modelo || null);
     setDialogOpen(true);
   };
+
+  // Vindo da Biblioteca (Conteúdo automático): abre o novo widget já no modelo escolhido.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = params.get('modelo');
+    if (!id) return;
+    const modelo = WIDGET_TEMPLATES.find((t) => t.id === id && t.noPlayer);
+    if (modelo) openDialog(undefined, modelo);
+    setParams((p) => { const n = new URLSearchParams(p); n.delete('modelo'); return n; }, { replace: true });
+  }, [params, setParams]);
 
   const handleSave = async (data: Partial<Widget>) => {
     if (!user) return;

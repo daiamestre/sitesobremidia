@@ -44,7 +44,7 @@ export interface ExternalLink {
     is_active?: boolean;
 }
 
-export type WidgetType = 'clock' | 'weather' | 'rss' | 'institutional' | 'offer' | 'advertising' | 'social' | 'instagram' | 'youtube';
+export type WidgetType = 'clock' | 'weather' | 'rss' | 'institutional' | 'offer' | 'advertising' | 'social' | 'instagram' | 'youtube' | 'sports';
 
 export interface WidgetConfig {
     // Modelo da Galeria de Widgets (src/lib/widgetCatalog.ts); ausente = clássico do tipo
@@ -70,6 +70,15 @@ export interface WidgetConfig {
     maxItems?: number;
     scrollSpeed?: number;
     variant?: 'full' | 'compact';
+    // Notícias automáticas (motor de notícias): sem feedUrl lido pelo Player — o servidor entrega as manchetes prontas
+    origem?: 'agencia-brasil';
+    categoria?: string;
+
+    // Esportes (Sports Engine): dados globais já validados, resolvidos no servidor
+    competicoes?: string[];
+    modo?: 'resultados' | 'proximos' | 'hoje';
+    limite?: number;
+    time?: string;
 
     // Institucional / Aviso
     selo?: string;

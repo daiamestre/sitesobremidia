@@ -594,3 +594,54 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Remoção:** transação atômica apenas sobre os 41 IDs inventariados, com o pós-commit em 0 + 0; as outras 187 tabelas ficaram com contagem idêntica.
 - **Evidências:** `docs/engineering/evidence/F-79_limpeza_forense_conteudo/` (snapshots, manifesto, hashes, SQL executado, contagens antes e depois).
 - **Mantidos e não alterados:** as tabelas e a estrutura `content_*` (4 competições, 10 categorias), que serão reavaliadas no Sports/News Engine. Os rascunhos da outra sessão seguem no disco, sem commit, e não são publicados enquanto não passarem por revisão.
+
+### F-80 — SOBRE MÍDIA Sports Engine + Notícias de Esportes, a custo zero (migrações 20261251/20261252, Edge Functions, painel e Player 5.6.0) — DONE
+- **Fontes:** as 4 oficiais (CBF, UEFA, LALIGA, Premier League) proíbem uso comercial ou coleta automática e não são usadas. As fontes adotadas são:
+  - **openfootball** (CC0): Brasileirão 2026, Premier e La Liga 2026/27;
+  - **Wikipédia** (CC BY-SA 4.0): validação das 3 ligas e fonte única da Champions, com cobertura PARTIAL e confirmação por 2 revisões com pelo menos 30 min de diferença;
+  - **Agência Brasil** (CC BY 4.0): notícias de esportes, só texto, porque o feed não traz o crédito das fotos.
+- **Contrato e regras:** `docs/engineering/SPORTS_ENGINE_CONTRATO.md`.
+  - Resultado só é publicado quando as 2 fontes dão o mesmo placar.
+  - Próximo jogo exige 2 commits iguais do openfootball e o confronto na Wikipédia.
+  - Mudanças de horário, conflitos, goleadas, placar implausível e jogo em andamento não são publicados.
+  - Sem placar ao vivo; UTC internamente e horário de Brasília na exibição.
+  - O próprio banco recusa jogo publicado que seja LIVE/UNKNOWN ou FINISHED sem placar (`ck_csf_publicacao`).
+- **Código:**
+  - `supabase/functions/_shared/sports/*` e `_shared/noticias/rss.ts` (puros, testados);
+  - Edge Functions `sports-engine-sync` e `news-engine-sync`, que substituíram os rascunhos com dados inventados e com feeds da Globo (os originais estão guardados em `evidence/F-79.../rascunhos_originais`);
+  - pg_cron (15 min para esportes, 2x/h para notícias) → pg_net, autenticado por segredo no Vault.
+- **Banco:** as tabelas `content_*` foram reaproveitadas como dado global (empresa NULL) e ganharam 4 tabelas de observabilidade: runs, saúde por fonte, snapshots (10 por fonte) e eventos. Escrita só por service_role. Os widgets são resolvidos no servidor, como Ofertas e Publicidade.
+- **Linha W11 em `get_player_playlist_for_screen`:** o widget `sports` só vai para Player ≥ 5.6.0; aparelho antigo não recebe e não mostra "Widget não suportado".
+  - Correção na 20261252: a versão vem de `screens.version` (heartbeat), porque `devices.app_version` fica parado — `initializeDeviceFleet` nunca é chamado (OF-F80-1).
+  - Payload das telas antes/depois: 7/7 idêntico.
+- **Painel:**
+  - Galeria com Resultados do Futebol, Próximos Jogos, Jogos de Hoje e Notícias de Esportes, com capa viva;
+  - formulário com competições, quantidade, filtro por time e cores (paleta);
+  - Biblioteca de Mídias com a seção "Conteúdo automático", que abre o widget no modelo certo e segue o fluxo normal Playlist → Tela → Player; não aparece no portal do Anunciante.
+- **Player 5.6.0 (547):**
+  - `Esportes.kt` (sem java.time, pois o minSdk é 23), tipo SPORTS e `buildSports`: 4 jogos por página na horizontal, 6 na vertical, girando a cada 8 s; jogo já iniciado sai de "próximos" mesmo com cache antigo;
+  - o widget de Notícias usa as manchetes prontas quando `origem = agencia-brasil`.
+  - APK Debug SHA-256 `e416f6ac77fe23e8821106f6cf598dddf3387f6c49b04058c5cc0cb4fdbe5a9c` (15 765 748 bytes).
+- **Prova real (26/09/2026):**
+  - Coleta forçada em 28 s:
+
+    | Competição | Jogos | Publicados | Pendentes |
+    |---|---|---|---|
+    | Brasileirão | 380 | 360 | 20 |
+    | Premier League | 380 | 375 | 5 |
+    | La Liga | 380 | 374 | 6 |
+    | Champions | 144 | 144 | 0 |
+
+    Nenhum conflito. Os pendentes são jogos passados sem resultado nas 2 fontes, mais 3 remarcações (29/07 → 02/10 e 03/10; 16/09 → 21/10) aguardando confirmação.
+  - Exemplo: Flamengo 2×1 Bragantino (20/09, 18:30 de Brasília), commit `e674442` + revisão 73056133.
+  - Notícias: 10 da Agência Brasil. Chamadas sem segredo recebem 401.
+  - Cron automático: 200/SKIPPED (NORMAL) e notícias SEM_MUDANCA (ETag).
+  - Emulador 5.6.0: Resultados (Athletico-PR 2×1 Bahia, Flamengo 2×1 Bragantino, Corinthians 1×3 Fluminense, Vitória 1×3 Cruzeiro) e Notícias de Esportes. 0 ANR/crash do app. Capturas em `evidence/F-80_sports_engine/`.
+  - Dados de teste removidos; playlist de homologação idêntica à original.
+- **Testes:** web `sportsEngine` (20), `noticiasRss` (5), `esportesWidget` (6), Biblioteca (+1); JVM `EsportesWidgetTest` (5), JVM total 198/198.
+
+### OPEN FINDINGS do F-80
+- **OF-F80-1:** `MainActivity.initializeDeviceFleet` nunca é chamado, então `devices.app_version`/`player_version` ficam desatualizados (ex.: o emulador aparece como 5.5.1 rodando 5.6.0). Não foi alterado (estrutura do Player). A trava W11 usa `screens.version`, que o heartbeat mantém.
+- **OF-F80-2:** o openfootball atualiza de 2 a 3 vezes por semana, então resultados chegam com atraso de até ~4 dias. É o limite da fonte gratuita; não há dado inventado para compensar.
+- **OF-F80-3:** o widget "Notícias (RSS)" comum ainda vem com o feed do G1 como padrão (`WidgetForm.getDefaultConfig`), e o usuário pode trocar. Recomenda-se decisão do proprietário sobre trocar o padrão pela Agência Brasil.
+- **OF-F80-4:** os rascunhos `20261245`–`20261247`, `src/lib/contentEngine.ts` e a alteração em `src/lib/biblioteca.ts` são da outra sessão e continuam sem commit. Não devem ser aplicados: a 20261246 recriaria políticas por empresa e RPCs do modelo antigo.

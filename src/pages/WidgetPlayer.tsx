@@ -9,6 +9,7 @@ import { OfferWidget } from "@/components/player/OfferWidget";
 import { AdvertisingWidget } from "@/components/player/AdvertisingWidget";
 import { SocialWidget } from "@/components/player/SocialWidget";
 import { YouTubeWidget } from "@/components/player/YouTubeWidget";
+import { SportsWidget } from "@/components/player/SportsWidget";
 import { coresDoConfig } from "@/lib/widgetPaletas";
 import "@/components/player/Player.css";
 
@@ -71,12 +72,17 @@ const WidgetPlayer = () => {
                 return <ClockFuturista {...commonProps} cores={coresDoConfig(config)} showDate={config.showDate !== false} showSeconds={config.showSeconds === true} />;
             case 'weather':
                 return <WeatherFuturista {...commonProps} cores={coresDoConfig(config)} latitude={config.latitude} longitude={config.longitude} locationName={config.locationName} />;
+            case 'sports':
+                return <SportsWidget {...commonProps} config={config} cores={coresDoConfig(config)} dados={config.esportes ?? null} />;
             case 'rss':
                 return (
                     <RssWidget
                         {...commonProps}
-                        feedUrl={config.url}
-                        maxItems={config.itemsCount}
+                        feedUrl={config.feedUrl ?? config.url}
+                        maxItems={config.maxItems ?? config.itemsCount}
+                        origem={config.origem}
+                        categoria={config.categoria}
+                        noticias={config.noticias ?? null}
                     />
                 );
             default:

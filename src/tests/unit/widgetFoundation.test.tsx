@@ -19,7 +19,7 @@ describe('Widget Engine W2 — fundação', () => {
     expect(new Set(ids).size).toBe(ids.length);
     const prontos = WIDGET_TEMPLATES.filter((t) => t.noPlayer).map((t) => t.id).sort();
     // Relógio e Clima: modelo único (Futurista) — os clássicos saíram do catálogo
-    expect(prontos).toEqual(['advertising-campanha', 'clock-futurista', 'instagram-post', 'institutional-aviso', 'offer-destaque', 'rss-classic', 'social-post', 'weather-futurista', 'youtube-video']);
+    expect(prontos).toEqual(['advertising-campanha', 'clock-futurista', 'instagram-post', 'institutional-aviso', 'offer-destaque', 'rss-classic', 'rss-esportes', 'social-post', 'sports-hoje', 'sports-proximos', 'sports-resultados', 'weather-futurista', 'youtube-video']);
     expect(WIDGET_TEMPLATES.filter((t) => t.tipo === 'clock').map((t) => t.id)).toEqual(['clock-futurista']);
     expect(WIDGET_TEMPLATES.filter((t) => t.tipo === 'weather').map((t) => t.id)).toEqual(['weather-futurista']);
   });

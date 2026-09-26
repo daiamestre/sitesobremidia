@@ -2,6 +2,7 @@ import type { WidgetConfig } from '@/types/models';
 import { coresDoConfig } from '@/lib/widgetPaletas';
 import { ClockFuturista } from '../../player/ClockFuturista';
 import { WeatherFuturista } from '../../player/WeatherFuturista';
+import { SportsWidget } from '../../player/SportsWidget';
 
 /**
  * Capa do widget nos cards: a imagem de fundo escolhida; sem imagem, o próprio Relógio/Clima Futurista
@@ -17,6 +18,13 @@ export function CapaWidget({ widgetType, config, thumbnailUrl, nome }: {
     return (
       <div className="pointer-events-none h-full w-full" data-testid="capa-relogio" aria-hidden>
         <ClockFuturista showDate={c.showDate !== false} showSeconds={false} cores={coresDoConfig(c)} className="h-full w-full" />
+      </div>
+    );
+  }
+  if (widgetType === 'sports') {
+    return (
+      <div className="pointer-events-none h-full w-full" data-testid="capa-esportes" aria-hidden>
+        <SportsWidget config={c} cores={coresDoConfig(c)} className="h-full w-full" />
       </div>
     );
   }

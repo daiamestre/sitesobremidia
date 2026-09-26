@@ -146,6 +146,18 @@ describe('Biblioteca de Mídias — página', () => {
     expect(rpc.mock.calls.find((c) => c[0] === 'biblioteca_buscar')?.[1]).toMatchObject({ p_pasta_id: 'p1' });
   });
 
+  it('Conteúdo automático (esportes/notícias) aparece no painel e leva ao widget no modelo certo; não aparece no portal', async () => {
+    banco(true);
+    const { unmount } = pagina('painel');
+    expect(await screen.findByTestId('conteudo-automatico')).toBeInTheDocument();
+    for (const id of ['sports-resultados', 'sports-proximos', 'sports-hoje', 'rss-esportes']) expect(screen.getByTestId(`usar-${id}`)).toBeInTheDocument();
+    unmount();
+    banco(false);
+    pagina('portal');
+    expect(await screen.findByText('Vídeos Esporte')).toBeInTheDocument();
+    expect(screen.queryByTestId('conteudo-automatico')).toBeNull();
+  });
+
   it('portal: "Adicionar à Tela" lista só as telas com playlist publicada do anunciante', async () => {
     banco(false);
     pagina('portal', '/?pasta=p1');

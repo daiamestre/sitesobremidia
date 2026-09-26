@@ -9,7 +9,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import java.net.URLDecoder
 
-enum class WidgetKind { CLOCK, WEATHER, RSS, INSTITUTIONAL, OFFER, ADVERTISING, SOCIAL, YOUTUBE, UNKNOWN }
+enum class WidgetKind { CLOCK, WEATHER, RSS, INSTITUTIONAL, OFFER, ADVERTISING, SOCIAL, YOUTUBE, SPORTS, UNKNOWN }
 
 /** Linha "rótulo — valor" do modelo Institucional (ex.: "Segunda a sexta" — "06:00 — 22:00"). */
 data class LinhaInfo(val rotulo: String, val valor: String)
@@ -66,7 +66,11 @@ data class WidgetSpec(
     /** YouTube: vídeo/playlist validado para o player oficial. */
     val youtube: YoutubeRef? = null,
     /** Cores do Relógio/Clima Futurista escolhidas no painel (null = padrão SOBRE MÍDIA). */
-    val cores: CoresWidget? = null
+    val cores: CoresWidget? = null,
+    /** Esportes: jogos confirmados que o servidor junta em config.esportes (o Player não busca nada). */
+    val esportes: DadosEsportes? = null,
+    /** Notícias automáticas (config.origem = agencia-brasil): manchetes prontas em config.noticias; null = ler o feedUrl. */
+    val noticiasProntas: List<RssItem>? = null
 ) {
     /** Fundo do widget: a imagem da orientação da tela; se só existir a outra, usa ela (nunca fica sem fundo à toa). */
     fun backgroundFor(landscape: Boolean): String? =
@@ -89,6 +93,7 @@ object WidgetSpecParser {
             t == "advertising" || t.contains("publicidade") -> WidgetKind.ADVERTISING
             t == "social" || t.contains("instagram") -> WidgetKind.SOCIAL
             t.contains("youtube") -> WidgetKind.YOUTUBE
+            t == "sports" || t.contains("esporte") -> WidgetKind.SPORTS
             t.contains("rss") || t.contains("news") || t.contains("noticia") || t.contains("notícia") -> WidgetKind.RSS
             else -> WidgetKind.UNKNOWN
         }
@@ -146,7 +151,9 @@ object WidgetSpecParser {
                 imagemUrl = httpUrlOrNull(str("imagemPost"))
             ),
             youtube = if (kindOf(rawType) != WidgetKind.YOUTUBE) null else YoutubeLink.ler(str("youtubeUrl")),
-            cores = CoresWidget.parse(cfg["cores"])
+            cores = CoresWidget.parse(cfg["cores"]),
+            esportes = if (kindOf(rawType) != WidgetKind.SPORTS) null else EsportesText.parse(cfg["esportes"]),
+            noticiasProntas = if (kindOf(rawType) == WidgetKind.RSS && str("origem") == "agencia-brasil") NoticiasProntas.parse(cfg["noticias"]) else null
         )
     }
 

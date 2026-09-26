@@ -36,6 +36,9 @@ import com.antigravity.player.widget.OfertaText
 import com.antigravity.player.widget.CampanhaText
 import com.antigravity.player.widget.PostSocial
 import com.antigravity.player.widget.YoutubeLink
+import com.antigravity.player.widget.DadosEsportes
+import com.antigravity.player.widget.EsportesText
+import com.antigravity.player.widget.JogoEsporte
 import com.antigravity.core.util.TimeManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
@@ -81,7 +84,7 @@ object NativeWidgetEngine {
     private val uiHandler = Handler(Looper.getMainLooper())
 
     private data class WeatherPayload(val now: WeatherNow?, val place: String?, val forecast: WeatherForecast? = null)
-    private data class RssPayload(val items: List<RssItem>, val source: String)
+    private data class RssPayload(val items: List<RssItem>, val source: String, val rotulo: String = "NOTÍCIAS")
 
     /**
      * Tamanho em que o widget vai aparecer. O contêiner costuma ainda não ter sido medido (0x0) quando o widget é
@@ -144,6 +147,7 @@ object NativeWidgetEngine {
                 WidgetKind.ADVERTISING -> buildAdvertising(context, spec, background, w, h, base, payload as? CampanhaPayload)
                 WidgetKind.SOCIAL -> buildSocial(context, spec, background, w, h, base, payload as? PostPayload)
                 WidgetKind.YOUTUBE -> buildYoutube(context, spec, w, h, base)
+                WidgetKind.SPORTS -> buildSports(context, spec, background, w, h, base)
                 WidgetKind.UNKNOWN -> buildMessage(context, background, w, h, base, "Widget não suportado (${spec.rawType})")
             }
             container.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -226,6 +230,8 @@ object NativeWidgetEngine {
     }
 
     private fun loadRss(context: Context, spec: WidgetSpec): RssPayload {
+        // Notícias automáticas: o servidor já entregou as manchetes (Agência Brasil); o Player não lê o feed.
+        spec.noticiasProntas?.let { return RssPayload(it.take(spec.maxItems), "Agência Brasil", "ESPORTES") }
         val source = spec.feedUrl.substringAfter("://").substringBefore("/").removePrefix("www.")
         if (spec.feedUrl.isBlank()) return RssPayload(emptyList(), source)
         val cache = WidgetDataCache(context)
@@ -1028,7 +1034,7 @@ object NativeWidgetEngine {
         val box = content(context, if (spec.compact) "bottom" else spec.position, base)
         val header = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         header.addView(text(context, base * 0.03f, bold = true).apply {
-            text = "NOTÍCIAS"
+            text = data?.rotulo ?: "NOTÍCIAS"
             letterSpacing = 0.1f
             background = GradientDrawable().apply { setColor(Color.parseColor("#E53935")); cornerRadius = base * 0.012f }
             val ph = px(base * 0.025f); val pv = px(base * 0.008f); setPadding(ph, pv, ph, pv)
@@ -1086,6 +1092,109 @@ object NativeWidgetEngine {
         }
         if (items.size > 1) bindToLifecycle(root, rotate, periodMs)
         return root
+    }
+
+    // ------------------------------------------------------------------ Esportes (Sports Engine; identidade SOBRE MÍDIA)
+
+    /**
+     * Jogos confirmados pelo servidor (config.esportes), horário de Brasília, sem placar ao vivo. Mesma composição do
+     * painel (src/components/player/SportsWidget.tsx): 4 jogos por página na horizontal, 6 na vertical, girando a cada 8 s.
+     */
+    private fun buildSports(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float): View {
+        val cores = spec.cores ?: CoresWidget.PADRAO
+        val dados = spec.esportes ?: DadosEsportes("resultados", emptyList(), "Dados: openfootball (CC0) · Wikipédia (CC BY-SA)")
+        val root = fundoMarca(context, bg, base, cores)
+        val col = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = px(base * 0.045f); setPadding(pad, pad, pad, pad)
+        }
+        root.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        col.addView(cabecalhoMarca(context, "⚽ " + EsportesText.rotuloModo(dados.modo), base, cores), lp())
+
+        val jogos = EsportesText.visiveis(dados, TimeManager.utcMillis())
+        val umaCompeticao = jogos.isNotEmpty() && jogos.map { it.slug }.distinct().size == 1
+        if (umaCompeticao) {
+            col.addView(text(context, base * 0.036f, bold = true, color = Color.argb(235, 255, 255, 255)).apply {
+                text = jogos[0].competicao.uppercase(Locale("pt", "BR")); gravity = Gravity.START; letterSpacing = 0.06f
+            }, lp(top = px(base * 0.015f)))
+        }
+        val lista = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
+        col.addView(lista, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        val rodape = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        rodape.addView(text(context, base * 0.022f, color = Color.argb(165, 255, 255, 255)).apply {
+            text = "Horário de Brasília · ${dados.creditos}"; gravity = Gravity.START; setShadowLayer(0f, 0f, 0f, 0)
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val contador = text(context, base * 0.022f, color = Color.argb(165, 255, 255, 255))
+        rodape.addView(contador)
+        col.addView(rodape, lp(top = px(base * 0.012f)))
+
+        if (jogos.isEmpty()) {
+            lista.addView(text(context, base * 0.04f, color = Color.argb(215, 255, 255, 255), lines = 2).apply { text = "Sem jogos confirmados para exibir agora." }, lp())
+            return root
+        }
+        val porPagina = if (h > w * 1.2f) 6 else 4
+        val paginas = (jogos.size + porPagina - 1) / porPagina
+        fun mostrar(p: Int) {
+            lista.removeAllViews()
+            jogos.drop(p * porPagina).take(porPagina).forEachIndexed { i, j ->
+                lista.addView(linhaJogo(context, j, base, cores, !umaCompeticao), lp(top = if (i == 0) 0 else px(base * 0.014f)))
+            }
+            contador.text = if (paginas > 1) "${p + 1}/$paginas" else ""
+        }
+        mostrar(0)
+        if (paginas > 1) {
+            var pagina = 0
+            val periodoMs = 8_000L
+            val girar = object : Runnable {
+                override fun run() {
+                    if (!root.isAttachedToWindow && root.parent == null) return
+                    pagina = (pagina + 1) % paginas
+                    lista.animate().alpha(0f).setDuration(250).withEndAction {
+                        mostrar(pagina)
+                        lista.animate().alpha(1f).setDuration(250).start()
+                    }.start()
+                    uiHandler.postDelayed(this, periodoMs)
+                }
+            }
+            bindToLifecycle(root, girar, periodoMs)
+        }
+        return root
+    }
+
+    private fun linhaJogo(context: Context, j: JogoEsporte, base: Float, cores: CoresWidget, comCodigo: Boolean): View {
+        val linha = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.argb(23, 255, 255, 255)); cornerRadius = base * 0.016f
+                setStroke(px(base * 0.002f).coerceAtLeast(1), CoresWidget.comAlfa(cores.brilho, 90))
+            }
+            val ph = px(base * 0.022f); val pv = px(base * 0.012f); setPadding(ph, pv, ph, pv)
+        }
+        if (comCodigo) {
+            linha.addView(text(context, base * 0.024f, bold = true, color = cores.selo).apply {
+                text = j.codigo; gravity = Gravity.START; setShadowLayer(0f, 0f, 0f, 0)
+            }, LinearLayout.LayoutParams(px(base * 0.09f), ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        fun nome(t: String, g: Int) = text(context, base * 0.038f, bold = true).apply {
+            text = t; gravity = g; ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        linha.addView(nome(j.mandante, Gravity.END or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val (principal, encerrado) = EsportesText.centro(j)
+        val centro = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+        centro.addView(pill(context, principal, base * 0.042f,
+            if (encerrado) cores.selo else Color.argb(41, 255, 255, 255),
+            if (encerrado) cores.seloTexto else Color.WHITE, base).apply { minWidth = px(base * 0.14f) },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        centro.addView(text(context, base * 0.021f, bold = true, color = Color.argb(195, 255, 255, 255)).apply {
+            text = if (encerrado) "FINAL" else EsportesText.dataCurta(j.data).uppercase(Locale("pt", "BR"))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.CENTER_HORIZONTAL; topMargin = px(base * 0.004f)
+        })
+        linha.addView(centro, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            marginStart = px(base * 0.018f); marginEnd = px(base * 0.018f)
+        })
+        linha.addView(nome(j.visitante, Gravity.START or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        return linha
     }
 
     /** Liga o Runnable enquanto a view está na tela e o cancela ao sair (sem vazamento entre widgets). */
