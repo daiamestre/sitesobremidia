@@ -1,0 +1,59 @@
+name: Publish Player APK
+
+# Copia o APK de uma release do GitHub para o R2 (releases/sobremidia-player-v<code>.apk), o mesmo lugar das releases
+# anteriores do OTA. Confere o SHA-256 antes de enviar; não mexe em app_releases (o registro do OTA é feito à parte,
+# depois de conferir o arquivo publicado).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da release do GitHub com o APK (ex.: player-v5.6.2)'
+        required: true
+      asset:
+        description: 'Nome do arquivo anexado (ex.: sobremidia-player-v549.apk)'
+        required: true
+      sha256:
+        description: 'SHA-256 esperado (64 hex)'
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validar entrada
+        env:
+          ASSET: ${{ inputs.asset }}
+          SHA: ${{ inputs.sha256 }}
+        run: |
+          [[ "$ASSET" =~ ^sobremidia-player-v[0-9]+\.apk$ ]] || { echo "nome de arquivo inválido"; exit 1; }
+          [[ "$SHA" =~ ^[a-f0-9]{64}$ ]] || { echo "sha256 inválido"; exit 1; }
+
+      - name: Baixar da release e conferir
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          ASSET: ${{ inputs.asset }}
+          SHA: ${{ inputs.sha256 }}
+        run: |
+          gh release download "$TAG" -R "${{ github.repository }}" -p "$ASSET"
+          echo "$SHA  $ASSET" | sha256sum -c -
+
+      - name: Enviar ao R2
+        env:
+          ASSET: ${{ inputs.asset }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq rclone
+          mkdir -p ~/.config/rclone
+          cat <<EOF > ~/.config/rclone/rclone.conf
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          endpoint = https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          EOF
+          rclone copyto "$ASSET" "r2:${{ secrets.R2_BUCKET }}/releases/$ASSET" --s3-no-check-bucket \
+            --header-upload "Content-Type: application/vnd.android.package-archive"
+          echo "Publicado em releases/$ASSET"
