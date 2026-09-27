@@ -5,6 +5,7 @@
  *
  * Autenticação: Authorization: Bearer <CONTENT_FACTORY_SECRET> (segredo só do robô; nunca a chave service_role).
  * Corpo: { "conteudo": "loterias", "itens": [{ chave, nome, descricao?, url, path, hash, bytes, mime, tipo, aspecto }] }
+ *   ou { "dados": "esportes" | "esportes-news" } (leitura dos dados globais que o robô desenha).
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
@@ -18,8 +19,21 @@ Deno.serve(async (req) => {
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
   if (!SEGREDO || token.length < 32 || token !== SEGREDO) return resposta(401, { error: 'nao_autorizado' });
   if (req.method !== 'POST') return resposta(405, { error: 'metodo' });
-  let corpo: { conteudo?: string; itens?: Array<Record<string, unknown>> };
+  let corpo: { conteudo?: string; itens?: Array<Record<string, unknown>>; dados?: string };
   try { corpo = await req.json(); } catch { return resposta(400, { error: 'json_invalido' }); }
+  // Leitura para o robô (F-95): jogos publicados por campeonato e notícias de esporte com imagem (dados globais).
+  if (corpo.dados === 'esportes') {
+    const { data, error } = await db.rpc('conteudo_esportes_dados');
+    return error ? resposta(500, { error: error.message }) : resposta(200, data);
+  }
+  if (corpo.dados === 'estado' && typeof corpo.conteudo === 'string') {
+    const { data, error } = await db.rpc('conteudo_auto_estado', { p_conteudo: corpo.conteudo });
+    return error ? resposta(500, { error: error.message }) : resposta(200, data);
+  }
+  if (corpo.dados === 'esportes-news') {
+    const { data, error } = await db.rpc('fn_widget_esportes_news_dados', { p_config: { maxItems: 20 } });
+    return error ? resposta(500, { error: error.message }) : resposta(200, data);
+  }
   const itens = Array.isArray(corpo.itens) ? corpo.itens : null;
   if (!corpo.conteudo || !itens || itens.length > 200) return resposta(400, { error: 'corpo_invalido' });
   // só arquivos do próprio bucket, na área de conteúdo automático (nunca URL de terceiros)

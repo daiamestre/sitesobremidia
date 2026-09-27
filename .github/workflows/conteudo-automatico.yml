@@ -1,13 +1,19 @@
-name: Conteúdo automático (Loterias e Sorteios)
+name: Conteúdo automático (pastas da Biblioteca)
 
-# F-94 — abastece as pastas automáticas da Biblioteca com conteúdo real:
-#   Loterias  -> resultado do último concurso de cada loteria da CAIXA (arte SOBRE MÍDIA, 16:9 e 9:16)
-#   Sorteios  -> próximo sorteio de cada loteria (data e prêmio estimado)
-# Duas vezes por dia (depois dos sorteios da noite e de manhã) e sob demanda.
+# F-94/F-95 — abastece as pastas automáticas da Biblioteca (arte SOBRE MÍDIA, 16:9 e 9:16):
+#   Loterias/Sorteios (CAIXA), SOBREMÍDIA NEWS, Esportes, Futebol, Cinema, Turismo (notícias com foto),
+#   Brasileirão/Premier/La Liga/Champions e Apostas Esportivas (jogos, sem odds), Datas Comemorativas,
+#   Charadas, Humor, Memes, Curiosidades e Nostalgia (conteúdo próprio, troca semanal).
+# A cada 3 horas e sob demanda (entrada 'somente' = lista de pastas, ex.: noticias,datas).
 on:
   schedule:
-    - cron: '20 1,13 * * *'   # 22:20 e 10:20 (Brasília)
+    - cron: '20 */3 * * *'
   workflow_dispatch:
+    inputs:
+      somente:
+        description: 'Só estas pastas (vazio = todas), ex.: noticias,datas'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -17,9 +23,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  loterias:
+  conteudo:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: scripts/conteudo
@@ -40,4 +46,5 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           CONTENT_FACTORY_SECRET: ${{ secrets.CONTENT_FACTORY_SECRET }}
-        run: node robo-loterias.mjs
+          SOMENTE: ${{ inputs.somente }}
+        run: node robo.mjs
