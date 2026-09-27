@@ -15,6 +15,8 @@ import { htmlResultado, htmlProximo } from './cartoes-loterias.mjs';
 
 const env = (k) => { const v = process.env[k]; if (!v) throw new Error(`variável ausente: ${k}`); return v; };
 const PUBLICO = 'https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/';
+/** Mudou o desenho das artes? Suba a versão para as telas receberem as artes novas. */
+const VERSAO_ARTE = 'loterias-v1';
 const ORIENTACOES = [['h', 1920, 1080, '16x9', 'horizontal'], ['v', 1080, 1920, '9x16', 'vertical']];
 
 async function buscar(url) {
@@ -64,8 +66,11 @@ async function main() {
     await pagina.evaluate(() => document.fonts.ready);
     return pagina.screenshot({ type: 'jpeg', quality: 88, fullPage: false });
   }
-  async function enviar(pasta, base, buf) {
-    const hash = crypto.createHash('md5').update(buf).digest('hex');
+  // Identidade da arte = o HTML (dados + desenho), não os bytes do JPG: a captura varia alguns bytes a cada execução e
+  // isso faria as telas baixarem tudo de novo sem nada ter mudado. Mesmo HTML -> mesmo hash -> nada muda na pasta.
+  async function enviar(pasta, base, html, w, h) {
+    const hash = crypto.createHash('md5').update(`${VERSAO_ARTE}|${w}x${h}|${html}`).digest('hex');
+    const buf = await foto(html, w, h);
     const path = `conteudo/${pasta}/${base}-${hash.slice(0, 10)}.jpg`;
     await s3.send(new PutObjectCommand({ Bucket: bucket, Key: path, Body: buf, ContentType: 'image/jpeg', CacheControl: 'public, max-age=31536000, immutable' }));
     return { path, url: PUBLICO + path, hash, bytes: buf.length };
@@ -74,11 +79,11 @@ async function main() {
   const itens = { loterias: [], sorteios: [] };
   for (const { lot, r } of resultados) {
     for (const [o, w, h, aspecto, nomeO] of ORIENTACOES) {
-      const res = await enviar('loterias', `${lot.slug}-${r.concurso}-${o}`, await foto(htmlResultado(lot, r, w, h), w, h));
+      const res = await enviar('loterias', `${lot.slug}-${r.concurso}-${o}`, htmlResultado(lot, r, w, h), w, h);
       itens.loterias.push({ chave: `${lot.slug}:${o}`, nome: `${lot.nome} — resultado do concurso ${r.concurso} (${nomeO})`,
         descricao: `Resultado oficial do concurso ${r.concurso} (${dataLonga(r.data)}). Fonte: CAIXA.`, tipo: 'image', aspecto, mime: 'image/jpeg', ...res });
       if (r.proximo?.data && diasEntre(hoje, r.proximo.data) >= 0) {
-        const prox = await enviar('sorteios', `${lot.slug}-${r.proximo.concurso ?? 'prox'}-${o}`, await foto(htmlProximo(lot, r, w, h), w, h));
+        const prox = await enviar('sorteios', `${lot.slug}-${r.proximo.concurso ?? 'prox'}-${o}`, htmlProximo(lot, r, w, h), w, h);
         itens.sorteios.push({ chave: `${lot.slug}:${o}`, nome: `${lot.nome} — próximo sorteio ${dataLonga(r.proximo.data)} (${nomeO})`,
           descricao: `Concurso ${r.proximo.concurso ?? ''}. Estimativa informada pela CAIXA.`, tipo: 'image', aspecto, mime: 'image/jpeg', ...prox });
       }
