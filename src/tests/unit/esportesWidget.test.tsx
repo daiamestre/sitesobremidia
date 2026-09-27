@@ -107,9 +107,17 @@ describe('Esportes v2 — componente (Player web)', () => {
     expect(screen.getByTestId('sports-competicao')).toHaveTextContent('La Liga');
   });
 
-  it('sem jogos na janela: avisa (nas telas o servidor nem envia o widget)', () => {
+  it('sem jogos na janela: nenhuma mensagem na tela (nas telas o servidor nem envia o widget) — F-91', () => {
     render(<SportsWidget config={{}} dados={v2([])} widgetId="w1" modo="player" />);
-    expect(screen.getByTestId('sports-vazio')).toHaveTextContent('Sem jogos nos 3 dias anteriores nem nos próximos 3 dias');
+    expect(screen.getByTestId('sports-vazio')).toHaveTextContent(/^$/);
+    expect(screen.queryByText(/Sem jogos|Não foi possível|EXEMPLO/)).toBeNull();
+  });
+
+  it('prévia com a última rodada real (simulado): sem o aviso amarelo de EXEMPLO — F-91', () => {
+    render(<SportsWidget config={{}} dados={{ ...v2(JANELA), simulado: true, referencia: '2026-10-10', agoraReferencia: '2026-10-10T15:00:00Z' }} modo="previa" />);
+    expect(screen.queryByTestId('sports-exemplo')).toBeNull();
+    expect(screen.queryByText(/EXEMPLO/)).toBeNull();
+    expect(screen.getAllByTestId('sports-jogo').length).toBeGreaterThan(0);
   });
 });
 

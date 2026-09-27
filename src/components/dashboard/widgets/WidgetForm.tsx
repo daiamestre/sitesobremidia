@@ -350,7 +350,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                         {/* ORIENTATION & BG */}
                         {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising' || widgetType === 'social' || widgetType === 'instagram' || widgetType === 'sports' || widgetType === 'youtube' || widgetType === 'sports_news') && (
                             <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
-                                <Label className="text-sm font-semibold">{widgetType === 'sports_news' ? 'Orientação da prévia' : 'Configuração de Fundo'}</Label>
+                                <Label className="text-sm font-semibold">{widgetType === 'sports_news' || widgetType === 'rss' ? 'Orientação da prévia' : 'Configuração de Fundo'}</Label>
                                 <div className="flex bg-muted rounded-lg p-1">
                                     <button onClick={() => setEditOrientation('landscape')} className={`flex-1 flex items-center justify-center gap-2 text-xs font-medium py-2 rounded-md transition-all ${editOrientation === 'landscape' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}>
                                         <LayoutTemplate className="h-4 w-4" /> Horizontal (16:9)
@@ -360,7 +360,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                     </button>
                                 </div>
 
-                                {widgetType === 'sports_news' ? (
+                                {widgetType === 'sports_news' || widgetType === 'rss' ? (
                                     <p className="text-xs text-muted-foreground">Sem imagem de fundo: cada notícia aparece com a imagem da própria notícia.</p>
                                 ) : (
                                 <div className="pt-2">
@@ -655,10 +655,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                             {widgetType === 'rss' && config.origem !== 'agencia-brasil' && (
                                 <div className="space-y-3">
                                     <div><Label>URL do Feed</Label><Input value={config.feedUrl} onChange={(e) => updateConfig('feedUrl', e.target.value)} /></div>
-                                    <div className="flex items-center justify-between">
-                                        <Label>Faixa compacta (rodapé)</Label>
-                                        <Switch checked={config.variant === 'compact'} onCheckedChange={(v) => updateConfig('variant', v ? 'compact' : 'full')} />
-                                    </div>
+                                    <p className="rounded-lg border bg-muted/30 p-3 text-sm">Toda notícia aparece com a imagem da própria notícia (do feed ou da página da matéria), com a fonte na tela. Notícia sem imagem não entra.</p>
                                     <div className="flex gap-2">
                                         <div className="flex-1"><Label>Máx. Itens</Label><Input type="number" value={config.maxItems} onChange={(e) => updateConfig('maxItems', parseInt(e.target.value))} /></div>
                                         <div className="flex-1"><Label>Segundos/Item</Label><Input type="number" value={config.scrollSpeed} onChange={(e) => updateConfig('scrollSpeed', parseInt(e.target.value))} /></div>

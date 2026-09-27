@@ -2,7 +2,8 @@
  * SOBRE MÍDIA — motor de notícias (pg_cron 2x/hora -> pg_net -> aqui).
  * Fonte: Agência Brasil / EBC (CC BY 4.0), cadastrada em content_news_sources (dado global da plataforma).
  * Texto (título + resumo) com crédito da fonte. Imagem (widget Esportes News, F-90) conforme content_news_sources.imagem:
- *   feed -> a imagem do item do feed; artigo_propria -> a foto principal da matéria SÓ se o crédito é do próprio veículo
+ *   feed -> a imagem do item do feed (sem ela, a imagem da página da matéria); artigo -> a foto principal da matéria
+ *   com o crédito original (decisão do proprietário, F-91); artigo_propria -> só foto com crédito do próprio veículo
  *   (Agência Brasil); foto de terceiros nunca. O Player recebe as notícias prontas pelo widget (fn_widget_config_resolvido)
  *   — nunca lê o feed nem a matéria.
  *
@@ -10,7 +11,7 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { parseRss } from '../_shared/noticias/rss.ts';
-import { fotoPropriaDoArtigo } from '../_shared/noticias/fotos.ts';
+import { fotoPrincipalDoArtigo, fotoPropriaDoArtigo, imagemDaPagina } from '../_shared/noticias/fotos.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 const SEGREDO = Deno.env.get('CONTENT_ENGINE_SECRET');
@@ -53,7 +54,7 @@ async function processar(f: Fonte, forcar: boolean) {
     const novas = itens.map((i, k) => ({ i, hash: hashes[k] })).filter((x) => !ja.has(x.hash)).map(({ i, hash }) => ({
       empresa_operadora_id: null, source_id: f.id, categoria: f.categoria, external_guid: i.guid, content_hash: hash,
       title: i.titulo, summary: i.resumo,
-      image_url: f.imagem === 'feed' ? i.imagem : null, image_checked_at: f.imagem === 'feed' ? agora.toISOString() : null, source_name: f.nome, source_url: f.url, article_url: i.link,
+      image_url: f.imagem === 'feed' ? i.imagem : null, image_checked_at: f.imagem === 'feed' && i.imagem ? agora.toISOString() : null, source_name: f.nome, source_url: f.url, article_url: i.link,
       autor: i.autor, licenca: f.licenca, published_at: i.publicadoEm,
       expires_at: new Date(Date.parse(i.publicadoEm) + VALIDADE_DIAS * 86400e3).toISOString(), status: 'ACTIVE', is_active: true, fetched_at: agora.toISOString(),
     }));
@@ -76,22 +77,24 @@ async function processar(f: Fonte, forcar: boolean) {
 }
 
 /**
- * Fonte 'artigo_propria' (Agência Brasil): abre as matérias ainda não verificadas e guarda a foto principal só se o
- * crédito é do próprio veículo. Matéria aberta = verificada (com ou sem foto); falha de rede = tenta na próxima execução.
+ * Abre as matérias ainda não verificadas e guarda a imagem da notícia: 'artigo' = foto principal com o crédito original;
+ * 'artigo_propria' = só foto do próprio veículo; 'feed' = item que veio sem imagem no feed -> imagem da página (og:image).
+ * Matéria aberta = verificada (com ou sem foto); falha de rede = tenta na próxima execução.
  * O link já foi validado no domínio da fonte (parseRss). Devolve quantas fotos novas foram aceitas.
  */
 async function verificarFotos(f: Fonte): Promise<number> {
-  if (f.imagem !== 'artigo_propria') return 0;
+  if (!['artigo', 'artigo_propria', 'feed'].includes(f.imagem)) return 0;
+  const extrair = f.imagem === 'artigo' ? fotoPrincipalDoArtigo : f.imagem === 'artigo_propria' ? fotoPropriaDoArtigo : imagemDaPagina;
   const { data: pendentes } = await db.from('content_news_items').select('id, article_url')
     .eq('source_id', f.id).eq('status', 'ACTIVE').is('image_checked_at', null)
     .order('published_at', { ascending: false }).limit(MATERIAS_POR_EXECUCAO);
   let aceitas = 0;
   for (const p of (pendentes ?? []) as Array<{ id: string; article_url: string | null }>) {
-    let foto: { url: string; credito: string } | null = null;
+    let foto: { url: string; credito: string | null } | null = null;
     try {
       const r = await fetch(p.article_url ?? '', { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(15000) });
       if (r.status >= 500 || r.status === 429) continue;
-      if (r.ok) foto = fotoPropriaDoArtigo(await r.text());
+      if (r.ok) foto = extrair(await r.text());
     } catch { continue; }
     await db.from('content_news_items').update({
       image_url: foto?.url ?? null, image_credit: foto?.credito ?? null, image_checked_at: new Date().toISOString(), updated_at: new Date().toISOString(),

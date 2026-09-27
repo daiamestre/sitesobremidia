@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { buscarNoticias, type DadosNoticias } from '@/lib/esportes';
+import { SportsNewsWidget } from './SportsNewsWidget';
+import type { NoticiaEsporte } from '@/lib/esportesNews';
 
 interface RssWidgetProps {
     feedUrl?: string;
@@ -17,12 +19,16 @@ interface RssWidgetProps {
     noticias?: DadosNoticias | null;
 }
 
-interface RssItem { title: string; description?: string }
+interface RssItem { title: string; description?: string; link?: string; imageUrl?: string; pubDate?: string }
 
 const stripHtml = (html = '') =>
     html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
 
-/** Notícias reais do feed (Edge Function fetch-rss), com rotação a cada `scrollSpeed` segundos. Mesmo desenho do Player. */
+/**
+ * Notícias reais do feed (Edge Function fetch-rss), com rotação a cada `scrollSpeed` segundos. Mesmo desenho do Player.
+ * F-91: toda notícia do feed aparece COM a imagem da notícia (do feed ou da página da matéria), no mesmo desenho do
+ * Esportes News; notícia sem imagem não entra.
+ */
 export function RssWidget({ feedUrl, maxItems = 5, scrollSpeed = 8, variant = 'full', backgroundImage, className, origem, categoria, noticias }: RssWidgetProps) {
     const [items, setItems] = useState<RssItem[]>([]);
     const [index, setIndex] = useState(0);
@@ -64,14 +70,33 @@ export function RssWidget({ feedUrl, maxItems = 5, scrollSpeed = 8, variant = 'f
     }, [automatico, feedUrl, maxItems]);
 
     useEffect(() => {
-        if (items.length < 2) return;
+        if (!automatico || items.length < 2) return; // feed comum: a rotação é do desenho com imagem
         const t = setInterval(() => setIndex(i => (i + 1) % items.length), Math.max(scrollSpeed || 8, 3) * 1000);
         return () => clearInterval(t);
-    }, [items, scrollSpeed]);
+    }, [automatico, items, scrollSpeed]);
 
     const item = items[index];
     const compact = variant === 'compact';
     const source = automatico ? 'Agência Brasil' : (feedUrl || '').replace(/^https?:\/\//, '').split('/')[0].replace(/^www\./, '');
+
+    const itensComImagem = useMemo<NoticiaEsporte[]>(() => items.filter((it) => /^https:\/\//i.test(it.imageUrl ?? '')).map((it, i) => {
+            const t = Date.parse(it.pubDate ?? '');
+            return {
+                id: it.link || String(i), titulo: stripHtml(it.title), resumo: stripHtml(it.description).slice(0, 240) || null,
+                imagem: it.imageUrl as string, creditoImagem: null, fonte: source, licenca: null,
+                publicadoEm: Number.isFinite(t) ? new Date(t).toISOString() : null,
+            };
+        }), [items, source]);
+    const dadosImagem = useMemo(() => ({ geradoEm: '', itens: itensComImagem }), [itensComImagem]);
+
+    if (!automatico) {
+        const vazio = !/^https:\/\//i.test((feedUrl || '').trim()) ? 'Informe a URL do feed RSS (https://)'
+            : state === 'loading' ? 'Carregando notícias…' : 'Sem notícias com imagem neste feed no momento.';
+        return (
+            <SportsNewsWidget config={{}} dados={dadosImagem} modo="previa" selo="NOTÍCIAS"
+                segundos={Math.max(scrollSpeed || 8, 3)} vazio={vazio} className={className} />
+        );
+    }
 
     return (
         <div className={cn("relative flex p-4 text-white overflow-hidden", compact ? "items-end" : "items-center justify-center", className)}>

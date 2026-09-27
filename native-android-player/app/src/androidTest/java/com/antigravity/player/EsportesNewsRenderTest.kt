@@ -8,6 +8,7 @@ import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.antigravity.player.util.NativeWidgetEngine
+import com.antigravity.player.widget.EsportesNews
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -18,9 +19,11 @@ import java.io.File
 import java.net.URLEncoder
 
 /**
- * F-90 — desenha o widget Esportes News de verdade (NativeWidgetEngine, imagem baixada da Agência Brasil) e salva PNGs
- * para a conferência visual, em 16:9 e 9:16. Dados: a saída real de fn_widget_esportes_news_dados em 27/09/2026
- * (asset esportes_news_27_09_2026.json). Também prova que notícia cuja imagem não carrega NÃO aparece.
+ * F-90/F-91 — desenha de verdade (NativeWidgetEngine, imagens baixadas da internet) e salva PNGs para conferência:
+ *  - Esportes News com a saída real de fn_widget_esportes_news_dados de 27/09/2026 (10 notícias, Agência Brasil e ge
+ *    intercaladas): as 3 primeiras exibições seguidas, provando que a notícia muda;
+ *  - Notícias (RSS) com um feed real (Agência Brasil — o feed não traz foto: a imagem vem da página da matéria);
+ *  - notícia com imagem inexistente não aparece.
  */
 @RunWith(AndroidJUnit4::class)
 class EsportesNewsRenderTest {
@@ -55,17 +58,35 @@ class EsportesNewsRenderTest {
         container
     }
 
-    @Test fun desenhaNoticiaHorizontalEVertical() {
+    @Test fun esportesNewsMudaDeNoticiaEmCadaExibicao() {
         val inst = InstrumentationRegistry.getInstrumentation()
-        val json = inst.context.assets.open("esportes_news_27_09_2026.json").bufferedReader().use { it.readText() }
-        val url = "native_widget://sports_news/teste-f90?config=" + URLEncoder.encode("""{"template":"esportes-news","esportesNews":$json}""", "UTF-8")
-        val saida = File(inst.targetContext.getExternalFilesDir(null), "f90").apply { mkdirs() }
-        for ((nome, w, h) in listOf(Triple("h", 1920, 1080), Triple("v", 1080, 1920))) {
-            val c = desenhar(url, w, h, File(saida, "esportes_news_$nome.png"))
-            val t = textos(c)
-            assertTrue("manchete na tela ($nome): $t", t.any { it.startsWith("Brasileirão Feminino: TV Brasil transmite") })
-            assertTrue("crédito na tela ($nome): $t", t.contains("Arte/Agência Brasil"))
+        val ctx = inst.targetContext
+        val json = inst.context.assets.open("esportes_news_27_09_2026_v2.json").bufferedReader().use { it.readText() }
+        val url = "native_widget://sports_news/teste-f91?config=" + URLEncoder.encode("""{"template":"esportes-news","esportesNews":$json}""", "UTF-8")
+        val itens = com.antigravity.player.widget.WidgetSpecParser.parse(url).esportesNews!!
+        assertTrue("várias notícias: ${itens.size}", itens.size >= 6)
+        val saida = File(ctx.getExternalFilesDir(null), "f91").apply { mkdirs() }
+        val titulosVistos = LinkedHashSet<String>()
+        // 1ª, 2ª e 3ª exibição (cada uma começa onde a anterior parou: +3 notícias)
+        for (exibicao in 0 until 3) {
+            val inicio = itens[exibicao * EsportesNews.NOTICIAS_POR_EXIBICAO]
+            ctx.getSharedPreferences("esportes_news_cursor", 0).edit().putString("teste-f91", inicio.id).commit()
+            val (w, h) = if (exibicao == 1) 1080 to 1920 else 1920 to 1080
+            val t = textos(desenhar(url, w, h, File(saida, "esportes_news_exibicao${exibicao + 1}.png")))
+            assertTrue("mostra a notícia do cursor (${inicio.titulo}): $t", t.contains(inicio.titulo))
+            titulosVistos.add(inicio.titulo)
         }
+        assertEquals(3, titulosVistos.size)
+    }
+
+    @Test fun noticiasRssComImagemDaPagina() {
+        val inst = InstrumentationRegistry.getInstrumentation()
+        val url = "native_widget://rss/teste-f91-rss?config=" + URLEncoder.encode(
+            """{"feedUrl":"https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml","maxItems":5,"scrollSpeed":8}""", "UTF-8")
+        val saida = File(inst.targetContext.getExternalFilesDir(null), "f91").apply { mkdirs() }
+        val t = textos(desenhar(url, 1920, 1080, File(saida, "noticias_rss_h.png")))
+        assertTrue("selo NOTÍCIAS e notícia com imagem: $t", t.contains("NOTÍCIAS") && t.none { it.startsWith("Sem notícias") })
+        desenhar(url, 1080, 1920, File(saida, "noticias_rss_v.png"))
     }
 
     @Test fun noticiaSemImagemCarregadaNaoAparece() {

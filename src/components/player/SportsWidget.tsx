@@ -4,7 +4,7 @@ import { coresDoConfig, gradienteDe, rgba, type CoresWidget } from '@/lib/widget
 import type { WidgetConfig } from '@/types/models';
 import { buscarDataDeExemplo, buscarEsportes, type DadosEsportes } from '@/lib/esportes';
 import {
-  cursorDepois, diaDaSemana, diaEmBrasilia, iniciaisDoTime, montarPaginas, paginasDaExibicao, rotuloDia, SEGUNDOS_POR_PAGINA,
+  cursorDepois, diaEmBrasilia, iniciaisDoTime, montarPaginas, paginasDaExibicao, rotuloDia, SEGUNDOS_POR_PAGINA,
   type CursorEsportes, type JogoJanela, type PaginaEsportes,
 } from '@/lib/esportesPaginas';
 
@@ -45,7 +45,8 @@ function gravarCursor(widgetId: string | undefined, c: CursorEsportes) {
  * Widget "Esportes" v2 (F-86): por campeonato ("BRASILEIRÃO SÉRIE A" / "Resultados e próximos jogos"), até 3 resultados
  * (D-3..D-1) + até 3 próximos jogos (hoje..D+2) por página, escudo oficial ao lado de cada time, 8 s por página.
  * - modo "player" (Player web): 3 páginas por exibição e a próxima exibição continua de onde parou (cursor por widget);
- * - modo "previa" (painel): passa por todas as páginas; sem jogos na janela de hoje, mostra um EXEMPLO com dados reais
+ * - modo "previa" (painel): passa por todas as páginas; sem jogos na janela de hoje, mostra a última rodada real
+ *   (datas reais nas linhas; sem aviso na tela — pedido do proprietário, F-91)
  *   da última rodada (marcado como exemplo — nas telas o widget fica fora da reprodução até voltar a ter jogos).
  * Mesma composição do Android Player (NativeWidgetEngine.buildSportsV2).
  */
@@ -108,6 +109,8 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
 
   const agora = useMemo(() => (dados?.simulado && dados.agoraReferencia ? Date.parse(dados.agoraReferencia) : Date.now()), [dados]);
   const hoje = diaEmBrasilia(agora);
+  // Rótulos "HOJE/ONTEM/AMANHÃ" sempre pelo dia real (na última rodada de exemplo aparecem as datas de verdade).
+  const hojeReal = diaEmBrasilia(Date.now());
   const paginas = useMemo(() => montarPaginas(dados?.janela ?? [], dados?.competicoes ?? [], agora), [dados, agora]);
 
   // Sequência desta exibição: player = 3 páginas a partir do cursor; prévia = todas, em volta.
@@ -158,12 +161,7 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
         </span>
       </div>
 
-      {dados?.simulado && modoExibicao === 'previa' && (
-        <p className="relative z-10 mt-[1cqmin] rounded-[1cqmin] bg-black/45 px-[1.6cqmin] py-[0.6cqmin] text-[2.1cqmin] font-semibold text-amber-200" data-testid="sports-exemplo">
-          EXEMPLO com a última rodada real (como estaria em {diaDaSemana(dados.referencia ?? hoje)}): sem jogos nos 3 dias anteriores nem nos próximos 3 dias,
-          o widget fica fora da reprodução nas telas até voltar a ter jogos.
-        </p>
-      )}
+      {/* Sem aviso de exemplo nem mensagem de erro na tela (pedido do proprietário, F-91). */}
 
       {pagina ? (
         <div key={`${indice}-${pagina.slug}`} className="relative z-10 mt-[1.6cqmin] flex min-h-0 flex-1 flex-col animate-in fade-in duration-300">
@@ -182,20 +180,19 @@ export function SportsWidget({ config, dados: dadosServidor, backgroundImage, co
           <div className="mt-[1.8cqmin] flex min-h-0 flex-1 flex-col justify-center gap-[1.6cqmin]" style={tituloNaArte && !vertical ? { zoom: 0.8 } : undefined}>
             {pagina.resultados.length > 0 && (
               <Secao titulo="RESULTADOS" cor={c.selo}>
-                {pagina.resultados.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} escuro={temaAtivo} encerrado />)}
+                {pagina.resultados.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hojeReal} cores={c} escuro={temaAtivo} encerrado />)}
               </Secao>
             )}
             {pagina.proximos.length > 0 && (
               <Secao titulo="PRÓXIMOS JOGOS" cor={c.selo}>
-                {pagina.proximos.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hoje} cores={c} escuro={temaAtivo} />)}
+                {pagina.proximos.map((j) => <LinhaJogo key={chaveJogo(j)} j={j} hoje={hojeReal} cores={c} escuro={temaAtivo} />)}
               </Secao>
             )}
           </div>
         </div>
       ) : (
         <p className="relative z-10 flex flex-1 items-center justify-center text-center text-[3.6cqmin] text-white/80" data-testid="sports-vazio">
-          {estado === 'carregando' || (!pronto && paginas.length > 0) ? 'Carregando jogos…' : estado === 'erro' ? 'Não foi possível carregar os jogos agora.'
-            : 'Sem jogos nos 3 dias anteriores nem nos próximos 3 dias.'}
+          {estado === 'carregando' || (!pronto && paginas.length > 0) ? 'Carregando jogos…' : ''}
         </p>
       )}
 

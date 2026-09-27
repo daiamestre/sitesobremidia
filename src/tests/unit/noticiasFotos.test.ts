@@ -59,3 +59,33 @@ describe('Imagem do item do feed (fonte com imagem = "feed")', () => {
     expect(imagemDoItem('<item><description>&lt;img src="/a.jpg"&gt;</description></item>')).toBeNull();
   });
 });
+
+describe('F-91 — foto da própria notícia (decisão do proprietário), qualquer crédito', () => {
+  it('foto principal da Agência Brasil com crédito de terceiros é aceita, com o crédito original', async () => {
+    const { fotoPrincipalDoArtigo } = await import('../../../supabase/functions/_shared/noticias/fotos');
+    expect(fotoPrincipalDoArtigo(materia('Rafael Ribeiro/CBF'))).toEqual({ url: FOTO, credito: 'Rafael Ribeiro/CBF' });
+    expect(fotoPrincipalDoArtigo(materia(''))).toEqual({ url: FOTO, credito: null });
+    expect(fotoPrincipalDoArtigo('<html><h1>Sem foto</h1></html>')).toBeNull();
+  });
+
+  it('imagem da página de qualquer site: og:image/twitter:image, nunca a imagem genérica do site', async () => {
+    const { imagemDaPagina } = await import('../../../supabase/functions/_shared/noticias/fotos');
+    expect(imagemDaPagina('<meta property="og:image" content="https://site.com/fotos/jogo.jpg">')).toEqual({ url: 'https://site.com/fotos/jogo.jpg', credito: null });
+    expect(imagemDaPagina('<meta content="https://site.com/a.jpg" property="og:image">')?.url).toBe('https://site.com/a.jpg');
+    expect(imagemDaPagina('<meta name="twitter:image" content="https://site.com/b.jpg">')?.url).toBe('https://site.com/b.jpg');
+    expect(imagemDaPagina('<meta property="og:image" content="https://cdn.x/thumbs/thumb_1200x600_agbrasil.png">')).toBeNull();
+    expect(imagemDaPagina('<meta property="og:image" content="https://site.com/logo-share.png">')).toBeNull();
+    expect(imagemDaPagina(materia('Rafael Ribeiro/CBF'))?.url).toBe(FOTO);
+  });
+
+  it('feed: página de jogo ao vivo, enquete e link da home não são notícia; emoji de vídeo sai do título', async () => {
+    const { naoENoticia, parseRss } = await import('../../../supabase/functions/_shared/noticias/rss');
+    expect(naoENoticia('Criciúma x Avaí - Campeonato Brasileiro Série B 2026 - Ao vivo - globoesporte.com', 'https://ge.globo.com/')).toBe(true);
+    expect(naoENoticia('Alemanha x Grécia - Liga das Nações 2026/2027 - globoesporte.com', 'https://ge.globo.com/x/jogo.ghtml')).toBe(true);
+    expect(naoENoticia('Enquete: quem é o melhor?', 'https://ge.globo.com/a/b.ghtml')).toBe(true);
+    expect(naoENoticia('Picos bate o Flamengo', 'https://ge.globo.com/')).toBe(true);
+    expect(naoENoticia('Picos bate o Flamengo e segue invicto', 'https://ge.globo.com/pi/noticia/x.ghtml')).toBe(false);
+    const xml = `<rss><channel><item><title>▶️ Picos bate o Flamengo</title><link>https://ge.globo.com/pi/noticia/x.ghtml</link><pubDate>Sat, 26 Sep 2026 22:00:00 -0300</pubDate></item></channel></rss>`;
+    expect(parseRss(xml, 'ge.globo.com', new Date('2026-09-27T12:00:00Z')).itens[0].titulo).toBe('Picos bate o Flamengo');
+  });
+});

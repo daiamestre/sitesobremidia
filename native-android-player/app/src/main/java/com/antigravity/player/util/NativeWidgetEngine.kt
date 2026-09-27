@@ -44,6 +44,7 @@ import com.antigravity.player.widget.EsportesPaginas
 import com.antigravity.player.widget.PaginaEsportes
 import com.antigravity.player.widget.EsportesNews
 import com.antigravity.player.widget.NoticiaEsporte
+import com.antigravity.player.widget.ImagemDaNoticia
 import com.antigravity.core.util.TimeManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
@@ -89,7 +90,8 @@ object NativeWidgetEngine {
     private val uiHandler = Handler(Looper.getMainLooper())
 
     private data class WeatherPayload(val now: WeatherNow?, val place: String?, val forecast: WeatherForecast? = null)
-    private data class RssPayload(val items: List<RssItem>, val source: String, val rotulo: String = "NOTÍCIAS")
+    /** `imagens`: url -> imagem já carregada (feed comum, F-91: só entram notícias com imagem). */
+    private data class RssPayload(val items: List<RssItem>, val source: String, val rotulo: String = "NOTÍCIAS", val imagens: Map<String, Bitmap> = emptyMap())
     /** Esportes v2: todas as páginas, as 3 desta exibição (a partir do cursor) e os escudos delas já carregados. */
     private data class EsportesPayload(
         val paginas: List<PaginaEsportes>, val indices: List<Int>, val hoje: String, val escudos: Map<String, Bitmap>,
@@ -245,35 +247,61 @@ object NativeWidgetEngine {
         return RegionalContextManager.city.takeIf { RegionalContextManager.isContextLoaded && it != "Unknown" && spec.latitude == null }
     }
 
-    private fun loadRss(context: Context, spec: WidgetSpec): RssPayload {
-        // Notícias automáticas: o servidor já entregou as manchetes (Agência Brasil); o Player não lê o feed.
-        spec.noticiasProntas?.let { return RssPayload(it.take(spec.maxItems), "Agência Brasil", "ESPORTES") }
+    private suspend fun loadRss(context: Context, spec: WidgetSpec): RssPayload = coroutineScope {
+        // Notícias automáticas (legado): o servidor já entregou as manchetes (Agência Brasil); o Player não lê o feed.
+        spec.noticiasProntas?.let { return@coroutineScope RssPayload(it.take(spec.maxItems), "Agência Brasil", "ESPORTES") }
         val source = spec.feedUrl.substringAfter("://").substringBefore("/").removePrefix("www.")
-        if (spec.feedUrl.isBlank()) return RssPayload(emptyList(), source)
+        if (spec.feedUrl.isBlank()) return@coroutineScope RssPayload(emptyList(), source)
         val cache = WidgetDataCache(context)
         val key = "rss:${spec.feedUrl}"
         val cached = cache.get(key)
         val cachedItems = cached?.first?.let(::decodeItems).orEmpty()
-        if (cached != null && cachedItems.isNotEmpty() && System.currentTimeMillis() - cached.second < RSS_FRESH_MS) {
-            return RssPayload(cachedItems.take(spec.maxItems), source)
+        val lista = if (cached != null && cachedItems.isNotEmpty() && System.currentTimeMillis() - cached.second < RSS_FRESH_MS) cachedItems else {
+            val fresh = try {
+                httpGet(spec.feedUrl)?.let { RssFeedParser.parse(it, 20) }.orEmpty()
+            } catch (e: Exception) {
+                Logger.w("WIDGET", "RSS sem rede, usando cache: ${e.message}")
+                emptyList()
+            }
+            if (fresh.isNotEmpty()) completarImagens(context, fresh.take(spec.maxItems * 2)).also { cache.put(key, encodeItems(it)) } else cachedItems
         }
-        val fresh = try {
-            httpGet(spec.feedUrl)?.let { RssFeedParser.parse(it, 20) }.orEmpty()
-        } catch (e: Exception) {
-            Logger.w("WIDGET", "RSS sem rede, usando cache: ${e.message}")
-            emptyList()
-        }
-        if (fresh.isNotEmpty()) {
-            cache.put(key, encodeItems(fresh))
-            return RssPayload(fresh.take(spec.maxItems), source)
-        }
-        return RssPayload(cachedItems.take(spec.maxItems), source)
+        // Só notícia com imagem carregada vai para a tela (notícia sem imagem é pulada — F-91).
+        val candidatas = lista.filter { it.imagem != null }.take(spec.maxItems * 2)
+        val legacy = ChipsetDetector.getRecommendedProfile() == ChipsetDetector.HardwareProfile.LEGACY_STABILITY
+        val opcoes = RequestOptions().downsample(com.bumptech.glide.load.resource.bitmap.DownsampleStrategy.AT_MOST)
+            .format(if (legacy) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888)
+        val carregadas = candidatas.map { n ->
+            async(Dispatchers.IO) {
+                n to try {
+                    Glide.with(context).asBitmap().load(n.imagem).apply(opcoes)
+                        .submit(IMAGEM_NOTICIA_MAX_PX, IMAGEM_NOTICIA_MAX_PX).get(ESCUDO_TIMEOUT_S, TimeUnit.SECONDS)
+                } catch (e: Exception) {
+                    Logger.w("WIDGET", "Imagem da notícia indisponível (${n.imagem}): ${e.message}"); null
+                }
+            }
+        }.map { it.await() }.filter { it.second != null }.take(spec.maxItems)
+        RssPayload(carregadas.map { it.first }, source, imagens = carregadas.associate { it.first.imagem!! to it.second!! })
     }
 
-    private fun encodeItems(items: List<RssItem>): String = items.joinToString("\u0002") { "${it.title}\u0001${it.summary}" }
+    /** Notícia sem imagem no feed: imagem da página da matéria (guardada em cache por link: "-" = a página não tem). */
+    private suspend fun completarImagens(context: Context, itens: List<RssItem>): List<RssItem> = coroutineScope {
+        val cache = WidgetDataCache(context)
+        itens.map { n ->
+            async(Dispatchers.IO) {
+                if (n.imagem != null || !n.link.startsWith("https://", true)) return@async n
+                val guardada = cache.get("rssimg:${n.link}")?.first
+                if (guardada != null) return@async if (guardada == "-") n else n.copy(imagem = guardada)
+                val achada = try { httpGet(n.link)?.let { ImagemDaNoticia.daPagina(it) } } catch (e: Exception) { null }
+                cache.put("rssimg:${n.link}", achada ?: "-")
+                if (achada != null) n.copy(imagem = achada) else n
+            }
+        }.map { it.await() }
+    }
+
+    private fun encodeItems(items: List<RssItem>): String = items.joinToString("\u0002") { "${it.title}\u0001${it.summary}\u0001${it.link}\u0001${it.imagem.orEmpty()}" }
     private fun decodeItems(s: String): List<RssItem> = s.split("\u0002").mapNotNull {
         val p = it.split("\u0001")
-        if (p.isNotEmpty() && p[0].isNotBlank()) RssItem(p[0], p.getOrElse(1) { "" }) else null
+        if (p.isNotEmpty() && p[0].isNotBlank()) RssItem(p[0], p.getOrElse(1) { "" }, p.getOrElse(2) { "" }, p.getOrElse(3) { "" }.takeIf { it.startsWith("https://") }) else null
     }
 
     // ------------------------------------------------------------------ visual
@@ -1045,6 +1073,8 @@ object NativeWidgetEngine {
     }
 
     private fun buildRss(context: Context, spec: WidgetSpec, bg: Bitmap?, w: Int, h: Int, base: Float, data: RssPayload?): View {
+        // Feed comum (F-91): toda notícia com a imagem da notícia, no mesmo desenho do Esportes News.
+        if (spec.noticiasProntas == null) return buildRssComImagem(context, spec, w, h, base, data)
         val root = rootWith(context, bg, if (spec.compact) 60 else 120, intArrayOf(Color.parseColor("#1a1a2e"), Color.parseColor("#16213e")))
         val items = data?.items.orEmpty()
         val source = data?.source.orEmpty()
@@ -1147,7 +1177,7 @@ object NativeWidgetEngine {
         col.addView(rodape, lp(top = px(base * 0.012f)))
 
         if (jogos.isEmpty()) {
-            lista.addView(text(context, base * 0.04f, color = Color.argb(215, 255, 255, 255), lines = 2).apply { text = "Sem jogos confirmados para exibir agora." }, lp())
+            // sem mensagem na tela (pedido do proprietário, F-91)
             return root
         }
         val porPagina = if (h > w * 1.2f) 6 else 4
@@ -1312,10 +1342,7 @@ object NativeWidgetEngine {
         col.addView(area, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         // Sem rodapé na tela (pedido do proprietário, F-89): nem fonte dos dados, nem horário, nem contador de páginas.
         if (dados.indices.isEmpty()) {
-            area.addView(text(context, base * 0.036f, color = Color.argb(215, 255, 255, 255), lines = 2).apply {
-                text = "Sem jogos nos 3 dias anteriores nem nos próximos 3 dias."
-            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            return root
+            return root // sem mensagem na tela (pedido do proprietário, F-91); o servidor nem envia o widget sem jogos
         }
         val total = dados.paginas.size
         fun mostrar(indice: Int) {
@@ -1597,7 +1624,7 @@ object NativeWidgetEngine {
             text = EsportesNews.credito(n); gravity = alinhamento; ellipsize = android.text.TextUtils.TruncateAt.END
         }
 
-    private fun noticiaHorizontal(context: Context, n: NoticiaEsporte, foto: Bitmap, w: Int, base: Float, cores: CoresWidget): View {
+    private fun noticiaHorizontal(context: Context, n: NoticiaEsporte, foto: Bitmap, w: Int, base: Float, cores: CoresWidget, selo: String = "ESPORTES NEWS"): View {
         val cheio = { FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) }
         val f = FrameLayout(context)
         f.addView(ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageBitmap(foto) }, cheio())
@@ -1606,7 +1633,7 @@ object NativeWidgetEngine {
                 Color.argb(140, 0, 0, 0), Color.argb(0, 0, 0, 0), Color.argb(0, 0, 0, 0), Color.argb(210, 0, 0, 0), Color.argb(235, 0, 0, 0)))
         }, cheio())
         val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; val p = px(base * 0.04f); setPadding(p, p, p, p) }
-        col.addView(cabecalhoMarca(context, "ESPORTES NEWS", base, cores), lp())
+        col.addView(cabecalhoMarca(context, selo, base, cores), lp())
         col.addView(View(context), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         col.addView(textoNoticia(context, n, base, cores, vertical = false), LinearLayout.LayoutParams((w * 0.84f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT))
         col.addView(creditoView(context, n, base, Gravity.START), lp(top = px(base * 0.014f)))
@@ -1614,7 +1641,7 @@ object NativeWidgetEngine {
         return f
     }
 
-    private fun noticiaVertical(context: Context, n: NoticiaEsporte, foto: Bitmap, base: Float, cores: CoresWidget): View {
+    private fun noticiaVertical(context: Context, n: NoticiaEsporte, foto: Bitmap, base: Float, cores: CoresWidget, selo: String = "ESPORTES NEWS"): View {
         val cheio = { FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) }
         val f = FrameLayout(context)
         // "Desfoque" sem RenderEffect (minSdk 23): a foto reduzida a poucos pixels e ampliada com filtro.
@@ -1624,7 +1651,7 @@ object NativeWidgetEngine {
         if (miniatura != null) f.addView(ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageBitmap(miniatura) }, cheio())
         f.addView(View(context).apply { setBackgroundColor(Color.argb(150, 0, 0, 0)) }, cheio())
         val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; val p = px(base * 0.04f); setPadding(p, p, p, p) }
-        col.addView(cabecalhoMarca(context, "ESPORTES NEWS", base, cores), lp())
+        col.addView(cabecalhoMarca(context, selo, base, cores), lp())
         val quadro = object : FrameLayout(context) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val largura = MeasureSpec.getSize(widthMeasureSpec)
@@ -1643,6 +1670,69 @@ object NativeWidgetEngine {
         col.addView(centro, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         f.addView(col, cheio())
         return f
+    }
+
+    /**
+     * Notícias (RSS) com imagem (F-91): cada notícia do feed com a imagem da notícia (horizontal: foto na tela toda;
+     * vertical: foto no alto), fonte na tela, girando a cada `secondsPerItem`. Sem nenhuma com imagem: só o cabeçalho
+     * e o aviso — nunca notícia sem imagem. Mesmo desenho do painel (RssWidget -> SportsNewsWidget).
+     */
+    private fun buildRssComImagem(context: Context, spec: WidgetSpec, w: Int, h: Int, base: Float, data: RssPayload?): View {
+        val cores = spec.cores ?: CoresWidget.PADRAO
+        val root = FrameLayout(context).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(cores.c1, cores.c2, cores.c3))
+        }
+        val cheio = { FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) }
+        val source = data?.source.orEmpty()
+        val noticias = data?.items.orEmpty().mapIndexedNotNull { i, it ->
+            val url = it.imagem ?: return@mapIndexedNotNull null
+            if (data?.imagens?.containsKey(url) != true) return@mapIndexedNotNull null
+            NoticiaEsporte(it.link.ifBlank { "rss$i" }, it.title, it.summary.takeIf { s -> s.isNotBlank() }, url, null, source, null)
+        }
+        if (noticias.isEmpty()) {
+            val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; val p = px(base * 0.04f); setPadding(p, p, p, p) }
+            col.addView(cabecalhoMarca(context, "NOTÍCIAS", base, cores), lp())
+            col.addView(text(context, base * 0.036f, color = Color.argb(215, 255, 255, 255), lines = 3).apply {
+                text = if (spec.feedUrl.isBlank()) "Feed RSS não configurado" else "Sem notícias com imagem no momento."
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            root.addView(col, cheio())
+            return root
+        }
+        val vertical = h > w * 1.2f
+        val area = FrameLayout(context)
+        root.addView(area, cheio())
+        val barra = View(context).apply { setBackgroundColor(cores.selo); pivotX = 0f }
+        root.addView(barra, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(base * 0.008f).coerceAtLeast(3), Gravity.BOTTOM))
+        val periodoMs = spec.secondsPerItem * 1000L
+        fun mostrar(i: Int) {
+            val n = noticias[i % noticias.size]
+            val foto = data?.imagens?.get(n.imagem) ?: return
+            area.removeAllViews()
+            area.addView(if (vertical) noticiaVertical(context, n, foto, base, cores, "NOTÍCIAS") else noticiaHorizontal(context, n, foto, w, base, cores, "NOTÍCIAS"), cheio())
+            if (noticias.size > 1) {
+                barra.scaleX = 0f
+                barra.animate().cancel()
+                barra.animate().scaleX(1f).setDuration(periodoMs).setInterpolator(android.view.animation.LinearInterpolator()).start()
+            } else barra.visibility = View.GONE
+        }
+        mostrar(0)
+        if (noticias.size > 1) {
+            var indice = 0
+            val girar = object : Runnable {
+                override fun run() {
+                    if (!root.isAttachedToWindow && root.parent == null) return
+                    indice++
+                    val alvo = indice
+                    area.animate().alpha(0f).setDuration(250).withEndAction {
+                        mostrar(alvo)
+                        area.animate().alpha(1f).setDuration(250).start()
+                    }.start()
+                    uiHandler.postDelayed(this, periodoMs)
+                }
+            }
+            bindToLifecycle(root, girar, periodoMs)
+        }
+        return root
     }
 
     /** Liga o Runnable enquanto a view está na tela e o cancela ao sair (sem vazamento entre widgets). */

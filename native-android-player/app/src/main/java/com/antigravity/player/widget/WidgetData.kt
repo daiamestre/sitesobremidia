@@ -5,7 +5,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
 
-data class RssItem(val title: String, val summary: String)
+/** Notícia do feed. `link`/`imagem` (F-91): a notícia RSS só vai para a tela com a imagem da notícia. */
+data class RssItem(val title: String, val summary: String, val link: String = "", val imagem: String? = null)
 
 /** Leitor de RSS 2.0 e Atom sem dependências (mesma abordagem da Edge Function fetch-rss), testável na JVM. */
 object RssFeedParser {
@@ -15,6 +16,8 @@ object RssFeedParser {
     private val descRegexes = listOf("description", "summary", "content:encoded", "content").map {
         Regex("<${Regex.escape(it)}[^>]*>([\\s\\S]*?)</${Regex.escape(it)}>", RegexOption.IGNORE_CASE)
     }
+    private val linkRegex = Regex("<link[^>]*>([\\s\\S]*?)</link>", RegexOption.IGNORE_CASE)
+    private val linkAtomRegex = Regex("<link\\b[^>]*\\bhref=[\"']([^\"']+)[\"'][^>]*/?>", RegexOption.IGNORE_CASE)
     private val cdataRegex = Regex("<!\\[CDATA\\[([\\s\\S]*?)]]>")
     private val tagRegex = Regex("<[^>]*>")
     private val spaceRegex = Regex("\\s+")
@@ -30,7 +33,9 @@ object RssFeedParser {
             if (title.isBlank()) continue
             val summary = descRegexes.firstNotNullOfOrNull { it.find(block)?.groupValues?.get(1) }
                 ?.let(::cleanText).orEmpty()
-            out.add(RssItem(title, summary.take(MAX_SUMMARY_CHARS).trim()))
+            val link = (linkRegex.find(block)?.groupValues?.get(1)?.let(::cleanText)?.takeIf { it.isNotBlank() }
+                ?: linkAtomRegex.find(block)?.groupValues?.get(1)).orEmpty().trim()
+            out.add(RssItem(title, summary.take(MAX_SUMMARY_CHARS).trim(), link, ImagemDaNoticia.doItem(block)))
             if (out.size >= max) break
         }
         return out

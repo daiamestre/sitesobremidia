@@ -32,3 +32,43 @@ export function fotoPropriaDoArtigo(html: string): { url: string; credito: strin
   if (!url || !credito || !creditoProprio(credito)) return null;
   return { url, credito };
 }
+
+/**
+ * Decisão do proprietário (F-91, 27/09/2026): a notícia usa a FOTO DA PRÓPRIA NOTÍCIA mesmo quando é de terceiros
+ * (CBF, clubes, agências), com o crédito original sempre na tela. O proprietário assumiu o risco de direito autoral.
+ * A imagem nunca é alterada nem "disfarçada" — o crédito do fotógrafo/veículo acompanha a foto.
+ *
+ * Foto principal da matéria da Agência Brasil (1ª imagem 1170x700 do corpo), qualquer crédito. Sem foto -> null.
+ */
+export function fotoPrincipalDoArtigo(html: string): { url: string; credito: string | null } | null {
+  const tag = /<img\b[^>]*?(?:data-echo|src)="https:\/\/imagens\.ebc\.com\.br\/[^"]*1170x700[^"]*"[^>]*>/i.exec(html)?.[0];
+  if (!tag) return null;
+  const url = soHttps(/(?:data-echo|src)="(https:\/\/imagens\.ebc\.com\.br\/[^"]*1170x700[^"]*)"/i.exec(tag)?.[1]);
+  if (!url) return null;
+  const credito = normalizarCredito(/\btitle="([^"]*)"/i.exec(tag)?.[1] ?? '');
+  return { url, credito: credito || null };
+}
+
+/** og:image / twitter:image genérico (logo, marca, miniatura padrão do site) não é foto da notícia. */
+export function imagemGenerica(url: string): boolean {
+  return /logo|thumb_\d+x\d+_|placeholder|default[-_]?(share|image|og)|avatar|favicon|sprite|\.svg(\?|$)/i.test(url);
+}
+
+/**
+ * Imagem da notícia a partir da página da matéria (qualquer site): foto principal da Agência Brasil; senão
+ * og:image / twitter:image, desde que não seja a imagem genérica do site. Sem imagem -> null.
+ */
+export function imagemDaPagina(html: string): { url: string; credito: string | null } | null {
+  const ab = fotoPrincipalDoArtigo(html);
+  if (ab) return ab;
+  for (const re of [
+    /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i,
+  ]) {
+    const u = soHttps(decodificar(re.exec(html)?.[1] ?? ''));
+    if (u && !imagemGenerica(u)) return { url: u, credito: null };
+  }
+  return null;
+}

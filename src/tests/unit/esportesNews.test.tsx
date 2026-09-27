@@ -97,3 +97,22 @@ describe('Esportes News — widget', () => {
     expect(rpc).toHaveBeenCalledWith('content_esportes_news_preview', { p_config: { maxItems: 5 } });
   });
 });
+
+describe('Notícias (RSS) — sempre com imagem (F-91)', () => {
+  it('só as notícias com imagem aparecem, no desenho com foto e selo NOTÍCIAS', async () => {
+    const { supabase } = await import('@/integrations/supabase/client');
+    (supabase as unknown as { functions: { invoke: unknown } }).functions = {
+      invoke: vi.fn(async () => ({ error: null, data: { items: [
+        { title: 'Sem foto', description: 'x', link: 'https://site.com/1' },
+        { title: 'Com foto', description: '<p>Resumo da notícia</p>', link: 'https://site.com/2', imageUrl: 'https://site.com/foto.jpg', pubDate: 'Sat, 26 Sep 2026 22:00:00 -0300' },
+      ] } })),
+    };
+    const { RssWidget } = await import('@/components/player/RssWidget');
+    render(<RssWidget feedUrl="https://site.com/feed.xml" />);
+    expect(await screen.findByTestId('sports-news-titulo', {}, { timeout: 3000 })).toHaveTextContent('Com foto');
+    expect(screen.getByTestId('sports-news-imagem')).toHaveAttribute('src', 'https://site.com/foto.jpg');
+    expect(screen.getByText('NOTÍCIAS')).toBeInTheDocument();
+    expect(screen.getByTestId('sports-news-credito')).toHaveTextContent('Imagem: site.com');
+    expect(screen.queryByText('Sem foto')).toBeNull();
+  });
+});

@@ -976,3 +976,31 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Edge Function `news-engine-sync` publicada; migração 20261260 aplicada.
   - **Release 5.6.6 (553):** SHA-256 `99e06350ffbc4e1f1dacf32e5396d3a3167952a4153bc6e8041210dab672482f` (5.743.552 bytes), certificado de produção `95a973c3…`, não depurável. GitHub `player-v5.6.6` → R2 `releases/sobremidia-player-v553.apk` (hash público conferido) → `app_releases` 553. Substitui a 5.6.5 no OTA.
   - APK debug 5.6.6: SHA-256 `bf892e00726afe40399f05319783c2e499962e324ab5f0ead0d1a4f5e8bfdfca`.
+
+### F-91 — Esportes News girando várias notícias com a foto da notícia; RSS sempre com imagem; Resultados sem avisos — DONE (Player 5.6.7)
+- **Problema relatado pelo proprietário (27/09):**
+  - O Esportes News mostrava uma só notícia, parada. Causa: com a regra do F-90, só havia 1 notícia com imagem própria da Agência Brasil.
+  - O widget Resultados mostrava um aviso amarelo ("EXEMPLO com a última rodada real…") e mensagens de "sem jogos" ou de erro.
+- **Decisão do proprietário (por escrito, 27/09):**
+  - Reproduzir a foto da própria notícia mesmo sem autorização do dono (CBF, clubes, agências, ge/Globo), assumindo o risco de direito autoral.
+  - Toda notícia de esporte e toda notícia RSS com imagem.
+  - **Não atendido:** "alterar ou disfarçar a imagem para não ter direito autoral". Editar a foto não remove o direito do autor e tiraria o crédito. A foto é exibida sem alteração e com o crédito original.
+- **Motor de notícias:**
+  - Modo `artigo` (foto principal da matéria, qualquer crédito): a Agência Brasil passou a ele.
+  - Nova fonte `ge-esportes` (imagem do feed; sem ela, a imagem da página da matéria).
+  - Filtro `naoENoticia`: páginas de jogo ao vivo "… - globoesporte.com", enquetes e link da página inicial; o emoji ▶️ sai do título.
+  - Migrações 20261261 e 20261262.
+  - `fn_widget_esportes_news_dados` intercala as fontes (1ª da Agência Brasil, 1ª do ge…), para que as notícias da Agência Brasil (CBF, Seleção) não sumam atrás do volume do ge.
+  - Produção: 35 notícias ativas, 35 com foto (antes: 1). Payload das 7 telas idêntico.
+- **Notícias (RSS):**
+  - `fetch-rss` usa a mesma regra de imagem do motor (sem logo, SVG ou pixel). Sem imagem no feed, usa a foto da página da matéria (foto principal da Agência Brasil ou og:image, nunca a genérica do site; com guarda SSRF). Notícia sem imagem não vai para a tela. Os títulos têm as entidades decodificadas.
+  - Painel: `RssWidget` usa o mesmo desenho do Esportes News, com o selo "NOTÍCIAS" e a fonte na tela; o RSS não tem mais fundo nem faixa compacta.
+  - Player: `ImagemDaNoticia.kt` (mesma regra), `RssFeedParser` com link e imagem, imagem da página em cache por link, `buildRssComImagem`.
+  - Teste real: Agência Brasil, g1 e CNN retornaram 5 de 5 notícias com imagem.
+- **Resultados e Próximos Jogos:**
+  - Saíram da tela o aviso amarelo de EXEMPLO e as mensagens "Sem jogos…" e "Não foi possível carregar…", no painel e no Player.
+  - Na prévia com a última rodada real, as linhas mostram as datas de verdade (HOJE/ONTEM pelo dia real).
+- **Prova:**
+  - JVM 212/212 (+3 `ImagemDaNoticiaTest`).
+  - Web: suíte completa 1201/1201 (125 arquivos), incluindo esportesNews (11), noticiasFotos (12), esportesWidget (14) e widgetCapas.
+  - `EsportesNewsRenderTest` no emulador: 3 exibições seguidas com 3 notícias diferentes (Agência Brasil e ge, 16:9 e 9:16), e Notícias (RSS) da Agência Brasil com a foto da matéria.

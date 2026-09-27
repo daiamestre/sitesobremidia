@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { decodificar, imagemDoItem } from "../_shared/noticias/rss.ts";
+import { imagemDaPagina } from "../_shared/noticias/fotos.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,13 +25,6 @@ function parseRss(xmlText: string): RssItem[] {
   const pubDateRegex = /<pubDate>(.*?)<\/pubDate>/i;
   const descRegex = /<description>(?:<!\[CDATA\[(.*?)]]>|(.*?))<\/description>/i;
 
-  // Helper to extract attributes robustly
-  const extractAttribute = (tag: string, attr: string) => {
-    const regex = new RegExp(`${attr}=["']([^"']+)["']`, 'i');
-    const match = tag.match(regex);
-    return match ? match[1] : null;
-  };
-
   let match;
   while ((match = itemRegex.exec(xmlText)) !== null) {
     const itemContent = match[1];
@@ -39,41 +34,12 @@ function parseRss(xmlText: string): RssItem[] {
     const pubDateMatch = itemContent.match(pubDateRegex);
     const descMatch = itemContent.match(descRegex);
 
-    // Attempt to find image
-    let imageUrl = '';
-
-    const enclosureMatch = itemContent.match(/<enclosure[^>]*>/i);
-    const mediaContentMatch = itemContent.match(/<media:content[^>]*>/i);
-    const mediaGroupMatch = itemContent.match(/<media:group>([\s\S]*?)<\/media:group>/i);
-
-    // 1. Try media:content (Standard for G1)
-    if (mediaContentMatch) {
-      imageUrl = extractAttribute(mediaContentMatch[0], 'url') || '';
-    }
-
-    // 2. Try inside media:group if not found
-    if (!imageUrl && mediaGroupMatch) {
-      const innerMedia = mediaGroupMatch[1].match(/<media:content[^>]*>/i);
-      if (innerMedia) {
-        imageUrl = extractAttribute(innerMedia[0], 'url') || '';
-      }
-    }
-
-    // 3. Try enclosure
-    if (!imageUrl && enclosureMatch) {
-      imageUrl = extractAttribute(enclosureMatch[0], 'url') || '';
-    }
-
-    // 4. Try img tag in description
-    if (!imageUrl && descMatch) {
-      const descContent = descMatch[1] || descMatch[2] || '';
-      const imgMatch = descContent.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i);
-      if (imgMatch) imageUrl = imgMatch[1];
-    }
+    // Imagem do item: mesma regra do motor de notícias (sem logo, SVG ou pixel de rastreio) — F-91
+    const imageUrl = imagemDoItem(match[0]) ?? '';
 
     if (titleMatch) {
       items.push({
-        title: (titleMatch[1] || titleMatch[2] || '').trim(),
+        title: decodificar(titleMatch[1] || titleMatch[2] || '').trim(),
         link: linkMatch ? linkMatch[1].trim() : '',
         pubDate: pubDateMatch ? pubDateMatch[1].trim() : undefined,
         description: descMatch ? (descMatch[1] || descMatch[2] || '').trim() : undefined,
@@ -212,7 +178,18 @@ serve(async (req) => {
     }
 
     const xmlText = await response.text();
-    const items = parseRss(xmlText).slice(0, maxItems);
+    // Notícia SEMPRE com imagem (pedido do proprietário, F-91): sem imagem no feed, usa a foto da página da matéria
+    // (foto principal / og:image, nunca a imagem genérica do site); sem nenhuma, a notícia não vai para a tela.
+    const limite = Math.min(Math.max(Number(maxItems) || 10, 1), 20);
+    const candidatos = parseRss(xmlText).slice(0, limite * 2);
+    await Promise.all(candidatos.map(async (it) => {
+      if (it.imageUrl || !/^https:\/\//i.test(it.link) || !(await isAllowedUrl(it.link))) return;
+      try {
+        const r = await fetch(it.link, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RSSFetcher/1.0)' }, signal: AbortSignal.timeout(6000) });
+        if (r.ok) it.imageUrl = imagemDaPagina(await r.text())?.url;
+      } catch { /* sem imagem: a notícia fica de fora */ }
+    }));
+    const items = candidatos.filter((it) => /^https:\/\//i.test(it.imageUrl ?? '')).slice(0, limite);
 
     console.log(`Parsed ${items.length} items from RSS feed`);
 

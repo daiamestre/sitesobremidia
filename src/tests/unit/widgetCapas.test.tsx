@@ -18,9 +18,9 @@ describe('capas dos widgets', () => {
     }
   });
 
-  // Exceção única: Esportes News (F-90) — a imagem é a da própria notícia, não um fundo escolhido
-  it('todo modelo aceita imagem de fundo (YouTube inclusive), exceto o Esportes News', () => {
-    expect(WIDGET_TEMPLATES.filter((t) => !t.suportaFundo).map((t) => t.id)).toEqual(['esportes-news']);
+  // Exceções: Notícias (RSS) e Esportes News (F-90/F-91) — a imagem é a da própria notícia, não um fundo escolhido
+  it('todo modelo aceita imagem de fundo (YouTube inclusive), exceto os de notícias', () => {
+    expect(WIDGET_TEMPLATES.filter((t) => !t.suportaFundo).map((t) => t.id)).toEqual(['rss-classic', 'esportes-news']);
   });
 
   it('Meus Widgets: imagem de fundo vira a capa; sem imagem, o próprio widget', () => {

@@ -40,9 +40,11 @@ const podeCarregar = () => typeof window !== 'undefined' && typeof HTMLImageElem
  * - modo "player": 3 notícias por exibição e a próxima exibição continua da seguinte (cursor por widget);
  * - modo "previa" (painel): passa por todas.
  * Mesma composição do Android Player (NativeWidgetEngine.buildSportsNews).
+ * Também desenha o widget Notícias (RSS) (F-91): `selo` "NOTÍCIAS" e `segundos` do widget.
  */
-export function SportsNewsWidget({ config, dados: dadosServidor, cores, className, widgetId, modo }: {
+export function SportsNewsWidget({ config, dados: dadosServidor, cores, className, widgetId, modo, selo = 'ESPORTES NEWS', segundos = SEGUNDOS_POR_NOTICIA, vazio }: {
   config: WidgetConfig; dados?: DadosEsportesNews | null; cores?: CoresWidget; className?: string; widgetId?: string; modo?: 'player' | 'previa';
+  selo?: string; segundos?: number; vazio?: string;
 }) {
   const c = cores ?? coresDoConfig(config);
   const modoExibicao = modo ?? (dadosServidor ? 'player' : 'previa');
@@ -97,9 +99,9 @@ export function SportsNewsWidget({ config, dados: dadosServidor, cores, classNam
     if (modoExibicao === 'player') gravarProxima(widgetId, proximaDepois(lista, sequencia[passo]));
     if (modoExibicao === 'player' && passo >= sequencia.length - 1) return; // fica na última até o item acabar
     if (sequencia.length < 2) return;
-    const t = setTimeout(() => setPasso((p) => (p + 1) % sequencia.length), SEGUNDOS_POR_NOTICIA * 1000);
+    const t = setTimeout(() => setPasso((p) => (p + 1) % sequencia.length), Math.max(segundos, 3) * 1000);
     return () => clearTimeout(t);
-  }, [passo, sequencia, modoExibicao, widgetId, lista]);
+  }, [passo, sequencia, modoExibicao, widgetId, lista, segundos]);
 
   const n = lista[sequencia[passo] ?? -1];
 
@@ -113,7 +115,7 @@ export function SportsNewsWidget({ config, dados: dadosServidor, cores, classNam
               {/* vertical: a mesma foto desfocada preenche o fundo; a foto inteira fica no alto */}
               <img src={n.imagem} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl brightness-50" />
               <div className="relative z-10 flex h-full flex-col p-[4cqmin]">
-                <Cabecalho cores={c} />
+                <Cabecalho cores={c} selo={selo} />
                 <img src={n.imagem} alt={n.titulo} className="mt-[3cqmin] aspect-[16/10] w-full rounded-[2cqmin] object-cover shadow-2xl" data-testid="sports-news-imagem" />
                 <p className="mt-[1cqmin] text-right text-[2.3cqmin] text-white/75" data-testid="sports-news-credito">{creditoDaNoticia(n)}</p>
                 <div className="flex min-h-0 flex-1 flex-col justify-center">
@@ -126,7 +128,7 @@ export function SportsNewsWidget({ config, dados: dadosServidor, cores, classNam
               <img src={n.imagem} alt={n.titulo} className="absolute inset-0 h-full w-full object-cover" data-testid="sports-news-imagem" />
               <div className="pointer-events-none absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.82) 72%, rgba(0,0,0,0.92) 100%)' }} />
               <div className="relative z-10 flex h-full flex-col p-[4cqmin]">
-                <Cabecalho cores={c} />
+                <Cabecalho cores={c} selo={selo} />
                 <div className="flex-1" />
                 <Texto n={n} cores={c} />
                 <p className="mt-[1.4cqmin] text-[2.1cqmin] text-white/75" data-testid="sports-news-credito">{creditoDaNoticia(n)}</p>
@@ -135,17 +137,17 @@ export function SportsNewsWidget({ config, dados: dadosServidor, cores, classNam
           )}
           {sequencia.length > 1 && (
             <div key={`barra-${passo}`} className="absolute bottom-0 left-0 z-20 h-[0.8cqmin] origin-left"
-              style={{ width: '100%', background: c.selo, animation: `sm-barra ${SEGUNDOS_POR_NOTICIA}s linear forwards` }} />
+              style={{ width: '100%', background: c.selo, animation: `sm-barra ${Math.max(segundos, 3)}s linear forwards` }} />
           )}
           <style>{'@keyframes sm-barra{from{transform:scaleX(0)}to{transform:scaleX(1)}}'}</style>
         </div>
       ) : (
         <div className="relative z-10 flex h-full flex-col p-[4cqmin]">
-          <Cabecalho cores={c} />
+          <Cabecalho cores={c} selo={selo} />
           <p className="flex flex-1 items-center justify-center text-center text-[3.6cqmin] text-white/85" data-testid="sports-news-vazio">
             {estado === 'carregando' || (prontas === null && candidatas.length > 0) ? 'Carregando notícias…'
               : estado === 'erro' ? 'Não foi possível carregar as notícias agora.'
-              : 'Nenhuma notícia de esporte com imagem no momento. Nas telas, o widget fica fora da reprodução até chegar notícia com imagem.'}
+              : vazio ?? 'Nenhuma notícia de esporte com imagem no momento. Nas telas, o widget fica fora da reprodução até chegar notícia com imagem.'}
           </p>
         </div>
       )}
@@ -154,12 +156,12 @@ export function SportsNewsWidget({ config, dados: dadosServidor, cores, classNam
   );
 }
 
-function Cabecalho({ cores }: { cores: CoresWidget }) {
+function Cabecalho({ cores, selo }: { cores: CoresWidget; selo: string }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-[2.6cqmin] font-bold tracking-[0.28em] text-white/90 drop-shadow">SOBRE MÍDIA</span>
       <span className="rounded-full px-[1.2em] py-[0.35em] text-[2.4cqmin] font-extrabold tracking-widest shadow" style={{ background: cores.selo, color: cores.seloTexto }}>
-        ESPORTES NEWS
+        {selo}
       </span>
     </div>
   );

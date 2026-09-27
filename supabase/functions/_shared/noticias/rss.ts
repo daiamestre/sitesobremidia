@@ -84,12 +84,22 @@ function campo(item: string, tag: string): string {
  * Itens válidos do feed. Recusa: sem título, link fora do domínio da fonte, data inválida, data no futuro (> 1 h)
  * ou mais antiga que `maxDias`.
  */
+/**
+ * Item de feed que não é notícia: página de jogo/tempo real ("Criciúma x Avaí - Série B 2026 - Ao vivo -
+ * globoesporte.com"), enquete, ou link para a página inicial do site.
+ */
+export function naoENoticia(titulo: string, link: string): boolean {
+  if (/\s-\s(?:ao vivo\s-\s)?globoesporte\.com\s*$/i.test(titulo) || /^enquete\b/i.test(titulo)) return true;
+  try { return new URL(link).pathname.replace(/\/+$/, '') === ''; } catch { return true; }
+}
+
 export function parseRss(xml: string, dominio: string, agora: Date, maxDias = 30): { itens: NoticiaRss[]; recusados: Array<{ titulo: string; motivo: string }> } {
   const itens: NoticiaRss[] = [];
   const recusados: Array<{ titulo: string; motivo: string }> = [];
   for (const m of xml.matchAll(/<item[\s>][\s\S]*?<\/item>/gi)) {
     const bloco = m[0];
-    const titulo = semTags(decodificar(campo(bloco, 'title')));
+    // "▶️ Picos bate o Flamengo..." -> sem o emoji de vídeo no começo
+    const titulo = semTags(decodificar(campo(bloco, 'title'))).replace(/^[\p{Extended_Pictographic}▶️\s]+/u, '').trim();
     const link = decodificar(campo(bloco, 'link')).trim();
     const guid = semTags(decodificar(campo(bloco, 'guid'))) || link;
     const data = Date.parse(campo(bloco, 'pubDate'));
@@ -98,6 +108,7 @@ export function parseRss(xml: string, dominio: string, agora: Date, maxDias = 30
     let host = '';
     try { host = new URL(link).hostname; } catch { /* inválido */ }
     if (!host || !(host === dominio || host.endsWith('.' + dominio))) { recusar('link_fora_da_fonte'); continue; }
+    if (naoENoticia(titulo, link)) { recusar('nao_e_noticia'); continue; }
     if (!Number.isFinite(data)) { recusar('data_invalida'); continue; }
     if (data > agora.getTime() + 3600e3) { recusar('data_no_futuro'); continue; }
     if (data < agora.getTime() - maxDias * 86400e3) { recusar('antiga_demais'); continue; }

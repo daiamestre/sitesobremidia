@@ -26,7 +26,7 @@ export const WIDGET_TEMPLATES: WidgetTemplateDef[] = [
   // Esportes (Sports Engine): só placares/jogos confirmados por duas fontes (openfootball + Wikipédia); sem placar ao vivo
   // Um modelo só (F-86): por campeonato, resultados dos 3 dias anteriores + próximos jogos até 2 dias à frente, com escudos
   { id: 'sports-resultados', tipo: 'sports', nome: 'Resultados e Próximos Jogos', descricao: 'Por campeonato: resultados dos 3 dias anteriores e próximos jogos até 2 dias à frente, com o escudo oficial de cada time.', suportaFundo: true, noPlayer: true },
-  { id: 'rss-classic', tipo: 'rss', nome: 'Notícias (RSS)', descricao: 'Manchetes reais de um feed, em rotação, com barra de tempo.', suportaFundo: true, noPlayer: true },
+  { id: 'rss-classic', tipo: 'rss', nome: 'Notícias (RSS)', descricao: 'Notícias reais de um feed, sempre com a imagem da notícia, em rotação.', suportaFundo: false, noPlayer: true },
   // Esportes News (F-90): tipo próprio, separado de Notícias (RSS); toda notícia com a imagem da notícia (Player >= 5.6.6)
   { id: 'esportes-news', tipo: 'sports_news', nome: 'Esportes News', descricao: 'Notícias de esportes sempre com a imagem da notícia e o crédito da foto, atualizadas automaticamente.', suportaFundo: false, noPlayer: true },
   { id: 'institutional-aviso', tipo: 'institutional', nome: 'Institucional / Aviso', descricao: 'Horário de funcionamento, comunicados, contato e QR Code.', suportaFundo: true, noPlayer: true },
