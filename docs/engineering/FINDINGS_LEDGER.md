@@ -1009,3 +1009,17 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Edge Functions `news-engine-sync` e `fetch-rss` publicadas; migrações 20261261 e 20261262 aplicadas.
   - **Release 5.6.7 (554):** SHA-256 `72060371d79810950b977e8ff61a6bb0a3365735e3cc3cac853f32a46a6ecac7`, certificado `95a973c3…`. GitHub `player-v5.6.7` → R2 (hash público conferido) → `app_releases` 554.
   - APK debug 5.6.7: SHA-256 `6f5c29326d97e1ef932649003b3de631ccc0f49ce3d29d630322f11b58731ee7`.
+
+### F-92 — Prévia dos widgets igual ao Player (Clima Futurista cortado na prévia) — DONE (só web)
+- **Relato do proprietário (foto):**
+  - Na prévia do Clima, a etiqueta "MÍN." quebrava de linha e ficava cortada.
+  - A previsão dos 5 dias não aparecia.
+  - A cidade encostava no selo "CLIMA AGORA".
+- **Causa raiz:** os widgets web usavam `clamp(Npx, X cqmin, Mpx)`, ou seja, tamanho mínimo e máximo em pixels, e espaçamento `p-[5%]` (% da largura). O Android Player desenha tudo só em proporção ao menor lado (`base * fator`). Numa prévia pequena (302×169 px) os mínimos deixavam o texto maior que o quadro. Na TV (Android) o layout já era proporcional e correto. A prévia não representava a tela.
+- **Correção:**
+  - Em 8 widgets (Clima, Relógio, Institucional, Oferta, Publicidade, Social, QR e YouTube), os limites em pixels saíram e ficou só a proporção, com os mesmos fatores do Android.
+  - O espaçamento interno virou `cqmin` (5% ou 4,5% do menor lado, como no Player).
+  - As etiquetas do clima ficam numa linha só, como o `LinearLayout` horizontal do Player.
+- **Prova:**
+  - Prévia 302×169 px no painel local: nenhum elemento fora do quadro, com cidade, temperatura, 3 etiquetas e 5 dias visíveis.
+  - Web 1201/1201, mais o `widgetProporcao.test.ts` (10), que proíbe limite em pixels ou espaçamento em % nos widgets.

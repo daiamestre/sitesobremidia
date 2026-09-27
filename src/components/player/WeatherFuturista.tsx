@@ -40,7 +40,7 @@ export function WeatherFuturista({ latitude, longitude, locationName, background
 
   return (
     <div
-      className={cn('relative flex h-full w-full flex-col overflow-hidden p-[5%] text-white', className)}
+      className={cn('relative flex h-full w-full flex-col overflow-hidden p-[5cqmin] text-white', className)}
       style={{ containerType: 'size', background: gradienteDe(c) }}
       data-testid="weather-futurista"
       data-estado={estado}
@@ -52,30 +52,30 @@ export function WeatherFuturista({ latitude, longitude, locationName, background
         : `linear-gradient(180deg, ${rgba(c.c1, 0)} 0%, ${rgba(c.c1, 0.47)} 100%)` }} />
 
       <div className="relative z-10 flex items-center justify-between">
-        <span className="text-[clamp(8px,3.2cqmin,22px)] font-bold tracking-[0.28em] text-white/85">SOBRE MÍDIA</span>
-        <span className="rounded-full px-[1.2em] py-[0.35em] text-[clamp(7px,2.8cqmin,18px)] font-extrabold tracking-widest" style={{ background: c.selo, color: c.seloTexto }}>CLIMA AGORA</span>
+        <span className="text-[3.2cqmin] font-bold tracking-[0.28em] text-white/85">SOBRE MÍDIA</span>
+        <span className="rounded-full px-[1.2em] py-[0.35em] text-[2.8cqmin] font-extrabold tracking-widest" style={{ background: c.selo, color: c.seloTexto }}>CLIMA AGORA</span>
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">
-        {estado === 'LOADING' && <p className="animate-pulse text-[clamp(9px,4cqmin,28px)] text-white/80">Buscando o clima…</p>}
+        {estado === 'LOADING' && <p className="animate-pulse text-[4cqmin] text-white/80">Buscando o clima…</p>}
         {estado === 'UNAVAILABLE' && (
           <>
             <Cloud className="h-[22cqmin] w-[22cqmin] opacity-80" strokeWidth={1.5} />
-            <p className="mt-[2%] text-[clamp(10px,5cqmin,34px)] font-bold">Clima indisponível no momento</p>
-            <p className="text-[clamp(8px,3.2cqmin,22px)] text-white/75">os dados voltam assim que a conexão responder</p>
+            <p className="mt-[3cqmin] text-[5cqmin] font-bold">Clima indisponível no momento</p>
+            <p className="text-[3.2cqmin] text-white/75">os dados voltam assim que a conexão responder</p>
           </>
         )}
         {estado === 'READY' && dados && desc && (
           <>
-            <p className="text-[clamp(10px,5cqmin,34px)] font-bold tracking-[0.14em]">{(local || 'Sua região').toUpperCase()}</p>
-            <div className="mt-[1.5%] flex items-center gap-[3.5cqmin]">
+            <p className="text-[5cqmin] font-bold tracking-[0.14em]">{(local || 'Sua região').toUpperCase()}</p>
+            <div className="mt-[1.5cqmin] flex items-center gap-[3.5cqmin]">
               <Icone className="h-[22cqmin] w-[22cqmin]" style={{ color: c.selo, filter: `drop-shadow(0 0 24px ${rgba(c.selo, 0.45)})` }} strokeWidth={1.4} />
               <div className="text-left">
-                <p className="text-[clamp(28px,24cqmin,190px)] font-black leading-none" style={{ textShadow: `0 0 40px ${c.brilho}` }}>{dados.temp}°C</p>
-                <p className="text-[clamp(10px,5cqmin,34px)] text-white/90">{desc.texto}</p>
+                <p className="text-[24cqmin] font-black leading-none" style={{ textShadow: `0 0 40px ${c.brilho}` }}>{dados.temp}°C</p>
+                <p className="text-[5cqmin] text-white/90">{desc.texto}</p>
               </div>
             </div>
-            <div className="mt-[2.5%] flex flex-wrap items-center justify-center gap-[2cqmin]">
+            <div className="mt-[2.5cqmin] flex flex-nowrap items-center justify-center gap-[2cqmin]">
               {dados.max !== null && <Chip>MÁX. {dados.max}°</Chip>}
               <Chip>SENSAÇÃO {dados.sensacao}°</Chip>
               {dados.min !== null && <Chip>MÍN. {dados.min}°</Chip>}
@@ -90,10 +90,10 @@ export function WeatherFuturista({ latitude, longitude, locationName, background
             const I = ICONES[descreverClima(d.code, true).icone];
             return (
               <div key={d.dia} className="flex flex-col items-center rounded-[3.5cqmin] border border-white/25 bg-white/15 p-[1.8cqmin] backdrop-blur-sm">
-                <span className="text-[clamp(7px,3cqmin,20px)] font-bold tracking-wider" style={{ color: i === 0 ? c.selo : '#FFFFFF' }}>{rotuloDia(d.dia, i)}</span>
+                <span className="text-[3cqmin] font-bold tracking-wider" style={{ color: i === 0 ? c.selo : '#FFFFFF' }}>{rotuloDia(d.dia, i)}</span>
                 <I className="my-[0.8cqmin] h-[7.5cqmin] w-[7.5cqmin]" strokeWidth={1.6} />
-                <span className="text-[clamp(8px,3.4cqmin,22px)] font-bold">{d.max}°</span>
-                <span className="text-[clamp(7px,2.6cqmin,18px)] text-white/75">{d.min}°</span>
+                <span className="text-[3.4cqmin] font-bold">{d.max}°</span>
+                <span className="text-[2.6cqmin] text-white/75">{d.min}°</span>
               </div>
             );
           })}
@@ -104,5 +104,5 @@ export function WeatherFuturista({ latitude, longitude, locationName, background
 }
 
 function Chip({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-full bg-white/20 px-[1.2em] py-[0.35em] text-[clamp(8px,3.4cqmin,22px)] font-bold tracking-wider">{children}</span>;
+  return <span className="whitespace-nowrap rounded-full bg-white/20 px-[1.2em] py-[0.35em] text-[3.4cqmin] font-bold tracking-wider">{children}</span>;
 }

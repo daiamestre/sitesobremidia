@@ -15,7 +15,7 @@ export function WidgetQRCode({ conteudo, legenda, className }: { conteudo?: stri
   return (
     <div className={cn('flex flex-col items-center gap-[1cqmin]', className)} data-testid="widget-qrcode">
       <div className="aspect-square w-full rounded-[2cqmin] bg-white p-[1.2cqmin] shadow-lg [&_svg]:h-full [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
-      {legenda && <span className="text-center text-[clamp(7px,2.6cqmin,18px)] font-semibold tracking-wide text-white/90">{legenda}</span>}
+      {legenda && <span className="text-center text-[2.6cqmin] font-semibold tracking-wide text-white/90">{legenda}</span>}
     </div>
   );
 }

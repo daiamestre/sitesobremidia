@@ -44,13 +44,13 @@ export function SocialWidget({ widgetType, config, backgroundImage, className }:
                 <rede.Icone className="h-1/2 w-1/2 text-white" />
               </span>
               <div className="flex min-w-0 flex-col">
-                {config.autor && <span className="truncate text-[clamp(9px,4cqmin,30px)] font-bold">{config.autor}</span>}
-                {perfil && <span className="truncate text-[clamp(8px,3.2cqmin,24px)] text-white/80">{perfil}</span>}
+                {config.autor && <span className="truncate text-[4cqmin] font-bold">{config.autor}</span>}
+                {perfil && <span className="truncate text-[3.2cqmin] text-white/80">{perfil}</span>}
               </div>
             </div>
           )}
-          {config.titulo?.trim() && <h2 className="text-[clamp(12px,6.4cqmin,52px)] font-black leading-tight" style={{ textShadow: '0 0 24px rgba(176,77,255,.7)' }}>{config.titulo}</h2>}
-          {config.texto?.trim() && <p className="line-clamp-5 whitespace-pre-line text-[clamp(9px,4cqmin,30px)] leading-snug text-white/90">{config.texto}</p>}
+          {config.titulo?.trim() && <h2 className="text-[6.4cqmin] font-black leading-tight" style={{ textShadow: '0 0 24px rgba(176,77,255,.7)' }}>{config.titulo}</h2>}
+          {config.texto?.trim() && <p className="line-clamp-5 whitespace-pre-line text-[4cqmin] leading-snug text-white/90">{config.texto}</p>}
         </div>
         {temQr && <WidgetQRCode conteudo={config.qrConteudo} legenda={config.qrLegenda || 'Siga a gente'} className="w-[24cqmin] flex-shrink-0" />}
       </div>

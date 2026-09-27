@@ -14,7 +14,7 @@ export function Moldura({ backgroundImage, className, children, testId }: {
   backgroundImage?: string | null; className?: string; children: React.ReactNode; testId?: string;
 }) {
   return (
-    <div className={cn('relative flex h-full w-full flex-col overflow-hidden p-[4.5%] text-white', className)}
+    <div className={cn('relative flex h-full w-full flex-col overflow-hidden p-[4.5cqmin] text-white', className)}
       style={{ containerType: 'size', background: FUNDO }} data-testid={testId}>
       {backgroundImage && <img src={backgroundImage} alt="" className="absolute inset-0 h-full w-full object-cover" />}
       <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(circle at 85% 10%, rgba(176,77,255,.55), transparent 55%)' }} />
@@ -29,8 +29,8 @@ export function Moldura({ backgroundImage, className, children, testId }: {
 export function Cabecalho({ selo }: { selo: string }) {
   return (
     <div className="relative z-10 flex items-center justify-between">
-      <span className="text-[clamp(8px,3.2cqmin,22px)] font-bold tracking-[0.28em] text-white/85">SOBRE MÍDIA</span>
-      <span className="rounded-full bg-[#FFD400] px-[1.2em] py-[0.35em] text-[clamp(7px,2.8cqmin,18px)] font-extrabold tracking-widest text-[#22004A]">{selo}</span>
+      <span className="text-[3.2cqmin] font-bold tracking-[0.28em] text-white/85">SOBRE MÍDIA</span>
+      <span className="rounded-full bg-[#FFD400] px-[1.2em] py-[0.35em] text-[2.8cqmin] font-extrabold tracking-widest text-[#22004A]">{selo}</span>
     </div>
   );
 }
@@ -57,14 +57,14 @@ function Foto({ item, className }: { item: OfertaWidgetItem; className?: string 
 
 function Selo({ pct }: { pct: number }) {
   if (pct <= 0) return null;
-  return <span className="rounded-full bg-[#25D366] px-[0.9em] py-[0.25em] text-[clamp(7px,3cqmin,22px)] font-black text-[#0B2E17]">-{pct}%</span>;
+  return <span className="rounded-full bg-[#25D366] px-[0.9em] py-[0.25em] text-[3cqmin] font-black text-[#0B2E17]">-{pct}%</span>;
 }
 
 function DePor({ item, escala }: { item: OfertaWidgetItem; escala: number }) {
   const temDe = item.preco_original > item.preco_oferta;
   return (
     <div className="flex flex-col gap-[0.6cqmin]">
-      {temDe && <span className="text-[clamp(7px,3cqmin,22px)] font-semibold text-white/75">DE <span className="line-through">{precoBR(item.preco_original)}</span> POR</span>}
+      {temDe && <span className="text-[3cqmin] font-semibold text-white/75">DE <span className="line-through">{precoBR(item.preco_original)}</span> POR</span>}
       <Preco valor={item.preco_oferta} escala={escala} />
     </div>
   );
@@ -81,7 +81,7 @@ export function OfferWidgetView({ dados, config, backgroundImage, className, ago
         <Cabecalho selo="OFERTAS" />
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-[2cqmin] text-center">
           <Tag className="h-[14cqmin] w-[14cqmin] text-[#FFD400]" />
-          <span className="text-[clamp(12px,7cqmin,52px)] font-black">Novas ofertas em breve</span>
+          <span className="text-[7cqmin] font-black">Novas ofertas em breve</span>
         </div>
       </Moldura>
     );
@@ -93,7 +93,7 @@ export function OfferWidgetView({ dados, config, backgroundImage, className, ago
     <Moldura backgroundImage={backgroundImage} className={className} testId="offer-widget">
       <Cabecalho selo="OFERTA" />
       <div className="relative z-10 mt-[2cqmin] flex items-end justify-between gap-[2cqmin]">
-        <h2 className="min-w-0 truncate text-[clamp(12px,7cqmin,56px)] font-black leading-tight" style={{ textShadow: '0 0 24px rgba(176,77,255,.7)' }}>{dados.titulo}</h2>
+        <h2 className="min-w-0 truncate text-[7cqmin] font-black leading-tight" style={{ textShadow: '0 0 24px rgba(176,77,255,.7)' }}>{dados.titulo}</h2>
       </div>
       <div className="relative z-10 flex min-h-0 flex-1 items-center gap-[3cqmin] py-[2.5cqmin] [@container(orientation:portrait)]:flex-col">
         {unico ? (
@@ -101,8 +101,8 @@ export function OfferWidgetView({ dados, config, backgroundImage, className, ago
             <Foto item={unico} className="aspect-square h-[52cqmin] flex-shrink-0" />
             <div className="flex min-w-0 flex-col gap-[1.6cqmin] [@container(orientation:portrait)]:items-center [@container(orientation:portrait)]:text-center">
               <Selo pct={descontoDoItem(unico)} />
-              <span className="text-[clamp(10px,5.4cqmin,40px)] font-bold leading-tight">{unico.nome}</span>
-              {(unico.marca || unico.unidade) && <span className="text-[clamp(7px,3cqmin,22px)] text-white/75">{[unico.marca, unico.unidade].filter(Boolean).join(' · ')}</span>}
+              <span className="text-[5.4cqmin] font-bold leading-tight">{unico.nome}</span>
+              {(unico.marca || unico.unidade) && <span className="text-[3cqmin] text-white/75">{[unico.marca, unico.unidade].filter(Boolean).join(' · ')}</span>}
               <DePor item={unico} escala={17} />
             </div>
           </div>
@@ -113,7 +113,7 @@ export function OfferWidgetView({ dados, config, backgroundImage, className, ago
               <div key={k} className="relative flex min-h-0 flex-col items-center justify-between gap-[1cqmin] rounded-[2.5cqmin] border border-white/25 bg-white/15 p-[1.8cqmin] text-center">
                 <div className="absolute right-[1.2cqmin] top-[1.2cqmin]"><Selo pct={descontoDoItem(i)} /></div>
                 <Foto item={i} className="aspect-square min-h-0 w-[60%] flex-1" />
-                <span className="line-clamp-2 text-[clamp(7px,3.2cqmin,24px)] font-bold leading-tight">{i.nome}</span>
+                <span className="line-clamp-2 text-[3.2cqmin] font-bold leading-tight">{i.nome}</span>
                 <DePor item={i} escala={8} />
               </div>
             ))}
@@ -121,7 +121,7 @@ export function OfferWidgetView({ dados, config, backgroundImage, className, ago
         )}
         {temQr && <WidgetQRCode conteudo={config.qrConteudo} legenda={config.qrLegenda || 'Aproveite'} className="w-[24cqmin] flex-shrink-0" />}
       </div>
-      <div className="relative z-10 flex items-center justify-between gap-[2cqmin] text-[clamp(7px,2.8cqmin,20px)] text-white/80">
+      <div className="relative z-10 flex items-center justify-between gap-[2cqmin] text-[2.8cqmin] text-white/80">
         <span className="font-semibold">{validadeTexto(dados.data_fim, agora)}</span>
         {dados.descricao && <span className="truncate">{dados.descricao}</span>}
       </div>
@@ -145,7 +145,7 @@ export function OfferWidget({ config, backgroundImage, className }: { config: Wi
   return (
     <Moldura backgroundImage={backgroundImage} className={className} testId={estado.dados === undefined ? 'offer-widget-carregando' : 'offer-widget-indisponivel'}>
       <Cabecalho selo="OFERTA" />
-      <div className="relative z-10 flex flex-1 items-center justify-center text-center text-[clamp(10px,5cqmin,36px)] font-bold text-white/85">
+      <div className="relative z-10 flex flex-1 items-center justify-center text-center text-[5cqmin] font-bold text-white/85">
         {estado.dados === undefined ? 'Carregando oferta…' : id ? 'Oferta indisponível' : 'Escolha uma oferta'}
       </div>
     </Moldura>
