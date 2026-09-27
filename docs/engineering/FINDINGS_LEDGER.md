@@ -1023,3 +1023,56 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:**
   - Prévia 302×169 px no painel local: nenhum elemento fora do quadro, com cidade, temperatura, 3 etiquetas e 5 dias visíveis.
   - Web 1201/1201, mais o `widgetProporcao.test.ts` (10), que proíbe limite em pixels ou espaçamento em % nos widgets.
+
+### F-93 — Pasta inteira da Biblioteca na playlist, com rodízio no Player — SERVIDOR/PAINEL DONE; Player 5.6.8 aguardando canário
+- **Pedido do proprietário:** adicionar uma pasta completa (ex.: Memes) à playlist; a cada volta o Player toca um conteúdo diferente da pasta, do 1º ao último, e recomeça.
+- **Desenho (mínima mudança no Player):** o servidor manda todas as mídias da pasta como itens comuns, marcadas com `grupo` (o id do item). Com isso download, cache offline, integridade, troca atômica e limpeza continuam iguais. O Player toca um item por grupo em cada volta, com cursor gravado no aparelho (`pasta_cursor`, igual ao cursor do Esportes).
+- **Banco (20261263):**
+  - `playlist_items.biblioteca_pasta_id`; `valid_item_source` passa a exigir exatamente uma origem entre mídia, widget, link ou pasta.
+  - `fn_save_playlist_items` passa a gravar a pasta.
+  - `get_player_playlist_for_screen` passo 7: os itens comuns mantêm o mesmo objeto; o item de pasta vira as mídias com `grupo`, na orientação da tela quando a pasta tem as duas.
+  - W12: só Player ≥ 5.6.8 recebe itens de pasta.
+  - Nova `biblioteca_adicionar_pasta_playlists`.
+  - Gatilhos avisam as playlists (Realtime) quando o conteúdo da pasta muda.
+  - Definições anteriores em `evidence/F-93_pasta_na_playlist/`.
+- **Prova do banco:**
+  - A resposta real da RPC para as 5 telas vinculadas ficou idêntica antes e depois (md5, chamada dentro de transação desfeita).
+  - Simulação desfeita: pasta "VIDEOS EM PE ACADEMIA" (9 vídeos) na playlist de teste. O Player 5.6.8 recebe 9 itens com o mesmo grupo; o 5.6.7 não recebe nenhum.
+- **Painel:**
+  - Biblioteca, menu da pasta: "Adicionar pasta à playlist".
+  - O editor da playlist e os detalhes da tela mostram e preservam o item "Pasta: …".
+  - `playlistItems` grava `biblioteca_pasta_id`.
+- **Player 5.6.8 (555):**
+  - DTO, `MediaItem` e cache com `grupo`.
+  - Room 11 → 12 (`ALTER TABLE media_item ADD COLUMN grupo`), provado no emulador: versão 12, coluna criada e linha existente preservada.
+  - `RodizioDePastas` e `CursorDePastas`; o laço avança o cursor quando o conteúdo toca ou falha (conteúdo com defeito não prende a pasta).
+  - Assinatura de configuração inclui o grupo.
+- **Testes:** JVM app 218/218 (`RodizioDePastasTest` 6: pasta sozinha, pasta entre itens, duas pastas, conteúdo removido, sem grupo, pasta de 1) e core 71/71. Web 1222/1222.
+- **Pendente:** canário do 5.6.8 com tocar real. O emulador está na tela de login do Player, que exige senha, e o agente não digita senhas. O 5.6.8 (SHA-256 `2d5280d4df1e26734daab1f6e3920c7d6632b4e654f34ce4b1593fa3dbe01935`, certificado `95a973c3…`) não foi para o OTA.
+
+### F-94 — Pastas automáticas: Loterias e Sorteios com dados reais da CAIXA — DONE
+- **Decisões do proprietário (27/09):** começar por Loterias + pasta na playlist; Memes/Humor com conteúdo próprio (sem Reddit); Apostas Esportivas com jogos da rodada, sem odds.
+- **Fontes:**
+  - API pública do portal de loterias da CAIXA, acessível pelo GitHub Actions. Ela bloqueia o servidor do Supabase (403).
+  - Reserva: espelho público loteriascaixa-api (mesmos dados oficiais; pode atrasar 1 concurso). Vale o concurso mais novo.
+  - 9 modalidades: Mega-Sena, Lotofácil, Quina, Lotomania, Timemania, Dupla Sena, Dia de Sorte, Super Sete e +Milionária.
+- **Banco (20261264):** `biblioteca_pastas.conteudo_automatico` (pastas "Loterias" e "Sorteios" marcadas) e `conteudo_auto_publicar`, só para service_role.
+  - Item novo vira mídia da Biblioteca com a tag `auto:<chave>`.
+  - Arte nova substitui o arquivo na mesma mídia; a pasta na playlist continua válida e o Player baixa pelo hash.
+  - Chave que sumiu vai para a Lixeira.
+  - Itens colocados à mão nunca são tocados.
+- **Edge Function `conteudo-automatico`:** segredo próprio `CONTENT_FACTORY_SECRET` (Supabase e GitHub), aceita só URLs do próprio bucket em `conteudo/`, recusa sem chave (401).
+- **Robô** (`scripts/conteudo/*`, workflow `conteudo-automatico.yml`, 22:20 e 10:20 de Brasília e sob demanda):
+  - Artes SOBRE MÍDIA em 16:9 e 9:16 com a cor de cada modalidade: dezenas, 2º sorteio, trevos, time do coração, mês da sorte, "ACUMULOU!" ou ganhadores, próximo concurso com estimativa, e aviso "Jogue com responsabilidade · Proibido para menores de 18 anos".
+  - A identidade da arte é o conteúdo (hash do HTML), então sem sorteio novo nada muda nas telas.
+  - Arquivos substituídos são apagados do R2.
+- **Prova:**
+  - 1ª execução: 18 itens em Loterias e 18 em Sorteios, dados da CAIXA.
+  - Execução seguinte, sem sorteio novo: 18 + 18 "iguais", 0 alterações.
+  - Imagem real publicada conferida (Dia de Sorte, concurso 1307).
+  - `loteriasConteudo.test.ts` (9) com amostras reais das 9 modalidades nas duas fontes.
+- **Próximas etapas pedidas:**
+  - Datas Comemorativas (BrasilAPI e calendário), Cinema e Turismo (g1/CinePOP/Viagem e Turismo com foto), SOBREMÍDIA NEWS, Esportes e Futebol (motor de notícias).
+  - Charadas, Humor e Memes (conteúdo próprio).
+  - Apostas Esportivas (jogos da rodada, sem odds).
+  - Pastas de vídeo: dependem de uma chave gratuita Pixabay/Pexels do proprietário.
