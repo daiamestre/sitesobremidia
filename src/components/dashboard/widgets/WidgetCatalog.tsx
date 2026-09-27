@@ -8,7 +8,7 @@ import { CapaWidget } from './CapaWidget';
 
 export const ICONE_TIPO: Record<WidgetTypeId, LucideIcon> = {
   clock: Clock, weather: Cloud, rss: Newspaper, institutional: Building2, offer: Tag, advertising: Megaphone,
-  social: MessageSquareQuote, youtube: Youtube, instagram: Instagram, sports: Trophy,
+  social: MessageSquareQuote, youtube: Youtube, instagram: Instagram, sports: Trophy, sports_news: Newspaper,
 };
 
 /** Galeria de Widgets: os MODELOS disponíveis. Escolher um abre o formulário já no tipo/modelo certo. */

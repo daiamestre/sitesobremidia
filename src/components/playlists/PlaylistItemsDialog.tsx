@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { DURACAO_WIDGET_ESPORTES } from '@/lib/esportesPaginas';
+import { DURACAO_WIDGET_ESPORTES_NEWS } from '@/lib/esportesNews';
 import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ const getWidgetLabel = (type: string) => {
     case 'clock': return 'Relógio';
     case 'weather': return 'Clima';
     case 'rss': return 'Notícias';
+    case 'sports_news': return 'Esportes News';
     default: return 'Widget';
   }
 };
@@ -316,7 +318,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
       external_link_id: null,
       position: items.length,
       // Esportes: 3 páginas x 8 s (F-86)
-      duration: widget.widget_type === 'sports' ? DURACAO_WIDGET_ESPORTES : widget.widget_type === 'rss' ? 15 : 10,
+      duration: widget.widget_type === 'sports' ? DURACAO_WIDGET_ESPORTES : widget.widget_type === 'sports_news' ? DURACAO_WIDGET_ESPORTES_NEWS : widget.widget_type === 'rss' ? 15 : 10,
       widget,
       created_at: new Date().toISOString()
     };

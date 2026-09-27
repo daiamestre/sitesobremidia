@@ -150,7 +150,7 @@ describe('Biblioteca de Mídias — página', () => {
     banco(true);
     const { unmount } = pagina('painel');
     expect(await screen.findByTestId('conteudo-automatico')).toBeInTheDocument();
-    for (const id of ['sports-resultados', 'rss-esportes']) expect(screen.getByTestId(`usar-${id}`)).toBeInTheDocument();
+    for (const id of ['sports-resultados', 'esportes-news']) expect(screen.getByTestId(`usar-${id}`)).toBeInTheDocument();
     unmount();
     banco(false);
     pagina('portal');

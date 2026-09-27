@@ -42,6 +42,8 @@ import com.antigravity.player.widget.JogoEsporte
 import com.antigravity.player.widget.CursorEsportes
 import com.antigravity.player.widget.EsportesPaginas
 import com.antigravity.player.widget.PaginaEsportes
+import com.antigravity.player.widget.EsportesNews
+import com.antigravity.player.widget.NoticiaEsporte
 import com.antigravity.core.util.TimeManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
@@ -122,6 +124,7 @@ object NativeWidgetEngine {
                 WidgetKind.ADVERTISING -> loadCriativos(appContext, spec, w, h)
                 WidgetKind.SOCIAL -> loadPostImagem(appContext, spec)
                 WidgetKind.SPORTS -> loadEsportes(appContext, spec, w, h)
+                WidgetKind.SPORTS_NEWS -> loadEsportesNews(appContext, spec)
                 else -> null
             }
         }
@@ -160,6 +163,7 @@ object NativeWidgetEngine {
                 // v2 (F-86) quando o servidor manda a janela por campeonato; senão, a lista antiga
                 WidgetKind.SPORTS -> (payload as? EsportesPayload)?.let { buildSportsV2(context, spec, background, w, h, base, it) }
                     ?: buildSports(context, spec, background, w, h, base)
+                WidgetKind.SPORTS_NEWS -> buildSportsNews(context, spec, w, h, base, payload as? EsportesNewsPayload)
                 WidgetKind.UNKNOWN -> buildMessage(context, background, w, h, base, "Widget não suportado (${spec.rawType})")
             }
             container.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -1449,6 +1453,196 @@ object NativeWidgetEngine {
         linha.addView(escudo(j.escudoVisitante, j.visitante), LinearLayout.LayoutParams(lado, lado).apply { marginEnd = margem })
         linha.addView(nome(j.visitante, Gravity.START or Gravity.CENTER_VERTICAL), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         return linha
+    }
+
+    // ------------------------------------------------------------------ Esportes News (F-90; identidade SOBRE MÍDIA)
+
+    private const val PREFS_CURSOR_ESPORTES_NEWS = "esportes_news_cursor"
+    private const val IMAGEM_NOTICIA_MAX_PX = 1280
+
+    /** Notícias (todas), as desta exibição (índices, só as com imagem carregada) e as imagens já decodificadas. */
+    private class EsportesNewsPayload(val itens: List<NoticiaEsporte>, val sequencia: List<Int>, val imagens: Map<String, Bitmap>)
+
+    private fun lerCursorEsportesNews(context: Context, widgetId: String): String? =
+        if (widgetId.isBlank()) null else context.getSharedPreferences(PREFS_CURSOR_ESPORTES_NEWS, Context.MODE_PRIVATE).getString(widgetId, null)
+
+    private fun gravarCursorEsportesNews(context: Context, widgetId: String, proximaId: String?) {
+        if (widgetId.isBlank() || proximaId == null) return
+        context.getSharedPreferences(PREFS_CURSOR_ESPORTES_NEWS, Context.MODE_PRIVATE).edit().putString(widgetId, proximaId).apply()
+    }
+
+    /**
+     * Imagens das 3 notícias desta exibição (a partir do cursor), fora da thread principal. Notícia cuja imagem não
+     * carrega (sem rede e sem cache) é PULADA — nunca aparece notícia sem imagem. As demais imagens vão para o cache de
+     * disco em segundo plano (próximas exibições e uso offline).
+     */
+    private suspend fun loadEsportesNews(context: Context, spec: WidgetSpec): EsportesNewsPayload = coroutineScope {
+        val itens = spec.esportesNews.orEmpty()
+        if (itens.isEmpty()) return@coroutineScope EsportesNewsPayload(itens, emptyList(), emptyMap())
+        val legacy = ChipsetDetector.getRecommendedProfile() == ChipsetDetector.HardwareProfile.LEGACY_STABILITY
+        val opcoes = RequestOptions().downsample(com.bumptech.glide.load.resource.bitmap.DownsampleStrategy.AT_MOST)
+            .format(if (legacy) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888)
+        val inicio = itens.indexOfFirst { it.id == lerCursorEsportesNews(context, spec.widgetId) }.coerceAtLeast(0)
+        val ordem = itens.indices.map { (inicio + it) % itens.size }
+        val sequencia = ArrayList<Int>()
+        val imagens = HashMap<String, Bitmap>()
+        for (lote in ordem.chunked(EsportesNews.NOTICIAS_POR_EXIBICAO)) {
+            if (sequencia.size >= EsportesNews.NOTICIAS_POR_EXIBICAO) break
+            val carregadas = lote.map { i ->
+                async(Dispatchers.IO) {
+                    i to try {
+                        Glide.with(context).asBitmap().load(itens[i].imagem).apply(opcoes)
+                            .submit(IMAGEM_NOTICIA_MAX_PX, IMAGEM_NOTICIA_MAX_PX).get(ESCUDO_TIMEOUT_S, TimeUnit.SECONDS)
+                    } catch (e: Exception) {
+                        Logger.w("WIDGET", "Imagem da notícia indisponível (${itens[i].imagem}): ${e.message}"); null
+                    }
+                }
+            }.map { it.await() }
+            for ((i, bmp) in carregadas) {
+                if (bmp != null && sequencia.size < EsportesNews.NOTICIAS_POR_EXIBICAO) { sequencia.add(i); imagens[itens[i].imagem] = bmp }
+            }
+        }
+        itens.map { it.imagem }.filter { it !in imagens && escudosAquecidos.add(it) }
+            .forEach { u -> runCatching { Glide.with(context).downloadOnly().load(u).submit() } }
+        EsportesNewsPayload(itens, sequencia, imagens)
+    }
+
+    /**
+     * Notícia de esporte sempre com a imagem da notícia (F-90). Horizontal: foto na tela toda, manchete por cima (véu
+     * escuro embaixo). Vertical: foto no alto (16:10) sobre a mesma foto desfocada, texto abaixo. Crédito da foto sempre
+     * visível. 3 notícias de 8 s por exibição (para na 3ª); o cursor é gravado a cada notícia mostrada.
+     * Mesma composição do painel (src/components/player/SportsNewsWidget.tsx).
+     */
+    private fun buildSportsNews(context: Context, spec: WidgetSpec, w: Int, h: Int, base: Float, dados: EsportesNewsPayload?): View {
+        val cores = spec.cores ?: CoresWidget.PADRAO
+        val root = FrameLayout(context).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(cores.c1, cores.c2, cores.c3))
+        }
+        val cheio = { FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) }
+        if (dados == null || dados.sequencia.isEmpty()) {
+            val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; val p = px(base * 0.04f); setPadding(p, p, p, p) }
+            col.addView(cabecalhoMarca(context, "ESPORTES NEWS", base, cores), lp())
+            col.addView(text(context, base * 0.036f, color = Color.argb(215, 255, 255, 255), lines = 3).apply {
+                text = "Nenhuma notícia de esporte com imagem no momento."
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            root.addView(col, cheio())
+            return root
+        }
+        val vertical = h > w * 1.2f
+        val area = FrameLayout(context)
+        root.addView(area, cheio())
+        val barra = View(context).apply { setBackgroundColor(cores.selo); pivotX = 0f }
+        root.addView(barra, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(base * 0.008f).coerceAtLeast(3), Gravity.BOTTOM))
+        val periodoMs = EsportesNews.SEGUNDOS_POR_NOTICIA * 1000L
+
+        fun mostrar(passo: Int) {
+            val i = dados.sequencia[passo]
+            val n = dados.itens[i]
+            val foto = dados.imagens[n.imagem] ?: return
+            area.removeAllViews()
+            area.addView(if (vertical) noticiaVertical(context, n, foto, base, cores) else noticiaHorizontal(context, n, foto, w, base, cores), cheio())
+            gravarCursorEsportesNews(context.applicationContext, spec.widgetId, EsportesNews.proximaDepois(dados.itens, i))
+            if (dados.sequencia.size > 1) {
+                barra.scaleX = 0f
+                barra.animate().cancel()
+                barra.animate().scaleX(1f).setDuration(periodoMs).setInterpolator(android.view.animation.LinearInterpolator()).start()
+            } else barra.visibility = View.GONE
+        }
+        mostrar(0)
+        if (dados.sequencia.size > 1) {
+            var passo = 0
+            val virar = object : Runnable {
+                override fun run() {
+                    if (!root.isAttachedToWindow && root.parent == null) return
+                    if (passo >= dados.sequencia.size - 1) return // fica na última até o item acabar
+                    passo++
+                    val alvo = passo
+                    area.animate().alpha(0f).setDuration(250).withEndAction {
+                        mostrar(alvo)
+                        area.animate().alpha(1f).setDuration(250).start()
+                    }.start()
+                    if (passo < dados.sequencia.size - 1) uiHandler.postDelayed(this, periodoMs)
+                }
+            }
+            bindToLifecycle(root, virar, periodoMs)
+        }
+        return root
+    }
+
+    private fun textoNoticia(context: Context, n: NoticiaEsporte, base: Float, cores: CoresWidget, vertical: Boolean): LinearLayout {
+        val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val quando = EsportesNews.quando(n.publicadoEmMs, TimeManager.utcMillis())
+        if (quando.isNotEmpty()) {
+            col.addView(text(context, base * 0.028f, bold = true, color = cores.seloTexto).apply {
+                text = quando.uppercase(Locale("pt", "BR")); letterSpacing = 0.08f; setShadowLayer(0f, 0f, 0f, 0)
+                background = GradientDrawable().apply { setColor(cores.selo); cornerRadius = base * 0.01f }
+                val ph = px(base * 0.016f); val pv = px(base * 0.005f); setPadding(ph, pv, ph, pv)
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        col.addView(text(context, base * (if (vertical) 0.064f else 0.062f), bold = true, lines = if (vertical) 5 else 3).apply {
+            text = n.titulo; gravity = Gravity.START; setLineSpacing(0f, 1.05f)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, lp(top = px(base * 0.018f)))
+        n.resumo?.let { r ->
+            col.addView(text(context, base * (if (vertical) 0.036f else 0.032f), color = Color.argb(232, 255, 255, 255), lines = if (vertical) 4 else 2).apply {
+                text = r; gravity = Gravity.START; ellipsize = android.text.TextUtils.TruncateAt.END
+            }, lp(top = px(base * 0.016f)))
+        }
+        return col
+    }
+
+    private fun creditoView(context: Context, n: NoticiaEsporte, base: Float, alinhamento: Int): TextView =
+        text(context, base * 0.022f, color = Color.argb(200, 255, 255, 255)).apply {
+            text = EsportesNews.credito(n); gravity = alinhamento; ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+
+    private fun noticiaHorizontal(context: Context, n: NoticiaEsporte, foto: Bitmap, w: Int, base: Float, cores: CoresWidget): View {
+        val cheio = { FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) }
+        val f = FrameLayout(context)
+        f.addView(ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageBitmap(foto) }, cheio())
+        f.addView(View(context).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(
+                Color.argb(140, 0, 0, 0), Color.argb(0, 0, 0, 0), Color.argb(0, 0, 0, 0), Color.argb(210, 0, 0, 0), Color.argb(235, 0, 0, 0)))
+        }, cheio())
+        val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; val p = px(base * 0.04f); setPadding(p, p, p, p) }
+        col.addView(cabecalhoMarca(context, "ESPORTES NEWS", base, cores), lp())
+        col.addView(View(context), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        col.addView(textoNoticia(context, n, base, cores, vertical = false), LinearLayout.LayoutParams((w * 0.84f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT))
+        col.addView(creditoView(context, n, base, Gravity.START), lp(top = px(base * 0.014f)))
+        f.addView(col, cheio())
+        return f
+    }
+
+    private fun noticiaVertical(context: Context, n: NoticiaEsporte, foto: Bitmap, base: Float, cores: CoresWidget): View {
+        val cheio = { FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) }
+        val f = FrameLayout(context)
+        // "Desfoque" sem RenderEffect (minSdk 23): a foto reduzida a poucos pixels e ampliada com filtro.
+        val miniatura = runCatching {
+            Bitmap.createScaledBitmap(foto, 24, (24f * foto.height / foto.width).toInt().coerceAtLeast(8), true)
+        }.getOrNull()
+        if (miniatura != null) f.addView(ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageBitmap(miniatura) }, cheio())
+        f.addView(View(context).apply { setBackgroundColor(Color.argb(150, 0, 0, 0)) }, cheio())
+        val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; val p = px(base * 0.04f); setPadding(p, p, p, p) }
+        col.addView(cabecalhoMarca(context, "ESPORTES NEWS", base, cores), lp())
+        val quadro = object : FrameLayout(context) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val largura = MeasureSpec.getSize(widthMeasureSpec)
+                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec((largura * 10f / 16f).toInt(), MeasureSpec.EXACTLY))
+            }
+        }.apply {
+            background = GradientDrawable().apply { setColor(Color.BLACK); cornerRadius = base * 0.02f }
+            clipToOutline = true
+            outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+        }
+        quadro.addView(ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageBitmap(foto) }, cheio())
+        col.addView(quadro, lp(top = px(base * 0.03f)))
+        col.addView(creditoView(context, n, base, Gravity.END), lp(top = px(base * 0.01f)))
+        val centro = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
+        centro.addView(textoNoticia(context, n, base, cores, vertical = true), lp())
+        col.addView(centro, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        f.addView(col, cheio())
+        return f
     }
 
     /** Liga o Runnable enquanto a view está na tela e o cancela ao sair (sem vazamento entre widgets). */

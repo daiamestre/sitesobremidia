@@ -10,6 +10,7 @@ import { AdvertisingWidget } from "@/components/player/AdvertisingWidget";
 import { SocialWidget } from "@/components/player/SocialWidget";
 import { YouTubeWidget } from "@/components/player/YouTubeWidget";
 import { SportsWidget } from "@/components/player/SportsWidget";
+import { SportsNewsWidget } from "@/components/player/SportsNewsWidget";
 import { coresDoConfig } from "@/lib/widgetPaletas";
 import "@/components/player/Player.css";
 
@@ -74,6 +75,8 @@ const WidgetPlayer = () => {
                 return <WeatherFuturista {...commonProps} cores={coresDoConfig(config)} latitude={config.latitude} longitude={config.longitude} locationName={config.locationName} />;
             case 'sports':
                 return <SportsWidget {...commonProps} config={config} cores={coresDoConfig(config)} dados={config.esportes ?? null} widgetId={widget.id} modo={config.esportes ? "player" : "previa"} />;
+            case 'sports_news':
+                return <SportsNewsWidget config={config} cores={coresDoConfig(config)} dados={config.esportesNews ?? null} widgetId={widget.id} modo={config.esportesNews ? "player" : "previa"} className="w-full h-full" />;
             case 'rss':
                 return (
                     <RssWidget

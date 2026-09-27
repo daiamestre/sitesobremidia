@@ -924,3 +924,50 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:** web 160/1622 (+2 testes: sem rodapé visível; rótulos centralizados); JVM 205/205.
 - **Validação no Player 5.6.5** (`EsportesRenderTest`, dados reais de 19/09): Premier League (16:9) e La Liga (9:16) com a taça na arte, subtítulo e rótulos centralizados, sem rodapé.
 - **Release 5.6.5 (552):** SHA-256 `de9d47537106656bce28bb013fe303715242f4afb076c3e50a8c30147fc52399`, certificado de produção. Substitui a 5.6.4 no OTA pendente.
+
+### F-90 — Widget "Esportes News" separado de "Notícias (RSS)", sempre com a imagem da notícia — DONE (Player 5.6.6)
+- **Pedido do proprietário:**
+  - notícias de esportes em uma opção própria, ao lado de "Notícias (RSS)";
+  - toda notícia de esporte com a imagem de referência da notícia;
+  - se a fonte não fornecer imagem, buscar outra fonte.
+- **Auditoria de fontes (27/09):**
+  - **Agência Brasil (CC BY 4.0).** Das últimas 45 matérias de esportes, só 3 têm imagem própria, e as três são artes de divulgação da TV Brasil ("Arte/Agência Brasil", "Arte/EBC"). As demais têm foto de terceiros (CBF, clubes, CBV, CBDV, "Divulgação"), ou "Direitos Reservados", ou Reuters "Proibida reprodução". A licença CC BY da Agência Brasil não cobre conteúdo de terceiros.
+  - **Rádio Agência Nacional (EBC).** 0 de 10 fotos próprias.
+  - **Feeds comerciais com foto.** ge/globo.com, Gazeta Esportiva, Trivela, Metrópoles e Estadão trazem imagem em 80–100% dos itens, mas não licenciam reuso comercial. A Globo já tinha sido classificada como não autorizada no F-79.
+  - **gov.br Ministério do Esporte.** Bloqueia leitura automática (401).
+  - **Conclusão:** hoje não existe fonte de notícias de esporte com licença aberta e foto em volume. Ativar uma fonte comercial é decisão do proprietário (autorização ou contrato de licenciamento). Depois disso, basta cadastrar a fonte com `imagem = 'feed'`, sem mudar código.
+- **Banco (migração 20261260, aditiva):**
+  - Coluna `content_news_sources.imagem` (`nenhuma` | `feed` | `artigo_propria`). A Agência Brasil fica com `artigo_propria`.
+  - Colunas `content_news_items.image_credit` e `image_checked_at`.
+  - Nova função `fn_widget_esportes_news_dados`: só entrega itens com imagem https.
+  - `fn_widget_pode_exibir`: widget sem nenhuma notícia com imagem sai da reprodução.
+  - `fn_widget_suportado_no_aparelho`: `sports_news` só vai para Player ≥ 5.6.6, porque a 5.6.5 trataria o tipo como RSS.
+  - `content_touch_widgets('noticias')` também atualiza o novo widget.
+  - `fn_widget_noticias_dados` (RSS legado) passa a ler só a Agência Brasil, que é o crédito fixo que ele devolve.
+  - Nova prévia `content_esportes_news_preview`, só para authenticated.
+  - `get_player_playlist_for_screen` não foi alterada.
+  - Payload das 7 telas idêntico antes e depois (hash).
+- **Motor (`news-engine-sync` + `_shared/noticias/fotos.ts`):**
+  - Fonte `feed`: usa a imagem do item (media:content, enclosure ou `<img>`), ignorando logo, SVG e pixel de rastreio.
+  - Fonte `artigo_propria`: abre a matéria e aceita a foto principal (1170x700) só com crédito do próprio veículo (Agência Brasil, EBC, TV Brasil, Rádio Nacional, sem "Proibida"/"Direitos reservados").
+  - Até 12 matérias por execução; falha de rede tenta de novo na próxima execução.
+  - Em produção: 12 matérias verificadas, 1 imagem própria aceita e 11 recusadas (terceiros ou sem foto).
+- **Painel:**
+  - Tipo "Esportes News" ao lado de "Notícias (RSS)".
+  - Modelo `esportes-news` na Galeria e no Conteúdo Automático da Biblioteca; o modelo `rss-esportes` saiu do tipo RSS (nenhum widget o usava).
+  - `SportsNewsWidget`:
+    - horizontal: foto em tela cheia com a manchete por cima;
+    - vertical: foto no alto sobre a mesma foto desfocada, texto abaixo;
+    - na tela: horário (Brasília), manchete, resumo e crédito da foto sempre visível;
+    - 3 notícias de 8 s por exibição (24 s), continuando da seguinte;
+    - notícia cuja imagem não carrega é pulada.
+- **Player 5.6.6 (553):**
+  - `WidgetKind.SPORTS_NEWS`, avaliado antes de "news" para não cair em RSS.
+  - `EsportesNews.kt` (parser e regras) e `buildSportsNews` com a mesma composição do painel.
+  - Imagens pré-carregadas pelo Glide, as demais aquecidas no cache de disco; cursor em `esportes_news_cursor`.
+- **Prova:**
+  - Web: suíte completa 1196/1196 (125 arquivos), com `esportesNews.test.tsx` (10) e `noticiasFotos.test.ts` (9) novos; testes do catálogo atualizados (Esportes News é o único modelo sem imagem de fundo, porque a imagem é a da notícia).
+  - JVM: 209/209, sendo 4 do `EsportesNewsTest`.
+  - `EsportesNewsRenderTest` no emulador: 16:9 e 9:16 com a notícia real, crédito "Arte/Agência Brasil"; notícia com imagem inexistente não aparece.
+  - Painel local: botão ao lado de RSS, capa ao vivo, prévia 16:9 e 9:16.
+  - Banco: telas com 5.5.9, 5.6.1 e 1.0.0 não recebem o widget; 5.6.6 e 5.6.10 recebem.

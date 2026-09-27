@@ -2,10 +2,10 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SportsWidget } from '@/components/player/SportsWidget';
-import { RssWidget } from '@/components/player/RssWidget';
+import { SportsNewsWidget } from '@/components/player/SportsNewsWidget';
 import { MODO_DO_MODELO_ESPORTES, WIDGET_TEMPLATES } from '@/lib/widgetCatalog';
 
-const MODELOS = ['sports-resultados', 'rss-esportes'];
+const MODELOS = ['sports-resultados', 'esportes-news'];
 
 /**
  * Conteúdo automático na Biblioteca (Content Library): esportes e notícias que o SOBRE MÍDIA atualiza sozinho.
@@ -19,7 +19,7 @@ export function ConteudoAutomatico() {
       <div>
         <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles className="h-5 w-5 text-primary" /> Conteúdo automático SOBRE MÍDIA</h2>
         <p className="text-sm text-muted-foreground">
-          Resultados, próximos jogos e notícias de esportes atualizados sozinhos. Só entra o que duas fontes confirmam; horário de Brasília.
+          Resultados, próximos jogos e notícias de esportes (sempre com imagem) atualizados sozinhos. Jogos: só o que duas fontes confirmam; horário de Brasília.
         </p>
       </div>
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))]">
@@ -31,7 +31,7 @@ export function ConteudoAutomatico() {
               <div className="pointer-events-none aspect-video w-full overflow-hidden" aria-hidden>
                 {t.tipo === 'sports'
                   ? <SportsWidget config={{ modo: MODO_DO_MODELO_ESPORTES[id], limite: 4 }} className="h-full w-full" />
-                  : <RssWidget origem="agencia-brasil" categoria="esportes" maxItems={5} className="h-full w-full" />}
+                  : <SportsNewsWidget config={{ maxItems: 10 }} className="h-full w-full" />}
               </div>
               <div className="flex flex-1 flex-col p-3">
                 <p className="font-semibold">{t.nome}</p>

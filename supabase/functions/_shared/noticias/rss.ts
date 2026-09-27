@@ -1,6 +1,7 @@
 /**
  * Leitor do RSS da Agência Brasil (CC BY 4.0) para o motor de notícias. Código puro (Edge Function + testes).
- * Só texto: título e resumo. Fotos NÃO são usadas — o feed não informa o crédito e parte delas é de terceiros.
+ * Título, resumo e (para fontes cuja licença cobre a imagem do feed) a imagem do item — ver fotos.ts (F-90).
+ * Agência Brasil: a imagem do feed NÃO é usada (sem crédito; parte é de terceiros); a foto vem da matéria, só se própria.
  */
 export interface NoticiaRss {
   guid: string;
@@ -9,6 +10,8 @@ export interface NoticiaRss {
   link: string;
   publicadoEm: string;       // ISO UTC
   autor: string | null;
+  /** Imagem que veio no item do feed (https) — só usada por fonte com imagem = 'feed'. */
+  imagem: string | null;
 }
 
 const ENTIDADES: Record<string, string> = { '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&#039;': "'", '&nbsp;': ' ', '&amp;': '&' };
@@ -40,6 +43,38 @@ export function resumoDe(descricaoHtml: string, limite = 240): string {
   return (fimFrase > limite * 0.6 ? corte.slice(0, fimFrase + 1) : corte.slice(0, corte.lastIndexOf(' ')) + '…').trim();
 }
 
+/** URL https segura (sem espaço/aspas); "&amp;" do XML vira "&". */
+export const soHttps = (u: string | null | undefined): string | null => {
+  const v = (u ?? '').trim().replace(/&amp;/g, '&');
+  return /^https:\/\/[^\s"'<>]+$/i.test(v) ? v : null;
+};
+
+/** Imagem do item do feed: media:content/media:thumbnail/enclosure de imagem ou o primeiro <img> da descrição. */
+export function imagemDoItem(bloco: string): string | null {
+  for (const m of bloco.matchAll(/<media:content\b([^>]*)>/gi)) {
+    const a = m[1];
+    const url = /\burl="([^"]+)"/i.exec(a)?.[1];
+    const tipo = /\btype="([^"]+)"/i.exec(a)?.[1] ?? '';
+    const meio = /\bmedium="([^"]+)"/i.exec(a)?.[1] ?? '';
+    if (meio === 'image' || tipo.startsWith('image/') || /\.(jpe?g|png|webp)(\?|$)/i.test(url ?? '')) {
+      const ok = soHttps(url); if (ok) return ok;
+    }
+  }
+  for (const m of bloco.matchAll(/<(?:media:thumbnail|enclosure)\b([^>]*)>/gi)) {
+    const a = m[1];
+    const tipo = /\btype="([^"]+)"/i.exec(a)?.[1] ?? '';
+    if (/<enclosure/i.test(m[0]) && tipo && !tipo.startsWith('image/')) continue;
+    const ok = soHttps(/\burl="([^"]+)"/i.exec(a)?.[1]); if (ok) return ok;
+  }
+  const desc = decodificar(/<description[^>]*>([\s\S]*?)<\/description>/i.exec(bloco)?.[1] ?? '');
+  for (const m of desc.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
+    // pixel de rastreio / logo não é imagem da notícia
+    if (/width="1"|height="1"|width:\s*1px|height:\s*1px|pixel|logo|tracking|feedburner|\.svg(\?|"|$)/i.test(m[0])) continue;
+    const ok = soHttps(m[1]); if (ok) return ok;
+  }
+  return null;
+}
+
 function campo(item: string, tag: string): string {
   const m = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i').exec(item);
   return m ? m[1].trim() : '';
@@ -68,8 +103,10 @@ export function parseRss(xml: string, dominio: string, agora: Date, maxDias = 30
     if (data < agora.getTime() - maxDias * 86400e3) { recusar('antiga_demais'); continue; }
     itens.push({
       guid, titulo, link, publicadoEm: new Date(data).toISOString(),
-      resumo: resumoDe(campo(bloco, 'description')),
+      // atom:subtitle (linha fina) quando o feed traz; senão o 1º parágrafo da descrição
+      resumo: resumoDe(campo(bloco, 'atom:subtitle')) || resumoDe(campo(bloco, 'description')),
       autor: semTags(decodificar(campo(bloco, 'dc:creator'))) || null,
+      imagem: imagemDoItem(bloco),
     });
   }
   return { itens, recusados };

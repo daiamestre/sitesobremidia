@@ -7,6 +7,7 @@ import type { OfertaWidgetDados } from '@/lib/ofertaWidget';
 import { ClockFuturista } from '../../player/ClockFuturista';
 import { WeatherFuturista } from '../../player/WeatherFuturista';
 import { SportsWidget } from '../../player/SportsWidget';
+import { SportsNewsWidget } from '../../player/SportsNewsWidget';
 import { RssWidget } from '../../player/RssWidget';
 import { InstitutionalWidget } from '../../player/InstitutionalWidget';
 import { OfferWidget, OfferWidgetView, Moldura, Cabecalho } from '../../player/OfferWidget';
@@ -76,6 +77,8 @@ export function CapaWidget({ widgetType, config, thumbnailUrl, nome, oferta, exe
       return ao('capa-clima', <WeatherFuturista latitude={c.latitude} longitude={c.longitude} locationName={c.locationName} cores={coresDoConfig(c)} className="h-full w-full" />);
     case 'sports':
       return ao('capa-esportes', <SportsWidget config={c} cores={coresDoConfig(c)} className="h-full w-full" />);
+    case 'sports_news':
+      return ao('capa-noticias-esportes', <SportsNewsWidget config={c} className="h-full w-full" />);
     case 'rss':
       return ao('capa-noticias', <Miniatura><RssWidget feedUrl={c.feedUrl} maxItems={c.maxItems} scrollSpeed={c.scrollSpeed} variant={c.variant} origem={c.origem} categoria={c.categoria} className="h-full w-full" /></Miniatura>);
     case 'institutional':

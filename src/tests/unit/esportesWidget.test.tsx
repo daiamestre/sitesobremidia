@@ -114,9 +114,9 @@ describe('Esportes v2 — componente (Player web)', () => {
 });
 
 describe('Esportes — catálogo', () => {
-  it('um só modelo de Esportes ("Resultados e Próximos Jogos") e Notícias de Esportes; modelo antigo salvo cai nele', () => {
+  it('um só modelo de Esportes ("Resultados e Próximos Jogos") e o Esportes News (tipo próprio); modelo antigo salvo cai nele', () => {
     render(<WidgetCatalog onUsar={vi.fn()} />);
-    for (const id of ['sports-resultados', 'rss-esportes']) expect(screen.getByTestId(`template-${id}`)).toBeInTheDocument();
+    for (const id of ['sports-resultados', 'esportes-news']) expect(screen.getByTestId(`template-${id}`)).toBeInTheDocument();
     expect(screen.getByTestId('capa-sports-resultados')).toBeInTheDocument();
     expect(templateDoWidget('rss', {})?.id).toBe('rss-classic');
     expect(templateDoWidget('sports', { template: 'sports-proximos' })?.id).toBe('sports-resultados');

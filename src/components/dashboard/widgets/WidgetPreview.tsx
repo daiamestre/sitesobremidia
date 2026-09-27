@@ -8,6 +8,7 @@ import { AdvertisingWidget } from '../../player/AdvertisingWidget';
 import { SocialWidget } from '../../player/SocialWidget';
 import { YouTubeWidget } from '../../player/YouTubeWidget';
 import { SportsWidget } from '../../player/SportsWidget';
+import { SportsNewsWidget } from '../../player/SportsNewsWidget';
 import { coresDoConfig } from '@/lib/widgetPaletas';
 import { TIPOS_COM_CORES } from '@/lib/widgetCatalog';
 import { PaletaPicker } from './PaletaPicker';
@@ -76,6 +77,9 @@ export function WidgetPreview({ widgetType, config, editOrientation, onConfigCha
                             )}
                             {widgetType === 'sports' && (
                                 <SportsWidget config={config} backgroundImage={bgImage} cores={cores} className="w-full h-full" />
+                            )}
+                            {widgetType === 'sports_news' && (
+                                <SportsNewsWidget config={config} cores={cores} className="w-full h-full" />
                             )}
                             {widgetType === 'rss' && (
                                 <RssWidget

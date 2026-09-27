@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { DURACAO_WIDGET_ESPORTES } from '@/lib/esportesPaginas';
+import { DURACAO_WIDGET_ESPORTES_NEWS } from '@/lib/esportesNews';
 import { fetchPlaybackStats } from '@/lib/playbackStats';
 import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { SeletorGrade, ItemSeletor } from '@/components/screens/SeletorGrade';
@@ -773,7 +774,7 @@ export default function ScreenDetails() {
             widget_id: widget.id,
             position: playlistItems.length,
             // Padrão: RSS 15 s, Esportes 24 s (3 páginas x 8 s — F-86), demais 10 s
-            duration: widget.widget_type === 'sports' ? DURACAO_WIDGET_ESPORTES : widget.widget_type === 'rss' ? 15 : 10,
+            duration: widget.widget_type === 'sports' ? DURACAO_WIDGET_ESPORTES : widget.widget_type === 'sports_news' ? DURACAO_WIDGET_ESPORTES_NEWS : widget.widget_type === 'rss' ? 15 : 10,
             widget: widget
         };
         setPlaylistItems([...playlistItems, newItem]);

@@ -8,7 +8,7 @@ import type { WidgetConfig } from '@/types/models';
  * podem ser criados — nada é dado como pronto só por existir na tela.
  */
 export type WidgetTypeId =
-  | 'clock' | 'weather' | 'rss' | 'institutional' | 'offer' | 'advertising' | 'social' | 'youtube' | 'instagram' | 'sports';
+  | 'clock' | 'weather' | 'rss' | 'institutional' | 'offer' | 'advertising' | 'social' | 'youtube' | 'instagram' | 'sports' | 'sports_news';
 
 export interface WidgetTemplateDef {
   id: string;
@@ -27,7 +27,8 @@ export const WIDGET_TEMPLATES: WidgetTemplateDef[] = [
   // Um modelo só (F-86): por campeonato, resultados dos 3 dias anteriores + próximos jogos até 2 dias à frente, com escudos
   { id: 'sports-resultados', tipo: 'sports', nome: 'Resultados e Próximos Jogos', descricao: 'Por campeonato: resultados dos 3 dias anteriores e próximos jogos até 2 dias à frente, com o escudo oficial de cada time.', suportaFundo: true, noPlayer: true },
   { id: 'rss-classic', tipo: 'rss', nome: 'Notícias (RSS)', descricao: 'Manchetes reais de um feed, em rotação, com barra de tempo.', suportaFundo: true, noPlayer: true },
-  { id: 'rss-esportes', tipo: 'rss', nome: 'Notícias de Esportes', descricao: 'Manchetes de esportes da Agência Brasil, atualizadas automaticamente.', suportaFundo: true, noPlayer: true },
+  // Esportes News (F-90): tipo próprio, separado de Notícias (RSS); toda notícia com a imagem da notícia (Player >= 5.6.6)
+  { id: 'esportes-news', tipo: 'sports_news', nome: 'Esportes News', descricao: 'Notícias de esportes sempre com a imagem da notícia e o crédito da foto, atualizadas automaticamente.', suportaFundo: false, noPlayer: true },
   { id: 'institutional-aviso', tipo: 'institutional', nome: 'Institucional / Aviso', descricao: 'Horário de funcionamento, comunicados, contato e QR Code.', suportaFundo: true, noPlayer: true },
   { id: 'offer-destaque', tipo: 'offer', nome: 'Oferta em destaque', descricao: 'Produto, preço "de/por" e QR Code a partir do cadastro de ofertas.', suportaFundo: true, noPlayer: true },
   { id: 'advertising-campanha', tipo: 'advertising', nome: 'Publicidade', descricao: 'Criativo da campanha com logo, CTA e QR Code.', suportaFundo: true, noPlayer: true },
@@ -38,7 +39,7 @@ export const WIDGET_TEMPLATES: WidgetTemplateDef[] = [
 
 export const TIPO_LABEL: Record<WidgetTypeId, string> = {
   clock: 'Relógio', weather: 'Clima', rss: 'Notícias (RSS)', institutional: 'Institucional', offer: 'Ofertas',
-  advertising: 'Publicidade', social: 'Conteúdo Social', youtube: 'YouTube', instagram: 'Instagram', sports: 'Esportes',
+  advertising: 'Publicidade', social: 'Conteúdo Social', youtube: 'YouTube', instagram: 'Instagram', sports: 'Esportes', sports_news: 'Esportes News',
 };
 
 /** Tipos de modelo ÚNICO com cores à escolha (Relógio/Clima: sempre o Futurista). */

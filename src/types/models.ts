@@ -44,7 +44,7 @@ export interface ExternalLink {
     is_active?: boolean;
 }
 
-export type WidgetType = 'clock' | 'weather' | 'rss' | 'institutional' | 'offer' | 'advertising' | 'social' | 'instagram' | 'youtube' | 'sports';
+export type WidgetType = 'clock' | 'weather' | 'rss' | 'institutional' | 'offer' | 'advertising' | 'social' | 'instagram' | 'youtube' | 'sports' | 'sports_news';
 
 export interface WidgetConfig {
     // Modelo da Galeria de Widgets (src/lib/widgetCatalog.ts); ausente = clássico do tipo

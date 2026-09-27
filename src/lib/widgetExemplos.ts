@@ -1,10 +1,10 @@
 import type { WidgetConfig } from '@/types/models';
 import type { OfertaWidgetDados } from '@/lib/ofertaWidget';
-import { FEED_AGENCIA_BRASIL_ESPORTES, MODO_DO_MODELO_ESPORTES } from '@/lib/widgetCatalog';
+import { MODO_DO_MODELO_ESPORTES } from '@/lib/widgetCatalog';
 
 /**
  * Capas da Galeria de Widgets (modelos ainda sem configuração). Mostram o PRÓPRIO modelo desenhado:
- * - dados reais quando existem sem configuração (Relógio, Clima, Esportes, Notícias da Agência Brasil);
+ * - dados reais quando existem sem configuração (Relógio, Clima, Esportes, Esportes News);
  * - texto padrão do modelo (Institucional) ou o estado vazio real ("Anuncie aqui");
  * - Oferta/Social/Instagram: conteúdo de EXEMPLO, sempre com o selo "EXEMPLO" na capa (nunca vai para tela nenhuma).
  */
@@ -21,8 +21,8 @@ export function exemploDoModelo(templateId: string): ExemploCapa {
       return { config: { modo: MODO_DO_MODELO_ESPORTES[templateId], limite: 4 }, exemplo: false };
     case 'rss-classic':
       return { config: { feedUrl: 'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml', maxItems: 5, scrollSpeed: 8 }, exemplo: false };
-    case 'rss-esportes':
-      return { config: { origem: 'agencia-brasil', categoria: 'esportes', feedUrl: FEED_AGENCIA_BRASIL_ESPORTES, maxItems: 5 }, exemplo: false };
+    case 'esportes-news':
+      return { config: { maxItems: 10 }, exemplo: false };
     case 'institutional-aviso':
       return {
         config: { selo: 'INFORMAÇÃO', titulo: 'Horário de funcionamento', linhas: [{ rotulo: 'Segunda a sexta', valor: '06:00 — 22:00' }, { rotulo: 'Sábado', valor: '08:00 — 18:00' }] },

@@ -20,7 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { WidgetAssetsGallery } from './WidgetAssetsGallery';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { compressImage } from '@/utils/imageCompression';
-import { WIDGET_TEMPLATES, TIPOS_COM_PALETA, TIPOS_COM_CORES, templatePadrao, MODO_DO_MODELO_ESPORTES, COMPETICOES_ESPORTES, FEED_AGENCIA_BRASIL_ESPORTES } from '@/lib/widgetCatalog';
+import { WIDGET_TEMPLATES, TIPOS_COM_PALETA, TIPOS_COM_CORES, templatePadrao, MODO_DO_MODELO_ESPORTES, COMPETICOES_ESPORTES } from '@/lib/widgetCatalog';
 import { escolhaDePaleta, PALETA_PADRAO } from '@/lib/widgetPaletas';
 
 interface WidgetFormProps {
@@ -38,6 +38,7 @@ const WIDGET_TYPES_OPTS = [
     { value: 'clock', label: 'Relógio', icon: Clock },
     { value: 'weather', label: 'Clima', icon: Cloud },
     { value: 'rss', label: 'Notícias (RSS)', icon: Newspaper },
+    { value: 'sports_news', label: 'Esportes News', icon: Trophy },
     { value: 'institutional', label: 'Institucional', icon: Building2 },
     { value: 'offer', label: 'Oferta', icon: Tag },
     { value: 'advertising', label: 'Publicidade', icon: Megaphone },
@@ -56,6 +57,9 @@ const getDefaultConfig = (type: string): WidgetConfig => {
         case 'rss':
             // Agência Brasil (CC BY 4.0, com crédito): reuso permitido. O G1/Globo não autoriza reuso (auditoria F-79).
             return { feedUrl: 'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml', maxItems: 5, scrollSpeed: 8, position: 'center', variant: 'full', backgroundImageLandscape: null, backgroundImagePortrait: null };
+        case 'sports_news':
+            // Esportes News (F-90): notícias com imagem entregues pelo servidor; sem feed nem fundo
+            return { template: 'esportes-news', maxItems: 10 };
         case 'institutional':
             return {
                 selo: 'INFORMAÇÃO', titulo: 'Horário de funcionamento', texto: '',
@@ -86,12 +90,9 @@ const getDefaultConfig = (type: string): WidgetConfig => {
     }
 };
 
-/** O que cada modelo muda na configuração: Esportes -> o modo; Notícias de Esportes -> notícias automáticas da Agência Brasil. */
+/** O que cada modelo muda na configuração: Esportes -> o modo. (Notícias de esportes agora são o tipo Esportes News — F-90.) */
 function configDoModelo(tipo: string, template: string): Partial<WidgetConfig> {
     if (tipo === 'sports') return { template, modo: MODO_DO_MODELO_ESPORTES[template] ?? 'resultados' };
-    if (tipo === 'rss' && template === 'rss-esportes') {
-        return { template, origem: 'agencia-brasil', categoria: 'esportes', feedUrl: FEED_AGENCIA_BRASIL_ESPORTES, maxItems: 8, scrollSpeed: 10 };
-    }
     if (tipo === 'rss') return { template, origem: undefined, categoria: undefined };
     return { template };
 }
@@ -347,9 +348,9 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                         )}
 
                         {/* ORIENTATION & BG */}
-                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising' || widgetType === 'social' || widgetType === 'instagram' || widgetType === 'sports' || widgetType === 'youtube') && (
+                        {(widgetType === 'clock' || widgetType === 'weather' || widgetType === 'rss' || widgetType === 'institutional' || widgetType === 'offer' || widgetType === 'advertising' || widgetType === 'social' || widgetType === 'instagram' || widgetType === 'sports' || widgetType === 'youtube' || widgetType === 'sports_news') && (
                             <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
-                                <Label className="text-sm font-semibold">Configuração de Fundo</Label>
+                                <Label className="text-sm font-semibold">{widgetType === 'sports_news' ? 'Orientação da prévia' : 'Configuração de Fundo'}</Label>
                                 <div className="flex bg-muted rounded-lg p-1">
                                     <button onClick={() => setEditOrientation('landscape')} className={`flex-1 flex items-center justify-center gap-2 text-xs font-medium py-2 rounded-md transition-all ${editOrientation === 'landscape' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}>
                                         <LayoutTemplate className="h-4 w-4" /> Horizontal (16:9)
@@ -359,6 +360,9 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                     </button>
                                 </div>
 
+                                {widgetType === 'sports_news' ? (
+                                    <p className="text-xs text-muted-foreground">Sem imagem de fundo: cada notícia aparece com a imagem da própria notícia.</p>
+                                ) : (
                                 <div className="pt-2">
                                     {editOrientation === 'landscape' ? (
                                         <div className="space-y-2">
@@ -404,6 +408,7 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                         </div>
                                     )}
                                 </div>
+                                )}
                             </div>
                         )}
 
@@ -621,6 +626,17 @@ export function WidgetForm({ initialData, initialType, initialTemplate, onSave, 
                                         <p>Resultados dos <strong>3 dias anteriores</strong> e próximos jogos de <strong>hoje até 2 dias à frente</strong>, 3 resultados + 3 próximos jogos por página, <strong>8 segundos</strong> cada, com o escudo oficial de cada time.</p>
                                         <p>Cada vez que o widget toca, passam 3 páginas (24 s); na vez seguinte ele continua de onde parou, até mostrar todos os jogos. Sem jogos nesse período (ex.: Data FIFA), o widget sai da reprodução e volta sozinho.</p>
                                     </div>
+                                </div>
+                            )}
+
+                            {widgetType === 'sports_news' && (
+                                <div className="space-y-3" data-testid="form-esportes-news">
+                                    <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                                        <p><strong>Notícias de esportes sempre com a imagem da notícia.</strong> Notícia sem imagem não entra; se a imagem não carregar no aparelho, aquela notícia é pulada.</p>
+                                        <p>Só entram imagens que a fonte autoriza exibir (ex.: fotos da própria Agência Brasil, CC BY 4.0), com o crédito na tela. Atualização automática a cada 30 minutos.</p>
+                                        <p>Cada vez que o widget toca, passam 3 notícias de 8 segundos (24 s); na vez seguinte ele continua da próxima. Sem nenhuma notícia com imagem, o widget sai da reprodução e volta sozinho.</p>
+                                    </div>
+                                    <div className="max-w-[12rem]"><Label>Máx. notícias</Label><Input type="number" min={1} max={20} value={config.maxItems ?? 10} onChange={(e) => updateConfig('maxItems', Math.min(Math.max(parseInt(e.target.value) || 10, 1), 20))} /></div>
                                 </div>
                             )}
 

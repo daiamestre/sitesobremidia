@@ -8,7 +8,7 @@ const item = (o: { titulo?: string; link?: string; data?: string; desc?: string;
     <title>${o.titulo ?? 'Brasil empata com Austrália em amistoso'}  </title>
     <link>${o.link ?? 'https://agenciabrasil.ebc.com.br/esportes/noticia/2026-09/exemplo'}</link>
     <imagem-destaque>https://imagens.ebc.com.br/x/1170x700/smart/foto.jpg</imagem-destaque>
-    <description>${o.desc ?? '&lt;p&gt;&lt;img src=&quot;logo.svg&quot; alt=&quot;Logo Agência Brasil&quot;&gt;&lt;/p&gt;&lt;strong&gt;A seleção brasileira empatou nesta sexta-feira (25) com a Austrália em amistoso disputado em Sydney.&lt;/strong&gt; &lt;img src=&quot;https://agenciabrasil.ebc.com.br/ebc.png?id=1&quot; /&gt;&lt;/p&gt;&lt;p&gt;Segundo parágrafo.&lt;/p&gt;&lt;h3&gt;Notícias relacionadas:&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;x&lt;/li&gt;&lt;/ul&gt;'}</description>
+    <description>${o.desc ?? '&lt;p&gt;&lt;img src=&quot;logo.svg&quot; alt=&quot;Logo Agência Brasil&quot;&gt;&lt;/p&gt;&lt;strong&gt;A seleção brasileira empatou nesta sexta-feira (25) com a Austrália em amistoso disputado em Sydney.&lt;/strong&gt; &lt;img src=&quot;https://agenciabrasil.ebc.com.br/ebc.png?id=1&amp;amp;o=rss&quot; style=&quot;width:1px; height:1px; display:inline;&quot; /&gt;&lt;/p&gt;&lt;p&gt;Segundo parágrafo.&lt;/p&gt;&lt;h3&gt;Notícias relacionadas:&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;x&lt;/li&gt;&lt;/ul&gt;'}</description>
     <pubDate>${o.data ?? 'Fri, 25 Sep 2026 09:47:00 -0300'}</pubDate>
     <dc:creator>Juliano Justo - Repórter da Agência Brasil</dc:creator>
     <guid isPermaLink="false">${o.guid ?? '1703312 at https://agenciabrasil.ebc.com.br'}</guid>
@@ -26,6 +26,8 @@ describe('RSS Agência Brasil', () => {
       link: 'https://agenciabrasil.ebc.com.br/esportes/noticia/2026-09/exemplo',
       publicadoEm: '2026-09-25T12:47:00.000Z',
       autor: 'Juliano Justo - Repórter da Agência Brasil',
+      // logo (svg) e pixels de rastreio (1px) não são imagem da notícia
+      imagem: null,
     }]);
   });
 
