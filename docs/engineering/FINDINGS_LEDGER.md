@@ -971,3 +971,8 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `EsportesNewsRenderTest` no emulador: 16:9 e 9:16 com a notícia real, crédito "Arte/Agência Brasil"; notícia com imagem inexistente não aparece.
   - Painel local: botão ao lado de RSS, capa ao vivo, prévia 16:9 e 9:16.
   - Banco: telas com 5.5.9, 5.6.1 e 1.0.0 não recebem o widget; 5.6.6 e 5.6.10 recebem.
+- **Publicação:**
+  - Vercel produção: `dpl_ExVp4oPUa7W5DW4YHj2SuWLXsffh` (commit `cf9d94e`), READY; os chunks de produção contêm `sports_news` e `content_esportes_news_preview`.
+  - Edge Function `news-engine-sync` publicada; migração 20261260 aplicada.
+  - **Release 5.6.6 (553):** SHA-256 `99e06350ffbc4e1f1dacf32e5396d3a3167952a4153bc6e8041210dab672482f` (5.743.552 bytes), certificado de produção `95a973c3…`, não depurável. GitHub `player-v5.6.6` → R2 `releases/sobremidia-player-v553.apk` (hash público conferido) → `app_releases` 553. Substitui a 5.6.5 no OTA.
+  - APK debug 5.6.6: SHA-256 `bf892e00726afe40399f05319783c2e499962e324ab5f0ead0d1a4f5e8bfdfca`.
