@@ -1048,7 +1048,8 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `RodizioDePastas` e `CursorDePastas`; o laço avança o cursor quando o conteúdo toca ou falha (conteúdo com defeito não prende a pasta).
   - Assinatura de configuração inclui o grupo.
 - **Testes:** JVM app 218/218 (`RodizioDePastasTest` 6: pasta sozinha, pasta entre itens, duas pastas, conteúdo removido, sem grupo, pasta de 1) e core 71/71. Web 1222/1222.
-- **Pendente:** canário do 5.6.8 com tocar real. O emulador está na tela de login do Player, que exige senha, e o agente não digita senhas. O 5.6.8 (SHA-256 `2d5280d4df1e26734daab1f6e3920c7d6632b4e654f34ce4b1593fa3dbe01935`, certificado `95a973c3…`) não foi para o OTA.
+- **Canário:** o proprietário testou o APK 5.6.8 no aparelho (27/09) e autorizou a distribuição.
+- **Release 5.6.8 (555):** SHA-256 `2d5280d4df1e26734daab1f6e3920c7d6632b4e654f34ce4b1593fa3dbe01935`, certificado `95a973c3…`. GitHub `player-v5.6.8` → R2 (hash público conferido) → `app_releases` 555.
 
 ### F-94 — Pastas automáticas: Loterias e Sorteios com dados reais da CAIXA — DONE
 - **Decisões do proprietário (27/09):** começar por Loterias + pasta na playlist; Memes/Humor com conteúdo próprio (sem Reddit); Apostas Esportivas com jogos da rodada, sem odds.
@@ -1076,3 +1077,27 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Charadas, Humor e Memes (conteúdo próprio).
   - Apostas Esportivas (jogos da rodada, sem odds).
   - Pastas de vídeo: dependem de uma chave gratuita Pixabay/Pexels do proprietário.
+
+### F-95 — Todas as pastas automáticas da Biblioteca preenchidas e atualizadas sozinhas — DONE
+- **Pastas marcadas (20261265, só na empresa do proprietário):**
+  - Datas Comemorativas, SOBREMÍDIA NEWS, Esportes, Futebol.
+  - Vídeos Cinema, Vídeos Turismo, Charadas, Memes, Vídeos Humor, Vídeos Incrível (curiosidades), Vídeos Nostalgia.
+  - Brasileirão, Premier League, La Liga, Champions League.
+  - Apostas Esportivas: jogos da rodada, sem odds.
+  - "Vídeos Esporte" aguarda uma fonte de vídeo: chave Pixabay/Pexels, que a conta do proprietário precisa criar.
+- **Banco:**
+  - `conteudo_esportes_dados()` (só service_role): últimos 6 resultados e próximos 6 jogos publicados, só escudos conferidos.
+  - `conteudo_auto_estado()`: o robô não redesenha o que não mudou.
+  - 20261266: item automático que sai da pasta (notícia velha) é apagado de vez, junto com a mídia e o arquivo no R2, se não estiver em uso. Não lota a Lixeira.
+  - A Edge Function `conteudo-automatico` lê esses dados com o segredo do robô.
+- **Robô (`scripts/conteudo/robo.mjs` + `produtores/*`, a cada 3 h e sob demanda):**
+  - Notícias com a foto da própria notícia e crédito, 10 por pasta, fontes intercaladas: Agência Brasil e g1; g1 Cinema e CinePOP; g1 Turismo e Viagem e Turismo. Esportes e Futebol vêm do motor de notícias. Jogo ao vivo e enquete ficam de fora.
+  - Campeonatos: arte oficial do campeonato com taça, 6 jogos (2 colunas na horizontal), escudos conferidos ou as iniciais.
+  - Datas: as próximas 10 datas nacionais, com as móveis pela regra oficial (Páscoa por Meeus).
+  - Conteúdo próprio (bancos escritos para a SOBRE MÍDIA, próprios para comércio), troca semanal: charada com pergunta e depois resposta, piada, meme em texto, curiosidade com fato consolidado, nostalgia "Quem lembra?".
+  - Arte que não carrega uma foto ou escudo não é publicada.
+- **Prova:**
+  - 1ª execução: 346 mídias em 18 pastas (16x9 e 9x16), 0 falhas.
+  - 2ª execução: tudo "iguais", 0 desenhadas.
+  - Imagens reais conferidas: Futebol vertical, Memes horizontal, Brasileirão.
+  - Testes `conteudoPastas.test.ts` (11) e `loteriasConteudo.test.ts` (9).
