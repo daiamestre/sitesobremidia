@@ -1004,3 +1004,8 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - JVM 212/212 (+3 `ImagemDaNoticiaTest`).
   - Web: suíte completa 1201/1201 (125 arquivos), incluindo esportesNews (11), noticiasFotos (12), esportesWidget (14) e widgetCapas.
   - `EsportesNewsRenderTest` no emulador: 3 exibições seguidas com 3 notícias diferentes (Agência Brasil e ge, 16:9 e 9:16), e Notícias (RSS) da Agência Brasil com a foto da matéria.
+- **Publicação:**
+  - Vercel produção `dpl_9Zt91Jfu9StrzHBbnCYenMdQKudA` (commit `1dd75e6`); os bundles não contêm mais "EXEMPLO…" nem "Não foi possível carregar os jogos".
+  - Edge Functions `news-engine-sync` e `fetch-rss` publicadas; migrações 20261261 e 20261262 aplicadas.
+  - **Release 5.6.7 (554):** SHA-256 `72060371d79810950b977e8ff61a6bb0a3365735e3cc3cac853f32a46a6ecac7`, certificado `95a973c3…`. GitHub `player-v5.6.7` → R2 (hash público conferido) → `app_releases` 554.
+  - APK debug 5.6.7: SHA-256 `6f5c29326d97e1ef932649003b3de631ccc0f49ce3d29d630322f11b58731ee7`.
