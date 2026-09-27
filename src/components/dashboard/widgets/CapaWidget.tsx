@@ -109,7 +109,7 @@ export function CapaWidget({ widgetType, config, thumbnailUrl, nome, oferta, exe
           <Cabecalho selo="YOUTUBE" />
           <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-[2cqmin] text-center">
             <Youtube className="h-[16cqmin] w-[16cqmin] text-[#FF0000]" />
-            <span className="text-[clamp(10px,5.4cqmin,40px)] font-black">{ref?.tipo === 'playlist' ? 'Playlist do YouTube' : 'Vídeo do YouTube'}</span>
+            <span className="text-[5.4cqmin] font-black">{ref?.tipo === 'playlist' ? 'Playlist do YouTube' : 'Vídeo do YouTube'}</span>
           </div>
         </Moldura>
       ));

@@ -1017,7 +1017,7 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - A cidade encostava no selo "CLIMA AGORA".
 - **Causa raiz:** os widgets web usavam `clamp(Npx, X cqmin, Mpx)`, ou seja, tamanho mínimo e máximo em pixels, e espaçamento `p-[5%]` (% da largura). O Android Player desenha tudo só em proporção ao menor lado (`base * fator`). Numa prévia pequena (302×169 px) os mínimos deixavam o texto maior que o quadro. Na TV (Android) o layout já era proporcional e correto. A prévia não representava a tela.
 - **Correção:**
-  - Em 8 widgets (Clima, Relógio, Institucional, Oferta, Publicidade, Social, QR e YouTube), os limites em pixels saíram e ficou só a proporção, com os mesmos fatores do Android.
+  - Em 8 widgets (Clima, Relógio, Institucional, Oferta, Publicidade, Social, QR e YouTube) e na capa do YouTube da Galeria, os limites em pixels saíram e ficou só a proporção, com os mesmos fatores do Android.
   - O espaçamento interno virou `cqmin` (5% ou 4,5% do menor lado, como no Player).
   - As etiquetas do clima ficam numa linha só, como o `LinearLayout` horizontal do Player.
 - **Prova:**

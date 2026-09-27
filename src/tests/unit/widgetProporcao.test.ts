@@ -10,7 +10,7 @@ import path from 'path';
 
 const PASTA = path.resolve(__dirname, '../../components/player');
 const WIDGETS = ['AdvertisingWidget', 'ClockFuturista', 'InstitutionalWidget', 'OfferWidget', 'SocialWidget', 'WeatherFuturista',
-  'WidgetQRCode', 'YouTubeWidget', 'SportsWidget', 'SportsNewsWidget'];
+  'WidgetQRCode', 'YouTubeWidget', 'SportsWidget', 'SportsNewsWidget', '../dashboard/widgets/CapaWidget'];
 
 describe('widgets: prévia = Player (só proporção, sem limites em pixels)', () => {
   for (const w of WIDGETS) {
