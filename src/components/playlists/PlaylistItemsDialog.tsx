@@ -13,7 +13,8 @@ import { toast } from 'sonner';
 import { ItemDurationInput, ItemScheduleButton, ItemDuplicateButton } from '@/components/playlists/PlaylistItemControls';
 import { savePlaylistItems, totalDurationSeconds, duplicateItem, newTempItemId } from '@/lib/playlistItems';
 import { probeVideoDurationMs, secondsForRealMs } from '@/lib/mediaDuration';
-import { Plus, Trash2, GripVertical, Image, Video, Music, Clock, Loader2, Cloud, Newspaper, LayoutGrid, ArrowUp, ArrowDown, Link2 } from 'lucide-react';
+import { rotuloItemPasta } from '@/lib/pastaNaPlaylist';
+import { Plus, Trash2, GripVertical, Image, Video, Music, Clock, Loader2, Cloud, Newspaper, LayoutGrid, ArrowUp, ArrowDown, Link2, FolderOpen } from 'lucide-react';
 import { Playlist, Media, Widget, ExternalLink, PlaylistItem, WidgetType } from '@/types/models';
 
 // Extend Playlist type locally if needed, or rely on models.ts if it's updated there. 
@@ -167,7 +168,8 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
           *,
           media:media!playlist_items_media_id_fkey(id, name, file_url, file_path, file_type, thumbnail_url, duration_ms),
           widget:widgets!playlist_items_widget_id_fkey(id, name, widget_type, config, is_active),
-          external_link:external_links!playlist_items_external_link_id_fkey(id, title, url, platform, thumbnail_url, is_active)
+          external_link:external_links!playlist_items_external_link_id_fkey(id, title, url, platform, thumbnail_url, is_active),
+          pasta:biblioteca_pastas!playlist_items_biblioteca_pasta_id_fkey(id, nome)
         `)
         .eq('playlist_id', playlist.id)
         .order('position');
@@ -421,6 +423,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     if (item.media) return item.media.name;
     if (item.widget) return item.widget.name;
     if (item.external_link) return item.external_link.title;
+    if (item.biblioteca_pasta_id) return rotuloItemPasta(item.pasta?.nome);
     return 'Item desconhecido';
   };
 
@@ -447,12 +450,16 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     if (item.external_link) {
       return <ExternalLinkThumbnail link={item.external_link} />;
     }
+    if (item.biblioteca_pasta_id) {
+      return <div className="w-full h-full bg-gradient-to-br from-primary/25 to-primary/5 flex items-center justify-center"><FolderOpen className="h-5 w-5 text-primary" /></div>;
+    }
     return <LayoutGrid className="h-5 w-5 text-muted-foreground" />;
   };
 
   const getItemSubtitle = (item: PlaylistItem) => {
     if (item.widget) return getWidgetLabel(item.widget.widget_type);
     if (item.external_link) return item.external_link.platform;
+    if (item.biblioteca_pasta_id) return 'Pasta da Biblioteca · 1 conteúdo por volta';
     return null;
   };
 

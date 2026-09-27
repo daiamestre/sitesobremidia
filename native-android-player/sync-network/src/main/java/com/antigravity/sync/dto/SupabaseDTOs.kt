@@ -50,6 +50,8 @@ data class RemotePlaylistItemDTO(
     @SerialName("media") val media: MediaRemoteDTO? = null,
     @SerialName("widget") val widget: WidgetRemoteDTO? = null,
     @SerialName("external_link") val externalLink: RemoteExternalLink? = null,
+    // Pasta da Biblioteca (F-93): as mídias da pasta vêm com o mesmo grupo (id do item) -> 1 por volta (rodízio)
+    @SerialName("grupo") val grupo: String? = null,
     
     // Campo auxiliar para o seu Repository injetar o caminho local após o download
     var localPath: String? = null 

@@ -21,7 +21,9 @@ data class MediaItem(
     val startTime: String? = null, // "HH:mm"
     val endTime: String? = null,   // "HH:mm"
     val daysOfWeek: String? = null, // "1,2,3,4,5" (Seg-Sex)
-    val transitionEffect: String? = "crossfade"
+    val transitionEffect: String? = "crossfade",
+    /** Pasta da Biblioteca (F-93): itens com o mesmo grupo tocam em rodízio, UM por volta da playlist. */
+    val grupo: String? = null
 ) {
     fun isPlayableOffline(): Boolean {
         // Streams nunca são offline-safe por definição, mas têm fallback

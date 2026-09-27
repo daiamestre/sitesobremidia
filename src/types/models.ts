@@ -126,6 +126,9 @@ export type PlaylistItem = {
     media_id: string | null;
     widget_id: string | null;
     external_link_id: string | null;
+    /** Pasta inteira da Biblioteca (F-93): o Player toca um conteúdo da pasta por volta. */
+    biblioteca_pasta_id?: string | null;
+    pasta?: { id: string; nome: string } | null;
     position: number;
     duration: number;
     created_at: string;

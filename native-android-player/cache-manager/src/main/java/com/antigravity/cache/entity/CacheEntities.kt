@@ -34,7 +34,9 @@ data class CachedMediaItem(
     val orderIndex: Int,
     val startTime: String? = null,
     val endTime: String? = null,
-    val daysOfWeek: String? = null
+    val daysOfWeek: String? = null,
+    /** Pasta da Biblioteca (F-93): rodízio, 1 por volta. Coluna nova na migração 11 -> 12. */
+    val grupo: String? = null
 )
 
 @Entity(tableName = "play_logs")

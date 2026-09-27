@@ -1,0 +1,10 @@
+{
+  "name": "sobremidia-conteudo-automatico",
+  "private": true,
+  "type": "module",
+  "description": "Robôs de conteúdo automático das pastas da Biblioteca (roda no GitHub Actions: .github/workflows/conteudo-automatico.yml)",
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.658.1",
+    "playwright": "1.47.2"
+  }
+}

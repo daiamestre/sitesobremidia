@@ -23,6 +23,7 @@ export interface EditableItem {
   media_id: string | null;
   widget_id?: string | null;
   external_link_id?: string | null;
+  biblioteca_pasta_id?: string | null;
   duration: number;
   start_time?: string | null;
   end_time?: string | null;
@@ -33,6 +34,7 @@ export interface SaveItemPayload {
   media_id: string | null;
   widget_id: string | null;
   external_link_id: string | null;
+  biblioteca_pasta_id: string | null;
   duration: number;
   start_time: string | null;
   end_time: string | null;
@@ -87,6 +89,7 @@ export function buildSaveItems(items: EditableItem[]): SaveItemPayload[] {
     media_id: i.media_id ?? null,
     widget_id: i.widget_id ?? null,
     external_link_id: i.external_link_id ?? null,
+    biblioteca_pasta_id: i.biblioteca_pasta_id ?? null,
     duration: clampDuration(i.duration),
     start_time: normalizeTime(i.start_time),
     end_time: normalizeTime(i.end_time),

@@ -1556,6 +1556,8 @@ withContext(Dispatchers.Main) {
             
             // [INDUSTRIAL QUEUE MANAGER]
             val queueManager = com.antigravity.player.util.QueueManager()
+            // [F-93] Pasta da Biblioteca: 1 conteúdo da pasta por volta (cursor gravado no aparelho)
+            val cursorPastas = com.antigravity.player.util.CursorDePastas(this@MainActivity)
             
             while (isActive) {
                 try {
@@ -1566,7 +1568,9 @@ withContext(Dispatchers.Main) {
                         delay(10000)
                         continue
                     }
-                    val playableItems = playlist.items.filter { SchedulingEngine.shouldPlay(it) }
+                    val agendados = playlist.items.filter { SchedulingEngine.shouldPlay(it) }
+                    // [F-93] de cada pasta (grupo) entra só o conteúdo da vez; itens comuns não mudam
+                    val playableItems = com.antigravity.player.util.RodizioDePastas.umaPorGrupo(agendados, cursorPastas::daVez)
 
                     if (playableItems.isEmpty()) {
                         logBlackBox("IDLE", "No items scheduled. Triggering Standby Fallback.")
@@ -1621,6 +1625,7 @@ withContext(Dispatchers.Main) {
                         logBlackBox("RECOVERY", "Skipping failed item: ${item.name}")
                         // [CRITICAL FIX] Quarentena Ativa: Avisa o QueueManager e freia o CPU
                         queueManager.quarantineItem(item, "EngineSkip (Hardware/Codec Reject)")
+                        cursorPastas.avancar(agendados, item) // conteúdo com defeito não prende o rodízio da pasta
                         runOnUiThread {
                             viewModel.confirmarMidiaPronta()
                             syncGuard.releaseLock()
@@ -1633,6 +1638,7 @@ withContext(Dispatchers.Main) {
                         
                         // [CRITICAL FIX] Marca como tocado garantindo o avanço
                         queueManager.markAsProcessed(item)
+                        cursorPastas.avancar(agendados, item) // [F-93] próxima volta: o conteúdo seguinte da pasta
 
                         // [AUDIT LOG - OFFLINE FIRST] Registra o sucesso da exibição no cofre local
                         com.antigravity.player.util.DisplayAnalyticsManager.registerPlayback(

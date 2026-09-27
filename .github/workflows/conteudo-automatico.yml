@@ -1,0 +1,43 @@
+name: Conteúdo automático (Loterias e Sorteios)
+
+# F-94 — abastece as pastas automáticas da Biblioteca com conteúdo real:
+#   Loterias  -> resultado do último concurso de cada loteria da CAIXA (arte SOBRE MÍDIA, 16:9 e 9:16)
+#   Sorteios  -> próximo sorteio de cada loteria (data e prêmio estimado)
+# Duas vezes por dia (depois dos sorteios da noite e de manhã) e sob demanda.
+on:
+  schedule:
+    - cron: '20 1,13 * * *'   # 22:20 e 10:20 (Brasília)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conteudo-automatico
+  cancel-in-progress: false
+
+jobs:
+  loterias:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: scripts/conteudo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Dependências do robô
+        run: npm install --no-audit --no-fund
+      - name: Navegador para gerar as artes
+        run: npx playwright install --with-deps chromium
+      - name: Gerar e publicar
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          CONTENT_FACTORY_SECRET: ${{ secrets.CONTENT_FACTORY_SECRET }}
+        run: node robo-loterias.mjs

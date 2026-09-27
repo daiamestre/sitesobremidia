@@ -77,7 +77,7 @@ describe('buildSaveItems — o que vai para o banco', () => {
   it('leva duração e agendamento (antes o salvar descartava start_time/end_time/days)', () => {
     const out = buildSaveItems([item({ duration: 25, start_time: '08:00:00', end_time: '18:30', days: [5, 1, 3, 3] })]);
     expect(out).toEqual([
-      { media_id: 'm1', widget_id: null, external_link_id: null, duration: 25, start_time: '08:00', end_time: '18:30', days: [1, 3, 5] },
+      { media_id: 'm1', widget_id: null, external_link_id: null, biblioteca_pasta_id: null, duration: 25, start_time: '08:00', end_time: '18:30', days: [1, 3, 5] },
     ]);
   });
   it('normaliza duração inválida, vazios viram null e mantém a mesma mídia repetida', () => {
@@ -96,6 +96,13 @@ describe('buildSaveItems — o que vai para o banco', () => {
   });
 });
 
+describe('pasta da Biblioteca na playlist (F-93)', () => {
+  it('o item de pasta vai para o banco com a pasta e nenhuma outra origem', () => {
+    const [r] = buildSaveItems([{ id: 't1', media_id: null, widget_id: null, external_link_id: null, biblioteca_pasta_id: 'pasta-1', duration: 10 }]);
+    expect(r).toMatchObject({ media_id: null, widget_id: null, external_link_id: null, biblioteca_pasta_id: 'pasta-1', duration: 10 });
+  });
+});
+
 describe('totalDurationSeconds', () => {
   it('soma com o mesmo critério do que vai ser salvo', () => {
     expect(totalDurationSeconds([item({ duration: 20 }), item({ duration: 0 }), item({ duration: 10 })])).toBe(31);
@@ -110,7 +117,7 @@ describe('savePlaylistItems — gravação atômica', () => {
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc).toHaveBeenCalledWith('fn_save_playlist_items', {
       p_playlist_id: 'p1',
-      p_items: [{ media_id: 'm1', widget_id: null, external_link_id: null, duration: 12, start_time: null, end_time: null, days: null }],
+      p_items: [{ media_id: 'm1', widget_id: null, external_link_id: null, biblioteca_pasta_id: null, duration: 12, start_time: null, end_time: null, days: null }],
     });
     expect(r.count).toBe(1);
   });

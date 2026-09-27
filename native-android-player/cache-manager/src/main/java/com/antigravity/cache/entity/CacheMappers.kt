@@ -61,7 +61,8 @@ fun MediaItem.toCache(playlistId: String): CachedMediaItem {
         orderIndex = this.orderIndex,
         startTime = this.startTime,
         endTime = this.endTime,
-        daysOfWeek = this.daysOfWeek
+        daysOfWeek = this.daysOfWeek,
+        grupo = this.grupo
     )
 }
 
@@ -103,6 +104,7 @@ fun CachedMediaItem.toDomain(): MediaItem {
         orderIndex = this.orderIndex,
         startTime = this.startTime,
         endTime = this.endTime,
-        daysOfWeek = this.daysOfWeek
+        daysOfWeek = this.daysOfWeek,
+        grupo = this.grupo
     )
 }

@@ -17,7 +17,7 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
-    ArrowLeft, Monitor, Wifi, WifiOff, MapPin, Clock, Server, ListVideo, Play,
+    ArrowLeft, FolderOpen, Monitor, Wifi, WifiOff, MapPin, Clock, Server, ListVideo, Play,
     Power, RefreshCw, Camera, Save, Trash2, GripVertical, Plus, Image, Video,
     Music, Volume2, VolumeX, Smartphone, MonitorSmartphone, LayoutTemplate, ExternalLink as ExternalLinkIcon,
     Unlink, ShieldAlert, Image as ImageIcon,
@@ -36,6 +36,7 @@ import {
 import { format, formatDistanceToNow, startOfDay, endOfDay, subDays } from 'date-fns';
 import { hasNewScreenshot, screenshotFooterText } from '@/utils/screenshotStatus';
 import { ItemDurationInput, ItemScheduleButton, ItemDuplicateButton, type ScheduleUpdates } from '@/components/playlists/PlaylistItemControls';
+import { rotuloItemPasta } from '@/lib/pastaNaPlaylist';
 import { savePlaylistItems, scheduleSummary, hasSchedule, totalDurationSeconds, formatTotalDuration, duplicateItem, newTempItemId } from '@/lib/playlistItems';
 import { probeVideoDurationMs, secondsForRealMs } from '@/lib/mediaDuration';
 import { ptBR } from 'date-fns/locale';
@@ -80,6 +81,9 @@ interface PlaylistItem {
     media?: MediaItem;
     widget?: Widget | null;
     external_link?: ExternalLink | null;
+    /** Pasta inteira da Biblioteca (F-93): o Player toca um conteúdo da pasta por volta. */
+    biblioteca_pasta_id?: string | null;
+    pasta?: { id: string; nome: string } | null;
     duration: number; // override duration
     // Agendamento por item (horário local do Brasil; days: 0=Dom..6=Sáb)
     start_time?: string | null;
@@ -340,7 +344,8 @@ export default function ScreenDetails() {
                             *,
                             media:media!playlist_items_media_id_fkey(id, name, file_path, file_url, file_type, thumbnail_url, duration_ms),
                             widget:widgets!playlist_items_widget_id_fkey(id, name, widget_type, config, is_active),
-                            external_link:external_links!playlist_items_external_link_id_fkey(id, title, url, platform, thumbnail_url, is_active)
+                            external_link:external_links!playlist_items_external_link_id_fkey(id, title, url, platform, thumbnail_url, is_active),
+                            pasta:biblioteca_pastas!playlist_items_biblioteca_pasta_id_fkey(id, nome)
                         `)
                     .eq('playlist_id', screenData.playlist_id)
                     .order('position');
@@ -1766,6 +1771,11 @@ return (
                                                             </div>
                                                         )
                                                     )}
+                                                    {item.biblioteca_pasta_id && (
+                                                        <div className="w-full h-full flex items-center justify-center bg-primary/20">
+                                                            <FolderOpen className="h-5 w-5 text-primary" />
+                                                        </div>
+                                                    )}
                                                     {item.external_link && (
                                                         item.external_link.thumbnail_url ? (
                                                             <img src={item.external_link.thumbnail_url} className="w-full h-full object-cover" />
@@ -1779,11 +1789,11 @@ return (
 
                                                 <div className="flex-1 min-w-[7rem]">
                                                     <p className="text-sm font-medium truncate">
-                                                        {item.media?.name || item.widget?.name || item.external_link?.title || 'Sem título'}
+                                                        {item.media?.name || item.widget?.name || item.external_link?.title || (item.biblioteca_pasta_id ? rotuloItemPasta(item.pasta?.nome) : 'Sem título')}
                                                     </p>
                                                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                                         <span className="text-[10px] uppercase font-bold opacity-50 px-1 bg-muted rounded">
-                                                            {item.media ? 'Mídia' : item.widget ? 'Widget' : item.external_link ? 'Link' : ''}
+                                                            {item.media ? 'Mídia' : item.widget ? 'Widget' : item.external_link ? 'Link' : item.biblioteca_pasta_id ? 'Pasta · 1 por volta' : ''}
                                                         </span>
                                                         {hasSchedule(item) && (
                                                             <span className="flex items-center gap-1 text-primary">

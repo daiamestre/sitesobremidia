@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Folder, FolderPlus, Library, Loader2, MoreVertical, Pencil, Search, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Copy, Folder, FolderPlus, Library, ListPlus, Loader2, MoreVertical, Pencil, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -12,6 +12,7 @@ import {
   vincularMidias, type ContextoBiblioteca, type MidiaBiblioteca, type PastaBiblioteca, type TipoMidia,
 } from '@/lib/biblioteca';
 import { MidiaBibliotecaCard } from './MidiaBibliotecaCard';
+import { adicionarPastaAPlaylists } from '@/lib/pastaNaPlaylist';
 import { ConteudoAutomatico } from './ConteudoAutomatico';
 import { DestinoDialog, useDebounced } from './DestinoDialog';
 import { ConfirmarDialog, EditarMidiaDialog, EscolherPastaDialog, LixeiraDialog, PastaNomeDialog, PreviewDialog } from './BibliotecaDialogs';
@@ -38,6 +39,7 @@ export function BibliotecaMidias({ contexto }: { contexto: ContextoBiblioteca })
   const [preview, setPreview] = useState<MidiaBiblioteca | null>(null);
   const [destinoPlaylist, setDestinoPlaylist] = useState<MidiaBiblioteca | null>(null);
   const [destinoTela, setDestinoTela] = useState<MidiaBiblioteca | null>(null);
+  const [pastaParaPlaylist, setPastaParaPlaylist] = useState<PastaBiblioteca | null>(null);
   const [novaPasta, setNovaPasta] = useState(false);
   const [renomear, setRenomear] = useState<PastaBiblioteca | null>(null);
   const [excluirPastaAlvo, setExcluirPastaAlvo] = useState<PastaBiblioteca | null>(null);
@@ -147,13 +149,17 @@ export function BibliotecaMidias({ contexto }: { contexto: ContextoBiblioteca })
                     </div>
                   </div>
                 </button>
-                {admin && (
+                {(admin || contexto === 'painel') && (
                   <div className="absolute bottom-2.5 right-1.5">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Ações da pasta ${p.nome}`}><MoreVertical className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {contexto === 'painel' && (
+                          <DropdownMenuItem onClick={() => setPastaParaPlaylist(p)} data-testid={`pasta-na-playlist-${p.id}`}><ListPlus className="mr-2 h-4 w-4" /> Adicionar pasta à playlist</DropdownMenuItem>
+                        )}
+                        {admin && <>
                         <DropdownMenuItem onClick={() => setRenomear(p)}><Pencil className="mr-2 h-4 w-4" /> Renomear</DropdownMenuItem>
                         <DropdownMenuItem onClick={async () => {
                           try { await duplicarPasta(p.id); toast.success(`Pasta "${p.nome}" duplicada (mesmas mídias, sem copiar arquivos)`); carregarPastas(); }
@@ -161,6 +167,7 @@ export function BibliotecaMidias({ contexto }: { contexto: ContextoBiblioteca })
                         }}><Copy className="mr-2 h-4 w-4" /> Duplicar pasta</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setExcluirPastaAlvo(p)}><Trash2 className="mr-2 h-4 w-4" /> Excluir</DropdownMenuItem>
+                        </>}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -198,6 +205,17 @@ export function BibliotecaMidias({ contexto }: { contexto: ContextoBiblioteca })
         buscar={buscarPl}
         confirmar={(ids) => adicionarAPlaylists(contexto, destinoPlaylist!.media_id, ids)}
         rotuloSucesso={(n) => `Mídia adicionada a ${n} playlist(s)`}
+      />
+
+      <DestinoDialog
+        open={!!pastaParaPlaylist} onOpenChange={(v) => !v && setPastaParaPlaylist(null)}
+        titulo="Adicionar pasta à Playlist"
+        descricao={pastaParaPlaylist ? `A pasta "${pastaParaPlaylist.nome}" entra como UM item no final das playlists escolhidas: a cada volta da playlist a tela mostra um conteúdo diferente da pasta, do primeiro ao último, e recomeça. Conteúdo novo na pasta entra sozinho. Requer Player 5.6.8 ou superior.` : ''}
+        grupo="Minhas Playlists" placeholder="Pesquisar Playlist..."
+        vazio="Nenhuma playlist encontrada."
+        buscar={buscarPl}
+        confirmar={(ids) => adicionarPastaAPlaylists(pastaParaPlaylist!.id, ids)}
+        rotuloSucesso={(n) => `Pasta adicionada a ${n} playlist(s)`}
       />
 
       <DestinoDialog

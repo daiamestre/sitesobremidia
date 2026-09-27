@@ -556,7 +556,8 @@ class RemoteDataSource {
                 startTime = item.startTime,
                 endTime = item.endTime,
                 daysOfWeek = item.daysOfWeek,
-                transitionEffect = "crossfade"
+                transitionEffect = "crossfade",
+                grupo = item.grupo?.takeIf { it.isNotBlank() }
             )
         }.sortedBy { it.orderIndex }
 

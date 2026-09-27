@@ -65,6 +65,7 @@ object PlayerFlowPolicy {
                     .append(':').append(it.durationSeconds).append(':').append(it.type)
                     .append(':').append(it.startTime.orEmpty()).append(':').append(it.endTime.orEmpty())
                     .append(':').append(it.daysOfWeek.orEmpty())
+                    .append(':').append(it.grupo.orEmpty())
             }
         }
         val digest = java.security.MessageDigest.getInstance("SHA-256").digest(raw.toByteArray(Charsets.UTF_8))

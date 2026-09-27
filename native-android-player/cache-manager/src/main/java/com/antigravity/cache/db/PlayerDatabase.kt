@@ -19,7 +19,7 @@ import com.antigravity.cache.dao.LogAuditoriaDao
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [CachedPlaylist::class, CachedMediaItem::class, CachedPlayLog::class, OfflinePlaybackLog::class, ConfiguracaoEntity::class, LogAuditoriaEntity::class], version = 11, exportSchema = false)
+@Database(entities = [CachedPlaylist::class, CachedMediaItem::class, CachedPlayLog::class, OfflinePlaybackLog::class, ConfiguracaoEntity::class, LogAuditoriaEntity::class], version = 12, exportSchema = false)
 abstract class PlayerDatabase : RoomDatabase() {
 
     abstract fun playerDao(): PlayerDao
@@ -71,6 +71,13 @@ abstract class PlayerDatabase : RoomDatabase() {
             }
         }
 
+        // [F-93] Pasta da Biblioteca na playlist: grupo de rodízio por item (só acrescenta a coluna; cache preservado)
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE media_item ADD COLUMN grupo TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): PlayerDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -78,7 +85,7 @@ abstract class PlayerDatabase : RoomDatabase() {
                     PlayerDatabase::class.java,
                     "player_database"
                 )
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
