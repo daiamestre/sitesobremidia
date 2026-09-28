@@ -1344,3 +1344,30 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:**
   - navegador 800x1280: em `/portal/expansao`, 5 cards com "Ver ponto para anunciar"; tocar na foto da clínica abre a ficha com 4 fotos, "Tela 1 · Sala de espera", mapa e "Anunciar aqui";
   - 105 testes.
+
+### F-109 — Telas de pontos parceiros: cadastro de cada tela e criação automática; página só para OWNER/ADMIN — DONE (etapas 1 e 2)
+- **Decisões do proprietário:**
+  - representante, OWNER, ADMIN e gestor de mídia cadastram o ponto, cada tela (local, foto, orientação, tamanho, valor para anunciar) e o contrato de parceria assinado;
+  - ao terminar, o sistema cria as telas parceiras "Aguardando grade"; tela criada por gestor leva identificação;
+  - a página "Telas de pontos parceiros" é só de OWNER/ADMIN; anunciantes e gestores apenas consomem;
+  - anúncio pago antes de ir ao ar, entrando depois do último anúncio que já toca (etapa 3);
+  - diretrizes de conteúdo + robô de análise (etapa 3; precisa de chave de IA do proprietário).
+- **Migrações:**
+  - 20261278:
+    - `screens` + tipo_tela, local_instalacao, foto_local_url, tamanho_polegadas, valor_anuncio, status_grade, cadastrada_por e cadastrada_por_papel;
+    - gatilho: só OWNER/ADMIN alteram a configuração de tela PARCEIRA, e a telemetria do Player continua livre;
+    - policy RESTRICTIVE de exclusão;
+    - `fn_criar_telas_do_ponto` (idempotente; a tela pertence ao dono do tenant; atualiza quantidade, onde ficam as telas, valor "a partir de" e galeria do ponto).
+  - 20261279: `fn_atualizar_valor_tela` (OWNER/ADMIN; recalcula o "a partir de" do ponto).
+- **Telas:**
+  - etapa 4 do assistente com `TelasDoPontoEditor` (foto obrigatória, local e valor);
+  - ao finalizar, cria as telas;
+  - gestor acessa o assistente em `/dashboard/prospeccao/ponto-parceiro` (menu "Cadastrar ponto parceiro");
+  - `/dashboard/telas-parceiras` (menu e botão na página Telas, só OWNER/ADMIN): telas agrupadas por ponto com foto, local, grade, instalação e online, marca "Criada pelo gestor", valor editável e "Montar grade".
+- **Dados:** 8 telas parceiras criadas para os 5 pontos de Caruaru.
+- **Prova:**
+  - simulação desfeita: cria 2 telas, repetir não duplica, anunciante barrado ao mudar o valor, telemetria ok;
+  - `comparar-telas`: telas atuais idênticas;
+  - navegador (dbg.adm): página com 8 telas em 5 pontos, menu, etapa 4 com a trava "Tela 1: informe onde a tela fica";
+  - testes `telasParceiras` (4) + `pontosParceirosAnunciar` (5) + CRM/prospecção (14).
+- **Observação para depois:** a policy de UPDATE de `screens` (`fn_player_can_access_screen`) deixou o anunciante chegar ao gatilho. Nas telas parceiras ele é barrado; nas telas próprias, auditar em outro item.

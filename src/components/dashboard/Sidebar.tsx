@@ -29,6 +29,7 @@ import {
   UserCircle,
   Library,
   Palette,
+  Store,
   LayoutDashboard,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -43,6 +44,7 @@ const menuItems = [
   { icon: Monitor, label: 'Telas', path: '/dashboard/screens' },
   { icon: LayoutGrid, label: 'Widgets', path: '/dashboard/widgets' },
   { icon: Palette, label: 'Minha Marca', path: '/dashboard/marca' },
+  { icon: Store, label: 'Cadastrar ponto parceiro', path: '/dashboard/prospeccao/ponto-parceiro' },
   { icon: Calendar, label: 'Agendamento', path: '/dashboard/schedule' },
   { icon: Link2, label: 'Links Externos', path: '/dashboard/links' },
   { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics' },
@@ -55,7 +57,9 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
   const [collapsedPref, toggleCollapsed] = useSidebarCollapsed('gestor');
   const collapsed = !hideCollapse && collapsedPref;
   const [isAdmin, setIsAdmin] = useState(false);
-  const { signOut, profile, user, isOwner } = useAuth();
+  const { signOut, profile, user, isOwner, perfilNome } = useAuth();
+  // F-109: telas de pontos parceiros — OWNER/ADMIN (perfil ou papel antigo)
+  const podeTelasParceiras = isAdmin || isOwner || perfilNome === 'OWNER' || perfilNome === 'ADMIN';
   const location = useLocation();
   const { total: totalNaoLidas } = useCentralUnread();
 
@@ -65,6 +69,9 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
     ...menuItems,
     ...((isAdmin || isOwner)
       ? [{ icon: Banknote, label: 'Central de Cobranças', path: '/financeiro/cobrancas' }]
+      : []),
+    ...(podeTelasParceiras
+      ? [{ icon: Store, label: 'Telas de pontos parceiros', path: '/dashboard/telas-parceiras' }]
       : []),
     {
       icon: Bell,

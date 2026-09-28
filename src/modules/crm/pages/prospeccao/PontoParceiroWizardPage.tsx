@@ -15,6 +15,7 @@ import { prospeccaoService, type NovoPontoParceiroPayload } from '@/services/pro
 import { AssinaturaContratoDialog } from '../../components/portal/AssinaturaContratoDialog';
 import { contratoDocumentoService, renderizarPreviewContrato } from '../../services/contratoDocumento.service';
 import { supabase } from '@/integrations/supabase/client';
+import { TelasDoPontoEditor, telaVazia, telasParaEnvio, validarTelas, type TelaDoPonto } from '../../components/prospeccao/TelasDoPontoEditor';
 
 
 // CADASTRO DE PONTO PARCEIRO pelo REPRESENTANTE (missao §11-§19).
@@ -118,11 +119,15 @@ function Area({ label, value, onChange, placeholder }: {
 export default function PontoParceiroWizardPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+  // F-109: o gestor de mídias também cadastra ponto parceiro (painel /dashboard)
+  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : location.pathname.startsWith('/dashboard') ? '/dashboard' : '/representantes';
+  const noGestor = basePath === '/dashboard';
   const [passo, setPasso] = useState(1);
   const [form, setForm] = useState<FormState>(VAZIO);
   const [fotoCapa, setFotoCapa] = useState<string>('');
   const [fotos, setFotos] = useState<string[]>([]);
+  // F-109: cada tela do ponto (local, foto, orientação, tamanho, valor)
+  const [telas, setTelas] = useState<TelaDoPonto[]>([telaVazia()]);
   const [subindo, setSubindo] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -239,7 +244,7 @@ export default function PontoParceiroWizardPage() {
       ['Responsável', [form.responsavelNome, form.responsavelCargo].filter(Boolean).join(' - ')],
       ['Contato', [form.telefone, form.whatsapp, form.email].filter(Boolean).join(' / ')],
       ['Endereço', [form.logradouro, form.numero, form.bairro, form.cidade, form.estado].filter(Boolean).join(', ')],
-      ['Telas', String(form.quantidadeTelas)],
+      ['Telas', telas.map((t, i) => `${i + 1}) ${t.local || '—'} · R$ ${t.valor || '—'}/mês`).join('  ')],
       ['Modelo comercial', form.modeloComercial],
       [
         form.modeloComercial === 'PERMUTA' ? 'Permuta' : 'Comissão',
@@ -250,8 +255,28 @@ export default function PontoParceiroWizardPage() {
               .join(' / '),
       ],
     ] as Array<[string, string]>,
-    [form]
+    [form, telas]
   );
+
+  const enviarFotoTela = async (file: File): Promise<string | null> => {
+    if (!file.type.startsWith('image/')) { setErro('Apenas imagens são aceitas.'); return null; }
+    if (file.size > 20 * 1024 * 1024) { setErro('Imagem acima de 20MB.'); return null; }
+    setErro(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) { setErro('Sessão do usuário não encontrada.'); return null; }
+      const ext = file.name.split('.').pop() || 'jpg';
+      const fileName = session.user.id + '/pontos/tela-' + Date.now() + '.' + ext;
+      const inv = await supabase.functions.invoke('get-upload-url', { body: { bucket: 'clientes_assets', fileName, contentType: file.type } });
+      if (inv.error || !inv.data?.signedUrl || !inv.data?.publicUrl) throw new Error('Falha ao autorizar upload (R2).');
+      const put = await fetch(inv.data.signedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      if (!put.ok) throw new Error('Falha no envio ao R2.');
+      return inv.data.publicUrl as string;
+    } catch (e: any) {
+      setErro(e?.message || 'Falha no upload da foto da tela.');
+      return null;
+    }
+  };
 
   const uploadFoto = async (file: File, capa: boolean) => {
     if (!file.type.startsWith('image/')) return setErro('Apenas imagens são aceitas.');
@@ -286,6 +311,7 @@ export default function PontoParceiroWizardPage() {
     if (passo === 1 && form.nomeFantasia.trim().length < 2) return 'Informe o nome fantasia do estabelecimento.';
     if (passo === 2 && form.telefone.trim().length < 8 && form.whatsapp.trim().length < 8)
       return 'Informe ao menos um contato (telefone ou WhatsApp).';
+    if (passo === 4) { const e = validarTelas(telas); if (e) return e; }
     if (passo === 7 && form.modeloComercial === 'COMISSIONADO') {
       if (form.percentualComissao == null || form.percentualComissao <= 0 || form.percentualComissao > 100)
         return 'Informe um percentual de comissão válido (ex.: 8 a 10 conforme contrato).';
@@ -306,7 +332,13 @@ export default function PontoParceiroWizardPage() {
     setSalvando(true);
     setErro(null);
     try {
-      const payload: NovoPontoParceiroPayload = { ...form, nome: form.nomeFantasia, fotoCapaUrl: fotoCapa || undefined, fotosUrls: fotos };
+      const erroTelas = validarTelas(telas);
+      if (erroTelas) { setErro(erroTelas); setSalvando(false); return; }
+      const payload: NovoPontoParceiroPayload = {
+        ...form, nome: form.nomeFantasia, fotoCapaUrl: fotoCapa || undefined, fotosUrls: fotos,
+        quantidadeTelas: telas.length,
+        ambientes: telas.map((t) => t.local.trim()).filter(Boolean).join(', '),
+      };
       const r = await prospeccaoService.criarPontoParceiro(payload);
       // Contrato PARCEIRO — BLOQUEANTE §7
       {
@@ -330,6 +362,18 @@ export default function PontoParceiroWizardPage() {
           await contratoDocumentoService.gerarDocumentoContrato(resCt.contratoId, user?.id || '');
         } catch (errDoc) {
           console.warn('[PontoParceiro] Aviso na geração inicial do PDF:', errDoc);
+        }
+      }
+      // F-109: cria uma tela PARCEIRA por tela cadastrada (aguardando grade); idempotente
+      {
+        const pontoId = (r as any).id || (r as any).ponto_id || null;
+        if (pontoId) {
+          const { error: errTelas } = await supabase.rpc('fn_criar_telas_do_ponto' as never, { p_ponto: pontoId, p_telas: telasParaEnvio(telas) } as never);
+          if (errTelas) {
+            setErro('Ponto cadastrado, mas as telas não foram criadas: ' + errTelas.message + '. Toque em "Finalizar" de novo.');
+            setSalvando(false);
+            return;
+          }
         }
       }
       // Ponto Parceiro não possui login, portal ou cobrança (Regra de Isolamento).
@@ -367,7 +411,7 @@ export default function PontoParceiroWizardPage() {
                 Cadastrar outro ponto
               </button>
               <button
-                onClick={() => navigate(`${basePath}/clientes`)}
+                onClick={() => navigate(noGestor ? '/dashboard' : `${basePath}/clientes`)}
                 className="px-5 py-2.5 rounded-xl gradient-primary glow-primary text-white text-sm font-bold"
               >
                 Voltar
@@ -460,11 +504,8 @@ export default function PontoParceiroWizardPage() {
 
           {passo === 4 && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Campo label="Quantidade de telas *" value={String(form.quantidadeTelas)} onChange={(v) => set('quantidadeTelas', Number(v.replace(/\D/g, '') || 0))} type="number" />
-                <Campo label="Horário de funcionamento" value={form.horarioFuncionamento} onChange={(v) => set('horarioFuncionamento', v)} placeholder="08h às 22h" />
-              </div>
-              <Campo label="Ambientes (onde ficam as telas)" value={form.ambientes} onChange={(v) => set('ambientes', v)} placeholder="Ex.: caixa, entrada, frente de loja" />
+              <TelasDoPontoEditor telas={telas} onChange={setTelas} enviarFoto={enviarFotoTela} />
+              <Campo label="Horário de funcionamento" value={form.horarioFuncionamento} onChange={(v) => set('horarioFuncionamento', v)} placeholder="08h às 22h" />
               <Campo label="Localização das telas (indoor/outdoor)" value={form.localizacaoTelas} onChange={(v) => set('localizacaoTelas', v)} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Campo label="Fluxo diário estimado" value={form.fluxoDiario} onChange={(v) => set('fluxoDiario', v)} placeholder="Ex.: cerca de 800 pessoas/dia" />
@@ -667,7 +708,7 @@ export default function PontoParceiroWizardPage() {
         </CardContent>
 
         <div className="px-6 pb-5 flex items-center justify-between">
-          <Button variant="outline" disabled={salvando} onClick={() => { setErro(null); if (passo === 1) navigate(`${basePath}/clientes/novo`); else setPasso((p) => Math.max(1, p - 1)); }} className="border-slate-700 text-slate-300 rounded-xl gap-2">
+          <Button variant="outline" disabled={salvando} onClick={() => { setErro(null); if (passo === 1) navigate(noGestor ? '/dashboard' : `${basePath}/clientes/novo`); else setPasso((p) => Math.max(1, p - 1)); }} className="border-slate-700 text-slate-300 rounded-xl gap-2">
             <ArrowLeft className="h-4 w-4" /> {passo === 1 ? 'Voltar ao Gate' : 'Voltar'}
           </Button>
           {passo < 7 ? (

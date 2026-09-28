@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Plus, Search, Monitor, MoreVertical, Pencil, Trash2,
-  MapPin, Loader2, Wifi, WifiOff, Play, Calendar, ExternalLink, Copy, RefreshCw, Camera, MonitorSmartphone, Unlink
+  MapPin, Loader2, Wifi, WifiOff, Play, Calendar, ExternalLink, Copy, RefreshCw, Camera, MonitorSmartphone, Unlink, Store
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -40,7 +40,8 @@ import { LoadingState } from '@/components/ui/loading-state';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Screens() {
-  const { user } = useAuth();
+  const { user, isOwner, perfilNome } = useAuth();
+  const podeTelasParceiras = isOwner || perfilNome === 'OWNER' || perfilNome === 'ADMIN';
   const { screens, loading, fetchScreens, deleteScreen, sendCommand, unpairScreen, isUnpairing } = useScreens(user?.id);
   const navigate = useNavigate();
 
@@ -158,6 +159,12 @@ export default function Screens() {
             }}>
               <Unlink className="h-4 w-4 mr-2" />
               Desvincular Tela {selectedIds.size > 1 ? `(${selectedIds.size})` : ''}
+            </Button>
+          )}
+          {podeTelasParceiras && (
+            <Button variant="outline" className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10" onClick={() => navigate('/dashboard/telas-parceiras')}>
+              <Store className="h-4 w-4 mr-2" />
+              Telas de pontos parceiros
             </Button>
           )}
           <Button variant="outline" className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10" onClick={() => setTelaPagaOpen(true)}>
