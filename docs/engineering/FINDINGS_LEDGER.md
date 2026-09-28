@@ -1457,3 +1457,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - simulação desfeita: venda de 1 tela (calculado 149,90, negociado 120); tela de outro ponto barrada; anunciante barrado ao mexer no valor; anúncio CONTRATO sem cobrança; com fatura em atraso fica aguardando (correto); fatura paga e contrato em dia → ATIVO só na Tela 2;
   - navegador (dbg.adm): Farmácia + Academia = R$ 559,60; ao desmarcar uma tela → 409,70; etapa 4 com o valor preenchido e a edição manual respeitada; cadastro não concluído, para não criar cliente;
   - testes `telasParaVender` (4) e `pontosParceirosAnunciar` (6).
+
+### F-114 — Cartão "Telas Anunciantes" com as telas já existentes da empresa; limite de duração por perfil — DONE
+- **Relato do proprietário:** as telas que já existiam não apareciam no cartão "Telas Anunciantes".
+- **Causa:** a página só buscava telas cujo dono é o usuário logado. As 3 telas da empresa sem dono (LED Shopping Avenida, LED Restaurante Alpha, LED Academia Beta) nunca apareciam, e o ADMIN via 0 telas.
+- **Correção (só na página):** para OWNER e ADMIN, o cartão junta as telas da conta com as telas da empresa, sem as parceiras. A leitura continua limitada pela regra do banco (própria conta ou mesma empresa). O total do cartão conta só as telas de anunciantes.
+- **Não alterado de propósito:** as 4 telas do dono (Mídia indoor, HOTEL MAXSUEL, ACADEMIA TELA 1) estão sem `empresa_operadora_id`. O Player usa esse campo no bloqueio por fatura atrasada, então preencher o dado pode mudar a reprodução de clientes pagantes. Fica para decidir com teste em aparelho.
+- **Limite por perfil no envio do painel** (migração 20261284 + `limiteDoPerfil` no MediaUploadDialog): ANUNCIANTE/CLIENTE 20 s, GESTOR 30 s, OWNER/ADMIN livre. O portal já limitava 20 s.
+- **Prova:**
+  - simulação desfeita: anunciante 25 s barrado e 15 s aceito; gestor 45 s barrado e 25 s aceito; dono e admin 90 s aceitos;
+  - simulação da conta do dono: o cartão passa de 4 para 7 telas;
+  - navegador (dbg.adm): cartão com 3 telas LED e total 3;
+  - testes `limiteDuracaoPerfil` (2), `uploadDialogDuration` e `pastasPontosParceiros`.

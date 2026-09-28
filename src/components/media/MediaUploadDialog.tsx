@@ -175,11 +175,20 @@ const calculateFileMD5 = (file: File): Promise<string> => {
 
 /** Limite do gestor de mídia (30 s + meio segundo de tolerância da leitura do arquivo). */
 export const LIMITE_GESTOR_MS = 30_500;
+/** Limite do anunciante (20 s + meio segundo de tolerância). */
+export const LIMITE_ANUNCIANTE_MS = 20_500;
+/** Limite de duração de vídeo/áudio por perfil; null = sem limite (OWNER/ADMIN e demais). */
+export const limiteDoPerfil = (perfil: string | null | undefined): number | null => {
+  const p = String(perfil ?? '').toUpperCase();
+  if (p === 'GESTOR') return LIMITE_GESTOR_MS;
+  if (p === 'ANUNCIANTE' || p === 'CLIENTE') return LIMITE_ANUNCIANTE_MS;
+  return null;
+};
 
 export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMedia, onUploadedIds, semPlaylist, titulo }: MediaUploadDialogProps) {
   const { user, usuario } = useAuth();
-  // F-111: gestor de mídia envia vídeo/áudio de até 30 s (OWNER/ADMIN sem limite; o banco também confere).
-  const limiteGestorMs = String(usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : '')).toUpperCase() === 'GESTOR' ? LIMITE_GESTOR_MS : null;
+  // F-111/F-114: anunciante até 20 s, gestor de mídia até 30 s, OWNER/ADMIN sem limite (o banco também confere).
+  const limiteGestorMs = limiteDoPerfil(usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : null));
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -295,7 +304,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         // Duração EXATA lida do arquivo (ms); o Tempo de Mídia é o segundo cheio para cima -> a tela toca o vídeo inteiro.
         realMs = await probeFileDurationMs(newFile.file);
         if (limiteGestorMs && realMs && realMs > limiteGestorMs) {
-          toast.error(`${newFile.file.name}: ${Math.round(realMs / 1000)} segundos. Gestor de mídia pode enviar vídeos de até 30 segundos.`);
+          toast.error(`${newFile.file.name}: ${Math.round(realMs / 1000)} segundos. O máximo para o seu perfil é ${Math.round(limiteGestorMs / 1000)} segundos.`);
           setFiles(prev => prev.filter(f => f.file !== newFile.file));
           continue;
         }

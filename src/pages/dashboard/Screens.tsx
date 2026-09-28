@@ -27,6 +27,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -45,11 +47,26 @@ import { Skeleton } from '@/components/ui/skeleton';
 const BOTAO = 'w-full sm:w-auto h-auto min-h-10 whitespace-normal py-2 leading-tight';
 
 export default function Screens() {
-  const { user, isOwner, perfilNome } = useAuth();
+  const { user, isOwner, perfilNome, empresaOperadoraId } = useAuth();
   const podeTelasParceiras = isOwner || perfilNome === 'OWNER' || perfilNome === 'ADMIN';
   // F-112: só o gestor de mídia paga para criar tela; OWNER/ADMIN não veem o botão com valor
   const ehGestor = !isOwner && perfilNome === 'GESTOR';
-  const { screens, loading, fetchScreens, deleteScreen, sendCommand, unpairScreen, isUnpairing } = useScreens(user?.id);
+  const { screens: telasDaConta, loading: carregandoConta, fetchScreens, deleteScreen, sendCommand, unpairScreen, isUnpairing } = useScreens(user?.id);
+  // F-114: OWNER/ADMIN veem também as telas da EMPRESA (as já existentes, mesmo sem dono ou de outro usuário da empresa).
+  // A leitura continua limitada pela regra do banco (própria conta ou mesma empresa).
+  const telasDaEmpresa = useQuery({
+    queryKey: ['telas-da-empresa', empresaOperadoraId],
+    enabled: podeTelasParceiras && !!empresaOperadoraId,
+    staleTime: 30_000,
+    queryFn: async (): Promise<Screen[]> => {
+      const { data, error } = await supabase.from('screens').select('*, playlist:playlists(id, name)')
+        .eq('empresa_operadora_id', empresaOperadoraId!).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as Screen[];
+    },
+  });
+  const screens: Screen[] = [...telasDaConta, ...(telasDaEmpresa.data ?? []).filter((t) => !telasDaConta.some((c) => c.id === t.id))];
+  const loading = carregandoConta || (podeTelasParceiras && !!empresaOperadoraId && telasDaEmpresa.isLoading);
   const navigate = useNavigate();
   // F-112: dois cartões — Telas Pontos Parceiros (pastas por estabelecimento) e Telas Anunciantes
   const [params, setParams] = useSearchParams();
@@ -249,7 +266,7 @@ export default function Screens() {
               <Monitor className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{screens.length}</p>
+              <p className="text-2xl font-bold">{telasAnunciantes.length}</p>
               <p className="text-sm text-muted-foreground">Total de Telas</p>
             </div>
           </CardContent>
