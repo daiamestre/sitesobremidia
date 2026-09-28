@@ -1238,3 +1238,20 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - debug sha256 `0380b6e0db2474e2d77d7d6f91bc25a9e4a6d45a857b62c319ed1445706164e7`.
 - **Pendente:** canário no aparelho do proprietário (login de gestor com marca) → depois `node scripts/ops/publicar-player.mjs`.
 - **Observação:** as contas de teste `gestor_*@sobremidia.com.pe` falham no login por magic link ("Database error finding user" no Supabase Auth). É um problema antigo, fora deste escopo. `sessao-teste.mjs` agora mostra o motivo da falha.
+
+### F-104 — Senha do primeiro acesso "não salva" (cliente não consegue voltar a entrar) — DONE
+- **Evidência (`security_logs`, conta anunciante `daiamestrsfgdse9@…`):**
+  - 02:08 login com a senha temporária → troca obrigatória;
+  - a troca terminou (`must_change_password=false`, o que só acontece depois do `updateUser` sem erro);
+  - 02:15 duas tentativas com "Invalid login credentials";
+  - 28/09 14:31 login OK.
+  - A configuração do Supabase Auth está normal: sem hooks, sem reautenticação, mínimo 6. Nenhuma função do servidor regrava a senha sozinha: `authorize-password-reset` só age com autorização do administrador.
+- **Causas no navegador:**
+  - (1) na troca, o botão "mostrar senha" vira o campo em texto comum e o teclado do Android põe maiúscula ou corrige automaticamente; a senha salva fica diferente da que o cliente acha que digitou;
+  - (2) sem o campo de conta (username), o gerenciador de senhas do navegador continua preenchendo a senha temporária antiga no login.
+- **Correção:**
+  - campos de senha com `autoCapitalize=none`, `autoCorrect=off`, `spellCheck=false` (troca, login, Meu Perfil);
+  - campo `username` escondido na troca; `username`/`current-password` no login;
+  - e-mail do login com `trim` e minúsculas;
+  - **prova real:** depois do `updateUser`, entra com a senha nova (`signInWithPassword`); só então conclui. Se não conferir, avisa na hora e mantém a troca pendente.
+- **Prova:** `senhaPrimeiroAcesso.test.ts` (4) + fluxos de senha e perfil (33).

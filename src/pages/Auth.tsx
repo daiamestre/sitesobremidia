@@ -15,7 +15,7 @@ import { Loader2, Mail, Lock, User, Building, ShieldAlert } from 'lucide-react';
 import { z } from 'zod';
 
 const loginSchema = z.object({
-  email: z.string().email('E-mail inválido'),
+  email: z.string().trim().email('E-mail inválido'),
   password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
 });
 
@@ -97,7 +97,8 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error, role, routeRedirect } = await signIn(loginEmail, loginPassword);
+    // F-104: e-mail sem espaços/maiúsculas vindos do teclado do celular
+    const { error, role, routeRedirect } = await signIn(loginEmail.trim().toLowerCase(), loginPassword);
     setIsLoading(false);
 
     if (error) {
@@ -331,6 +332,9 @@ export default function Auth() {
                     <Input
                       id="login-email"
                       type="email"
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      autoCorrect="off"
                       placeholder="seu@email.com"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
@@ -346,6 +350,10 @@ export default function Auth() {
                     <Input
                       id="login-password"
                       type="password"
+                      autoComplete="current-password"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}

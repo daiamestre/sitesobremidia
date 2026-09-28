@@ -250,14 +250,14 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
                 <Label>Senha atual</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500"/>
-                  <Input type={mostrar?'text':'password'} value={senhaAtual} onChange={e=>setSenhaAtual(e.target.value)} className="pl-10 pr-10 bg-slate-950 border-white/10" autoComplete="current-password"/>
+                  <Input type={mostrar?'text':'password'} value={senhaAtual} onChange={e=>setSenhaAtual(e.target.value)} className="pl-10 pr-10 bg-slate-950 border-white/10" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false}/>
                   <button type="button" onClick={()=>setMostrar(!mostrar)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">{mostrar?<EyeOff className="h-4 w-4"/>:<Eye className="h-4 w-4"/>}</button>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Nova senha</Label>
-                  <Input type={mostrar?'text':'password'} value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="bg-slate-950 border-white/10" autoComplete="new-password"/>
+                  <Input type={mostrar?'text':'password'} value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="bg-slate-950 border-white/10" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false}/>
                   {novaSenha && (
                     <div className="flex items-center gap-2 text-xs">
                       <div className={`h-1.5 flex-1 rounded ${forca.cor}`}/>
@@ -267,7 +267,7 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Confirmar nova senha</Label>
-                  <Input type={mostrar?'text':'password'} value={confirmar} onChange={e=>setConfirmar(e.target.value)} className="bg-slate-950 border-white/10" autoComplete="new-password"/>
+                  <Input type={mostrar?'text':'password'} value={confirmar} onChange={e=>setConfirmar(e.target.value)} className="bg-slate-950 border-white/10" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false}/>
                 </div>
               </div>
               <Button onClick={handleTrocarSenha} disabled={salvandoSenha} className="gap-2">

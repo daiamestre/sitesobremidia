@@ -79,6 +79,17 @@ export default function ChangePassword() {
         );
       }
 
+      // 1b. F-104: prova real — entra com a senha nova. Se não conferir, NÃO conclui
+      //     (evita o cliente sair achando que trocou e não conseguir voltar).
+      const emailConta = usuario?.email;
+      if (emailConta) {
+        const { error: provaErr } = await supabase.auth.signInWithPassword({ email: emailConta, password: novaSenha });
+        if (provaErr) {
+          console.error('[ChangePassword] senha nova não confirmada no login:', provaErr.message);
+          throw new Error('A nova senha não foi confirmada. Digite-a novamente (atenção a letras maiúsculas).');
+        }
+      }
+
       // 2. SOMENTE APÓS sucesso no Auth: desliga a obrigatoriedade
       //    no registro corporativo (RPC server-side, sem senha envolvida)
       const { error: rpcErr } = await supabase.rpc('concluir_troca_senha_obrigatoria');
@@ -131,6 +142,8 @@ export default function ChangePassword() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            {/* F-104: identifica a conta para o navegador substituir a senha temporária salva */}
+            <input type="email" name="username" autoComplete="username" value={usuario?.email ?? ''} readOnly hidden />
             <div className="space-y-2">
               <Label htmlFor="nova-senha">Nova senha</Label>
               <div className="relative">
@@ -142,6 +155,9 @@ export default function ChangePassword() {
                   onChange={(e) => setNovaSenha(e.target.value)}
                   className="pl-10 pr-10"
                   autoComplete="new-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required
                 />
                 <button
@@ -195,6 +211,9 @@ export default function ChangePassword() {
                   onChange={(e) => setConfirmar(e.target.value)}
                   className="pl-10"
                   autoComplete="new-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required
                 />
               </div>
