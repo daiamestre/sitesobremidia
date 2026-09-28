@@ -18,6 +18,7 @@
 
         <!-- Logo -->
         <ImageView
+            android:id="@+id/sync_guard_logo"
             android:layout_width="300dp"
             android:layout_height="90dp"
             android:scaleType="fitCenter"

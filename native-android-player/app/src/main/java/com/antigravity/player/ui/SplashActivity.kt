@@ -27,6 +27,8 @@ class SplashActivity : AppCompatActivity() {
         }
         
         setContentView(com.antigravity.player.R.layout.activity_splash)
+        // F-103: logo do gestor de mídias guardado no aparelho (senão, SOBRE MÍDIA)
+        com.antigravity.player.util.MarcaDoGestor.aplicarLogo(this, findViewById(com.antigravity.player.R.id.app_logo))
         
         // Ensure DI is ready
         ServiceLocator.init(applicationContext) 

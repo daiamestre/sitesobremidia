@@ -403,6 +403,8 @@ class MainActivity : AppCompatActivity() {
         playerView2 = findViewById<PlayerView>(R.id.playerView2)
         standbyImage = findViewById<ImageView>(R.id.standbyImage)
         blockOverlay = findViewById<FrameLayout>(R.id.block_overlay)
+        // F-103: logo do gestor de mídias (definido no login) no aviso de suspensão
+        com.antigravity.player.util.MarcaDoGestor.aplicarLogo(this, findViewById(R.id.block_logo))
         staticImageLayer = findViewById<ImageView>(R.id.static_image_layer)
         staticImageLayer2 = findViewById<ImageView>(R.id.static_image_layer2)
         nativeWidgetContainer = findViewById<FrameLayout>(R.id.native_widget_container)

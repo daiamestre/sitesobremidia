@@ -42,6 +42,15 @@ class ScreenSelectionActivity : AppCompatActivity() {
         setContentView(R.layout.activity_screen_selection)
 
         loading = findViewById(R.id.selection_loading)
+
+        // F-103: marca do gestor que fez login (logo dele no lugar do SOBRE MÍDIA)
+        val logoMarca = findViewById<ImageView>(R.id.selection_logo)
+        com.antigravity.player.util.MarcaDoGestor.aplicarLogo(this, logoMarca)
+        lifecycleScope.launch {
+            if (com.antigravity.player.util.MarcaDoGestor.atualizar(applicationContext)) {
+                com.antigravity.player.util.MarcaDoGestor.aplicarLogo(this@ScreenSelectionActivity, logoMarca)
+            }
+        }
         recyclerView = findViewById(R.id.screens_recycler_view)
         
         recyclerView.layoutManager = LinearLayoutManager(this)

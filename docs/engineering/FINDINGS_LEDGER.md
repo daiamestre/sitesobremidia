@@ -1217,3 +1217,24 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - simulação desfeita: anunciante abre; abrir de novo devolve o mesmo; outro anunciante e dono de outro tenant veem 0; os 3 atendentes do tenant recebem o aviso; admin responde e encerra; anunciante vê RESOLVIDO;
   - `suporteTriagem.test.tsx` (4 testes) + regressão/isolamento do portal (100 testes);
   - navegador: Central do anunciante e formulário de triagem (sem enviar, para não avisar o dono real); fila do admin `dbg.adm` sem erro.
+
+### F-103 — Brand Kit do Gestor de Mídias ("Minha Marca") e marca dele no Player pelo login — DONE (site/banco) · Player 5.6.9 aguardando canário
+- **Regra do proprietário:** Brand Kit não é do anunciante (saiu do portal no F-101). É do Gestor de Mídias, que trabalha como afiliado. Quando ele faz login no Player Android, o aparelho mostra o logo e as cores da empresa dele.
+- **Migração 20261271 (aditiva):**
+  - tabela `gestor_marcas` (1 por usuário; RLS: o próprio lê e grava; OWNER/ADMIN do tenant leem);
+  - RPC `fn_player_minha_marca()` → `{status: OK|PADRAO, nome_marca, logo_url, cor_primaria, cor_secundaria, slogan}`;
+  - o Player antigo não chama esta RPC (sem impacto na frota).
+- **Site:** `/dashboard/marca` "Minha Marca" no menu do gestor: logo no R2 em `{usuario}/marca/`, nome, frase, cores, liga/desliga e prévia de como fica no Player.
+- **Player 5.6.9 (556):**
+  - `MarcaDoGestor` busca a marca na escolha de tela (logo após o login) e guarda no aparelho (vale offline e após reiniciar);
+  - o logo do gestor substitui o SOBRE MÍDIA na abertura, na escolha da tela, no "Sincronizando Mídias" (com a cor de fundo da marca) e no aviso de suspensão; a tela de espera preta continua sem logo;
+  - falha ao buscar ou baixar mantém o que já estava; sem marca → SOBRE MÍDIA.
+- **Prova:**
+  - simulação desfeita: gestor 1 recebe "Mídia Norte"; gestor 2 não vê nem altera e recebe PADRAO; dono do tenant lê; anunciante de outro tenant vê 0;
+  - Gradle: 292 testes, 0 falhas (3 novos em `MarcaDoGestorTest`);
+  - navegador: "Minha Marca" no menu e prévia ao vivo (sem salvar).
+- **APK (saída padrão):**
+  - release 5.6.9 (556) sha256 `81c9143853952bb21e48417dea41b275d5f688dc1ad66a1599b39502e754304f`;
+  - debug sha256 `0380b6e0db2474e2d77d7d6f91bc25a9e4a6d45a857b62c319ed1445706164e7`.
+- **Pendente:** canário no aparelho do proprietário (login de gestor com marca) → depois `node scripts/ops/publicar-player.mjs`.
+- **Observação:** as contas de teste `gestor_*@sobremidia.com.pe` falham no login por magic link ("Database error finding user" no Supabase Auth). É um problema antigo, fora deste escopo. `sessao-teste.mjs` agora mostra o motivo da falha.

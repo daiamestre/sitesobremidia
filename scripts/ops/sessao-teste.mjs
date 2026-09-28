@@ -22,7 +22,7 @@ const gl = await (await fetch(`${base}/auth/v1/admin/generate_link`, { method: '
   body: JSON.stringify({ type: 'magiclink', email }) })).json();
 const sessao = await (await fetch(`${base}/auth/v1/verify`, { method: 'POST', headers: { apikey: anon, 'Content-Type': 'application/json' },
   body: JSON.stringify({ type: 'magiclink', token_hash: gl.hashed_token }) })).json();
-if (!sessao.access_token) { console.error('não foi possível gerar a sessão'); process.exit(1); }
+if (!sessao.access_token) { console.error('não foi possível gerar a sessão:', gl.msg || gl.error_description || gl.error || '', '/', sessao.msg || sessao.error_description || sessao.error || ''); process.exit(1); }
 const corpo = JSON.stringify({ key: `sb-${ref}-auth-token`, session: sessao });
 http.createServer((req, res) => {
   const h = { 'Access-Control-Allow-Origin': origem, 'Access-Control-Allow-Private-Network': 'true', 'Access-Control-Allow-Headers': '*' };

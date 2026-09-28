@@ -30,6 +30,13 @@ class SyncGuard(private val activity: Activity) {
         
         // Block all UI interactions below this layer
         overlayContainer?.setOnClickListener {}
+        aplicarMarca()
+    }
+
+    /** F-103: logo e cor de fundo do gestor de mídias (se houver marca guardada). */
+    fun aplicarMarca() {
+        MarcaDoGestor.aplicarLogo(activity, activity.findViewById(R.id.sync_guard_logo))
+        MarcaDoGestor.aplicarFundo(activity, overlayContainer)
     }
 
     private var lockWatchdogHandler: android.os.Handler? = null

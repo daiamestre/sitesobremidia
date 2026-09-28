@@ -170,6 +170,7 @@ const Playlists = lazyWithRetry(() => import("./pages/dashboard/Playlists"));
 const Screens = lazyWithRetry(() => import("./pages/dashboard/Screens"));
 const ScreenDetails = lazyWithRetry(() => import("./pages/dashboard/ScreenDetails"));
 const Widgets = lazyWithRetry(() => import("./pages/dashboard/Widgets"));
+const MinhaMarca = lazyWithRetry(() => import("./pages/dashboard/MinhaMarca"));
 const Schedule = lazyWithRetry(() => import("./pages/dashboard/Schedule"));
 const ExternalLinks = lazyWithRetry(() => import("./pages/dashboard/ExternalLinks"));
 const Analytics = lazyWithRetry(() => import("./pages/dashboard/Analytics"));
@@ -351,6 +352,7 @@ const App = () => {
                     <Route path="screens" element={<Screens />} />
                     <Route path="screens/:id" element={<ScreenDetails />} />
                     <Route path="widgets" element={<Widgets />} />
+                    <Route path="marca" element={<MinhaMarca />} />
                     <Route path="schedule" element={<Schedule />} />
                     <Route path="links" element={<ExternalLinks />} />
                     <Route path="analytics" element={<Analytics />} />

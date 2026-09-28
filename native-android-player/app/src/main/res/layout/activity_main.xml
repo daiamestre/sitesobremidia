@@ -142,6 +142,7 @@
 
             <!-- Logo -->
             <ImageView
+                android:id="@+id/block_logo"
                 android:layout_width="280dp"
                 android:layout_height="80dp"
                 android:scaleType="fitCenter"

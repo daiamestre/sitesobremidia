@@ -37,6 +37,7 @@
             android:padding="24dp">
 
             <ImageView
+                android:id="@+id/selection_logo"
                 android:layout_width="220dp"
                 android:layout_height="60dp"
                 android:scaleType="fitCenter"

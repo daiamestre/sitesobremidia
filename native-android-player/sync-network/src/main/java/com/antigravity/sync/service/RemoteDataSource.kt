@@ -391,6 +391,14 @@ class RemoteDataSource {
         }
     }
 
+    // F-103: marca do Gestor de Mídias logado (logo/cores no Player). Falha → null (Player mantém o que tem).
+    suspend fun getMarcaDoPlayer(): MarcaPlayerDto? = try {
+        client.postgrest.rpc("fn_player_minha_marca").decodeAs<MarcaPlayerDto>()
+    } catch (e: Exception) {
+        Logger.e("SYNC", "MARCA: falha ao buscar a marca do gestor: ${e.message}")
+        null
+    }
+
     // Unpair a screen (device self-unpair)
     suspend fun unpairScreen(screenId: String, deviceId: String) {
         val response = try {

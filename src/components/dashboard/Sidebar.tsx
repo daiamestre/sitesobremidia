@@ -28,6 +28,7 @@ import {
   Banknote,
   UserCircle,
   Library,
+  Palette,
   LayoutDashboard,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -41,6 +42,7 @@ const menuItems = [
   { icon: ListVideo, label: 'Playlists', path: '/dashboard/playlists' },
   { icon: Monitor, label: 'Telas', path: '/dashboard/screens' },
   { icon: LayoutGrid, label: 'Widgets', path: '/dashboard/widgets' },
+  { icon: Palette, label: 'Minha Marca', path: '/dashboard/marca' },
   { icon: Calendar, label: 'Agendamento', path: '/dashboard/schedule' },
   { icon: Link2, label: 'Links Externos', path: '/dashboard/links' },
   { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics' },
