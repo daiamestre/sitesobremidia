@@ -1,0 +1,51 @@
+[
+ {
+  "id": "4f0b3bd6-7014-434a-8d21-235d1daa6345",
+  "codigo_operacional": "TEL-2026-000001",
+  "name": "Mídia indoor",
+  "nova_empresa": "7d62aaec-e24d-4273-b257-867183cf658c",
+  "last_ping_at": "2026-09-24 20:22:20.188064+00"
+ },
+ {
+  "id": "9f47ddae-93ec-4aeb-921c-72e26c8098f2",
+  "codigo_operacional": "TEL-2026-000002",
+  "name": "HOTEL MAXSUEL",
+  "nova_empresa": "7d62aaec-e24d-4273-b257-867183cf658c",
+  "last_ping_at": "2026-09-26 04:06:03.281977+00"
+ },
+ {
+  "id": "4f165a86-9ef9-495a-a16b-06902c668049",
+  "codigo_operacional": "TEL-2026-000006",
+  "name": "Mídia indoor",
+  "nova_empresa": "7d62aaec-e24d-4273-b257-867183cf658c",
+  "last_ping_at": "2026-09-25 03:27:14.176599+00"
+ },
+ {
+  "id": "124eeca0-0fe2-478a-86e2-30e08ab3a126",
+  "codigo_operacional": "TEL-2026-000035",
+  "name": "F17 TELA 1787713811796",
+  "nova_empresa": "22345678-1234-1234-1234-123456789012",
+  "last_ping_at": "2026-09-17 00:45:04.991605+00"
+ },
+ {
+  "id": "a3ee35da-615c-4faa-a3b5-904c7e16e263",
+  "codigo_operacional": "TEL-2026-000044",
+  "name": "Tela Homolog A 1789577208868",
+  "nova_empresa": "22345678-1234-1234-1234-123456789012",
+  "last_ping_at": "2026-09-26 19:04:55.634861+00"
+ },
+ {
+  "id": "1ce02cc4-7bed-4c39-93af-463fd61c934e",
+  "codigo_operacional": "TEL-2026-000045",
+  "name": "Tela Homolog B 1789577208868",
+  "nova_empresa": "22345678-1234-1234-1234-123456789012",
+  "last_ping_at": "2026-09-24 04:06:22.122091+00"
+ },
+ {
+  "id": "44867dac-f8ba-4fb5-9283-fdd14d540288",
+  "codigo_operacional": "TEL-2026-000048",
+  "name": "ACADEMIA TELA 1",
+  "nova_empresa": "7d62aaec-e24d-4273-b257-867183cf658c",
+  "last_ping_at": "2026-09-26 19:48:49.218398+00"
+ }
+]

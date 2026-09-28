@@ -1469,3 +1469,21 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - simulação da conta do dono: o cartão passa de 4 para 7 telas;
   - navegador (dbg.adm): cartão com 3 telas LED e total 3;
   - testes `limiteDuracaoPerfil` (2), `uploadDialogDuration` e `pastasPontosParceiros`.
+
+### F-115 — ADMIN vê e edita as telas e a programação da empresa (autorizado pelo proprietário) — DONE
+- **Autorização explícita (29/09/2026):** "Autorizo o ADMIN a ver e editar as playlists e mídias da empresa". Neste assunto o ADMIN tem as mesmas permissões do OWNER.
+- **Causa 1:** telas antigas sem `empresa_operadora_id` (4 do dono e 3 de teste de outra empresa), que só o próprio dono enxergava.
+- **Causa 2:** playlists, itens, mídias, widgets e links só "do próprio usuário".
+- **Migração 20261285 (aditiva):**
+  - preenche a empresa das 7 telas pela empresa do dono, com o gatilho de sinal desligado durante o UPDATE para não marcar "online"; último sinal preservado;
+  - `trg_screens_empresa_padrao`: tela nova nasce com a empresa do dono;
+  - `fn_admin_da_empresa_do_usuario` e políticas `empresa_admin_*`: playlists (ver/editar), playlist_items (tudo), media/widgets/external_links (ver), só para OWNER/ADMIN da mesma empresa.
+- **Risco criado e fechado na mesma entrega** (migração 20261286): `scr_update_own`/`scr_delete_own` liberam qualquer usuário da empresa. Com a empresa preenchida, anunciante, representante e gestor poderiam alterar ou apagar as telas do dono; as telas LED sem dono já estavam expostas. A política RESTRICTIVE `scr_update_so_gestao`/`scr_delete_so_gestao` limita ANUNCIANTE, CLIENTE, PARCEIRO, REPRESENTANTE e GESTOR às telas deles mesmos.
+- **Painel da tela:** listas de playlists, mídias, widgets e links = conteúdo de quem está logado + do dono da tela.
+- **Player:** `get_player_playlist_for_screen` só usa a empresa da tela na trava de expansão (telas com ponto; as 7 não têm) e na checagem de dono (mesma empresa). `comparar-telas` = idêntico.
+- **Prova** (`docs/engineering/evidence/F-115/isolamento.md`):
+  - matriz dono / ADMIN / gestor / representante / anunciante / ADMIN de outra empresa;
+  - ADMIN salva a programação do HOTEL MAXSUEL via `fn_save_playlist_items`; gestor e anunciante barrados;
+  - gestor ainda edita a própria tela;
+  - navegador (dbg.adm): cartão com 7 telas; HOTEL MAXSUEL com os 8 itens e a lista de mídias do dono;
+  - testes do painel (21) e da página Telas (18).

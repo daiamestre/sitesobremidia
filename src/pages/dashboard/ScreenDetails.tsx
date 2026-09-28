@@ -454,13 +454,16 @@ export default function ScreenDetails() {
     }, []);
 
     // Secondary queries: Enhanced with user_id to respect RLS
+    // F-115: conteúdo de quem está logado + do DONO da tela (OWNER/ADMIN da mesma empresa editam as telas da empresa;
+    // a regra do banco decide o que cada perfil enxerga).
+    const donosDoConteudo = [...new Set([user?.id, (screen as { user_id?: string | null } | undefined)?.user_id].filter(Boolean))] as string[];
     const { data: availableMedia = [] } = useQuery({
-        queryKey: ['available-media', user?.id],
+        queryKey: ['available-media', ...donosDoConteudo],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('media')
                 .select('*')
-                .eq('user_id', user?.id)
+                .in('user_id', donosDoConteudo)
                 .eq('biblioteca' as never, false as never) // conteúdo da Biblioteca entra pela própria Biblioteca
                 .order('name');
             if (error) throw error;
@@ -470,12 +473,12 @@ export default function ScreenDetails() {
     });
 
     const { data: availableWidgets = [] } = useQuery({
-        queryKey: ['available-widgets', user?.id],
+        queryKey: ['available-widgets', ...donosDoConteudo],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('widgets')
                 .select('id, name, widget_type, config, thumbnail_url, is_active')
-                .eq('user_id', user?.id)
+                .in('user_id', donosDoConteudo)
                 .order('name');
             if (error) throw error;
             return data || [];
@@ -484,12 +487,12 @@ export default function ScreenDetails() {
     });
 
     const { data: availableLinks = [] } = useQuery({
-        queryKey: ['available-links', user?.id],
+        queryKey: ['available-links', ...donosDoConteudo],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('external_links')
                 .select('*')
-                .eq('user_id', user?.id)
+                .in('user_id', donosDoConteudo)
                 .order('title');
             if (error) throw error;
             return data || [];
@@ -498,12 +501,12 @@ export default function ScreenDetails() {
     });
 
     const { data: availablePlaylists = [] } = useQuery({
-        queryKey: ['available-playlists', user?.id],
+        queryKey: ['available-playlists', ...donosDoConteudo],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('playlists')
                 .select('*, item_count:playlist_items(count)')
-                .eq('user_id', user?.id)
+                .in('user_id', donosDoConteudo)
                 .order('name');
             if (error) throw error;
 
