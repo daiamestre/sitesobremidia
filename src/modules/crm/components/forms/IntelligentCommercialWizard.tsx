@@ -9,6 +9,8 @@ import { auditService } from '../../services/audit.service';
 import { corporateUsersService } from '@/services/corporateUsers.service';
 import { prospeccaoService } from '@/services/prospeccao.service';
 import { SelecaoPontosParceiros } from '../prospeccao/SelecaoPontosParceiros';
+import { TelasParaVender, useTelasParceirasDosPontos, totalDasTelas, selecaoParaEnvio, completarEscolha, brl as brlTelas, type EscolhaDeTelas } from '../prospeccao/TelasParaVender';
+import { useQuery } from '@tanstack/react-query';
 import type { CrmRole } from '../../types/rbac.types';
 import { contratoDocumentoService, renderizarPreviewContrato } from '../../services/contratoDocumento.service';
 import { supabase } from '@/integrations/supabase/client';
@@ -136,6 +138,26 @@ export function IntelligentCommercialWizard() {
   // Seleção de PONTOS PARCEIROS na prospecção (missão Â§7-Â§10) â€” sincronizada
   // via RPC selecionar_pontos_prospeccao após a criação do cliente.
   const [pontosSelecionados, setPontosSelecionados] = useState<Set<string>>(new Set());
+  // F-113: telas escolhidas em cada ponto; o sistema soma e o valor mensal vem preenchido (editável)
+  const [telasEscolhidas, setTelasEscolhidas] = useState<EscolhaDeTelas>({});
+  const [valorEditadoManual, setValorEditadoManual] = useState(false);
+  const telasDosPontos = useTelasParceirasDosPontos(Array.from(pontosSelecionados));
+  const pontosDisponiveis = useQuery({ queryKey: ['prospeccao-pontos-disponiveis'], queryFn: () => prospeccaoService.listarPontosDisponiveis(), staleTime: 30_000 });
+  const nomesDosPontos = useMemo(() => Object.fromEntries((pontosDisponiveis.data ?? []).map((p) => [p.ponto_id, p.nome])), [pontosDisponiveis.data]);
+  const valorCalculadoTelas = totalDasTelas(telasDosPontos.data ?? [], telasEscolhidas, pontosSelecionados);
+  useEffect(() => {
+    const nova = completarEscolha(telasEscolhidas, telasDosPontos.data ?? [], pontosSelecionados);
+    if (nova) setTelasEscolhidas(nova);
+  }, [telasDosPontos.data, pontosSelecionados, telasEscolhidas]);
+  // Valor mensal acompanha o total das telas até o representante digitar outro valor
+  useEffect(() => {
+    if (!valorEditadoManual && valorCalculadoTelas > 0) setFormData((p) => (p.valorMensal === valorCalculadoTelas ? p : { ...p, valorMensal: valorCalculadoTelas }));
+  }, [valorCalculadoTelas, valorEditadoManual]);
+  // Quantidade de telas vem da escolha (se ainda estiver vazia)
+  const qtdTelasEscolhidas = selecaoParaEnvio(telasEscolhidas, pontosSelecionados).reduce((n, x) => n + x.telas.length, 0);
+  useEffect(() => {
+    if (qtdTelasEscolhidas > 0) setFormData((p) => (Number(p.quantidadeTelas) > 0 ? p : { ...p, quantidadeTelas: qtdTelasEscolhidas }));
+  }, [qtdTelasEscolhidas]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Provisionamento automático do acesso do anunciante (Fechamento Comercial)
   type EstadoProvisionamento =
@@ -422,6 +444,7 @@ export function IntelligentCommercialWizard() {
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    if (name === 'valorMensal') setValorEditadoManual(true);
     setFormData((prev) => ({ ...prev, [name]: Number(value || 0) }));
   };
 
@@ -676,6 +699,12 @@ export function IntelligentCommercialWizard() {
     if (finalClienteId && pontosSelecionados.size > 0) {
       try {
         await prospeccaoService.selecionarPontos(finalClienteId, Array.from(pontosSelecionados));
+        const selecaoTelas = selecaoParaEnvio(telasEscolhidas, pontosSelecionados);
+        if (selecaoTelas.length) {
+          const { error: errTelas } = await supabase.rpc('fn_registrar_telas_anunciante' as never,
+            { p_cliente: finalClienteId, p_selecao: selecaoTelas, p_valor_negociado: Number(formData.valorMensal) } as never);
+          if (errTelas) throw errTelas;
+        }
       } catch (errSync) {
         console.error('[Wizard] Falha ao sincronizar pontos de prospecção:', errSync);
         toast({ title: 'Atenção', description: 'Cliente salvo, mas houve falha ao vincular os pontos selecionados. Vincule-os novamente no detalhe do cliente.', variant: 'destructive' });
@@ -1350,6 +1379,8 @@ export function IntelligentCommercialWizard() {
           </CardHeader>
           <CardContent className="pt-5 space-y-4">
             <SelecaoPontosParceiros value={pontosSelecionados} onChange={setPontosSelecionados} />
+            <TelasParaVender pontos={pontosSelecionados} nomes={nomesDosPontos} telas={telasDosPontos.data ?? []}
+              carregando={telasDosPontos.isLoading && pontosSelecionados.size > 0} escolha={telasEscolhidas} onChange={setTelasEscolhidas} />
             {selectedCliente?.id && (
               <p className="text-[11px] text-amber-400/90">
                 Cliente existente selecionado: a selecao substituira a lista de prospeccao atual deste cliente.
@@ -1456,6 +1487,14 @@ export function IntelligentCommercialWizard() {
                     onChange={handleNumberChange}
                     className="bg-slate-950/60 border-white/10 text-white rounded-xl h-11"
                   />
+                  {valorCalculadoTelas > 0 && (
+                    <p className="text-[11px] text-slate-400" data-testid="valor-calculado-telas">
+                      Calculado pelas telas escolhidas: <span className="font-semibold text-emerald-400">{brlTelas(valorCalculadoTelas)}</span>.
+                      {Number(formData.valorMensal) !== valorCalculadoTelas
+                        ? <> Valor ajustado manualmente. <button type="button" className="text-primary underline" onClick={() => { setValorEditadoManual(false); setFormData((p) => ({ ...p, valorMensal: valorCalculadoTelas })); }}>Usar o calculado</button></>
+                        : ' Você pode ajustar.'}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs text-slate-200 font-semibold">Periodicidade do Contrato *</Label>

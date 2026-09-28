@@ -34,6 +34,9 @@ export default function PontoParceiroPage() {
     enabled: !!usuario?.cliente_id,
   });
 
+  // F-113: telas deste ponto já vendidas no contrato pelo representante
+  const contratadas = useQuery({ queryKey: ['portal-telas-contratadas', id], queryFn: () => pontosParceirosService.telasContratadas(id), enabled: !!id });
+
   const atualizar = () => {
     qc.invalidateQueries({ queryKey: ['portal-ponto-parceiro', id] });
     qc.invalidateQueries({ queryKey: ['portal-pontos-parceiros'] });
@@ -173,6 +176,7 @@ export default function PontoParceiroPage() {
         enviando={anunciar.isPending}
         onConfirmar={(asset, telas) => anunciar.mutate({ asset, telas })}
         resultado={resultado}
+        contratadas={Array.isArray(contratadas.data) ? contratadas.data : []}
       />
     </div>
   );

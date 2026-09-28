@@ -80,8 +80,10 @@ export interface MidiaDoCliente {
 }
 
 export interface ResultadoAnunciar {
-  status: 'EM_ANALISE' | 'AGUARDANDO_PAGAMENTO';
+  status: 'EM_ANALISE' | 'AGUARDANDO_PAGAMENTO' | 'ATIVO';
   anuncio_id: string;
+  /** F-113: CONTRATO = telas vendidas pelo representante (sem cobrança avulsa). */
+  origem?: 'PORTAL' | 'CONTRATO';
   valor: number;
   telas: number;
   cobranca: { codigo: string; identificador: string; vencimento: string } | null;
@@ -97,6 +99,8 @@ export const pontosParceirosService = {
   listar: () => rpc<PontoParceiroResumo[]>('portal_pontos_parceiros'),
   detalhe: (id: string) => rpc<PontoParceiroDetalhe | null>('portal_ponto_parceiro', { p_ponto: id }),
   anunciar: (ponto: string, asset: string, telas: string[]) => rpc<ResultadoAnunciar>('anunciar_no_ponto', { p_ponto: ponto, p_asset: asset, p_telas: telas }),
+  /** F-113: telas deste ponto já incluídas no contrato do anunciante. */
+  telasContratadas: (ponto: string) => rpc<string[]>('portal_telas_contratadas', { p_ponto: ponto }),
   reativar: (anuncio: string) => rpc<{ status: string }>('reativar_anuncio_no_ponto', { p_anuncio: anuncio }),
   pausar: (anuncio: string) => rpc<{ status: string }>('pausar_anuncio_no_ponto', { p_anuncio: anuncio }),
 

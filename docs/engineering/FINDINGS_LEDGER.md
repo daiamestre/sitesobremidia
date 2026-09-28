@@ -1408,3 +1408,52 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - dados de teste desfeitos: cobrança CANCELADA e anúncio PAUSADO.
   - Testes: `pontosParceirosAnunciar`, `anuncioPontoAnalise`, `telasParceiras`, `paginaCobrancaDatas` (falhava antes da correção) e as regressões de cobrança (50).
 - **Pendente do proprietário:** criar a chave da API da Anthropic para o robô analisar sozinho; até lá, a análise é manual na fila.
+
+### F-111 — Analisador PRÓPRIO de mídia (imagem, vídeo e áudio, sem IA externa); anunciante até 20 s, gestor até 30 s — DONE
+- **Decisão do proprietário:** nada de chave de IA de terceiros; o sistema analisa e aprova sozinho.
+- **Vercel:**
+  - `api/analise-visao` — duração real (ffmpeg), nudez por quadro a cada 2 s (NSFWJS MobileNetV2) e textos da imagem (Tesseract, português);
+  - `api/analise-audio` — fala transcrita em português (Whisper base via transformers.js/onnxruntime);
+  - segredo compartilhado `ANALISE_MIDIA_SEGREDO` (Vercel + Supabase); só baixa de `*.r2.dev` / `*.supabase.co`.
+- **Tamanho das funções (limite de 250 MB):** `vercel-build` roda `scripts/ops/podar-analisadores.mjs`, que remove os binários de Mac, Windows, ARM e GPU (CUDA 343 MB). O ffmpeg é copiado para /tmp com permissão de execução, porque a Vercel não roda o "chmod" do pacote.
+- **Política** (`supabase/functions/_shared/politicaConteudo.ts`):
+  - termos proibidos (sexual, palavrão, discriminação e frases de exclusão como "proibido negros", drogas);
+  - palavras coladas ("por no") e termos ambíguos → revisão;
+  - nudez ≥ 70% recusa; ≥ 35% ou sensual ≥ 75% → revisão;
+  - vídeo > 20 s recusa;
+  - qualquer falha → equipe (nunca aprova sem análise).
+- **`analisar-midia`:** chama os dois analisadores em paralelo, grava `moderacao_detalhes` (fala, textos, notas) e reserva a mídia contra análise dupla. A fila da equipe mostra o relatório.
+- **Migração 20261282:**
+  - limite de 20 s no banco (cliente_assets);
+  - `trg_media_limite_gestor` (gestor: vídeo/áudio > 30 s barrado no envio);
+  - `moderacao_detalhes`.
+- **Prova:**
+  - local: vídeo limpo transcrito; fala "vídeo pornô" transcrita; cartaz racista lido; 25 s medido; fotos de biquíni → revisão;
+  - no ar pelo portal real: `limpo.mp4` → APROVADA sozinha; `audio_proibido.mp4` → revisão com "porno (palavras coladas)"; 25 s barrado no envio;
+  - gestor 45 s barrado e 25 s aceito (simulação desfeita);
+  - testes `politicaConteudo` (9).
+
+### F-112 — Página Telas: 2 cartões (Pontos Parceiros em pastas / Anunciantes), botões organizados — DONE
+- **Botões do topo:** em grade (2 por linha no celular), sem sobreposição. "Telas de parceiros" tem o mesmo estilo de "Nova Tela". "Nova Tela (R$ 22,99)" aparece só para o GESTOR (OWNER/ADMIN não pagam).
+- **Cartões:**
+  - **Telas Pontos Parceiros:** uma pasta por estabelecimento; dentro, cada tela separada (número do nome oficial) abre `/dashboard/screens/:codigo`, onde a grade e as mídias são só daquela tela;
+  - **Telas Anunciantes:** a lista anterior, sem as telas parceiras.
+- **Prova:**
+  - navegador 390 px (dbg.adm): 5 pastas / 8 telas; a Academia abre as 2 telas; tocar abre TEL-2026-000061;
+  - teste `pastasPontosParceiros` (2).
+
+### F-113 — Representante vende telas de pontos parceiros no cadastro do anunciante; valor calculado e editável — DONE
+- **Etapa 3 do assistente:** para cada ponto escolhido, as telas com foto, tamanho e valor (todas marcadas), com subtotal e total.
+- **Etapa 4:** "Valor Mensal" e "Qtd. Telas" vêm preenchidos pelo total; representante, OWNER ou ADMIN podem digitar outro valor ("Valor ajustado manualmente · Usar o calculado").
+- **Migração 20261283:**
+  - `cliente_pontos.telas` e `valor_calculado`;
+  - `fn_registrar_telas_anunciante` (só representante dono do cliente ou papel interno);
+  - `portal_telas_contratadas`;
+  - `ponto_anuncios.origem` (PORTAL/CONTRATO): nas telas do contrato não há cobrança avulsa; vai ao ar com mídia aprovada e contrato em dia (fatura paga e nada com 4+ dias de atraso); pagamento de fatura do contrato ativa; atraso de 4 dias suspende.
+- **Causa raiz achada na homologação:** o gatilho `trg_cp_updated_at` (handle_updated_at) fazia `NEW.version = OLD.version + 1`, mas `cliente_pontos` não tinha a coluna `version`, então TODO UPDATE falhava (inclusive refazer a seleção de pontos de um cliente existente). Corrigido com a coluna, sem mexer no gatilho compartilhado por 8 tabelas.
+- **Segundo defeito pego na simulação:** o tipo do aviso passava de 80 caracteres e travaria a baixa do pagamento. Corrigido antes de publicar.
+- **Portal:** as telas do contrato aparecem "No seu contrato", com total R$ 0 e o botão "Colocar no ar".
+- **Prova:**
+  - simulação desfeita: venda de 1 tela (calculado 149,90, negociado 120); tela de outro ponto barrada; anunciante barrado ao mexer no valor; anúncio CONTRATO sem cobrança; com fatura em atraso fica aguardando (correto); fatura paga e contrato em dia → ATIVO só na Tela 2;
+  - navegador (dbg.adm): Farmácia + Academia = R$ 559,60; ao desmarcar uma tela → 409,70; etapa 4 com o valor preenchido e a edição manual respeitada; cadastro não concluído, para não criar cliente;
+  - testes `telasParaVender` (4) e `pontosParceirosAnunciar` (6).

@@ -21,7 +21,9 @@ const ponto = {
   ],
 };
 let midias: unknown[] = [];
-const rpc = vi.fn(async (fn: string, _args?: unknown) => (fn === 'portal_ponto_parceiro' ? { data: ponto, error: null } : { data: { status: 'OK', telas_no_ponto: 0 }, error: null }));
+let contratadas: string[] = [];
+const rpc = vi.fn(async (fn: string, _args?: unknown) => (fn === 'portal_ponto_parceiro' ? { data: ponto, error: null }
+  : fn === 'portal_telas_contratadas' ? { data: contratadas, error: null } : { data: { status: 'OK', telas_no_ponto: 0 }, error: null }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     rpc: (fn: string, a?: unknown) => rpc(fn, a),
@@ -50,7 +52,7 @@ const abrir = () => render(
 );
 
 describe('Ponto parceiro no portal (F-107)', () => {
-  beforeEach(() => { rpc.mockClear(); midias = []; });
+  beforeEach(() => { rpc.mockClear(); midias = []; contratadas = []; });
 
   it('mostra capa, endereço, mapa e informações', async () => {
     abrir();
@@ -91,6 +93,19 @@ describe('Ponto parceiro no portal (F-107)', () => {
     expect(screen.getByTestId('diretrizes-conteudo')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Reservar e pagar/ }));
     await vi.waitFor(() => expect(rpc).toHaveBeenCalledWith('anunciar_no_ponto', { p_ponto: 'p1', p_asset: 'a1', p_telas: ['t1'] }));
+  });
+
+  it('F-113: telas vendidas no contrato aparecem "No seu contrato", sem custo, e o botão coloca no ar', async () => {
+    midias = [{ id: 'a1', nome: 'Promo', tipo: 'imagem', object_url: 'https://x/promo.jpg', moderacao_status: 'APROVADA', moderacao_motivo: null }];
+    contratadas = ['t2'];
+    abrir();
+    fireEvent.click(await screen.findByTestId('botao-anunciar-aqui'));
+    fireEvent.click(await screen.findByText('Promo'));
+    fireEvent.click(screen.getByRole('button', { name: /Escolher telas/ }));
+    expect(await screen.findByTestId('tela-no-contrato')).toBeInTheDocument();
+    expect(screen.getByTestId('total-anuncio').textContent).toContain('0,00');
+    fireEvent.click(screen.getByRole('button', { name: /Colocar no ar/ }));
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledWith('anunciar_no_ponto', { p_ponto: 'p1', p_asset: 'a1', p_telas: ['t2'] }));
   });
 
   it('banco: só imagem/vídeo; Player recebe anúncios só em tela com ponto_id; mesmo formato de mídia', () => {
