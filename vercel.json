@@ -25,12 +25,12 @@
         "api/analise-visao.js": {
             "maxDuration": 120,
             "includeFiles": "{node_modules/@ffmpeg-installer/linux-x64/**,node_modules/nsfwjs/dist/models/mobilenet_v2/**,node_modules/tesseract.js/src/**,node_modules/tesseract.js-core/**}",
-            "excludeFiles": "{node_modules/nsfwjs/dist/models/inception_v3/**,node_modules/onnxruntime-node/**,node_modules/onnxruntime-web/**,node_modules/@huggingface/**}"
+            "excludeFiles": "{node_modules/nsfwjs/dist/models/inception_v3/**,node_modules/{onnxruntime-node,onnxruntime-web,@huggingface}/**}"
         },
         "api/analise-audio.js": {
             "maxDuration": 120,
             "includeFiles": "{node_modules/@ffmpeg-installer/linux-x64/**,node_modules/onnxruntime-node/bin/napi-v6/linux/x64/**}",
-            "excludeFiles": "{node_modules/onnxruntime-node/bin/napi-v6/darwin/**,node_modules/onnxruntime-node/bin/napi-v6/win32/**,node_modules/onnxruntime-node/bin/napi-v6/linux/arm64/**,node_modules/onnxruntime-web/dist/*.wasm,node_modules/@tensorflow/**,node_modules/nsfwjs/**,node_modules/tesseract.js-core/**}"
+            "excludeFiles": "{node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32,linux/arm64}/**,node_modules/onnxruntime-web/dist/*.wasm,node_modules/{@tensorflow,nsfwjs,tesseract.js-core}/**}"
         }
     }
 }
