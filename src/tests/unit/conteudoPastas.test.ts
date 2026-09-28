@@ -107,3 +107,18 @@ describe('Campeonatos e Apostas Esportivas (sem odds)', () => {
     expect(iniciais('Athletico-PR')).toBe('AP');
   });
 });
+
+describe('Vídeos (Pexels) — F-97', () => {
+  it('escolhe MP4 HD na orientação certa, nunca arquivo gigante', async () => {
+    const { escolherArquivo } = await import('../../../scripts/conteudo/produtores/videos.mjs');
+    const v = { video_files: [
+      { file_type: 'video/mp4', width: 3840, height: 2160, link: 'https://x/4k.mp4' },
+      { file_type: 'video/mp4', width: 1920, height: 1080, link: 'https://x/fhd.mp4' },
+      { file_type: 'video/mp4', width: 1280, height: 720, link: 'https://x/hd.mp4' },
+      { file_type: 'video/mp4', width: 1080, height: 1920, link: 'https://x/vert.mp4' },
+    ] };
+    expect(escolherArquivo(v, 'landscape')!.link).toBe('https://x/fhd.mp4');
+    expect(escolherArquivo(v, 'portrait')!.link).toBe('https://x/vert.mp4');
+    expect(escolherArquivo({ video_files: [{ file_type: 'video/mp4', width: 3840, height: 2160, link: 'https://x/4k.mp4' }] }, 'portrait')).toBeNull();
+  });
+});

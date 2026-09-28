@@ -46,5 +46,6 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           CONTENT_FACTORY_SECRET: ${{ secrets.CONTENT_FACTORY_SECRET }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           SOMENTE: ${{ inputs.somente }}
         run: node robo.mjs

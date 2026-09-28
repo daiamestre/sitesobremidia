@@ -12,6 +12,7 @@ import { produzirNoticias } from './produtores/noticias.mjs';
 import { produzirCampeonatos } from './produtores/campeonatos.mjs';
 import { produzirDatas } from './produtores/datas.mjs';
 import { produzirTextos } from './produtores/textos.mjs';
+import { produzirVideos, PASTAS_VIDEO } from './produtores/videos.mjs';
 
 const env = (k) => { const v = process.env[k]; if (!v) throw new Error(`variável ausente: ${k}`); return v; };
 const PUBLICO = 'https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/';
@@ -19,6 +20,7 @@ const ORIENTACOES = [['h', 1920, 1080, '16x9', 'horizontal'], ['v', 1080, 1920, 
 /** Mudou o desenho? Suba a versão para as telas receberem as artes novas. Loterias mantêm a versão da 1ª publicação. */
 const VERSAO = (conteudo) => (conteudo === 'loterias' || conteudo === 'sorteios' ? 'loterias-v1' : 'conteudo-v1');
 const hojeBrasilia = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
 const seguro = (s) => String(s).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 
 async function main() {
@@ -47,6 +49,19 @@ async function main() {
   await rodar('campeonatos', async () => produzirCampeonatos(await chamar({ dados: 'esportes' })));
   await rodar('datas', async () => produzirDatas(hoje));
   await rodar('textos', async () => produzirTextos());
+  // Vídeos (Pexels): Vídeos Esporte só de vídeo; Turismo, Curiosidades e Humor juntam vídeos às artes. Se a busca de vídeo
+  // falhar, essas pastas mistas não são publicadas nesta rodada (senão os vídeos que já estão nelas sairiam).
+  let videoFalhou = !process.env.PEXELS_API_KEY;
+  if (process.env.PEXELS_API_KEY) {
+    try {
+      const vids = await produzirVideos(process.env.PEXELS_API_KEY);
+      for (const [conteudo, itens] of Object.entries(vids)) {
+        if (conteudo === 'videos-esporte') pastas[conteudo] = itens;
+        else if (pastas[conteudo]) pastas[conteudo] = [...pastas[conteudo], ...itens];
+      }
+      console.log('[videos] ok');
+    } catch (e) { videoFalhou = true; console.log(`[videos] FALHOU: ${e.message} — pastas de vídeo ficam como estão`); }
+  }
 
   // ---- 2. desenho + envio + publicação
   const navegador = await chromium.launch();
@@ -63,13 +78,33 @@ async function main() {
   const resumo = {};
   for (const [conteudo, itens] of Object.entries(pastas)) {
     if (somente.length && !somente.includes(conteudo)) continue;
+    if (videoFalhou && PASTAS_VIDEO[conteudo]) { console.log(`${conteudo}: vídeos indisponíveis — pasta mantida`); continue; }
     if (!itens.length) { console.log(`${conteudo}: nada novo para publicar — pasta mantida`); continue; }
     let estado = {};
     try { estado = await chamar({ dados: 'estado', conteudo }); } catch (e) { console.log(`${conteudo}: estado indisponível (${e.message})`); }
     const lista = []; let desenhadas = 0; let reaproveitadas = 0; let falhas = 0;
     for (const it of itens) {
       for (const [o, w, h, aspecto, nomeO] of ORIENTACOES) {
+        if (it.orientacoes && !it.orientacoes.includes(o)) continue;
         const chave = `${it.chave}:${o}`;
+        if (it.tipo === 'video') {
+          // vídeo: identidade = id + arquivo do Pexels; não mudou -> nada é baixado de novo
+          const hashV = crypto.createHash('md5').update(`video|${it.video.id}|${it.video.link}`).digest('hex');
+          const baseV = { chave, nome: `${it.nome} (${nomeO})`, descricao: it.descricao ?? null, tipo: 'video', aspecto, mime: 'video/mp4',
+            hash: hashV, duracao_ms: it.video.duracaoMs, thumb: it.video.thumb };
+          const atualV = estado[chave];
+          if (atualV?.hash === hashV && atualV.url && atualV.path) { lista.push({ ...baseV, url: atualV.url, path: atualV.path, bytes: 0 }); reaproveitadas++; continue; }
+          try {
+            const resp = await fetch(it.video.link, { signal: AbortSignal.timeout(120000) });
+            const buf = resp.ok ? Buffer.from(await resp.arrayBuffer()) : null;
+            if (!buf || buf.length > MAX_VIDEO_BYTES || buf.length < 50000) { falhas++; continue; }
+            const pathV = `conteudo/${conteudo}/${seguro(it.chave)}-${o}-${hashV.slice(0, 10)}.mp4`;
+            await s3.send(new PutObjectCommand({ Bucket: bucket, Key: pathV, Body: buf, ContentType: 'video/mp4', CacheControl: 'public, max-age=31536000, immutable' }));
+            lista.push({ ...baseV, url: PUBLICO + pathV, path: pathV, bytes: buf.length });
+            desenhadas++;
+          } catch { falhas++; }
+          continue;
+        }
         const html = it.html(w, h);
         const hash = crypto.createHash('md5').update(`${VERSAO(conteudo)}|${w}x${h}|${html}`).digest('hex');
         const base = { chave, nome: `${it.nome} (${nomeO})`, descricao: it.descricao ?? null, tipo: 'image', aspecto, mime: 'image/jpeg', hash };
