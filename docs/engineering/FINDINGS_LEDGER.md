@@ -1195,3 +1195,25 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - isolamento por cliente na simulação desfeita; `comparar-telas`: telas idênticas;
   - 55 testes do portal/Central do Dia passaram;
   - navegador 800x1280 com `usuario1anunciante@sobremidia.com.br`: cabeçalho, menu à esquerda com Sair no fim, Perfil no rodapé, Contratos e Faturas com contrato CTR-8001 e histórico.
+
+### F-102 — Central do Anunciante só com avisos + suporte com triagem (OWNER/ADMIN atendem) — DONE
+- **Antes:** o anunciante usava a mesma Central da equipe interna (Receita Faturada, Inteligência, Solicitações, chat livre e criação de grupo). O `portal_chamados` legado (vazio) tem leitura para o tenant inteiro e não foi usado.
+- **Regra do proprietário:**
+  - o anunciante só recebe avisos (faturas a pagar/atrasadas, ativação de mídia) e fala só com o suporte;
+  - ao abrir, escolhe o motivo (triagem);
+  - a mensagem chega ao OWNER e a todos os ADMIN;
+  - só eles respondem e encerram como resolvido;
+  - depois de resolvido, abre-se um novo suporte;
+  - o gestor de mídias mantém grupos e usa o mesmo suporte.
+- **Migração 20261270 (aditiva):**
+  - tabelas `suporte_chamados` e `suporte_mensagens`, com RLS só de leitura (quem abriu vê os seus; OWNER/ADMIN do tenant veem todos);
+  - escrita só pelas RPCs `suporte_abrir_chamado` (motivo obrigatório, um aberto por usuário), `suporte_enviar_mensagem` e `suporte_resolver` (só OWNER/ADMIN);
+  - avisos em `notificacoes_central` (tipo `SUPORTE`).
+- **Telas:**
+  - `/portal/central` → `CentralAnunciantePage`, com abas Avisos e Suporte;
+  - Central da equipe ganhou a aba "Suporte": OWNER/ADMIN veem a fila de atendimento; os outros perfis (ex.: GESTOR) veem "Falar com o suporte";
+  - `?aba=suporte` abre direto nessa aba.
+- **Prova:**
+  - simulação desfeita: anunciante abre; abrir de novo devolve o mesmo; outro anunciante e dono de outro tenant veem 0; os 3 atendentes do tenant recebem o aviso; admin responde e encerra; anunciante vê RESOLVIDO;
+  - `suporteTriagem.test.tsx` (4 testes) + regressão/isolamento do portal (100 testes);
+  - navegador: Central do anunciante e formulário de triagem (sem enviar, para não avisar o dono real); fila do admin `dbg.adm` sem erro.

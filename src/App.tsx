@@ -152,6 +152,7 @@ const OcupacaoRedePage = lazyWithRetry(() => import("./modules/crm/pages/portal/
 const ProdutosPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ProdutosPage"));
 const OfertasPage = lazyWithRetry(() => import("./modules/crm/pages/portal/OfertasPage"));
 const OnboardingPage = lazyWithRetry(() => import("./modules/crm/pages/portal/OnboardingPage"));
+const CentralAnunciantePage = lazyWithRetry(() => import("./modules/crm/pages/portal/CentralAnunciantePage"));
 const ExpansaoPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ExpansaoPage"));
 const BrandKitPage = lazyWithRetry(() => import("./modules/crm/pages/portal/BrandKitPage"));
 const AssetLibraryPage = lazyWithRetry(() => import("./modules/crm/pages/portal/AssetLibraryPage"));
@@ -318,7 +319,7 @@ const App = () => {
                     <Route path="encarte" element={<EncartePage />} />
                     <Route path="biblioteca-ia" element={<BibliotecaIA />} />
                     <Route path="onboarding" element={<OnboardingPage />} />
-                    <Route path="central" element={<CentralDashboard />} />
+                    <Route path="central" element={<CentralAnunciantePage />} />
                     <Route path="playlists" element={<PlaylistsClientePage />} />
                     <Route path="equipe" element={<MinhaEquipePage />} />
                     <Route path="perfil" element={<MeuPerfilAnunciantePage />} />

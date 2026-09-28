@@ -105,7 +105,7 @@ export default function CustomerPortalLayout() {
       label: 'Conta',
       items: [
         { name: 'Meu Perfil',    path: '/portal/perfil',         icon: Briefcase },
-        { name: 'Suporte',       path: '/portal/central',        icon: LifeBuoy },
+        { name: 'Suporte',       path: '/portal/central?aba=suporte', icon: LifeBuoy },
         { name: 'Configurações', path: '/portal/configuracoes',  icon: Settings },
       ],
     },

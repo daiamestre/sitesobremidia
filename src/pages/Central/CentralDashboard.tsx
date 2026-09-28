@@ -62,6 +62,9 @@ import {
   Mail,
   KeyRound,
 } from 'lucide-react';
+import { Headphones } from 'lucide-react';
+import { SuporteAtendimento } from '@/components/suporte/SuporteAtendimento';
+import { SuporteCliente } from '@/components/suporte/SuporteCliente';
 import { formatCurrency, formatDateTime } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -157,9 +160,13 @@ export const CentralDashboard = () => {
     isCriandoConversa,
   } = useCentral();
 
-  const [activeTab, setActiveTab] = useState<'inbox' | 'solicitacoes' | 'chat' | 'feed' | 'inteligencia'>('inbox');
-  const [portalNegado, setPortalNegado] = useState<{portal:'ANUNCIANTES'|'REPRESENTANTES'|'GESTOR'|'CORPORATIVO';meuPortal:string}|null>(null);
   const [searchParams] = useSearchParams();
+  // F-102: ?aba=suporte abre direto o suporte (links dos avisos de suporte)
+  const [activeTab, setActiveTab] = useState<'inbox' | 'solicitacoes' | 'chat' | 'feed' | 'inteligencia' | 'suporte'>(
+    searchParams.get('aba') === 'suporte' ? 'suporte' : 'inbox');
+  const [portalNegado, setPortalNegado] = useState<{portal:'ANUNCIANTES'|'REPRESENTANTES'|'GESTOR'|'CORPORATIVO';meuPortal:string}|null>(null);
+  // Suporte: OWNER/ADMIN atendem; os demais perfis (ex.: Gestor de Mídias) abrem suporte
+  const atendeSuporte = perfilNome === 'OWNER' || perfilNome === 'ADMIN' || usuario?.is_owner === true;
   // Deep link canônico gerado pelo trigger de autorização (20261025):
   // /workspace/central?solicitacao=<id> destaca o card correspondente.
   const solicitacaoDeepLink = searchParams.get('solicitacao');
@@ -550,7 +557,7 @@ export const CentralDashboard = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
           <TabsTrigger value="inbox">
             <Inbox className="h-4 w-4 mr-2" />
             Caixa de Entrada
@@ -581,7 +588,15 @@ export const CentralDashboard = () => {
             <BarChart3 className="h-4 w-4 mr-2" />
             Inteligência
           </TabsTrigger>
+          <TabsTrigger value="suporte">
+            <Headphones className="h-4 w-4 mr-2" />
+            Suporte
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="suporte" className="mt-4">
+          {atendeSuporte ? <SuporteAtendimento /> : <SuporteCliente />}
+        </TabsContent>
 
         <TabsContent value="inbox" className="mt-4">
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
