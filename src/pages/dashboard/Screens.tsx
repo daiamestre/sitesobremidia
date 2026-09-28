@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Plus, Search, Monitor, MoreVertical, Pencil, Trash2,
-  MapPin, Loader2, Wifi, WifiOff, Play, Calendar, ExternalLink, Copy, RefreshCw, Camera, MonitorSmartphone, Unlink, Store
+  MapPin, Loader2, Wifi, WifiOff, Play, Calendar, ExternalLink, Copy, RefreshCw, Camera, MonitorSmartphone, Unlink, Store,
+  ArrowLeft, ChevronRight, Folder, Megaphone
 } from 'lucide-react';
+import { PastasPontosParceiros, telaOnline, useTelasDosPontos } from '@/components/screens/PastasPontosParceiros';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,11 +41,24 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingState } from '@/components/ui/loading-state';
 import { Skeleton } from '@/components/ui/skeleton';
 
+/** Botões do topo: ocupam a célula inteira no celular e quebram o texto em vez de sobrepor. */
+const BOTAO = 'w-full sm:w-auto h-auto min-h-10 whitespace-normal py-2 leading-tight';
+
 export default function Screens() {
   const { user, isOwner, perfilNome } = useAuth();
   const podeTelasParceiras = isOwner || perfilNome === 'OWNER' || perfilNome === 'ADMIN';
+  // F-112: só o gestor de mídia paga para criar tela; OWNER/ADMIN não veem o botão com valor
+  const ehGestor = !isOwner && perfilNome === 'GESTOR';
   const { screens, loading, fetchScreens, deleteScreen, sendCommand, unpairScreen, isUnpairing } = useScreens(user?.id);
   const navigate = useNavigate();
+  // F-112: dois cartões — Telas Pontos Parceiros (pastas por estabelecimento) e Telas Anunciantes
+  const [params, setParams] = useSearchParams();
+  const secao = params.get('secao') === 'parceiros' || params.get('secao') === 'anunciantes' ? params.get('secao') : null;
+  const pontoAberto = params.get('ponto');
+  const irPara = (novo: Record<string, string>) => setParams(novo);
+  const telasDosPontos = useTelasDosPontos();
+  const telasParceiras = telasDosPontos.data ?? [];
+  const pontosComTelas = new Set(telasParceiras.map((t) => t.ponto_id)).size;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [telaPagaOpen, setTelaPagaOpen] = useState(false);
@@ -127,29 +142,32 @@ export default function Screens() {
     setScheduleScreen(screen);
   };
 
-  const filteredScreens = screens.filter(s =>
+  // Telas dos anunciantes = todas as telas do usuário menos as de pontos parceiros (essas ficam nas pastas)
+  const telasAnunciantes = screens.filter(s => (s as { tipo_tela?: string }).tipo_tela !== 'PARCEIRA');
+  const filteredScreens = telasAnunciantes.filter(s =>
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.location?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const activeCount = screens.filter(s => s.is_active).length;
-  const onlineCount = screens.filter(s => isScreenOnline(s)).length;
+  const activeCount = telasAnunciantes.filter(s => s.is_active).length;
+  const onlineCount = telasAnunciantes.filter(s => isScreenOnline(s)).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-3xl font-display font-bold">Telas</h1>
           <p className="text-muted-foreground">Gerencie seus dispositivos e players</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10" onClick={() => setPairingDialogOpen(true)}>
-            <MonitorSmartphone className="h-4 w-4 mr-2" />
+        {/* F-112: botões em grade (2 por linha no celular), nunca um por cima do outro */}
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end" data-testid="botoes-telas">
+          <Button variant="outline" className={`${BOTAO} border-primary/50 text-primary hover:bg-primary/10`} onClick={() => setPairingDialogOpen(true)}>
+            <MonitorSmartphone className="h-4 w-4 mr-2 flex-shrink-0" />
             Vincular TV
           </Button>
           {selectedIds.size > 0 && hasSelectedWithDevice && (
-            <Button variant="destructive" onClick={() => {
+            <Button variant="destructive" className={BOTAO} onClick={() => {
               const firstWithDevice = [...selectedIds].find(id => {
                 const s = screens.find(sc => sc.id === id);
                 return s?.bound_device_id;
@@ -162,21 +180,66 @@ export default function Screens() {
             </Button>
           )}
           {podeTelasParceiras && (
-            <Button variant="outline" className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10" onClick={() => navigate('/dashboard/telas-parceiras')}>
-              <Store className="h-4 w-4 mr-2" />
-              Telas de pontos parceiros
+            <Button className={`${BOTAO} gradient-primary`} onClick={() => navigate('/dashboard/telas-parceiras')}>
+              <Store className="h-4 w-4 mr-2 flex-shrink-0" />
+              Telas de parceiros
             </Button>
           )}
-          <Button variant="outline" className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10" onClick={() => setTelaPagaOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Tela (R$ 22,99)
-          </Button>
-          <Button className="gradient-primary" onClick={() => { setSelectedScreen(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
+          {ehGestor && (
+            <Button variant="outline" className={`${BOTAO} border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10`} onClick={() => setTelaPagaOpen(true)}>
+              <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
+              Nova Tela (R$ 22,99)
+            </Button>
+          )}
+          <Button className={`${BOTAO} gradient-primary`} onClick={() => { setSelectedScreen(null); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
             Nova Tela
           </Button>
         </div>
       </div>
+
+      {/* F-112: os dois cartões (sempre visíveis; o escolhido fica destacado) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="cartoes-telas">
+        <button type="button" data-testid="cartao-telas-parceiros" onClick={() => irPara({ secao: 'parceiros' })}
+          className={`rounded-2xl border p-5 text-left transition-all hover:shadow-lg ${secao === 'parceiros' ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-card/60 hover:border-primary/50'}`}>
+          <div className="flex items-center gap-4">
+            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-sky-500/15"><Folder className="h-6 w-6 text-sky-400" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-lg font-bold leading-tight">Telas Pontos Parceiros</p>
+              <p className="text-sm text-muted-foreground">
+                {telasDosPontos.isLoading ? 'Carregando…' : `${pontosComTelas} estabelecimento${pontosComTelas === 1 ? '' : 's'} · ${telasParceiras.length} tela${telasParceiras.length === 1 ? '' : 's'} · ${telasParceiras.filter(telaOnline).length} online`}
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+          </div>
+        </button>
+        <button type="button" data-testid="cartao-telas-anunciantes" onClick={() => irPara({ secao: 'anunciantes' })}
+          className={`rounded-2xl border p-5 text-left transition-all hover:shadow-lg ${secao === 'anunciantes' ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-card/60 hover:border-primary/50'}`}>
+          <div className="flex items-center gap-4">
+            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-primary/15"><Megaphone className="h-6 w-6 text-primary" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-lg font-bold leading-tight">Telas Anunciantes</p>
+              <p className="text-sm text-muted-foreground">
+                {loading ? 'Carregando…' : `${telasAnunciantes.length} tela${telasAnunciantes.length === 1 ? '' : 's'} · ${onlineCount} online`}
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+          </div>
+        </button>
+      </div>
+
+      {secao === 'parceiros' && (
+        <PastasPontosParceiros
+          pontoId={pontoAberto}
+          onAbrirPonto={(id) => irPara({ secao: 'parceiros', ponto: id })}
+          onVoltar={() => irPara({ secao: 'parceiros' })}
+        />
+      )}
+
+      {secao === 'anunciantes' && (<>
+      <button type="button" onClick={() => irPara({})} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Voltar aos cartões
+      </button>
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -407,6 +470,7 @@ export default function Screens() {
           })}
         </div>
       )}
+      </>)}
 
       {/* Dialogs */}
       <CriarTelaPagaDialog open={telaPagaOpen} onOpenChange={setTelaPagaOpen} />
