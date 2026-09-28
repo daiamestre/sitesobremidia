@@ -54,7 +54,12 @@ export function semanaDoAno(d = new Date()) {
   return t.getUTCFullYear() * 100 + Math.ceil(((t - ini) / 86400e3 + 1) / 7);
 }
 
-/** `n` itens do banco para esta semana (rodízio: todas as semanas avançam `n` posições, dando a volta). */
+/** Período de 3 dias (Brasília) — a troca do conteúdo próprio acontece a cada 3 dias (F-96). */
+export function periodoDe3Dias(agoraMs = Date.now()) {
+  return Math.floor((agoraMs - 3 * 3600e3) / 86400e3 / 3);
+}
+
+/** `n` itens do banco para este período (rodízio: todas as semanas avançam `n` posições, dando a volta). */
 export function daSemana(banco, n, semana = semanaDoAno()) {
   if (!banco.length) return [];
   const ini = (semana * n) % banco.length;

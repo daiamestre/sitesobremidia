@@ -1,8 +1,10 @@
 /**
  * Bancos de conteúdo PRÓPRIO SOBRE MÍDIA (F-95) — decisão do proprietário: Memes/Humor sem imagens de terceiros.
  * Textos curtos, para toda a família, próprios para comércio. Curiosidades: só fatos amplamente documentados.
- * Cada semana entra um trecho diferente de cada banco (rodízio em arte-base.mjs `daSemana`).
+ * A cada 3 dias entra um trecho diferente de cada banco (rodízio em arte-base.mjs `daSemana`/`periodoDe3Dias`).
+ * Ampliação em bancos-ampliacao.mjs (F-96).
  */
+import { MAIS_CHARADAS, MAIS_PIADAS, MAIS_MEMES, MAIS_CURIOSIDADES, MAIS_NOSTALGIA } from './bancos-ampliacao.mjs';
 export const CHARADAS = [
   ['Quanto mais se tira, maior fica?', 'O buraco'],
   ['Tem dentes, mas não morde?', 'O pente'],
@@ -165,3 +167,10 @@ export const NOSTALGIA = [
   ['Brincar na rua até escurecer', 'Pique-esconde, amarelinha e pega-pega.'],
   ['Novela com a família reunida', 'Todo mundo na sala, na mesma hora.'],
 ];
+
+// Ampliação F-96
+CHARADAS.push(...MAIS_CHARADAS);
+PIADAS.push(...MAIS_PIADAS);
+MEMES.push(...MAIS_MEMES);
+CURIOSIDADES.push(...MAIS_CURIOSIDADES);
+NOSTALGIA.push(...MAIS_NOSTALGIA);
