@@ -9,6 +9,9 @@ const apagar = [
   'node_modules/onnxruntime-node/bin/napi-v3/darwin',
   'node_modules/onnxruntime-node/bin/napi-v3/win32',
   'node_modules/onnxruntime-node/bin/napi-v3/linux/arm64',
+  // GPU (CUDA/TensorRT): a Vercel não tem placa de vídeo; o analisador usa só a CPU
+  'node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_cuda.so',
+  'node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_tensorrt.so',
   'node_modules/onnxruntime-web/dist',
   'node_modules/@img/sharp-libvips-linuxmusl-x64',
   'node_modules/@img/sharp-linuxmusl-x64',
