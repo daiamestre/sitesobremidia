@@ -80,7 +80,7 @@ export default function CustomerPortalLayout() {
       somente: ['ANUNCIANTE', 'HIBRIDO'],
       items: [
         { name: 'Meus Pontos',          path: '/portal/pontos',    icon: MapPin },
-        { name: 'Pontos para Anunciar', path: '/portal/expansao',  icon: TrendingUp },
+        { name: 'Pontos para Anunciar', path: '/portal/pontos-parceiros', icon: TrendingUp },
       ],
     },
     {
@@ -142,6 +142,8 @@ export default function CustomerPortalLayout() {
       paths.add('/portal/playlists');
       paths.add('/portal/pontos');
       paths.add('/portal/expansao');
+      paths.add('/portal/pontos-parceiros');
+      paths.add('/portal/criar-midia');
       paths.add('/portal/financeiro');
       paths.add('/portal/central');
       paths.add('/portal/perfil');

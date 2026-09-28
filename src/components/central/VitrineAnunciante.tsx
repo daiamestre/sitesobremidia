@@ -116,7 +116,7 @@ export function VitrineAnunciante() {
             ) : (
               <div className="space-y-3">
                 <EmptyLine>Seu anúncio ainda não está em nenhum ponto parceiro.</EmptyLine>
-                <Link to="/portal/expansao"
+                <Link to="/portal/pontos-parceiros"
                   className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
                   <TrendingUp className="h-4 w-4" /> Anunciar em pontos parceiros
                 </Link>

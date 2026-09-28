@@ -334,7 +334,7 @@ export default function CustomerPortalDashboard() {
     { label: 'Criar Campanha', icon: Plus, path: '/portal/nova-campanha', primary: true },
     { label: 'Minhas Mídias', icon: Library, path: '/portal/assets' },
     { label: 'Criar Playlist', icon: ListVideo, path: '/portal/playlists' },
-    { label: 'Pontos para Anunciar', icon: TrendingUp, path: '/portal/expansao' },
+    { label: 'Pontos para Anunciar', icon: TrendingUp, path: '/portal/pontos-parceiros' },
   ];
 
   return (

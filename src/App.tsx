@@ -153,6 +153,9 @@ const ProdutosPage = lazyWithRetry(() => import("./modules/crm/pages/portal/Prod
 const OfertasPage = lazyWithRetry(() => import("./modules/crm/pages/portal/OfertasPage"));
 const OnboardingPage = lazyWithRetry(() => import("./modules/crm/pages/portal/OnboardingPage"));
 const CentralAnunciantePage = lazyWithRetry(() => import("./modules/crm/pages/portal/CentralAnunciantePage"));
+const PortalPontosParceirosPage = lazyWithRetry(() => import("./modules/crm/pages/portal/PontosParceirosPage"));
+const PontoParceiroPage = lazyWithRetry(() => import("./modules/crm/pages/portal/PontoParceiroPage"));
+const CriarMidiaPage = lazyWithRetry(() => import("./modules/crm/pages/portal/CriarMidiaPage"));
 const ExpansaoPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ExpansaoPage"));
 const BrandKitPage = lazyWithRetry(() => import("./modules/crm/pages/portal/BrandKitPage"));
 const AssetLibraryPage = lazyWithRetry(() => import("./modules/crm/pages/portal/AssetLibraryPage"));
@@ -321,6 +324,9 @@ const App = () => {
                     <Route path="biblioteca-ia" element={<BibliotecaIA />} />
                     <Route path="onboarding" element={<OnboardingPage />} />
                     <Route path="central" element={<CentralAnunciantePage />} />
+                    <Route path="pontos-parceiros" element={<PortalPontosParceirosPage />} />
+                    <Route path="pontos-parceiros/:id" element={<PontoParceiroPage />} />
+                    <Route path="criar-midia" element={<CriarMidiaPage />} />
                     <Route path="playlists" element={<PlaylistsClientePage />} />
                     <Route path="equipe" element={<MinhaEquipePage />} />
                     <Route path="perfil" element={<MeuPerfilAnunciantePage />} />

@@ -109,7 +109,7 @@ export default function MeusPontosPage() {
           <Button variant="outline" size="sm" onClick={() => setViewMode('table')} className={viewMode === 'table' ? 'bg-primary/20 text-primary border-primary/30' : ''}>
             <div className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> Tabela</div>
           </Button>
-          <Button className="bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-2" onClick={() => navigate('/portal/expansao')}>
+          <Button className="bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-2" onClick={() => navigate('/portal/pontos-parceiros')}>
             <PlusCircle className="h-4 w-4" /> + Solicitar Expansão
           </Button>
         </div>

@@ -1305,3 +1305,30 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - simulação desfeita (aviso de atraso gerado, `lida_em` gravado, "Sua mídia foi pausada");
   - 123 testes;
   - navegador: o contador do anunciante zerou depois de abrir a Central (`lida_em` gravado no banco); cards lado a lado; painel do administrador mostrando "Hotel Maxsuel — Ainda não viu".
+
+### F-107 — Pontos parceiros de Caruaru no portal + "Anunciar aqui" direto para o Player — DONE
+- **Limpeza (pedido do proprietário):** Hotel Maxsuel ficou só com a fatura paga REC-2026-834997.
+  - REC-2026-338368 (duplicada) e COB-2026-001329/-001330 (recorrência do contrato CTR-2026-10013) foram CANCELADAS, com `public_enabled=false`, nota e auditoria, em vez de apagadas: apagar faria a recorrência recriar outubro e novembro no dia seguinte (índice único contrato+competência).
+  - `gerar_cobrancas_recorrentes` rodado em seguida: 0 geradas.
+- **Migração 20261276 (aditiva):**
+  - `pontos` + latitude, longitude, horario_funcionamento e publico_estimado_dia;
+  - tabela `ponto_anuncios` (RLS de leitura: o cliente vê os seus, a equipe interna vê todos);
+  - RPCs `portal_pontos_parceiros`, `portal_ponto_parceiro`, `anunciar_no_ponto` (só imagem ou vídeo do próprio cliente; espelho em `media` como em `publicar_playlist_cliente`) e `pausar_anuncio_no_ponto`;
+  - `get_player_playlist_for_screen`: tela com `ponto_id` recebe os anúncios ATIVOS do ponto ao final, no mesmo formato de mídia;
+  - vitrine: o ponto com anúncio entra em "Onde seu anúncio passa".
+  - Definições anteriores guardadas em `docs/engineering/evidence/F-107/`.
+- **Dados:** 5 pontos na empresa real (7d62…): Farmácia Capital do Agreste, Academia Forró Fit, Padaria Pátio do Forró, Mercadinho Feira de Caruaru e Clínica Saúde do Agreste.
+  - Nomes inspirados em Caruaru, não de empresas reais, para não apresentar empresas sem vínculo como parceiras a anunciantes reais.
+  - Ruas e bairros de Caruaru com coordenadas aproximadas; capas do Pexels hospedadas no R2 com crédito; horário, público por dia e valor.
+- **Portal:**
+  - `/portal/pontos-parceiros` (cards com capa) e `/portal/pontos-parceiros/:id` (capa, endereço, mapa OpenStreetMap, link para o Google Maps, informações e "Anunciar aqui");
+  - sem mídia: "Você ainda não tem mídias para anúncios criadas" + "Crie sua primeira mídia" → `/portal/criar-midia` (em construção: por enquanto "Enviar mídia pronta");
+  - o menu "Pontos para Anunciar" e os atalhos passam a apontar para os pontos parceiros.
+- **Painel:** o campo "Ponto parceiro desta tela" na página da tela.
+- **Prova:**
+  - simulação desfeita: ponto + mídia + tela ligada → `anunciar_no_ponto` OK → o Player da tela recebe o anúncio no fim da playlist (posição 100001);
+  - `comparar-telas`: as 5 telas atuais idênticas;
+  - navegador 800x1280 com o anunciante de teste: 5 cards com capa, ficha com mapa, aviso sem mídia e botão para `/portal/criar-midia`;
+  - 111 testes (4 novos).
+- **Para tocar de verdade:** ligar uma tela a um ponto (campo "Ponto parceiro desta tela") e o anunciante ter uma imagem ou vídeo em Minhas Mídias.
+- **Ainda sem cobrança:** o valor do ponto aparece, mas "Anunciar aqui" ainda não gera fatura.

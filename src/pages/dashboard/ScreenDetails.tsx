@@ -1312,6 +1312,7 @@ return (
                                     <ClienteDaTela
                                         screenId={resolvedId}
                                         clienteId={(screen as any).cliente_id ?? null}
+                                        pontoId={(screen as any).ponto_id ?? null}
                                         bloqueadaPorAtraso={(screen as any).bloqueada_por_inadimplencia === true}
                                         onAlterado={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
                                     />
