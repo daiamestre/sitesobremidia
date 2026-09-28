@@ -42,6 +42,9 @@ export default function PontosParceirosPage() {
                   <span className="flex items-center gap-1 text-slate-400"><Monitor className="h-3.5 w-3.5" /> {p.quantidade_telas ?? p.telas_conectadas} {(p.quantidade_telas ?? 0) === 1 ? 'tela' : 'telas'}</span>
                   <span className="font-semibold text-slate-200">{brl(p.valor_anuncio)}<span className="font-normal text-slate-500">/mês</span></span>
                 </div>
+                <span className="mt-2 flex w-full items-center justify-center rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground group-hover:bg-primary/90">
+                  Ver ponto para anunciar
+                </span>
               </div>
             </Link>
           ))}

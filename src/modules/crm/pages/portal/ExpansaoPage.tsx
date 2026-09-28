@@ -479,7 +479,17 @@ export default function ExpansaoPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filtrados.map((p) => (
-                  <Card key={p.ponto_id} className="border-white/10 bg-slate-900/80 overflow-hidden hover:border-primary/30 transition-all">
+                  // F-108: o card inteiro (capa, nome, botão) abre a ficha completa do ponto parceiro
+                  <Card
+                    key={p.ponto_id}
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`Ver ponto ${p.nome}`}
+                    onClick={() => navigate(`/portal/pontos-parceiros/${p.ponto_id}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/portal/pontos-parceiros/${p.ponto_id}`); } }}
+                    className="border-white/10 bg-slate-900/80 overflow-hidden hover:border-primary/50 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    data-testid="card-ponto-expansao"
+                  >
                     <div className="h-36 bg-gradient-to-br from-slate-800 to-slate-900 relative">
                       {p.foto_url ? (
                         <img src={p.foto_url} alt={p.nome} className="w-full h-full object-cover" />
@@ -511,20 +521,9 @@ export default function ExpansaoPage() {
                         </div>
                         <Button
                           size="sm"
-                          onClick={() => {
-                            setPontoTargetComercial({
-                              ponto_id: p.ponto_id,
-                              nome: p.nome,
-                              categoria: p.categoria,
-                              cidade: p.cidade,
-                              estado: p.estado,
-                              bairro: p.bairro,
-                              foto_url: p.foto_url,
-                            });
-                            setDialogSelecaoComercial(true);
-                          }}
+                          onClick={(e) => { e.stopPropagation(); navigate(`/portal/pontos-parceiros/${p.ponto_id}`); }}
                         >
-                          Anunciar neste ponto
+                          Ver ponto para anunciar
                         </Button>
                       </div>
                     </CardContent>

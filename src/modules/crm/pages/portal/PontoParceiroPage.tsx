@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { brl, enderecoCompleto, pontosParceirosService, type MidiaDoCliente } from './pontosParceiros';
+import { GaleriaDoPonto } from './GaleriaDoPonto';
 
 /**
  * F-107 — Ficha do ponto parceiro: capa, endereço, localização, informações e "Anunciar aqui".
@@ -102,6 +103,9 @@ export default function PontoParceiroPage() {
         {credito && <span className="absolute right-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white/70">{credito}</span>}
       </div>
 
+      {/* F-108: fotos dos locais onde as telas estão */}
+      <GaleriaDoPonto fotos={(p.galeria ?? []).filter((f) => f?.url)} nome={p.nome} />
+
       {/* Seus anúncios aqui */}
       {p.meus_anuncios.length > 0 && (
         <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4" data-testid="meus-anuncios-no-ponto">
@@ -145,6 +149,22 @@ export default function PontoParceiroPage() {
             <Info icone={Users} rotulo="Público por dia" valor={p.publico_estimado_dia ? `~${p.publico_estimado_dia.toLocaleString('pt-BR')} pessoas` : '—'} />
             <Info icone={Megaphone} rotulo="Valor do anúncio" valor={`${brl(p.valor_anuncio)} / ${String(p.periodicidade || 'MENSAL').toLowerCase()}`} />
           </div>
+          {!!p.onde_ficam_as_telas?.length && (
+            <div className="space-y-2" data-testid="onde-ficam-as-telas">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Onde as telas estão</p>
+              <ul className="space-y-2">
+                {p.onde_ficam_as_telas.map((t, i) => (
+                  <li key={t.local + i} className="flex gap-3 rounded-xl border border-white/10 bg-slate-950/50 p-3">
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary"><Monitor className="h-4 w-4" /></span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-white">Tela {i + 1} · {t.local}</span>
+                      {t.detalhe && <span className="block text-xs text-slate-400">{t.detalhe}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {p.horario_funcionamento && (
             <p className="flex items-start gap-2 text-sm text-slate-300"><Clock className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" /> {p.horario_funcionamento}</p>
           )}

@@ -8,7 +8,9 @@ import path from 'node:path';
 // F-107 — ficha do ponto parceiro, "Anunciar aqui" e "Crie sua primeira mídia".
 const ponto = {
   id: 'p1', nome: 'Farmácia Capital do Agreste', categoria: 'Farmácia', descricao: 'Farmácia no Centro.',
-  foto_url: 'https://x/capa.jpg', galeria: [{ url: 'https://x/capa.jpg', credito: 'Foto: X / Pexels' }],
+  foto_url: 'https://x/capa.jpg',
+  galeria: [{ url: 'https://x/capa.jpg', legenda: 'Fachada', credito: 'Foto: X / Pexels' }, { url: 'https://x/balcao.jpg', legenda: 'Balcão de atendimento', credito: 'Foto: Y / Pexels' }],
+  onde_ficam_as_telas: [{ local: 'Balcão de atendimento', detalhe: 'Tela de 43 polegadas.' }],
   cep: '55002-000', logradouro: 'Rua Duque de Caxias', numero: '412', complemento: null, bairro: 'Centro', cidade: 'Caruaru', estado: 'PE',
   latitude: -8.28307, longitude: -35.97571, horario_funcionamento: 'Seg a sáb, 7h às 22h', publico_estimado_dia: 900,
   valor_anuncio: 149.9, periodicidade: 'MENSAL', quantidade_telas: 2, regras_comerciais: null,
@@ -52,6 +54,13 @@ describe('Ponto parceiro no portal (F-107)', () => {
     expect(screen.getByTitle(/Mapa de Farmácia Capital do Agreste/)).toHaveAttribute('src', expect.stringContaining('openstreetmap.org'));
     expect(screen.getByText(/~900 pessoas/)).toBeInTheDocument();
     expect(screen.getByText(/Foto: X \/ Pexels/)).toBeInTheDocument();
+  });
+
+  it('F-108: galeria dos locais e onde ficam as telas', async () => {
+    abrir();
+    const g = await screen.findByTestId('galeria-do-ponto');
+    expect(g.querySelectorAll('img')).toHaveLength(2);
+    expect(screen.getByTestId('onde-ficam-as-telas').textContent).toContain('Tela 1 · Balcão de atendimento');
   });
 
   it('sem mídia: avisa e leva para "Crie sua primeira mídia"', async () => {

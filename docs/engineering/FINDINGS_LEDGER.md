@@ -1332,3 +1332,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - 111 testes (4 novos).
 - **Para tocar de verdade:** ligar uma tela a um ponto (campo "Ponto parceiro desta tela") e o anunciante ter uma imagem ou vídeo em Minhas Mídias.
 - **Ainda sem cobrança:** o valor do ponto aparece, mas "Anunciar aqui" ainda não gera fatura.
+
+### F-108 — "Ver ponto para anunciar" na página antiga + galeria e "Onde as telas estão" — DONE
+- **Relato (foto do tablet):** em `/portal/expansao` (página antiga "Pontos para Anunciar"), o botão "Anunciar neste ponto" abria a "Seleção Comercial" (sem preço cadastrado) e nunca a ficha com localização.
+- **Correção:**
+  - na página antiga, o card inteiro (capa, nome) e o botão, agora "Ver ponto para anunciar", abrem `/portal/pontos-parceiros/:id`;
+  - a lista nova ganhou o mesmo botão.
+- **Migração 20261277:** `pontos.onde_ficam_as_telas` (jsonb), devolvido por `portal_ponto_parceiro`.
+- **Dados:** cada um dos 5 pontos com 4 fotos na galeria (capa + 3 locais, Pexels → R2, com legenda e crédito) e a posição de cada tela (ex.: "Tela 1 · Balcão de atendimento").
+- **Ficha:** galeria de miniaturas com rolagem lateral (deslizar ou setas) e foto ampliada ao tocar; seção "Onde as telas estão".
+- **Prova:**
+  - navegador 800x1280: em `/portal/expansao`, 5 cards com "Ver ponto para anunciar"; tocar na foto da clínica abre a ficha com 4 fotos, "Tela 1 · Sala de espera", mapa e "Anunciar aqui";
+  - 105 testes.

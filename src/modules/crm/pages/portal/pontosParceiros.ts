@@ -34,7 +34,9 @@ export interface AnuncioNoPonto {
 export interface PontoParceiroDetalhe extends Omit<PontoParceiroResumo, 'meus_anuncios'> {
   cep: string | null;
   complemento: string | null;
-  galeria: { url: string; credito?: string }[] | null;
+  galeria: { url: string; legenda?: string | null; credito?: string | null }[] | null;
+  /** F-108: onde cada tela fica dentro do estabelecimento */
+  onde_ficam_as_telas: { local: string; detalhe?: string | null }[] | null;
   horario_funcionamento: string | null;
   publico_estimado_dia: number | null;
   regras_comerciais: string | null;
