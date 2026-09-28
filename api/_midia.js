@@ -45,9 +45,26 @@ export async function baixar(url) {
   return { arq, dir, limpar: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
+// A Vercel instala sem rodar o "chmod" do pacote: sem permissão de execução, o ffmpeg é copiado para /tmp e liberado lá.
+let caminhoFfmpeg = null;
+function ffmpegExecutavel() {
+  if (caminhoFfmpeg) return caminhoFfmpeg;
+  const origem = ffmpegInstaller.path;
+  if (process.platform === 'win32') return (caminhoFfmpeg = origem);
+  try {
+    fs.accessSync(origem, fs.constants.X_OK);
+    return (caminhoFfmpeg = origem);
+  } catch {
+    const destino = path.join(os.tmpdir(), 'ffmpeg-sobremidia');
+    if (!fs.existsSync(destino)) fs.copyFileSync(origem, destino);
+    fs.chmodSync(destino, 0o755);
+    return (caminhoFfmpeg = destino);
+  }
+}
+
 export function ffmpeg(args, { timeoutMs = 90_000 } = {}) {
   return new Promise((ok, erro) => {
-    const p = spawn(ffmpegInstaller.path, ['-hide_banner', '-nostdin', ...args]);
+    const p = spawn(ffmpegExecutavel(), ['-hide_banner', '-nostdin', ...args]);
     const out = []; let err = '';
     const t = setTimeout(() => { p.kill('SIGKILL'); erro(new Error('ffmpeg: tempo esgotado')); }, timeoutMs);
     p.stdout.on('data', (d) => out.push(d));
