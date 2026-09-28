@@ -12,9 +12,28 @@ import { Input } from '@/components/ui/input';
  * Aparecem aqui quando o robô não tem chave de IA, fica em dúvida ou falha.
  * Aprovar → a cobrança do anúncio é gerada; recusar → o cliente recebe o motivo.
  */
+interface RelatorioAnalise {
+  achados?: { gravidade: 'recusar' | 'revisar'; detalhe: string }[];
+  fala?: string | null; textos_imagem?: string[]; erros?: string[]; analisando_desde?: string;
+}
 interface MidiaEmAnalise {
   id: string; nome: string; tipo: 'imagem' | 'video'; url: string; quadros: string[] | null; duracao: number | null;
-  status: string; motivo: string | null; enviada_em: string; cliente: string | null;
+  status: string; motivo: string | null; enviada_em: string; cliente: string | null; detalhes: RelatorioAnalise | null;
+}
+
+/** F-111: o que o analisador próprio viu, ouviu e leu — para a equipe decidir rápido. */
+function Relatorio({ d }: { d: RelatorioAnalise | null }) {
+  if (!d) return <p className="text-xs text-muted-foreground">Na fila do analisador automático.</p>;
+  if (d.analisando_desde && !d.achados) return <p className="text-xs text-muted-foreground">Sendo analisada agora…</p>;
+  return (
+    <div className="space-y-1 rounded-lg bg-muted/40 p-2 text-xs" data-testid="relatorio-analise">
+      {d.achados?.map((a, i) => (
+        <p key={i} className={a.gravidade === 'recusar' ? 'text-rose-600 dark:text-rose-300' : 'text-amber-600 dark:text-amber-300'}>• {a.detalhe}</p>
+      ))}
+      {!!d.fala && <p className="text-muted-foreground"><span className="font-medium">Fala:</span> “{d.fala}”</p>}
+      {!!d.textos_imagem?.length && <p className="text-muted-foreground"><span className="font-medium">Texto na imagem:</span> {d.textos_imagem.join(' · ').slice(0, 240)}</p>}
+    </div>
+  );
 }
 
 export function FilaAnaliseMidias() {
@@ -64,6 +83,7 @@ export function FilaAnaliseMidias() {
                 </p>
                 {m.motivo && <p className="text-xs text-sky-600 dark:text-sky-300">{m.motivo}</p>}
               </div>
+              <Relatorio d={m.detalhes} />
               {recusando === m.id ? (
                 <div className="space-y-2">
                   <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo da recusa (o cliente vai ler)" />

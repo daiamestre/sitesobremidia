@@ -21,13 +21,16 @@ describe('Anúncio em ponto parceiro (F-110)', () => {
     expect(sql).toContain('ORDER BY coalesce(pa.ativado_em, pa.created_at), pa.id');
   });
 
-  it('robô: sem chave de IA vai para análise manual (nunca aprova sem análise)', () => {
+  it('robô próprio (F-111): sem IA externa; mede na Vercel e decide pela política; falha vai para a equipe', () => {
     const robo = ler('supabase', 'functions', 'analisar-midia', 'index.ts');
-    expect(robo).toContain("if (!chave) return manual(srv, a, 'Aguardando análise da equipe.');");
-    expect(robo).toContain("return manual(srv, a, motivo ? `Robô em dúvida: ${motivo}` : 'Robô em dúvida.');");
+    expect(robo).not.toContain('ANTHROPIC');
+    expect(robo).toContain("medir<SinaisVisao>('analise-visao'");
+    expect(robo).toContain("medir<SinaisAudio>('analise-audio'");
+    expect(robo).toContain("const status = r.decisao === 'DUVIDA' ? 'EM_ANALISE_MANUAL' : r.decisao;");
+    expect(robo).toContain('DURACAO_MAXIMA_ANUNCIANTE = 20');
   });
 
-  it('Minhas Mídias: envio usa signedUrl (antes falhava), diretrizes e limite de 30 s', () => {
+  it('Minhas Mídias: envio usa signedUrl (antes falhava), diretrizes e limite de 20 s', () => {
     const pagina = ler('src', 'modules', 'crm', 'pages', 'portal', 'AssetLibraryPage.tsx');
     expect(pagina).toContain('data?.signedUrl');
     expect(pagina).not.toContain('uploadData?.uploadUrl');

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
  * F-110 — Diretrizes de conteúdo das mídias exibidas nas telas dos pontos parceiros.
  * Texto formal, citando os pontos sem termos fortes (pedido do proprietário).
  */
-export const DURACAO_MAXIMA_VIDEO = 30;
+export const DURACAO_MAXIMA_VIDEO = 20;
 
 export function DiretrizesConteudo({ compacto = false, className }: { compacto?: boolean; className?: string }) {
   return (
@@ -22,10 +22,12 @@ export function DiretrizesConteudo({ compacto = false, className }: { compacto?:
         <li>Não são aceitos conteúdos de natureza sexual, nudez ou insinuação explícita.</li>
         <li>Não são aceitos conteúdos discriminatórios, de cunho racista ou que ofendam pessoas ou grupos.</li>
         <li>Não são aceitos conteúdos com violência, apologia a substâncias ilícitas ou que desrespeitem a legislação.</li>
+        <li>Não são aceitos palavrões ou linguagem obscena, nem na imagem nem no áudio.</li>
       </ul>
       {!compacto && (
         <p className="mt-1.5 text-xs text-slate-400">
-          Mídias fora dessas diretrizes são recusadas automaticamente pelo sistema de análise e não chegam às telas.
+          O sistema de análise confere a imagem, cada trecho do vídeo, os textos e o áudio. Mídias fora dessas diretrizes são
+          recusadas automaticamente e não chegam às telas.
         </p>
       )}
     </div>

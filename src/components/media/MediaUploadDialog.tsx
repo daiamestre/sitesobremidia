@@ -173,8 +173,13 @@ const calculateFileMD5 = (file: File): Promise<string> => {
 
 
 
+/** Limite do gestor de mídia (30 s + meio segundo de tolerância da leitura do arquivo). */
+export const LIMITE_GESTOR_MS = 30_500;
+
 export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMedia, onUploadedIds, semPlaylist, titulo }: MediaUploadDialogProps) {
-  const { user } = useAuth();
+  const { user, usuario } = useAuth();
+  // F-111: gestor de mídia envia vídeo/áudio de até 30 s (OWNER/ADMIN sem limite; o banco também confere).
+  const limiteGestorMs = String(usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : '')).toUpperCase() === 'GESTOR' ? LIMITE_GESTOR_MS : null;
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -289,6 +294,11 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       if (kind === 'video' || kind === 'audio') {
         // Duração EXATA lida do arquivo (ms); o Tempo de Mídia é o segundo cheio para cima -> a tela toca o vídeo inteiro.
         realMs = await probeFileDurationMs(newFile.file);
+        if (limiteGestorMs && realMs && realMs > limiteGestorMs) {
+          toast.error(`${newFile.file.name}: ${Math.round(realMs / 1000)} segundos. Gestor de mídia pode enviar vídeos de até 30 segundos.`);
+          setFiles(prev => prev.filter(f => f.file !== newFile.file));
+          continue;
+        }
         seconds = secondsForRealMs(realMs) ?? defaultDurationForFile(kind, null);
         setFiles(prev => prev.map(f => (f.file === newFile.file ? { ...f, durationSeconds: seconds, durationMs: realMs } : f)));
       }
