@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { FilaAnaliseMidias } from '@/components/suporte/FilaAnaliseMidias';
 
 /**
  * F-109 — Telas de pontos parceiros (só OWNER/ADMIN).
@@ -122,6 +123,9 @@ export default function TelasParceiras() {
           <Link to="/dashboard/prospeccao/ponto-parceiro"><Button className="gradient-primary"><Plus className="mr-2 h-4 w-4" /> Cadastrar ponto parceiro</Button></Link>
         </div>
       </div>
+
+      {/* F-110: mídias de anunciantes aguardando análise */}
+      <FilaAnaliseMidias />
 
       <div className="grid grid-cols-3 gap-3">
         <Resumo rotulo="Telas parceiras" valor={total} />

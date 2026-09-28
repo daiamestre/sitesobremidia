@@ -1371,3 +1371,40 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - navegador (dbg.adm): página com 8 telas em 5 pontos, menu, etapa 4 com a trava "Tela 1: informe onde a tela fica";
   - testes `telasParceiras` (4) + `pontosParceirosAnunciar` (5) + CRM/prospecção (14).
 - **Observação para depois:** a policy de UPDATE de `screens` (`fn_player_can_access_screen`) deixou o anunciante chegar ao gatilho. Nas telas parceiras ele é barrado; nas telas próprias, auditar em outro item.
+
+### F-110 — Anúncio em ponto parceiro: diretrizes, análise da mídia, escolha de telas e pagamento antes de ir ao ar — DONE (etapa 3)
+- **Decisões do proprietário:**
+  - paga antes; o anúncio entra no ar sozinho quando o Inter confirma o pagamento;
+  - 4 dias de atraso → sai do ar;
+  - diretrizes formais (vídeo até 30 s, sem conteúdo sexual explícito, sem racismo ou discriminação);
+  - robô de análise recusa mídia imprópria;
+  - o anunciante escolhe as telas (preço por tela);
+  - o anúncio novo entra depois do último que já toca.
+- **Causa raiz achada no caminho:** o envio de mídia do portal nunca funcionou. A tela esperava `uploadUrl`, mas `get-upload-url` devolve `signedUrl`, e havia 0 mídias de anunciante no banco. Corrigido em `AssetLibraryPage`.
+- **Migrações:**
+  - 20261280:
+    - `cliente_assets` + moderação (PENDENTE, EM_ANALISE_MANUAL, APROVADA, RECUSADA, NAO_SE_APLICA), com gatilho: vídeo > 30 s é recusado, e só o sistema ou OWNER/ADMIN mudam a moderação;
+    - `ponto_anuncios` + telas, valor_mensal, cobrança, validade e motivo; novos estados EM_ANALISE, AGUARDANDO_PAGAMENTO, SUSPENSO e RECUSADO;
+    - `anunciar_no_ponto(p_ponto, p_asset, p_telas)` cria a cobrança (PIX/boleto, vence em 3 dias);
+    - gatilhos: pagamento → ATIVO por 1 mês; mídia aprovada → cobrança; mídia recusada → aviso com motivo;
+    - `fn_moderar_midia` e `fn_midias_em_analise` (OWNER/ADMIN);
+    - `fn_renovar_anuncios_ponto` (renova 5 dias antes; suspende 4 dias após a validade), rodando diariamente às 06h25;
+    - Player: filtra pelas telas escolhidas e ordena por `ativado_em`.
+  - 20261281: agendamento `analisar-midias-pendentes` a cada 10 min.
+- **Função `analisar-midia`:**
+  - com `ANTHROPIC_API_KEY`, o Claude analisa a imagem ou até 4 quadros do vídeo;
+  - sem a chave, em dúvida ou em erro → análise manual, com aviso para OWNER/ADMIN.
+- **Telas:**
+  - `DiretrizesConteudo` em Minhas Mídias, Criar mídia e Anunciar;
+  - Minhas Mídias checa duração e extrai 3 quadros do vídeo;
+  - diálogo "Anunciar aqui" em 2 passos (mídia → telas com valor e total → "Reservar e pagar" → "Pagar agora");
+  - "Seus anúncios aqui" com Pagar, Pausar e Reativar;
+  - fila "Mídias aguardando análise" em `/dashboard/telas-parceiras`.
+- **Correção extra (reproduzida com teste):** a fatura pública (`PaginaCobranca`) lia datas "AAAA-MM-DD" como UTC. No Brasil, mostrava o vencimento um dia antes e a competência do mês anterior, e marcava "atrasada" desde as 21h da véspera. Agora usa `parseISO` com comparação por dia.
+- **Prova (navegador, contas de teste):**
+  - anunciante envia `promo-teste.jpg` pelo caminho real → "Em análise";
+  - dbg.adm aprova na fila;
+  - anunciante reserva 1 tela da Farmácia → anúncio AGUARDANDO_PAGAMENTO + cobrança COB-2026-002487 (149,90, PIX/boleto) → "Pagar agora" abre a fatura;
+  - dados de teste desfeitos: cobrança CANCELADA e anúncio PAUSADO.
+  - Testes: `pontosParceirosAnunciar`, `anuncioPontoAnalise`, `telasParceiras`, `paginaCobrancaDatas` (falhava antes da correção) e as regressões de cobrança (50).
+- **Pendente do proprietário:** criar a chave da API da Anthropic para o robô analisar sozinho; até lá, a análise é manual na fila.

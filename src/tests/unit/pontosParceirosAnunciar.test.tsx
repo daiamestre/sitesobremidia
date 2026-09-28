@@ -15,9 +15,13 @@ const ponto = {
   latitude: -8.28307, longitude: -35.97571, horario_funcionamento: 'Seg a sáb, 7h às 22h', publico_estimado_dia: 900,
   valor_anuncio: 149.9, periodicidade: 'MENSAL', quantidade_telas: 2, regras_comerciais: null,
   telas_conectadas: 0, telas_online: 0, meus_anuncios: [],
+  telas: [
+    { id: 't1', local: 'Balcão de atendimento', foto_url: null, orientacao: 'landscape', polegadas: 43, valor: 149.9 },
+    { id: 't2', local: 'Fila do caixa', foto_url: null, orientacao: 'landscape', polegadas: 32, valor: 99.9 },
+  ],
 };
 let midias: unknown[] = [];
-const rpc = vi.fn(async (fn: string) => (fn === 'portal_ponto_parceiro' ? { data: ponto, error: null } : { data: { status: 'OK', telas_no_ponto: 0 }, error: null }));
+const rpc = vi.fn(async (fn: string, _args?: unknown) => (fn === 'portal_ponto_parceiro' ? { data: ponto, error: null } : { data: { status: 'OK', telas_no_ponto: 0 }, error: null }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     rpc: (fn: string, a?: unknown) => rpc(fn, a),
@@ -71,13 +75,22 @@ describe('Ponto parceiro no portal (F-107)', () => {
     expect(await screen.findByText('tela de criação')).toBeInTheDocument();
   });
 
-  it('com mídia: escolhe e chama anunciar_no_ponto', async () => {
-    midias = [{ id: 'a1', nome: 'Promo', tipo: 'imagem', object_url: 'https://x/promo.jpg' }];
+  it('F-110: mídia → telas (valor de cada uma e total) → reservar e pagar', async () => {
+    midias = [
+      { id: 'a1', nome: 'Promo', tipo: 'imagem', object_url: 'https://x/promo.jpg', moderacao_status: 'APROVADA', moderacao_motivo: null },
+      { id: 'a2', nome: 'Recusada', tipo: 'imagem', object_url: 'https://x/r.jpg', moderacao_status: 'RECUSADA', moderacao_motivo: 'fora das diretrizes' },
+    ];
     abrir();
     fireEvent.click(await screen.findByTestId('botao-anunciar-aqui'));
-    fireEvent.click(await screen.findByText('Promo'));
-    fireEvent.click(screen.getByRole('button', { name: /Colocar no ar neste ponto/ }));
-    await vi.waitFor(() => expect(rpc).toHaveBeenCalledWith('anunciar_no_ponto', { p_ponto: 'p1', p_asset: 'a1' }));
+    expect((await screen.findByText('Recusada')).closest('button')).toBeDisabled();
+    fireEvent.click(screen.getByText('Promo'));
+    fireEvent.click(screen.getByRole('button', { name: /Escolher telas/ }));
+    expect(screen.getByTestId('total-anuncio').textContent).toContain('249,80');
+    fireEvent.click(screen.getByText('Fila do caixa'));
+    expect(screen.getByTestId('total-anuncio').textContent).toContain('149,90');
+    expect(screen.getByTestId('diretrizes-conteudo')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Reservar e pagar/ }));
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledWith('anunciar_no_ponto', { p_ponto: 'p1', p_asset: 'a1', p_telas: ['t1'] }));
   });
 
   it('banco: só imagem/vídeo; Player recebe anúncios só em tela com ponto_id; mesmo formato de mídia', () => {

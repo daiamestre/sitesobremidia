@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ImagePlus, Sparkles, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DiretrizesConteudo } from '@/components/portal/DiretrizesConteudo';
 
 /**
  * F-107 — Criação de mídias (em construção). Por enquanto o anunciante pode enviar uma mídia
@@ -23,6 +24,7 @@ export default function CriarMidiaPage() {
           <Link to="/portal/pontos-parceiros"><Button variant="outline" className="w-full gap-2 border-white/10 sm:w-auto"><ImagePlus className="h-4 w-4" /> Voltar aos pontos parceiros</Button></Link>
         </div>
       </div>
+      <DiretrizesConteudo />
     </div>
   );
 }

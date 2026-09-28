@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { brl, enderecoCompleto, pontosParceirosService, type MidiaDoCliente } from './pontosParceiros';
+import { brl, enderecoCompleto, pontosParceirosService, type ResultadoAnunciar } from './pontosParceiros';
+import { AnunciarNoPontoDialog, MeusAnunciosNoPonto } from './AnunciarNoPonto';
 import { GaleriaDoPonto } from './GaleriaDoPonto';
 
 /**
@@ -24,7 +25,7 @@ export default function PontoParceiroPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [escolhendo, setEscolhendo] = useState(false);
-  const [midiaEscolhida, setMidiaEscolhida] = useState<string | null>(null);
+  const [resultado, setResultado] = useState<ResultadoAnunciar | null>(null);
 
   const ponto = useQuery({ queryKey: ['portal-ponto-parceiro', id], queryFn: () => pontosParceirosService.detalhe(id), enabled: !!id });
   const midias = useQuery({
@@ -40,13 +41,13 @@ export default function PontoParceiroPage() {
   };
 
   const anunciar = useMutation({
-    mutationFn: (asset: string) => pontosParceirosService.anunciar(id, asset),
-    onSuccess: (r) => {
-      toast.success(r.telas_no_ponto > 0
-        ? 'Pronto! Sua mídia entrou na programação das telas deste ponto.'
-        : 'Anúncio registrado. Ele começa a tocar assim que a tela do ponto for conectada.');
-      setEscolhendo(false); setMidiaEscolhida(null); atualizar();
-    },
+    mutationFn: ({ asset, telas }: { asset: string; telas: string[] }) => pontosParceirosService.anunciar(id, asset, telas),
+    onSuccess: (r) => { setResultado(r); atualizar(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const reativar = useMutation({
+    mutationFn: (anuncio: string) => pontosParceirosService.reativar(anuncio),
+    onSuccess: (r) => { toast.success(r.status === 'ATIVO' ? 'Anúncio de volta ao ar.' : 'Nova cobrança gerada: pague para voltar ao ar.'); atualizar(); },
     onError: (e: Error) => toast.error(e.message),
   });
   const pausar = useMutation({
@@ -75,8 +76,6 @@ export default function PontoParceiroPage() {
     ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoCompleto(p))}`;
   const credito = p.galeria?.[0]?.credito;
-  const ativos = p.meus_anuncios.filter((a) => a.status === 'ATIVO');
-  const lista: MidiaDoCliente[] = midias.data ?? [];
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-12" data-testid="ficha-ponto-parceiro">
@@ -107,35 +106,10 @@ export default function PontoParceiroPage() {
       <GaleriaDoPonto fotos={(p.galeria ?? []).filter((f) => f?.url)} nome={p.nome} />
 
       {/* Seus anúncios aqui */}
-      {p.meus_anuncios.length > 0 && (
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4" data-testid="meus-anuncios-no-ponto">
-          <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-400"><CheckCircle2 className="h-4 w-4" /> Seus anúncios neste ponto</p>
-          <ul className="space-y-2">
-            {p.meus_anuncios.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-900/70 p-2">
-                <span className="flex min-w-0 items-center gap-3">
-                  {a.url && a.tipo === 'imagem'
-                    ? <img src={a.url} alt="" className="h-10 w-16 flex-shrink-0 rounded object-cover" />
-                    : <span className="flex h-10 w-16 flex-shrink-0 items-center justify-center rounded bg-slate-800 text-[10px] text-slate-400">vídeo</span>}
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm text-white">{a.nome}</span>
-                    <span className="block text-xs text-slate-400">desde {format(new Date(a.desde), 'dd/MM/yyyy')}</span>
-                  </span>
-                </span>
-                {a.status === 'ATIVO' ? (
-                  <Button size="sm" variant="ghost" className="gap-1 text-slate-300" onClick={() => pausar.mutate(a.id)} disabled={pausar.isPending}>
-                    <PauseCircle className="h-4 w-4" /> Pausar
-                  </Button>
-                ) : (
-                  <Button size="sm" variant="outline" className="border-white/10" onClick={() => anunciar.mutate(a.asset_id)} disabled={anunciar.isPending}>Reativar</Button>
-                )}
-              </li>
-            ))}
-          </ul>
-          {ativos.length > 0 && p.telas_conectadas === 0 && (
-            <p className="mt-2 text-xs text-amber-400">As telas deste ponto ainda estão sendo instaladas; seu anúncio começa a tocar assim que forem conectadas.</p>
-          )}
-        </div>
+      <MeusAnunciosNoPonto anuncios={p.meus_anuncios} onPausar={(a) => pausar.mutate(a)} onReativar={(a) => reativar.mutate(a)}
+        ocupado={pausar.isPending || reativar.isPending} />
+      {p.meus_anuncios.some((a) => a.status === 'ATIVO') && p.telas_online === 0 && (
+        <p className="text-xs text-amber-400">As telas deste ponto ainda estão sendo instaladas; seu anúncio começa a tocar assim que forem conectadas.</p>
       )}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
@@ -187,51 +161,19 @@ export default function PontoParceiroPage() {
         </div>
       </div>
 
-      {/* Escolher a mídia */}
-      <Dialog open={escolhendo} onOpenChange={(o) => { setEscolhendo(o); if (!o) setMidiaEscolhida(null); }}>
-        <DialogContent className="max-w-2xl border-white/10 bg-slate-900 text-white">
-          <DialogHeader>
-            <DialogTitle>Anunciar em {p.nome}</DialogTitle>
-            <DialogDescription className="text-slate-400">Escolha a mídia que vai passar nas telas deste ponto.</DialogDescription>
-          </DialogHeader>
-          {midias.isLoading ? (
-            <Loader2 className="mx-auto my-10 h-6 w-6 animate-spin text-primary" />
-          ) : lista.length === 0 ? (
-            <div className="space-y-4 py-6 text-center" data-testid="sem-midias">
-              <ImagePlus className="mx-auto h-10 w-10 text-slate-500" />
-              <p className="text-slate-300">Você ainda não tem mídias para anúncios criadas.</p>
-              <Button className="gap-2" onClick={() => navigate('/portal/criar-midia')}>
-                <ImagePlus className="h-4 w-4" /> Crie sua primeira mídia
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="grid max-h-[55vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3" data-testid="escolher-midia">
-                {lista.map((m) => {
-                  const jaAtivo = ativos.some((a) => a.asset_id === m.id);
-                  return (
-                    <button key={m.id} type="button" disabled={jaAtivo} onClick={() => setMidiaEscolhida(m.id)}
-                      className={cn('overflow-hidden rounded-xl border text-left transition-colors',
-                        midiaEscolhida === m.id ? 'border-primary ring-2 ring-primary' : 'border-white/10 hover:border-white/30',
-                        jaAtivo && 'opacity-50')}>
-                      {m.tipo === 'imagem'
-                        ? <img src={m.object_url} alt="" className="aspect-video w-full object-cover" />
-                        : <video src={m.object_url} className="aspect-video w-full bg-black object-cover" muted preload="metadata" />}
-                      <span className="block truncate px-2 py-1.5 text-xs text-slate-200">{m.nome}{jaAtivo ? ' · já no ar aqui' : ''}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
-                <Button variant="ghost" className="gap-2 text-slate-300" onClick={() => navigate('/portal/criar-midia')}><ImagePlus className="h-4 w-4" /> Criar outra mídia</Button>
-                <Button className="gap-2" disabled={!midiaEscolhida || anunciar.isPending} onClick={() => midiaEscolhida && anunciar.mutate(midiaEscolhida)}>
-                  {anunciar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />} Colocar no ar neste ponto
-                </Button>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Anunciar: mídia → telas → pagamento */}
+      <AnunciarNoPontoDialog
+        aberto={escolhendo}
+        onFechar={() => { setEscolhendo(false); setResultado(null); }}
+        nomePonto={p.nome}
+        telas={p.telas ?? []}
+        midias={midias.data ?? []}
+        carregandoMidias={midias.isLoading}
+        anunciosAtivos={p.meus_anuncios.filter((a) => ['ATIVO', 'AGUARDANDO_PAGAMENTO', 'EM_ANALISE'].includes(a.status)).map((a) => a.asset_id)}
+        enviando={anunciar.isPending}
+        onConfirmar={(asset, telas) => anunciar.mutate({ asset, telas })}
+        resultado={resultado}
+      />
     </div>
   );
 }

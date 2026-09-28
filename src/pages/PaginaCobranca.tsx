@@ -4,7 +4,7 @@ import { getHumanizedPublicBillingPath, resolveBillingPresentation } from '@/lib
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle2, AlertCircle, Clock, FileText, Calendar, CreditCard, Receipt, FileSignature, AlertTriangle, MessageCircle, ExternalLink, Copy, QrCode, Download, Loader2 } from 'lucide-react';
-import { format, differenceInDays } from 'date-fns';
+import { format, differenceInDays, parseISO, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface PagamentoPublico {
@@ -241,9 +241,10 @@ export default function PaginaCobranca() {
   const saldoCorreto = data ? (typeof data.saldo === 'number' ? data.saldo : Number(data.valor_original || 0) - Number(data.valor_pago || 0)) : 0;
   const isPaid = !!data && (data.status === 'PAGO' || data.status === 'PAGA' || saldoCorreto <= 0.009);
   const isCanceled = data?.status === 'CANCELADO' || data?.status === 'CANCELADA';
-  const dataVenc = data ? new Date(data.vencimento) : new Date();
+  // Datas "AAAA-MM-DD" são lidas no fuso local (new Date lia como UTC e mostrava um dia antes no Brasil)
+  const dataVenc = data?.vencimento ? parseISO(String(data.vencimento)) : new Date();
   const dataHoje = new Date();
-  const isOverdue = !isPaid && !isCanceled && (data?.status === 'VENCIDO' || data?.status === 'ATRASADA' || dataVenc < dataHoje);
+  const isOverdue = !isPaid && !isCanceled && (data?.status === 'VENCIDO' || data?.status === 'ATRASADA' || dataVenc < startOfDay(dataHoje));
   
   let diasAtraso = 0;
   if (isOverdue) {
@@ -415,7 +416,7 @@ export default function PaginaCobranca() {
   
   const formatDate = (val: string | null | undefined) => {
     if (!val) return '—';
-    return format(new Date(val), 'dd/MM/yyyy');
+    return format(parseISO(String(val)), 'dd/MM/yyyy');
   };
 
   const getStatusText = () => {
@@ -586,7 +587,7 @@ export default function PaginaCobranca() {
                     { label: 'Serviço faturado', value: data.servico_faturado || 'Serviço de mídia/publicidade contratado' },
                     { label: 'Parcela', value: data.numero_parcela ? `${data.numero_parcela} de ${data.total_parcelas || '1'}` : 'Única' },
                     { label: 'Documento', value: data.numero_documento || data.codigo_operacional },
-                    { label: 'Competência', value: data.competencia ? format(new Date(data.competencia), 'MMMM / yyyy', { locale: ptBR }).toUpperCase() : '—', icon: Calendar },
+                    { label: 'Competência', value: data.competencia ? format(parseISO(String(data.competencia)), 'MMMM / yyyy', { locale: ptBR }).toUpperCase() : '—', icon: Calendar },
                     { label: 'Vencimento', value: formatDate(data.vencimento) },
                     { label: 'Método Previsto', value: data.metodo || 'PIX', icon: CreditCard },
                     { label: 'Recorrência', value: data.recorrencia || '—' },

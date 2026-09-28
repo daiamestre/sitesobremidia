@@ -666,11 +666,14 @@ export class CustomerCommerceService {
     object_url: string;
     tamanho: number;
     tags?: string[];
+    duracao?: number;
+    quadros?: string[];
+    usuario_id?: string;
   }): Promise<any | null> {
     try {
       const { data, error } = await supabase
         .from('cliente_assets')
-        .insert(assetData)
+        .insert(assetData as never)
         .select('*')
         .single();
       if (error) throw error;

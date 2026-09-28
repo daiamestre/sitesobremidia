@@ -21,9 +21,34 @@ export interface PontoParceiroResumo {
   meus_anuncios: number;
 }
 
+export type StatusAnuncio = 'EM_ANALISE' | 'AGUARDANDO_PAGAMENTO' | 'ATIVO' | 'PAUSADO' | 'SUSPENSO' | 'RECUSADO';
+
+export const ROTULO_ANUNCIO: Record<StatusAnuncio, { texto: string; cor: string }> = {
+  EM_ANALISE: { texto: 'Mídia em análise', cor: 'bg-sky-500/15 text-sky-300' },
+  AGUARDANDO_PAGAMENTO: { texto: 'Aguardando pagamento', cor: 'bg-amber-500/15 text-amber-300' },
+  ATIVO: { texto: 'No ar', cor: 'bg-emerald-500/15 text-emerald-300' },
+  PAUSADO: { texto: 'Pausado', cor: 'bg-slate-500/20 text-slate-300' },
+  SUSPENSO: { texto: 'Fora do ar por atraso', cor: 'bg-red-500/15 text-red-300' },
+  RECUSADO: { texto: 'Mídia recusada', cor: 'bg-red-500/15 text-red-300' },
+};
+
+export interface TelaParaAnunciar {
+  id: string;
+  local: string;
+  foto_url: string | null;
+  orientacao: string | null;
+  polegadas: number | null;
+  valor: number | null;
+}
+
 export interface AnuncioNoPonto {
   id: string;
-  status: 'ATIVO' | 'PAUSADO';
+  status: StatusAnuncio;
+  valor: number | null;
+  valido_ate: string | null;
+  motivo: string | null;
+  telas: number;
+  cobranca: { codigo: string; identificador: string; status: string; vencimento: string } | null;
   asset_id: string;
   nome: string;
   tipo: string;
@@ -41,6 +66,7 @@ export interface PontoParceiroDetalhe extends Omit<PontoParceiroResumo, 'meus_an
   publico_estimado_dia: number | null;
   regras_comerciais: string | null;
   telas_online: number;
+  telas: TelaParaAnunciar[];
   meus_anuncios: AnuncioNoPonto[];
 }
 
@@ -49,6 +75,16 @@ export interface MidiaDoCliente {
   nome: string;
   tipo: 'imagem' | 'video';
   object_url: string;
+  moderacao_status: 'PENDENTE' | 'EM_ANALISE_MANUAL' | 'APROVADA' | 'RECUSADA';
+  moderacao_motivo: string | null;
+}
+
+export interface ResultadoAnunciar {
+  status: 'EM_ANALISE' | 'AGUARDANDO_PAGAMENTO';
+  anuncio_id: string;
+  valor: number;
+  telas: number;
+  cobranca: { codigo: string; identificador: string; vencimento: string } | null;
 }
 
 async function rpc<T>(nome: string, args?: Record<string, unknown>): Promise<T> {
@@ -60,20 +96,21 @@ async function rpc<T>(nome: string, args?: Record<string, unknown>): Promise<T> 
 export const pontosParceirosService = {
   listar: () => rpc<PontoParceiroResumo[]>('portal_pontos_parceiros'),
   detalhe: (id: string) => rpc<PontoParceiroDetalhe | null>('portal_ponto_parceiro', { p_ponto: id }),
-  anunciar: (ponto: string, asset: string) => rpc<{ status: string; anuncio_id: string; telas_no_ponto: number }>('anunciar_no_ponto', { p_ponto: ponto, p_asset: asset }),
+  anunciar: (ponto: string, asset: string, telas: string[]) => rpc<ResultadoAnunciar>('anunciar_no_ponto', { p_ponto: ponto, p_asset: asset, p_telas: telas }),
+  reativar: (anuncio: string) => rpc<{ status: string }>('reativar_anuncio_no_ponto', { p_anuncio: anuncio }),
   pausar: (anuncio: string) => rpc<{ status: string }>('pausar_anuncio_no_ponto', { p_anuncio: anuncio }),
 
   /** Mídias do anunciante que podem ir para as telas (imagem e vídeo). */
   async minhasMidias(clienteId: string): Promise<MidiaDoCliente[]> {
     const { data, error } = await supabase
       .from('cliente_assets')
-      .select('id, nome, tipo, object_url')
+      .select('id, nome, tipo, object_url, moderacao_status, moderacao_motivo')
       .eq('cliente_id', clienteId)
       .in('tipo', ['imagem', 'video'])
       .not('object_url', 'is', null)
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    return (data ?? []) as MidiaDoCliente[];
+    return (data ?? []) as unknown as MidiaDoCliente[];
   },
 };
 

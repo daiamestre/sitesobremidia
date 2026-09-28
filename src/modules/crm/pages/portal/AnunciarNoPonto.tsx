@@ -1,0 +1,201 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ArrowLeft, CheckCircle2, Clock, ImagePlus, Loader2, Megaphone, Monitor, PauseCircle, PlayCircle, QrCode } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DiretrizesConteudo } from '@/components/portal/DiretrizesConteudo';
+import { cn } from '@/lib/utils';
+import { linkDaFatura } from '@/lib/situacaoCobranca';
+import {
+  brl, ROTULO_ANUNCIO, type AnuncioNoPonto, type MidiaDoCliente, type ResultadoAnunciar, type TelaParaAnunciar,
+} from './pontosParceiros';
+
+/**
+ * F-110 — "Anunciar aqui": 1) mídia  2) telas do ponto (valor de cada uma)  3) pagamento.
+ * Mídia ainda em análise: o anúncio aguarda a análise e a cobrança sai quando for aprovada.
+ */
+export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midias, carregandoMidias, anunciosAtivos, enviando, onConfirmar, resultado }: {
+  aberto: boolean;
+  onFechar: () => void;
+  nomePonto: string;
+  telas: TelaParaAnunciar[];
+  midias: MidiaDoCliente[];
+  carregandoMidias: boolean;
+  anunciosAtivos: string[];
+  enviando: boolean;
+  onConfirmar: (asset: string, telas: string[]) => void;
+  resultado: ResultadoAnunciar | null;
+}) {
+  const navigate = useNavigate();
+  const [passo, setPasso] = useState<1 | 2>(1);
+  const [midia, setMidia] = useState<string | null>(null);
+  const [escolhidas, setEscolhidas] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (aberto) { setPasso(1); setMidia(null); setEscolhidas(telas.map((t) => t.id)); }
+  }, [aberto, telas]);
+
+  const total = useMemo(() => telas.filter((t) => escolhidas.includes(t.id)).reduce((s, t) => s + Number(t.valor || 0), 0), [telas, escolhidas]);
+  const utilizaveis = midias.filter((m) => m.moderacao_status !== 'RECUSADA');
+  const midiaSel = midias.find((m) => m.id === midia);
+  const link = resultado?.cobranca ? linkDaFatura(resultado.cobranca.codigo, resultado.cobranca.identificador) : null;
+
+  return (
+    <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
+      <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto border-white/10 bg-slate-900 text-white">
+        <DialogHeader>
+          <DialogTitle>Anunciar em {nomePonto}</DialogTitle>
+          <DialogDescription className="text-slate-400">
+            {resultado ? 'Tudo certo!' : passo === 1 ? 'Passo 1 de 2 — escolha a mídia' : 'Passo 2 de 2 — escolha as telas'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {resultado ? (
+          <div className="space-y-4 py-2 text-center" data-testid="resultado-anuncio">
+            {resultado.status === 'AGUARDANDO_PAGAMENTO' ? (
+              <>
+                <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-400" />
+                <p className="text-slate-200">Seu anúncio foi reservado em {resultado.telas} {resultado.telas === 1 ? 'tela' : 'telas'} por <strong>{brl(resultado.valor)}/mês</strong>.</p>
+                <p className="text-sm text-slate-400">Assim que o pagamento for confirmado, ele entra no ar sozinho, depois dos anúncios que já estão passando.</p>
+                {link && <Link to={link}><Button className="gap-2"><QrCode className="h-4 w-4" /> Pagar agora</Button></Link>}
+              </>
+            ) : (
+              <>
+                <Clock className="mx-auto h-10 w-10 text-sky-400" />
+                <p className="text-slate-200">Sua mídia está em análise.</p>
+                <p className="text-sm text-slate-400">Quando for aprovada, a cobrança de {brl(resultado.valor)}/mês aparece em Contratos e Faturas e você recebe um aviso. Pagou, entra no ar.</p>
+              </>
+            )}
+            <Button variant="ghost" className="text-slate-300" onClick={onFechar}>Fechar</Button>
+          </div>
+        ) : carregandoMidias ? (
+          <Loader2 className="mx-auto my-10 h-6 w-6 animate-spin text-primary" />
+        ) : midias.length === 0 ? (
+          <div className="space-y-4 py-6 text-center" data-testid="sem-midias">
+            <ImagePlus className="mx-auto h-10 w-10 text-slate-500" />
+            <p className="text-slate-300">Você ainda não tem mídias para anúncios criadas.</p>
+            <Button className="gap-2" onClick={() => navigate('/portal/criar-midia')}><ImagePlus className="h-4 w-4" /> Crie sua primeira mídia</Button>
+            <DiretrizesConteudo compacto className="text-left" />
+          </div>
+        ) : passo === 1 ? (
+          <>
+            <div className="grid max-h-[50vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3" data-testid="escolher-midia">
+              {midias.map((m) => {
+                const jaAqui = anunciosAtivos.includes(m.id);
+                const recusada = m.moderacao_status === 'RECUSADA';
+                const analise = m.moderacao_status === 'PENDENTE' || m.moderacao_status === 'EM_ANALISE_MANUAL';
+                return (
+                  <button key={m.id} type="button" disabled={jaAqui || recusada} onClick={() => setMidia(m.id)}
+                    className={cn('overflow-hidden rounded-xl border text-left transition-colors',
+                      midia === m.id ? 'border-primary ring-2 ring-primary' : 'border-white/10 hover:border-white/30',
+                      (jaAqui || recusada) && 'cursor-not-allowed opacity-50')}>
+                    {m.tipo === 'imagem'
+                      ? <img src={m.object_url} alt="" className="aspect-video w-full object-cover" />
+                      : <video src={m.object_url} className="aspect-video w-full bg-black object-cover" muted preload="metadata" />}
+                    <span className="block truncate px-2 pt-1.5 text-xs text-slate-200">{m.nome}</span>
+                    <span className={cn('block px-2 pb-1.5 text-[11px]', recusada ? 'text-red-400' : analise ? 'text-sky-300' : 'text-emerald-400')}>
+                      {jaAqui ? 'já neste ponto' : recusada ? 'recusada' : analise ? 'em análise' : 'aprovada'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {midiaSel && (midiaSel.moderacao_status === 'PENDENTE' || midiaSel.moderacao_status === 'EM_ANALISE_MANUAL') && (
+              <p className="text-xs text-sky-300">Esta mídia ainda está em análise: você pode reservar o ponto agora e a cobrança sai quando ela for aprovada.</p>
+            )}
+            {utilizaveis.length === 0 && <p className="text-xs text-red-400">Suas mídias foram recusadas. Crie uma nova mídia seguindo as diretrizes.</p>}
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
+              <Button variant="ghost" className="gap-2 text-slate-300" onClick={() => navigate('/portal/criar-midia')}><ImagePlus className="h-4 w-4" /> Criar outra mídia</Button>
+              <Button className="gap-2" disabled={!midia} onClick={() => setPasso(2)}>Escolher telas</Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <ul className="space-y-2" data-testid="escolher-telas">
+              {telas.map((t) => {
+                const marcada = escolhidas.includes(t.id);
+                return (
+                  <li key={t.id}>
+                    <label className={cn('flex cursor-pointer items-center gap-3 rounded-xl border p-2', marcada ? 'border-primary bg-primary/10' : 'border-white/10')}>
+                      <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]" checked={marcada}
+                        onChange={(e) => setEscolhidas((x) => (e.target.checked ? [...x, t.id] : x.filter((y) => y !== t.id)))} />
+                      {t.foto_url ? <img src={t.foto_url} alt="" className="h-10 w-14 flex-shrink-0 rounded-lg object-cover" />
+                        : <span className="flex h-10 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-slate-800"><Monitor className="h-4 w-4 text-slate-500" /></span>}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-white">{t.local}</span>
+                        <span className="block text-xs text-slate-400">{t.orientacao === 'portrait' ? 'Em pé' : 'Deitada'}{t.polegadas ? ` · ${t.polegadas}"` : ''}</span>
+                      </span>
+                      <span className="text-sm font-semibold text-slate-100">{brl(t.valor)}<span className="text-xs font-normal text-slate-500">/mês</span></span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/60 p-3">
+              <span className="text-sm text-slate-300">{escolhidas.length} {escolhidas.length === 1 ? 'tela' : 'telas'} · total</span>
+              <span className="text-lg font-bold text-white" data-testid="total-anuncio">{brl(total)}<span className="text-xs font-normal text-slate-500">/mês</span></span>
+            </div>
+            <DiretrizesConteudo compacto />
+            <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-between">
+              <Button variant="ghost" className="gap-2 text-slate-300" onClick={() => setPasso(1)}><ArrowLeft className="h-4 w-4" /> Voltar</Button>
+              <Button className="gap-2" disabled={!midia || escolhidas.length === 0 || enviando} onClick={() => midia && onConfirmar(midia, escolhidas)}>
+                {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />} Reservar e pagar
+              </Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Seus anúncios neste ponto: situação, validade, pagar, pausar e reativar. */
+export function MeusAnunciosNoPonto({ anuncios, onPausar, onReativar, ocupado }: {
+  anuncios: AnuncioNoPonto[];
+  onPausar: (id: string) => void;
+  onReativar: (id: string) => void;
+  ocupado: boolean;
+}) {
+  if (!anuncios.length) return null;
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4" data-testid="meus-anuncios-no-ponto">
+      <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-white"><Megaphone className="h-4 w-4 text-primary" /> Seus anúncios neste ponto</p>
+      <ul className="space-y-2">
+        {anuncios.map((a) => {
+          const r = ROTULO_ANUNCIO[a.status];
+          const link = a.cobranca && ['AGUARDANDO_PAGAMENTO', 'SUSPENSO', 'ATIVO'].includes(a.status)
+            && !['PAGA', 'PAGO', 'CONCILIADA'].includes(String(a.cobranca.status).toUpperCase())
+            ? linkDaFatura(a.cobranca.codigo, a.cobranca.identificador) : null;
+          return (
+            <li key={a.id} className="flex flex-col gap-2 rounded-xl bg-slate-950/60 p-2 sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex min-w-0 items-center gap-3">
+                {a.url && a.tipo === 'imagem'
+                  ? <img src={a.url} alt="" className="h-10 w-16 flex-shrink-0 rounded object-cover" />
+                  : <span className="flex h-10 w-16 flex-shrink-0 items-center justify-center rounded bg-slate-800 text-[10px] text-slate-400">vídeo</span>}
+                <span className="min-w-0">
+                  <span className="block truncate text-sm text-white">{a.nome}</span>
+                  <span className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+                    <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', r.cor)}>{r.texto}</span>
+                    {a.valor != null && <span>{brl(a.valor)}/mês · {a.telas} {a.telas === 1 ? 'tela' : 'telas'}</span>}
+                    {a.status === 'ATIVO' && a.valido_ate && <span>até {format(new Date(a.valido_ate + 'T12:00:00'), 'dd/MM/yyyy')}</span>}
+                  </span>
+                  {a.motivo && <span className="block text-xs text-red-400">{a.motivo}</span>}
+                </span>
+              </span>
+              <span className="flex flex-shrink-0 gap-2">
+                {link && <Link to={link}><Button size="sm" className="gap-1"><QrCode className="h-4 w-4" /> Pagar</Button></Link>}
+                {a.status === 'ATIVO' && (
+                  <Button size="sm" variant="ghost" className="gap-1 text-slate-300" disabled={ocupado} onClick={() => onPausar(a.id)}><PauseCircle className="h-4 w-4" /> Pausar</Button>
+                )}
+                {a.status === 'PAUSADO' && (
+                  <Button size="sm" variant="outline" className="gap-1 border-white/10" disabled={ocupado} onClick={() => onReativar(a.id)}><PlayCircle className="h-4 w-4" /> Reativar</Button>
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
