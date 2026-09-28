@@ -1122,3 +1122,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Vídeo que não mudou não é baixado de novo.
   - Erro temporário do Pexels: nova tentativa e troca de termo. Pexels fora do ar: as pastas de vídeo e as mistas ficam como estão (provado com um HTTP 500 real).
 - **Resultado:** 32 vídeos (Esporte 11, Humor 8, Incrível 7, Turismo 6), todos com duração, média de 8,5 a 11,5 MB; arquivo público conferido (HTTP 200, video/mp4).
+
+### F-98 — Vídeos do Pixabay somados ao Pexels (também em Vídeos Cinema e Vídeos Nostalgia) — DONE
+- **Chave:** a chave da API do Pixabay (conta do proprietário, enviada no chat) foi validada (HTTP 200) e guardada no arquivo de segredos e no segredo `PIXABAY_API_KEY` do GitHub.
+- **Robô:** `produtores/videos.mjs` com as duas fontes.
+  - Pixabay com busca segura (`safesearch`) e só filmagens, na versão até Full HD e até 30 MB, baixada e hospedada no R2 (sem link direto para o Pixabay).
+  - Por pasta e orientação:
+    - Vídeos Esporte: 6 Pexels + 3 Pixabay;
+    - Turismo, Incrível e Humor: 4 + 2;
+    - Cinema e Nostalgia: 3 Pixabay, somados às artes.
+  - A identidade dos vídeos do Pexels não mudou (os 32 já publicados foram reaproveitados, sem novo download).
+  - As duas fontes fora do ar: as pastas de vídeo ficam como estão.
+- **Prova:** execução real com 28 vídeos novos do Pixabay, 0 falha de publicação; `conteudoPastas.test.ts` com 14 testes.
