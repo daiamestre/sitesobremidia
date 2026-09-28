@@ -1134,3 +1134,22 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - A identidade dos vídeos do Pexels não mudou (os 32 já publicados foram reaproveitados, sem novo download).
   - As duas fontes fora do ar: as pastas de vídeo ficam como estão.
 - **Prova:** execução real com 28 vídeos novos do Pixabay, 0 falha de publicação; `conteudoPastas.test.ts` com 14 testes.
+
+### F-99 — Atalhos de operação e mapa do projeto (economia de tokens) — DONE
+- **Motivo:** o proprietário pediu para gastar menos e achar os pedidos mais rápido. Antes, cada sessão redescobria a estrutura e recriava na hora os mesmos scripts (SQL, deploy, conferência).
+- **Mudança** (só documentação e ferramentas; o site, o banco e o Player não mudaram):
+  - `scripts/ops/`, com os comandos reutilizáveis:
+    - `sql.mjs`, `deploy-vercel.mjs`, `conferir-site.mjs`;
+    - `comparar-telas.mjs` (antes/depois de todas as telas, numa transação desfeita);
+    - `sessao-teste.mjs`, `publicar-player.mjs`;
+    - `segredos.mjs` (lê `~/.sobremidia-secrets/tokens.env` sem imprimir).
+  - `.claude/skills/`, com 5 receitas curtas que só carregam quando o assunto aparece: `deploy-producao`, `release-player`, `migracao-segura`, `conteudo-automatico`, `conferir-painel`.
+  - `docs/MAPA_DO_PROJETO.md`: tabela "pedido → onde mexer".
+  - `docs/PLAYER_REFERENCIA.md`: o que era útil de `.agents/memory/player_architecture_baseline.md`, mais as lições do ledger. Os ADR-001/002 do `.agents` falam só da própria estrutura `.agents` e não foram trazidos.
+  - `CLAUDE.md`: 6 linhas de atalhos, curto porque carrega em toda mensagem.
+- **Prova:**
+  - `sql.mjs` devolveu as 5 telas vinculadas;
+  - `comparar-telas.mjs antes/depois` deu 5 telas idênticas, saída 0;
+  - `conferir-site.mjs` achou "Adicionar pasta à playlist" no ar;
+  - todos os `.mjs` passaram na checagem de sintaxe (`node --check`);
+  - todos os caminhos citados no mapa e nas receitas foram conferidos (dois corrigidos: `rss.mjs`/`bancos*.mjs` ficam em `scripts/conteudo/`, e `PlayerDatabase.kt` fica no `cache-manager`).
