@@ -122,3 +122,18 @@ describe('Vídeos (Pexels) — F-97', () => {
     expect(escolherArquivo({ video_files: [{ file_type: 'video/mp4', width: 3840, height: 2160, link: 'https://x/4k.mp4' }] }, 'portrait')).toBeNull();
   });
 });
+
+describe('Vídeos (Pixabay) — F-98', () => {
+  it('escolhe a versão até Full HD e até 30 MB, na orientação certa', async () => {
+    const { escolherPixabay } = await import('../../../scripts/conteudo/produtores/videos.mjs');
+    const hit = { videos: {
+      large: { url: 'https://c/4k.mp4', width: 3840, height: 2160, size: 90e6, thumbnail: 'https://c/4k.jpg' },
+      medium: { url: 'https://c/qhd.mp4', width: 2732, height: 1440, size: 20e6, thumbnail: 'https://c/m.jpg' },
+      small: { url: 'https://c/fhd.mp4', width: 1920, height: 1080, size: 9e6, thumbnail: 'https://c/s.jpg' },
+      tiny: { url: 'https://c/sd.mp4', width: 960, height: 540, size: 2e6, thumbnail: 'https://c/t.jpg' },
+    } };
+    expect(escolherPixabay(hit, 'landscape')!.url).toBe('https://c/fhd.mp4');
+    expect(escolherPixabay(hit, 'portrait')).toBeNull();
+    expect(escolherPixabay({ videos: { small: { url: 'https://c/x.mp4', width: 1920, height: 1080, size: 40e6 } } }, 'landscape')).toBeNull();
+  });
+});

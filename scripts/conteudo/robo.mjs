@@ -51,10 +51,11 @@ async function main() {
   await rodar('textos', async () => produzirTextos());
   // Vídeos (Pexels): Vídeos Esporte só de vídeo; Turismo, Curiosidades e Humor juntam vídeos às artes. Se a busca de vídeo
   // falhar, essas pastas mistas não são publicadas nesta rodada (senão os vídeos que já estão nelas sairiam).
-  let videoFalhou = !process.env.PEXELS_API_KEY;
-  if (process.env.PEXELS_API_KEY) {
+  const chavesVideo = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY };
+  let videoFalhou = !chavesVideo.pexels && !chavesVideo.pixabay;
+  if (!videoFalhou) {
     try {
-      const vids = await produzirVideos(process.env.PEXELS_API_KEY);
+      const vids = await produzirVideos(chavesVideo);
       for (const [conteudo, itens] of Object.entries(vids)) {
         if (conteudo === 'videos-esporte') pastas[conteudo] = itens;
         else if (pastas[conteudo]) pastas[conteudo] = [...pastas[conteudo], ...itens];
