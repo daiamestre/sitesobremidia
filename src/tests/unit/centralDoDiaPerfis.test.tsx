@@ -74,7 +74,11 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     rpc: vi.fn(async (fn: string) => fn === 'fn_dashboard_resumo_anunciante'
       ? { data: { status: 'OK', parametros: { dias_vencer: 7 }, faturas: { vencidas_qtd: 1, vencidas_total: 450, abertas_qtd: 0, abertas_total: 0, vencendo_qtd: 0, itens: [{ id: 'f1', valor: 450, data_vencimento: '2026-09-01', codigo: 'COB-9', dias_atraso: 24 }] }, campanhas: { no_ar: 0, proximas: [] } }, error: null }
-      : { data: null, error: null }),
+      : fn === 'fn_portal_anunciante_vitrine'
+        ? { data: { status: 'OK', exibicoes: { hoje: 12, ultimos_7_dias: 80, ultimos_30_dias: 340 },
+            pontos: [{ chave: 'p:1', nome: 'Padaria Central', cidade: 'Campinas', bairro: 'Centro', categoria: null, foto_url: null, origens: ['CAMPANHA'], telas: 2, telas_online: 1, exibicoes_hoje: 12, exibicoes_30d: 340, ultima_exibicao: null }],
+            campanhas: [{ id: 'c1', titulo: 'Campanha Primavera', status: 'EM_EXIBICAO', inicio: '2026-09-01T00:00:00Z', fim: '2099-12-31T00:00:00Z', no_ar: true, total_telas: 2, pontos: ['Padaria Central'], exibicoes_30d: 340 }] }, error: null }
+        : { data: null, error: null }),
   },
 }));
 
@@ -112,13 +116,22 @@ describe('Painéis por perfil: cada card leva à tela completa do próprio porta
     expect(within(screen.getByTestId('gestor-card-midias')).getByText('17,764 s')).toBeInTheDocument();
   });
 
-  it('Anunciante: fatura vencida vira alerta crítico e o card leva a Contratos e Faturas', async () => {
+  it('Anunciante: fatura vencida vira só aviso; primeira vista mostra pontos parceiros, exibições e campanhas (F-101)', async () => {
     wrap(<CentralDoDiaAnunciante naoLidas={0} />);
     const alerta = await screen.findByTestId('alerta-faturas-vencidas');
     expect(alerta).toHaveAttribute('href', '/portal/financeiro');
     expect(alerta.textContent).toContain('1 fatura vencida');
-    const card = screen.getByTestId('anu-card-faturas');
-    expect(within(card).getAllByRole('link')[0]).toHaveAttribute('href', '/portal/financeiro');
-    expect(within(card).getByText('COB-9')).toBeInTheDocument();
+    expect(screen.queryByTestId('anu-card-faturas')).toBeNull();
+
+    const pontos = await screen.findByTestId('anu-card-pontos');
+    expect(within(pontos).getAllByRole('link')[0]).toHaveAttribute('href', '/portal/pontos');
+    expect(within(pontos).getByText('Padaria Central')).toBeInTheDocument();
+    expect(within(pontos).getAllByText('340').length).toBeGreaterThan(0);
+
+    const campanhas = screen.getByTestId('anu-card-campanhas');
+    expect(within(campanhas).getAllByRole('link')[0]).toHaveAttribute('href', '/portal/campanhas');
+    expect(within(campanhas).getByText('Campanha Primavera')).toBeInTheDocument();
+    expect(within(campanhas).getByText('No ar')).toBeInTheDocument();
+    expect(within(campanhas).getByText('Padaria Central')).toBeInTheDocument();
   });
 });

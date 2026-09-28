@@ -1,11 +1,9 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { Megaphone, Receipt } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertStrip } from '@/components/central/AlertStrip';
-import { EmptyLine, MiniStat, SummaryCard, SummaryRow } from '@/components/central/SummaryCard';
-import { diaMes, formatBRL, SemPermissaoError, type Alerta } from '@/lib/dashboardResumo';
+import { VitrineAnunciante } from '@/components/central/VitrineAnunciante';
+import { formatBRL, SemPermissaoError, type Alerta } from '@/lib/dashboardResumo';
 
 /** Resumo do dia do ANUNCIANTE (RPC fn_dashboard_resumo_anunciante: só o cliente do próprio usuário). */
 export interface ResumoAnunciante {
@@ -42,7 +40,11 @@ export function montarAlertasAnunciante(r: ResumoAnunciante, mensagensNaoLidas =
   return a;
 }
 
-/** "Seu dia" no Portal do Anunciante: alertas de faturas e mensagens + faturas e campanhas; cada card leva à tela completa. */
+/**
+ * "Seu dia" no Portal do Anunciante: avisos (faturas e mensagens) no topo e, em
+ * destaque, onde o anúncio passa e as campanhas rodando (F-101). O card de
+ * faturas saiu da primeira vista: as faturas ficam em "Contratos e Faturas".
+ */
 export function CentralDoDiaAnunciante({ naoLidas = 0, mostrarCampanhas = true }: { naoLidas?: number; mostrarCampanhas?: boolean }) {
   const q = useQuery({
     queryKey: ['central-dia-anunciante'],
@@ -52,46 +54,11 @@ export function CentralDoDiaAnunciante({ naoLidas = 0, mostrarCampanhas = true }
   });
   const r = q.data;
   const alertas = useMemo(() => (r ? montarAlertasAnunciante(r, naoLidas) : []), [r, naoLidas]);
-  if (q.error instanceof SemPermissaoError || q.isError) return null;
-
-  const f = r?.faturas;
-  const linha = (x: ResumoAnunciante['faturas']['itens'][number]) => (
-    <SummaryRow key={x.id} to="/portal/financeiro" label={x.codigo || 'Fatura'}
-      sub={x.dias_atraso > 0 ? `venceu ${diaMes(x.data_vencimento)} · ${x.dias_atraso} dias de atraso` : `vence ${diaMes(x.data_vencimento)}`}
-      value={formatBRL(x.valor)} tone={x.dias_atraso > 0 ? 'critico' : 'atencao'} />
-  );
 
   return (
     <section className="w-full min-w-0 space-y-4" data-testid="central-do-dia-anunciante" aria-label="Seu dia">
-      {r && <AlertStrip alertas={alertas} />}
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(19rem,1fr))]">
-        <SummaryCard title="Faturas" icon={Receipt} to="/portal/financeiro" loading={q.isLoading} testId="anu-card-faturas"
-          headline={f ? formatBRL(f.vencidas_total + f.abertas_total) : undefined}
-          caption={f ? `${f.vencidas_qtd} vencidas · ${f.abertas_qtd} em aberto` : undefined}
-          expanded={f && f.itens.length > 3 ? <ul>{f.itens.slice(3).map(linha)}</ul> : undefined}>
-          {f && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <MiniStat label="Vencidas" value={formatBRL(f.vencidas_total)} tone={f.vencidas_qtd ? 'critico' : 'ok'} />
-                <MiniStat label="Em aberto" value={formatBRL(f.abertas_total)} />
-              </div>
-              {f.itens.length ? <ul>{f.itens.slice(0, 3).map(linha)}</ul> : <EmptyLine>Nenhuma fatura pendente.</EmptyLine>}
-            </div>
-          )}
-        </SummaryCard>
-        {mostrarCampanhas && (
-          <SummaryCard title="Minhas campanhas" icon={Megaphone} to="/portal/campanhas" loading={q.isLoading} testId="anu-card-campanhas"
-            headline={r ? r.campanhas.no_ar : undefined} caption={r ? 'campanhas no ar agora' : undefined}>
-            {r && (r.campanhas.proximas.length ? (
-              <ul>{r.campanhas.proximas.map((c) => (
-                <SummaryRow key={c.id} to="/portal/campanhas" label={c.titulo}
-                  sub={`${format(new Date(c.inicio), 'dd/MM')} a ${format(new Date(c.fim), 'dd/MM')}${c.total_telas ? ` · ${c.total_telas} telas` : ''}`}
-                  value={new Date(c.inicio) <= new Date() ? 'No ar' : 'Em breve'} tone={new Date(c.inicio) <= new Date() ? 'ok' : undefined} />
-              ))}</ul>
-            ) : <EmptyLine>Nenhuma campanha programada.</EmptyLine>)}
-          </SummaryCard>
-        )}
-      </div>
+      {r && !q.isError && <AlertStrip alertas={alertas} />}
+      {mostrarCampanhas && <VitrineAnunciante />}
     </section>
   );
 }

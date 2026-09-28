@@ -1173,3 +1173,25 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - 48 testes do portal passaram.
   - No navegador, com `usuario1anunciante@sobremidia.com.br`: `/portal` abre direto o painel com "Bem-vindo(a), Restaurante Alpha Premium!" e o menu completo do anunciante; `/portal/encarte` abre.
 - **Pendente (fora do escopo):** `ctr_select_policy` de `contratos` só reconhece o papel `CLIENTE`, então o anunciante (papel `ANUNCIANTE`) não vê os próprios contratos.
+
+### F-101 — Portal do Anunciante: primeira vista de pontos e campanhas, cabeçalho novo, faturas e contratos visíveis — DONE
+- **Pedido do proprietário:**
+  - faturas fora da primeira vista (só no menu);
+  - cards grandes com pontos parceiros, exibições por ponto e campanhas rodando com seus pontos;
+  - menu à esquerda, com foto em círculo + SOBRE MÍDIA + Anunciante; nome do cliente à direita;
+  - Sair só no fim do menu; "Mais" vira "Perfil";
+  - sem Brand Kit e sem Minha Equipe para o anunciante.
+- **Causas encontradas:**
+  - "Contratos e Faturas" vazio: a página pedia `contas_receber.valor_original`, coluna que não existe (o nome é `valor`). A consulta falhava inteira. Correção: `valor_original:valor`.
+  - Contrato invisível: `ctr_select_policy` só reconhece o papel legado `CLIENTE`. Nova policy aditiva `ctr_select_proprio_cliente` (só leitura, só a própria linha).
+  - Rodapé do menu mostrava "Anunciante / Anunciante": o código lia `user.name` e `usuario.cargo`, que não existem. Passou a usar o nome e a foto do usuário.
+  - Menu do celular ficava atrás do cabeçalho e da barra inferior, escondendo o "Sair do Portal": o menu passou para a camada de cima (`z-[60]`).
+- **Migração 20261269:** `fn_portal_anunciante_vitrine()` (só leitura, SECURITY DEFINER, escopo `get_user_cliente_id()`).
+  - Pontos = contrato ∪ playlists publicadas ∪ telas das campanhas ∪ telas que exibiram o anúncio.
+  - Exibições = `playback_logs` do contrato, da campanha ou de mídia do cliente.
+  - Campanhas = `agendamentos` com a lista de pontos.
+- **Observação de dados (sem inventar número):** hoje nenhum cliente tem pontos no contrato, playlist publicada ou tela ligada a ponto parceiro (`screens.ponto_id` vazio em todas), e nenhuma exibição está atribuída a contrato ou campanha. Os cards mostram zero e o convite para anunciar até essas ligações existirem.
+- **Prova:**
+  - isolamento por cliente na simulação desfeita; `comparar-telas`: telas idênticas;
+  - 55 testes do portal/Central do Dia passaram;
+  - navegador 800x1280 com `usuario1anunciante@sobremidia.com.br`: cabeçalho, menu à esquerda com Sair no fim, Perfil no rodapé, Contratos e Faturas com contrato CTR-8001 e histórico.

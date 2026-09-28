@@ -6,8 +6,8 @@ import { useClienteModalidade, type ModalidadePortal } from '../hooks/useCliente
 import {
   LayoutDashboard, MapPin, LogOut, FileText,
   Calendar, Megaphone, Library, ListVideo, ImagePlus,
-  TrendingUp, Rocket, Menu, X, Loader2, Building2, Palette,
-  ShoppingBasket, BadgePercent, BookOpen, Users, Settings,
+  TrendingUp, Rocket, Menu, X, Loader2, Building2,
+  ShoppingBasket, BadgePercent, BookOpen, Settings,
   Briefcase, Home, MessageSquare, LifeBuoy, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
@@ -73,7 +73,6 @@ export default function CustomerPortalLayout() {
       items: [
         { name: 'Minhas Mídias',        path: '/portal/assets',     icon: ImagePlus },
         { name: 'Biblioteca de Mídias', path: '/portal/biblioteca', icon: Library },
-        { name: 'Brand Kit',            path: '/portal/brand-kit',  icon: Palette },
       ],
     },
     {
@@ -106,7 +105,6 @@ export default function CustomerPortalLayout() {
       label: 'Conta',
       items: [
         { name: 'Meu Perfil',    path: '/portal/perfil',         icon: Briefcase },
-        { name: 'Minha Equipe',  path: '/portal/equipe',         icon: Users },
         { name: 'Suporte',       path: '/portal/central',        icon: LifeBuoy },
         { name: 'Configurações', path: '/portal/configuracoes',  icon: Settings },
       ],
@@ -147,9 +145,7 @@ export default function CustomerPortalLayout() {
       paths.add('/portal/financeiro');
       paths.add('/portal/central');
       paths.add('/portal/perfil');
-      paths.add('/portal/equipe');
       paths.add('/portal/configuracoes');
-      paths.add('/portal/brand-kit');
       paths.add('/portal/assets');
       paths.add('/portal/biblioteca');
       paths.add('/portal/ofertas');
@@ -221,8 +217,18 @@ export default function CustomerPortalLayout() {
       {/* ── Header ── */}
       <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-slate-950/90 backdrop-blur-xl flex-shrink-0">
         <div className="flex h-16 items-center justify-between px-4 gap-4">
-          {/* Logo + Modalidade */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          {/* Menu + foto do usuário + Logo + Modalidade (tudo à esquerda) */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="xl:hidden text-slate-300 hover:text-white hover:bg-white/10 h-9 w-9 flex-shrink-0"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Menu"
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -234,14 +240,27 @@ export default function CustomerPortalLayout() {
             >
               {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
             </Button>
-            <Link to="/portal" className="flex items-center gap-2">
-              <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
+            <Link to="/portal/perfil" className="flex-shrink-0" title="Meu Perfil" aria-label="Meu Perfil">
+              {usuario.avatar_url ? (
+                <img
+                  src={usuario.avatar_url}
+                  alt={usuario.nome || 'Foto de perfil'}
+                  className="h-10 w-10 rounded-full object-cover ring-2 ring-primary/60"
+                />
+              ) : (
+                <span className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-600 ring-2 ring-primary/60 flex items-center justify-center text-white font-bold">
+                  {(usuario.nome || nomeCliente || 'A').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </Link>
+            <Link to="/portal" className="flex items-center gap-2 min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold whitespace-nowrap bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
                 SOBRE MÍDIA
               </h1>
             </Link>
             {modalidade && !loadingModalidade && (
-              <Badge className={cn('text-[10px] border hidden md:inline-flex', modalidadeBadgeColor[modalidade])}>
-                {modalidade}
+              <Badge className={cn('text-[10px] border hidden sm:inline-flex', modalidadeBadgeColor[modalidade])}>
+                {modalidade === 'ANUNCIANTE' ? 'Anunciante' : modalidade === 'HIBRIDO' ? 'Híbrido' : 'Host'}
               </Badge>
             )}
             {loadingModalidade && (
@@ -249,36 +268,13 @@ export default function CustomerPortalLayout() {
             )}
           </div>
 
-          {/* Usuário + Sair */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="hidden sm:flex items-center gap-2">
-              <Building2 className="h-3 w-3 text-slate-400" />
-              <span className="text-sm font-medium text-slate-300 max-w-[140px] truncate" title={nomeCliente}>
-                {nomeCliente}
-              </span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSignOut}
-              disabled={isLoggingOut}
-              className="border-white/10 text-slate-300 hover:bg-rose-500/10 hover:text-rose-400 gap-2 rounded-xl"
-            >
-              <LogOut className="h-4 w-4" />
-              {isLoggingOut ? 'Saindo...' : 'Sair'}
-            </Button>
+          {/* Nome do cliente à direita — o botão Sair fica só no fim do menu lateral */}
+          <div className="flex items-center gap-2 min-w-0">
+            <Building2 className="h-4 w-4 text-slate-400 flex-shrink-0" />
+            <span className="text-sm font-medium text-slate-200 max-w-[38vw] sm:max-w-[220px] truncate" title={nomeCliente}>
+              {nomeCliente}
+            </span>
           </div>
-
-          {/* Mobile Menu Toggle for Sidebar */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="xl:hidden"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Menu"
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
         </div>
       </header>
 
@@ -348,19 +344,24 @@ export default function CustomerPortalLayout() {
           {/* Seção do usuário no rodapé da sidebar */}
           <div className={cn('border-t border-white/10 bg-slate-900/50 flex-shrink-0', sidebarCollapsed ? 'p-2' : 'p-3')}>
             <div className={cn('flex items-center gap-3 mb-2 rounded-xl bg-slate-900/80 border border-white/5', sidebarCollapsed ? 'p-1.5 justify-center' : 'p-2')}>
-              <div
-                className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0"
-                title={user?.email}
-              >
-                {(user?.name || 'A').charAt(0).toUpperCase()}
-              </div>
+              {usuario.avatar_url ? (
+                <img src={usuario.avatar_url} alt="" title={user?.email}
+                  className="w-9 h-9 rounded-full object-cover shadow-md flex-shrink-0" />
+              ) : (
+                <div
+                  className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0"
+                  title={user?.email}
+                >
+                  {(usuario.nome || 'A').charAt(0).toUpperCase()}
+                </div>
+              )}
               <div className={cn('min-w-0 flex-1', sidebarCollapsed && 'hidden')}>
-                <p className="text-xs font-bold text-white truncate" title={user?.name || ''}>
-                  {user?.name || 'Anunciante'}
+                <p className="text-xs font-bold text-white truncate" title={usuario.nome || ''}>
+                  {usuario.nome || 'Anunciante'}
                 </p>
                 <p className="text-[11px] text-slate-400 truncate flex items-center gap-1">
                   <Briefcase className="h-3 w-3 text-primary flex-shrink-0" />
-                  {usuario?.cargo || 'Anunciante'}
+                  {nomeCliente || 'Anunciante'}
                 </p>
               </div>
             </div>
@@ -380,7 +381,7 @@ export default function CustomerPortalLayout() {
 
         {/* ── Menu Mobile (overlay) ── */}
         {mobileMenuOpen && (
-          <div className="fixed inset-0 z-40 xl:hidden">
+          <div className="fixed inset-0 z-[60] xl:hidden">
             {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -467,7 +468,6 @@ export default function CustomerPortalLayout() {
       <MobileBottomNav
         navItems={mobileNavItems}
         isActive={isActive}
-        onMenuClick={() => setMobileMenuOpen(true)}
       />
     </div>
   );

@@ -55,7 +55,7 @@ export default function FinanceiroClientePage() {
         // Faturas reais do cliente — fonte canônica contas_receber
         const { data, error } = await supabase
           .from('contas_receber')
-          .select('id, numero_documento, codigo_operacional, competencia_date, data_vencimento, valor_original, saldo, status, notes')
+          .select('id, numero_documento, codigo_operacional, competencia_date, data_vencimento, valor_original:valor, saldo, status, notes')
           .eq('cliente_id', usuario.cliente_id)
           .order('data_vencimento', { ascending: false })
           .limit(100);
