@@ -58,8 +58,8 @@ const num = (n: number) => n.toLocaleString('pt-BR');
 
 function Numero({ valor, rotulo, destaque }: { valor: number; rotulo: string; destaque?: boolean }) {
   return (
-    <div className={cn('rounded-xl border border-border/50 bg-muted/20 px-3 py-2', destaque && 'border-primary/40 bg-primary/10')}>
-      <p className="text-lg font-bold tabular-nums text-foreground">{num(valor)}</p>
+    <div className={cn('rounded-lg border border-border/50 bg-muted/20 px-2 py-1.5', destaque && 'border-primary/40 bg-primary/10')}>
+      <p className="text-base font-bold tabular-nums text-foreground">{num(valor)}</p>
       <p className="text-[11px] text-muted-foreground">{rotulo}</p>
     </div>
   );
@@ -76,20 +76,20 @@ export function VitrineAnunciante() {
   const v = q.data;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2" data-testid="vitrine-anunciante">
+    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2" data-testid="vitrine-anunciante">
       <SummaryCard title="Onde seu anúncio passa" icon={MapPin} to="/portal/pontos" loading={q.isLoading} testId="anu-card-pontos"
         headline={v ? num(v.exibicoes.ultimos_30_dias) : undefined}
         caption={v ? 'exibições do seu anúncio nos últimos 30 dias' : undefined}>
         {v && (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               <Numero valor={v.exibicoes.hoje} rotulo="hoje" destaque />
               <Numero valor={v.exibicoes.ultimos_7_dias} rotulo="7 dias" />
               <Numero valor={v.pontos.length} rotulo={v.pontos.length === 1 ? 'ponto parceiro' : 'pontos parceiros'} />
             </div>
             {v.pontos.length ? (
               <ul className="divide-y divide-border/40" data-testid="anu-lista-pontos">
-                {v.pontos.slice(0, 6).map((p) => (
+                {v.pontos.slice(0, 3).map((p) => (
                   <li key={p.chave} className="flex items-center gap-3 py-2 min-w-0">
                     {p.foto_url ? (
                       <img src={p.foto_url} alt="" className="h-10 w-10 flex-shrink-0 rounded-lg object-cover" />
@@ -131,7 +131,7 @@ export function VitrineAnunciante() {
         caption={v ? 'campanhas no ar agora' : undefined}>
         {v && (v.campanhas.length ? (
           <ul className="divide-y divide-border/40" data-testid="anu-lista-campanhas">
-            {v.campanhas.slice(0, 4).map((c) => (
+            {v.campanhas.slice(0, 3).map((c) => (
               <li key={c.id} className="py-2.5 min-w-0">
                 <div className="flex items-start justify-between gap-3">
                   <span className="min-w-0">
@@ -148,11 +148,12 @@ export function VitrineAnunciante() {
                 </div>
                 {c.pontos.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
-                    {c.pontos.map((nome) => (
+                    {c.pontos.slice(0, 2).map((nome) => (
                       <span key={nome} className="inline-flex max-w-full items-center gap-1 truncate rounded-md border border-border/50 bg-muted/30 px-1.5 py-0.5 text-[11px] text-muted-foreground">
                         <MapPin className="h-3 w-3 flex-shrink-0" /> {nome}
                       </span>
                     ))}
+                    {c.pontos.length > 2 && <span className="rounded-md border border-border/50 px-1.5 py-0.5 text-[11px] text-muted-foreground">+{c.pontos.length - 2}</span>}
                   </div>
                 )}
               </li>

@@ -558,35 +558,44 @@ export class FinanceiroService {
       // Validar recebível e regras financeiras (ex: não reduzir saldo para negativo ou valor total menor que pago)
       const { data: current } = await supabase
         .from('contas_receber')
-        .select('valor_pago, status')
+        .select('valor, valor_pago, status, data_vencimento')
         .eq('id', id)
         .single();
-        
+
       if (!current) return { success: false, error: 'Recebível não encontrado.' };
-      
+
       const updatePayload: any = { updated_at: new Date().toISOString() };
-      
+      const pago = Number(current.valor_pago || 0);
+      const finalizada = ['PAGA', 'PAGO', 'CONCILIADA', 'CANCELADA', 'CANCELADO'].includes(String(current.status || '').toUpperCase());
+
       if (norm.valor !== undefined && !isNaN(norm.valor)) {
-        if (norm.valor < Number(current.valor_pago || 0)) {
+        if (norm.valor < pago) {
           return { success: false, error: 'Valor total não pode ser menor que o valor já recebido.' };
         }
         updatePayload.valor = norm.valor;
-        updatePayload.saldo = norm.valor - Number(current.valor_pago || 0);
-        
-        // Recalcular status se necessário baseado no novo saldo
-        if (current.status !== 'CANCELADO') {
-          updatePayload.status = updatePayload.saldo <= 0 ? 'PAGO' : (Number(current.valor_pago || 0) > 0 ? 'PARCIAL' : 'PENDENTE');
-        }
+        updatePayload.saldo = norm.valor - pago;
       }
-      
+
       if (norm.dataVencimento) updatePayload.data_vencimento = norm.dataVencimento;
       if (norm.descricao !== undefined) updatePayload.notes = norm.descricao;
       if (norm.metodoCobranca !== undefined) updatePayload.metodo_cobranca = norm.metodoCobranca;
       if (norm.metodosGateway !== undefined) updatePayload.metodos_gateway = norm.metodosGateway;
+      // F-105: mês da cobrança (competência) também é editável
+      if (payload.competencia) updatePayload.competencia_date = `${String(payload.competencia).slice(0, 7)}-01`;
 
-      const { error } = await supabase.from('contas_receber').update(updatePayload).eq('id', id);
-      
+      // F-105: status coerente com o novo valor/vencimento (antes um vencimento adiado continuava "ATRASADO")
+      if (!finalizada && (updatePayload.valor !== undefined || updatePayload.data_vencimento)) {
+        const saldo = updatePayload.saldo ?? (Number(current.valor) - pago);
+        const venc = String(updatePayload.data_vencimento || current.data_vencimento || '').slice(0, 10);
+        const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+        updatePayload.status = saldo <= 0 ? 'PAGA' : pago > 0 ? 'PARCIAL_PAGA' : (venc && venc < hoje ? 'ATRASADO' : 'PENDENTE');
+      }
+
+      // F-105: confere que a linha foi mesmo gravada (sem permissão o banco não dá erro, só não grava)
+      const { data: gravadas, error } = await supabase.from('contas_receber').update(updatePayload).eq('id', id).select('id');
+
       if (error) return { success: false, error: error.message };
+      if (!gravadas || gravadas.length === 0) return { success: false, error: 'A cobrança não foi alterada (sem permissão para editar).' };
       
       // Registrar evento de auditoria
       await supabase.from('financeiro_auditoria').insert({
@@ -600,6 +609,49 @@ export class FinanceiroService {
       logger.error('updateReceivable falhou', err);
       return { success: false, error: err?.message || 'Falha ao atualizar cobrança.' };
     }
+  }
+
+  /**
+   * F-105 — "Cobrar em outro mês": cria uma NOVA cobrança (novo código, novo link, novo PIX/boleto)
+   * com base numa existente. A original fica exatamente como está (paga, em aberto ou em atraso).
+   */
+  async criarCobrancaDeOutroMes(
+    origemId: string,
+    dados: { competencia: string; vencimento: string; valor: number; descricao?: string; metodoCobranca?: string; metodosGateway?: string[] },
+    usuarioId?: string,
+  ): Promise<{ success: boolean; contaId?: string; codigo?: string; error?: string }> {
+    const { data: origem, error: errOrigem } = await supabase
+      .from('contas_receber')
+      .select('empresa_operadora_id, cliente_id, contrato_id, notes, metodo_cobranca, metodos_gateway')
+      .eq('id', origemId)
+      .single();
+    if (errOrigem || !origem) return { success: false, error: 'Cobrança de origem não encontrada.' };
+    if (!origem.cliente_id) return { success: false, error: 'Cobrança de origem sem cliente.' };
+
+    const criada = await this.createReceivable({
+      empresaOperadoraId: origem.empresa_operadora_id,
+      contratoId: origem.contrato_id || undefined,
+      clienteId: origem.cliente_id,
+      competencia: dados.competencia.slice(0, 7),
+      vencimento: dados.vencimento,
+      valorOriginal: dados.valor,
+    }, usuarioId);
+    if (!criada.success || !criada.contaId) return { success: false, error: criada.error || 'Falha ao criar a nova cobrança.' };
+
+    const { error: errAjuste } = await supabase.from('contas_receber').update({
+      notes: dados.descricao ?? origem.notes ?? null,
+      metodo_cobranca: dados.metodoCobranca ?? origem.metodo_cobranca ?? 'PIX',
+      metodos_gateway: dados.metodosGateway ?? origem.metodos_gateway ?? ['PIX', 'BOLETO'],
+    }).eq('id', criada.contaId);
+    if (errAjuste) return { success: false, error: errAjuste.message };
+
+    await supabase.from('financeiro_auditoria').insert({
+      empresa_operadora_id: origem.empresa_operadora_id,
+      evento: 'COBRANCA_OUTRO_MES',
+      usuario_id: usuarioId || null,
+      detalhes: { origem_id: origemId, nova_id: criada.contaId, competencia: dados.competencia },
+    });
+    return { success: true, contaId: criada.contaId, codigo: criada.numeroDocumento };
   }
 
   async marcarComoPaga(

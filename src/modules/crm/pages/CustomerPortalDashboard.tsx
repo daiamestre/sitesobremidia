@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { ArtworkApproval } from '../components/portal/ArtworkApproval';
 import { ProofOfPlayViewer } from '../components/portal/ProofOfPlayViewer';
-import { CustomerSupportTickets } from '../components/portal/CustomerSupportTickets';
 import { customerPortalService } from '../services/customerPortal.service';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/utils/formatters';
@@ -458,15 +457,7 @@ export default function CustomerPortalDashboard() {
         </>
       )}
 
-      {/* ── Suporte (faturas ficam em Contrato e Faturas — missão §38) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {resolvedEmpresaId && (
-          <CustomerSupportTickets
-            clienteId={resolvedClienteId || ''}
-            empresaOperadoraId={resolvedEmpresaId}
-          />
-        )}
-      </div>
+      {/* F-106: a "Central de atendimento e suporte" saiu do painel — o suporte é único, em Central → Suporte */}
 
       {/* HOST + HÍBRIDO: Alerta de telas offline e Inventário */}
       {isHost && (

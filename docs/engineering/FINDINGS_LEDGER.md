@@ -1255,3 +1255,53 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - e-mail do login com `trim` e minúsculas;
   - **prova real:** depois do `updateUser`, entra com a senha nova (`signInWithPassword`); só então conclui. Se não conferir, avisa na hora e mantém a troca pendente.
 - **Prova:** `senhaPrimeiroAcesso.test.ts` (4) + fluxos de senha e perfil (33).
+
+### F-105 — Cobranças: pagamento do Inter sempre registrado, edição que vale no link, bloqueio automático por atraso — DONE
+- **Causa raiz (Hotel Maxsuel, REC-2026-834997):**
+  - a edição 622→618 manteve o PIX de 622 guardado (txid fixo por cobrança; o link mostrava o PIX antigo);
+  - o cliente pagou 622; o webhook chegou em 23/09 13:03 e o registro foi recusado por `trg_valida_integridade_pagamento` (ERR_VALOR_EXCEDENTE 622 > saldo 618). Reproduzido no banco.
+- **Achados extras:**
+  - o webhook de PIX aceitava aviso falso sem consultar o banco (txid previsível);
+  - o webhook de boleto só anotava a situação e nunca quitava a cobrança;
+  - `inter-pix-engine` chamava `generatePixPayload`, que não existia nela;
+  - a edição podia "salvar" sem gravar (update sem linhas não dá erro).
+- **Correção:**
+  - Migrações 20261272–20261274:
+    - histórico de PIX/boleto aposentados;
+    - gatilho que aposenta a emissão ao editar valor, vencimento ou formas;
+    - `fn_registrar_pagamento_inter` (valor recebido pelo banco; aplica até o saldo e anota o excedente; idempotente);
+    - `screens.cliente_id` + bloqueio a partir de 4 dias de atraso e reativação imediata ao pagar (controle manual preservado);
+    - cron do bloqueio (de hora em hora) e da conciliação com o Inter (15 em 15 min);
+    - `rpc_get_public_billing` + `valor_recebido_banco`.
+  - Funções: txid único por emissão; aviso só vale depois de confirmado no próprio Inter (`/pix/v2/pix/{e2e}` ou `/cob/{txid}`; boleto `/cobrancas/{codigo}`); ação `reconciliar`; boleto reemitido com referência nova.
+  - Telas:
+    - edição de cobrança com mês, situação, valor já pago e valor recebido pelo Inter; mudar o mês cria uma cobrança nova e mantém a original;
+    - página da fatura com "Cobrança em aberto", "Cobrança em atraso há N dias" e "Fatura paga" com o valor recebido;
+    - portal do anunciante com Visualizar e Pagar em cada fatura;
+    - campo "Cliente desta tela".
+- **Prova:**
+  - simulações desfeitas: edição aposenta o PIX; pagamento de 622 → PAGA (618 aplicados, 4 de excedente); repetir o aviso não duplica; atraso bloqueia; pagar reativa; liberação e desligamento manuais respeitados;
+  - execução real: o Inter confirmou o PIX (e2e E0000000020260923130321413165624) → REC-2026-834997 PAGA;
+  - navegador: página da fatura "FATURA PAGA / Valor recebido pelo Banco Inter: R$ 622,00".
+- **Pendente do proprietário:**
+  - o Hotel Maxsuel tem outra cobrança igual, REC-2026-338368 (618, vencida 22/09), aparentemente duplicada;
+  - nenhuma tela está vinculada a cliente ainda: é preciso escolher o cliente em cada tela para o bloqueio automático valer.
+
+### F-106 — Avisos vistos, avisos de fatura na Central do cliente, suporte e painel — DONE
+- **Contador que não zerava:**
+  - o aviso só saía ao ser tocado; agora aviso exibido = aviso visto;
+  - no dono/ADM o sino somava avisos de clientes (visíveis por RLS); agora conta só os avisos do próprio usuário;
+  - a marcação automática só vale para avisos do próprio usuário, para abrir a Central do dono não contar como "o cliente viu".
+- **Migração 20261275:**
+  - `notificacoes_central.lida_em`;
+  - a régua de cobrança (jobs COLECTION_*) gera aviso na Central do cliente: vence em N dias, vence hoje, em atraso há N dias, pagamento confirmado;
+  - o bloqueio avisa "Sua mídia foi pausada" e "Sua mídia voltou ao ar".
+- **Telas:**
+  - OWNER/ADMIN: "Avisos enviados aos clientes — quem já viu", com data e hora;
+  - suporte com o texto "Envie para o suporte o que está acontecendo.";
+  - a "Central de atendimento" antiga saiu do painel do anunciante;
+  - cards "Onde seu anúncio passa" e "Suas campanhas" lado a lado e mais compactos.
+- **Prova:**
+  - simulação desfeita (aviso de atraso gerado, `lida_em` gravado, "Sua mídia foi pausada");
+  - 123 testes;
+  - navegador: o contador do anunciante zerou depois de abrir a Central (`lida_em` gravado no banco); cards lado a lado; painel do administrador mostrando "Hotel Maxsuel — Ainda não viu".

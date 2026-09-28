@@ -8,6 +8,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { ClienteDaTela } from '@/components/screens/ClienteDaTela';
 import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -1306,6 +1307,15 @@ return (
                                         }}
                                     />
                                 </div>
+
+                                {resolvedId && (
+                                    <ClienteDaTela
+                                        screenId={resolvedId}
+                                        clienteId={(screen as any).cliente_id ?? null}
+                                        bloqueadaPorAtraso={(screen as any).bloqueada_por_inadimplencia === true}
+                                        onAlterado={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
+                                    />
+                                )}
 
                                 <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
                                     <div className="space-y-0.5">

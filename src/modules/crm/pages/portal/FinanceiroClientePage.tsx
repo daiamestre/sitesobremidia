@@ -3,25 +3,20 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { FileText, Loader2, CalendarClock, Receipt, ExternalLink } from 'lucide-react';
+import { FileText, Loader2, CalendarClock, Receipt, ExternalLink, Eye, QrCode } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { situacaoCobranca, linkDaFatura } from '@/lib/situacaoCobranca';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CONTRATOS_ATIVOS_STATUS } from '../../hooks/useClienteModalidade';
 
 const brl = (n: number) =>
   Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-const STATUS_FATURA: Record<string, { label: string; cls: string }> = {
-  PAGO: { label: 'Pago', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-  PAGA: { label: 'Paga', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-  PENDENTE: { label: 'Aberta', cls: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
-  ABERTA: { label: 'Aberta', cls: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
-  RASCUNHO: { label: 'Rascunho', cls: 'bg-slate-500/20 text-slate-400 border-slate-500/30' },
-  VENCIDO: { label: 'Vencida', cls: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
-  ATRASADA: { label: 'Vencida', cls: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
-};
+const dataBR = (d?: string | null) => (d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR') : '—');
+const mesAno = (d: string) => new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
 
 interface Fatura {
   id: string;
@@ -31,6 +26,9 @@ interface Fatura {
   data_vencimento?: string | null;
   valor_original?: number | null;
   saldo?: number | null;
+  valor_pago?: number | null;
+  public_identifier?: string | null;
+  inter_pix_valor_recebido?: number | null;
   status: string;
   notes?: string | null;
 }
@@ -55,7 +53,7 @@ export default function FinanceiroClientePage() {
         // Faturas reais do cliente — fonte canônica contas_receber
         const { data, error } = await supabase
           .from('contas_receber')
-          .select('id, numero_documento, codigo_operacional, competencia_date, data_vencimento, valor_original:valor, saldo, status, notes')
+          .select('id, numero_documento, codigo_operacional, competencia_date, data_vencimento, valor_original:valor, saldo, valor_pago, public_identifier, inter_pix_valor_recebido, status, notes')
           .eq('cliente_id', usuario.cliente_id)
           .order('data_vencimento', { ascending: false })
           .limit(100);
@@ -92,7 +90,7 @@ export default function FinanceiroClientePage() {
 
   // Próxima fatura = mais próxima vencimento não paga
   const abertas = faturas
-    .filter((f) => !['PAGO', 'PAGA', 'CANCELADO'].includes(f.status))
+    .filter((f) => !['PAGO', 'PAGA', 'CONCILIADA', 'CANCELADO', 'CANCELADA'].includes(f.status))
     .sort((a, b) => String(a.data_vencimento).localeCompare(String(b.data_vencimento)));
   const proxima = abertas[0];
 
@@ -135,32 +133,42 @@ export default function FinanceiroClientePage() {
         </Card>
       )}
 
-      {/* Próxima fatura */}
-      {!loading && proxima && (
-        <Card className="border border-amber-500/20 bg-amber-500/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2 text-amber-400">
-              <CalendarClock className="h-4 w-4" /> Próxima fatura
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wide">Documento</p>
-              <p className="font-medium">{proxima.numero_documento || proxima.codigo_operacional || '—'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wide">Vencimento</p>
-              <p className="font-medium">
-                {proxima.data_vencimento ? new Date(proxima.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wide">Valor</p>
-              <p className="font-bold text-lg">{brl(Number(proxima.saldo ?? proxima.valor_original ?? 0))}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Próxima fatura a pagar (F-105: com Pagar e Visualizar) */}
+      {!loading && proxima && (() => {
+        const sit = situacaoCobranca(proxima.status, proxima.data_vencimento);
+        const link = linkDaFatura(proxima.codigo_operacional, proxima.public_identifier);
+        return (
+          <Card className={cn('border', sit.tipo === 'atraso' ? 'border-red-500/30 bg-red-500/5' : 'border-amber-500/20 bg-amber-500/5')} data-testid="proxima-fatura">
+            <CardHeader className="pb-2">
+              <CardTitle className={cn('text-sm flex items-center gap-2', sit.tipo === 'atraso' ? 'text-red-400' : 'text-amber-400')}>
+                <CalendarClock className="h-4 w-4" /> Próxima fatura · {sit.texto}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Documento</p>
+                  <p className="font-medium">{proxima.codigo_operacional || proxima.numero_documento || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Vencimento</p>
+                  <p className="font-medium">{dataBR(proxima.data_vencimento)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Valor</p>
+                  <p className="font-bold text-lg">{brl(Number(proxima.saldo ?? proxima.valor_original ?? 0))}</p>
+                </div>
+              </div>
+              {link && (
+                <div className="flex gap-2">
+                  <Link to={link}><Button variant="outline" size="sm" className="gap-2 border-white/10"><Eye className="h-4 w-4" /> Visualizar</Button></Link>
+                  <Link to={link}><Button size="sm" className="gap-2"><QrCode className="h-4 w-4" /> Pagar fatura</Button></Link>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Histórico */}
       {loading ? (
@@ -173,42 +181,49 @@ export default function FinanceiroClientePage() {
         <Card className="border border-white/10 bg-slate-900/80">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-slate-300">
-              <Receipt className="h-4 w-4" /> Histórico de faturas
+              <Receipt className="h-4 w-4" /> Minhas faturas
             </CardTitle>
-            <CardDescription>Somente faturas da sua empresa.</CardDescription>
+            <CardDescription>Toque em "Pagar" para ver o PIX ou o boleto da fatura.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-slate-950">
-                <TableRow className="border-white/10">
-                  <TableHead className="text-slate-300">Documento</TableHead>
-                  <TableHead className="text-slate-300">Vencimento</TableHead>
-                  <TableHead className="text-slate-300">Valor</TableHead>
-                  <TableHead className="text-slate-300">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {faturas.map((f) => {
-                  const st = STATUS_FATURA[f.status] ?? { label: f.status, cls: 'bg-slate-500/20 text-slate-400 border-slate-500/30' };
-                  return (
-                    <TableRow key={f.id} className="border-white/10 hover:bg-white/5">
-                      <TableCell className="text-slate-300 text-xs font-mono">
-                        {f.numero_documento || f.codigo_operacional || '—'}
-                      </TableCell>
-                      <TableCell className="text-slate-300 text-xs">
-                        {f.data_vencimento ? new Date(f.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}
-                      </TableCell>
-                      <TableCell className="text-white font-bold text-xs">
-                        {brl(Number(f.saldo ?? f.valor_original ?? 0))}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={st.cls}>{st.label}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <ul className="divide-y divide-white/10" data-testid="lista-faturas">
+              {faturas.map((f) => {
+                const sit = situacaoCobranca(f.status, f.data_vencimento);
+                const link = linkDaFatura(f.codigo_operacional, f.public_identifier);
+                const paga = sit.tipo === 'paga';
+                return (
+                  <li key={f.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs text-slate-300">{f.codigo_operacional || f.numero_documento || '—'}</span>
+                        <span className={cn('rounded-md border px-2 py-0.5 text-[11px] font-semibold', sit.cor, paga && 'border-2')}>{sit.texto}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {f.competencia_date ? `${mesAno(f.competencia_date)} · ` : ''}vence {dataBR(f.data_vencimento)}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 sm:justify-end">
+                      <div className="text-right">
+                        <p className={cn('font-bold', paga ? 'text-emerald-400' : 'text-white')}>
+                          {brl(paga ? Number(f.valor_pago ?? f.valor_original ?? 0) : Number(f.saldo ?? f.valor_original ?? 0))}
+                        </p>
+                        {paga && Number(f.inter_pix_valor_recebido || 0) > 0 && (
+                          <p className="text-[11px] text-emerald-400/80">recebido pelo banco: {brl(Number(f.inter_pix_valor_recebido))}</p>
+                        )}
+                      </div>
+                      {link && (
+                        <div className="flex gap-2">
+                          <Link to={link}><Button variant="outline" size="sm" className="gap-1 border-white/10"><Eye className="h-4 w-4" /> Visualizar</Button></Link>
+                          {!paga && sit.tipo !== 'cancelada' && (
+                            <Link to={link}><Button size="sm" className="gap-1"><QrCode className="h-4 w-4" /> Pagar</Button></Link>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </CardContent>
         </Card>
       )}

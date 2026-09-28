@@ -140,10 +140,15 @@ export class CentralService {
   }
 
   async contarNaoLidas(): Promise<number> {
+    // F-106: só os avisos DO PRÓPRIO usuário. Dono/ADM enxergam avisos de clientes (RLS), mas esses
+    // não são deles e nunca zeravam o contador.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
     const { count, error } = await supabase
       .from('notificacoes_central')
       .select('id', { count: 'exact', head: true })
       .eq('canal', 'IN_APP')
+      .eq('usuario_id', user.id)
       .eq('status_notificacao', 'NAO_LIDA');
 
     if (error) return 0;

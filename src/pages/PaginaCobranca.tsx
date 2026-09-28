@@ -25,6 +25,8 @@ interface PublicBillingData {
   valor_original: number;
   valor_pago: number;
   saldo: number;
+  /** F-105: valor que o Banco Inter efetivamente recebeu (PIX) */
+  valor_recebido_banco?: number | string | null;
   status: string;
   numero_parcela: number | null;
   total_parcelas: number | null;
@@ -418,10 +420,11 @@ export default function PaginaCobranca() {
 
   const getStatusText = () => {
     if (isCanceled) return 'CANCELADA';
-    if (isPaid) return 'PAGA';
-    if (isOverdue) return 'ATRASADA';
+    // F-105: textos combinados com o proprietário
+    if (isPaid) return 'FATURA PAGA';
+    if (isOverdue) return diasAtraso > 0 ? `COBRANÇA EM ATRASO HÁ ${diasAtraso} ${diasAtraso === 1 ? 'DIA' : 'DIAS'}` : 'COBRANÇA EM ATRASO';
     if (data.status === 'PARCIAL' || data.status === 'PARCIAL_PAGA' || (Number(data.valor_pago || 0) > 0 && Number(saldoCorreto) > 0)) return 'PAGA PARCIALMENTE';
-    return 'EM ABERTO';
+    return 'COBRANÇA EM ABERTO';
   };
 
   const statusText = getStatusText();
@@ -498,12 +501,18 @@ export default function PaginaCobranca() {
           <div className="absolute inset-0 bg-gradient-to-b from-[#5D1BFF]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           
           <h3 className="text-sm font-semibold uppercase tracking-widest text-[#F2F2F2]/70 mb-2">
-            {isPaid ? 'Cobrança quitada' : 'Saldo em aberto'}
+            {isPaid ? 'Fatura paga' : 'Saldo em aberto'}
           </h3>
           
           <div className={`text-3xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight mb-4 drop-shadow-lg break-all ${isPaid ? 'text-[#25D366]' : 'text-[#FFFFFF]'}`}>
             {formatMoney(isPaid ? data.valor_pago : saldoCorreto)}
           </div>
+          {isPaid && Number(data.valor_recebido_banco || 0) > 0 && (
+            <div className="inline-flex items-center gap-2 rounded-xl border-2 border-[#25D366]/60 bg-[#25D366]/10 px-4 py-2 text-sm sm:text-base font-semibold text-[#25D366]" data-testid="valor-recebido-banco">
+              <CheckCircle2 className="w-5 h-5" />
+              Valor recebido pelo Banco Inter: {formatMoney(Number(data.valor_recebido_banco))}
+            </div>
+          )}
           
           {!isPaid && !isCanceled && (
             <div className="flex flex-col items-center justify-center gap-2 mt-6">

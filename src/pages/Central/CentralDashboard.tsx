@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolverPortalSolicitado, podeAcessarPortal, rotuloPortal } from '@/lib/portalAccess';
 import { accessRequestService } from '@/services/accessRequest.service';
-import { useCentral, useConversas } from '@/hooks/useCentral';
+import { useCentral, useConversas, centralUnreadKey } from '@/hooks/useCentral';
 import { biService } from '@/services/bi.service';
 import { centralService } from '@/services/central.service';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -65,6 +65,7 @@ import {
 import { Headphones } from 'lucide-react';
 import { SuporteAtendimento } from '@/components/suporte/SuporteAtendimento';
 import { SuporteCliente } from '@/components/suporte/SuporteCliente';
+import { AvisosVistosClientes } from '@/components/suporte/AvisosVistosClientes';
 import { formatCurrency, formatDateTime } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -303,6 +304,22 @@ export const CentralDashboard = () => {
       n.mensagem.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesPrioridade && matchesStatus && matchesSearch;
   }) || [];
+
+  // F-106: aviso exibido = visto. Só os avisos DO PRÓPRIO usuário (o dono/ADM também enxerga avisos de
+  // clientes, e abrir a Central dele não pode contar como "o cliente viu").
+  const meusNaoLidosKey = filteredNotificacoes
+    .filter((n) => n.status_notificacao === 'NAO_LIDA' && (n as { usuario_id?: string }).usuario_id === usuario?.id)
+    .map((n) => n.id).join(',');
+  useEffect(() => {
+    if (activeTab !== 'inbox' || !meusNaoLidosKey) return;
+    const ids = meusNaoLidosKey.split(',');
+    const t = setTimeout(async () => {
+      await Promise.all(ids.map((id) => centralService.marcarComoLida(id)));
+      queryClient.invalidateQueries({ queryKey: ['central-feed'] });
+      queryClient.invalidateQueries({ queryKey: centralUnreadKey });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [activeTab, meusNaoLidosKey, queryClient]);
 
   const filteredSolicitacoes = feed?.solicitacoes.filter((s) => {
     const matchesStatus = filterStatus === 'TODOS' || s.status === filterStatus;
@@ -595,7 +612,12 @@ export const CentralDashboard = () => {
         </TabsList>
 
         <TabsContent value="suporte" className="mt-4">
-          {atendeSuporte ? <SuporteAtendimento /> : <SuporteCliente />}
+          {atendeSuporte ? (
+            <div className="space-y-4">
+              <SuporteAtendimento />
+              <AvisosVistosClientes />
+            </div>
+          ) : <SuporteCliente />}
         </TabsContent>
 
         <TabsContent value="inbox" className="mt-4">

@@ -66,6 +66,18 @@ export default function CentralAnunciantePage() {
   });
 
   const naoLidos = (avisos.data ?? []).filter((a) => a.status_notificacao === 'NAO_LIDA');
+
+  // F-106: aviso exibido na tela = aviso visto. Sai do contador e o OWNER/ADMIN vê quando foi visto (lida_em).
+  // A bolinha de "novo" continua nesta visita para o cliente saber o que chegou.
+  const [novosNestaVisita, setNovosNestaVisita] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (aba !== 'avisos' || naoLidos.length === 0 || marcar.isPending) return;
+    const ids = naoLidos.map((a) => a.id);
+    setNovosNestaVisita((prev) => new Set([...prev, ...ids]));
+    const t = setTimeout(() => marcar.mutate(ids), 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aba, naoLidos.map((a) => a.id).join(',')]);
   const alertasFatura = resumo.data ? montarAlertasAnunciante(resumo.data, 0).filter((a) => a.id !== 'tudo-ok') : [];
 
   const abrirAviso = (a: Aviso) => {
@@ -116,9 +128,9 @@ export default function CentralAnunciantePage() {
                     <button type="button" onClick={() => abrirAviso(a)}
                       className="flex w-full items-start gap-3 rounded-lg px-2 py-3 text-left hover:bg-muted/40">
                       <span className={cn('mt-1.5 h-2 w-2 flex-shrink-0 rounded-full',
-                        a.status_notificacao === 'NAO_LIDA' ? 'bg-primary' : 'bg-transparent')} />
+                        (a.status_notificacao === 'NAO_LIDA' || novosNestaVisita.has(a.id)) ? 'bg-primary' : 'bg-transparent')} />
                       <span className="min-w-0 flex-1">
-                        <span className={cn('block text-sm', a.status_notificacao === 'NAO_LIDA' ? 'font-semibold text-foreground' : 'text-foreground/80')}>{a.titulo}</span>
+                        <span className={cn('block text-sm', (a.status_notificacao === 'NAO_LIDA' || novosNestaVisita.has(a.id)) ? 'font-semibold text-foreground' : 'text-foreground/80')}>{a.titulo}</span>
                         {a.mensagem && <span className="block text-xs text-muted-foreground line-clamp-2">{a.mensagem}</span>}
                       </span>
                       <span className="flex-shrink-0 text-[11px] text-muted-foreground">{format(new Date(a.created_at), 'dd/MM HH:mm')}</span>

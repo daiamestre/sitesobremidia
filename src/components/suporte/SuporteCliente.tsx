@@ -91,7 +91,7 @@ export function SuporteCliente() {
         <div className="space-y-2">
           <label htmlFor="sup-msg" className="text-sm font-medium text-foreground">3. Explique com detalhes</label>
           <Textarea id="sup-msg" value={mensagem} onChange={(e) => setMensagem(e.target.value)} rows={5} maxLength={4000}
-            placeholder="Conte o que aconteceu. O dono e a administração da SOBRE MÍDIA recebem sua mensagem." />
+            placeholder="Envie para o suporte o que está acontecendo." />
         </div>
         <Button type="submit" disabled={!pronto || abrir.isPending} className="w-full gap-2 sm:w-auto">
           {abrir.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquarePlus className="h-4 w-4" />}
