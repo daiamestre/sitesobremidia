@@ -24,9 +24,18 @@ export function escolherArquivo(video, orientacao) {
 
 async function buscar(chave, termo, orientacao, pagina) {
   const u = `https://api.pexels.com/videos/search?query=${encodeURIComponent(termo)}&orientation=${orientacao}&size=medium&per_page=15&page=${pagina}`;
-  const r = await fetch(u, { headers: { Authorization: chave }, signal: AbortSignal.timeout(20000) });
-  if (!r.ok) throw new Error(`Pexels HTTP ${r.status}`);
-  return (await r.json()).videos ?? [];
+  let ultimo = '';
+  for (let t = 1; t <= 3; t++) {
+    try {
+      const r = await fetch(u, { headers: { Authorization: chave }, signal: AbortSignal.timeout(20000) });
+      if (r.ok) return (await r.json()).videos ?? [];
+      ultimo = `HTTP ${r.status}`;
+      if (r.status === 401 || r.status === 403) break; // chave inválida: não adianta repetir
+    } catch (e) { ultimo = e.message; }
+    await new Promise((ok) => setTimeout(ok, 1500 * t));
+  }
+  console.log(`  Pexels "${termo}" (${orientacao}): ${ultimo} — tenta o próximo termo`);
+  return null;
 }
 
 /** { 'videos-esporte': [...], turismo: [...], curiosidades: [...], humor: [...] } — itens de vídeo (uma orientação cada). */
@@ -37,9 +46,9 @@ export async function produzirVideos(chave, semana = semanaDoAno()) {
     for (const [orientacao, o] of [['landscape', 'h'], ['portrait', 'v']]) {
       const vistos = new Set();
       let tentativa = 0;
-      while (itens.filter((i) => i.orientacoes[0] === o).length < cfg.n && tentativa < 4) {
+      while (itens.filter((i) => i.orientacoes[0] === o).length < cfg.n && tentativa < 6) {
         const termo = cfg.buscas[(semana + tentativa) % cfg.buscas.length];
-        const lista = await buscar(chave, termo, orientacao, (semana % 5) + 1);
+        const lista = (await buscar(chave, termo, orientacao, (semana % 5) + 1)) ?? [];
         for (const v of lista) {
           if (itens.filter((i) => i.orientacoes[0] === o).length >= cfg.n) break;
           if (vistos.has(v.id) || !v.duration || v.duration > DURACAO_MAX || v.duration < 5) continue;
@@ -58,5 +67,7 @@ export async function produzirVideos(chave, semana = semanaDoAno()) {
     }
     out[conteudo] = itens;
   }
+  // Pexels fora do ar (nenhum vídeo em pasta nenhuma): falha — as pastas de vídeo ficam como estão nesta rodada
+  if (Object.values(out).every((l) => l.length === 0)) throw new Error('Pexels indisponível (nenhum vídeo encontrado)');
   return out;
 }
