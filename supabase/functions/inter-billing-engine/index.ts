@@ -139,6 +139,53 @@ async function getOAuthToken(httpClient: any) {
   }
 }
 
+// ======================================================================
+// F-105 — Boleto: confirmar com o Inter e registrar o valor recebido
+// ======================================================================
+const SITUACOES_PAGAS = ['RECEBIDO', 'PAGO', 'MARCADO_RECEBIDO', 'LIQUIDADO'];
+
+async function contaDoBoleto(srv: any, codigo: string): Promise<string | null> {
+  const { data: atual } = await srv.from('contas_receber').select('id').eq('inter_codigo_solicitacao', codigo).limit(1).maybeSingle();
+  if (atual?.id) return atual.id;
+  const { data: antiga } = await srv.from('contas_receber_emissoes_antigas').select('conta_receber_id')
+    .eq('tipo', 'BOLETO').eq('identificador', codigo).limit(1).maybeSingle();
+  return antiga?.conta_receber_id ?? null;
+}
+
+async function liquidarBoletoConfirmado(srv: any, codigo: string): Promise<any> {
+  let data: any = null;
+  try {
+    const httpClient = await getInterClient();
+    const token = await getOAuthToken(httpClient);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const res = await fetch(`${getInterCobrancaUrl()}/${encodeURIComponent(codigo)}`, {
+        method: 'GET', headers: { 'Authorization': `Bearer ${token}` }, client: httpClient, signal: ctrl.signal,
+      } as any);
+      // 400/404: código que o Inter não reconhece (ex.: avisos de teste) → não adianta consultar de novo
+      if (res.status === 400 || res.status === 404) return { ok: false, invalido: true, erro_consulta: `Inter HTTP ${res.status}` };
+      if (!res.ok) return { ok: false, erro_consulta: `Inter HTTP ${res.status}` };
+      data = await res.json();
+    } finally { clearTimeout(t); }
+  } catch (e: any) {
+    return { ok: false, erro_consulta: sanitizeError(e?.message || String(e)) };
+  }
+  const cob = data?.cobranca || data || {};
+  const situacao = String(cob.situacao || data?.situacao || '').toUpperCase();
+  if (!SITUACOES_PAGAS.includes(situacao)) return { ok: true, remoto: situacao, registros: [] };
+  const valor = Number(cob.valorTotalRecebido ?? data?.valorTotalRecebido ?? cob.valorNominal ?? 0);
+  if (!(valor > 0)) return { ok: false, remoto: situacao, erro: 'valor recebido ausente' };
+  const conta = await contaDoBoleto(srv, codigo);
+  if (!conta) return { ok: false, remoto: situacao, orfao: true };
+  const quando = cob.dataSituacao || data?.dataSituacao || new Date().toISOString();
+  const { data: r, error } = await srv.rpc('fn_registrar_pagamento_inter', {
+    p_conta: conta, p_valor_recebido: valor, p_data: quando, p_transacao: 'BOLETO-' + codigo, p_meio: 'BOLETO', p_e2e: null,
+  });
+  if (error) return { ok: false, remoto: situacao, erro: sanitizeError(error.message) };
+  return { ok: ['OK', 'JA_REGISTRADO', 'JA_QUITADA', 'CANCELADA'].includes(r?.status), remoto: situacao, conta, registro: r };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -283,11 +330,18 @@ serve(async (req) => {
             return new Response(JSON.stringify({ error: 'Falha ao persistir webhook', details: sanitizeError(insertError.message) }), { status: 500, headers: corsHeaders });
           }
           const { data: target } = await srv.from('contas_receber').select('id, inter_status').eq('inter_codigo_solicitacao', normalizedCodigo).maybeSingle();
-          if (target) {
-            await srv.from('contas_receber').update({ inter_status: normalizedSituacao }).eq('id', target.id);
-            await srv.from('inter_webhook_events').update({ processed: true }).eq('id', inserted.id);
+          const contaAntiga = target ? null : await contaDoBoleto(srv, normalizedCodigo);
+          if (target || contaAntiga) {
+            if (target) await srv.from('contas_receber').update({ inter_status: normalizedSituacao }).eq('id', target.id);
+            // F-105: situação de pago → confirma com o Inter e registra o valor recebido
+            let ok = true;
+            if (SITUACOES_PAGAS.includes(normalizedSituacao)) {
+              const r = await liquidarBoletoConfirmado(srv, normalizedCodigo);
+              ok = !!r.ok;
+            }
+            if (ok) await srv.from('inter_webhook_events').update({ processed: true }).eq('id', inserted.id);
             processedCount++;
-            lastResult = { success: true, deduplicated: false, processed: true };
+            lastResult = { success: true, deduplicated: false, processed: ok };
           } else {
             lastResult = { success: true, deduplicated: false, processed: false };
           }
@@ -299,6 +353,29 @@ serve(async (req) => {
       } catch (e: any) {
         return new Response(JSON.stringify({ error: 'Erro webhook', details: sanitizeError(e.message) }), { status: 500, headers: corsHeaders });
       }
+    }
+
+    // === F-105: conciliação de boletos (cron a cada 15 min). Só grava o que o Inter confirma. ===
+    if (action === 'reconciliar') {
+      const srvR = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
+      const codigos = new Set<string>();
+      const { data: evts } = await srvR.from('inter_webhook_events').select('codigo_solicitacao')
+        .eq('processed', false).in('situacao', SITUACOES_PAGAS).gte('created_at', new Date(Date.now() - 60 * 86400000).toISOString()).limit(100);
+      for (const e of evts ?? []) if (e.codigo_solicitacao) codigos.add(e.codigo_solicitacao);
+      const { data: abertas } = await srvR.from('contas_receber').select('inter_codigo_solicitacao')
+        .not('inter_codigo_solicitacao', 'is', null)
+        .not('status', 'in', '("PAGA","PAGO","CONCILIADA","CANCELADA","CANCELADO")').limit(150);
+      for (const c of abertas ?? []) codigos.add(c.inter_codigo_solicitacao);
+      const { data: antigas } = await srvR.from('contas_receber_emissoes_antigas').select('identificador')
+        .eq('tipo', 'BOLETO').gte('retirado_em', new Date(Date.now() - 90 * 86400000).toISOString()).limit(150);
+      for (const a of antigas ?? []) codigos.add(a.identificador);
+      const movimento: any[] = [];
+      for (const codigo of codigos) {
+        const r = await liquidarBoletoConfirmado(srvR, codigo);
+        if (r.registro || r.erro_consulta || r.erro) movimento.push({ codigo, ...r });
+        if ((r.ok && r.registro) || r.invalido) await srvR.from('inter_webhook_events').update({ processed: true }).eq('codigo_solicitacao', codigo).eq('processed', false);
+      }
+      return new Response(JSON.stringify({ success: true, consultados: codigos.size, com_movimento: movimento }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // === Ações públicas seguras — §6.4.1 ===
@@ -346,7 +423,11 @@ serve(async (req) => {
       // JIT Emission de Boleto se autorizado pelo CRM e ainda não emitido
       if (allowBoleto && !codigoSolicitacao && cb.status !== 'PAGA' && cb.status !== 'CANCELADA' && Number(cb.valor) > 0 && httpClient && oauthToken) {
         try {
-          const seuNumero = (cb.codigo_operacional || cb.id).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15);
+          // F-105: boleto reemitido após edição recebe referência nova (…R1, R2…)
+          const { count: reemissoes } = await srv.from('contas_receber_emissoes_antigas')
+            .select('id', { count: 'exact', head: true }).eq('conta_receber_id', cb.id).eq('tipo', 'BOLETO');
+          const baseSeu = (cb.codigo_operacional || cb.id).replace(/[^a-zA-Z0-9]/g, '');
+          const seuNumero = reemissoes ? baseSeu.slice(0, 13) + 'R' + Math.min(reemissoes, 9) : baseSeu.slice(0, 15);
           const valorNominal = Number(cb.valor);
           const dataVencimento = cb.data_vencimento ? cb.data_vencimento.slice(0, 10) : new Date(Date.now() + 86400000 * 5).toISOString().slice(0, 10);
 

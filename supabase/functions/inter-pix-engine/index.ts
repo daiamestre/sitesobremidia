@@ -24,6 +24,52 @@ function sanitizeError(msg: string): string {
             .slice(0, 800);
 }
 
+// F-105: copiada de inter-billing-engine (era chamada aqui sem existir → ReferenceError no caminho de reserva)
+// === Geração de Payload PIX EMV (BR Code Direto) ===
+function formatPixLength(str: string) {
+  return str.length.toString().padStart(2, '0');
+}
+function tlv(id: string, value: string) {
+  return `${id}${formatPixLength(value)}${value}`;
+}
+function crc16(payload: string) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < payload.length; i++) {
+      crc ^= (payload.charCodeAt(i) << 8);
+      for (let j = 0; j < 8; j++) {
+          if ((crc & 0x8000) > 0) crc = (crc << 1) ^ 0x1021;
+          else crc = crc << 1;
+      }
+      crc &= 0xFFFF;
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+function generatePixPayload(key: string, amount: number, name: string, city: string, txid: string) {
+  const payloadFormat = tlv('00', '01');
+  const pointOfInit = tlv('01', '11');
+  const gui = tlv('00', 'br.gov.bcb.pix');
+  const pixKey = tlv('01', key);
+  const merchantAccountInfo = tlv('26', `${gui}${pixKey}`);
+  const mcc = tlv('52', '0000');
+  const currency = tlv('53', '986');
+  
+  let amountStr = '';
+  if (amount > 0) {
+      const formattedAmount = Number(amount).toFixed(2);
+      amountStr = tlv('54', formattedAmount);
+  }
+  
+  const country = tlv('58', 'BR');
+  const mName = tlv('59', name.substring(0, 25));
+  const mCity = tlv('60', city.substring(0, 15));
+  const finalTxId = (txid && txid.length > 0) ? txid.replace(/-/g, '').substring(0, 25) : '***';
+  const addData = tlv('62', tlv('05', finalTxId));
+  
+  const payload = `${payloadFormat}${pointOfInit}${merchantAccountInfo}${mcc}${currency}${amountStr}${country}${mName}${mCity}${addData}6304`;
+  const crc = crc16(payload);
+  return `${payload}${crc}`;
+}
+
 function normalizeCert(raw: string): string {
   if (!raw) return raw;
   if (raw.includes('\\n') && !raw.includes('\n-----')) {
@@ -180,11 +226,13 @@ async function getOAuthPixToken(httpClient: any, srv?: any): Promise<string> {
 }
 
 // Gera TXID determinístico e único de 32 caracteres alfanuméricos compatível com BACEN
-function generateTxid(cobrancaId: string): string {
+// F-105: cada emissão recebe um txid NOVO (sufixo de tempo). Antes o txid era fixo por cobrança,
+// então uma cobrança editada não conseguia gerar outro PIX com o valor novo.
+function generateTxid(cobrancaId: string, sufixo = ''): string {
   const clean = cobrancaId.replace(/[^a-zA-Z0-9]/g, '');
-  const prefix = 'SM';
-  const needed = 32 - prefix.length;
-  return (prefix + clean.padEnd(needed, '0')).slice(0, 32);
+  const suf = sufixo.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+  const base = ('SM' + clean).slice(0, 32 - suf.length);
+  return (base + suf).padEnd(26, '0').slice(0, 32);
 }
 
 async function ensurePixIssued(cb: any, srv: any, attemptCount = 1): Promise<{ pixCopiaECola: string | null; txid: string | null; statusPix: string }> {
@@ -213,7 +261,7 @@ async function ensurePixIssued(cb: any, srv: any, attemptCount = 1): Promise<{ p
   if (locked) {
     try {
       const client = await getInterPixClient();
-      txid = generateTxid(cb.id);
+      txid = generateTxid(cb.id, Date.now().toString(36));
       const pixKey = Deno.env.get('INTER_PIX_RECEIVER_KEY') || Deno.env.get('PIX_RECEIVER_KEY') || '308bc66a-194a-4625-81a5-917157ad5697';
       const valorFormatado = Number(cb.valor).toFixed(2);
 
@@ -350,6 +398,92 @@ async function ensurePixIssued(cb: any, srv: any, attemptCount = 1): Promise<{ p
   }
 }
 
+// ======================================================================
+// F-105 — Confirmação de PIX com o próprio Banco Inter antes de registrar pagamento
+// ======================================================================
+const getInterPixRecebidoUrl = () => isProd() ? 'https://cdpj.partners.bancointer.com.br/pix/v2/pix' : 'https://cdpj-sandbox.partners.uatinter.co/pix/v2/pix';
+
+async function interGet(url: string, srv: any): Promise<{ status: number; json: any }> {
+  const client = await getInterPixClient();
+  for (let tentativa = 1; tentativa <= 2; tentativa++) {
+    const token = await getOAuthPixToken(client, srv);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const res = await fetch(url, { method: 'GET', headers: { 'Authorization': `Bearer ${token}` }, client, signal: ctrl.signal } as any);
+      const txt = await res.text().catch(() => '');
+      if (res.status === 401 && tentativa === 1) {
+        oauthPixCache = null;
+        await srv.from('inter_oauth_tokens').update({ expires_at: new Date(0).toISOString() }).eq('gateway', 'PIX');
+        continue;
+      }
+      let json: any = null;
+      try { json = txt ? JSON.parse(txt) : null; } catch { json = null; }
+      return { status: res.status, json };
+    } finally { clearTimeout(t); }
+  }
+  return { status: 401, json: null };
+}
+
+/** Cobrança dona do txid: atual (inter_pix_txid / inter_txid) ou emissão aposentada por edição. */
+async function contaDoTxid(srv: any, txid: string | null): Promise<string | null> {
+  if (!txid) return null;
+  const { data: atual } = await srv.from('contas_receber').select('id')
+    .or(`inter_pix_txid.eq.${txid},inter_txid.eq.${txid}`).limit(1).maybeSingle();
+  if (atual?.id) return atual.id;
+  const { data: antiga } = await srv.from('contas_receber_emissoes_antigas').select('conta_receber_id')
+    .eq('tipo', 'PIX').eq('identificador', txid).limit(1).maybeSingle();
+  return antiga?.conta_receber_id ?? null;
+}
+
+/**
+ * Pergunta ao Inter o que foi recebido (por e2e e/ou pela cobrança do txid) e registra cada PIX
+ * confirmado com o valor recebido pelo banco. ok=true quando tudo o que o banco confirmou foi registrado.
+ */
+async function liquidarPixConfirmado(srv: any, txid: string | null, e2e: string | null): Promise<any> {
+  const recebidos: any[] = [];
+  let remoto: string | null = null;
+  try {
+    if (e2e) {
+      const r = await interGet(`${getInterPixRecebidoUrl()}/${encodeURIComponent(e2e)}`, srv);
+      if (r.status === 200 && r.json?.endToEndId) { recebidos.push(r.json); txid = txid || r.json.txid || null; remoto = 'RECEBIDO'; }
+    }
+    if (txid && recebidos.length === 0) {
+      const r = await interGet(`${getInterPixCobUrl()}/${encodeURIComponent(txid)}`, srv);
+      if (r.status === 200) {
+        remoto = r.json?.status ?? null;
+        if (remoto === 'CONCLUIDA' && Array.isArray(r.json?.pix)) recebidos.push(...r.json.pix);
+      } else if (r.status === 404) {
+        remoto = 'NAO_ENCONTRADA';
+      } else {
+        return { ok: false, erro_consulta: `Inter HTTP ${r.status}` };
+      }
+    }
+  } catch (e: any) {
+    return { ok: false, erro_consulta: sanitizeError(e?.message || String(e)) };
+  }
+
+  // Banco não confirma pagamento: nada é registrado (aviso falso ou PIX ainda não pago)
+  if (recebidos.length === 0) return { ok: false, remoto, registros: [] };
+
+  const conta = await contaDoTxid(srv, txid || recebidos[0]?.txid || null);
+  if (!conta) return { ok: false, remoto, orfao: true, registros: [] };
+
+  const registros: any[] = [];
+  let tudoOk = true;
+  for (const p of recebidos) {
+    const transacao = p.endToEndId || txid;
+    const { data, error } = await srv.rpc('fn_registrar_pagamento_inter', {
+      p_conta: conta, p_valor_recebido: Number(p.valor), p_data: p.horario || new Date().toISOString(),
+      p_transacao: transacao, p_meio: 'PIX', p_e2e: p.endToEndId || null,
+    });
+    if (error) { tudoOk = false; registros.push({ transacao, erro: sanitizeError(error.message) }); continue; }
+    registros.push({ transacao, ...(data || {}) });
+    if (!['OK', 'JA_REGISTRADO', 'JA_QUITADA', 'CANCELADA'].includes(data?.status)) tudoOk = false;
+  }
+  return { ok: tudoOk, remoto, conta, registros };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -416,135 +550,88 @@ serve(async (req) => {
     // ==================================================================
     const isPixWebhook = action === 'webhook' || (body && (Array.isArray(body.pix) || body.pix || body.txid || body.endToEndId));
     if (isPixWebhook) {
+      // F-105: o aviso NÃO é prova de pagamento. Para cada PIX avisado o sistema pergunta ao próprio
+      // Banco Inter e registra SÓ o que o banco confirma, com o valor recebido (fn_registrar_pagamento_inter).
       try {
         let pixList: any[] = [];
-        if (Array.isArray(body.pix)) {
-          pixList = body.pix;
-        } else if (body.pix && typeof body.pix === 'object') {
-          pixList = [body.pix];
-        } else if (body.txid || body.endToEndId) {
-          pixList = [body];
-        } else if (Array.isArray(body)) {
-          pixList = body;
-        }
+        if (Array.isArray(body.pix)) pixList = body.pix;
+        else if (body.pix && typeof body.pix === 'object') pixList = [body.pix];
+        else if (body.txid || body.endToEndId) pixList = [body];
+        else if (Array.isArray(body)) pixList = body;
 
         if (pixList.length === 0) {
           return new Response(JSON.stringify({ error: 'Nenhum evento Pix encontrado no payload' }), { status: 400, headers: corsHeaders });
         }
 
-        let processedCount = 0;
-        let deduplicatedCount = 0;
-        const results = [];
-
+        const results: any[] = [];
+        let falhaConsulta = false;
         for (const item of pixList) {
           const txid = item.txid || item.pixTxid || null;
           const endToEndId = item.endToEndId || item.e2eId || item.e2e_id || null;
-          const valorRaw = item.valor || item.value || item.valorTotalRecebido || null;
-          const valorPago = Number(valorRaw);
-          const horarioRaw = item.horario || item.dataHoraSituacao || new Date().toISOString();
-          const parsedDate = new Date(horarioRaw);
+          if (!txid && !endToEndId) continue;
+          const valorAviso = Number(item.valor || item.value || item.valorTotalRecebido || 0);
+          const horarioAviso = new Date(item.horario || item.dataHoraSituacao || Date.now());
 
-          if (!txid && !endToEndId) {
-            continue;
+          // Registro bruto (idempotente). Evento repetido ainda NÃO processado é reprocessado.
+          let eventoId: string | null = null;
+          const { data: ins, error: insErr } = await srv.from('inter_pix_webhook_events').insert({
+            txid: txid || 'UNKNOWN', e2e_id: endToEndId,
+            valor: isFinite(valorAviso) ? valorAviso : null,
+            horario: isNaN(horarioAviso.getTime()) ? new Date().toISOString() : horarioAviso.toISOString(),
+            payload: item, processed: false,
+          }).select('id').maybeSingle();
+          if (ins) eventoId = ins.id;
+          if (insErr) {
+            const { data: antigo } = await srv.from('inter_pix_webhook_events').select('id, processed')
+              .eq('txid', txid || 'UNKNOWN').order('created_at', { ascending: false }).limit(1).maybeSingle();
+            if (antigo?.processed) { results.push({ txid, endToEndId, status: 'JA_PROCESSADO' }); continue; }
+            eventoId = antigo?.id ?? null;
           }
 
-          // 1. Idempotência e registro do evento bruto
-          const { data: insertedEvent, error: insertError } = await srv.from('inter_pix_webhook_events').insert({
-            txid: txid || 'UNKNOWN',
-            e2e_id: endToEndId,
-            valor: isFinite(valorPago) ? valorPago : null,
-            horario: isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString(),
-            payload: item,
-            processed: false,
-          }).select().maybeSingle();
-
-          if (insertError) {
-            if ((insertError as any).code === '23505' || String((insertError as any).message).includes('duplicate key') || String((insertError as any).message).includes('uk_inter_pix_webhook_dedup')) {
-              deduplicatedCount++;
-              results.push({ txid, endToEndId, status: 'DEDUPLICATED', message: 'Evento PIX já processado anteriormente (idempotente).' });
-              continue;
-            }
-          }
-
-          // 2. Localizar cobrança correspondente no CRM
-          let cobrancaQuery = srv.from('contas_receber').select('id, empresa_operadora_id, contrato_id, valor, valor_pago, saldo, status, inter_pix_status');
-          if (txid) {
-            cobrancaQuery = cobrancaQuery.or(`inter_pix_txid.eq.${txid},inter_txid.eq.${txid}`);
-          }
-          const { data: cobranca } = await cobrancaQuery.maybeSingle();
-
-          if (!cobranca) {
-            results.push({ txid, endToEndId, status: 'ORPHAN', message: 'Cobrança não encontrada para este TXID' });
-            continue;
-          }
-
-          // 3. Validação de estado e tenant
-          if (['CANCELADA', 'CANCELADO'].includes(cobranca.status)) {
-            results.push({ txid, endToEndId, cobrancaId: cobranca.id, status: 'REJECTED_CANCELED', message: 'Cobrança cancelada — pagamento rejeitado' });
-            continue;
-          }
-
-          // 4. Verificação de Idempotência no financeiro (Transação Externa Única)
-          const transacaoExterna = endToEndId || txid;
-          const { data: existingPagamento } = await srv.from('pagamentos')
-            .select('id')
-            .eq('transacao_id_externo', transacaoExterna)
-            .maybeSingle();
-
-          if (existingPagamento) {
-            deduplicatedCount++;
-            if (insertedEvent) {
-              await srv.from('inter_pix_webhook_events').update({ processed: true }).eq('id', insertedEvent.id);
-            }
-            results.push({ txid, endToEndId, cobrancaId: cobranca.id, status: 'IDEMPOTENT_ALREADY_PAID', pagamentoId: existingPagamento.id });
-            continue;
-          }
-
-          // 5. Inserção na tabela `pagamentos` (Ativa trg_concilia_pagamento com integridade transacional)
-          const finalValor = (isFinite(valorPago) && valorPago > 0) ? valorPago : Number(cobranca.valor);
-          const { data: novoPagamento, error: pagError } = await srv.from('pagamentos').insert({
-            empresa_operadora_id: cobranca.empresa_operadora_id,
-            conta_receber_id: cobranca.id,
-            contrato_id: cobranca.contrato_id || null,
-            meio_pagamento: 'PIX',
-            valor_pago: finalValor,
-            data_liquidacao: parsedDate.toISOString(),
-            transacao_id_externo: transacaoExterna,
-          }).select().single();
-
-          if (pagError) {
-            if (String(pagError.message).includes('uk_pagamentos_transacao_externa') || String(pagError.message).includes('ERR_COBRANCA_JA_PAGA')) {
-              deduplicatedCount++;
-              results.push({ txid, endToEndId, status: 'ALREADY_SETTLED', message: 'Cobrança já liquidada ou transação deduplicada.' });
-              continue;
-            }
-            results.push({ txid, endToEndId, status: 'ERROR_PAGAMENTO', error: sanitizeError(pagError.message) });
-            continue;
-          }
-
-          // 6. Atualização dos campos de rastreabilidade Pix em `contas_receber`
-          await srv.from('contas_receber').update({
-            inter_pix_status: 'CONCLUIDA',
-            inter_pix_e2e_id: endToEndId,
-            inter_pix_valor_recebido: finalValor,
-            inter_pix_horario: parsedDate.toISOString(),
-          }).eq('id', cobranca.id);
-
-          // 7. Marcar evento como processado com sucesso
-          if (insertedEvent) {
-            await srv.from('inter_pix_webhook_events').update({ processed: true }).eq('id', insertedEvent.id);
-          }
-
-          processedCount++;
-          results.push({ txid, endToEndId, cobrancaId: cobranca.id, pagamentoId: novoPagamento.id, status: 'SUCCESS_LIQUIDATED' });
+          const r = await liquidarPixConfirmado(srv, txid, endToEndId);
+          results.push({ txid, endToEndId, ...r });
+          if (r.ok && eventoId) await srv.from('inter_pix_webhook_events').update({ processed: true }).eq('id', eventoId);
+          if (r.erro_consulta) falhaConsulta = true;
         }
 
-        return new Response(JSON.stringify({ success: true, processedCount, deduplicatedCount, results }), {
+        // Falha ao consultar o banco → 500 para o Inter reenviar (a conciliação de 15 em 15 min também cobre)
+        return new Response(JSON.stringify({ success: !falhaConsulta, results }), {
+          status: falhaConsulta ? 500 : 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       } catch (e: any) {
         return new Response(JSON.stringify({ error: 'Falha processamento webhook PIX', details: sanitizeError(e.message) }), { status: 500, headers: corsHeaders });
       }
+    }
+
+    // ==================================================================
+    // 2b. ACTION: RECONCILIAR (cron a cada 15 min; F-105)
+    // Consulta no Inter os PIX em aberto (atuais e aposentados por edição) e os avisos não
+    // processados; registra o que o banco confirma como pago. Só grava o que o Inter confirma.
+    // ==================================================================
+    if (action === 'reconciliar') {
+      const txids = new Map<string, string | null>(); // txid -> e2e
+      const { data: evts } = await srv.from('inter_pix_webhook_events').select('txid, e2e_id')
+        .eq('processed', false).gte('created_at', new Date(Date.now() - 60 * 86400000).toISOString()).limit(100);
+      for (const e of evts ?? []) if (e.txid && e.txid !== 'UNKNOWN') txids.set(e.txid, e.e2e_id ?? null);
+      const { data: abertas } = await srv.from('contas_receber').select('inter_pix_txid')
+        .not('inter_pix_txid', 'is', null)
+        .not('status', 'in', '("PAGA","PAGO","CONCILIADA","CANCELADA","CANCELADO")')
+        .limit(150);
+      for (const c of abertas ?? []) if (!txids.has(c.inter_pix_txid)) txids.set(c.inter_pix_txid, null);
+      const { data: antigas } = await srv.from('contas_receber_emissoes_antigas').select('identificador')
+        .eq('tipo', 'PIX').gte('retirado_em', new Date(Date.now() - 35 * 86400000).toISOString()).limit(150);
+      for (const a of antigas ?? []) if (!txids.has(a.identificador)) txids.set(a.identificador, null);
+
+      const movimento: any[] = [];
+      for (const [txid, e2e] of txids) {
+        const r = await liquidarPixConfirmado(srv, txid, e2e);
+        if ((r.registros && r.registros.length) || r.erro_consulta) movimento.push({ txid, ...r });
+        if (r.ok) await srv.from('inter_pix_webhook_events').update({ processed: true }).eq('txid', txid).eq('processed', false);
+      }
+      return new Response(JSON.stringify({ success: true, consultados: txids.size, com_movimento: movimento }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
     // ==================================================================
@@ -674,7 +761,7 @@ serve(async (req) => {
       const valorNominal = Number(valorRaw);
       const valorFormatado = (isFinite(valorNominal) && valorNominal > 0) ? valorNominal.toFixed(2) : "10.00";
 
-      const txid = generateTxid(lockedCobranca.id);
+      const txid = generateTxid(lockedCobranca.id, Date.now().toString(36));
       const pixKey = Deno.env.get('INTER_PIX_RECEIVER_KEY') || Deno.env.get('PIX_RECEIVER_KEY') || '44899400000156';
 
       const payloadPix = {
