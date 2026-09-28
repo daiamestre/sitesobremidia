@@ -343,6 +343,11 @@ export default function CustomerPortalDashboard() {
       {/* ── Hero Header ── */}
       <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-1">
+          {(cliente?.nome_fantasia || cliente?.razao_social || usuario?.nome) && (
+            <p className="text-2xl sm:text-3xl font-display font-extrabold text-white">
+              Bem-vindo(a), {cliente?.nome_fantasia || cliente?.razao_social || usuario?.nome}!
+            </p>
+          )}
           <div className="flex items-center gap-2 flex-wrap">
             <ModalidadeIcon className={cn('h-6 w-6', config.color)} />
             <h2 className="text-xl sm:text-2xl font-display font-extrabold text-white">

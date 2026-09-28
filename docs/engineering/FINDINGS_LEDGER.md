@@ -1153,3 +1153,23 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `conferir-site.mjs` achou "Adicionar pasta à playlist" no ar;
   - todos os `.mjs` passaram na checagem de sintaxe (`node --check`);
   - todos os caminhos citados no mapa e nas receitas foram conferidos (dois corrigidos: `rss.mjs`/`bancos*.mjs` ficam em `scripts/conteudo/`, e `PlayerDatabase.kt` fica no `cache-manager`).
+
+### F-100 — Portal do Anunciante mandava todo anunciante para a tela de "escolha a modalidade" — DONE
+- **Sintoma:** o anunciante logado caía em `/portal/onboarding` ("Escolha a modalidade") em vez do painel, e o painel ficava sem o nome da empresa.
+- **Causa raiz** (reproduzida com a regra de acesso do próprio anunciante, `alfa_…@homolog-sobremidia.com.br`):
+  - a migração 20261207 (reforço de segurança, lote 4A) removeu a regra ampla de leitura de `clientes`;
+  - a `cli_select_policy`, que ficou, só cobre equipe interna e representante;
+  - com isso, o anunciante via 0 linha em `clientes` e `empresas` → `useClienteModalidade` devolvia modalidade nula → `CustomerPortalLayout` redirecionava para o onboarding.
+- **Correção:**
+  - Migração 20261268, aditiva e só de leitura: `cli_select_proprio_cliente` e `emp_select_proprio_cliente` deixam o usuário ler **apenas** a própria linha (`get_user_cliente_id()`, dentro do próprio tenant). A regra ampla não voltou.
+  - Painel: título "Bem-vindo(a), <empresa>!" em `CustomerPortalDashboard.tsx`.
+- **Prova:**
+  - Isolamento, antes → depois:
+    - Alfa: 0 → 1 (a própria);
+    - Beta: 0 → 1, e não vê a Alfa;
+    - Dono: 119 → 119;
+    - Representante: 1 → 1.
+  - `comparar-telas`: todas as telas idênticas.
+  - 48 testes do portal passaram.
+  - No navegador, com `usuario1anunciante@sobremidia.com.br`: `/portal` abre direto o painel com "Bem-vindo(a), Restaurante Alpha Premium!" e o menu completo do anunciante; `/portal/encarte` abre.
+- **Pendente (fora do escopo):** `ctr_select_policy` de `contratos` só reconhece o papel `CLIENTE`, então o anunciante (papel `ANUNCIANTE`) não vê os próprios contratos.
