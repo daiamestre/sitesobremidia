@@ -1101,3 +1101,24 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - 2ª execução: tudo "iguais", 0 desenhadas.
   - Imagens reais conferidas: Futebol vertical, Memes horizontal, Brasileirão.
   - Testes `conteudoPastas.test.ts` (11) e `loteriasConteudo.test.ts` (9).
+
+### F-96 — Conteúdo próprio troca a cada 3 dias, bancos ampliados — DONE
+- **Pedido do proprietário:** charadas sem repetir tão cedo; Memes, Vídeos Incrível, Nostalgia e demais com troca a cada 3 dias (antes era semanal).
+- **Bancos** (`bancos.mjs` + `bancos-ampliacao.mjs`, 0 duplicados): 118 charadas, 71 piadas, 88 memes, 86 curiosidades e 75 de nostalgia.
+- **Por troca** (período de 3 dias, Brasília): 8 charadas (16 cartões: pergunta e resposta), 8 piadas, 10 memes, 10 curiosidades e 10 de nostalgia.
+- **Sem repetir:**
+  - charadas por 14 trocas (42 dias);
+  - piadas por cerca de 26 dias;
+  - memes e curiosidades por cerca de 25 dias;
+  - nostalgia por cerca de 21 dias.
+- **Prova:** teste de 14 trocas sem repetição e execução real (Charadas 32 itens, Memes 20, Curiosidades 20, Nostalgia 20, Humor 16).
+
+### F-97 — Vídeos (Pexels) nas pastas de vídeo — DONE
+- **Chave:** a chave da API do Pexels (conta do proprietário) foi validada (HTTP 200) e guardada em `~/.sobremidia-secrets/tokens.env` e no segredo `PEXELS_API_KEY` do GitHub. O proprietário a enviou pelo chat; ele pode trocá-la no Pexels quando quiser.
+- **Migração 20261267:** `conteudo_auto_publicar` grava `duration_ms` e a miniatura do vídeo, e o Player toca o vídeo inteiro via `fn_media_duracao_item`. A pasta "Vídeos Esporte" fica marcada como `videos-esporte`.
+- **Robô:** `produtores/videos.mjs`.
+  - MP4 HD de 5 a 30 s, até 30 MB, horizontais para 16:9 e verticais para 9:16, troca semanal.
+  - Vídeos Esporte: 6+6. Turismo, Incrível e Humor: 4+4 somados às artes.
+  - Vídeo que não mudou não é baixado de novo.
+  - Erro temporário do Pexels: nova tentativa e troca de termo. Pexels fora do ar: as pastas de vídeo e as mistas ficam como estão (provado com um HTTP 500 real).
+- **Resultado:** 32 vídeos (Esporte 11, Humor 8, Incrível 7, Turismo 6), todos com duração, média de 8,5 a 11,5 MB; arquivo público conferido (HTTP 200, video/mp4).
