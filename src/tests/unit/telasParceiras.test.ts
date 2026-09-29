@@ -31,7 +31,8 @@ describe('Cadastro das telas do ponto parceiro (F-109)', () => {
     expect(pagina).toContain("perfilNome === 'ADMIN'");
     expect(pagina).toContain('<Navigate to="/dashboard/screens" replace />');
     const menu = readFileSync(path.join(process.cwd(), 'src', 'components', 'dashboard', 'Sidebar.tsx'), 'utf8');
-    expect(menu).toContain("'/dashboard/telas-parceiras'");
+    // F-116: o menu abre a página nova de Telas (cartão de pontos parceiros); a página antiga segue pelo botão "Telas de parceiros"
+    expect(menu).toContain("'/dashboard/screens?secao=parceiros'");
     expect(menu).toContain("'/dashboard/prospeccao/ponto-parceiro'");
   });
 });

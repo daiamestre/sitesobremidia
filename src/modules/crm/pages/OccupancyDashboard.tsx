@@ -70,22 +70,23 @@ export default function OccupancyDashboard() {
 
   const Tabela = ({data}:{data:PontoRede[]})=>(
     <div className="overflow-x-auto">
-      <table className="w-full text-xs">
+      {/* F-116: no celular vira blocos empilhados (mesma regra das tabelas do sistema) */}
+      <table className="tabela-empilhada w-full text-xs">
         <thead className="bg-slate-950/80 text-slate-400 uppercase tracking-wider border-b border-white/10"><tr>
           <th className="py-2 px-3 text-left">Estabelecimento</th><th className="py-2 px-3">Cidade</th><th className="py-2 px-3">Bairro</th><th className="py-2 px-3">Categoria</th><th className="py-2 px-3">Status</th><th className="py-2 px-3 text-center">Telas</th><th className="py-2 px-3">Disponibilidade</th><th className="py-2 px-3">Ações</th>
         </tr></thead>
         <tbody className="divide-y divide-white/5 text-slate-200">
-          {data.length===0? <tr><td colSpan={8} className="py-10 text-center text-slate-500">Nenhum ponto encontrado</td></tr> :
+          {data.length===0? <tr><td colSpan={8} data-linha-inteira="" className="py-10 text-center text-slate-500">Nenhum ponto encontrado</td></tr> :
           data.map(p=>(
             <tr key={p.id} className="hover:bg-white/5">
-              <td className="py-2 px-3 font-semibold text-white flex items-center gap-2">{p.foto_url? <img src={p.foto_url} alt="" className="h-8 w-8 rounded object-cover"/>:<Store className="h-4 w-4 text-slate-500"/>}{p.nome}</td>
-              <td className="py-2 px-3">{p.cidade||'—'}</td>
-              <td className="py-2 px-3">{p.bairro||'—'}</td>
-              <td className="py-2 px-3">{p.categoria||'—'}</td>
-              <td className="py-2 px-3"><Badge variant="outline" className={p.status_operacional==='ATIVO'?'bg-emerald-500/20 text-emerald-400 border-emerald-500/30':'bg-amber-500/20 text-amber-400 border-amber-500/30'}>{p.status_operacional}</Badge></td>
-              <td className="py-2 px-3 text-center font-mono">{p.quantidade_telas} <span className="text-slate-500">({p.telas_ativas??p.quantidade_telas} ativas)</span></td>
-              <td className="py-2 px-3"><Badge variant="outline" className={p.disponibilidade==='DISPONIVEL'?'bg-emerald-500/20 text-emerald-400':'bg-amber-500/20 text-amber-400'}>{p.disponibilidade}</Badge></td>
-              <td className="py-2 px-3"><Button size="sm" variant="ghost" className="h-7 text-xs" onClick={()=>setDetalhe(p)}><Eye className="h-3 w-3 mr-1"/>Detalhes</Button></td>
+              <td data-label="Estabelecimento" className="py-2 px-3 font-semibold text-white"><span className="inline-flex items-center gap-2">{p.foto_url? <img src={p.foto_url} alt="" className="h-8 w-8 rounded object-cover"/>:<Store className="h-4 w-4 text-slate-500"/>}{p.nome}</span></td>
+              <td data-label="Cidade" className="py-2 px-3">{p.cidade||'—'}</td>
+              <td data-label="Bairro" className="py-2 px-3">{p.bairro||'—'}</td>
+              <td data-label="Categoria" className="py-2 px-3">{p.categoria||'—'}</td>
+              <td data-label="Status" className="py-2 px-3"><Badge variant="outline" className={p.status_operacional==='ATIVO'?'bg-emerald-500/20 text-emerald-400 border-emerald-500/30':'bg-amber-500/20 text-amber-400 border-amber-500/30'}>{p.status_operacional}</Badge></td>
+              <td data-label="Telas" className="py-2 px-3 text-center font-mono">{p.quantidade_telas} <span className="text-slate-500">({p.telas_ativas??p.quantidade_telas} ativas)</span></td>
+              <td data-label="Disponibilidade" className="py-2 px-3"><Badge variant="outline" className={p.disponibilidade==='DISPONIVEL'?'bg-emerald-500/20 text-emerald-400':'bg-amber-500/20 text-amber-400'}>{p.disponibilidade}</Badge></td>
+              <td data-label="Ações" className="py-2 px-3"><Button size="sm" variant="ghost" className="h-7 text-xs" onClick={()=>setDetalhe(p)}><Eye className="h-3 w-3 mr-1"/>Detalhes</Button></td>
             </tr>
           ))}
         </tbody>

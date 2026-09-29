@@ -115,8 +115,9 @@ describe('CentralService', () => {
   });
 
   describe('contarNaoLidas', () => {
-    it('deve contar apenas notificações NAO_LIDA do canal IN_APP', async () => {
+    it('deve contar apenas notificações NAO_LIDA do canal IN_APP e do próprio usuário (F-106)', async () => {
       responses['notificacoes_central'] = { count: 3, error: null };
+      db.state.currentUser = db.makeUser('u-central');
 
       const count = await service.contarNaoLidas();
 
@@ -124,6 +125,12 @@ describe('CentralService', () => {
       const q = queries[0];
       expect(q.ops).toContain('eq:canal:IN_APP');
       expect(q.ops).toContain('eq:status_notificacao:NAO_LIDA');
+      expect(q.ops).toContain('eq:usuario_id:u-central');
+    });
+
+    it('sem usuário logado conta 0 (F-106)', async () => {
+      db.state.currentUser = null;
+      expect(await service.contarNaoLidas()).toBe(0);
     });
 
     it('deve retornar 0 em caso de erro', async () => {
@@ -361,6 +368,7 @@ describe('CentralService', () => {
         ],
       };
       responses['notificacoes_central'] = { ...responses['notificacoes_central'], count: 2, error: null };
+      db.state.currentUser = db.makeUser('u-central');
 
       const feed = await service.getFeedUnificado();
 

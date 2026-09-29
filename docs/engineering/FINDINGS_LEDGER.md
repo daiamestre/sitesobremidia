@@ -1487,3 +1487,29 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - gestor ainda edita a própria tela;
   - navegador (dbg.adm): cartão com 7 telas; HOTEL MAXSUEL com os 8 itens e a lista de mídias do dono;
   - testes do painel (21) e da página Telas (18).
+
+### F-116 — Sistema responsivo no celular (sem palavras partidas, sem arrastar para o lado); pontos parceiros escondidos do gestor — DONE
+- **Pontos parceiros:**
+  - "Cadastrar ponto parceiro" e "Telas de pontos parceiros" aparecem no menu só para OWNER/ADMIN;
+  - o item "Telas de pontos parceiros" abre `/dashboard/screens?secao=parceiros` (página nova com os cartões); a página antiga, com preço e fila de análise, segue pelo botão "Telas de parceiros";
+  - para o gestor, a página Telas vai direto às telas dele, sem cartões nem busca das telas parceiras;
+  - a rota `/dashboard/prospeccao/ponto-parceiro` passou a exigir OWNER/ADMIN.
+- **Causa raiz das palavras "em pé"** ("ACADE MIA", "OFF LIN E", "A C T I V E"): regras globais em `src/index.css`.
+  - `.flex > *, .grid > * { overflow-wrap: anywhere; word-break: break-word; min-width: 0 }` e `td, th { overflow-wrap: anywhere }` deixavam o navegador partir qualquer palavra em qualquer letra e encolher itens até ~8 px.
+  - Corrigido: `overflow-wrap: break-word; word-break: normal` (só quebra a palavra que não cabe sozinha na linha).
+  - Itens de linhas `flex-wrap`, `whitespace-nowrap` e `shrink-0` não encolhem abaixo do texto.
+  - Etiqueta padrão (Badge) com `whitespace-nowrap`.
+  - No celular, linhas "título ··· botões" (`flex justify-between`) quebram linha em vez de espremer o título.
+- **Tabelas no celular:** o componente `ui/table` agora empilha cada linha em bloco, com o nome da coluna (`data-label` copiado do cabeçalho). Vale para todas as tabelas do sistema; no computador nada muda (`empilharNoCelular={false}` desliga). A tabela manual do Centro de Controle de Pontos usa a mesma regra.
+- **Telas refeitas para celular:**
+  - cabeçalho do painel da tela (nome em linha própria);
+  - Clientes em cartões (tudo à vista, situação em português, 4 botões em grade);
+  - Central de Cobranças em cartões (cliente, código, valor, situação, vencimento, forma e todas as ações);
+  - situação das propostas em português.
+- **Prova:**
+  - checagem automática (palavras partidas, conteúdo vazando, tabela mais larga que a tela) em ~110 páginas a 390 px: painel do gestor/dono, Workspace, financeiro, Representante (ADMIN de teste) e Portal do Anunciante (anunciante de teste) → sem problemas (restaram só códigos/e-mails longos quebrando no hífen, aceitável);
+  - a 1366 px, tabelas normais e cartões escondidos.
+- **Testes:** `menuPontosParceirosGestor` (3); suíte unitária completa: 1.272 passavam e 7 falhavam. As 7 foram corrigidas:
+  - 4 do assistente, montados sem o provedor de dados após a F-113 (o site tem);
+  - 1 da F-109, que verificava o endereço antigo do menu;
+  - 2 da Central, com simulação sem "usuário logado" após a F-106.

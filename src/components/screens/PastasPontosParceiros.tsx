@@ -25,9 +25,10 @@ export interface TelaDoPonto {
 export const telaOnline = (t: { last_ping_at: string | null; is_active?: boolean | null }) =>
   t.is_active !== false && !!t.last_ping_at && Date.now() - new Date(t.last_ping_at).getTime() < 3 * 60_000;
 
-export function useTelasDosPontos() {
+export function useTelasDosPontos(ativo = true) {
   return useQuery({
     queryKey: ['telas-dos-pontos-parceiros'],
+    enabled: ativo,
     staleTime: 30_000,
     queryFn: async (): Promise<TelaDoPonto[]> => {
       const { data, error } = await supabase

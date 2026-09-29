@@ -2,12 +2,45 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
-    </div>
-  ),
+/**
+ * F-116: no celular (até 767 px) a tabela vira blocos empilhados — cada linha um bloco, cada célula com o nome da
+ * coluna ao lado (data-label copiado do cabeçalho). Nada de arrastar para o lado. No computador nada muda.
+ * Quem precisar da tabela tradicional no celular passa empilharNoCelular={false}.
+ */
+function rotularCelulas(tabela: HTMLTableElement | null) {
+  if (!tabela) return;
+  const titulos = [...tabela.querySelectorAll(':scope > thead > tr:last-child > th')].map((th) => (th.textContent || '').trim());
+  if (!titulos.length) return;
+  for (const tr of tabela.querySelectorAll(':scope > tbody > tr')) {
+    let col = 0;
+    for (const td of (tr as HTMLTableRowElement).cells) {
+      const span = (td as HTMLTableCellElement).colSpan || 1;
+      if (span > 1) td.setAttribute('data-linha-inteira', '');
+      else if (titulos[col]) td.setAttribute('data-label', titulos[col]);
+      else td.removeAttribute('data-label');
+      col += span;
+    }
+  }
+}
+
+const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement> & { empilharNoCelular?: boolean }>(
+  ({ className, empilharNoCelular = true, ...props }, ref) => {
+    const interno = React.useRef<HTMLTableElement | null>(null);
+    React.useEffect(() => { if (empilharNoCelular) rotularCelulas(interno.current); });
+    return (
+      <div className="relative w-full overflow-auto">
+        <table
+          ref={(el) => {
+            interno.current = el;
+            if (typeof ref === "function") ref(el);
+            else if (ref) (ref as React.MutableRefObject<HTMLTableElement | null>).current = el;
+          }}
+          className={cn("w-full caption-bottom text-sm", empilharNoCelular && "tabela-empilhada", className)}
+          {...props}
+        />
+      </div>
+    );
+  },
 );
 Table.displayName = "Table";
 

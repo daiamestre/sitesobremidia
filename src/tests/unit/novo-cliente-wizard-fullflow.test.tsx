@@ -3,6 +3,12 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// F-113: o assistente busca as telas dos pontos (useQuery) — monta com o provedor de dados, como o site.
+const Provedor = ({ children }: { children: React.ReactNode }) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider>
+);
 import { IntelligentCommercialWizard } from '@/modules/crm/components/forms/IntelligentCommercialWizard';
 
 // Mock contexts and services
@@ -113,9 +119,9 @@ describe('MICRO-GATE P0.1 — Wizard Full Flow & Contract Rendering', () => {
   it('renders step 1 without TDZ and allows typing form state', async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <MemoryRouter initialEntries={['/workspace/clientes/novo/anunciante']}>
+      <Provedor><MemoryRouter initialEntries={['/workspace/clientes/novo/anunciante']}>
         <IntelligentCommercialWizard />
-      </MemoryRouter>
+      </MemoryRouter></Provedor>
     );
 
     // Assert Step 1 header and step tabs are rendered
@@ -139,9 +145,9 @@ describe('MICRO-GATE P0.1 — Wizard Full Flow & Contract Rendering', () => {
 
   it('has initial form state initialized before useMemo and renders step structure cleanly', () => {
     render(
-      <MemoryRouter initialEntries={['/workspace/clientes/novo/anunciante']}>
+      <Provedor><MemoryRouter initialEntries={['/workspace/clientes/novo/anunciante']}>
         <IntelligentCommercialWizard />
-      </MemoryRouter>
+      </MemoryRouter></Provedor>
     );
 
     // Assert wizard step tabs and Etapa indicator

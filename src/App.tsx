@@ -361,7 +361,7 @@ const App = () => {
                     <Route path="widgets" element={<Widgets />} />
                     <Route path="marca" element={<MinhaMarca />} />
                     <Route path="telas-parceiras" element={<TelasParceiras />} />
-                    <Route path="prospeccao/ponto-parceiro" element={<PontoParceiroWizardPage />} />
+                    <Route path="prospeccao/ponto-parceiro" element={<RequireRole roles={['OWNER', 'ADMIN']}><PontoParceiroWizardPage /></RequireRole>} />
                     <Route path="schedule" element={<Schedule />} />
                     <Route path="links" element={<ExternalLinks />} />
                     <Route path="analytics" element={<Analytics />} />

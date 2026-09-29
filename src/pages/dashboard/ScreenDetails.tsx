@@ -1107,19 +1107,20 @@ export default function ScreenDetails() {
 return (
         <div className="space-y-6 animate-fade-in pb-10">
             {/* Header */}
-            <div className="bg-card border border-border/50 rounded-xl p-6 shadow-sm">
+            {/* F-116: no celular o nome fica numa linha própria e as etiquetas/botões quebram para baixo (nada espremido) */}
+            <div className="bg-card border border-border/50 rounded-xl p-4 sm:p-6 shadow-sm">
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="h-16 w-16 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
+                    <div className="flex items-start gap-3 sm:gap-4 w-full min-w-0">
+                        <div className="h-12 w-12 sm:h-16 sm:w-16 flex-shrink-0 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
                             {isPortrait ? <Smartphone className="h-8 w-8 text-primary" /> : <Monitor className="h-8 w-8 text-primary" />}
                         </div>
-                        <div>
-                            <div className="flex items-center gap-3">
-                                <h1 className="text-2xl font-bold">{screen.name}</h1>
-                                <Badge className={isOnline ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}>
+                        <div className="min-w-0 flex-1">
+                            <h1 className="text-xl sm:text-2xl font-bold leading-tight">{screen.name}</h1>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <Badge className={`whitespace-nowrap ${isOnline ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"}`}>
                                     {isOnline ? "ONLINE" : "OFFLINE"}
                                 </Badge>
-                                <Badge variant="outline" className="gap-1">
+                                <Badge variant="outline" className="gap-1 whitespace-nowrap">
                                     {isPortrait ? <MonitorSmartphone className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
                                     {screen.resolution || '16x9'}
                                 </Badge>
@@ -1128,7 +1129,7 @@ return (
                                         variant="destructive" 
                                         size="sm" 
                                         onClick={() => setIsUnpairDialogOpen(true)}
-                                        className="h-6 text-xs gap-1 px-2"
+                                        className="h-7 text-xs gap-1 px-2 whitespace-nowrap"
                                     >
                                         <Unlink className="h-3 w-3" />
                                         Desvincular Tela
@@ -1136,7 +1137,7 @@ return (
                                 )}
 
                             </div>
-                            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-2">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground mt-2">
                                 <div className="flex items-center gap-1.5">
                                     <MapPin className="h-3.5 w-3.5" />
                                     {screen.location || 'Sem localização'}

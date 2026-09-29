@@ -311,6 +311,91 @@ export default function BillingDashboard() {
     );
   }
 
+  // F-116: ações da cobrança (as mesmas na tabela do computador e nos cartões do celular)
+  const renderAcoes = (c: (typeof filtradas)[number]) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Detalhes da Cobrança"
+            onClick={() => navigate(rotaCobranca(c))}
+            className="h-8 w-8 p-0 text-slate-300 hover:text-white hover:bg-white/10"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          
+          {c.status !== 'CANCELADO' && c.status !== 'PAGO' && (
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Editar Cobrança"
+              onClick={(e) => { e.stopPropagation(); setCobrancaEditando(c as any); }}
+              className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-400/10"
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+          )}
+          
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Pré-visualizar como cliente"
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            const link = getPublicBillingUrl(c);
+            if(link) window.open(link, '_blank'); 
+          }}
+            className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
+          >
+            <LinkIcon className="h-4 w-4" />
+          </Button>
+          
+          <Button
+            size="sm"
+            variant="ghost"
+            title="WhatsApp"
+            onClick={(e) => { e.stopPropagation(); window.open(generateWhatsAppLink(c), '_blank'); }}
+            className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+          >
+            <MessageCircle className="h-4 w-4" />
+          </Button>
+
+          {c.status !== 'CANCELADO' && c.status !== 'PAGO' && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                title="Registrar pagamento"
+                onClick={(e) => { e.stopPropagation(); setCobrancaParaPagamento(c as any); setPagamentoManualAberto(true); }}
+                className="h-8 w-8 p-0 text-amber-400 hover:text-amber-300 hover:bg-amber-400/10"
+              >
+                <DollarSign className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                size="sm"
+                variant="ghost"
+                title="Marcar como paga"
+                onClick={(e) => { e.stopPropagation(); setCobrancaParaBaixa(c as any); setBaixaAberto(true); }}
+                className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                size="sm"
+                variant="ghost"
+                title="Cancelar cobrança"
+                onClick={(e) => { e.stopPropagation(); setCobrancaParaCancelar(c as any); setCancelarAberto(true); }}
+                className="h-8 w-8 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-400/10"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+        </div>
+  );
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto animate-fade-in pb-12">
       <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -540,7 +625,44 @@ export default function BillingDashboard() {
         </Card>
       ) : (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <div className="rounded-xl overflow-x-auto">
+          {/* F-116: no celular cada cobrança é um cartão com tudo à vista (sem arrastar para o lado) */}
+          <div className="space-y-3 p-3 md:hidden" data-testid="cobrancas-cartoes">
+            {filtradas.map((c) => (
+              <div key={c.id} role="button" tabIndex={0} onClick={() => navigate(rotaCobranca(c))}
+                className="rounded-xl border border-white/10 bg-slate-950/60 p-3 active:bg-white/5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold leading-tight text-white">{c.nomeCliente}</p>
+                    <p className="mt-0.5 font-mono text-[11px] text-slate-400">{c.codigo_operacional || c.numero_documento || c.contrato?.numero_contrato || '—'}</p>
+                  </div>
+                  <p className="flex-shrink-0 text-base font-bold text-slate-100">{brl(c.valor)}</p>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                  <Badge className={`${SITUACAO_BADGE[c.situacao]} border text-[11px]`}>{SITUACAO_LABEL[c.situacao]}</Badge>
+                  <span>Vence {fmtData(c.data_vencimento)}</span>
+                  <span className="text-slate-500">·</span>
+                  <span>{c.metodo_cobranca || '—'}</span>
+                  {c.situacao_cobranca && c.situacao_cobranca !== 'NENHUMA' && (
+                    <span className={c.situacao_cobranca === 'INADIMPLENTE' ? 'font-semibold text-rose-400' : 'text-amber-400'}>
+                      {SITUACAO_COBRANCA_LABEL[c.situacao_cobranca]}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 border-t border-white/5 pt-2" onClick={(e) => e.stopPropagation()}>
+                  {renderAcoes(c)}
+                </div>
+              </div>
+            ))}
+            {filtradas.length === 0 && (
+              <div className="py-10 text-center">
+                <SearchX className="mx-auto h-8 w-8 text-slate-600" />
+                <p className="mt-3 text-sm text-slate-400">
+                  {cobrancas.length === 0 ? 'Nenhuma cobrança cadastrada para esta operadora.' : 'Nenhuma cobrança encontrada com os filtros aplicados.'}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="hidden rounded-xl overflow-x-auto md:block">
             <Table>
               <TableHeader className="bg-slate-950">
                 <TableRow className="border-white/10 hover:bg-transparent">
@@ -585,87 +707,7 @@ export default function BillingDashboard() {
                       )}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title="Detalhes da Cobrança"
-                          onClick={() => navigate(rotaCobranca(c))}
-                          className="h-8 w-8 p-0 text-slate-300 hover:text-white hover:bg-white/10"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        
-                        {c.status !== 'CANCELADO' && c.status !== 'PAGO' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Editar Cobrança"
-                            onClick={(e) => { e.stopPropagation(); setCobrancaEditando(c as any); }}
-                            className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-400/10"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        )}
-                        
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title="Pré-visualizar como cliente"
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          const link = getPublicBillingUrl(c);
-                          if(link) window.open(link, '_blank'); 
-                        }}
-                          className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
-                        >
-                          <LinkIcon className="h-4 w-4" />
-                        </Button>
-                        
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title="WhatsApp"
-                          onClick={(e) => { e.stopPropagation(); window.open(generateWhatsAppLink(c), '_blank'); }}
-                          className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
-                        >
-                          <MessageCircle className="h-4 w-4" />
-                        </Button>
-
-                        {c.status !== 'CANCELADO' && c.status !== 'PAGO' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="Registrar pagamento"
-                              onClick={(e) => { e.stopPropagation(); setCobrancaParaPagamento(c as any); setPagamentoManualAberto(true); }}
-                              className="h-8 w-8 p-0 text-amber-400 hover:text-amber-300 hover:bg-amber-400/10"
-                            >
-                              <DollarSign className="h-4 w-4" />
-                            </Button>
-                            
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="Marcar como paga"
-                              onClick={(e) => { e.stopPropagation(); setCobrancaParaBaixa(c as any); setBaixaAberto(true); }}
-                              className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="Cancelar cobrança"
-                              onClick={(e) => { e.stopPropagation(); setCobrancaParaCancelar(c as any); setCancelarAberto(true); }}
-                              className="h-8 w-8 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-400/10"
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                      {renderAcoes(c)}
                     </TableCell>
                   </TableRow>
                 ))}

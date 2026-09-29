@@ -70,10 +70,12 @@ export default function Screens() {
   const navigate = useNavigate();
   // F-112: dois cartões — Telas Pontos Parceiros (pastas por estabelecimento) e Telas Anunciantes
   const [params, setParams] = useSearchParams();
-  const secao = params.get('secao') === 'parceiros' || params.get('secao') === 'anunciantes' ? params.get('secao') : null;
+  // F-116: gestor não vê a estrutura de pontos parceiros — vai direto para as telas dele
+  const secao = !podeTelasParceiras ? 'anunciantes'
+    : params.get('secao') === 'parceiros' || params.get('secao') === 'anunciantes' ? params.get('secao') : null;
   const pontoAberto = params.get('ponto');
   const irPara = (novo: Record<string, string>) => setParams(novo);
-  const telasDosPontos = useTelasDosPontos();
+  const telasDosPontos = useTelasDosPontos(podeTelasParceiras);
   const telasParceiras = telasDosPontos.data ?? [];
   const pontosComTelas = new Set(telasParceiras.map((t) => t.ponto_id)).size;
 
@@ -216,6 +218,7 @@ export default function Screens() {
       </div>
 
       {/* F-112: os dois cartões (sempre visíveis; o escolhido fica destacado) */}
+      {podeTelasParceiras && (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="cartoes-telas">
         <button type="button" data-testid="cartao-telas-parceiros" onClick={() => irPara({ secao: 'parceiros' })}
           className={`rounded-2xl border p-5 text-left transition-all hover:shadow-lg ${secao === 'parceiros' ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-card/60 hover:border-primary/50'}`}>
@@ -245,6 +248,8 @@ export default function Screens() {
         </button>
       </div>
 
+      )}
+
       {secao === 'parceiros' && (
         <PastasPontosParceiros
           pontoId={pontoAberto}
@@ -254,9 +259,11 @@ export default function Screens() {
       )}
 
       {secao === 'anunciantes' && (<>
-      <button type="button" onClick={() => irPara({})} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Voltar aos cartões
-      </button>
+      {podeTelasParceiras && (
+        <button type="button" onClick={() => irPara({})} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> Voltar aos cartões
+        </button>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

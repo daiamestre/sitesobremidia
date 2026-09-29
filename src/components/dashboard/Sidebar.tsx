@@ -44,7 +44,6 @@ const menuItems = [
   { icon: Monitor, label: 'Telas', path: '/dashboard/screens' },
   { icon: LayoutGrid, label: 'Widgets', path: '/dashboard/widgets' },
   { icon: Palette, label: 'Minha Marca', path: '/dashboard/marca' },
-  { icon: Store, label: 'Cadastrar ponto parceiro', path: '/dashboard/prospeccao/ponto-parceiro' },
   { icon: Calendar, label: 'Agendamento', path: '/dashboard/schedule' },
   { icon: Link2, label: 'Links Externos', path: '/dashboard/links' },
   { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics' },
@@ -70,8 +69,12 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
     ...((isAdmin || isOwner)
       ? [{ icon: Banknote, label: 'Central de Cobranças', path: '/financeiro/cobrancas' }]
       : []),
+    // F-116: estrutura de pontos parceiros só para OWNER/ADMIN (gestor não vê); abre a página nova de Telas
     ...(podeTelasParceiras
-      ? [{ icon: Store, label: 'Telas de pontos parceiros', path: '/dashboard/telas-parceiras' }]
+      ? [
+          { icon: Store, label: 'Telas de pontos parceiros', path: '/dashboard/screens?secao=parceiros' },
+          { icon: Store, label: 'Cadastrar ponto parceiro', path: '/dashboard/prospeccao/ponto-parceiro' },
+        ]
       : []),
     {
       icon: Bell,
@@ -130,7 +133,8 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
       {/* Navigation */}
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
         {menuComMensagens.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = location.pathname + (item.path.includes('?') ? location.search : '') === item.path
+            || (item.path === '/dashboard/screens' && location.pathname === '/dashboard/screens' && !location.search.includes('secao=parceiros'));
           return (
             <NavLink
               key={`${item.path}-${item.label}`}

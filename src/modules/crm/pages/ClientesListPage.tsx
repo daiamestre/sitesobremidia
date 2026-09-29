@@ -12,6 +12,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Building2, MapPin, Trash2, Loader2, FileCheck, Eye, Pencil } from 'lucide-react';
 
+/** F-116: situação do cliente em português, com a mesma cor da tabela. */
+const ROTULO_STATUS: Record<string, string> = { ACTIVE: 'Ativo', ATIVO: 'Ativo', PROSPECT: 'Prospecção', NEGOCIACAO: 'Negociação', INACTIVE: 'Inativo', INATIVO: 'Inativo', SUSPENSO: 'Suspenso' };
+const rotuloStatus = (st?: string | null) => ROTULO_STATUS[String(st ?? '').toUpperCase()] ?? (st || '—');
+const corStatus = (st?: string | null) =>
+  st === 'ACTIVE' || st === 'ATIVO' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+    : st === 'PROSPECT' || st === 'NEGOCIACAO' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+    : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+
 export default function ClientesListPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -149,7 +157,50 @@ export default function ClientesListPage() {
               </Button>
             </div>
           ) : (
-            <div className="rounded-xl border border-white/10 overflow-hidden">
+            <>
+            {/* F-116: no celular cada cliente é um cartão com todas as informações (sem arrastar para o lado) */}
+            <div className="space-y-3 md:hidden" data-testid="clientes-cartoes">
+              {filteredClientes.map((cliente) => {
+                const emp = cliente.empresas?.[0];
+                const ct = emp?.contatos?.[0];
+                const nomeFantasia = emp?.nome_fantasia || 'Sem nome';
+                const abrir = () => navigate(`${basePath}/clientes/${encodeURIComponent(String(cliente.codigo_cliente ?? cliente.id))}`);
+                return (
+                  <div key={cliente.id} role="button" tabIndex={0} onClick={abrir}
+                    className="rounded-xl border border-white/10 bg-slate-950/60 p-3 active:bg-white/5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold leading-tight text-white">{nomeFantasia}</p>
+                        <p className="mt-0.5 text-xs text-slate-400"><span className="font-mono text-primary">#{cliente.codigo_cliente}</span> · {emp?.segmento || 'Geral'}</p>
+                      </div>
+                      <Badge className={corStatus(cliente.status)}>{rotuloStatus(cliente.status)}</Badge>
+                    </div>
+                    <dl className="mt-2 grid grid-cols-1 gap-1.5 text-xs">
+                      <div><dt className="inline text-slate-500">CNPJ: </dt><dd className="inline text-slate-200">{emp?.cnpj || 'N/A'}</dd></div>
+                      <div><dt className="inline text-slate-500">Razão social: </dt><dd className="inline text-slate-300">{emp?.razao_social || 'N/A'}</dd></div>
+                      <div className="flex items-center gap-1 text-slate-300"><MapPin className="h-3 w-3 flex-shrink-0 text-slate-400" />{emp?.cidade ? `${emp.cidade}/${emp.estado}` : 'Cidade não informada'}</div>
+                      <div><dt className="inline text-slate-500">Contato: </dt><dd className="inline text-slate-200">{ct?.nome || emp?.representante_legal || 'N/A'}</dd>
+                        <span className="text-slate-400"> · {emp?.whatsapp || emp?.email || 'N/A'}</span></div>
+                    </dl>
+                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/5 pt-3" onClick={(e) => e.stopPropagation()}>
+                      <Button size="sm" variant="outline" className="h-9 gap-1 border-primary/30 text-xs text-primary hover:bg-primary/10" onClick={() => setSelected360Cliente(cliente)}>
+                        <Eye className="h-3.5 w-3.5" /> Visão 360º
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-9 gap-1 border-sky-500/30 text-xs text-sky-400 hover:bg-sky-500/10" onClick={() => navigate(`${basePath}/clientes/editar/${cliente.codigo_cliente ?? cliente.id}`)}>
+                        <Pencil className="h-3.5 w-3.5" /> Editar
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-9 gap-1 border-emerald-500/30 text-xs text-emerald-400 hover:bg-emerald-500/10" onClick={() => handleNavigateToContratos(cliente.id)}>
+                        <FileCheck className="h-3.5 w-3.5" /> Contrato
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-9 gap-1 border-rose-500/30 text-xs text-rose-400 hover:bg-rose-500/10" onClick={() => handleInactivate(cliente.id, nomeFantasia)} disabled={deletingId === cliente.id}>
+                        {deletingId === cliente.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Excluir
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="hidden rounded-xl border border-white/10 overflow-hidden md:block">
               <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <Table className="min-w-[720px]">
                 <TableHeader className="bg-slate-950">
@@ -197,13 +248,7 @@ export default function ClientesListPage() {
                           <div className="text-[11px] text-slate-400">{contatoInfo}</div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={
-                            cliente.status === 'ACTIVE' || cliente.status === 'ATIVO' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                            cliente.status === 'PROSPECT' || cliente.status === 'NEGOCIACAO' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                            'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                          }>
-                            {cliente.status}
-                          </Badge>
+                          <Badge className={corStatus(cliente.status)}>{rotuloStatus(cliente.status)}</Badge>
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -255,6 +300,7 @@ export default function ClientesListPage() {
                 </Table>
                 </div>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -8,6 +8,9 @@ import { useToast } from '@/hooks/use-toast';
 import { FileText, Send, CheckCircle2, AlertCircle, Loader2, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+/** F-116: situação da proposta em português. */
+const ROTULO_PROPOSTA: Record<string, string> = { DRAFT: 'Rascunho', SENT: 'Enviada', ACCEPTED: 'Aceita', APPROVED: 'Aprovada', REJECTED: 'Recusada', EXPIRED: 'Vencida', CANCELLED: 'Cancelada' };
+
 export default function PropostasListPage() {
   const navigate = useNavigate();
   const { representante, isOwner } = useAuth();
@@ -100,10 +103,10 @@ export default function PropostasListPage() {
                       Emitida em: {new Date(prop.created_at).toLocaleDateString('pt-BR')}
                     </CardDescription>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                  <span className={`whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-bold ${
                     isSent ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                   }`}>
-                    {prop.status}
+                    {ROTULO_PROPOSTA[String(prop.status).toUpperCase()] ?? prop.status}
                   </span>
                 </CardHeader>
                 <CardContent className="pt-4 space-y-4">

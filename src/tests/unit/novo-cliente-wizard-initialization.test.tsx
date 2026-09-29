@@ -2,6 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// F-113: o assistente busca as telas dos pontos (useQuery) — monta com o provedor de dados, como o site.
+const Provedor = ({ children }: { children: React.ReactNode }) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider>
+);
 import { IntelligentCommercialWizard } from '@/modules/crm/components/forms/IntelligentCommercialWizard';
 import NovoClienteWizardPage from '@/modules/crm/pages/NovoClienteWizardPage';
 
@@ -59,9 +65,9 @@ describe('P0 Regression Defense — Wizard Component Initialization & TDZ Preven
   it('instantiates IntelligentCommercialWizard without ReferenceError (TDZ)', () => {
     expect(() => {
       render(
-        <MemoryRouter initialEntries={['/workspace/clientes/novo/anunciante']}>
+        <Provedor><MemoryRouter initialEntries={['/workspace/clientes/novo/anunciante']}>
           <IntelligentCommercialWizard />
-        </MemoryRouter>
+        </MemoryRouter></Provedor>
       );
     }).not.toThrow();
 
@@ -71,9 +77,9 @@ describe('P0 Regression Defense — Wizard Component Initialization & TDZ Preven
 
   it('renders NovoClienteWizardPage cleanly and exposes initial form fields', () => {
     const { container } = render(
-      <MemoryRouter initialEntries={['/workspace/clientes/novo/anunciante']}>
+      <Provedor><MemoryRouter initialEntries={['/workspace/clientes/novo/anunciante']}>
         <NovoClienteWizardPage />
-      </MemoryRouter>
+      </MemoryRouter></Provedor>
     );
 
     expect(container).toBeDefined();

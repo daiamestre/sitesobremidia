@@ -726,8 +726,19 @@ img, video, canvas, svg {
 .flex > *, .grid > * {
   min-width: 0;
   max-width: 100%;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  /* F-116: "anywhere"/"break-word" deixavam o navegador partir palavras LETRA POR LETRA no celular
+     ("ACADE MIA", "OFF LIN E", "A C T I V E"). break-word só quebra a palavra que não cabe sozinha na linha. */
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+/* F-116: em linhas que já quebram (flex-wrap) o item DESCE para a linha seguinte em vez de encolher até virar
+   letras soltas; etiquetas/botões (whitespace-nowrap) e itens "shrink-0" nunca encolhem abaixo do próprio texto.
+   Quem pediu min-w-0 explicitamente continua podendo encolher. */
+.flex-wrap > *:not(.min-w-0),
+.flex > .whitespace-nowrap:not(.min-w-0),
+.flex > .shrink-0,
+.flex > .flex-shrink-0 {
+  min-width: auto;
 }
 
 /* Imagens e mídias nunca forçam overflow */
@@ -752,9 +763,37 @@ pre, code {
 
 /* Tabelas e cards nunca forçam página além do viewport */
 table { max-width: 100%; }
-td, th { word-break: break-word; overflow-wrap: anywhere; }
+td, th { word-break: normal; overflow-wrap: break-word; }
 
 /* Notebook otimização — sidebar não consome espaço excessivo em 1280x720 / 1366x768 */
 @media (min-width: 1024px) and (max-height: 800px) {
   aside.w-64 { width: 16rem; }
+}
+/* F-116: tabelas no celular = blocos empilhados (ver src/components/ui/table.tsx). Computador: sem mudança. */
+@media (max-width: 767px) {
+  table.tabela-empilhada { min-width: 0 !important; width: 100% !important; }
+  table.tabela-empilhada > thead { display: none; }
+  table.tabela-empilhada > tbody,
+  table.tabela-empilhada > tbody > tr,
+  table.tabela-empilhada > tbody > tr > td { display: block; width: 100%; max-width: none; }
+  table.tabela-empilhada > tbody > tr { padding: 0.5rem 0; }
+  /* nome da coluna flutua à esquerda; o conteúdo da célula fica à direita, um item embaixo do outro */
+  table.tabela-empilhada > tbody > tr > td {
+    display: flow-root; padding: 0.35rem 0.75rem; text-align: right; white-space: normal;
+  }
+  table.tabela-empilhada > tbody > tr > td[data-label]::before {
+    content: attr(data-label); float: left; max-width: 42%; margin-right: 0.75rem; text-align: left;
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+    color: hsl(var(--muted-foreground));
+  }
+  table.tabela-empilhada > tbody > tr > td:not([data-label]) { text-align: left; }
+  table.tabela-empilhada > tbody > tr > td[data-linha-inteira] { text-align: center; }
+  /* grupos de botões/etiquetas dentro da célula alinham à direita e quebram linha se precisar */
+  table.tabela-empilhada > tbody > tr > td[data-label] > .flex { justify-content: flex-end; flex-wrap: wrap; }
+}
+
+/* F-116: no celular, linhas "título ··· botões" (flex justify-between) descem o que não cabe para a linha de baixo,
+   em vez de espremer o título até virar letras soltas. Só quebra quando não cabe; no computador nada muda. */
+@media (max-width: 767px) {
+  .flex.justify-between:not(.flex-nowrap):not(.flex-col) { flex-wrap: wrap; row-gap: 0.5rem; }
 }
