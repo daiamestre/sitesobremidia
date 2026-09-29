@@ -337,7 +337,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
           <DialogTitle>{playlist?.nome}</DialogTitle>
           <DialogDescription>
             {videosNaPlaylist === 0
-              ? 'Nenhum vídeo ainda â€” o primeiro é gratuito.'
+              ? 'Nenhum vídeo ainda — o primeiro é gratuito.'
               : videosNaPlaylist === 1
                 ? `1 vídeo gratuito utilizado. Próximos vídeos: ${brl(VALOR_VIDEO_ADICIONAL)} cada.`
                 : `${videosNaPlaylist - 1} vídeo(s) adicional(is) cobrado(s).`}
@@ -390,7 +390,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
               onChange={(e) => setAssetSelecionado(e.target.value || null)}
               className="flex-1 px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-700 text-slate-200"
             >
-              <option value="">Selecione uma mídia da bibliotecaâ€¦</option>
+              <option value="">Selecione uma mídia da biblioteca…</option>
               {(assets as any[])
                 .filter((a) => a.tipo === 'imagem' || a.tipo === 'video')
                 .map((a) => (
@@ -406,7 +406,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
           </div>
           {(assets as any[]).filter((a) => a.tipo === 'imagem' || a.tipo === 'video').length === 0 && (
             <p className="text-xs text-amber-400/80">
-              Sua biblioteca está vazia â€” envie mídias em Minhas Mídias â†’ Biblioteca.
+              Sua biblioteca está vazia — envie mídias em Minhas Mídias → Biblioteca.
             </p>
           )}
         </section>
@@ -445,7 +445,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
 
           {pontosContratados.length > 0 && (
             <div className="rounded-lg border border-white/10 p-3 space-y-2">
-              <p className="text-xs text-slate-400">Pontos contratados â€” publicar no Player:</p>
+              <p className="text-xs text-slate-400">Pontos contratados — publicar no Player:</p>
               <div className="max-h-40 overflow-y-auto space-y-2">
                 {pontosContratados.map((pc: PontoContratado) => {
                   const jaVinculado = (playlist?.pontos ?? []).some((pv) => pv.ponto_id === pc.ponto_id);
@@ -475,7 +475,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
                               const r = await playlistClienteService.publicarNoPonto(playlist!.id, pc.ponto_id);
                               toast.success(
                                 `Publicada no Player: ${r.telas_vinculadas} tela(s) vinculada(s)` +
-                                (r.telas_ignoradas > 0 ? ` Â· ${r.telas_ignoradas} ocupada(s) preservada(s)` : ''),
+                                (r.telas_ignoradas > 0 ? ` · ${r.telas_ignoradas} ocupada(s) preservada(s)` : ''),
                               );
                             } catch (e: any) {
                               toast.error(e?.message || 'Erro ao publicar.');
@@ -535,7 +535,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
             <div className="flex items-center justify-between">
               <span className="font-mono text-sm text-amber-400">{cobrancaPendente.codigo}</span>
               <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                AGUARDANDO PAGAMENTO Â· {brl(VALOR_VIDEO_ADICIONAL)}
+                AGUARDANDO PAGAMENTO · {brl(VALOR_VIDEO_ADICIONAL)}
               </Badge>
             </div>
             <p className="text-[11px] text-slate-400 break-all font-mono">

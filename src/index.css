@@ -825,8 +825,11 @@ td, th { word-break: normal; overflow-wrap: break-word; }
 /* F-117: no celular, fileiras com etiquetas/botões que não quebram texto (whitespace-nowrap) descem para a linha
    de baixo quando não cabem, em vez de passar da borda do cartão. Listas com rolagem lateral própria não mudam. */
 @media (max-width: 767px) {
-  .flex:not(.flex-nowrap):not(.overflow-x-auto):not(.flex-col):has(> .whitespace-nowrap) {
+  .flex:not(.flex-nowrap):not(.overflow-x-auto):not(.flex-col):not(.flex-col-reverse):has(> .whitespace-nowrap) {
     flex-wrap: wrap;
+  }
+  /* espaço entre linhas só quando o bloco não definiu o próprio espaçamento (gap-*) */
+  .flex:not(.flex-nowrap):not(.overflow-x-auto):not(.flex-col):not(.flex-col-reverse):not([class*="gap-"]):has(> .whitespace-nowrap) {
     row-gap: 0.25rem;
   }
 }
@@ -834,4 +837,28 @@ td, th { word-break: normal; overflow-wrap: break-word; }
 /* F-117: no celular, listas de abas que não são grade quebram em mais de uma linha em vez de passar da tela */
 @media (max-width: 767px) {
   [role="tablist"]:not(.grid):not(.overflow-x-auto) { flex-wrap: wrap; height: auto; max-width: 100%; }
+}
+
+/* F-118: campos de data/mês/hora — no iPhone (Safari) eles têm largura mínima própria e ignoram a coluna,
+   invadindo o campo ao lado (Vencimento/Competência). Aqui respeitam a largura e mantêm altura quando vazios. */
+input[type="date"], input[type="month"], input[type="time"], input[type="datetime-local"], input[type="week"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  display: block;
+  min-height: 2.5rem;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="month"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; min-height: 1.25rem; }
+
+/* F-118: no celular, formulários com 3 campos por linha viram 1 por linha; com 4, viram 2 por linha.
+   Só grades fixas (sem sm:/md:) que contêm campos; quem ocupa várias colunas volta a ocupar uma. */
+@media (max-width: 639px) {
+  .grid.grid-cols-3:has(input, select, textarea, [role="combobox"]) { grid-template-columns: minmax(0, 1fr); }
+  .grid.grid-cols-4:has(input, select, textarea, [role="combobox"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid.grid-cols-3:has(input, select, textarea, [role="combobox"]) > [class*="col-span-"],
+  .grid.grid-cols-4:has(input, select, textarea, [role="combobox"]) > [class*="col-span-"] { grid-column: 1 / -1; }
 }

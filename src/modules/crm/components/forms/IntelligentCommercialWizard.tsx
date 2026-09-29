@@ -135,7 +135,7 @@ export function IntelligentCommercialWizard() {
   const { user, empresaOperadoraId, representante, isOwner, perfilNome } = useAuth();
 
   const [step, setStep] = useState(1);
-  // Seleção de PONTOS PARCEIROS na prospecção (missão Â§7-Â§10) â€” sincronizada
+  // Seleção de PONTOS PARCEIROS na prospecção (missão §7-§10) — sincronizada
   // via RPC selecionar_pontos_prospeccao após a criação do cliente.
   const [pontosSelecionados, setPontosSelecionados] = useState<Set<string>>(new Set());
   // F-113: telas escolhidas em cada ponto; o sistema soma e o valor mensal vem preenchido (editável)
@@ -793,7 +793,7 @@ export function IntelligentCommercialWizard() {
         entidadeId: finalClienteId,
         acao: 'INSERT',
         statusNovo: 'DRAFT',
-        observacoes: `Proposta ${resProp.numeroProposta} criada via Novo Cliente${isOwner ? ' â€” OWNER' : ''}`,
+        observacoes: `Proposta ${resProp.numeroProposta} criada via Novo Cliente${isOwner ? ' — OWNER' : ''}`,
         dadosAlterados: {
           numero_proposta: resProp.numeroProposta,
           titulo: formData.tituloCampanha,
@@ -809,9 +809,9 @@ export function IntelligentCommercialWizard() {
 
       // ============================================================
       // 3. PROVISIONAMENTO AUTOMÁTICO DO ACESSO DO ANUNCIANTE
-      // (fecha o ciclo: REPRESENTANTE â†’ CADASTRO â†’ ACESSO CRIADO)
+      // (fecha o ciclo: REPRESENTANTE → CADASTRO → ACESSO CRIADO)
       // Idempotente: EMAIL_JA_CADASTRADO não é erro de fluxo.
-      // Falha NÃO desfaz o cadastro â€” orientamos a Central de Acessos.
+      // Falha NÃO desfaz o cadastro — orientamos a Central de Acessos.
       // ============================================================
       const emailLogin = (formData.email || '').trim().toLowerCase();
       if (!emailLogin) {
@@ -884,10 +884,10 @@ export function IntelligentCommercialWizard() {
             </div>
             <div>
               <h2 className="text-xl sm:text-2xl font-display font-extrabold text-white">
-                Novo Cliente â€” Cadastro Completo
+                Novo Cliente — Cadastro Completo
               </h2>
               <p className="text-slate-300 text-xs mt-0.5">
-                Cliente, Unidade, Contato e Negociação â†’ Revisão e Salvamento real no PostgreSQL
+                Cliente, Unidade, Contato e Negociação → Revisão e Salvamento real no PostgreSQL
               </p>
             </div>
           </div>
@@ -926,7 +926,7 @@ export function IntelligentCommercialWizard() {
         </div>
       </div>
 
-      {/* STEP 1: CLIENTE + ENDEREÃ‡O */}
+      {/* STEP 1: CLIENTE + ENDEREÇO */}
       {step === 1 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
@@ -1277,25 +1277,25 @@ export function IntelligentCommercialWizard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[11px] text-slate-400 font-semibold">Nome da Unidade</Label>
-                  <p className="text-sm font-bold text-white">{formData.nomeFantasia || 'â€”'}</p>
+                  <p className="text-sm font-bold text-white">{formData.nomeFantasia || '—'}</p>
                 </div>
                 <div className="space-y-1 lg:col-span-2">
                   <Label className="text-[11px] text-slate-400 font-semibold">Endereço do Estabelecimento</Label>
                   <p className="text-sm text-slate-200">
-                    {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || 'â€”'}
+                    {[formData.logradouro, formData.numero, formData.complemento, formData.bairro].filter(Boolean).join(', ') || '—'}
                   </p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[11px] text-slate-400 font-semibold">CEP</Label>
-                  <p className="text-sm text-slate-200">{formData.cep || 'â€”'}</p>
+                  <p className="text-sm text-slate-200">{formData.cep || '—'}</p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[11px] text-slate-400 font-semibold">Cidade / UF</Label>
-                  <p className="text-sm text-slate-200">{formData.cidade || 'â€”'}{formData.estado ? `/${formData.estado}` : ''}</p>
+                  <p className="text-sm text-slate-200">{formData.cidade || '—'}{formData.estado ? `/${formData.estado}` : ''}</p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[11px] text-slate-400 font-semibold">CNPJ</Label>
-                  <p className="text-sm text-slate-200">{formData.cnpj || 'â€”'}</p>
+                  <p className="text-sm text-slate-200">{formData.cnpj || '—'}</p>
                 </div>
               </div>
             </div>
@@ -1362,9 +1362,9 @@ export function IntelligentCommercialWizard() {
         </Card>
       )}
 
-      {/* STEP 3: MÍDIA & NEGOCIAÃ‡ÃO */}
+      {/* STEP 3: MÍDIA & NEGOCIAÇÃO */}
       
-      {/* STEP 3: PONTOS PARCEIROS (missao Â§7-Â§10) */}
+      {/* STEP 3: PONTOS PARCEIROS (missao §7-§10) */}
       {step === 3 && (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl rounded-2xl">
           <CardHeader className="border-b border-white/10">
@@ -1867,7 +1867,7 @@ export function IntelligentCommercialWizard() {
                 <p className="text-sm text-slate-400">
                   Já existe um acesso para o e-mail{' '}
                   <span className="font-mono">{provisionamento.login}</span>. Nenhum usuário duplicado
-                  foi criado. Se o cliente perdeu a senha, utilize â€œEsqueci minha senhaâ€ na tela de login.
+                  foi criado. Se o cliente perdeu a senha, utilize “Esqueci minha senha” na tela de login.
                 </p>
               </>
             )}

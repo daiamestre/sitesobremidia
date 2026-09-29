@@ -1011,7 +1011,7 @@ function NovaCobrancaDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-400">Competência</Label>
               <Input type="month" value={competencia} onChange={(e) => setCompetencia(e.target.value)} className="bg-slate-950 border-slate-700" />
@@ -1062,15 +1062,15 @@ function NovaCobrancaDialog({
             >
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="PIX" id="pg-pix" />
-                <Label htmlFor="pg-pix" className="text-xs text-slate-300 cursor-pointer">○ Somente PIX</Label>
+                <Label htmlFor="pg-pix" className="text-xs text-slate-300 cursor-pointer">Somente PIX</Label>
               </div>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="BOLETO" id="pg-boleto" />
-                <Label htmlFor="pg-boleto" className="text-xs text-slate-300 cursor-pointer">○ Somente Boleto</Label>
+                <Label htmlFor="pg-boleto" className="text-xs text-slate-300 cursor-pointer">Somente Boleto</Label>
               </div>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="PIX_BOLETO" id="pg-both" />
-                <Label htmlFor="pg-both" className="text-xs text-slate-300 cursor-pointer">○ PIX + Boleto</Label>
+                <Label htmlFor="pg-both" className="text-xs text-slate-300 cursor-pointer">PIX + Boleto</Label>
               </div>
             </RadioGroup>
           </div>

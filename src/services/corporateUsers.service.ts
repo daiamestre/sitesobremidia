@@ -21,7 +21,7 @@ export interface CriarUsuarioPayload {
 export interface CriarUsuarioResultado {
   success: boolean;
   error?: string;
-  /** Senha inicial gerada no backend - entregue UMA única vez (missão Â§5/Â§6) */
+  /** Senha inicial gerada no backend - entregue UMA única vez (missão §5/§6) */
   senha_inicial?: string;
   /** E-mail efetivamente provisionado (eco do backend) */
   email?: string;
@@ -74,7 +74,7 @@ export const EDGE_FUNCTION_URL =
   // aprovação na Central e INTERNOS para provisionamento direto (missão portal).
   '/functions/v1/create-corporate-user';
 
-/** Provisionamento DIRETO da equipe do ANUNCIANTE (missão portal Â§3/Â§5/Â§7):
+/** Provisionamento DIRETO da equipe do ANUNCIANTE (missão portal §3/§5/§7):
  *  senha inicial backend + troca obrigatória. Restrito server-side a
  *  OWNER/ADMIN ou ao próprio ANUNCIANTE para perfis de equipe. */
 export const PROVISION_USER_URL =

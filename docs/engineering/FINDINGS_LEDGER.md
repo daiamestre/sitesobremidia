@@ -1530,3 +1530,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - pontuais: botões de "Telas de parceiros", card "Saúde da Rede", cabeçalho do NOC, botão de atualizar em Contratos e códigos de fatura sem quebra.
 - **Checagem automática reforçada** (conteúdo cortado por caixa com overflow escondido, texto maior que a própria caixa, ícone esticado, além de palavras partidas e rolagem lateral), rodada a 390 px em painel, Workspace, financeiro, Representante (ADMIN de teste) e Portal (anunciante de teste): sem pendências. Único item restante: o quadro de "carregando" de Analytics, que não é defeito.
 - **Testes:** suíte unitária 1.280/1.280.
+
+### F-118 — Celular: campos de data/mês invadindo o vizinho, formulários de 3 colunas e botões colados nas janelas — DONE
+- **Relato do proprietário (Nova cobrança):** "Periodicidade" em cima de "Competência", "Vencimento" passando da borda, "Criar cobrança" colado em "Cancelar"; "acontece em várias partes".
+- **Causas e correções (globais):**
+  - Campos `date`/`month`/`time`: no Safari do iPhone têm largura mínima própria e ignoram a coluna. Agora `appearance: none; min-width: 0; max-width: 100%; display: block; min-height: 2.5rem`.
+  - Grades fixas `grid-cols-3`/`grid-cols-4` com campos: no celular viram 1 e 2 colunas (quem ocupava várias colunas passa a ocupar a linha toda).
+  - Rodapés de `Dialog`, `AlertDialog` e `Sheet`: no celular os botões empilhados ficam com 12 px de espaço (antes colados); no computador o mesmo espaço de antes.
+  - A regra de linhas com etiquetas/botões (F-117) reduzia o espaço de blocos com `gap-*` e de colunas `flex-col-reverse`; agora não se aplica a eles.
+- **Nova cobrança:** Competência/Periodicidade/Método 1 por linha no celular; "○" repetido removido das opções de pagamento.
+- **Acentos corrompidos** ("Novo Cliente â€” Cadastro Completo", "ENDEREÃ‡O", "â€œEsqueci minha senhaâ€", "vazia â€” envie"): 24 trechos em IntelligentCommercialWizard, PlaylistsClientePage e corporateUsers.service convertidos de volta ao texto original.
+- **Prova:** varredura automática que abre as janelas "Nova/Novo/Adicionar/Criar/Cadastrar" de ~25 páginas (painel, Workspace, financeiro, Representante) a 390 px e mede campos/botões sobrepostos, passando da borda ou colados → sem pendências. Nova cobrança: botões com 12 px. Suíte unitária 1.280/1.280.
+- **Limite:** o navegador de teste é Chromium; o comportamento do campo de data no iPhone foi corrigido pela regra conhecida do Safari, mas só pode ser confirmado no aparelho.
