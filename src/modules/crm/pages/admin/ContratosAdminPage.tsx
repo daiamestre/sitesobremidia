@@ -508,7 +508,7 @@ export function ContratosAdminPage() {
       {!!novaVersaoTemplate && (
         <div className="fixed inset-0 z-50 w-screen h-screen bg-background flex flex-col overflow-hidden animate-in fade-in duration-200">
           {/* Top Bar Compacta (52px) */}
-          <div className="h-14 px-4 bg-slate-900 text-white border-b border-slate-800 flex items-center justify-between gap-4 shrink-0 shadow-md">
+          <div className="min-h-14 px-3 py-2 sm:px-4 bg-slate-900 text-white border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 sm:gap-4 shrink-0 shadow-md">
             {/* Lado Esquerdo: Título e Versão */}
             <div className="flex items-center gap-3 shrink-0">
               <div className="p-1.5 rounded-md bg-blue-600/30 text-blue-400 border border-blue-500/30">
@@ -528,7 +528,7 @@ export function ContratosAdminPage() {
             </div>
 
             {/* Centro: Formulário Inline Compacto */}
-            <div className="flex-1 max-w-2xl flex items-center gap-2">
+            <div className="order-last flex w-full items-center gap-2 sm:order-none sm:w-auto sm:max-w-2xl sm:flex-1">
               <div className="flex-1">
                 <Input
                   placeholder="Nome da Versão"
@@ -537,7 +537,7 @@ export function ContratosAdminPage() {
                   className="h-8 text-xs bg-slate-800 border-slate-700 text-white placeholder:text-slate-400 focus:border-blue-500"
                 />
               </div>
-              <div className="w-52">
+              <div className="hidden w-52 sm:block">
                 <Input
                   value={`Código: ${novaVersaoTemplate.codigo_template}`}
                   disabled
@@ -584,7 +584,7 @@ export function ContratosAdminPage() {
       {novoModeloOpen && (
         <div className="fixed inset-0 z-50 w-screen h-screen bg-background flex flex-col overflow-hidden animate-in fade-in duration-200">
           {/* Top Bar Compacta (52px) */}
-          <div className="h-14 px-4 bg-slate-900 text-white border-b border-slate-800 flex items-center justify-between gap-4 shrink-0 shadow-md">
+          <div className="min-h-14 px-3 py-2 sm:px-4 bg-slate-900 text-white border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 sm:gap-4 shrink-0 shadow-md">
             {/* Lado Esquerdo: Título e Tipo */}
             <div className="flex items-center gap-3 shrink-0">
               <div className="p-1.5 rounded-md bg-blue-600/30 text-blue-400 border border-blue-500/30">

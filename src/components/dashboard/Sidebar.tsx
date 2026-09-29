@@ -73,7 +73,8 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
     ...(podeTelasParceiras
       ? [
           { icon: Store, label: 'Telas de pontos parceiros', path: '/dashboard/screens?secao=parceiros' },
-          { icon: Store, label: 'Cadastrar ponto parceiro', path: '/dashboard/prospeccao/ponto-parceiro' },
+          // F-119: a sala de pontos parceiros (cartões, edição completa, telas; "Novo Ponto Parceiro" = cadastro completo)
+          { icon: Store, label: 'Pontos parceiros', path: '/dashboard/pontos-parceiros' },
         ]
       : []),
     {

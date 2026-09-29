@@ -17,8 +17,9 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   CheckCircle2, AlertTriangle, Eye, BookOpen,
-  Plus, Search, Bold, Italic, Underline, ArrowDown, Move
+  Plus, Search, Bold, Italic, Underline, ArrowDown, Move, ListPlus, Type, X
 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface ReadableContractEditorProps {
   value: string;
@@ -153,6 +154,18 @@ export function ReadableContractEditor({
   const [tabAtiva, setTabAtiva] = useState<'editor' | 'previa'>('editor');
   const [categoriaFiltro, setCategoriaFiltro] = useState<PlaceholderCategoria | 'TODAS'>('TODAS');
   const [buscaToken, setBuscaToken] = useState('');
+  // F-120: no celular a lista de campos abre por cima do documento (botão "Campos")
+  const [camposAberto, setCamposAberto] = useState(false);
+  // F-120: guarda onde estava o cursor no documento — no celular, tocar num botão tira o foco do texto
+  const ultimoRange = useRef<Range | null>(null);
+  useEffect(() => {
+    const guardar = () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) ultimoRange.current = sel.getRangeAt(0).cloneRange();
+    };
+    document.addEventListener('selectionchange', guardar);
+    return () => document.removeEventListener('selectionchange', guardar);
+  }, []);
   const editorRef = useRef<HTMLDivElement>(null);
   const lastCanonicalValueRef = useRef<string>('');
   const draggedElementRef = useRef<HTMLElement | null>(null);
@@ -236,6 +249,14 @@ export function ReadableContractEditor({
     if (!editor) return;
 
     editor.focus();
+    // F-120: sem coordenadas (clique/toque na lista), volta o cursor para onde ele estava no documento
+    if (clientX === undefined && ultimoRange.current) {
+      const selAtual = window.getSelection();
+      if (!selAtual || selAtual.rangeCount === 0 || !editor.contains(selAtual.anchorNode)) {
+        selAtual?.removeAllRanges();
+        selAtual?.addRange(ultimoRange.current);
+      }
+    }
 
     let range: Range | null = null;
     if (clientX !== undefined && clientY !== undefined) {
@@ -308,6 +329,7 @@ export function ReadableContractEditor({
   // Inserção por clique
   const handleInsertPlaceholder = (tokenName: string) => {
     insertTokenAtPoint(tokenName);
+    setCamposAberto(false);
   };
 
   // Drag over no documento: permite soltar e exibe o ponto de inserção
@@ -493,6 +515,20 @@ export function ReadableContractEditor({
       <div className="w-full bg-white dark:bg-slate-950 px-4 py-2 border-b flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 shadow-2xs z-10">
         {/* Lado Esquerdo: Ferramentas de Formatação e Controles Rápidos */}
         <div className="flex items-center gap-1">
+          {/* F-120: no celular a formatação fica no menu "Formatar" */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="sm" variant="outline" className="h-8 gap-1 px-2 md:hidden" onMouseDown={(e) => e.preventDefault()} data-testid="menu-formatar">
+                <Type className="h-4 w-4" /> Formatar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => executeFormatting('bold')}><Bold className="mr-2 h-4 w-4" /> Negrito</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => executeFormatting('italic')}><Italic className="mr-2 h-4 w-4" /> Itálico</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => executeFormatting('underline')}><Underline className="mr-2 h-4 w-4" /> Sublinhado</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="hidden items-center gap-1 md:flex">
           <Button
             type="button"
             size="sm"
@@ -523,6 +559,7 @@ export function ReadableContractEditor({
           >
             <Underline className="h-4 w-4" />
           </Button>
+          </div>
 
           <div className="h-4 w-px bg-border mx-1" />
 
@@ -538,7 +575,7 @@ export function ReadableContractEditor({
               }`}
             >
               <BookOpen className="h-3.5 w-3.5" />
-              <span>Editor do Documento</span>
+              <span className="sm:hidden">Editor</span><span className="hidden sm:inline">Editor do Documento</span>
             </button>
             <button
               type="button"
@@ -550,13 +587,16 @@ export function ReadableContractEditor({
               }`}
             >
               <Eye className="h-3.5 w-3.5" />
-              <span>Prévia Real</span>
+              <span className="sm:hidden">Prévia</span><span className="hidden sm:inline">Prévia Real</span>
             </button>
           </div>
         </div>
 
         {/* Lado Direito: Status de Validação e Dica Operacional */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button type="button" size="sm" className="h-8 gap-1 px-2.5 md:hidden" onClick={() => setCamposAberto(true)} data-testid="abrir-campos">
+            <ListPlus className="h-4 w-4" /> Campos
+          </Button>
           <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-[11px] hidden lg:flex">
             <Move className="h-3 w-3 text-blue-500" />
             <span>Arraste campos do painel lateral para qualquer lugar do documento</span>
@@ -566,7 +606,7 @@ export function ReadableContractEditor({
             {validacao.valido ? (
               <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Modelo Válido ({validacao.placeholdersValidos.length} campos)</span>
+                <span className="sm:hidden">{validacao.placeholdersValidos.length} campos</span><span className="hidden sm:inline">Modelo Válido ({validacao.placeholdersValidos.length} campos)</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 text-rose-700 dark:text-rose-400 font-semibold bg-rose-50 dark:bg-rose-950/50 px-2.5 py-1 rounded-full border border-rose-200 dark:border-rose-800">
@@ -584,7 +624,7 @@ export function ReadableContractEditor({
         <div className="flex-1 flex flex-col h-full min-h-0 bg-slate-100/90 dark:bg-slate-900/90 overflow-hidden">
           {tabAtiva === 'editor' ? (
             /* Viewport de Rolagem Vertical Ampla e Irrestrita */
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
+            <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-8 scroll-smooth">
               <div className="max-w-4xl mx-auto space-y-6">
                 {/* Folha do Documento Editável (WYSIWYG Direto) */}
                 <div
@@ -597,7 +637,7 @@ export function ReadableContractEditor({
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
                   onDragStart={handleEditorDragStart}
-                  className="bg-white dark:bg-slate-950 p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 min-h-[1400px] pb-32 focus:outline-none focus:ring-2 focus:ring-primary/20 leading-relaxed font-sans text-sm"
+                  className="bg-white dark:bg-slate-950 p-4 sm:p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 min-h-[70vh] md:min-h-[1400px] pb-32 focus:outline-none focus:ring-2 focus:ring-primary/20 leading-relaxed font-sans text-sm"
                 />
 
                 {/* Área Inferior Dinâmica e Acessível para Soltar ou Adicionar Conteúdo ao Final */}
@@ -622,10 +662,10 @@ export function ReadableContractEditor({
             </div>
           ) : (
             /* Prévia Real com Dados de Amostra */
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
+            <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-8 scroll-smooth">
               <div className="max-w-4xl mx-auto pb-32">
                 <div
-                  className="bg-white dark:bg-slate-950 p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 leading-relaxed font-sans text-sm min-h-[1400px]"
+                  className="bg-white dark:bg-slate-950 p-4 sm:p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 leading-relaxed font-sans text-sm min-h-[70vh] md:min-h-[1400px]"
                   dangerouslySetInnerHTML={{
                     __html: sanitizeHtmlForPreview(htmlPreviaResolvida),
                   }}
@@ -636,7 +676,8 @@ export function ReadableContractEditor({
         </div>
 
         {/* COLUNA DIREITA: Painel Lateral Auxiliar de Campos Arrastáveis */}
-        <div className="w-80 md:w-88 shrink-0 h-full border-l bg-card dark:bg-slate-950 flex flex-col min-h-0 shadow-lg z-10">
+        {camposAberto && <div className="fixed inset-0 z-[60] bg-black/50 md:hidden" onClick={() => setCamposAberto(false)} aria-hidden="true" />}
+        <div data-testid="painel-campos" className={`fixed inset-y-0 right-0 z-[61] flex w-[88vw] max-w-sm flex-col border-l bg-card shadow-lg transition-transform duration-200 dark:bg-slate-950 md:static md:z-10 md:h-full md:min-h-0 md:w-80 md:max-w-none md:shrink-0 md:translate-x-0 ${camposAberto ? 'translate-x-0' : 'translate-x-full'}`}>
           {/* Header do Painel Lateral */}
           <div className="p-3.5 border-b bg-slate-50/80 dark:bg-slate-900/80 shrink-0 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -644,9 +685,14 @@ export function ReadableContractEditor({
                 <Move className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs font-bold text-foreground">Campos Disponíveis</span>
               </div>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0.2">
-                {catalogoFiltrado.length} de {Object.keys(PLACEHOLDER_CATALOG).length}
-              </Badge>
+              <div className="flex items-center gap-1">
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0.2">
+                  {catalogoFiltrado.length} de {Object.keys(PLACEHOLDER_CATALOG).length}
+                </Badge>
+                <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 md:hidden" onClick={() => setCamposAberto(false)} aria-label="Fechar campos">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Campo de Busca Rápida */}
@@ -700,6 +746,7 @@ export function ReadableContractEditor({
                   type="button"
                   draggable={true}
                   title={`${item.descricao} (Origem: ${item.origem}) — Clique para inserir no cursor ou arraste para o documento`}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleInsertPlaceholder(item.nome)}
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', `{{${item.nome}}}`);

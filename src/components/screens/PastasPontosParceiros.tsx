@@ -99,6 +99,11 @@ export function PastasPontosParceiros({ pontoId, onAbrirPonto, onVoltar }: {
             <p className="text-sm text-muted-foreground">{pasta.telas.length} tela{pasta.telas.length === 1 ? '' : 's'} · toque na tela para escolher as mídias dela</p>
           </div>
         </div>
+        {/* F-119: fotos, dados, endereço e telas (nova tela, valor, grátis) na sala de pontos parceiros */}
+        <button type="button" onClick={() => navigate(`/dashboard/pontos-parceiros/${pasta.id}`)} data-testid="editar-ponto-da-pasta"
+          className="inline-flex items-center gap-1 rounded-lg border border-primary/40 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10">
+          Editar ponto e telas <ChevronRight className="h-4 w-4" />
+        </button>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {pasta.telas.map((t, i) => {
             const on = telaOnline(t);

@@ -122,6 +122,8 @@ export default function PontoParceiroWizardPage() {
   // F-109: o gestor de mídias também cadastra ponto parceiro (painel /dashboard)
   const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : location.pathname.startsWith('/dashboard') ? '/dashboard' : '/representantes';
   const noGestor = basePath === '/dashboard';
+  // F-119: aberto pela sala de Pontos Parceiros → volta para a sala
+  const voltarPara = (location.state as { voltarPara?: string } | null)?.voltarPara ?? null;
   const [passo, setPasso] = useState(1);
   const [form, setForm] = useState<FormState>(VAZIO);
   const [fotoCapa, setFotoCapa] = useState<string>('');
@@ -376,6 +378,15 @@ export default function PontoParceiroWizardPage() {
           }
         }
       }
+      // F-119: guarda o formulário completo — a edição do ponto traz tudo de volta (não bloqueia o cadastro)
+      {
+        const pontoId = (r as any).id || (r as any).ponto_id || null;
+        if (pontoId) {
+          const { error: errDados } = await supabase.rpc('fn_gravar_dados_cadastro_ponto' as never,
+            { p_ponto: pontoId, p_dados: { ...form, fotoCapa, fotos } } as never);
+          if (errDados) console.warn('[PontoParceiro] formulário não guardado para edição:', errDados.message);
+        }
+      }
       // Ponto Parceiro não possui login, portal ou cobrança (Regra de Isolamento).
       setConcluido({ codigo: r.codigo_publico });
     } catch (e: any) {
@@ -411,7 +422,7 @@ export default function PontoParceiroWizardPage() {
                 Cadastrar outro ponto
               </button>
               <button
-                onClick={() => navigate(noGestor ? '/dashboard' : `${basePath}/clientes`)}
+                onClick={() => navigate(voltarPara ?? (noGestor ? '/dashboard' : `${basePath}/clientes`))}
                 className="px-5 py-2.5 rounded-xl gradient-primary glow-primary text-white text-sm font-bold"
               >
                 Voltar
@@ -708,8 +719,8 @@ export default function PontoParceiroWizardPage() {
         </CardContent>
 
         <div className="px-6 pb-5 flex items-center justify-between">
-          <Button variant="outline" disabled={salvando} onClick={() => { setErro(null); if (passo === 1) navigate(noGestor ? '/dashboard' : `${basePath}/clientes/novo`); else setPasso((p) => Math.max(1, p - 1)); }} className="border-slate-700 text-slate-300 rounded-xl gap-2">
-            <ArrowLeft className="h-4 w-4" /> {passo === 1 ? 'Voltar ao Gate' : 'Voltar'}
+          <Button variant="outline" disabled={salvando} onClick={() => { setErro(null); if (passo === 1) navigate(voltarPara ?? (noGestor ? '/dashboard' : `${basePath}/clientes/novo`)); else setPasso((p) => Math.max(1, p - 1)); }} className="border-slate-700 text-slate-300 rounded-xl gap-2">
+            <ArrowLeft className="h-4 w-4" /> {passo === 1 ? (voltarPara ? 'Voltar aos pontos' : 'Voltar ao Gate') : 'Voltar'}
           </Button>
           {passo < 7 ? (
             <Button onClick={avancar} className="gradient-primary glow-primary font-bold rounded-xl px-6 gap-2">

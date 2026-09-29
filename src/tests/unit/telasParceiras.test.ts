@@ -33,6 +33,7 @@ describe('Cadastro das telas do ponto parceiro (F-109)', () => {
     const menu = readFileSync(path.join(process.cwd(), 'src', 'components', 'dashboard', 'Sidebar.tsx'), 'utf8');
     // F-116: o menu abre a página nova de Telas (cartão de pontos parceiros); a página antiga segue pelo botão "Telas de parceiros"
     expect(menu).toContain("'/dashboard/screens?secao=parceiros'");
-    expect(menu).toContain("'/dashboard/prospeccao/ponto-parceiro'");
+    // F-119: o menu leva à sala de pontos parceiros; o botão "Novo Ponto Parceiro" da sala abre o cadastro completo
+    expect(menu).toContain("'/dashboard/pontos-parceiros'");
   });
 });

@@ -80,6 +80,7 @@ const WorkspaceLayout = lazyWithRetry(() => import("./modules/corporate/layout/W
 const CorporateCommandCenter = lazyWithRetry(() => import("./modules/corporate/pages/CorporateCommandCenter"));
 const UsuariosAcessosPage = lazyWithRetry(() => import("./modules/corporate/pages/UsuariosAcessosPage"));
 const PontosParceirosPage = lazyWithRetry(() => import("./modules/corporate/pages/PontosParceirosPage"));
+const PontoParceiroEdicaoPage = lazyWithRetry(() => import("./modules/corporate/pages/PontoParceiroEdicaoPage"));
 const CrmLayout = lazyWithRetry(() => import("./modules/crm/layout/CrmLayout"));
 const CrmDashboardHome = lazyWithRetry(() => import("./modules/crm/pages/CrmDashboardHome"));
 const RepresentativeDashboard = lazyWithRetry(() => import("./modules/crm/pages/RepresentativeDashboard"));
@@ -362,6 +363,8 @@ const App = () => {
                     <Route path="marca" element={<MinhaMarca />} />
                     <Route path="telas-parceiras" element={<TelasParceiras />} />
                     <Route path="prospeccao/ponto-parceiro" element={<RequireRole roles={['OWNER', 'ADMIN']}><PontoParceiroWizardPage /></RequireRole>} />
+                    <Route path="pontos-parceiros" element={<RequireRole roles={['OWNER', 'ADMIN']}><PontosParceirosPage /></RequireRole>} />
+                    <Route path="pontos-parceiros/:id" element={<RequireRole roles={['OWNER', 'ADMIN']}><PontoParceiroEdicaoPage /></RequireRole>} />
                     <Route path="schedule" element={<Schedule />} />
                     <Route path="links" element={<ExternalLinks />} />
                     <Route path="analytics" element={<Analytics />} />
@@ -416,6 +419,7 @@ const App = () => {
                     <Route path="media" element={<Medias />} />
                     <Route path="usuarios" element={<UsuariosAcessosPage />} />
                     <Route path="pontos-parceiros" element={<PontosParceirosPage />} />
+                    <Route path="pontos-parceiros/:id" element={<PontoParceiroEdicaoPage />} />
                     <Route path="configuracoes" element={<Settings />} />
                     <Route path="perfil" element={<MeuPerfilOwnerPage />} />
                     <Route path="marketing" element={<CommercialDashboard />} />

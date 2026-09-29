@@ -1542,3 +1542,38 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Acentos corrompidos** ("Novo Cliente â€” Cadastro Completo", "ENDEREÃ‡O", "â€œEsqueci minha senhaâ€", "vazia â€” envie"): 24 trechos em IntelligentCommercialWizard, PlaylistsClientePage e corporateUsers.service convertidos de volta ao texto original.
 - **Prova:** varredura automática que abre as janelas "Nova/Novo/Adicionar/Criar/Cadastrar" de ~25 páginas (painel, Workspace, financeiro, Representante) a 390 px e mede campos/botões sobrepostos, passando da borda ou colados → sem pendências. Nova cobrança: botões com 12 px. Suíte unitária 1.280/1.280.
 - **Limite:** o navegador de teste é Chromium; o comportamento do campo de data no iPhone foi corrigido pela regra conhecida do Safari, mas só pode ser confirmado no aparelho.
+
+### F-119 — Sala de pontos parceiros: cartões, cadastro único (7 etapas), edição completa, telas novas e tela grátis — DONE
+- **Pedido do proprietário:** a tela de Pontos Parceiros como sala de criação e edição igual aos cartões do portal; "Novo Ponto Parceiro" = o MESMO cadastro completo do representante; edição de tudo (capa, fotos dos locais, especificações, endereço, estrutura e público); adicionar telas a um ponto existente; editar cada tela (foto do local, local, valor); valor R$ 0,00 = tela grátis; tela nova vai para a pasta do ponto nas Telas do OWNER/ADMIN.
+- **Sala** (`corporate/PontosParceirosPage`, `/workspace/pontos-parceiros` e `/dashboard/pontos-parceiros`): cartões clicáveis (foto, categoria, nome, local, telas, "a partir de"/"Grátis"). A janela simples de criar/editar saiu; "Novo Ponto Parceiro" abre `/…/prospeccao/ponto-parceiro` (cadastro de 7 etapas), que volta para a sala.
+- **Edição** (`PontoParceiroEdicaoPage`, `/…/pontos-parceiros/:id`, OWNER/ADMIN):
+  - trocar a capa; fotos dos locais (adicionar, remover, legenda);
+  - ativo/disponibilidade; Identificação, Responsável, Endereço (com mapa), Estrutura & Público, Comercial;
+  - telas do ponto com "Adicionar tela" e edição de cada tela (`TelaParceiraDialog`: foto, local, posição, polegadas, valor, botão "Grátis", link para a grade da tela).
+- **Migração 20261287:**
+  - `pontos.dados_cadastro` (formulário completo) + `fn_gravar_dados_cadastro_ponto` (o cadastro grava ao terminar);
+  - `fn_atualizar_ponto_parceiro` (OWNER/ADMIN; leva nome/endereço às telas);
+  - `fn_salvar_tela_parceira` (OWNER/ADMIN; cria UMA tela nova — Tela N+1 — ou edita; foto nova entra na galeria);
+  - `fn_recalcular_ponto`;
+  - `fn_atualizar_valor_tela` aceita 0;
+  - `anunciar_no_ponto`: só telas R$ 0 → origem GRATUITO (sem cobrança; ATIVO se a mídia está aprovada, senão no ar ao aprovar); reativar/mídia aprovada tratam GRATUITO.
+- **Pontos antigos:** a edição preenche a partir de descrição/regras ("Razao social:", "Responsavel:", "Contato:"…).
+- **Portal:** "Grátis"/"Tem tela grátis"; total "Grátis" e botão "Colocar no ar".
+- **Menu do painel (OWNER/ADMIN):** "Cadastrar ponto parceiro" virou "Pontos parceiros" (a sala); a pasta do ponto em Telas tem "Editar ponto e telas".
+- **Prova:**
+  - simulação desfeita: tela nova grátis "Tela 3 · Vitrine da entrada"; ficha 3 telas / a partir de 0; edição de tela e de ponto; representante barrado; anúncio só na grátis = GRATUITO ATIVO sem cobrança; grátis + paga = cobrança 149,90;
+  - `comparar-telas` idêntico;
+  - navegador (ADMIN de teste, 390 px): 5 cartões com foto; edição da Farmácia carregou tudo; salvar sem mudança = mesma assinatura MD5 dos dados + formulário guardado; janelas de tela ok; "Novo Ponto Parceiro" abriu o cadastro de 7 etapas com "Voltar aos pontos";
+  - checagem de celular nas páginas novas sem pendências;
+  - testes `salaPontosParceiros` (5).
+
+### F-120 — Editor de modelos de contrato no celular — DONE
+- **Causa:** painel lateral fixo de 320 px ("Campos Disponíveis") ao lado do documento; no celular o documento ficava com poucos pixels e o texto virava uma coluna de letras. Barra de formatação e cabeçalho (Cancelar/Salvar, código) sem quebra.
+- **Correção** (`ReadableContractEditor` + `ContratosAdminPage`):
+  - no celular o documento ocupa a tela toda;
+  - "Campos" abre a lista por cima (tocar insere onde estava o cursor, que fica guardado pelo `selectionchange`, e fecha);
+  - "Formatar" abre Negrito/Itálico/Sublinhado;
+  - abas "Editor"/"Prévia"; cabeçalho quebra em linhas.
+  - No computador (≥768 px) igual a antes (painel fixo à direita).
+- **Prova:** navegador 390 px: documento 358 px, painel escondido até "Campos", inserção de "Nome Fantasia" (27→28 campos) e fechamento; 1366 px: painel estático 320 px, documento 896 px, botões de formatação visíveis.
+- **Testes:** suíte unitária 1.285 (1 teste da F-109 atualizado para o novo item de menu).

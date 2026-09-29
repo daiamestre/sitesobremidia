@@ -41,6 +41,8 @@ export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midi
 
   // F-113: só telas do contrato → sem custo; misturando com outras, a cobrança avulsa vale para todas as escolhidas
   const soContrato = escolhidas.length > 0 && escolhidas.every((id) => contratadas.includes(id));
+  // F-119: só telas grátis (R$ 0,00) — sem cobrança, vai ao ar quando a mídia for aprovada
+  const semCusto = !soContrato && escolhidas.length > 0 && telas.filter((t) => escolhidas.includes(t.id)).every((t) => Number(t.valor) === 0);
   const total = useMemo(() => (soContrato ? 0 : telas.filter((t) => escolhidas.includes(t.id)).reduce((s, t) => s + Number(t.valor || 0), 0)), [telas, escolhidas, soContrato]);
   const utilizaveis = midias.filter((m) => m.moderacao_status !== 'RECUSADA');
   const midiaSel = midias.find((m) => m.id === midia);
@@ -58,7 +60,13 @@ export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midi
 
         {resultado ? (
           <div className="space-y-4 py-2 text-center" data-testid="resultado-anuncio">
-            {resultado.origem === 'CONTRATO' && resultado.status !== 'EM_ANALISE' ? (
+            {resultado.origem === 'GRATUITO' && resultado.status === 'ATIVO' ? (
+              <>
+                <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-400" />
+                <p className="text-slate-200">Seu anúncio já está no ar em {resultado.telas} {resultado.telas === 1 ? 'tela grátis' : 'telas grátis'}.</p>
+                <p className="text-sm text-slate-400">Sem cobrança: o ponto deixou estas telas grátis para os anunciantes.</p>
+              </>
+            ) : resultado.origem === 'CONTRATO' && resultado.status !== 'EM_ANALISE' ? (
               <>
                 <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-400" />
                 {resultado.status === 'ATIVO'
@@ -77,7 +85,9 @@ export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midi
               <>
                 <Clock className="mx-auto h-10 w-10 text-sky-400" />
                 <p className="text-slate-200">Sua mídia está em análise.</p>
-                <p className="text-sm text-slate-400">{resultado.origem === 'CONTRATO'
+                <p className="text-sm text-slate-400">{resultado.origem === 'GRATUITO'
+                  ? 'Quando for aprovada, ela entra no ar nas telas grátis, sem cobrança.'
+                  : resultado.origem === 'CONTRATO'
                   ? 'Quando for aprovada, ela entra no ar nas telas do seu contrato, sem cobrança extra.'
                   : `Quando for aprovada, a cobrança de ${brl(resultado.valor)}/mês aparece em Contratos e Faturas e você recebe um aviso. Pagou, entra no ar.`}</p>
               </>
@@ -143,7 +153,9 @@ export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midi
                       </span>
                       {contratadas.includes(t.id)
                         ? <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-300" data-testid="tela-no-contrato">No seu contrato</span>
-                        : <span className="text-sm font-semibold text-slate-100">{brl(t.valor)}<span className="text-xs font-normal text-slate-500">/mês</span></span>}
+                        : Number(t.valor) === 0
+                          ? <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-300">Grátis</span>
+                          : <span className="text-sm font-semibold text-slate-100">{brl(t.valor)}<span className="text-xs font-normal text-slate-500">/mês</span></span>}
                     </label>
                   </li>
                 );
@@ -151,7 +163,7 @@ export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midi
             </ul>
             <div className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/60 p-3">
               <span className="text-sm text-slate-300">{escolhidas.length} {escolhidas.length === 1 ? 'tela' : 'telas'} · total</span>
-              <span className="text-lg font-bold text-white" data-testid="total-anuncio">{brl(total)}<span className="text-xs font-normal text-slate-500">/mês</span></span>
+              <span className="text-lg font-bold text-white" data-testid="total-anuncio">{semCusto ? 'Grátis' : <>{brl(total)}<span className="text-xs font-normal text-slate-500">/mês</span></>}</span>
             </div>
             {contratadas.length > 0 && !soContrato && escolhidas.some((id) => contratadas.includes(id)) && (
               <p className="text-xs text-amber-300">Com telas fora do contrato, o anúncio é cobrado à parte em todas as telas escolhidas. Para usar só o contrato, deixe marcadas apenas as telas “No seu contrato”.</p>
@@ -160,7 +172,7 @@ export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midi
             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-between">
               <Button variant="ghost" className="gap-2 text-slate-300" onClick={() => setPasso(1)}><ArrowLeft className="h-4 w-4" /> Voltar</Button>
               <Button className="gap-2" disabled={!midia || escolhidas.length === 0 || enviando} onClick={() => midia && onConfirmar(midia, escolhidas)}>
-                {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />} {soContrato ? 'Colocar no ar' : 'Reservar e pagar'}
+                {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />} {soContrato || semCusto ? 'Colocar no ar' : 'Reservar e pagar'}
               </Button>
             </div>
           </>
@@ -197,7 +209,7 @@ export function MeusAnunciosNoPonto({ anuncios, onPausar, onReativar, ocupado }:
                   <span className="block truncate text-sm text-white">{a.nome}</span>
                   <span className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                     <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', r.cor)}>{r.texto}</span>
-                    {a.valor != null && <span>{Number(a.valor) === 0 ? 'No seu contrato' : `${brl(a.valor)}/mês`} · {a.telas} {a.telas === 1 ? 'tela' : 'telas'}</span>}
+                    {a.valor != null && <span>{Number(a.valor) === 0 ? 'Sem custo' : `${brl(a.valor)}/mês`} · {a.telas} {a.telas === 1 ? 'tela' : 'telas'}</span>}
                     {a.status === 'ATIVO' && a.valido_ate && <span>até {format(new Date(a.valido_ate + 'T12:00:00'), 'dd/MM/yyyy')}</span>}
                   </span>
                   {a.motivo && <span className="block text-xs text-red-400">{a.motivo}</span>}

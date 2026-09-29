@@ -26,7 +26,8 @@ export function validarTelas(telas: TelaDoPonto[]): string | null {
     const t = telas[i];
     if (t.local.trim().length < 2) return `Tela ${i + 1}: informe onde a tela fica (ex.: balcão, caixa, entrada).`;
     if (!t.foto_url) return `Tela ${i + 1}: tire ou envie a foto da tela instalada.`;
-    if (!(numero(t.valor) > 0)) return `Tela ${i + 1}: informe o valor para anunciar nesta tela.`;
+    // F-119: R$ 0,00 = tela grátis (o anunciante coloca a mídia sem pagar); o campo não pode ficar vazio
+    if (!String(t.valor).trim() || !(numero(t.valor) >= 0)) return `Tela ${i + 1}: informe o valor para anunciar nesta tela (R$ 0,00 = grátis).`;
   }
   return null;
 }
@@ -55,7 +56,7 @@ export function TelasDoPontoEditor({ telas, onChange, enviarFoto }: {
           <Plus className="h-4 w-4" /> Adicionar tela
         </Button>
       </div>
-      <p className="text-xs text-slate-400">Para cada tela: onde ela fica, a foto dela instalada e o valor para anunciar. O sistema cria a tela parceira ao finalizar o cadastro.</p>
+      <p className="text-xs text-slate-400">Para cada tela: onde ela fica, a foto dela instalada e o valor para anunciar. Valor R$ 0,00 deixa a tela grátis para os anunciantes. O sistema cria a tela parceira ao finalizar o cadastro.</p>
 
       {telas.map((t, i) => (
         <div key={i} className="space-y-3 rounded-xl border border-white/10 bg-slate-950/50 p-3">

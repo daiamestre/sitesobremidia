@@ -124,7 +124,7 @@ export default function PontoParceiroPage() {
             <Info icone={Monitor} rotulo="Telas" valor={`${p.quantidade_telas ?? p.telas_conectadas}`} />
             <Info icone={Wifi} rotulo="Telas online agora" valor={`${p.telas_online}`} />
             <Info icone={Users} rotulo="Público por dia" valor={p.publico_estimado_dia ? `~${p.publico_estimado_dia.toLocaleString('pt-BR')} pessoas` : '—'} />
-            <Info icone={Megaphone} rotulo="Valor do anúncio" valor={`${brl(p.valor_anuncio)} / ${String(p.periodicidade || 'MENSAL').toLowerCase()}`} />
+            <Info icone={Megaphone} rotulo="Valor do anúncio" valor={Number(p.valor_anuncio) === 0 ? 'Tem tela grátis' : `${brl(p.valor_anuncio)} / ${String(p.periodicidade || 'MENSAL').toLowerCase()}`} />
           </div>
           {!!p.onde_ficam_as_telas?.length && (
             <div className="space-y-2" data-testid="onde-ficam-as-telas">

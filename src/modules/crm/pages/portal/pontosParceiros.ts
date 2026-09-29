@@ -83,7 +83,7 @@ export interface ResultadoAnunciar {
   status: 'EM_ANALISE' | 'AGUARDANDO_PAGAMENTO' | 'ATIVO';
   anuncio_id: string;
   /** F-113: CONTRATO = telas vendidas pelo representante (sem cobrança avulsa). */
-  origem?: 'PORTAL' | 'CONTRATO';
+  origem?: 'PORTAL' | 'CONTRATO' | 'GRATUITO';
   valor: number;
   telas: number;
   cobranca: { codigo: string; identificador: string; vencimento: string } | null;

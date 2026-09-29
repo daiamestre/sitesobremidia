@@ -19,19 +19,19 @@ import { Sidebar } from '@/components/dashboard/Sidebar';
 const abrir = () => render(<MemoryRouter initialEntries={['/dashboard']}><Sidebar hideCollapse /></MemoryRouter>);
 
 describe('Menu do painel: pontos parceiros só para OWNER/ADMIN (F-116)', () => {
-  it('gestor não vê "Telas de pontos parceiros" nem "Cadastrar ponto parceiro"', () => {
+  it('gestor não vê "Telas de pontos parceiros" nem "Pontos parceiros"', () => {
     perfil = 'GESTOR';
     abrir();
     expect(screen.queryByText('Telas de pontos parceiros')).toBeNull();
-    expect(screen.queryByText('Cadastrar ponto parceiro')).toBeNull();
+    expect(screen.queryByText('Pontos parceiros')).toBeNull();
     expect(screen.getByText('Telas')).toBeInTheDocument();
   });
 
-  it('ADMIN vê os dois; "Telas de pontos parceiros" abre a página nova com os cartões', () => {
+  it('ADMIN vê os dois; "Telas de pontos parceiros" abre os cartões e "Pontos parceiros" abre a sala (F-119)', () => {
     perfil = 'ADMIN';
     abrir();
     expect(screen.getByText('Telas de pontos parceiros').closest('a')).toHaveAttribute('href', '/dashboard/screens?secao=parceiros');
-    expect(screen.getByText('Cadastrar ponto parceiro').closest('a')).toHaveAttribute('href', '/dashboard/prospeccao/ponto-parceiro');
+    expect(screen.getByText('Pontos parceiros').closest('a')).toHaveAttribute('href', '/dashboard/pontos-parceiros');
   });
 
   it('página Telas: gestor vai direto às próprias telas; rota do cadastro de ponto só OWNER/ADMIN', () => {
