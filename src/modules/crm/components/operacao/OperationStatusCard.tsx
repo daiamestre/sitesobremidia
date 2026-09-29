@@ -15,8 +15,8 @@ export function OperationStatusCard({ operacoes }: OperationStatusCardProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
       <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+        <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+          <div className="p-2 sm:p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
             <Activity className="h-6 w-6" />
           </div>
           <div>
@@ -27,8 +27,8 @@ export function OperationStatusCard({ operacoes }: OperationStatusCardProps) {
       </Card>
 
       <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="p-3 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+        <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+          <div className="p-2 sm:p-3 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
             <Wifi className="h-6 w-6" />
           </div>
           <div>
@@ -39,8 +39,8 @@ export function OperationStatusCard({ operacoes }: OperationStatusCardProps) {
       </Card>
 
       <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+        <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+          <div className="p-2 sm:p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
             <AlertTriangle className="h-6 w-6" />
           </div>
           <div>
@@ -51,13 +51,13 @@ export function OperationStatusCard({ operacoes }: OperationStatusCardProps) {
       </Card>
 
       <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+        <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+          <div className="p-2 sm:p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
             <Tv className="h-6 w-6" />
           </div>
-          <div>
+          <div className="min-w-0">
             <span className="text-slate-400 text-xs block font-semibold">Saúde da Rede</span>
-            <Badge className={critical > 0 ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'}>
+            <Badge className={`whitespace-normal ${critical > 0 ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
               {critical > 0 ? 'Atenção Requerida' : '100% Operacional'}
             </Badge>
           </div>

@@ -148,7 +148,7 @@ export default function FinanceiroClientePage() {
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wide">Documento</p>
-                  <p className="font-medium">{proxima.codigo_operacional || proxima.numero_documento || '—'}</p>
+                  <p className="whitespace-nowrap font-medium">{proxima.codigo_operacional || proxima.numero_documento || '—'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wide">Vencimento</p>
@@ -195,7 +195,7 @@ export default function FinanceiroClientePage() {
                   <li key={f.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-xs text-slate-300">{f.codigo_operacional || f.numero_documento || '—'}</span>
+                        <span className="whitespace-nowrap font-mono text-xs text-slate-300">{f.codigo_operacional || f.numero_documento || '—'}</span>
                         <span className={cn('rounded-md border px-2 py-0.5 text-[11px] font-semibold', sit.cor, paga && 'border-2')}>{sit.texto}</span>
                       </div>
                       <p className="mt-1 text-xs text-slate-400">

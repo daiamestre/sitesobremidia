@@ -1513,3 +1513,20 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - 4 do assistente, montados sem o provedor de dados após a F-113 (o site tem);
   - 1 da F-109, que verificava o endereço antigo do menu;
   - 2 da Central, com simulação sem "usuário logado" após a F-106.
+
+### F-117 — Celular: abas sobrepostas, cartões esticados/cortados e faixas de ícone (Central e outras partes) — DONE
+- **Relato do proprietário (print da Central):** "Caixa de Entrada" e "Solicitações" uma em cima da outra; a mensagem com o sininho amarelo esticada e desorganizada; "está assim em várias partes".
+- **Causas:**
+  1. A área de rolagem (Radix ScrollArea) envolve o conteúdo em `display: table; min-width: 100%`, que cresce até caber a palavra mais longa (nome de arquivo). Os cartões ficavam com 812 px numa tela de 326 e eram cortados. Usada em várias telas.
+  2. As abas em grade tinham `whitespace-nowrap` e o texto invadia a aba vizinha.
+  3. Nos blocos "ícone + conteúdo" `flex-col sm:flex-row` (96 no sistema), o ícone esticava em faixa no celular.
+  4. Linhas com etiquetas/botões que não quebram passavam da borda.
+- **Correções:**
+  - CSS global: a ScrollArea vertical usa bloco na largura da tela (a horizontal proposital não muda);
+  - abas em grade quebram o texto dentro da aba; abas em linha quebram em mais de uma linha no celular;
+  - o ícone não estica (`align-self: flex-start`) nos blocos `flex-col sm:flex-row`;
+  - linhas `flex` com etiqueta/botão `whitespace-nowrap` quebram quando não cabem;
+  - Central: abas 2 por linha no celular e ícone ao lado da mensagem;
+  - pontuais: botões de "Telas de parceiros", card "Saúde da Rede", cabeçalho do NOC, botão de atualizar em Contratos e códigos de fatura sem quebra.
+- **Checagem automática reforçada** (conteúdo cortado por caixa com overflow escondido, texto maior que a própria caixa, ícone esticado, além de palavras partidas e rolagem lateral), rodada a 390 px em painel, Workspace, financeiro, Representante (ADMIN de teste) e Portal (anunciante de teste): sem pendências. Único item restante: o quadro de "carregando" de Analytics, que não é defeito.
+- **Testes:** suíte unitária 1.280/1.280.

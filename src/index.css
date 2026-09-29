@@ -797,3 +797,41 @@ td, th { word-break: normal; overflow-wrap: break-word; }
 @media (max-width: 767px) {
   .flex.justify-between:not(.flex-nowrap):not(.flex-col) { flex-wrap: wrap; row-gap: 0.5rem; }
 }
+
+/* F-117: a área de rolagem (Radix ScrollArea) envolve o conteúdo num bloco "display: table" que cresce até caber a
+   palavra mais comprida (ex.: nome de arquivo) — cartões ficavam esticados e cortados à direita. Na rolagem só
+   VERTICAL o conteúdo passa a respeitar a largura; rolagem horizontal proposital (overflow-x: scroll) não muda. */
+[data-radix-scroll-area-viewport][style*="overflow: hidden"] > div,
+[data-radix-scroll-area-viewport][style*="overflow-x: hidden"] > div {
+  display: block !important;
+  min-width: 0 !important;
+  width: 100%;
+}
+/* F-117: abas em grade — o texto quebra dentro da própria aba em vez de invadir a vizinha */
+[role="tablist"].grid > [role="tab"] {
+  white-space: normal;
+  line-height: 1.2;
+  text-align: center;
+  min-width: 0;
+}
+
+/* F-117: blocos "ícone + conteúdo" que ficam em coluna no celular (flex-col sm:flex-row): o quadradinho do ícone
+   (flex-shrink-0 / shrink-0) não estica na largura toda — antes virava uma faixa colorida. */
+@media (max-width: 639px) {
+  .flex-col.sm:flex-row > .flex-shrink-0:not(.w-full),
+  .flex-col.sm:flex-row > .shrink-0:not(.w-full) { align-self: flex-start; }
+}
+
+/* F-117: no celular, fileiras com etiquetas/botões que não quebram texto (whitespace-nowrap) descem para a linha
+   de baixo quando não cabem, em vez de passar da borda do cartão. Listas com rolagem lateral própria não mudam. */
+@media (max-width: 767px) {
+  .flex:not(.flex-nowrap):not(.overflow-x-auto):not(.flex-col):has(> .whitespace-nowrap) {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+}
+
+/* F-117: no celular, listas de abas que não são grade quebram em mais de uma linha em vez de passar da tela */
+@media (max-width: 767px) {
+  [role="tablist"]:not(.grid):not(.overflow-x-auto) { flex-wrap: wrap; height: auto; max-width: 100%; }
+}

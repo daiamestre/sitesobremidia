@@ -574,7 +574,7 @@ export const CentralDashboard = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto gap-1">
           <TabsTrigger value="inbox">
             <Inbox className="h-4 w-4 mr-2" />
             Caixa de Entrada
@@ -738,7 +738,7 @@ export const CentralDashboard = () => {
                       onClick={() => handleNotificationClick({ ...notification, canResolve, canNavigate })}
                     >
                       <CardContent className="p-4">
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                        <div className="flex flex-row items-start gap-3">
                           <div className={cn(
                             'p-2 rounded-lg flex-shrink-0',
                             PRIORITY_COLORS[notification.prioridade] || PRIORITY_COLORS.INFORMATIVO
@@ -864,7 +864,7 @@ export const CentralDashboard = () => {
                     )}
                   >
                     <CardContent className="p-4">
-                      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                      <div className="flex flex-row items-start gap-3">
                         <div className={cn('p-2 rounded-lg flex-shrink-0', isPending ? 'bg-amber-100 text-amber-700' : sol.status === 'APROVADA' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
                           <KeyRound className="h-5 w-5" />
                         </div>

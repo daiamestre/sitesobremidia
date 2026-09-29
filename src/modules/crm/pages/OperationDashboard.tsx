@@ -47,7 +47,7 @@ export default function OperationDashboard() {
       {/* Top Banner */}
       <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Activity className="h-6 w-6 text-emerald-400" />
             <h2 className="text-xl sm:text-2xl font-display font-extrabold text-white">
               Centro Operacional da Rede (NOC)

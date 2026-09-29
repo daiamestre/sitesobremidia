@@ -421,8 +421,10 @@ export default function ContratosListPage() {
         </Select>
         <Button
           variant="outline"
-          className="border-white/10 text-white h-10"
+          className="border-white/10 text-white h-10 w-10 self-end px-0 sm:self-auto"
           onClick={loadContratos}
+          title="Atualizar lista"
+          aria-label="Atualizar lista"
         >
           <RefreshCw className="h-4 w-4" />
         </Button>
