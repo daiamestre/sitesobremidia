@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { montarPagador, mensagemCadastroIncompleto } from '../_shared/pagadorBoleto.ts';
 
 // BANCO INTER — FASE 3 PRODUÇÃO — ENDPOINTS DINÂMICOS FAIL-CLOSED
 // Regra Suprema §1, §5, §6: Coexistência de Produção e Sandbox com Roteamento Seguro
@@ -143,6 +144,15 @@ async function getOAuthToken(httpClient: any) {
 // F-105 — Boleto: confirmar com o Inter e registrar o valor recebido
 // ======================================================================
 const SITUACOES_PAGAS = ['RECEBIDO', 'PAGO', 'MARCADO_RECEBIDO', 'LIQUIDADO'];
+
+/** F-122: pagador do boleto = cadastro real do cliente (tabela empresas). Nada inventado. */
+async function pagadorDoCliente(srv: any, clienteId: string | null) {
+  if (!clienteId) return montarPagador(null);
+  const { data } = await srv.from('empresas')
+    .select('razao_social, nome_fantasia, cnpj, email, cep, logradouro, numero, complemento, bairro, cidade, estado')
+    .eq('cliente_id', clienteId).is('deleted_at', null).order('created_at', { ascending: true }).limit(1).maybeSingle();
+  return montarPagador(data);
+}
 
 async function contaDoBoleto(srv: any, codigo: string): Promise<string | null> {
   const { data: atual } = await srv.from('contas_receber').select('id').eq('inter_codigo_solicitacao', codigo).limit(1).maybeSingle();
@@ -332,12 +342,15 @@ serve(async (req) => {
           const { data: target } = await srv.from('contas_receber').select('id, inter_status').eq('inter_codigo_solicitacao', normalizedCodigo).maybeSingle();
           const contaAntiga = target ? null : await contaDoBoleto(srv, normalizedCodigo);
           if (target || contaAntiga) {
-            if (target) await srv.from('contas_receber').update({ inter_status: normalizedSituacao }).eq('id', target.id);
             // F-105: situação de pago → confirma com o Inter e registra o valor recebido
+            // F-122: o aviso não é prova — "pago" só é gravado na cobrança depois que o próprio Inter confirma
+            const avisoDePago = SITUACOES_PAGAS.includes(normalizedSituacao);
+            if (target && !avisoDePago) await srv.from('contas_receber').update({ inter_status: normalizedSituacao }).eq('id', target.id);
             let ok = true;
-            if (SITUACOES_PAGAS.includes(normalizedSituacao)) {
+            if (avisoDePago) {
               const r = await liquidarBoletoConfirmado(srv, normalizedCodigo);
               ok = !!r.ok;
+              if (ok && target) await srv.from('contas_receber').update({ inter_status: normalizedSituacao }).eq('id', target.id);
             }
             if (ok) await srv.from('inter_webhook_events').update({ processed: true }).eq('id', inserted.id);
             processedCount++;
@@ -358,24 +371,25 @@ serve(async (req) => {
     // === F-105: conciliação de boletos (cron a cada 15 min). Só grava o que o Inter confirma. ===
     if (action === 'reconciliar') {
       const srvR = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
-      const codigos = new Set<string>();
-      const { data: evts } = await srvR.from('inter_webhook_events').select('codigo_solicitacao')
-        .eq('processed', false).in('situacao', SITUACOES_PAGAS).gte('created_at', new Date(Date.now() - 60 * 86400000).toISOString()).limit(100);
-      for (const e of evts ?? []) if (e.codigo_solicitacao) codigos.add(e.codigo_solicitacao);
-      const { data: abertas } = await srvR.from('contas_receber').select('inter_codigo_solicitacao')
-        .not('inter_codigo_solicitacao', 'is', null)
-        .not('status', 'in', '("PAGA","PAGO","CONCILIADA","CANCELADA","CANCELADO")').limit(150);
-      for (const c of abertas ?? []) codigos.add(c.inter_codigo_solicitacao);
-      const { data: antigas } = await srvR.from('contas_receber_emissoes_antigas').select('identificador')
-        .eq('tipo', 'BOLETO').gte('retirado_em', new Date(Date.now() - 90 * 86400000).toISOString()).limit(150);
-      for (const a of antigas ?? []) codigos.add(a.identificador);
+      // F-122: fila em rodízio (quem nunca foi consultado / consultado há mais tempo primeiro) — sem teto fixo de 150
+      const inicioRodada = Date.now();
+      const { data: fila, error: filaErr } = await srvR.rpc('fn_inter_proximos_conciliar', { p_tipo: 'BOLETO', p_max: 120 });
+      if (filaErr) {
+        return new Response(JSON.stringify({ success: false, error: 'Falha ao montar a fila de conciliação', details: sanitizeError(filaErr.message) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       const movimento: any[] = [];
-      for (const codigo of codigos) {
+      let consultados = 0;
+      for (const item of fila ?? []) {
+        // a rotina agendada espera no máximo 120 s: o que sobrar fica para a próxima rodada (continua na frente da fila)
+        if (Date.now() - inicioRodada > 95000) break;
+        const codigo = item.identificador as string;
         const r = await liquidarBoletoConfirmado(srvR, codigo);
+        consultados++;
+        await srvR.rpc('fn_inter_marcar_conciliado', { p_tipo: 'BOLETO', p_identificador: codigo, p_invalido: !!r.invalido });
         if (r.registro || r.erro_consulta || r.erro) movimento.push({ codigo, ...r });
         if ((r.ok && r.registro) || r.invalido) await srvR.from('inter_webhook_events').update({ processed: true }).eq('codigo_solicitacao', codigo).eq('processed', false);
       }
-      return new Response(JSON.stringify({ success: true, consultados: codigos.size, com_movimento: movimento }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: true, na_fila: (fila ?? []).length, consultados, com_movimento: movimento }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // === Ações públicas seguras — §6.4.1 ===
@@ -391,7 +405,7 @@ serve(async (req) => {
       const srv = createClient(supabaseUrlSrv, serviceRoleKey);
 
       const { data: cb } = await srv.from('contas_receber')
-        .select('id, inter_codigo_solicitacao, codigo_operacional, metodos_gateway, valor, data_vencimento, status, saldo')
+        .select('id, cliente_id, inter_codigo_solicitacao, codigo_operacional, metodos_gateway, valor, data_vencimento, status, saldo')
         .eq('public_identifier', pId)
         .maybeSingle();
 
@@ -421,7 +435,9 @@ serve(async (req) => {
       let codigoBarras: string | null = null;
 
       // JIT Emission de Boleto se autorizado pelo CRM e ainda não emitido
-      if (allowBoleto && !codigoSolicitacao && cb.status !== 'PAGA' && cb.status !== 'CANCELADA' && Number(cb.valor) > 0 && httpClient && oauthToken) {
+      // F-122: só com o cadastro real do cliente completo; sem ele o boleto não é emitido (o PIX continua disponível)
+      const cadastroPublico = allowBoleto && !codigoSolicitacao ? await pagadorDoCliente(srv, cb.cliente_id) : null;
+      if (allowBoleto && !codigoSolicitacao && cadastroPublico?.pagador && !['PAGA', 'PAGO', 'CANCELADA', 'CANCELADO'].includes(String(cb.status || '').toUpperCase()) && Number(cb.valor) > 0 && httpClient && oauthToken) {
         try {
           // F-105: boleto reemitido após edição recebe referência nova (…R1, R2…)
           const { count: reemissoes } = await srv.from('contas_receber_emissoes_antigas')
@@ -433,22 +449,11 @@ serve(async (req) => {
 
           const payloadInter = {
             seuNumero,
-            valorNominal: isFinite(valorNominal) && valorNominal > 0 ? Number(valorNominal.toFixed(2)) : 10.00,
+            valorNominal: Number(valorNominal.toFixed(2)),
             dataVencimento,
             numDiasAgenda: 60,
             formasRecebimento: ['BOLETO'],
-            pagador: {
-              tipoPessoa: "FISICA",
-              nome: "Cliente SobreMidia",
-              endereco: "Rua Principal",
-              numero: "100",
-              bairro: "Centro",
-              cidade: "Belo Horizonte",
-              uf: "MG",
-              cep: "30130000",
-              email: "financeiro@sobremidia.com",
-              cpfCnpj: "85332361076",
-            },
+            pagador: cadastroPublico.pagador,
           };
 
           const reqIssue = await fetch(getInterCobrancaUrl(), {
@@ -519,7 +524,9 @@ serve(async (req) => {
             linhaDigitavel: linhaDigitavel || undefined,
             codigoBarras: codigoBarras || undefined,
             codigoSolicitacao: codigoSolicitacao || undefined,
-            disponivel: true
+            // F-122: só diz que há boleto quando ele existe no banco; sem cadastro completo o cliente é avisado
+            disponivel: !!codigoSolicitacao,
+            motivo: codigoSolicitacao ? undefined : (cadastroPublico && !cadastroPublico.pagador ? 'CADASTRO_INCOMPLETO' : 'INDISPONIVEL_NO_MOMENTO')
           } : undefined
         }
       };
@@ -618,6 +625,21 @@ serve(async (req) => {
     }
 
     if (action === 'issue') {
+      // F-122: boleto sai com o cadastro REAL do cliente e o valor REAL da cobrança — conferidos antes de travar
+      const { data: previa } = await supabase.from('contas_receber').select('id, cliente_id, valor, status').eq('id', cobranca_id).maybeSingle();
+      if (!previa) return new Response(JSON.stringify({ error: 'Cobrança inexistente ou tenant negado (RLS)', code: 'TENANT_DENIED' }), { status: 403, headers: corsHeaders });
+      if (['PAGA', 'PAGO', 'CANCELADA', 'CANCELADO'].includes(String(previa.status || '').toUpperCase())) {
+        return new Response(JSON.stringify({ error: 'Cobrança já paga ou cancelada: boleto não emitido', code: 'STATUS_FINAL' }), { status: 409, headers: corsHeaders });
+      }
+      if (!(Number(previa.valor) > 0)) {
+        return new Response(JSON.stringify({ error: 'Cobrança sem valor: boleto não emitido', code: 'VALOR_INVALIDO' }), { status: 422, headers: corsHeaders });
+      }
+      const srvCadastro = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
+      const cadastro = await pagadorDoCliente(srvCadastro, previa.cliente_id);
+      if (!cadastro.pagador) {
+        return new Response(JSON.stringify({ error: mensagemCadastroIncompleto(cadastro.faltando), code: 'CADASTRO_INCOMPLETO', faltando: cadastro.faltando }), { status: 422, headers: corsHeaders });
+      }
+
       // §4.9 LOCK ATÔMICO — não é SELECT→verificar→UPDATE separado; é UPDATE condicional atômico (§5)
       const { data: lockedCobranca, error: lockError } = await supabase
         .from('contas_receber')
@@ -636,11 +658,10 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Conflito. Operação já processada/em processamento.', code: 'CONFLICT', status: exist.inter_status }), { status: 409, headers: corsHeaders });
       }
 
-      // Construir payload Inter com dados reais quando disponíveis (§4.6) — fallback Sandbox
+      // Payload Inter com os dados reais da cobrança e do cliente (§4.6; F-122: sem dados fixos de teste)
       // Identificadores §13: seuNumero -> inter_seu_numero, codigoSolicitacao -> inter_codigo_solicitacao
       const seuNumero = (lockedCobranca.id as string).substring(0, 15);
-      const valorRaw = (lockedCobranca as any).valor ?? (lockedCobranca as any).valor_original ?? 10.00;
-      const valorNominal = Number(valorRaw);
+      const valorNominal = Number((lockedCobranca as any).valor);
       const vencRaw = (lockedCobranca as any).data_vencimento || (lockedCobranca as any).vencimento || (lockedCobranca as any).competencia_date;
       const dataVencimento = vencRaw ? new Date(vencRaw).toISOString().split('T')[0] : new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
@@ -658,22 +679,11 @@ serve(async (req) => {
 
       const payloadInter = {
         seuNumero,
-        valorNominal: isFinite(valorNominal) && valorNominal > 0 ? Number(valorNominal.toFixed(2)) : 10.00,
+        valorNominal: Number(valorNominal.toFixed(2)),
         dataVencimento,
         numDiasAgenda: 60,
         formasRecebimento: formasRecebimentoInter,
-        pagador: {
-          tipoPessoa: "FISICA",
-          nome: "Teste Sandbox SobreMidia",
-          endereco: "Rua Sandbox",
-          numero: "123",
-          bairro: "Bairro Sandbox",
-          cidade: "Belo Horizonte",
-          uf: "MG",
-          cep: "30130000",
-          email: "sandbox@bancointer.com.br",
-          cpfCnpj: "85332361076",
-        },
+        pagador: cadastro.pagador,
       };
 
       try {

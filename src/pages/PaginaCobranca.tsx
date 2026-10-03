@@ -821,6 +821,16 @@ export default function PaginaCobranca() {
                               <Loader2 className="w-8 h-8 text-[#8A2EFF] animate-spin mx-auto mb-3" />
                               <p className="text-sm text-[#F2F2F2]/70">Preparando Boleto Bancário...</p>
                             </div>
+                          ) : bankData?.boleto?.disponivel === false ? (
+                            <div className="bg-white/5 border border-white/10 p-6 rounded-xl text-center space-y-2" data-testid="boleto-indisponivel">
+                              <p className="text-sm font-semibold text-[#F2F2F2]">Boleto indisponível no momento</p>
+                              <p className="text-xs text-[#F2F2F2]/70">
+                                {bankData.boleto.motivo === 'CADASTRO_INCOMPLETO'
+                                  ? 'Falta completar o cadastro para emitir o boleto.'
+                                  : 'Não foi possível gerar o boleto agora.'}
+                                {bankData?.pix ? ' Você pode pagar por PIX ou falar com o atendimento.' : ' Fale com o atendimento para receber o boleto.'}
+                              </p>
+                            </div>
                           ) : (
                             <div className="bg-white/5 border border-white/10 p-6 rounded-xl text-center space-y-3">
                               <p className="text-xs text-[#F2F2F2]/70">Boleto autorizado. Você pode baixar a 2ª via em PDF diretamente:</p>

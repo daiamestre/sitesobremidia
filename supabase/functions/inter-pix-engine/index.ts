@@ -610,26 +610,27 @@ serve(async (req) => {
     // processados; registra o que o banco confirma como pago. Só grava o que o Inter confirma.
     // ==================================================================
     if (action === 'reconciliar') {
-      const txids = new Map<string, string | null>(); // txid -> e2e
-      const { data: evts } = await srv.from('inter_pix_webhook_events').select('txid, e2e_id')
-        .eq('processed', false).gte('created_at', new Date(Date.now() - 60 * 86400000).toISOString()).limit(100);
-      for (const e of evts ?? []) if (e.txid && e.txid !== 'UNKNOWN') txids.set(e.txid, e.e2e_id ?? null);
-      const { data: abertas } = await srv.from('contas_receber').select('inter_pix_txid')
-        .not('inter_pix_txid', 'is', null)
-        .not('status', 'in', '("PAGA","PAGO","CONCILIADA","CANCELADA","CANCELADO")')
-        .limit(150);
-      for (const c of abertas ?? []) if (!txids.has(c.inter_pix_txid)) txids.set(c.inter_pix_txid, null);
-      const { data: antigas } = await srv.from('contas_receber_emissoes_antigas').select('identificador')
-        .eq('tipo', 'PIX').gte('retirado_em', new Date(Date.now() - 35 * 86400000).toISOString()).limit(150);
-      for (const a of antigas ?? []) if (!txids.has(a.identificador)) txids.set(a.identificador, null);
-
+      // F-122: fila em rodízio (quem nunca foi consultado / consultado há mais tempo primeiro) — sem teto fixo de 150
+      const inicioRodada = Date.now();
+      const { data: fila, error: filaErr } = await srv.rpc('fn_inter_proximos_conciliar', { p_tipo: 'PIX', p_max: 120 });
+      if (filaErr) {
+        return new Response(JSON.stringify({ success: false, error: 'Falha ao montar a fila de conciliação', details: sanitizeError(filaErr.message) }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
       const movimento: any[] = [];
-      for (const [txid, e2e] of txids) {
-        const r = await liquidarPixConfirmado(srv, txid, e2e);
+      let consultados = 0;
+      for (const item of fila ?? []) {
+        // a rotina agendada espera no máximo 120 s: o que sobrar fica para a próxima rodada (continua na frente da fila)
+        if (Date.now() - inicioRodada > 95000) break;
+        const txid = item.identificador as string;
+        const r = await liquidarPixConfirmado(srv, txid, (item.e2e as string | null) ?? null);
+        consultados++;
+        await srv.rpc('fn_inter_marcar_conciliado', { p_tipo: 'PIX', p_identificador: txid, p_invalido: r.remoto === 'NAO_ENCONTRADA' });
         if ((r.registros && r.registros.length) || r.erro_consulta) movimento.push({ txid, ...r });
         if (r.ok) await srv.from('inter_pix_webhook_events').update({ processed: true }).eq('txid', txid).eq('processed', false);
       }
-      return new Response(JSON.stringify({ success: true, consultados: txids.size, com_movimento: movimento }), {
+      return new Response(JSON.stringify({ success: true, na_fila: (fila ?? []).length, consultados, com_movimento: movimento }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }

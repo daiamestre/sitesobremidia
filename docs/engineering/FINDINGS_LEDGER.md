@@ -1589,3 +1589,19 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:** varredura automática (palavra partida, texto cortado, texto invadindo o vizinho, tabela larga, rolagem lateral) em 800×1280, 1280×800, 600×960 e 960×600: painel (≈45 rotas, sessão ADMIN de teste) e portal do anunciante (≈28 rotas) sem achados reais (2 avisos eram etiquetas desenhadas por cima da foto, de propósito). Computador 1440/1920 px: tabela de cobranças continua tabela, uma linha por cobrança.
 - **Testes:** `tabletResponsivo.test.tsx` (6) + suíte unitária completa.
 - **Limite honesto:** conferido por emulação de tamanho no navegador; o toque e o navegador do próprio M10 só se confirmam no aparelho.
+
+### F-122 — Recebimento pronto para venda: boleto com cadastro real e conciliação em rodízio — DONE
+- **Achados (validação global do recebimento):**
+  1. **Boleto com pagador fixo de teste.** Os dois caminhos de emissão (`issue` no painel e emissão automática na página pública) registravam o boleto no Banco Inter com nome/CPF/endereço fixos de teste, e valor de R$ 10,00 se a cobrança viesse sem valor. O PIX não tinha o problema.
+  2. **Conciliação com teto fixo.** A rodada de 15 em 15 min pegava "até 150" cobranças em aberto sem ordem: passando de 150 boletos (ou PIX) em aberto, as mesmas eram consultadas sempre e as demais nunca. Códigos que o banco não reconhece (404) eram reconsultados em toda rodada, para sempre (20 de 34 consultas eram isso).
+  3. **Aviso de "pago" gravado sem confirmação.** O aviso (webhook) de boleto gravava `inter_status = PAGO` antes de o Inter confirmar — o dinheiro nunca era baixado sem confirmação (correto), mas a etiqueta ficava "paga" numa cobrança em atraso (9 casos, todos de avisos de teste).
+  4. Página pública oferecia "Baixar Boleto em PDF" mesmo sem boleto emitido.
+- **Correção:**
+  - `_shared/pagadorBoleto.ts` (puro): monta o pagador com o cadastro real (`empresas`), valida CPF/CNPJ (dígitos verificadores), CEP, rua, cidade, UF e respeita os limites do banco. Faltando dado, não emite e devolve a lista do que completar (`CADASTRO_INCOMPLETO`, HTTP 422) — conferido **antes** de travar a cobrança. Cobrança sem valor não emite (`VALOR_INVALIDO`).
+  - Migração `20261288`: tabela `inter_conciliacao_fila` (só servidor), `fn_inter_proximos_conciliar` (rodízio: nunca consultado → consultado há mais tempo; aviso de pagamento na frente no máximo 1 vez/hora; inválido volta 1 vez/dia) e `fn_inter_marcar_conciliado`. Motores de boleto e PIX usam a fila, com limite de 95 s por rodada.
+  - Webhook de boleto: situação de pago só é gravada depois que o Inter confirma.
+  - Página pública: `disponivel` verdadeiro só com boleto existente; sem boleto mostra "Boleto indisponível no momento" e orienta PIX/atendimento.
+- **Mantido de propósito:** emissão que cai no meio (tempo esgotado) continua em `PROCESSING` sem reemissão automática — reemitir às cegas pode criar boleto duplicado no banco e pagamento órfão (§6 do motor).
+- **Prova (produção):** fila devolve os mesmos 34 boletos e 18 PIX do motor antigo; após a 1ª rodada os 20 códigos inválidos saíram do ciclo (rodada seguinte: 14 consultados, 0 erro); usuário comum não acessa fila nem funções; emissão com cadastro sem CEP/UF → 422 "Complete: CEP, estado (UF)", cobrança sem trava e sem código; consulta pública → `disponivel:false, motivo:CADASTRO_INCOMPLETO`; resposta do Player idêntica (5 telas).
+- **Testes:** `pagadorBoleto.test.ts` (11).
+- **Limite honesto:** nenhum boleto real foi emitido no teste (geraria cobrança de verdade no banco). A emissão com cadastro completo usa o mesmo envio que já funcionava, trocando só o bloco do pagador; a primeira emissão real deve ser conferida pelo proprietário. Dos 193 clientes, 113 têm CEP e 92 têm endereço completo — os demais precisam completar o cadastro para ter boleto (PIX funciona para todos).
