@@ -67,7 +67,7 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
 
   const generateWhatsAppLink = (conta: ContaReceberCompleta) => {
     const urlPublica = getPublicBillingUrl(conta);
-    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || conta.nomeCliente || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
+    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || conta.nomeCliente || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
@@ -98,7 +98,7 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
             className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'TODOS' || !filterStatus ? 'bg-primary/20 border-primary/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
           >
             <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Total a Receber</span>
-            <strong className="text-white text-sm font-bold block mt-1">R$ {totalAReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong className="text-white text-sm font-bold block mt-1">R$ {totalAReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             <span className="text-[10px] text-slate-500 mt-1 block">{contas.length} cobranças</span>
           </div>
 
@@ -107,7 +107,7 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
             className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'ABERTO' ? 'bg-amber-500/20 border-amber-500/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
           >
             <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Em Aberto</span>
-            <strong className="text-amber-400 text-sm font-bold block mt-1">R$ {abertosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong className="text-amber-400 text-sm font-bold block mt-1">R$ {abertosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             <span className="text-[10px] text-slate-500 mt-1 block">{abertos.length} dentro do vencimento</span>
           </div>
 
@@ -116,7 +116,7 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
             className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'COBRANCA' ? 'bg-orange-500/20 border-orange-500/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
           >
             <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Em Cobrança</span>
-            <strong className="text-orange-400 text-sm font-bold block mt-1">R$ {emCobrancaValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong className="text-orange-400 text-sm font-bold block mt-1">R$ {emCobrancaValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             <span className="text-[10px] text-slate-500 mt-1 block">{emCobranca.length} na régua</span>
           </div>
 
@@ -125,7 +125,7 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
             className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'INADIMPLENTES' ? 'bg-rose-500/20 border-rose-500/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
           >
             <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Inadimplentes</span>
-            <strong className="text-rose-400 text-sm font-bold block mt-1">R$ {inadimplentesValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong className="text-rose-400 text-sm font-bold block mt-1">R$ {inadimplentesValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             <span className="text-[10px] text-slate-500 mt-1 block">{inadimplentes.length} ultrapassaram a régua</span>
           </div>
 
@@ -143,7 +143,7 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
             className={`p-3 rounded-xl border cursor-pointer transition-all ${filterStatus === 'RECEBIDO' ? 'bg-emerald-500/20 border-emerald-500/50' : 'bg-slate-950/60 border-white/5 hover:border-white/20'}`}
           >
             <span className="text-slate-400 block text-[10px] uppercase tracking-wider font-semibold">Recebido</span>
-            <strong className="text-emerald-400 text-sm font-bold block mt-1">R$ {recebidoValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong className="text-emerald-400 text-sm font-bold block mt-1">R$ {recebidoValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             <span className="text-[10px] text-slate-500 mt-1 block">{recebidos.length} baixas realizadas</span>
           </div>
         </div>
@@ -173,7 +173,7 @@ export function FinanceList({ contas, onSelectConta, onRefresh }: FinanceListPro
                       {new Date(c.vencimento).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell className="text-xs font-bold text-emerald-400">
-                      R$ {Number(c.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      R$ {Number(c.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell>{getStatusBadge(c.status)}</TableCell>
                     <TableCell className="text-right">

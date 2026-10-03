@@ -169,7 +169,7 @@ export default function MeusPontosPage() {
       {/* KPIs Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="border border-white/10 bg-slate-900/80">
-          <CardContent className="p-4 flex items-center gap-3">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
             <div className="p-3 rounded-xl bg-primary/20 text-primary border border-primary/30">
               <MapPin className="h-6 w-6" />
             </div>
@@ -181,7 +181,7 @@ export default function MeusPontosPage() {
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80">
-          <CardContent className="p-4 flex items-center gap-3">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
             <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               <Tv className="h-6 w-6" />
             </div>
@@ -193,7 +193,7 @@ export default function MeusPontosPage() {
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80">
-          <CardContent className="p-4 flex items-center gap-3">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
             <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               <CheckCircle2 className="h-6 w-6" />
             </div>
@@ -205,7 +205,7 @@ export default function MeusPontosPage() {
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80">
-          <CardContent className="p-4 flex items-center gap-3">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
             <div className="p-3 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
               <ShieldCheck className="h-6 w-6" />
             </div>
@@ -217,7 +217,7 @@ export default function MeusPontosPage() {
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80">
-          <CardContent className="p-4 flex items-center gap-3">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
             <div className="p-3 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               <AlertCircle className="h-6 w-6" />
             </div>

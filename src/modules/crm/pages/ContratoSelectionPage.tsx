@@ -457,7 +457,7 @@ export default function ContratoSelectionPage() {
               <div>
                 <span className="text-slate-400 block">Valor Mensal:</span>
                 <strong className="text-emerald-400 font-bold text-sm">
-                  R$ {Number(proposta?.valor_final || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  R$ {Number(proposta?.valor_final || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </strong>
                 <span className="text-slate-500 block text-[11px]">{proposta?.forma_pagamento}</span>
               </div>
@@ -495,7 +495,7 @@ export default function ContratoSelectionPage() {
               <div>
                 <span className="text-slate-400 block">Valor Mensal:</span>
                 <strong className="text-emerald-400 font-bold text-sm">
-                  R$ {Number(contratoExistente.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  R$ {Number(contratoExistente.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </strong>
               </div>
               <div>

@@ -173,7 +173,7 @@ export default function OccupancyDashboard() {
               <div><span className="text-slate-400">Status</span><p><Badge>{detalhe.status_operacional}</Badge> <Badge variant="outline">{detalhe.disponibilidade}</Badge></p></div>
               <div className="col-span-2"><span className="text-slate-400">Endereço</span><p>{[detalhe.logradouro, detalhe.bairro, detalhe.cidade, detalhe.estado].filter(Boolean).join(', ')||'—'} {detalhe.cep? `CEP ${detalhe.cep}`:''}</p></div>
               <div><span className="text-slate-400">Telas</span><p>{detalhe.quantidade_telas} (ativas: {detalhe.telas_ativas??detalhe.quantidade_telas})</p></div>
-              <div><span className="text-slate-400">Valor</span><p>{detalhe.valor_anuncio? `R$ ${Number(detalhe.valor_anuncio).toLocaleString('pt-BR')}/${detalhe.periodicidade.toLowerCase()}`:'sob consulta'}</p></div>
+              <div><span className="text-slate-400">Valor</span><p>{detalhe.valor_anuncio? `R$ ${Number(detalhe.valor_anuncio).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/${detalhe.periodicidade.toLowerCase()}`:'sob consulta'}</p></div>
               <div className="col-span-2"><span className="text-slate-400">Regras comerciais</span><p className="whitespace-pre-wrap text-slate-300">{detalhe.regras_comerciais||'—'}</p></div>
               <div className="col-span-2"><span className="text-slate-400">Descrição</span><p className="text-slate-300">{detalhe.descricao||'—'}</p></div>
             </div>

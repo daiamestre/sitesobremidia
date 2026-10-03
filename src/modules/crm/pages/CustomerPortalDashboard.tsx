@@ -407,7 +407,7 @@ export default function CustomerPortalDashboard() {
           ? [...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)
           : kpiList.map((kpi) => (
               <Card key={kpi.label} className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-                <CardContent className="p-4 flex items-center gap-3">
+                <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
                   <div className={cn('p-3 rounded-2xl border flex-shrink-0', kpi.bgColor, kpi.borderColor)}>
                     <kpi.icon className={cn('h-5 w-5', kpi.color)} />
                   </div>

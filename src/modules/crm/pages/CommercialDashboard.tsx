@@ -24,7 +24,7 @@ export default function CommercialDashboard() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
           <CardContent className="p-4 space-y-1">
             <span className="text-slate-400 block font-semibold">Taxa de Conversão</span>

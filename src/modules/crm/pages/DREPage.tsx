@@ -61,37 +61,37 @@ export default function DREPage() {
         <CardContent className="pt-4 space-y-3 text-xs">
           <div className="flex justify-between py-2 border-b border-white/5 font-semibold text-slate-200">
             <span>(+) Receita Bruta de Vendas (Mídia Signage)</span>
-            <span className="font-mono text-emerald-400">R$ {dre.receitaBruta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span className="font-mono text-emerald-400">R$ {dre.receitaBruta.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
           <div className="flex justify-between py-2 border-b border-white/5 text-slate-400">
             <span>(-) Descontos Concedidos</span>
-            <span className="font-mono text-rose-400">R$ {dre.descontos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span className="font-mono text-rose-400">R$ {dre.descontos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
           <div className="flex justify-between py-2 border-b border-white/10 font-bold text-white bg-slate-950/40 px-3 rounded-lg">
             <span>(=) RECEITA LÍQUIDA DE VENDAS</span>
-            <span className="font-mono text-emerald-400">R$ {dre.receitaLiquida.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span className="font-mono text-emerald-400">R$ {dre.receitaLiquida.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
           <div className="flex justify-between py-2 border-b border-white/5 text-slate-400">
             <span>(-) Custos Operacionais NOC & Transmissão (35%)</span>
-            <span className="font-mono text-rose-400">R$ {dre.custosOperacionais.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span className="font-mono text-rose-400">R$ {dre.custosOperacionais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
           <div className="flex justify-between py-2 border-b border-white/10 font-bold text-white bg-slate-950/40 px-3 rounded-lg">
             <span>(=) MARGEM BRUTA DE LUCRO</span>
-            <span className="font-mono text-emerald-400">R$ {dre.margemBruta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span className="font-mono text-emerald-400">R$ {dre.margemBruta.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
           <div className="flex justify-between py-2 border-b border-white/5 text-slate-400">
             <span>(-) Despesas Administrativas & Vendas (15%)</span>
-            <span className="font-mono text-rose-400">R$ {dre.despesasAdministrativas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span className="font-mono text-rose-400">R$ {dre.despesasAdministrativas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
           <div className="flex justify-between py-3 font-extrabold text-sm text-white bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl">
             <span>(=) RESULTADO LÍQUIDO DO EXERCÍCIO (EBITDA)</span>
-            <span className="font-mono text-emerald-400">R$ {dre.resultadoLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span className="font-mono text-emerald-400">R$ {dre.resultadoLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </CardContent>
       </Card>

@@ -84,10 +84,10 @@ export default function InvoicesPage() {
                       </TableCell>
                       <TableCell className="text-xs text-slate-300">{n.cliente?.empresas?.[0]?.nome_fantasia || 'Cliente'}</TableCell>
                       <TableCell className="text-xs font-bold text-emerald-400">
-                        R$ {Number(n.valor_servicos).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {Number(n.valor_servicos).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-xs text-slate-300 font-mono">
-                        R$ {Number(n.valor_iss).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {Number(n.valor_iss).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
                         <Badge className="bg-emerald-500/20 text-emerald-400">{n.status}</Badge>

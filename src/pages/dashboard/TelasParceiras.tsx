@@ -113,14 +113,14 @@ export default function TelasParceiras() {
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="telas-parceiras">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-3xl font-display font-bold"><Store className="h-7 w-7 text-primary" /> Telas de pontos parceiros</h1>
           <p className="text-muted-foreground">Criadas pelo cadastro do ponto parceiro. Monte a grade, ajuste o valor e acompanhe cada tela.</p>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:flex">
-          <Link to="/dashboard/screens" className="w-full sm:w-auto"><Button variant="outline" className="w-full"><Monitor className="mr-2 h-4 w-4" /> Telas próprias</Button></Link>
-          <Link to="/dashboard/prospeccao/ponto-parceiro" className="w-full sm:w-auto"><Button className="gradient-primary w-full"><Plus className="mr-2 h-4 w-4" /> Cadastrar ponto parceiro</Button></Link>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex">
+          <Link to="/dashboard/screens" className="w-full lg:w-auto"><Button variant="outline" className="w-full"><Monitor className="mr-2 h-4 w-4" /> Telas próprias</Button></Link>
+          <Link to="/dashboard/prospeccao/ponto-parceiro" className="w-full lg:w-auto"><Button className="gradient-primary w-full"><Plus className="mr-2 h-4 w-4" /> Cadastrar ponto parceiro</Button></Link>
         </div>
       </div>
 

@@ -66,7 +66,7 @@ export default function CommissionsDashboard() {
               <PieChart className="h-4 w-4 text-purple-400" /> Comissões por Perfil ({comissoes.length})
             </span>
             <Badge className="bg-purple-500/20 text-purple-300 font-bold">
-              Total Apurado: R$ {totalComissoes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              Total Apurado: R$ {totalComissoes.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -97,7 +97,7 @@ export default function CommissionsDashboard() {
                       </TableCell>
                       <TableCell className="text-xs text-slate-300 font-mono">{c.percentual}%</TableCell>
                       <TableCell className="text-xs font-bold text-emerald-400">
-                        R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
                         <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">{c.status}</Badge>

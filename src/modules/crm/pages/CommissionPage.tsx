@@ -63,7 +63,7 @@ export default function CommissionPage() {
               Lançamentos de Comissão ({comissoes.length})
             </span>
             <Badge className="bg-purple-500/20 text-purple-300 font-bold">
-              Total: R$ {totalComissoes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              Total: R$ {totalComissoes.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -97,7 +97,7 @@ export default function CommissionPage() {
                       </TableCell>
                       <TableCell className="text-xs text-slate-300 font-mono">{c.percentual}%</TableCell>
                       <TableCell className="text-xs font-bold text-emerald-400">
-                        R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
                         <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">{c.status}</Badge>

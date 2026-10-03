@@ -113,7 +113,7 @@ export default function PropostasListPage() {
                   <div className="flex justify-between items-center bg-slate-950/60 p-3 rounded-lg border border-white/5">
                     <span className="text-xs text-slate-400 font-medium">Valor Total Estimado</span>
                     <span className="text-lg font-mono font-extrabold text-emerald-400">
-                      R$ {Number(prop.valor_final || prop.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      R$ {Number(prop.valor_final || prop.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex gap-2">

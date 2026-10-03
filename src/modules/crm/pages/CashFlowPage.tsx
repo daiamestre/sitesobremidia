@@ -84,7 +84,7 @@ export default function CashFlowPage() {
                         {new Date(f.data_prevista).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="text-xs font-bold text-emerald-400">
-                        R$ {Number(f.valor_previsto).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {Number(f.valor_previsto).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
                         <Badge className={f.tipo === 'ENTRADA' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}>

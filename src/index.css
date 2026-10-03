@@ -770,7 +770,7 @@ td, th { word-break: normal; overflow-wrap: break-word; }
   aside.w-64 { width: 16rem; }
 }
 /* F-116: tabelas no celular = blocos empilhados (ver src/components/ui/table.tsx). Computador: sem mudança. */
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   table.tabela-empilhada { min-width: 0 !important; width: 100% !important; }
   table.tabela-empilhada > thead { display: none; }
   table.tabela-empilhada > tbody,
@@ -791,10 +791,33 @@ td, th { word-break: normal; overflow-wrap: break-word; }
   /* grupos de botões/etiquetas dentro da célula alinham à direita e quebram linha se precisar */
   table.tabela-empilhada > tbody > tr > td[data-label] > .flex { justify-content: flex-end; flex-wrap: wrap; }
 }
+/* F-121: tabela que não cabe no espaço (ex.: tablet deitado 1280 px com menu aberto) também empilha — o componente
+   ui/table marca "sem-espaco" quando a tabela fica mais larga que a área dela. Tabela que cabe continua tabela. */
+@media (max-width: 1280px) {
+  table.tabela-empilhada.sem-espaco { min-width: 0 !important; width: 100% !important; }
+  table.tabela-empilhada.sem-espaco > thead { display: none; }
+  table.tabela-empilhada.sem-espaco > tbody,
+  table.tabela-empilhada.sem-espaco > tbody > tr,
+  table.tabela-empilhada.sem-espaco > tbody > tr > td { display: block; width: 100%; max-width: none; }
+  table.tabela-empilhada.sem-espaco > tbody > tr { padding: 0.5rem 0; }
+  /* nome da coluna flutua à esquerda; o conteúdo da célula fica à direita, um item embaixo do outro */
+  table.tabela-empilhada.sem-espaco > tbody > tr > td {
+    display: flow-root; padding: 0.35rem 0.75rem; text-align: right; white-space: normal;
+  }
+  table.tabela-empilhada.sem-espaco > tbody > tr > td[data-label]::before {
+    content: attr(data-label); float: left; max-width: 42%; margin-right: 0.75rem; text-align: left;
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+    color: hsl(var(--muted-foreground));
+  }
+  table.tabela-empilhada.sem-espaco > tbody > tr > td:not([data-label]) { text-align: left; }
+  table.tabela-empilhada.sem-espaco > tbody > tr > td[data-linha-inteira] { text-align: center; }
+  /* grupos de botões/etiquetas dentro da célula alinham à direita e quebram linha se precisar */
+  table.tabela-empilhada.sem-espaco > tbody > tr > td[data-label] > .flex { justify-content: flex-end; flex-wrap: wrap; }
+}
 
 /* F-116: no celular, linhas "título ··· botões" (flex justify-between) descem o que não cabe para a linha de baixo,
    em vez de espremer o título até virar letras soltas. Só quebra quando não cabe; no computador nada muda. */
-@media (max-width: 767px) {
+@media (max-width: 1280px) {
   .flex.justify-between:not(.flex-nowrap):not(.flex-col) { flex-wrap: wrap; row-gap: 0.5rem; }
 }
 
@@ -818,24 +841,26 @@ td, th { word-break: normal; overflow-wrap: break-word; }
 /* F-117: blocos "ícone + conteúdo" que ficam em coluna no celular (flex-col sm:flex-row): o quadradinho do ícone
    (flex-shrink-0 / shrink-0) não estica na largura toda — antes virava uma faixa colorida. */
 @media (max-width: 639px) {
-  .flex-col.sm:flex-row > .flex-shrink-0:not(.w-full),
-  .flex-col.sm:flex-row > .shrink-0:not(.w-full) { align-self: flex-start; }
+  .flex-col.sm\:flex-row > .flex-shrink-0:not(.w-full),
+  .flex-col.sm\:flex-row > .shrink-0:not(.w-full) { align-self: flex-start; }
 }
 
 /* F-117: no celular, fileiras com etiquetas/botões que não quebram texto (whitespace-nowrap) descem para a linha
    de baixo quando não cabem, em vez de passar da borda do cartão. Listas com rolagem lateral própria não mudam. */
-@media (max-width: 767px) {
+@media (max-width: 1280px) {
   .flex:not(.flex-nowrap):not(.overflow-x-auto):not(.flex-col):not(.flex-col-reverse):has(> .whitespace-nowrap) {
     flex-wrap: wrap;
   }
-  /* espaço entre linhas só quando o bloco não definiu o próprio espaçamento (gap-*) */
+}
+/* espaço entre linhas só quando o bloco não definiu o próprio espaçamento (gap-*) */
+@media (max-width: 1280px) {
   .flex:not(.flex-nowrap):not(.overflow-x-auto):not(.flex-col):not(.flex-col-reverse):not([class*="gap-"]):has(> .whitespace-nowrap) {
     row-gap: 0.25rem;
   }
 }
 
 /* F-117: no celular, listas de abas que não são grade quebram em mais de uma linha em vez de passar da tela */
-@media (max-width: 767px) {
+@media (max-width: 1280px) {
   [role="tablist"]:not(.grid):not(.overflow-x-auto) { flex-wrap: wrap; height: auto; max-width: 100%; }
 }
 

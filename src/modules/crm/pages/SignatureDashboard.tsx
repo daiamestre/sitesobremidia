@@ -60,8 +60,8 @@ export default function SignatureDashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               <Clock className="h-6 w-6" />
             </div>
             <div>
@@ -72,8 +72,8 @@ export default function SignatureDashboard() {
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
@@ -84,8 +84,8 @@ export default function SignatureDashboard() {
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
               <Send className="h-6 w-6" />
             </div>
             <div>

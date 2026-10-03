@@ -186,7 +186,7 @@ export const Cliente360Modal: React.FC<Cliente360ModalProps> = ({ cliente, isOpe
                         <p className="font-bold text-white">Proposta Comercial #{String(propostaNum)}</p>
                         <p className="text-xs text-slate-400">Status: {String(status)} • Validade: {p.validade_dias || 15} dias</p>
                       </div>
-                      <Badge className="bg-emerald-500/20 text-emerald-400">R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Badge>
+                      <Badge className="bg-emerald-500/20 text-emerald-400">R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Badge>
                     </div>
                   );
                 })

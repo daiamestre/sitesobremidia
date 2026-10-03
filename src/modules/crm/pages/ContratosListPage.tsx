@@ -226,7 +226,7 @@ function Contrato360Modal({ contrato, onClose, basePath }: { contrato: ContratoC
                 <div>
                   <p className="text-xs text-slate-400">Valor Mensal Contratado</p>
                   <p className="text-2xl font-mono font-extrabold text-emerald-400 mt-1">
-                    R$ {Number(contrato.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {Number(contrato.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <DollarSign className="h-10 w-10 text-emerald-400/30" />
@@ -234,7 +234,7 @@ function Contrato360Modal({ contrato, onClose, basePath }: { contrato: ContratoC
               <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5">
                 <p className="text-xs text-slate-400 mb-1">Proposta de Origem (valor aprovado)</p>
                 <p className="text-lg font-mono font-bold text-cyan-400">
-                  R$ {Number((contrato as any).proposta?.valor_final || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  R$ {Number((contrato as any).proposta?.valor_final || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex gap-2 items-start">
@@ -257,7 +257,7 @@ function Contrato360Modal({ contrato, onClose, basePath }: { contrato: ContratoC
                   {[
                     { label: 'Cliente', value: empresaNome },
                     { label: 'Período', value: `${contrato.data_inicio} → ${contrato.data_fim}` },
-                    { label: 'Valor Mensal', value: `R$ ${Number(contrato.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+                    { label: 'Valor Mensal', value: `R$ ${Number(contrato.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
                     { label: 'Forma de Pagamento', value: contrato.forma_pagamento },
                   ].map(({ label, value }) => (
                     <div key={label} className="bg-slate-900/80 p-2 rounded border border-white/5">
@@ -381,11 +381,11 @@ export default function ContratosListPage() {
         {[
           { label: 'Total de Contratos', value: contratos.length, icon: <FileText className="h-5 w-5" />, color: 'text-white' },
           { label: 'Campanhas Ativas', value: totalAtivos, icon: <Zap className="h-5 w-5" />, color: 'text-emerald-400' },
-          { label: 'Valor Mensal Total', value: `R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: <DollarSign className="h-5 w-5" />, color: 'text-cyan-400' },
+          { label: 'Valor Mensal Total', value: `R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: <DollarSign className="h-5 w-5" />, color: 'text-cyan-400' },
           { label: 'Pendentes', value: totalAguardando, icon: <Clock className="h-5 w-5" />, color: 'text-amber-400' },
         ].map(({ label, value, icon, color }) => (
           <Card key={label} className="bg-slate-900/80 border-white/10 rounded-xl">
-            <CardContent className="p-4 flex items-center gap-3">
+            <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
               <div className={`${color} opacity-60`}>{icon}</div>
               <div>
                 <p className="text-xs text-slate-400">{label}</p>
@@ -489,7 +489,7 @@ export default function ContratosListPage() {
                     <div>
                       <p className="text-xs text-slate-400">Valor Mensal</p>
                       <p className="text-lg font-mono font-extrabold text-emerald-400">
-                        R$ {Number(c.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {Number(c.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                     <div className="text-right">

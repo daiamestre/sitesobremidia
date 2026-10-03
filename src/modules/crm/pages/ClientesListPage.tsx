@@ -159,7 +159,7 @@ export default function ClientesListPage() {
           ) : (
             <>
             {/* F-116: no celular cada cliente é um cartão com todas as informações (sem arrastar para o lado) */}
-            <div className="space-y-3 md:hidden" data-testid="clientes-cartoes">
+            <div className="space-y-3 lg:hidden" data-testid="clientes-cartoes">
               {filteredClientes.map((cliente) => {
                 const emp = cliente.empresas?.[0];
                 const ct = emp?.contatos?.[0];
@@ -200,7 +200,7 @@ export default function ClientesListPage() {
                 );
               })}
             </div>
-            <div className="hidden rounded-xl border border-white/10 overflow-hidden md:block">
+            <div className="hidden rounded-xl border border-white/10 overflow-hidden lg:block">
               <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <Table className="min-w-[720px]">
                 <TableHeader className="bg-slate-950">

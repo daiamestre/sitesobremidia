@@ -82,7 +82,7 @@ export function PIHeader({ pi }: PIHeaderProps) {
               {pi.contrato?.numero_contrato || pi.proposta?.numero_proposta || 'N/V'}
             </strong>
             <span className="text-[10px] text-slate-500 block">
-              R$ {Number(pi.contrato?.valor_mensal || pi.proposta?.valor_final || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R$ {Number(pi.contrato?.valor_mensal || pi.proposta?.valor_final || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
 

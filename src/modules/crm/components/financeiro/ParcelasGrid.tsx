@@ -44,7 +44,7 @@ export function ParcelasGrid({ parcelas }: ParcelasGridProps) {
                     {new Date(p.vencimento).toLocaleDateString('pt-BR')}
                   </TableCell>
                   <TableCell className="text-xs font-bold text-emerald-400">
-                    R$ {Number(p.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {Number(p.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell>
                     <Badge className={p.status === 'PAGO' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}>

@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * F-116: no celular (até 767 px) a tabela vira blocos empilhados — cada linha um bloco, cada célula com o nome da
+ * F-116: no celular e no tablet em pé (até 1023 px) a tabela vira blocos empilhados — cada linha um bloco, cada célula com o nome da
  * coluna ao lado (data-label copiado do cabeçalho). Nada de arrastar para o lado. No computador nada muda.
  * Quem precisar da tabela tradicional no celular passa empilharNoCelular={false}.
  */
@@ -27,6 +27,30 @@ const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableE
   ({ className, empilharNoCelular = true, ...props }, ref) => {
     const interno = React.useRef<HTMLTableElement | null>(null);
     React.useEffect(() => { if (empilharNoCelular) rotularCelulas(interno.current); });
+    // F-121: se a tabela não couber na área dela (telas até 1280 px, pelo CSS), empilha; se couber de novo, volta a ser tabela
+    React.useEffect(() => {
+      const tabela = interno.current; const area = tabela?.parentElement;
+      if (!empilharNoCelular || !tabela || !area || typeof ResizeObserver === 'undefined') return;
+      let larguraNatural = 0;
+      const medir = () => {
+        const empilhada = tabela.classList.contains('sem-espaco');
+        if (!empilhada) {
+          larguraNatural = tabela.scrollWidth;
+          if (larguraNatural > area.clientWidth + 4) tabela.classList.add('sem-espaco');
+        } else if (larguraNatural && area.clientWidth >= larguraNatural + 4) {
+          tabela.classList.remove('sem-espaco');
+        }
+      };
+      // a medição é só um ajuste visual: se o navegador não permitir observar o tamanho, a página segue normal
+      try {
+        medir();
+        const ro = new ResizeObserver(medir);
+        ro.observe(area);
+        return () => ro.disconnect();
+      } catch {
+        return;
+      }
+    }, [empilharNoCelular]);
     return (
       <div className="relative w-full overflow-auto">
         <table

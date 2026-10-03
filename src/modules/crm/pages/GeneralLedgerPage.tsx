@@ -82,7 +82,7 @@ export default function GeneralLedgerPage() {
                       </TableCell>
                       <TableCell className="text-xs text-slate-400 font-mono">{l.origem}</TableCell>
                       <TableCell className="text-xs font-bold text-emerald-400">
-                        R$ {Number(l.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {Number(l.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                     </TableRow>
                   ))}

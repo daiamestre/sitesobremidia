@@ -51,51 +51,51 @@ export default function BIExecutiveDashboard() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
               <TrendingUp className="h-6 w-6" />
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">Conversão de Leads</span>
-              <strong className="text-lg font-bold text-white">{cube.conversao}%</strong>
+              <strong className="text-lg font-bold text-white">{Number(cube.conversao ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
               <DollarSign className="h-6 w-6" />
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">Ticket Médio OLAP</span>
-              <strong className="text-lg font-bold text-blue-400">R$ {cube.ticketMedio.toLocaleString('pt-BR')}</strong>
+              <strong className="text-lg font-bold text-blue-400">R$ {cube.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               <Users className="h-6 w-6" />
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">LTV Médio</span>
-              <strong className="text-lg font-bold text-emerald-400">R$ {cube.ltv.toLocaleString('pt-BR')}</strong>
+              <strong className="text-lg font-bold text-emerald-400">R$ {cube.ltv.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
               <Tv className="h-6 w-6" />
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">Taxa de Churn</span>
-              <strong className="text-lg font-bold text-rose-400">{cube.churn}%</strong>
+              <strong className="text-lg font-bold text-rose-400">{Number(cube.churn ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong>
             </div>
           </CardContent>
         </Card>

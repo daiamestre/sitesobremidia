@@ -118,7 +118,7 @@ export function ConfirmDeleteContractModal({
             <div className="flex justify-between items-center">
               <span className="text-slate-400">Valor Mensal:</span>
               <span className="font-semibold text-emerald-400">
-                R$ {Number(contrato.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {Number(contrato.valor_mensal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
           </div>

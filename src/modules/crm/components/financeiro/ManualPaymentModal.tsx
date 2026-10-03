@@ -60,7 +60,7 @@ export function ManualPaymentModal({ isOpen, onClose, conta, onSuccess }: Manual
         <DialogHeader>
           <DialogTitle>Registrar Liquidação Manual</DialogTitle>
           <DialogDescription className="text-slate-400">
-            {conta.codigo_operacional} - Saldo devedor atual: R$ {Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            {conta.codigo_operacional} - Saldo devedor atual: R$ {Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </DialogDescription>
         </DialogHeader>
 

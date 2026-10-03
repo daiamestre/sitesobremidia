@@ -124,7 +124,7 @@ export default function FinanceiroClientePage() {
                 <Badge variant="outline" className="border-white/10">{contrato.status || '—'}</Badge>
               </div>
             </div>
-            <Link to="/portal/contrato">
+            <Link to="/portal/contrato" className="shrink-0 self-start sm:self-auto">
               <Button variant="outline" size="sm" className="border-white/10 gap-2">
                 Ver contrato completo <ExternalLink className="h-3.5 w-3.5" />
               </Button>

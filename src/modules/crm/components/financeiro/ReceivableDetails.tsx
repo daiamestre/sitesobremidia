@@ -38,7 +38,7 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
   };
 
   const generateWhatsAppLink = () => {
-    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.\nSOBRE MÍDIA`;
+    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.\nSOBRE MÍDIA`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
@@ -114,15 +114,15 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
             <span className="text-slate-400 block">Valor Original:</span>
-            <strong className="text-white text-sm font-bold">R$ {Number(conta.valor_original).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong className="text-white text-sm font-bold">R$ {Number(conta.valor_original).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
             <span className="text-slate-400 block">Valor Recebido:</span>
-            <strong className="text-blue-400 text-sm font-bold">R$ {Number(conta.valor_pago).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong className="text-blue-400 text-sm font-bold">R$ {Number(conta.valor_pago).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
             <span className="text-slate-400 block">Saldo a Receber:</span>
-            <strong className="text-emerald-400 text-sm font-bold">R$ {Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong className="text-emerald-400 text-sm font-bold">R$ {Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
             <span className="text-slate-400 block">Vencimento:</span>
@@ -160,7 +160,7 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
                   {`Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!
 Sua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.
 
-Valor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Valor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 Vencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}
 
 Acesse o link abaixo para visualizar sua cobrança:
@@ -175,7 +175,7 @@ SOBRE MÍDIA`}
                     variant="outline"
                     className="flex-1 border-white/10 text-slate-300 hover:bg-white/5 h-8 text-xs"
                     onClick={() => {
-                      const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.\nSOBRE MÍDIA`;
+                      const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.\nSOBRE MÍDIA`;
                       navigator.clipboard.writeText(text);
                       toast({ title: 'Mensagem Copiada', description: 'O texto está pronto para ser colado.' });
                     }}
@@ -185,7 +185,7 @@ SOBRE MÍDIA`}
                   <Button
                     className="flex-1 bg-green-600 hover:bg-green-500 text-white border-transparent h-8 text-xs"
                     onClick={() => {
-                      const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.\nSOBRE MÍDIA`;
+                      const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia ? ` referente à competência ${conta.competencia}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nVencimento: ${new Date(conta.vencimento).toLocaleDateString('pt-BR')}\n\nAcesse o link abaixo para visualizar sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.\nSOBRE MÍDIA`;
                       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                     }}
                   >

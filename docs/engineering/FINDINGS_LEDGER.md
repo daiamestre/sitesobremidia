@@ -1577,3 +1577,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - No computador (≥768 px) igual a antes (painel fixo à direita).
 - **Prova:** navegador 390 px: documento 358 px, painel escondido até "Campos", inserção de "Nome Fantasia" (27→28 campos) e fechamento; 1366 px: painel estático 320 px, documento 896 px, botões de formatação visíveis.
 - **Testes:** suíte unitária 1.285 (1 teste da F-109 atualizado para o novo item de menu).
+
+### F-121 — Tablet (Multilaser M10) igual ao celular — DONE
+- **Causa:** as regras de responsividade (F-116 a F-118) só valiam até 767 px. O M10 tem 800 px em pé e 1280 px deitado: entre 768 e 1280 px o sistema usava a estrutura de computador num espaço que não comporta (tabelas espremidas, botões em 3 linhas, palavras partidas, cartões com valor de 6 casas decimais estourando).
+- **Correção:**
+  - `index.css`: empilhamento de tabelas, campos de data e formulários passam a valer até 1023 px; quebras de linha de "título ··· botões", abas e grupos de botões valem até 1280 px; tabela que não cabe na área dela (classe `sem-espaco`, posta pelo `ui/table` via `ResizeObserver`) empilha até 1280 px. Acima de 1280 px nada muda.
+  - `ui/table`: mede a tabela; a medição é protegida (se o navegador não deixar observar, a página segue normal).
+  - Cobranças e Clientes: cartões até 1023 px, tabela a partir de 1024 px; na tabela de cobranças os botões ficam numa linha (não cabendo, a tabela empilha).
+  - Valores em reais com no máximo 2 casas (27 arquivos); cartões de indicadores mais compactos abaixo de 1280 px; grades de 4 colunas viram 2 no tablet.
+  - Seletor `.flex-col.sm\:flex-row` da F-117 estava sem escape e nunca funcionou — corrigido.
+- **Prova:** varredura automática (palavra partida, texto cortado, texto invadindo o vizinho, tabela larga, rolagem lateral) em 800×1280, 1280×800, 600×960 e 960×600: painel (≈45 rotas, sessão ADMIN de teste) e portal do anunciante (≈28 rotas) sem achados reais (2 avisos eram etiquetas desenhadas por cima da foto, de propósito). Computador 1440/1920 px: tabela de cobranças continua tabela, uma linha por cobrança.
+- **Testes:** `tabletResponsivo.test.tsx` (6) + suíte unitária completa.
+- **Limite honesto:** conferido por emulação de tamanho no navegador; o toque e o navegador do próprio M10 só se confirmam no aparelho.

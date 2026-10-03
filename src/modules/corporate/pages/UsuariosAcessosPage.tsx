@@ -359,7 +359,7 @@ export default function UsuariosAcessosPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {dashCards.map((c) => (
           <Card key={c.label}>
-            <CardContent className="p-4 flex items-center gap-3">
+            <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
               <div className={cn('h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0', c.cor)}>
                 <c.icon className="h-5 w-5" />
               </div>

@@ -150,7 +150,7 @@ export default function BillingDashboard() {
 
   const generateWhatsAppLink = (conta: any) => {
   const urlPublica = getPublicBillingUrl(conta);
-    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || conta.nomeCliente || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
+    const text = `Olá, ${conta.cliente?.empresas?.[0]?.nome_fantasia || conta.cliente?.empresas?.[0]?.razao_social || conta.nomeCliente || 'Cliente'}!\nSua cobrança da SOBRE MÍDIA${conta.competencia_date ? ` referente à competência ${String(conta.competencia_date).slice(0, 7)}` : ''} está disponível.\n\nValor: R$ ${Number(conta.saldo ?? conta.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\nVencimento: ${new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}\n\nAcesse sua cobrança:\n${urlPublica}\n\nEm caso de dúvidas, estamos à disposição.`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
@@ -312,8 +312,8 @@ export default function BillingDashboard() {
   }
 
   // F-116: ações da cobrança (as mesmas na tabela do computador e nos cartões do celular)
-  const renderAcoes = (c: (typeof filtradas)[number]) => (
-        <div className="flex items-center justify-end gap-1">
+  const renderAcoes = (c: (typeof filtradas)[number], umaLinha = false) => (
+        <div className={`flex items-center justify-end gap-1${umaLinha ? ' flex-nowrap' : ''}`}>
           <Button
             size="sm"
             variant="ghost"
@@ -626,7 +626,7 @@ export default function BillingDashboard() {
       ) : (
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
           {/* F-116: no celular cada cobrança é um cartão com tudo à vista (sem arrastar para o lado) */}
-          <div className="space-y-3 p-3 md:hidden" data-testid="cobrancas-cartoes">
+          <div className="space-y-3 p-3 lg:hidden" data-testid="cobrancas-cartoes">
             {filtradas.map((c) => (
               <div key={c.id} role="button" tabIndex={0} onClick={() => navigate(rotaCobranca(c))}
                 className="rounded-xl border border-white/10 bg-slate-950/60 p-3 active:bg-white/5">
@@ -662,7 +662,7 @@ export default function BillingDashboard() {
               </div>
             )}
           </div>
-          <div className="hidden rounded-xl overflow-x-auto md:block">
+          <div className="hidden rounded-xl overflow-x-auto lg:block">
             <Table>
               <TableHeader className="bg-slate-950">
                 <TableRow className="border-white/10 hover:bg-transparent">
@@ -686,11 +686,11 @@ export default function BillingDashboard() {
                     <TableCell>
                       <strong className="text-white block text-xs">{c.nomeCliente}</strong>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-300 font-mono">
+                    <TableCell className="whitespace-nowrap text-xs text-slate-300 font-mono">
                       {c.codigo_operacional || c.numero_documento || c.contrato?.numero_contrato || '—'}
                     </TableCell>
                     <TableCell className="text-xs text-slate-300">{c.metodo_cobranca || '—'}</TableCell>
-                    <TableCell className="text-xs text-slate-100 font-semibold">{brl(c.valor)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-slate-100 font-semibold">{brl(c.valor)}</TableCell>
                     <TableCell className="text-xs text-slate-300">{fmtData(c.data_vencimento)}</TableCell>
                     <TableCell>
                       <Badge className={`${SITUACAO_BADGE[c.situacao]} border text-[11px]`}>
@@ -707,7 +707,7 @@ export default function BillingDashboard() {
                       )}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      {renderAcoes(c)}
+                      {renderAcoes(c, true)}
                     </TableCell>
                   </TableRow>
                 ))}

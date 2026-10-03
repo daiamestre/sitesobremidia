@@ -65,38 +65,38 @@ export default function ExecutiveDashboard() {
       </div>
 
       {/* Grid de KPIs Executivos */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               <TrendingUp className="h-6 w-6" />
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">MRR (Receita Mensal)</span>
               <strong className="text-lg font-bold text-emerald-400">
-                R$ {kpis.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {kpis.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </strong>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
               <DollarSign className="h-6 w-6" />
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">ARR (Receita Anual)</span>
               <strong className="text-lg font-bold text-blue-400">
-                R$ {kpis.arr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {kpis.arr.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </strong>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
               <Users className="h-6 w-6" />
             </div>
             <div>
@@ -107,8 +107,8 @@ export default function ExecutiveDashboard() {
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               <Tv className="h-6 w-6" />
             </div>
             <div>
@@ -120,7 +120,7 @@ export default function ExecutiveDashboard() {
       </div>
 
       {/* Atalhos Rápidos para Dashboards Especializados */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Button onClick={() => navigate('/representantes/analytics/comercial')} variant="outline" className="p-6 h-auto flex flex-col items-center justify-center border-white/10 bg-slate-900/80 hover:bg-white/5 rounded-2xl gap-2">
           <Users className="h-6 w-6 text-purple-400" />
           <span className="text-xs font-bold text-white">Dashboard Comercial</span>

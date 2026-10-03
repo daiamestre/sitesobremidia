@@ -59,7 +59,7 @@ export default function CashFlowDashboard() {
               Lançamentos de Caixa ({fluxo.length})
             </span>
             <Badge className="bg-blue-500/20 text-blue-300">
-              Total Entradas: R$ {totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              Total Entradas: R$ {totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -88,7 +88,7 @@ export default function CashFlowDashboard() {
                         {new Date(f.data_prevista).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="text-xs font-bold text-emerald-400">
-                        R$ {Number(f.valor_previsto).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {Number(f.valor_previsto).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
                         <Badge className={f.tipo === 'ENTRADA' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}>

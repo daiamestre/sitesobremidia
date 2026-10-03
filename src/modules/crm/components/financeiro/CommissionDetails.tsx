@@ -28,7 +28,7 @@ export function CommissionDetails({ comissao }: CommissionDetailsProps) {
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
             <span className="text-slate-400 block">Valor a Liberar:</span>
-            <strong className="text-emerald-400 text-sm font-bold">R$ {Number(comissao.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            <strong className="text-emerald-400 text-sm font-bold">R$ {Number(comissao.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </div>
         </div>
       </CardContent>

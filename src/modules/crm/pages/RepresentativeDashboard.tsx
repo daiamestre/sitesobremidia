@@ -110,8 +110,8 @@ export default function RepresentativeDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <button onClick={() => navigate('/representantes/clientes')} className="text-left">
             <Card className="border border-purple-500/20 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl hover:border-purple-500/40 transition-all">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30"><Users className="h-5 w-5" /></div>
+              <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+                <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30"><Users className="h-5 w-5" /></div>
                 <div>
                   <span className="text-slate-400 text-[11px] block font-semibold">Anunciantes</span>
                   <strong className="text-xl font-bold text-white">{kpisPros.meus_anunciantes}</strong>
@@ -121,8 +121,8 @@ export default function RepresentativeDashboard() {
           </button>
           <button onClick={() => navigate('/representantes/prospeccao/ponto-parceiro')} className="text-left">
             <Card className="border border-emerald-500/20 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl hover:border-emerald-500/40 transition-all">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"><Store className="h-5 w-5" /></div>
+              <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+                <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"><Store className="h-5 w-5" /></div>
                 <div>
                   <span className="text-slate-400 text-[11px] block font-semibold">Pontos Parceiros disponíveis</span>
                   <strong className="text-xl font-bold text-white">{kpisPros.pontos_disponiveis}</strong>
@@ -132,8 +132,8 @@ export default function RepresentativeDashboard() {
           </button>
           <button onClick={() => navigate('/representantes/prospeccao/gestor')} className="text-left">
             <Card className="border border-sky-500/20 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl hover:border-sky-500/40 transition-all">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-sky-500/20 text-sky-400 border border-sky-500/30"><MonitorPlay className="h-5 w-5" /></div>
+              <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+                <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-sky-500/20 text-sky-400 border border-sky-500/30"><MonitorPlay className="h-5 w-5" /></div>
                 <div>
                   <span className="text-slate-400 text-[11px] block font-semibold">Gestores de Mídias</span>
                   <strong className="text-xl font-bold text-white">{kpisPros.gestores_ativos}</strong>
@@ -143,8 +143,8 @@ export default function RepresentativeDashboard() {
           </button>
           <button onClick={() => navigate('/representantes/prospeccao')} className="text-left">
             <Card className="border border-amber-500/20 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl hover:border-amber-500/40 transition-all">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30"><UserPlus className="h-5 w-5" /></div>
+              <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+                <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30"><UserPlus className="h-5 w-5" /></div>
                 <div>
                   <span className="text-slate-400 text-[11px] block font-semibold">Vínculos cliente-ponto</span>
                   <strong className="text-xl font-bold text-white">{kpisPros.pontos_vinculados}</strong>
@@ -165,7 +165,7 @@ export default function RepresentativeDashboard() {
               <strong className="text-2xl font-extrabold text-white">{metrics.totalClientesCarteira}</strong>
               <span className="text-[11px] text-emerald-400 block font-mono">{metrics.contratosAtivos} Contrato(s) Ativo(s)</span>
             </div>
-            <div className="p-3 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
               <Users className="h-6 w-6" />
             </div>
           </CardContent>
@@ -177,11 +177,11 @@ export default function RepresentativeDashboard() {
             <div className="space-y-1">
               <span className="text-slate-400 text-xs block font-semibold">Receita Gerada (Mês)</span>
               <strong className="text-2xl font-extrabold text-emerald-400 font-mono">
-                R$ {metrics.receitaGeradaMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {metrics.receitaGeradaMes.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </strong>
               <span className="text-[11px] text-slate-400 block font-mono">Contratos recorrentes</span>
             </div>
-            <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               <TrendingUp className="h-6 w-6" />
             </div>
           </CardContent>
@@ -193,11 +193,11 @@ export default function RepresentativeDashboard() {
             <div className="space-y-1">
               <span className="text-slate-400 text-xs block font-semibold">Comissão Liberada</span>
               <strong className="text-2xl font-extrabold text-amber-400 font-mono">
-                R$ {metrics.comissoesLiberadas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {metrics.comissoesLiberadas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </strong>
               <span className="text-[11px] text-slate-400 block font-mono">Motor financeiro auditado</span>
             </div>
-            <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               <DollarSign className="h-6 w-6" />
             </div>
           </CardContent>
@@ -209,9 +209,9 @@ export default function RepresentativeDashboard() {
             <div className="space-y-1">
               <span className="text-slate-400 text-xs block font-semibold">Atingimento de Meta</span>
               <strong className="text-2xl font-extrabold text-purple-400 font-mono">{metrics.percentualMeta}%</strong>
-              <span className="text-[11px] text-purple-400 block font-mono">Meta: R$ {metrics.metaMensal.toLocaleString('pt-BR')}</span>
+              <span className="text-[11px] text-purple-400 block font-mono">Meta: R$ {metrics.metaMensal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
-            <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
               <Target className="h-6 w-6" />
             </div>
           </CardContent>
@@ -273,7 +273,7 @@ export default function RepresentativeDashboard() {
                         </td>
                         <td className="py-3 px-4 font-mono text-slate-300">{cli.contratos_ativos} ativo(s)</td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
-                          R$ {cli.receita_mensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          R$ {cli.receita_mensal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <Button onClick={() => navigate('/representantes/clientes')} variant="ghost" size="sm" className="h-7 text-xs text-purple-400 hover:text-white">
@@ -319,11 +319,11 @@ export default function RepresentativeDashboard() {
                         <td className="py-3 px-4 font-mono text-purple-400 font-bold">{com.numero_contrato}</td>
                         <td className="py-3 px-4 text-white font-semibold">{com.cliente_nome}</td>
                         <td className="py-3 px-4 text-right font-mono text-slate-300">
-                          R$ {com.valor_base.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          R$ {com.valor_base.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-4 text-center font-mono text-amber-400 font-bold">{com.porcentagem}%</td>
                         <td className="py-3 px-4 text-right font-mono font-extrabold text-amber-400">
-                          R$ {com.valor_comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          R$ {com.valor_comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
@@ -358,8 +358,8 @@ export default function RepresentativeDashboard() {
                     <div className="bg-gradient-to-r from-purple-500 to-emerald-400 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(m.percentual, 100)}%` }} />
                   </div>
                   <div className="flex justify-between text-xs font-mono pt-1 text-slate-400">
-                    <span>Realizado: <strong className="text-emerald-400">R$ {m.valor_realizado.toLocaleString('pt-BR')}</strong></span>
-                    <span>Meta: <strong className="text-slate-200">R$ {m.valor_meta.toLocaleString('pt-BR')}</strong></span>
+                    <span>Realizado: <strong className="text-emerald-400">R$ {m.valor_realizado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                    <span>Meta: <strong className="text-slate-200">R$ {m.valor_meta.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
                   </div>
                 </div>
               ))}
@@ -418,7 +418,7 @@ export default function RepresentativeDashboard() {
                       </div>
                     </div>
                     <span className="font-mono text-emerald-400 font-extrabold text-sm">
-                      R$ {r.total_receita.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
+                      R$ {r.total_receita.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês
                     </span>
                   </div>
                 ))}

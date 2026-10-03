@@ -56,52 +56,52 @@ export default function FinanceExecutiveDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               <TrendingUp className="h-6 w-6" />
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">MRR (Receita Recorrente)</span>
               <strong className="text-lg font-bold text-emerald-400">
-                {metrics.mrr > 0 ? `R$ ${metrics.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ 0,00'}
+                {metrics.mrr > 0 ? `R$ ${metrics.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00'}
               </strong>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
               <DollarSign className="h-6 w-6" />
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">ARR (Receita Anual)</span>
               <strong className="text-lg font-bold text-blue-400">
-                {metrics.arr > 0 ? `R$ ${metrics.arr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ 0,00'}
+                {metrics.arr > 0 ? `R$ ${metrics.arr.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00'}
               </strong>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               <Landmark className="h-6 w-6" />
             </div>
             <div>
               <span className="text-slate-400 text-xs block font-semibold">Ticket Médio</span>
               <strong className="text-lg font-bold text-amber-400">
-                {metrics.ticketMedio > 0 ? `R$ ${metrics.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'N/A'}
+                {metrics.ticketMedio > 0 ? `R$ ${metrics.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
               </strong>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
               <AlertTriangle className="h-6 w-6" />
             </div>
             <div>
