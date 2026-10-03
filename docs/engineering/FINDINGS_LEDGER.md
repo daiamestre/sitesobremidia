@@ -1629,3 +1629,34 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:** antes, visitante anônimo lia 44 versões e 12 perfis; depois, API pública responde 401 em `contrato_versoes` e `timeline` e lista vazia em `perfis`. ADMIN lê 12 perfis, vê 34 versões (só as da empresa), grava versão de contrato da empresa e é negado em contrato alheio; anunciante não grava; outra empresa vê só as dela (10). Painel conferido no navegador (usuários com nome do perfil, clientes, contratos, cadastros) e Player idêntico.
 - **Testes:** `tabelasFechadasF125.test.ts` (4).
 - **Anotado, sem alterar (precisa de teste no aparelho):** `fn_player_report_telemetry` aceita chamada sem conferir quem chama (quem souber o identificador de uma tela consegue marcá-la como online). Fechar isso muda o caminho do sinal de vida do Player e deve passar pelo canário.
+
+### F-126 — Visões que ignoravam a proteção por empresa — DONE
+- **Achado (consultor de segurança do Supabase, nível ERRO):** 9 visões rodavam com os direitos do dono do banco. Medido: visitante **anônimo** lia 1.960 linhas de `vw_cobranca_completa` (todas as empresas), `v_dre_consolidado`, `vw_industrial_monitoring`, `vw_media_popularity`, `vw_daily_stats`, `dw_dim_player`, `dw_dim_campanha`, `dw_fact_exibicao`.
+- **Correção (migração `20261292`):** `security_invoker = true` nas 9; anônimo sem acesso às visões de gestão; `mv_daily_stats` só para o servidor.
+- **Prova:** depois, anônimo = negado em todas; outra empresa vê só as próprias linhas (408 de 1.960 cobranças); ADMIN 1.520. Consultor: 0 erros.
+
+### F-127 — Perfis externos (anunciante, cliente, parceiro) isolados dos dados internos — DONE
+- **Achado:** muitas tabelas liberavam leitura **e escrita** a "qualquer usuário da mesma empresa"; o anunciante é usuário da operadora. Simulado antes da correção: anunciante apagava 6 agendamentos e 854 linhas da auditoria financeira, mandava comando remoto para tela alheia, lia 55 usuários, dados bancários de 5 representantes, fluxo de caixa, tarefas e alertas. ADMIN/GESTOR/GERENTE/FINANCEIRO de uma empresa liam os usuários de **todas** as empresas (152). `contrato_auditoria` tinha regra `true`.
+- **Já protegido (conferido):** virar ADMIN/dono, alterar o próprio status, marcar cobrança como paga, alterar telas, mídias, clientes e contratos alheios — tudo bloqueado.
+- **Correção (migração `20261293`, só regras restritivas):** `fn_perfil_cliente_externo()`; tabelas internas sem acesso para externo; agendamentos, campanhas, pedidos de inserção e produções só do próprio cliente (agendamentos e pedidos só leitura); usuários só da própria empresa (externo: só a própria equipe); auditoria de contratos segue a visibilidade do contrato; comando remoto só para tela própria quando o perfil não administra as telas; tabelas de auditoria só de acréscimo.
+- **Prova:** simulação com 6 perfis antes/depois — equipe interna idêntica; anunciante 854→0 (auditoria financeira), 55→21 (usuários), 5→0 (representantes); ataques bloqueados. Portal do anunciante percorrido no navegador (13 telas) sem nenhuma negação. Player idêntico.
+- **PENDENTE DE DECISÃO DO PROPRIETÁRIO — perfil GESTOR:** 28 regras e `is_central_privileged()` tratam GESTOR como equipe (lê e grava clientes, contratos, empresas, contatos, comissões, regras de cobrança, notas fiscais). Se "Gestor de Mídias" é cliente pagante, ele precisa virar perfil externo com acesso só ao que é dele. Não alterado: muda o modelo de acesso e não há sessão de gestor para conferir as telas.
+
+### F-128 — Consultas quebradas no portal — DONE
+- Histórico do "Meu perfil" pedia `created_at` em `auditoria_logs` (a coluna é `data_hora`) → erro 400, histórico sempre vazio. "Meus pontos" consultava pedidos com contrato `undefined` quando o cliente não tem contrato vigente → erro 400. Corrigidos; navegação conferida sem falhas.
+
+### F-129 — Funções executáveis por visitante anônimo sem conferência — DONE
+- **Achado:** 44 funções `SECURITY DEFINER` executáveis por anônimo sem conferir quem chama. Com a chave pública do site dava para criar cobrança e tela para qualquer empresa, enfileirar tarefas, rodar a régua de cobrança de todas as empresas, gerar cobranças recorrentes, apagar registros de exibição e ler cobrança/tela pelo código.
+- **Correção (migração `20261294`):** 18 funções do painel perdem o anônimo; 10 de uso só do servidor perdem também o usuário logado; `processar_regua_cobranca`, `criar_cobranca_tela` e `criar_tela_gestor` ganham conferência (logado, própria empresa, em nome próprio; régua só equipe). Ficam públicas de propósito: pareamento, cobrança pública e as do Player.
+- **Prova:** anônimo negado nas 7 testadas; pareamento, cobrança pública e playlist do Player seguem abertas; gestor cria cobrança de tela própria; ADMIN roda a régua só da própria empresa; rotina agendada roda a de todas.
+- **Anotado:** `enfileirar_job` continua chamável por usuário logado (é usada por fluxos internos disparados por clientes; restringir exige rever esses fluxos).
+
+### F-130 — Arquivos e caminho de busca — DONE
+- Balde `media`: qualquer logado alterava/apagava qualquer arquivo → agora só quem enviou ou dono/administrador. `proof_of_play`: anônimo podia enviar arquivos → removido. `audit_logs`: listagem só dono/administrador. Caminho de busca fixo em todas as funções que não tinham (migração `20261295`).
+
+### F-131 — Chaves de acesso e configuração de login — DONE (com pendências do proprietário)
+- **Varredura:** arquivos rastreados só têm a chave pública do site (normal). **Histórico do GitHub (repositório PÚBLICO)** contém 2 chaves de gestão do Supabase (mortas — conferido, HTTP 401) e **a chave de equipe da Vercel em uso (ainda válida)**, no commit `e89e416` (15/09). 39 rascunhos locais em `scratch/` tinham chaves coladas (pasta não era ignorada).
+- **Feito:** chaves removidas dos 39 rascunhos; `scratch/`, `.agents/evidence/`, `.agents/memory/` e `tokens.env` no `.gitignore`; `scripts/ops/segredos.mjs` passa a dar prioridade ao cofre (uma variável antiga do Windows com a chave morta do Supabase estava vencendo o arquivo — causa do "não autorizado"); teste automático impede chave em arquivo rastreado.
+- **Login:** senha nova com no mínimo 8 caracteres (telas, função de redefinição e Supabase); cabeçalhos de segurança no site (`X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`).
+- **PENDENTE DO PROPRIETÁRIO:** (1) trocar a chave da Vercel (a atual está pública no histórico); (2) decidir tornar o repositório privado; (3) apagar as variáveis antigas de chave do Windows; (4) proteção contra senha vazada do Supabase exige plano pago.
+- **Testes:** `segurancaGlobal.test.ts` (15).

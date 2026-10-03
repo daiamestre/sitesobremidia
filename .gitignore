@@ -73,3 +73,10 @@ test-results-me/
 !public/**
 !public/**/*
 
+
+# F-131: rascunhos e evidências locais nunca vão para o GitHub (já tiveram chaves coladas)
+scratch/
+.agents/evidence/
+.agents/memory/
+*.env.local
+tokens.env

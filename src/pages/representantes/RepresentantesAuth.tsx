@@ -399,7 +399,7 @@ export default function RepresentantesAuth() {
                     className="bg-slate-900 border-white/10 text-white" 
                   />
                   <Input 
-                    placeholder="Senha de Acesso (mínimo 6 caracteres)" 
+                    placeholder="Senha de Acesso (mínimo 8 caracteres)" 
                     type="password" 
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}

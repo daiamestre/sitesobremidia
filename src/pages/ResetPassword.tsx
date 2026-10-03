@@ -80,10 +80,10 @@ export default function ResetPassword() {
       return;
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       toast({
         title: 'Senha muito curta',
-        description: 'A senha deve ter pelo menos 6 caracteres.',
+        description: 'A senha deve ter pelo menos 8 caracteres.',
         variant: 'destructive',
       });
       return;
@@ -180,13 +180,13 @@ export default function ResetPassword() {
                 <Input
                   id="new-password"
                   type="password"
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 8 caracteres"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="pl-10"
                   required
                   autoComplete="new-password"
-                  minLength={6}
+                  minLength={8}
                 />
               </div>
             </div>

@@ -23,7 +23,7 @@ const signUpSchema = z.object({
   fullName: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   companyName: z.string().min(2, 'Nome da empresa deve ter pelo menos 2 caracteres'),
   email: z.string().email('E-mail inválido'),
-  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+  password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
 });
 
 export default function Auth() {
@@ -438,7 +438,7 @@ export default function Auth() {
                     <Input
                       id="signup-password"
                       type="password"
-                      placeholder="Mínimo 6 caracteres"
+                      placeholder="Mínimo 8 caracteres"
                       value={signUpPassword}
                       onChange={(e) => setSignUpPassword(e.target.value)}
                       className="pl-10"

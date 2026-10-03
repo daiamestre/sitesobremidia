@@ -23,9 +23,9 @@ export const perfilService = {
     try {
       const { data, error } = await supabase
         .from('auditoria_logs')
-        .select('id, acao, created_at, status_novo, observacoes')
+        .select('id, acao, created_at:data_hora, status_novo, observacoes')
         .eq('usuario_id', usuarioId)
-        .order('created_at', { ascending: false })
+        .order('data_hora', { ascending: false })
         .limit(20);
       if (error) throw error;
       return (data as HistoricoItem[]) ?? [];

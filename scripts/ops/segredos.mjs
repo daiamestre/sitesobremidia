@@ -11,7 +11,8 @@ export function carregarSegredos() {
   if (!fs.existsSync(arq)) throw new Error(`arquivo de segredos não encontrado: ${arq}`);
   for (const linha of fs.readFileSync(arq, 'utf8').split(/\r?\n/)) {
     const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(linha);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    // O arquivo é a fonte da verdade: vence qualquer variável antiga que tenha ficado no Windows (chave trocada lá não some sozinha).
+    if (m && m[2]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
 }
 

@@ -1,36 +1,59 @@
 {
-    "version": 2,
-    "rewrites": [
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/cobranca/:path*",
+      "has": [
         {
-            "source": "/cobranca/:path*",
-            "has": [
-                {
-                    "type": "header",
-                    "key": "user-agent",
-                    "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|googlebot|facebookcatalog).*"
-                }
-            ],
-            "destination": "/api/cobranca-og?path=/cobranca/:path*"
-        },
-        {
-            "source": "/logo.png",
-            "destination": "/logo-3d.png"
-        },
-        {
-            "source": "/((?!.*\\.).*)",
-            "destination": "/index.html"
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|googlebot|facebookcatalog).*"
         }
-    ],
-    "functions": {
-        "api/analise-visao.js": {
-            "maxDuration": 120,
-            "includeFiles": "{node_modules/@ffmpeg-installer/linux-x64/**,node_modules/nsfwjs/dist/models/mobilenet_v2/**,node_modules/tesseract.js/src/**,node_modules/tesseract.js-core/**}",
-            "excludeFiles": "{node_modules/nsfwjs/dist/models/inception_v3/**,node_modules/{onnxruntime-node,onnxruntime-web,@huggingface}/**}"
-        },
-        "api/analise-audio.js": {
-            "maxDuration": 120,
-            "includeFiles": "{node_modules/@ffmpeg-installer/linux-x64/**,node_modules/onnxruntime-node/bin/napi-v3/linux/x64/**}",
-            "excludeFiles": "{node_modules/onnxruntime-node/bin/napi-v3/{darwin,win32,linux/arm64}/**,node_modules/@img/*linuxmusl*/**}"
-        }
+      ],
+      "destination": "/api/cobranca-og?path=/cobranca/:path*"
+    },
+    {
+      "source": "/logo.png",
+      "destination": "/logo-3d.png"
+    },
+    {
+      "source": "/((?!.*\\.).*)",
+      "destination": "/index.html"
     }
+  ],
+  "functions": {
+    "api/analise-visao.js": {
+      "maxDuration": 120,
+      "includeFiles": "{node_modules/@ffmpeg-installer/linux-x64/**,node_modules/nsfwjs/dist/models/mobilenet_v2/**,node_modules/tesseract.js/src/**,node_modules/tesseract.js-core/**}",
+      "excludeFiles": "{node_modules/nsfwjs/dist/models/inception_v3/**,node_modules/{onnxruntime-node,onnxruntime-web,@huggingface}/**}"
+    },
+    "api/analise-audio.js": {
+      "maxDuration": 120,
+      "includeFiles": "{node_modules/@ffmpeg-installer/linux-x64/**,node_modules/onnxruntime-node/bin/napi-v3/linux/x64/**}",
+      "excludeFiles": "{node_modules/onnxruntime-node/bin/napi-v3/{darwin,win32,linux/arm64}/**,node_modules/@img/*linuxmusl*/**}"
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(self), payment=()"
+        }
+      ]
+    }
+  ]
 }

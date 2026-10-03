@@ -128,11 +128,13 @@ export class CustomerPortalDataService {
       const limiteTelas = contrato?.max_telas || null;
 
       // 2. Buscar PIs ativos do cliente
-      const { data: pis } = await supabase
-        .from('pedidos_insercao')
-        .select('id')
-        .eq('contrato_id', contrato?.id)
-        .in('status', ['EM_EXIBICAO', 'APROVADO', 'EM_VEICULACAO']);
+      const { data: pis } = contrato?.id
+        ? await supabase
+          .from('pedidos_insercao')
+          .select('id')
+          .eq('contrato_id', contrato.id)
+          .in('status', ['EM_EXIBICAO', 'APROVADO', 'EM_VEICULACAO'])
+        : { data: [] as { id: string }[] };
 
       const piIds = pis?.map(p => p.id) || [];
 
@@ -208,11 +210,13 @@ export class CustomerPortalDataService {
       const limiteTelas = contrato?.max_telas || null;
 
       // 2. Buscar PIs ativos do cliente
-      const { data: pis } = await supabase
-        .from('pedidos_insercao')
-        .select('id')
-        .eq('contrato_id', contrato?.id)
-        .in('status', ['EM_EXIBICAO', 'APROVADO', 'EM_VEICULACAO']);
+      const { data: pis } = contrato?.id
+        ? await supabase
+          .from('pedidos_insercao')
+          .select('id')
+          .eq('contrato_id', contrato.id)
+          .in('status', ['EM_EXIBICAO', 'APROVADO', 'EM_VEICULACAO'])
+        : { data: [] as { id: string }[] };
 
       const piIds = pis?.map(p => p.id) || [];
 

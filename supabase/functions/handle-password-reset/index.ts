@@ -72,8 +72,8 @@ serve(async (req: Request): Promise<Response> => {
         return json(400, { ok: false, error: "Token, e-mail e nova senha são obrigatórios." });
       }
 
-      if (newPassword.length < 6) {
-        return json(400, { ok: false, error: "A senha deve ter pelo menos 6 caracteres." });
+      if (newPassword.length < 8) {
+        return json(400, { ok: false, error: "A senha deve ter pelo menos 8 caracteres." });
       }
 
       const tokenHash = await hashToken(token);
