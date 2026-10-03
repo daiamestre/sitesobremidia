@@ -1605,3 +1605,27 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova (produção):** fila devolve os mesmos 34 boletos e 18 PIX do motor antigo; após a 1ª rodada os 20 códigos inválidos saíram do ciclo (rodada seguinte: 14 consultados, 0 erro); usuário comum não acessa fila nem funções; emissão com cadastro sem CEP/UF → 422 "Complete: CEP, estado (UF)", cobrança sem trava e sem código; consulta pública → `disponivel:false, motivo:CADASTRO_INCOMPLETO`; resposta do Player idêntica (5 telas).
 - **Testes:** `pagadorBoleto.test.ts` (11).
 - **Limite honesto:** nenhum boleto real foi emitido no teste (geraria cobrança de verdade no banco). A emissão com cadastro completo usa o mesmo envio que já funcionava, trocando só o bloco do pagador; a primeira emissão real deve ser conferida pelo proprietário. Dos 193 clientes, 113 têm CEP e 92 têm endereço completo — os demais precisam completar o cadastro para ter boleto (PIX funciona para todos).
+
+### F-123 — Comprovante de exibição permanente e históricos técnicos com prazo — DONE
+- **Achados:** `playback_logs` (uma linha por exibição) era apagada após 20 dias sem guardar resumo — o comprovante do anunciante sumia e os totais do painel encolhiam sozinhos. `player_heartbeats` (~860 linhas/tela/dia) e o histórico das rotinas agendadas nunca eram limpos (com 100 telas, ~8 GB/ano só de sinal de vida). `playback_logs` tinha 10 índices, 5 repetidos.
+- **Correção (migração `20261289`):** tabela `exibicoes_diarias` (dia, tela, mídia, exibições, segundos); a faxina diária resume **na mesma operação** em que apaga (`DELETE … RETURNING` → soma com `ON CONFLICT`), então não perde nem conta em dobro; `fn_playback_totals` e `fn_playback_stats` somam linhas recentes + resumo (por hora usa só as recentes). Prazos: sinal de vida 15 dias, telemetria 30, registros do aparelho 90, monitoramento 180, histórico das rotinas 14. Auditoria e segurança não são apagadas. 5 índices repetidos removidos. Faxina só pelo servidor.
+- **Prova:** simulação com rollback — 907 exibições envelhecidas viram 20 linhas de resumo; total antes/depois = 907/907; relatório por dia idêntico; segunda faxina não altera; ADMIN lê e não grava; usuário comum não roda a faxina. Em produção: totais iguais, 5 índices, resposta do Player idêntica (5 telas).
+- **Mantido de propósito:** a leitura do resumo segue a mesma regra das exibições (o portal do anunciante usa esses totais para "última exibição" das telas contratadas).
+- **Testes:** `historicoExibicoes.test.ts` (5).
+
+### F-124 — Quebras em uso real achadas na validação global — DONE
+- **Cadastro de gestor:** `GestorMidiiasProspeccaoPage` usava os ícones `FileText` e `PenTool` sem importar — a tela de sucesso/contrato quebrava. Importados.
+- **Cancelar cobrança (`ReceivableDetails`):** chamava `financeiroService.updateContaReceber`, que não existe — o botão sempre respondia "não foi possível cancelar". Passa a usar `cancelarCobranca` e mostra o erro real.
+- **Pagamento em cobrança cancelada (migração `20261290`):** cancelar no sistema não cancela o boleto/PIX no banco; o pagamento que chegava depois era descartado sem registro. A cobrança continua cancelada, mas o recebimento fica anotado nela e em `financeiro_auditoria` (`PAGAMENTO_EM_COBRANCA_CANCELADA`), uma vez por transação. Simulado com rollback (1 registro em 2 chamadas; caminho normal segue quitando).
+- **NOC:** a lista de exibições pedia uma ligação inexistente (`playback_logs` → `screens`) e filtrava por empresa, campo que o Player não grava (erro 400); os indicadores contavam no navegador e, em caso de erro, mostravam **números inventados** (3 players, 66,7 %…). Agora conta no banco as últimas 24 h, busca o nome da tela à parte e, em erro, mostra zero.
+- **Testes:** `validacaoGlobalF124.test.ts` (4).
+
+### F-125 — Tabelas abertas a visitante anônimo — DONE
+- **Achados (segurança):**
+  - `perfis` sem proteção por linha e com permissão de alterar/apagar para qualquer pessoa com a chave pública do site (renomear um perfil daria poderes de administrador a todos daquele perfil; apagar derrubaria o sistema).
+  - `contrato_versoes` com leitura e gravação liberadas a todos (`USING (true)`): 44 versões com o texto completo dos contratos e dados dos clientes.
+  - 13 tabelas antigas, vazias e sem uso, abertas para gravação anônima.
+- **Correção (migração `20261291`, só restringe):** `perfis` — logado lê, ninguém altera pela API; `contrato_versoes` — lê e grava quem enxerga o contrato; tabelas antigas — proteção ligada e acesso só do servidor.
+- **Prova:** antes, visitante anônimo lia 44 versões e 12 perfis; depois, API pública responde 401 em `contrato_versoes` e `timeline` e lista vazia em `perfis`. ADMIN lê 12 perfis, vê 34 versões (só as da empresa), grava versão de contrato da empresa e é negado em contrato alheio; anunciante não grava; outra empresa vê só as dela (10). Painel conferido no navegador (usuários com nome do perfil, clientes, contratos, cadastros) e Player idêntico.
+- **Testes:** `tabelasFechadasF125.test.ts` (4).
+- **Anotado, sem alterar (precisa de teste no aparelho):** `fn_player_report_telemetry` aceita chamada sem conferir quem chama (quem souber o identificador de uma tela consegue marcá-la como online). Fechar isso muda o caminho do sinal de vida do Player e deve passar pelo canário.

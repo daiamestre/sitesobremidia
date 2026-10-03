@@ -27,7 +27,11 @@ export function ReceivableDetails({ conta, onBack, onPaymentSuccess }: Receivabl
     if (!confirm('Tem certeza que deseja cancelar esta cobrança?')) return;
     try {
       setIsCanceling(true);
-      await financeiroService.updateContaReceber(conta.id, { status: 'CANCELADO' });
+      const resultado = await financeiroService.cancelarCobranca(conta.id);
+      if (!resultado.success) {
+        toast({ title: 'Erro', description: resultado.error || 'Não foi possível cancelar a cobrança.', variant: 'destructive' });
+        return;
+      }
       toast({ title: 'Cobrança Cancelada', description: 'A cobrança foi cancelada com sucesso.' });
       onPaymentSuccess(); // refresh
     } catch (error) {

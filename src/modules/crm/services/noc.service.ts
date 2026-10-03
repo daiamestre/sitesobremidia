@@ -77,13 +77,15 @@ export class NocService {
       if (empresaOperadoraId) alertQuery = alertQuery.eq('empresa_operadora_id', empresaOperadoraId);
       const { count: alertasCriticos } = await alertQuery;
 
-      let logsQuery = supabase.from('playback_logs').select('id, resultado', { count: 'exact' });
-      if (empresaOperadoraId) logsQuery = logsQuery.eq('empresa_operadora_id', empresaOperadoraId);
-      const { data: logsData } = await logsQuery;
-      const logs = logsData || [];
-
-      const exibicoes24h = logs.length;
-      const falhas24h = logs.filter((l) => l.resultado === 'ERROR').length;
+      // F-124: contagem feita no banco, só das últimas 24 h. As exibições não gravam a empresa — quem limita o que
+      // cada usuário enxerga é a regra de acesso da tela (RLS), então não se filtra por empresa aqui.
+      const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const [{ count: totalExibicoes }, { count: totalFalhas }] = await Promise.all([
+        supabase.from('playback_logs').select('id', { count: 'exact', head: true }).gte('started_at', desde),
+        supabase.from('playback_logs').select('id', { count: 'exact', head: true }).gte('started_at', desde).eq('resultado', 'ERROR'),
+      ]);
+      const exibicoes24h = totalExibicoes || 0;
+      const falhas24h = totalFalhas || 0;
 
       return {
         totalPlayers,
@@ -95,15 +97,8 @@ export class NocService {
         falhas24h,
       };
     } catch (err) {
-      return {
-        totalPlayers: 3,
-        onlinePlayers: 2,
-        offlinePlayers: 1,
-        disponibilidadePct: 66.7,
-        alertasCriticos: 1,
-        exibicoes24h: 2,
-        falhas24h: 0,
-      };
+      // F-124: falha de consulta não vira número inventado
+      return { totalPlayers: 0, onlinePlayers: 0, offlinePlayers: 0, disponibilidadePct: 0, alertasCriticos: 0, exibicoes24h: 0, falhas24h: 0 };
     }
   }
 
@@ -143,16 +138,29 @@ export class NocService {
 
   async getPlaybackLogs(empresaOperadoraId?: string): Promise<PlaybackLogItem[]> {
     try {
-      let query = supabase.from('playback_logs').select(`
+      // F-124: playback_logs não tem ligação formal com screens (o Player grava o identificador como texto) e não
+      // grava a empresa — a consulta antiga respondia erro 400. O nome da tela é buscado à parte.
+      void empresaOperadoraId;
+      const { data, error } = await supabase.from('playback_logs').select(`
         *,
-        agendamento:agendamentos(titulo),
-        screen:screens(name, location)
+        agendamento:agendamentos(titulo)
       `).order('started_at', { ascending: false }).limit(20);
+      if (error || !data) return [];
 
-      if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
-
-      const { data } = await query;
-      return (data || []) as PlaybackLogItem[];
+      const ids = [...new Set(data.map((l) => String(l.screen_id || '')).filter(Boolean))];
+      const ehUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+      const uuids = ids.filter(ehUuid);
+      const codigos = ids.filter((v) => !ehUuid(v));
+      const telas = new Map<string, { name: string; location: string | null }>();
+      if (uuids.length) {
+        const { data: porId } = await supabase.from('screens').select('id, name, location').in('id', uuids);
+        for (const t of porId || []) telas.set(String(t.id), { name: t.name, location: t.location });
+      }
+      if (codigos.length) {
+        const { data: porCodigo } = await supabase.from('screens').select('custom_id, name, location').in('custom_id', codigos);
+        for (const t of porCodigo || []) if (t.custom_id) telas.set(String(t.custom_id), { name: t.name, location: t.location });
+      }
+      return data.map((l) => ({ ...l, screen: telas.get(String(l.screen_id || '')) || null })) as unknown as PlaybackLogItem[];
     } catch (err) {
       return [];
     }

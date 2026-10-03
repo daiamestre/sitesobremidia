@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  MonitorPlay, ArrowLeft, ArrowRight, Loader2, CheckCircle2, KeyRound,
+  MonitorPlay, ArrowLeft, ArrowRight, Loader2, CheckCircle2, KeyRound, FileText, PenTool,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

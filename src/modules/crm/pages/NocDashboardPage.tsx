@@ -359,7 +359,7 @@ export default function NocDashboardPage() {
                     <div className="space-y-0.5">
                       <strong className="text-white block">{log.agendamento?.titulo || 'Campanha em Exibição'}</strong>
                       <span className="text-[11px] text-slate-400 block">
-                        Tela: {log.screen?.name || 'LED Shopping Avenida'} | {log.duracao_segundos || 15}s
+                        Tela: {log.screen?.name || 'não identificada'}{log.duracao_segundos ? ` | ${log.duracao_segundos}s` : ''}
                       </span>
                     </div>
 
