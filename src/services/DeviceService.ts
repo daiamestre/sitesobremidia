@@ -1,25 +1,40 @@
 import { supabase } from '@/integrations/supabase/client';
 
-/**
- * Busca dispositivos que estão offline ou que não enviam heartbeat há mais de 120 segundos.
- * Ferramenta essencial para suporte proativo antes da reclamação do cliente.
- */
-export const fetchAlertDevices = async () => {
-    const { data, error } = await supabase
-        .from('devices')
-        // [FIX 20261102] Colunas reais da tabela devices (status/registered_at
-        // nunca existiram -> PGRST 400 e painel de alertas sempre vazio).
-        .select('id, name, model, screen_id, is_online, last_seen, last_heartbeat, storage_available')
-        // Filtra dispositivos offline ou com heartbeat atrasado (limite de 2 minutos)
-        .or(`last_heartbeat.lt.${new Date(Date.now() - 120000).toISOString()},last_seen.lt.${new Date(Date.now() - 120000).toISOString()}`)
-        .order('last_heartbeat', { ascending: false, nullsFirst: false });
+export interface AlertaDeAparelho {
+  id: string;
+  name: string | null;
+  model: string | null;
+  screen_id: string | null;
+  /** Nome da tela a que o aparelho está pareado hoje. */
+  tela: string | null;
+  is_online: boolean | null;
+  last_seen: string | null;
+  last_heartbeat: string | null;
+  storage_available: number | null;
+}
 
+/**
+ * F-141 — Alertas de aparelhos sem sinal há mais de 2 minutos.
+ * Quem decide é o banco (fn_alertas_dispositivos): só o aparelho pareado HOJE a cada tela (registros antigos de
+ * pareamento não geram alerta), só as telas que o usuário pode gerir e só os alertas ainda não dispensados.
+ */
+export const fetchAlertDevices = async (): Promise<AlertaDeAparelho[]> => {
+    const { data, error } = await supabase.rpc('fn_alertas_dispositivos' as never);
     if (error) {
         console.error('Erro ao buscar alertas de dispositivos:', error);
         return [];
     }
+    return (data as unknown as AlertaDeAparelho[]) ?? [];
+};
 
-    return data;
+/**
+ * F-141 — Dispensa o alerta de um aparelho (ou de todos, sem argumento). O alerta volta sozinho se o aparelho
+ * der sinal de novo e cair outra vez. Devolve quantos alertas foram dispensados.
+ */
+export const dispensarAlerta = async (deviceId?: string): Promise<number> => {
+    const { data, error } = await supabase.rpc('fn_dispensar_alerta_dispositivo' as never, { p_device: deviceId ?? null } as never);
+    if (error) throw new Error(error.message);
+    return Number(data ?? 0);
 };
 
 /**

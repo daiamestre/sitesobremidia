@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { Monitor, ListVideo, Image, Calendar, TrendingUp, Clock, AlertTriangle, RefreshCw, Trash2, Camera } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { fetchAlertDevices, sendRemoteCommand, fetchFleetSummary } from '@/services/DeviceService';
+import { fetchAlertDevices, sendRemoteCommand, fetchFleetSummary, dispensarAlerta } from '@/services/DeviceService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -34,11 +34,25 @@ export default function DashboardHome() {
   }, []);
 
   const handleRemoteCommand = async (deviceId: string, command: 'REBOOT_APP' | 'CLEAR_CACHE' | 'TAKE_SCREENSHOT') => {
+    const nome = { REBOOT_APP: 'Reiniciar', CLEAR_CACHE: 'Sincronizar', TAKE_SCREENSHOT: 'Captura de tela' }[command];
     try {
       await sendRemoteCommand(deviceId, command);
-      toast.success(`Comando ${command} enviado com sucesso!`);
+      toast.success(`Comando "${nome}" enviado. O aparelho executa quando voltar a ter sinal.`);
     } catch (e) {
-      toast.error(`Falha ao enviar comando: ${e}`);
+      toast.error(`Não foi possível enviar o comando: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  // F-141: "Limpar" tira o alerta da tela (antes mandava um comando de limpar cache e o aviso nunca saía).
+  // O alerta volta sozinho se o aparelho der sinal de novo e cair outra vez.
+  const handleDispensar = async (deviceId?: string) => {
+    try {
+      const n = await dispensarAlerta(deviceId);
+      if (n === 0) { toast.error('Nenhum alerta foi limpo: você não tem permissão sobre este aparelho ou ele já saiu da lista.'); return; }
+      setAlerts((atuais) => (deviceId ? atuais.filter((a) => a.id !== deviceId) : []));
+      toast.success(deviceId ? 'Alerta limpo.' : `${n} alerta(s) limpo(s).`);
+    } catch (e) {
+      toast.error(`Não foi possível limpar o alerta: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -135,8 +149,11 @@ export default function DashboardHome() {
           <Alert variant="destructive" className="glass border-red-500/50 animate-pulse">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Atenção: Central de Alertas Operacionais</AlertTitle>
-            <AlertDescription>
-              Existem {alerts.length} dispositivos exigindo atenção imediata.
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              <span>{alerts.length === 1 ? 'Há 1 aparelho sem sinal.' : `Há ${alerts.length} aparelhos sem sinal.`}</span>
+              <Button size="sm" variant="outline" className="h-8 gap-1 text-[11px]" onClick={() => handleDispensar()} data-testid="limpar-todos-alertas">
+                <Trash2 className="h-3 w-3" /> Limpar todos
+              </Button>
             </AlertDescription>
           </Alert>
 
@@ -150,8 +167,8 @@ export default function DashboardHome() {
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <h3 className="font-bold">{device.name || 'Dispositivo Sem Nome'}</h3>
-                        <p className="text-xs text-muted-foreground">{device.id}</p>
+                        <h3 className="font-bold">{device.tela || device.name || 'Tela sem nome'}</h3>
+                        <p className="text-xs text-muted-foreground">Aparelho: {device.model || device.name || 'não identificado'}</p>
                       </div>
                       <div className={`px-2 py-1 rounded text-[10px] uppercase font-bold ${severity === 'critical' ? 'bg-red-500/20 text-red-500' : 'bg-yellow-500/20 text-yellow-600'}`}>
                         {severity === 'critical' ? 'CRÍTICO (+10m)' : 'ATENÇÃO (Oscilando)'}
@@ -165,17 +182,17 @@ export default function DashboardHome() {
                           <span>Armazenamento Baixo: {((device.storage_available ?? 0) / (1024 * 1024)).toFixed(0)} MB</span>
                         </div>
                       )}
-                      <p className="text-xs">Visto por último: {device.last_heartbeat ? new Date(device.last_heartbeat).toLocaleTimeString() : 'Nunca'}</p>
+                      <p className="text-xs">Visto por último: {device.last_heartbeat ? new Date(device.last_heartbeat).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'nunca'}</p>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" className="h-8 text-[11px] gap-1" onClick={() => handleRemoteCommand(device.id, 'REBOOT_APP')}>
                         <RefreshCw className="h-3 w-3" /> Reiniciar
                       </Button>
                       <Button size="sm" variant="outline" className="h-8 text-[11px] gap-1" onClick={() => handleRemoteCommand(device.id, 'TAKE_SCREENSHOT')}>
                         <Camera className="h-3 w-3" /> Screenshot
                       </Button>
-                      <Button size="sm" variant="outline" className="h-8 text-[11px] gap-1 text-red-400 hover:text-red-300" onClick={() => handleRemoteCommand(device.id, 'CLEAR_CACHE')}>
+                      <Button size="sm" variant="outline" className="h-8 text-[11px] gap-1 text-red-400 hover:text-red-300" onClick={() => handleDispensar(device.id)} data-testid="limpar-alerta">
                         <Trash2 className="h-3 w-3" /> Limpar
                       </Button>
                     </div>

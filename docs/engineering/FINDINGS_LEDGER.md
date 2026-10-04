@@ -1722,3 +1722,10 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:** simulação com rollback (anunciante exclui só membro da própria equipe; ADMIN exclui gestor e é recusado para o dono, para si e para outra empresa; gestor some da lista). **Ponta a ponta em produção** com um usuário descartável de teste (`p0.ui…@sobremidia.test`): cadastro arquivado e inativo, login encerrado, e-mail livre para novo cadastro; segunda tentativa → "não encontrado"; dono e a própria conta → recusados.
 - **Limite honesto:** chamados do portal não têm tela de lista no sistema — a exclusão existe no banco, mas não há onde pôr o botão.
 - **Testes:** `exclusaoUsuarioEMaisTipos.test.tsx` (6).
+
+### F-141 — Central de Alertas Operacionais: "Limpar" não apagava e a lista mostrava aparelhos antigos — DONE
+- **Relato:** na tela do gestor, clicar em "Limpar" no alerta não apaga o aviso.
+- **Causa:** (1) o botão "Limpar" mandava ao aparelho um comando de limpar cache — nunca dispensava o alerta; (2) a lista vinha direto da tabela `devices`: todo registro antigo de pareamento (aparelho trocado, tela apagada) aparecia como "CRÍTICO" para sempre — 32 alertas para 5 aparelhos realmente pareados; (3) quem não administra as telas da empresa via os aparelhos de todas as telas.
+- **Correção:** migração `20261301` — `devices.alerta_dispensado_em`; `fn_alertas_dispositivos` (só o aparelho pareado hoje a cada tela, não revogado, não dispensado, e só telas que o usuário gere; gestor só as próprias); `fn_dispensar_alerta_dispositivo` (um ou todos). Tela: "Limpar" dispensa o alerta, novo "Limpar todos", cartão com o nome da tela e data/hora do último sinal. O alerta volta sozinho se o aparelho der sinal de novo e cair outra vez.
+- **Prova:** simulação com rollback (ADMIN 32→2 alertas reais; dispensa 1→1, todos→0; alerta volta após novo sinal; gestor sem telas e anunciante: 0). Navegador (800 px): 2 alertas, "Limpar" remove o cartão ("Alerta limpo."); a dispensa do teste foi desfeita no banco. Resposta do Player idêntica (5 telas).
+- **Testes:** em `exclusaoUsuarioEMaisTipos.test.tsx` (+2).

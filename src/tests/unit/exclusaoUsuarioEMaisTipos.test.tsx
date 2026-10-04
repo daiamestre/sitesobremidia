@@ -83,3 +83,25 @@ describe('Exclusão de usuário e novos tipos (F-140)', () => {
     expect(usuarios).toContain('{!u.is_owner && u.id !== usuario?.id && (');
   });
 });
+
+describe('Central de Alertas: só o aparelho atual e "Limpar" dispensa (F-141)', () => {
+  const sql = ler('supabase/migrations/20261301_alertas_de_aparelhos.sql');
+  it('banco: só o aparelho pareado hoje, não dispensado, e só telas que o usuário gere', () => {
+    expect(sql).toContain('AND s.bound_device_id = d.identity_hash');
+    expect(sql).toContain('AND d.revoked_at IS NULL');
+    expect(sql).toContain('(d.alerta_dispensado_em IS NULL OR greatest(d.last_heartbeat, d.last_seen) > d.alerta_dispensado_em)');
+    expect(sql).toContain('(NOT public.fn_perfil_sem_gestao_de_telas() OR s.user_id = auth.uid())');
+    expect(sql).toContain('WHERE d.id IN (SELECT a.id FROM public.fn_alertas_dispositivos() a)');
+    expect(sql).toContain('REVOKE ALL ON FUNCTION public.fn_alertas_dispositivos() FROM PUBLIC, anon;');
+  });
+  it('tela: "Limpar" dispensa o alerta (não manda mais comando ao aparelho) e existe "Limpar todos"', () => {
+    const tela = ler('src/pages/dashboard/DashboardHome.tsx');
+    expect(tela).toContain('onClick={() => handleDispensar(device.id)} data-testid="limpar-alerta"');
+    expect(tela).toContain('onClick={() => handleDispensar()} data-testid="limpar-todos-alertas"');
+    expect(tela).not.toContain("handleRemoteCommand(device.id, 'CLEAR_CACHE')");
+    const servico = ler('src/services/DeviceService.ts');
+    expect(servico).toContain("supabase.rpc('fn_alertas_dispositivos' as never)");
+    expect(servico).toContain("supabase.rpc('fn_dispensar_alerta_dispositivo' as never, { p_device: deviceId ?? null } as never)");
+    expect(servico).not.toContain(".from('devices')\n        // [FIX 20261102]");
+  });
+});
