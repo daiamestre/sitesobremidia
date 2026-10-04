@@ -1701,3 +1701,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 ### F-138 — Esteira do GitHub sempre falhando — DONE
 - **Causas:** (1) `npm ci` quebrava no início: a esteira usava Node 22 (npm 10) e o `package-lock.json` é gerado no Node 24 (npm 11, o mesmo da Vercel) — os dois leem o arquivo de formas diferentes; como a 1ª etapa falhava, todas as outras eram canceladas. (2) "Deploy Supabase Edge Functions" falhava por não haver a chave cadastrada no GitHub.
 - **Correção:** esteira no Node 24; 3 erros de lint corrigidos; testes ajustados; publicação de funções pula com aviso quando a chave não está cadastrada (as funções são publicadas manualmente).
+
+### F-139 — Assinatura da Sobre Mídia (dono/administrador) nos contratos — DONE
+- **Pedido:** dono/administrador assinar pela empresa na criação de anunciante, gestor de mídias ou ponto parceiro — ou deixar para depois; na Central de Assinatura, uma fila "Aguardando assinatura Sobre Mídia", como já existe para o cliente.
+- **Correção:**
+  - migração `20261299`: `contratos.empresa_assinado_em/por/signatario_nome`; tabela `contrato_assinatura_empresa` (imagem da assinatura; só o servidor grava); `fn_assinar_contrato_pela_empresa` (dono/administrador da própria empresa, uma vez por contrato, registra na auditoria `CONTRATO_ASSINADO_EMPRESA`); `fn_contratos_aguardando_empresa` (fila).
+  - `AssinaturaEmpresa` (bloco com estado + "Assinar pela Sobre Mídia", usando o mesmo modal de desenho/digitação do cliente) nos três cadastros; `AguardandoSobreMidia` (fila + contador) na Central; a lista antiga passa a se chamar "Aguardando assinatura do cliente".
+  - o campo `ASSINATURA_SOBRE_MIDIA` do modelo de contrato passa a mostrar "Assinado digitalmente por … em …" nos documentos gerados depois da assinatura.
+- **Prova:** simulação com rollback (anunciante e outra empresa recusados; ADMIN assina, segunda tentativa recusada, fila 69→68; gravação direta na tabela negada). Navegador (800 px): fila com 69 contratos, contador, modal abre com o nome do signatário. Nenhum contrato real foi assinado no teste.
+- **Limites honestos:** (1) o PDF que o cliente já assinou não é regerado (mudaria o documento assinado); nele a assinatura da empresa fica registrada no sistema e na auditoria, não dentro do arquivo. (2) Os 69 contratos antigos aparecem todos na fila, porque nenhum tinha assinatura da empresa.
+- **Corrigido junto:** "Cadastrar outro ponto" zerava o formulário mas reaproveitaria o ponto/contrato do cadastro anterior (efeito colateral da F-137).
+- **Testes:** `assinaturaEmpresa.test.tsx` (8).

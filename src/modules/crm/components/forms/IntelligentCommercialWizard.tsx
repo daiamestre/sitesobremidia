@@ -1,3 +1,4 @@
+import { AssinaturaEmpresa } from '@/modules/crm/components/signature/AssinaturaEmpresa';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -1679,6 +1680,9 @@ export function IntelligentCommercialWizard() {
                 )}
               </div>
             </div>
+
+            {/* F-139: o dono/administrador assina pela Sobre Mídia agora ou deixa para depois */}
+            <AssinaturaEmpresa contratoId={contratoIdSalvo} className="mt-4" />
 
             {dialogAssinaturaOpen && (
               <AssinaturaContratoDialog

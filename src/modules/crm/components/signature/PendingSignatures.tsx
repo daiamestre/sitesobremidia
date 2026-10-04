@@ -115,7 +115,7 @@ export function PendingSignatures({ pendentes, onAssinaturaEvent }: { pendentes:
       <CardHeader className="pb-3 border-b border-white/10">
         <CardTitle className="text-base font-bold text-white flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-amber-400" /> Assinaturas Pendentes ({pendentes.length})
+            <Clock className="h-4 w-4 text-amber-400" /> Aguardando assinatura do cliente ({pendentes.length})
           </span>
         </CardTitle>
       </CardHeader>

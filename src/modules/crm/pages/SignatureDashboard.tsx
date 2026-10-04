@@ -9,6 +9,8 @@ import { FileCheck, Clock, CheckCircle2, Loader2, ArrowLeft, Send } from 'lucide
 import { PendingSignatures } from '../components/signature/PendingSignatures';
 import { SignedContracts } from '../components/signature/SignedContracts';
 import { WebhookMonitor } from '../components/signature/WebhookMonitor';
+import { AguardandoSobreMidia } from '../components/signature/AguardandoSobreMidia';
+import { Building2 } from 'lucide-react';
 
 export default function SignatureDashboard() {
   const navigate = useNavigate();
@@ -16,6 +18,8 @@ export default function SignatureDashboard() {
   const { empresaOperadoraId } = useAuth();
   const [assinaturas, setAssinaturas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // F-139: contratos que ainda não têm a assinatura da Sobre Mídia
+  const [aguardandoEmpresa, setAguardandoEmpresa] = useState(0);
 
   const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
 
@@ -58,15 +62,27 @@ export default function SignatureDashboard() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
           <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
             <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               <Clock className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-slate-400 text-xs block font-semibold">Envelopes Pendentes</span>
+              <span className="text-slate-400 text-xs block font-semibold">Aguardando cliente</span>
               <strong className="text-xl font-bold text-amber-400">{pendentes.length}</strong>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
+          <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
+            <div className="p-2 xl:p-3 shrink-0 rounded-2xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
+              <Building2 className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="text-slate-400 text-xs block font-semibold">Aguardando Sobre Mídia</span>
+              <strong className="text-xl font-bold text-sky-400" data-testid="contador-sobre-midia">{aguardandoEmpresa}</strong>
             </div>
           </CardContent>
         </Card>
@@ -95,6 +111,8 @@ export default function SignatureDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <AguardandoSobreMidia onContagem={setAguardandoEmpresa} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <PendingSignatures pendentes={pendentes} onAssinaturaEvent={fetchSignatures} />

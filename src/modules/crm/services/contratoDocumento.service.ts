@@ -2237,7 +2237,10 @@ export function montarDadosTemplate(dados: DadosDocumentoContrato): Record<strin
     NUMERO_CONTRATO:              contrato?.numero_contrato || '',
     VERSAO_CONTRATO:              String(contrato?.versao_atual || 1),
     TIPO_CONTRATO:                tipoContrato,
-    ASSINATURA_SOBRE_MIDIA:  '',
+    // F-139: preenchido quando o dono/administrador já assinou pela Sobre Mídia
+    ASSINATURA_SOBRE_MIDIA:  (contrato as { empresa_assinado_em?: string | null; empresa_signatario_nome?: string | null } | null)?.empresa_assinado_em
+      ? `Assinado digitalmente por ${(contrato as { empresa_signatario_nome?: string | null }).empresa_signatario_nome || 'SOBRE MÍDIA'} em ${new Date((contrato as { empresa_assinado_em: string }).empresa_assinado_em).toLocaleString('pt-BR')}`
+      : '',
     ASSINATURA_CONTRATANTE:  '',
     ASSINATURA_PARCEIRO:     '',
   };

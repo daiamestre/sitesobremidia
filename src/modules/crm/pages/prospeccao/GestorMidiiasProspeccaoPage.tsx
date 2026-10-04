@@ -1,3 +1,4 @@
+import { AssinaturaEmpresa } from '@/modules/crm/components/signature/AssinaturaEmpresa';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -109,6 +110,8 @@ export default function GestorMidiiasProspeccaoPage() {
                 <FileText className="h-3.5 w-3.5 mr-1" /> Contrato ID: {credencial.contratoId}
               </Badge>
             )}
+            {/* F-139: o dono/administrador assina pela Sobre Mídia agora ou deixa para depois */}
+            <AssinaturaEmpresa contratoId={credencial.contratoId} className="mx-auto max-w-md text-left" />
             <div className="rounded-lg border border-amber-300/40 bg-amber-50 p-4 space-y-2 text-left max-w-md mx-auto">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 flex items-center gap-1.5">
                 <KeyRound className="h-3.5 w-3.5" /> Credencial inicial — exibida apenas agora

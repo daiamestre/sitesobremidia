@@ -1,3 +1,4 @@
+import { AssinaturaEmpresa } from '@/modules/crm/components/signature/AssinaturaEmpresa';
 import { useState, useEffect, useMemo, useId, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -372,6 +373,7 @@ export default function PontoParceiroWizardPage() {
           setSalvando(false);
           return;
         }
+        setContratoIdSalvo(resCt.contratoId);
 
         // Geração atômica de Snapshot / PDF / R2
         try {
@@ -429,9 +431,11 @@ export default function PontoParceiroWizardPage() {
               O estabelecimento ja esta disponivel para selecao nas prospecoes de anunciantes
               e aparecera no marketplace Pontos para Anunciar.
             </p>
+            {/* F-139: assinatura da Sobre Mídia — agora ou depois, pela Central de Assinatura */}
+            <AssinaturaEmpresa contratoId={contratoIdSalvo} className="mx-auto max-w-md text-left" />
             <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
               <button
-                onClick={() => { setForm(VAZIO); setFotoCapa(''); setFotos([]); setConcluido(null); setPasso(1); }}
+                onClick={() => { pontoSalvo.current = null; setContratoIdSalvo(null); setForm(VAZIO); setFotoCapa(''); setFotos([]); setConcluido(null); setPasso(1); }}
                 className="px-5 py-2.5 rounded-xl border border-white/10 text-slate-200 text-sm hover:bg-white/5"
               >
                 Cadastrar outro ponto
@@ -716,6 +720,9 @@ export default function PontoParceiroWizardPage() {
               </div>
             </div>
           )}
+
+          {/* F-139: o dono/administrador assina pela Sobre Mídia agora ou deixa para depois */}
+          {passo === 7 && <AssinaturaEmpresa contratoId={contratoIdSalvo} className="mt-4" />}
 
           {dialogAssinaturaOpen && (
             <AssinaturaContratoDialog
