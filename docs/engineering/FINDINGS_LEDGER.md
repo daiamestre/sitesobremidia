@@ -1712,3 +1712,13 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Limites honestos:** (1) o PDF que o cliente já assinou não é regerado (mudaria o documento assinado); nele a assinatura da empresa fica registrada no sistema e na auditoria, não dentro do arquivo. (2) Os 69 contratos antigos aparecem todos na fila, porque nenhum tinha assinatura da empresa.
 - **Corrigido junto:** "Cadastrar outro ponto" zerava o formulário mas reaproveitaria o ponto/contrato do cadastro anterior (efeito colateral da F-137).
 - **Testes:** `assinaturaEmpresa.test.tsx` (8).
+
+### F-140 — Exclusão de usuário (gestor de mídias, equipe do anunciante), nota fiscal, comissão, chamado e contato — DONE
+- **Pedido:** fechar o que ainda estava sem excluir (lista da F-136).
+- **Correção:**
+  - migração `20261300`: `fn_excluir_usuario` — dono/administrador excluem usuários da própria empresa (administrador não exclui administrador; ninguém exclui o dono nem a si mesmo); o titular da conta do cliente exclui membros da própria equipe. Recusa representante com carteira e usuário com tela pareada. Não apaga fisicamente: arquiva, desativa, tira permissões, pausa as telas e troca o e-mail por um marcador. `fn_excluir_registro` ganha `NOTA_FISCAL` (não emitida), `COMISSAO` (não paga) e `CHAMADO`.
+  - função de borda `excluir-usuario`: chama o banco com a sessão de quem pediu e só então encerra a conta de login (exclusão lógica — libera o e-mail).
+  - `BotaoExcluir` com os novos tipos, ligado em: Central de Usuários, contas antigas do painel, equipe do anunciante, notas fiscais, comissões (lista e painel) e contatos do cliente. Gestor de mídias e funcionários são excluídos pela Central de Usuários; representante já tinha (F-136).
+- **Prova:** simulação com rollback (anunciante exclui só membro da própria equipe; ADMIN exclui gestor e é recusado para o dono, para si e para outra empresa; gestor some da lista). **Ponta a ponta em produção** com um usuário descartável de teste (`p0.ui…@sobremidia.test`): cadastro arquivado e inativo, login encerrado, e-mail livre para novo cadastro; segunda tentativa → "não encontrado"; dono e a própria conta → recusados.
+- **Limite honesto:** chamados do portal não têm tela de lista no sistema — a exclusão existe no banco, mas não há onde pôr o botão.
+- **Testes:** `exclusaoUsuarioEMaisTipos.test.tsx` (6).

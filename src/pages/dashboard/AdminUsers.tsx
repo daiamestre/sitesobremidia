@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -353,6 +354,10 @@ export default function AdminUsers() {
                             <TableCell>{getStatusBadge(profile.status)}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-2">
+                                {profile.user_id !== user?.id && (
+                                  <BotaoExcluir tipo="USUARIO" id={profile.user_id} nome={profile.full_name || profile.email} onExcluido={fetchUsersAndRequests}
+                                    aviso="O acesso dele é encerrado e as telas dele são pausadas." />
+                                )}
                                 {profile.status !== 'approved' && (
                                   <Button
                                     size="sm"

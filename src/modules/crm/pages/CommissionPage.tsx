@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { financeiroService, ComissaoRecord } from '../services/financeiro.service';
@@ -100,7 +101,10 @@ export default function CommissionPage() {
                         R$ {Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
-                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">{c.status}</Badge>
+                        <div className="flex items-center justify-end gap-1">
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">{c.status}</Badge>
+                          <BotaoExcluir tipo="COMISSAO" id={c.id} onExcluido={fetchComissoes} />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

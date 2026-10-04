@@ -11,15 +11,31 @@ import { cn } from '@/lib/utils';
 
 export type TipoExcluivel =
   | 'PROPOSTA' | 'PEDIDO_INSERCAO' | 'PRODUCAO' | 'AGENDAMENTO' | 'CAMPANHA'
-  | 'REPRESENTANTE' | 'PONTO_PARCEIRO' | 'COBRANCA' | 'CONTATO';
+  | 'REPRESENTANTE' | 'PONTO_PARCEIRO' | 'COBRANCA' | 'CONTATO'
+  | 'NOTA_FISCAL' | 'COMISSAO' | 'CHAMADO' | 'USUARIO';
 
 const ROTULO: Record<TipoExcluivel, string> = {
   PROPOSTA: 'proposta', PEDIDO_INSERCAO: 'pedido de inserção', PRODUCAO: 'produção', AGENDAMENTO: 'agendamento',
   CAMPANHA: 'campanha', REPRESENTANTE: 'representante', PONTO_PARCEIRO: 'ponto parceiro', COBRANCA: 'cobrança', CONTATO: 'contato',
+  NOTA_FISCAL: 'nota fiscal', COMISSAO: 'comissão', CHAMADO: 'chamado', USUARIO: 'usuário',
 };
 
 /** Chama a exclusão central do banco (fn_excluir_registro). Devolve erro em português, pronto para mostrar. */
-export async function excluirRegistro(tipo: TipoExcluivel, id: string): Promise<{ ok: boolean; arquivado: boolean; erro?: string }> {
+export async function excluirRegistro(tipo: TipoExcluivel, id: string): Promise<{ ok: boolean; arquivado: boolean; erro?: string; aviso?: string }> {
+  if (tipo === 'USUARIO') {
+    // F-140: usuário (funcionário, gestor de mídias, membro da equipe) — o servidor confere a permissão, arquiva o
+    // cadastro e encerra a conta de login.
+    const { data, error } = await supabase.functions.invoke('excluir-usuario', { body: { usuarioId: id } });
+    const corpo = (data ?? null) as { ok?: boolean; error?: string; aviso?: string } | null;
+    if (error || !corpo?.ok) {
+      let motivo = corpo?.error || '';
+      if (!motivo && error && typeof (error as { context?: { json?: () => Promise<unknown> } }).context?.json === 'function') {
+        try { motivo = ((await (error as { context: { json: () => Promise<{ error?: string }> } }).context.json())?.error) || ''; } catch { /* sem corpo */ }
+      }
+      return { ok: false, arquivado: false, erro: motivo || 'Não foi possível excluir o usuário.' };
+    }
+    return { ok: true, arquivado: true, aviso: corpo.aviso };
+  }
   const { data, error } = await supabase.rpc('fn_excluir_registro' as never, { p_tipo: tipo, p_id: id } as never);
   if (error) return { ok: false, arquivado: false, erro: error.message || 'Não foi possível excluir.' };
   return { ok: true, arquivado: (data as { modo?: string } | null)?.modo === 'ARQUIVADO' };
@@ -58,9 +74,12 @@ export function BotaoExcluir({ tipo, id, nome, onExcluido, formato = 'icone', cl
     setExcluindo(false);
     if (!r.ok) { toast.error(r.erro); return; }
     setAberto(false);
-    toast.success(r.arquivado
-      ? `${rotulo.charAt(0).toUpperCase() + rotulo.slice(1)} removido(a) das listas. O histórico foi preservado.`
-      : `${rotulo.charAt(0).toUpperCase() + rotulo.slice(1)} excluído(a).`);
+    toast.success(tipo === 'USUARIO'
+      ? 'Usuário excluído: o acesso foi encerrado e o histórico foi preservado.'
+      : r.arquivado
+        ? `${rotulo.charAt(0).toUpperCase() + rotulo.slice(1)} removido(a) das listas. O histórico foi preservado.`
+        : `${rotulo.charAt(0).toUpperCase() + rotulo.slice(1)} excluído(a).`);
+    if (r.aviso) toast.warning(r.aviso);
     onExcluido?.();
   };
 

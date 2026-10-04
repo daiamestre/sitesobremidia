@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { financeiroService, ComissaoRecord } from '../services/financeiro.service';
@@ -112,6 +113,7 @@ export default function CommissionsDashboard() {
                             <CheckCircle2 className="h-3.5 w-3.5" /> Liberar
                           </Button>
                         )}
+                        <BotaoExcluir tipo="COMISSAO" id={c.id} onExcluido={fetchComissoes} className="ml-1 align-middle" />
                       </TableCell>
                     </TableRow>
                   ))}

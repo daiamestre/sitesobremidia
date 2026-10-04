@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { financeiroPlusService } from '../services/financeiroPlus.service';
@@ -90,7 +91,10 @@ export default function InvoicesPage() {
                         R$ {Number(n.valor_iss).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
-                        <Badge className="bg-emerald-500/20 text-emerald-400">{n.status}</Badge>
+                        <div className="flex items-center justify-end gap-1">
+                          <Badge className="bg-emerald-500/20 text-emerald-400">{n.status}</Badge>
+                          <BotaoExcluir tipo="NOTA_FISCAL" id={n.id} nome={n.numero_rps || n.numero_nfse || undefined} onExcluido={fetchInvoices} />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

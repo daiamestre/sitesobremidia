@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -146,6 +147,10 @@ export default function MinhaEquipePage() {
                         <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-[10px]">ativo</Badge>
                       ) : (
                         <Badge variant="outline" className="border-slate-600 text-slate-400 text-[10px]">inativo</Badge>
+                      )}
+                      {m.usuario_id !== usuario?.id && (
+                        <BotaoExcluir tipo="USUARIO" id={m.usuario_id} nome={m.nome} onExcluido={() => qc.invalidateQueries({ queryKey: ['minha-equipe'] })} className="ml-2 align-middle"
+                          aviso="Ele perde o acesso ao portal." />
                       )}
                     </td>
                   </tr>

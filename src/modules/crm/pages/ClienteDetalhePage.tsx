@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -305,6 +306,7 @@ useEffect(() => {
                           {c.email || ''}{c.email && c.telefone ? ' • ' : ''}{c.telefone || ''}
                         </p>
                       </div>
+                      <BotaoExcluir tipo="CONTATO" id={c.id} nome={c.nome} onExcluido={() => window.location.reload()} />
                     </div>
                   ))}
                 </div>

@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -550,6 +551,10 @@ export default function UsuariosAcessosPage() {
                                   </>
                                 )}
                               </Button>
+                              {!u.is_owner && u.id !== usuario?.id && (
+                                <BotaoExcluir tipo="USUARIO" id={u.id} nome={u.nome} onExcluido={() => carregar(false)}
+                                  aviso="O acesso dele é encerrado e as telas dele são pausadas. Contratos e cobranças ligados a ele continuam no histórico." />
+                              )}
                             </>
                           )}
                           {u.is_owner && <span className="text-xs text-muted-foreground">Protegido</span>}

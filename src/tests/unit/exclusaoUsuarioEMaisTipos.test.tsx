@@ -1,0 +1,85 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+// F-140 — exclusão de usuário (gestor de mídias, equipe do anunciante), nota fiscal, comissão, chamado e contato.
+const ler = (arquivo: string) => readFileSync(path.join(process.cwd(), arquivo), 'utf8').replace(/\r\n/g, '\n');
+
+const rpc = vi.fn();
+const invoke = vi.fn();
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: { rpc: (f: string, a: unknown) => rpc(f, a), functions: { invoke: (f: string, o: unknown) => invoke(f, o) } },
+}));
+const avisos = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
+vi.mock('sonner', () => ({ toast: { success: (m: string) => avisos.success(m), error: (m: string) => avisos.error(m), warning: (m: string) => avisos.warning(m) } }));
+
+import { BotaoExcluir, excluirRegistro } from '@/components/comum/BotaoExcluir';
+
+describe('Exclusão de usuário e novos tipos (F-140)', () => {
+  beforeEach(() => { rpc.mockReset(); invoke.mockReset(); Object.values(avisos).forEach((f) => f.mockReset()); });
+
+  it('usuário é excluído pela função de borda (que confere a permissão e encerra o login), não direto no banco', async () => {
+    invoke.mockResolvedValue({ data: { ok: true, modo: 'ARQUIVADO' }, error: null });
+    const onExcluido = vi.fn();
+    render(<BotaoExcluir tipo="USUARIO" id="u9" nome="Gestor Teste" onExcluido={onExcluido} />);
+    fireEvent.click(screen.getByTestId('botao-excluir'));
+    fireEvent.click(await screen.findByTestId('confirmar-exclusao'));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('excluir-usuario', { body: { usuarioId: 'u9' } }));
+    expect(rpc).not.toHaveBeenCalled();
+    await waitFor(() => expect(onExcluido).toHaveBeenCalled());
+    expect(avisos.success).toHaveBeenCalledWith('Usuário excluído: o acesso foi encerrado e o histórico foi preservado.');
+  });
+
+  it('recusa do servidor (dono, a própria conta, representante com carteira) aparece com o motivo', async () => {
+    invoke.mockResolvedValue({ data: { ok: false, error: 'O dono da conta não pode ser excluído.' }, error: null });
+    expect(await excluirRegistro('USUARIO', 'dono')).toEqual({ ok: false, arquivado: false, erro: 'O dono da conta não pode ser excluído.' });
+  });
+
+  it('nota fiscal, comissão e chamado usam a exclusão central', async () => {
+    rpc.mockResolvedValue({ data: { status: 'OK', modo: 'APAGADO' }, error: null });
+    for (const tipo of ['NOTA_FISCAL', 'COMISSAO', 'CHAMADO'] as const) {
+      expect((await excluirRegistro(tipo, 'x1')).ok).toBe(true);
+      expect(rpc).toHaveBeenLastCalledWith('fn_excluir_registro', { p_tipo: tipo, p_id: 'x1' });
+    }
+  });
+
+  it('banco: quem pode excluir quem; nada é apagado fisicamente; nota emitida e comissão paga são protegidas', () => {
+    const sql = ler('supabase/migrations/20261300_excluir_usuario_e_mais_tipos.sql');
+    expect(sql).toContain("RAISE EXCEPTION 'Você não pode excluir a própria conta.'");
+    expect(sql).toContain("RAISE EXCEPTION 'O dono da conta não pode ser excluído.'");
+    expect(sql).toContain("RAISE EXCEPTION 'Só o dono exclui um administrador.'");
+    expect(sql).toContain('alvo.empresa_operadora_id IS DISTINCT FROM eu.empresa_operadora_id');
+    expect(sql).toContain("RAISE EXCEPTION 'Só o titular da conta exclui membros da equipe.'");
+    expect(sql).toContain('ainda tem clientes na carteira');
+    expect(sql).toContain('tem tela com aparelho pareado');
+    expect(sql).toContain("SET deleted_at = now(), deleted_by = v_uid, ativo = false, status = 'INACTIVE'");
+    expect(sql).not.toMatch(/DELETE FROM public\.usuarios/);
+    expect(sql).toContain('já foi emitida na prefeitura');
+    expect(sql).toContain('já foi paga e não pode ser excluída');
+    expect(sql).toContain('REVOKE ALL ON FUNCTION public.fn_excluir_usuario(uuid) FROM PUBLIC, anon;');
+  });
+
+  it('função de borda: o banco autoriza ANTES de a chave de serviço encerrar o login', () => {
+    const fn = ler('supabase/functions/excluir-usuario/index.ts');
+    expect(fn.indexOf('comoUsuario.rpc("fn_excluir_usuario"')).toBeGreaterThan(0);
+    expect(fn.indexOf('comoUsuario.rpc("fn_excluir_usuario"')).toBeLessThan(fn.indexOf('SUPABASE_SERVICE_ROLE_KEY'));
+    expect(fn).toContain('servico.auth.admin.deleteUser(usuarioId, true)');
+    expect(fn).toContain('if (erroBanco) return json(');
+  });
+
+  it('telas com o botão: usuários, contas antigas, equipe do anunciante, notas, comissões e contatos', () => {
+    const telas: Array<[string, string]> = [
+      ['src/modules/corporate/pages/UsuariosAcessosPage.tsx', 'tipo="USUARIO"'],
+      ['src/pages/dashboard/AdminUsers.tsx', 'tipo="USUARIO"'],
+      ['src/modules/crm/pages/portal/MinhaEquipePage.tsx', 'tipo="USUARIO"'],
+      ['src/modules/crm/pages/InvoicesPage.tsx', 'tipo="NOTA_FISCAL"'],
+      ['src/modules/crm/pages/CommissionPage.tsx', 'tipo="COMISSAO"'],
+      ['src/modules/crm/pages/CommissionsDashboard.tsx', 'tipo="COMISSAO"'],
+      ['src/modules/crm/pages/ClienteDetalhePage.tsx', 'tipo="CONTATO"'],
+    ];
+    for (const [arq, marca] of telas) expect(ler(arq), arq).toContain(marca);
+    const usuarios = ler('src/modules/corporate/pages/UsuariosAcessosPage.tsx');
+    expect(usuarios).toContain('{!u.is_owner && u.id !== usuario?.id && (');
+  });
+});
