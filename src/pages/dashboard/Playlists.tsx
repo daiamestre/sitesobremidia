@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,15 @@ export default function Playlists() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  // F-142: chegou pela ação rápida do painel (?novo=1) → já abre o "criar novo" e limpa o endereço
+  const [parametros, setParametros] = useSearchParams();
+  useEffect(() => {
+    if (parametros.get('novo') !== '1') return;
+    setDialogOpen(true);
+    const resto = new URLSearchParams(parametros);
+    resto.delete('novo');
+    setParametros(resto, { replace: true });
+  }, [parametros, setParametros]);
   const [itemsDialogOpen, setItemsDialogOpen] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);

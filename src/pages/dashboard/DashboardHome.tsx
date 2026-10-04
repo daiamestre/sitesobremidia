@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { CentralDoDiaGestor } from '@/components/central/CentralDoDiaGestor';
 import { CentralDoDiaMidiasOwner } from '@/components/central/CentralDoDiaMidiasOwner';
 import { saudacao } from '@/lib/dashboardResumo';
+import { Link } from 'react-router-dom';
 
 export default function DashboardHome() {
   const { profile, perfilNome } = useAuth();
@@ -215,23 +216,24 @@ export default function DashboardHome() {
               Ações Rápidas
             </CardTitle>
           </CardHeader>
+          {/* F-142: cada ação abre a tela correspondente (mídia e playlist já abrem o "criar novo") */}
           <CardContent className="space-y-3">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+            <Link to="/dashboard/medias?novo=1" data-testid="acao-upload" className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <Image className="h-5 w-5 text-primary" />
               <span>Fazer upload de mídia</span>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+            </Link>
+            <Link to="/dashboard/playlists?novo=1" data-testid="acao-playlist" className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <ListVideo className="h-5 w-5 text-accent" />
               <span>Criar nova playlist</span>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+            </Link>
+            <Link to="/dashboard/screens?secao=anunciantes" data-testid="acao-tela" className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <Monitor className="h-5 w-5 text-success" />
               <span>Adicionar nova tela</span>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+            </Link>
+            <Link to="/dashboard/schedule" data-testid="acao-agendar" className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <Calendar className="h-5 w-5 text-warning" />
               <span>Agendar conteúdo</span>
-            </div>
+            </Link>
           </CardContent>
         </Card>
 

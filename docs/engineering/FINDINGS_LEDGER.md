@@ -1729,3 +1729,8 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Correção:** migração `20261301` — `devices.alerta_dispensado_em`; `fn_alertas_dispositivos` (só o aparelho pareado hoje a cada tela, não revogado, não dispensado, e só telas que o usuário gere; gestor só as próprias); `fn_dispensar_alerta_dispositivo` (um ou todos). Tela: "Limpar" dispensa o alerta, novo "Limpar todos", cartão com o nome da tela e data/hora do último sinal. O alerta volta sozinho se o aparelho der sinal de novo e cair outra vez.
 - **Prova:** simulação com rollback (ADMIN 32→2 alertas reais; dispensa 1→1, todos→0; alerta volta após novo sinal; gestor sem telas e anunciante: 0). Navegador (800 px): 2 alertas, "Limpar" remove o cartão ("Alerta limpo."); a dispensa do teste foi desfeita no banco. Resposta do Player idêntica (5 telas).
 - **Testes:** em `exclusaoUsuarioEMaisTipos.test.tsx` (+2).
+
+### F-142 — "Ações Rápidas" do painel não levavam a lugar nenhum — DONE
+- **Causa:** as quatro ações (upload de mídia, nova playlist, nova tela, agendar conteúdo) eram blocos de texto com aparência de botão, sem destino nem ação de clique.
+- **Correção:** viraram links: mídias e playlists abrem a tela já com o "criar novo" aberto (`?novo=1`, removido do endereço depois); nova tela abre a página de Telas; agendar abre a Agenda.
+- **Prova (navegador, sessão ADMIN de teste):** upload → `/dashboard/medias` com "Upload de Mídias" aberto; playlist → `/dashboard/playlists` com "Nova Playlist" aberto; tela → `/dashboard/screens?secao=anunciantes`; agendar → `/dashboard/schedule`.

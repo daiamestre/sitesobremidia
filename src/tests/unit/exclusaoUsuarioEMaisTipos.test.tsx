@@ -105,3 +105,19 @@ describe('Central de Alertas: só o aparelho atual e "Limpar" dispensa (F-141)',
     expect(servico).not.toContain(".from('devices')\n        // [FIX 20261102]");
   });
 });
+
+describe('Ações rápidas do painel levam às telas certas (F-142)', () => {
+  it('cada ação é um link com destino; mídia e playlist já abrem o "criar novo"', () => {
+    const painel = ler('src/pages/dashboard/DashboardHome.tsx');
+    for (const destino of ['/dashboard/medias?novo=1', '/dashboard/playlists?novo=1', '/dashboard/screens?secao=anunciantes', '/dashboard/schedule']) {
+      expect(painel).toContain(`<Link to="${destino}"`);
+    }
+    expect(painel).not.toMatch(/<div className="flex items-center gap-3 p-3 rounded-lg bg-muted\/50 hover:bg-muted transition-colors cursor-pointer">/);
+    for (const [arq, abrir] of [['src/pages/dashboard/Medias.tsx', 'setUploadDialogOpen(true);'], ['src/pages/dashboard/Playlists.tsx', 'setDialogOpen(true);']] as const) {
+      const t = ler(arq);
+      expect(t).toContain("if (parametros.get('novo') !== '1') return;");
+      expect(t).toContain(abrir);
+      expect(t).toContain("resto.delete('novo');");
+    }
+  });
+});

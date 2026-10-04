@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,15 @@ export default function Medias() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentFolder, setCurrentFolder] = useState<'image' | 'video' | 'audio' | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  // F-142: chegou pela ação rápida do painel (?novo=1) → já abre o "criar novo" e limpa o endereço
+  const [parametros, setParametros] = useSearchParams();
+  useEffect(() => {
+    if (parametros.get('novo') !== '1') return;
+    setUploadDialogOpen(true);
+    const resto = new URLSearchParams(parametros);
+    resto.delete('novo');
+    setParametros(resto, { replace: true });
+  }, [parametros, setParametros]);
   const [previewMedia, setPreviewMedia] = useState<Media | null>(null);
   const [editMedia, setEditMedia] = useState<Media | null>(null);
   const [deleteMediaId, setDeleteMediaId] = useState<string | null>(null);
