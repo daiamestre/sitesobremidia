@@ -151,8 +151,8 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
   const showEmpresa = variante === 'ANUNCIANTE' || variante === 'OWNER' || variante === 'ADMIN';
   const showRepresentanteInfo = variante === 'REPRESENTANTE';
   const canEditEmpresa = false; // empresa é somente leitura para todos exceto fluxos especiais
-  // F-134: foto de capa para dono e administrador
-  const temCapa = !!usuario?.is_owner || isOwner || perfilNome === 'OWNER' || perfilNome === 'ADMIN' || variante === 'OWNER' || variante === 'ADMIN';
+  // F-134: foto de capa para dono e administrador. F-144: também para o gestor de mídias (é a mesma capa de "Minha Marca").
+  const temCapa = !!usuario?.is_owner || isOwner || perfilNome === 'OWNER' || perfilNome === 'ADMIN' || perfilNome === 'GESTOR' || variante === 'OWNER' || variante === 'ADMIN' || variante === 'GESTOR';
   const capa = temCapa ? usuario?.capa_url || null : null;
 
   return (
