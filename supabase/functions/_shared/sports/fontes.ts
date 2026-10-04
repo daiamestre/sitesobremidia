@@ -4,8 +4,9 @@ import type { ConfrontoWiki, JogoOpenfootball, JogoWikiBox, Placar, TabelaWiki }
 
 /**
  * football.json: { name, matches: [{ round, date, time?, team1, team2, score? }] }.
- * ATENÇÃO (auditoria Gate 1): jogo ainda sem resultado aparece como `score: [0,0]` — NÃO é 0x0.
- * Só há placar quando existe `score.ft`.
+ * ATENÇÃO (auditoria Gate 1): `score: [0,0]` sozinho NÃO é tratado como placar — só há placar quando existe `score.ft`.
+ * F-143: a fonte grava o empate sem gols exatamente assim (`score: [0,0]`, sem `ft`); o jogo sai marcado com
+ * `zeroSemDetalhe` e a reconciliação só publica o 0x0 se a Wikipédia confirmar 0–0 e o jogo já tiver passado.
  */
 export function parseOpenfootball(json: unknown): JogoOpenfootball[] {
   const matches = (json as { matches?: unknown[] })?.matches;
@@ -20,7 +21,8 @@ export function parseOpenfootball(json: unknown): JogoOpenfootball[] {
     const ft = (m.score as { ft?: unknown } | undefined)?.ft;
     const placar = Array.isArray(ft) && ft.length === 2 && ft.every((n) => Number.isInteger(n) && (n as number) >= 0)
       ? [ft[0] as number, ft[1] as number] as Placar : null;
-    out.push({ rodada: typeof m.round === 'string' ? m.round : null, data, hora, mandante, visitante, placar });
+    const zeroSemDetalhe = !placar && Array.isArray(m.score) && m.score.length === 2 && m.score[0] === 0 && m.score[1] === 0;
+    out.push({ rodada: typeof m.round === 'string' ? m.round : null, data, hora, mandante, visitante, placar, ...(zeroSemDetalhe ? { zeroSemDetalhe: true } : {}) });
   }
   return out;
 }

@@ -20,6 +20,8 @@ export const LIMITE_GOLEADA = 7;
 export const LIMITE_GOLS = 15;
 /** Depois do início, um jogo sem resultado não é "próximo" nem "resultado" (não há placar ao vivo). */
 const JANELA_JOGO_MS = 3 * 60 * 60 * 1000;
+/** F-143: placar que está na revisão atual da Wikipédia há este tempo, sem ninguém corrigir, vale como segunda leitura. */
+export const WIKI_ESTAVEL_MS = 6 * 60 * 60 * 1000;
 
 const igualPlacar = (a: Placar | null, b: Placar | null) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
 const goleada = (p: Placar) => Math.abs(p[0] - p[1]) >= LIMITE_GOLEADA;
@@ -77,6 +79,8 @@ export interface EntradaLiga {
   openfootball: { leitura: Leitura; jogos: JogoOpenfootball[] };
   openfootballAnterior: { leitura: Leitura; jogos: JogoOpenfootball[] } | null;
   wikipedia: { leitura: Leitura; tabela: TabelaWiki };
+  /** F-143: revisão da Wikipédia ao menos 30 min mais antiga que a atual (segunda leitura para resultado que só ela tem). */
+  wikipediaAnterior?: { leitura: Leitura; tabela: TabelaWiki } | null;
   publicadosAntes?: Map<string, Publicado>;
 }
 
@@ -85,6 +89,7 @@ export function reconciliarLiga(e: EntradaLiga): Resultado {
   const times = corresponderTimes(e.openfootball.jogos.flatMap((j) => [j.mandante, j.visitante]), e.wikipedia.tabela, cfg.apelidos);
   const wiki = new Map(e.wikipedia.tabela.confrontos.map((c) => [`${c.mandante}_${c.visitante}`, c]));
   const anterior = new Map((e.openfootballAnterior?.jogos ?? []).map((j) => [`${j.mandante}_${j.visitante}`, j]));
+  const wikiAnterior = new Map((e.wikipediaAnterior?.tabela.confrontos ?? []).map((c) => [`${c.mandante}_${c.visitante}`, c]));
   const nome = (codigo: string | undefined, fonte: string) => (codigo && (cfg.exibicao?.[codigo] ?? e.wikipedia.tabela.times[codigo]?.rotulo)) || fonte;
   const partidas: PartidaCanonica[] = [];
   const eventos: Evento[] = [];
@@ -130,7 +135,34 @@ export function reconciliarLiga(e: EntradaLiga): Resultado {
       continue;
     }
 
-    if (w?.placar) { p.motivo = 'aguardando_confirmacao_openfootball'; continue; } // só a Wikipédia tem o resultado
+    if (w?.placar) {
+      // Só a Wikipédia tem o resultado. F-143: antes isso ficava pendente para sempre quando o openfootball atrasava
+      // (ou quando o jogo terminava 0x0, que ele grava sem `ft`). Agora publica em dois casos, sempre com o jogo já passado:
+      p.motivo = 'aguardando_confirmacao_openfootball';
+      if (momento(j.data, kickoff, agora, cfg.fuso) !== 'passado') continue;
+      if (implausivel(w.placar)) { p.estado = 'REJECTED'; p.motivo = 'placar_implausivel'; continue; }
+      // (a) empate sem gols: as duas fontes dizem 0x0.
+      if (j.zeroSemDetalhe) {
+        if (!igualPlacar(w.placar, [0, 0])) continue; // [0,0] sem ft contra outro placar: espera o openfootball
+        p.status = 'FINISHED'; p.placar = [0, 0];
+        p.estado = 'VALIDATED'; p.publicar = true; p.confianca = 'DUAL_SOURCE'; p.validacao = e.wikipedia.leitura; p.motivo = null;
+        continue;
+      }
+      // (b) openfootball ainda sem o jogo: vale o placar que duas revisões da Wikipédia (>= 30 min) repetem, ou que está
+      //     na revisão atual há 6 h sem correção.
+      const wa = cM && cV ? wikiAnterior.get(`${cM}_${cV}`) : undefined;
+      const repetido = !!e.wikipediaAnterior && !!wa?.placar && igualPlacar(wa.placar, w.placar);
+      const publicadaEm = e.wikipedia.leitura.publicadoEm ? Date.parse(e.wikipedia.leitura.publicadoEm) : NaN;
+      const estavel = Number.isFinite(publicadaEm) && agora.getTime() - publicadaEm >= WIKI_ESTAVEL_MS;
+      if (!repetido && !estavel) continue;
+      if (goleada(w.placar)) { p.estado = 'SUSPICIOUS'; p.motivo = 'goleada_exige_confirmacao_openfootball'; continue; }
+      p.status = 'FINISHED'; p.placar = w.placar;
+      p.estado = 'VALIDATED'; p.publicar = true; p.confianca = 'DOUBLE_READ'; p.motivo = null;
+      p.fonte = e.wikipedia.leitura; p.validacao = repetido ? e.wikipediaAnterior!.leitura : e.wikipedia.leitura;
+      if (repetido) p.evidencia.wikipedia_anterior = { versao: e.wikipediaAnterior!.leitura.versao, placar: wa!.placar, bruto: wa!.bruto };
+      else p.evidencia.wikipedia_estavel_desde = e.wikipedia.leitura.publicadoEm;
+      continue;
+    }
     const quando = momento(j.data, kickoff, agora, cfg.fuso);
     if (quando === 'passado') { p.motivo = 'jogo_passado_sem_resultado'; continue; }
     if (quando === 'andamento') { p.motivo = 'em_andamento_sem_placar_ao_vivo'; continue; }

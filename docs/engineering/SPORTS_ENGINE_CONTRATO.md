@@ -51,6 +51,8 @@ A CBF, a UEFA, a LALIGA e a Premier League proíbem, nos seus termos de uso, uso
 | Próximo jogo (FULL) | mesma data e horário em 2 commits diferentes do openfootball **e** o confronto existe, ainda não disputado, na Wikipédia | `VALIDATED` + `DUAL_SOURCE+DOUBLE_READ` → publica |
 | Próximo jogo com horário mudando | a mudança é registrada (`MATCH_SCHEDULE_CHANGED`) | `PENDING_VALIDATION` até o novo horário se repetir em outro commit |
 | Jogo passado sem placar | — | `UNKNOWN` → não publica |
+| Empate sem gols (FULL, F-143) | openfootball traz `score: [0,0]` sem `ft` (é como ele grava o 0x0), a Wikipédia traz 0–0 e o jogo já passou | `VALIDATED` + `DUAL_SOURCE` → publica |
+| Resultado só na Wikipédia (FULL, F-143) | jogo já passado, openfootball ainda sem placar, e o placar se repete em 2 revisões (≥ 30 min) ou está na revisão atual há 6 h; goleada não entra | `VALIDATED` + `DOUBLE_READ` → publica; senão aguarda |
 | Champions (PARTIAL) | mesmos data, horário, times e placar em 2 revisões diferentes da página (≥ 30 min) | `VALIDATED` + `DOUBLE_READ` → publica; senão não publica |
 | Placar publicado que muda | evento `SUSPICIOUS_CHANGE`; o jogo sai do ar | só volta quando as duas fontes concordarem de novo |
 | Goleada (diferença ≥ 7) | além das duas fontes, o openfootball precisa repetir o placar em 2 commits | até lá, `SUSPICIOUS` |

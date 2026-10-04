@@ -12,7 +12,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { COMPETICOES, LOCAIS_FORA_DE_BRASILIA, OPENFOOTBALL_REPO, USER_AGENT, type ConfigCompeticao } from '../_shared/sports/competicoes.ts';
 import { parseCaixasClassicas, parseFootballBoxes, parseOpenfootball, parseTabelaWiki } from '../_shared/sports/fontes.ts';
 import { reconciliarBoxes, reconciliarLiga, type Publicado, type Resultado } from '../_shared/sports/reconciliacao.ts';
-import { PARSER_VERSION, type JogoOpenfootball, type JogoWikiBox, type Leitura, type PartidaCanonica } from '../_shared/sports/tipos.ts';
+import { PARSER_VERSION, type JogoOpenfootball, type JogoWikiBox, type Leitura, type PartidaCanonica, type TabelaWiki } from '../_shared/sports/tipos.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 const SEGREDO = Deno.env.get('CONTENT_ENGINE_SECRET');
@@ -229,7 +229,14 @@ async function processar(cfg: ConfigCompeticao, comp: { id: string; last_sync_at
         await registrarSaude('wikipedia', cfg.slug, 'FAILED', { failure_reason: String((e as Error).message ?? e) });
         return { competicao: cfg.slug, status: 'FALHA', detalhe: `wikipedia: ${(e as Error).message}` }; // mantém o último publicado
       }
-      resultado = reconciliarLiga({ cfg, agora, openfootball: { leitura: ofLeitura, jogos: ofAtual }, openfootballAnterior: ofAnterior, wikipedia: wiki, publicadosAntes: await publicadosAntes(comp.id) });
+      // F-143: segunda revisão da Wikipédia (>= 30 min mais antiga) — confirma o resultado que o openfootball ainda não tem.
+      let wikiAnterior: { leitura: Leitura; tabela: TabelaWiki } | null = null;
+      try {
+        const antigas = await wikiRevisoes(cfg.wikipedia.host, cfg.wikipedia.pagina, 30);
+        const ant = antigas.find((r) => Date.parse(revs[0].timestamp) - Date.parse(r.timestamp) >= REVISAO_MIN_DIFERENCA_MS);
+        if (ant) wikiAnterior = { leitura: wikiLeitura(cfg.wikipedia.host, cfg.wikipedia.pagina, ant), tabela: parseTabelaWiki(await wikiTexto(cfg.wikipedia.host, ant.revid)) };
+      } catch { /* sem segunda revisão: o resultado que só a Wikipédia tem continua aguardando */ }
+      resultado = reconciliarLiga({ cfg, agora, openfootball: { leitura: ofLeitura, jogos: ofAtual }, openfootballAnterior: ofAnterior, wikipedia: wiki, wikipediaAnterior: wikiAnterior, publicadosAntes: await publicadosAntes(comp.id) });
       const d = resultado.diagnostico;
       await registrarSaude('wikipedia', cfg.slug, d.times_ok ? 'HEALTHY' : 'DEGRADED', {
         last_version: wiki.leitura.versao, records_received: wiki.tabela.confrontos.length,

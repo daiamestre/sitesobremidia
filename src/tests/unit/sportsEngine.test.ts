@@ -48,7 +48,9 @@ describe('fontes', () => {
     ] });
     expect(j).toHaveLength(2);
     expect(j[0].placar).toBeNull();
+    expect(j[0].zeroSemDetalhe).toBe(true); // F-143: candidato a 0x0, só vale com a Wikipédia
     expect(j[1].placar).toEqual([2, 1]);
+    expect(j[1].zeroSemDetalhe).toBeUndefined();
     expect(() => parseOpenfootball({ nada: 1 })).toThrow('openfootball_formato_invalido');
   });
 
@@ -180,6 +182,74 @@ describe('reconciliação — ligas (openfootball + Wikipédia)', () => {
     const r = liga([jogo({ placar: [2, 1] }), jogo({ mandante: 'Clube Novo FC', visitante: 'SE Palmeiras', data: '2026-10-01' })], null);
     expect(r.diagnostico.times_ok).toBe(false);
     expect(r.partidas.every((p) => !p.publicar)).toBe(true);
+  });
+});
+
+describe('F-143 — resultado que o openfootball não traz (0x0 e fonte atrasada)', () => {
+  const tabela = (flaPal: string) => parseTabelaWiki(`
+|name_FLA={{Futebol Flamengo}}
+|name_PAL={{Futebol Palmeiras}}
+|name_ATP={{Futebol Athletico-PR}}
+|match_FLA_PAL=${flaPal}
+|match_PAL_FLA=
+|match_FLA_ATP=
+|match_ATP_FLA=
+|match_PAL_ATP=
+|match_ATP_PAL=`);
+  const rodar = (j: Partial<JogoOpenfootball>, atual: string, anterior: string | null, agora = AGORA) => reconciliarLiga({
+    cfg: BR, agora,
+    openfootball: { leitura: leitura('openfootball', 'sha-atual'), jogos: [jogo(j)] },
+    openfootballAnterior: null,
+    wikipedia: { leitura: leitura('wikipedia', 'rev-2'), tabela: tabela(atual) },
+    wikipediaAnterior: anterior === null ? null : { leitura: leitura('wikipedia', 'rev-1'), tabela: tabela(anterior) },
+  }).partidas[0];
+
+  it('empate sem gols: [0,0] sem ft + Wikipédia 0–0 publica o 0x0 (DUAL_SOURCE)', () => {
+    expect(rodar({ zeroSemDetalhe: true }, '0–0', null)).toMatchObject({ publicar: true, estado: 'VALIDATED', status: 'FINISHED', placar: [0, 0], confianca: 'DUAL_SOURCE', motivo: null });
+  });
+
+  it('[0,0] sem ft NÃO vira 0x0 sozinho: sem a Wikipédia, com outro placar nela ou com o jogo ainda por vir', () => {
+    expect(rodar({ zeroSemDetalhe: true }, '', null)).toMatchObject({ publicar: false, placar: null });
+    expect(rodar({ zeroSemDetalhe: true }, '2–1', '2–1')).toMatchObject({ publicar: false, placar: null, motivo: 'aguardando_confirmacao_openfootball' });
+    expect(rodar({ zeroSemDetalhe: true, data: '2026-09-30' }, '0–0', '0–0')).toMatchObject({ publicar: false, placar: null });
+  });
+
+  it('openfootball atrasado: placar igual em duas revisões da Wikipédia publica (DOUBLE_READ), com a Wikipédia como fonte', () => {
+    const p = rodar({}, '1–2', '1–2');
+    expect(p).toMatchObject({ publicar: true, estado: 'VALIDATED', status: 'FINISHED', placar: [1, 2], confianca: 'DOUBLE_READ', motivo: null });
+    expect(p.fonte).toMatchObject({ fonte: 'wikipedia', versao: 'rev-2' });
+    expect(p.validacao).toMatchObject({ fonte: 'wikipedia', versao: 'rev-1' });
+  });
+
+  it('uma revisão só, revisões diferentes, jogo recém-terminado ou goleada: continua aguardando', () => {
+    expect(rodar({}, '1–2', null)).toMatchObject({ publicar: false, motivo: 'aguardando_confirmacao_openfootball' });
+    expect(rodar({}, '1–2', '1–1')).toMatchObject({ publicar: false, motivo: 'aguardando_confirmacao_openfootball' });
+    expect(rodar({}, '1–2', '')).toMatchObject({ publicar: false });
+    expect(rodar({}, '1–2', '1–2', new Date('2026-09-20T20:30:00Z'))).toMatchObject({ publicar: false }); // 1h30 depois do início
+    expect(rodar({}, '8–0', '8–0')).toMatchObject({ publicar: false, estado: 'SUSPICIOUS' });
+  });
+
+  it('placar na revisão atual há 6 h sem correção publica; há menos tempo, aguarda', () => {
+    const com = (publicadoEm: string) => reconciliarLiga({
+      cfg: BR, agora: AGORA,
+      openfootball: { leitura: leitura('openfootball', 'sha-atual'), jogos: [jogo({})] }, openfootballAnterior: null,
+      wikipedia: { leitura: { ...leitura('wikipedia', 'rev-2'), publicadoEm }, tabela: tabela('1–2') },
+      wikipediaAnterior: { leitura: leitura('wikipedia', 'rev-1'), tabela: tabela('') },
+    }).partidas[0];
+    expect(com('2026-09-26T05:59:00Z')).toMatchObject({ publicar: true, placar: [1, 2], confianca: 'DOUBLE_READ' });
+    expect(com('2026-09-26T06:30:00Z')).toMatchObject({ publicar: false, motivo: 'aguardando_confirmacao_openfootball' });
+  });
+
+  it('quando o openfootball chega com outro placar, o resultado publicado sai do ar (SUSPICIOUS_CHANGE)', () => {
+    const chave = rodar({}, '1–2', '1–2').match_key;
+    const r = reconciliarLiga({
+      cfg: BR, agora: AGORA,
+      openfootball: { leitura: leitura('openfootball', 'sha-novo'), jogos: [jogo({ placar: [1, 2] })] },
+      openfootballAnterior: null,
+      wikipedia: { leitura: leitura('wikipedia', 'rev-3'), tabela: tabela('2–2') },
+      publicadosAntes: new Map([[chave, { status: 'FINISHED', placar: [1, 2], kickoff_utc: '2026-09-20T19:00:00.000Z', data_local: '2026-09-20', hora_local: '16:00' } as Publicado]]),
+    });
+    expect(r.partidas[0]).toMatchObject({ publicar: false, estado: 'CONFLICT' });
   });
 });
 

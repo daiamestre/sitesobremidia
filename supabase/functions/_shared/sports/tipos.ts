@@ -26,6 +26,8 @@ export interface JogoOpenfootball {
   mandante: string;
   visitante: string;
   placar: Placar | null;
+  /** F-143: a fonte gravou `score: [0,0]` sem `ft` — é como ela registra o empate sem gols. Só vale com a Wikipédia confirmando 0–0. */
+  zeroSemDetalhe?: boolean;
 }
 
 /** Confronto da tabela de resultados da Wikipédia (sem data), por código de time. */
