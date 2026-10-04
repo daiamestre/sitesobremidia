@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   CheckCircle2, AlertTriangle, Eye, BookOpen,
-  Plus, Search, Bold, Italic, Underline, ArrowDown, Move, ListPlus, Type, X
+  Plus, Search, Bold, Italic, Underline, ArrowDown, Move, ListPlus, Type, X, ZoomIn, ZoomOut, Maximize2, PanelRightClose
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -154,8 +154,45 @@ export function ReadableContractEditor({
   const [tabAtiva, setTabAtiva] = useState<'editor' | 'previa'>('editor');
   const [categoriaFiltro, setCategoriaFiltro] = useState<PlaceholderCategoria | 'TODAS'>('TODAS');
   const [buscaToken, setBuscaToken] = useState('');
-  // F-120: no celular a lista de campos abre por cima do documento (botão "Campos")
-  const [camposAberto, setCamposAberto] = useState(false);
+  // F-132: a folha do contrato tem sempre o tamanho do computador (896 px); em tela menor ela encolhe inteira para
+  // caber na largura ("Ajustar") e o usuário aproxima com os botões de zoom. Nada de texto reorganizado.
+  const LARGURA_FOLHA = 896;
+  const telaLargaInicial = typeof window !== 'undefined' && window.innerWidth > 1280;
+  const [telaLarga, setTelaLarga] = useState(telaLargaInicial);
+  // F-120/F-132: "Campos Disponíveis" abre e fecha por botão. Computador (> 1280 px) começa aberto ao lado do
+  // documento, como sempre foi; celular e tablet começam fechados e o painel abre por cima.
+  const [camposAberto, setCamposAberto] = useState(telaLargaInicial);
+  const areaFolhaRef = useRef<HTMLDivElement | null>(null);
+  const [ajuste, setAjuste] = useState(1);
+  const [zoomManual, setZoomManual] = useState<number | null>(null);
+  const zoom = zoomManual ?? (telaLarga ? 1 : ajuste);
+  const estiloFolha: React.CSSProperties = telaLarga
+    ? { width: '100%', maxWidth: LARGURA_FOLHA, zoom }
+    : { width: LARGURA_FOLHA, maxWidth: 'none', zoom };
+  useEffect(() => {
+    const aoRedimensionar = () => setTelaLarga(window.innerWidth > 1280);
+    window.addEventListener('resize', aoRedimensionar);
+    return () => window.removeEventListener('resize', aoRedimensionar);
+  }, []);
+  useEffect(() => {
+    const area = areaFolhaRef.current;
+    if (!area) return;
+    const medir = () => {
+      const estilo = getComputedStyle(area);
+      const livre = area.clientWidth - parseFloat(estilo.paddingLeft || '0') - parseFloat(estilo.paddingRight || '0');
+      if (livre > 0) setAjuste(Math.min(1, Math.round((livre / LARGURA_FOLHA) * 1000) / 1000));
+    };
+    medir();
+    // a medição é só visual: sem observador de tamanho a folha fica em 100 %
+    try {
+      const ro = new ResizeObserver(medir);
+      ro.observe(area);
+      return () => ro.disconnect();
+    } catch {
+      return;
+    }
+  }, [tabAtiva, camposAberto, telaLarga]);
+  const mudarZoom = (delta: number) => setZoomManual(Math.min(2, Math.max(0.3, Math.round((zoom + delta) * 100) / 100)));
   // F-120: guarda onde estava o cursor no documento — no celular, tocar num botão tira o foco do texto
   const ultimoRange = useRef<Range | null>(null);
   useEffect(() => {
@@ -329,7 +366,7 @@ export function ReadableContractEditor({
   // Inserção por clique
   const handleInsertPlaceholder = (tokenName: string) => {
     insertTokenAtPoint(tokenName);
-    setCamposAberto(false);
+    if (!telaLarga) setCamposAberto(false);
   };
 
   // Drag over no documento: permite soltar e exibe o ponto de inserção
@@ -512,13 +549,13 @@ export function ReadableContractEditor({
   return (
     <div className={`flex flex-col h-full w-full min-h-0 overflow-hidden bg-background ${className}`}>
       {/* Top Bar de Ferramentas: Formatação Textual, Abas e Status de Validação */}
-      <div className="w-full bg-white dark:bg-slate-950 px-4 py-2 border-b flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 shadow-2xs z-10">
+      <div className="w-full bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 px-2 sm:px-4 py-2 border-b flex flex-wrap items-center justify-between gap-2 sm:gap-3 text-xs shrink-0 shadow-2xs z-10">
         {/* Lado Esquerdo: Ferramentas de Formatação e Controles Rápidos */}
         <div className="flex items-center gap-1">
           {/* F-120: no celular a formatação fica no menu "Formatar" */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" size="sm" variant="outline" className="h-8 gap-1 px-2 md:hidden" onMouseDown={(e) => e.preventDefault()} data-testid="menu-formatar">
+              <Button type="button" size="sm" variant="outline" className="h-8 gap-1 border-slate-300 bg-white px-2 text-slate-800 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:hidden" onMouseDown={(e) => e.preventDefault()} data-testid="menu-formatar">
                 <Type className="h-4 w-4" /> Formatar
               </Button>
             </DropdownMenuTrigger>
@@ -570,8 +607,8 @@ export function ReadableContractEditor({
               onClick={() => setTabAtiva('editor')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
                 tabAtiva === 'editor'
-                  ? 'bg-white dark:bg-slate-900 text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >
               <BookOpen className="h-3.5 w-3.5" />
@@ -582,8 +619,8 @@ export function ReadableContractEditor({
               onClick={() => setTabAtiva('previa')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
                 tabAtiva === 'previa'
-                  ? 'bg-white dark:bg-slate-900 text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >
               <Eye className="h-3.5 w-3.5" />
@@ -594,8 +631,23 @@ export function ReadableContractEditor({
 
         {/* Lado Direito: Status de Validação e Dica Operacional */}
         <div className="flex items-center gap-2 sm:gap-3">
-          <Button type="button" size="sm" className="h-8 gap-1 px-2.5 md:hidden" onClick={() => setCamposAberto(true)} data-testid="abrir-campos">
-            <ListPlus className="h-4 w-4" /> Campos
+          {/* F-132: zoom da folha (celular/tablet começam em "Ajustar": a folha inteira cabe na largura) */}
+          <div className="flex items-center rounded-lg border border-slate-300 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" data-testid="zoom-folha">
+            <Button type="button" size="sm" variant="ghost" className="h-8 w-8 p-0 text-inherit hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white" onMouseDown={(e) => e.preventDefault()} onClick={() => mudarZoom(-0.1)} aria-label="Diminuir zoom" title="Diminuir">
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <span className="min-w-[3rem] text-center text-[11px] font-semibold tabular-nums" data-testid="zoom-valor">{Math.round(zoom * 100)}%</span>
+            <Button type="button" size="sm" variant="ghost" className="h-8 w-8 p-0 text-inherit hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white" onMouseDown={(e) => e.preventDefault()} onClick={() => mudarZoom(0.1)} aria-label="Aumentar zoom" title="Aumentar">
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-8 gap-1 px-2 text-inherit hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white" onMouseDown={(e) => e.preventDefault()} onClick={() => setZoomManual(null)} disabled={zoomManual === null} title="Ajustar a folha à largura da tela" data-testid="zoom-ajustar">
+              <Maximize2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Ajustar</span>
+            </Button>
+          </div>
+          <Button type="button" size="sm" variant={camposAberto ? 'outline' : 'default'} className={`h-8 gap-1 px-2.5 ${camposAberto ? 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100' : ''}`} onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setCamposAberto((v) => !v)} aria-expanded={camposAberto} data-testid="abrir-campos">
+            {camposAberto ? <PanelRightClose className="h-4 w-4" /> : <ListPlus className="h-4 w-4" />}
+            {camposAberto ? 'Fechar campos' : 'Campos'}
           </Button>
           <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-[11px] hidden lg:flex">
             <Move className="h-3 w-3 text-blue-500" />
@@ -624,8 +676,8 @@ export function ReadableContractEditor({
         <div className="flex-1 flex flex-col h-full min-h-0 bg-slate-100/90 dark:bg-slate-900/90 overflow-hidden">
           {tabAtiva === 'editor' ? (
             /* Viewport de Rolagem Vertical Ampla e Irrestrita */
-            <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-8 scroll-smooth">
-              <div className="max-w-4xl mx-auto space-y-6">
+            <div ref={areaFolhaRef} className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 scroll-smooth" data-testid="area-folha">
+              <div className="mx-auto space-y-6" style={estiloFolha} data-testid="folha-contrato">
                 {/* Folha do Documento Editável (WYSIWYG Direto) */}
                 <div
                   ref={editorRef}
@@ -637,7 +689,7 @@ export function ReadableContractEditor({
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
                   onDragStart={handleEditorDragStart}
-                  className="bg-white dark:bg-slate-950 p-4 sm:p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 min-h-[70vh] md:min-h-[1400px] pb-32 focus:outline-none focus:ring-2 focus:ring-primary/20 leading-relaxed font-sans text-sm"
+                  className="bg-white dark:bg-slate-950 p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 min-h-[1400px] pb-32 focus:outline-none focus:ring-2 focus:ring-primary/20 leading-relaxed font-sans text-sm"
                 />
 
                 {/* Área Inferior Dinâmica e Acessível para Soltar ou Adicionar Conteúdo ao Final */}
@@ -662,10 +714,10 @@ export function ReadableContractEditor({
             </div>
           ) : (
             /* Prévia Real com Dados de Amostra */
-            <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-8 scroll-smooth">
-              <div className="max-w-4xl mx-auto pb-32">
+            <div ref={areaFolhaRef} className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 scroll-smooth" data-testid="area-folha">
+              <div className="mx-auto pb-32" style={estiloFolha} data-testid="folha-contrato">
                 <div
-                  className="bg-white dark:bg-slate-950 p-4 sm:p-8 md:p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 leading-relaxed font-sans text-sm min-h-[70vh] md:min-h-[1400px]"
+                  className="bg-white dark:bg-slate-950 p-14 rounded-lg border border-slate-200 dark:border-slate-800 shadow-md text-slate-900 dark:text-slate-100 leading-relaxed font-sans text-sm min-h-[1400px]"
                   dangerouslySetInnerHTML={{
                     __html: sanitizeHtmlForPreview(htmlPreviaResolvida),
                   }}
@@ -676,8 +728,11 @@ export function ReadableContractEditor({
         </div>
 
         {/* COLUNA DIREITA: Painel Lateral Auxiliar de Campos Arrastáveis */}
-        {camposAberto && <div className="fixed inset-0 z-[60] bg-black/50 md:hidden" onClick={() => setCamposAberto(false)} aria-hidden="true" />}
-        <div data-testid="painel-campos" className={`fixed inset-y-0 right-0 z-[61] flex w-[88vw] max-w-sm flex-col border-l bg-card shadow-lg transition-transform duration-200 dark:bg-slate-950 md:static md:z-10 md:h-full md:min-h-0 md:w-80 md:max-w-none md:shrink-0 md:translate-x-0 ${camposAberto ? 'translate-x-0' : 'translate-x-full'}`}>
+        {camposAberto && !telaLarga && <div className="fixed inset-0 z-[60] bg-black/50" onClick={() => setCamposAberto(false)} aria-hidden="true" data-testid="fundo-campos" />}
+        <div data-testid="painel-campos" data-aberto={camposAberto ? 'sim' : 'nao'} className={telaLarga
+          ? `${camposAberto ? 'flex' : 'hidden'} z-10 h-full min-h-0 w-80 shrink-0 flex-col border-l bg-card shadow-lg dark:bg-slate-950`
+          : `fixed inset-y-0 right-0 z-[61] flex flex-col border-l bg-card shadow-lg transition-transform duration-200 dark:bg-slate-950 ${camposAberto ? 'translate-x-0' : 'translate-x-full'}`}
+          style={telaLarga ? undefined : { width: 'min(88vw, 384px)', maxWidth: 'none' }}>
           {/* Header do Painel Lateral */}
           <div className="p-3.5 border-b bg-slate-50/80 dark:bg-slate-900/80 shrink-0 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -689,7 +744,7 @@ export function ReadableContractEditor({
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0.2">
                   {catalogoFiltrado.length} de {Object.keys(PLACEHOLDER_CATALOG).length}
                 </Badge>
-                <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 md:hidden" onClick={() => setCamposAberto(false)} aria-label="Fechar campos">
+                <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setCamposAberto(false)} aria-label="Fechar campos" data-testid="fechar-campos">
                   <X className="h-4 w-4" />
                 </Button>
               </div>

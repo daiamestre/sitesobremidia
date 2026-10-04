@@ -1660,3 +1660,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Login:** senha nova com no mínimo 8 caracteres (telas, função de redefinição e Supabase); cabeçalhos de segurança no site (`X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`).
 - **PENDENTE DO PROPRIETÁRIO:** (1) trocar a chave da Vercel (a atual está pública no histórico); (2) decidir tornar o repositório privado; (3) apagar as variáveis antigas de chave do Windows; (4) proteção contra senha vazada do Supabase exige plano pago.
 - **Testes:** `segurancaGlobal.test.ts` (15).
+
+### F-132 — Editor de contrato no celular e no tablet: folha original e painel de campos que abre e fecha — DONE
+- **Pedido:** contrato ocupando toda a vista, no tamanho original mostrado no computador, com "Campos Disponíveis" podendo abrir e fechar — em celular e tablet.
+- **Antes (F-120):** no celular a folha era reorganizada (margens e altura menores), ficando diferente do computador; no tablet o painel de campos ficava fixo ao lado, tirando 320 px do contrato.
+- **Correção (`ReadableContractEditor`):**
+  - a folha tem sempre o formato do computador (896 px, margem interna e altura originais); até 1280 px ela é mostrada **inteira, ajustada à largura** (zoom automático) e o usuário aproxima com −/+ e volta com "Ajustar"; aproximada, a área rola nos dois sentidos;
+  - "Campos Disponíveis" abre e fecha por botão em qualquer tela (botão "Campos/Fechar campos", X do painel e toque fora); em celular/tablet abre por cima e fecha ao inserir um campo; no computador (> 1280 px) começa aberto ao lado, como sempre, e agora também pode ser fechado;
+  - computador inalterado: folha a 100 % com o painel aberto (784 px em 1440) e 896 px com ele fechado;
+  - corrigido texto invisível na barra (aba ativa e controles claros sobre fundo branco no tema escuro).
+- **Prova (navegador, sessão ADMIN de teste, "Novo Modelo"):** 390 px — folha inteira a 41 %, painel 343 px abre/fecha, inserção de campo (27→28) fecha o painel, zoom 61 % rola dentro da área e "Ajustar" volta; 800 px — 81 %; 1280 px — 100 % (896 px), painel 384 px por cima; 1440 px — igual ao que era. Sem rolagem lateral da página em nenhum tamanho.
+- **Testes:** `editorContratoFolha.test.ts` (6).
+- **Limite honesto:** conferido por emulação de tamanho; o gesto de pinça e o teclado do aparelho só se confirmam no celular/tablet real.
