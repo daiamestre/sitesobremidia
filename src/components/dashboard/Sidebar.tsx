@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
+import { AvatarCabecalho } from '@/components/perfil/AvatarCabecalho';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
@@ -125,9 +126,12 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
 
       {/* User info */}
       {!collapsed && profile && (
-        <div className="p-4 border-b border-sidebar-border">
-          <p className="font-medium text-sm truncate">{profile.full_name}</p>
-          <p className="text-xs text-muted-foreground truncate">{profile.company_name}</p>
+        <div className="flex items-center gap-3 p-4 border-b border-sidebar-border">
+          <AvatarCabecalho />
+          <div className="min-w-0">
+            <p className="font-medium text-sm truncate">{profile.full_name}</p>
+            <p className="text-xs text-muted-foreground truncate">{profile.company_name}</p>
+          </div>
         </div>
       )}
 

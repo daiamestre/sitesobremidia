@@ -14,6 +14,7 @@ import { WidgetCatalog } from '@/components/dashboard/widgets/WidgetCatalog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { copiaDoWidget, WIDGET_TEMPLATES, type WidgetTemplateDef } from '@/lib/widgetCatalog';
 import { useSearchParams } from 'react-router-dom';
+import { conferirExclusao, mensagemDeExclusao } from '@/lib/excluir';
 
 export default function Widgets() {
   const { user } = useAuth();
@@ -86,13 +87,13 @@ export default function Widgets() {
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este widget?')) return;
     try {
-      const { error } = await supabase.from('widgets').delete().eq('id', id);
-      if (error) throw error;
+      const { error, count } = await supabase.from('widgets').delete({ count: 'exact' }).eq('id', id);
+      conferirExclusao({ error, count });
       toast.success('Widget excluído!');
       fetchWidgets();
     } catch (error) {
       console.error('Error deleting widget:', error);
-      toast.error('Erro ao excluir widget');
+      toast.error(mensagemDeExclusao(error));
     }
   };
 

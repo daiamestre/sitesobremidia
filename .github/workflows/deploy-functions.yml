@@ -21,6 +21,12 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
+          # Sem a chave cadastrada nos segredos do GitHub a publicação automática é pulada (não é erro):
+          # as funções são publicadas manualmente pelo responsável. Para ligar, cadastre SUPABASE_ACCESS_TOKEN.
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::notice::SUPABASE_ACCESS_TOKEN não cadastrado — publicação automática pulada."
+            exit 0
+          fi
           supabase functions deploy inter-billing-engine \
             --project-ref bhwsybgsyvvhqtkdqozb \
             --no-verify-jwt

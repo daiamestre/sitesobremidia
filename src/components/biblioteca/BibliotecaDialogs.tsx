@@ -17,6 +17,8 @@ export function erroNomePasta(nome: string): string | null {
   const v = nome.trim().replace(/\s+/g, ' ');
   if (!v) return 'Informe o nome da pasta.';
   if (v.length > 80) return 'Use até 80 caracteres.';
+  // caracteres de controle são proibidos em nome de pasta de propósito
+  // eslint-disable-next-line no-control-regex
   if (/[\\/<>:"|?*\u0000-\u001f]/.test(v)) return 'Não use \\ / < > : " | ? *';
   return null;
 }

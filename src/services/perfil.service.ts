@@ -108,6 +108,42 @@ export const perfilService = {
     }
   },
 
+  /** F-134: foto de capa (só aparece em "Meu Perfil"). Fica na pasta do próprio usuário no balde avatars. */
+  async uploadCapa(file: File): Promise<{ url: string | null; error: string | null }> {
+    const MAX = 8 * 1024 * 1024;
+    if (file.size > MAX) return { url: null, error: 'Imagem muito grande (máx. 8MB).' };
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return { url: null, error: 'Formato inválido. Use JPG, PNG ou WEBP.' };
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { url: null, error: 'Sessão inválida.' };
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${user.id}/capa-${Date.now()}.${ext}`;
+    try {
+      const { data: antes } = await supabase.from('usuarios').select('capa_url').eq('id', user.id).maybeSingle();
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw new Error(upErr.message);
+      const url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+      const { error: updErr } = await supabase.from('usuarios').update({ capa_url: url } as never).eq('id', user.id);
+      if (updErr) return { url: null, error: updErr.message };
+      // a capa anterior não fica ocupando espaço
+      const antiga = ((antes as { capa_url?: string | null } | null)?.capa_url || '').split('/avatars/')[1];
+      if (antiga) await supabase.storage.from('avatars').remove([decodeURIComponent(antiga.split('?')[0])]).catch(() => undefined);
+      return { url, error: null };
+    } catch (e: any) {
+      return { url: null, error: e?.message || 'Falha no envio da capa.' };
+    }
+  },
+
+  async removerCapa(): Promise<{ error: string | null }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Sessão inválida.' };
+    const { data: u } = await supabase.from('usuarios').select('capa_url').eq('id', user.id).maybeSingle();
+    const antiga = ((u as { capa_url?: string | null } | null)?.capa_url || '').split('/avatars/')[1];
+    const { error } = await supabase.from('usuarios').update({ capa_url: null } as never).eq('id', user.id);
+    if (error) return { error: error.message };
+    if (antiga) await supabase.storage.from('avatars').remove([decodeURIComponent(antiga.split('?')[0])]).catch(() => undefined);
+    return { error: null };
+  },
+
   async removerAvatar(): Promise<{ error: string | null }> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: 'Sessão inválida.' };

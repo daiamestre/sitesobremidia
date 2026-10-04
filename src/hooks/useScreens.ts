@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Screen, ScreenStatus, RemoteCommandType } from '@/types/models';
 import { toast } from 'sonner';
+import { conferirExclusao } from '@/lib/excluir';
 
 export function useScreens(userId?: string) {
     const queryClient = useQueryClient();
@@ -53,12 +54,12 @@ export function useScreens(userId?: string) {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase
+            const { error, count } = await supabase
                 .from('screens')
-                .delete()
+                .delete({ count: 'exact' })
                 .eq('id', id);
 
-            if (error) throw error;
+            conferirExclusao({ error, count });
             return id;
         },
         onSuccess: () => {
@@ -67,7 +68,7 @@ export function useScreens(userId?: string) {
         },
         onError: (error) => {
             console.error('Error deleting screen:', error);
-            toast.error('Erro ao excluir tela');
+            toast.error(error instanceof Error && error.message ? error.message : 'Erro ao excluir tela');
         }
     });
 

@@ -12,6 +12,7 @@ export interface UsuarioRecord {
   email: string;
   telefone?: string;
   avatar_url?: string;
+  capa_url?: string | null;
   ativo: boolean;
   status?: string; // ciclo de vida: ACTIVE | INACTIVE | SUSPENDED | DELETED
   is_owner?: boolean;

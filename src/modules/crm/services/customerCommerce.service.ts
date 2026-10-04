@@ -1,3 +1,4 @@
+import { conferirExclusao } from '@/lib/excluir';
 // ======================================================================
 // SOBRE MÍDIA CUSTOMER PORTAL — Customer Commerce Service
 // Produtos, Preços (auditados), Ofertas, Onboarding e Expansão.
@@ -140,8 +141,8 @@ export class CustomerCommerceService {
 
   async excluirProduto(produtoId: string): Promise<boolean> {
     try {
-      const { error } = await db.from('produtos').delete().eq('id', produtoId);
-      if (error) throw error;
+      const { error, count } = await db.from('produtos').delete({ count: 'exact' }).eq('id', produtoId);
+      conferirExclusao({ error, count });
       return true;
     } catch (err) {
       console.error('[CustomerCommerce] excluirProduto:', err);
@@ -283,8 +284,8 @@ export class CustomerCommerceService {
 
   async excluirOferta(ofertaId: string): Promise<boolean> {
     try {
-      const { error } = await db.from('ofertas').delete().eq('id', ofertaId);
-      if (error) throw error;
+      const { error, count } = await db.from('ofertas').delete({ count: 'exact' }).eq('id', ofertaId);
+      conferirExclusao({ error, count });
       return true;
     } catch (err) {
       console.error('[CustomerCommerce] excluirOferta:', err);
@@ -686,8 +687,8 @@ export class CustomerCommerceService {
 
   async deletarAsset(assetId: string): Promise<boolean> {
     try {
-      const { error } = await supabase.from('cliente_assets').delete().eq('id', assetId);
-      if (error) throw error;
+      const { error, count } = await supabase.from('cliente_assets').delete({ count: 'exact' }).eq('id', assetId);
+      conferirExclusao({ error, count });
       return true;
     } catch (err) {
       console.error('[CustomerCommerce] deletarAsset:', err);
@@ -755,8 +756,8 @@ export class CustomerCommerceService {
 
   async deletarEncarte(encarteId: string): Promise<boolean> {
     try {
-      const { error } = await supabase.from('encartes').delete().eq('id', encarteId);
-      if (error) throw error;
+      const { error, count } = await supabase.from('encartes').delete({ count: 'exact' }).eq('id', encarteId);
+      conferirExclusao({ error, count });
       return true;
     } catch (err) {
       console.error('[CustomerCommerce] deletarEncarte:', err);

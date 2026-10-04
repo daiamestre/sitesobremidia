@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Media, MediaType } from '@/types/models';
 import { toast } from 'sonner';
+import { conferirExclusao } from '@/lib/excluir';
 
 export function useMedia(userId?: string) {
     const queryClient = useQueryClient();
@@ -59,12 +60,12 @@ export function useMedia(userId?: string) {
             }
 
             // 2. Delete from database
-            const { error: dbError } = await supabase
+            const { error: dbError, count } = await supabase
                 .from('media')
-                .delete()
+                .delete({ count: 'exact' })
                 .eq('id', id);
 
-            if (dbError) throw dbError;
+            conferirExclusao({ error: dbError, count });
             return id;
         },
         onSuccess: () => {
@@ -73,7 +74,7 @@ export function useMedia(userId?: string) {
         },
         onError: (error) => {
             console.error('Error deleting media:', error);
-            toast.error('Erro ao excluir mídia');
+            toast.error(error instanceof Error && error.message ? error.message : 'Erro ao excluir mídia');
         }
     });
 

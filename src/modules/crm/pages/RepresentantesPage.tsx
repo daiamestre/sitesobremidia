@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -414,6 +415,10 @@ export default function RepresentantesPage() {
                                     >
                                       <Power className="h-3.5 w-3.5" />
                                     </Button>
+                                  )}
+                                  {(permissoes.podeEditar || permissoes.podeDesativar) && (
+                                    <BotaoExcluir tipo="REPRESENTANTE" id={rep.id} nome={rep.nome || rep.razao_social || undefined} onExcluido={carregar} className="h-7 w-7"
+                                      aviso="Se ele tiver contratos ou comissões, o histórico fica guardado e ele só sai das listas." />
                                   )}
                                 </div>
                               </td>

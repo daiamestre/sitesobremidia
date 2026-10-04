@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { mensagemDeExclusao, NADA_EXCLUIDO } from '@/lib/excluir';
 
 export type PIStatus =
   | 'EM_ELABORACAO'
@@ -309,8 +310,9 @@ export class PIService {
    */
   async removeLocation(localId: string, piId: string, usuarioId?: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase.from('pi_locais').delete().eq('id', localId);
-      if (error) return { success: false, error: error.message };
+      const { error, count } = await supabase.from('pi_locais').delete({ count: 'exact' }).eq('id', localId);
+      if (error) return { success: false, error: mensagemDeExclusao(error) };
+      if (count === 0) return { success: false, error: NADA_EXCLUIDO };
 
       await supabase.from('pi_auditoria').insert({
         pi_id: piId,

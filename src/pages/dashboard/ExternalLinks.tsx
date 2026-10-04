@@ -1,3 +1,4 @@
+import { conferirExclusao } from '@/lib/excluir';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -152,19 +153,19 @@ export default function ExternalLinks() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from('external_links')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('id', id);
-      if (error) throw error;
+      conferirExclusao({ error, count });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['external-links'] });
       toast.success('Link removido!');
       setDeleteConfirm(null);
     },
-    onError: () => {
-      toast.error('Erro ao remover link');
+    onError: (error) => {
+      toast.error(error instanceof Error && error.message ? error.message : 'Erro ao remover link');
     },
   });
 

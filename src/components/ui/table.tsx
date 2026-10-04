@@ -1,28 +1,13 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { rotularCelulas } from "@/lib/tabelasResponsivas";
 
 /**
  * F-116: no celular e no tablet em pé (até 1023 px) a tabela vira blocos empilhados — cada linha um bloco, cada célula com o nome da
  * coluna ao lado (data-label copiado do cabeçalho). Nada de arrastar para o lado. No computador nada muda.
  * Quem precisar da tabela tradicional no celular passa empilharNoCelular={false}.
  */
-function rotularCelulas(tabela: HTMLTableElement | null) {
-  if (!tabela) return;
-  const titulos = [...tabela.querySelectorAll(':scope > thead > tr:last-child > th')].map((th) => (th.textContent || '').trim());
-  if (!titulos.length) return;
-  for (const tr of tabela.querySelectorAll(':scope > tbody > tr')) {
-    let col = 0;
-    for (const td of (tr as HTMLTableRowElement).cells) {
-      const span = (td as HTMLTableCellElement).colSpan || 1;
-      if (span > 1) td.setAttribute('data-linha-inteira', '');
-      else if (titulos[col]) td.setAttribute('data-label', titulos[col]);
-      else td.removeAttribute('data-label');
-      col += span;
-    }
-  }
-}
-
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement> & { empilharNoCelular?: boolean }>(
   ({ className, empilharNoCelular = true, ...props }, ref) => {
     const interno = React.useRef<HTMLTableElement | null>(null);
@@ -60,6 +45,7 @@ const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableE
             else if (ref) (ref as React.MutableRefObject<HTMLTableElement | null>).current = el;
           }}
           className={cn("w-full caption-bottom text-sm", empilharNoCelular && "tabela-empilhada", className)}
+          data-tabela-fixa={empilharNoCelular ? undefined : ""}
           {...props}
         />
       </div>

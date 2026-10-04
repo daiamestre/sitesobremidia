@@ -103,6 +103,6 @@ describe('Meu Perfil — campos obrigatórios validados', () => {
   });
   it('upload foto valida 5MB e tipo — mensagem presente', async () => {
     renderPerfil('GESTOR');
-    expect(screen.getByText(/JPG\/PNG\/WEBP\/GIF/)).toBeTruthy();
+    expect(screen.getByText(/JPG, PNG, WEBP ou GIF, até 5 MB/)).toBeTruthy();
   });
 });

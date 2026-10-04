@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useId } from 'react';
+import { useState, useEffect, useMemo, useId, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Store, User, MapPin, Tv, Camera, ClipboardCheck,
@@ -137,6 +137,9 @@ export default function PontoParceiroWizardPage() {
 
   // Estado do Contrato Personalizado
   const [contratoIdSalvo, setContratoIdSalvo] = useState<string | null>(null);
+  // F-137: o ponto é criado UMA vez. Ver/baixar/assinar o contrato já cria o ponto; o "Finalizar" (e uma nova
+  // tentativa depois de erro) reaproveita o mesmo registro — antes cada passo criava outro ponto (duplicado).
+  const pontoSalvo = useRef<{ id: string; codigo_publico: string | null } | null>(null);
   const [pdfObjectKeySalvo, setPdfObjectKeySalvo] = useState<string | null>(null);
   const [gerandoDocumento, setGerandoDocumento] = useState(false);
   const [dialogAssinaturaOpen, setDialogAssinaturaOpen] = useState(false);
@@ -188,8 +191,12 @@ export default function PontoParceiroWizardPage() {
       let cid = contratoIdSalvo;
       if (!cid) {
         const payload: NovoPontoParceiroPayload = { ...form, nome: form.nomeFantasia || 'Ponto Teste', fotoCapaUrl: fotoCapa || undefined, fotosUrls: fotos };
-        const r = await prospeccaoService.criarPontoParceiro(payload);
-        const pontoId = (r as any).id || (r as any).ponto_id;
+        let pontoId = pontoSalvo.current?.id;
+        if (!pontoId) {
+          const r = await prospeccaoService.criarPontoParceiro(payload);
+          pontoId = (r as any).id || (r as any).ponto_id;
+          if (pontoId) pontoSalvo.current = { id: pontoId, codigo_publico: r.codigo_publico ?? null };
+        }
         
         const { data: { user } } = await supabase.auth.getUser();
         const resCt = await contratoService.ensureContractForCadastro({
@@ -341,7 +348,15 @@ export default function PontoParceiroWizardPage() {
         quantidadeTelas: telas.length,
         ambientes: telas.map((t) => t.local.trim()).filter(Boolean).join(', '),
       };
-      const r = await prospeccaoService.criarPontoParceiro(payload);
+      let r = pontoSalvo.current;
+      if (r) {
+        // já criado numa etapa anterior: só atualiza com o que foi preenchido depois
+        await prospeccaoService.atualizarPontoParceiro(r.id, payload);
+      } else {
+        const novo = await prospeccaoService.criarPontoParceiro(payload);
+        r = { id: (novo as any).id || (novo as any).ponto_id, codigo_publico: novo.codigo_publico ?? null };
+        if (r.id) pontoSalvo.current = r;
+      }
       // Contrato PARCEIRO — BLOQUEANTE §7
       {
         const { data: { user } } = await supabase.auth.getUser();

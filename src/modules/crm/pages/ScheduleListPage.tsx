@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { agendamentoService, AgendamentoCompleto } from '../services/agendamento.service';
@@ -133,6 +134,7 @@ export default function ScheduleListPage() {
                           <Eye className="h-3.5 w-3.5" />
                           Abrir Agendamento
                         </Button>
+                        <BotaoExcluir tipo="AGENDAMENTO" id={s.id} nome={s.titulo || undefined} onExcluido={fetchSchedules} className="ml-1 align-middle" />
                       </TableCell>
                     </TableRow>
                   ))}

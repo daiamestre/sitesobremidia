@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { producaoService, ProducaoCompleta } from '../services/producao.service';
@@ -130,6 +131,7 @@ export default function ProductionListPage() {
                             <Eye className="h-3.5 w-3.5" />
                             Abrir Produção
                           </Button>
+                          <BotaoExcluir tipo="PRODUCAO" id={p.id} nome={p.titulo || undefined} onExcluido={fetchProducoes} className="ml-1 align-middle" />
                         </TableCell>
                       </TableRow>
                     );

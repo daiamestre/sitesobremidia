@@ -6,7 +6,7 @@ describe('Player Synchronization Continuity & Atomic Switch', () => {
     const newPlaylistFromDashboard = ['media-B1', 'media-B2'];
 
     let displayedPlaylist = currentActivePlaylist;
-    let backgroundDownloading = [...newPlaylistFromDashboard];
+    const backgroundDownloading = [...newPlaylistFromDashboard];
     let isDownloadComplete = false;
 
     // Enquanto baixa, a playlist antiga CONTINUA tocando

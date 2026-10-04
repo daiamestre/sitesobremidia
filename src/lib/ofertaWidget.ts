@@ -64,7 +64,7 @@ export function ofertaParaWidget(o: Oferta, agora: Date = new Date()): OfertaWid
 }
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-export const precoBR = (v: number) => BRL.format(v).replace(/ /g, ' ');
+export const precoBR = (v: number) => BRL.format(v).replace(/\u00a0/g, ' ');
 
 /** Percentual exibido: o cadastrado, ou o calculado pelos preços. */
 export function descontoDoItem(i: Pick<OfertaWidgetItem, 'desconto' | 'preco_original' | 'preco_oferta'>): number {

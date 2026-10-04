@@ -28,6 +28,7 @@ import { useQuery } from '@tanstack/react-query';
 import { centralService } from '@/services/central.service';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/utils/formatters';
+import { AvatarCabecalho } from '@/components/perfil/AvatarCabecalho';
 
 interface CrmHeaderProps {
   /** Abre o menu por cima do conteúdo (telas abaixo de 1280 px). */
@@ -40,7 +41,7 @@ interface CrmHeaderProps {
 export function CrmHeader({ onMenuClick, onToggleSidebar, sidebarCollapsed = false }: CrmHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userInitials, userName, userEmail } = useCrmSession();
+  const { userInitials, userName } = useCrmSession();
   const { total: totalNaoLidas } = useCentralUnread();
 
   const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
@@ -80,6 +81,8 @@ export function CrmHeader({ onMenuClick, onToggleSidebar, sidebarCollapsed = fal
             {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
           </Button>
         )}
+        {/* F-134: círculo do perfil (foto ou iniciais) logo depois do botão de menu */}
+        <AvatarCabecalho nomeDaSessao={userName} iniciaisDaSessao={userInitials} />
         <div className="md:hidden flex-shrink-0">
           <Logo size="sm" />
         </div>
@@ -193,13 +196,6 @@ export function CrmHeader({ onMenuClick, onToggleSidebar, sidebarCollapsed = fal
             )}
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {/* Representative Avatar */}
-        <div className="flex items-center gap-2 pl-2 border-l border-white/10" title={`${userName} (${userEmail})`}>
-          <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm shadow-md">
-            {userInitials}
-          </div>
-        </div>
 
         {/* MAIN TOP RIGHT BUTTON: + Novo Cliente — responsivo */}
         <Button

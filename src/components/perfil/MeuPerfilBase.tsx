@@ -27,7 +27,7 @@ interface Props {
 }
 
 export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
-  const { usuario, user, refreshUserData, signOut } = useAuth();
+  const { usuario, user, refreshUserData, signOut, isOwner, perfilNome } = useAuth();
   const navigate = useNavigate();
 
   const [nome, setNome] = useState(usuario?.nome || '');
@@ -35,6 +35,7 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
   const [emailNovo, setEmailNovo] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [salvandoAvatar, setSalvandoAvatar] = useState(false);
+  const [salvandoCapa, setSalvandoCapa] = useState(false);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [sessaoInfo, setSessaoInfo] = useState<string>('');
 
@@ -93,6 +94,26 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
     else { toast.success('Foto removida.'); await refreshUserData(); }
   };
 
+  // F-134: capa do perfil (dono e administrador)
+  const handleCapa = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setSalvandoCapa(true);
+    const r = await perfilService.uploadCapa(f);
+    setSalvandoCapa(false);
+    if (r.error) toast.error(r.error);
+    else { toast.success('Capa atualizada!'); await refreshUserData(); }
+    e.target.value = '';
+  };
+
+  const handleRemoverCapa = async () => {
+    setSalvandoCapa(true);
+    const r = await perfilService.removerCapa();
+    setSalvandoCapa(false);
+    if (r.error) toast.error(r.error);
+    else { toast.success('Capa removida.'); await refreshUserData(); }
+  };
+
   const handleTrocarSenha = async () => {
     const v = validarSenhaNova(novaSenha);
     if (!v.valida) { toast.error(v.motivo); return; }
@@ -130,6 +151,9 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
   const showEmpresa = variante === 'ANUNCIANTE' || variante === 'OWNER' || variante === 'ADMIN';
   const showRepresentanteInfo = variante === 'REPRESENTANTE';
   const canEditEmpresa = false; // empresa é somente leitura para todos exceto fluxos especiais
+  // F-134: foto de capa para dono e administrador
+  const temCapa = !!usuario?.is_owner || isOwner || perfilNome === 'OWNER' || perfilNome === 'ADMIN' || variante === 'OWNER' || variante === 'ADMIN';
+  const capa = temCapa ? usuario?.capa_url || null : null;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in pb-12">
@@ -141,9 +165,31 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
       </div>
 
       <Card className="border-white/10 bg-white/[0.03] overflow-hidden">
-        <CardContent className="p-6 flex flex-col sm:flex-row gap-6 items-center">
-          <div className="relative">
-            <Avatar className="h-24 w-24 border-2 border-white/10">
+        {temCapa && (
+          <div className="relative h-36 w-full sm:h-48 md:h-56" data-testid="capa-perfil">
+            {capa
+              ? <img src={capa} alt="Capa do perfil" className="h-full w-full object-cover" />
+              : <div className="h-full w-full bg-gradient-to-r from-primary/40 via-purple-700/40 to-slate-900" aria-hidden="true" />}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" aria-hidden="true" />
+            {salvandoCapa && <Loader2 className="absolute inset-0 m-auto h-7 w-7 animate-spin text-white" />}
+            <div className="absolute right-3 top-3 flex gap-2">
+              <label className="inline-flex">
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleCapa} disabled={salvandoCapa} data-testid="input-capa" />
+                <Button size="sm" variant="secondary" className="gap-2 bg-slate-950/70 text-white hover:bg-slate-950/90" disabled={salvandoCapa} asChild>
+                  <span><Upload className="h-4 w-4" /> {capa ? 'Trocar capa' : 'Adicionar capa'}</span>
+                </Button>
+              </label>
+              {capa && (
+                <Button size="sm" variant="secondary" className="gap-2 bg-slate-950/70 text-rose-300 hover:bg-slate-950/90" onClick={handleRemoverCapa} disabled={salvandoCapa} aria-label="Remover capa" data-testid="remover-capa">
+                  <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">Remover</span>
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+        <CardContent className={`p-6 flex flex-col sm:flex-row gap-6 items-center ${temCapa ? 'sm:items-end' : ''}`}>
+          <div className={`relative ${temCapa ? '-mt-16 sm:-mt-20' : ''}`}>
+            <Avatar className={`border-white/10 ${temCapa ? 'h-28 w-28 border-4 border-slate-950 shadow-xl sm:h-32 sm:w-32' : 'h-24 w-24 border-2'}`}>
               <AvatarImage src={usuario?.avatar_url || undefined} alt={usuario?.nome} />
               <AvatarFallback className="text-xl bg-gradient-to-br from-primary to-purple-600 text-white">{(usuario?.nome || 'U').charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -166,7 +212,10 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
                 </Button>
               )}
             </div>
-            <p className="text-[11px] text-slate-500 mt-2">JPG/PNG/WEBP/GIF • máx 5MB • associada somente ao seu usuário (RLS)</p>
+            <p className="text-[11px] text-slate-500 mt-2">
+              Foto: JPG, PNG, WEBP ou GIF, até 5 MB — aparece no círculo do cabeçalho.
+              {temCapa && ' Capa: JPG, PNG ou WEBP, até 8 MB (ideal 1600×400) — aparece só aqui no perfil.'}
+            </p>
           </div>
         </CardContent>
       </Card>

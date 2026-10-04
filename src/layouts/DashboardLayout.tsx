@@ -5,6 +5,7 @@ import { Loader2, Menu } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { AvatarCabecalho } from '@/components/perfil/AvatarCabecalho';
 
 export function DashboardLayout() {
   const { user, loading, isApproved, profile } = useAuth();
@@ -47,6 +48,7 @@ export function DashboardLayout() {
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} aria-label="Abrir menu">
             <Menu className="h-5 w-5" />
           </Button>
+          <AvatarCabecalho />
           <span className="font-display font-bold text-sidebar-foreground">SOBRE MÍDIA</span>
         </header>
 

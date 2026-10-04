@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Playlist } from '@/types/models';
 import { toast } from 'sonner';
+import { conferirExclusao } from '@/lib/excluir';
 
 // Formato dos itens retornados pelo join com media/widget/external_link
 interface PlaylistItemWithDetails {
@@ -85,12 +86,12 @@ export function usePlaylists(userId?: string) {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase
+            const { error, count } = await supabase
                 .from('playlists')
-                .delete()
+                .delete({ count: 'exact' })
                 .eq('id', id);
 
-            if (error) throw error;
+            conferirExclusao({ error, count });
             return id;
         },
         onSuccess: () => {
@@ -99,7 +100,7 @@ export function usePlaylists(userId?: string) {
         },
         onError: (error) => {
             console.error('Error deleting playlist:', error);
-            toast.error('Erro ao excluir playlist');
+            toast.error(error instanceof Error && error.message ? error.message : 'Erro ao excluir playlist');
         }
     });
 

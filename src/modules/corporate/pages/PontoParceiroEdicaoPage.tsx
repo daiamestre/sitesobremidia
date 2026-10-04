@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -370,6 +371,9 @@ export default function PontoParceiroEdicaoPage() {
 
       {/* Salvar (fixo no rodapé) */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-slate-950/95 p-3 backdrop-blur md:left-auto md:right-6 md:bottom-6 md:rounded-2xl md:border">
+        <BotaoExcluir tipo="PONTO_PARCEIRO" id={id} nome={form.nomeFantasia || undefined} formato="texto" className="mr-2"
+          onExcluido={() => { window.location.assign(window.location.pathname.replace(/\/[^/]+$/, '')); }}
+          aviso="As telas deste ponto também serão excluídas. Pontos com anúncio no ar ou aparelho pareado não podem ser excluídos." />
         <Button className="w-full gap-2 md:w-auto" disabled={salvando || !!subindo} onClick={salvar} data-testid="salvar-ponto">
           {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar alterações do ponto
         </Button>

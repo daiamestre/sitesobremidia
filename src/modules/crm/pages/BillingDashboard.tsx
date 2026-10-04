@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -391,6 +392,8 @@ export default function BillingDashboard() {
               >
                 <XCircle className="h-4 w-4" />
               </Button>
+              {/* F-136: excluir só vale para cobrança sem pagamento e sem boleto/PIX emitido (o banco confere e explica) */}
+              <BotaoExcluir tipo="COBRANCA" id={c.id} nome={c.codigo_operacional || c.numero_documento || undefined} onExcluido={() => refetch()} />
             </>
           )}
         </div>

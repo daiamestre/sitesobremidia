@@ -1672,3 +1672,32 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova (navegador, sessão ADMIN de teste, "Novo Modelo"):** 390 px — folha inteira a 41 %, painel 343 px abre/fecha, inserção de campo (27→28) fecha o painel, zoom 61 % rola dentro da área e "Ajustar" volta; 800 px — 81 %; 1280 px — 100 % (896 px), painel 384 px por cima; 1440 px — igual ao que era. Sem rolagem lateral da página em nenhum tamanho.
 - **Testes:** `editorContratoFolha.test.ts` (6).
 - **Limite honesto:** conferido por emulação de tamanho; o gesto de pinça e o teclado do aparelho só se confirmam no celular/tablet real.
+
+### F-133 — Tela de representantes (e toda tabela "crua") sem responsividade — DONE
+- **Causa:** 14 tabelas em 9 páginas usavam `<table>` direto, fora do componente `ui/table` que empilha no celular/tablet (representantes, desempenho, detalhe do representante, portal, BI). A lista de representantes tinha 971 px. **Por que escapou das varreduras:** a conta ADMIN de teste não tinha a permissão `representantes.view`, então a página mostrava "sem permissão" e a tabela real nunca foi desenhada nos testes.
+- **Correção:** `src/lib/tabelasResponsivas.ts` — ao iniciar o app, toda `<table>` com cabeçalho recebe a mesma classe e os mesmos rótulos do componente (observador de mudanças na página). Ficam de fora tabelas de documento (contrato) e `data-tabela-fixa`; nas rotas do Player nada é ativado. A conta de teste ganhou as permissões de representantes.
+- **Prova:** 390 e 800 px empilhada, sem rolagem lateral; 1280 px empilha por falta de espaço; 1440 px continua tabela.
+
+### F-134 — Foto de perfil e foto de capa (dono e administrador) — DONE
+- Coluna `usuarios.capa_url` (migração `20261296`); envio/remoção da capa no balde `avatars`, pasta do próprio usuário. Página "Meu Perfil" com capa e foto sobreposta; a capa só aparece no perfil e só para dono/administrador.
+- Círculo do perfil (`AvatarCabecalho`) mostra a foto (ou iniciais), abre o perfil e fica **logo depois do botão de menu, à esquerda** — saiu do lado do "Novo Cliente". Também no cabeçalho do painel (celular/tablet) e no topo do menu lateral.
+- **Prova:** envio de capa (1600×400) e foto na conta de teste aceitos pelo armazenamento, foto no círculo, remoção das duas; 390 px e 1440 px.
+
+### F-135 — Exclusões que existiam e não funcionavam — DONE
+- **Achados:** `screen_schedules` sem nenhuma regra (agenda da tela nunca funcionou); ADMIN não apagava mídia/playlist/widget/link da empresa; o painel dizia "excluído" com 0 linhas apagadas; vínculos travavam (playlist em uso num aparelho, tela citada em pedido, produto em oferta).
+- **Correção:** migração `20261297` (regra da agenda, `empresa_admin_delete/update`, vínculos `SET NULL`/`CASCADE`); `src/lib/excluir.ts` — toda exclusão direta confere quantas linhas saíram e traduz o erro (14 pontos do código).
+- **Prova (simulação com rollback):** ADMIN apaga mídia, playlist em uso, widget e tela com pedido/aparelho, cria e apaga horário; anunciante e outra empresa: 0 linhas / negado. Player idêntico.
+
+### F-136 — Tudo que se cria pode ser excluído — DONE (primeira leva)
+- **Achado:** propostas, pedidos de inserção, produções, agendamentos, campanhas, representantes, pontos parceiros, cobranças e contatos não tinham exclusão.
+- **Correção:** `fn_excluir_registro(tipo, id)` (migração `20261298`) com regra por tipo: confere empresa e perfil; recusa com motivo quando há pagamento, boleto/PIX emitido, anúncio no ar, aparelho pareado, pedido/contrato derivado ou carteira de clientes; arquiva (exclusão lógica) representante com histórico e ponto parceiro; registra na auditoria. Componente `BotaoExcluir` (confirmação + motivo da recusa) ligado em 8 telas.
+- **Prova:** 42 casos simulados (anunciante, outra empresa, ADMIN); no navegador, recusa com motivo ao excluir representante com carteira.
+- **Ainda sem excluir (próxima leva):** usuários (envolve a conta de login), notas fiscais, comissões, chamados do portal, membros da equipe do anunciante, regras de comissão.
+
+### F-137 — Cadastro de ponto parceiro criava dois pontos — DONE
+- **Causa:** ver/baixar/assinar o contrato numa etapa do cadastro já criava o ponto; o "Finalizar" criava outro. O primeiro ficava sem tela e sem valor ("Sob consulta"). Nova tentativa após erro também duplicava.
+- **Correção:** o cadastro guarda o ponto criado e o reaproveita (atualiza com `fn_atualizar_ponto_parceiro`). O órfão "Boi e Brasa Churrascaria" (sem tela) foi arquivado.
+
+### F-138 — Esteira do GitHub sempre falhando — DONE
+- **Causas:** (1) `npm ci` quebrava no início: a esteira usava Node 22 (npm 10) e o `package-lock.json` é gerado no Node 24 (npm 11, o mesmo da Vercel) — os dois leem o arquivo de formas diferentes; como a 1ª etapa falhava, todas as outras eram canceladas. (2) "Deploy Supabase Edge Functions" falhava por não haver a chave cadastrada no GitHub.
+- **Correção:** esteira no Node 24; 3 erros de lint corrigidos; testes ajustados; publicação de funções pula com aviso quando a chave não está cadastrada (as funções são publicadas manualmente).

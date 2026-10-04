@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { propostaService } from '@/modules/crm/services/proposta.service';
@@ -146,6 +147,7 @@ export default function PropostasListPage() {
                         </>
                       )}
                     </Button>
+                    <BotaoExcluir tipo="PROPOSTA" id={prop.id} nome={prop.numero_proposta} onExcluido={loadPropostas} className="h-10 w-10 shrink-0 border border-white/10" />
                   </div>
                 </CardContent>
               </Card>

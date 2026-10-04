@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Trash2, Clock, Calendar, Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { conferirExclusao, mensagemDeExclusao } from '@/lib/excluir';
 
 interface Schedule {
   id: string;
@@ -173,17 +174,17 @@ export function ScreenScheduleDialog({
 
   const handleDeleteSchedule = async (scheduleId: string) => {
     try {
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from('screen_schedules')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('id', scheduleId);
 
-      if (error) throw error;
+      conferirExclusao({ error, count });
       setSchedules(prev => prev.filter(s => s.id !== scheduleId));
       toast.success('Agendamento excluído!');
     } catch (error) {
       console.error('Error deleting schedule:', error);
-      toast.error('Erro ao excluir agendamento');
+      toast.error(mensagemDeExclusao(error));
     }
   };
 

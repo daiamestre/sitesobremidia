@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -95,6 +96,7 @@ export default function MinhasCampanhasPage() {
             <Badge className={`${statusConfig.color} whitespace-nowrap flex items-center gap-1`}>
               <StatusIcon className="h-3 w-3" /> {statusConfig.label}
             </Badge>
+            <BotaoExcluir tipo="CAMPANHA" id={campanha.id} nome={campanha.titulo} onExcluido={() => window.location.reload()} />
           </div>
           <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-slate-400">
             <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Início: {formatDate(campanha.inicio)}</span>

@@ -11,6 +11,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { gerarBrcodePix, type StatusCobranca } from '@/modules/gestor/telaPago.service';
+import { conferirExclusao } from '@/lib/excluir';
 
 export const VALOR_VIDEO_ADICIONAL = 19.99;
 
@@ -122,8 +123,8 @@ export class PlaylistClienteService {
   }
 
   async excluirPlaylist(id: string): Promise<void> {
-    const { error } = await supabase.from('playlists_cliente').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    const { error, count } = await supabase.from('playlists_cliente').delete({ count: 'exact' }).eq('id', id);
+    conferirExclusao({ error, count });
   }
 
   /**
@@ -185,8 +186,8 @@ export class PlaylistClienteService {
   }
 
   async removerItem(itemId: string): Promise<void> {
-    const { error } = await supabase.from('cliente_playlist_itens').delete().eq('id', itemId);
-    if (error) throw new Error(error.message);
+    const { error, count } = await supabase.from('cliente_playlist_itens').delete({ count: 'exact' }).eq('id', itemId);
+    conferirExclusao({ error, count });
   }
 
   async vincularPontos(playlistId: string, pontoIds: string[]): Promise<number> {
@@ -199,12 +200,12 @@ export class PlaylistClienteService {
   }
 
   async desvincularPonto(playlistId: string, pontoId: string): Promise<void> {
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('cliente_playlist_pontos')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('playlist_id', playlistId)
       .eq('ponto_id', pontoId);
-    if (error) throw new Error(error.message);
+    conferirExclusao({ error, count });
   }
 
   /** Pontos CONTRATADOS e ativos do próprio anunciante */

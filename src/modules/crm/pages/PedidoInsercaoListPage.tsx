@@ -1,3 +1,4 @@
+import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -386,6 +387,8 @@ export default function PedidoInsercaoListPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-white text-sm">{pi.numero_pi}</span>
                         <StatusBadge status={pi.status} />
+                        <BotaoExcluir tipo="PEDIDO_INSERCAO" id={pi.id} nome={pi.numero_pi} onExcluido={load} className="ml-auto"
+                          aviso="A produção e os agendamentos ligados a este pedido também serão excluídos." />
                         <span className={`text-xs px-2 py-0.5 rounded-lg border font-semibold ${pcfg.class}`}>{pcfg.label}</span>
                       </div>
                       <p className="text-slate-300 text-xs mt-0.5 truncate">{pi.titulo}</p>

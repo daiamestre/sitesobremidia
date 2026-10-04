@@ -204,6 +204,42 @@ export class ProspeccaoService {
     return { id: String(data?.id ?? ''), codigo_publico: data?.codigo_publico ?? null, contrato_id: data?.contrato_id };
   }
 
+  /**
+   * F-137: atualiza o ponto parceiro que o próprio cadastro já criou (ao gerar o contrato na etapa de assinatura).
+   * Usado no "Finalizar" para não criar um segundo ponto. Mesmos campos da criação.
+   */
+  async atualizarPontoParceiro(pontoId: string, payload: NovoPontoParceiroPayload): Promise<void> {
+    const descricao = [
+      payload.razaoSocial ? 'Razao social: ' + payload.razaoSocial : null,
+      payload.cnpjCpf ? 'CPF/CNPJ: ' + payload.cnpjCpf : null,
+      payload.responsavelNome
+        ? 'Responsavel: ' + payload.responsavelNome + (payload.responsavelCargo ? ' (' + payload.responsavelCargo + ')' : '')
+        : null,
+      payload.telefone || payload.whatsapp
+        ? 'Contato: ' + [payload.telefone, payload.whatsapp].filter(Boolean).join(' / ')
+        : null,
+      payload.email ? 'E-mail: ' + payload.email : null,
+    ].filter(Boolean).join(' | ');
+    const { error } = await supabase.rpc('fn_atualizar_ponto_parceiro' as never, {
+      p_ponto: pontoId,
+      p_dados: {
+        nome: (payload.nome ?? '').trim(),
+        categoria: payload.categoria || '',
+        descricao,
+        foto_url: payload.fotoCapaUrl || '',
+        galeria: (payload.fotosUrls ?? []).map((url) => ({ url })),
+        cep: payload.cep || '', logradouro: payload.logradouro || '', numero: payload.numero || '',
+        complemento: payload.complemento || '', bairro: payload.bairro || '', cidade: payload.cidade || '',
+        estado: payload.estado || '',
+        horario_funcionamento: (payload as { horarioFuncionamento?: string }).horarioFuncionamento || '',
+        publico_estimado_dia: (payload as { fluxoDiario?: string }).fluxoDiario || '',
+        regras_comerciais: montarRegrasComerciais(payload).join('\n'),
+        modelo_comercial: payload.modeloComercial || 'PERMUTA',
+      },
+    } as never);
+    if (error) throw new Error(error.message);
+  }
+
   /** Provisiona GESTOR DE MÍDIAS com Contrato de Gestão Operacional Obrigatório (GATE 4.1) */
   async provisionarGestor(dados: {
     nome: string;
