@@ -1747,3 +1747,10 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:** simulação com reversão (gestor): sem marca → PADRAO; marca sem logo e com foto → `logo_url` = foto de perfil; com logo → logo; desligada → PADRAO; o gestor grava a própria foto e capa. Navegador (800 px, ADMIN de teste): cabeçalho com capa e imagem, sem rolagem lateral.
 - **Testes:** `minhaMarcaCapa.test.ts` (4).
 - **Pendente (igual ao F-103):** a marca só aparece nos aparelhos com o Player 5.6.9, que aguarda o teste no aparelho do proprietário antes de ser publicado; a frota está na 5.6.8.
+
+### F-145 — Tela de erro logo depois do login ("history.replaceState() more than 100 times per 10 seconds") — DONE
+- **Sintoma:** ao entrar (celular, tablet e computador) aparecia "O Player encontrou um problema"; tocando em "Tentar agora" o painel abria normalmente.
+- **Causa:** `fetchUserData` (AuthContext) gravava o cadastro (`setUsuario`) antes das outras duas consultas e só no fim gravava a situação (`solicitacaoStatus`). Nesse intervalo o dono/administrador já contava como aprovado (pelo perfil) com a situação ainda `NOT_FOUND`: a tela de login (`user && isApproved`) mandava para o painel e o guarda `RequireApproval` (que exige a situação aprovada) mandava de volta para o login, em laço, até o navegador bloquear. Rede lenta alonga o intervalo; ao recarregar não acontece porque a tela espera a carga inteira.
+- **Correção:** (1) cadastro, representante e situação entram juntos, depois das três consultas — o estado contraditório deixa de existir; (2) a tela de login só redireciona com a mesma condição que o guarda exige (situação aprovada), então os dois não podem mais discordar.
+- **Prova:** teste com consultas lentas falha sem a correção (`carregando|aprovado|NOT_FOUND`) e passa com ela; navegador (ADMIN de teste, sessão ativa em `/auth`): 1 troca de endereço, direto para o painel, sem tela de erro.
+- **Testes:** `loginSemLaco.test.tsx` (2).

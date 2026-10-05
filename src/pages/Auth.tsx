@@ -75,13 +75,15 @@ export default function Auth() {
     const redirect = params.get('redirect');
     const roleParam = params.get('role');
 
-    if (user && isApproved) {
+    // F-145: só sai do login quando a situação já chegou do banco — a mesma condição que o guarda das áreas
+    // protegidas exige. Com condições diferentes, login e guarda ficavam se redirecionando sem parar.
+    if (user && isApproved && (solicitacaoStatus === 'APPROVED' || solicitacaoStatus === 'ACTIVE')) {
       // VALIDAÇÃO DA PORTA: portal solicitado × perfil REAL do banco
       if (!validarPortalSolicitado(roleParam, perfilNome)) return; // tela de negação
       const target = redirect || (roleParam === 'gestor' ? '/dashboard' : workspaceRoute) || '/dashboard';
       navigate(target, { replace: true });
     }
-  }, [user, isApproved, navigate, location.search, location.pathname, workspaceRoute, perfilNome]);
+  }, [user, isApproved, solicitacaoStatus, navigate, location.search, location.pathname, workspaceRoute, perfilNome]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

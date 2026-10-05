@@ -113,7 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const usuarioData = (usuarioRaw as unknown as UsuarioRecord) || null;
       console.log('[AuthContext] fetchUserData -> usuarioData:', usuarioData);
-      setUsuario(usuarioData);
 
       // 2. Busca dados comerciais do representante
       let repData: RepresentanteRecord | null = null;
@@ -128,10 +127,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         console.log('[AuthContext] fetchUserData -> repData:', repRaw);
         repData = (repRaw as unknown as RepresentanteRecord) || null;
-        setRepresentante(repData);
       } else {
         console.log('[AuthContext] fetchUserData -> usuarioData is null, skipping representante fetch');
-        setRepresentante(null);
       }
 
       // 3. Busca status da solicitação de acesso no banco de dados
@@ -156,6 +153,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         computedStatus = 'NOT_FOUND';
       }
 
+      // F-145: cadastro, representante e situação entram JUNTOS, só depois das três consultas. Antes o cadastro entrava
+      // primeiro: por alguns instantes o dono/administrador já contava como aprovado com a situação ainda "não
+      // encontrada", o login mandava para o painel, o guarda do painel mandava de volta, e os dois se revezavam até o
+      // navegador bloquear ("history.replaceState() more than 100 times per 10 seconds").
+      setUsuario(usuarioData);
+      setRepresentante(repData);
       setSolicitacaoStatus(computedStatus);
       // PRIORIDADE: perfilNome vem exclusivamente da fonte oficial (perfil?.nome || is_owner fallback)
       // O flag is_owner NUNCA deve sobrescrever o perfil identificado — evita que Representante seja visto como OWNER
