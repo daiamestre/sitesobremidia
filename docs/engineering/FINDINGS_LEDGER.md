@@ -1754,3 +1754,9 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Correção:** (1) cadastro, representante e situação entram juntos, depois das três consultas — o estado contraditório deixa de existir; (2) a tela de login só redireciona com a mesma condição que o guarda exige (situação aprovada), então os dois não podem mais discordar.
 - **Prova:** teste com consultas lentas falha sem a correção (`carregando|aprovado|NOT_FOUND`) e passa com ela; navegador (ADMIN de teste, sessão ativa em `/auth`): 1 troca de endereço, direto para o painel, sem tela de erro.
 - **Testes:** `loginSemLaco.test.tsx` (2).
+
+### F-146 — Tela inicial: conteúdo passava por cima do cabeçalho e só "Área Corporativa" parecia selecionada — DONE
+- **Causa:** (1) o cabeçalho e o conteúdo tinham a mesma camada (`z-10`) e o conteúdo vem depois na página, então ao rolar os títulos e as opções eram desenhados por cima do cabeçalho (que ainda era 20% transparente); (2) só a opção "Área Corporativa" tinha borda e sombra azuis fixas (`highlight`), parecendo sempre selecionada.
+- **Correção (`src/pages/Index.tsx`):** cabeçalho em camada acima (`z-40`) e com fundo fechado; as quatro opções de acesso com a mesma borda e sombra azuladas; ao tocar, a opção escolhida fica verde (borda, sombra e ícone) por um instante e então abre o acesso. Abrir em outra aba (Ctrl/Cmd + clique) continua normal.
+- **Prova (navegador, 800 px):** rolando a página, o ponto no topo pertence ao cabeçalho; quatro opções com a mesma borda/sombra azul; ao tocar em "Anunciantes" ela fica verde, as outras continuam azuis, e abre `/auth?tab=login&role=anunciantes`.
+- **Testes:** `telaInicialAcessos.test.tsx` (3).

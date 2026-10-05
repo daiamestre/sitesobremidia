@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type MouseEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,8 @@ export default function Index() {
   const [nativeOverlayNeeded, setNativeOverlayNeeded] = useState(false);
   const [showLauncherModal, setShowLauncherModal] = useState(false);
   const [checkingState, setCheckingState] = useState(false);
+  // F-146: opção de acesso que o usuário tocou (fica verde por um instante antes de abrir)
+  const [acessoEscolhido, setAcessoEscolhido] = useState<string | null>(null);
 
   // Evaluate native setup and route sequentially
   const evaluateOnboardingFlow = useCallback(async () => {
@@ -220,8 +222,17 @@ export default function Index() {
     { icon: Megaphone, title: 'Anunciantes', description: 'Portal para campanhas e anúncios', link: '/auth?tab=login&role=anunciantes' },
     { icon: UserCheck, title: 'Representantes', description: 'Área comercial e parceiros', link: '/representantes/login' },
     { icon: Monitor, title: 'Gestor de Mídias', description: 'Operação da rede e conteúdos', link: '/auth?tab=login&role=gestor' },
-    { icon: Zap, title: 'Área Corporativa', description: 'Administração, gestão e controle da organização', link: '/auth/corporate', highlight: true },
+    { icon: Zap, title: 'Área Corporativa', description: 'Administração, gestão e controle da organização', link: '/auth/corporate' },
   ];
+
+  // F-146: ao tocar, a opção fica verde e só então abre — o usuário vê o que escolheu.
+  const escolherAcesso = (e: MouseEvent, titulo: string, destino: string) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // abrir em outra aba continua normal
+    e.preventDefault();
+    if (acessoEscolhido) return;
+    setAcessoEscolhido(titulo);
+    window.setTimeout(() => navigate(destino), 320);
+  };
 
     return (
     <div className="min-h-screen w-full max-w-full overflow-x-clip bg-background box-border">
@@ -232,7 +243,8 @@ export default function Index() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 border-b border-border/50 backdrop-blur-md sticky top-0 bg-background/80">
+      {/* F-146: acima do conteúdo (o <main> também é z-10 e vinha depois, por isso passava por cima) e com fundo fechado */}
+      <header className="sticky top-0 z-40 border-b border-border/50 bg-background/95 backdrop-blur-md" data-testid="cabecalho-inicio">
         <div className="container mx-auto px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Hamburger 3-lines Menu Button opening Lateral Sheet */}
@@ -367,24 +379,30 @@ export default function Index() {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-            {portals.map((portal, index) => (
-              <Link to={portal.link} key={portal.title} className="block group">
+            {portals.map((portal) => {
+              const escolhido = acessoEscolhido === portal.title;
+              return (
+              <Link to={portal.link} key={portal.title} className="block group rounded-2xl focus:outline-none"
+                onClick={(e) => escolherAcesso(e, portal.title, portal.link)} data-testid="opcao-acesso" data-escolhido={escolhido ? 'sim' : 'nao'}>
+                {/* F-146: todas as opções com a mesma borda azulada; a escolhida fica verde */}
                 <div
-                  className={`h-full border bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl transition-all duration-300 shadow-xl flex flex-col items-center text-center
-                    ${portal.highlight 
-                      ? 'border-primary/50 shadow-primary/20 hover:bg-primary/10 hover:shadow-primary/40 hover:-translate-y-1' 
-                      : 'border-white/10 hover:border-primary/30 hover:bg-slate-800/80 hover:-translate-y-1'}`}
+                  className={`h-full border bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl transition-transform duration-200 flex flex-col items-center text-center
+                    ${escolhido
+                      ? 'border-emerald-400 bg-emerald-500/10 -translate-y-1'
+                      : 'border-primary/50 hover:bg-primary/10 hover:-translate-y-1'}`}
+                  style={{ boxShadow: escolhido ? '0 0 0 1px rgba(52,211,153,.9), 0 0 28px 2px rgba(16,185,129,.55)' : '0 0 22px 0 hsl(var(--primary) / .28)' }}
                 >
-                  <div className={`p-4 rounded-xl mb-5 transition-colors ${portal.highlight ? 'bg-primary text-white' : 'bg-primary/15 text-primary group-hover:bg-primary group-hover:text-white'}`}>
+                  <div className={`p-4 rounded-xl mb-5 transition-colors ${escolhido ? 'bg-emerald-500 text-white' : 'bg-primary/15 text-primary group-hover:bg-primary group-hover:text-white'}`}>
                     <portal.icon className="h-8 w-8" />
                   </div>
-                  <h3 className={`font-display font-bold text-lg sm:text-xl mb-3 ${portal.highlight ? 'text-primary' : 'text-white group-hover:text-primary transition-colors'}`}>
+                  <h3 className={`font-display font-bold text-lg sm:text-xl mb-3 transition-colors ${escolhido ? 'text-emerald-300' : 'text-white group-hover:text-primary'}`}>
                     {portal.title}
                   </h3>
                   <p className="text-sm sm:text-base text-slate-300">{portal.description}</p>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </section>
       </main>
