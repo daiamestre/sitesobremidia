@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { Images, ListVideo, X } from 'lucide-react';
+import { SeletorDeConteudo, criarPlaylistComMidias, type MidiaDaGaleria } from './SeletorDeConteudo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +39,10 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [resolution, setResolution] = useState('16x9');
+  // F-152: conteúdo da tela por mídias da galeria (vira uma playlist ao salvar) ou por playlist já criada
+  const [midiasEscolhidas, setMidiasEscolhidas] = useState<MidiaDaGaleria[]>([]);
+  const [seletor, setSeletor] = useState<'galeria' | 'playlist' | null>(null);
+  useEffect(() => { if (open) { setMidiasEscolhidas([]); setSeletor(null); } }, [open, screen?.id]);
   const [customId, setCustomId] = useState('');
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
@@ -112,6 +118,12 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
 
     setSaving(true);
     try {
+      // F-152: mídias escolhidas da galeria viram a playlist desta tela
+      let playlistFinal = playlistId;
+      if (midiasEscolhidas.length > 0) {
+        const nova = await criarPlaylistComMidias(user.id, name, resolution, midiasEscolhidas);
+        playlistFinal = nova.id;
+      }
       if (screen) {
         const { error } = await supabase
           .from('screens')
@@ -121,7 +133,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
             location: location || null,
             resolution,
             orientation,
-            playlist_id: playlistId,
+            playlist_id: playlistFinal,
             is_active: isActive,
             custom_id: customId,
           })
@@ -143,7 +155,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
             location: location || null,
             resolution,
             orientation,
-            playlist_id: playlistId,
+            playlist_id: playlistFinal,
             is_active: isActive,
             user_id: user.id,
             custom_id: customId,
@@ -239,8 +251,19 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Playlist Padrão</Label>
+            <div className="space-y-2" data-testid="conteudo-da-tela">
+              <Label>Conteúdo da tela</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setSeletor('galeria')} data-testid="tela-galeria"><Images className="h-4 w-4" /> Mídias da galeria</Button>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setSeletor('playlist')} data-testid="tela-playlist"><ListVideo className="h-4 w-4" /> Playlist</Button>
+              </div>
+              {midiasEscolhidas.length > 0 && (
+                <p className="flex items-center justify-between gap-2 rounded-md bg-emerald-500/10 px-2 py-1.5 text-xs text-emerald-300" data-testid="midias-escolhidas">
+                  <span>{midiasEscolhidas.length} {midiasEscolhidas.length === 1 ? 'mídia da galeria' : 'mídias da galeria'} — ao salvar, viram a playlist desta tela.</span>
+                  <button type="button" aria-label="Tirar as mídias escolhidas" onClick={() => setMidiasEscolhidas([])}><X className="h-3.5 w-3.5" /></button>
+                </p>
+              )}
+              <Label className="text-xs text-muted-foreground">Playlist já criada</Label>
               <Select value={playlistId || 'none'} onValueChange={(v) => setPlaylistId(v === 'none' ? null : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione..." />
@@ -281,6 +304,10 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
           </Button>
         </div>
       </DialogContent>
+      <SeletorDeConteudo aberto={seletor !== null} passoInicial={seletor ?? 'opcoes'} titulo="Conteúdo da tela" onFechar={() => setSeletor(null)} variasMidias
+        playlistAtual={playlistId}
+        onMidias={(ms) => { setMidiasEscolhidas(ms); setPlaylistId(null); }}
+        onPlaylist={(p) => { setPlaylistId(p.id); setMidiasEscolhidas([]); setSeletor(null); }} />
     </Dialog >
   );
 }

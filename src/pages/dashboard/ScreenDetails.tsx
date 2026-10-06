@@ -900,7 +900,8 @@ export default function ScreenDetails() {
         );
     }
     // Status logic: Must be active AND have pinged in the last 5 minutes
-    const isOnline = screen.is_active !== false && screen.last_ping_at && (new Date().getTime() - new Date(screen.last_ping_at).getTime()) < 180000; // 3 min
+    // F-151: online = aparelho pareado E sinal dele nos últimos 3 min (mexer na tela pelo painel não conta como sinal)
+    const isOnline = screen.is_active !== false && !!(screen as unknown as { bound_device_id?: string | null }).bound_device_id && !!screen.last_ping_at && (new Date().getTime() - new Date(screen.last_ping_at).getTime()) < 180000; // 3 min
     const isPortrait = screen.resolution === '9x16';
 
     // ============================================================

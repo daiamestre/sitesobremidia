@@ -22,7 +22,8 @@ export function useScreens(userId?: string) {
         const now = new Date();
         const screensWithStatus = (data || []).map((screen) => {
             let status: ScreenStatus = 'offline';
-            if (screen.last_ping_at) {
+            // F-151: sem aparelho pareado a tela nunca está online
+            if (screen.last_ping_at && (screen as unknown as { bound_device_id?: string | null }).bound_device_id) {
                 const lastPing = new Date(screen.last_ping_at);
                 const diffSeconds = (now.getTime() - lastPing.getTime()) / 1000;
                 if (diffSeconds < 60) {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as EventoDePonteiro } from 'react';
-import { Copy, Film, Image as ImagemIcone, LayoutGrid, ListVideo, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
+import { Copy, Film, Image as ImagemIcone, Images, LayoutGrid, ListVideo, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
+import { SeletorDeConteudo, adicionarMidiaNaPlaylist, criarPlaylistComMidias, type PlaylistCriada } from './SeletorDeConteudo';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -68,6 +69,9 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
   const [buscando, setBuscando] = useState(false);
   const [itens, setItens] = useState<ItemDaZona[]>([]);
   const [alvoDoArraste, setAlvoDoArraste] = useState<string | null>(null);
+  // F-152: "Adicionar mídia" de uma zona (duas opções: Mídias da galeria ou Playlist) e a playlist da própria tela
+  const [seletor, setSeletor] = useState<{ chave: string; passo: 'opcoes' | 'galeria' | 'playlist' } | null>(null);
+  const [telaPlaylistId, setTelaPlaylistId] = useState<string | null>(null);
   const palco = useRef<HTMLDivElement>(null);
   const arrasto = useRef<Arrasto | null>(null);
 
@@ -90,6 +94,8 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
       setSelecionada(null);
       setExiste(false);
     }
+    const { data: t } = await supabase.from('screens').select('playlist_id').eq('id', tela.id).maybeSingle();
+    setTelaPlaylistId((t as { playlist_id: string | null } | null)?.playlist_id ?? null);
     const { data: ps } = await supabase.from('playlists').select('id, name').order('name');
     setPlaylists((ps as PlaylistResumo[] | null) ?? []);
     setCarregando(false);
@@ -118,7 +124,8 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
     setItens(((data as unknown as Array<{ id: string; media: { name: string; file_type: string } | null; widget: { name: string } | null }> | null) ?? [])
       .map((i) => ({ id: i.id, nome: i.media?.name ?? i.widget?.name ?? 'Item', tipo: i.media?.file_type ?? 'widget' })));
   }, []);
-  useEffect(() => { carregarItens(zona && !zona.principal ? zona.playlist_id : null); }, [zona?.chave, zona?.playlist_id, zona?.principal, carregarItens]); // eslint-disable-line react-hooks/exhaustive-deps
+  const playlistDaZona = zona ? (zona.principal ? telaPlaylistId : zona.playlist_id) : null;
+  useEffect(() => { carregarItens(playlistDaZona); }, [zona?.chave, playlistDaZona, carregarItens]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------------ alterações
   const alterar = (chave: string, mudanca: Partial<Zona>) => setLayout((l) => ({
@@ -212,26 +219,54 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
 
   // ------------------------------------------------------------------ conteúdo da zona
   const adicionarMidia = async (z: Zona, m: MidiaResumo) => {
-    if (z.principal) { toast.info('A zona principal toca a playlist da tela. Adicione a mídia na Lista de Reprodução da tela.'); return; }
     if (!user?.id) return;
+    const resolucao = layout.altura > layout.largura ? '9x16' : '16x9';
     try {
+      if (z.principal) {
+        // zona principal = playlist da própria tela (entra em vigor na hora, como na Lista de Reprodução da tela)
+        let alvo = telaPlaylistId;
+        if (!alvo) {
+          const nova = await criarPlaylistComMidias(user.id, tela.name, resolucao, [m]);
+          const { error } = await supabase.from('screens').update({ playlist_id: nova.id } as never).eq('id', tela.id);
+          if (error) throw new Error(error.message);
+          alvo = nova.id;
+          setTelaPlaylistId(nova.id);
+          setPlaylists((ps) => [...ps, { id: nova.id, name: nova.name }].sort((a, b) => a.name.localeCompare(b.name)));
+        } else await adicionarMidiaNaPlaylist(alvo, m);
+        toast.success(`"${m.name}" entrou na playlist da tela (zona principal).`);
+        if (z.chave === selecionada) carregarItens(alvo);
+        onSalvo?.();
+        return;
+      }
       let playlistId = z.playlist_id;
       if (!playlistId) {
-        const { data, error } = await supabase.from('playlists').insert({ user_id: user.id, name: `${tela.name} — Zona ${z.numero}`, resolution: layout.altura > layout.largura ? '9x16' : '16x9', is_active: true } as never).select('id, name').single();
-        if (error || !data) throw new Error(error?.message || 'Não foi possível criar a playlist da zona.');
-        playlistId = (data as PlaylistResumo).id;
-        setPlaylists((ps) => [...ps, data as PlaylistResumo].sort((a, b) => a.name.localeCompare(b.name)));
-        setLayout((l) => ({ ...l, zonas: l.zonas.map((x) => (x.chave === z.chave ? { ...x, playlist_id: playlistId } : x)) }));
-      }
-      const { data: ultimo } = await supabase.from('playlist_items').select('position').eq('playlist_id', playlistId).order('position', { ascending: false }).limit(1);
-      const posicao = ((ultimo as Array<{ position: number }> | null)?.[0]?.position ?? -1) + 1;
-      const duracao = m.file_type === 'video' ? Math.max(1, Math.round((m.duration_ms || 10000) / 1000)) : 10;
-      const { error: erroItem } = await supabase.from('playlist_items').insert({ playlist_id: playlistId, media_id: m.id, position: posicao, duration: duracao } as never);
-      if (erroItem) throw new Error(erroItem.message);
+        const nova = await criarPlaylistComMidias(user.id, `${tela.name} — Zona ${z.numero}`, resolucao, [m]);
+        playlistId = nova.id;
+        setPlaylists((ps) => [...ps, { id: nova.id, name: nova.name }].sort((a, b) => a.name.localeCompare(b.name)));
+        setLayout((l) => ({ ...l, zonas: l.zonas.map((x) => (x.chave === z.chave ? { ...x, playlist_id: nova.id } : x)) }));
+      } else await adicionarMidiaNaPlaylist(playlistId, m);
       toast.success(`"${m.name}" entrou na zona ${z.numero}. Salve a divisão para valer na tela.`);
       if (z.chave === selecionada) carregarItens(playlistId);
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível colocar a mídia na zona.');
+    }
+  };
+
+  const usarPlaylist = async (z: Zona, pl: PlaylistCriada) => {
+    try {
+      if (z.principal) {
+        const { error } = await supabase.from('screens').update({ playlist_id: pl.id } as never).eq('id', tela.id);
+        if (error) throw new Error(error.message);
+        setTelaPlaylistId(pl.id);
+        toast.success(`A tela passou a tocar a playlist "${pl.name}" (zona principal).`);
+        onSalvo?.();
+      } else {
+        setLayout((l) => ({ ...l, zonas: l.zonas.map((x) => (x.chave === z.chave ? { ...x, playlist_id: pl.id } : x)) }));
+        toast.success(`Zona ${z.numero} com a playlist "${pl.name}". Salve a divisão para valer na tela.`);
+      }
+      setSeletor(null);
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível usar a playlist.');
     }
   };
 
@@ -276,7 +311,7 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5 text-primary" /> Divisão da tela — {tela.name}</DialogTitle>
           <DialogDescription>
-            Clique e arraste sobre a tela para criar uma zona, ou use "Nova zona" e digite os números. Cada zona tem a sua playlist e o seu ciclo.
+            Clique e arraste sobre a tela para criar uma zona, ou use "Nova zona" e digite os números. Em cada zona, toque em "Adicionar mídia" para colocar mídias da galeria ou uma playlist.
           </DialogDescription>
         </DialogHeader>
 
@@ -340,6 +375,12 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                           <div className="hidden text-[10px] opacity-90 sm:block">{z.largura} × {z.altura}</div>
                           {z.principal && <div className="text-[9px] font-semibold uppercase">principal</div>}
                         </div>
+                        <button type="button" data-testid="adicionar-na-zona" title={`Adicionar mídia na zona ${z.numero}`}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); setSelecionada(z.chave); setSeletor({ chave: z.chave, passo: 'opcoes' }); }}
+                          className="absolute bottom-1 left-1/2 flex max-w-[96%] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-900 shadow hover:bg-emerald-300">
+                          <Plus className="h-3 w-3 shrink-0" /><span className="truncate">Adicionar mídia</span>
+                        </button>
                         {ativa && !z.travada && (
                           <div data-testid="alca-tamanho" className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize rounded-tl bg-white"
                             onPointerDown={(e) => aoPressionar(e, { chave: z.chave, modo: 'tamanho' })} />
@@ -440,26 +481,26 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                   {/* conteúdo */}
                   <div className="space-y-2 border-t border-border/60 pt-3">
                     <p className="flex items-center gap-2 text-sm font-semibold"><ListVideo className="h-4 w-4" /> Conteúdo da zona</p>
-                    {zona.principal ? (
-                      <p className="text-xs text-muted-foreground">Esta é a zona principal: ela toca a playlist da própria tela (a "Lista de Reprodução" na página da tela).</p>
-                    ) : (
-                      <>
-                        <select className="h-9 w-full rounded-md border border-border/60 bg-background px-2 text-sm" data-testid="playlist-da-zona"
-                          value={zona.playlist_id ?? ''} onChange={(e) => alterar(zona.chave, { playlist_id: e.target.value || null })}>
-                          <option value="">Sem playlist (zona vazia)</option>
-                          {playlists.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                        {itens.length > 0 && (
-                          <ul className="max-h-32 space-y-1 overflow-y-auto text-xs">
-                            {itens.map((i) => (
-                              <li key={i.id} className="flex items-center justify-between gap-2 rounded bg-muted/30 px-2 py-1">
-                                <span className="flex min-w-0 items-center gap-1.5">{i.tipo === 'video' ? <Film className="h-3 w-3 shrink-0" /> : <ImagemIcone className="h-3 w-3 shrink-0" />}<span className="truncate">{i.nome}</span></span>
-                                <button type="button" className="text-rose-400" title="Tirar da zona" onClick={() => removerItem(i.id)}><Trash2 className="h-3 w-3" /></button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </>
+                    <p className="text-xs text-muted-foreground" data-testid="playlist-atual-da-zona">
+                      {zona.principal ? 'Zona principal: toca a playlist da própria tela. ' : ''}
+                      {playlistDaZona ? <>Playlist: <strong className="text-foreground">{playlists.find((x) => x.id === playlistDaZona)?.name ?? 'playlist escolhida'}</strong></> : 'Ainda sem conteúdo.'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setSeletor({ chave: zona.chave, passo: 'galeria' })} data-testid="conteudo-galeria"><Images className="h-4 w-4" /> Mídias da galeria</Button>
+                      <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setSeletor({ chave: zona.chave, passo: 'playlist' })} data-testid="conteudo-playlist"><ListVideo className="h-4 w-4" /> Playlist</Button>
+                    </div>
+                    {!zona.principal && zona.playlist_id && (
+                      <button type="button" className="text-[11px] text-rose-400 underline-offset-2 hover:underline" onClick={() => alterar(zona.chave, { playlist_id: null })}>Tirar a playlist desta zona</button>
+                    )}
+                    {itens.length > 0 && (
+                      <ul className="max-h-32 space-y-1 overflow-y-auto text-xs" data-testid="itens-da-zona">
+                        {itens.map((i) => (
+                          <li key={i.id} className="flex items-center justify-between gap-2 rounded bg-muted/30 px-2 py-1">
+                            <span className="flex min-w-0 items-center gap-1.5">{i.tipo === 'video' ? <Film className="h-3 w-3 shrink-0" /> : <ImagemIcone className="h-3 w-3 shrink-0" />}<span className="truncate">{i.nome}</span></span>
+                            <button type="button" className="text-rose-400" title="Tirar da zona" onClick={() => removerItem(i.id)}><Trash2 className="h-3 w-3" /></button>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
                 </div>
@@ -512,6 +553,16 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
           </div>
         )}
       </DialogContent>
+      {(() => {
+        const alvo = seletor ? layout.zonas.find((z) => z.chave === seletor.chave) ?? null : null;
+        return (
+          <SeletorDeConteudo aberto={!!alvo} passoInicial={seletor?.passo ?? 'opcoes'} onFechar={() => setSeletor(null)}
+            titulo={alvo ? `Adicionar mídia na zona ${alvo.numero}${alvo.principal ? ' (principal)' : ''}` : 'Adicionar mídia'}
+            playlistAtual={alvo ? (alvo.principal ? telaPlaylistId : alvo.playlist_id) : null}
+            onMidia={(m) => (alvo ? adicionarMidia(alvo, m) : undefined)}
+            onPlaylist={(pl) => (alvo ? usarPlaylist(alvo, pl) : undefined)} />
+        );
+      })()}
     </Dialog>
   );
 }
