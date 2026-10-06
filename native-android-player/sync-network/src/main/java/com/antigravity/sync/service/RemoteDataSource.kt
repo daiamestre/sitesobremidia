@@ -431,6 +431,29 @@ class RemoteDataSource {
     }
 
     // Fetch the playlist assigned to this screen (Yeloo Style)
+    /**
+     * F-149: divisão da tela em zonas. Devolve o JSON bruto de get_player_layout_for_screen (quem interpreta é o
+     * ZoneLayoutParser). Só é chamado depois que a playlist já vinculou o aparelho à tela. Erro de rede propaga.
+     */
+    suspend fun getLayoutForScreenRaw(identifier: String, deviceId: String): String =
+        client.postgrest.rpc(
+            "get_player_layout_for_screen",
+            mapOf("p_identifier" to identifier.trim(), "p_device_id" to deviceId)
+        ).data
+
+    /** F-149: prova de exibição das zonas (o servidor só aceita o aparelho vinculado à tela). */
+    suspend fun registrarExibicoesDasZonas(identifier: String, deviceId: String, registros: kotlinx.serialization.json.JsonArray): Boolean {
+        val resposta = client.postgrest.rpc(
+            "fn_player_registrar_exibicoes",
+            buildJsonObject {
+                put("p_identifier", identifier.trim())
+                put("p_device_id", deviceId)
+                put("p_registros", registros)
+            }
+        ).data
+        return resposta.contains("SUCCESS")
+    }
+
     suspend fun getPlaylistForScreen(identifier: String, deviceId: String): Pair<com.antigravity.sync.dto.DeviceRemoteDTO, Playlist>? {
         val normalizedId = identifier.trim()
         Logger.i("SYNC", "Starting Full Sync for Device: $normalizedId with Binding ID: $deviceId")

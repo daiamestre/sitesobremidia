@@ -101,6 +101,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var staticImageLayer2: ImageView // Motor Estático (revezamento p/ cruzamento)
     // Palco de reprodução profissional: tempo exato, pré-carga do próximo item e cruzamento entre mídias
     private lateinit var playbackStage: com.antigravity.player.playback.PlaybackStage
+    // F-149: divisão da tela em zonas (não cria nada quando a tela não está dividida)
+    private var zoneController: com.antigravity.player.zone.ZoneController? = null
     private lateinit var nativeWidgetContainer: FrameLayout
     // WebViews removidas permanentemente (Widgets 100% Nativos)
 
@@ -408,6 +410,18 @@ class MainActivity : AppCompatActivity() {
         staticImageLayer = findViewById<ImageView>(R.id.static_image_layer)
         staticImageLayer2 = findViewById<ImageView>(R.id.static_image_layer2)
         nativeWidgetContainer = findViewById<FrameLayout>(R.id.native_widget_container)
+        // F-149: zonas. O motor principal segue igual; só passa a ocupar o retângulo da zona principal quando há divisão.
+        try {
+            (nativeWidgetContainer.parent as? FrameLayout)?.let { raiz ->
+                zoneController = com.antigravity.player.zone.ZoneController(
+                    activity = this, scope = lifecycleScope, root = raiz,
+                    mainViews = listOf(findViewById<View>(R.id.main_engine_layer), nativeWidgetContainer),
+                    insertAbove = nativeWidgetContainer
+                ).also { it.start() }
+            }
+        } catch (e: Exception) {
+            Logger.e("ZONAS", "controlador de zonas não iniciou (${e.message}); seguindo em tela cheia")
+        }
         
         // [P0.4.6] Inicializa consumidor de projeção de superfície
         surfaceConsumer = RuntimeSurfaceConsumer(surfaceTarget)
@@ -1573,6 +1587,8 @@ withContext(Dispatchers.Main) {
                     val agendados = playlist.items.filter { SchedulingEngine.shouldPlay(it) }
                     // [F-93] de cada pasta (grupo) entra só o conteúdo da vez; itens comuns não mudam
                     val playableItems = com.antigravity.player.util.RodizioDePastas.umaPorGrupo(agendados, cursorPastas::daVez)
+                        // F-149: anúncio vendido para outra zona não toca na principal (sem divisão, a lista não muda)
+                        .let { lista -> zoneController?.filterMain(lista) { it.id } ?: lista }
 
                     if (playableItems.isEmpty()) {
                         logBlackBox("IDLE", "No items scheduled. Triggering Standby Fallback.")
@@ -1621,6 +1637,7 @@ withContext(Dispatchers.Main) {
                     Logger.i("AUDIO_FORENSIC", "[AUDIO_FORENSIC] screenId=${com.antigravity.sync.service.SessionManager.currentUserId} playlistId=${playlist.id} audioEnabled=${playlist.audioEnabled} playerInstanceId=${activePlayer?.instanceIdentifier} mediaId=${item.id} volume=${activePlayer?.getPlayerInstance()?.volume}")
                     // 3. EXECUÇÃO PELOS MOTORES (Isolamento de Hardware)
                     // O palco cuida do tempo exato, da pré-carga do próximo item e do cruzamento entre mídias.
+                    zoneController?.onMainItemStarted(item.id) // F-149: nenhuma outra zona continua com a mesma mídia
                     val skipOnFail = playbackStage.play(item, nextItem, playlist.audioEnabled)
 
                     if (skipOnFail) {
@@ -1663,6 +1680,7 @@ withContext(Dispatchers.Main) {
 
     override fun onDestroy() {
         super.onDestroy()
+        zoneController?.stop()
         backgroundSyncHandler.removeCallbacks(backgroundSyncRunnable)
 
         // [DEVICE FLEET] Encerra Device Fleet Manager
