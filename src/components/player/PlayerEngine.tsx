@@ -7,6 +7,8 @@ import { offlineLogger } from "@/utils/offlineLogger";
 import { monitoring } from "@/utils/monitoring";
 import { mapRpcPayload, resolveDeviceId, type MediaItem } from "./playerPlaylist";
 import { RemoteCommandListener } from "./RemoteCommandListener";
+import { mapLayoutPayload, assinaturaDoLayout, type LayoutDoPlayer } from "./playerLayout";
+import { ZonasDoPlayer } from "./ZonasDoPlayer";
 import { Monitor, AlertTriangle, RefreshCw } from "lucide-react";
 import "./Player.css";
 
@@ -45,6 +47,9 @@ export const PlayerEngine = () => {
     const [error, setError] = useState<string | null>(null);
     const [screenOrientation, setScreenOrientation] = useState<'landscape' | 'portrait'>('landscape');
     const [bindError, setBindError] = useState<string | null>(null);
+    // F-147: tela dividida em zonas (null = tela cheia tradicional, caminho de sempre)
+    const [layoutZonas, setLayoutZonas] = useState<LayoutDoPlayer | null>(null);
+    const layoutRef = useRef<LayoutDoPlayer | null>(null);
 
     // Heartbeat oficial: a RPC de playlist já atualiza devices.last_seen no
     // caminho bound; o hook só deve escrever com SESSÃO autenticada (RLS).
@@ -92,6 +97,27 @@ export const PlayerEngine = () => {
             if (result.ok === false) {
                 setActiveScreenId(prev => prev); // mantém vínculo anterior para heartbeat
 
+                // F-147: tela sem playlist principal ainda pode ter zonas com conteúdo próprio
+                if (NO_CONTENT_CODES.has(result.code)) {
+                    try {
+                        const { data: bruto, error: erroLayout } = await supabase.rpc(
+                            'get_player_layout_for_screen' as never,
+                            { p_identifier: screenId, p_device_id: deviceId } as never,
+                        );
+                        const layout = erroLayout ? null : mapLayoutPayload(bruto, [], supabaseConfig.url);
+                        if (layout && layout.zonas.some(z => z.itens.length > 0)) {
+                            if (assinaturaDoLayout(layoutRef.current) !== assinaturaDoLayout(layout)) {
+                                layoutRef.current = layout;
+                                setLayoutZonas(layout);
+                            }
+                            setPlaylist([]); setPendingPlaylist(null);
+                            setIsNoPlaylist(false); setError(null); setBindError(null);
+                            setIsLoading(false); return;
+                        }
+                    } catch { /* segue o fluxo normal abaixo */ }
+                    if (layoutRef.current) { layoutRef.current = null; setLayoutZonas(null); }
+                }
+
                 if (result.code === 'NO_PLAYLIST_ASSIGNED') {
                     if (!isBackgroundUpdate) {
                         setIsNoPlaylist(true);
@@ -129,8 +155,45 @@ export const PlayerEngine = () => {
                 });
             }
 
+            // F-147: a tela está dividida em zonas? Pergunta DEPOIS do SUCCESS (é a função principal que vincula o
+            // aparelho). Sem divisão, erro ou resposta inválida -> segue em tela cheia, exatamente como antes.
+            let saiuDoLayout = false;
+            {
+                let layout: LayoutDoPlayer | null = null;
+                let falhou = false;
+                try {
+                    const { data: bruto, error: erroLayout } = await supabase.rpc(
+                        'get_player_layout_for_screen' as never,
+                        { p_identifier: screenId, p_device_id: deviceId } as never,
+                    );
+                    if (erroLayout) falhou = true;
+                    else layout = mapLayoutPayload(bruto, result.items, supabaseConfig.url);
+                } catch { falhou = true; }
+
+                if (falhou && layoutRef.current) { setIsLoading(false); return; } // rede oscilou: mantém as zonas no ar
+                if (layout) {
+                    if (assinaturaDoLayout(layoutRef.current) !== assinaturaDoLayout(layout)) {
+                        layoutRef.current = layout;
+                        setLayoutZonas(layout);
+                        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                            navigator.serviceWorker.controller.postMessage({
+                                type: 'CACHE_MEDIA',
+                                payload: { urls: layout.zonas.flatMap(z => z.itens.map(i => i.url)) }
+                            });
+                        }
+                    }
+                    setPlaylist([]); // o ciclo de tela cheia fica parado enquanto as zonas tocam (sem prova de exibição em dobro)
+                    setPendingPlaylist(null);
+                    setAudioEnabled(result.audioEnabled);
+                    setError(null);
+                    setIsLoading(false);
+                    return;
+                }
+                if (layoutRef.current) { layoutRef.current = null; setLayoutZonas(null); saiuDoLayout = true; }
+            }
+
             const mudou = JSON.stringify(playlistRef.current) !== JSON.stringify(result.items);
-            if (!isBackgroundUpdate || !mudou) {
+            if (!isBackgroundUpdate || !mudou || saiuDoLayout) {
                 setPlaylist(mudou ? result.items : playlistRef.current.length ? playlistRef.current : result.items);
                 setCurrentIndex(0);
                 setNextIndex(result.items.length > 1 ? 1 : 0);
@@ -455,6 +518,16 @@ export const PlayerEngine = () => {
                         </button>
                     </div>
                 </div>
+            </div>
+        );
+    }
+
+    // F-147: tela dividida em zonas — cada zona com a sua playlist e o seu ciclo
+    if (layoutZonas) {
+        return (
+            <div className="player-container" onClick={toggleFullscreen}>
+                <RemoteCommandListener screenId={activeScreenId} />
+                <ZonasDoPlayer layout={layoutZonas} screenId={activeScreenId} somLiberado={audioEnabled} />
             </div>
         );
     }

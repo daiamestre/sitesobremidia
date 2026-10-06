@@ -1,4 +1,5 @@
 import { supabaseConfig } from "@/supabaseConfig";
+import { resolveDeviceId } from "@/components/player/playerPlaylist";
 
 const QUEUE_KEY = "codemidia_playback_queue";
 const MAX_QUEUE_SIZE = 5000;
@@ -10,6 +11,9 @@ export interface PlaybackLogEntry {
     duration: number;
     status: string;
     started_at: string;
+    /** F-147: zona em que a mídia foi exibida (ausente = tela cheia) */
+    zona_id?: string;
+    zona_numero?: number;
 }
 
 export const offlineLogger = {
@@ -38,76 +42,36 @@ export const offlineLogger = {
             const queue: PlaybackLogEntry[] = JSON.parse(queueStr);
             if (queue.length === 0) return;
 
-            const batchSize = 50;
-            const batch = queue.slice(0, batchSize);
+            // F-147: a tabela não aceita gravação sem login (o envio direto era sempre recusado). O registro agora
+            // entra pela função fn_player_registrar_exibicoes, que só aceita o aparelho vinculado à tela.
+            // Um envio por tela, até 50 registros por vez.
+            const tela = queue[0].screen_id;
+            const batch = queue.filter((e) => e.screen_id === tela).slice(0, 50);
+            const deviceId = resolveDeviceId(
+                (globalThis as Record<string, unknown>).NativePlayer as { getDeviceId?: () => string } | undefined
+            );
 
-            // USE DIRECT FETCH (Bypass Supabase Client)
-            const url = `${supabaseConfig.url}/rest/v1/playback_logs`;
-            const headers = {
-                'apikey': supabaseConfig.key,
-                'Authorization': `Bearer ${supabaseConfig.key}`, // Anon Key
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal'
-            };
-
-            // Send batch to Supabase
-            const resp = await fetch(url, {
+            const resp = await fetch(`${supabaseConfig.url}/rest/v1/rpc/fn_player_registrar_exibicoes`, {
                 method: 'POST',
-                headers,
-                body: JSON.stringify(batch)
+                headers: {
+                    'apikey': supabaseConfig.key,
+                    'Authorization': `Bearer ${supabaseConfig.key}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ p_identifier: tela, p_device_id: deviceId, p_registros: batch }),
             });
 
-            if (resp.ok) {
-                // Success: Remove flushed items from queue
-                // Correct logic: filter out items that were in the batch
-                const remaining = queue.filter(item => !batch.includes(item));
-
-                localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining));
-                console.log(`OfflineLogger: ✅ Flushed ${batch.length} logs to Supabase. Response: 201 OK.`);
-
-                // If there are more items, try to flush again soon
-                if (remaining.length > 0) setTimeout(() => offlineLogger.flush(), 1000);
-            } else {
-                const errorText = await resp.text();
-
-                // Handle 409 Conflict (Foreign Key Violation - Deleted Media)
-                if (resp.status === 409 || errorText.includes('violates foreign key constraint')) {
-                    console.warn(`OfflineLogger: ⚠️ Batch failed with 409. Retrying ${batch.length} items individually to save valid logs.`);
-
-                    // GRANULAR RECOVERY: Switch to serial mode for this batch
-                    const successfullyProcessed: PlaybackLogEntry[] = [];
-
-                    for (const item of batch) {
-                        try {
-                            const singleResp = await fetch(url, {
-                                method: 'POST',
-                                headers,
-                                body: JSON.stringify([item]) // Send as array of 1
-                            });
-
-                            if (singleResp.ok) {
-                                successfullyProcessed.push(item);
-                            } else if (singleResp.status === 409) {
-                                console.warn("OfflineLogger: 🗑️ Discarding invalid log (Deleted Media):", item.media_id);
-                                successfullyProcessed.push(item); // Mark as processed to remove from queue
-                            } else {
-                                console.error(`OfflineLogger: ❌ Single Item Failed. Status: ${singleResp.status}`);
-                                // Do NOT add to successfullyProcessed -> keeps in queue for retry
-                            }
-                        } catch (e) {
-                            console.error("OfflineLogger: Network error on single item retry", e);
-                        }
-                    }
-
-                    // Update Queue: Remove only what was processed (sent OR discarded)
-                    const remaining = queue.filter(qItem => !successfullyProcessed.includes(qItem));
-                    localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining));
-                    console.log(`OfflineLogger: ♻️ Recovery Complete. Saved ${successfullyProcessed.length} items.`);
-
-                } else {
-                    console.error(`OfflineLogger: ❌ Flush Failed. Status: ${resp.status}. Response: ${errorText}`);
-                }
+            if (!resp.ok) {
+                console.error(`OfflineLogger: envio recusado (${resp.status}). Os registros ficam na fila.`);
+                return;
             }
+            const r = (await resp.json().catch(() => null)) as { status?: string; gravados?: number } | null;
+            // SUCCESS: gravou os válidos (mídia apagada fica de fora). SEM_ACESSO: este aparelho não é o da tela, então
+            // esses registros nunca poderão entrar — saem da fila para não travar os das outras telas.
+            if (r?.status !== 'SUCCESS') console.warn(`OfflineLogger: ${batch.length} registro(s) descartado(s): ${r?.status ?? 'resposta inválida'}.`);
+            const remaining = queue.filter((item) => !batch.includes(item));
+            localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining));
+            if (remaining.length > 0) setTimeout(() => offlineLogger.flush(), 1000);
         } catch (e) {
             console.error("OfflineLogger: Flush error", e);
         }

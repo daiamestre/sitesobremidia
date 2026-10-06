@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { ClienteDaTela } from '@/components/screens/ClienteDaTela';
+import { DivisaoDaTela } from '@/components/screens/EditorDeZonas';
 import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -1197,6 +1198,9 @@ return (
                 </CardContent>
               </Card>
             )}
+
+            {/* F-147: divisão da tela em zonas */}
+            <DivisaoDaTela tela={{ id: screen.id, name: screen.name, resolution: screen.resolution, orientation: screen.orientation }} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Charts & Controls */}
