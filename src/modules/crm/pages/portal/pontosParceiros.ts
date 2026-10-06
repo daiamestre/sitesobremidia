@@ -39,6 +39,8 @@ export interface TelaParaAnunciar {
   orientacao: string | null;
   polegadas: number | null;
   valor: number | null;
+  /** F-148: áreas da tela que aceitam anúncio (vazio = tela sem divisão). */
+  zonas?: { numero: number; nome: string; parte_da_tela: number }[];
 }
 
 export interface AnuncioNoPonto {
@@ -48,6 +50,8 @@ export interface AnuncioNoPonto {
   valido_ate: string | null;
   motivo: string | null;
   telas: number;
+  /** F-148: área da tela em que o anúncio toca (nulo = toda a programação). */
+  zona?: number | null;
   cobranca: { codigo: string; identificador: string; status: string; vencimento: string } | null;
   asset_id: string;
   nome: string;
@@ -98,7 +102,9 @@ async function rpc<T>(nome: string, args?: Record<string, unknown>): Promise<T> 
 export const pontosParceirosService = {
   listar: () => rpc<PontoParceiroResumo[]>('portal_pontos_parceiros'),
   detalhe: (id: string) => rpc<PontoParceiroDetalhe | null>('portal_ponto_parceiro', { p_ponto: id }),
-  anunciar: (ponto: string, asset: string, telas: string[]) => rpc<ResultadoAnunciar>('anunciar_no_ponto', { p_ponto: ponto, p_asset: asset, p_telas: telas }),
+  anunciar: (ponto: string, asset: string, telas: string[], zona?: number | null) => zona
+    ? rpc<ResultadoAnunciar>('anunciar_no_ponto_na_zona', { p_ponto: ponto, p_asset: asset, p_telas: telas, p_zona: zona })
+    : rpc<ResultadoAnunciar>('anunciar_no_ponto', { p_ponto: ponto, p_asset: asset, p_telas: telas }),
   /** F-113: telas deste ponto já incluídas no contrato do anunciante. */
   telasContratadas: (ponto: string) => rpc<string[]>('portal_telas_contratadas', { p_ponto: ponto }),
   reativar: (anuncio: string) => rpc<{ status: string }>('reativar_anuncio_no_ponto', { p_anuncio: anuncio }),

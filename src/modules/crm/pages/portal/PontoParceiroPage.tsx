@@ -44,7 +44,7 @@ export default function PontoParceiroPage() {
   };
 
   const anunciar = useMutation({
-    mutationFn: ({ asset, telas }: { asset: string; telas: string[] }) => pontosParceirosService.anunciar(id, asset, telas),
+    mutationFn: ({ asset, telas, zona }: { asset: string; telas: string[]; zona?: number | null }) => pontosParceirosService.anunciar(id, asset, telas, zona),
     onSuccess: (r) => { setResultado(r); atualizar(); },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -174,7 +174,7 @@ export default function PontoParceiroPage() {
         carregandoMidias={midias.isLoading}
         anunciosAtivos={p.meus_anuncios.filter((a) => ['ATIVO', 'AGUARDANDO_PAGAMENTO', 'EM_ANALISE'].includes(a.status)).map((a) => a.asset_id)}
         enviando={anunciar.isPending}
-        onConfirmar={(asset, telas) => anunciar.mutate({ asset, telas })}
+        onConfirmar={(asset, telas, zona) => anunciar.mutate({ asset, telas, zona })}
         resultado={resultado}
         contratadas={Array.isArray(contratadas.data) ? contratadas.data : []}
       />

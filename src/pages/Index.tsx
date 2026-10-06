@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { RedePublica } from '@/components/rede/RedePublica';
 import { 
   Sheet, 
   SheetContent, 
@@ -405,6 +406,9 @@ export default function Index() {
             })}
           </div>
         </section>
+
+        {/* F-148: "Nossos Clientes" e mapa da rede — só clientes autorizados; sem nenhum, a seção não aparece */}
+        <RedePublica />
       </main>
 
       {/* Footer */}

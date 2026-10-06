@@ -24,7 +24,7 @@ export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midi
   carregandoMidias: boolean;
   anunciosAtivos: string[];
   enviando: boolean;
-  onConfirmar: (asset: string, telas: string[]) => void;
+  onConfirmar: (asset: string, telas: string[], zona?: number | null) => void;
   resultado: ResultadoAnunciar | null;
   /** F-113: telas já vendidas no contrato (sem custo extra). */
   contratadas?: string[];
@@ -33,6 +33,14 @@ export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midi
   const [passo, setPasso] = useState<1 | 2>(1);
   const [midia, setMidia] = useState<string | null>(null);
   const [escolhidas, setEscolhidas] = useState<string[]>([]);
+  // F-148: área da tela (zona) — só aparece quando TODAS as telas escolhidas têm a mesma área disponível
+  const [zona, setZona] = useState<number | null>(null);
+  const zonasComuns = useMemo(() => {
+    const marcadas = telas.filter((t) => escolhidas.includes(t.id));
+    if (marcadas.length === 0 || marcadas.some((t) => !t.zonas?.length)) return [];
+    return (marcadas[0].zonas ?? []).filter((z) => marcadas.every((t) => t.zonas?.some((o) => o.numero === z.numero)));
+  }, [telas, escolhidas]);
+  useEffect(() => { if (zona !== null && !zonasComuns.some((z) => z.numero === zona)) setZona(null); }, [zonasComuns, zona]);
 
   useEffect(() => {
     if (aberto) { setPasso(1); setMidia(null); setEscolhidas(contratadas.length ? telas.filter((t) => contratadas.includes(t.id)).map((t) => t.id) : telas.map((t) => t.id)); }
@@ -165,13 +173,23 @@ export function AnunciarNoPontoDialog({ aberto, onFechar, nomePonto, telas, midi
               <span className="text-sm text-slate-300">{escolhidas.length} {escolhidas.length === 1 ? 'tela' : 'telas'} · total</span>
               <span className="text-lg font-bold text-white" data-testid="total-anuncio">{semCusto ? 'Grátis' : <>{brl(total)}<span className="text-xs font-normal text-slate-500">/mês</span></>}</span>
             </div>
+            {zonasComuns.length > 0 && (
+              <label className="block space-y-1 rounded-xl border border-white/10 bg-slate-950/60 p-3" data-testid="escolher-zona">
+                <span className="text-sm text-slate-300">Onde o anúncio aparece na tela</span>
+                <select className="h-10 w-full rounded-md border border-white/10 bg-slate-900 px-2 text-sm text-white" value={zona ?? ''}
+                  onChange={(e) => setZona(e.target.value ? Number(e.target.value) : null)}>
+                  <option value="">Em toda a programação da tela</option>
+                  {zonasComuns.map((z) => <option key={z.numero} value={z.numero}>Só na área "{z.nome}" ({z.parte_da_tela}% da tela)</option>)}
+                </select>
+              </label>
+            )}
             {contratadas.length > 0 && !soContrato && escolhidas.some((id) => contratadas.includes(id)) && (
               <p className="text-xs text-amber-300">Com telas fora do contrato, o anúncio é cobrado à parte em todas as telas escolhidas. Para usar só o contrato, deixe marcadas apenas as telas “No seu contrato”.</p>
             )}
             <DiretrizesConteudo compacto />
             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-between">
               <Button variant="ghost" className="gap-2 text-slate-300" onClick={() => setPasso(1)}><ArrowLeft className="h-4 w-4" /> Voltar</Button>
-              <Button className="gap-2" disabled={!midia || escolhidas.length === 0 || enviando} onClick={() => midia && onConfirmar(midia, escolhidas)}>
+              <Button className="gap-2" disabled={!midia || escolhidas.length === 0 || enviando} onClick={() => midia && onConfirmar(midia, escolhidas, zona)}>
                 {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />} {soContrato || semCusto ? 'Colocar no ar' : 'Reservar e pagar'}
               </Button>
             </div>

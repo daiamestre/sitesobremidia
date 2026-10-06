@@ -512,6 +512,8 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
 export function DivisaoDaTela({ tela }: { tela: TelaResumo }) {
   const [aberto, setAberto] = useState(false);
   const [zonas, setZonas] = useState<number | null>(null);
+  // F-148: exibições por zona nos últimos 7 dias (prova de exibição)
+  const [porZona, setPorZona] = useState<Array<{ zona_numero: number; zona_nome: string; exibicoes: number; segundos: number; midias: number }>>([]);
 
   const contar = useCallback(async () => {
     const { data: l } = await supabase.from('screen_layouts' as never).select('id').eq('screen_id', tela.id).maybeSingle();
@@ -520,6 +522,12 @@ export function DivisaoDaTela({ tela }: { tela: TelaResumo }) {
     const { count } = await supabase.from('layout_zones' as never).select('id', { count: 'exact', head: true }).eq('layout_id', id);
     setZonas(count ?? 0);
   }, [tela.id]);
+
+  useEffect(() => {
+    const ate = new Date(); const de = new Date(ate.getTime() - 7 * 24 * 3600 * 1000);
+    supabase.rpc('fn_playback_por_zona' as never, { p_screen_id: tela.id, p_from: de.toISOString(), p_to: ate.toISOString() } as never)
+      .then(({ data }) => { if (Array.isArray(data)) setPorZona(data as never); });
+  }, [tela.id, zonas]);
   useEffect(() => { contar(); }, [contar]);
 
   return (
@@ -535,6 +543,23 @@ export function DivisaoDaTela({ tela }: { tela: TelaResumo }) {
           Divida a tela em várias áreas, cada uma com a sua playlist — por exemplo, anúncios em 75% da tela e um anunciante fixo nos outros 25%.
         </p>
         <Button type="button" onClick={() => setAberto(true)} className="gap-2" data-testid="abrir-editor-zonas"><LayoutGrid className="h-4 w-4" /> {zonas ? 'Editar divisão' : 'Dividir a tela'}</Button>
+        {porZona.some((z) => z.zona_numero > 0) && (
+          <div className="w-full overflow-x-auto" data-testid="exibicoes-por-zona">
+            <p className="mb-1 text-xs font-semibold text-muted-foreground">Exibições por zona — últimos 7 dias</p>
+            <table className="w-full min-w-[320px] text-sm">
+              <thead><tr className="text-left text-[11px] text-muted-foreground"><th className="py-1 font-medium">Zona</th><th className="font-medium">Exibições</th><th className="font-medium">Tempo no ar</th><th className="font-medium">Mídias diferentes</th></tr></thead>
+              <tbody>
+                {porZona.map((z) => (
+                  <tr key={z.zona_numero} className="border-t border-border/40">
+                    <td className="py-1">{z.zona_nome}</td><td className="font-mono">{z.exibicoes}</td>
+                    <td className="font-mono">{Math.floor(z.segundos / 3600)}h {String(Math.floor((z.segundos % 3600) / 60)).padStart(2, '0')}min</td>
+                    <td className="font-mono">{z.midias}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </CardContent>
       {aberto && <EditorDeZonas tela={tela} aberto={aberto} onFechar={() => setAberto(false)} onSalvo={contar} />}
     </Card>

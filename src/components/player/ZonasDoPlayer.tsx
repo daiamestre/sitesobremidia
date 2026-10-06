@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { offlineLogger } from '@/utils/offlineLogger';
 import { AJUSTE_CSS, estiloDaZona, proximoItemLivre } from '@/lib/layoutZonas';
 import type { LayoutDoPlayer, ZonaDoPlayer } from './playerLayout';
+import { WidgetNaTela } from './WidgetNaTela';
 
 type EmUso = Map<string, string>; // zona -> mídia que ela está mostrando
 
@@ -52,7 +53,8 @@ function Zona({ zona, layout, emUso, screenId, somLiberado }: {
     if (!item) { const t = setTimeout(avancar, 1500); return () => clearTimeout(t); }
     const inicio = new Date();
     const fim = () => {
-      if (screenId) {
+      // widget não é mídia do acervo: não entra na prova de exibição
+      if (screenId && item.type !== 'widget') {
         offlineLogger.log({ screen_id: screenId, media_id: item.mediaId, playlist_id: null, duration: item.duration, status: 'completed',
           started_at: inicio.toISOString(), zona_id: zona.id, zona_numero: zona.numero });
       }
@@ -77,6 +79,11 @@ function Zona({ zona, layout, emUso, screenId, somLiberado }: {
       style={{ position: 'absolute', overflow: 'hidden', zIndex: zona.ordemZ + 1, backgroundColor: layout.corFundo, ...estiloDaZona(zona, layout.largura, layout.altura) }}>
       {item?.type === 'image' && (
         <img key={`${item.id}-${volta}`} src={item.url} alt="" draggable={false} style={estilo} ref={fixarEncaixe} onError={() => fimRef.current?.()} />
+      )}
+      {item?.type === 'widget' && item.widgetType && (
+        <div key={`${item.id}-${volta}`} style={{ position: 'absolute', inset: 0 }}>
+          <WidgetNaTela id={item.mediaId.replace('widget:', '')} tipo={item.widgetType} config={item.widgetConfig} emPe={zona.altura > zona.largura} />
+        </div>
       )}
       {item?.type === 'video' && (
         <video key={`${item.id}-${volta}`} src={item.url} style={estilo} ref={fixarEncaixe} autoPlay playsInline preload="auto" crossOrigin="anonymous"

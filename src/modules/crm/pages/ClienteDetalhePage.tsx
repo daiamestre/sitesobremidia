@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { clienteService, ClienteCompleto } from '../services/cliente.service';
 import { useAuth } from '@/contexts/AuthContext';
+import { AutorizacaoPublica } from '@/components/rede/AutorizacaoPublica';
 import { useRbac } from '@/hooks/useRbac';
 import { usePermissoesRepresentantes } from '@/hooks/usePermissoesRepresentantes';
 import { representantesGerenciaService, RepresentanteGerencia } from '@/services/representantesGerencia.service';
@@ -317,6 +318,9 @@ useEffect(() => {
           </CardContent>
         </Card>
       </div>
+
+      {/* F-148: autorização para aparecer em "Nossos Clientes" (dono/administrador) */}
+      {cliente?.id && <AutorizacaoPublica clienteId={cliente.id} />}
 
       {/* Rodapé de ações */}
       <div className="flex justify-end gap-2">

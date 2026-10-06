@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { CentralDoDiaGestor } from '@/components/central/CentralDoDiaGestor';
 import { CentralDoDiaMidiasOwner } from '@/components/central/CentralDoDiaMidiasOwner';
 import { saudacao } from '@/lib/dashboardResumo';
+import { RedePorEstabelecimento } from '@/components/rede/RedePorEstabelecimento';
 import { Link } from 'react-router-dom';
 
 export default function DashboardHome() {
@@ -205,6 +206,9 @@ export default function DashboardHome() {
         </div>
       )}
 
+
+      {/* F-148: telas agrupadas por estabelecimento (online, mídias, zonas) */}
+      <RedePorEstabelecimento />
 
       {/* Quick Actions & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

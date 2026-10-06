@@ -1771,3 +1771,18 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:** resposta das 5 telas pareadas idêntica antes/depois (`comparar-telas`); itens da função nova iguais aos da principal nas 4 telas com playlist; simulações com reversão (salvar, regravar mantendo ids, limites, número repetido, gravação direta negada, anunciante/outra empresa/anônimo sem acesso); navegador com tela de teste: 2 zonas criadas arrastando, mídia buscada pelo nome e colocada na zona, divisão salva, Player web tocando a zona de 25% e 21 exibições gravadas na zona 2. Dados do teste removidos.
 - **Testes:** `layoutDeTela.test.ts` (25).
 - **Pendente:** Player Android com zonas (depende do teste em aparelho da 5.6.9 e de aparelho para medir vídeo simultâneo); relatórios e cobrança por zona; anunciante comprar zona em ponto parceiro; widgets dentro de zona no Player web (hoje ele só toca imagem e vídeo, como já era em tela cheia); painel da rede, mapa e "Nossos Clientes".
+
+### F-148 — Zonas: relatório por zona, widgets e anúncio por zona no Player web, painel da rede, "Nossos Clientes" e mapa — DONE (banco + painel + Player web)
+- **Banco (migração 20261305, aditiva; `get_player_playlist_for_screen` segue sem alteração):**
+  - `exibicoes_diarias.zona_numero` (0 = tela cheia) na chave do resumo permanente; `delete_old_logs` resume por zona; `fn_playback_por_zona` (registros recentes + resumo);
+  - `ponto_anuncios.zona_numero` e `anunciar_no_ponto_na_zona` (mesmo fluxo de moderação, valor e cobrança de `anunciar_no_ponto`, exige zona disponível); `portal_ponto_parceiro` passa a informar as zonas de cada tela;
+  - `fn_player_itens_da_playlist` sabe em que zona está (anúncio geral → zonas que recebem anúncios; anúncio fixado → só na zona dele; zona sem playlist ainda toca os anúncios dela); a zona principal recebe `excluir_itens`;
+  - `fn_rede_por_estabelecimento` e `fn_rede_por_uf` (leitura com as regras de quem chama; sem acesso anônimo);
+  - `clientes.exibir_publicamente` (padrão falso), `fn_definir_cliente_publico` (dono/administrador) e `fn_rede_publica` (sem login; só nome, logo, cidade e UF dos autorizados).
+- **Player web:** widgets dentro da zona (`WidgetNaTela.tsx`, mesmos componentes da página de widget em tela cheia); anúncio de outra zona não se repete na principal.
+- **Painel:** "Exibições por zona — últimos 7 dias" no cartão da tela; "Rede por estabelecimento" no painel inicial (totais, online/offline, mídias, zonas, último sinal, telas por estado); chave "Mostrar em Nossos Clientes" na página do cliente; escolha da área da tela ao anunciar num ponto parceiro (portal).
+- **Página inicial:** "Nossos Clientes" e "Rede SOBRE MÍDIA" (mapa esquemático por estado), só quando há cliente autorizado.
+- **Prova:** resposta das 5 telas pareadas idêntica; estatísticas antigas idênticas (mesmo resultado antes/depois); simulações com reversão (faxina por zona 0=1 | 2=2; rede 17 telas em 7 estabelecimentos; anônimo sem acesso à rede interna; anunciante não autoriza cliente; zona inexistente recusada); navegador: painel da rede, chave do cliente e seção pública (autorização de teste desfeita — 0 clientes públicos).
+- **Testes:** `zonasRedeEClientes.test.tsx` (15).
+- **Não verificado em tela:** escolha de zona no portal do anunciante e widget tocando dentro de zona (cobertos por teste automático e simulação, sem tela parceira dividida para ver ao vivo).
+- **Decisão comercial em aberto:** o anúncio numa zona custa o mesmo que na tela inteira; preço por zona depende de definição do proprietário.

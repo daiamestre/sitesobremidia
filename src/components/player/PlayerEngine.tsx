@@ -9,6 +9,7 @@ import { mapRpcPayload, resolveDeviceId, type MediaItem } from "./playerPlaylist
 import { RemoteCommandListener } from "./RemoteCommandListener";
 import { mapLayoutPayload, assinaturaDoLayout, type LayoutDoPlayer } from "./playerLayout";
 import { ZonasDoPlayer } from "./ZonasDoPlayer";
+import { widgetDesenhavel } from "./WidgetNaTela";
 import { Monitor, AlertTriangle, RefreshCw } from "lucide-react";
 import "./Player.css";
 
@@ -104,7 +105,7 @@ export const PlayerEngine = () => {
                             'get_player_layout_for_screen' as never,
                             { p_identifier: screenId, p_device_id: deviceId } as never,
                         );
-                        const layout = erroLayout ? null : mapLayoutPayload(bruto, [], supabaseConfig.url);
+                        const layout = erroLayout ? null : mapLayoutPayload(bruto, [], supabaseConfig.url, widgetDesenhavel);
                         if (layout && layout.zonas.some(z => z.itens.length > 0)) {
                             if (assinaturaDoLayout(layoutRef.current) !== assinaturaDoLayout(layout)) {
                                 layoutRef.current = layout;
@@ -167,7 +168,7 @@ export const PlayerEngine = () => {
                         { p_identifier: screenId, p_device_id: deviceId } as never,
                     );
                     if (erroLayout) falhou = true;
-                    else layout = mapLayoutPayload(bruto, result.items, supabaseConfig.url);
+                    else layout = mapLayoutPayload(bruto, result.items, supabaseConfig.url, widgetDesenhavel);
                 } catch { falhou = true; }
 
                 if (falhou && layoutRef.current) { setIsLoading(false); return; } // rede oscilou: mantém as zonas no ar
