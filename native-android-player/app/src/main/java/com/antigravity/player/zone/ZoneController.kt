@@ -79,7 +79,14 @@ class ZoneController(
     private val interruptores = HashMap<String, CompletableDeferred<Unit>>()
     /** Vídeo simultâneo fora da zona principal: um por vez (aparelhos simples têm poucos decodificadores). */
     private val portaoDeVideo = Semaphore(1)
-    private val provas = ArrayList<JsonObject>()
+    /** Prova de exibição das zonas: gravada no aparelho a cada exibição e só apagada quando o servidor confirma. */
+    private val provas = ArrayList<JsonObject>().apply {
+        try {
+            val salvo = activity.getSharedPreferences("zonas_do_player", Context.MODE_PRIVATE).getString(CHAVE_PROVAS, null)
+            if (!salvo.isNullOrBlank()) (kotlinx.serialization.json.Json.parseToJsonElement(salvo) as? JsonArray)?.forEach { el -> (el as? JsonObject)?.let { o -> add(o) } }
+        } catch (e: Exception) { /* fila ilegível: começa vazia */ }
+    }
+    private fun gravarProvas() { prefs.edit().putString(CHAVE_PROVAS, JsonArray(provas.toList()).toString()).apply() }
 
     private val aoMudarTamanho = View.OnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
         val tamanho = (r - l) to (b - t)
@@ -297,7 +304,7 @@ class ZoneController(
                             }
                             p.addListener(ouvinte)
                             inUse[zona.id] = item.mediaId
-                            p.volume = if (zona.audio) 1f else 0f
+                            p.volume = 0f // F-150: zona é complemento e nunca tem som; só a mídia principal pode ter
                             p.setMediaItem(ExoMediaItem.fromUri(android.net.Uri.fromFile(arquivo)))
                             p.prepare()
                             p.playWhenReady = true
@@ -368,6 +375,7 @@ class ZoneController(
                 put("zona_id", zona.id); put("zona_numero", zona.numero)
             }
             if (provas.size > LIMITE_DE_PROVAS) provas.subList(0, provas.size - LIMITE_DE_PROVAS).clear()
+            gravarProvas()
         }
     }
 
@@ -378,7 +386,7 @@ class ZoneController(
         try {
             val aparelho = SessionManager.awaitIdentity()
             val aceito = withContext(Dispatchers.IO) { ServiceLocator.getRemoteDataSource().registrarExibicoesDasZonas(tela, aparelho, JsonArray(lote)) }
-            if (aceito) synchronized(provas) { provas.removeAll(lote.toSet()) }
+            if (aceito) synchronized(provas) { provas.removeAll(lote.toSet()); gravarProvas() }
         } catch (e: Exception) {
             Logger.w("ZONAS", "prova de exibição não enviada agora (${e.message}); fica para a próxima")
         }
@@ -391,6 +399,7 @@ class ZoneController(
         private const val PRINCIPAL = "principal"
         private const val CHAVE_LAYOUT = "layout_bruto"
         private const val INTERVALO_MS = 60_000L
-        private const val LIMITE_DE_PROVAS = 500
+        private const val CHAVE_PROVAS = "provas_pendentes"
+        private const val LIMITE_DE_PROVAS = 5000
     }
 }

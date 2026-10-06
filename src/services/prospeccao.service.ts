@@ -260,6 +260,9 @@ export class ProspeccaoService {
       cargo: dados.cargo || null,
       cpf_cnpj: dados.cpfCnpj || null,
       endereco: [dados.endereco, dados.cidade, dados.estado].filter(Boolean).join(', ') || null,
+      // F-150: o mapa da rede marca a cidade e o estado do gestor automaticamente a partir destes campos
+      cidade: dados.cidade?.trim() || null,
+      estado: dados.estado?.trim().toUpperCase() || null,
       observacoes: dados.observacoes || null,
     };
     const r = await corporateUsersService.provisionarUsuarioDireto({

@@ -25,6 +25,8 @@ export interface Zona {
   audio: boolean;
   anuncios_pagos: boolean;
   playlist_id: string | null;
+  /** F-150: valor mensal para anunciar só nesta zona (null = vale o valor da tela). */
+  valor_anuncio: number | null;
 }
 
 export interface LayoutDaTela {
@@ -117,7 +119,7 @@ export function novaZona(r: Retangulo, zonas: Zona[], largura: number, altura: n
     chave: novaChave(), numero, nome: `Zona ${numero}`, ...limitarZona(r, largura, altura),
     ordem_z: zonas.reduce((m, z) => Math.max(m, z.ordem_z), -1) + 1,
     modo_encaixe: 'CONTER', visivel: true, travada: false,
-    principal: zonas.length === 0, audio: false, anuncios_pagos: true, playlist_id: null,
+    principal: zonas.length === 0, audio: false, anuncios_pagos: true, playlist_id: null, valor_anuncio: null,
   };
 }
 
@@ -201,7 +203,9 @@ export function paraSalvar(zonas: Zona[]) {
   return zonas.map((z) => ({
     ...(z.id ? { id: z.id } : {}), numero: z.numero, nome: z.nome.trim() || null, x: z.x, y: z.y, largura: z.largura, altura: z.altura,
     ordem_z: z.ordem_z, modo_encaixe: z.modo_encaixe, visivel: z.visivel, travada: z.travada, principal: z.principal,
-    audio: z.audio, anuncios_pagos: z.anuncios_pagos, playlist_id: z.principal ? null : z.playlist_id,
+    // F-150: zona é complemento e nunca tem som; só a mídia principal pode ter (chave de som da tela)
+    audio: false, anuncios_pagos: z.anuncios_pagos, playlist_id: z.principal ? null : z.playlist_id,
+    valor_anuncio: z.valor_anuncio != null && z.valor_anuncio >= 0 ? Math.round(z.valor_anuncio * 100) / 100 : null,
   }));
 }
 
@@ -213,8 +217,9 @@ export function doBanco(linha: Record<string, unknown>): Zona {
     x: n('x'), y: n('y'), largura: n('largura', 1), altura: n('altura', 1), ordem_z: n('ordem_z'),
     modo_encaixe: modo === 'COBRIR' || modo === 'ESTICAR' ? modo : 'CONTER',
     visivel: linha.visivel !== false, travada: linha.travada === true, principal: linha.principal === true,
-    audio: linha.audio === true, anuncios_pagos: linha.anuncios_pagos !== false,
+    audio: false, anuncios_pagos: linha.anuncios_pagos !== false,
     playlist_id: (linha.playlist_id as string | null) ?? null,
+    valor_anuncio: linha.valor_anuncio == null || linha.valor_anuncio === '' ? null : (Number.isFinite(Number(linha.valor_anuncio)) ? Number(linha.valor_anuncio) : null),
   };
 }
 

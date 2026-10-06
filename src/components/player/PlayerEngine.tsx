@@ -10,6 +10,7 @@ import { RemoteCommandListener } from "./RemoteCommandListener";
 import { mapLayoutPayload, assinaturaDoLayout, type LayoutDoPlayer } from "./playerLayout";
 import { ZonasDoPlayer } from "./ZonasDoPlayer";
 import { widgetDesenhavel } from "./WidgetNaTela";
+import { RadioDoPlayer, mapRadioPayload, assinaturaDaRadio, type RadioDoPlayerDados } from "./RadioDoPlayer";
 import { Monitor, AlertTriangle, RefreshCw } from "lucide-react";
 import "./Player.css";
 
@@ -51,6 +52,8 @@ export const PlayerEngine = () => {
     // F-147: tela dividida em zonas (null = tela cheia tradicional, caminho de sempre)
     const [layoutZonas, setLayoutZonas] = useState<LayoutDoPlayer | null>(null);
     const layoutRef = useRef<LayoutDoPlayer | null>(null);
+    // F-150: Rádio Comércio da tela (null = sem rádio)
+    const [radio, setRadio] = useState<RadioDoPlayerDados | null>(null);
 
     // Heartbeat oficial: a RPC de playlist já atualiza devices.last_seen no
     // caminho bound; o hook só deve escrever com SESSÃO autenticada (RLS).
@@ -234,6 +237,25 @@ export const PlayerEngine = () => {
 
         return () => clearInterval(heartbeatInterval);
     }, [activeScreenId]);
+    // F-150: pergunta pela rádio da tela (só depois que o aparelho já está vinculado). Falha de rede mantém o que toca.
+    useEffect(() => {
+        if (!activeScreenId) return;
+        let vivo = true;
+        const buscar = async () => {
+            if (!navigator.onLine) return;
+            try {
+                const deviceId = resolveDeviceId((globalThis as Record<string, unknown>).NativePlayer as { getDeviceId?: () => string } | undefined);
+                const { data, error: erroRadio } = await supabase.rpc('get_player_radio_for_screen' as never, { p_identifier: activeScreenId, p_device_id: deviceId } as never);
+                if (!vivo || erroRadio) return;
+                const nova = mapRadioPayload(data);
+                setRadio(atual => (assinaturaDaRadio(atual) === assinaturaDaRadio(nova) && atual?.volume === nova?.volume ? atual : nova));
+            } catch { /* mantém */ }
+        };
+        buscar();
+        const t = setInterval(buscar, POLL_INTERVAL_MS);
+        return () => { vivo = false; clearInterval(t); };
+    }, [activeScreenId]);
+
     const logPlayback = useCallback((item: MediaItem) => {
         if (!item.mediaId) return; // Guard against missing ID
 
@@ -529,6 +551,7 @@ export const PlayerEngine = () => {
             <div className="player-container" onClick={toggleFullscreen}>
                 <RemoteCommandListener screenId={activeScreenId} />
                 <ZonasDoPlayer layout={layoutZonas} screenId={activeScreenId} somLiberado={audioEnabled} />
+                <RadioDoPlayer radio={radio} />
             </div>
         );
     }
@@ -576,6 +599,7 @@ export const PlayerEngine = () => {
     return (
         <div className="player-container" onClick={toggleFullscreen}>
             <RemoteCommandListener screenId={activeScreenId} />
+            <RadioDoPlayer radio={radio} />
             <div
                 className={`player-screen-box ${screenOrientation}`}
                 style={screenOrientation === 'landscape' ? { aspectRatio: '16/9' } : {}}

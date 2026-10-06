@@ -174,6 +174,7 @@ const Playlists = lazyWithRetry(() => import("./pages/dashboard/Playlists"));
 const Screens = lazyWithRetry(() => import("./pages/dashboard/Screens"));
 const ScreenDetails = lazyWithRetry(() => import("./pages/dashboard/ScreenDetails"));
 const Widgets = lazyWithRetry(() => import("./pages/dashboard/Widgets"));
+const RadioComercio = lazyWithRetry(() => import("./pages/dashboard/RadioComercio"));
 const MinhaMarca = lazyWithRetry(() => import("./pages/dashboard/MinhaMarca"));
 const TelasParceiras = lazyWithRetry(() => import("./pages/dashboard/TelasParceiras"));
 const Schedule = lazyWithRetry(() => import("./pages/dashboard/Schedule"));
@@ -360,6 +361,7 @@ const App = () => {
                     <Route path="screens" element={<Screens />} />
                     <Route path="screens/:id" element={<ScreenDetails />} />
                     <Route path="widgets" element={<Widgets />} />
+                    <Route path="radio" element={<RadioComercio />} />
                     <Route path="marca" element={<MinhaMarca />} />
                     <Route path="telas-parceiras" element={<TelasParceiras />} />
                     <Route path="prospeccao/ponto-parceiro" element={<RequireRole roles={['OWNER', 'ADMIN']}><PontoParceiroWizardPage /></RequireRole>} />

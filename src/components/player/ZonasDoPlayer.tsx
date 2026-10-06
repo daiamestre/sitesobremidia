@@ -87,7 +87,7 @@ function Zona({ zona, layout, emUso, screenId, somLiberado }: {
       )}
       {item?.type === 'video' && (
         <video key={`${item.id}-${volta}`} src={item.url} style={estilo} ref={fixarEncaixe} autoPlay playsInline preload="auto" crossOrigin="anonymous"
-          muted={!(zona.audio && somLiberado)} onEnded={() => fimRef.current?.()} onError={() => fimRef.current?.()} />
+          muted /* F-150: zona é complemento e nunca tem som; a zona principal segue a chave de som da tela */ {...(zona.principal && somLiberado ? { muted: false } : {})} onEnded={() => fimRef.current?.()} onError={() => fimRef.current?.()} />
       )}
     </div>
   );

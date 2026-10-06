@@ -45,8 +45,16 @@ function browserTimeZone(): string {
  * telas com mais de 1000 exibições/dia apareciam zeradas ou incompletas quando o painel contava no navegador.
  * `screenId = null` soma todas as telas que o usuário pode ver (RLS).
  */
-export async function fetchPlaybackStats(screenId: string | null, period: StatsPeriod, now: Date = new Date()): Promise<StatsPoint[]> {
+export async function fetchPlaybackStats(screenId: string | null, period: StatsPeriod, now: Date = new Date(), zona?: number | null): Promise<StatsPoint[]> {
     const { start, end, bucket } = statsWindow(period, now);
+    // F-150: zona escolhida no gráfico (0 = tela principal; N = zona N). Sem escolha: a tela inteira, como sempre.
+    if (screenId && zona != null) {
+        const { data, error } = await supabase.rpc('fn_playback_stats_zona' as never, {
+            p_screen_id: screenId, p_from: start.toISOString(), p_to: end.toISOString(), p_bucket: bucket, p_tz: browserTimeZone(), p_zona: zona,
+        } as never);
+        if (error) throw error;
+        return fillStatsBuckets(period, now, (data as unknown as BucketRow[]) || []);
+    }
     const { data, error } = await supabase.rpc('fn_playback_stats' as never, {
         p_screen_id: screenId,
         p_from: start.toISOString(),

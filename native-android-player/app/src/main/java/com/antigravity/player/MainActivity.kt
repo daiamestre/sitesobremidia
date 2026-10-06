@@ -103,6 +103,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var playbackStage: com.antigravity.player.playback.PlaybackStage
     // F-149: divisão da tela em zonas (não cria nada quando a tela não está dividida)
     private var zoneController: com.antigravity.player.zone.ZoneController? = null
+    // F-150: Rádio Comércio (não cria nada quando a tela não tem rádio ligada)
+    private var radioController: com.antigravity.player.radio.RadioController? = null
     private lateinit var nativeWidgetContainer: FrameLayout
     // WebViews removidas permanentemente (Widgets 100% Nativos)
 
@@ -421,6 +423,11 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             Logger.e("ZONAS", "controlador de zonas não iniciou (${e.message}); seguindo em tela cheia")
+        }
+        try {
+            radioController = com.antigravity.player.radio.RadioController(this, lifecycleScope).also { it.start() }
+        } catch (e: Exception) {
+            Logger.e("RADIO", "rádio não iniciou (${e.message}); seguindo sem rádio")
         }
         
         // [P0.4.6] Inicializa consumidor de projeção de superfície
@@ -1681,6 +1688,7 @@ withContext(Dispatchers.Main) {
     override fun onDestroy() {
         super.onDestroy()
         zoneController?.stop()
+        radioController?.stop()
         backgroundSyncHandler.removeCallbacks(backgroundSyncRunnable)
 
         // [DEVICE FLEET] Encerra Device Fleet Manager

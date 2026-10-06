@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { tempoDesde } from '@/lib/dashboardResumo';
-import { MapaDoBrasil } from './MapaDoBrasil';
+import { MapaDaRede } from './MapaDaRede';
 
 /**
  * F-148 — Painel da rede: telas agrupadas por estabelecimento, com online/offline, mídias, zonas e último sinal.
@@ -21,17 +21,12 @@ export function resumoDoEstabelecimento(e: Pick<Estabelecimento, 'telas' | 'onli
 
 export function RedePorEstabelecimento() {
   const [rede, setRede] = useState<Rede | null>(null);
-  const [porUf, setPorUf] = useState<Array<{ uf: string; telas: number; estabelecimentos: number; cidades: number }>>([]);
   const [carregando, setCarregando] = useState(true);
   const [aberto, setAberto] = useState<string | null>(null);
 
   const carregar = async () => {
-    const [{ data }, { data: uf }] = await Promise.all([
-      supabase.rpc('fn_rede_por_estabelecimento' as never, { p_offline_min: 10 } as never),
-      supabase.rpc('fn_rede_por_uf' as never),
-    ]);
+    const { data } = await supabase.rpc('fn_rede_por_estabelecimento' as never, { p_offline_min: 10 } as never);
     if (data) setRede(data as unknown as Rede);
-    if (Array.isArray(uf)) setPorUf(uf as never);
     setCarregando(false);
   };
 
@@ -63,7 +58,7 @@ export function RedePorEstabelecimento() {
           ))}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-4">
           <ul className="space-y-2">
             {rede.estabelecimentos.map((e) => {
               const chave = e.id ?? 'sem';
@@ -100,12 +95,11 @@ export function RedePorEstabelecimento() {
               );
             })}
           </ul>
-          {porUf.length > 0 && (
-            <div className="rounded-xl border border-border/60 bg-slate-950/50 p-3">
-              <p className="mb-2 text-center text-xs font-semibold text-muted-foreground">Telas por estado</p>
-              <MapaDoBrasil presenca={porUf.map((u) => ({ uf: u.uf, total: u.telas, detalhe: `${u.estabelecimentos} estabelecimento(s)` }))} rotulo="telas" />
-            </div>
-          )}
+          {/* F-150: mapa automático (cadastro de anunciantes, gestores e pontos parceiros), com aproximação */}
+          <div>
+            <p className="mb-2 text-sm font-semibold">Onde a rede está</p>
+            <MapaDaRede />
+          </div>
         </div>
       </CardContent>
     </Card>

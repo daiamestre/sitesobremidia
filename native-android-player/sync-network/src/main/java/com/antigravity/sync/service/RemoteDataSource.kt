@@ -441,6 +441,13 @@ class RemoteDataSource {
             mapOf("p_identifier" to identifier.trim(), "p_device_id" to deviceId)
         ).data
 
+    /** F-150: Rádio Comércio da tela. Devolve o JSON bruto de get_player_radio_for_screen (lido pelo RadioParser). */
+    suspend fun getRadioForScreenRaw(identifier: String, deviceId: String): String =
+        client.postgrest.rpc(
+            "get_player_radio_for_screen",
+            mapOf("p_identifier" to identifier.trim(), "p_device_id" to deviceId)
+        ).data
+
     /** F-149: prova de exibição das zonas (o servidor só aceita o aparelho vinculado à tela). */
     suspend fun registrarExibicoesDasZonas(identifier: String, deviceId: String, registros: kotlinx.serialization.json.JsonArray): Boolean {
         val resposta = client.postgrest.rpc(

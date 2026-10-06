@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as EventoDePonteiro } from 'react';
-import { Copy, Film, Image as ImagemIcone, LayoutGrid, ListVideo, Loader2, Plus, Save, Search, Trash2, Volume2 } from 'lucide-react';
+import { Copy, Film, Image as ImagemIcone, LayoutGrid, ListVideo, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -382,7 +382,7 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                     <button key={z.chave} type="button" onClick={() => setSelecionada(z.chave)} title={z.nome}
                       className={`rounded-md border px-2 py-1 text-xs font-semibold ${z.chave === selecionada ? 'border-primary bg-primary/20 text-foreground' : 'border-border/60 text-muted-foreground hover:bg-muted/40'}`}
                       style={{ borderLeft: `4px solid ${corDaZona(z.numero)}` }}>
-                      {z.numero}{z.principal ? ' ★' : ''}{z.audio ? ' ♪' : ''}
+                      {z.numero}{z.principal ? ' ★' : ''}{z.valor_anuncio ? ' R$' : ''}
                     </button>
                   ))}
                   {layout.zonas.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma zona ainda.</p>}
@@ -411,6 +411,16 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                     <CampoNumero id="z-l" rotulo="Largura" valor={zona.largura} onChange={(n) => alterar(zona.chave, { largura: n })} />
                     <CampoNumero id="z-a" rotulo="Altura" valor={zona.altura} onChange={(n) => alterar(zona.chave, { altura: n })} />
                   </div>
+                  {/* F-150: valor desta zona — aparece na hora em que a zona é criada */}
+                  <div className="space-y-1" data-testid="valor-da-zona">
+                    <Label htmlFor="z-valor" className="text-[11px] text-muted-foreground">Valor para anunciar nesta zona (R$ por mês)</Label>
+                    <Input id="z-valor" type="number" inputMode="decimal" min={0} step="0.01" className="h-9 font-mono" placeholder="Vazio = vale o valor da tela"
+                      value={zona.valor_anuncio ?? ''}
+                      onChange={(e) => {
+                        const n = e.target.value === '' ? null : Math.max(0, Number(e.target.value));
+                        setLayout((l) => ({ ...l, zonas: l.zonas.map((z) => (z.chave === zona.chave ? { ...z, valor_anuncio: n != null && Number.isFinite(n) ? n : null } : z)) }));
+                      }} />
+                  </div>
                   <div className="space-y-1">
                     <Label className="text-[11px] text-muted-foreground">Como a mídia ocupa a zona</Label>
                     <select className="h-9 w-full rounded-md border border-border/60 bg-background px-2 text-sm" value={zona.modo_encaixe}
@@ -423,8 +433,6 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                   <div className="space-y-2 text-sm">
                     <label className="flex items-center justify-between gap-2"><span>Zona principal <span className="text-xs text-muted-foreground">(toca a playlist da tela)</span></span>
                       <Switch checked={zona.principal} onCheckedChange={(v) => setLayout((l) => ({ ...l, zonas: marcarUnica(l.zonas, zona.chave, 'principal', v) }))} /></label>
-                    <label className="flex items-center justify-between gap-2"><span className="flex items-center gap-1"><Volume2 className="h-3.5 w-3.5" /> Som desta zona</span>
-                      <Switch checked={zona.audio} onCheckedChange={(v) => setLayout((l) => ({ ...l, zonas: marcarUnica(l.zonas, zona.chave, 'audio', v) }))} /></label>
                     <label className="flex items-center justify-between gap-2"><span>Recebe anúncios pagos do ponto</span>
                       <Switch checked={zona.anuncios_pagos} onCheckedChange={(v) => alterar(zona.chave, { anuncios_pagos: v })} /></label>
                   </div>
@@ -492,7 +500,7 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
             <div className="min-w-0 text-xs">
               {erros.length > 0 ? <span className="text-rose-400">{erros[0]}</span>
                 : sobrepostas.length > 0 ? <span className="text-amber-400">Atenção: as zonas {sobrepostas[0][0]} e {sobrepostas[0][1]} estão uma sobre a outra.</span>
-                : <span className="text-muted-foreground">A mesma mídia nunca toca em duas zonas ao mesmo tempo.</span>}
+                : <span className="text-muted-foreground">A mesma mídia nunca toca em duas zonas ao mesmo tempo. As zonas não têm som: o som é só da mídia principal.</span>}
             </div>
             <div className="flex gap-2">
               {existe && <Button type="button" variant="ghost" className="text-rose-400" onClick={removerDivisao}>Remover divisão</Button>}

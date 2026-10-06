@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Building2, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { MapaDoBrasil } from './MapaDoBrasil';
+import { MapaDaRede } from './MapaDaRede';
+import type { LinhaDePresenca } from '@/lib/redePresenca';
 
 /**
  * F-148 — "Nossos Clientes" e "Rede SOBRE MÍDIA" na página inicial (sem login).
@@ -13,6 +14,8 @@ interface RedePublicaDados { clientes: ClientePublico[]; por_uf: Array<{ uf: str
 
 export function RedePublica() {
   const [dados, setDados] = useState<RedePublicaDados | null>(null);
+  // F-150: presença da rede vinda do cadastro (anunciantes, gestores e pontos parceiros) — o mapa é automático
+  const [presenca, setPresenca] = useState<LinhaDePresenca[] | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -24,14 +27,31 @@ export function RedePublica() {
         if (Array.isArray(d.clientes) && d.clientes.length > 0) setDados({ clientes: d.clientes, por_uf: Array.isArray(d.por_uf) ? d.por_uf : [] });
       } catch { /* página inicial segue sem a seção */ }
     })();
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc('fn_rede_presenca' as never);
+        const linhas = (data as unknown as LinhaDePresenca[] | null) ?? [];
+        if (vivo && !error && Array.isArray(linhas) && linhas.length > 0) setPresenca(linhas);
+      } catch { /* sem mapa */ }
+    })();
     return () => { vivo = false; };
   }, []);
 
-  if (!dados) return null;
-  const cidades = new Set(dados.clientes.map((c) => `${c.cidade ?? ''}/${c.uf ?? ''}`).filter((x) => x !== '/')).size;
+  if (!dados && !presenca) return null;
 
   return (
     <>
+      {presenca && (
+        <section className="container mx-auto px-4 py-8 sm:py-12" data-testid="rede-sobre-midia">
+          <div className="mb-8 text-center">
+            <h2 className="mb-3 font-display text-2xl font-bold text-white sm:text-3xl">Rede SOBRE MÍDIA</h2>
+            <p className="text-slate-400">Onde estamos no Brasil — aproxime o mapa para ver as cidades</p>
+          </div>
+          <div className="mx-auto" style={{ maxWidth: 1100 }}><MapaDaRede linhas={presenca} /></div>
+        </section>
+      )}
+
+      {dados && (
       <section className="container mx-auto px-4 py-8 sm:py-12" data-testid="nossos-clientes">
         <div className="mb-8 text-center">
           <h2 className="mb-3 font-display text-2xl font-bold text-white sm:text-3xl">Nossos Clientes</h2>
@@ -52,16 +72,6 @@ export function RedePublica() {
         </ul>
       </section>
 
-      {dados.por_uf.length > 0 && (
-        <section className="container mx-auto px-4 py-8 sm:py-12" data-testid="rede-sobre-midia">
-          <div className="mb-8 text-center">
-            <h2 className="mb-3 font-display text-2xl font-bold text-white sm:text-3xl">Rede SOBRE MÍDIA</h2>
-            <p className="text-slate-400">
-              {dados.clientes.length} {dados.clientes.length === 1 ? 'cliente' : 'clientes'} em {cidades} {cidades === 1 ? 'cidade' : 'cidades'} e {dados.por_uf.length} {dados.por_uf.length === 1 ? 'estado' : 'estados'}
-            </p>
-          </div>
-          <MapaDoBrasil presenca={dados.por_uf.map((u) => ({ uf: u.uf, total: u.clientes, detalhe: `${u.cidades} ${u.cidades === 1 ? 'cidade' : 'cidades'}` }))} rotulo="clientes" />
-        </section>
       )}
     </>
   );

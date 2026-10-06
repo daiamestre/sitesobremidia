@@ -10,6 +10,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { ClienteDaTela } from '@/components/screens/ClienteDaTela';
 import { DivisaoDaTela } from '@/components/screens/EditorDeZonas';
+import { SeletorDeZonaDoGrafico } from '@/components/screens/SeletorDeZonaDoGrafico';
+import { SomDaTela } from '@/components/radio/SomDaTela';
 import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -303,14 +305,16 @@ export default function ScreenDetails() {
 
     // Stats State
     const [statsPeriod, setStatsPeriod] = useState<'today' | 'week' | 'month'>('week');
+    // F-150: o que o gráfico mostra — null = tela inteira; 0 = tela principal; N = zona N
+    const [statsZona, setStatsZona] = useState<number | null>(null);
     const [isCapturing, setIsCapturing] = useState(false);
     const screenshotTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Fetch Stats
     const { data: statsData, isLoading: isLoadingStats } = useQuery({
-        queryKey: ['screen-stats', resolvedId, statsPeriod],
+        queryKey: ['screen-stats', resolvedId, statsPeriod, statsZona],
         // Contagem no banco (fn_playback_stats): o painel não pode contar linhas no navegador (teto de 1000 do PostgREST).
-        queryFn: async () => (resolvedId ? fetchPlaybackStats(resolvedId, statsPeriod) : []),
+        queryFn: async () => (resolvedId ? fetchPlaybackStats(resolvedId, statsPeriod, new Date(), statsZona) : []),
         refetchInterval: 10000,
         enabled: !!resolvedId
     });
@@ -1209,7 +1213,8 @@ return (
                     <Card className="glass h-[400px]">
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>Estatísticas de Exibição</CardTitle>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                {resolvedId && <SeletorDeZonaDoGrafico telaId={resolvedId} valor={statsZona} onChange={setStatsZona} />}
                                 <Button
                                     size="sm"
                                     variant={statsPeriod === 'today' ? "default" : "outline"}
@@ -1326,38 +1331,11 @@ return (
                                     />
                                 )}
 
-                                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
-                                    <div className="space-y-0.5">
-                                        <div className="flex items-center gap-2">
-                                            {screen.audio_enabled !== false ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
-                                            <Label className="text-sm font-medium">Áudio Dinâmico</Label>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Controla o volume do player remotamente.
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        checked={screen.audio_enabled !== false}
-                                        onCheckedChange={async (checked) => {
-                                            if (!resolvedId) {
-                                                toast.error('Erro: ID da tela não resolvido.');
-                                                return;
-                                            }
-                                            const { error } = await supabase
-                                                .from('screens')
-                                                .update({ audio_enabled: checked })
-                                                .eq('id', resolvedId);
-
-                                            if (error) {
-                                                console.error('Toggle audio error:', error);
-                                                toast.error(`Erro ao atualizar áudio: ${error.message}`);
-                                            } else {
-                                                toast.success(`Áudio ${checked ? 'ativado' : 'mudo'}!`);
-                                            }
-                                            queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] });
-                                        }}
-                                    />
-                                </div>
+                                {/* F-150: som da tela — sem áudio (padrão), som das mídias ou Rádio Comércio */}
+                                <SomDaTela
+                                    tela={{ id: screen.id, name: screen.name, audio_enabled: screen.audio_enabled, ...(screen as unknown as { radio_ativa?: boolean | null; radio_playlist_id?: string | null; radio_volume?: number | null }) }}
+                                    aoMudar={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
+                                />
 
                                 <Button
                                     className="w-full h-12 flex items-center gap-2"
