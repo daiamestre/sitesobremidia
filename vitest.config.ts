@@ -11,6 +11,13 @@ export default defineConfig({
     fileParallelism: false,
     // Reexecuta uma vez em CI para absorver flakiness de infraestrutura (jsdom pesado)
     retry: process.env.CI ? 1 : 0,
+    // Erro solto conhecido do ambiente (não é falha de teste): o gerenciador de foco das janelas (Radix) agenda um
+    // evento que às vezes dispara depois que o jsdom daquele teste já foi desmontado, e a esteira acusava
+    // "2 unhandled errors" com todos os testes passando. Só esse caso exato é ignorado; qualquer outro continua falhando.
+    onUnhandledError(error) {
+      const e = error as { message?: string; stack?: string };
+      if (/parameter 1 is not of type 'Event'/.test(e?.message ?? '') && /react-focus-scope/.test(e?.stack ?? '')) return false;
+    },
     // E2E roda via: npx playwright test (separado do Vitest)
     exclude: ['src/tests/e2e/**', 'node_modules/**'],
     include: [
