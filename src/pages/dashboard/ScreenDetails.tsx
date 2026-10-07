@@ -1232,7 +1232,7 @@ return (
             )}
 
             {/* F-147: divisão da tela em zonas */}
-            <DivisaoDaTela tela={{ id: screen.id, name: screen.name, resolution: screen.resolution, orientation: screen.orientation }} />
+            <DivisaoDaTela tela={{ id: screen.id, name: screen.name, resolution: screen.resolution, orientation: screen.orientation, user_id: (screen as { user_id?: string | null }).user_id }} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Charts & Controls */}

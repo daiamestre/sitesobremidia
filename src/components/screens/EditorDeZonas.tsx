@@ -21,7 +21,7 @@ import {
  * F-147 — Divisão da tela em zonas. O usuário cria cada zona digitando os números ou clicando e arrastando sobre a
  * tela; as medidas aparecem ao lado enquanto arrasta. Cada zona recebe uma playlist (a principal usa a da tela).
  */
-interface TelaResumo { id: string; name: string; resolution?: string | null; orientation?: string | null }
+interface TelaResumo { id: string; name: string; resolution?: string | null; orientation?: string | null; user_id?: string | null }
 interface PlaylistResumo { id: string; name: string }
 interface MidiaResumo { id: string; name: string; file_type: string; thumbnail_url: string | null; file_url: string | null; duration_ms: number | null }
 interface ItemDaZona { id: string; nome: string; tipo: string }
@@ -592,6 +592,7 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
         const alvo = seletor ? layout.zonas.find((z) => z.chave === seletor.chave) ?? null : null;
         return (
           <SeletorDeConteudo aberto={!!alvo} passoInicial={seletor?.passo ?? 'opcoes'} onFechar={() => setSeletor(null)}
+            donos={[user?.id, tela.user_id].filter(Boolean) as string[]}
             titulo={alvo ? `Adicionar mídia na zona ${alvo.numero}${alvo.principal ? ' (principal)' : ''}` : 'Adicionar mídia'}
             playlistAtual={alvo ? (alvo.principal ? telaPlaylistId : alvo.playlist_id) : null}
             onMidia={(m) => (alvo ? adicionarMidia(alvo, m) : undefined)}

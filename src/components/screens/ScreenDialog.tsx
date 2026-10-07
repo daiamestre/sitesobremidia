@@ -304,7 +304,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
           </Button>
         </div>
       </DialogContent>
-      <SeletorDeConteudo aberto={seletor !== null} passoInicial={seletor ?? 'opcoes'} titulo="Conteúdo da tela" onFechar={() => setSeletor(null)} variasMidias
+      <SeletorDeConteudo aberto={seletor !== null} passoInicial={seletor ?? 'opcoes'} titulo="Conteúdo da tela" onFechar={() => setSeletor(null)} variasMidias donos={user?.id ? [user.id] : undefined}
         playlistAtual={playlistId}
         onMidias={(ms) => { setMidiasEscolhidas(ms); setPlaylistId(null); }}
         onPlaylist={(p) => { setPlaylistId(p.id); setMidiasEscolhidas([]); setSeletor(null); }} />

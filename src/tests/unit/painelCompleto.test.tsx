@@ -196,8 +196,8 @@ describe('tela do painel', () => {
   });
 });
 
-describe('banco (migração 20261307)', () => {
-  const sql = ler('supabase/migrations/20261307_painel_completo_sincronizacao_e_presenca.sql');
+describe('banco (migração 20261308)', () => {
+  const sql = ler('supabase/migrations/20261308_painel_completo_sincronizacao_e_presenca.sql');
   it('só leitura, sem SECURITY DEFINER (cada perfil vê só o que a RLS já deixa) e fechada para anônimos', () => {
     expect(sql).toContain('CREATE OR REPLACE FUNCTION public.fn_dashboard_completo(p_offline_min integer DEFAULT 10)');
     expect(sql).toContain('STABLE');
