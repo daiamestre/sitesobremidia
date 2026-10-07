@@ -113,9 +113,9 @@ describe('Ações rápidas do painel levam às telas certas (F-142)', () => {
       expect(painel).toContain(`<Link to="${destino}"`);
     }
     expect(painel).not.toMatch(/<div className="flex items-center gap-3 p-3 rounded-lg bg-muted\/50 hover:bg-muted transition-colors cursor-pointer">/);
-    for (const [arq, abrir] of [['src/pages/dashboard/Medias.tsx', 'setUploadDialogOpen(true);'], ['src/pages/dashboard/Playlists.tsx', 'setDialogOpen(true);']] as const) {
+    for (const [arq, abrir, condicao] of [['src/pages/dashboard/Medias.tsx', 'setUploadDialogOpen(true);', "if (novo !== '1' && novo !== 'audio') return;"], ['src/pages/dashboard/Playlists.tsx', 'setDialogOpen(true);', "if (parametros.get('novo') !== '1') return;"]] as const) {
       const t = ler(arq);
-      expect(t).toContain("if (parametros.get('novo') !== '1') return;");
+      expect(t).toContain(condicao); // Minhas Mídias: ?novo=1 abre o envio de mídia e ?novo=audio o de áudio (F-157)
       expect(t).toContain(abrir);
       expect(t).toContain("resto.delete('novo');");
     }

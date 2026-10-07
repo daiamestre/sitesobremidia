@@ -32,10 +32,15 @@ export default function Medias() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentFolder, setCurrentFolder] = useState<'image' | 'video' | 'audio' | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  // F-157: "Enviar áudio" abre a janela só de áudio (nada de empresa, proporção ou vídeo)
+  const [envioSomenteAudio, setEnvioSomenteAudio] = useState(false);
+  const abrirEnvio = (audio: boolean) => { setEditMedia(null); setEnvioSomenteAudio(audio); setUploadDialogOpen(true); };
   // F-142: chegou pela ação rápida do painel (?novo=1) → já abre o "criar novo" e limpa o endereço
   const [parametros, setParametros] = useSearchParams();
   useEffect(() => {
-    if (parametros.get('novo') !== '1') return;
+    const novo = parametros.get('novo');
+    if (novo !== '1' && novo !== 'audio') return;
+    setEnvioSomenteAudio(novo === 'audio');
     setUploadDialogOpen(true);
     const resto = new URLSearchParams(parametros);
     resto.delete('novo');
@@ -131,10 +136,18 @@ export default function Medias() {
               : 'Gerencie seus arquivos de mídia'}
           </p>
         </div>
-        <Button className="gradient-primary" onClick={() => setUploadDialogOpen(true)}>
-          <Upload className="h-4 w-4 mr-2" />
-          Enviar
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {currentFolder !== 'audio' && (
+            <Button variant="outline" onClick={() => abrirEnvio(true)} data-testid="enviar-audio">
+              <Music className="h-4 w-4 mr-2" />
+              Enviar áudio
+            </Button>
+          )}
+          <Button className="gradient-primary" onClick={() => abrirEnvio(currentFolder === 'audio')} data-testid="enviar-midia">
+            {currentFolder === 'audio' ? <Music className="h-4 w-4 mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+            {currentFolder === 'audio' ? 'Enviar áudio' : 'Enviar'}
+          </Button>
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -201,15 +214,15 @@ export default function Medias() {
         ) : filteredMedias.length === 0 ? (
           // Empty State
           <EmptyState
-            icon={currentFolder === 'image' ? Image : currentFolder === 'video' ? Video : Upload}
+            icon={currentFolder === 'image' ? Image : currentFolder === 'video' ? Video : currentFolder === 'audio' ? Music : Upload}
             title={searchQuery ? 'Nenhuma mídia encontrada' : 'Pasta vazia'}
             description={searchQuery
               ? 'Tente ajustar sua busca com outros termos.'
               : `Nenhum arquivo de ${currentFolder === 'image' ? 'imagem' : currentFolder === 'video' ? 'vídeo' : 'áudio'} encontrado.`}
             action={!searchQuery ? {
-              label: 'Fazer Upload',
-              onClick: () => setUploadDialogOpen(true),
-              icon: Upload
+              label: currentFolder === 'audio' ? 'Enviar áudio' : 'Fazer Upload',
+              onClick: () => abrirEnvio(currentFolder === 'audio'),
+              icon: currentFolder === 'audio' ? Music : Upload
             } : undefined}
           />
         ) : viewMode === 'grid' ? (
@@ -256,6 +269,7 @@ export default function Medias() {
           setEditMedia(null);
         }}
         editMedia={editMedia}
+        somenteAudio={envioSomenteAudio && !editMedia}
       />
 
       {/* Preview Dialog */}

@@ -1866,3 +1866,10 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Player Android (código pronto, NÃO publicado):** `SyncReport` traduz o progresso que o Player já tem ("Sincronizando: X de Y", "Mídias prontas") em sync_status/media_count/pending_media_count/last_sync_at no heartbeat; não muda download nem reprodução. Teste JVM `SyncReportTest` (8) passando. **Só publicar (OTA) depois do teste do proprietário em aparelho** — junto com o Player 5.7.0 (zonas) que também aguarda.
 - **Provado no navegador (conta de teste):** painel com dados reais da rede (17 telas visíveis, 9.678 exibições, 17 pontos no mapa, 7 barras). Sessão de teste removida.
 - Testes: `painelCompleto.test.tsx` (16).
+
+### F-157 — "Enviar áudio" abria o envio de mídia comum (galeria e Rádio Comércio) — DONE
+- **Relato do proprietário:** ao clicar para enviar áudio (na galeria ou na Rádio Comércio) abria o cartão de "enviar mídia", não de áudio.
+- **Causa:** os dois caminhos usavam a mesma janela de upload de mídia (empresa, segmento, proporção de tela, agendamento, vídeo/imagem); o link da Rádio Comércio ia para `/dashboard/medias?novo=1`, que abria a janela comum.
+- **Correção:** a janela de upload ganhou o modo **só áudio** (`somenteAudio`): título "Enviar áudio", campos "Nome do áudio" e "Duração do áudio", sem empresa/segmento/proporção/agendamento/playlist, seletor e arrastar-e-soltar só aceitam áudio (MP3, WAV, AAC, OGG, M4A; vídeo e imagem são recusados com aviso). Minhas Mídias: botão "Enviar áudio" ao lado de "Enviar", e dentro da pasta Áudios o botão principal já é "Enviar áudio"; `?novo=audio` abre direto. Rádio Comércio: botão "Enviar áudio" abre a janela na própria página e, ao terminar, o áudio aparece na lista para entrar na rádio.
+- **Não mudou:** o envio de imagem/vídeo continua igual; o limite de duração por perfil (anunciante 20 s, gestor 30 s, OWNER/ADMIN sem limite) vale também para áudio, como já era.
+- **Provado no navegador (conta de teste):** as 3 portas (?novo=audio, pasta Áudios, Rádio Comércio) abrem só áudio; "Enviar" comum segue com empresa/proporção/agendamento. Testes: `envioDeAudio.test.tsx` (6).

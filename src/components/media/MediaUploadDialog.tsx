@@ -34,6 +34,8 @@ interface MediaUploadDialogProps {
   semPlaylist?: boolean;
   /** Título do diálogo (padrão: o atual). */
   titulo?: string;
+  /** F-157: envio SÓ de áudio (galeria e Rádio Comércio): sem empresa, segmento, proporção nem agendamento; só aceita áudio. */
+  somenteAudio?: boolean;
 }
 
 interface UploadFile {
@@ -52,7 +54,7 @@ interface UploadFile {
 const ACCEPTED_TYPES = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
   video: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'],
-  audio: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/mp3'],
+  audio: ['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/ogg', 'audio/aac', 'audio/mp3', 'audio/mp4', 'audio/x-m4a'],
 };
 
 const SEGMENTS = [
@@ -185,7 +187,7 @@ export const limiteDoPerfil = (perfil: string | null | undefined): number | null
   return null;
 };
 
-export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMedia, onUploadedIds, semPlaylist, titulo }: MediaUploadDialogProps) {
+export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMedia, onUploadedIds, semPlaylist, titulo, somenteAudio = false }: MediaUploadDialogProps) {
   const { user, usuario } = useAuth();
   // F-111/F-114: anunciante até 20 s, gestor de mídia até 30 s, OWNER/ADMIN sem limite (o banco também confere).
   const limiteGestorMs = limiteDoPerfil(usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : null));
@@ -262,21 +264,17 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     }
   }, [open, user]);
 
-  const acceptedMimeTypes = [
-    ...ACCEPTED_TYPES.image,
-    ...ACCEPTED_TYPES.video,
-    ...ACCEPTED_TYPES.audio,
-  ].join(',');
+  const tiposAceitos = somenteAudio ? ACCEPTED_TYPES.audio : [...ACCEPTED_TYPES.image, ...ACCEPTED_TYPES.video, ...ACCEPTED_TYPES.audio];
+  const acceptedMimeTypes = tiposAceitos.join(',');
 
   const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
 
     const newFiles: UploadFile[] = Array.from(selectedFiles)
       .filter(file => {
-        const isAccepted = [...ACCEPTED_TYPES.image, ...ACCEPTED_TYPES.video, ...ACCEPTED_TYPES.audio]
-          .includes(file.type);
+        const isAccepted = tiposAceitos.includes(file.type);
         if (!isAccepted) {
-          toast.error(`Tipo de arquivo não suportado: ${file.name}`);
+          toast.error(somenteAudio ? `Aqui só é possível enviar áudio (MP3, WAV, AAC, OGG, M4A): ${file.name}` : `Tipo de arquivo não suportado: ${file.name}`);
         }
         return isAccepted;
       })
@@ -369,19 +367,19 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       return;
     }
 
-    if (!mediaName.trim() || !companyName.trim() || !segment) setMostrarErros(true);
+    if (!mediaName.trim() || (!somenteAudio && (!companyName.trim() || !segment))) setMostrarErros(true);
 
     if (!mediaName.trim()) {
       toast.error('Por favor, preencha o nome da mídia');
       return;
     }
 
-    if (!companyName.trim()) {
+    if (!somenteAudio && !companyName.trim()) {
       toast.error('Por favor, preencha o nome da empresa');
       return;
     }
 
-    if (!segment) {
+    if (!somenteAudio && !segment) {
       toast.error('Por favor, selecione um seguimento');
       return;
     }
@@ -798,7 +796,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditMode ? 'Editar Mídia' : (titulo ?? 'Upload de Mídias')}</DialogTitle>
+          <DialogTitle>{isEditMode ? (editMedia?.file_type === 'audio' ? 'Editar áudio' : 'Editar Mídia') : (titulo ?? (somenteAudio ? 'Enviar áudio' : 'Upload de Mídias'))}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -823,10 +821,10 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
 
           {/* Nome da Mídia */}
           <div className="space-y-2">
-            <Label htmlFor="mediaName">Nome da Mídia</Label>
+            <Label htmlFor="mediaName">{somenteAudio ? 'Nome do áudio' : 'Nome da Mídia'}</Label>
             <Input
               id="mediaName"
-              placeholder="Digite o nome da mídia"
+              placeholder={somenteAudio ? 'Digite o nome do áudio' : 'Digite o nome da mídia'}
               value={mediaName}
               onChange={(e) => setMediaName(e.target.value)}
               aria-invalid={mostrarErros && !mediaName.trim()}
@@ -841,6 +839,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
           </div>
 
           {/* Nome da Empresa */}
+          {!somenteAudio && (<>
           <div className="space-y-2">
             <Label htmlFor="companyName">Nome da Empresa</Label>
             <Input
@@ -872,7 +871,10 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
             {mostrarErros && !segment && <p className="text-xs text-destructive">Selecione o seguimento.</p>}
           </div>
 
+          </>)}
+
           {/* Proporção de Tela */}
+          {!somenteAudio && (
           <div className="space-y-2">
             <Label>Proporção de Tela</Label>
             <div className="grid grid-cols-2 gap-3">
@@ -914,9 +916,11 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
             </div>
           </div>
 
+          )}
+
           {/* Tempo de Mídia */}
           <div className="space-y-2">
-            <Label htmlFor="mediaDuration">Tempo de Mídia</Label>
+            <Label htmlFor="mediaDuration">{somenteAudio ? 'Duração do áudio' : 'Tempo de Mídia'}</Label>
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-muted-foreground" />
               <Input
@@ -939,13 +943,14 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                 <p className={`text-xs font-mono ${play.cut ? 'text-amber-500' : 'text-emerald-500'}`} data-testid="upload-real-duration">
                   {play.cut
                     ? `Duração real: ${formatDurationMs(mediaRealMs)} — com ${mediaDuration} s a tela corta o final (toca ${formatDurationMs(play.playsMs)}).`
-                    : `Duração real: ${formatDurationMs(mediaRealMs)} — a tela toca o vídeo inteiro.`}
+                    : `Duração real: ${formatDurationMs(mediaRealMs)} — a tela toca ${somenteAudio ? 'o áudio' : 'o vídeo'} inteiro.`}
                 </p>
               );
             })()}
           </div>
 
           {/* Agendamento */}
+          {!somenteAudio && (
           <div className="space-y-2">
             <Label>Agendamento</Label>
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
@@ -981,9 +986,11 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
             </Popover>
           </div>
 
+          )}
+
           {/* Upload de Mídias */}
           <div className="space-y-2">
-            <Label>{isEditMode ? 'Trocar Mídia (opcional)' : 'Upload de Mídias'}</Label>
+            <Label>{isEditMode ? 'Trocar Mídia (opcional)' : (somenteAudio ? 'Áudios' : 'Upload de Mídias')}</Label>
             <div
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -1007,19 +1014,19 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
               />
               <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
               <p className="text-base font-medium mb-1">
-                {isEditMode ? 'Clique para trocar o arquivo' : 'Arraste e solte seus arquivos aqui'}
+                {isEditMode ? 'Clique para trocar o arquivo' : (somenteAudio ? 'Arraste e solte seus áudios aqui' : 'Arraste e solte seus arquivos aqui')}
               </p>
               <p className="text-sm text-muted-foreground">
                 {isEditMode ? 'Selecione um novo arquivo para substituir' : 'ou clique para selecionar'}
               </p>
               <p className="text-xs text-muted-foreground mt-2">
-                Suporta: Imagens (JPG, PNG, GIF, WebP), Vídeos (MP4, WebM), Áudios (MP3, WAV)
+                {somenteAudio ? 'Suporta: MP3, WAV, AAC, OGG, M4A' : 'Suporta: Imagens (JPG, PNG, GIF, WebP), Vídeos (MP4, WebM), Áudios (MP3, WAV)'}
               </p>
             </div>
           </div>
 
           {/* Adicionar à Playlist (Opcional) */}
-          {!semPlaylist && (
+          {!semPlaylist && !somenteAudio && (
           <div className="space-y-2">
             <Label>{isEditMode ? 'Incluir na Playlist (Opcional)' : 'Adicionar à Playlist (Opcional)'}</Label>
             <div className="flex items-center gap-2">
@@ -1120,7 +1127,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
               disabled={!hasFilesToUpload || isUploading}
               className="gradient-primary"
             >
-              {isUploading ? 'Enviando...' : `Enviar ${pendingFiles.length} arquivo(s)`}
+              {isUploading ? 'Enviando...' : somenteAudio ? `Enviar ${pendingFiles.length} ${pendingFiles.length === 1 ? 'áudio' : 'áudios'}` : `Enviar ${pendingFiles.length} arquivo(s)`}
             </Button>
           )}
         </div>
