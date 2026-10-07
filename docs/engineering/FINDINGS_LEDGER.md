@@ -1848,3 +1848,12 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Contrato:** o banco já aceitava e entregava `rotacao`; o Player web gira a mídia dentro da zona (90/270 trocam largura e altura do quadro). Resposta das telas reais não mudou.
 - **Não incluído:** giro no Player Android (o Player 5.7.0 ignora `rotacao` por ora); aviso mostrado no editor.
 - Testes: `editorDeZonasGrade.test.tsx` (10).
+
+### F-155 — Diálogo "Adicionar à playlist" (imagem 3 do modelo de referência) — DONE
+- **Pedido do proprietário:** analisar as imagens do concorrente e aplicar no nosso sistema. Imagem 3 = escolher conteúdo para a playlist.
+- **Aplicado (nossa identidade visual):** abas **Meu conteúdo | Conteúdo dinâmico | Conteúdo da plataforma**; em Meu conteúdo, sub-abas Vídeos / Imagens / Áudios / Playlists / Links (com contagem); em Conteúdo dinâmico, categorias Geral / Futebol / Notícias / Vídeo e redes / Comercial, com "Prontos para usar" e "Meus widgets" agrupados; em Conteúdo da plataforma, as pastas da Biblioteca; seleção **múltipla** com painel **Selecionados N** (tirar um, **Limpar**), escolha **Início / Final** e botão "Adicionar N itens à playlist". Busca pelo nome em todas as abas.
+- **Prontos para usar (criados na hora, com o usuário logado):** Relógio e data, um modelo de Futebol por campeonato (Brasileirão, Copa do Brasil, Premier League, La Liga, Champions), Esportes News e Notícias da Agência Brasil. **Não** entram Clima (precisa de cidade), Oferta e Publicidade (precisam de cadastro): nada é inventado.
+- **Playlist escolhida na aba Playlists:** entra como cópia dos itens dela (mídia, widget, link, pasta, duração, agendamento); a original não muda; a própria playlist não aparece na lista.
+- **Onde vale:** editor de itens da playlist (substitui o seletor antigo) e Lista de Reprodução da tela (novo botão ao lado de Mídia/Widget/Link, que continuam). Nada é gravado até clicar em "Salvar Alterações"; vídeo entra com a duração real.
+- **Provado no navegador (conta de teste):** 4 prontos + 1 pasta marcados, Início/Final, salvo → banco com posições 0..4, durações 24/24/10/15/10, modelos e config corretos (competicoes=[brasileirao], origem=agencia-brasil, pasta). Dados de teste removidos.
+- Testes: `adicionarNaPlaylist.test.tsx` (18) + teste de ligação nas duas telas.

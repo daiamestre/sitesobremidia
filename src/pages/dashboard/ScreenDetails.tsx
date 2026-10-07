@@ -8,6 +8,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { AdicionarNaPlaylist } from '@/components/playlists/AdicionarNaPlaylist';
+import { inserirNaPosicao, resolverEscolhas, type Escolha, type Posicao } from '@/lib/adicionarNaPlaylist';
 import { ClienteDaTela } from '@/components/screens/ClienteDaTela';
 import { DivisaoDaTela } from '@/components/screens/EditorDeZonas';
 import { SeletorDeZonaDoGrafico } from '@/components/screens/SeletorDeZonaDoGrafico';
@@ -290,6 +292,7 @@ export default function ScreenDetails() {
     const hasUnsavedChangesRef = useRef(false);
     hasUnsavedChangesRef.current = hasUnsavedChanges;
     const [isSaving, setIsSaving] = useState(false);
+    const [adicionarAberto, setAdicionarAberto] = useState(false);
     const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
     const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
     const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
@@ -756,6 +759,30 @@ export default function ScreenDetails() {
                 const seconds = secondsForRealMs(ms);
                 if (seconds) setPlaylistItems((prev) => prev.map((i) => (i.id === newItem.id ? { ...i, duration: seconds, media: i.media ? { ...i.media, duration_ms: ms } : i.media } : i)));
             });
+        }
+    };
+
+    // F-155 — diálogo "Adicionar à playlist": vários itens de uma vez, no início ou no final; só vale após "Salvar Alterações".
+    const handleAdicionar = async (escolhas: Escolha[], posicao: Posicao) => {
+        if (!user) return;
+        try {
+            const { novos, widgetsCriados } = await resolverEscolhas(escolhas, screen?.playlist_id ?? '', user.id);
+            if (widgetsCriados.length) queryClient.invalidateQueries({ queryKey: ['available-widgets'] });
+            setPlaylistItems((prev) => inserirNaPosicao(prev as unknown as ModelPlaylistItem[], novos, posicao) as unknown as PlaylistItem[]);
+            setHasUnsavedChanges(true);
+            toast.success(`${novos.length} ${novos.length === 1 ? 'item adicionado' : 'itens adicionados'} no ${posicao === 'inicio' ? 'início' : 'final'}. Clique em "Salvar Alterações" para enviar ao player.`);
+            for (const item of novos) {
+                const media = item.media;
+                if (media && media.file_type === 'video' && media.file_url && !media.duration_ms) {
+                    probeVideoDurationMs(media.file_url).then((ms) => {
+                        const seconds = secondsForRealMs(ms);
+                        if (seconds) setPlaylistItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, duration: seconds, media: i.media ? { ...i.media, duration_ms: ms } : i.media } : i)));
+                    });
+                }
+            }
+        } catch (error) {
+            toast.error('Erro ao adicionar: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+            throw error;
         }
     };
 
@@ -1606,7 +1633,13 @@ return (
                                     <ListVideo className="h-5 w-5 text-primary" />
                                     <CardTitle>Lista de Reprodução</CardTitle>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap justify-end gap-2">
+                                    <Button size="sm" className="gap-1 px-2" onClick={() => setAdicionarAberto(true)} data-testid="abrir-adicionar-na-playlist">
+                                        <Plus className="h-4 w-4" /> Adicionar à playlist
+                                    </Button>
+                                    <AdicionarNaPlaylist aberto={adicionarAberto} onFechar={() => setAdicionarAberto(false)}
+                                        midias={availableMedia as unknown as Media[]} widgets={availableWidgets as unknown as Widget[]} links={availableLinks as unknown as ExternalLink[]}
+                                        idsDeMidiaNaPlaylist={playlistItems.map((i) => i.media_id).filter(Boolean) as string[]} playlistAtualId={screen?.playlist_id ?? null} onConfirmar={handleAdicionar} />
                                     <Dialog open={mediaPickerOpen} onOpenChange={setMediaPickerOpen}>
                                         <DialogTrigger asChild>
                                             <Button size="sm" className="gap-1 px-2">

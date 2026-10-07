@@ -4,9 +4,8 @@ import { DURACAO_WIDGET_ESPORTES_NEWS } from '@/lib/esportesNews';
 import { MediaThumbnail } from '@/components/media/MediaThumbnail';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AdicionarNaPlaylist } from '@/components/playlists/AdicionarNaPlaylist';
+import { inserirNaPosicao, resolverEscolhas, type Escolha, type Posicao } from '@/lib/adicionarNaPlaylist';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -149,7 +148,6 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
   const [availableLinks, setAvailableLinks] = useState<ExternalLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
-  const [pickerTab, setPickerTab] = useState<'media' | 'widgets' | 'links'>('media');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -282,71 +280,33 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     toast.success('Ordem alterada localmente');
   };
 
-  const addMedia = (media: Media) => {
-    if (!playlist) return;
-    const newItem: PlaylistItem = {
-      id: `temp-${Date.now()}`,
-      playlist_id: playlist.id,
-      media_id: media.id,
-      widget_id: null,
-      external_link_id: null,
-      position: items.length,
-      // Vídeo entra com o tempo exato dele (segundo cheio para cima: a tela toca a duração real, sem cortar)
-      duration: secondsForRealMs(media.duration_ms) ?? (media.duration ? Number(media.duration) : 10),
-      media,
-      created_at: new Date().toISOString()
-    };
-    setItems([...items, newItem]);
-    setHasUnsavedChanges(true);
-    setShowPicker(false);
-    toast.success('Mídia adicionada à lista');
+  /**
+   * Confirmação do diálogo "Adicionar à playlist": cria na hora os widgets de um clique, traz os itens das playlists
+   * escolhidas (cópia) e coloca tudo no início ou no final, na ordem em que foram marcados. Só vale após "Salvar Alterações".
+   */
+  const confirmarAdicao = async (escolhas: Escolha[], posicao: Posicao) => {
+    if (!playlist || !user) return;
+    try {
+      const { novos, widgetsCriados } = await resolverEscolhas(escolhas, playlist.id, user.id);
+      if (widgetsCriados.length) setAvailableWidgets((prev) => [...widgetsCriados, ...prev]);
+      setItems((prev) => inserirNaPosicao(prev, novos, posicao));
+      setHasUnsavedChanges(true);
+      toast.success(`${novos.length} ${novos.length === 1 ? 'item adicionado' : 'itens adicionados'} no ${posicao === 'inicio' ? 'início' : 'final'}. Clique em "Salvar Alterações" para enviar às telas.`);
 
-    // A tabela media não guarda duração e o Player usa a do item como TETO: vídeo entrava com 10 s e era cortado.
-    if (media.file_type === 'video' && media.file_url && !media.duration_ms) {
-      probeVideoDurationMs(media.file_url).then((ms) => {
-        const seconds = secondsForRealMs(ms);
-        if (seconds) setItems((prev) => prev.map((i) => (i.id === newItem.id ? { ...i, duration: seconds, media: i.media ? { ...i.media, duration_ms: ms } : i.media } : i)));
-      });
+      // A tabela media não guarda duração e o Player usa a do item como TETO: vídeo entrava com 10 s e era cortado.
+      for (const item of novos) {
+        const media = item.media;
+        if (media && media.file_type === 'video' && media.file_url && !media.duration_ms) {
+          probeVideoDurationMs(media.file_url).then((ms) => {
+            const seconds = secondsForRealMs(ms);
+            if (seconds) setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, duration: seconds, media: i.media ? { ...i.media, duration_ms: ms } : i.media } : i)));
+          });
+        }
+      }
+    } catch (error: unknown) {
+      toast.error('Erro ao adicionar: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+      throw error;
     }
-  };
-
-  const addWidget = (widget: Widget) => {
-    if (!playlist) return;
-    const newItem: PlaylistItem = {
-      id: `temp-w-${Date.now()}`,
-      playlist_id: playlist.id,
-      media_id: null,
-      widget_id: widget.id,
-      external_link_id: null,
-      position: items.length,
-      // Esportes: 3 páginas x 8 s (F-86)
-      duration: widget.widget_type === 'sports' ? DURACAO_WIDGET_ESPORTES : widget.widget_type === 'sports_news' ? DURACAO_WIDGET_ESPORTES_NEWS : widget.widget_type === 'rss' ? 15 : 10,
-      widget,
-      created_at: new Date().toISOString()
-    };
-    setItems([...items, newItem]);
-    setHasUnsavedChanges(true);
-    setShowPicker(false);
-    toast.success('Widget adicionado à lista');
-  };
-
-  const addExternalLink = (link: ExternalLink) => {
-    if (!playlist) return;
-    const newItem: PlaylistItem = {
-      id: `temp-l-${Date.now()}`,
-      playlist_id: playlist.id,
-      media_id: null,
-      widget_id: null,
-      external_link_id: link.id,
-      position: items.length,
-      duration: 30,
-      external_link: link,
-      created_at: new Date().toISOString()
-    };
-    setItems([...items, newItem]);
-    setHasUnsavedChanges(true);
-    setShowPicker(false);
-    toast.success('Link adicionado à lista');
   };
 
   // Duplicar: a cópia entra logo abaixo com a mesma mídia, duração e agendamento; vale depois de "Salvar Alterações".
@@ -402,22 +362,7 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const usedMediaIds = items.filter(i => i.media_id).map(i => i.media_id);
-  const unusedMedia = availableMedia.filter(m => {
-    if (usedMediaIds.includes(m.id)) return false;
-
-    // Optional: Resolution filtering
-    const playlistResolution = (playlist as ExtendedPlaylist)?.resolution;
-    if (!playlistResolution) return true;
-
-    // Allow audio always
-    if (m.file_type === 'audio') return true;
-
-    // If media has an aspect ratio, it should ideally match, 
-    // but we show it anyway to avoid "hiding" media from the user.
-    // They can decide if it looks good.
-    return true;
-  });
+  const usedMediaIds = items.filter((i) => i.media_id).map((i) => i.media_id as string);
 
   const getItemName = (item: PlaylistItem) => {
     if (item.media) return item.media.name;
@@ -577,133 +522,10 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
             </div>
 
             <div className="p-4 border-t bg-background mt-auto shrink-0">
-              {showPicker ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Selecione um item:</Label>
-                    <Button variant="ghost" size="sm" onClick={() => setShowPicker(false)}>
-                      Cancelar
-                    </Button>
-                  </div>
-
-                  <Tabs value={pickerTab} onValueChange={(v) => setPickerTab(v as 'media' | 'widgets' | 'links')}>
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="media" className="flex items-center gap-2">
-                        <Image className="h-4 w-4" />
-                        Mídias da Galeria
-                      </TabsTrigger>
-                      <TabsTrigger value="widgets" className="flex items-center gap-2">
-                        <LayoutGrid className="h-4 w-4" />
-                        Widgets
-                      </TabsTrigger>
-                      <TabsTrigger value="links" className="flex items-center gap-2">
-                        <Link2 className="h-4 w-4" />
-                        Links
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="media" className="mt-3">
-                      <ScrollArea className="h-[200px]">
-                        {unusedMedia.length === 0 ? (
-                          <div className="text-center py-4 text-muted-foreground">
-                            Todas as mídias já foram adicionadas
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-2">
-                            {unusedMedia.map(media => (
-                              <div
-                                key={media.id}
-                                onClick={() => addMedia(media)}
-                                className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                              >
-                                <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
-                                  <MediaThumbnail media={media} showIcon={false} />
-                                </div>
-                                <span className="text-sm truncate">{media.name}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </ScrollArea>
-                    </TabsContent>
-
-                    <TabsContent value="widgets" className="mt-3">
-                      <ScrollArea className="h-[200px]">
-                        {availableWidgets.length === 0 ? (
-                          <div className="text-center py-4 text-muted-foreground">
-                            Nenhum widget disponível. Crie widgets na seção Widgets.
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-2">
-                            {availableWidgets.map(widget => {
-                              const WidgetPreviewComponent = () => {
-                                switch (widget.widget_type) {
-                                  case 'clock': return <ClockPreview />;
-                                  case 'weather': return <WeatherPreview />;
-                                  case 'rss': return <RssPreview />;
-                                  default: return <LayoutGrid className="h-5 w-5 text-muted-foreground" />;
-                                }
-                              };
-                              return (
-                                <div
-                                  key={widget.id}
-                                  onClick={() => addWidget(widget)}
-                                  className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                                >
-                                  <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
-                                    <WidgetPreviewComponent />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <span className="text-sm truncate block">{widget.name}</span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {getWidgetLabel(widget.widget_type)}
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </ScrollArea>
-                    </TabsContent>
-
-                    <TabsContent value="links" className="mt-3">
-                      <ScrollArea className="h-[200px]">
-                        {availableLinks.length === 0 ? (
-                          <div className="text-center py-4 text-muted-foreground">
-                            Nenhum link externo disponível. Crie links na seção Links Externos.
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-2">
-                            {availableLinks.map(link => (
-                              <div
-                                key={link.id}
-                                onClick={() => addExternalLink(link)}
-                                className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                              >
-                                <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
-                                  <ExternalLinkThumbnail link={link} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-sm truncate block">{link.title}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {link.platform}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </ScrollArea>
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              ) : (
-                <Button onClick={() => setShowPicker(true)} className="w-full" variant="outline">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Adicionar Item
-                </Button>
-              )}
+              <Button onClick={() => setShowPicker(true)} className="w-full" variant="outline" data-testid="abrir-adicionar-na-playlist">
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar à playlist
+              </Button>
             </div>
           </>
         )}
@@ -730,6 +552,8 @@ export function PlaylistItemsDialog({ open, onOpenChange, playlist }: PlaylistIt
           </div>
         </div>
       </DialogContent>
+      <AdicionarNaPlaylist aberto={showPicker} onFechar={() => setShowPicker(false)} midias={availableMedia} widgets={availableWidgets} links={availableLinks}
+        idsDeMidiaNaPlaylist={usedMediaIds} playlistAtualId={playlist.id} onConfirmar={confirmarAdicao} />
     </Dialog>
   );
 }
