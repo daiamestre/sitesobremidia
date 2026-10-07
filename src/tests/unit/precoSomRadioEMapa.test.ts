@@ -50,7 +50,7 @@ describe('som: só a mídia principal, comandado pela tela', () => {
 
   it('o Player web deixa as zonas mudas; só a principal segue a chave de som da tela', () => {
     const zonas = readFileSync('src/components/player/ZonasDoPlayer.tsx', 'utf8');
-    expect(zonas).toContain('{...(zona.principal && somLiberado ? { muted: false } : {})}');
+    expect(zonas).toContain('muted={!(zona.principal && somLiberado && tocou)}');
     expect(zonas).not.toContain('zona.audio');
   });
 

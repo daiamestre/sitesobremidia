@@ -16,6 +16,14 @@ function Zona({ zona, layout, emUso, screenId, somLiberado }: {
 }) {
   const [indice, setIndice] = useState(-1);
   const [volta, setVolta] = useState(0); // força novo ciclo quando a zona tem um item só
+  // F-153: o navegador só libera som depois de um toque; antes disso o vídeo toca MUDO (não congela) e ganha som no 1º toque
+  const [tocou, setTocou] = useState(() => (typeof navigator !== 'undefined' && (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive === true));
+  useEffect(() => {
+    if (tocou) return;
+    const aoTocar = () => setTocou(true);
+    document.addEventListener('pointerdown', aoTocar, { once: true });
+    return () => document.removeEventListener('pointerdown', aoTocar);
+  }, [tocou]);
   const itensRef = useRef(zona.itens);
   itensRef.current = zona.itens;
   const indiceRef = useRef(indice);
@@ -87,7 +95,7 @@ function Zona({ zona, layout, emUso, screenId, somLiberado }: {
       )}
       {item?.type === 'video' && (
         <video key={`${item.id}-${volta}`} src={item.url} style={estilo} ref={fixarEncaixe} autoPlay playsInline preload="auto" crossOrigin="anonymous"
-          muted /* F-150: zona é complemento e nunca tem som; a zona principal segue a chave de som da tela */ {...(zona.principal && somLiberado ? { muted: false } : {})} onEnded={() => fimRef.current?.()} onError={() => fimRef.current?.()} />
+          muted={!(zona.principal && somLiberado && tocou)} /* zona secundária: sempre muda (F-150) */ onEnded={() => fimRef.current?.()} onError={() => fimRef.current?.()} />
       )}
     </div>
   );

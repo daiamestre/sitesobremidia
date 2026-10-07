@@ -123,6 +123,11 @@ class RadioController(private val context: Context, private val scope: Coroutine
         }
     }
 
+    /** Só para o teste no aparelho (sem login): toca esta rádio sem perguntar ao servidor. */
+    @androidx.annotation.VisibleForTesting internal fun aplicarParaTeste(radio: Radio) = aplicar(radio)
+    @androidx.annotation.VisibleForTesting internal fun reprodutorParaTeste(): ExoPlayer? = reprodutor
+    @androidx.annotation.VisibleForTesting internal fun pararParaTeste() = principal.post { parar() }
+
     private fun aplicar(radio: Radio) {
         atual = radio
         preparo?.cancel()
@@ -152,7 +157,7 @@ class RadioController(private val context: Context, private val scope: Coroutine
         reprodutor = null
     }
 
-    private fun nomeDoArquivo(url: String): String {
+    internal fun nomeDoArquivo(url: String): String {
         val hash = MessageDigest.getInstance("SHA-1").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }
         val ext = url.substringBefore('?').substringAfterLast('.', "").lowercase().takeIf { it.length in 2..5 && it.all(Char::isLetterOrDigit) } ?: "bin"
         return "$hash.$ext"

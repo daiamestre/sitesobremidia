@@ -54,6 +54,8 @@ export const PlayerEngine = () => {
     const layoutRef = useRef<LayoutDoPlayer | null>(null);
     // F-150: Rádio Comércio da tela (null = sem rádio)
     const [radio, setRadio] = useState<RadioDoPlayerDados | null>(null);
+    // tela vinculada mas sem midias (so radio): o servidor ainda confere o aparelho antes de entregar a radio
+    const [telaSoRadio, setTelaSoRadio] = useState<string | null>(null);
 
     // Heartbeat oficial: a RPC de playlist já atualiza devices.last_seen no
     // caminho bound; o hook só deve escrever com SESSÃO autenticada (RLS).
@@ -103,6 +105,7 @@ export const PlayerEngine = () => {
 
                 // F-147: tela sem playlist principal ainda pode ter zonas com conteúdo próprio
                 if (NO_CONTENT_CODES.has(result.code)) {
+                    setTelaSoRadio(screenId);
                     try {
                         const { data: bruto, error: erroLayout } = await supabase.rpc(
                             'get_player_layout_for_screen' as never,
@@ -239,13 +242,14 @@ export const PlayerEngine = () => {
     }, [activeScreenId]);
     // F-150: pergunta pela rádio da tela (só depois que o aparelho já está vinculado). Falha de rede mantém o que toca.
     useEffect(() => {
-        if (!activeScreenId) return;
+        const telaDaRadio = activeScreenId ?? telaSoRadio;
+        if (!telaDaRadio) return;
         let vivo = true;
         const buscar = async () => {
             if (!navigator.onLine) return;
             try {
                 const deviceId = resolveDeviceId((globalThis as Record<string, unknown>).NativePlayer as { getDeviceId?: () => string } | undefined);
-                const { data, error: erroRadio } = await supabase.rpc('get_player_radio_for_screen' as never, { p_identifier: activeScreenId, p_device_id: deviceId } as never);
+                const { data, error: erroRadio } = await supabase.rpc('get_player_radio_for_screen' as never, { p_identifier: telaDaRadio, p_device_id: deviceId } as never);
                 if (!vivo || erroRadio) return;
                 const nova = mapRadioPayload(data);
                 setRadio(atual => (assinaturaDaRadio(atual) === assinaturaDaRadio(nova) && atual?.volume === nova?.volume ? atual : nova));
@@ -254,7 +258,7 @@ export const PlayerEngine = () => {
         buscar();
         const t = setInterval(buscar, POLL_INTERVAL_MS);
         return () => { vivo = false; clearInterval(t); };
-    }, [activeScreenId]);
+    }, [activeScreenId, telaSoRadio]);
 
     const logPlayback = useCallback((item: MediaItem) => {
         if (!item.mediaId) return; // Guard against missing ID
@@ -345,6 +349,12 @@ export const PlayerEngine = () => {
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
                         console.warn("Autoplay failed:", error);
+                        // F-153: o navegador bloqueou o som sem toque do usuário -> toca MUDO (a tela não congela) e liga o som no 1º toque
+                        if (audioEnabled) {
+                            el.muted = true;
+                            el.play().catch(() => { /* o prazo do item segue pelo temporizador */ });
+                            document.addEventListener("pointerdown", () => { el.muted = false; el.play().catch(() => undefined); }, { once: true });
+                        }
                         // Worker is already running, so we don't need to do anything special here, 
                         // the worker will catch the timeout eventually.
                     });
@@ -449,6 +459,7 @@ export const PlayerEngine = () => {
     if (isNoPlaylist) {
         return (
             <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 text-center select-none">
+                <RadioDoPlayer radio={radio} />
                 <div className="max-w-lg w-full bg-slate-900/90 border border-primary/30 rounded-3xl p-8 shadow-2xl backdrop-blur-xl flex flex-col items-center gap-6">
                     <div className="p-4 rounded-2xl bg-primary/20 text-primary border border-primary/30">
                         <Monitor className="h-14 w-14" />

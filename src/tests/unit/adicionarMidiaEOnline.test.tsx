@@ -79,3 +79,20 @@ describe('F-152 — Adicionar mídia: galeria ou playlist', () => {
     expect(tela.split('playlist_id: playlistFinal,')).toHaveLength(3);
   });
 });
+
+describe('F-153 — som', () => {
+  it('a rádio toca também em tela sem playlist de mídias, e o vídeo bloqueado pelo navegador toca mudo até o primeiro toque', () => {
+    const motor = ler('src/components/player/PlayerEngine.tsx');
+    expect(motor).toContain('setTelaSoRadio(screenId);');
+    expect(motor).toContain('const telaDaRadio = activeScreenId ?? telaSoRadio;');
+    expect(motor).toMatch(/if \(isNoPlaylist\) \{\n\s+return \(\n[^\n]*\n\s+<RadioDoPlayer radio=\{radio\} \/>/);
+    expect(motor).toContain('el.muted = true;');
+    const zonas = ler('src/components/player/ZonasDoPlayer.tsx');
+    expect(zonas).toContain('muted={!(zona.principal && somLiberado && tocou)}');
+  });
+  it('Android: a rádio tem teste de som real no aparelho', () => {
+    const t = ler('native-android-player/app/src/androidTest/java/com/antigravity/player/RadioSomTest.kt');
+    expect(t).toContain('audio.isMusicActive');
+    expect(t).toContain('0.55f, volume');
+  });
+});

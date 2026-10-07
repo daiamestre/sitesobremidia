@@ -1826,3 +1826,18 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Correção:** `SeletorDeConteudo.tsx` (janela com as duas opções, busca pelo nome, várias mídias); botão "+ Adicionar mídia" dentro de cada zona no editor e os botões "Mídias da galeria" / "Playlist" no painel da zona. Zona comum: a mídia entra na playlist da zona (criada na primeira vez) ou a zona passa a usar a playlist escolhida. Zona principal: a mídia entra na playlist da própria tela (criada se não existir) ou a tela passa a tocar a playlist escolhida — na hora, como na "Lista de Reprodução". No formulário de criação/edição de tela: "Mídias da galeria" (escolhe várias; ao salvar viram a playlist da tela) ou "Playlist".
 - **Prova (navegador, tela de teste):** botão nas duas zonas; janela "Adicionar mídia na zona 2" com as duas opções; galeria com 60 mídias; mídia colocada na zona 2; na zona principal, a opção Playlist lista as playlists criadas. Dados do teste removidos.
 - **Testes:** `adicionarMidiaEOnline.test.tsx` (8).
+
+### F-153 — Teste de SOM de verdade (Player web e Android) e três falhas achadas — DONE (web) · Android com teste no emulador
+- **Pedido do proprietário:** testar o som com urgência, fazendo o login. Não foi feito login com senha no aplicativo (regra do projeto: o login no aparelho é do proprietário); o som foi testado sem login.
+- **Player web (navegador, tela de homologação, áudio de teste temporário):**
+  - Rádio Comércio: áudio tocando (tempo avançando 0,95 s → 3,96 s), volume 60% (o configurado), sem erro; com a rádio ligada o servidor manda `audio_enabled=false` e o vídeo fica **mudo** (provado com vídeo real);
+  - som das mídias: vídeo com som depois do toque; zona principal com som e **zona secundária sempre muda** (provado com dois vídeos);
+  - regra "a mesma mídia nunca em duas zonas" vista funcionando (a zona 2 esperou enquanto a principal mostrava o mesmo vídeo).
+- **Falhas achadas e corrigidas:**
+  1. **Rádio não tocava em tela sem playlist de mídias** (Player web) — uma tela só com rádio ficava muda. Agora o aparelho vinculado recebe a rádio mesmo sem mídias.
+  2. **Navegador bloqueia vídeo com som antes de um toque** e o Player web ficava parado. Agora toca **mudo** (não congela) e ganha som no primeiro toque (tela inteira e zona principal).
+  3. (mesma causa na zona principal do Player web, corrigida junto.)
+- **Android (emulador Pixel_API28, sem login) — `RadioSomTest`:** a rádio tocou de verdade (`AudioManager.isMusicActive` verdadeiro), volume 55% igual ao do servidor, 2 faixas na fila, troca da 1ª para a 2ª faixa sem silêncio, recomeço ao fim, e o som **cessa** ao desligar. (Tons gerados no próprio teste.)
+- **Não verificado:** som do vídeo da playlist principal no Android com sessão real (exige login no aparelho); saída de áudio física (alto-falante/TV) — o teste prova que o sistema está emitindo som, não que alguém ouviu.
+- **APK 5.7.0 (557) regerado:** release sha256 `faedb04a48c227d0d4a9a459a96396276eb83f0e56b5d303c8fa7e173e7bb997`; debug sha256 `a46d3c4cd8fd4f88647d5f9df63490ebb02eb6c6e778a86e11d75a89b0c0971a` (substituem os do F-150).
+- **Dados do teste removidos** (áudio, rádio, playlist, layout, vínculo e registros da tela de homologação); resposta das 5 telas reais idêntica.
