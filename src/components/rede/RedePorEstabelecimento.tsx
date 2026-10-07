@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { tempoDesde } from '@/lib/dashboardResumo';
-import { MapaDaRede } from './MapaDaRede';
 
 /**
  * F-148 — Painel da rede: telas agrupadas por estabelecimento, com online/offline, mídias, zonas e último sinal.
@@ -49,7 +48,7 @@ export function RedePorEstabelecimento() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" data-testid="rede-totais">
+        <div className="grid grid-cols-5 gap-1.5 sm:gap-2" data-testid="rede-totais">
           {([['Telas', t.telas, ''], ['Online', t.online, 'text-emerald-400'], ['Offline', t.offline, t.offline ? 'text-rose-400' : ''], ['Mídias', t.midias, ''], ['Zonas', t.zonas, '']] as const).map(([rotulo, valor, cor]) => (
             <div key={rotulo} className="rounded-xl border border-border/60 bg-muted/30 p-3">
               <p className="text-[11px] text-muted-foreground">{rotulo}</p>
@@ -95,11 +94,6 @@ export function RedePorEstabelecimento() {
               );
             })}
           </ul>
-          {/* F-150: mapa automático (cadastro de anunciantes, gestores e pontos parceiros), com aproximação */}
-          <div>
-            <p className="mb-2 text-sm font-semibold">Onde a rede está</p>
-            <MapaDaRede />
-          </div>
         </div>
       </CardContent>
     </Card>

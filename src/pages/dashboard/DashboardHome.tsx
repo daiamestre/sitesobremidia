@@ -90,27 +90,27 @@ export default function DashboardHome() {
           <h2 className="text-lg font-bold flex items-center gap-2">
             <Monitor className="h-5 w-5 text-primary" /> Saude da Frota
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-4 gap-2 sm:gap-3">
             <Card className="glass border-l-4 border-l-green-500">
-              <CardContent className="p-4 text-center">
+              <CardContent className="p-2 text-center sm:p-4">
                 <p className="text-2xl font-bold text-green-400">{fleet.online}</p>
                 <p className="text-xs text-muted-foreground">Online</p>
               </CardContent>
             </Card>
             <Card className="glass border-l-4 border-l-yellow-500">
-              <CardContent className="p-4 text-center">
+              <CardContent className="p-2 text-center sm:p-4">
                 <p className="text-2xl font-bold text-yellow-400">{fleet.warning}</p>
                 <p className="text-xs text-muted-foreground">Oscilando</p>
               </CardContent>
             </Card>
             <Card className="glass border-l-4 border-l-red-500">
-              <CardContent className="p-4 text-center">
+              <CardContent className="p-2 text-center sm:p-4">
                 <p className="text-2xl font-bold text-red-400">{fleet.offline}</p>
                 <p className="text-xs text-muted-foreground">Offline</p>
               </CardContent>
             </Card>
             <Card className="glass border-l-4 border-l-blue-500">
-              <CardContent className="p-4 text-center">
+              <CardContent className="p-2 text-center sm:p-4">
                 <p className="text-2xl font-bold text-blue-400">{fleet.total}</p>
                 <p className="text-xs text-muted-foreground">Total</p>
               </CardContent>
@@ -215,7 +215,7 @@ export default function DashboardHome() {
       <RedePorEstabelecimento />
 
       {/* Quick Actions & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:gap-6">
         {/* Quick Actions */}
         <Card className="glass">
           <CardHeader>
