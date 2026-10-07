@@ -10,6 +10,7 @@ import { CentralDoDiaGestor } from '@/components/central/CentralDoDiaGestor';
 import { CentralDoDiaMidiasOwner } from '@/components/central/CentralDoDiaMidiasOwner';
 import { saudacao } from '@/lib/dashboardResumo';
 import { RedePorEstabelecimento } from '@/components/rede/RedePorEstabelecimento';
+import { PainelCompleto } from '@/components/dashboard/PainelCompleto';
 import { Link } from 'react-router-dom';
 
 export default function DashboardHome() {
@@ -206,6 +207,9 @@ export default function DashboardHome() {
         </div>
       )}
 
+
+      {/* F-156: painel completo (telas online, disco, exibições, mapa e rosca de sincronização, telas ligadas, status, desatualizado) */}
+      <PainelCompleto />
 
       {/* F-148: telas agrupadas por estabelecimento (online, mídias, zonas) */}
       <RedePorEstabelecimento />

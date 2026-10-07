@@ -37,6 +37,7 @@ import androidx.media3.ui.PlayerView
 import androidx.core.view.isVisible
 import com.antigravity.player.util.DeviceTypeUtil
 import com.antigravity.player.util.PlayerFlowPolicy
+import com.antigravity.player.util.SyncReport
 import com.antigravity.player.util.SmartCacheCleaner
 import com.antigravity.player.service.ThermalGuard
 import com.antigravity.player.service.AutoCleanManager
@@ -1002,6 +1003,7 @@ class MainActivity : AppCompatActivity() {
                     // Tela de sincronização: nome "Sincronizando Mídias" + contador; ao final "Mídias sincronizadas".
                     // Textos de "aguarde"/erro/bloqueio internos não são exibidos ao usuário.
                     val shown = PlayerFlowPolicy.sanitizeSyncProgress(progress)
+                    SyncReport.onProgress(progress) // F-156: o painel mostra baixando/atualizado/pendente
                     syncGuard.updateProgress(shown)
                     statusTextView.text = shown
                 }

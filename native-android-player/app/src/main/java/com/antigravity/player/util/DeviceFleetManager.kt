@@ -155,8 +155,9 @@ class DeviceFleetManager(
 
         try {
             // Coleta telemetria
-            val telemetry = telemetryCollector.collect()
-            
+            // F-156: junta o relatório de sincronização de mídia (baixando/atualizado) para o painel
+            val telemetry = with(SyncReport) { telemetryCollector.collect().withSyncReport() }
+
             // Avalia saúde
             val health = healthEvaluator.evaluate(telemetry)
             
