@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
   "rewrites": [
     {
       "source": "/cobranca/:path*",

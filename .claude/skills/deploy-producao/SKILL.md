@@ -15,7 +15,7 @@ Regra fixa do proprietário: sempre corrigir, **commitar e publicar** (Vercel + 
 
 ## 2. Commit e envio
 - Mensagem em português, terminando com a linha `Co-Authored-By` indicada pelo sistema.
-- Enviar para as duas branches: `git push -q origin release/player-5.2.4 && git push -q origin release/player-5.2.4:main`.
+- Enviar com a trava de limite da Vercel: `node scripts/ops/publicar-main.mjs` (envia o ramo atual e o main; recusa se já houve 12 publicações em 24 h — junte correções; `--forcar` só em urgência). Documentação, testes, Android e banco NÃO publicam o site (a Vercel pula sozinha: `scripts/vercel-ignore-build.mjs`).
 
 ## 3. Supabase
 - Migração: arquivo novo em `supabase/migrations/AAAAMMDD..._nome.sql`, com comentário no topo (motivo, o que é aditivo, ROLLBACK).
