@@ -14,6 +14,8 @@ export interface ItemDaZona extends Omit<MediaItem, 'type'> {
 
 export interface ZonaDoPlayer {
   id: string;
+  /** F-154: giro da mídia dentro da zona (0, 90, 180 ou 270 graus) */
+  rotacao: 0 | 90 | 180 | 270;
   numero: number;
   x: number;
   y: number;
@@ -38,7 +40,7 @@ export interface LayoutDoPlayer {
 }
 
 interface ZonaBruta {
-  id?: string; numero?: number; x?: number; y?: number; largura?: number; altura?: number; ordem_z?: number;
+  id?: string; numero?: number; rotacao?: number; x?: number; y?: number; largura?: number; altura?: number; ordem_z?: number;
   modo_encaixe?: string; principal?: boolean; audio?: boolean;
   /** só na principal: itens da playlist da tela que são anúncios vendidos para OUTRA zona */
   excluir_itens?: string[];
@@ -93,7 +95,7 @@ export function mapLayoutPayload(payloadRaw: unknown, itensPrincipais: MediaItem
     } else if (z.playlist?.id) itens = itensDaZona(z.playlist.playlist_items, storageBaseUrl, widgetAceito);
     const modo = String(z.modo_encaixe ?? 'CONTER').toUpperCase();
     zonas.push({
-      id: z.id, numero: Number(z.numero) || zonas.length + 1, x: Number(z.x) || 0, y: Number(z.y) || 0, largura: w, altura: h,
+      id: z.id, rotacao: ([90, 180, 270] as number[]).includes(Number(z.rotacao)) ? (Number(z.rotacao) as 90 | 180 | 270) : 0, numero: Number(z.numero) || zonas.length + 1, x: Number(z.x) || 0, y: Number(z.y) || 0, largura: w, altura: h,
       ordemZ: Number(z.ordem_z) || 0, modoEncaixe: modo === 'COBRIR' || modo === 'ESTICAR' ? modo : 'CONTER',
       principal: z.principal === true, audio: z.audio === true, itens,
     });
@@ -105,5 +107,5 @@ export function mapLayoutPayload(payloadRaw: unknown, itensPrincipais: MediaItem
 /** Assinatura do layout: muda quando posição, tamanho ou conteúdo de alguma zona muda. */
 export function assinaturaDoLayout(l: LayoutDoPlayer | null): string {
   if (!l) return '';
-  return JSON.stringify([l.id, l.largura, l.altura, l.corFundo, l.zonas.map((z) => [z.id, z.x, z.y, z.largura, z.altura, z.ordemZ, z.modoEncaixe, z.audio, z.itens.map((i) => [i.id, i.mediaId, i.url, i.duration, i.widgetType ?? '', i.widgetConfig ? JSON.stringify(i.widgetConfig).length : 0])])]);
+  return JSON.stringify([l.id, l.largura, l.altura, l.corFundo, l.zonas.map((z) => [z.id, z.x, z.y, z.largura, z.altura, z.ordemZ, z.modoEncaixe, z.rotacao, z.audio, z.itens.map((i) => [i.id, i.mediaId, i.url, i.duration, i.widgetType ?? '', i.widgetConfig ? JSON.stringify(i.widgetConfig).length : 0])])]);
 }

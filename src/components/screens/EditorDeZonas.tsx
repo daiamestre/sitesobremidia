@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  TELAS_PRONTAS, arrastoVale, doBanco, estiloDaZona, limitarZona, marcarUnica, naGrade, novaChave, novaZona, paraSalvar,
+  GIROS, TELAS_PRONTAS, arrastoVale, doBanco, estiloDaZona, limitarZona, marcarUnica, naCelula, naGrade, novaChave, novaZona, paraSalvar, rotuloPercentual, tamanhoDaCelula, type Giro,
   paresSobrepostos, percentual, proximoNumero, redimensionarLayout, telaLogicaPadrao, validarLayout, zonaDoArrasto, zonasDaDivisao,
   type DivisaoPronta, type LayoutDaTela, type ModoEncaixe, type Retangulo, type Zona,
 } from '@/lib/layoutZonas';
@@ -61,7 +61,10 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
   const [salvando, setSalvando] = useState(false);
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState<Retangulo | null>(null);
-  const [grade, setGrade] = useState(10);
+  // F-154: grade — "celulas" (colunas × linhas, como no modelo de referência), em pixels, ou livre
+  const [grade, setGrade] = useState(-1);
+  const [colunas, setColunas] = useState(24);
+  const [linhas, setLinhas] = useState(24);
   const [filtroZona, setFiltroZona] = useState('');
   const [playlists, setPlaylists] = useState<PlaylistResumo[]>([]);
   const [busca, setBusca] = useState('');
@@ -188,17 +191,22 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
     e.preventDefault();
   };
 
+  // encaixe de cada eixo na grade escolhida
+  const celula = tamanhoDaCelula(layout.largura, layout.altura, colunas, linhas);
+  const ex = (v: number) => (grade === -1 ? naCelula(v, celula.x) : naGrade(v, grade));
+  const ey = (v: number) => (grade === -1 ? naCelula(v, celula.y) : naGrade(v, grade));
+
   const aoMover = (e: EventoDePonteiro) => {
     const a = arrasto.current;
     if (!a) return;
     const p = ponto(e);
     if (a.modo === 'criar') {
-      setRascunho(zonaDoArrasto({ x: naGrade(a.inicio.x, grade), y: naGrade(a.inicio.y, grade) }, { x: naGrade(p.x, grade), y: naGrade(p.y, grade) }, layout.largura, layout.altura));
+      setRascunho(zonaDoArrasto({ x: ex(a.inicio.x), y: ey(a.inicio.y) }, { x: ex(p.x), y: ey(p.y) }, layout.largura, layout.altura));
     } else if (a.modo === 'mover') {
-      alterar(a.chave, { x: naGrade(p.x - a.dx, grade), y: naGrade(p.y - a.dy, grade) });
+      alterar(a.chave, { x: ex(p.x - a.dx), y: ey(p.y - a.dy) });
     } else {
       const z = layout.zonas.find((x) => x.chave === a.chave);
-      if (z) alterar(a.chave, { largura: Math.max(1, naGrade(p.x, grade) - z.x), altura: Math.max(1, naGrade(p.y, grade) - z.y) });
+      if (z) alterar(a.chave, { largura: Math.max(1, ex(p.x) - z.x), altura: Math.max(1, ey(p.y) - z.y) });
     }
   };
 
@@ -334,10 +342,16 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                 <div className="w-24"><CampoNumero id="tela-a" rotulo="Altura (px)" valor={layout.altura} onChange={(n) => mudarTela(layout.largura, n)} /></div>
                 <div className="space-y-1">
                   <Label className="text-[11px] text-muted-foreground">Encaixe ao arrastar</Label>
-                  <select className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm" value={grade} onChange={(e) => setGrade(Number(e.target.value))}>
-                    <option value={0}>Livre (1 px)</option><option value={5}>De 5 em 5 px</option><option value={10}>De 10 em 10 px</option><option value={20}>De 20 em 20 px</option><option value={40}>De 40 em 40 px</option>
+                  <select className="h-9 rounded-md border border-border/60 bg-background px-2 text-sm" value={grade} onChange={(e) => setGrade(Number(e.target.value))} data-testid="tipo-de-grade">
+                    <option value={-1}>Grade de células</option><option value={0}>Livre (1 px)</option><option value={10}>De 10 em 10 px</option><option value={20}>De 20 em 20 px</option><option value={40}>De 40 em 40 px</option>
                   </select>
                 </div>
+                {grade === -1 && (
+                  <>
+                    <div className="w-16"><CampoNumero id="grade-colunas" rotulo="Colunas" valor={colunas} onChange={(n) => setColunas(Math.min(Math.max(n, 1), 200))} /></div>
+                    <div className="w-16"><CampoNumero id="grade-linhas" rotulo="Linhas" valor={linhas} onChange={(n) => setLinhas(Math.min(Math.max(n, 1), 200))} /></div>
+                  </>
+                )}
                 <Button type="button" size="sm" variant="outline" className="h-9 gap-1" onClick={adicionarPorNumeros} data-testid="nova-zona"><Plus className="h-4 w-4" /> Nova zona</Button>
               </div>
 
@@ -352,7 +366,10 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                 style={{ containerType: 'size' }}>
                 <div ref={palco} data-testid="palco-zonas"
                   className="relative cursor-crosshair select-none overflow-hidden rounded-md shadow-lg ring-1 ring-white/20"
-                  style={{ aspectRatio: `${layout.largura} / ${layout.altura}`, width: `min(100cqw, calc(100cqh * ${layout.largura / layout.altura}))`, maxWidth: 'none', backgroundColor: layout.cor_fundo, touchAction: 'none' }}
+                  style={{ aspectRatio: `${layout.largura} / ${layout.altura}`, width: `min(100cqw, calc(100cqh * ${layout.largura / layout.altura}))`, maxWidth: 'none', backgroundColor: layout.cor_fundo, touchAction: 'none',
+                           ...(grade !== 0 ? { backgroundImage: 'linear-gradient(to right, rgba(255,255,255,.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.10) 1px, transparent 1px)',
+                                               backgroundSize: grade === -1 ? `${100 / Math.max(colunas, 1)}% ${100 / Math.max(linhas, 1)}%` : `${(grade / layout.largura) * 100}% ${(grade / layout.altura) * 100}%` } : {}) }}
+                  data-grade={grade === -1 ? `${colunas}x${linhas}` : String(grade)}
                   onPointerDown={(e) => aoPressionar(e)} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}>
                   {layout.zonas.filter((z) => z.visivel).sort((a, b) => a.ordem_z - b.ordem_z).map((z) => {
                     const ativa = z.chave === selecionada;
@@ -371,18 +388,25 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                           if (m) { setSelecionada(z.chave); adicionarMidia(z, m); }
                         }}>
                         <div className="pointer-events-none text-center leading-tight text-white drop-shadow">
-                          <div className="text-sm font-black sm:text-lg">{z.numero}</div>
-                          <div className="hidden text-[10px] opacity-90 sm:block">{z.largura} × {z.altura}</div>
+                          <div className="text-sm font-black sm:text-base" data-testid="zona-nome">{z.nome?.trim() || `Zona ${z.numero}`}</div>
+                          <div className="text-[10px] font-semibold opacity-90" data-testid="zona-percentual">{rotuloPercentual(z, layout.largura, layout.altura)}</div>
+                          <div className="hidden text-[9px] opacity-70 sm:block">{z.largura} × {z.altura} px</div>
                           {z.principal && <div className="text-[9px] font-semibold uppercase">principal</div>}
+                          {z.rotacao !== 0 && <div className="text-[9px] font-semibold">girada {z.rotacao}°</div>}
                         </div>
+                        {/* fechar a zona: quadrado colorido no canto, como no modelo de referência */}
+                        <button type="button" data-testid="fechar-zona" aria-label={`Excluir zona ${z.numero}`} title={`Excluir zona ${z.numero}`}
+                          onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); excluir(z.chave); }}
+                          className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center text-[11px] font-black leading-none text-white" style={{ backgroundColor: cor }}>×</button>
                         <button type="button" data-testid="adicionar-na-zona" title={`Adicionar mídia na zona ${z.numero}`}
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => { e.stopPropagation(); setSelecionada(z.chave); setSeletor({ chave: z.chave, passo: 'opcoes' }); }}
                           className="absolute bottom-1 left-1/2 flex max-w-[96%] -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-900 shadow hover:bg-emerald-300">
                           <Plus className="h-3 w-3 shrink-0" /><span className="truncate">Adicionar mídia</span>
                         </button>
-                        {ativa && !z.travada && (
-                          <div data-testid="alca-tamanho" className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize rounded-tl bg-white"
+                        {!z.travada && (
+                          <div data-testid="alca-tamanho" className="absolute bottom-0 right-0 h-3.5 w-3.5 cursor-nwse-resize"
+                            style={{ background: `linear-gradient(135deg, transparent 50%, ${ativa ? '#fff' : cor} 50%)` }}
                             onPointerDown={(e) => aoPressionar(e, { chave: z.chave, modo: 'tamanho' })} />
                         )}
                       </div>
@@ -418,16 +442,19 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                     <Input value={filtroZona} onChange={(e) => setFiltroZona(e.target.value)} placeholder="Procurar zona" className="h-7 w-36 text-xs" />
                   )}
                 </div>
-                <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+                <ul className="max-h-40 space-y-1 overflow-y-auto" data-testid="lista-de-zonas">
                   {zonasFiltradas.map((z) => (
-                    <button key={z.chave} type="button" onClick={() => setSelecionada(z.chave)} title={z.nome}
-                      className={`rounded-md border px-2 py-1 text-xs font-semibold ${z.chave === selecionada ? 'border-primary bg-primary/20 text-foreground' : 'border-border/60 text-muted-foreground hover:bg-muted/40'}`}
-                      style={{ borderLeft: `4px solid ${corDaZona(z.numero)}` }}>
-                      {z.numero}{z.principal ? ' ★' : ''}{z.valor_anuncio ? ' R$' : ''}
-                    </button>
+                    <li key={z.chave}>
+                      <button type="button" onClick={() => setSelecionada(z.chave)} title={z.nome}
+                        className={`flex w-full items-center gap-2 rounded-md border px-2 py-1 text-left text-xs ${z.chave === selecionada ? 'border-primary bg-primary/15 text-foreground' : 'border-border/60 text-muted-foreground hover:bg-muted/40'}`}>
+                        <span className="h-3 w-3 shrink-0 rounded-[3px]" style={{ backgroundColor: corDaZona(z.numero) }} />
+                        <span className="min-w-0 flex-1 truncate font-semibold">{z.nome?.trim() || `Zona ${z.numero}`}{z.principal ? ' ★' : ''}</span>
+                        <span className="shrink-0 font-mono text-[10px]">{rotuloPercentual(z, layout.largura, layout.altura)}{z.valor_anuncio ? ' · R$' : ''}</span>
+                      </button>
+                    </li>
                   ))}
-                  {layout.zonas.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma zona ainda.</p>}
-                </div>
+                  {layout.zonas.length === 0 && <li className="text-xs text-muted-foreground">Nenhuma zona ainda.</li>}
+                </ul>
               </div>
 
               {zona && (
@@ -470,6 +497,14 @@ export function EditorDeZonas({ tela, aberto, onFechar, onSalvo }: { tela: TelaR
                       <option value="COBRIR">Preenche a zona (pode cortar as bordas)</option>
                       <option value="ESTICAR">Estica até preencher</option>
                     </select>
+                  </div>
+                  <div className="space-y-1" data-testid="giro-da-zona">
+                    <Label className="text-[11px] text-muted-foreground">Girar a mídia nesta zona</Label>
+                    <select className="h-9 w-full rounded-md border border-border/60 bg-background px-2 text-sm" value={zona.rotacao}
+                      onChange={(e) => alterar(zona.chave, { rotacao: Number(e.target.value) as Giro })}>
+                      {GIROS.map((g) => <option key={g} value={g}>{g === 0 ? 'Sem giro' : `Girar ${g}°${g === 90 ? ' (para a direita)' : g === 270 ? ' (para a esquerda)' : ''}`}</option>)}
+                    </select>
+                    <p className="text-[10px] text-muted-foreground">Útil para colocar uma mídia em pé numa zona deitada (e vice-versa). Vale no Player web; no Player Android ainda não.</p>
                   </div>
                   <div className="space-y-2 text-sm">
                     <label className="flex items-center justify-between gap-2"><span>Zona principal <span className="text-xs text-muted-foreground">(toca a playlist da tela)</span></span>

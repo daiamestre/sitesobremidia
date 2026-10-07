@@ -5,6 +5,8 @@
  */
 
 export type ModoEncaixe = 'CONTER' | 'COBRIR' | 'ESTICAR';
+export type Giro = 0 | 90 | 180 | 270;
+export const GIROS: Giro[] = [0, 90, 180, 270];
 
 export interface Zona {
   /** id do banco; ausente enquanto a zona ainda não foi salva */
@@ -24,6 +26,8 @@ export interface Zona {
   principal: boolean;
   audio: boolean;
   anuncios_pagos: boolean;
+  /** F-154: giro da mídia dentro da zona (mídia em pé numa zona deitada, e vice-versa). */
+  rotacao: Giro;
   playlist_id: string | null;
   /** F-150: valor mensal para anunciar só nesta zona (null = vale o valor da tela). */
   valor_anuncio: number | null;
@@ -102,6 +106,23 @@ export function estiloDaZona(z: Retangulo, largura: number, altura: number) {
   };
 }
 
+/**
+ * Grade em células (colunas × linhas): o tamanho de cada célula em pixels da tela lógica. 0 colunas/linhas = sem grade.
+ */
+export function tamanhoDaCelula(largura: number, altura: number, colunas: number, linhas: number): { x: number; y: number } {
+  return { x: colunas >= 1 ? largura / colunas : 0, y: linhas >= 1 ? altura / linhas : 0 };
+}
+
+/** Encaixa o valor na célula mais próxima (grade fracionária; o resultado volta a ser inteiro). */
+export const naCelula = (valor: number, celula: number) => (celula > 0 ? Math.round(Math.round(valor / celula) * celula) : inteiro(valor));
+
+/** Texto de uma zona: "82% × 92%". */
+export function rotuloPercentual(z: Retangulo, largura: number, altura: number): string {
+  const p = percentual(z, largura, altura);
+  const f = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','));
+  return `${f(p.largura)}% × ${f(p.altura)}%`;
+}
+
 /** Menor número livre a partir de 1. */
 export function proximoNumero(zonas: Array<{ numero: number }>): number {
   const usados = new Set(zonas.map((z) => z.numero));
@@ -119,7 +140,7 @@ export function novaZona(r: Retangulo, zonas: Zona[], largura: number, altura: n
     chave: novaChave(), numero, nome: `Zona ${numero}`, ...limitarZona(r, largura, altura),
     ordem_z: zonas.reduce((m, z) => Math.max(m, z.ordem_z), -1) + 1,
     modo_encaixe: 'CONTER', visivel: true, travada: false,
-    principal: zonas.length === 0, audio: false, anuncios_pagos: true, playlist_id: null, valor_anuncio: null,
+    principal: zonas.length === 0, audio: false, anuncios_pagos: true, rotacao: 0, playlist_id: null, valor_anuncio: null,
   };
 }
 
@@ -202,7 +223,7 @@ export function paresSobrepostos(zonas: Zona[]): Array<[number, number]> {
 export function paraSalvar(zonas: Zona[]) {
   return zonas.map((z) => ({
     ...(z.id ? { id: z.id } : {}), numero: z.numero, nome: z.nome.trim() || null, x: z.x, y: z.y, largura: z.largura, altura: z.altura,
-    ordem_z: z.ordem_z, modo_encaixe: z.modo_encaixe, visivel: z.visivel, travada: z.travada, principal: z.principal,
+    ordem_z: z.ordem_z, modo_encaixe: z.modo_encaixe, rotacao: z.rotacao, visivel: z.visivel, travada: z.travada, principal: z.principal,
     // F-150: zona é complemento e nunca tem som; só a mídia principal pode ter (chave de som da tela)
     audio: false, anuncios_pagos: z.anuncios_pagos, playlist_id: z.principal ? null : z.playlist_id,
     valor_anuncio: z.valor_anuncio != null && z.valor_anuncio >= 0 ? Math.round(z.valor_anuncio * 100) / 100 : null,
@@ -218,6 +239,7 @@ export function doBanco(linha: Record<string, unknown>): Zona {
     modo_encaixe: modo === 'COBRIR' || modo === 'ESTICAR' ? modo : 'CONTER',
     visivel: linha.visivel !== false, travada: linha.travada === true, principal: linha.principal === true,
     audio: false, anuncios_pagos: linha.anuncios_pagos !== false,
+    rotacao: ([90, 180, 270] as number[]).includes(Number(linha.rotacao)) ? (Number(linha.rotacao) as Giro) : 0,
     playlist_id: (linha.playlist_id as string | null) ?? null,
     valor_anuncio: linha.valor_anuncio == null || linha.valor_anuncio === '' ? null : (Number.isFinite(Number(linha.valor_anuncio)) ? Number(linha.valor_anuncio) : null),
   };

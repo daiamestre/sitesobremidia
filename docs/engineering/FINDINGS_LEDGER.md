@@ -1841,3 +1841,10 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Não verificado:** som do vídeo da playlist principal no Android com sessão real (exige login no aparelho); saída de áudio física (alto-falante/TV) — o teste prova que o sistema está emitindo som, não que alguém ouviu.
 - **APK 5.7.0 (557) regerado:** release sha256 `faedb04a48c227d0d4a9a459a96396276eb83f0e56b5d303c8fa7e173e7bb997`; debug sha256 `a46d3c4cd8fd4f88647d5f9df63490ebb02eb6c6e778a86e11d75a89b0c0971a` (substituem os do F-150).
 - **Dados do teste removidos** (áudio, rádio, playlist, layout, vínculo e registros da tela de homologação); resposta das 5 telas reais idêntica.
+
+### F-154 — Editor de zonas no estilo do modelo de referência (grade em células, %, fechar no canto, lista, giro) — DONE (web) · giro no Android pendente
+- **Pedido do proprietário:** analisar as imagens do concorrente e aplicar no nosso sistema, na nossa identidade visual (sem marca de terceiros). Imagem 1 = editor de zonas.
+- **Aplicado:** grade em células (colunas × linhas editáveis, padrão 24 × 24) desenhada sobre a tela e com encaixe ao arrastar/redimensionar (provado no navegador: 240/135/640/495 = múltiplos de 80 × 45); cada zona mostra nome e porcentagem ("33,3% × 45,8%"); botão × colorido no canto; alça de tamanho no canto inferior; lista lateral com quadrado colorido + nome + porcentagem; giro da mídia por zona (0/90/180/270°).
+- **Contrato:** o banco já aceitava e entregava `rotacao`; o Player web gira a mídia dentro da zona (90/270 trocam largura e altura do quadro). Resposta das telas reais não mudou.
+- **Não incluído:** giro no Player Android (o Player 5.7.0 ignora `rotacao` por ora); aviso mostrado no editor.
+- Testes: `editorDeZonasGrade.test.tsx` (10).

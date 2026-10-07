@@ -82,9 +82,16 @@ function Zona({ zona, layout, emUso, screenId, somLiberado }: {
   const fixarEncaixe = (el: HTMLElement | null) => { el?.style.setProperty('object-fit', ajuste, 'important'); };
   const estilo = { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', maxWidth: 'none', maxHeight: 'none', objectFit: ajuste, backgroundColor: layout.corFundo };
 
+  // F-154: giro da mídia. Em 90°/270° o quadro interno troca largura e altura (a zona mantém a proporção na tela) e gira.
+  const girada = zona.rotacao === 90 || zona.rotacao === 270;
+  const quadroInterno: React.CSSProperties = zona.rotacao === 0
+    ? { position: 'absolute', inset: 0 }
+    : { position: 'absolute', left: '50%', top: '50%', transform: `translate(-50%, -50%) rotate(${zona.rotacao}deg)`,
+        width: girada ? `${(zona.altura / zona.largura) * 100}%` : '100%', height: girada ? `${(zona.largura / zona.altura) * 100}%` : '100%' };
   return (
-    <div data-testid="zona-do-player" data-zona={zona.numero}
+    <div data-testid="zona-do-player" data-zona={zona.numero} data-rotacao={zona.rotacao}
       style={{ position: 'absolute', overflow: 'hidden', zIndex: zona.ordemZ + 1, backgroundColor: layout.corFundo, ...estiloDaZona(zona, layout.largura, layout.altura) }}>
+      <div data-testid="quadro-girado" style={quadroInterno}>
       {item?.type === 'image' && (
         <img key={`${item.id}-${volta}`} src={item.url} alt="" draggable={false} style={estilo} ref={fixarEncaixe} onError={() => fimRef.current?.()} />
       )}
@@ -97,6 +104,7 @@ function Zona({ zona, layout, emUso, screenId, somLiberado }: {
         <video key={`${item.id}-${volta}`} src={item.url} style={estilo} ref={fixarEncaixe} autoPlay playsInline preload="auto" crossOrigin="anonymous"
           muted={!(zona.principal && somLiberado && tocou)} /* zona secundária: sempre muda (F-150) */ onEnded={() => fimRef.current?.()} onError={() => fimRef.current?.()} />
       )}
+      </div>
     </div>
   );
 }
