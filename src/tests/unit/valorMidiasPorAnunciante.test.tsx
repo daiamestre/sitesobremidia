@@ -180,7 +180,7 @@ describe('Tela do Owner/ADM', () => {
     const item = await screen.findByText('Anunciante B');
     fireEvent.click(item);
     await screen.findByTestId('painel-anunciante');
-    expect(screen.getByTestId('lista-anunciantes').textContent).toContain('personalizado');
+    expect(screen.getByTestId('anunciantes-rapidos').textContent).toContain('personalizado');
 
     const botao = screen.getByTestId('liberar-gratis') as HTMLButtonElement;
     expect(botao.disabled).toBe(true); // sem motivo
@@ -216,6 +216,88 @@ describe('Tela do Owner/ADM', () => {
     expect(app).toContain("<Route path=\"valor-midias\" element={<RequireRole roles={['OWNER', 'ADMIN']}><ValorMidiasPage /></RequireRole>} />");
     const side = ler('src/modules/crm/components/Sidebar.tsx');
     expect(side).toContain("path: '/workspace/valor-midias'");
+    expect(side).toContain("label: 'Valor da Mídia para Anunciantes'");
     expect(side.indexOf("'/workspace/valor-midias'")).toBeGreaterThan(side.indexOf('(isOwner || isAdmin)'));
+  });
+});
+
+describe('Seletor de anunciante: compacto, com lupa e lista completa', () => {
+  const muitos = Array.from({ length: 6 }, (_, i) => ({
+    cliente_id: 'c' + (i + 1), nome: ['Academia Beta', 'Andreza Ameida', 'Andreza Ameida', 'Café Central', 'Padaria Sol', 'Zeca Motos'][i],
+    documento: ['11.111.111/0001-11', '22.222.222/0001-22', '33.333.333/0001-33', '44.444.444/0001-44', '55.555.555/0001-55', '66.666.666/0001-66'][i],
+    cidade: 'Caruaru', valor: 19.99, valor_personalizado: false, gratis_restantes: 0, playlists: 0,
+  }));
+  const detalhe = { valor: 19.99, valor_padrao: 19.99, valor_personalizado: null, gratis_primeira_playlist: 'DISPONIVEL', playlists: 0, midias_pagas: 0, liberacoes: [] };
+
+  function montar() {
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === 'admin_midias_listar_clientes') return { data: { valor_padrao: 19.99, clientes: muitos }, error: null };
+      if (fn === 'admin_midias_cliente') return { data: detalhe, error: null };
+      return { data: { ok: true, valor: 9.99, mensagem: 'x', valor_proxima: 9.99 }, error: null };
+    });
+    return render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter><ValorMidiasPage /></MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('na tela ficam só 3 anunciantes; "Ver todos" abre o cartão com todos e a busca', async () => {
+    montar();
+    await screen.findByTestId('anunciantes-rapidos');
+    await waitFor(() => expect(screen.getAllByTestId('item-anunciante')).toHaveLength(3));
+    expect(screen.queryByTestId('dialogo-anunciantes')).toBeNull();
+    fireEvent.click(screen.getByTestId('ver-todos'));
+    const dialogo = await screen.findByTestId('dialogo-anunciantes');
+    expect(dialogo.querySelectorAll('[data-testid=item-anunciante]')).toHaveLength(6);
+  });
+
+  it('clicar na lupa, na barra de pesquisa ou em "Escolher anunciante" abre a lista completa', async () => {
+    for (const alvo of ['lupa', 'busca-anunciante', 'abrir-escolha']) {
+      const { unmount } = montar();
+      await waitFor(() => expect(screen.getAllByTestId('item-anunciante').length).toBeGreaterThan(0));
+      fireEvent.click(screen.getByTestId(alvo));
+      expect(await screen.findByTestId('dialogo-anunciantes')).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it('pesquisa por nome (sem acento) e por CNPJ', async () => {
+    montar();
+    await waitFor(() => expect(screen.getAllByTestId('item-anunciante').length).toBe(3));
+    fireEvent.click(screen.getByTestId('lupa'));
+    const dialogo = await screen.findByTestId('dialogo-anunciantes');
+    fireEvent.change(screen.getByTestId('busca-dialogo'), { target: { value: 'cafe' } });
+    expect(dialogo.querySelectorAll('[data-testid=item-anunciante]')).toHaveLength(1);
+    expect(dialogo.textContent).toContain('Café Central');
+    fireEvent.change(screen.getByTestId('busca-dialogo'), { target: { value: 'andreza' } });
+    expect(dialogo.querySelectorAll('[data-testid=item-anunciante]')).toHaveLength(2); // nomes repetidos: o CNPJ diferencia
+    fireEvent.change(screen.getByTestId('busca-dialogo'), { target: { value: '55.555.555' } });
+    expect(dialogo.textContent).toContain('Padaria Sol');
+    expect(dialogo.querySelectorAll('[data-testid=item-anunciante]')).toHaveLength(1);
+    fireEvent.change(screen.getByTestId('busca-dialogo'), { target: { value: 'zzzz' } });
+    expect(dialogo.textContent).toContain('Nenhum anunciante encontrado');
+  });
+
+  it('valor e liberação valem para o anunciante escolhido (qualquer um), e trocar de anunciante troca o alvo', async () => {
+    montar();
+    await waitFor(() => expect(screen.getAllByTestId('item-anunciante').length).toBe(3));
+    for (const [nome, id] of [['Zeca Motos', 'c6'], ['Padaria Sol', 'c5']]) {
+      fireEvent.click(screen.getByTestId('lupa'));
+      const dialogo = await screen.findByTestId('dialogo-anunciantes');
+      fireEvent.change(screen.getByTestId('busca-dialogo'), { target: { value: nome } });
+      fireEvent.click(dialogo.querySelector('[data-testid=item-anunciante]')!);
+      await waitFor(() => expect(screen.queryByTestId('dialogo-anunciantes')).toBeNull());
+      const painel = await screen.findByTestId('painel-anunciante');
+      expect(painel.textContent).toContain(nome);
+
+      fireEvent.change(screen.getByTestId('valor-anunciante'), { target: { value: '9,99' } });
+      fireEvent.click(screen.getByTestId('salvar-valor'));
+      await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_midias_definir_valor', { p_cliente: id, p_valor: 9.99, p_motivo: null }));
+
+      fireEvent.change(screen.getByTestId('motivo-liberacao'), { target: { value: 'PROMOCAO' } });
+      fireEvent.click(screen.getByTestId('liberar-gratis'));
+      await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_midias_liberar', expect.objectContaining({ p_cliente: id, p_motivo: 'PROMOCAO', p_quantidade: 1 })));
+    }
   });
 });

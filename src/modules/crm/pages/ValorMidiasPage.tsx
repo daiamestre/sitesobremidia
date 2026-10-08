@@ -8,15 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { brl, MOTIVO_DA_LIBERACAO } from '@/lib/cotaDeMidias';
 import {
-  midiasAnuncianteService, lerValor, previaDaLiberacao,
+  midiasAnuncianteService, lerValor, previaDaLiberacao, filtrarAnunciantes,
   type AnuncianteDeMidias, type MotivoDaLiberacao,
 } from '../services/midiasAnunciante.service';
 
 /**
- * F-166 — Valor das mídias por anunciante (Owner e ADM).
+ * F-166/F-168 — Valor da mídia para anunciantes (Owner e ADM).
  * Escolha o anunciante, mude quanto ele paga por mídia adicionada à playlist e libere mídias grátis
  * (promoção, data comemorativa, cortesia) com o motivo — o anunciante lê a explicação e o valor da próxima mídia.
  */
@@ -25,28 +26,30 @@ const DATAS_SUGERIDAS = ['Dia das Mães', 'Dia dos Pais', 'Dia das Crianças', '
 export default function ValorMidiasPage() {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(params.get('cliente'));
+  const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState('');
-  const [selecionado, setSelecionado] = useState<string | null>(params.get('cliente'));
 
   const lista = useQuery({
-    queryKey: ['admin-midias-lista', busca],
-    queryFn: () => midiasAnuncianteService.listar(busca),
-    placeholderData: (anterior) => anterior,
+    queryKey: ['admin-midias-lista'],
+    queryFn: () => midiasAnuncianteService.listar(),
   });
-  const escolhido = useMemo(
-    () => lista.data?.clientes.find((c) => c.cliente_id === selecionado) ?? null,
-    [lista.data, selecionado],
-  );
+  const todos = useMemo(() => lista.data?.clientes ?? [], [lista.data]);
+  const escolhido = useMemo(() => todos.find((c) => c.cliente_id === selecionadoId) ?? null, [todos, selecionadoId]);
+  const rapidos = useMemo(() => todos.filter((c) => c.cliente_id !== selecionadoId).slice(0, escolhido ? 2 : 3), [todos, selecionadoId, escolhido]);
+  const encontrados = useMemo(() => filtrarAnunciantes(todos, busca), [todos, busca]);
 
   const escolher = (c: AnuncianteDeMidias) => {
-    setSelecionado(c.cliente_id);
+    setSelecionadoId(c.cliente_id);
     setParams({ cliente: c.cliente_id }, { replace: true });
+    setAberto(false);
+    setBusca('');
   };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12" data-testid="pagina-valor-midias">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Tag className="h-6 w-6 text-primary" /> Valor das mídias</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Tag className="h-6 w-6 text-primary" /> Valor da mídia para anunciantes</h1>
         <p className="text-sm text-slate-400 mt-1">
           Quanto cada anunciante paga por mídia adicionada à playlist, e mídias grátis (promoção, data comemorativa, cortesia).
           A primeira playlist de cada anunciante já tem 1 mídia grátis.
@@ -55,50 +58,87 @@ export default function ValorMidiasPage() {
 
       <ValorPadrao valorAtual={lista.data?.valor_padrao} onSalvo={() => qc.invalidateQueries({ queryKey: ['admin-midias-lista'] })} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
-        <Card className="border-white/10 bg-white/[0.03]">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Escolha o anunciante</CardTitle>
-            <div className="relative">
-              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-              <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pelo nome" className="pl-9 bg-slate-950 border-slate-700" data-testid="busca-anunciante" />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-1.5 max-h-[60vh] overflow-y-auto" data-testid="lista-anunciantes">
-            {lista.isLoading && <div className="py-8 flex justify-center text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /></div>}
-            {lista.isError && <p className="text-sm text-rose-400">Não foi possível carregar os anunciantes.</p>}
-            {lista.data?.clientes.length === 0 && <p className="text-sm text-slate-500">Nenhum anunciante encontrado.</p>}
-            {lista.data?.clientes.map((c) => (
-              <button
-                key={c.cliente_id}
-                type="button"
-                onClick={() => escolher(c)}
-                className={`w-full text-left rounded-lg border p-2.5 transition-colors ${selecionado === c.cliente_id ? 'border-primary bg-primary/10' : 'border-white/10 hover:bg-white/5'}`}
-              >
-                <p className="text-sm font-medium truncate">{c.nome}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                  <Badge variant="outline" className={c.valor_personalizado ? 'border-amber-500/40 text-amber-300' : 'border-white/10 text-slate-400'}>
-                    {brl(c.valor)}{c.valor_personalizado ? ' · personalizado' : ' · padrão'}
-                  </Badge>
-                  {c.gratis_restantes > 0 && <Badge variant="outline" className="border-emerald-500/40 text-emerald-300">{c.gratis_restantes} grátis</Badge>}
-                </div>
-              </button>
-            ))}
+      <Card className="border-white/10 bg-white/[0.03]" data-testid="escolher-anunciante">
+        <CardContent className="p-4 space-y-3">
+          <button type="button" onClick={() => setAberto(true)} className="flex w-full items-center justify-between gap-2 text-left" data-testid="abrir-escolha">
+            <span className="text-sm font-semibold">Escolher anunciante</span>
+            <span className="text-xs text-slate-400">{todos.length > 0 ? todos.length + ' anunciantes' : ''}</span>
+          </button>
+          <div className="relative">
+            <button type="button" onClick={() => setAberto(true)} aria-label="Pesquisar anunciante" data-testid="lupa"
+              className="absolute left-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-white">
+              <Search className="h-4 w-4" />
+            </button>
+            <Input readOnly value="" onClick={() => setAberto(true)} onFocus={() => setAberto(true)} placeholder="Pesquisar pelo nome ou CNPJ"
+              className="pl-9 bg-slate-950 border-slate-700 cursor-pointer" data-testid="busca-anunciante" />
+          </div>
+
+          {lista.isLoading && <div className="py-3 flex justify-center text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /></div>}
+          {lista.isError && <p className="text-sm text-rose-400">Não foi possível carregar os anunciantes.</p>}
+
+          <div className="space-y-1.5" data-testid="anunciantes-rapidos">
+            {escolhido && <ItemDeAnunciante c={escolhido} selecionado onEscolher={escolher} />}
+            {rapidos.map((c) => <ItemDeAnunciante key={c.cliente_id} c={c} onEscolher={escolher} />)}
+          </div>
+          {todos.length > 3 && (
+            <Button variant="outline" size="sm" className="w-full border-white/10" onClick={() => setAberto(true)} data-testid="ver-todos">
+              Ver todos os {todos.length} anunciantes
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={aberto} onOpenChange={(o) => { setAberto(o); if (!o) setBusca(''); }}>
+        <DialogContent className="bg-slate-900 border-white/10 text-slate-200 max-w-lg" data-testid="dialogo-anunciantes">
+          <DialogHeader>
+            <DialogTitle>Escolher anunciante</DialogTitle>
+            <DialogDescription>Pesquise pelo nome ou CNPJ e toque no anunciante.</DialogDescription>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome ou CNPJ do anunciante"
+              className="pl-9 bg-slate-950 border-slate-700" data-testid="busca-dialogo" />
+          </div>
+          <div className="max-h-[55vh] overflow-y-auto space-y-1.5" data-testid="lista-anunciantes">
+            {encontrados.length === 0 && <p className="py-6 text-center text-sm text-slate-500">Nenhum anunciante encontrado.</p>}
+            {encontrados.map((c) => <ItemDeAnunciante key={c.cliente_id} c={c} selecionado={c.cliente_id === selecionadoId} onEscolher={escolher} />)}
+          </div>
+          <p className="text-[11px] text-slate-500">{encontrados.length} de {todos.length} anunciantes</p>
+        </DialogContent>
+      </Dialog>
+
+      {escolhido ? (
+        <PainelDoAnunciante key={escolhido.cliente_id} anunciante={escolhido} onMudou={() => qc.invalidateQueries({ queryKey: ['admin-midias-lista'] })} />
+      ) : (
+        <Card className="border-dashed border-white/10 bg-white/[0.02]">
+          <CardContent className="py-14 text-center text-slate-500">
+            <Tag className="h-10 w-10 mx-auto mb-3 text-slate-600" />
+            Escolha um anunciante para mudar o valor da mídia ou liberar mídias grátis.
           </CardContent>
         </Card>
-
-        {escolhido ? (
-          <PainelDoAnunciante key={escolhido.cliente_id} anunciante={escolhido} onMudou={() => qc.invalidateQueries({ queryKey: ['admin-midias-lista'] })} />
-        ) : (
-          <Card className="border-dashed border-white/10 bg-white/[0.02]">
-            <CardContent className="py-16 text-center text-slate-500">
-              <Tag className="h-10 w-10 mx-auto mb-3 text-slate-600" />
-              Escolha um anunciante na lista para mudar o valor da mídia ou liberar mídias grátis.
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      )}
     </div>
+  );
+}
+
+function ItemDeAnunciante({ c, selecionado, onEscolher }: { c: AnuncianteDeMidias; selecionado?: boolean; onEscolher: (c: AnuncianteDeMidias) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onEscolher(c)}
+      data-testid="item-anunciante"
+      className={'w-full text-left rounded-lg border p-2.5 transition-colors ' + (selecionado ? 'border-primary bg-primary/10' : 'border-white/10 hover:bg-white/5')}
+    >
+      <p className="text-sm font-medium truncate">{c.nome}</p>
+      {(c.documento || c.cidade) && <p className="text-[11px] text-slate-500 truncate">{[c.documento, c.cidade].filter(Boolean).join(' · ')}</p>}
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+        <Badge variant="outline" className={c.valor_personalizado ? 'border-amber-500/40 text-amber-300' : 'border-white/10 text-slate-400'}>
+          {brl(c.valor)}{c.valor_personalizado ? ' · personalizado' : ' · padrão'}
+        </Badge>
+        {c.gratis_restantes > 0 && <Badge variant="outline" className="border-emerald-500/40 text-emerald-300">{c.gratis_restantes} grátis</Badge>}
+        {selecionado && <Badge className="bg-primary/20 text-primary border-primary/30">selecionado</Badge>}
+      </div>
+    </button>
   );
 }
 

@@ -9,6 +9,8 @@ export type MotivoDaLiberacao = 'PROMOCAO' | 'DATA_COMEMORATIVA' | 'CORTESIA' | 
 export interface AnuncianteDeMidias {
   cliente_id: string;
   nome: string;
+  documento?: string | null;
+  cidade?: string | null;
   valor: number;
   valor_personalizado: boolean;
   gratis_restantes: number;
@@ -81,4 +83,16 @@ export function previaDaLiberacao(o: { quantidade: number; motivo: MotivoDaLiber
   const exp = o.explicacao?.trim();
   return `Liberamos ${q} ${q === 1 ? 'mídia grátis' : 'mídias grátis'} para você${motivo}.${exp ? ` ${/[.!?]$/.test(exp) ? exp : exp + '.'}` : ''} `
     + `Depois ${q === 1 ? 'dessa mídia' : `dessas ${q} mídias`}, a próxima mídia que você adicionar a uma playlist custa ${brl}.`;
+}
+
+/** Texto sem acento e em minúsculas, para a busca achar "Cafe" em "Café". */
+const normalizar = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const soDigitos = (s: string) => s.replace(/\D/g, '');
+
+/** Busca por nome (sem acento) ou CNPJ (só números, a partir de 3 dígitos). */
+export function filtrarAnunciantes(lista: AnuncianteDeMidias[], busca: string): AnuncianteDeMidias[] {
+  const q = normalizar(busca.trim());
+  if (!q) return lista;
+  const d = soDigitos(q);
+  return lista.filter((c) => normalizar(c.nome).includes(q) || (d.length >= 3 && soDigitos(c.documento ?? '').includes(d)));
 }
