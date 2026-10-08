@@ -88,12 +88,13 @@ describe('FinanceiroService — createReceivable', () => {
     expect(supabase.rpc).toHaveBeenCalledWith('fn_gerar_numero_recebivel_atomo', expect.any(Object));
   });
 
-  it('deve inserir registro em fluxo_caixa ao criar recebível', async () => {
+  it('F-171: a entrada prevista no fluxo_caixa é criada pelo banco (gatilho), não pelo código', async () => {
     const { supabase } = await import('@/integrations/supabase/client');
     vi.clearAllMocks();
     await service.createReceivable(BASE_RECEIVABLE);
     const tables = (supabase.from as ReturnType<typeof vi.fn>).mock.calls.map((c: string[]) => c[0]);
-    expect(tables).toContain('fluxo_caixa');
+    expect(tables).toContain('contas_receber');
+    expect(tables).not.toContain('fluxo_caixa'); // a gravação antiga usava colunas inexistentes e falhava em silêncio
   });
 
   it('deve inserir registro em financeiro_auditoria ao criar recebível', async () => {

@@ -81,7 +81,7 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
     ...(podeTelasParceiras ? [{ icon: Building2, label: 'Painel Principal', path: '/workspace/corporate' }] : []),
     ...menuItems,
     ...((isAdmin || isOwner)
-      ? [{ icon: Banknote, label: 'Central de Cobranças', path: '/financeiro/cobrancas' }]
+      ? [{ icon: Banknote, label: 'Central de Cobranças', path: '/workspace/financeiro/cobrancas' }]
       : []),
     // F-116: estrutura de pontos parceiros só para OWNER/ADMIN (gestor não vê); abre a página nova de Telas
     ...(podeTelasParceiras

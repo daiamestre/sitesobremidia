@@ -421,6 +421,13 @@ const App = () => {
                     <Route path="financeiro/cobrancas" element={<BillingDashboard />} />
                     <Route path="financeiro/cobrancas/:id" element={<BillingDetailPage />} />
                     <Route path="financeiro/comissoes" element={<CommissionPage />} />
+                    {/* F-171: o financeiro completo também no painel principal (Owner/ADM) */}
+                    <Route path="financeiro/fluxo-caixa" element={<CashFlowPage />} />
+                    <Route path="financeiro/fluxo-caixa-dashboard" element={<CashFlowDashboard />} />
+                    <Route path="financeiro/recebiveis" element={<ContasReceberPage />} />
+                    <Route path="financeiro/livro-razao" element={<GeneralLedgerPage />} />
+                    <Route path="financeiro/centros-custo" element={<CostCenterPage />} />
+                    <Route path="financeiro/notas-fiscais" element={<InvoicesPage />} />
                     <Route path="bi" element={<BIExecutiveDashboard />} />
                     <Route path="noc" element={<NocDashboardPage />} />
                     <Route path="central" element={<CentralDashboard />} />

@@ -21,7 +21,7 @@ const estilo = {
  */
 export function AlertStrip({ alertas }: { alertas: Alerta[] }) {
   const qc = useQueryClient();
-  const { data: vistos = [] } = useQuery({ queryKey: avisosVistosKey, queryFn: listarAvisosVistos, staleTime: 0 });
+  const { data: vistos = [] } = useQuery({ queryKey: avisosVistosKey, queryFn: listarAvisosVistos, staleTime: 60_000 });
   const visiveis = alertas.filter((a) => !alertaEstaVisto(a, vistos));
   const chaveDosVisiveis = visiveis.map((a) => `${a.id}:${a.link}:${assinaturaDoAlerta(a)}`).join('§');
 

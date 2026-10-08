@@ -141,16 +141,7 @@ export class FinanceiroService {
 
       if (error || !conta) return { success: false, error: error?.message || 'Falha ao criar recebível.' };
 
-      // Insere Fluxo de Caixa Previsto
-      await (supabase.from('fluxo_caixa') as any).insert({
-        empresa_operadora_id: payload.empresaOperadoraId,
-        tipo: 'ENTRADA',
-        categoria: 'FATURAMENTO',
-        descricao: `Recebível Doc #${numDoc}`,
-        valor_previsto: payload.valorOriginal,
-        valor_realizado: 0,
-        data_prevista: payload.vencimento,
-      });
+      // F-171: a entrada prevista no fluxo de caixa é criada pelo banco (gatilho em contas_receber)
 
       // Auditoria
       await supabase.from('financeiro_auditoria').insert({
@@ -439,13 +430,35 @@ export class FinanceiroService {
    */
   async generateCashFlow(empresaOperadoraId?: string): Promise<any[]> {
     try {
-      let query = supabase.from('fluxo_caixa').select('*').order('data_prevista', { ascending: true });
+      let query = (supabase.from('fluxo_caixa') as any).select('*').neq('status', 'CANCELADO').order('data_movimento', { ascending: false });
       if (empresaOperadoraId) query = query.eq('empresa_operadora_id', empresaOperadoraId);
       const { data } = await query;
       return data || [];
     } catch (err) {
       return [];
     }
+  }
+
+  /** F-171: resumo único do financeiro (entradas, saídas, a receber, vencido, devedores) — mesma base da Central de Cobranças. */
+  async getResumoFinanceiro(inicio?: string, fim?: string): Promise<ResumoFinanceiro | null> {
+    const { data, error } = await (supabase as unknown as { rpc: (fn: string, a?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> })
+      .rpc('fn_financeiro_resumo', { p_inicio: inicio ?? null, p_fim: fim ?? null });
+    if (error) { logger.error('getResumoFinanceiro falhou', error); return null; }
+    const r = data as ResumoFinanceiro | { status: 'SEM_PERMISSAO' } | null;
+    return r && r.status === 'OK' ? (r as ResumoFinanceiro) : null;
+  }
+
+  /** Entrada ou saída avulsa (aluguel, internet, serviço…) no fluxo de caixa. */
+  async lancarMovimento(m: { tipo: 'ENTRADA' | 'SAIDA'; categoria: string; descricao: string; valor: number; data: string; realizado: boolean }): Promise<{ success: boolean; error?: string }> {
+    const { error } = await (supabase as unknown as { rpc: (fn: string, a?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> })
+      .rpc('fluxo_caixa_lancar', { p_tipo: m.tipo, p_categoria: m.categoria, p_descricao: m.descricao, p_valor: m.valor, p_data: m.data, p_realizado: m.realizado });
+    return error ? { success: false, error: error.message } : { success: true };
+  }
+
+  async removerMovimento(id: string): Promise<{ success: boolean; error?: string }> {
+    const { error } = await (supabase as unknown as { rpc: (fn: string, a?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> })
+      .rpc('fluxo_caixa_remover', { p_id: id });
+    return error ? { success: false, error: error.message } : { success: true };
   }
 
   async listCobrancas(empresaOperadoraId?: string): Promise<{ data: Cobranca[]; error: string | null }> {
@@ -1206,6 +1219,28 @@ export interface CreateCobrancaPayload {
   descricao?: string;
   metodosGateway?: string[];
   billingOriginType?: 'ANUNCIANTE' | 'GERAL' | 'PARCEIRO' | 'HOST' | 'OUTRO';
+}
+
+export interface ResumoFinanceiro {
+  status: 'OK';
+  periodo: { inicio: string; fim: string; hoje: string };
+  entradas_realizadas: number;
+  saidas_realizadas: number;
+  entradas_previstas: number;
+  saidas_previstas: number;
+  saldo_acumulado: number;
+  a_receber: { valor: number; qtd: number };
+  vencido: { valor: number; qtd: number; clientes: number };
+  a_vencer: { valor: number; qtd: number; em_7_dias: number; qtd_7_dias: number };
+  inadimplencia_pct: number;
+  /** Cobranças mensais com vencimento neste mês. */
+  mrr: number;
+  ticket_medio: number;
+  recebido_total: number;
+  faturado_total: number;
+  por_mes: Array<{ mes: string; entradas: number; saidas: number; previsto: number }>;
+  devedores: Array<{ cliente_id: string; nome: string; qtd: number; valor: number; dias_max: number }>;
+  recebimentos_recentes: Array<{ descricao: string; valor: number; data: string; cliente_id: string | null }>;
 }
 
 export function deriveCobrancaSituacao(status: string, dataVencimento: string | null | undefined, hoje: Date = new Date()): CobrancaSituacao {

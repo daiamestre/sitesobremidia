@@ -1,6 +1,6 @@
 import { BotaoExcluir } from '@/components/comum/BotaoExcluir';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, Banknote, CalendarClock, CheckCircle2, Clock, Loader2,
@@ -81,7 +81,8 @@ export default function BillingDashboard() {
   const [busca, setBusca] = useState('');
   const [filtroSituacao, setFiltroSituacao] = useState<string>('all');
   const [filtroPeriodo, setFiltroPeriodo] = useState<string>('all');
-  const [filtroCliente, setFiltroCliente] = useState<string>('all');
+  const [searchParams] = useSearchParams();
+  const [filtroCliente, setFiltroCliente] = useState<string>(searchParams.get('cliente') || 'all');
   const [filtroTipo, setFiltroTipo] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [processandoRegua, setProcessandoRegua] = useState(false);

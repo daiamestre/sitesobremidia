@@ -47,7 +47,7 @@ const db = vi.hoisted(() => {
     removeChannel: vi.fn(),
     auth: {
       getUser: vi.fn(() => Promise.resolve({ data: { user: state.currentUser }, error: null })),
-      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      getSession: vi.fn(() => Promise.resolve({ data: { session: state.currentUser ? { user: state.currentUser } : null }, error: null })),
       signOut: vi.fn().mockResolvedValue({ error: null }),
       onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
     },

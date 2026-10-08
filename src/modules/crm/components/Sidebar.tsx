@@ -106,7 +106,7 @@ export function CrmSidebar({ onNavigate, collapsed = false }: { onNavigate?: () 
       : []),
     { label: 'Agenda', icon: Calendar, path: `${basePath}/agenda` },
     { label: 'Financeiro', icon: DollarSign, path: `${basePath}/financeiro` },
-    ...(isOwner || isAdmin ? [{ label: 'Central de Cobranças', icon: DollarSign, path: '/financeiro/cobrancas' }] : []),
+    ...(isOwner || isAdmin ? [{ label: 'Central de Cobranças', icon: DollarSign, path: `${basePath}/financeiro/cobrancas` }] : []),
     { label: 'BI & Relatórios', icon: BarChart3, path: `${basePath}/bi` },
     // MENSAGENS: entra logo abaixo de BI & Relatórios em todos os painéis
     { label: 'Mensagens', icon: Bell, path: `${basePath}/central`, badge: totalNaoLidas },

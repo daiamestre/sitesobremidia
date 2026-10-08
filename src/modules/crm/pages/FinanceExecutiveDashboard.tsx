@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { financeiroService } from '../services/financeiro.service';
+import { ResumoFinanceiro } from '../components/financeiro/ResumoFinanceiro';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,19 +9,18 @@ import { DollarSign, TrendingUp, AlertTriangle, ArrowLeft, BarChart3, PieChart, 
 
 export default function FinanceExecutiveDashboard() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  
-  // Zero Mock - Inicializando dados vazios
-  const [metrics, setMetrics] = useState({
-    mrr: 0,
-    arr: 0,
-    ticketMedio: 0,
-    inadimplencia: 0
+  // F-171: números reais (cobranças, pagamentos recebidos, comissões) — antes eram zeros fixos
+  const { data: r, isLoading: loading } = useQuery({
+    queryKey: ['financeiro-resumo', 'executivo'],
+    queryFn: () => financeiroService.getResumoFinanceiro(),
+    staleTime: 30_000,
   });
-
-  useEffect(() => {
-    setLoading(false);
-  }, []);
+  const metrics = {
+    mrr: r?.mrr ?? 0,
+    arr: (r?.mrr ?? 0) * 12,
+    ticketMedio: r?.ticket_medio ?? 0,
+    inadimplencia: r?.inadimplencia_pct ?? 0,
+  };
 
   const getBasePath = () => window.location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
 
@@ -44,6 +45,15 @@ export default function FinanceExecutiveDashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => navigate(`${getBasePath()}/financeiro/cobrancas`)} variant="outline" className="border-rose-500/30 text-rose-400 rounded-xl text-xs gap-1.5" data-testid="ir-cobrancas">
+            <AlertTriangle className="h-4 w-4" /> Central de Cobranças
+          </Button>
+          <Button onClick={() => navigate(`${getBasePath()}/financeiro/fluxo-caixa`)} variant="outline" className="border-emerald-500/30 text-emerald-400 rounded-xl text-xs gap-1.5" data-testid="ir-fluxo-caixa">
+            <Landmark className="h-4 w-4" /> Fluxo de Caixa
+          </Button>
+          <Button onClick={() => navigate(`${getBasePath()}/financeiro/recebiveis`)} variant="outline" className="border-sky-500/30 text-sky-400 rounded-xl text-xs gap-1.5" data-testid="ir-recebiveis">
+            <DollarSign className="h-4 w-4" /> Contas a Receber
+          </Button>
           <Button onClick={() => navigate(`${getBasePath()}/financeiro/dre`)} variant="outline" className="border-blue-500/30 text-blue-400 rounded-xl text-xs gap-1.5">
             <FileText className="h-4 w-4" /> DRE
           </Button>
@@ -63,7 +73,7 @@ export default function FinanceExecutiveDashboard() {
               <TrendingUp className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-slate-400 text-xs block font-semibold">MRR (Receita Recorrente)</span>
+              <span className="text-slate-400 text-xs block font-semibold">MRR (cobranças mensais do mês)</span>
               <strong className="text-lg font-bold text-emerald-400">
                 {metrics.mrr > 0 ? `R$ ${metrics.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00'}
               </strong>
@@ -77,7 +87,7 @@ export default function FinanceExecutiveDashboard() {
               <DollarSign className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-slate-400 text-xs block font-semibold">ARR (Receita Anual)</span>
+              <span className="text-slate-400 text-xs block font-semibold">ARR (MRR × 12)</span>
               <strong className="text-lg font-bold text-blue-400">
                 {metrics.arr > 0 ? `R$ ${metrics.arr.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00'}
               </strong>
@@ -107,12 +117,14 @@ export default function FinanceExecutiveDashboard() {
             <div>
               <span className="text-slate-400 text-xs block font-semibold">Inadimplência</span>
               <strong className="text-lg font-bold text-rose-400">
-                {metrics.inadimplencia > 0 ? `${metrics.inadimplencia}%` : '0.0%'}
+                {metrics.inadimplencia > 0 ? `${metrics.inadimplencia.toLocaleString('pt-BR')}%` : '0,0%'}
               </strong>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      <ResumoFinanceiro />
     </div>
   );
 }

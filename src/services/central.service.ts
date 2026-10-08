@@ -119,7 +119,8 @@ export class CentralService {
    * regra do banco, mas isso não é "visibilidade" deles: não aparecem na lista nem no contador.
    */
   async listarNotificacoes(filtros?: FiltrosCentral): Promise<Notificacao[]> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession(); // sessão local: sem ida à rede
+    const user = session?.user;
     if (!user) return [];
     let query = supabase
       .from('notificacoes_central')

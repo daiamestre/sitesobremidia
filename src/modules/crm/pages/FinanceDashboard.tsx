@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { financeiroService, ContaReceberCompleta } from '../services/financeiro.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { FinanceList } from '../components/financeiro/FinanceList';
@@ -8,9 +8,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, Clock, CheckCircle2, Loader2, ArrowLeft, PieChart, Landmark } from 'lucide-react';
+import { ResumoFinanceiro } from '../components/financeiro/ResumoFinanceiro';
+import { areaDoCrm } from '@/lib/areaDoCrm';
 
 export default function FinanceDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = areaDoCrm(location.pathname, true); // Owner/ADM ficam no painel principal; nunca trocam de menu
   const { empresaOperadoraId } = useAuth();
   const [contas, setContas] = useState<ContaReceberCompleta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,14 +61,17 @@ export default function FinanceDashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={() => navigate('/representantes/financeiro/comissoes')} variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 rounded-xl text-xs gap-1.5">
+          <Button onClick={() => navigate(`${base}/financeiro/comissoes`)} variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 rounded-xl text-xs gap-1.5">
             <PieChart className="h-4 w-4" /> Comissões
           </Button>
-          <Button onClick={() => navigate('/representantes/financeiro/fluxo-caixa')} variant="outline" className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 rounded-xl text-xs gap-1.5">
+          <Button onClick={() => navigate(`${base}/financeiro/fluxo-caixa`)} variant="outline" className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 rounded-xl text-xs gap-1.5">
             <Landmark className="h-4 w-4" /> Fluxo de Caixa
           </Button>
         </div>
       </div>
+
+      {/* F-171: visão geral conectada a clientes, dívidas, pendências, pagamentos recebidos e Central de Cobranças */}
+      <ResumoFinanceiro />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
