@@ -1904,3 +1904,10 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Tamanho real medido** (publicação no ar, commit 5d11c3a): `api/analise-audio` 47,9 MB + `api/analise-visao` 43,9 MB + `api/cobranca-og` ~0 = ~92 MB por publicação.
 - **Limpeza executada:** `limpar-deploys-vercel.mjs --executar` apagou 240 publicações (a API limitou a velocidade em parte das chamadas — HTTP 429 —; o script agora espera e repete). **De 304 para 64 publicações guardadas.** Protegidas: a que está no ar, as 5 produções mais recentes e tudo com menos de 7 dias. Site conferido antes e depois: HTTP 200, versões novas no ar.
 - **Script corrigido:** usa a equipe (`VERCEL_TEAM_ID`) e o projeto (`VERCEL_PROJECT_ID`) do cofre; se não souber qual é a publicação no ar, não apaga nada.
+
+### F-161 — Nome da mídia preenchido sozinho no envio (vídeo, imagem e áudio) — DONE
+- **Pedido do proprietário:** no envio de vídeos, imagens e áudios o campo "Nome" tem que se preencher automaticamente com o nome da própria mídia.
+- **Regra:** o campo acompanha o nome do arquivo **sem a extensão** (`Promoção de Verão 2026.mp4` → "Promoção de Verão 2026"); só a última extensão sai, o resto do nome fica como está, no máximo 120 caracteres. Vale na janela de envio compartilhada: Minhas Mídias (inclui a pasta de áudios e "Enviar áudio"), Biblioteca e Rádio Comércio.
+- **Vários arquivos:** o campo mostra o 1º e avisa "cada um será salvo com o próprio nome"; cada arquivo é gravado com o seu nome. Se a pessoa digitar um nome, ele vale e, em envio de vários, vira prefixo numerado (como já era: "Nome 01", "Nome 02"…); apagar o campo volta ao automático.
+- **Nome em branco não trava mais o envio** (cada arquivo usa o próprio nome). Na edição de uma mídia já salva o nome continua obrigatório e **não** é trocado pelo do arquivo novo.
+- **Provado no navegador (conta de teste):** vídeo → "Promoção de Verão 2026"; 2 arquivos → aviso e 1º nome; áudio → "Jingle da loja". Testes: `nomeAutomaticoUpload.test.tsx` (13).

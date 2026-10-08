@@ -11,7 +11,7 @@ import { Upload, X, Image, Video, Music, FileIcon, CheckCircle2, Clock, Calendar
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { nomeParaEnvio } from '@/lib/nomeUpload';
+import { nomeDoArquivo, nomeFinalDoArquivo, nomeParaEnvio } from '@/lib/nomeUpload';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -200,6 +200,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
 
   // Form fields
   const [mediaName, setMediaName] = useState('');
+  // F-161: o nome vem sozinho do arquivo; só vira "do usuário" quando ele mexe no campo
+  const [nomeAlterado, setNomeAlterado] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [segment, setSegment] = useState('');
   // Depois de uma tentativa de envio, os campos obrigatórios vazios ficam marcados (o aviso sozinho some em segundos).
@@ -243,6 +245,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     } else if (open) {
       // Reset for new upload
       setMediaName('');
+      setNomeAlterado(false);
       setMostrarErros(false);
       setAspectRatio('16x9');
       setMediaDuration(10);
@@ -266,6 +269,11 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
 
   const tiposAceitos = somenteAudio ? ACCEPTED_TYPES.audio : [...ACCEPTED_TYPES.image, ...ACCEPTED_TYPES.video, ...ACCEPTED_TYPES.audio];
   const acceptedMimeTypes = tiposAceitos.join(',');
+
+  useEffect(() => {
+    if (isEditMode || nomeAlterado) return;
+    setMediaName(files[0] ? nomeDoArquivo(files[0].file.name) : '');
+  }, [files, nomeAlterado, isEditMode]);
 
   const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
@@ -367,12 +375,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
       return;
     }
 
-    if (!mediaName.trim() || (!somenteAudio && (!companyName.trim() || !segment))) setMostrarErros(true);
-
-    if (!mediaName.trim()) {
-      toast.error('Por favor, preencha o nome da mídia');
-      return;
-    }
+    if (!somenteAudio && (!companyName.trim() || !segment)) setMostrarErros(true);
 
     if (!somenteAudio && !companyName.trim()) {
       toast.error('Por favor, preencha o nome da empresa');
@@ -479,8 +482,8 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
           throw presignedErr;
         }
 
-        // Nome digitado; em envio múltiplo vira prefixo numerado ("Nome 01", "Nome 02"…). Sem nome: o do arquivo.
-        const finalName = nomeParaEnvio(mediaName, i, files.length) || uploadFile.file.name;
+        // Nome do próprio arquivo (sem extensão); se a pessoa digitou outro, ele vale (vários: prefixo numerado "Nome 01", "Nome 02"…).
+        const finalName = nomeFinalDoArquivo({ digitado: mediaName, alterado: nomeAlterado, arquivo: uploadFile.file.name, indice: i, total: files.length });
 
         // Upload thumbnail if exists
         let thumbnailUrl: string | null = null;
@@ -779,6 +782,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
     if (!isUploading) {
       setFiles([]);
       setMediaName('');
+      setNomeAlterado(false);
       setCompanyName('');
       setSegment('');
       setMediaDuration(10);
@@ -824,14 +828,17 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
             <Label htmlFor="mediaName">{somenteAudio ? 'Nome do áudio' : 'Nome da Mídia'}</Label>
             <Input
               id="mediaName"
-              placeholder={somenteAudio ? 'Digite o nome do áudio' : 'Digite o nome da mídia'}
+              placeholder={isEditMode ? (somenteAudio ? 'Digite o nome do áudio' : 'Digite o nome da mídia') : 'Preenchido sozinho com o nome do arquivo'}
               value={mediaName}
-              onChange={(e) => setMediaName(e.target.value)}
-              aria-invalid={mostrarErros && !mediaName.trim()}
-              className={mostrarErros && !mediaName.trim() ? 'border-destructive' : undefined}
+              onChange={(e) => { setMediaName(e.target.value); setNomeAlterado(e.target.value.trim() !== ''); }}
+              aria-invalid={mostrarErros && isEditMode && !mediaName.trim()}
+              className={mostrarErros && isEditMode && !mediaName.trim() ? 'border-destructive' : undefined}
             />
-            {mostrarErros && !mediaName.trim() && <p className="text-xs text-destructive">Preencha o nome da mídia.</p>}
-            {!isEditMode && files.length > 1 && mediaName.trim() && (
+            {mostrarErros && isEditMode && !mediaName.trim() && <p className="text-xs text-destructive">Preencha o nome da mídia.</p>}
+            {!isEditMode && files.length > 1 && !nomeAlterado && (
+              <p className="text-xs text-muted-foreground" data-testid="dica-nomes-proprios">{files.length} arquivos: cada um será salvo com o próprio nome. Para dar outro nome a todos, digite aqui.</p>
+            )}
+            {!isEditMode && files.length > 1 && nomeAlterado && mediaName.trim() && (
               <p className="text-xs text-muted-foreground" data-testid="dica-nomes">
                 {files.length} arquivos: serão salvos como “{nomeParaEnvio(mediaName, 0, files.length)}”, “{nomeParaEnvio(mediaName, 1, files.length)}”…
               </p>
