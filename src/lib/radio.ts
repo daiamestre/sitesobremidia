@@ -22,6 +22,13 @@ export function modoDeSomDaTela(t: { audio_enabled?: boolean | null; radio_ativa
   return t.audio_enabled === true ? 'MIDIAS' : 'MUDO';
 }
 
+/** Frase de estado do som da tela (cartão da Rádio Comércio). */
+export function textoDoSom(modo: ModoDeSom, radio: string | null, volume: number): string {
+  if (modo === 'RADIO') return `No ar: ${radio ? `"${radio}"` : 'Rádio Comércio'} · volume ${volume}% — os vídeos ficam em silêncio.`;
+  if (modo === 'MIDIAS') return 'Som das mídias ligado — a rádio está desligada.';
+  return 'Tela em silêncio: sem rádio e sem som das mídias (as mídias rodam mudas).';
+}
+
 /** "3:05" */
 export function duracaoDaFaixa(ms: number | null | undefined): string {
   if (!ms || ms <= 0) return '—';

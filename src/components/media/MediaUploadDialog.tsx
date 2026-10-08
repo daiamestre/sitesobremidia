@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { nomeDoArquivo, nomeFinalDoArquivo, nomeParaEnvio } from '@/lib/nomeUpload';
+import { PreviaDeAudio } from '@/components/audio/PreviaDeAudio';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -814,10 +815,14 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                 ) : editMedia?.file_type === 'image' ? (
                   <img src={editMedia.file_url} className="h-full object-contain" alt={editMedia.name} />
                 ) : (
+                  editMedia?.file_type === 'audio' && editMedia.file_url ? (
+                    <div className="w-full px-3 pb-3"><PreviaDeAudio src={editMedia.file_url} titulo={editMedia.name} /></div>
+                  ) : (
                   <div className="flex flex-col items-center text-muted-foreground">
                     <Music className="h-8 w-8" />
                     <span className="text-xs mt-1">Áudio</span>
                   </div>
+                  )
                 )}
               </div>
             </div>
@@ -1057,7 +1062,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
 
           {/* File List */}
           {files.length > 0 && (
-            <div className="space-y-2 max-h-40 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto">
               {files.map((uploadFile, index) => (
                 <div
                   key={index}
@@ -1085,6 +1090,9 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
                       {formatFileSize(uploadFile.file.size)}
                       {uploadFile.durationMs ? ` · ${formatDurationMs(uploadFile.durationMs)}` : uploadFile.durationSeconds ? ` · ${formatTotalDuration(uploadFile.durationSeconds)}` : ''}
                     </p>
+                    {getFileType(uploadFile.file.type) === 'audio' && uploadFile.status !== 'complete' && (
+                      <div className="mt-1.5" data-testid="previa-do-envio"><PreviaDeAudio arquivo={uploadFile.file} titulo={uploadFile.file.name} duracaoMs={uploadFile.durationMs} /></div>
+                    )}
                     {uploadFile.status === 'uploading' && (
                       <div className="mt-1">
                         <Progress value={uploadFile.progress} className="h-1.5" />

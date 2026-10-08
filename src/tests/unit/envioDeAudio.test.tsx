@@ -86,7 +86,7 @@ describe('quem abre a janela de áudio', () => {
     expect(src).toContain('somenteAudio={envioSomenteAudio && !editMedia}');
   });
   it('Rádio Comércio: envia áudio na própria página (janela só de áudio) e atualiza a lista', () => {
-    const src = ler('src/pages/dashboard/RadioComercio.tsx');
+    const src = ler('src/components/radio/PainelDaRadio.tsx');
     expect(src).toContain('<MediaUploadDialog open={enviarAudio}');
     expect(src).toContain('somenteAudio semPlaylist');
     expect(src).toContain('data-testid="enviar-audio-radio"');

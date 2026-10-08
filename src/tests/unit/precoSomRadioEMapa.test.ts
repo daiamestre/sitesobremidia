@@ -65,8 +65,8 @@ describe('som: só a mídia principal, comandado pela tela', () => {
     expect(modoDeSomDaTela({ audio_enabled: true })).toBe('MIDIAS');
     expect(modoDeSomDaTela({ audio_enabled: true, radio_ativa: true, radio_playlist_id: 'r1' })).toBe('RADIO');
     expect(modoDeSomDaTela({ radio_ativa: true, radio_playlist_id: null })).toBe('MUDO'); // rádio sem playlist não toca
-    const cartao = readFileSync('src/components/radio/SomDaTela.tsx', 'utf8');
-    for (const t of ['data-testid={`som-${m.toLowerCase()}`}', 'Adicionar áudio nesta tela']) expect(cartao).toContain(t);
+    const cartao = readFileSync('src/components/radio/RadioDaTela.tsx', 'utf8');
+    for (const t of ['data-testid="radio-ligada"', 'data-testid="som-midias-ligado"']) expect(cartao).toContain(t);
   });
 });
 
@@ -112,9 +112,9 @@ describe('Rádio Comércio', () => {
     expect(trecho('CREATE OR REPLACE FUNCTION public.fn_definir_som_da_tela', '$$;')).toContain('IF NOT public.fn_pode_gerir_layout_da_tela(p_screen) THEN');
   });
 
-  it('página e menu existem', () => {
+  it('a página continua na rota, mas o menu lateral não tem mais a Rádio Comércio (ela vive no cartão de cada tela — F-162)', () => {
     expect(readFileSync('src/App.tsx', 'utf8')).toContain('<Route path="radio" element={<RadioComercio />} />');
-    expect(readFileSync('src/components/dashboard/Sidebar.tsx', 'utf8')).toContain("label: 'Rádio Comércio', path: '/dashboard/radio'");
+    expect(readFileSync('src/components/dashboard/Sidebar.tsx', 'utf8')).not.toContain('Rádio Comércio');
   });
 });
 

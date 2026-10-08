@@ -4,6 +4,7 @@ import { Download, X, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { Media } from '@/types/models';
 import { useRef, useState, useEffect } from 'react';
 import { VideoPlayer, VideoPlayerRef } from '@/components/media/VideoPlayer';
+import { PreviaDeAudio } from '@/components/audio/PreviaDeAudio';
 
 interface MediaPreviewDialogProps {
   media: Media | null;
@@ -126,12 +127,7 @@ export function MediaPreviewDialog({ media, open, onOpenChange }: MediaPreviewDi
 
           {media.file_type === 'audio' && (
             <div className="p-8 w-full">
-              <audio
-                src={media.file_url}
-                controls
-                autoPlay
-                className="w-full"
-              />
+              <PreviaDeAudio src={media.file_url} titulo={media.name} duracaoMs={(media as { duration_ms?: number | null }).duration_ms} tocarAoAbrir />
             </div>
           )}
         </div>

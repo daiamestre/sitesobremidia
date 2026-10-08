@@ -13,7 +13,7 @@ import { inserirNaPosicao, resolverEscolhas, type Escolha, type Posicao } from '
 import { ClienteDaTela } from '@/components/screens/ClienteDaTela';
 import { DivisaoDaTela } from '@/components/screens/EditorDeZonas';
 import { SeletorDeZonaDoGrafico } from '@/components/screens/SeletorDeZonaDoGrafico';
-import { SomDaTela } from '@/components/radio/SomDaTela';
+import { RadioDaTela } from '@/components/radio/RadioDaTela';
 import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -1234,6 +1234,12 @@ return (
             {/* F-147: divisão da tela em zonas */}
             <DivisaoDaTela tela={{ id: screen.id, name: screen.name, resolution: screen.resolution, orientation: screen.orientation, user_id: (screen as { user_id?: string | null }).user_id }} />
 
+            {/* F-162: Rádio Comércio desta tela (abaixo da divisão por zonas): liga/desliga a rádio e o som das mídias, que nunca tocam juntos */}
+            <RadioDaTela
+                tela={{ id: screen.id, name: screen.name, audio_enabled: screen.audio_enabled, ...(screen as unknown as { radio_ativa?: boolean | null; radio_playlist_id?: string | null; radio_volume?: number | null }) }}
+                aoMudar={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
+            />
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Charts & Controls */}
                 <div className="lg:col-span-2 space-y-6">
@@ -1358,12 +1364,6 @@ return (
                                         onAlterado={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
                                     />
                                 )}
-
-                                {/* F-150: som da tela — sem áudio (padrão), som das mídias ou Rádio Comércio */}
-                                <SomDaTela
-                                    tela={{ id: screen.id, name: screen.name, audio_enabled: screen.audio_enabled, ...(screen as unknown as { radio_ativa?: boolean | null; radio_playlist_id?: string | null; radio_volume?: number | null }) }}
-                                    aoMudar={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
-                                />
 
                                 <Button
                                     className="w-full h-12 flex items-center gap-2"
