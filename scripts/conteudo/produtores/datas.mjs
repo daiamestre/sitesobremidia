@@ -1,8 +1,11 @@
 /**
  * Datas Comemorativas (F-95): as próximas 10 datas nacionais (feriados e datas do comércio), calculadas aqui — as
- * móveis (Carnaval, Páscoa, Corpus Christi, Dia das Mães/Pais, Black Friday) pela regra oficial. Sem fonte externa.
+ * móveis (Carnaval, Páscoa, Corpus Christi, Dia das Mães/Pais, Black Friday) pela regra oficial. Sem fonte externa para a data.
+ * F-163: cada data leva uma FOTO que combina (Natal, Páscoa, Dia das Mães…), com o crédito no pé; sem foto, volta ao degradê.
  */
-import { esc, pagina, GRADIENTES } from '../arte-base.mjs';
+import { GRADIENTES } from '../arte-base.mjs';
+import { cartaoData } from '../arte-foto.mjs';
+import { buscarFoto } from '../fotos.mjs';
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const DIAS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
@@ -19,6 +22,38 @@ const somar = (d, n) => new Date(d.getTime() + n * 86400e3);
 const utc = (a, m, d) => new Date(Date.UTC(a, m - 1, d));
 /** n-ésimo `diaSemana` (0=dom) do mês. */
 const nEsimo = (a, m, diaSemana, n) => { const p = utc(a, m, 1); return somar(p, ((diaSemana - p.getUTCDay() + 7) % 7) + (n - 1) * 7); };
+
+/** Termo de busca (inglês) da foto de cada data. */
+export const FOTO_DA_DATA = {
+  'Confraternização Universal': 'new year fireworks celebration',
+  'Carnaval': 'brazilian carnival costume',
+  'Dia Internacional da Mulher': 'smiling women group flowers',
+  'Dia do Consumidor': 'happy customer shopping',
+  'Sexta-feira Santa': 'candles peaceful',
+  'Páscoa': 'easter eggs chocolate',
+  'Tiradentes': 'brazil flag waving',
+  'Dia do Trabalhador': 'workers teamwork smiling',
+  'Dia das Mães': 'mother and daughter hugging',
+  'Corpus Christi': 'colorful flower petals carpet',
+  'Dia dos Namorados': 'couple romantic sunset',
+  'São João': 'festa junina flags bonfire',
+  'Dia do Amigo': 'friends hugging sunset',
+  'Dia dos Avós': 'grandparents with grandchildren',
+  'Dia dos Pais': 'father and son playing',
+  'Independência do Brasil': 'brazil flag green yellow',
+  'Dia do Cliente': 'customer service smile store',
+  'Dia da Árvore': 'tree forest sunlight',
+  'Dia do Idoso': 'elderly couple smiling',
+  'Dia das Crianças e Nossa Senhora Aparecida': 'children playing happy',
+  'Dia do Professor': 'teacher classroom students',
+  'Finados': 'white roses peaceful',
+  'Proclamação da República': 'brazil flag',
+  'Dia da Consciência Negra': 'brazilian culture celebration',
+  'Black Friday': 'black friday sale shopping',
+  'Véspera de Natal': 'christmas tree lights family',
+  'Natal': 'christmas tree gifts',
+  'Réveillon': 'new year eve fireworks beach',
+};
 
 export function datasDoAno(ano) {
   const p = pascoa(ano);
@@ -52,7 +87,7 @@ export function datasDoAno(ano) {
     [utc(ano, 12, 24), 'Véspera de Natal', 'Que a magia do Natal ilumine a sua casa.', 'vinho'],
     [utc(ano, 12, 25), 'Natal', 'Feliz Natal! Paz, amor e união para você e sua família.', 'vinho'],
     [utc(ano, 12, 31), 'Réveillon', 'Adeus ano velho, feliz ano novo! Boas festas!', 'dourado'],
-  ].map(([data, nome, mensagem, cor]) => ({ data: data.toISOString().slice(0, 10), nome, mensagem, cor }));
+  ].map(([data, nome, mensagem, cor]) => ({ data: data.toISOString().slice(0, 10), nome, mensagem, cor, foto: FOTO_DA_DATA[nome] ?? null }));
 }
 
 /** As próximas `n` datas a partir de hoje (Brasília), incluindo hoje. */
@@ -61,24 +96,23 @@ export function proximasDatas(hojeIso, n = 10) {
   return [...datasDoAno(ano), ...datasDoAno(ano + 1)].filter((d) => d.data >= hojeIso).sort((a, b) => a.data.localeCompare(b.data)).slice(0, n);
 }
 
-export function htmlData(d, hojeIso, w, h) {
-  const v = h > w;
+export function htmlData(d, hojeIso, w, h, foto = null) {
   const [a, m, dia] = d.data.split('-').map(Number);
   const semana = DIAS[new Date(Date.UTC(a, m - 1, dia)).getUTCDay()];
-  const css = `
-.meio{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
-.dia{font-weight:900;line-height:.9;font-size:${v ? 300 : 260}px;color:#FFD400;text-shadow:0 12px 40px rgba(0,0,0,.45)}
-.mes{font-weight:900;letter-spacing:.14em;font-size:${v ? 70 : 64}px;text-transform:uppercase}
-.sem{font-weight:700;font-size:${v ? 40 : 36}px;opacity:.85;margin-top:8px}
-.nome{font-weight:900;line-height:1.08;font-size:${v ? 84 : 80}px;margin-top:${v ? 60 : 36}px;max-width:${v ? 940 : 1500}px}
-.msg{font-weight:600;line-height:1.35;font-size:${v ? 40 : 36}px;margin-top:${v ? 34 : 22}px;opacity:.92;max-width:${v ? 900 : 1300}px}
-.hoje{display:inline-block;margin-top:${v ? 36 : 22}px;background:#fff;color:#1a1033;font-weight:900;letter-spacing:.14em;font-size:${v ? 40 : 34}px;padding:12px 34px;border-radius:999px}`;
-  const corpo = `<div class="meio"><div class="dia">${String(dia).padStart(2, '0')}</div><div class="mes">de ${MESES[m - 1]}</div><div class="sem">${semana}</div>
-  <div class="nome">${esc(d.nome)}</div><div class="msg">${esc(d.mensagem)}</div>${d.data === hojeIso ? '<div><span class="hoje">É HOJE!</span></div>' : ''}</div>`;
-  return pagina({ w, h, fundo: GRADIENTES[d.cor] ?? GRADIENTES.roxo, selo: 'DATAS COMEMORATIVAS', corpo, css, escuro: 0.1 });
+  return cartaoData({ dia, mes: MESES[m - 1], semana, nome: d.nome, mensagem: d.mensagem, ehHoje: d.data === hojeIso, fundo: GRADIENTES[d.cor] ?? GRADIENTES.roxo, foto }, w, h);
 }
 
-export function produzirDatas(hojeIso) {
-  return { datas: proximasDatas(hojeIso).map((d) => ({ chave: `d-${d.data}`, nome: `${d.nome} — ${d.data.split('-').reverse().join('/')}`,
-    descricao: d.mensagem, html: (w, h) => htmlData(d, hojeIso, w, h) })) };
+/**
+ * @param {string} hojeIso
+ * @param {{ chaves: { pexels?: string, pixabay?: string }, cache: import('../fotos.mjs').CacheDeFotos, opcoes?: object } | null} ctx `null` = sem fotos
+ */
+export async function produzirDatas(hojeIso, ctx = null) {
+  const itens = [];
+  for (const d of proximasDatas(hojeIso)) {
+    const par = { landscape: null, portrait: null };
+    if (ctx && d.foto) for (const o of ['landscape', 'portrait']) { try { par[o] = await buscarFoto(ctx.chaves, ctx.cache, d.foto, o, `d-${d.data}`, ctx.opcoes); } catch { par[o] = null; } }
+    itens.push({ chave: `d-${d.data}`, nome: `${d.nome} — ${d.data.split('-').reverse().join('/')}`, descricao: d.mensagem, foto: d.foto,
+      html: (w, h) => htmlData(d, hojeIso, w, h, par[h > w ? 'portrait' : 'landscape']) });
+  }
+  return { datas: itens };
 }

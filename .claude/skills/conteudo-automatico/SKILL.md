@@ -18,8 +18,8 @@ description: Robô que abastece as pastas automáticas da Biblioteca do SOBRE M�
 | loterias, sorteios | `loterias.mjs` (API da CAIXA + espelho) | a cada sorteio |
 | noticias, cinema, turismo, esportes, futebol | `produtores/noticias.mjs` + `scripts/conteudo/rss.mjs` (foto da notícia com crédito) | 3 h |
 | campeonato-<slug>, jogos-rodada (sem odds) | `campeonatos.mjs` (dados de `conteudo_esportes_dados()`) | rodada |
-| datas | `datas.mjs` (calendário; Páscoa por Meeus) | diária |
-| charadas, humor, memes, curiosidades, nostalgia | `produtores/textos.mjs` + `scripts/conteudo/bancos*.mjs` (conteúdo próprio) | 3 dias |
+| datas | `datas.mjs` (calendário; Páscoa por Meeus) + foto da data (`FOTO_DA_DATA`) | diária |
+| charadas, humor, memes, curiosidades, nostalgia | `produtores/textos.mjs` + `bancos-humor.mjs`/`bancos-geral.mjs` (texto próprio, cada item com `foto`) + `fotos.mjs`/`arte-foto.mjs` (foto Pexels/Pixabay com crédito) | 3 dias |
 | vídeos em turismo, curiosidades, humor, cinema, nostalgia | `videos.mjs` (Pexels + Pixabay, até 30 s e 30 MB) | semanal |
 
 ## Criar uma pasta automática nova
@@ -32,7 +32,7 @@ description: Robô que abastece as pastas automáticas da Biblioteca do SOBRE M�
 
 ## Decisões do proprietário (não perguntar de novo)
 - Foto da própria notícia, sem alterar, com o crédito na tela.
-- Memes e humor só com conteúdo próprio.
+- Memes e humor: texto próprio; **toda arte leva foto que combina com o texto** (Pexels/Pixabay, crédito na arte; cache em `conteudo/_cache/fotos-v1.json` no R2). Item novo nos bancos precisa de `foto` (termo em inglês, até 6 palavras); o teste barra o que não tiver.
 - Apostas: jogos da rodada, **sem odds**.
 - Vídeos hospedados no R2 (nunca link direto para a fonte).
 - **Vídeos de esporte acabaram (08/10/2026):** a pasta "Vídeos Esporte" foi apagada e o robô não busca vídeo de esporte. As pastas Esportes/Futebol (notícias) e os campeonatos continuam. Pasta que o dono manda acabar entra em `APOSENTADAS` (robo.mjs + Edge Function + `conteudo_auto_aposentar`).

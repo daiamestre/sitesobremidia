@@ -6,7 +6,8 @@
  */
 import crypto from 'node:crypto';
 import { chromium } from 'playwright';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { CacheDeFotos, CACHE_CAMINHO } from './fotos.mjs';
 import { produzirLoterias } from './produtores/loterias.mjs';
 import { produzirNoticias } from './produtores/noticias.mjs';
 import { produzirCampeonatos } from './produtores/campeonatos.mjs';
@@ -18,7 +19,7 @@ const env = (k) => { const v = process.env[k]; if (!v) throw new Error(`variáve
 const PUBLICO = 'https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/';
 const ORIENTACOES = [['h', 1920, 1080, '16x9', 'horizontal'], ['v', 1080, 1920, '9x16', 'vertical']];
 /** Mudou o desenho? Suba a versão para as telas receberem as artes novas. Loterias mantêm a versão da 1ª publicação. */
-const VERSAO = (conteudo) => (conteudo === 'loterias' || conteudo === 'sorteios' ? 'loterias-v1' : 'conteudo-v1');
+const VERSAO = (conteudo) => (conteudo === 'loterias' || conteudo === 'sorteios' ? 'loterias-v1' : 'conteudo-v2');
 const hojeBrasilia = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
 /** F-163: pastas que o proprietário mandou acabar. O robô garante que sumiram (e apaga os arquivos do R2); sem pasta, é só um "nada a fazer". */
@@ -56,11 +57,22 @@ async function main() {
   await rodar('loterias', () => produzirLoterias(hoje));
   await rodar('noticias', async () => produzirNoticias({ esportesNews: await chamar({ dados: 'esportes-news' }) }));
   await rodar('campeonatos', async () => produzirCampeonatos(await chamar({ dados: 'esportes' })));
-  await rodar('datas', async () => produzirDatas(hoje));
-  await rodar('textos', async () => produzirTextos());
+  // F-163: fotos de apoio (piadas, charadas, memes, curiosidades, nostalgia e datas). A foto de cada termo fica guardada no R2:
+  // as telas não trocam de foto a cada rodada e a cota gratuita do Pexels/Pixabay não estoura. Sem chaves, as artes saem com o degradê.
+  const chavesFoto = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY };
+  let cacheFotos = new CacheDeFotos();
+  try { const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: CACHE_CAMINHO })); cacheFotos = CacheDeFotos.de(await r.Body.transformToString()); }
+  catch { console.log('[fotos] sem cache ainda (primeira vez ou indisponível)'); }
+  const ctxFotos = chavesFoto.pexels || chavesFoto.pixabay ? { chaves: chavesFoto, cache: cacheFotos } : null;
+  await rodar('datas', async () => produzirDatas(hoje, ctxFotos));
+  await rodar('textos', async () => produzirTextos(ctxFotos));
+  if (cacheFotos.sujo) {
+    try { await s3.send(new PutObjectCommand({ Bucket: bucket, Key: CACHE_CAMINHO, Body: cacheFotos.json(), ContentType: 'application/json' })); console.log('[fotos] cache atualizado'); }
+    catch (e) { console.log(`[fotos] cache não gravado: ${e.message}`); }
+  }
   // Vídeos (Pexels/Pixabay): Turismo, Curiosidades, Humor, Cinema e Nostalgia juntam vídeos às artes. Se a busca de vídeo
   // falhar, essas pastas mistas não são publicadas nesta rodada (senão os vídeos que já estão nelas sairiam).
-  const chavesVideo = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY };
+  const chavesVideo = chavesFoto;
   let videoFalhou = !chavesVideo.pexels && !chavesVideo.pixabay;
   if (!videoFalhou) {
     try {

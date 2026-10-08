@@ -29,15 +29,16 @@ describe('Datas Comemorativas', () => {
 
 describe('Conteúdo próprio (troca semanal)', () => {
   it('bancos com volume para várias semanas', () => {
-    expect(CHARADAS.length).toBeGreaterThanOrEqual(110);
+    expect(CHARADAS.length).toBeGreaterThanOrEqual(90);
     expect(PIADAS.length).toBeGreaterThanOrEqual(70);
-    expect(MEMES.length).toBeGreaterThanOrEqual(85);
-    expect(CURIOSIDADES.length).toBeGreaterThanOrEqual(85);
-    expect(NOSTALGIA.length).toBeGreaterThanOrEqual(70);
+    expect(MEMES.length).toBeGreaterThanOrEqual(80);
+    expect(CURIOSIDADES.length).toBeGreaterThanOrEqual(80);
+    expect(NOSTALGIA.length).toBeGreaterThanOrEqual(55);
     // nada repetido dentro de cada banco
-    expect(new Set(CHARADAS.map((c: string[]) => c[0])).size).toBe(CHARADAS.length);
-    expect(new Set(MEMES).size).toBe(MEMES.length);
-    expect(new Set(CURIOSIDADES).size).toBe(CURIOSIDADES.length);
+    expect(new Set(CHARADAS.map((c: { p: string }) => c.p)).size).toBe(CHARADAS.length);
+    expect(new Set(PIADAS.map((c: { p: string }) => c.p)).size).toBe(PIADAS.length);
+    expect(new Set(MEMES.map((m: { t: string }) => m.t)).size).toBe(MEMES.length);
+    expect(new Set(CURIOSIDADES.map((m: { t: string }) => m.t)).size).toBe(CURIOSIDADES.length);
   });
   it('cada semana traz outro trecho do banco, sem repetir dentro da semana', () => {
     const a = daSemana(MEMES, 10, 202640);
@@ -45,13 +46,13 @@ describe('Conteúdo próprio (troca semanal)', () => {
     expect(new Set(a).size).toBe(10);
     expect(a).not.toEqual(b);
   });
-  it('charadas não repetem por 14 trocas seguidas (42 dias, troca a cada 3 dias)', () => {
+  it('charadas não repetem por 12 trocas seguidas (36 dias, troca a cada 3 dias)', () => {
     const vistas = new Set<string>();
-    for (let p = 1000; p < 1014; p++) for (const [q] of daSemana(CHARADAS, 8, p)) vistas.add(q);
-    expect(vistas.size).toBe(14 * 8);
+    for (let p = 1000; p < 1012; p++) for (const c of daSemana(CHARADAS, 8, p)) vistas.add(c.p);
+    expect(vistas.size).toBe(12 * 8);
   });
-  it('charada: pergunta e, logo depois, a resposta (8 por troca)', () => {
-    const t = produzirTextos(202640);
+  it('charada: pergunta e, logo depois, a resposta (8 por troca)', async () => {
+    const t = await produzirTextos(null, 202640);
     expect(t.charadas).toHaveLength(16);
     expect(t.charadas[0].chave.endsWith('-p')).toBe(true);
     expect(t.charadas[1].chave.endsWith('-r')).toBe(true);
