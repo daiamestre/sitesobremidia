@@ -5,13 +5,16 @@
  *
  * Autenticação: Authorization: Bearer <CONTENT_FACTORY_SECRET> (segredo só do robô; nunca a chave service_role).
  * Corpo: { "conteudo": "loterias", "itens": [{ chave, nome, descricao?, url, path, hash, bytes, mime, tipo, aspecto }] }
- *   ou { "dados": "esportes" | "esportes-news" } (leitura dos dados globais que o robô desenha).
+ *   ou { "dados": "esportes" | "esportes-news" } (leitura dos dados globais que o robô desenha)
+ *   ou { "aposentar": "videos-esporte" } (F-163: a pasta deixou de existir; o banco apaga e devolve os arquivos do R2).
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 const SEGREDO = Deno.env.get('CONTENT_FACTORY_SECRET');
 const PREFIXO_URL = 'https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/conteudo/';
+/** Pastas que o proprietário mandou acabar (a lista que vale também está no banco, em conteudo_auto_aposentar). */
+const APOSENTADAS = ['videos-esporte'];
 
 const resposta = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
@@ -19,8 +22,13 @@ Deno.serve(async (req) => {
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
   if (!SEGREDO || token.length < 32 || token !== SEGREDO) return resposta(401, { error: 'nao_autorizado' });
   if (req.method !== 'POST') return resposta(405, { error: 'metodo' });
-  let corpo: { conteudo?: string; itens?: Array<Record<string, unknown>>; dados?: string };
+  let corpo: { conteudo?: string; itens?: Array<Record<string, unknown>>; dados?: string; aposentar?: string };
   try { corpo = await req.json(); } catch { return resposta(400, { error: 'json_invalido' }); }
+  if (typeof corpo.aposentar === 'string') {
+    if (!APOSENTADAS.includes(corpo.aposentar)) return resposta(400, { error: 'conteudo_nao_aposentado' });
+    const { data, error } = await db.rpc('conteudo_auto_aposentar', { p_conteudo: corpo.aposentar });
+    return error ? resposta(500, { error: error.message }) : resposta(200, data);
+  }
   // Leitura para o robô (F-95): jogos publicados por campeonato e notícias de esporte com imagem (dados globais).
   if (corpo.dados === 'esportes') {
     const { data, error } = await db.rpc('conteudo_esportes_dados');

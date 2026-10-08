@@ -21,6 +21,8 @@ const ORIENTACOES = [['h', 1920, 1080, '16x9', 'horizontal'], ['v', 1080, 1920, 
 const VERSAO = (conteudo) => (conteudo === 'loterias' || conteudo === 'sorteios' ? 'loterias-v1' : 'conteudo-v1');
 const hojeBrasilia = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
+/** F-163: pastas que o proprietário mandou acabar. O robô garante que sumiram (e apaga os arquivos do R2); sem pasta, é só um "nada a fazer". */
+const APOSENTADAS = ['videos-esporte'];
 const seguro = (s) => String(s).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 
 async function main() {
@@ -36,6 +38,13 @@ async function main() {
     return j;
   };
   const hoje = hojeBrasilia();
+  for (const conteudo of APOSENTADAS) {
+    try {
+      const r = await chamar({ aposentar: conteudo });
+      for (const velho of r.arquivos ?? []) if (typeof velho === 'string' && velho.startsWith('conteudo/')) await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: velho })).catch(() => {});
+      if (r.pastas) console.log(`[aposentadas] ${conteudo}: pasta apagada (${r.itens} itens, ${(r.arquivos ?? []).length} arquivos removidos do R2)`);
+    } catch (e) { console.log(`[aposentadas] ${conteudo}: ${e.message}`); }
+  }
   const somente = (process.env.SOMENTE ?? '').split(',').map((x) => x.trim()).filter(Boolean);
 
   // ---- 1. produtores (cada um isolado)
@@ -49,7 +58,7 @@ async function main() {
   await rodar('campeonatos', async () => produzirCampeonatos(await chamar({ dados: 'esportes' })));
   await rodar('datas', async () => produzirDatas(hoje));
   await rodar('textos', async () => produzirTextos());
-  // Vídeos (Pexels): Vídeos Esporte só de vídeo; Turismo, Curiosidades e Humor juntam vídeos às artes. Se a busca de vídeo
+  // Vídeos (Pexels/Pixabay): Turismo, Curiosidades, Humor, Cinema e Nostalgia juntam vídeos às artes. Se a busca de vídeo
   // falhar, essas pastas mistas não são publicadas nesta rodada (senão os vídeos que já estão nelas sairiam).
   const chavesVideo = { pexels: process.env.PEXELS_API_KEY, pixabay: process.env.PIXABAY_API_KEY };
   let videoFalhou = !chavesVideo.pexels && !chavesVideo.pixabay;
@@ -57,8 +66,7 @@ async function main() {
     try {
       const vids = await produzirVideos(chavesVideo);
       for (const [conteudo, itens] of Object.entries(vids)) {
-        if (conteudo === 'videos-esporte') pastas[conteudo] = itens;
-        else if (pastas[conteudo]) pastas[conteudo] = [...pastas[conteudo], ...itens];
+        if (pastas[conteudo]) pastas[conteudo] = [...pastas[conteudo], ...itens];
       }
       console.log('[videos] ok');
     } catch (e) { videoFalhou = true; console.log(`[videos] FALHOU: ${e.message} — pastas de vídeo ficam como estão`); }

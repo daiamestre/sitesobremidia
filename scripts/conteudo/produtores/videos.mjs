@@ -1,5 +1,5 @@
 /**
- * Vídeos das pastas de vídeo (F-97/F-98) — Pexels e Pixabay (licenças de uso comercial gratuito; o crédito do autor
+ * Vídeos das pastas de vídeo (F-97/F-98; F-163: a pasta Vídeos Esporte acabou e não é mais abastecida) — Pexels e Pixabay (licenças de uso comercial gratuito; o crédito do autor
  * fica na descrição da mídia). Os arquivos são baixados e hospedados no nosso R2 (nunca link direto para o site de
  * origem). Vídeos horizontais para telas 16:9 e verticais para 9:16. Troca semanal. Só MP4 de 5 a 30 s, até 30 MB.
  */
@@ -7,10 +7,6 @@ import { semanaDoAno } from '../arte-base.mjs';
 
 /** Por pasta: quantos vídeos de cada fonte POR ORIENTAÇÃO e os termos de busca (a semana escolhe o termo e a página). */
 export const PASTAS_VIDEO = {
-  'videos-esporte': {
-    pexels: { n: 6, buscas: ['soccer', 'football stadium', 'basketball', 'running athlete', 'volleyball', 'surfing', 'cycling', 'tennis match', 'skateboarding', 'swimming'] },
-    pixabay: { n: 3, buscas: ['football', 'soccer ball', 'stadium', 'sports', 'fitness', 'marathon'] },
-  },
   turismo: {
     pexels: { n: 4, buscas: ['brazil beach', 'rio de janeiro', 'waterfall', 'tropical island', 'mountain landscape', 'city skyline night', 'amazon river'] },
     pixabay: { n: 2, buscas: ['beach', 'travel', 'brazil', 'waterfall', 'landscape'] },

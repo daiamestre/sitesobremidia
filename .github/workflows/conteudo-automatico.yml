@@ -4,6 +4,7 @@ name: Conteúdo automático (pastas da Biblioteca)
 #   Loterias/Sorteios (CAIXA), SOBREMÍDIA NEWS, Esportes, Futebol, Cinema, Turismo (notícias com foto),
 #   Brasileirão/Premier/La Liga/Champions e Apostas Esportivas (jogos, sem odds), Datas Comemorativas,
 #   Charadas, Humor, Memes, Curiosidades e Nostalgia (conteúdo próprio, troca semanal).
+# F-163: a pasta Vídeos Esporte acabou (o robô a apaga se ainda existir e não busca mais vídeo de esporte).
 # A cada 3 horas e sob demanda (entrada 'somente' = lista de pastas, ex.: noticias,datas).
 on:
   schedule:

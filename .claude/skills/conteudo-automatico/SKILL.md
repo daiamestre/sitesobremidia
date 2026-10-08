@@ -20,7 +20,7 @@ description: Robô que abastece as pastas automáticas da Biblioteca do SOBRE M�
 | campeonato-<slug>, jogos-rodada (sem odds) | `campeonatos.mjs` (dados de `conteudo_esportes_dados()`) | rodada |
 | datas | `datas.mjs` (calendário; Páscoa por Meeus) | diária |
 | charadas, humor, memes, curiosidades, nostalgia | `produtores/textos.mjs` + `scripts/conteudo/bancos*.mjs` (conteúdo próprio) | 3 dias |
-| videos-esporte (+ vídeos em turismo, curiosidades, humor, cinema, nostalgia) | `videos.mjs` (Pexels + Pixabay, até 30 s e 30 MB) | semanal |
+| vídeos em turismo, curiosidades, humor, cinema, nostalgia | `videos.mjs` (Pexels + Pixabay, até 30 s e 30 MB) | semanal |
 
 ## Criar uma pasta automática nova
 1. Escreva o produtor ou amplie um existente. Use a base visual de `arte-base.mjs` (`pagina`, `GRADIENTES`, `esc`, `cortar`).
@@ -35,3 +35,4 @@ description: Robô que abastece as pastas automáticas da Biblioteca do SOBRE M�
 - Memes e humor só com conteúdo próprio.
 - Apostas: jogos da rodada, **sem odds**.
 - Vídeos hospedados no R2 (nunca link direto para a fonte).
+- **Vídeos de esporte acabaram (08/10/2026):** a pasta "Vídeos Esporte" foi apagada e o robô não busca vídeo de esporte. As pastas Esportes/Futebol (notícias) e os campeonatos continuam. Pasta que o dono manda acabar entra em `APOSENTADAS` (robo.mjs + Edge Function + `conteudo_auto_aposentar`).
