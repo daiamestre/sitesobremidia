@@ -32,6 +32,7 @@ import {
   PenLine
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { areaDoCrm } from '@/lib/areaDoCrm';
 
 export function CrmSidebar({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean } = {}) {
   const location = useLocation();
@@ -61,7 +62,7 @@ export function CrmSidebar({ onNavigate, collapsed = false }: { onNavigate?: () 
   const podeVerDesempenhoRepresentantes = isOwner || minhasPermissoes.includes('representantes.view_performance');
 
   // Determine base path dynamically
-  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+  const basePath = areaDoCrm(location.pathname, isOwner || isAdmin);
   const isWorkspace = basePath === '/workspace';
 
   const navItems = [

@@ -31,6 +31,7 @@ import {
   Palette,
   Store,
   LayoutDashboard,
+  Building2,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
@@ -52,6 +53,16 @@ const menuItems = [
   { icon: Calendar, label: 'Relatórios', path: '/dashboard/reports' },
 ];
 
+/** Texto sob o nome no menu (nunca o código interno da empresa). */
+function rotuloDoPerfil(perfilNome: string | null | undefined, isOwner: boolean): string {
+  const p = (perfilNome || (isOwner ? 'OWNER' : '')).toUpperCase();
+  const nomes: Record<string, string> = {
+    OWNER: 'Owner', ADMIN: 'Administrador Geral', GESTOR: 'Gestor de Mídias', GERENTE: 'Gerente', FINANCEIRO: 'Financeiro',
+    FUNCIONARIO: 'Funcionário', REPRESENTANTE: 'Representante', ANUNCIANTE: 'Anunciante', CLIENTE: 'Cliente', PARCEIRO: 'Parceiro',
+  };
+  return nomes[p] || '';
+}
+
 export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void; hideCollapse?: boolean } = {}) {
   // Recolhido no computador lembrado por navegador; na gaveta (tablet/celular) sempre aberto
   const [collapsedPref, toggleCollapsed] = useSidebarCollapsed('gestor');
@@ -66,6 +77,8 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
   // MENSAGENS: entrada logo abaixo de BI & Relatórios (Relatórios) em todos os painéis
   // Central de Cobranças restrita a ADMIN/OWNER (mesma regra do módulo financeiro)
   const menuComMensagens = [
+    // F-170: Owner/ADM voltam ao painel principal (o mesmo que abre quando fazem login) acima do Dashboard do gestor
+    ...(podeTelasParceiras ? [{ icon: Building2, label: 'Painel Principal', path: '/workspace/corporate' }] : []),
     ...menuItems,
     ...((isAdmin || isOwner)
       ? [{ icon: Banknote, label: 'Central de Cobranças', path: '/financeiro/cobrancas' }]
@@ -130,7 +143,7 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
           <AvatarCabecalho />
           <div className="min-w-0">
             <p className="font-medium text-sm truncate">{profile.full_name}</p>
-            <p className="text-xs text-muted-foreground truncate">{profile.company_name}</p>
+            <p className="text-xs text-muted-foreground truncate">{rotuloDoPerfil(perfilNome, isOwner)}</p>
           </div>
         </div>
       )}

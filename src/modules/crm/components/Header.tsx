@@ -28,6 +28,8 @@ import { useCentralUnread, centralUnreadKey } from '@/hooks/useCentral';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { centralService } from '@/services/central.service';
 import { cn } from '@/lib/utils';
+import { areaDoCrm } from '@/lib/areaDoCrm';
+import { useRbac } from '@/hooks/useRbac';
 import { formatDateTime } from '@/utils/formatters';
 import { AvatarCabecalho } from '@/components/perfil/AvatarCabecalho';
 
@@ -45,7 +47,8 @@ export function CrmHeader({ onMenuClick, onToggleSidebar, sidebarCollapsed = fal
   const { userInitials, userName } = useCrmSession();
   const { total: totalNaoLidas } = useCentralUnread();
 
-  const basePath = location.pathname.startsWith('/workspace') ? '/workspace' : '/representantes';
+  const { isOwner, isAdmin } = useRbac();
+  const basePath = areaDoCrm(location.pathname, isOwner || isAdmin);
   const centralPath = `${basePath}/central`;
 
   const { data: recentes, isLoading: loadingRecentes } = useQuery({

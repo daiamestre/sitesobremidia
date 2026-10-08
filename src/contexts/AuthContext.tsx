@@ -372,7 +372,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const profile: LegacyProfile | null = usuario
     ? {
         full_name: usuario.nome || null,
-        company_name: usuario.empresa_operadora_id || null,
+        // F-170: o código interno da empresa não é nome de empresa (aparecia nos menus e nas configurações)
+        company_name: null,
         email: user?.email || usuario.email || null,
       }
     : null;

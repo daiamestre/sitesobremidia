@@ -12,6 +12,9 @@ import { useToast } from '@/hooks/use-toast';
 import { accessRequestService } from '@/services/accessRequest.service';
 import { resolverPortalSolicitado, podeAcessarPortal, rotuloPortal, type PortalEntrada } from '@/lib/portalAccess';
 import { Loader2, Mail, Lock, User, Building, ShieldAlert } from 'lucide-react';
+import { CampoDeSenha } from '@/components/auth/CampoDeSenha';
+import { Checkbox } from '@/components/ui/checkbox';
+import { registrarLembrarAcesso } from '@/lib/lembrarAcesso';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -33,6 +36,7 @@ export default function Auth() {
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [lembrarAcesso, setLembrarAcesso] = useState(true);
   
   // Sign up form
   const [fullName, setFullName] = useState('');
@@ -112,6 +116,7 @@ export default function Auth() {
         variant: 'destructive',
       });
     } else {
+      registrarLembrarAcesso(lembrarAcesso);
       const params = new URLSearchParams(location.search);
       const redirect = params.get('redirect');
       const roleParam = params.get('role');
@@ -227,7 +232,7 @@ export default function Auth() {
   if (portalNegado) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md glass animate-fade-in border-red-500/20 bg-slate-900 text-white rounded-2xl">
+        <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass animate-fade-in border-red-500/20 bg-slate-900 text-white rounded-2xl">
           <CardHeader className="text-center">
             <div className="mx-auto mb-3 p-3 rounded-2xl bg-red-500/15 text-red-400 border border-red-500/25 w-fit">
               <ShieldAlert className="h-10 w-10" />
@@ -261,7 +266,7 @@ export default function Auth() {
 
   return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md glass animate-fade-in border-white/10 bg-slate-900 text-white rounded-2xl">
+        <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass animate-fade-in border-white/10 bg-slate-900 text-white rounded-2xl">
           <CardHeader className="text-center">
             <div className="flex flex-col items-center mb-2">
               <img 
@@ -303,7 +308,7 @@ export default function Auth() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
       </div>
 
-      <Card className="w-full max-w-md glass animate-fade-in relative z-10">
+      <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass animate-fade-in relative z-10">
         <CardHeader className="text-center">
           <div className="flex flex-col items-center mb-2">
             <img 
@@ -347,22 +352,11 @@ export default function Auth() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="login-password">Senha</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="login-password"
-                      type="password"
-                      autoComplete="current-password"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      placeholder="••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
+                  <CampoDeSenha id="login-password" value={loginPassword} onChange={setLoginPassword} required />
+                </div>
+                <div className="flex items-center space-x-2" data-testid="lembrar-acesso">
+                  <Checkbox id="lembrar-acesso" checked={lembrarAcesso} onCheckedChange={(c) => setLembrarAcesso(c === true)} />
+                  <Label htmlFor="lembrar-acesso" className="text-sm font-normal cursor-pointer select-none">Lembrar acesso</Label>
                 </div>
                 <div className="text-right">
                   <button
@@ -435,18 +429,7 @@ export default function Auth() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Senha</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="Mínimo 8 caracteres"
-                      value={signUpPassword}
-                      onChange={(e) => setSignUpPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
+                  <CampoDeSenha id="signup-password" value={signUpPassword} onChange={setSignUpPassword} placeholder="Mínimo 8 caracteres" autoComplete="new-password" required />
                 </div>
                 <Button type="submit" className="w-full gradient-primary" disabled={isLoading}>
                   {isLoading ? (

@@ -1,3 +1,5 @@
+import { CampoDeSenha } from '@/components/auth/CampoDeSenha';
+import { registrarLembrarAcesso } from '@/lib/lembrarAcesso';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { podeAcessarPortal, rotuloPortal, type PortalEntrada } from '@/lib/portalAccess';
@@ -24,7 +26,7 @@ import {
 export default function RepresentantesAuth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [isEnviandoReset, setIsEnviandoReset] = useState(false);
@@ -84,6 +86,7 @@ export default function RepresentantesAuth() {
       return; // sem redirecionamento silencioso
     }
 
+    registrarLembrarAcesso(rememberMe);
     toast({
       title: 'Bem-vindo ao sistema!',
       description: 'Acesso liberado com sucesso.',
@@ -148,7 +151,7 @@ export default function RepresentantesAuth() {
   if (portalNegado) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md glass border-red-500/20 bg-slate-900 text-white rounded-2xl">
+        <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass border-red-500/20 bg-slate-900 text-white rounded-2xl">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-display text-red-400">Acesso não autorizado</CardTitle>
             <CardDescription className="text-slate-300 pt-3 text-sm leading-relaxed">
@@ -196,7 +199,7 @@ export default function RepresentantesAuth() {
       </div>
 
       {/* Card de Login do Representante */}
-      <Card className="w-full max-w-md border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl animate-fade-in relative z-10 rounded-2xl">
+      <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl animate-fade-in relative z-10 rounded-2xl">
         <CardHeader className="text-center pb-6">
           <div className="flex flex-col items-center mb-4">
             <img 
@@ -318,18 +321,14 @@ export default function RepresentantesAuth() {
                 </Dialog>
               </div>
 
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="rep-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-slate-950/60 border-white/10 text-white placeholder:text-slate-500 focus:border-primary/60 focus:ring-primary/20 rounded-xl h-11"
-                  required
-                />
-              </div>
+              <CampoDeSenha
+                id="rep-password"
+                value={password}
+                onChange={setPassword}
+                iconClassName="left-3.5 text-slate-400"
+                className="bg-slate-950/60 border-white/10 text-white placeholder:text-slate-500 focus:border-primary/60 focus:ring-primary/20 rounded-xl h-11"
+                required
+              />
             </div>
 
             {/* Checkbox Lembrar acesso */}
@@ -398,12 +397,14 @@ export default function RepresentantesAuth() {
                     onChange={(e) => setRegEmail(e.target.value)}
                     className="bg-slate-900 border-white/10 text-white" 
                   />
-                  <Input 
-                    placeholder="Senha de Acesso (mínimo 8 caracteres)" 
-                    type="password" 
+                  <CampoDeSenha
+                    id="rep-reg-password"
                     value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    className="bg-slate-900 border-white/10 text-white" 
+                    onChange={setRegPassword}
+                    placeholder="Senha de Acesso (mínimo 8 caracteres)"
+                    autoComplete="new-password"
+                    comIcone={false}
+                    className="bg-slate-900 border-white/10 text-white"
                   />
                   <Input 
                     placeholder="Telefone / WhatsApp" 

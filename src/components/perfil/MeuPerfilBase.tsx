@@ -56,6 +56,7 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
   const [estabelecimento, setEstabelecimento] = useState('');
   const [estabelecimentoOriginal, setEstabelecimentoOriginal] = useState('');
   const [salvandoEstab, setSalvandoEstab] = useState(false);
+  const [empresaOperadoraNome, setEmpresaOperadoraNome] = useState('');
 
   useEffect(() => {
     setNome(usuario?.nome || '');
@@ -72,6 +73,16 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
         setEstabelecimento(n); setEstabelecimentoOriginal(n);
       });
   }, [temEstabelecimento, usuario?.cliente_id]);
+
+  // F-170: mostra o NOME da empresa operadora, nunca o código interno
+  useEffect(() => {
+    if (!usuario?.empresa_operadora_id) return;
+    supabase.from('empresa_operadora').select('nome, nome_fantasia').eq('id', usuario.empresa_operadora_id).limit(1)
+      .then(({ data }) => {
+        const e = (Array.isArray(data) ? data[0] : null) as { nome?: string | null; nome_fantasia?: string | null } | null;
+        setEmpresaOperadoraNome((e?.nome_fantasia || e?.nome || '').trim());
+      });
+  }, [usuario?.empresa_operadora_id]);
 
   useEffect(() => {
     if (usuario?.id) perfilService.trocaEmailPendente().then(setEmailPendente);
@@ -340,7 +351,7 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
                   <div className="space-y-1.5">
                     <Label>Empresa operadora</Label>
                     <div className="flex items-center gap-2 text-sm text-slate-300 border border-white/10 rounded-md px-3 py-2 bg-slate-900">
-                      <Building2 className="h-4 w-4 text-slate-500"/><span className="truncate">{usuario?.empresa_operadora_id || '—'}</span>
+                      <Building2 className="h-4 w-4 text-slate-500"/><span className="truncate" data-testid="empresa-operadora-nome">{empresaOperadoraNome || '—'}</span>
                       <Badge variant="outline" className="ml-auto border-white/10 text-[10px]">somente leitura</Badge>
                     </div>
                   </div>

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { CampoDeSenha } from '@/components/auth/CampoDeSenha';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -125,7 +126,7 @@ export default function ResetPassword() {
   if (tokenInvalid) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md glass animate-fade-in">
+        <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass animate-fade-in">
           <CardHeader className="text-center">
             <Logo className="justify-center mb-4" size="lg" />
             <CardTitle className="text-2xl font-display text-destructive">Link Inválido ou Expirado</CardTitle>
@@ -147,7 +148,7 @@ export default function ResetPassword() {
   if (!tokenValidated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md glass animate-fade-in">
+        <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass animate-fade-in">
           <CardContent className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </CardContent>
@@ -163,7 +164,7 @@ export default function ResetPassword() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
       </div>
 
-      <Card className="w-full max-w-md glass animate-fade-in relative z-10">
+      <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass animate-fade-in relative z-10">
         <CardHeader className="text-center">
           <Logo className="justify-center mb-4" size="lg" />
           <CardTitle className="text-2xl font-display">Nova Senha</CardTitle>
@@ -175,36 +176,11 @@ export default function ResetPassword() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="new-password">Nova Senha</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="new-password"
-                  type="password"
-                  placeholder="Mínimo 8 caracteres"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="pl-10"
-                  required
-                  autoComplete="new-password"
-                  minLength={8}
-                />
-              </div>
+              <CampoDeSenha id="new-password" value={newPassword} onChange={setNewPassword} placeholder="Mínimo 8 caracteres" autoComplete="new-password" minLength={8} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirmar Nova Senha</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  placeholder="Digite novamente"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="pl-10"
-                  required
-                  autoComplete="new-password"
-                />
-              </div>
+              <CampoDeSenha id="confirm-password" value={confirmPassword} onChange={setConfirmPassword} placeholder="Digite novamente" autoComplete="new-password" required />
             </div>
             <Button type="submit" className="w-full gradient-primary" disabled={isLoading}>
               {isLoading ? (

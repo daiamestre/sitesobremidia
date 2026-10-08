@@ -62,7 +62,7 @@ export default function ForgotPassword() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
       </div>
 
-      <Card className="w-full max-w-md glass animate-fade-in relative z-10">
+      <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass animate-fade-in relative z-10">
         <CardHeader className="text-center">
           <div className="flex flex-col items-center mb-2">
             <img 

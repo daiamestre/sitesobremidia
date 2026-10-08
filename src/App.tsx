@@ -208,6 +208,7 @@ const PageLoader = () => (
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { RequireApproval, RequireRole } from "@/components/auth/RouteGuards";
 import { VigiaDeAvisosVistos } from "@/components/central/VigiaDeAvisosVistos";
+import { VigiaDeAcessoSemLembrar } from "@/components/auth/VigiaDeAcessoSemLembrar";
 import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
 import { PWAProvider } from "@/components/pwa/PWAProvider";
 
@@ -221,6 +222,7 @@ const App = () => {
         <AuthProvider>
           <BrowserRouter>
             <VigiaDeAvisosVistos />
+            <VigiaDeAcessoSemLembrar />
             <PWAProvider>
               <CrmSessionProvider>
                 <div className="animate-in fade-in duration-300 w-full max-w-full min-w-0 overflow-x-clip box-border">
