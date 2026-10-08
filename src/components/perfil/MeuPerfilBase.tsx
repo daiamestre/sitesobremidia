@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import {
   UserCircle2, Mail, Phone, ShieldCheck, Lock, LogOut, Upload, Trash2, Eye, EyeOff,
-  History, Smartphone, Bell, Building2, Users, Loader2, CheckCircle2, AlertTriangle, Save,
+  History, Smartphone, Bell, Building2, Users, Loader2, CheckCircle2, AlertTriangle, Save, Pencil, X, Clock,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -46,13 +46,36 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
   const [mostrar, setMostrar] = useState(false);
   const [salvandoSenha, setSalvandoSenha] = useState(false);
 
-  // email flow
+  // email flow (F-169: pedido com autorização do Owner/ADM)
   const [salvandoEmail, setSalvandoEmail] = useState(false);
+  const [emailPendente, setEmailPendente] = useState<{ id: string; novo_email: string | null; criado_em: string } | null>(null);
+
+  // F-169: nome no topo do perfil (aparece nas boas-vindas) e nome do estabelecimento (anunciante)
+  const [editandoNome, setEditandoNome] = useState(false);
+  const [nomeTopo, setNomeTopo] = useState('');
+  const [estabelecimento, setEstabelecimento] = useState('');
+  const [estabelecimentoOriginal, setEstabelecimentoOriginal] = useState('');
+  const [salvandoEstab, setSalvandoEstab] = useState(false);
 
   useEffect(() => {
     setNome(usuario?.nome || '');
     setTelefone(usuario?.telefone || '');
   }, [usuario]);
+
+  const temEstabelecimento = !!usuario?.cliente_id && (variante === 'ANUNCIANTE');
+  useEffect(() => {
+    if (!temEstabelecimento || !usuario?.cliente_id) return;
+    supabase.from('empresas').select('nome_fantasia, razao_social').eq('cliente_id', usuario.cliente_id).limit(1)
+      .then(({ data }) => {
+        const e = (Array.isArray(data) ? data[0] : null) as { nome_fantasia?: string | null; razao_social?: string | null } | null;
+        const n = (e?.nome_fantasia || e?.razao_social || '').trim();
+        setEstabelecimento(n); setEstabelecimentoOriginal(n);
+      });
+  }, [temEstabelecimento, usuario?.cliente_id]);
+
+  useEffect(() => {
+    if (usuario?.id) perfilService.trocaEmailPendente().then(setEmailPendente);
+  }, [usuario?.id]);
 
   useEffect(() => {
     if (usuario?.id) {
@@ -66,12 +89,35 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
 
   const handleSalvar = async () => {
     if (!nome.trim() || nome.trim().length < 3) { toast.error('Nome completo é obrigatório (mín. 3).'); return; }
-    if (!telefone.trim() || telefone.trim().length < 8) { toast.error('WhatsApp/telefone é obrigatório.'); return; }
+    if (telefone.trim() && telefone.replace(/\D/g, '').length < 8) { toast.error('Telefone incompleto: informe com DDD ou deixe em branco.'); return; }
     setSalvando(true);
     const r = await perfilService.atualizarPerfil({ nome: nome.trim(), telefone: telefone.trim() });
     setSalvando(false);
     if (r.error) { toast.error(r.error); return; }
     toast.success('Perfil atualizado!');
+    await refreshUserData();
+  };
+
+  // nome no topo do perfil (mesmo salvamento do formulário)
+  const abrirEdicaoDoNome = () => { setNomeTopo(usuario?.nome || ''); setEditandoNome(true); };
+  const salvarNomeDoTopo = async () => {
+    if (nomeTopo.trim().length < 3) { toast.error('Informe o nome (mínimo 3 letras).'); return; }
+    setSalvando(true);
+    const r = await perfilService.atualizarPerfil({ nome: nomeTopo.trim(), telefone: telefone.trim() || null });
+    setSalvando(false);
+    if (r.error) { toast.error(r.error); return; }
+    toast.success('Nome atualizado!');
+    setEditandoNome(false);
+    await refreshUserData();
+  };
+
+  const salvarEstabelecimento = async () => {
+    setSalvandoEstab(true);
+    const r = await perfilService.atualizarNomeEstabelecimento(estabelecimento);
+    setSalvandoEstab(false);
+    if (r.error) { toast.error(r.error); return; }
+    setEstabelecimentoOriginal(estabelecimento.trim());
+    toast.success('Nome do estabelecimento atualizado!');
     await refreshUserData();
   };
 
@@ -131,10 +177,19 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
   const handleEmail = async () => {
     if (!emailNovo.trim()) { toast.error('Informe o novo e-mail.'); return; }
     setSalvandoEmail(true);
-    const r = await perfilService.solicitarAlteracaoEmail(emailNovo.trim());
+    const r = await perfilService.solicitarTrocaEmail(emailNovo.trim());
     setSalvandoEmail(false);
-    if (r.error) toast.error(r.error);
-    else { toast.success('Confirmação enviada para o novo e-mail. Verifique sua caixa de entrada.'); setEmailNovo(''); }
+    if (r.error) { toast.error(r.error); return; }
+    toast.success('Pedido enviado ao Owner/ADM. Você será avisado quando for decidido.');
+    setEmailNovo('');
+    setEmailPendente(await perfilService.trocaEmailPendente());
+  };
+
+  const handleCancelarEmail = async () => {
+    const r = await perfilService.cancelarTrocaEmail();
+    if (r.error) { toast.error(r.error); return; }
+    setEmailPendente(null);
+    toast.success('Pedido de troca de e-mail cancelado.');
   };
 
   const handleEncerrarOutras = async () => {
@@ -196,7 +251,26 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
             {salvandoAvatar && <Loader2 className="absolute inset-0 m-auto h-6 w-6 animate-spin text-white" />}
           </div>
           <div className="flex-1 text-center sm:text-left">
-            <p className="text-lg font-bold text-white">{usuario?.nome}</p>
+            {editandoNome ? (
+              <div className="flex flex-col sm:flex-row items-center gap-2 justify-center sm:justify-start" data-testid="editor-nome-topo">
+                <Input value={nomeTopo} onChange={(e) => setNomeTopo(e.target.value)} maxLength={120} autoFocus
+                  onKeyDown={(e) => { if (e.key === 'Enter') salvarNomeDoTopo(); if (e.key === 'Escape') setEditandoNome(false); }}
+                  placeholder="Como você quer ser chamado" className="bg-slate-950 border-white/10 max-w-xs" data-testid="nome-topo" />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={salvarNomeDoTopo} disabled={salvando} className="gap-1" data-testid="salvar-nome-topo">
+                    {salvando ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>} Salvar
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditandoNome(false)} className="gap-1"><X className="h-4 w-4"/> Cancelar</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center sm:justify-start gap-2">
+                <p className="text-lg font-bold text-white" data-testid="nome-no-topo">{usuario?.nome}</p>
+                <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-slate-300" onClick={abrirEdicaoDoNome} data-testid="alterar-nome-topo" aria-label="Alterar nome">
+                  <Pencil className="h-3.5 w-3.5"/> Alterar nome
+                </Button>
+              </div>
+            )}
             <p className="text-sm text-slate-400 flex items-center justify-center sm:justify-start gap-2"><Mail className="h-3 w-3"/>{user?.email || usuario?.email} <Badge variant="outline" className="border-white/10 text-[10px]">{varianteLabel[variante]}</Badge></p>
             {usuario?.is_owner && <Badge className="mt-2 bg-amber-500/20 text-amber-300 border-amber-500/30">Owner — autonomia total</Badge>}
             <div className="flex gap-2 mt-3 justify-center sm:justify-start">
@@ -213,7 +287,7 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
               )}
             </div>
             <p className="text-[11px] text-slate-500 mt-2">
-              Foto: JPG, PNG, WEBP ou GIF, até 5 MB — aparece no círculo do cabeçalho.
+              O nome acima aparece nas mensagens de boas-vindas. Foto: JPG, PNG, WEBP ou GIF, até 5 MB — aparece no círculo do cabeçalho.
               {temCapa && ' Capa: JPG, PNG ou WEBP, até 8 MB (ideal 1600×400) — aparece só aqui no perfil.'}
             </p>
           </div>
@@ -231,7 +305,7 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
 
         <TabsContent value="dados" className="mt-4 space-y-4">
           <Card className="border-white/10 bg-white/[0.02]">
-            <CardHeader><CardTitle className="flex items-center gap-2"><UserCircle2 className="h-5 w-5 text-sky-400"/> Dados de contato</CardTitle><CardDescription>Campos obrigatórios validados no frontend e no backend. Não é permitido alterar tenant, cliente ou permissões por aqui.</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><UserCircle2 className="h-5 w-5 text-sky-400"/> Dados de contato</CardTitle><CardDescription>Você pode mudar seu nome e telefone. O e-mail muda com autorização do Owner/ADM. A função não pode ser alterada.</CardDescription></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -241,16 +315,27 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
                 <div className="space-y-1.5">
                   <Label>E-mail (login) *</Label>
                   <Input value={user?.email || usuario?.email || ''} disabled className="bg-slate-900 border-white/10" />
-                  <p className="text-[11px] text-slate-500">Para alterar, use o fluxo seguro abaixo em Segurança.</p>
+                  <p className="text-[11px] text-slate-500">Para trocar, peça a autorização logo abaixo.</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>WhatsApp / Telefone *</Label>
+                  <Label>WhatsApp / Telefone <span className="text-slate-500 font-normal">(opcional)</span></Label>
                   <Input value={telefone} onChange={e=>setTelefone(e.target.value)} placeholder="(11) 99999-9999" className="bg-slate-950 border-white/10" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Perfil / Função</Label>
                   <Input value={varianteLabel[variante]} disabled className="bg-slate-900 border-white/10" />
                 </div>
+                {temEstabelecimento && (
+                  <div className="space-y-1.5 md:col-span-2" data-testid="campo-estabelecimento">
+                    <Label>Nome do estabelecimento (aparece nas boas-vindas do portal)</Label>
+                    <div className="flex gap-2">
+                      <Input value={estabelecimento} onChange={(e) => setEstabelecimento(e.target.value)} maxLength={120} placeholder="Nome do seu estabelecimento" className="bg-slate-950 border-white/10" data-testid="nome-estabelecimento" />
+                      <Button variant="outline" onClick={salvarEstabelecimento} disabled={salvandoEstab || estabelecimento.trim().length < 2 || estabelecimento.trim() === estabelecimentoOriginal} className="gap-2" data-testid="salvar-estabelecimento">
+                        {salvandoEstab ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>} Salvar nome
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 {showEmpresa && (
                   <div className="space-y-1.5">
                     <Label>Empresa operadora</Label>
@@ -285,8 +370,26 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
 
               <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 flex gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5"/>
-                <p className="text-xs text-amber-200/80">Você não pode alterar tenant, cliente_id, role, empresa_operadora_id ou permissões. Campos estruturais são somente leitura e protegidos por RLS.</p>
+                <p className="text-xs text-amber-200/80">Sua função (perfil) e as permissões da conta não podem ser alteradas por aqui.</p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/10 bg-white/[0.02]" data-testid="troca-de-email">
+            <CardHeader><CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5 text-sky-400"/> Trocar e-mail (precisa de autorização)</CardTitle><CardDescription>Seu e-mail é obrigatório. Para trocar, o Owner/ADM recebem o pedido na Central e decidem. Enquanto isso o e-mail atual continua valendo.</CardDescription></CardHeader>
+            <CardContent className="space-y-3 max-w-xl">
+              {emailPendente ? (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2" data-testid="troca-email-pendente">
+                  <p className="text-sm text-amber-200 flex items-center gap-2"><Clock className="h-4 w-4"/> Aguardando autorização do Owner/ADM</p>
+                  <p className="text-xs text-slate-300">Novo e-mail pedido: <strong>{emailPendente.novo_email || '—'}</strong> · {new Date(emailPendente.criado_em).toLocaleString('pt-BR')}</p>
+                  <Button size="sm" variant="outline" onClick={handleCancelarEmail} data-testid="cancelar-troca-email">Cancelar pedido</Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input value={emailNovo} onChange={e=>setEmailNovo(e.target.value)} placeholder="novo@email.com" type="email" className="bg-slate-950 border-white/10" data-testid="novo-email"/>
+                  <Button onClick={handleEmail} disabled={salvandoEmail || !emailNovo.trim()} className="gap-2" data-testid="pedir-troca-email">{salvandoEmail?<Loader2 className="h-4 w-4 animate-spin"/>:<Mail className="h-4 w-4"/>} Pedir autorização</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -323,17 +426,6 @@ export default function MeuPerfilBase({ variante, titulo, subtitulo }: Props) {
                 {salvandoSenha?<Loader2 className="h-4 w-4 animate-spin"/>:<ShieldCheck className="h-4 w-4"/>} Atualizar senha
               </Button>
               <p className="text-xs text-slate-500">Após a troca, sua sessão é renovada automaticamente.</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-white/10 bg-white/[0.02]">
-            <CardHeader><CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5 text-sky-400"/> Alterar e-mail (fluxo seguro)</CardTitle><CardDescription>Envia confirmação para o novo endereço. O login atual não quebra.</CardDescription></CardHeader>
-            <CardContent className="space-y-3 max-w-xl">
-              <div className="flex gap-2">
-                <Input value={emailNovo} onChange={e=>setEmailNovo(e.target.value)} placeholder="novo@email.com" className="bg-slate-950 border-white/10"/>
-                <Button onClick={handleEmail} disabled={salvandoEmail} className="gap-2">{salvandoEmail?<Loader2 className="h-4 w-4 animate-spin"/>:<Mail className="h-4 w-4"/>} Solicitar</Button>
-              </div>
-              <p className="text-xs text-slate-500">O e-mail de cadastro (usuarios.email) permanece íntegro até a confirmação via Supabase Auth.</p>
             </CardContent>
           </Card>
 

@@ -339,7 +339,7 @@ export const CentralDashboard = () => {
       s.titulo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.descricao || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.tipo_solicitacao.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesSearch && s.tipo_solicitacao !== 'EMAIL_CHANGE_REQUEST';
   }) || [];
 
   const canManageSolicitacoes = perfilNome === 'OWNER' || perfilNome === 'ADMIN' || perfilNome === 'GESTOR' || perfilNome === 'GERENTE' || perfilNome === 'FINANCEIRO';
@@ -374,6 +374,47 @@ export const CentralDashboard = () => {
     staleTime: 10000,
     refetchInterval: 30000,
   });
+
+  // ============================================================
+  // F-169 — TROCAS DE E-MAIL (EMAIL_CHANGE_REQUEST): só Owner/ADM decidem; o banco troca o e-mail e avisa o usuário.
+  // ============================================================
+  const [emailProcessandoId, setEmailProcessandoId] = useState<string | null>(null);
+  const { data: trocasEmail = [], refetch: refetchTrocasEmail } = useQuery<Solicitacao[]>({
+    queryKey: ['central-trocas-email'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('solicitacoes')
+        .select('*')
+        .eq('tipo_solicitacao', 'EMAIL_CHANGE_REQUEST')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) { console.error('[Central] trocas de e-mail:', error); return []; }
+      return (data as Solicitacao[]) ?? [];
+    },
+    staleTime: 10000,
+    refetchInterval: 30000,
+  });
+  const podeDecidirEmail = perfilNome === 'OWNER' || perfilNome === 'ADMIN' || !!usuario?.is_owner;
+
+  const decidirTrocaEmail = useCallback(async (sol: Solicitacao, aprovar: boolean) => {
+    let motivo: string | null = null;
+    if (!aprovar) {
+      motivo = (window.prompt('Motivo da recusa (o usuário vai ler):') ?? '').trim();
+      if (!motivo) return;
+    }
+    setEmailProcessandoId(sol.id);
+    try {
+      const { error } = await supabase.rpc('perfil_decidir_troca_email' as never, { p_solicitacao: sol.id, p_aprovar: aprovar, p_motivo: motivo } as never);
+      if (error) throw new Error(error.message);
+      toast.success(aprovar ? 'Troca de e-mail AUTORIZADA. O usuário foi avisado.' : 'Troca de e-mail RECUSADA. Nada foi alterado.');
+      refetchTrocasEmail();
+      queryClient.invalidateQueries({ queryKey: ['central-feed'] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao decidir a troca de e-mail.');
+    } finally {
+      setEmailProcessandoId(null);
+    }
+  }, [refetchTrocasEmail, queryClient]);
 
   const autorizarReset = useCallback(async (sol: SolicitacaoReset) => {
     setResetProcessandoId(sol.id);
@@ -906,6 +947,63 @@ export const CentralDashboard = () => {
                               Autorizar
                             </Button>
                             <Button size="sm" variant="destructive" disabled={resetProcessandoId === sol.id} onClick={() => recusarReset(sol)}>
+                              <XCircleIcon className="h-4 w-4 mr-2" /> Recusar
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+
+          {/* ============================================================
+              TROCAS DE E-MAIL — EMAIL_CHANGE_REQUEST (autorização do Owner/ADM)
+              ============================================================ */}
+          <div className="space-y-2 mb-6" data-testid="secao-trocas-email">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-sky-500" />
+              <h3 className="text-sm font-semibold">Trocas de e-mail</h3>
+              <Badge variant="outline" className="text-xs">
+                {trocasEmail.filter((r) => r.status === 'PENDENTE').length} aguardando decisão
+              </Badge>
+            </div>
+            {trocasEmail.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                  Nenhum pedido de troca de e-mail.
+                </CardContent>
+              </Card>
+            ) : (
+              trocasEmail.map((sol) => {
+                const pendente = sol.status === 'PENDENTE';
+                return (
+                  <Card key={sol.id} data-testid="troca-email" className={cn('transition-all hover:shadow-md', pendente && 'border-l-4 border-l-sky-500')}>
+                    <CardContent className="p-4">
+                      <div className="flex flex-row items-start gap-3">
+                        <div className={cn('p-2 rounded-lg flex-shrink-0', pendente ? 'bg-sky-100 text-sky-700' : sol.status === 'APROVADA' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600')}>
+                          <Mail className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-semibold text-sm">{sol.titulo}</h4>
+                            <Badge variant="outline" className="text-xs">{pendente ? 'AGUARDANDO AUTORIZAÇÃO' : sol.status}</Badge>
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">{sol.descricao}</p>
+                          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {formatDateTime(sol.created_at)}</span>
+                            {sol.decisao_motivo && <span>Motivo: {sol.decisao_motivo}</span>}
+                          </div>
+                        </div>
+                        {pendente && podeDecidirEmail && (
+                          <div className="flex flex-col gap-1.5 flex-shrink-0 sm:w-40">
+                            <Button size="sm" disabled={emailProcessandoId === sol.id} onClick={() => decidirTrocaEmail(sol, true)} data-testid="autorizar-troca-email">
+                              {emailProcessandoId === sol.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                              Autorizar
+                            </Button>
+                            <Button size="sm" variant="destructive" disabled={emailProcessandoId === sol.id} onClick={() => decidirTrocaEmail(sol, false)} data-testid="recusar-troca-email">
                               <XCircleIcon className="h-4 w-4 mr-2" /> Recusar
                             </Button>
                           </div>

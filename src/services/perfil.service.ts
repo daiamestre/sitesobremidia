@@ -34,49 +34,31 @@ export const perfilService = {
     }
   },
 
+  /**
+   * F-169: nome e telefone do próprio usuário. Telefone é OPCIONAL (em branco = sem telefone); a função (perfil) nunca muda
+   * por aqui e o e-mail só muda com autorização (solicitarTrocaEmail). A gravação é feita pelo banco (RPC).
+   */
   async atualizarPerfil(payload: PerfilPayload): Promise<{ error: string | null }> {
-    // validação frontend redundante com backend
     if (!payload.nome || payload.nome.trim().length < 3) {
-      return { error: 'Nome completo é obrigatório (mín. 3 caracteres).' };
+      return { error: 'Informe o nome (mínimo 3 letras).' };
     }
-    if (!payload.telefone || payload.telefone.trim().length < 8) {
-      return { error: 'WhatsApp/telefone é obrigatório.' };
+    const tel = (payload.telefone ?? '').trim();
+    if (tel && tel.replace(/\D/g, '').length < 8) {
+      return { error: 'Telefone incompleto: informe com DDD ou deixe em branco.' };
     }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: 'Sessão inválida.' };
 
-    // Tentativa direta via RLS (usuário só pode alterar próprio registro)
-    const { error } = await supabase
-      .from('usuarios')
-      .update({
-        nome: payload.nome.trim(),
-        telefone: payload.telefone.trim(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', user.id);
-
-    if (error) {
-      return { error: error.message };
-    }
-
-    // Log de auditoria leve (best effort)
-    try {
-      const { data: u } = await supabase.from('usuarios').select('empresa_operadora_id').eq('id', user.id).maybeSingle();
-      if (u) {
-        await supabase.from('auditoria_logs').insert({
-          empresa_operadora_id: (u as any).empresa_operadora_id,
-          usuario_id: user.id,
-          entidade_tipo: 'USUARIO',
-          entidade_id: user.id,
-          acao: 'PERFIL_ATUALIZADO',
-          status_novo: 'ACTIVE',
-          observacoes: `Perfil atualizado: nome=${payload.nome.trim()}`,
-        } as any);
-      }
-    } catch (_e) {
-      // best effort — ignora falha de auditoria
-    }
+    const { error } = await supabase.rpc('perfil_atualizar_dados' as never, { p_nome: payload.nome.trim(), p_telefone: tel || null } as never);
+    if (error) return { error: error.message };
     return { error: null };
+  },
+
+  /** Nome do estabelecimento do anunciante (é o nome das boas-vindas do portal). */
+  async atualizarNomeEstabelecimento(nome: string): Promise<{ error: string | null }> {
+    if (nome.trim().length < 2) return { error: 'Informe o nome do estabelecimento (mínimo 2 letras).' };
+    const { error } = await supabase.rpc('perfil_atualizar_nome_estabelecimento' as never, { p_nome: nome.trim() } as never);
+    return { error: error ? error.message : null };
   },
 
   async uploadAvatar(file: File): Promise<{ url: string | null; error: string | null }> {
@@ -166,11 +148,24 @@ export const perfilService = {
     return { error: null };
   },
 
-  async solicitarAlteracaoEmail(novoEmail: string): Promise<{ error: string | null }> {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novoEmail.trim())) return { error: 'E-mail inválido.' };
-    const { error } = await supabase.auth.updateUser({ email: novoEmail.trim() });
-    if (error) return { error: error.message };
-    return { error: null };
+  /** F-169: o e-mail só muda com autorização — o Owner/ADM recebem o pedido na Central e decidem. */
+  async solicitarTrocaEmail(novoEmail: string): Promise<{ error: string | null }> {
+    const email = novoEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'E-mail inválido.' };
+    const { error } = await supabase.rpc('perfil_solicitar_troca_email' as never, { p_novo_email: email } as never);
+    return { error: error ? error.message : null };
+  },
+
+  /** Pedido de troca de e-mail aguardando autorização (ou null). */
+  async trocaEmailPendente(): Promise<{ id: string; novo_email: string | null; criado_em: string } | null> {
+    const { data, error } = await supabase.rpc('perfil_troca_email_pendente' as never);
+    if (error || !data) return null;
+    return data as unknown as { id: string; novo_email: string | null; criado_em: string };
+  },
+
+  async cancelarTrocaEmail(): Promise<{ error: string | null }> {
+    const { error } = await supabase.rpc('perfil_cancelar_troca_email' as never);
+    return { error: error ? error.message : null };
   },
 
   async alterarSenha(senhaAtual: string, novaSenha: string): Promise<{ error: string | null }> {

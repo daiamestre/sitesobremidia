@@ -21,6 +21,7 @@ vi.mock('@/integrations/supabase/client', () => {
         signOut: vi.fn().mockResolvedValue({ error: null }),
       },
       from: vi.fn(() => chain),
+      rpc: vi.fn().mockResolvedValue({ data: { ok: true }, error: null }),
       storage: {
         from: vi.fn(() => ({
           upload: vi.fn().mockResolvedValue({ error: null }),
@@ -37,11 +38,17 @@ import { perfilService } from '@/services/perfil.service';
 describe('perfil.service — validação obrigatória', () => {
   it('atualizarPerfil exige nome com mín. 3 caracteres', async () => {
     const r = await perfilService.atualizarPerfil({ nome: 'Ab', telefone: '11999999999' });
-    expect(r.error).toMatch(/Nome/);
+    expect(r.error).toMatch(/nome/);
   });
-  it('atualizarPerfil exige telefone/whatsapp obrigatório', async () => {
+  it('F-169: telefone NÃO é obrigatório (em branco vai como vazio)', async () => {
+    const { supabase } = await import('@/integrations/supabase/client');
     const r = await perfilService.atualizarPerfil({ nome: 'Fulano da Silva', telefone: '' });
-    expect(r.error).toMatch(/Telefone|WhatsApp/);
+    expect(r.error).toBeNull();
+    expect(supabase.rpc).toHaveBeenCalledWith('perfil_atualizar_dados', { p_nome: 'Fulano da Silva', p_telefone: null });
+  });
+  it('F-169: telefone preenchido incompleto é recusado', async () => {
+    const r = await perfilService.atualizarPerfil({ nome: 'Fulano da Silva', telefone: '1234' });
+    expect(r.error).toMatch(/Telefone incompleto/);
   });
   it('atualizarPerfil aceita payload válido', async () => {
     const r = await perfilService.atualizarPerfil({ nome: 'Fulano da Silva', telefone: '11999999999' });
@@ -74,8 +81,15 @@ describe('perfil.service — segurança senha/e-mail', () => {
     const r = await perfilService.alterarSenha('atual123', 'abc');
     expect(r.error).toMatch(/6/);
   });
-  it('solicitarAlteracaoEmail valida formato', async () => {
-    const r = await perfilService.solicitarAlteracaoEmail('invalido');
+  it('solicitarTrocaEmail valida formato', async () => {
+    const r = await perfilService.solicitarTrocaEmail('invalido');
     expect(r.error).toMatch(/E-mail inválido/);
+  });
+  it('F-169: troca de e-mail vira PEDIDO ao Owner/ADM (nunca troca direto pelo login)', async () => {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const r = await perfilService.solicitarTrocaEmail('novo@exemplo.com');
+    expect(r.error).toBeNull();
+    expect(supabase.rpc).toHaveBeenCalledWith('perfil_solicitar_troca_email', { p_novo_email: 'novo@exemplo.com' });
+    expect(supabase.auth.updateUser).not.toHaveBeenCalledWith(expect.objectContaining({ email: expect.anything() }));
   });
 });

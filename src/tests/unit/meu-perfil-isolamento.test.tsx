@@ -37,6 +37,7 @@ vi.mock('@/integrations/supabase/client', () => ({
       limit: vi.fn().mockResolvedValue({ data: [], error: null }),
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
     })),
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
     storage: { from: vi.fn(() => ({ getPublicUrl: () => ({ data: { publicUrl: '' } }) })) },
   },
 }));
@@ -90,7 +91,7 @@ describe('Meu Perfil — separação absoluta entre perfis', () => {
 
   it('mensagem de segurança alerta que tenant/cliente/permissões não são alteráveis', async () => {
     renderPerfil('ANUNCIANTE');
-    expect(await screen.findByText(/Você não pode alterar tenant/)).toBeTruthy();
+    expect(await screen.findByText(/Sua função \(perfil\) e as permissões da conta não podem ser alteradas/)).toBeTruthy();
   });
 });
 

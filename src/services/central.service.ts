@@ -19,6 +19,7 @@ export type TipoSolicitacao =
   | 'SOLICITACAO_FINANCEIRA'
   | 'NOVO_PONTO'
   | 'PASSWORD_RESET_REQUEST'
+  | 'EMAIL_CHANGE_REQUEST'
   | 'OUTRO';
 
 export interface Notificacao {
