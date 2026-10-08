@@ -27,46 +27,53 @@ export function escolherParaApagar(deploys, { agora = Date.now(), atual = null, 
   return { apagar, manter };
 }
 
-function lerChave() {
-  if (process.env.VERCEL_TOKEN && process.argv.includes('--usar-ambiente')) return process.env.VERCEL_TOKEN;
+/** Lê VERCEL_TOKEN, VERCEL_TEAM_ID e VERCEL_PROJECT_ID do cofre (nunca imprime a chave). */
+function lerCofre() {
+  const pegar = (t, k) => new RegExp(`^${k}=(.+)$`, 'm').exec(t)?.[1]?.trim().replace(/^["']|["']$/g, '') ?? null;
   try {
     const t = fs.readFileSync(path.join(os.homedir(), '.sobremidia-secrets', 'tokens.env'), 'utf8');
-    return /^VERCEL_TOKEN=(.+)$/m.exec(t)?.[1]?.trim().replace(/^["']|["']$/g, '') ?? null;
-  } catch { return null; }
+    return { chave: pegar(t, 'VERCEL_TOKEN'), equipe: pegar(t, 'VERCEL_TEAM_ID'), projeto: pegar(t, 'VERCEL_PROJECT_ID') };
+  } catch { return { chave: null, equipe: null, projeto: null }; }
 }
 
-async function api(chave, caminho, init = {}) {
-  const r = await fetch(`https://api.vercel.com${caminho}`, { ...init, headers: { Authorization: `Bearer ${chave}`, ...(init.headers ?? {}) } });
+async function api(chave, equipe, caminho, init = {}) {
+  const sep = caminho.includes('?') ? '&' : '?';
+  const r = await fetch(`https://api.vercel.com${caminho}${equipe ? `${sep}teamId=${equipe}` : ''}`, { ...init, headers: { Authorization: `Bearer ${chave}`, ...(init.headers ?? {}) } });
   const corpo = await r.json().catch(() => ({}));
   return { status: r.status, corpo };
 }
 
 async function principal() {
   const executar = process.argv.includes('--executar');
-  const chave = lerChave();
+  const { chave, equipe, projeto: projetoId } = lerCofre();
   if (!chave) { console.error('Sem VERCEL_TOKEN no cofre. Crie uma chave em vercel.com/account/tokens e grave em ~/.sobremidia-secrets/tokens.env.'); process.exit(2); }
-  const eu = await api(chave, '/v2/user');
+  const eu = await api(chave, null, '/v2/user');
   if (eu.status !== 200) { console.error(`Chave da Vercel recusada (HTTP ${eu.status}). Crie outra e grave no cofre.`); process.exit(2); }
 
-  const projetos = await api(chave, '/v9/projects?limit=100');
-  const projeto = (projetos.corpo.projects ?? []).find((p) => /sitesobremidia/i.test(p.name)) ?? (projetos.corpo.projects ?? [])[0];
-  if (!projeto) { console.error('Projeto da Vercel não encontrado.'); process.exit(2); }
+  const pr = await api(chave, equipe, `/v9/projects/${projetoId}`);
+  const projeto = pr.corpo;
+  if (pr.status !== 200 || !projeto?.id) { console.error(`Projeto da Vercel não encontrado (HTTP ${pr.status}). Confira VERCEL_PROJECT_ID e VERCEL_TEAM_ID no cofre.`); process.exit(2); }
   const atual = projeto.targets?.production?.id ?? null;
+  if (!atual) { console.error('Não consegui descobrir a publicação que está no ar; por segurança, nada será apagado.'); process.exit(2); }
 
   const deploys = []; let ate = '';
-  for (let i = 0; i < 40; i++) {
-    const r = await api(chave, `/v6/deployments?projectId=${projeto.id}&limit=100${ate}`);
+  for (let i = 0; i < 60; i++) {
+    const r = await api(chave, equipe, `/v6/deployments?projectId=${projeto.id}&limit=100${ate}`);
     for (const d of r.corpo.deployments ?? []) deploys.push({ uid: d.uid, created: d.created, target: d.target ?? null });
     if (!r.corpo.pagination?.next) break;
     ate = `&until=${r.corpo.pagination.next}`;
   }
   const { apagar, manter } = escolherParaApagar(deploys, { atual });
-  console.log(`Projeto ${projeto.name}: ${deploys.length} publicações; manter ${manter.length}; ${executar ? 'apagando' : 'APAGARIA'} ${apagar.length}.`);
+  console.log(`Projeto ${projeto.name}: ${deploys.length} publicações; no ar: ${atual}; manter ${manter.length}; ${executar ? 'apagando' : 'APAGARIA'} ${apagar.length}.`);
   if (!executar) { console.log('Nada foi apagado. Para apagar: --executar'); return; }
   let ok = 0;
   for (const uid of apagar) {
-    const r = await api(chave, `/v13/deployments/${uid}`, { method: 'DELETE' });
+    if (uid === atual) continue; // nunca a que está no ar
+    // a API limita a velocidade (HTTP 429): espera e tenta de novo, com pausa curta entre uma e outra
+    let r = await api(chave, equipe, `/v13/deployments/${uid}`, { method: 'DELETE' });
+    for (let t = 1; r.status === 429 && t <= 6; t++) { await new Promise((f) => setTimeout(f, 1500 * t)); r = await api(chave, equipe, `/v13/deployments/${uid}`, { method: 'DELETE' }); }
     if (r.status === 200) ok++; else console.warn(`falhou ${uid}: HTTP ${r.status}`);
+    await new Promise((f) => setTimeout(f, 300));
   }
   console.log(`Apagadas ${ok} de ${apagar.length}.`);
 }
