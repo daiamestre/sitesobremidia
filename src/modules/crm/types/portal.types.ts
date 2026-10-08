@@ -47,6 +47,49 @@ export interface InsercaoPorDia {
   }>;
 }
 
+/** F-165 — onde o anúncio passou: ponto parceiro, tela própria do anunciante ou tela da rede (sem ponto). */
+export type TipoDeLocalDeExibicao = 'PARCEIRO' | 'PROPRIA' | 'REDE';
+
+export interface InsercaoDoDiaDetalhada {
+  data: string;
+  quantidade: number;
+  midias: Array<{ media_id: string; nome: string; quantidade: number }>;
+  locais: Array<{ chave: string; nome: string; tipo: TipoDeLocalDeExibicao; cidade?: string | null; quantidade: number }>;
+}
+
+export interface InsercaoDoAnuncio {
+  media_id: string;
+  nome: string;
+  total: number;
+  hoje: number;
+  ultimos_7_dias: number;
+  ultima: string | null;
+  locais: Array<{ chave: string; nome: string; tipo: TipoDeLocalDeExibicao; quantidade: number }>;
+}
+
+export interface InsercaoDoLocal {
+  chave: string;
+  tipo: TipoDeLocalDeExibicao;
+  nome: string;
+  cidade?: string | null;
+  total: number;
+  hoje: number;
+  ultimos_7_dias: number;
+  ultima: string | null;
+}
+
+export interface InsercoesDoAnunciante {
+  periodo_dias: number;
+  total: number;
+  hoje: number;
+  ultimos_7_dias: number;
+  ultima_exibicao: string | null;
+  por_dia: InsercaoDoDiaDetalhada[];
+  por_anuncio: InsercaoDoAnuncio[];
+  por_local: InsercaoDoLocal[];
+  por_campanha: Array<{ id: string; titulo: string; status: string; total: number; por_dia: Array<{ data: string; quantidade: number }> }>;
+}
+
 export interface CampanhaComInsercoes {
   id: string;
   titulo: string;

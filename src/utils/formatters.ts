@@ -10,6 +10,11 @@ export function formatNumber(value: number): string {
 }
 
 export function formatDate(date: string | Date): string {
+  // Data pura (AAAA-MM-DD) é um dia do calendário: new Date() a lê como meia-noite UTC e, no Brasil, mostraria o dia anterior.
+  if (typeof date === 'string') {
+    const dia = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (dia) return `${dia[3]}/${dia[2]}/${dia[1]}`;
+  }
   return new Date(date).toLocaleDateString('pt-BR');
 }
 

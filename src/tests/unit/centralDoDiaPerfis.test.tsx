@@ -124,7 +124,7 @@ describe('Painéis por perfil: cada card leva à tela completa do próprio porta
     expect(screen.queryByTestId('anu-card-faturas')).toBeNull();
 
     const pontos = await screen.findByTestId('anu-card-pontos');
-    expect(within(pontos).getAllByRole('link')[0]).toHaveAttribute('href', '/portal/pontos');
+    expect(within(pontos).getAllByRole('link')[0]).toHaveAttribute('href', '/portal/insercoes');
     expect(within(pontos).getByText('Padaria Central')).toBeInTheDocument();
     expect(within(pontos).getAllByText('340').length).toBeGreaterThan(0);
 

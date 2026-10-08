@@ -49,12 +49,20 @@ export default function CustomerPortalLayout() {
   // NUNCA expõe links para ERP, CRM, Admin, Representante, Gestor ou Owner.
   // ============================================================
   const navGroups: NavGroup[] = useMemo(() => [
+    // F-164 — ordem pedida pelo proprietário: Início → Minhas Mídias → Publicidade → Meus Pontos → Comércio → (Rede do host) →
+    // Mensagens e Contratos e Faturas → Conta.
     {
       label: 'Principal',
       items: [
-        { name: 'Início',              path: '/portal',            icon: Home },
-        { name: 'Mensagens',           path: '/portal/central',    icon: MessageSquare, badge: totalNaoLidas },
-        { name: 'Contratos e Faturas', path: '/portal/financeiro', icon: FileText },
+        { name: 'Início', path: '/portal', icon: Home },
+      ],
+    },
+    {
+      label: 'Minhas Mídias',
+      somente: ['ANUNCIANTE', 'HIBRIDO'],
+      items: [
+        { name: 'Minhas Mídias',        path: '/portal/assets',     icon: ImagePlus },
+        { name: 'Biblioteca de Mídias', path: '/portal/biblioteca', icon: Library },
       ],
     },
     {
@@ -65,14 +73,6 @@ export default function CustomerPortalLayout() {
         { name: 'Nova Campanha',       path: '/portal/nova-campanha', icon: Rocket },
         { name: 'Inserções por Dia',   path: '/portal/insercoes',     icon: Calendar },
         { name: 'Playlists',           path: '/portal/playlists',     icon: ListVideo },
-      ],
-    },
-    {
-      label: 'Minhas Mídias',
-      somente: ['ANUNCIANTE', 'HIBRIDO'],
-      items: [
-        { name: 'Minhas Mídias',        path: '/portal/assets',     icon: ImagePlus },
-        { name: 'Biblioteca de Mídias', path: '/portal/biblioteca', icon: Library },
       ],
     },
     {
@@ -99,6 +99,13 @@ export default function CustomerPortalLayout() {
         { name: 'Minha Rede',       path: '/portal/minha-rede', icon: MapPin },
         { name: 'Ocupação da Rede', path: '/portal/ocupacao',   icon: LayoutDashboard },
         { name: 'Receita',          path: '/portal/receita',    icon: FileText },
+      ],
+    },
+    {
+      label: 'Mensagens e Contratos',
+      items: [
+        { name: 'Mensagens',           path: '/portal/central',    icon: MessageSquare, badge: totalNaoLidas },
+        { name: 'Contratos e Faturas', path: '/portal/financeiro', icon: FileText },
       ],
     },
     {

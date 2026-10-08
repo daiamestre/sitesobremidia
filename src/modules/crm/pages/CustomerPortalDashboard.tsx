@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClienteModalidade, type ModalidadePortal } from '../hooks/useClienteModalidade';
 import { useCentralUnread } from '@/hooks/useCentral';
@@ -29,6 +29,8 @@ import { customerPortalService } from '../services/customerPortal.service';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
+import { aberturaDoPortal } from '@/lib/boasVindas';
+import { agoraCorrigido } from '@/lib/brasiliaTime';
 
 // ──────────────────────────────────────────────────────────────────────
 // KPIs DO ANUNCIANTE (missão §18) — foco em MÍDIA, sem financeiro.
@@ -60,6 +62,7 @@ function getKpisMidiaAnunciante(k: KpisMidiaAnunciante, contratosVigentes: numbe
     {
       label: 'Meus Pontos',
       value: k.meus_pontos,
+      path: '/portal/pontos',
       icon: MapPin,
       color: 'text-emerald-400',
       bgColor: 'bg-emerald-500/20',
@@ -69,6 +72,7 @@ function getKpisMidiaAnunciante(k: KpisMidiaAnunciante, contratosVigentes: numbe
     {
       label: 'Campanhas Ativas',
       value: k.campanhas_ativas,
+      path: '/portal/campanhas',
       icon: Megaphone,
       color: 'text-purple-400',
       bgColor: 'bg-purple-500/20',
@@ -77,6 +81,7 @@ function getKpisMidiaAnunciante(k: KpisMidiaAnunciante, contratosVigentes: numbe
     {
       label: 'Minhas Mídias',
       value: k.midias_ativas,
+      path: '/portal/assets',
       icon: Library,
       color: 'text-sky-400',
       bgColor: 'bg-sky-500/20',
@@ -85,14 +90,16 @@ function getKpisMidiaAnunciante(k: KpisMidiaAnunciante, contratosVigentes: numbe
     {
       label: 'Playlists',
       value: k.playlists,
+      path: '/portal/playlists',
       icon: ListVideo,
       color: 'text-fuchsia-400',
       bgColor: 'bg-fuchsia-500/20',
       borderColor: 'border-fuchsia-500/30',
     },
     {
-      label: 'Inserções',
+      label: 'Inserções (30 dias)',
       value: k.insercoes ?? 0,
+      path: '/portal/insercoes',
       icon: Zap,
       color: 'text-cyan-400',
       bgColor: 'bg-cyan-500/20',
@@ -102,6 +109,7 @@ function getKpisMidiaAnunciante(k: KpisMidiaAnunciante, contratosVigentes: numbe
     {
       label: 'Pontos para Anunciar',
       value: k.pontos_para_anunciar,
+      path: '/portal/pontos-parceiros',
       icon: TrendingUp,
       color: 'text-amber-400',
       bgColor: 'bg-amber-500/20',
@@ -111,6 +119,7 @@ function getKpisMidiaAnunciante(k: KpisMidiaAnunciante, contratosVigentes: numbe
     {
       label: 'Contratos Vigentes',
       value: contratos,
+      path: '/portal/financeiro',
       icon: FileText,
       color: 'text-blue-400',
       bgColor: 'bg-blue-500/20',
@@ -131,12 +140,15 @@ interface KPI {
   borderColor: string;
   icon: React.ComponentType<{ className?: string }>;
   sub?: string;
+  /** F-164: para onde o cartão leva ao clicar */
+  path: string;
 }
 
 function getKpisAnunciante(kpis: DashboardKPIs): KPI[] {
   return [
     {
       label: 'Campanhas Ativas',
+      path: '/portal/campanhas',
       value: kpis.campanhasAtivas,
       icon: Tv,
       color: 'text-purple-400',
@@ -145,6 +157,7 @@ function getKpisAnunciante(kpis: DashboardKPIs): KPI[] {
     },
     {
       label: 'Artes Aprovadas',
+      path: '/portal/campanhas',
       value: `${kpis.artesAprovadasPct}%`,
       icon: ShieldCheck,
       color: 'text-emerald-400',
@@ -153,6 +166,7 @@ function getKpisAnunciante(kpis: DashboardKPIs): KPI[] {
     },
     {
       label: 'Contratos Vigentes',
+      path: '/portal/financeiro',
       value: kpis.contratosVigentes,
       icon: FileText,
       color: 'text-blue-400',
@@ -161,6 +175,7 @@ function getKpisAnunciante(kpis: DashboardKPIs): KPI[] {
     },
     {
       label: 'Chamados Abertos',
+      path: '/portal/central?aba=suporte',
       value: kpis.chamadosAbertos,
       icon: LifeBuoy,
       color: 'text-amber-400',
@@ -174,6 +189,7 @@ function getKpisHost(kpis: DashboardKPIs): KPI[] {
   return [
     {
       label: 'Pontos Ativos',
+      path: '/portal/minha-rede',
       value: kpis.pontosAtivos ?? 0,
       icon: MapPin,
       color: 'text-emerald-400',
@@ -182,6 +198,7 @@ function getKpisHost(kpis: DashboardKPIs): KPI[] {
     },
     {
       label: 'Telas Online',
+      path: '/portal/minha-rede',
       value: kpis.telasOnline ?? 0,
       icon: Monitor,
       color: 'text-blue-400',
@@ -190,6 +207,7 @@ function getKpisHost(kpis: DashboardKPIs): KPI[] {
     },
     {
       label: 'Receita Estimada',
+      path: '/portal/receita',
       value: kpis.receitaEstimada != null ? formatCurrency(kpis.receitaEstimada) : '—',
       icon: DollarSign,
       color: 'text-purple-400',
@@ -199,6 +217,7 @@ function getKpisHost(kpis: DashboardKPIs): KPI[] {
     },
     {
       label: 'Contratos Vigentes',
+      path: '/portal/financeiro',
       value: kpis.contratosVigentes,
       icon: FileText,
       color: 'text-slate-400',
@@ -281,6 +300,15 @@ export default function CustomerPortalDashboard() {
     receitaEstimada: null,
   });
   const [loadingKpis, setLoadingKpis] = useState(true);
+  // F-164: primeiro acesso ao portal (vem do banco). undefined = ainda carregando; null = não foi possível saber
+  const [primeiroAcesso, setPrimeiroAcesso] = useState<string | null | undefined>(undefined);
+  const [agoraMs, setAgoraMs] = useState(() => agoraCorrigido());
+  useEffect(() => {
+    let vivo = true;
+    supabase.rpc('portal_registrar_primeiro_acesso' as never).then(({ data, error }) => { if (vivo) setPrimeiroAcesso(error ? null : ((data as unknown as string | null) ?? null)); });
+    return () => { vivo = false; };
+  }, []);
+  useEffect(() => { const t = setInterval(() => setAgoraMs(agoraCorrigido()), 60_000); return () => clearInterval(t); }, []); // a saudação muda de Bom dia para Boa tarde sozinha
   // KPIs de MÍDIA do anunciante (missão §18) — RPC server-side
   const [kpisMidia, setKpisMidia] = useState<KpisMidiaAnunciante | null>(null);
 
@@ -333,7 +361,7 @@ export default function CustomerPortalDashboard() {
   const acoesRapidas = isAnunciante && [
     { label: 'Criar Campanha', icon: Plus, path: '/portal/nova-campanha', primary: true },
     { label: 'Minhas Mídias', icon: Library, path: '/portal/assets' },
-    { label: 'Criar Playlist', icon: ListVideo, path: '/portal/playlists' },
+    { label: 'Criar Playlist', icon: ListVideo, path: '/portal/playlists?novo=1' },
     { label: 'Pontos para Anunciar', icon: TrendingUp, path: '/portal/pontos-parceiros' },
   ];
 
@@ -342,11 +370,16 @@ export default function CustomerPortalDashboard() {
       {/* ── Hero Header ── */}
       <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-1">
-          {(cliente?.nome_fantasia || cliente?.razao_social || usuario?.nome) && (
-            <p className="text-2xl sm:text-3xl font-display font-extrabold text-white">
-              Bem-vindo(a), {cliente?.nome_fantasia || cliente?.razao_social || usuario?.nome}!
-            </p>
-          )}
+          {(cliente?.nome_fantasia || cliente?.razao_social || usuario?.nome) && (primeiroAcesso === undefined
+            ? <Skeleton className="h-9 w-72 max-w-full" />
+            : (() => {
+                const abertura = aberturaDoPortal({ nome: cliente?.nome_fantasia || cliente?.razao_social || usuario?.nome || '', primeiroAcessoEm: primeiroAcesso, agoraMs });
+                return (
+                  <p className="text-2xl sm:text-3xl font-display font-extrabold text-white" data-testid="abertura-do-portal" data-tipo={abertura.tipo}>
+                    {abertura.texto}
+                  </p>
+                );
+              })())}
           <div className="flex items-center gap-2 flex-wrap">
             <ModalidadeIcon className={cn('h-6 w-6', config.color)} />
             <h2 className="text-xl sm:text-2xl font-display font-extrabold text-white">
@@ -406,7 +439,9 @@ export default function CustomerPortalDashboard() {
         {loadingKpis
           ? [...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)
           : kpiList.map((kpi) => (
-              <Card key={kpi.label} className="border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl">
+              <Link key={kpi.label} to={kpi.path} data-testid="kpi-do-portal" data-path={kpi.path} aria-label={`${kpi.label}: ${kpi.value}. Abrir`}
+                className="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              <Card className="h-full border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-xl rounded-2xl transition-colors hover:border-primary/50 hover:bg-slate-900">
                 <CardContent className="p-3 xl:p-4 flex items-center gap-2 xl:gap-3">
                   <div className={cn('p-3 rounded-2xl border flex-shrink-0', kpi.bgColor, kpi.borderColor)}>
                     <kpi.icon className={cn('h-5 w-5', kpi.color)} />
@@ -418,6 +453,7 @@ export default function CustomerPortalDashboard() {
                   </div>
                 </CardContent>
               </Card>
+              </Link>
             ))
         }
       </div>

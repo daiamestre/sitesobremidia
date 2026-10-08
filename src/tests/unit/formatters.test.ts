@@ -32,6 +32,11 @@ describe('formatters', () => {
     expect(formatted.length).toBeGreaterThan(5);
   });
 
+  it('formatDate de data pura (AAAA-MM-DD) mostra o mesmo dia do calendario, sem voltar um dia no fuso do Brasil', () => {
+    expect(formatDate('2026-09-26')).toBe('26/09/2026');
+    expect(formatDate('2026-01-01')).toBe('01/01/2026');
+  });
+
   it('formatDateTime formata data e hora validas', () => {
     const formatted = formatDateTime('2026-09-15T12:00:00Z');
     expect(formatted).toBeDefined();

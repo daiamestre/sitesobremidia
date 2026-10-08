@@ -4,6 +4,7 @@ import {
   PontoComLimite, 
   PontosResumo, 
   InsercaoPorDia, 
+  InsercoesDoAnunciante, 
   CampanhaComInsercoes, 
   OcupacaoRede, 
   ContratoDetalhePortal 
@@ -350,117 +351,41 @@ pontos = (locais || []).map(local => {
   }
 
   /**
-   * Busca inserções por dia para as campanhas do cliente
+   * Inserções do anunciante (F-165): exibições REAIS gravadas pelo Player, atribuídas ao anunciante pela mídia.
+   * Mesma fonte do KPI do início, do card "Onde seu anúncio passa" e das campanhas.
    */
-  async getInsercoesPorDia(clienteId: string): Promise<InsercaoPorDia[]> {
+  async getInsercoesDoAnunciante(dias = 30): Promise<InsercoesDoAnunciante> {
+    const vazio: InsercoesDoAnunciante = {
+      periodo_dias: dias, total: 0, hoje: 0, ultimos_7_dias: 0, ultima_exibicao: null,
+      por_dia: [], por_anuncio: [], por_local: [], por_campanha: [],
+    };
     try {
-      // Buscar campanhas ativas do cliente
-      const { data: campanhas } = await supabase
-        .from('campanhas')
-        .select(`
-          id,
-          titulo,
-          duracao_segundos,
-          status,
-          contrato_id
-        `)
-        .eq('cliente_id', clienteId)
-        .in('status', ['APPROVED', 'ACTIVE']);
-
-      if (!campanhas || campanhas.length === 0) return [];
-
-      const contratoIds = [...new Set(campanhas.map(c => c.contrato_id).filter(Boolean))];
-      
-      // Buscar PIs dos contratos
-      const { data: pis } = await supabase
-        .from('pedidos_insercao')
-        .select('id, contrato_id')
-        .in('contrato_id', contratoIds)
-        .in('status', ['EM_EXIBICAO', 'APROVADO', 'EM_VEICULACAO']);
-
-      if (!pis || pis.length === 0) return [];
-
-      const piIds = pis.map(p => p.id);
-
-      // Buscar agendamentos dos PIs com as telas vinculadas
-      // (agendamento_rede não existe; a relação real é agendamentos -> agendamento_telas -> screens)
-      const { data: agendamentos } = await supabase
-        .from('agendamentos')
-        .select(`
-          id,
-          inicio,
-          fim,
-          pedido_insercao_id,
-          telas:agendamento_telas(tela:screens(id, name, cidade, estado))
-        `)
-        .in('pedido_insercao_id', piIds);
-
-      if (!agendamentos || agendamentos.length === 0) return [];
-
-      // Agrupar por dia
-      const porDia: Record<string, { 
-        quantidade: number; 
-        campanhas: Map<string, { 
-          id: string; 
-          titulo: string; 
-          duracao_segundos: number; 
-          status: string;
-          ponto_nome?: string;
-          tela_nome?: string;
-          cidade?: string;
-          estado?: string;
-        }>
-      }> = {};
-      
-      const contratoPorPi = new Map(pis.map(p => [p.id, p.contrato_id]));
-      const campanhaPorContrato = new Map(campanhas.map(c => [c.contrato_id, c]));
-
-      agendamentos.forEach(a => {
-        const inicio = new Date(a.inicio);
-        const fim = new Date(a.fim);
-        const tela = a.telas?.[0]?.tela;
-        const campanha = campanhaPorContrato.get(contratoPorPi.get(a.pedido_insercao_id) || '');
-        
-        for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
-          const key = d.toISOString().split('T')[0];
-          if (!porDia[key]) {
-            porDia[key] = { quantidade: 0, campanhas: new Map() };
-          }
-          porDia[key].quantidade++;
-          
-          if (campanha?.id) {
-            const existing = porDia[key].campanhas.get(campanha.id);
-            if (!existing) {
-              porDia[key].campanhas.set(campanha.id, {
-                id: campanha.id,
-                titulo: campanha.titulo,
-                duracao_segundos: campanha.duracao_segundos || 15,
-                status: campanha.status,
-                ponto_nome: tela?.name || undefined,
-                tela_nome: tela?.name || undefined,
-                cidade: tela?.cidade || undefined,
-                estado: tela?.estado || undefined,
-              });
-            }
-          }
-        }
-      });
-
-      return Object.entries(porDia)
-        .map(([data, info]) => ({
-          data,
-          quantidade: info.quantidade,
-          campanhas: Array.from(info.campanhas.values()),
-        }))
-        .sort((a, b) => a.data.localeCompare(b.data));
+      const { data, error } = await supabase.rpc('fn_portal_anunciante_insercoes' as never, { p_dias: dias } as never);
+      if (error) {
+        console.error('[CustomerPortalDataService.getInsercoesDoAnunciante] Erro:', error);
+        return vazio;
+      }
+      const r = data as unknown as (Partial<InsercoesDoAnunciante> & { status?: string }) | null;
+      if (!r || r.status !== 'OK') return vazio;
+      return {
+        periodo_dias: Number(r.periodo_dias ?? dias),
+        total: Number(r.total ?? 0),
+        hoje: Number(r.hoje ?? 0),
+        ultimos_7_dias: Number(r.ultimos_7_dias ?? 0),
+        ultima_exibicao: r.ultima_exibicao ?? null,
+        por_dia: r.por_dia ?? [],
+        por_anuncio: r.por_anuncio ?? [],
+        por_local: r.por_local ?? [],
+        por_campanha: r.por_campanha ?? [],
+      };
     } catch (err) {
-      console.error('[CustomerPortalDataService.getInsercoesPorDia] Erro:', err);
-      return [];
+      console.error('[CustomerPortalDataService.getInsercoesDoAnunciante] Erro:', err);
+      return vazio;
     }
   }
 
   /**
-   * Busca campanhas com inserções do cliente
+   * Busca campanhas com inserções do cliente (exibições reais por dia)
    */
   async getCampanhasComInsercoes(clienteId: string): Promise<CampanhaComInsercoes[]> {
     try {
@@ -484,77 +409,28 @@ pontos = (locais || []).map(local => {
 
       if (!campanhas || campanhas.length === 0) return [];
 
-      const resultado = await Promise.all(
-        (campanhas || []).map(async (c) => {
-          const insercoes = await this.getInsercoesPorDiaCampanha(c.id);
-          return {
-            id: c.id,
-            titulo: c.titulo,
-            objetivo: c.objetivo,
-            inicio: c.data_inicio,
-            fim: c.data_fim,
-            duracao_segundos: c.duracao_segundos,
-            status: c.status,
-            insercoes,
-            total_insercoes: insercoes.reduce((sum, i) => sum + i.quantidade, 0),
-            created_at: c.created_at,
-            updated_at: c.updated_at,
-          };
-        })
-      );
+      const reais = await this.getInsercoesDoAnunciante(365);
+      const porCampanha = new Map(reais.por_campanha.map(c => [c.id, c]));
 
-      return resultado;
+      return campanhas.map((c) => {
+        const real = porCampanha.get(c.id);
+        const insercoes: InsercaoPorDia[] = (real?.por_dia ?? []).map(d => ({ data: d.data, quantidade: Number(d.quantidade), campanhas: [] }));
+        return {
+          id: c.id,
+          titulo: c.titulo,
+          objetivo: c.objetivo,
+          inicio: c.data_inicio,
+          fim: c.data_fim,
+          duracao_segundos: c.duracao_segundos,
+          status: c.status,
+          insercoes,
+          total_insercoes: Number(real?.total ?? 0),
+          created_at: c.created_at,
+          updated_at: c.updated_at,
+        };
+      });
     } catch (err) {
       console.error('[CustomerPortalDataService.getCampanhasComInsercoes] Erro:', err);
-      return [];
-    }
-  }
-
-  /**
-   * Busca inserções por dia para uma campanha específica
-   */
-  private async getInsercoesPorDiaCampanha(campanhaId: string): Promise<InsercaoPorDia[]> {
-    try {
-      const { data: campanha } = await supabase
-        .from('campanhas')
-        .select('contrato_id')
-        .eq('id', campanhaId)
-        .single();
-
-      if (!campanha?.contrato_id) return [];
-
-      const { data: pis } = await supabase
-        .from('pedidos_insercao')
-        .select('id')
-        .eq('contrato_id', campanha.contrato_id)
-        .in('status', ['EM_EXIBICAO', 'APROVADO', 'EM_VEICULACAO']);
-
-      if (!pis || pis.length === 0) return [];
-
-      const piIds = pis.map(p => p.id);
-
-      const { data: agendamentos } = await supabase
-        .from('agendamentos')
-        .select('id, inicio, fim')
-        .in('pedido_insercao_id', piIds);
-
-      if (!agendamentos || agendamentos.length === 0) return [];
-
-      const porDia: Record<string, number> = {};
-      agendamentos.forEach(a => {
-        const inicio = new Date(a.inicio);
-        const fim = new Date(a.fim);
-        for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
-          const key = d.toISOString().split('T')[0];
-          porDia[key] = (porDia[key] || 0) + 1;
-        }
-      });
-
-      return Object.entries(porDia)
-        .map(([data, quantidade]) => ({ data, quantidade, campanhas: [] }))
-        .sort((a, b) => a.data.localeCompare(b.data));
-    } catch (err) {
-      console.error('[CustomerPortalDataService.getInsercoesPorDiaCampanha] Erro:', err);
       return [];
     }
   }

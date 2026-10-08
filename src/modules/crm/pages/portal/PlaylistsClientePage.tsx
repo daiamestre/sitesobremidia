@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ListVideo, Plus, Loader2, Trash2, Film, Image as ImageIcon,
@@ -27,6 +28,15 @@ export default function PlaylistsClientePage() {
   const qc = useQueryClient();
 
   const [dialogNova, setDialogNova] = useState(false);
+  // F-164: o atalho "Criar Playlist" do painel chega com ?novo=1 e já abre a criação
+  const [parametros, setParametros] = useSearchParams();
+  useEffect(() => {
+    if (parametros.get('novo') !== '1') return;
+    setDialogNova(true);
+    const resto = new URLSearchParams(parametros);
+    resto.delete('novo');
+    setParametros(resto, { replace: true });
+  }, [parametros, setParametros]);
   const [nome, setNome] = useState('');
   const [descricao, setDescricao] = useState('');
   const [criando, setCriando] = useState(false);

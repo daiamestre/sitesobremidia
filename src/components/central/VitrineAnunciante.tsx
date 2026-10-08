@@ -20,6 +20,8 @@ export interface VitrinePonto {
   categoria: string | null;
   foto_url: string | null;
   origens: string[];
+  /** F-165: ponto parceiro, tela própria do anunciante ou tela da rede (sem ponto). */
+  tipo?: 'PARCEIRO' | 'PROPRIA' | 'REDE';
   telas: number;
   telas_online: number;
   exibicoes_hoje: number;
@@ -77,7 +79,7 @@ export function VitrineAnunciante() {
 
   return (
     <div className="grid gap-3 grid-cols-1 sm:grid-cols-2" data-testid="vitrine-anunciante">
-      <SummaryCard title="Onde seu anúncio passa" icon={MapPin} to="/portal/pontos" loading={q.isLoading} testId="anu-card-pontos"
+      <SummaryCard title="Onde seu anúncio passa" icon={MapPin} to="/portal/insercoes" loading={q.isLoading} testId="anu-card-pontos"
         headline={v ? num(v.exibicoes.ultimos_30_dias) : undefined}
         caption={v ? 'exibições do seu anúncio nos últimos 30 dias' : undefined}>
         {v && (
@@ -85,7 +87,7 @@ export function VitrineAnunciante() {
             <div className="grid grid-cols-3 gap-1.5">
               <Numero valor={v.exibicoes.hoje} rotulo="hoje" destaque />
               <Numero valor={v.exibicoes.ultimos_7_dias} rotulo="7 dias" />
-              <Numero valor={v.pontos.length} rotulo={v.pontos.length === 1 ? 'ponto parceiro' : 'pontos parceiros'} />
+              <Numero valor={v.pontos.length} rotulo={v.pontos.every((p) => (p.tipo ?? 'PARCEIRO') === 'PARCEIRO') ? (v.pontos.length === 1 ? 'ponto parceiro' : 'pontos parceiros') : (v.pontos.length === 1 ? 'local' : 'locais')} />
             </div>
             {v.pontos.length ? (
               <ul className="divide-y divide-border/40" data-testid="anu-lista-pontos">
@@ -103,6 +105,7 @@ export function VitrineAnunciante() {
                       <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
                         <Wifi className={cn('h-3 w-3 flex-shrink-0', p.telas_online > 0 ? 'text-emerald-400' : 'text-muted-foreground')} />
                         {p.telas_online}/{p.telas} {p.telas === 1 ? 'tela online' : 'telas online'}
+                        {p.tipo === 'PROPRIA' ? ' · sua tela' : p.tipo === 'REDE' ? ' · tela da rede' : ''}
                         {p.cidade ? ` · ${p.bairro ? `${p.bairro}, ` : ''}${p.cidade}` : ''}
                       </span>
                     </span>

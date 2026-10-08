@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Loader2, MapPin, Monitor, Store } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { MapaDaRede } from '@/components/rede/MapaDaRede';
 import { brl, pontosParceirosService } from './pontosParceiros';
 
 /** F-107 — Pontos parceiros onde o anunciante pode anunciar. */
@@ -50,6 +51,15 @@ export default function PontosParceirosPage() {
           ))}
         </div>
       )}
+
+      {/* F-164: o mesmo mapa da tela inicial (onde o usuário escolhe o acesso), no fim da lista de pontos parceiros */}
+      <section className="space-y-3" data-testid="mapa-dos-pontos-parceiros">
+        <div>
+          <h2 className="text-xl font-bold text-white">Rede SOBRE MÍDIA</h2>
+          <p className="text-sm text-slate-400">Onde estamos no Brasil — aproxime o mapa para ver as cidades</p>
+        </div>
+        <MapaDaRede />
+      </section>
     </div>
   );
 }
