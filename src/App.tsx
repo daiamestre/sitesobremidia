@@ -94,6 +94,7 @@ const ClientesListPage = lazyWithRetry(() => import("./modules/crm/pages/Cliente
 const NovoClientePage = lazyWithRetry(() => import("./modules/crm/pages/NovoClientePage"));
 const NovoClienteWizardPage = lazyWithRetry(() => import("./modules/crm/pages/NovoClienteWizardPage"));
 const ClienteDetalhePage = lazyWithRetry(() => import("./modules/crm/pages/ClienteDetalhePage"));
+const ValorMidiasPage = lazyWithRetry(() => import("./modules/crm/pages/ValorMidiasPage"));
 const EditarClientePage = lazyWithRetry(() => import("./modules/crm/pages/EditarClientePage"));
 const PropostasListPage = lazyWithRetry(() => import("./modules/crm/pages/PropostasListPage"));
 const ContratoSelectionPage = lazyWithRetry(() => import("./modules/crm/pages/ContratoSelectionPage"));
@@ -169,7 +170,6 @@ const ConfiguracoesPortalPage = lazyWithRetry(() => import("./modules/crm/pages/
 const DashboardHome = lazyWithRetry(() => import("./pages/dashboard/DashboardHome"));
 const Medias = lazyWithRetry(() => import("./pages/dashboard/Medias"));
 const Biblioteca = lazyWithRetry(() => import("./pages/dashboard/Biblioteca"));
-const BibliotecaPortalPage = lazyWithRetry(() => import("./modules/crm/pages/portal/BibliotecaPortalPage"));
 const Playlists = lazyWithRetry(() => import("./pages/dashboard/Playlists"));
 const Screens = lazyWithRetry(() => import("./pages/dashboard/Screens"));
 const ScreenDetails = lazyWithRetry(() => import("./pages/dashboard/ScreenDetails"));
@@ -207,6 +207,7 @@ const PageLoader = () => (
 
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { RequireApproval, RequireRole } from "@/components/auth/RouteGuards";
+import { VigiaDeAvisosVistos } from "@/components/central/VigiaDeAvisosVistos";
 import { CrmSessionProvider } from "@/modules/crm/contexts/CrmSessionContext";
 import { PWAProvider } from "@/components/pwa/PWAProvider";
 
@@ -219,6 +220,7 @@ const App = () => {
 
         <AuthProvider>
           <BrowserRouter>
+            <VigiaDeAvisosVistos />
             <PWAProvider>
               <CrmSessionProvider>
                 <div className="animate-in fade-in duration-300 w-full max-w-full min-w-0 overflow-x-clip box-border">
@@ -322,7 +324,8 @@ const App = () => {
                     <Route path="expansao" element={<ExpansaoPage />} />
                     <Route path="brand-kit" element={<BrandKitPage />} />
                     <Route path="assets" element={<AssetLibraryPage />} />
-                    <Route path="biblioteca" element={<BibliotecaPortalPage />} />
+                    {/* F-166: a Biblioteca de Mídias não é do anunciante (só Representante, Gestor, ADM e Owner) */}
+                    <Route path="biblioteca" element={<Navigate to="/portal/assets" replace />} />
                     <Route path="encarte" element={<EncartePage />} />
                     <Route path="biblioteca-ia" element={<BibliotecaIA />} />
                     <Route path="onboarding" element={<OnboardingPage />} />
@@ -396,6 +399,7 @@ const App = () => {
                     <Route path="propostas" element={<PropostasListPage />} />
                      <Route path="contratos" element={<ContratosListPage />} />
                      <Route path="admin/contratos" element={<RequireRole roles={['OWNER', 'ADMIN']}><ContratosAdminPage /></RequireRole>} />
+                    <Route path="valor-midias" element={<RequireRole roles={['OWNER', 'ADMIN']}><ValorMidiasPage /></RequireRole>} />
                      <Route path="assinaturas" element={<ContractsSignaturePage />} />
                     <Route path="contratos/selecionar/:propostaId" element={<ContratoSelectionPage />} />
                     <Route path="contratos/selecionar/direto" element={<ContratoSelectionPage />} />

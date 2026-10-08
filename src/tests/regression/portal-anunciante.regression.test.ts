@@ -153,23 +153,24 @@ describe('[REGRESSÃO] Recuperação de senha COM AUTORIZAÃ‡ÃO (Central)', (
   });
 });
 
-describe('[REGRESSÃO] Regra comercial do vídeo â€” 1Âº grátis, adicionais R$19,99', () => {
-  it('RPC adicionar_midia_playlist cobra 19.99 APENAS a partir do 2Âº vídeo e libera o 1Âº', () => {
+describe('[REGRESSÃO] Regra comercial da mídia — grátis só na 1ª playlist, o resto pelo valor do anunciante (F-166)', () => {
+  it('RPC adicionar_midia_playlist: 1ª playlist grátis, depois cortesia liberada, depois cobra o valor do anunciante', () => {
     const m = lerUltimaMigrationContendo('adicionar_midia_playlist');
     expect(m).not.toBeNull();
     const sql = m!.sql;
-    expect(sql).toContain('19.99');
-    expect(sql).toContain('v_asset.tipo <> \'video\' OR v_videos = 0');
-    // Item adicional NÃO é inserido antes do pagamento
+    expect(sql).toContain('v_cota.primeira_playlist_id = p_playlist_id');
+    expect(sql).toContain('fn_valor_midia_cliente');
+    // Item pago NÃO é inserido antes do pagamento
     expect(sql).toContain("'COBRANCA_VIDEO_GERADA'");
   });
 
-  it('RPC confirmar_video_playlist_pago exige conta PAGA/PAGO (sem bypass)', () => {
+  it('RPC confirmar_video_playlist_pago exige conta PAGA/PAGO do próprio anunciante, uma vez (sem bypass)', () => {
     const m = lerUltimaMigrationContendo('confirmar_video_playlist_pago');
     expect(m).not.toBeNull();
     const sql = m!.sql;
-    expect(sql).toContain("v_status NOT IN ('PAGA','PAGO')");
-    expect(sql).toMatch(/cobranca_id UUID UNIQUE/);
+    expect(sql).toContain("v_conta.status NOT IN ('PAGA', 'PAGO')");
+    expect(sql).toContain('cliente_id = v_cliente');
+    expect(sql).toContain('ux_cpi_cobranca');
   });
 
   it('playlists do anunciante têm RLS com isolamento por cliente_id', () => {

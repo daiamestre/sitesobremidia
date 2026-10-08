@@ -3,6 +3,8 @@ import { CentralService } from '@/services/central.service';
 
 // ─── Testes: CentralService — Central de Comunicação & Inteligência ─────────
 
+const db_rpcResult = vi.hoisted(() => ({ value: { data: null, error: null } as { data: unknown; error: unknown } }));
+
 const db = vi.hoisted(() => {
   const state = {
     responses: {} as Record<string, { data?: any; error?: any; count?: number; single?: any; maybeSingle?: any }>,
@@ -27,6 +29,7 @@ const db = vi.hoisted(() => {
       insert: vi.fn((...args: any[]) => { q.ops.push(`insert:${JSON.stringify(args[0])}`); return chain; }),
       update: vi.fn((...args: any[]) => { q.ops.push(`update:${JSON.stringify(args[0])}`); return chain; }),
       eq: vi.fn((...args: any[]) => { q.ops.push(`eq:${args[0]}:${args[1]}`); return chain; }),
+      is: vi.fn((...args: any[]) => { q.ops.push(`is:${args[0]}:${args[1]}`); return chain; }),
       order: vi.fn((...args: any[]) => { q.ops.push(`order:${args[0]}:${args[1]}`); return chain; }),
       range: vi.fn((...args: any[]) => { q.ops.push(`range:${args[0]}-${args[1]}`); return chain; }),
       limit: vi.fn((...args: any[]) => { q.ops.push(`limit:${args[0]}`); return chain; }),
@@ -39,7 +42,7 @@ const db = vi.hoisted(() => {
 
   const supabaseStub = {
     from: vi.fn((table: string) => makeChain(table)),
-    rpc: vi.fn(),
+    rpc: vi.fn(() => Promise.resolve(db_rpcResult.value)),
     channel: vi.fn(),
     removeChannel: vi.fn(),
     auth: {
@@ -77,6 +80,7 @@ describe('CentralService', () => {
 
   describe('listarNotificacoes', () => {
     it('deve filtrar por canal IN_APP, ordenar por created_at e retornar lista', async () => {
+      db.state.currentUser = db.makeUser('u-1');
       responses['notificacoes_central'] = {
         data: [
           { id: 'n-1', titulo: 'Alerta 1', prioridade: 'CRITICO' },
@@ -94,7 +98,21 @@ describe('CentralService', () => {
       expect(q.ops.some((op) => op.startsWith('order:created_at'))).toBe(true);
     });
 
+    it('F-167: só os avisos do próprio usuário e os que ele não dispensou', async () => {
+      db.state.currentUser = db.makeUser('u-1');
+      responses['notificacoes_central'] = { data: [] };
+      await service.listarNotificacoes();
+      expect(queries[0].ops).toContain('eq:usuario_id:u-1');
+      expect(queries[0].ops).toContain('is:dispensada_em:null');
+    });
+
+    it('F-167: sem usuário logado não lista nada', async () => {
+      responses['notificacoes_central'] = { data: [{ id: 'x' }] };
+      expect(await service.listarNotificacoes()).toEqual([]);
+    });
+
     it('deve aplicar filtros de prioridade, status e paginação', async () => {
+      db.state.currentUser = db.makeUser('u-1');
       responses['notificacoes_central'] = { data: [] };
 
       await service.listarNotificacoes({ prioridade: 'IMPORTANTE', status: 'NAO_LIDA', pagina: 2, itensPorPagina: 25 });
@@ -106,6 +124,7 @@ describe('CentralService', () => {
     });
 
     it('deve retornar [] em caso de erro sem lançar exceção', async () => {
+      db.state.currentUser = db.makeUser('u-1');
       responses['notificacoes_central'] = { error: { message: 'fail' } };
 
       const result = await service.listarNotificacoes();
@@ -141,26 +160,33 @@ describe('CentralService', () => {
   });
 
   describe('marcarComoLida / marcarTodasComoLidas / resolverNotificacao', () => {
-    it('marcarComoLida deve atualizar lida e status_notificacao para LIDA', async () => {
-      responses['notificacoes_central'] = { error: null };
+    it('marcarComoLida marca só o aviso do próprio usuário (regra no banco, por RPC)', async () => {
+      db_rpcResult.value = { data: 1, error: null };
 
       const ok = await service.marcarComoLida('n-1');
 
       expect(ok).toBe(true);
-      const q = queries[0];
-      expect(q.ops.some((op) => op.includes('"lida":true') && op.includes('"status_notificacao":"LIDA"'))).toBe(true);
-      expect(q.ops).toContain('eq:id:n-1');
+      expect(db.supabaseStub.rpc).toHaveBeenCalledWith('central_notificacoes_marcar_lidas', { p_ids: ['n-1'] });
     });
 
-    it('marcarTodasComoLidas deve atualizar apenas NAO_LIDA', async () => {
-      responses['notificacoes_central'] = { error: null };
+    it('marcarTodasComoLidas marca só os avisos do próprio usuário (nunca os dos outros)', async () => {
+      db_rpcResult.value = { data: 3, error: null };
 
       const ok = await service.marcarTodasComoLidas();
 
       expect(ok).toBe(true);
-      const q = queries[0];
-      expect(q.ops).toContain('eq:canal:IN_APP');
-      expect(q.ops).toContain('eq:status_notificacao:NAO_LIDA');
+      expect(db.supabaseStub.rpc).toHaveBeenCalledWith('central_notificacoes_marcar_lidas', { p_ids: null });
+      expect(queries.some((q) => q.ops.some((op) => op.startsWith('update:')))).toBe(false);
+    });
+
+    it('F-167: dispensarNotificacoes dá o aviso por lido e tira da tela (RPC, nada é apagado)', async () => {
+      db_rpcResult.value = { data: 1, error: null };
+
+      expect(await service.dispensarNotificacoes(['n-1'])).toBe(true);
+      expect(db.supabaseStub.rpc).toHaveBeenCalledWith('central_notificacoes_dispensar', { p_ids: ['n-1'] });
+      expect(await service.dispensarNotificacoes()).toBe(true);
+      expect(db.supabaseStub.rpc).toHaveBeenCalledWith('central_notificacoes_dispensar', { p_ids: null });
+      expect(queries.some((q) => q.ops.some((op) => op.startsWith('delete')))).toBe(false);
     });
 
     it('resolverNotificacao deve gravar resolvida_em e status RESOLVIDA', async () => {
@@ -174,7 +200,7 @@ describe('CentralService', () => {
     });
 
     it('deve retornar false quando a atualização falha', async () => {
-      responses['notificacoes_central'] = { error: { message: 'rls denied' } };
+      db_rpcResult.value = { data: null, error: { message: 'rls denied' } };
 
       expect(await service.marcarComoLida('n-1')).toBe(false);
     });

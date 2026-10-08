@@ -13,6 +13,7 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  X,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -23,8 +24,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useCrmSession } from '../contexts/CrmSessionContext';
-import { useCentralUnread } from '@/hooks/useCentral';
-import { useQuery } from '@tanstack/react-query';
+import { useCentralUnread, centralUnreadKey } from '@/hooks/useCentral';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { centralService } from '@/services/central.service';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/utils/formatters';
@@ -49,9 +50,16 @@ export function CrmHeader({ onMenuClick, onToggleSidebar, sidebarCollapsed = fal
 
   const { data: recentes, isLoading: loadingRecentes } = useQuery({
     queryKey: ['central-recentes'],
-    queryFn: () => centralService.listarNotificacoes({ itensPorPagina: 8 }),
+    // F-167: o sino mostra só o que ainda não foi lido; lido ou dispensado some daqui.
+    queryFn: () => centralService.listarNotificacoes({ itensPorPagina: 8, status: 'NAO_LIDA' }),
     staleTime: 20000,
   });
+  const qc = useQueryClient();
+  const atualizarAvisos = () => {
+    qc.invalidateQueries({ queryKey: ['central-recentes'] });
+    qc.invalidateQueries({ queryKey: ['central-feed'] });
+    qc.invalidateQueries({ queryKey: centralUnreadKey });
+  };
 
   return (
     <header className="sticky top-0 z-20 bg-slate-950/80 backdrop-blur-md border-b border-white/10 px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sm:gap-4">
@@ -148,8 +156,9 @@ export function CrmHeader({ onMenuClick, onToggleSidebar, sidebarCollapsed = fal
                 <DropdownMenuItem
                   key={n.id}
                   className="p-3 text-xs focus:bg-slate-900 focus:text-white rounded-lg cursor-pointer flex flex-col items-start gap-1"
-                  onClick={() => {
-                    centralService.marcarComoLida(n.id);
+                  onClick={async () => {
+                    await centralService.marcarComoLida(n.id);
+                    atualizarAvisos();
                     navigate(centralPath);
                   }}
                 >
@@ -166,6 +175,21 @@ export function CrmHeader({ onMenuClick, onToggleSidebar, sidebarCollapsed = fal
                     {n.prioridade === 'CRITICO' && (
                       <span className="ml-auto text-[9px] font-bold text-red-400 border border-red-500/40 rounded px-1">CRÍTICO</span>
                     )}
+                    <button
+                      type="button"
+                      data-testid="dispensar-notificacao"
+                      aria-label="Excluir aviso (já li)"
+                      title="Excluir aviso (já li)"
+                      className={cn('rounded p-0.5 text-slate-400 hover:bg-white/10 hover:text-white', n.prioridade === 'CRITICO' ? '' : 'ml-auto')}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await centralService.dispensarNotificacoes([n.id]);
+                        atualizarAvisos();
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden />
+                    </button>
                   </div>
                   <p className="text-slate-400 line-clamp-1 w-full pl-4">{n.mensagem}</p>
                   <span className="text-[10px] text-primary mt-0.5 pl-4">{formatDateTime(n.created_at)}</span>
@@ -189,9 +213,9 @@ export function CrmHeader({ onMenuClick, onToggleSidebar, sidebarCollapsed = fal
             {totalNaoLidas > 0 && (
               <DropdownMenuItem
                 className="text-xs text-slate-300 justify-center py-2 focus:bg-slate-900 rounded-lg cursor-pointer"
-                onClick={() => centralService.marcarTodasComoLidas()}
+                onClick={async () => { await centralService.dispensarNotificacoes(); atualizarAvisos(); }}
               >
-                Marcar todas como lidas
+                Excluir todas (já li)
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

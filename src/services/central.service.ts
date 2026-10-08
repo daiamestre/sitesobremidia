@@ -113,11 +113,19 @@ export interface FiltrosCentral {
 export class CentralService {
   // ---------- NOTIFICAÇÕES ----------
 
+  /**
+   * F-167: só os avisos DO PRÓPRIO usuário e que ele ainda não dispensou. Dono/ADM enxergam os avisos dos clientes pela
+   * regra do banco, mas isso não é "visibilidade" deles: não aparecem na lista nem no contador.
+   */
   async listarNotificacoes(filtros?: FiltrosCentral): Promise<Notificacao[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
     let query = supabase
       .from('notificacoes_central')
       .select('*')
       .eq('canal', 'IN_APP')
+      .eq('usuario_id', user.id)
+      .is('dispensada_em', null)
       .order('created_at', { ascending: false });
 
     if (filtros?.prioridade) {
@@ -155,22 +163,24 @@ export class CentralService {
     return count ?? 0;
   }
 
+  /** Marca como lido (só avisos do próprio usuário — a regra está no banco). */
   async marcarComoLida(notificacaoId: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('notificacoes_central')
-      .update({ lida: true, status_notificacao: 'LIDA' })
-      .eq('id', notificacaoId);
-
+    const { error } = await supabase.rpc('central_notificacoes_marcar_lidas' as never, { p_ids: [notificacaoId] } as never);
     return !error;
   }
 
+  /** Marca como lidos TODOS os avisos do próprio usuário (nunca os dos outros). */
   async marcarTodasComoLidas(): Promise<boolean> {
-    const { error } = await supabase
-      .from('notificacoes_central')
-      .update({ lida: true, status_notificacao: 'LIDA' })
-      .eq('canal', 'IN_APP')
-      .eq('status_notificacao', 'NAO_LIDA');
+    const { error } = await supabase.rpc('central_notificacoes_marcar_lidas' as never, { p_ids: null } as never);
+    return !error;
+  }
 
+  /**
+   * "Excluir" o aviso: ele conta como lido e some da tela do usuário, mas continua gravado (nada é apagado).
+   * Sem ids = dispensa todos os avisos do próprio usuário.
+   */
+  async dispensarNotificacoes(ids?: string[]): Promise<boolean> {
+    const { error } = await supabase.rpc('central_notificacoes_dispensar' as never, { p_ids: ids ?? null } as never);
     return !error;
   }
 

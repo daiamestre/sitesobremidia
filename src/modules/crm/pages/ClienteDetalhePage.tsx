@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Building2, Mail, MapPin, Pencil, Phone, Trash2, User, Loader2, FileCheck, UserCog, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, MapPin, Pencil, Phone, Trash2, User, Loader2, FileCheck, UserCog, RefreshCw, Tag } from 'lucide-react';
 
 export default function ClienteDetalhePage() {
   const [repCodigo, setRepCodigo] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export default function ClienteDetalhePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { isOwner } = useRbac();
+  const { isOwner, isAdmin } = useRbac();
   const permissoes = usePermissoesRepresentantes();
 
   const [cliente, setCliente] = useState<ClienteCompleto | null>(null);
@@ -209,6 +209,16 @@ useEffect(() => {
             >
               <ArrowLeft className="h-4 w-4" /> Voltar
             </Button>
+            {(isOwner || isAdmin) && (
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/workspace/valor-midias?cliente=${cliente.id}`)}
+                className="border-white/10 text-slate-300 hover:text-white rounded-xl gap-2"
+                data-testid="atalho-valor-midias"
+              >
+                <Tag className="h-4 w-4" /> Valor das mídias
+              </Button>
+            )}
             <Button
               onClick={() => navigate(`/representantes/clientes/editar/${cliente.codigo_cliente ?? cliente.id}`)}
               className="gradient-primary glow-primary font-bold rounded-xl gap-2 shadow-xl hover:scale-105 transition-all"

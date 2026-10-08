@@ -8,6 +8,7 @@ import { useRbac } from '@/hooks/useRbac';
 import { corporateUsersService } from '@/services/corporateUsers.service';
 import { 
   Home, 
+  Tag,
   Users, 
   FileText, 
   FileCheck, 
@@ -98,6 +99,8 @@ export function CrmSidebar({ onNavigate, collapsed = false }: { onNavigate?: () 
       ? [
           ...(isWorkspace ? [{ label: 'Pontos Parceiros', icon: Store, path: '/workspace/pontos-parceiros' }] : []),
           { label: 'Gestão de Contratos', icon: ShieldCheck, path: '/workspace/admin/contratos' },
+          // F-166: valor da mídia por anunciante e mídias grátis
+          ...(isWorkspace ? [{ label: 'Valor das Mídias', icon: Tag, path: '/workspace/valor-midias' }] : []),
         ]
       : []),
     { label: 'Agenda', icon: Calendar, path: `${basePath}/agenda` },

@@ -2,18 +2,44 @@
  * SOBRE MÍDIA — playlistCliente.service
  * Playlists do ANUNCIANTE sobre as RPCs server-side (missão §23-§27).
  *
- * REGRA COMERCIAL CRÍTICA (enforcement no BACKEND — nunca só no frontend):
- *   - 1º vídeo de cada playlist: GRATUITO (liberado na hora);
- *   - cada vídeo adicional: R$ 19,99 via contas_receber (PIX avulso);
- *   - item adicional só entra APÓS confirmação real do pagamento
- *     (confirmar_video_playlist_pago exige conta PAGA/PAGO).
+ * REGRA COMERCIAL CRÍTICA (enforcement no BACKEND — nunca só no frontend) — F-166:
+ *   - 1 mídia GRÁTIS, uma única vez, na PRIMEIRA playlist que o anunciante criou;
+ *   - mídias liberadas de graça pelo Owner/ADM (promoção, data comemorativa, cortesia) são usadas antes de cobrar;
+ *   - toda outra mídia custa o valor do anunciante (padrão R$ 19,99; o Owner/ADM muda por anunciante) via
+ *     contas_receber (PIX avulso);
+ *   - item pago só entra APÓS confirmação real do pagamento (1 cobrança paga = 1 item).
  */
 
 import { supabase } from '@/integrations/supabase/client';
 import { gerarBrcodePix, type StatusCobranca } from '@/modules/gestor/telaPago.service';
 import { conferirExclusao } from '@/lib/excluir';
 
+/** Valor padrão (o banco manda o valor real de cada anunciante; isto só serve de reserva na tela). */
 export const VALOR_VIDEO_ADICIONAL = 19.99;
+
+export type OrigemDoItem = 'GRATIS_PRIMEIRA' | 'CORTESIA' | 'VALOR_ZERO' | 'PAGA';
+
+export interface LiberacaoDeMidias {
+  id: string;
+  quantidade: number;
+  usadas: number;
+  restantes: number;
+  motivo: 'PROMOCAO' | 'DATA_COMEMORATIVA' | 'CORTESIA' | 'OUTRO';
+  data_comemorativa: string | null;
+  explicacao: string | null;
+  mensagem: string;
+  criado_em: string;
+}
+
+/** O que o anunciante precisa saber: valor da próxima mídia, mídia grátis da 1ª playlist e mídias liberadas. */
+export interface CotaDeMidias {
+  valor: number;
+  valorTexto: string;
+  gratisPrimeiraPlaylist: 'DISPONIVEL' | 'USADA';
+  primeiraPlaylistId: string | null;
+  liberacoes: LiberacaoDeMidias[];
+  restantesLiberadas: number;
+}
 
 export interface PlaylistCliente {
   id: string;
@@ -34,6 +60,8 @@ export interface PlaylistItem {
   ordem: number;
   duracao_segundos?: number | null;
   cobranca_id?: string | null;
+  /** F-166: de onde veio a liberação do item (grátis da 1ª playlist, cortesia, valor zero ou pago). */
+  origem?: OrigemDoItem | null;
   created_at: string;
   asset?: {
     id: string;
@@ -59,6 +87,9 @@ export interface ResultadoAdicaoMidia {
   itemLiberado: boolean;
   cobrancaId?: string;
   codigo?: string;
+  origem?: OrigemDoItem;
+  mensagem?: string;
+  restantesGratis?: number;
 }
 
 export interface PontoContratado {
@@ -143,13 +174,36 @@ export class PlaylistClienteService {
     });
     if (error) throw new Error(error.message);
 
-    const r = data as { cobrado: boolean; valor: number; cobranca_id?: string; codigo?: string; item_liberado?: boolean };
+    const r = data as { cobrado: boolean; valor: number; cobranca_id?: string; codigo?: string; item_liberado?: boolean; origem?: OrigemDoItem; mensagem?: string; restantes_gratis?: number };
     return {
       cobrado: !!r.cobrado,
       valor: Number(r.valor ?? 0),
       itemLiberado: r.cobrado ? false : (r.item_liberado ?? true),
       cobrancaId: r.cobranca_id,
       codigo: r.codigo,
+      origem: r.origem,
+      mensagem: r.mensagem,
+      restantesGratis: r.restantes_gratis,
+    };
+  }
+
+  /** Cota de mídias do anunciante (mídia grátis, liberações e valor da próxima). */
+  async minhaCota(): Promise<CotaDeMidias> {
+    const { data, error } = await supabase.rpc('portal_minha_cota_midias' as never);
+    if (error) throw new Error(error.message);
+    const r = data as unknown as {
+      status?: string; valor_midia?: number; valor_midia_texto?: string;
+      gratis_primeira_playlist?: 'DISPONIVEL' | 'USADA'; primeira_playlist_id?: string | null;
+      liberacoes?: LiberacaoDeMidias[]; restantes_liberadas?: number;
+    } | null;
+    if (!r || r.status !== 'OK') throw new Error('Sem permissão para ver a cota de mídias.');
+    return {
+      valor: Number(r.valor_midia ?? VALOR_VIDEO_ADICIONAL),
+      valorTexto: r.valor_midia_texto ?? '',
+      gratisPrimeiraPlaylist: r.gratis_primeira_playlist ?? 'DISPONIVEL',
+      primeiraPlaylistId: r.primeira_playlist_id ?? null,
+      liberacoes: r.liberacoes ?? [],
+      restantesLiberadas: Number(r.restantes_liberadas ?? 0),
     };
   }
 

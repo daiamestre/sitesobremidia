@@ -18,11 +18,16 @@ import {
 import { toast } from 'sonner';
 import {
   playlistClienteService, VALOR_VIDEO_ADICIONAL,
-  type PlaylistCliente, type PontoContratado,
+  type PlaylistCliente, type PontoContratado, type CotaDeMidias,
 } from '@/modules/crm/services/playlistCliente.service';
+import { brl, dicaDeCusto, etiquetaDoItem } from '@/lib/cotaDeMidias';
+import { CotaDeMidiasBanner } from '@/modules/crm/components/portal/CotaDeMidiasBanner';
 
-const brl = (n: number) =>
-  Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const COR_ETIQUETA = {
+  verde: 'border-emerald-500/30 text-emerald-400',
+  ambar: 'border-amber-500/30 text-amber-400',
+  azul: 'border-sky-500/30 text-sky-400',
+} as const;
 
 export default function PlaylistsClientePage() {
   const qc = useQueryClient();
@@ -47,6 +52,13 @@ export default function PlaylistsClientePage() {
     queryKey: ['playlists-cliente'],
     queryFn: () => playlistClienteService.listarPlaylists(),
     refetchInterval: 30000,
+  });
+
+  // F-166: mídia grátis da 1ª playlist, mídias liberadas pelo Owner/ADM e valor da próxima mídia
+  const { data: cota } = useQuery({
+    queryKey: ['cota-midias'],
+    queryFn: () => playlistClienteService.minhaCota(),
+    refetchInterval: 60000,
   });
 
   const totalVideos = (p: PlaylistCliente) => (p.itens ?? []).filter((i) => i.asset?.tipo === 'video').length;
@@ -80,14 +92,16 @@ export default function PlaylistsClientePage() {
           </h1>
           <p className="text-sm text-slate-400 mt-1">
             Organize suas mídias em playlists e vincule aos seus pontos contratados.
-            Cada playlist inclui <strong className="text-emerald-400">1 vídeo gratuito</strong>;
-            vídeos adicionais: {brl(VALOR_VIDEO_ADICIONAL)} cada.
+            Sua <strong className="text-emerald-400">primeira playlist</strong> tem 1 mídia grátis;
+            depois, cada mídia custa {brl(cota?.valor ?? VALOR_VIDEO_ADICIONAL)}.
           </p>
         </div>
         <Button onClick={() => setDialogNova(true)} className="gap-2">
           <Plus className="h-4 w-4" /> Criar Playlist
         </Button>
       </div>
+
+      <CotaDeMidiasBanner cota={cota} />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-slate-500">
@@ -99,7 +113,7 @@ export default function PlaylistsClientePage() {
             <ListVideo className="h-12 w-12 mx-auto text-slate-600 mb-4" />
             <h3 className="font-semibold text-lg">Nenhuma playlist ainda</h3>
             <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-              Crie sua primeira playlist: o primeiro vídeo é gratuito. Depois vincule-a
+              Crie sua primeira playlist: a primeira mídia dela é gratuita. Depois vincule-a
               aos seus pontos contratados para entrar no ar.
             </p>
             <Button onClick={() => setDialogNova(true)} className="mt-5 gap-2">
@@ -152,6 +166,7 @@ export default function PlaylistsClientePage() {
         setDescricao={setDescricao}
         criando={criando}
         onCriar={criarPlaylist}
+        cota={cota}
       />
 
       {playlistAtiva && (
@@ -173,6 +188,7 @@ function NovaPlaylistDialog(props: {
   setDescricao: (v: string) => void;
   criando: boolean;
   onCriar: () => void;
+  cota?: CotaDeMidias;
 }) {
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -180,8 +196,10 @@ function NovaPlaylistDialog(props: {
         <DialogHeader>
           <DialogTitle>Criar Playlist</DialogTitle>
           <DialogDescription>
-            O primeiro vídeo é gratuito. Vídeos adicionais custam{' '}
-            {brl(VALOR_VIDEO_ADICIONAL)} por cobrança PIX.
+            {props.cota?.gratisPrimeiraPlaylist === 'USADA'
+              ? 'A mídia grátis já foi usada na sua primeira playlist. '
+              : 'A primeira mídia da sua primeira playlist é gratuita. '}
+            Cada mídia adicional custa {brl(props.cota?.valor ?? VALOR_VIDEO_ADICIONAL)} (PIX).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -223,7 +241,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
 
   const [assetSelecionado, setAssetSelecionado] = useState<string | null>(null);
   const [adicionando, setAdicionando] = useState(false);
-  const [cobrancaPendente, setCobrancaPendente] = useState<{ cobrancaId: string; codigo: string; assetId: string; duracao?: number | null } | null>(null);
+  const [cobrancaPendente, setCobrancaPendente] = useState<{ cobrancaId: string; codigo: string; assetId: string; valor: number; duracao?: number | null } | null>(null);
   const [vinculando, setVinculando] = useState(false);
   const [pontosSelecionados, setPontosSelecionados] = useState<Set<string>>(new Set());
   const [publicandoPonto, setPublicandoPonto] = useState<string | null>(null);
@@ -235,6 +253,11 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
     refetchInterval: cobrancaPendente ? 8000 : false,
   });
   const playlist = useMemo(() => playlists.find((p) => p.id === playlistId) ?? null, [playlists, playlistId]);
+
+  const { data: cota } = useQuery({
+    queryKey: ['cota-midias'],
+    queryFn: () => playlistClienteService.minhaCota(),
+  });
 
   const { data: assets = [] } = useQuery({
     queryKey: ['cliente-assets'],
@@ -264,11 +287,12 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
             cobrancaPendente.assetId,
             cobrancaPendente.duracao
           );
-          toast.success('Pagamento confirmado! Vídeo adicionado à playlist.');
+          toast.success('Pagamento confirmado! Mídia adicionada à playlist.');
           qc.invalidateQueries({ queryKey: ['playlists-cliente'] });
+          qc.invalidateQueries({ queryKey: ['cota-midias'] });
           setCobrancaPendente(null);
         } catch (e: any) {
-          toast.error(e?.message || 'Falha ao liberar vídeo.');
+          toast.error(e?.message || 'Falha ao liberar a mídia.');
         }
       }
       return st;
@@ -277,7 +301,8 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
     refetchInterval: 8000,
   });
 
-  const videosNaPlaylist = (playlist?.itens ?? []).filter((i) => i.asset?.tipo === 'video').length;
+  const midiasNaPlaylist = (playlist?.itens ?? []).length;
+  const dica = dicaDeCusto(cota, playlist?.id ?? null);
 
   const adicionarMidia = async () => {
     if (!assetSelecionado || !playlist) return;
@@ -290,18 +315,20 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
         asset?.duracao ?? null
       );
       if (!r.cobrado) {
-        toast.success('Mídia adicionada!');
+        toast.success(r.mensagem || 'Mídia adicionada!');
       } else {
-        toast.info(`Esta playlist já possui seu vídeo gratuito. Cobrança de ${brl(r.valor)} gerada (${r.codigo}).`);
+        toast.info(r.mensagem || `Cobrança de ${brl(r.valor)} gerada (${r.codigo}).`);
         setCobrancaPendente({
           cobrancaId: r.cobrancaId!,
           codigo: r.codigo!,
           assetId: assetSelecionado,
+          valor: r.valor,
           duracao: asset?.duracao ?? null,
         });
       }
       setAssetSelecionado(null);
       qc.invalidateQueries({ queryKey: ['playlists-cliente'] });
+      qc.invalidateQueries({ queryKey: ['cota-midias'] });
     } catch (e: any) {
       toast.error(e?.message || 'Erro ao adicionar mídia.');
     } finally {
@@ -325,7 +352,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
   };
 
   const publicarNoPlayer = async () => {
-    if (!playlist || videosNaPlaylist === 0) return;
+    if (!playlist || midiasNaPlaylist === 0) return;
     setPublicando(true);
     try {
       const r = await playlistClienteService.publicarNoPlayer(playlist.id);
@@ -346,11 +373,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
         <DialogHeader>
           <DialogTitle>{playlist?.nome}</DialogTitle>
           <DialogDescription>
-            {videosNaPlaylist === 0
-              ? 'Nenhum vídeo ainda — o primeiro é gratuito.'
-              : videosNaPlaylist === 1
-                ? `1 vídeo gratuito utilizado. Próximos vídeos: ${brl(VALOR_VIDEO_ADICIONAL)} cada.`
-                : `${videosNaPlaylist - 1} vídeo(s) adicional(is) cobrado(s).`}
+            {dica ? dica.texto : 'Carregando as condições da sua conta…'}
           </DialogDescription>
         </DialogHeader>
 
@@ -367,15 +390,10 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
                   ? <Film className="h-4 w-4 text-purple-400 flex-shrink-0" />
                   : <ImageIcon className="h-4 w-4 text-sky-400 flex-shrink-0" />}
                 <span className="flex-1 text-sm truncate">{item.asset?.nome ?? item.biblioteca?.name ?? item.asset_id}</span>
-                {item.biblioteca_media_id && (
-                  <Badge variant="outline" className="text-[10px] border-sky-500/30 text-sky-400">Biblioteca</Badge>
-                )}
-                {item.cobranca_id && (
-                  <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">pago</Badge>
-                )}
-                {!item.cobranca_id && item.asset?.tipo === 'video' && (
-                  <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">grátis</Badge>
-                )}
+                {(() => {
+                  const et = etiquetaDoItem(item.origem, !!item.cobranca_id);
+                  return et ? <Badge variant="outline" className={`text-[10px] ${COR_ETIQUETA[et.cor]}`}>{et.texto}</Badge> : null;
+                })()}
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7 text-rose-400"
                   onClick={async () => {
@@ -394,13 +412,18 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
           </div>
 
           {/* Adicionar mídia */}
+          {dica && (
+            <p data-testid="dica-de-custo" className={`text-xs pt-1 ${dica.tipo === 'paga' ? 'text-amber-300' : 'text-emerald-300'}`}>
+              {dica.texto}
+            </p>
+          )}
           <div className="flex gap-2 pt-1">
             <select
               value={assetSelecionado ?? ''}
               onChange={(e) => setAssetSelecionado(e.target.value || null)}
               className="flex-1 px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-700 text-slate-200"
             >
-              <option value="">Selecione uma mídia da biblioteca…</option>
+              <option value="">Selecione uma das suas mídias…</option>
               {(assets as any[])
                 .filter((a) => a.tipo === 'imagem' || a.tipo === 'video')
                 .map((a) => (
@@ -416,7 +439,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
           </div>
           {(assets as any[]).filter((a) => a.tipo === 'imagem' || a.tipo === 'video').length === 0 && (
             <p className="text-xs text-amber-400/80">
-              Sua biblioteca está vazia — envie mídias em Minhas Mídias → Biblioteca.
+              Você ainda não enviou mídias — envie em Minhas Mídias.
             </p>
           )}
         </section>
@@ -525,16 +548,16 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
                 <MonitorPlay className="h-4 w-4 text-primary" /> Publicar no Player
               </p>
               <p className="text-xs text-slate-400 mt-0.5">
-                Envia esta playlist para o sistema de exibição. Vídeos adicionais só são publicados após o pagamento.
+                Envia esta playlist para o sistema de exibição. Mídias pagas só são publicadas após o pagamento.
               </p>
             </div>
             <Button
               size="sm"
-              disabled={publicando || videosNaPlaylist === 0 || !!cobrancaPendente}
+              disabled={publicando || midiasNaPlaylist === 0 || !!cobrancaPendente}
               onClick={publicarNoPlayer}
             >
               {publicando ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <MonitorPlay className="h-4 w-4 mr-1" />}
-              {cobrancaPendente ? 'Conclua o pagamento' : videosNaPlaylist === 0 ? 'Adicione um vídeo' : 'Publicar'}
+              {cobrancaPendente ? 'Conclua o pagamento' : midiasNaPlaylist === 0 ? 'Adicione uma mídia' : 'Publicar'}
             </Button>
           </div>
         </section>
@@ -545,11 +568,11 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
             <div className="flex items-center justify-between">
               <span className="font-mono text-sm text-amber-400">{cobrancaPendente.codigo}</span>
               <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                AGUARDANDO PAGAMENTO · {brl(VALOR_VIDEO_ADICIONAL)}
+                AGUARDANDO PAGAMENTO · {brl(cobrancaPendente.valor)}
               </Badge>
             </div>
             <p className="text-[11px] text-slate-400 break-all font-mono">
-              {playlistClienteService.gerarBrcodePix(cobrancaPendente.codigo, VALOR_VIDEO_ADICIONAL)}
+              {playlistClienteService.gerarBrcodePix(cobrancaPendente.codigo, cobrancaPendente.valor)}
             </p>
             <Button
               size="sm"
@@ -557,7 +580,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(
-                    playlistClienteService.gerarBrcodePix(cobrancaPendente.codigo, VALOR_VIDEO_ADICIONAL)
+                    playlistClienteService.gerarBrcodePix(cobrancaPendente.codigo, cobrancaPendente.valor)
                   );
                   toast.success('PIX copia e cola copiado.');
                 } catch {
@@ -569,7 +592,7 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
             </Button>
             <p className="text-[11px] text-emerald-400/90 flex items-center gap-1">
               <ShieldCheck className="h-3.5 w-3.5" />
-              O vídeo será liberado automaticamente após a conciliação do pagamento.
+              A mídia será liberada automaticamente após a conciliação do pagamento.
             </p>
           </div>
         )}

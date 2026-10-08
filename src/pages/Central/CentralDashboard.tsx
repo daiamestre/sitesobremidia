@@ -202,6 +202,18 @@ export const CentralDashboard = () => {
     onError: () => toast.error('Erro ao marcar notificação como lida'),
   });
 
+  // F-167: "excluir" = dar o aviso por lido e tirá-lo da tela (nada é apagado)
+  const dispensarMutation = useMutation({
+    mutationFn: (id: string) => centralService.dispensarNotificacoes([id]),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['central-feed'] });
+      queryClient.invalidateQueries({ queryKey: ['central-recentes'] });
+      queryClient.invalidateQueries({ queryKey: centralUnreadKey });
+      setSelectedNotification(null);
+    },
+    onError: () => toast.error('Não foi possível excluir o aviso'),
+  });
+
   const resolverNotificacaoMutation = useMutation({
     mutationFn: (id: string) => centralService.resolverNotificacao(id),
     onSuccess: () => {
@@ -794,6 +806,9 @@ export const CentralDashboard = () => {
                                 <CheckCircle2 className="h-4 w-4 text-blue-500" />
                               </Button>
                             )}
+                            <Button variant="ghost" size="icon" data-testid="dispensar-notificacao" onClick={(e) => { e.stopPropagation(); dispensarMutation.mutate(notification.id); }} className="h-8 w-8" title="Excluir aviso (já li)" aria-label="Excluir aviso (já li)">
+                              <X className="h-4 w-4 text-slate-400" />
+                            </Button>
                           </div>
                         </div>
                       </CardContent>
