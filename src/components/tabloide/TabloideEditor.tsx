@@ -18,9 +18,9 @@ import {
   chaveDoProduto, lerLista, mesclarListas, paraLinha, precoParaTexto, lerValor, UNIDADES_DISPONIVEIS,
   type ImagemProduto, type ProdutoTabloide,
 } from '@/lib/tabloide/parseProdutos';
-import { FORMATOS, SEGMENTOS, TEMAS, formatoPorId, segmentoPorId, temaPorId, temasDeDatas, temasDoSegmento, type SegmentoId } from '@/lib/tabloide/temas';
+import { FORMATOS, SEGMENTOS, TEMAS, TITULOS_PRONTOS, formatoPorId, segmentoPorId, temaPorId, temasDeDatas, temasDoSegmento, type SegmentoId } from '@/lib/tabloide/temas';
 import { GRADES_FIXAS, montarPaginas, rotuloGrade } from '@/lib/tabloide/grade';
-import { buscarCandidatos, completarImagens, emojiDoProduto, salvarNoCatalogo, type CandidatoImagem } from '@/lib/tabloide/imagens';
+import { buscarCandidatos, completarImagens, emojiDoProduto, prepararImagem, salvarNoCatalogo, type CandidatoImagem } from '@/lib/tabloide/imagens';
 import { baixarBlob, nomeDeArquivo, renderizarPaginaEmPng } from '@/lib/tabloide/exportar';
 import { tabelaTabloide } from '@/lib/tabloide/db';
 import { TabloideCanvas } from './TabloideCanvas';
@@ -68,6 +68,8 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const [empresa, setEmpresa] = useState(empresaPadrao);
   const [logoUrl, setLogoUrl] = useState<string | null>(logoPadrao);
   const [mostrarLogo, setMostrarLogo] = useState(true);
+  const [seloUrl, setSeloUrl] = useState<string | null>(null);
+  const [enviandoSelo, setEnviandoSelo] = useState(false);
   const [pagina, setPagina] = useState(0);
   const [buscandoFotos, setBuscandoFotos] = useState(false);
   const [ocupado, setOcupado] = useState<null | 'baixar' | 'enviar' | 'salvar'>(null);
@@ -87,7 +89,9 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const formato = formatoPorId(formatoId);
   const tema = temaPorId(temaId);
   const segmento = segmentoPorId(segmentoId);
-  const paginas = useMemo(() => montarPaginas(produtos, formato, grade, destaques), [produtos, formato, grade, destaques]);
+  // antes de o cliente digitar, a prévia mostra o exemplo do segmento (só para ver o estilo; não é exportado)
+  const exemplo = useMemo(() => lerLista(segmento.exemplo), [segmento]);
+  const paginas = useMemo(() => montarPaginas(produtos.length ? produtos : exemplo, formato, grade, destaques), [produtos, exemplo, formato, grade, destaques]);
   const paginaAtual = Math.min(pagina, paginas.length - 1);
 
   useEffect(() => {
@@ -143,7 +147,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
 
   const propsDaPagina = (i: number) => ({
     formato, tema, segmento, titulo, subtitulo, validade, empresa,
-    logoUrl: mostrarLogo ? logoUrl : null, pagina: paginas[i], numeroPagina: i + 1, totalPaginas: paginas.length,
+    logoUrl: mostrarLogo ? logoUrl : null, seloUrl, pagina: paginas[i], numeroPagina: i + 1, totalPaginas: paginas.length,
   });
 
   const gerarPngs = async (): Promise<Blob[]> => {
@@ -198,7 +202,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     } finally { setOcupado(null); }
   };
 
-  const config = () => ({ titulo, subtitulo, validade, empresa, mostrarLogo, destaques, texto });
+  const config = () => ({ titulo, subtitulo, validade, empresa, mostrarLogo, destaques, texto, seloUrl });
 
   const salvar = async () => {
     setOcupado('salvar');
@@ -227,7 +231,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     setTabloideId(d.id); setNomeTabloide(d.nome); setFormatoId(d.formato); setTemaId(d.tema); setSegmentoId(d.segmento); setGrade(d.grade);
     setProdutos(d.produtos ?? []); setTexto(c.texto ?? (d.produtos ?? []).map(paraLinha).join('\n'));
     setTitulo(c.titulo ?? ''); setSubtitulo(c.subtitulo ?? ''); setValidade(c.validade ?? ''); setEmpresa(c.empresa ?? empresaPadrao);
-    setMostrarLogo(c.mostrarLogo ?? true); setDestaques(c.destaques ?? 0); setPagina(0);
+    setMostrarLogo(c.mostrarLogo ?? true); setDestaques(c.destaques ?? 0); setSeloUrl(c.seloUrl ?? null); setPagina(0);
     tituloEditado.current = true;
     (d.produtos ?? []).forEach((p: ProdutoTabloide) => tentados.current.add(p.id));
     toast.success('Rascunho aberto.');
@@ -243,7 +247,26 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const trocarFoto = async (produto: ProdutoTabloide, imagem: ImagemProduto) => {
     setProdutos((l) => l.map((p) => (p.id === produto.id ? { ...p, imagem } : p)));
     setTrocando(null);
-    try { await salvarNoCatalogo(produto.nome, imagem, clienteId); } catch { /* o cartaz já foi atualizado */ }
+    try {
+      // tira o fundo e corta as sobras; o cartaz troca para a versão recortada quando ficar pronta
+      const pronta = await prepararImagem(imagem);
+      if (pronta !== imagem) setProdutos((l) => l.map((p) => (p.id === produto.id ? { ...p, imagem: pronta } : p)));
+      await salvarNoCatalogo(produto.nome, pronta, clienteId);
+    } catch { /* o cartaz já foi atualizado */ }
+  };
+
+  const enviarSelo = async (arq: File | undefined) => {
+    if (!arq || !user?.id) return;
+    if (arq.type !== 'image/png' && arq.type !== 'image/webp') { toast.error('Envie o selo em PNG (ou WebP) com fundo transparente.'); return; }
+    if (arq.size > 6 * 1024 * 1024) { toast.error('O selo tem mais de 6 MB. Escolha um menor.'); return; }
+    setEnviandoSelo(true);
+    try {
+      const ext = arq.type === 'image/webp' ? 'webp' : 'png';
+      const { publicUrl } = await uploadToR2(arq, `${user.id}/tabloide/selo-${Date.now()}.${ext}`, arq.type, user.id);
+      setSeloUrl(publicUrl);
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível enviar o selo.');
+    } finally { setEnviandoSelo(false); }
   };
 
   const botaoAba = (a: Aba) => (
@@ -381,10 +404,30 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
 
           {aba === 'Marca' && (
             <div className="space-y-3">
+              <div className="space-y-1 text-sm">
+                <span className="font-semibold">Selo pronto</span>
+                <div className="flex flex-wrap gap-2" data-testid="tabloide-titulos-prontos">
+                  {TITULOS_PRONTOS.map((tp) => (
+                    <button key={tp} type="button" onClick={() => { tituloEditado.current = true; setTitulo(tp); setSeloUrl(null); }}
+                      className={cn('rounded-md border px-3 py-1.5 text-sm', titulo.toLowerCase() === tp.toLowerCase() ? 'border-primary bg-primary/10 font-semibold' : 'hover:bg-muted')}>{tp}</button>
+                  ))}
+                </div>
+              </div>
               <Campo rotulo="Título do cartaz"><Input value={titulo} onChange={(e) => { tituloEditado.current = true; setTitulo(e.target.value); }} maxLength={40} /></Campo>
               <Campo rotulo="Frase abaixo do título"><Input value={subtitulo} onChange={(e) => { tituloEditado.current = true; setSubtitulo(e.target.value); }} maxLength={60} /></Campo>
               <Campo rotulo="Validade (aparece no rodapé)"><Input value={validade} onChange={(e) => setValidade(e.target.value)} placeholder="Ex.: Ofertas válidas até 15/11 ou enquanto durarem os estoques" maxLength={90} /></Campo>
               <Campo rotulo="Nome da sua loja"><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={50} /></Campo>
+              <div className="space-y-1 text-sm">
+                <span className="font-semibold">Selo do título</span>
+                <p className="text-xs text-muted-foreground">O selo 3D é criado sozinho a partir do título. Se você tem um selo seu (PNG com fundo transparente, com licença de uso), pode enviar.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex h-9 cursor-pointer items-center gap-1 rounded-md border px-3 text-sm hover:bg-muted" data-testid="tabloide-enviar-selo">
+                    {enviandoSelo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Enviar meu selo (PNG)
+                    <input type="file" accept="image/png,image/webp" className="hidden" onChange={(e) => enviarSelo(e.target.files?.[0])} />
+                  </label>
+                  {seloUrl && <Button type="button" variant="ghost" size="sm" onClick={() => setSeloUrl(null)}>Voltar ao selo 3D automático</Button>}
+                </div>
+              </div>
               {logoUrl && (
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mostrarLogo} onChange={(e) => setMostrarLogo(e.target.checked)} /> Mostrar a minha logo no cartaz</label>
               )}
@@ -400,6 +443,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
               </div>
             </div>
           </div>
+          {!produtos.length && <p className="text-sm text-muted-foreground" data-testid="tabloide-exemplo">Este é um exemplo de {segmento.nome.toLowerCase()}. Digite os seus produtos e toque em <b>Montar cartaz</b>.</p>}
           {paginas.length > 1 && (
             <div className="flex items-center gap-2 text-sm">
               {paginas.map((_, i) => (

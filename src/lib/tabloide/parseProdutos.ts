@@ -14,6 +14,8 @@ export interface ImagemProduto {
   url: string;
   fonte: FonteImagem;
   credito?: string;
+  /** Foto já sem fundo (PNG transparente): o cartaz desenha o produto solto. */
+  recortada?: boolean;
 }
 
 export interface ProdutoTabloide {

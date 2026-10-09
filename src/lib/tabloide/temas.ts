@@ -122,3 +122,6 @@ export const FORMATOS: Formato[] = [
 ];
 
 export const formatoPorId = (id: string): Formato => FORMATOS.find((f) => f.id === id) ?? FORMATOS[0];
+
+/** Títulos prontos do selo 3D (um toque e o cabeçalho troca). */
+export const TITULOS_PRONTOS = ['Ofertas do Dia', 'Ofertas da Semana', 'Hoje é Dia de Promoção'] as const;

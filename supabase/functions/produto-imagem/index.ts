@@ -33,26 +33,81 @@ function relacionado(legenda: string, ps: string[]): boolean {
   return l.includes(ps[0]) || (ps.length > 1 && ps.slice(1).every((p) => l.includes(p)));
 }
 
+/** Medidas digitadas ("5kg", "2 l", "500g") no formato sem espaço, para comparar com o nome do produto. */
+function medidas(termo: string): string[] {
+  return [...norm(termo).matchAll(/(\d+(?:[.,]\d+)?)\s*(kg|g|gr|ml|l|lt|mg)\b/g)].map((m) => m[1].replace(',', '.') + (m[2] === 'lt' ? 'l' : m[2] === 'gr' ? 'g' : m[2]));
+}
+
+/**
+ * Nota de semelhança entre o que foi digitado e o nome do produto do catálogo (sem a marca).
+ * 0 = não serve. Quem começa com a palavra principal ("Leite ...") vale mais que quem só a cita ("Chocolate ao leite").
+ */
+function nota(nomeProduto: string, termo: string, ps: string[]): number {
+  if (!ps.length) return 1;
+  const n = norm(nomeProduto).replace(/[^a-z0-9.,\s]/g, ' ');
+  const palavrasNome = n.split(/\s+/).filter(Boolean);
+  if (!palavrasNome.includes(ps[0])) return 0;
+  let s = 1;
+  const pos = palavrasNome.indexOf(ps[0]);
+  if (pos === 0) s += 4; else if (pos === 1) s += 2;
+  for (const p of ps.slice(1)) if (palavrasNome.includes(p)) s += 2;
+  const colado = n.replace(/(\d)\s+(kg|g|ml|l)\b/g, '$1$2').replace(/,/g, '.');
+  for (const m of medidas(termo)) if (new RegExp(`(^|[^0-9.])${m.replace('.', '\\.')}($|[^a-z0-9])`).test(colado)) s += 3;
+  // nome muito comprido costuma ser kit/combo, não o produto simples
+  if (palavrasNome.length > 9) s -= 1;
+  return Math.max(s, 0.5);
+}
+
 async function comTempo<T>(p: Promise<T>, ms: number): Promise<T | null> {
   return await Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 }
 
-async function openFoodFacts(termo: string, ps: string[]): Promise<Candidato[]> {
+/** Busca rápida do Open Food Facts (serviço novo de pesquisa): responde em menos de 1 s e não trava como a busca antiga. */
+async function buscaRapida(termo: string, ps: string[]): Promise<Candidato[]> {
+  const q = `${termo} countries_tags:"en:brazil"`;
+  const url = `https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&page_size=24&langs=pt&fields=product_name,brands,image_front_url,image_front_small_url`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0 (contato@sobremidia.com.br)' } });
+  if (!r.ok) return [];
+  const j = await r.json().catch(() => null);
+  const texto = (v: unknown) => (Array.isArray(v) ? v.join(' ') : String(v ?? ''));
+  const achados: Array<{ c: Candidato; n: number }> = [];
+  for (const p of j?.hits ?? []) {
+    const produto = texto(p.product_name).trim();
+    const n = nota(produto, termo, ps);
+    if (!p.image_front_url || n <= 0) continue;
+    const nome = `${produto} ${texto(p.brands)}`.trim();
+    achados.push({ n, c: { url: p.image_front_url, miniatura: p.image_front_small_url || p.image_front_url, fonte: 'OPENFOODFACTS', credito: 'Open Food Facts (CC BY-SA)', legenda: nome.slice(0, 80) } });
+  }
+  achados.sort((a, b) => b.n - a.n);
+  // só ficam os parecidos de verdade: quem apenas cita a palavra no meio do nome ("chocolate ao leite") sai
+  const corte = Math.max(3, (achados[0]?.n ?? 0) * 0.6);
+  return achados.filter((a) => a.n >= corte).slice(0, 6).map((a) => a.c);
+}
+
+// a mesma base aberta tem 4 catálogos: alimentos, beleza/higiene, ração e produtos em geral
+const CATALOGOS = ['world.openfoodfacts.org', 'world.openbeautyfacts.org', 'world.openpetfoodfacts.org', 'world.openproductsfacts.org'];
+
+async function openFoodFacts(termo: string, ps: string[], host = CATALOGOS[0]): Promise<Candidato[]> {
   const url =
-    'https://world.openfoodfacts.org/cgi/search.pl?search_simple=1&action=process&json=1&page_size=12' +
+    `https://${host}/cgi/search.pl?` + 'search_simple=1&action=process&json=1&page_size=12' +
     '&fields=product_name,brands,image_front_url,image_front_small_url&tagtype_0=countries&tag_contains_0=contains&tag_0=brazil' +
     `&search_terms=${encodeURIComponent(termo)}`;
   // o Open Food Facts às vezes responde com página de erro; tenta de novo uma vez
   let j: any = null;
-  for (let tentativa = 0; tentativa < 2 && !j; tentativa++) {
+  for (let tentativa = 0; tentativa < (host === CATALOGOS[0] ? 2 : 1) && !j; tentativa++) {
     const r = await fetch(url, { headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0 (contato@sobremidia.com.br)' } });
     if (r.ok) j = await r.json().catch(() => null);
   }
   if (!j) return [];
   const out: Candidato[] = [];
-  for (const p of j?.products ?? []) {
+  const ordenados = [...(j?.products ?? [])]
+    .map((p: any) => ({ p, n: nota(String(p.product_name ?? ''), termo, ps) }))
+    .filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n)
+    .map((x) => x.p);
+  for (const p of ordenados) {
     const nome = `${p.product_name ?? ''} ${p.brands ?? ''}`.trim();
-    if (!p.image_front_url || !relacionado(nome, ps)) continue;
+    if (!p.image_front_url) continue;
     out.push({
       url: p.image_front_url,
       miniatura: p.image_front_small_url || p.image_front_url,
@@ -112,12 +167,16 @@ Deno.serve(async (req) => {
     if (t.length < 2) return json({ candidatos: [] });
     const ps = palavras(t);
     const consulta = ps.length ? ps.join(' ') : t;
-    const [off, pex, pix] = await Promise.all([
-      comTempo(openFoodFacts(t, ps).catch(() => []), 14000),
+    const [off, obf, opff, opf, pex, pix] = await Promise.all([
+      // alimentos: busca rápida primeiro; a antiga só entra se a rápida não achar nada
+      comTempo(buscaRapida(t, ps).then((r) => (r.length ? r : openFoodFacts(t, ps))).catch(() => []), 14000),
+      comTempo(openFoodFacts(t, ps, CATALOGOS[1]).catch(() => []), 9000),
+      comTempo(openFoodFacts(t, ps, CATALOGOS[2]).catch(() => []), 9000),
+      comTempo(openFoodFacts(t, ps, CATALOGOS[3]).catch(() => []), 9000),
       comTempo(pexels(consulta, ps).catch(() => []), 7000),
       comTempo(pixabay(consulta, ps).catch(() => []), 7000),
     ]);
-    return json({ candidatos: [...(off ?? []), ...(pex ?? []), ...(pix ?? [])] });
+    return json({ candidatos: [...(off ?? []), ...(obf ?? []), ...(opff ?? []), ...(opf ?? []), ...(pex ?? []), ...(pix ?? [])] });
   } catch {
     return json({ candidatos: [], erro: 'consulta inválida' }, 400);
   }

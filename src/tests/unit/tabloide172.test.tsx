@@ -9,7 +9,9 @@ import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, chaveDoProduto,
 import { montarPaginas, melhorGrade, medidasDoFormato } from '@/lib/tabloide/grade';
 import { FORMATOS, SEGMENTOS, TEMAS, temasDoSegmento, temaPorId, segmentoPorId, formatoPorId } from '@/lib/tabloide/temas';
 import { emojiDoProduto, ehFresco, escolherMelhor, type CandidatoImagem } from '@/lib/tabloide/imagens';
-import { TabloideCanvas } from '@/components/tabloide/TabloideCanvas';
+import { TabloideCanvas, descontoPct } from '@/components/tabloide/TabloideCanvas';
+import { claridade, coresDoSelo, dividirTitulo, larguraDoPreco } from '@/lib/tabloide/selo3d';
+import { analisarFundo, recortarFundo } from '@/lib/tabloide/recorte';
 
 const fonte = (p: string) => readFileSync(p, 'utf8');
 
@@ -165,15 +167,89 @@ describe('F-172 · cartaz', () => {
       <TabloideCanvas formato={formatoPorId('tv-h')} tema={temaPorId('ofertao')} segmento={segmentoPorId('mercado')} titulo="Ofertão da semana"
         subtitulo="Só hoje" validade="Válido até 15/11" empresa="Mercado Bom Preço" pagina={pagina} numeroPagina={1} totalPaginas={1} />,
     );
-    expect(screen.getByText('OFERTÃO DA SEMANA')).toBeTruthy();
+    // F-173: título vira selo 3D e o preço vira selo desenhado (ambos com rótulo para leitor de tela)
+    expect(screen.getByLabelText('OFERTÃO DA SEMANA')).toBeTruthy();
     expect(screen.getAllByTestId('tabloide-cartao')).toHaveLength(3);
-    expect(screen.getByText('49')).toBeTruthy();
-    expect(screen.getByText(',90')).toBeTruthy();
-    expect(screen.getByText('CONSULTE')).toBeTruthy();
+    expect(screen.getByLabelText('R$ 49,90 KG')).toBeTruthy();
+    expect(screen.getByLabelText('R$ 4,99')).toBeTruthy();
+    expect(screen.getByLabelText('Consulte o preço')).toBeTruthy();
+    expect(screen.getByText('PICANHA')).toBeTruthy();
+    expect(screen.getByText('-23%')).toBeTruthy();
+    expect(screen.getByText('Só hoje')).toBeTruthy();
     expect(screen.getByText(/Mercado Bom Preço\s+•\s+Válido até 15\/11/)).toBeTruthy();
     expect(screen.getByText(/Imagens meramente ilustrativas.*Open Food Facts/)).toBeTruthy();
     // produto com foto usa <img> com CORS liberado (precisa para exportar em PNG)
     expect(document.querySelector('img[crossorigin="anonymous"]')).toBeTruthy();
+  });
+});
+
+describe('F-173 · selo 3D, desconto e recorte de fundo', () => {
+  it('divide o título em duas linhas equilibradas, sem deixar "DA/DO" pendurado em cima', () => {
+    expect(dividirTitulo('Super ofertas da semana')).toEqual(['SUPER OFERTAS', 'DA SEMANA']);
+    expect(dividirTitulo('Oferta do dia')).toEqual(['OFERTA', 'DO DIA']);
+    expect(dividirTitulo('Promoção')).toEqual(['PROMOÇÃO']);
+    expect(dividirTitulo('  ')).toEqual([]);
+  });
+
+  it('as cores do selo sempre têm contraste (placa escura ou clara)', () => {
+    expect(coresDoSelo('#d90f1f', '#fff')).toMatchObject({ placa: '#d90f1f', texto: '#ffffff', faixa: '#ffc800' });
+    const claro = coresDoSelo('#facc15', '#18181b');
+    expect(claro).toMatchObject({ placa: '#facc15', texto: '#18181b', faixa: '#18181b', textoFaixa: '#facc15' });
+    for (const t of TEMAS) {
+      const c = coresDoSelo(t.preco, t.precoCor);
+      expect(Math.abs(claridade(c.placa) - claridade(c.texto.startsWith('#') ? c.texto : '#ffffff')), t.id).toBeGreaterThan(0.3);
+    }
+  });
+
+  it('calcula o desconto do "de/por"', () => {
+    expect(descontoPct({ preco: 6.99, precoDe: 8.99 })).toBe(22);
+    expect(descontoPct({ preco: 10, precoDe: null })).toBeNull();
+    expect(descontoPct({ preco: 10, precoDe: 9 })).toBeNull();
+    expect(larguraDoPreco({ inteiro: '1.299', centavos: '90', unidade: null }, 100)).toBeGreaterThan(larguraDoPreco({ inteiro: '9', centavos: '99', unidade: null }, 100));
+  });
+
+  /** Imagem de teste: fundo liso com um retângulo (o "produto") no meio. */
+  function imagem(w: number, h: number, fundo: [number, number, number], produto: [number, number, number] | null, caixa = { x: 10, y: 8, w: 20, h: 24 }) {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dentro = produto && x >= caixa.x && x < caixa.x + caixa.w && y >= caixa.y && y < caixa.y + caixa.h;
+      const c = dentro ? produto! : fundo;
+      data.set([c[0], c[1], c[2], 255], (y * w + x) * 4);
+    }
+    return { data, width: w, height: h };
+  }
+
+  it('tira o fundo branco e acha a caixa do produto', () => {
+    const p = imagem(40, 40, [255, 255, 255], [200, 20, 30]);
+    const caixa = recortarFundo(p);
+    expect(caixa).toEqual({ x: 10, y: 8, w: 20, h: 24 });
+    expect(p.data[3]).toBe(0); // canto ficou transparente
+    expect(p.data[(20 * 40 + 20) * 4 + 3]).toBe(255); // meio do produto continua inteiro
+  });
+
+  it('não mexe em foto com cenário nem em produto branco sobre fundo branco', () => {
+    // cenário: bordas com cores diferentes
+    const cena = imagem(40, 40, [255, 255, 255], null);
+    for (let i = 0; i < 40 * 40; i++) { const v = (i * 37) % 255; cena.data.set([v, 255 - v, (v * 3) % 255, 255], i * 4); }
+    expect(recortarFundo(cena)).toBeNull();
+    expect(analisarFundo(cena).uniformidade).toBeLessThan(0.82);
+    // produto quase branco: o recorte comeria tudo
+    expect(recortarFundo(imagem(40, 40, [255, 255, 255], [250, 250, 250]))).toBeNull();
+    // só um contorno fino sobrando
+    const fino = imagem(40, 40, [255, 255, 255], [0, 0, 0], { x: 5, y: 5, w: 30, h: 1 });
+    expect(recortarFundo(fino)).toBeNull();
+  });
+
+  it('produto de marca só recebe foto real; o recorte e o selo próprio estão ligados no editor', () => {
+    const img = fonte('src/lib/tabloide/imagens.ts');
+    expect(img).toContain("c.fonte === 'OPENFOODFACTS'");
+    expect(img).toContain('prepararImagem');
+    const editor = fonte('src/components/tabloide/TabloideEditor.tsx');
+    expect(editor).toContain('tabloide-enviar-selo');
+    expect(editor).toContain('tabloide-exemplo');
+    const fn = fonte('supabase/functions/produto-imagem/index.ts');
+    expect(fn).toContain('search.openfoodfacts.org');
+    expect(fn).toContain('openbeautyfacts.org');
   });
 });
 

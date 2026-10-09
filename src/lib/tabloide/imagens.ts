@@ -5,6 +5,8 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 import { tabelaTabloide } from './db';
+import { recortarImagem } from './recorte';
+import { uploadToR2 } from '@/lib/r2Upload';
 import { chaveDoProduto, type FonteImagem, type ImagemProduto, type ProdutoTabloide } from './parseProdutos';
 
 export interface CandidatoImagem extends ImagemProduto {
@@ -62,12 +64,12 @@ export async function buscarNoCatalogo(nomes: string[]): Promise<Map<string, Ima
   const mapa = new Map<string, ImagemProduto>();
   if (!chaves.length) return mapa;
   const { data, error } = await tabelaTabloide('tabloide_catalogo')
-    .select('nome_norm, imagem_url, fonte, credito, cliente_id')
+    .select('nome_norm, imagem_url, fonte, credito, cliente_id, recortada')
     .in('nome_norm', chaves);
   if (error || !data) return mapa;
   // a escolha do próprio anunciante vale mais que a da empresa
   const linhas = [...(data as any[])].sort((a, b) => (a.cliente_id ? 0 : 1) - (b.cliente_id ? 0 : 1));
-  for (const l of linhas) if (!mapa.has(l.nome_norm)) mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined });
+  for (const l of linhas) if (!mapa.has(l.nome_norm)) mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada });
   return mapa;
 }
 
@@ -75,10 +77,29 @@ export async function buscarNoCatalogo(nomes: string[]): Promise<Map<string, Ima
 export async function salvarNoCatalogo(nome: string, imagem: ImagemProduto, clienteId: string | null): Promise<void> {
   const nome_norm = chaveDoProduto(nome);
   if (!nome_norm) return;
-  const filtro = tabelaTabloide('tabloide_catalogo').update({ imagem_url: imagem.url, fonte: imagem.fonte, credito: imagem.credito ?? null } as never).eq('nome_norm', nome_norm);
+  const filtro = tabelaTabloide('tabloide_catalogo').update({ imagem_url: imagem.url, fonte: imagem.fonte, credito: imagem.credito ?? null, recortada: !!imagem.recortada } as never).eq('nome_norm', nome_norm);
   const { data } = await (clienteId ? filtro.eq('cliente_id', clienteId) : filtro.is('cliente_id', null)).select('id');
   if (data && data.length) return;
-  await tabelaTabloide('tabloide_catalogo').insert({ nome_norm, nome, imagem_url: imagem.url, fonte: imagem.fonte, credito: imagem.credito ?? null, cliente_id: clienteId } as never);
+  await tabelaTabloide('tabloide_catalogo').insert({ nome_norm, nome, imagem_url: imagem.url, fonte: imagem.fonte, credito: imagem.credito ?? null, recortada: !!imagem.recortada, cliente_id: clienteId } as never);
+}
+
+/**
+ * Deixa a foto pronta para o cartaz: tira o fundo liso, corta as sobras e guarda o PNG transparente no nosso armazenamento.
+ * Se a foto tem cenário (não dá para recortar com segurança) ou algo falha, devolve a foto original.
+ */
+export async function prepararImagem(imagem: ImagemProduto): Promise<ImagemProduto> {
+  if (imagem.recortada) return imagem;
+  try {
+    const png = await recortarImagem(imagem.url);
+    if (!png) return imagem;
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id;
+    if (!uid) return imagem;
+    const { publicUrl } = await uploadToR2(png, `${uid}/tabloide/recorte-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.png`, 'image/png', uid);
+    return { ...imagem, url: publicUrl, recortada: true };
+  } catch {
+    return imagem;
+  }
 }
 
 /**
@@ -103,13 +124,22 @@ export async function completarImagens(
     while (i < buscar.length) {
       const p = buscar[i++];
       try {
-        const melhor = escolherMelhor(p.nome, await buscarCandidatos(p.nome));
-        if (melhor) {
-          const img: ImagemProduto = { url: melhor.url, fonte: melhor.fonte, credito: melhor.credito };
-          aoAchar(p.id, img);
-          // foto de reserva (banco de imagens para produto de embalagem) não fica guardada: da próxima vez tenta a embalagem de novo
-          if (melhor.fonte === 'OPENFOODFACTS' || ehFresco(p.nome)) void salvarNoCatalogo(p.nome, img, clienteId);
-        } else aoAchar(p.id, null);
+        const cands = await buscarCandidatos(p.nome);
+        const fresco = ehFresco(p.nome);
+        const reais = cands.filter((c) => c.fonte === 'OPENFOODFACTS');
+        // produto de marca/embalagem só recebe foto real do produto; banco de imagens é só para frescos e pratos
+        const lista = fresco ? [escolherMelhor(p.nome, cands)].filter((c): c is CandidatoImagem => !!c) : reais.slice(0, 4);
+        if (!lista.length) { aoAchar(p.id, null); continue; }
+        const paraImagem = (c: CandidatoImagem): ImagemProduto => ({ url: c.url, fonte: c.fonte, credito: c.credito });
+        aoAchar(p.id, paraImagem(lista[0])); // aparece na hora; o recorte troca em seguida
+        let final = paraImagem(lista[0]);
+        // entre as fotos reais, fica a primeira que dá para recortar (fundo liso = foto de embalagem bem feita)
+        for (const c of lista) {
+          const pronta = await prepararImagem(paraImagem(c));
+          if (pronta.recortada) { final = pronta; break; }
+        }
+        aoAchar(p.id, final);
+        void salvarNoCatalogo(p.nome, final, clienteId);
       } catch {
         aoAchar(p.id, null);
       }
