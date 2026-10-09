@@ -162,6 +162,8 @@ const ExpansaoPage = lazyWithRetry(() => import("./modules/crm/pages/portal/Expa
 const BrandKitPage = lazyWithRetry(() => import("./modules/crm/pages/portal/BrandKitPage"));
 const AssetLibraryPage = lazyWithRetry(() => import("./modules/crm/pages/portal/AssetLibraryPage"));
 const EncartePage = lazyWithRetry(() => import("./modules/crm/pages/portal/EncartePage"));
+const TabloidePage = lazyWithRetry(() => import("./modules/crm/pages/portal/TabloidePage"));
+const Tabloide = lazyWithRetry(() => import("./pages/dashboard/Tabloide"));
 const BibliotecaIA = lazyWithRetry(() => import("./modules/crm/pages/portal/BibliotecaIA"));
 const PlaylistsClientePage = lazyWithRetry(() => import("./modules/crm/pages/portal/PlaylistsClientePage"));
 const MinhaEquipePage = lazyWithRetry(() => import("./modules/crm/pages/portal/MinhaEquipePage"));
@@ -329,6 +331,7 @@ const App = () => {
                     {/* F-166: a Biblioteca de Mídias não é do anunciante (só Representante, Gestor, ADM e Owner) */}
                     <Route path="biblioteca" element={<Navigate to="/portal/assets" replace />} />
                     <Route path="encarte" element={<EncartePage />} />
+                    <Route path="tabloide" element={<TabloidePage />} />
                     <Route path="biblioteca-ia" element={<BibliotecaIA />} />
                     <Route path="onboarding" element={<OnboardingPage />} />
                     <Route path="central" element={<CentralAnunciantePage />} />
@@ -362,6 +365,7 @@ const App = () => {
                     <Route index element={<DashboardHome />} />
                     <Route path="medias" element={<Medias />} />
                     <Route path="biblioteca" element={<Biblioteca />} />
+                    <Route path="tabloide" element={<Tabloide />} />
                     <Route path="playlists" element={<Playlists />} />
                     <Route path="screens" element={<Screens />} />
                     <Route path="screens/:id" element={<ScreenDetails />} />

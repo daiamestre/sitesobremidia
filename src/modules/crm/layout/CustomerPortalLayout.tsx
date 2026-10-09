@@ -8,7 +8,7 @@ import {
   Calendar, Megaphone, ListVideo, ImagePlus,
   TrendingUp, Rocket, Menu, X, Loader2, Building2,
   ShoppingBasket, BadgePercent, BookOpen, Settings,
-  Briefcase, Home, MessageSquare, LifeBuoy, PanelLeftClose, PanelLeftOpen,
+  Briefcase, Home, MessageSquare, LifeBuoy, PanelLeftClose, PanelLeftOpen, Sparkles,
 } from 'lucide-react';
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
 import { Button } from '@/components/ui/button';
@@ -89,6 +89,7 @@ export default function CustomerPortalLayout() {
         { name: 'Produtos',        path: '/portal/produtos',  icon: ShoppingBasket },
         { name: 'Ofertas',         path: '/portal/ofertas',   icon: BadgePercent },
         { name: 'Encarte Digital', path: '/portal/encarte',   icon: BookOpen },
+        { name: 'Tabloide Digital', path: '/portal/tabloide', icon: Sparkles },
       ],
     },
     {
@@ -158,6 +159,7 @@ export default function CustomerPortalLayout() {
       paths.add('/portal/ofertas');
       paths.add('/portal/produtos');
       paths.add('/portal/encarte');
+      paths.add('/portal/tabloide');
     }
     return paths;
   }, [navGroups, modalidade]);
