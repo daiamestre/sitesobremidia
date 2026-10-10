@@ -54,19 +54,20 @@ vi.mock('@/lib/tabloide/exportar', async (orig) => ({
 }));
 
 import { TabloideEditor, BOTOES } from '@/components/tabloide/TabloideEditor';
-import { TabloideCanvas } from '@/components/tabloide/TabloideCanvas';
+import { TabloideCanvas, estiloDoBox, letraQueCabe, tamanhoDoPreco } from '@/components/tabloide/TabloideCanvas';
 import { MeusCartazes } from '@/components/tabloide/MeusCartazes';
 import {
-  CAMPOS_EMPRESA, configPadrao, linhasDoRodape, linhasDoRodapeUsadas, normalizarConfig, propsDasPaginas, resolverCabecalho, textoDaValidade, textoParaPostar,
+  ajusteDoCartaz, boxIdeal, CAMPOS_EMPRESA, configPadrao, CORES_DO_BOX, ESTILOS_DE_BOX, ESTILOS_DE_RODAPE, TAMANHOS_DE_TEXTO, temaComCores, linhasDoRodape, linhasDoRodapeUsadas, normalizarConfig, propsDasPaginas, resolverCabecalho, textoDaValidade, textoParaPostar,
   type CartazParaDesenhar,
 } from '@/lib/tabloide/cartaz';
 import type { CartazSalvo } from '@/lib/tabloide/cartazes';
 import { cssDaFonte, filtrarFontes, fonteDeCanvas, FONTES } from '@/lib/tabloide/fontes';
 import { aplicarPerfil, enderecoDoPortal, perfilDoCartaz } from '@/lib/tabloide/perfil';
 import { GRUPO_MEUS_TEMAS, GRUPO_TEMAS_GRATIS, identificadorDaImagem, logosDaMarca, logosDoCabecalho, resolverImagem, temasDeFoto, type Selo } from '@/lib/tabloide/selos';
-import { medidasDoFormato } from '@/lib/tabloide/grade';
+import { medidasDoFormato, melhorGrade } from '@/lib/tabloide/grade';
+import { larguraDoPreco } from '@/lib/tabloide/selo3d';
 import { lerLista } from '@/lib/tabloide/parseProdutos';
-import { FORMATOS, USOS_DO_FORMATO, formatoPorId } from '@/lib/tabloide/temas';
+import { FORMATOS, USOS_DO_FORMATO, formatoPorId, temaPorId } from '@/lib/tabloide/temas';
 import { DATAS } from '@/lib/tabloide/datas';
 
 const fonte = (p: string) => readFileSync(p, 'utf8');
@@ -266,13 +267,19 @@ describe('F-179 · temas: seções prontas para receber as artes', () => {
     await waitFor(() => expect(screen.getAllByTestId('tema-adicionar')).toHaveLength(2 + DATAS.length));
   });
 
-  it('escolher um tema põe a foto por baixo do cartaz inteiro; tocar de novo (ou "Tirar o tema") volta às cores', async () => {
+  it('escolher um tema põe a arte na faixa do cabeçalho (ou no cartaz inteiro); "Tirar o tema" volta às cores', async () => {
     render(<TabloideEditor contexto="painel" />);
     fireEvent.click(await screen.findByTestId('tabloide-aba-temas'));
     const fotos = await screen.findAllByTestId('tema-foto');
     expect(fotos).toHaveLength(2);
     fireEvent.click(fotos[0]);
+    // F-180: como nos encartes, a arte entra primeiro na faixa do cabeçalho, de ponta a ponta
+    await waitFor(() => expect(document.querySelector('[data-testid="tabloide-palco"] [data-testid="tabloide-faixa-tema"]')).toBeTruthy());
+    expect(document.querySelector('[data-testid="tabloide-fundo"]')).toBeNull();
+    expect(screen.getByTestId('tema-modo-cabecalho').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByTestId('tema-modo-fundo'));
     await waitFor(() => expect(document.querySelector('[data-testid="tabloide-palco"] [data-testid="tabloide-fundo"]')).toBeTruthy());
+    expect(document.querySelector('[data-testid="tabloide-faixa-tema"]')).toBeNull();
     fireEvent.click(screen.getByTestId('tema-tirar'));
     await waitFor(() => expect(document.querySelector('[data-testid="tabloide-fundo"]')).toBeNull());
   });
@@ -415,7 +422,7 @@ describe('F-179 · vários tipos de cartaz', () => {
     const de = (uso: string) => FORMATOS.filter((f) => f.uso === uso).map((f) => f.id);
     expect(de('tela')).toEqual(['tv-h', 'totem']);
     expect(de('rede')).toEqual(['story', 'feed', 'feed-retrato']);
-    expect(de('impressao')).toEqual(['a4', 'a4-h']);
+    expect(de('impressao')).toEqual(['a4', 'a4-h', 'a3']);
     expect(formatoPorId('feed-retrato')).toMatchObject({ largura: 1080, altura: 1350 });
     expect(formatoPorId('modelo-que-nao-existe').id).toBe('tv-h');
     render(<TabloideEditor contexto="painel" />);
@@ -633,5 +640,298 @@ describe('F-179 · portal de ofertas', () => {
     // imagens particulares: quem enviou é o dono; ninguém cadastra "da empresa" sem ser da central
     expect(sql).toContain('OR dono_id = auth.uid()');
     expect(sql).toMatch(/cliente_id IS NULL AND dono_id IS NULL AND public\.is_central_privileged\(\)/);
+  });
+});
+
+// =====================================================================================================================
+// F-180 — menu colado à esquerda com a seta de recolher, barra de opções do cartaz (Modelo, Grade, Boxes, Texto, Cores,
+// Destaques, Capa, Rodapé, Zoom), produtos em coluna e arte do tema na faixa do cabeçalho.
+// =====================================================================================================================
+describe('F-180 · menu colado à esquerda e seta de recolher', () => {
+  it('o menu é a primeira coluna do editor, sem margem, e o editor anula o espaçamento da página', async () => {
+    render(<TabloideEditor contexto="painel" />);
+    const editor = await screen.findByTestId('tabloide-editor');
+    expect(editor.firstElementChild).toBe(screen.getByTestId('cartaz-menu'));
+    expect(editor.className).toContain('-mx-4');
+    expect(editor.className).toContain('lg:-mx-8');
+    expect(editor.style.height).toContain('100dvh');
+    // o menu não rola junto: quem rola é o conteúdo
+    expect(screen.getByTestId('cartaz-conteudo').className).toContain('overflow-y-auto');
+  });
+
+  it('a seta recolhe o painel (a prévia fica com a tela) e abre de novo; tocar numa opção do menu também abre', async () => {
+    render(<TabloideEditor contexto="painel" />);
+    const seta = await screen.findByTestId('cartaz-recolher');
+    expect(seta.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByTestId('tabloide-painel')).toBeTruthy();
+    fireEvent.click(seta);
+    expect(screen.queryByTestId('tabloide-painel')).toBeNull();
+    expect(seta.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByTestId('tabloide-palco')).toBeTruthy();
+    expect(screen.getByTestId('tabloide-aba-produtos').getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(seta);
+    expect(screen.getByTestId('tabloide-texto')).toBeTruthy();
+    fireEvent.click(seta);
+    fireEvent.click(screen.getByTestId('tabloide-aba-datas'));
+    expect(screen.getByTestId('painel-datas')).toBeTruthy();
+    expect(seta.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('o que foi digitado não se perde ao recolher e abrir o painel', async () => {
+    render(<TabloideEditor contexto="painel" />);
+    fireEvent.change(await screen.findByTestId('tabloide-texto'), { target: { value: 'Arroz 5kg 25,90' } });
+    fireEvent.click(screen.getByTestId('cartaz-recolher'));
+    fireEvent.click(screen.getByTestId('cartaz-recolher'));
+    expect((screen.getByTestId('tabloide-texto') as HTMLTextAreaElement).value).toBe('Arroz 5kg 25,90');
+  });
+
+  it('pelo menu se volta de "Meus cartazes" para a criação', async () => {
+    render(<TabloideEditor contexto="painel" />);
+    fireEvent.click(await screen.findByTestId('cartaz-vista-salvos'));
+    expect(screen.queryByTestId('cartaz-recolher')).toBeNull();
+    fireEvent.click(screen.getByTestId('tabloide-aba-temas'));
+    expect(await screen.findByTestId('painel-temas')).toBeTruthy();
+  });
+});
+
+describe('F-180 · barra de opções do cartaz', () => {
+  const escolher = (id: string, valor: string) => fireEvent.change(screen.getByTestId(id), { target: { value: valor } });
+  const boxes = () => [...document.querySelectorAll('[data-testid="tabloide-palco"] [data-testid="tabloide-cartao"]')] as HTMLElement[];
+
+  it('tem Modelo, Grade, Boxes de produtos, Texto, Cores, Destaques, Gerar capa, Rodapé e Zoom, numa faixa que rola de lado', async () => {
+    render(<TabloideEditor contexto="painel" />);
+    const barra = await screen.findByTestId('cartaz-opcoes');
+    expect([...barra.querySelectorAll('label')].map((l) => l.firstChild?.textContent)).toEqual(['Modelo', 'Grade', 'Boxes de produtos', 'Texto', 'Cores', 'Destaques', 'Gerar capa', 'Rodapé', 'Zoom']);
+    expect(barra.className).toContain('overflow-x-auto');
+    expect(ESTILOS_DE_BOX.map((b) => b.id)).toEqual(['inteligente', 'coluna', 'faixa', 'lado']);
+    expect(TAMANHOS_DE_TEXTO.map((b) => b.id)).toEqual(['pequeno', 'medio', 'grande']);
+    expect(CORES_DO_BOX.map((b) => b.id)).toEqual(['inteligente', 'claro', 'amarelo', 'escuro', 'tema']);
+    expect(ESTILOS_DE_RODAPE.map((b) => b.id)).toEqual(['faixa', 'redondo', 'grande', 'sem']);
+  });
+
+  it('Boxes: o estilo escolhido vale para todos; o "inteligente" decide pelo espaço de cada box', async () => {
+    expect(estiloDoBox('inteligente', 300, 900)).toBe('coluna');
+    expect(estiloDoBox('inteligente', 600, 450)).toBe('faixa');
+    expect(estiloDoBox('inteligente', 900, 300)).toBe('lado');
+    expect(estiloDoBox('faixa', 300, 900)).toBe('faixa');
+    render(<TabloideEditor contexto="painel" />);
+    await screen.findByTestId('cartaz-opcoes');
+    for (const estilo of ['coluna', 'lado', 'faixa']) {
+      escolher('cartaz-boxes', estilo);
+      await waitFor(() => expect(boxes().every((b) => b.dataset.estilo === estilo)).toBe(true));
+      expect(boxes().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('box em coluna: o nome vem em cima, a foto no meio e o preço na base — nessa ordem', () => {
+    const c = cartazDe({ formatoId: 'story', grade: '3x1', produtos: lerLista('Picanha kg 49,90\nCerveja Brahma Lata de 4,99 por 3,99\nFraldinha bovina 1kg') });
+    c.config.boxes = 'coluna';
+    render(<TabloideCanvas {...propsDasPaginas(c, TODOS)[0]} />);
+    const caixas = screen.getAllByTestId('tabloide-cartao');
+    expect(caixas).toHaveLength(3);
+    for (const caixa of caixas) {
+      const filhos = [...caixa.children] as HTMLElement[];
+      expect(filhos).toHaveLength(3);
+      expect(filhos[0].getAttribute('data-testid')).toBe('tabloide-nome');
+      expect(filhos[1].querySelector('img, [data-testid="tabloide-sem-foto"]')).toBeTruthy();
+      expect(filhos[2].querySelector('[data-testid="tabloide-preco"]')).toBeTruthy();
+    }
+    // "de/por": o preço antigo fica logo acima do novo, dentro da base
+    expect(caixas[1].lastElementChild!.querySelector('[data-testid="tabloide-preco-de"]')!.textContent).toContain('4,99');
+    // produto sem preço não vira "R$ 0,00"
+    expect(within(caixas[2]).getByRole('img', { name: 'Consulte o preço' })).toBeTruthy();
+  });
+
+  it('o nome e o preço nunca passam da largura do box', () => {
+    for (const nome of ['PICANHA', 'CERVEJA BRAHMA LATA', 'ACHOCOLATADO EM PÓ NESCAU 400G', 'DESINFETANTE']) {
+      const letra = letraQueCabe(nome, 300, 160, 3, 60);
+      const maior = Math.max(...nome.split(' ').map((p) => p.length));
+      expect(maior * letra * 0.76).toBeLessThanOrEqual(300 + 0.01);
+      expect(letra).toBeGreaterThan(0);
+    }
+    expect(letraQueCabe('PICANHA', 300, 160, 3, 60)).toBeGreaterThan(letraQueCabe('ACHOCOLATADO EM PÓ NESCAU 400G', 300, 160, 3, 60));
+    // teto maior nunca resulta em letra menor (sem "degraus")
+    for (const nome of ['PICANHA', 'CERVEJA BRAHMA LATA']) expect(letraQueCabe(nome, 300, 160, 3, 80)).toBeGreaterThanOrEqual(letraQueCabe(nome, 300, 160, 3, 60) - 0.01);
+    const [caro] = lerLista('Televisor 1999,90');
+    const g = tamanhoDoPreco(caro, 280, 200);
+    expect(larguraDoPreco({ inteiro: '1.999', centavos: '90', unidade: null }, g)).toBeLessThanOrEqual(280 + 0.5);
+  });
+
+  it('Texto: pequeno, médio e grande mudam o tamanho do nome do produto', () => {
+    const tamanho = (t: 'pequeno' | 'medio' | 'grande') => {
+      const c = cartazDe({ formatoId: 'story', grade: '3x1', produtos: lerLista('Sal 1kg 2,90') });
+      c.config.boxes = 'coluna'; c.config.tamanhoTexto = t;
+      const { unmount } = render(<TabloideCanvas {...propsDasPaginas(c, TODOS)[0]} />);
+      const px = parseFloat(screen.getByTestId('tabloide-nome').style.fontSize);
+      unmount();
+      return px;
+    };
+    // nome curto: quem limita é a altura da área do nome, que cresce com a opção
+    expect(tamanho('pequeno')).toBeLessThan(tamanho('medio'));
+    expect(tamanho('medio')).toBeLessThan(tamanho('grande'));
+  });
+
+  it('Cores: troca a cor do box sem mexer no selo de preço nem no rodapé do estilo', async () => {
+    const base = temaPorId('ofertao');
+    expect(temaComCores(base, 'inteligente')).toBe(base);
+    for (const cor of ['claro', 'amarelo', 'escuro', 'tema'] as const) {
+      const t = temaComCores(base, cor);
+      expect(t.preco).toBe(base.preco);
+      expect(t.rodape).toBe(base.rodape);
+    }
+    expect(temaComCores(base, 'amarelo').cartao).toBe('#ffd21f');
+    expect(temaComCores(base, 'escuro').nomeCor).toBe('#fafafa');
+    render(<TabloideEditor contexto="painel" />);
+    await screen.findByTestId('cartaz-opcoes');
+    escolher('cartaz-cores', 'amarelo');
+    await waitFor(() => expect(boxes()[0].style.background).toBe('rgb(255, 210, 31)'));
+    escolher('cartaz-cores', 'escuro');
+    await waitFor(() => expect(boxes()[0].style.background).toBe('rgb(24, 24, 27)'));
+  });
+
+  it('Rodapé: reto, redondo, redondo grande ou sem rodapé — e os produtos aproveitam o espaço', async () => {
+    const f = formatoPorId('tv-h');
+    const alt = (r: 'faixa' | 'redondo' | 'grande' | 'sem') => medidasDoFormato(f, 1, { rodape: r }).rodape;
+    expect(alt('sem')).toBe(0);
+    expect(alt('redondo')).toBeGreaterThan(alt('faixa'));
+    expect(alt('grande')).toBeGreaterThan(alt('redondo'));
+    expect(medidasDoFormato(f, 1, { rodape: 'sem' }).corpoA).toBeGreaterThan(medidasDoFormato(f, 1).corpoA);
+    render(<TabloideEditor contexto="painel" />);
+    await screen.findByTestId('cartaz-opcoes');
+    expect(screen.getByTestId('tabloide-rodape').getAttribute('data-estilo')).toBe('faixa');
+    escolher('cartaz-rodape', 'grande');
+    await waitFor(() => expect(screen.getByTestId('tabloide-rodape').getAttribute('data-estilo')).toBe('grande'));
+    expect(screen.getByTestId('tabloide-rodape').style.borderRadius).not.toBe('0px');
+    escolher('cartaz-rodape', 'sem');
+    await waitFor(() => expect(screen.queryByTestId('tabloide-rodape')).toBeNull());
+  });
+
+  it('com qualquer rodapé e qualquer faixa de tema, os produtos ficam entre o cabeçalho e o rodapé em todos os modelos', () => {
+    const produtos = lerLista(Array.from({ length: 7 }, (_, i) => `Produto ${i + 1} ${i + 1},99`).join('\n'));
+    const faixa = selo({ id: 'id-faixa', nome: 'Faixa larga', tipo: 'TEMA', categoria: GRUPO_TEMAS_GRATIS, largura: 1080, altura: 480 });
+    for (const f of FORMATOS) for (const r of ['faixa', 'redondo', 'grande', 'sem'] as const) for (const tema of [null, 'id-faixa']) {
+      const c = cartazDe({ formatoId: f.id, produtos });
+      c.config.rodapeEstilo = r; c.config.temaFotoId = tema;
+      const paginas = propsDasPaginas(c, [...TODOS, faixa]);
+      const m = medidasDoFormato(f, 1, ajusteDoCartaz(c, [...TODOS, faixa]));
+      for (const pg of paginas) for (const cel of pg.pagina.celulas) {
+        expect(cel.y).toBeGreaterThanOrEqual(m.cabecalho);
+        expect(cel.y + cel.h).toBeLessThanOrEqual(f.altura - m.rodape + 0.5);
+        expect(cel.x + cel.w).toBeLessThanOrEqual(f.largura + 0.5);
+      }
+    }
+  });
+
+  it('Gerar capa: entra uma primeira página só com a arte, o título, a frase e a validade; os produtos seguem depois', async () => {
+    const c = cartazDe();
+    expect(propsDasPaginas(c, TODOS)).toHaveLength(1);
+    c.config.capa = true;
+    c.config.regras.fim = '2026-12-24';
+    const paginas = propsDasPaginas(c, TODOS);
+    expect(paginas).toHaveLength(2);
+    expect(paginas[0]).toMatchObject({ capa: true, numeroPagina: 1, totalPaginas: 2, elementos: [] });
+    expect(paginas[0].pagina.celulas).toHaveLength(0);
+    expect(paginas[1].capa).toBeUndefined();
+    expect(paginas[1]).toMatchObject({ numeroPagina: 2, totalPaginas: 2 });
+    expect(paginas[1].pagina.celulas).toHaveLength(2);
+    // cartaz sem produtos não ganha capa solta
+    expect(propsDasPaginas({ ...c, produtos: [] }, TODOS)).toHaveLength(1);
+    render(<TabloideCanvas {...paginas[0]} />);
+    const capa = screen.getByTestId('tabloide-canvas');
+    expect(capa.getAttribute('data-capa')).toBe('true');
+    expect(within(capa).queryAllByTestId('tabloide-cartao')).toHaveLength(0);
+    expect(within(capa).getByTestId('tabloide-capa-validade').textContent).toContain('Ofertas válidas até 24/12/2026');
+    cleanup();
+    render(<TabloideEditor contexto="painel" />);
+    fireEvent.change(await screen.findByTestId('tabloide-texto'), { target: { value: 'Arroz 5kg 25,90' } });
+    fireEvent.click(screen.getByTestId('tabloide-montar'));
+    expect(screen.queryByTestId('cartaz-paginas')).toBeNull();
+    fireEvent.click(screen.getByTestId('cartaz-capa'));
+    await waitFor(() => expect(screen.getByTestId('cartaz-paginas').textContent).toContain('a 1ª é a capa'));
+    expect(document.querySelector('[data-testid="tabloide-palco"] [data-capa="true"]')).toBeTruthy();
+  });
+
+  it('Zoom: "Auto" encaixa o cartaz; os outros níveis ampliam ou reduzem só a prévia', async () => {
+    render(<TabloideEditor contexto="painel" />);
+    await screen.findByTestId('cartaz-opcoes');
+    const moldura = () => (screen.getByTestId('tabloide-palco').firstElementChild as HTMLElement);
+    const largura = () => parseFloat(moldura().style.width);
+    const auto = largura();
+    escolher('cartaz-zoom', '2');
+    await waitFor(() => expect(largura()).toBeCloseTo(auto * 2, 1));
+    expect(screen.getByTestId('tabloide-palco').className).toContain('overflow-auto');
+    // o cartaz em si continua no tamanho real do modelo
+    expect((document.querySelector('[data-testid="tabloide-palco"] [data-testid="tabloide-canvas"]') as HTMLElement).style.width).toBe('1920px');
+    escolher('cartaz-zoom', '0.5');
+    await waitFor(() => expect(largura()).toBeCloseTo(auto * 0.5, 1));
+    escolher('cartaz-zoom', 'auto');
+    await waitFor(() => expect(largura()).toBeCloseTo(auto, 1));
+    expect(fonte('src/lib/tabloide/cartaz.ts')).not.toMatch(/zoom/i);
+  });
+
+  it('as escolhas da barra são salvas com o cartaz', async () => {
+    render(<TabloideEditor contexto="painel" />);
+    fireEvent.change(await screen.findByTestId('tabloide-texto'), { target: { value: 'Arroz 5kg 25,90' } });
+    fireEvent.click(screen.getByTestId('tabloide-montar'));
+    escolher('cartaz-boxes', 'coluna'); escolher('cartaz-texto', 'grande'); escolher('cartaz-cores', 'amarelo'); escolher('cartaz-rodape', 'redondo');
+    fireEvent.click(screen.getByTestId('cartaz-capa'));
+    fireEvent.click(screen.getByTestId('tabloide-salvar'));
+    await waitFor(() => expect(h.gravados.some((g) => g.tabela === 'tabloides' && g.verbo === 'insert')).toBe(true));
+    expect(h.gravados.find((g) => g.tabela === 'tabloides')!.payload.config).toMatchObject({ boxes: 'coluna', tamanhoTexto: 'grande', cores: 'amarelo', rodapeEstilo: 'redondo', capa: true, temaModo: 'cabecalho' });
+  });
+});
+
+describe('F-180 · arte do tema na faixa do cabeçalho e grade', () => {
+  it('a faixa vai de ponta a ponta e a altura acompanha a proporção da arte, entre 10% e 38% do cartaz', () => {
+    const arte = (largura: number, altura: number) => [...TODOS, selo({ id: 'id-arte', nome: 'Arte', tipo: 'TEMA', categoria: GRUPO_TEMAS_GRATIS, largura, altura })];
+    const c = cartazDe({ formatoId: 'story' });
+    c.config.temaFotoId = 'id-arte';
+    const f = formatoPorId('story');
+    expect(medidasDoFormato(f, 1, ajusteDoCartaz(c, arte(1080, 480))).cabecalho).toBe(480);
+    expect(medidasDoFormato(f, 1, ajusteDoCartaz(c, arte(1080, 1920))).cabecalho).toBe(Math.round(1920 * 0.38));
+    expect(medidasDoFormato(f, 1, ajusteDoCartaz(c, arte(4000, 100))).cabecalho).toBe(192);
+    const p = propsDasPaginas(c, arte(1080, 480))[0];
+    expect(p).toMatchObject({ faixaUrl: 'https://r2/id-arte.png', fundoUrl: null, semTitulo: true });
+    render(<TabloideCanvas {...p} />);
+    const img = screen.getByTestId('tabloide-faixa-tema') as HTMLImageElement;
+    expect(img.style.width).toBe('1080px');
+    expect(parseFloat(img.style.height)).toBeGreaterThanOrEqual(480);
+    // a arte já traz o título: nada de logo nem frase por cima dela
+    expect(screen.queryByTestId('tabloide-selo')).toBeNull();
+    expect(screen.queryByTestId('tabloide-frase')).toBeNull();
+    cleanup();
+    // se o usuário escolher uma logo 3D, ela entra por cima da faixa
+    c.config.logoCabecalhoId = 'id-minha';
+    render(<TabloideCanvas {...propsDasPaginas(c, arte(1080, 480))[0]} />);
+    expect(screen.getByTestId('tabloide-selo').getAttribute('data-logo-cabecalho')).toBe('true');
+  });
+
+  it('no cartaz inteiro a arte cobre tudo e o cabeçalho volta à altura do modelo', () => {
+    const c = cartazDe({ formatoId: 'story' });
+    c.config.temaFotoId = 'id-tema'; c.config.temaModo = 'fundo';
+    expect(ajusteDoCartaz(c, TODOS).cabecalho).toBeUndefined();
+    expect(propsDasPaginas(c, TODOS)[0]).toMatchObject({ fundoUrl: 'https://r2/id-tema.png', faixaUrl: null });
+  });
+
+  it('cartaz salvo antes desta entrega continua igual: box com faixa e tema no cartaz inteiro', () => {
+    const antigo = normalizarConfig({ titulo: 'Ofertas', temaFotoId: 'id-tema', regras: {} });
+    expect(antigo).toMatchObject({ boxes: 'faixa', temaModo: 'fundo', tamanhoTexto: 'medio', cores: 'inteligente', rodapeEstilo: 'faixa', capa: false });
+    expect(configPadrao()).toMatchObject({ boxes: 'inteligente', temaModo: 'cabecalho' });
+    expect(normalizarConfig({ boxes: 'qualquer', cores: 7, rodapeEstilo: null, tamanhoTexto: 'enorme', capa: 'sim' })).toMatchObject({ boxes: 'inteligente', cores: 'inteligente', rodapeEstilo: 'faixa', tamanhoTexto: 'medio', capa: false });
+  });
+
+  it('a grade automática respeita o estilo: em coluna prefere boxes em pé; lado a lado prefere boxes largos', () => {
+    expect(boxIdeal('coluna')[1]).toBeLessThanOrEqual(1);
+    expect(boxIdeal('lado')[0]).toBeGreaterThan(1);
+    const emColuna = melhorGrade(4, 1800, 800, boxIdeal('coluna'));
+    expect(emColuna).toEqual({ cols: 4, rows: 1 });
+    const lado = melhorGrade(4, 1800, 800, boxIdeal('lado'));
+    expect(lado).toEqual({ cols: 2, rows: 2 });
+    // sem informar o estilo, a grade é a de sempre
+    expect(melhorGrade(8, 1800, 800)).toEqual({ cols: 4, rows: 2 });
+  });
+
+  it('há o modelo "Encarte grande (A3)" para impressão', () => {
+    expect(formatoPorId('a3')).toMatchObject({ largura: 1754, altura: 2480, uso: 'impressao' });
   });
 });

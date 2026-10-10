@@ -113,7 +113,7 @@ export const segmentoPorId = (id: string): Segmento => SEGMENTOS.find((s) => s.i
 export const temasDoSegmento = (id: SegmentoId): Tema[] => TEMAS.filter((t) => t.grupo === id);
 export const temasDeDatas = (): Tema[] => TEMAS.filter((t) => t.grupo === 'data');
 
-export type FormatoId = 'feed' | 'feed-retrato' | 'story' | 'totem' | 'tv-h' | 'a4' | 'a4-h';
+export type FormatoId = 'feed' | 'feed-retrato' | 'story' | 'totem' | 'tv-h' | 'a4' | 'a4-h' | 'a3';
 
 /** Para que serve o modelo (agrupa a faixa "Modelos disponíveis"). */
 export type UsoDoFormato = 'tela' | 'rede' | 'impressao';
@@ -135,6 +135,7 @@ export const FORMATOS: Formato[] = [
   { id: 'feed-retrato', nome: 'Feed retrato', detalhe: '1080 × 1350 · Instagram e Facebook', largura: 1080, altura: 1350, uso: 'rede' },
   { id: 'a4', nome: 'Imprimir A4 em pé', detalhe: '1240 × 1754 · folha A4', largura: 1240, altura: 1754, uso: 'impressao' },
   { id: 'a4-h', nome: 'Imprimir A4 deitado', detalhe: '1754 × 1240 · folha A4', largura: 1754, altura: 1240, uso: 'impressao' },
+  { id: 'a3', nome: 'Encarte grande (A3)', detalhe: '1754 × 2480 · folha A3, muitos produtos', largura: 1754, altura: 2480, uso: 'impressao' },
 ];
 
 export const USOS_DO_FORMATO: Array<{ id: UsoDoFormato; nome: string }> = [

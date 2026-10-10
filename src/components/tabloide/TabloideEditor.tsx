@@ -1,6 +1,7 @@
 /**
- * Cartaz Digital (F-172…F-179) — o ambiente de criação.
- * Menu lateral como nos criadores de encarte (Produtos, Temas, Datas, Sua Logo, Empresa, Fontes, Postar, Encarte, Portal):
+ * Cartaz Digital (F-172…F-180) — o ambiente de criação.
+ * Menu lateral colado à esquerda, com a seta que recolhe o painel para a prévia ocupar a tela, e a barra de opções do cartaz
+ * (Modelo, Grade, Boxes, Texto, Cores, Destaques, Capa, Rodapé, Zoom). Opções do menu: Produtos, Temas, Datas, Sua Logo, Empresa, Fontes, Postar, Encarte, Portal:
  * o cliente digita "produto + preço"; o sistema acha a foto (catálogo compartilhado primeiro) e monta o cartaz.
  * Cada cartaz salvo fica em "Meus cartazes", de onde se imprime um ou vários de uma vez.
  * O portal do anunciante e o painel da equipe usam esta mesma tela.
@@ -8,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  CalendarDays, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Loader2, Palette, PenLine, Plus, Printer, Save, Send, Share2,
+  CalendarDays, ChevronLeft, ChevronRight, Download, FileText, FolderOpen, Globe, Image as ImageIcon, Loader2, Palette, PenLine, Plus, Printer, Save, Send, Share2,
   ShoppingBasket, Sparkles, Store, Trash2, Type, Upload, Wand2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
@@ -28,7 +30,10 @@ import { GRADES_FIXAS, rotuloGrade } from '@/lib/tabloide/grade';
 import { buscarCandidatos, buscarNoCatalogo, completarImagens, gerarImagemIA, prepararImagem, salvarNoCatalogo, type CandidatoImagem } from '@/lib/tabloide/imagens';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { baixarBlob, imprimirBlobs, nomeDeArquivo } from '@/lib/tabloide/exportar';
-import { configPadrao, fontesUsadas, propsDasPaginas, textoParaPostar, type CartazParaDesenhar, type ConfigCartaz } from '@/lib/tabloide/cartaz';
+import {
+  configPadrao, CORES_DO_BOX, ESTILOS_DE_BOX, ESTILOS_DE_RODAPE, fontesUsadas, propsDasPaginas, TAMANHOS_DE_TEXTO, textoParaPostar,
+  type CartazParaDesenhar, type ConfigCartaz, type CoresCartaz, type EstiloBox, type EstiloRodape, type TamanhoTexto,
+} from '@/lib/tabloide/cartaz';
 import { gerarPngsDoCartaz, listarCartazes, NOME_PADRAO, publicarNoPortal, salvarCartaz, tirarDoPortal, type CartazSalvo } from '@/lib/tabloide/cartazes';
 import { carregarFonte } from '@/lib/tabloide/fontes';
 import { aplicarPerfil, carregarPerfil, perfilDoCartaz, salvarPerfil, salvarPortal, type PerfilDaLoja, type PortalDaLoja } from '@/lib/tabloide/perfil';
@@ -74,6 +79,15 @@ function segmentoDoCadastro(texto?: string | null): SegmentoId {
 
 const PORTAL_VAZIO: PortalDaLoja = { slug: null, cep: null, segmentos: [], visivel: false };
 
+/** Níveis de zoom da prévia (o "Auto" encaixa o cartaz no espaço; os outros multiplicam esse encaixe). */
+const ZOOMS = [0.5, 0.75, 1.25, 1.5, 2] as const;
+const CAIXA = 'h-9 rounded-md border bg-background px-2 text-sm font-normal';
+
+/** Uma opção da barra do cartaz: o nome em cima e o controle embaixo. */
+function Opcao({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
+  return <label className="flex shrink-0 flex-col gap-1 text-xs font-semibold">{rotulo}:{children}</label>;
+}
+
 export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '', logoPadrao = null, segmentoPadrao = null }: TabloideEditorProps) {
   const { user } = useAuth();
   const segInicial = useMemo(() => segmentoDoCadastro(segmentoPadrao), [segmentoPadrao]);
@@ -91,6 +105,18 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
 
   const [vista, setVista] = useState<'criar' | 'salvos'>('criar');
   const [aba, setAba] = useState<Aba>('produtos');
+  // a seta do menu recolhe o painel: a prévia fica com a tela toda
+  const [painelAberto, setPainelAberto] = useState(true);
+  const [zoom, setZoom] = useState<'auto' | number>('auto');
+  // o editor ocupa a altura que sobra da tela e rola por dentro: o menu lateral fica sempre à vista
+  const raiz = useRef<HTMLDivElement>(null);
+  const [topo, setTopo] = useState(0);
+  useEffect(() => {
+    const medir = () => { const el = raiz.current; if (el) setTopo(Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY))); };
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, []);
   const [segmentoId, setSegmentoId] = useState<SegmentoId>(segInicial);
   const [temaId, setTemaId] = useState<string>(() => temasDoSegmento(segInicial)[0]?.id ?? 'ofertao');
   const [formatoId, setFormatoId] = useState<string>('tv-h');
@@ -197,8 +223,9 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     const ro = new ResizeObserver(medir);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [vista]);
-  const escala = Math.max(0.1, Math.min(largPalco / formato.largura, (typeof window !== 'undefined' ? window.innerHeight * 0.66 : 600) / formato.altura));
+  }, [vista, painelAberto]);
+  const encaixe = Math.max(0.1, Math.min(largPalco / formato.largura, (typeof window !== 'undefined' ? window.innerHeight * 0.66 : 600) / formato.altura));
+  const escala = zoom === 'auto' ? encaixe : encaixe * zoom;
   const escalaRef = useRef(escala);
   escalaRef.current = escala;
 
@@ -466,7 +493,34 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const totalSalvos = cartazes?.length ?? 0;
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-3 p-3 md:p-5" data-testid="tabloide-editor">
+    // as margens negativas anulam o espaçamento da página: o menu encosta na borda esquerda, como nos criadores de encarte
+    <div ref={raiz} className="-mx-4 -mt-4 flex items-stretch sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8" style={{ height: `calc(100dvh - ${topo}px)` }} data-testid="tabloide-editor">
+      <div className="relative z-20 w-[68px] shrink-0 border-r border-slate-800 bg-slate-950" data-testid="cartaz-menu">
+        <div className="h-full">
+          <nav className="flex h-full flex-col gap-0.5 overflow-y-auto p-1" aria-label="Ferramentas do cartaz" data-testid="tabloide-barra">
+            {BOTOES.map((b) => {
+              const Icone = b.icone;
+              const ativo = vista === 'criar' && painelAberto && aba === b.id;
+              return (
+                <button key={b.id} type="button" onClick={() => { setAba(b.id); setPainelAberto(true); setVista('criar'); }} data-testid={`tabloide-aba-${b.id}`} aria-pressed={ativo}
+                  className={cn('flex flex-col items-center gap-1 rounded-lg px-0.5 py-2.5 text-[11px] font-semibold leading-tight transition-colors', ativo ? 'bg-primary text-primary-foreground' : 'text-slate-300 hover:bg-slate-800')}>
+                  <Icone className="h-5 w-5" />
+                  <span className="text-center">{b.rotulo}</span>
+                </button>
+              );
+            })}
+          </nav>
+          {vista === 'criar' && (
+            <button type="button" onClick={() => setPainelAberto((a) => !a)} data-testid="cartaz-recolher" aria-expanded={painelAberto}
+              aria-label={painelAberto ? 'Recolher o painel para ver o cartaz maior' : 'Abrir o painel de edição'} title={painelAberto ? 'Recolher o painel' : 'Abrir o painel'}
+              className="absolute -right-5 top-[46%] flex h-16 w-5 items-center justify-center rounded-r-lg border border-l-0 border-slate-800 bg-slate-950 text-slate-200 hover:bg-slate-800">
+              {painelAberto ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-3 overflow-y-auto p-3 pb-24 pl-6 md:p-5 md:pb-10 md:pl-7" data-testid="cartaz-conteudo">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold"><Sparkles className="h-6 w-6 text-primary" /> Cartaz Digital</h1>
@@ -495,23 +549,10 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
         <MeusCartazes cartazes={cartazes} selos={selos} clienteId={clienteId} abertoId={cartazId} aoAbrir={abrir} aoNovo={novoCartaz} aoRecarregar={recarregarCartazes}
           aoExcluirAberto={() => { setCartazId(null); setPublicado(false); }} />
       ) : (
-        <div className="grid grid-cols-[72px_minmax(0,1fr)] items-start gap-3 lg:grid-cols-[76px_390px_minmax(0,1fr)]">
-          {/* menu lateral */}
-          <nav className="flex flex-col gap-1 rounded-xl border bg-slate-950/70 p-1.5" aria-label="Ferramentas do cartaz" data-testid="tabloide-barra">
-            {BOTOES.map((b) => {
-              const Icone = b.icone;
-              return (
-                <button key={b.id} type="button" onClick={() => setAba(b.id)} data-testid={`tabloide-aba-${b.id}`} aria-pressed={aba === b.id}
-                  className={cn('flex flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[11px] font-semibold leading-tight transition-colors', aba === b.id ? 'bg-primary text-primary-foreground' : 'text-slate-300 hover:bg-slate-800')}>
-                  <Icone className="h-5 w-5" />
-                  <span className="text-center">{b.rotulo}</span>
-                </button>
-              );
-            })}
-          </nav>
-
+        <div className={cn('grid grid-cols-1 items-start gap-3', painelAberto && 'lg:grid-cols-[390px_minmax(0,1fr)]')}>
           {/* painel da opção escolhida */}
-          <section className="max-h-[calc(100vh-150px)] min-w-0 space-y-3 overflow-y-auto rounded-xl border bg-card p-4" data-testid="tabloide-painel">
+          {painelAberto && (
+          <section className="min-w-0 space-y-3 rounded-xl border bg-card p-4 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-220px)] lg:overflow-y-auto" data-testid="tabloide-painel">
             {aba === 'produtos' && (
               <div className="space-y-3">
                 <label className="text-sm font-semibold" htmlFor="tabloide-texto">Digite um produto por linha, com o preço</label>
@@ -565,32 +606,62 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
             {aba === 'encarte' && <PainelEncarte nome={nome} aoNome={setNome} cfg={cfg} mudar={mudar} segmentoId={segmentoId} aoSegmento={escolherSegmento} aoSalvar={salvar} salvando={ocupado === 'salvar'} salvo={!!cartazId} />}
             {aba === 'portal' && <PainelPortal portal={portal} aoSalvarPortal={guardarPortal} aoPublicar={publicar} aoTirar={tirar} publicado={publicado} ocupado={ocupado !== null} />}
           </section>
+          )}
 
           {/* prévia */}
-          <section className="col-span-2 min-w-0 space-y-3 lg:col-span-1">
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <label className="flex items-center gap-1.5 font-semibold">Modelo:
-                <select aria-label="Modelo" className="h-9 rounded-md border bg-background px-2 text-sm font-normal" value={formatoId} onChange={(e) => { setFormatoId(e.target.value); setPagina(0); }} data-testid="tabloide-modelo">
+          <section className="min-w-0 space-y-3">
+            <div className="flex items-end gap-3 overflow-x-auto rounded-xl border bg-card px-3 py-2" data-testid="cartaz-opcoes">
+              <Opcao rotulo="Modelo">
+                <select aria-label="Modelo" className={CAIXA} value={formatoId} onChange={(e) => { setFormatoId(e.target.value); setPagina(0); }} data-testid="tabloide-modelo">
                   {USOS_DO_FORMATO.map((u) => (
                     <optgroup key={u.id} label={u.nome}>
                       {FORMATOS.filter((f) => f.uso === u.id).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
                     </optgroup>
                   ))}
                 </select>
-              </label>
-              <label className="flex items-center gap-1.5 font-semibold">Grade:
-                <select aria-label="Grade" className="h-9 rounded-md border bg-background px-2 text-sm font-normal" value={grade} onChange={(e) => { setGrade(e.target.value); setPagina(0); }} data-testid="tabloide-grade">
+              </Opcao>
+              <Opcao rotulo="Grade">
+                <select aria-label="Grade" className={CAIXA} value={grade} onChange={(e) => { setGrade(e.target.value); setPagina(0); }} data-testid="tabloide-grade">
                   {['auto', ...GRADES_FIXAS].map((g) => <option key={g} value={g}>{rotuloGrade(g)}</option>)}
                 </select>
-              </label>
-              <label className="flex items-center gap-1.5 font-semibold">Destaques:
-                <select aria-label="Produtos em destaque" className="h-9 rounded-md border bg-background px-2 text-sm font-normal" value={cfg.destaques} onChange={(e) => mudar({ destaques: Number(e.target.value) as 0 | 1 | 2 })} data-testid="tabloide-destaques">
+              </Opcao>
+              <Opcao rotulo="Boxes de produtos">
+                <select aria-label="Boxes de produtos" className={CAIXA} value={cfg.boxes} onChange={(e) => { mudar({ boxes: e.target.value as EstiloBox }); setPagina(0); }} data-testid="cartaz-boxes">
+                  {ESTILOS_DE_BOX.map((b) => <option key={b.id} value={b.id} title={b.dica}>{b.nome}</option>)}
+                </select>
+              </Opcao>
+              <Opcao rotulo="Texto">
+                <select aria-label="Tamanho do texto" className={CAIXA} value={cfg.tamanhoTexto} onChange={(e) => mudar({ tamanhoTexto: e.target.value as TamanhoTexto })} data-testid="cartaz-texto">
+                  {TAMANHOS_DE_TEXTO.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                </select>
+              </Opcao>
+              <Opcao rotulo="Cores">
+                <select aria-label="Cores dos boxes" className={CAIXA} value={cfg.cores} onChange={(e) => mudar({ cores: e.target.value as CoresCartaz })} data-testid="cartaz-cores">
+                  {CORES_DO_BOX.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                </select>
+              </Opcao>
+              <Opcao rotulo="Destaques">
+                <select aria-label="Produtos em destaque" className={CAIXA} value={cfg.destaques} onChange={(e) => mudar({ destaques: Number(e.target.value) as 0 | 1 | 2 })} data-testid="tabloide-destaques">
                   <option value={0}>Nenhum</option><option value={1}>1 produto</option><option value={2}>2 produtos</option>
                 </select>
-              </label>
+              </Opcao>
+              <Opcao rotulo="Gerar capa">
+                <span className="flex h-9 items-center"><Switch checked={cfg.capa} onCheckedChange={(v) => { mudar({ capa: v }); setPagina(0); }} aria-label="Gerar capa" data-testid="cartaz-capa" /></span>
+              </Opcao>
+              <Opcao rotulo="Rodapé">
+                <select aria-label="Estilo do rodapé" className={CAIXA} value={cfg.rodapeEstilo} onChange={(e) => mudar({ rodapeEstilo: e.target.value as EstiloRodape })} data-testid="cartaz-rodape">
+                  {ESTILOS_DE_RODAPE.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                </select>
+              </Opcao>
+              <Opcao rotulo="Zoom">
+                <select aria-label="Zoom da prévia" className={CAIXA} value={String(zoom)} onChange={(e) => setZoom(e.target.value === 'auto' ? 'auto' : Number(e.target.value))} data-testid="cartaz-zoom">
+                  <option value="auto">Auto</option>
+                  {ZOOMS.map((z) => <option key={z} value={z}>{Math.round(z * 100)}%</option>)}
+                </select>
+              </Opcao>
             </div>
-            <div ref={palco} className="w-full" data-testid="tabloide-palco" onPointerDown={() => setSelecionadoId(null)}>
-              <div className="overflow-hidden rounded-xl border bg-black/40 shadow-lg" style={{ width: formato.largura * escala, height: formato.altura * escala, maxWidth: '100%' }}>
+            <div ref={palco} className={cn('w-full', zoom !== 'auto' && 'max-h-[80vh] overflow-auto')} data-testid="tabloide-palco" onPointerDown={() => setSelecionadoId(null)}>
+              <div className="overflow-hidden rounded-xl border bg-black/40 shadow-lg" style={{ width: formato.largura * escala, height: formato.altura * escala, maxWidth: zoom === 'auto' ? '100%' : undefined }}>
                 <div style={{ width: formato.largura, height: formato.altura, transform: `scale(${escala})`, transformOrigin: 'top left' }}>
                   {paginas[paginaAtual] && <TabloideCanvas {...paginas[paginaAtual]} selecionadoId={selecionadoId} aoPonteiroElemento={aoPonteiroElemento} />}
                 </div>
@@ -598,11 +669,11 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
             </div>
             {!produtos.length && <p className="text-sm text-muted-foreground" data-testid="tabloide-exemplo">Este é um exemplo de {segmento.nome.toLowerCase()}. Digite os seus produtos e toque em <b>Montar cartaz</b>.</p>}
             {paginas.length > 1 && (
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-sm" data-testid="cartaz-paginas">
                 {paginas.map((_, i) => (
                   <button key={i} type="button" onClick={() => setPagina(i)} className={cn('h-8 w-8 rounded-md border', i === paginaAtual ? 'border-primary bg-primary/10 font-semibold' : 'hover:bg-muted')}>{i + 1}</button>
                 ))}
-                <span className="text-muted-foreground">{paginas.length} páginas</span>
+                <span className="text-muted-foreground">{paginas.length} páginas{cfg.capa && produtos.length ? ' (a 1ª é a capa)' : ''}</span>
               </div>
             )}
             <div className="flex flex-wrap gap-2">
@@ -613,7 +684,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
                 {ocupado === 'imprimir' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Printer className="mr-1 h-4 w-4" />} Imprimir
               </Button>
               <Button variant="secondary" onClick={enviarParaMidias} disabled={ocupado !== null || !produtos.length} data-testid="tabloide-enviar">
-                {ocupado === 'enviar' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />} {contexto === 'portal' ? 'Enviar para minhas mídias (telas)' : 'Enviar para a biblioteca de mídias (telas)'}
+                {ocupado === 'enviar' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />} {contexto === 'portal' ? 'Enviar para as telas' : 'Enviar para as mídias'}
               </Button>
             </div>
 
@@ -641,6 +712,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
       )}
 
       {trocando && <TrocarFoto produto={trocando} aoFechar={() => setTrocando(null)} aoEscolher={(img) => trocarFoto(trocando, img)} />}
+      </div>
     </div>
   );
 }

@@ -4,7 +4,7 @@
  *  2. Cores do cartaz, por tipo de comércio;
  *  3. Temas (fotos de fundo): "Meus temas", "Temas Grátis" e uma seção por data comemorativa — as seções já existem
  *     vazias e recebem os temas conforme são enviados.
- * Toda imagem enviada é aceita e fica salva na hora.
+ * Toda imagem enviada é aceita e fica salva na hora. O tema entra na faixa do cabeçalho (como nos encartes) ou no cartaz inteiro.
  */
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -248,9 +248,18 @@ export function PainelTemas(p: PainelTemasProps) {
 
       {/* 3. temas (fotos de fundo) */}
       {temaAtual && (
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 px-2 py-1.5 text-xs">
-          <span className="truncate">Tema em uso: <b>{temaAtual.nome}</b></span>
-          <Button size="sm" variant="ghost" onClick={() => mudar({ temaFotoId: null })} data-testid="tema-tirar">Tirar o tema</Button>
+        <div className="space-y-1.5 rounded-lg border border-primary/40 bg-primary/5 p-2 text-xs" data-testid="tema-em-uso">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate">Tema em uso: <b>{temaAtual.nome}</b></span>
+            <Button size="sm" variant="ghost" onClick={() => mudar({ temaFotoId: null })} data-testid="tema-tirar">Tirar o tema</Button>
+          </div>
+          <div className="flex gap-1.5">
+            {([['cabecalho', 'Na faixa do cabeçalho'], ['fundo', 'No cartaz inteiro']] as const).map(([id, rotulo]) => (
+              <button key={id} type="button" onClick={() => mudar({ temaModo: id })} aria-pressed={cfg.temaModo === id} data-testid={`tema-modo-${id}`}
+                className={cn('flex-1 rounded-md border px-2 py-1.5 font-semibold', cfg.temaModo === id ? 'border-primary bg-primary/10' : 'bg-background hover:bg-muted')}>{rotulo}</button>
+            ))}
+          </div>
+          <p className="text-muted-foreground">Na faixa, a arte fica de ponta a ponta no topo e os produtos vêm embaixo. A arte ideal para a faixa é larga (ex.: 1080 × 480).</p>
         </div>
       )}
       {secao(GRUPO_MEUS_TEMAS, GRUPO_MEUS_TEMAS, { podeEnviar: true, daEmpresa: false, legenda: 'só você vê' })}

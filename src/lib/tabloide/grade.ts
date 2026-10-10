@@ -19,15 +19,29 @@ export interface Medidas {
   corpoA: number;
 }
 
-export function medidasDoFormato(f: Pick<Formato, 'largura' | 'altura'>, linhasRodape = 1): Medidas {
+/** Ajustes do desenho que mudam as medidas (F-180). */
+export interface AjusteDeMedidas {
+  /** altura do cabeçalho em pixels (faixa de tema); ausente = altura padrão do modelo */
+  cabecalho?: number;
+  /** estilo do rodapé: 'grande' e 'redondo' ocupam mais; 'sem' não ocupa nada */
+  rodape?: 'faixa' | 'redondo' | 'grande' | 'sem';
+  /** proporção (largura ÷ altura) em que o box de produto fica bom: [mínimo, máximo] */
+  boxIdeal?: [number, number];
+}
+
+const ESCALA_RODAPE = { faixa: 1, redondo: 1.18, grande: 1.4, sem: 0 } as const;
+
+export function medidasDoFormato(f: Pick<Formato, 'largura' | 'altura'>, linhasRodape = 1, ajuste: AjusteDeMedidas = {}): Medidas {
   const { largura: l, altura: a } = f;
   const u = Math.min(l, a);
   const horizontal = l > a * 1.15;
   const pad = Math.round(u * 0.028);
   const gap = Math.round(u * 0.016);
-  const cabecalho = Math.round(horizontal ? a * 0.2 : l > a * 0.95 ? a * 0.19 : a * 0.135);
+  const cabecalhoPadrao = Math.round(horizontal ? a * 0.2 : l > a * 0.95 ? a * 0.19 : a * 0.135);
+  // a faixa do tema nunca engole o cartaz: entre 10% e 38% da altura
+  const cabecalho = ajuste.cabecalho ? Math.round(Math.min(a * 0.38, Math.max(a * 0.1, ajuste.cabecalho))) : cabecalhoPadrao;
   // linhas a mais no rodapé: contato da loja (telefone, endereço, redes, pagamento) e advertência de medicamento
-  const rodape = Math.round(u * (0.05 + 0.038 * (Math.min(3, Math.max(1, linhasRodape)) - 1)));
+  const rodape = Math.round(u * (0.05 + 0.038 * (Math.min(3, Math.max(1, linhasRodape)) - 1)) * ESCALA_RODAPE[ajuste.rodape ?? 'faixa']);
   return {
     largura: l, altura: a, pad, gap, cabecalho, rodape,
     corpoX: pad, corpoY: cabecalho + gap, corpoL: l - pad * 2, corpoA: a - cabecalho - rodape - gap * 2 - pad * 0.4,
@@ -58,7 +72,8 @@ export const rotuloGrade = (id: string): string => (id === 'auto' ? 'Automática
 const LIMITE_AUTO = 20;
 
 /** Melhor grade (colunas × linhas) para N produtos numa área de L×A. */
-export function melhorGrade(n: number, largura: number, altura: number): { cols: number; rows: number } {
+export function melhorGrade(n: number, largura: number, altura: number, ideal: [number, number] = [0.8, 1.7]): { cols: number; rows: number } {
+  const [minimo, maximo] = ideal;
   let melhor = { cols: 1, rows: Math.max(1, n) };
   let nota = Infinity;
   for (let cols = 1; cols <= 6; cols++) {
@@ -68,7 +83,7 @@ export function melhorGrade(n: number, largura: number, altura: number): { cols:
       const aspecto = (largura / cols) / (altura / rows);
       // cartão entre 0,8 (um pouco mais alto que largo) e 1,7 (largo, foto de um lado e preço do outro) fica bom;
       // fora disso custa mais, e muito alto e estreito custa mais ainda
-      const desvio = aspecto < 0.8 ? Math.log(0.8 / aspecto) * 9 : aspecto > 1.7 ? Math.log(aspecto / 1.7) * 4 : 0;
+      const desvio = aspecto < minimo ? Math.log(minimo / aspecto) * 9 : aspecto > maximo ? Math.log(aspecto / maximo) * 4 : 0;
       const s = vazias * 1.2 + desvio + (cols * rows) * 0.05;
       if (s < nota) { nota = s; melhor = { cols, rows }; }
     }
@@ -95,7 +110,7 @@ function posicionarGrade(itens: ProdutoTabloide[], cols: number, rows: number, x
   return out;
 }
 
-function montarPagina(itens: ProdutoTabloide[], m: Medidas, gradeId: string, destaques: number): PaginaLayout {
+function montarPagina(itens: ProdutoTabloide[], m: Medidas, gradeId: string, destaques: number, ideal?: [number, number]): PaginaLayout {
   const d = Math.min(destaques, itens.length, 2);
   const top = itens.slice(0, d);
   const resto = itens.slice(d);
@@ -116,21 +131,21 @@ function montarPagina(itens: ProdutoTabloide[], m: Medidas, gradeId: string, des
   let cols = 1; let rows = 1;
   if (resto.length) {
     if (fixa) { cols = fixa.cols; rows = Math.max(fixa.rows, Math.ceil(resto.length / fixa.cols)); }
-    else ({ cols, rows } = melhorGrade(resto.length, m.corpoL, altResto));
+    else ({ cols, rows } = melhorGrade(resto.length, m.corpoL, altResto, ideal));
     celulas.push(...posicionarGrade(resto, cols, rows, m.corpoX, yResto, m.corpoL, altResto, m.gap));
   }
   return { celulas, cols, rows };
 }
 
 /** Divide a lista em páginas e posiciona os produtos de cada uma. */
-export function montarPaginas(produtos: ProdutoTabloide[], formato: Pick<Formato, 'largura' | 'altura'>, gradeId: string, destaques: number, linhasRodape = 1): PaginaLayout[] {
-  const m = medidasDoFormato(formato, linhasRodape);
+export function montarPaginas(produtos: ProdutoTabloide[], formato: Pick<Formato, 'largura' | 'altura'>, gradeId: string, destaques: number, linhasRodape = 1, ajuste: AjusteDeMedidas = {}): PaginaLayout[] {
+  const m = medidasDoFormato(formato, linhasRodape, ajuste);
   if (!produtos.length) return [{ celulas: [], cols: 1, rows: 1 }];
   const fixa = parseGrade(gradeId);
   const porPagina = fixa ? Math.max(1, fixa.cols * fixa.rows + Math.min(destaques, 2)) : LIMITE_AUTO + Math.min(destaques, 2);
   const paginas = Math.ceil(produtos.length / porPagina);
   const tamanho = Math.ceil(produtos.length / paginas); // páginas equilibradas
   const out: PaginaLayout[] = [];
-  for (let i = 0; i < produtos.length; i += tamanho) out.push(montarPagina(produtos.slice(i, i + tamanho), m, gradeId, destaques));
+  for (let i = 0; i < produtos.length; i += tamanho) out.push(montarPagina(produtos.slice(i, i + tamanho), m, gradeId, destaques, ajuste.boxIdeal));
   return out;
 }

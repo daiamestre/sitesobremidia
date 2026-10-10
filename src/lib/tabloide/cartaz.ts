@@ -4,10 +4,10 @@
  * a partir daqui (`propsDasPaginas`), então a prévia e a imagem final nunca divergem.
  */
 import type { TabloideCanvasProps } from '@/components/tabloide/TabloideCanvas';
-import { montarPaginas } from './grade';
+import { montarPaginas, type AjusteDeMedidas } from './grade';
 import { formatarPreco, type ProdutoTabloide } from './parseProdutos';
 import { logosDoCabecalho, resolverImagem, type ElementoLivre, type Selo } from './selos';
-import { formatoPorId, segmentoPorId, temaPorId } from './temas';
+import { formatoPorId, segmentoPorId, temaPorId, type Tema } from './temas';
 
 export type CampoEmpresa = 'telefone' | 'whatsapp' | 'legenda' | 'nome' | 'slogan' | 'pagamento' | 'obsPagamento' | 'endereco' | 'instagram' | 'facebook' | 'website';
 
@@ -51,6 +51,54 @@ export const PARTES_DA_FONTE: Array<{ id: ParteDaFonte; rotulo: string }> = [
 
 export type FundoLogo = 'branco' | 'sem' | 'escuro';
 
+/** Como cada produto é desenhado: nome em cima/foto/preço embaixo, faixa com o nome, ou foto ao lado do preço. */
+export type EstiloBox = 'inteligente' | 'coluna' | 'faixa' | 'lado';
+export const ESTILOS_DE_BOX: Array<{ id: EstiloBox; nome: string; dica: string }> = [
+  { id: 'inteligente', nome: 'Inteligente', dica: 'Escolhe o melhor desenho para o espaço de cada produto' },
+  { id: 'coluna', nome: 'Em coluna', dica: 'Nome em cima, foto no meio e preço embaixo' },
+  { id: 'faixa', nome: 'Com faixa', dica: 'Faixa colorida com o nome, foto e preço no canto' },
+  { id: 'lado', nome: 'Lado a lado', dica: 'Foto de um lado, nome e preço do outro' },
+];
+
+export type TamanhoTexto = 'pequeno' | 'medio' | 'grande';
+export const TAMANHOS_DE_TEXTO: Array<{ id: TamanhoTexto; nome: string; escala: number }> = [
+  { id: 'pequeno', nome: 'Texto pequeno', escala: 0.82 },
+  { id: 'medio', nome: 'Texto médio', escala: 1 },
+  { id: 'grande', nome: 'Texto grande', escala: 1.2 },
+];
+
+export type CoresCartaz = 'inteligente' | 'claro' | 'amarelo' | 'escuro' | 'tema';
+export const CORES_DO_BOX: Array<{ id: CoresCartaz; nome: string }> = [
+  { id: 'inteligente', nome: 'Inteligente' },
+  { id: 'claro', nome: 'Box branco' },
+  { id: 'amarelo', nome: 'Box amarelo' },
+  { id: 'escuro', nome: 'Box escuro' },
+  { id: 'tema', nome: 'Cor do tema' },
+];
+
+export type EstiloRodape = 'faixa' | 'redondo' | 'grande' | 'sem';
+export const ESTILOS_DE_RODAPE: Array<{ id: EstiloRodape; nome: string }> = [
+  { id: 'faixa', nome: 'Faixa reta' },
+  { id: 'redondo', nome: 'Redondo' },
+  { id: 'grande', nome: 'Redondo grande' },
+  { id: 'sem', nome: 'Sem rodapé' },
+];
+
+/** Onde a foto do tema entra: só na faixa do cabeçalho (como nos encartes) ou cobrindo o cartaz inteiro. */
+export type ModoTema = 'cabecalho' | 'fundo';
+
+/** Aplica a escolha de "Cores" sobre as cores do estilo (o selo de preço e o rodapé seguem o estilo). */
+export function temaComCores(tema: Tema, cores: CoresCartaz): Tema {
+  if (cores === 'claro') return { ...tema, cartao: '#ffffff', nomeCor: '#111827' };
+  if (cores === 'amarelo') return { ...tema, cartao: '#ffd21f', cartaoBorda: '#ffb300', nomeCor: '#111827' };
+  if (cores === 'escuro') return { ...tema, cartao: '#18181b', cartaoBorda: tema.preco, nomeCor: '#fafafa' };
+  if (cores === 'tema') return { ...tema, cartao: tema.faixa, cartaoBorda: tema.cartaoBorda, nomeCor: tema.tituloCor };
+  return tema;
+}
+
+/** Proporção boa do box para a grade automática, conforme o estilo escolhido. */
+export const boxIdeal = (estilo: EstiloBox): [number, number] => (estilo === 'coluna' ? [0.42, 1] : estilo === 'lado' ? [1.3, 2.8] : estilo === 'faixa' ? [0.8, 1.7] : [0.5, 1.9]);
+
 export interface ConfigCartaz {
   titulo: string;
   empresa: DadosEmpresa;
@@ -68,6 +116,14 @@ export interface ConfigCartaz {
   cabecalhoEmTexto: boolean;
   /** foto de tema (fundo) escolhida na biblioteca */
   temaFotoId: string | null;
+  /** onde a foto do tema entra */
+  temaModo: ModoTema;
+  boxes: EstiloBox;
+  tamanhoTexto: TamanhoTexto;
+  cores: CoresCartaz;
+  rodapeEstilo: EstiloRodape;
+  /** primeira página só com a arte, o título, a validade e a loja */
+  capa: boolean;
   destaques: 0 | 1 | 2;
   texto: string;
   elementos: ElementoLivre[];
@@ -86,6 +142,7 @@ export function configPadrao(): ConfigCartaz {
     fontes: { produto: 'padrao', preco: 'padrao', frase: 'padrao', rodape: 'padrao' },
     logoMarcaUrl: null, mostrarLogo: true, fundoLogo: 'branco',
     logoCabecalhoId: null, seloUrl: null, cabecalhoEmTexto: false, temaFotoId: null,
+    temaModo: 'cabecalho', boxes: 'inteligente', tamanhoTexto: 'medio', cores: 'inteligente', rodapeEstilo: 'faixa', capa: false,
     destaques: 0, texto: '', elementos: [], observacoes: '',
   };
 }
@@ -119,6 +176,14 @@ export function normalizarConfig(bruto: unknown): ConfigCartaz {
   p.seloUrl = typeof b.seloUrl === 'string' && b.seloUrl.startsWith('https://') ? b.seloUrl : null;
   p.cabecalhoEmTexto = sim(b.cabecalhoEmTexto, false);
   p.temaFotoId = typeof b.temaFotoId === 'string' ? b.temaFotoId : null;
+  const um = <T extends string>(v: unknown, lista: Array<{ id: T }>, padrao: T): T => (lista.some((x) => x.id === v) ? (v as T) : padrao);
+  // cartaz salvo antes da faixa de tema (F-179) usava a foto no cartaz inteiro: continua igual
+  p.temaModo = b.temaModo === 'cabecalho' || (b.temaModo !== 'fundo' && !p.temaFotoId) ? 'cabecalho' : 'fundo';
+  p.boxes = um(b.boxes, ESTILOS_DE_BOX, b.boxes === undefined && Object.keys(b).length ? 'faixa' : 'inteligente');
+  p.tamanhoTexto = um(b.tamanhoTexto, TAMANHOS_DE_TEXTO, 'medio');
+  p.cores = um(b.cores, CORES_DO_BOX, 'inteligente');
+  p.rodapeEstilo = um(b.rodapeEstilo, ESTILOS_DE_RODAPE, 'faixa');
+  p.capa = sim(b.capa, false);
   p.destaques = b.destaques === 1 || b.destaques === 2 ? b.destaques : 0;
   p.texto = texto(b.texto, 20000);
   p.elementos = Array.isArray(b.elementos) ? (b.elementos as ElementoLivre[]).filter((e) => e && typeof e.url === 'string') : [];
@@ -218,24 +283,44 @@ export function resolverCabecalho(cfg: ConfigCartaz, selos: Selo[] | null): { se
   return { seloUrl: padrao ? padrao.imagem_url : null, semTitulo: false };
 }
 
+/** Medidas que dependem das escolhas do cartaz (faixa do tema, rodapé e estilo do box). */
+export function ajusteDoCartaz(c: CartazParaDesenhar, selos: Selo[] | null): AjusteDeMedidas {
+  const cfg = c.config;
+  const formato = formatoPorId(c.formatoId);
+  const foto = resolverImagem(selos, cfg.temaFotoId, 'TEMA');
+  // a faixa do tema entra inteira na largura do cartaz; a altura acompanha a proporção da arte
+  const cabecalho = foto && cfg.temaModo === 'cabecalho' && foto.largura > 0 ? formato.largura * (foto.altura / foto.largura) : undefined;
+  return { cabecalho, rodape: cfg.rodapeEstilo, boxIdeal: boxIdeal(cfg.boxes) };
+}
+
 /** As páginas do cartaz prontas para desenhar (mesmo resultado na prévia, no download, na impressão e no portal). */
 export function propsDasPaginas(c: CartazParaDesenhar, selos: Selo[] | null): TabloideCanvasProps[] {
   const formato = formatoPorId(c.formatoId);
-  const tema = temaPorId(c.temaId);
-  const segmento = segmentoPorId(c.segmentoId);
   const cfg = c.config;
+  const tema = temaComCores(temaPorId(c.temaId), cfg.cores);
+  const segmento = segmentoPorId(c.segmentoId);
   const rodape = linhasDoRodape(cfg);
   const linhas = linhasDoRodapeUsadas(rodape);
-  const paginas = montarPaginas(c.produtos, formato, c.grade, cfg.destaques, linhas);
+  const ajuste = ajusteDoCartaz(c, selos);
+  const paginas = montarPaginas(c.produtos, formato, c.grade, cfg.destaques, linhas, ajuste);
   const cab = resolverCabecalho(cfg, selos);
-  const fundo = resolverImagem(selos, cfg.temaFotoId, 'TEMA');
-  return paginas.map((pagina, i) => ({
+  const foto = resolverImagem(selos, cfg.temaFotoId, 'TEMA');
+  const naFaixa = !!foto && cfg.temaModo === 'cabecalho';
+  const comum = {
     formato, tema, segmento, titulo: cfg.titulo, subtitulo: cfg.regras.mostrarFrase ? cfg.regras.frase : '', validade: '', empresa: '',
     rodape, linhasRodape: linhas, fontes: cfg.fontes,
     logoUrl: cfg.mostrarLogo ? cfg.logoMarcaUrl : null, fundoLogo: cfg.fundoLogo,
-    seloUrl: cab.seloUrl, semTitulo: cab.semTitulo, fundoUrl: fundo ? fundo.imagem_url : null,
-    elementos: cfg.elementos, pagina, numeroPagina: i + 1, totalPaginas: paginas.length,
-  }));
+    seloUrl: cab.seloUrl, semTitulo: cab.semTitulo,
+    fundoUrl: foto && !naFaixa ? foto.imagem_url : null, faixaUrl: naFaixa ? foto.imagem_url : null,
+    ajuste, boxes: cfg.boxes, tamanhoTexto: cfg.tamanhoTexto, rodapeEstilo: cfg.rodapeEstilo,
+    elementos: cfg.elementos,
+  };
+  const capa = cfg.capa && c.produtos.length > 0 ? 1 : 0;
+  const total = paginas.length + capa;
+  const lista: TabloideCanvasProps[] = paginas.map((pagina, i) => ({ ...comum, pagina, numeroPagina: i + 1 + capa, totalPaginas: total }));
+  // a capa leva a arte do tema, o título, a validade e a loja; as logos soltas ficam só nas páginas de produtos
+  if (capa) lista.unshift({ ...comum, capa: true, elementos: [], pagina: { celulas: [], cols: 1, rows: 1 }, numeroPagina: 1, totalPaginas: total });
+  return lista;
 }
 
 /** Fontes usadas num cartaz (para carregar antes de desenhar a imagem final). */
