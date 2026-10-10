@@ -8,6 +8,7 @@ import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProduto
 import { medidasDoFormato, type Celula, type PaginaLayout } from '@/lib/tabloide/grade';
 import { coresDoSelo, desenharPreco, desenharSelo3D, larguraDoPreco, tom } from '@/lib/tabloide/selo3d';
 import type { Formato, Segmento, Tema } from '@/lib/tabloide/temas';
+import type { ElementoLivre } from '@/lib/tabloide/selos';
 
 const FONTE = "'Arial Black','Segoe UI Black',Impact,system-ui,sans-serif";
 
@@ -142,9 +143,14 @@ export interface TabloideCanvasProps {
   pagina: PaginaLayout;
   numeroPagina: number;
   totalPaginas: number;
+  /** Selos da biblioteca colocados livremente sobre o cartaz (valem em todas as páginas). */
+  elementos?: ElementoLivre[];
+  /** Só na prévia: realça a camada escolhida e permite arrastar (a exportação não passa isto). */
+  selecionadoId?: string | null;
+  aoPonteiroElemento?: (id: string, ev: React.PointerEvent) => void;
 }
 
-export function TabloideCanvas({ formato, tema, segmento, titulo, subtitulo, validade, empresa, logoUrl, seloUrl, pagina, numeroPagina, totalPaginas }: TabloideCanvasProps) {
+export function TabloideCanvas({ formato, tema, segmento, titulo, subtitulo, validade, empresa, logoUrl, seloUrl, pagina, numeroPagina, totalPaginas, elementos, selecionadoId, aoPonteiroElemento }: TabloideCanvasProps) {
   const m = medidasDoFormato(formato);
   const texto = (titulo || segmento.titulo).toUpperCase();
   const horizontal = m.largura > m.altura * 1.15;
@@ -186,6 +192,29 @@ export function TabloideCanvas({ formato, tema, segmento, titulo, subtitulo, val
           *Imagens meramente ilustrativas{creditos.length ? ` · Fotos: ${creditos.join(', ')}` : ''}{totalPaginas > 1 ? `  ·  ${numeroPagina}/${totalPaginas}` : ''}
         </span>
       </div>
+
+      {(elementos ?? []).map((e) => {
+        const w = e.w * m.largura;
+        const h = w * e.ar;
+        return (
+          <img
+            key={e.id}
+            src={e.url}
+            alt={e.nome}
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
+            draggable={false}
+            data-testid="tabloide-elemento"
+            onPointerDown={aoPonteiroElemento ? (ev) => aoPonteiroElemento(e.id, ev) : undefined}
+            style={{
+              position: 'absolute', left: e.cx * m.largura - w / 2, top: e.cy * m.altura - h / 2, width: w, height: h,
+              transform: `rotate(${e.rot}deg)`, touchAction: 'none', userSelect: 'none',
+              cursor: aoPonteiroElemento ? 'grab' : undefined,
+              outline: selecionadoId === e.id ? `${Math.max(3, m.largura * 0.003)}px dashed #38bdf8` : undefined,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

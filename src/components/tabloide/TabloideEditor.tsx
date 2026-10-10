@@ -1,11 +1,15 @@
 /**
- * Tabloide Digital (F-172) — o ambiente de criação.
- * O cliente digita "produto + preço" (um por linha); o sistema acha a foto, monta o cartaz no tema do segmento
- * e deixa baixar em PNG ou enviar para as mídias (portal do anunciante e painel da equipe usam esta mesma tela).
+ * Tabloide Digital (F-172, F-177) — o ambiente de criação.
+ * Barra lateral de botões (Produtos, Temas, Datas, Selos 3D, Sua Logo, Empresa, Formato) como nos criadores de encarte:
+ * o cliente digita "produto + preço"; o sistema acha a foto (catálogo compartilhado primeiro), monta o cartaz no tema do
+ * segmento e deixa baixar, imprimir ou enviar para as mídias (portal do anunciante e painel da equipe usam esta mesma tela).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Download, Image as ImageIcon, Loader2, Plus, Save, Send, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react';
+import {
+  BadgePercent, CalendarDays, Download, Image as ImageIcon, LayoutGrid, Loader2, Palette, Plus, Printer, Save, Send,
+  ShoppingBasket, Sparkles, Store, Trash2, Upload, Wand2,
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { uploadToR2 } from '@/lib/r2Upload';
@@ -18,12 +22,16 @@ import {
   chaveDoProduto, lerLista, mesclarListas, paraLinha, precoParaTexto, lerValor, UNIDADES_DISPONIVEIS,
   type ImagemProduto, type ProdutoTabloide,
 } from '@/lib/tabloide/parseProdutos';
-import { FORMATOS, SEGMENTOS, TEMAS, TITULOS_PRONTOS, formatoPorId, segmentoPorId, temaPorId, temasDeDatas, temasDoSegmento, type SegmentoId } from '@/lib/tabloide/temas';
+import { FORMATOS, SEGMENTOS, formatoPorId, segmentoPorId, temaPorId, temasDeDatas, temasDoSegmento, TEMAS, type SegmentoId } from '@/lib/tabloide/temas';
 import { GRADES_FIXAS, montarPaginas, rotuloGrade } from '@/lib/tabloide/grade';
-import { buscarCandidatos, completarImagens, gerarImagemIA, prepararImagem, salvarNoCatalogo, type CandidatoImagem } from '@/lib/tabloide/imagens';
-import { baixarBlob, nomeDeArquivo, renderizarPaginaEmPng } from '@/lib/tabloide/exportar';
+import { buscarCandidatos, buscarNoCatalogo, completarImagens, gerarImagemIA, prepararImagem, salvarNoCatalogo, type CandidatoImagem } from '@/lib/tabloide/imagens';
+import { chaveCanonica } from '@/lib/tabloide/chave';
+import { baixarBlob, imprimirBlobs, nomeDeArquivo, renderizarPaginaEmPng } from '@/lib/tabloide/exportar';
 import { tabelaTabloide } from '@/lib/tabloide/db';
+import { proximasDatas, rotuloDaData } from '@/lib/tabloide/datas';
+import { ajustarElemento, duplicarElemento, novoElemento, type ElementoLivre, type Selo } from '@/lib/tabloide/selos';
 import { TabloideCanvas } from './TabloideCanvas';
+import { PainelSelos } from './PainelSelos';
 
 export interface TabloideEditorProps {
   contexto: 'portal' | 'painel';
@@ -35,8 +43,16 @@ export interface TabloideEditorProps {
 
 interface Rascunho { id: string; nome: string; updated_at: string }
 
-const ABAS = ['Produtos', 'Temas', 'Formato', 'Marca'] as const;
-type Aba = (typeof ABAS)[number];
+const BOTOES = [
+  { id: 'produtos', rotulo: 'Produtos', icone: ShoppingBasket },
+  { id: 'temas', rotulo: 'Temas', icone: Palette },
+  { id: 'datas', rotulo: 'Datas', icone: CalendarDays },
+  { id: 'selos', rotulo: 'Selos 3D', icone: BadgePercent },
+  { id: 'logo', rotulo: 'Sua Logo', icone: ImageIcon },
+  { id: 'empresa', rotulo: 'Empresa', icone: Store },
+  { id: 'formato', rotulo: 'Formato', icone: LayoutGrid },
+] as const;
+type Aba = (typeof BOTOES)[number]['id'];
 
 /** Descobre o segmento do cadastro do cliente (texto livre) entre os do Tabloide. */
 function segmentoDoCadastro(texto?: string | null): SegmentoId {
@@ -54,7 +70,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const { user } = useAuth();
   const segInicial = useMemo(() => segmentoDoCadastro(segmentoPadrao), [segmentoPadrao]);
 
-  const [aba, setAba] = useState<Aba>('Produtos');
+  const [aba, setAba] = useState<Aba>('produtos');
   const [segmentoId, setSegmentoId] = useState<SegmentoId>(segInicial);
   const [temaId, setTemaId] = useState<string>(() => temasDoSegmento(segInicial)[0]?.id ?? 'ofertao');
   const [formatoId, setFormatoId] = useState<string>('tv-h');
@@ -68,11 +84,14 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const [empresa, setEmpresa] = useState(empresaPadrao);
   const [logoUrl, setLogoUrl] = useState<string | null>(logoPadrao);
   const [mostrarLogo, setMostrarLogo] = useState(true);
+  const [enviandoLogo, setEnviandoLogo] = useState(false);
   const [seloUrl, setSeloUrl] = useState<string | null>(null);
-  const [enviandoSelo, setEnviandoSelo] = useState(false);
+  const [elementos, setElementos] = useState<ElementoLivre[]>([]);
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [pagina, setPagina] = useState(0);
-  const [buscandoFotos, setBuscandoFotos] = useState(false);
-  const [ocupado, setOcupado] = useState<null | 'baixar' | 'enviar' | 'salvar'>(null);
+  const [novosBuscando, setNovosBuscando] = useState<string[]>([]);
+  const buscandoFotos = novosBuscando.length > 0;
+  const [ocupado, setOcupado] = useState<null | 'baixar' | 'enviar' | 'salvar' | 'imprimir'>(null);
   const [nomeTabloide, setNomeTabloide] = useState('Meu tabloide');
   const [tabloideId, setTabloideId] = useState<string | null>(null);
   const [rascunhos, setRascunhos] = useState<Rascunho[]>([]);
@@ -90,7 +109,15 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const tema = temaPorId(temaId);
   const segmento = segmentoPorId(segmentoId);
   // antes de o cliente digitar, a prévia mostra o exemplo do segmento (só para ver o estilo; não é exportado)
-  const exemplo = useMemo(() => lerLista(segmento.exemplo), [segmento]);
+  const exemploBase = useMemo(() => lerLista(segmento.exemplo), [segmento]);
+  const [fotosExemplo, setFotosExemplo] = useState<Map<string, ImagemProduto>>(new Map());
+  // as fotos do exemplo vêm do catálogo compartilhado (uma consulta, sem busca externa)
+  useEffect(() => {
+    let ativo = true;
+    void buscarNoCatalogo(exemploBase.map((p) => p.nome)).then((m) => { if (ativo) setFotosExemplo(m); }).catch(() => undefined);
+    return () => { ativo = false; };
+  }, [exemploBase]);
+  const exemplo = useMemo(() => exemploBase.map((p) => ({ ...p, imagem: fotosExemplo.get(chaveCanonica(p.nome)) ?? null })), [exemploBase, fotosExemplo]);
   const paginas = useMemo(() => montarPaginas(produtos.length ? produtos : exemplo, formato, grade, destaques), [produtos, exemplo, formato, grade, destaques]);
   const paginaAtual = Math.min(pagina, paginas.length - 1);
 
@@ -104,6 +131,8 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     return () => ro.disconnect();
   }, []);
   const escala = Math.max(0.1, Math.min(largPalco / formato.largura, (typeof window !== 'undefined' ? window.innerHeight * 0.68 : 600) / formato.altura));
+  const escalaRef = useRef(escala);
+  escalaRef.current = escala;
 
   const listarRascunhos = useCallback(async () => {
     const { data } = await tabelaTabloide('tabloides').select('id, nome, updated_at').is('deleted_at', null).order('updated_at', { ascending: false }).limit(30);
@@ -111,21 +140,23 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   }, []);
   useEffect(() => { void listarRascunhos(); }, [listarRascunhos]);
 
-  /** Busca a foto dos produtos que ainda não têm (uma vez por produto). */
+  /** Dá foto aos produtos que ainda não têm (uma vez por produto). */
   const procurarFotos = useCallback(async (lista: ProdutoTabloide[]) => {
     const novos = lista.filter((p) => !p.imagem && !tentados.current.has(p.id));
     if (!novos.length) return;
     novos.forEach((p) => tentados.current.add(p.id));
-    setBuscandoFotos(true);
     try {
-      const semFoto = await completarImagens(novos, clienteId, (id, imagem) => {
-        if (imagem) setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, imagem } : p)));
-      });
+      // foto já guardada no catálogo da empresa chega na hora; "procurando" aparece só para produto que o sistema nunca viu
+      const semFoto = await completarImagens(
+        novos,
+        (id, imagem) => { if (imagem) setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, imagem } : p))); },
+        (nomesNovos) => { setNovosBuscando(nomesNovos); },
+      );
       if (semFoto.length) toast.info(`Sem foto automática: ${semFoto.join(', ')}. Clique na foto do produto para escolher ou enviar a sua.`, { duration: 9000 });
     } finally {
-      setBuscandoFotos(false);
+      setNovosBuscando([]);
     }
-  }, [clienteId]);
+  }, []);
 
   const montarCartaz = () => {
     const lidos = lerLista(texto);
@@ -146,9 +177,71 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     if (!tituloEditado.current) { setTitulo(segmentoPorId(id).titulo); setSubtitulo(segmentoPorId(id).subtitulo); }
   };
 
+  // ---- selos livres no cartaz (camadas) ----
+  const inserirSelo = (selo: Selo) => {
+    const e = novoElemento(selo, { cx: 0.5, cy: 0.5 });
+    setElementos((l) => [...l, e]);
+    setSelecionadoId(e.id);
+  };
+  const atualizarElemento = (id: string, mudanca: Partial<ElementoLivre>) => setElementos((l) => l.map((e) => (e.id === id ? ajustarElemento({ ...e, ...mudanca }) : e)));
+  const duplicarElementoPorId = (id: string) => {
+    const orig = elementos.find((e) => e.id === id);
+    if (!orig) return;
+    const copia = duplicarElemento(orig);
+    setElementos((l) => [...l, copia]);
+    setSelecionadoId(copia.id);
+  };
+  const excluirElemento = useCallback((id: string) => {
+    setElementos((l) => l.filter((e) => e.id !== id));
+    setSelecionadoId((atual) => (atual === id ? null : atual));
+  }, []);
+  const usarElementoNoCabecalho = (id: string) => {
+    const e = elementos.find((x) => x.id === id);
+    if (!e) return;
+    setSeloUrl(e.url);
+    excluirElemento(id);
+    toast.success('Selo colocado no cabeçalho.');
+  };
+
+  const arrasto = useRef<{ id: string; px: number; py: number; cx: number; cy: number; larg: number; alt: number } | null>(null);
+  const aoPonteiroElemento = (id: string, ev: React.PointerEvent) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const e = elementos.find((x) => x.id === id);
+    if (!e) return;
+    setSelecionadoId(id);
+    arrasto.current = { id, px: ev.clientX, py: ev.clientY, cx: e.cx, cy: e.cy, larg: formato.largura, alt: formato.altura };
+    const mover = (m: PointerEvent) => {
+      const a = arrasto.current;
+      if (!a) return;
+      const dx = (m.clientX - a.px) / escalaRef.current / a.larg;
+      const dy = (m.clientY - a.py) / escalaRef.current / a.alt;
+      setElementos((l) => l.map((x) => (x.id === a.id ? ajustarElemento({ ...x, cx: a.cx + dx, cy: a.cy + dy }) : x)));
+    };
+    const soltar = () => {
+      arrasto.current = null;
+      window.removeEventListener('pointermove', mover);
+      window.removeEventListener('pointerup', soltar);
+      window.removeEventListener('pointercancel', soltar);
+    };
+    window.addEventListener('pointermove', mover);
+    window.addEventListener('pointerup', soltar);
+    window.addEventListener('pointercancel', soltar);
+  };
+  useEffect(() => {
+    const aoTecla = (ev: KeyboardEvent) => {
+      if (!selecionadoId || (ev.key !== 'Delete' && ev.key !== 'Backspace')) return;
+      const alvo = ev.target as HTMLElement | null;
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable)) return;
+      excluirElemento(selecionadoId);
+    };
+    window.addEventListener('keydown', aoTecla);
+    return () => window.removeEventListener('keydown', aoTecla);
+  }, [selecionadoId, excluirElemento]);
+
   const propsDaPagina = (i: number) => ({
     formato, tema, segmento, titulo, subtitulo, validade, empresa,
-    logoUrl: mostrarLogo ? logoUrl : null, seloUrl, pagina: paginas[i], numeroPagina: i + 1, totalPaginas: paginas.length,
+    logoUrl: mostrarLogo ? logoUrl : null, seloUrl, elementos, pagina: paginas[i], numeroPagina: i + 1, totalPaginas: paginas.length,
   });
 
   const gerarPngs = async (): Promise<Blob[]> => {
@@ -166,6 +259,16 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
       toast.success(pngs.length > 1 ? `${pngs.length} imagens baixadas.` : 'Imagem baixada.');
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível gerar a imagem.');
+    } finally { setOcupado(null); }
+  };
+
+  const imprimir = async () => {
+    if (!produtos.length) { toast.error('Monte o cartaz primeiro.'); return; }
+    setOcupado('imprimir');
+    try {
+      imprimirBlobs(await gerarPngs());
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível preparar a impressão.');
     } finally { setOcupado(null); }
   };
 
@@ -203,7 +306,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     } finally { setOcupado(null); }
   };
 
-  const config = () => ({ titulo, subtitulo, validade, empresa, mostrarLogo, destaques, texto, seloUrl });
+  const config = () => ({ titulo, subtitulo, validade, empresa, mostrarLogo, destaques, texto, seloUrl, elementos });
 
   const salvar = async () => {
     setOcupado('salvar');
@@ -233,6 +336,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     setProdutos(d.produtos ?? []); setTexto(c.texto ?? (d.produtos ?? []).map(paraLinha).join('\n'));
     setTitulo(c.titulo ?? ''); setSubtitulo(c.subtitulo ?? ''); setValidade(c.validade ?? ''); setEmpresa(c.empresa ?? empresaPadrao);
     setMostrarLogo(c.mostrarLogo ?? true); setDestaques(c.destaques ?? 0); setSeloUrl(c.seloUrl ?? null); setPagina(0);
+    setElementos(Array.isArray(c.elementos) ? (c.elementos as ElementoLivre[]).map(ajustarElemento) : []); setSelecionadoId(null);
     tituloEditado.current = true;
     (d.produtos ?? []).forEach((p: ProdutoTabloide) => tentados.current.add(p.id));
     toast.success('Rascunho aberto.');
@@ -252,33 +356,38 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
       // tira o fundo e corta as sobras; o cartaz troca para a versão recortada quando ficar pronta
       const pronta = await prepararImagem(imagem);
       if (pronta !== imagem) setProdutos((l) => l.map((p) => (p.id === produto.id ? { ...p, imagem: pronta } : p)));
-      await salvarNoCatalogo(produto.nome, pronta, clienteId);
+      await salvarNoCatalogo(produto.nome, pronta, 'ESCOLHA', true);
     } catch { /* o cartaz já foi atualizado */ }
   };
 
-  const enviarSelo = async (arq: File | undefined) => {
+  const enviarLogo = async (arq: File | undefined) => {
     if (!arq || !user?.id) return;
-    if (arq.type !== 'image/png' && arq.type !== 'image/webp') { toast.error('Envie o selo em PNG (ou WebP) com fundo transparente.'); return; }
-    if (arq.size > 6 * 1024 * 1024) { toast.error('O selo tem mais de 6 MB. Escolha um menor.'); return; }
-    setEnviandoSelo(true);
+    if (!arq.type.startsWith('image/')) { toast.error('Escolha um arquivo de imagem (PNG, JPG ou WebP).'); return; }
+    if (arq.size > 4 * 1024 * 1024) { toast.error('A logo tem mais de 4 MB. Escolha uma menor.'); return; }
+    setEnviandoLogo(true);
     try {
-      const ext = arq.type === 'image/webp' ? 'webp' : 'png';
-      const { publicUrl } = await uploadToR2(arq, `${user.id}/tabloide/selo-${Date.now()}.${ext}`, arq.type, user.id);
-      setSeloUrl(publicUrl);
+      const ext = (arq.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const { publicUrl } = await uploadToR2(arq, `${user.id}/tabloide/logo-${Date.now()}.${ext}`, arq.type, user.id);
+      setLogoUrl(publicUrl);
+      setMostrarLogo(true);
     } catch (e) {
-      toast.error((e as Error).message || 'Não foi possível enviar o selo.');
-    } finally { setEnviandoSelo(false); }
+      toast.error((e as Error).message || 'Não foi possível enviar a logo.');
+    } finally { setEnviandoLogo(false); }
   };
 
-  const botaoAba = (a: Aba) => (
-    <button key={a} type="button" onClick={() => setAba(a)} data-testid={`tabloide-aba-${a.toLowerCase()}`}
-      className={cn('flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors', aba === a ? 'bg-primary text-primary-foreground' : 'bg-muted/40 text-muted-foreground hover:bg-muted')}>
-      {a}
-    </button>
-  );
+  const escolherData = (temaDaData: string, tituloDaData: string, subtituloDaData: string) => {
+    setTemaId(temaDaData);
+    tituloEditado.current = true;
+    setTitulo(tituloDaData);
+    setSubtitulo(subtituloDaData);
+    setSeloUrl(null);
+    toast.success('Tema da data aplicado.');
+  };
+
+  const datas = useMemo(() => proximasDatas(), []);
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-4 p-4 md:p-6" data-testid="tabloide-editor">
+    <div className="mx-auto w-full max-w-[1600px] space-y-3 p-3 md:p-5" data-testid="tabloide-editor">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold"><Sparkles className="h-6 w-6 text-primary" /> Tabloide Digital</h1>
@@ -291,7 +400,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
               {rascunhos.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
             </select>
           )}
-          <Input aria-label="Nome do tabloide" className="h-9 w-48" value={nomeTabloide} onChange={(e) => setNomeTabloide(e.target.value)} />
+          <Input aria-label="Nome do tabloide" className="h-9 w-44" value={nomeTabloide} onChange={(e) => setNomeTabloide(e.target.value)} />
           <Button variant="outline" size="sm" onClick={salvar} disabled={ocupado !== null} data-testid="tabloide-salvar">
             {ocupado === 'salvar' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />} Salvar rascunho
           </Button>
@@ -299,13 +408,26 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(320px,440px)_1fr]">
-        <div className="space-y-3 rounded-xl border bg-card p-4">
-          <div className="flex gap-2">{ABAS.map(botaoAba)}</div>
+      <div className="grid grid-cols-[72px_minmax(0,1fr)] items-start gap-3 lg:grid-cols-[76px_390px_minmax(0,1fr)]">
+        {/* barra lateral de botões */}
+        <nav className="flex flex-col gap-1 rounded-xl border bg-slate-950/70 p-1.5" aria-label="Ferramentas do tabloide" data-testid="tabloide-barra">
+          {BOTOES.map((b) => {
+            const Icone = b.icone;
+            return (
+              <button key={b.id} type="button" onClick={() => setAba(b.id)} data-testid={`tabloide-aba-${b.id}`} aria-pressed={aba === b.id}
+                className={cn('flex flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[11px] font-semibold leading-tight transition-colors', aba === b.id ? 'bg-primary text-primary-foreground' : 'text-slate-300 hover:bg-slate-800')}>
+                <Icone className="h-5 w-5" />
+                <span className="text-center">{b.rotulo}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-          {aba === 'Produtos' && (
+        {/* painel da ferramenta */}
+        <section className="min-w-0 space-y-3 rounded-xl border bg-card p-4" data-testid="tabloide-painel">
+          {aba === 'produtos' && (
             <div className="space-y-3">
-              <label className="text-sm font-semibold" htmlFor="tabloide-texto">Um produto por linha, com o preço</label>
+              <label className="text-sm font-semibold" htmlFor="tabloide-texto">Digite um produto por linha, com o preço</label>
               <Textarea id="tabloide-texto" data-testid="tabloide-texto" rows={7} value={texto} onChange={(e) => setTexto(e.target.value)}
                 placeholder={segmento.exemplo} className="font-mono text-sm" />
               <div className="flex flex-wrap gap-2">
@@ -313,7 +435,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
                 <Button variant="outline" onClick={() => setTexto(segmento.exemplo)} type="button">Usar exemplo de {segmento.nome.toLowerCase()}</Button>
               </div>
               <p className="text-xs text-muted-foreground">Aceita: <i>Arroz 5kg 25,90</i> · <i>Picanha kg R$ 49,90</i> · <i>Leite de 6,50 por 4,99</i></p>
-              {buscandoFotos && <p className="flex items-center gap-2 text-sm text-primary"><Loader2 className="h-4 w-4 animate-spin" /> Procurando as fotos dos produtos…</p>}
+              {buscandoFotos && <p className="flex items-center gap-2 text-sm text-primary" data-testid="tabloide-procurando"><Loader2 className="h-4 w-4 animate-spin" /> Produto novo para o sistema: procurando a foto de {novosBuscando.length === 1 ? novosBuscando[0] : `${novosBuscando.length} produtos`}…</p>}
 
               {produtos.length > 0 && (
                 <ul className="max-h-[420px] space-y-2 overflow-y-auto pr-1" data-testid="tabloide-lista">
@@ -321,7 +443,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
                     <li key={p.id} className="flex items-center gap-2 rounded-lg border bg-background/50 p-2">
                       <button type="button" onClick={() => setTrocando(p)} title="Trocar a foto" aria-label={`Trocar a foto de ${p.nome}`}
                         className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-white text-2xl">
-                        {p.imagem ? <img src={p.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="px-0.5 text-center text-[9px] font-bold leading-tight text-muted-foreground">{buscandoFotos ? 'buscando…' : 'sem foto'}</span>}
+                        {p.imagem ? <img src={p.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="px-0.5 text-center text-[9px] font-bold leading-tight text-muted-foreground">{novosBuscando.includes(p.nome) ? 'buscando…' : 'foto…'}</span>}
                       </button>
                       <div className="min-w-0 flex-1 space-y-1">
                         <Input aria-label="Nome do produto" className="h-8 text-sm" value={p.nome} onChange={(e) => atualizar(p.id, { nome: e.target.value })} />
@@ -342,7 +464,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
             </div>
           )}
 
-          {aba === 'Temas' && (
+          {aba === 'temas' && (
             <div className="space-y-4">
               <div>
                 <p className="mb-2 text-sm font-semibold">Qual é o seu comércio?</p>
@@ -363,17 +485,80 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
                   ))}
                 </div>
               </div>
-              <div>
-                <p className="mb-2 text-sm font-semibold">Datas comemorativas</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {temasDeDatas().map((t) => <TemaMiniatura key={t.id} id={t.id} ativo={temaId === t.id} aoEscolher={setTemaId} />)}
-                </div>
-              </div>
             </div>
           )}
 
-          {aba === 'Formato' && (
-            <div className="space-y-4">
+          {aba === 'datas' && (
+            <div className="space-y-3" data-testid="painel-datas">
+              <p className="text-sm font-semibold">Datas comemorativas</p>
+              <p className="text-xs text-muted-foreground">Toque na data para aplicar o tema, o título e a frase prontos.</p>
+              <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+                {datas.map(({ item, data, dias }) => {
+                  const t = temaPorId(item.temaId);
+                  return (
+                    <li key={item.id}>
+                      <button type="button" onClick={() => escolherData(item.temaId, item.titulo, item.subtitulo)} data-testid={`data-${item.id}`}
+                        className={cn('flex w-full items-center gap-3 rounded-lg border p-2 text-left hover:bg-muted', temaId === item.temaId && titulo === item.titulo ? 'border-primary bg-primary/10' : '')}>
+                        <span className="flex h-12 w-16 shrink-0 items-center justify-center rounded-md text-xl" style={{ background: t.fundo }}>{t.emoji}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold">{item.nome}</span>
+                          <span className="block text-xs text-muted-foreground">{rotuloDaData(data)} · {dias === 0 ? 'é hoje' : dias === 1 ? 'amanhã' : `em ${dias} dias`}</span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-xs text-muted-foreground">Mais estilos de data nos temas: {temasDeDatas().length} desenhos próprios.</p>
+            </div>
+          )}
+
+          {aba === 'selos' && (
+            <PainelSelos
+              contexto={contexto}
+              clienteId={clienteId}
+              usuarioId={user?.id}
+              titulo={titulo}
+              elementos={elementos}
+              selecionadoId={selecionadoId}
+              aoInserir={inserirSelo}
+              aoSelecionar={setSelecionadoId}
+              aoAtualizar={atualizarElemento}
+              aoDuplicar={duplicarElementoPorId}
+              aoExcluir={excluirElemento}
+              aoUsarNoCabecalho={usarElementoNoCabecalho}
+              aoEscolherTitulo={(tp) => { tituloEditado.current = true; setTitulo(tp); setSeloUrl(null); }}
+            />
+          )}
+
+          {aba === 'logo' && (
+            <div className="space-y-3" data-testid="painel-logo">
+              <p className="text-sm font-semibold">Sua logo</p>
+              <div className="flex h-32 items-center justify-center rounded-lg border bg-white p-2">
+                {logoUrl ? <img src={logoUrl} alt="Sua logo" crossOrigin="anonymous" referrerPolicy="no-referrer" className="max-h-full max-w-full object-contain" /> : <span className="text-sm text-muted-foreground">Nenhuma logo ainda</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex h-9 cursor-pointer items-center gap-1 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground" data-testid="tabloide-enviar-logo">
+                  {enviandoLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {logoUrl ? 'Trocar a logo' : 'Enviar a logo'}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { void enviarLogo(e.target.files?.[0]); e.target.value = ''; }} />
+                </label>
+                {logoUrl && <Button variant="ghost" size="sm" onClick={() => setLogoUrl(null)}>Remover</Button>}
+              </div>
+              {logoUrl && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mostrarLogo} onChange={(e) => setMostrarLogo(e.target.checked)} /> Mostrar a logo no cartaz</label>}
+            </div>
+          )}
+
+          {aba === 'empresa' && (
+            <div className="space-y-3" data-testid="painel-empresa">
+              <Campo rotulo="Título do cartaz"><Input value={titulo} onChange={(e) => { tituloEditado.current = true; setTitulo(e.target.value); }} maxLength={40} /></Campo>
+              <Campo rotulo="Frase abaixo do título"><Input value={subtitulo} onChange={(e) => { tituloEditado.current = true; setSubtitulo(e.target.value); }} maxLength={60} /></Campo>
+              <Campo rotulo="Nome da sua loja"><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={50} /></Campo>
+              <Campo rotulo="Validade (aparece no rodapé)"><Input value={validade} onChange={(e) => setValidade(e.target.value)} placeholder="Ex.: Ofertas válidas até 15/11 ou enquanto durarem os estoques" maxLength={90} /></Campo>
+            </div>
+          )}
+
+          {aba === 'formato' && (
+            <div className="space-y-4" data-testid="painel-formato">
               <div className="space-y-2">
                 {FORMATOS.map((f) => (
                   <button key={f.id} type="button" onClick={() => { setFormatoId(f.id); setPagina(0); }}
@@ -402,45 +587,26 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
               </div>
             </div>
           )}
+        </section>
 
-          {aba === 'Marca' && (
-            <div className="space-y-3">
-              <div className="space-y-1 text-sm">
-                <span className="font-semibold">Selo pronto</span>
-                <div className="flex flex-wrap gap-2" data-testid="tabloide-titulos-prontos">
-                  {TITULOS_PRONTOS.map((tp) => (
-                    <button key={tp} type="button" onClick={() => { tituloEditado.current = true; setTitulo(tp); setSeloUrl(null); }}
-                      className={cn('rounded-md border px-3 py-1.5 text-sm', titulo.toLowerCase() === tp.toLowerCase() ? 'border-primary bg-primary/10 font-semibold' : 'hover:bg-muted')}>{tp}</button>
-                  ))}
-                </div>
-              </div>
-              <Campo rotulo="Título do cartaz"><Input value={titulo} onChange={(e) => { tituloEditado.current = true; setTitulo(e.target.value); }} maxLength={40} /></Campo>
-              <Campo rotulo="Frase abaixo do título"><Input value={subtitulo} onChange={(e) => { tituloEditado.current = true; setSubtitulo(e.target.value); }} maxLength={60} /></Campo>
-              <Campo rotulo="Validade (aparece no rodapé)"><Input value={validade} onChange={(e) => setValidade(e.target.value)} placeholder="Ex.: Ofertas válidas até 15/11 ou enquanto durarem os estoques" maxLength={90} /></Campo>
-              <Campo rotulo="Nome da sua loja"><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={50} /></Campo>
-              <div className="space-y-1 text-sm">
-                <span className="font-semibold">Selo do título</span>
-                <p className="text-xs text-muted-foreground">O selo 3D é criado sozinho a partir do título. Se você tem um selo seu (PNG com fundo transparente, com licença de uso), pode enviar.</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex h-9 cursor-pointer items-center gap-1 rounded-md border px-3 text-sm hover:bg-muted" data-testid="tabloide-enviar-selo">
-                    {enviandoSelo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Enviar meu selo (PNG)
-                    <input type="file" accept="image/png,image/webp" className="hidden" onChange={(e) => enviarSelo(e.target.files?.[0])} />
-                  </label>
-                  {seloUrl && <Button type="button" variant="ghost" size="sm" onClick={() => setSeloUrl(null)}>Voltar ao selo 3D automático</Button>}
-                </div>
-              </div>
-              {logoUrl && (
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mostrarLogo} onChange={(e) => setMostrarLogo(e.target.checked)} /> Mostrar a minha logo no cartaz</label>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <div ref={palco} className="w-full" data-testid="tabloide-palco">
+        {/* prévia */}
+        <section className="col-span-2 min-w-0 space-y-3 lg:col-span-1">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="flex items-center gap-1.5 font-semibold">Modelo:
+              <select aria-label="Modelo" className="h-9 rounded-md border bg-background px-2 text-sm font-normal" value={formatoId} onChange={(e) => { setFormatoId(e.target.value); setPagina(0); }} data-testid="tabloide-modelo">
+                {FORMATOS.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5 font-semibold">Grade:
+              <select aria-label="Grade" className="h-9 rounded-md border bg-background px-2 text-sm font-normal" value={grade} onChange={(e) => { setGrade(e.target.value); setPagina(0); }} data-testid="tabloide-grade">
+                {['auto', ...GRADES_FIXAS].map((g) => <option key={g} value={g}>{rotuloGrade(g)}</option>)}
+              </select>
+            </label>
+          </div>
+          <div ref={palco} className="w-full" data-testid="tabloide-palco" onPointerDown={() => setSelecionadoId(null)}>
             <div className="overflow-hidden rounded-xl border bg-black/40 shadow-lg" style={{ width: formato.largura * escala, height: formato.altura * escala, maxWidth: '100%' }}>
               <div style={{ width: formato.largura, height: formato.altura, transform: `scale(${escala})`, transformOrigin: 'top left' }}>
-                <TabloideCanvas {...propsDaPagina(paginaAtual)} />
+                <TabloideCanvas {...propsDaPagina(paginaAtual)} selecionadoId={selecionadoId} aoPonteiroElemento={aoPonteiroElemento} />
               </div>
             </div>
           </div>
@@ -457,12 +623,15 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
             <Button onClick={baixar} disabled={ocupado !== null || !produtos.length} data-testid="tabloide-baixar">
               {ocupado === 'baixar' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />} Baixar imagem
             </Button>
+            <Button variant="outline" onClick={imprimir} disabled={ocupado !== null || !produtos.length} data-testid="tabloide-imprimir">
+              {ocupado === 'imprimir' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Printer className="mr-1 h-4 w-4" />} Imprimir
+            </Button>
             <Button variant="secondary" onClick={enviarParaMidias} disabled={ocupado !== null || !produtos.length} data-testid="tabloide-enviar">
               {ocupado === 'enviar' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />} {contexto === 'portal' ? 'Enviar para minhas mídias' : 'Enviar para a biblioteca de mídias'}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">As fotos são ilustrativas: foto real do produto quando existe (catálogo da sua conta e Open Food Facts), banco de imagens para frescos e, quando não há foto real, imagem criada por IA (produto genérico, sem marca). Clique na foto para trocar, criar com IA ou enviar a sua.</p>
-        </div>
+          <p className="text-xs text-muted-foreground">As fotos são ilustrativas: foto real do produto quando existe (catálogo da empresa, Open Food Facts, Wikimedia), banco de imagens para frescos e, quando não há foto real, imagem criada por IA (produto genérico, sem marca). Clique na foto do produto para trocar, criar com IA ou enviar a sua.</p>
+        </section>
       </div>
 
       {trocando && <TrocarFoto produto={trocando} aoFechar={() => setTrocando(null)} aoEscolher={(img) => trocarFoto(trocando, img)} />}
@@ -530,8 +699,8 @@ function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: ProdutoTabloid
     <Dialog open onOpenChange={(o) => !o && aoFechar()}>
       <DialogContent className="max-w-2xl" data-testid="tabloide-trocar-foto">
         <DialogHeader><DialogTitle>Foto de “{produto.nome}”</DialogTitle></DialogHeader>
-        <div className="flex gap-2">
-          <Input value={termo} onChange={(e) => setTermo(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar(termo)} aria-label="Buscar outra foto" />
+        <div className="flex flex-wrap gap-2">
+          <Input className="min-w-[160px] flex-1" value={termo} onChange={(e) => setTermo(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar(termo)} aria-label="Buscar outra foto" />
           <Button variant="outline" onClick={() => buscar(termo)}>Buscar</Button>
           <Button variant="outline" onClick={criarComIA} disabled={criando} data-testid="tabloide-criar-ia" title="Cria um produto genérico, sem marca">
             {criando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />} {criando ? 'Criando (até 1 min)…' : 'Criar com IA'}

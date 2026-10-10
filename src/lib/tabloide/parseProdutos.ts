@@ -118,10 +118,12 @@ export function lerLinha(linha: string): ProdutoTabloide | null {
   }
   // unidade no fim do nome: "Picanha kg"
   if (!unidade) {
-    const fim = /(?:^|\s)(kg|kilo|quilo|un|und|unid|unidade|pct|pacote|cx|caixa|dz|duzia|dúzia|fatia|porcao|porção|bandeja|bdj|par)\s*$/i.exec(limparBordas(resto));
-    if (fim) {
+    const texto = limparBordas(resto);
+    const fim = /(?:^|\s)(kg|kilo|quilo|un|und|unid|unidade|pct|pacote|cx|caixa|dz|duzia|dúzia|fatia|porcao|porção|bandeja|bdj|par)\s*$/i.exec(texto);
+    // "Arroz 5 kg" é medida do produto (fica no nome); "Picanha kg" é a unidade de venda
+    if (fim && !/\d\s*$/.test(texto.slice(0, fim.index))) {
       unidade = UNIDADES[fim[1].toLowerCase()] ?? null;
-      resto = limparBordas(resto).slice(0, fim.index);
+      resto = texto.slice(0, fim.index);
     }
   }
 

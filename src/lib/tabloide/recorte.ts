@@ -66,11 +66,18 @@ export function recortarFundo(p: Pixels, tolerancia = 54): Caixa | null {
   if (removidos < total * 0.04 || removidos > total * 0.96) return null;
 
   let x0 = w; let y0 = h; let x1 = -1; let y1 = -1;
+  // primeiro e último pixel mantido de cada linha e coluna (para achar áreas apagadas no MEIO do produto)
+  const linhaMin = new Int32Array(h).fill(w); const linhaMax = new Int32Array(h).fill(-1);
+  const colunaMin = new Int32Array(w).fill(h); const colunaMax = new Int32Array(w).fill(-1);
   for (let pos = 0; pos < total; pos++) {
     const i = pos * 4;
     if (visto[pos]) { data[i + 3] = 0; continue; }
     const x = pos % w;
     const y = (pos - x) / w;
+    if (x < linhaMin[y]) linhaMin[y] = x;
+    if (x > linhaMax[y]) linhaMax[y] = x;
+    if (y < colunaMin[x]) colunaMin[x] = y;
+    if (y > colunaMax[x]) colunaMax[x] = y;
     // contorno: pixel do produto encostado no fundo e ainda parecido com ele fica meio transparente (borda suave)
     const vizinhoFundo = (x > 0 && visto[pos - 1]) || (x < w - 1 && visto[pos + 1]) || (y > 0 && visto[pos - w]) || (y < h - 1 && visto[pos + w]);
     if (vizinhoFundo) {
@@ -88,6 +95,14 @@ export function recortarFundo(p: Pixels, tolerancia = 54): Caixa | null {
   const sobrou = total - removidos;
   // (produto pequeno no quadro é normal — imagem criada por IA deixa muita margem —, por isso o piso sobre a foto inteira é baixo)
   if (sobrou < total * 0.02 || sobrou < caixa.w * caixa.h * 0.4) return null;
+  // recorte que apagou parte do MEIO do produto (rótulo branco em fundo branco virou buraco): não vale, a foto fica inteira
+  let buracos = 0;
+  for (let y = caixa.y; y < caixa.y + caixa.h; y++) {
+    for (let x = caixa.x; x < caixa.x + caixa.w; x++) {
+      if (visto[y * w + x] && x > linhaMin[y] && x < linhaMax[y] && y > colunaMin[x] && y < colunaMax[x]) buracos++;
+    }
+  }
+  if (buracos > caixa.w * caixa.h * 0.06) return null;
   return caixa;
 }
 

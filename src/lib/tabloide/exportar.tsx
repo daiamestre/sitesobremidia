@@ -61,3 +61,20 @@ export function nomeDeArquivo(base: string, pagina: number, total: number): stri
   const limpo = base.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tabloide';
   return total > 1 ? `${limpo}-pagina-${pagina}.png` : `${limpo}.png`;
 }
+
+/** Abre a janela de impressão com as páginas do cartaz (uma por folha). */
+export function imprimirBlobs(blobs: Blob[]): void {
+  const urls = blobs.map((b) => URL.createObjectURL(b));
+  const quadro = document.createElement('iframe');
+  quadro.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(quadro);
+  const doc = quadro.contentDocument;
+  if (!doc) { quadro.remove(); urls.forEach((u) => URL.revokeObjectURL(u)); return; }
+  doc.open();
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>Tabloide</title><style>@page{margin:0}html,body{margin:0}img{display:block;width:100%;page-break-after:always}</style></head><body>' + urls.map((u) => '<img src="' + u + '">').join('') + '</body></html>');
+  doc.close();
+  const limpar = () => { setTimeout(() => { quadro.remove(); urls.forEach((u) => URL.revokeObjectURL(u)); }, 1500); };
+  const imprimir = () => { quadro.contentWindow?.focus(); quadro.contentWindow?.print(); limpar(); };
+  const imgs = Array.from(doc.images);
+  Promise.all(imgs.map((i) => (i.complete ? Promise.resolve() : new Promise<void>((ok) => { i.onload = () => ok(); i.onerror = () => ok(); })))).then(imprimir);
+}

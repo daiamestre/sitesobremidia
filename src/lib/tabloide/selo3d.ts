@@ -109,25 +109,62 @@ function placa3D(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.restore();
 }
 
-function texto3D(ctx: CanvasRenderingContext2D, txt: string, cx: number, cy: number, tamanho: number, cor: string, sombra: string, prof: number) {
+/** Brilho especular: uma faixa clara na metade de cima das letras, só onde há letra (camada à parte, sem vazar). */
+function brilhoDasLetras(ctx: CanvasRenderingContext2D, txt: string, cx: number, cy: number, tamanho: number) {
+  if (typeof document === 'undefined') return;
+  const margem = Math.ceil(tamanho * 0.3);
+  const larg = Math.ceil((ctx.measureText(txt).width || txt.length * tamanho * 0.7) + margem * 2);
+  const alt = Math.ceil(tamanho * 1.5);
+  const cam = document.createElement('canvas');
+  cam.width = larg;
+  cam.height = alt;
+  const c2 = cam.getContext('2d');
+  if (!c2) return;
+  c2.font = ctx.font;
+  c2.textAlign = 'center';
+  c2.textBaseline = 'middle';
+  c2.fillStyle = '#fff';
+  c2.fillText(txt, larg / 2, alt / 2);
+  c2.globalCompositeOperation = 'source-in';
+  const g = c2.createLinearGradient(0, alt / 2 - tamanho * 0.5, 0, alt / 2 + tamanho * 0.5);
+  g.addColorStop(0, 'rgba(255,255,255,.75)');
+  g.addColorStop(0.42, 'rgba(255,255,255,.25)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  c2.fillStyle = g;
+  c2.fillRect(0, 0, larg, alt);
+  ctx.drawImage(cam, cx - larg / 2, cy - alt / 2);
+}
+
+function texto3D(ctx: CanvasRenderingContext2D, txt: string, cx: number, cy: number, tamanho: number, cor: string, sombra: string, prof: number, ouro = false) {
   ctx.font = `900 ${tamanho}px 'Arial Black','Segoe UI Black',Impact,system-ui,sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  // profundidade
+  // profundidade (extrusão para baixo, bem escura)
   ctx.fillStyle = sombra;
   ctx.strokeStyle = sombra;
-  ctx.lineWidth = tamanho * 0.1;
+  ctx.lineWidth = tamanho * (ouro ? 0.14 : 0.1);
   for (let i = prof; i >= 0; i--) { ctx.strokeText(txt, cx, cy + i); ctx.fillText(txt, cx, cy + i); }
-  // face com leve degradê
+  // contorno dourado metálico (chanfro) em volta da letra
+  if (ouro) {
+    const og = ctx.createLinearGradient(0, cy - tamanho / 2, 0, cy + tamanho / 2);
+    og.addColorStop(0, '#fff3a6');
+    og.addColorStop(0.5, '#ffc21a');
+    og.addColorStop(1, '#b97800');
+    ctx.strokeStyle = og;
+    ctx.lineWidth = tamanho * 0.1;
+    ctx.strokeText(txt, cx, cy);
+  }
+  // face com degradê
   const g = ctx.createLinearGradient(0, cy - tamanho / 2, 0, cy + tamanho / 2);
   g.addColorStop(0, tom(cor.startsWith('#') ? cor : '#ffffff', 0.25));
   g.addColorStop(0.55, cor);
   g.addColorStop(1, cor.startsWith('#') ? tom(cor, -0.18) : cor);
   ctx.fillStyle = g;
   ctx.fillText(txt, cx, cy);
+  brilhoDasLetras(ctx, txt, cx, cy, tamanho);
 }
-
 function tamanhoQueCabe(ctx: CanvasRenderingContext2D, txt: string, larguraMax: number, alturaMax: number): number {
   let t = alturaMax;
   ctx.font = `900 ${t}px 'Arial Black','Segoe UI Black',Impact,system-ui,sans-serif`;
@@ -177,7 +214,7 @@ export function desenharSelo3D(ctx: CanvasRenderingContext2D, largura: number, a
   texto3D(ctx, '%', bx, by + rb * 0.05, rb * 1.3, '#ffd400', tom(cores.placa, -0.6), Math.max(1, Math.round(prof * 0.3)));
 
   const t1 = tamanhoQueCabe(ctx, linhas[0], (largura - mx * 2) * 0.86, placaA * (duas ? 0.62 : 0.66));
-  texto3D(ctx, linhas[0], largura / 2, placaY + placaA * (duas ? 0.44 : 0.5), t1, cores.texto, tom(cores.placa, -0.62), Math.round(prof * 0.8));
+  texto3D(ctx, linhas[0], largura / 2, placaY + placaA * (duas ? 0.44 : 0.5), t1, cores.texto, tom(cores.placa, -0.62), Math.round(prof * 0.8), true);
 
   if (duas) {
     const faixaA = altura * 0.34;

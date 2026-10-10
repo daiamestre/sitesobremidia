@@ -12,6 +12,9 @@ import { ehFresco, escolherMelhor, fotosAceitas, type CandidatoImagem } from '@/
 import { TabloideCanvas, descontoPct } from '@/components/tabloide/TabloideCanvas';
 import { claridade, coresDoSelo, dividirTitulo, larguraDoPreco } from '@/lib/tabloide/selo3d';
 import { analisarFundo, caixaDoConteudo, recortarFundo } from '@/lib/tabloide/recorte';
+import { chaveCanonica } from '@/lib/tabloide/chave';
+import { DATAS, pascoa, proximasDatas } from '@/lib/tabloide/datas';
+import { CATALOGO_INICIAL, CATEGORIAS, ajustarElemento, duplicarElemento, novoElemento, validarAlfa } from '@/lib/tabloide/selos';
 
 const fonte = (p: string) => readFileSync(p, 'utf8');
 
@@ -271,7 +274,7 @@ describe('F-173 · selo 3D, desconto e recorte de fundo', () => {
     expect(img).toContain("c.fonte === 'OPENFOODFACTS'");
     expect(img).toContain('prepararImagem');
     const editor = fonte('src/components/tabloide/TabloideEditor.tsx');
-    expect(editor).toContain('tabloide-enviar-selo');
+    expect(fonte('src/components/tabloide/PainelSelos.tsx')).toContain('tabloide-enviar-selo');
     expect(editor).toContain('tabloide-exemplo');
     const fn = fonte('supabase/functions/produto-imagem/index.ts');
     expect(fn).toContain('search.openfoodfacts.org');
@@ -311,8 +314,8 @@ describe('F-174 · imagem criada por IA quando não há foto real', () => {
 
   it('a IA só entra para produto sem foto real, e o editor tem o botão "Criar com IA"', () => {
     const img = fonte('src/lib/tabloide/imagens.ts');
-    expect(img.indexOf('if (!lista.length) {')).toBeGreaterThan(0);
-    expect(img.slice(img.indexOf('if (!lista.length) {'))).toContain('gerarImagemIA(p.nome)');
+    expect(img.indexOf('if (!vivas.length) {')).toBeGreaterThan(0);
+    expect(img.slice(img.indexOf('if (!vivas.length) {'))).toContain('gerarImagemIA(p.nome)');
     expect(fonte('src/components/tabloide/TabloideEditor.tsx')).toContain('tabloide-criar-ia');
     expect(fonte('src/components/tabloide/TabloideCanvas.tsx')).toContain("IA: 'criadas por IA'");
   });
@@ -326,6 +329,19 @@ describe('F-174 · imagem criada por IA quando não há foto real', () => {
     }
     expect(caixaDoConteudo({ data, width: w, height: h })).toEqual({ x: 45, y: 20, w: 5, h: 60 });
     expect(caixaDoConteudo({ data: new Uint8ClampedArray(w * h * 4).fill(255), width: w, height: h })).toBeNull();
+  });
+
+  it('recorte que comeria o rótulo branco do produto (buraco no meio) não vale', () => {
+    const w = 60; const h = 60;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const corpo = x >= 15 && x < 45 && y >= 5 && y < 55;
+      const rotulo = x >= 20 && x < 40 && y >= 20 && y < 40;
+      const fresta = x === 30 && y >= 40 && y < 55; // fresta branca que liga o rótulo ao fundo
+      const cor = corpo && !(rotulo || fresta) ? [30, 30, 40, 255] : [255, 255, 255, 255];
+      data.set(cor, (y * w + x) * 4);
+    }
+    expect(recortarFundo({ data, width: w, height: h })).toBeNull();
   });
 
   it('produto pequeno no quadro (caso das imagens de IA) ainda é recortado', () => {
@@ -367,5 +383,149 @@ describe('F-172 · ligação no sistema', () => {
     expect(sql).toContain('ENABLE ROW LEVEL SECURITY');
     expect(sql).toContain('get_user_tenant_id()');
     expect(sql).toContain('is_central_privileged()');
+  });
+});
+
+describe('F-177 · catálogo compartilhado e chave canônica do nome', () => {
+  it('o mesmo produto digitado de jeitos diferentes vira a mesma chave', () => {
+    expect(chaveCanonica('Coca-Cola 2L')).toBe(chaveCanonica('2 litros Coca Cola'));
+    expect(chaveCanonica('Coca-Cola 2L')).toBe(chaveCanonica('coca cola 2 lt'));
+    expect(chaveCanonica('Arroz Camil 5kg')).toBe(chaveCanonica('Arroz Camil 5 kg'));
+    expect(chaveCanonica('Feijão Carioca Camil 1kg')).toBe(chaveCanonica('feijao carioca camil 1 quilo'));
+    expect(chaveCanonica('Óleo de Soja Liza 900ml')).toBe(chaveCanonica('oleo soja liza 900 ml'));
+    expect(chaveCanonica('Leite Integral 1,5L')).toBe(chaveCanonica('leite integral 1.5 litros'));
+  });
+
+  it('produtos diferentes NÃO se confundem (outra marca, outro tamanho)', () => {
+    expect(chaveCanonica('Coca-Cola 2L')).not.toBe(chaveCanonica('Coca-Cola 600ml'));
+    expect(chaveCanonica('Arroz Camil 5kg')).not.toBe(chaveCanonica('Arroz Tio João 5kg'));
+    expect(chaveCanonica('Feijão Carioca 1kg')).not.toBe(chaveCanonica('Feijão Preto 1kg'));
+    expect(chaveCanonica('')).toBe('');
+  });
+
+  it('"Arroz 5 kg 25,90" mantém a medida no nome (a chave do catálogo depende disso)', () => {
+    expect(lerLinha('Arroz Camil 5 kg 25,90')).toMatchObject({ nome: 'Arroz Camil 5 kg', preco: 25.9, unidade: null });
+    expect(lerLinha('Picanha kg R$ 49,90')).toMatchObject({ nome: 'Picanha', unidade: 'KG' });
+    expect(chaveCanonica(lerLinha('Arroz Camil 5 kg 25,90')!.nome)).toBe(chaveCanonica(lerLinha('Arroz Camil 5kg 25,90')!.nome));
+  });
+
+  it('a foto achada vale para a empresa toda; foto enviada fica só do anunciante; só a central troca a de todos', () => {
+    const sql = fonte('supabase/migrations/20261321_tabloide_catalogo_compartilhado.sql');
+    expect(sql).toContain('SECURITY DEFINER');
+    expect(sql).toContain('REVOKE ALL ON FUNCTION public.tabloide_catalogo_salvar');
+    expect(sql).toContain("p_origem = 'ESCOLHA' AND v_priv");
+    expect(sql).toContain("p_fonte = 'UPLOAD' OR p_origem = 'UPLOAD'");
+    expect(sql).toContain("p_origem = 'SEMENTE' AND NOT v_priv");
+    expect(sql).toContain('DROP POLICY IF EXISTS tabloide_catalogo_insert');
+    expect(sql).toContain('DROP POLICY IF EXISTS tabloide_catalogo_update');
+  });
+
+  it('o editor consulta o catálogo ANTES de buscar fora e só mostra "procurando" para produto novo', () => {
+    const img = fonte('src/lib/tabloide/imagens.ts');
+    expect(img.indexOf('await buscarNoCatalogo(faltam')).toBeGreaterThan(0);
+    expect(img.indexOf('await buscarNoCatalogo(faltam')).toBeLessThan(img.indexOf('await buscarCandidatos(p.nome)'));
+    expect(img).toContain('aoSaberNovos?.(buscar.map((p) => p.nome))');
+    const editor = fonte('src/components/tabloide/TabloideEditor.tsx');
+    expect(editor).toContain('Produto novo para o sistema: procurando a foto de');
+    expect(editor).not.toContain('Procurando as fotos dos produtos');
+    expect(img).toContain('chaveCanonica');
+  });
+});
+
+describe('F-177 · biblioteca de selos 3D, camadas e datas', () => {
+  it('o catálogo inicial tem as 20 categorias pedidas, com identificador estável e único', () => {
+    expect(CATALOGO_INICIAL).toHaveLength(20);
+    for (const c of ['Ofertas do Dia', 'Ofertas da Semana', 'Ofertas do Mês', 'Super Oferta', 'Mega Promoção', 'Preço Baixo', 'Oferta Exclusiva', 'Ofertas Imperdíveis', 'Liquidação', 'Últimas Unidades', 'Leve Mais, Pague Menos', 'Black Friday', 'Oferta Relâmpago', 'Menor Preço', 'Preço Especial', 'Queima de Estoque', 'Lançamento', 'Só Hoje', 'Desconto Especial', 'Novidade']) expect(CATEGORIAS).toContain(c);
+    expect(new Set(CATALOGO_INICIAL.map((c) => c.slug)).size).toBe(20);
+    expect(CATALOGO_INICIAL.every((c) => /^[a-z0-9][a-z0-9-]{1,60}$/.test(c.slug))).toBe(true);
+  });
+
+  function pixels(w: number, h: number, pintar: (x: number, y: number) => [number, number, number, number]) {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) data.set(pintar(x, y), (y * w + x) * 4);
+    return { data, width: w, height: h };
+  }
+
+  it('valida o canal alfa de verdade: transparente passa; fundo opaco e quadriculado desenhado NÃO passam', () => {
+    const ok = pixels(100, 40, (x, y) => (x > 20 && x < 80 && y > 8 && y < 32 ? [200, 20, 30, 255] : [0, 0, 0, 0]));
+    expect(validarAlfa(ok)).toMatchObject({ transparente: true, cantosLivres: true });
+    const branco = pixels(100, 40, (x, y) => (x > 20 && x < 80 && y > 8 && y < 32 ? [200, 20, 30, 255] : [255, 255, 255, 255]));
+    expect(validarAlfa(branco).transparente).toBe(false);
+    const quadriculado = pixels(100, 40, (x, y) => (x > 20 && x < 80 && y > 8 && y < 32 ? [200, 20, 30, 255] : (Math.floor(x / 8) + Math.floor(y / 8)) % 2 ? [255, 255, 255, 255] : [203, 213, 225, 255]));
+    expect(validarAlfa(quadriculado)).toMatchObject({ transparente: false, cantosLivres: false });
+    expect(validarAlfa(pixels(100, 40, () => [0, 0, 0, 0])).transparente).toBe(false); // vazio total não é arte
+  });
+
+  it('a camada: tamanho/posição ficam em limites, duplicar cria outra e a biblioteca não é tocada', () => {
+    const selo = { id: 's1', nome: 'Black Friday', imagem_url: 'https://x/bf.png', largura: 1080, altura: 400 };
+    const e = novoElemento(selo);
+    expect(e).toMatchObject({ seloId: 's1', ar: 400 / 1080, cx: 0.5, cy: 0.5 });
+    expect(ajustarElemento({ ...e, w: 5, cx: 2, cy: -1, rot: 400 })).toMatchObject({ w: 0.95, cx: 1, cy: 0, rot: 180 });
+    expect(ajustarElemento({ ...e, w: 0.001 }).w).toBe(0.06);
+    const copia = duplicarElemento(e);
+    expect(copia.id).not.toBe(e.id);
+    expect(copia.seloId).toBe(e.seloId);
+    expect(copia.cx).toBeGreaterThan(e.cx);
+  });
+
+  it('o cartaz desenha as camadas (posição, tamanho e giro) e a exportação não leva a borda de seleção', () => {
+    const [pagina] = montarPaginas(lerLista('Arroz 5kg 25,90'), formatoPorId('tv-h'), 'auto', 0);
+    const e = novoElemento({ id: 's1', nome: 'Oferta Relâmpago', imagem_url: 'https://x/o.png', largura: 1080, altura: 400 }, { cx: 0.8, cy: 0.1, w: 0.3, rot: -8 });
+    const base = { formato: formatoPorId('tv-h'), tema: temaPorId('ofertao'), segmento: segmentoPorId('mercado'), titulo: 'Ofertas do Dia', subtitulo: '', validade: '', empresa: 'Loja', pagina, numeroPagina: 1, totalPaginas: 1, elementos: [e] };
+    const { unmount } = render(<TabloideCanvas {...base} />);
+    const img = document.querySelector('[data-testid="tabloide-elemento"]') as HTMLImageElement;
+    expect(img.style.transform).toBe('rotate(-8deg)');
+    expect(img.style.width).toBe(`${0.3 * 1920}px`);
+    expect(img.style.outline).toBe('');
+    expect(img.getAttribute('crossorigin')).toBe('anonymous');
+    unmount();
+    render(<TabloideCanvas {...base} selecionadoId={e.id} aoPonteiroElemento={() => undefined} />);
+    expect((document.querySelector('[data-testid="tabloide-elemento"]') as HTMLImageElement).style.outline).toContain('dashed');
+  });
+
+  it('o banco isola os selos por empresa e anunciante, aceita só PNG/WebP e exige estado de aprovação', () => {
+    const sql = fonte('supabase/migrations/20261322_tabloide_selos.sql');
+    expect(sql).toContain('ENABLE ROW LEVEL SECURITY');
+    expect(sql).toContain('get_user_tenant_id()');
+    expect(sql).toContain("CHECK (mime IN ('image/png', 'image/webp'))");
+    expect(sql).toContain("CHECK (estado IN ('APROVADO', 'REVISAO', 'REPROVADO'))");
+    expect(sql).toContain('transparente         boolean');
+    expect(sql).toContain("CHECK (imagem_url ~ '^https://')");
+    expect(sql).toMatch(/cliente_id IS NULL AND public\.is_central_privileged\(\)/);
+  });
+
+  it('selo enviado pelo usuário nunca entra como "verificado": origem declarada e, sem transparência real, vai para revisão', () => {
+    const selos = fonte('src/lib/tabloide/selos.ts');
+    expect(selos).toContain("const estado = opcoes.alfa.transparente && opcoes.origemConhecida ? 'APROVADO' : 'REVISAO'");
+    expect(selos).toContain('Declarada pelo usuário (não verificada');
+    const painel = fonte('src/components/tabloide/PainelSelos.tsx');
+    expect(painel).toContain('origemConhecida: false');
+    expect(painel).toContain('Tirar do cartaz não apaga o selo da biblioteca');
+  });
+
+  it('a barra lateral tem os botões do modelo (Produtos, Temas, Datas, Selos 3D, Sua Logo, Empresa, Formato)', () => {
+    const editor = fonte('src/components/tabloide/TabloideEditor.tsx');
+    for (const r of ['Produtos', 'Temas', 'Datas', 'Selos 3D', 'Sua Logo', 'Empresa', 'Formato']) expect(editor).toContain(`rotulo: '${r}'`);
+    expect(editor).toContain('data-testid="tabloide-barra"');
+    expect(editor).toContain('data-testid="tabloide-imprimir"');
+    expect(editor).toContain('data-testid="tabloide-modelo"');
+    expect(editor).toContain('data-testid="tabloide-grade"');
+  });
+
+  it('calendário: Páscoa, domingos de maio/agosto e Black Friday caem nos dias certos; sempre vem a próxima ocorrência', () => {
+    expect(pascoa(2026).toDateString()).toBe(new Date(2026, 3, 5).toDateString());
+    expect(pascoa(2027).toDateString()).toBe(new Date(2027, 2, 28).toDateString());
+    const maes = DATAS.find((d) => d.id === 'maes')!.em(2026);
+    expect([maes.getMonth(), maes.getDate(), maes.getDay()]).toEqual([4, 10, 0]);
+    const pais = DATAS.find((d) => d.id === 'pais')!.em(2026);
+    expect([pais.getMonth(), pais.getDate(), pais.getDay()]).toEqual([7, 9, 0]);
+    const bf = DATAS.find((d) => d.id === 'blackfriday')!.em(2026);
+    expect([bf.getMonth(), bf.getDate(), bf.getDay()]).toEqual([10, 27, 5]);
+    const prox = proximasDatas(new Date(2026, 9, 10));
+    expect(prox[0].item.id).toBe('criancas');
+    expect(prox[0].dias).toBe(2);
+    expect(prox.every((p, i) => i === 0 || p.dias >= prox[i - 1].dias)).toBe(true);
+    expect(prox.find((p) => p.item.id === 'mulher')!.data.getFullYear()).toBe(2027);
+    for (const d of DATAS) expect(temaPorId(d.temaId).id, d.id).toBe(d.temaId);
   });
 });

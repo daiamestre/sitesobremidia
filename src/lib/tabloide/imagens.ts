@@ -1,10 +1,11 @@
 /**
  * Tabloide Digital (F-172) — foto automática do produto.
- * Ordem: 1) catálogo próprio (o que o anunciante/empresa já escolheu antes) → 2) busca (Open Food Facts, Pexels, Pixabay)
- * → 3) desenho com emoji do produto, quando nada serve. O cliente sempre pode trocar a foto.
+ * Ordem: 1) catálogo COMPARTILHADO da empresa (toda foto já achada ou escolhida por qualquer usuário, chave canônica do nome)
+ * → 2) busca externa, só para produto que o sistema nunca viu → 3) imagem criada por IA. O cliente sempre pode trocar a foto.
  */
 import { supabase } from '@/integrations/supabase/client';
-import { tabelaTabloide } from './db';
+import { rpcTabloide, tabelaTabloide } from './db';
+import { chaveCanonica } from './chave';
 import { cortarMargens, recortarImagem } from './recorte';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { chaveDoProduto, type FonteImagem, type ImagemProduto, type ProdutoTabloide } from './parseProdutos';
@@ -54,30 +55,39 @@ export async function buscarCandidatos(termo: string): Promise<CandidatoImagem[]
   return ((data?.candidatos ?? []) as Array<CandidatoImagem & { fonte: FonteImagem }>).filter((c) => c.url);
 }
 
-export async function buscarNoCatalogo(nomes: string[]): Promise<Map<string, ImagemProduto>> {
-  const chaves = [...new Set(nomes.map(chaveDoProduto).filter(Boolean))];
-  const mapa = new Map<string, ImagemProduto>();
+export interface ImagemCatalogada extends ImagemProduto {
+  /** O recorte de fundo já foi tentado nesta foto (com ou sem sucesso): não tenta de novo. */
+  recorteTentado?: boolean;
+}
+
+/** Uma consulta só ao catálogo da empresa: devolve, por chave canônica, a foto já guardada (a preferência do anunciante vale mais). */
+export async function buscarNoCatalogo(nomes: string[]): Promise<Map<string, ImagemCatalogada>> {
+  const chaves = [...new Set(nomes.map(chaveCanonica).filter(Boolean))];
+  const mapa = new Map<string, ImagemCatalogada>();
   if (!chaves.length) return mapa;
   const { data, error } = await tabelaTabloide('tabloide_catalogo')
-    .select('nome_norm, imagem_url, fonte, credito, cliente_id, recortada')
+    .select('nome_norm, imagem_url, fonte, credito, cliente_id, recortada, recorte_tentado')
     .in('nome_norm', chaves);
   if (error || !data) return mapa;
-  // a escolha do próprio anunciante vale mais que a da empresa
   const linhas = [...(data as any[])].sort((a, b) => (a.cliente_id ? 0 : 1) - (b.cliente_id ? 0 : 1));
-  for (const l of linhas) if (!mapa.has(l.nome_norm)) mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada });
+  for (const l of linhas) {
+    if (!mapa.has(l.nome_norm)) mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada, recorteTentado: !!l.recorte_tentado });
+  }
   return mapa;
 }
 
-/** Guarda a foto escolhida: da próxima vez que alguém digitar o mesmo produto, ela já vem pronta. */
-export async function salvarNoCatalogo(nome: string, imagem: ImagemProduto, clienteId: string | null): Promise<void> {
-  const nome_norm = chaveDoProduto(nome);
-  if (!nome_norm) return;
-  const filtro = tabelaTabloide('tabloide_catalogo').update({ imagem_url: imagem.url, fonte: imagem.fonte, credito: imagem.credito ?? null, recortada: !!imagem.recortada } as never).eq('nome_norm', nome_norm);
-  const { data } = await (clienteId ? filtro.eq('cliente_id', clienteId) : filtro.is('cliente_id', null)).select('id');
-  if (data && data.length) return;
-  await tabelaTabloide('tabloide_catalogo').insert({ nome_norm, nome, imagem_url: imagem.url, fonte: imagem.fonte, credito: imagem.credito ?? null, recortada: !!imagem.recortada, cliente_id: clienteId } as never);
+/**
+ * Guarda a foto de um produto para a empresa toda (regras no banco: tabloide_catalogo_salvar).
+ * AUTO = achada pelo sistema · ESCOLHA = o usuário escolheu entre as opções · UPLOAD = foto enviada (fica só do anunciante).
+ */
+export async function salvarNoCatalogo(nome: string, imagem: ImagemProduto, origem: 'AUTO' | 'ESCOLHA' | 'UPLOAD' = 'AUTO', recorteTentado = false): Promise<void> {
+  const chave = chaveCanonica(nome);
+  if (chave.length < 2) return;
+  await rpcTabloide('tabloide_catalogo_salvar', {
+    p_nome: nome.slice(0, 160), p_nome_norm: chave, p_url: imagem.url, p_fonte: imagem.fonte, p_credito: imagem.credito ?? null,
+    p_recortada: !!imagem.recortada, p_origem: imagem.fonte === 'UPLOAD' ? 'UPLOAD' : origem, p_recorte_tentado: recorteTentado || !!imagem.recortada,
+  });
 }
-
 /** A foto carrega de verdade no navegador (com CORS liberado, que a exportação em PNG exige)? */
 export function fotoCarrega(url: string, limiteMs = 9000): Promise<boolean> {
   return new Promise((ok) => {
@@ -147,46 +157,48 @@ export async function prepararImagem(imagem: ImagemProduto): Promise<ImagemProdu
 }
 
 /**
- * Procura a foto de todos os produtos que ainda não têm. Chama `aoAchar` a cada foto pronta
- * (o cartaz vai se completando na tela). Produtos sem foto boa ficam com o desenho de emoji.
+ * Dá foto a todos os produtos que ainda não têm.
+ * 1) Catálogo compartilhado: UMA consulta, resposta imediata, sem nenhuma busca externa — produto já visto por qualquer usuário aparece na hora.
+ * 2) Só o que o sistema nunca viu vai para a busca externa (`aoSaberNovos` avisa quais, para o editor mostrar "procurando" só neles).
+ * 3) Foto do catálogo que ainda não foi recortada é melhorada em segundo plano, uma única vez, e a versão melhor passa a valer para todos.
+ * Devolve os nomes que ficaram sem foto.
  */
 export async function completarImagens(
   produtos: ProdutoTabloide[],
-  clienteId: string | null,
   aoAchar: (id: string, imagem: ImagemProduto | null) => void,
+  aoSaberNovos?: (nomes: string[]) => void,
 ): Promise<string[]> {
   const faltam = produtos.filter((p) => !p.imagem);
-  if (!faltam.length) return [];
+  if (!faltam.length) { aoSaberNovos?.([]); return []; }
   const semFoto = new Set<string>();
   const resolver = (id: string, imagem: ImagemProduto | null) => { if (imagem) semFoto.delete(id); else semFoto.add(id); aoAchar(id, imagem); };
   const catalogo = await buscarNoCatalogo(faltam.map((p) => p.nome));
   const buscar: ProdutoTabloide[] = [];
+  const melhorar: Array<{ p: ProdutoTabloide; achada: ImagemCatalogada }> = [];
   for (const p of faltam) {
-    const achada = catalogo.get(chaveDoProduto(p.nome));
-    if (achada) resolver(p.id, achada); else buscar.push(p);
+    const achada = catalogo.get(chaveCanonica(p.nome));
+    if (achada) {
+      resolver(p.id, achada);
+      if (!achada.recortada && !achada.recorteTentado) melhorar.push({ p, achada });
+    } else buscar.push(p);
   }
+  aoSaberNovos?.(buscar.map((p) => p.nome));
   let i = 0;
   const trabalhador = async () => {
     while (i < buscar.length) {
       const p = buscar[i++];
       try {
         const cands = await buscarCandidatos(p.nome);
-        const fresco = ehFresco(p.nome);
         // só entra foto real que a IA de visão confirmou ser o produto; embalagem de marca vem do catálogo de produtos
         const lista = fotosAceitas(p.nome, cands).slice(0, 4);
-        if (!lista.length) {
-          resolver(p.id, null); // sem foto real confirmada: a IA cria a imagem do produto
-          const criada = await gerarImagemIA(p.nome);
-          if (criada.imagem) { resolver(p.id, criada.imagem); void salvarNoCatalogo(p.nome, criada.imagem, clienteId); }
-          continue;
-        }
         const paraImagem = (c: CandidatoImagem): ImagemProduto => ({ url: c.url, fonte: c.fonte, credito: c.credito });
         // só vale foto que carrega de verdade; a que falha cai fora e vale a próxima
         const vivas: CandidatoImagem[] = [];
         for (const c of lista) { if (await fotoCarrega(c.miniatura || c.url)) vivas.push(c); }
         if (!vivas.length) {
+          resolver(p.id, null); // sem foto real confirmada: a IA cria a imagem do produto
           const criada = await gerarImagemIA(p.nome);
-          if (criada.imagem) { resolver(p.id, criada.imagem); void salvarNoCatalogo(p.nome, criada.imagem, clienteId); } else resolver(p.id, null);
+          if (criada.imagem) { resolver(p.id, criada.imagem); void salvarNoCatalogo(p.nome, criada.imagem, 'AUTO', true); }
           continue;
         }
         resolver(p.id, paraImagem(vivas[0])); // aparece na hora; o recorte troca em seguida
@@ -197,12 +209,20 @@ export async function completarImagens(
           if (pronta.recortada) { final = pronta; break; }
         }
         resolver(p.id, final);
-        void salvarNoCatalogo(p.nome, final, clienteId);
+        void salvarNoCatalogo(p.nome, final, 'AUTO', true);
       } catch {
         resolver(p.id, null);
       }
     }
   };
   await Promise.all([trabalhador(), trabalhador(), trabalhador()]);
+  // melhoria em segundo plano (não segura a tela): recorta uma vez a foto já guardada e passa a valer para todos
+  void (async () => {
+    for (const { p, achada } of melhorar) {
+      const pronta = await prepararImagem(achada);
+      if (pronta.recortada) aoAchar(p.id, pronta);
+      await salvarNoCatalogo(p.nome, pronta, 'AUTO', true).catch(() => undefined);
+    }
+  })();
   return faltam.filter((p) => semFoto.has(p.id)).map((p) => p.nome);
 }
