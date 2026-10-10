@@ -28,6 +28,27 @@ function Selo3D({ titulo, tema, largura, altura }: { titulo: string; tema: Tema;
   return <canvas ref={ref} role="img" aria-label={titulo} data-testid="tabloide-selo" width={Math.round(largura)} height={Math.round(altura)} style={{ width: largura, height: altura, display: 'block', flexShrink: 0 }} />;
 }
 
+/**
+ * Logo escolhida no cabeçalho: entra inteira (object-fit contain), sem esticar, cortar nem filtrar, com a transparência original.
+ * Se o arquivo não carregar, o cabeçalho volta ao selo automático em vez de ficar vazio.
+ */
+function LogoDoCabecalho({ url, titulo, tema, largura, altura }: { url: string; titulo: string; tema: Tema; largura: number; altura: number }) {
+  const [falhou, setFalhou] = useState<string | null>(null);
+  if (falhou === url) return <Selo3D titulo={titulo} tema={tema} largura={largura} altura={altura} />;
+  return (
+    <img
+      src={url}
+      alt={titulo}
+      crossOrigin="anonymous"
+      referrerPolicy="no-referrer"
+      data-testid="tabloide-selo"
+      data-logo-cabecalho="true"
+      onError={() => setFalhou(url)}
+      style={{ height: altura, maxWidth: largura, width: 'auto', objectFit: 'contain', flexShrink: 0, display: 'block' }}
+    />
+  );
+}
+
 function FotoProduto({ produto, segmento, s }: { produto: ProdutoTabloide; segmento: Segmento; s: number }) {
   const [falhou, setFalhou] = useState(false);
   const img = produto.imagem;
@@ -173,7 +194,7 @@ export function TabloideCanvas({ formato, tema, segmento, titulo, subtitulo, val
       <div style={{ position: 'absolute', left: m.pad, top: 0, width: m.largura - m.pad * 2, height: m.cabecalho + m.gap * 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: m.gap * 1.5 }}>
         <div style={{ display: 'flex', flexDirection: horizontal ? 'row' : 'column', alignItems: 'center', justifyContent: 'center', gap: horizontal ? m.gap * 1.5 : m.gap * 0.2, minWidth: 0 }}>
           {seloUrl
-            ? <img src={seloUrl} alt={texto} crossOrigin="anonymous" referrerPolicy="no-referrer" data-testid="tabloide-selo" style={{ height: seloA, maxWidth: seloL, objectFit: 'contain', flexShrink: 0 }} />
+            ? <LogoDoCabecalho url={seloUrl} titulo={texto} tema={tema} largura={seloL} altura={seloA} />
             : <Selo3D titulo={texto} tema={tema} largura={seloL} altura={seloA} />}
           {frase}
         </div>

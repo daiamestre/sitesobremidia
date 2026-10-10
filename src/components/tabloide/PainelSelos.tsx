@@ -3,14 +3,14 @@
  * Pesquisar, filtrar por categoria, ver antes, inserir no cartaz e controlar a camada (mover no cartaz, tamanho, giro,
  * duplicar, excluir). Excluir a camada NUNCA exclui o selo da biblioteca.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Copy, Loader2, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
-  CATEGORIAS, LICENCA_UPLOAD, ORIGEM_UPLOAD, ehCentral, listarSelos, registrarSelo, semearBibliotecaInicial, validarArquivoDeSelo,
+  CATEGORIAS, LICENCA_UPLOAD, ORIGEM_UPLOAD, ehCentral, registrarSelo, semearBibliotecaInicial, validarArquivoDeSelo,
   type ElementoLivre, type Selo,
 } from '@/lib/tabloide/selos';
 import { TITULOS_PRONTOS } from '@/lib/tabloide/temas';
@@ -32,12 +32,13 @@ export interface PainelSelosProps {
   aoExcluir: (id: string) => void;
   aoUsarNoCabecalho: (id: string) => void;
   aoEscolherTitulo: (titulo: string) => void;
-  /** Um selo recém-enviado entra na lista sem recarregar. */
-  versaoSeloEnviado?: number;
+  /** Lista do catálogo (carregada pelo editor, compartilhada com a galeria de logos do cabeçalho). */
+  selos: Selo[] | null;
+  aoRecarregar: () => Promise<void> | void;
 }
 
 export function PainelSelos(p: PainelSelosProps) {
-  const [selos, setSelos] = useState<Selo[] | null>(null);
+  const selos = p.selos;
   const [busca, setBusca] = useState('');
   const [categoria, setCategoria] = useState('');
   const [previa, setPrevia] = useState<Selo | null>(null);
@@ -45,15 +46,14 @@ export function PainelSelos(p: PainelSelosProps) {
   const [gerando, setGerando] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  const carregar = useCallback(async () => { setSelos(await listarSelos()); }, []);
-  useEffect(() => { void carregar(); }, [carregar, p.versaoSeloEnviado]);
+  const carregar = async () => { await p.aoRecarregar(); };
   useEffect(() => { void ehCentral().then(setCentral).catch(() => setCentral(false)); }, []);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return (selos ?? []).filter((s) => s.estado === 'APROVADO' && (!categoria || s.categoria === categoria) && (!q || `${s.nome} ${s.categoria}`.toLowerCase().includes(q)));
+    return (selos ?? []).filter((s) => s.tipo === 'SELO' && s.estado === 'APROVADO' && (!categoria || s.categoria === categoria) && (!q || `${s.nome} ${s.categoria}`.toLowerCase().includes(q)));
   }, [selos, busca, categoria]);
-  const emRevisao = (selos ?? []).filter((s) => s.estado !== 'APROVADO' && s.cliente_id);
+  const emRevisao = (selos ?? []).filter((s) => s.tipo === 'SELO' && s.estado !== 'APROVADO' && s.cliente_id);
   const selecionado = p.elementos.find((e) => e.id === p.selecionadoId) ?? null;
 
   const gerarBiblioteca = async () => {
@@ -116,8 +116,8 @@ export function PainelSelos(p: PainelSelosProps) {
           <p className="flex items-center gap-2 py-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando a biblioteca…</p>
         ) : filtrados.length === 0 ? (
           <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground" data-testid="selos-vazio">
-            {(selos ?? []).length === 0 ? 'A biblioteca ainda está vazia.' : 'Nenhum selo encontrado para essa pesquisa.'}
-            {central && (selos ?? []).length === 0 && ' Use o botão abaixo para criar os 20 selos iniciais.'}
+            {(selos ?? []).filter((s) => s.tipo === 'SELO').length === 0 ? 'A biblioteca ainda está vazia.' : 'Nenhum selo encontrado para essa pesquisa.'}
+            {central && (selos ?? []).filter((s) => s.tipo === 'SELO').length === 0 && ' Use o botão abaixo para criar os 20 selos iniciais.'}
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-2" data-testid="selos-grade">
@@ -191,7 +191,7 @@ export function PainelSelos(p: PainelSelosProps) {
         {central && (
           <div className="space-y-1">
             <Button size="sm" variant="secondary" onClick={gerarBiblioteca} disabled={!!gerando} data-testid="selos-gerar">
-              {gerando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />} {(selos ?? []).length ? 'Redesenhar os selos da empresa' : 'Criar os 20 selos iniciais'}
+              {gerando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />} {(selos ?? []).some((s) => s.tipo === 'SELO') ? 'Redesenhar os selos da empresa' : 'Criar os 20 selos iniciais'}
             </Button>
             {gerando && <p className="text-xs text-primary">{gerando}</p>}
           </div>

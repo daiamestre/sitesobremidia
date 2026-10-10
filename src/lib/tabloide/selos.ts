@@ -24,6 +24,11 @@ export interface Selo {
   origem: string;
   licenca: string | null;
   cliente_id: string | null;
+  /** 'SELO' = para colocar livre no cartaz · 'LOGO_CABECALHO' = opção da galeria "Logo do Cabeçalho" */
+  tipo: 'SELO' | 'LOGO_CABECALHO';
+  /** Versão leve só para a galeria (o cartaz e a exportação usam sempre o arquivo original). */
+  miniatura_url: string | null;
+  ordem: number;
 }
 
 /** Cópia de um selo dentro de um tabloide (camada livre). Apagar a camada nunca apaga o selo da biblioteca. */
@@ -154,7 +159,7 @@ export async function validarArquivoDeSelo(arq: Blob): Promise<{ largura: number
 }
 
 export async function listarSelos(): Promise<Selo[]> {
-  const { data, error } = await tabelaTabloide('tabloide_selos').select('*').order('categoria', { ascending: true }).order('nome', { ascending: true }).limit(500);
+  const { data, error } = await tabelaTabloide('tabloide_selos').select('*').order('ordem', { ascending: true }).order('categoria', { ascending: true }).order('nome', { ascending: true }).limit(500);
   if (error || !data) return [];
   return data as Selo[];
 }
@@ -163,13 +168,18 @@ export async function listarSelos(): Promise<Selo[]> {
 export async function registrarSelo(opcoes: {
   slug: string; nome: string; categoria: string; titulo: string; blob: Blob; largura: number; altura: number; alfa: RelatorioAlfa;
   origem: string; licenca: string | null; clienteId: string | null; usuarioId: string; origemConhecida: boolean;
+  tipo?: 'SELO' | 'LOGO_CABECALHO'; miniatura?: Blob; ordem?: number;
 }): Promise<Selo> {
   const { publicUrl } = await uploadToR2(opcoes.blob, `${opcoes.usuarioId}/tabloide-selos/${opcoes.slug}-${Date.now()}.${opcoes.blob.type === 'image/webp' ? 'webp' : 'png'}`, opcoes.blob.type || 'image/png', opcoes.usuarioId);
+  const miniaturaUrl = opcoes.miniatura
+    ? (await uploadToR2(opcoes.miniatura, `${opcoes.usuarioId}/tabloide-selos/${opcoes.slug}-${Date.now()}-mini.png`, 'image/png', opcoes.usuarioId)).publicUrl
+    : null;
   const estado = opcoes.alfa.transparente && opcoes.origemConhecida ? 'APROVADO' : 'REVISAO';
   const linha = {
     slug: opcoes.slug, nome: opcoes.nome, categoria: opcoes.categoria, titulo: opcoes.titulo, imagem_url: publicUrl,
     mime: opcoes.blob.type === 'image/webp' ? 'image/webp' : 'image/png', largura: opcoes.largura, altura: opcoes.altura,
     transparente: opcoes.alfa.transparente, estado, origem: opcoes.origem, licenca: opcoes.licenca, cliente_id: opcoes.clienteId,
+    tipo: opcoes.tipo ?? 'SELO', miniatura_url: miniaturaUrl, ordem: opcoes.ordem ?? 0,
   };
   const filtro = tabelaTabloide('tabloide_selos').select('id, versao').eq('slug', opcoes.slug);
   const { data: existente } = await (opcoes.clienteId ? filtro.eq('cliente_id', opcoes.clienteId) : filtro.is('cliente_id', null)).maybeSingle();
@@ -224,4 +234,39 @@ export function duplicarElemento(e: ElementoLivre): ElementoLivre {
 export async function ehCentral(): Promise<boolean> {
   const { data } = await supabase.rpc('is_central_privileged' as never);
   return data === true;
+}
+
+/** Logos do cabeçalho disponíveis para escolha: só as cadastradas e aprovadas, na ordem da galeria. */
+export function logosDoCabecalho(selos: Selo[] | null): Selo[] {
+  return (selos ?? []).filter((s) => s.tipo === 'LOGO_CABECALHO' && s.estado === 'APROVADO' && s.transparente && !s.cliente_id).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** Acha a logo pelo identificador estável. Devolve null se não existe mais, foi arquivada ou não está aprovada (o cabeçalho volta ao automático). */
+export function resolverLogoCabecalho(selos: Selo[] | null, id: string | null | undefined): Selo | null {
+  if (!id) return null;
+  return logosDoCabecalho(selos).find((s) => s.id === id) ?? null;
+}
+
+/** Miniatura leve (PNG com transparência) feita no navegador, só para a galeria. */
+export async function gerarMiniaturaPng(arq: Blob, ladoMax = 480): Promise<Blob> {
+  const url = URL.createObjectURL(arq);
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => erro(new Error('Imagem inválida.')); i.src = url; });
+    const escala = Math.min(1, ladoMax / Math.max(img.naturalWidth, img.naturalHeight));
+    const tela = document.createElement('canvas');
+    tela.width = Math.max(1, Math.round(img.naturalWidth * escala));
+    tela.height = Math.max(1, Math.round(img.naturalHeight * escala));
+    tela.getContext('2d')?.drawImage(img, 0, 0, tela.width, tela.height);
+    const blob = await new Promise<Blob | null>((ok) => tela.toBlob(ok, 'image/png'));
+    if (!blob) throw new Error('Não foi possível gerar a miniatura.');
+    return blob;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** Só para a central: arquiva (REPROVADO) uma logo — ela some da galeria; tabloides que a usavam voltam ao cabeçalho automático. */
+export async function arquivarSelo(id: string): Promise<void> {
+  const { error } = await tabelaTabloide('tabloide_selos').update({ estado: 'REPROVADO' } as never).eq('id', id);
+  if (error) throw error;
 }

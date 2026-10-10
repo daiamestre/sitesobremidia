@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  BadgePercent, CalendarDays, Download, Image as ImageIcon, LayoutGrid, Loader2, Palette, Plus, Printer, Save, Send,
+  BadgePercent, CalendarDays, Crown, Download, Image as ImageIcon, LayoutGrid, Loader2, Palette, Plus, Printer, Save, Send,
   ShoppingBasket, Sparkles, Store, Trash2, Upload, Wand2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,9 +29,10 @@ import { chaveCanonica } from '@/lib/tabloide/chave';
 import { baixarBlob, imprimirBlobs, nomeDeArquivo, renderizarPaginaEmPng } from '@/lib/tabloide/exportar';
 import { tabelaTabloide } from '@/lib/tabloide/db';
 import { proximasDatas, rotuloDaData } from '@/lib/tabloide/datas';
-import { ajustarElemento, duplicarElemento, novoElemento, type ElementoLivre, type Selo } from '@/lib/tabloide/selos';
+import { ajustarElemento, duplicarElemento, listarSelos, novoElemento, resolverLogoCabecalho, type ElementoLivre, type Selo } from '@/lib/tabloide/selos';
 import { TabloideCanvas } from './TabloideCanvas';
 import { PainelSelos } from './PainelSelos';
+import { GaleriaLogoCabecalho } from './GaleriaLogoCabecalho';
 
 export interface TabloideEditorProps {
   contexto: 'portal' | 'painel';
@@ -47,6 +48,7 @@ const BOTOES = [
   { id: 'produtos', rotulo: 'Produtos', icone: ShoppingBasket },
   { id: 'temas', rotulo: 'Temas', icone: Palette },
   { id: 'datas', rotulo: 'Datas', icone: CalendarDays },
+  { id: 'cabecalho', rotulo: 'Cabeçalho', icone: Crown },
   { id: 'selos', rotulo: 'Selos 3D', icone: BadgePercent },
   { id: 'logo', rotulo: 'Sua Logo', icone: ImageIcon },
   { id: 'empresa', rotulo: 'Empresa', icone: Store },
@@ -86,6 +88,12 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const [mostrarLogo, setMostrarLogo] = useState(true);
   const [enviandoLogo, setEnviandoLogo] = useState(false);
   const [seloUrl, setSeloUrl] = useState<string | null>(null);
+  // logo escolhida na galeria "Logo do Cabeçalho" (identificador estável do catálogo; null = cabeçalho automático)
+  const [logoCabecalhoId, setLogoCabecalhoId] = useState<string | null>(null);
+  const [logoAnteriorId, setLogoAnteriorId] = useState<string | null>(null);
+  const [logoPendente, setLogoPendente] = useState(false);
+  const seloAvulsoAnterior = useRef<string | null>(null);
+  const [selos, setSelos] = useState<Selo[] | null>(null);
   const [elementos, setElementos] = useState<ElementoLivre[]>([]);
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [pagina, setPagina] = useState(0);
@@ -134,6 +142,12 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const escalaRef = useRef(escala);
   escalaRef.current = escala;
 
+  const recarregarSelos = useCallback(async () => { setSelos(await listarSelos()); }, []);
+  useEffect(() => { void recarregarSelos(); }, [recarregarSelos]);
+  // a logo vem do catálogo pelo identificador; id que não existe mais ou foi arquivada => cabeçalho automático, sem quebrar
+  const logoEscolhida = useMemo(() => resolverLogoCabecalho(selos, logoCabecalhoId), [selos, logoCabecalhoId]);
+  const cabecalhoUrl = logoEscolhida ? logoEscolhida.imagem_url : logoCabecalhoId && selos === null ? null : seloUrl;
+
   const listarRascunhos = useCallback(async () => {
     const { data } = await tabelaTabloide('tabloides').select('id, nome, updated_at').is('deleted_at', null).order('updated_at', { ascending: false }).limit(30);
     setRascunhos((data as Rascunho[]) ?? []);
@@ -177,6 +191,17 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     if (!tituloEditado.current) { setTitulo(segmentoPorId(id).titulo); setSubtitulo(segmentoPorId(id).subtitulo); }
   };
 
+  // ---- logo do cabeçalho (galeria) ----
+  const escolherLogoCabecalho = (id: string | null) => {
+    if (id === logoCabecalhoId) return;
+    if (!logoPendente) { setLogoAnteriorId(logoCabecalhoId); seloAvulsoAnterior.current = seloUrl; }
+    setLogoCabecalhoId(id);
+    setSeloUrl(null); // a escolha da galeria substitui um selo avulso antigo (guardado para o "Desfazer")
+    setLogoPendente(true);
+  };
+  const confirmarLogoCabecalho = () => { setLogoPendente(false); toast.success('Logo do cabeçalho definida. Salve o rascunho para guardar.'); };
+  const desfazerLogoCabecalho = () => { setLogoCabecalhoId(logoAnteriorId); setSeloUrl(seloAvulsoAnterior.current); setLogoPendente(false); };
+
   // ---- selos livres no cartaz (camadas) ----
   const inserirSelo = (selo: Selo) => {
     const e = novoElemento(selo, { cx: 0.5, cy: 0.5 });
@@ -199,6 +224,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     const e = elementos.find((x) => x.id === id);
     if (!e) return;
     setSeloUrl(e.url);
+    setLogoCabecalhoId(null);
     excluirElemento(id);
     toast.success('Selo colocado no cabeçalho.');
   };
@@ -241,12 +267,15 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
 
   const propsDaPagina = (i: number) => ({
     formato, tema, segmento, titulo, subtitulo, validade, empresa,
-    logoUrl: mostrarLogo ? logoUrl : null, seloUrl, elementos, pagina: paginas[i], numeroPagina: i + 1, totalPaginas: paginas.length,
+    logoUrl: mostrarLogo ? logoUrl : null, seloUrl: cabecalhoUrl, elementos, pagina: paginas[i], numeroPagina: i + 1, totalPaginas: paginas.length,
   });
 
   const gerarPngs = async (): Promise<Blob[]> => {
+    // a logo do cabeçalho vem do catálogo: garante que ele já carregou antes de desenhar a imagem final
+    let urlDoCabecalho = cabecalhoUrl;
+    if (logoCabecalhoId && selos === null) urlDoCabecalho = resolverLogoCabecalho(await listarSelos(), logoCabecalhoId)?.imagem_url ?? seloUrl;
     const out: Blob[] = [];
-    for (let i = 0; i < paginas.length; i++) out.push(await renderizarPaginaEmPng(propsDaPagina(i)));
+    for (let i = 0; i < paginas.length; i++) out.push(await renderizarPaginaEmPng({ ...propsDaPagina(i), seloUrl: urlDoCabecalho }));
     return out;
   };
 
@@ -306,9 +335,10 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     } finally { setOcupado(null); }
   };
 
-  const config = () => ({ titulo, subtitulo, validade, empresa, mostrarLogo, destaques, texto, seloUrl, elementos });
+  const config = () => ({ titulo, subtitulo, validade, empresa, mostrarLogo, destaques, texto, seloUrl, logoCabecalhoId, elementos });
 
   const salvar = async () => {
+    setLogoPendente(false); // salvar vale como confirmar
     setOcupado('salvar');
     try {
       const linha = { nome: nomeTabloide.trim() || 'Meu tabloide', formato: formatoId, tema: temaId, segmento: segmentoId, grade, produtos, config: config(), cliente_id: clienteId };
@@ -335,11 +365,15 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     setTabloideId(d.id); setNomeTabloide(d.nome); setFormatoId(d.formato); setTemaId(d.tema); setSegmentoId(d.segmento); setGrade(d.grade);
     setProdutos(d.produtos ?? []); setTexto(c.texto ?? (d.produtos ?? []).map(paraLinha).join('\n'));
     setTitulo(c.titulo ?? ''); setSubtitulo(c.subtitulo ?? ''); setValidade(c.validade ?? ''); setEmpresa(c.empresa ?? empresaPadrao);
-    setMostrarLogo(c.mostrarLogo ?? true); setDestaques(c.destaques ?? 0); setSeloUrl(c.seloUrl ?? null); setPagina(0);
+    setMostrarLogo(c.mostrarLogo ?? true); setDestaques(c.destaques ?? 0); setSeloUrl(c.seloUrl ?? null); setLogoCabecalhoId(typeof c.logoCabecalhoId === 'string' ? c.logoCabecalhoId : null); setLogoPendente(false); setPagina(0);
     setElementos(Array.isArray(c.elementos) ? (c.elementos as ElementoLivre[]).map(ajustarElemento) : []); setSelecionadoId(null);
     tituloEditado.current = true;
-    (d.produtos ?? []).forEach((p: ProdutoTabloide) => tentados.current.add(p.id));
+    // produto que já tem foto não busca de novo; o que ficou sem foto no rascunho é procurado agora (catálogo primeiro)
+    const doRascunho: ProdutoTabloide[] = d.produtos ?? [];
+    doRascunho.filter((p) => p.imagem).forEach((p) => tentados.current.add(p.id));
+    doRascunho.filter((p) => !p.imagem).forEach((p) => tentados.current.delete(p.id));
     toast.success('Rascunho aberto.');
+    void procurarFotos(doRascunho);
   };
 
   const excluir = async () => {
@@ -513,8 +547,23 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
             </div>
           )}
 
+          {aba === 'cabecalho' && (
+            <GaleriaLogoCabecalho
+              selos={selos}
+              escolhidaId={logoEscolhida ? logoEscolhida.id : null}
+              pendente={logoPendente}
+              usuarioId={user?.id}
+              aoEscolher={escolherLogoCabecalho}
+              aoConfirmar={confirmarLogoCabecalho}
+              aoDesfazer={desfazerLogoCabecalho}
+              aoRecarregar={recarregarSelos}
+            />
+          )}
+
           {aba === 'selos' && (
             <PainelSelos
+              selos={selos}
+              aoRecarregar={recarregarSelos}
               contexto={contexto}
               clienteId={clienteId}
               usuarioId={user?.id}
