@@ -31,36 +31,37 @@ class MaintenanceWorker(
                 return Result.success()
             }
 
-            // 1. Obter a lista de hashes e arquivos que DEVEM existir (do Room)
+            // 1. O que DEVE ficar no aparelho (do Room). F-181: o arquivo se chama "<id>_<hash>.dat"; a limpeza antiga só
+            //    conhecia "<id>.dat" e apagava todas as mídias toda madrugada. As regras estão em CacheJanitorPolicy.
             val validMediaItems = database.playerDao().getAllMediaItems()
-            val validFileNames = validMediaItems.map { "${it.id}.dat" }.toSet()
-            val validItemsMap = validMediaItems.associateBy { "${it.id}.dat" }
+            val validos = CacheJanitorPolicy.arquivosValidos(validMediaItems.map { it.id to (if (it.file_hash.isNotEmpty()) it.file_hash else it.hash) })
+            val validFileNames = validos.keys
 
             // 2. Listar todos os arquivos físicos na pasta de cache
             val cachedFiles = mediaDir.listFiles() ?: arrayOf()
             var deletedOrphanCount = 0
             var deletedCorruptCount = 0
+            val agora = System.currentTimeMillis()
 
             for (file in cachedFiles) {
-                // REGRA A: O arquivo não está em nenhuma playlist? (Lixo)
-                if (!validFileNames.contains(file.name)) {
-                    Logger.w("MAINT", "Deleting Orphan File: ${file.name}")
-                    file.delete()
-                    deletedOrphanCount++
-                    continue
-                }
-
-                // REGRA B: O arquivo está na lista, mas o MD5 está correto? (Integridade)
-                val expectedItem = validItemsMap[file.name]
-                val expectedHash = expectedItem?.file_hash ?: expectedItem?.hash ?: ""
-                
-                if (expectedHash.isNotEmpty()) {
-                    val currentHash = HashUtils.calculateMD5(file)
-                    if (currentHash != expectedHash) {
-                        Logger.e("MAINT", "Integrity Fail: ${file.name} (MD5: $currentHash != Exp: $expectedHash). Deleting.")
+                when (CacheJanitorPolicy.decidir(file.name, file.lastModified(), agora, validos)) {
+                    CacheJanitorPolicy.Decisao.MANTER -> Unit
+                    // REGRA A: não está em nenhuma playlist e não é download recente (lixo)
+                    CacheJanitorPolicy.Decisao.APAGAR_ORFAO -> {
+                        Logger.w("MAINT", "Deleting Orphan File: ${file.name}")
                         file.delete()
-                        deletedCorruptCount++
-                        // O PlayerRepository detectará a ausência e baixará novamente no próximo Sync
+                        deletedOrphanCount++
+                    }
+                    // REGRA B: está na lista e o painel informou o MD5 — confere a integridade
+                    CacheJanitorPolicy.Decisao.CONFERIR_MD5 -> {
+                        val esperado = validos[file.name] ?: continue
+                        val atual = HashUtils.calculateMD5(file)
+                        if (CacheJanitorPolicy.corrompido(atual, esperado)) {
+                            Logger.e("MAINT", "Integrity Fail: ${file.name} (MD5: $atual != Exp: $esperado). Deleting.")
+                            file.delete()
+                            deletedCorruptCount++
+                            // O PlayerRepository detecta a ausência e baixa de novo no próximo Sync
+                        }
                     }
                 }
             }
