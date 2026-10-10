@@ -1259,6 +1259,9 @@ try {
                     viewModel.iniciarFluxoDeMidia(
                         syncUseCase = syncUseCase,
                         onSyncSuccess = {
+                            // F-181: a sincronização periódica só era armada por um aviso do painel; se a abertura caísse
+                            // no modo de contingência, ninguém tentava de novo. Agora ela é armada sempre.
+                            scheduleNextBackgroundSync()
                             lifecycleScope.launch(Dispatchers.IO) {
                                 val currentPlaylist = repo.getActivePlaylist().firstOrNull()
                                 runOnUiThread {

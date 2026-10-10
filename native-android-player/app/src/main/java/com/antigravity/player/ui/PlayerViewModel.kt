@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import kotlinx.coroutines.async
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -137,11 +138,27 @@ class PlayerViewModel(
             _playerState.value = PlayerUIState.SYNCING // TRAVA o usuário na tela de sync
             _isPlaylistReady.value = false
             
-            // [CONTINGENCY MODE] Estrita Saída de Emergência de 30 Segundos
-            val result = kotlinx.coroutines.withTimeoutOrNull(30000) {
-                syncUseCase()
+            // F-181: antes havia um limite fixo de 30 s para a sincronização inteira (com os downloads dentro).
+            // Playlist com vídeos passava disso, a sincronização era cancelada sem guardar a playlist e a tela ficava
+            // presa em "Sincronizando Mídias". Agora o limite curto só vale se já houver playlist guardada para tocar.
+            val temPlaylistGuardada = try { repository.loadLocalCache().isSuccess } catch (e: Exception) { false }
+            val inicio = android.os.SystemClock.elapsedRealtime()
+            var ultimoAvanco = inicio
+            val olheiro = launch { repository.getSyncProgress().collect { ultimoAvanco = android.os.SystemClock.elapsedRealtime() } }
+            val tarefa = async { try { syncUseCase() } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e; Result.failure(e) } }
+            var result: Result<Unit>? = null
+            while (true) {
+                val pronto = kotlinx.coroutines.withTimeoutOrNull(1000) { tarefa.await() }
+                if (pronto != null) { result = pronto; break }
+                val agora = android.os.SystemClock.elapsedRealtime()
+                if (com.antigravity.player.util.SyncPatience.desistirDaAbertura(temPlaylistGuardada, agora - inicio, agora - ultimoAvanco)) {
+                    Logger.w("SYNC_GATEKEEPER", "Sincronização da abertura abandonada após ${(agora - inicio) / 1000}s (playlist guardada: $temPlaylistGuardada).")
+                    tarefa.cancel()
+                    break
+                }
             }
-            
+            olheiro.cancel()
+
             val isSuccess = result?.isSuccess ?: false
             
             if (isSuccess) {
@@ -150,7 +167,9 @@ class PlayerViewModel(
                 onSyncSuccess?.invoke()
             } else {
                 // [MODO DE CONTINGÊNCIA] Se o Supabase bloqueou (403/429) ou deu timeout
-                val hasCache = repository.hasLocalMedia()
+                // F-181: "ter arquivo no disco" não basta (download pela metade também é arquivo): só há o que tocar
+                // se existe uma playlist guardada.
+                val hasCache = temPlaylistGuardada || (try { repository.loadLocalCache().isSuccess } catch (e: Exception) { false })
                 Logger.w("SYNC_GATEKEEPER", "Falha ou Timeout no Sync. Cache Local Detectado: $hasCache")
                 
                 if (hasCache) {
@@ -159,7 +178,7 @@ class PlayerViewModel(
                     onSyncSuccess?.invoke()
                 } else {
                     _isPlaylistReady.value = false
-                    val msg = if (result == null) "Timeout de 30s na Sincronização" 
+                    val msg = if (result == null) "Timeout na Sincronização" 
                              else (result.exceptionOrNull()?.message ?: "Erro desconhecido")
                     Logger.e("SYNC_GATEKEEPER", "Falha crítica: Sem cache e sem download. $msg")
                     onSyncError?.invoke(msg)

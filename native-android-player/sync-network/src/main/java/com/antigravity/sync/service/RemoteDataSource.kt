@@ -84,6 +84,8 @@ class RemoteDataSource {
         if (screenUuid != null) {
             // Todo heartbeat (a cada 60 s) atualiza a linha de screens e chega aqui: só reage a MUDANÇA real de playlist.
             var knownPlaylistId: String? = playlistId
+            // F-181: última orientação VISTA na linha da tela (não a efetiva do Player, que vem da playlist).
+            var knownScreenOrientation: String? = null
             val screenFlow = screensChannel.postgresChangeFlow<PostgresAction>(schema = "public") {
                 table = "screens"
                 filter(FilterOperation("id", FilterOperator.EQ, screenUuid))
@@ -106,7 +108,11 @@ class RemoteDataSource {
                         val remotePlaylistId = action.record["playlist_id"]?.toString()?.replace("\"", "")
                         val playlistChanged = !remotePlaylistId.isNullOrBlank() && remotePlaylistId != knownPlaylistId
                         if (playlistChanged) knownPlaylistId = remotePlaylistId
-                        if (playlistChanged || (!remoteOrientation.isNullOrBlank() && remoteOrientation != SessionManager.currentOrientation)) {
+                        // Comparar com a orientação efetiva (da playlist) fazia TODA atualização da linha — inclusive o sinal de
+                        // vida do próprio aparelho — pedir sincronização, e cada sincronização atualiza a linha: laço sem fim.
+                        val orientationChanged = !remoteOrientation.isNullOrBlank() && knownScreenOrientation != null && remoteOrientation != knownScreenOrientation
+                        if (!remoteOrientation.isNullOrBlank()) knownScreenOrientation = remoteOrientation
+                        if (playlistChanged || orientationChanged) {
                             Logger.i("REALTIME", ">>> Screen configuration or orientation changed via Realtime ($remoteOrientation). Triggering sync nudge...")
                             SessionManager.triggerSyncNudge()
                         }

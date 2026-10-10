@@ -576,34 +576,34 @@ class PlayerRepositoryImpl(
             downloadRequest.id
         }
 
-        // Wait for all downloads to finish (with timeout to prevent infinite loop)
+        // Espera os downloads terminarem. F-181: o limite fixo de 60 s abortava playlists com vídeo (a troca atômica
+        // nunca acontecia). Agora espera enquanto houver avanço; só desiste parado por muito tempo (SyncPatience).
         var completed = 0
-        val startTime = System.currentTimeMillis()
-        val timeoutMs = 60 * 1000L // [CONTINGENCY] Reduced to 1 minute for faster fallback
-        
+        val startTime = android.os.SystemClock.elapsedRealtime()
+        var lastProgressAt = startTime
+        _syncProgress.value = "Sincronizando: 0 de $total"
+
         while (completed < total) {
-            val elapsed = System.currentTimeMillis() - startTime
-            if (elapsed > timeoutMs) {
-                Logger.w("SYNC", "Timeout de sincronização (5min). $completed/$total concluídos. Prosseguindo...")
-                break
-            }
-            
             val infos = workIds.map { id -> workManager.getWorkInfoById(id).get() }
-            completed = infos.count { it.state.isFinished }
-            
+            val doneNow = infos.count { it.state.isFinished }
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (doneNow != completed) { completed = doneNow; lastProgressAt = now }
+
             val failedCount = infos.count { it.state == androidx.work.WorkInfo.State.FAILED }
             if (failedCount > 0) {
                  Logger.e("SYNC", "$failedCount downloads falharam no WorkManager.")
             }
-            
-            // If all remaining are either finished or failed, break out
-            val doneOrFailed = infos.count { it.state.isFinished }
-            if (doneOrFailed >= total) break
 
             _syncProgress.value = "Sincronizando: $completed de $total"
-            if (completed < total) delay(2000)
+            if (completed >= total) break
+
+            if (com.antigravity.player.util.SyncPatience.desistirDosDownloads(now - startTime, now - lastProgressAt)) {
+                Logger.w("SYNC", "Downloads sem avanço há ${(now - lastProgressAt) / 1000}s. $completed/$total concluídos. Tentando de novo no próximo ciclo.")
+                break
+            }
+            delay(2000)
         }
-        
+
         Logger.i("SYNC", "Delta Sync concluído. $completed/$total mídias baixadas.")
     }
 
