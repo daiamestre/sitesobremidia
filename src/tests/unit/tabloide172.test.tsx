@@ -11,7 +11,7 @@ import { FORMATOS, SEGMENTOS, TEMAS, temasDoSegmento, temaPorId, segmentoPorId, 
 import { ehFresco, escolherMelhor, fotosAceitas, type CandidatoImagem } from '@/lib/tabloide/imagens';
 import { TabloideCanvas, descontoPct } from '@/components/tabloide/TabloideCanvas';
 import { claridade, coresDoSelo, dividirTitulo, larguraDoPreco } from '@/lib/tabloide/selo3d';
-import { analisarFundo, recortarFundo } from '@/lib/tabloide/recorte';
+import { analisarFundo, caixaDoConteudo, recortarFundo } from '@/lib/tabloide/recorte';
 
 const fonte = (p: string) => readFileSync(p, 'utf8');
 
@@ -157,16 +157,33 @@ describe('F-172 · foto do produto', () => {
     expect(fonte('src/components/tabloide/TabloideCanvas.tsx')).toContain('tabloide-sem-foto');
   });
 
-  it('quando a IA de visão conferiu, só passam as fotos que ela confirmou; senão vale o filtro de nome', () => {
+  it('a IA de visão confirma ou reprova; embalagem de catálogo e Wikimedia passam pelo filtro de nome', () => {
     const c = (f: CandidatoImagem['fonte'], u: string, conferido?: boolean): CandidatoImagem => ({ ...cand(f, u), conferido });
-    const conferidas = [c('OPENFOODFACTS', 'a', false), c('WIKIMEDIA', 'b', true), c('PEXELS', 'c', false)];
-    expect(fotosAceitas('Vassoura', conferidas).map((x) => x.url)).toEqual(['b']);
+    const lista = [c('OPENFOODFACTS', 'a', false), c('PEXELS', 'c', true), c('WIKIMEDIA', 'b', true), c('OPENVERSE', 'o', true), c('WIKIMEDIA', 'w')];
+    expect(fotosAceitas('Vassoura', lista).map((x) => x.url)).toEqual(['b', 'w', 'o', 'c']);
     expect(fotosAceitas('Vassoura', [c('OPENFOODFACTS', 'a', false), c('PEXELS', 'c', false)])).toEqual([]);
     const semConferencia = [c('OPENVERSE', 'o'), c('PEXELS', 'p'), c('WIKIMEDIA', 'w'), c('OPENFOODFACTS', 'f')];
     expect(fotosAceitas('Coca-Cola 2L', semConferencia).map((x) => x.url)).toEqual(['f', 'w']);
     expect(fotosAceitas('Tomate kg', semConferencia).map((x) => x.url)).toEqual(['w', 'p', 'f']);
   });
+
+  it('só vale foto que carrega de verdade; senão tenta a próxima e por fim a IA', () => {
+    const img = fonte('src/lib/tabloide/imagens.ts');
+    expect(img).toContain('export function fotoCarrega');
+    expect(img).toContain('await fotoCarrega(c.miniatura || c.url)');
+    expect(img.slice(img.indexOf('if (!vivas.length)'))).toContain('gerarImagemIA(p.nome)');
+  });
+
+  it('legenda com pessoa ou mão é descartada antes da conferência, e o Worker confere o produto (pessoa e mão saem pela legenda)', () => {
+    const fn = fonte('supabase/functions/produto-imagem/index.ts');
+    expect(fn).toContain('const temGente');
+    expect(fn).toContain('.filter((c) => !temGente(c.legenda))');
+    const worker = fonte('cloudflare/tabloide-ia/worker.js');
+    expect(worker).toContain('clear close-up product photo of');
+    expect(worker).toContain("corpo.acao === 'conferir'");
+  });
 });
+
 describe('F-172 · cartaz', () => {
   it('desenha título, produtos, preços e o aviso de imagens ilustrativas', () => {
     const produtos = lerLista('Picanha kg R$ 49,90\nLeite de 6,50 por 4,99\nBolo de cenoura');
@@ -298,6 +315,17 @@ describe('F-174 · imagem criada por IA quando não há foto real', () => {
     expect(img.slice(img.indexOf('if (!lista.length) {'))).toContain('gerarImagemIA(p.nome)');
     expect(fonte('src/components/tabloide/TabloideEditor.tsx')).toContain('tabloide-criar-ia');
     expect(fonte('src/components/tabloide/TabloideCanvas.tsx')).toContain("IA: 'criadas por IA'");
+  });
+
+  it('acha a caixa do conteúdo em foto com sombra (para aproximar o produto)', () => {
+    const w = 100; const h = 100;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const fino = x >= 45 && x < 50 && y >= 20 && y < 80;
+      data.set(fino ? [60, 120, 200, 255] : [250, 250, 250, 255], (y * w + x) * 4);
+    }
+    expect(caixaDoConteudo({ data, width: w, height: h })).toEqual({ x: 45, y: 20, w: 5, h: 60 });
+    expect(caixaDoConteudo({ data: new Uint8ClampedArray(w * h * 4).fill(255), width: w, height: h })).toBeNull();
   });
 
   it('produto pequeno no quadro (caso das imagens de IA) ainda é recortado', () => {

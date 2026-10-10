@@ -5,7 +5,7 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 import { tabelaTabloide } from './db';
-import { recortarImagem } from './recorte';
+import { cortarMargens, recortarImagem } from './recorte';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { chaveDoProduto, type FonteImagem, type ImagemProduto, type ProdutoTabloide } from './parseProdutos';
 
@@ -31,18 +31,19 @@ export function ordemDeFontes(nome: string): FonteImagem[] {
 }
 
 /**
- * Fotos reais aceitas, da melhor para a pior. Quando a IA de visão conferiu (veredicto presente), só entram as que ela
- * confirmou ser o produto; quando a conferência não rodou, entram as que passaram no filtro de nome.
+ * Fotos reais aceitas, da melhor para a pior.
+ * Embalagem de catálogo e Wikimedia passam pelo filtro de nome; Openverse e bancos de imagens só entram se a IA de visão
+ * confirmou que a foto é o produto; foto que a IA reprovou sai. A ordem segue a fonte mais adequada ao produto
+ * e, dentro da mesma fonte, a confirmada vem na frente.
  */
 export function fotosAceitas(nome: string, cands: CandidatoImagem[]): CandidatoImagem[] {
-  const conferiu = cands.some((c) => typeof c.conferido === 'boolean');
-  const base = conferiu
-    ? cands.filter((c) => c.conferido === true)
-    : cands.filter((c) => c.fonte === 'OPENFOODFACTS' || c.fonte === 'WIKIMEDIA' || (ehFresco(nome) && (c.fonte === 'PEXELS' || c.fonte === 'PIXABAY')));
   const ordem = ordemDeFontes(nome);
-  return [...base].sort((x, y) => ordem.indexOf(x.fonte) - ordem.indexOf(y.fonte));
+  const passaNoFiltro = (c: CandidatoImagem) => c.fonte === 'OPENFOODFACTS' || c.fonte === 'WIKIMEDIA' || (ehFresco(nome) && (c.fonte === 'PEXELS' || c.fonte === 'PIXABAY'));
+  const peso = (c: CandidatoImagem) => ordem.indexOf(c.fonte) * 2 + (c.conferido === true ? 0 : 1);
+  return cands
+    .filter((c) => c.conferido !== false && (c.conferido === true || passaNoFiltro(c)))
+    .sort((x, y) => peso(x) - peso(y));
 }
-
 /** Escolhe a melhor entre as fotos encontradas (null = nenhuma serve). */
 export function escolherMelhor(nome: string, cands: CandidatoImagem[]): CandidatoImagem | null {
   return fotosAceitas(nome, cands)[0] ?? null;
@@ -77,13 +78,35 @@ export async function salvarNoCatalogo(nome: string, imagem: ImagemProduto, clie
   await tabelaTabloide('tabloide_catalogo').insert({ nome_norm, nome, imagem_url: imagem.url, fonte: imagem.fonte, credito: imagem.credito ?? null, recortada: !!imagem.recortada, cliente_id: clienteId } as never);
 }
 
+/** A foto carrega de verdade no navegador (com CORS liberado, que a exportação em PNG exige)? */
+export function fotoCarrega(url: string, limiteMs = 9000): Promise<boolean> {
+  return new Promise((ok) => {
+    const img = new Image();
+    const fim = (v: boolean) => { img.onload = null; img.onerror = null; ok(v); };
+    const timer = setTimeout(() => fim(false), limiteMs);
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => { clearTimeout(timer); fim(img.naturalWidth > 20 && img.naturalHeight > 20); };
+    img.onerror = () => { clearTimeout(timer); fim(false); };
+    img.src = url;
+  });
+}
+
 /**
  * F-174: cria a imagem do produto por IA (produto genérico, sem marca, fundo branco), recorta e guarda no nosso armazenamento.
  * Devolve o motivo quando não dá (limite diário, cota da IA, falha).
  */
 export async function gerarImagemIA(nome: string): Promise<{ imagem?: ImagemProduto; motivo?: string }> {
-  const { data, error } = await supabase.functions.invoke('produto-imagem', { body: { termo: nome, acao: 'gerar' } });
-  if (error || !data?.imagem) return { motivo: data?.motivo ?? 'A IA não conseguiu criar a imagem agora.' };
+  let data: { imagem?: string; motivo?: string } | null = null;
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    const r = await supabase.functions.invoke('produto-imagem', { body: { termo: nome, acao: 'gerar' } });
+    data = r.data ?? null;
+    if (data?.imagem) break;
+    // limite diário e cota acabada não melhoram tentando de novo
+    if (/limite|cota|amanhã/i.test(String(data?.motivo ?? ''))) break;
+    await new Promise((ok) => setTimeout(ok, 1500));
+  }
+  if (!data?.imagem) return { motivo: data?.motivo ?? 'A IA não conseguiu criar a imagem agora.' };
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const uid = session?.user?.id;
@@ -91,9 +114,13 @@ export async function gerarImagemIA(nome: string): Promise<{ imagem?: ImagemProd
     const bytes = Uint8Array.from(atob(String(data.imagem)), (c) => c.charCodeAt(0));
     const original = new Blob([bytes], { type: 'image/jpeg' });
     const temporaria = URL.createObjectURL(original);
-    const recortada = await recortarImagem(temporaria).finally(() => URL.revokeObjectURL(temporaria));
-    const arquivo = recortada ?? original;
-    const { publicUrl } = await uploadToR2(arquivo, `${uid}/tabloide/ia-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${recortada ? 'png' : 'jpg'}`, recortada ? 'image/png' : 'image/jpeg', uid);
+    // 1) tira o fundo; 2) se não deu, ao menos aproxima o produto cortando a margem vazia; 3) senão fica como veio
+    const recortada = await recortarImagem(temporaria);
+    const aproximada = recortada ? null : await cortarMargens(temporaria);
+    URL.revokeObjectURL(temporaria);
+    const arquivo = recortada ?? aproximada ?? original;
+    const eJpeg = arquivo === original;
+    const { publicUrl } = await uploadToR2(arquivo, `${uid}/tabloide/ia-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${eJpeg ? 'jpg' : 'png'}`, eJpeg ? 'image/jpeg' : 'image/png', uid);
     return { imagem: { url: publicUrl, fonte: 'IA', credito: 'Imagem criada por IA', recortada: !!recortada } };
   } catch {
     return { motivo: 'Não foi possível guardar a imagem criada.' };
@@ -127,14 +154,16 @@ export async function completarImagens(
   produtos: ProdutoTabloide[],
   clienteId: string | null,
   aoAchar: (id: string, imagem: ImagemProduto | null) => void,
-): Promise<void> {
+): Promise<string[]> {
   const faltam = produtos.filter((p) => !p.imagem);
-  if (!faltam.length) return;
+  if (!faltam.length) return [];
+  const semFoto = new Set<string>();
+  const resolver = (id: string, imagem: ImagemProduto | null) => { if (imagem) semFoto.delete(id); else semFoto.add(id); aoAchar(id, imagem); };
   const catalogo = await buscarNoCatalogo(faltam.map((p) => p.nome));
   const buscar: ProdutoTabloide[] = [];
   for (const p of faltam) {
     const achada = catalogo.get(chaveDoProduto(p.nome));
-    if (achada) aoAchar(p.id, achada); else buscar.push(p);
+    if (achada) resolver(p.id, achada); else buscar.push(p);
   }
   let i = 0;
   const trabalhador = async () => {
@@ -146,25 +175,34 @@ export async function completarImagens(
         // só entra foto real que a IA de visão confirmou ser o produto; embalagem de marca vem do catálogo de produtos
         const lista = fotosAceitas(p.nome, cands).slice(0, 4);
         if (!lista.length) {
-          aoAchar(p.id, null); // sem foto real confirmada: a IA cria a imagem do produto
+          resolver(p.id, null); // sem foto real confirmada: a IA cria a imagem do produto
           const criada = await gerarImagemIA(p.nome);
-          if (criada.imagem) { aoAchar(p.id, criada.imagem); void salvarNoCatalogo(p.nome, criada.imagem, clienteId); }
+          if (criada.imagem) { resolver(p.id, criada.imagem); void salvarNoCatalogo(p.nome, criada.imagem, clienteId); }
           continue;
         }
         const paraImagem = (c: CandidatoImagem): ImagemProduto => ({ url: c.url, fonte: c.fonte, credito: c.credito });
-        aoAchar(p.id, paraImagem(lista[0])); // aparece na hora; o recorte troca em seguida
-        let final = paraImagem(lista[0]);
+        // só vale foto que carrega de verdade; a que falha cai fora e vale a próxima
+        const vivas: CandidatoImagem[] = [];
+        for (const c of lista) { if (await fotoCarrega(c.miniatura || c.url)) vivas.push(c); }
+        if (!vivas.length) {
+          const criada = await gerarImagemIA(p.nome);
+          if (criada.imagem) { resolver(p.id, criada.imagem); void salvarNoCatalogo(p.nome, criada.imagem, clienteId); } else resolver(p.id, null);
+          continue;
+        }
+        resolver(p.id, paraImagem(vivas[0])); // aparece na hora; o recorte troca em seguida
+        let final = paraImagem(vivas[0]);
         // entre as fotos reais, fica a primeira que dá para recortar (fundo liso = foto de embalagem bem feita)
-        for (const c of lista) {
+        for (const c of vivas) {
           const pronta = await prepararImagem(paraImagem(c));
           if (pronta.recortada) { final = pronta; break; }
         }
-        aoAchar(p.id, final);
+        resolver(p.id, final);
         void salvarNoCatalogo(p.nome, final, clienteId);
       } catch {
-        aoAchar(p.id, null);
+        resolver(p.id, null);
       }
     }
   };
   await Promise.all([trabalhador(), trabalhador(), trabalhador()]);
+  return faltam.filter((p) => semFoto.has(p.id)).map((p) => p.nome);
 }

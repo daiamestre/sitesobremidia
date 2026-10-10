@@ -91,6 +91,30 @@ export function recortarFundo(p: Pixels, tolerancia = 54): Caixa | null {
   return caixa;
 }
 
+/**
+ * Caixa do que não é fundo (sem apagar nada): serve para aproximar o produto quando ele ficou pequeno no quadro,
+ * mesmo que o recorte de fundo não tenha dado (sombra, objeto fino).
+ */
+export function caixaDoConteudo(p: Pixels, tolerancia = 60): Caixa | null {
+  const { data, width: w, height: h } = p;
+  if (w < 8 || h < 8) return null;
+  const { cor, uniformidade } = analisarFundo(p);
+  if (uniformidade < 0.82) return null;
+  let x0 = w; let y0 = h; let x1 = -1; let y1 = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (dist(data, (y * w + x) * 4, cor[0], cor[1], cor[2]) >= tolerancia) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < x0 || y1 < y0) return null;
+  return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
 function carregar(url: string): Promise<HTMLImageElement> {
   return new Promise((ok, erro) => {
     const img = new Image();
@@ -124,6 +148,37 @@ export async function recortarImagem(url: string, ladoMax = 900): Promise<Blob |
     saida.width = caixa.w + margem * 2;
     saida.height = caixa.h + margem * 2;
     saida.getContext('2d')?.drawImage(tela, caixa.x, caixa.y, caixa.w, caixa.h, margem, margem, caixa.w, caixa.h);
+    return await new Promise<Blob | null>((ok) => saida.toBlob(ok, 'image/png'));
+  } catch {
+    return null;
+  }
+}
+
+/** Corta as margens vazias em volta do produto (mantém o fundo). Devolve null se não há o que cortar ou não deu. */
+export async function cortarMargens(url: string, ladoMax = 900): Promise<Blob | null> {
+  try {
+    const img = await carregar(url);
+    const escala = Math.min(1, ladoMax / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * escala));
+    const h = Math.max(1, Math.round(img.naturalHeight * escala));
+    const tela = document.createElement('canvas');
+    tela.width = w;
+    tela.height = h;
+    const ctx = tela.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, w, h);
+    const caixa = caixaDoConteudo(ctx.getImageData(0, 0, w, h));
+    // só vale a pena se o produto ocupa menos de 55% do quadro
+    if (!caixa || (caixa.w * caixa.h) / (w * h) > 0.55) return null;
+    const margem = Math.round(Math.max(caixa.w, caixa.h) * 0.12);
+    const x = Math.max(0, caixa.x - margem);
+    const y = Math.max(0, caixa.y - margem);
+    const cw = Math.min(w - x, caixa.w + margem * 2);
+    const ch = Math.min(h - y, caixa.h + margem * 2);
+    const saida = document.createElement('canvas');
+    saida.width = cw;
+    saida.height = ch;
+    saida.getContext('2d')?.drawImage(tela, x, y, cw, ch, 0, 0, cw, ch);
     return await new Promise<Blob | null>((ok) => saida.toBlob(ok, 'image/png'));
   } catch {
     return null;

@@ -33,21 +33,25 @@ async function traduzir(env, texto) {
   }
 }
 
-/** Pede ao modelo de visão para olhar a foto e dizer se o item principal é o produto. Devolve true/false (null se não deu para olhar). */
+/** Uma pergunta de sim/não sobre a foto. Devolve true/false (null se a IA não respondeu). */
+async function perguntar(env, bytes, prompt) {
+  const out = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', { image: [...bytes], max_tokens: 6, prompt });
+  const resp = String(out?.description ?? out?.response ?? '').trim().toLowerCase();
+  if (!resp) return null;
+  return /^\W*yes/.test(resp);
+}
+
+/**
+ * O item principal da foto é mesmo o produto? (uma pergunta só, para ser rápido; foto com pessoa/mão já é descartada
+ * pela legenda antes de chegar aqui). Devolve true/false (null se não deu para olhar).
+ */
 async function conferirFoto(env, nome, url) {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0' } });
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000), headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0' } });
     if (!r.ok) return null;
     const bytes = new Uint8Array(await r.arrayBuffer());
     if (bytes.length < 500 || bytes.length > 1_500_000) return null;
-    const out = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
-      image: [...bytes],
-      max_tokens: 6,
-      prompt: `Look at this photo. Is the main subject of the photo clearly ${nome}? It must be the real item itself (a photograph of the product), not a person, not a drawing, not a logo, not a different object. Answer only yes or no.`,
-    });
-    const resp = String(out?.description ?? out?.response ?? '').trim().toLowerCase();
-    if (!resp) return null;
-    return /^\W*yes/.test(resp);
+    return await perguntar(env, bytes, 'Is this a clear close-up product photo of ' + nome + ', with the item large in the frame on a plain or simple background (not a room, not a street, not a crowd of other objects, not a drawing, not a logo)? Answer only yes or no.');
   } catch {
     return null;
   }
@@ -76,7 +80,22 @@ export default {
         `A ${nome}. Professional studio photograph of a single ${nome}, clearly recognizable, generic and unbranded, ` +
         'centered, the whole item visible, isolated on a plain pure white background, soft even lighting, realistic, sharp focus. ' +
         'No words, no letters, no numbers, no logo, no brand name, no watermark anywhere (if the item has a label, the label is blank). No people, no hands.';
-      const r = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt, steps: 4 });
+      // o filtro de conteúdo da Cloudflare dá falso alarme em objetos comuns (ex.: escova de dentes); tenta pedidos mais simples
+      const simples = nome.split(' ').slice(0, 2).join(' ');
+      const pedidos = [
+        prompt,
+        `Product photo of ${simples}, centered, plain white background, studio lighting, no text.`,
+        `A household ${simples} on a white table, simple product photo.`,
+      ];
+      let r = null;
+      let ultimoErro = null;
+      for (const p of pedidos) {
+        try { r = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt: p, steps: 4 }); if (r?.image) break; } catch (e) {
+          ultimoErro = e;
+          if (!/NSFW|8007/i.test(String(e?.message ?? e))) throw e;
+        }
+      }
+      if (!r?.image && ultimoErro) throw ultimoErro;
       if (!r?.image) return Response.json({ erro: 'a IA não devolveu imagem' }, { status: 502 });
       return Response.json({ image: r.image, nome });
     } catch (e) {

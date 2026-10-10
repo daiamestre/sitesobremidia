@@ -118,9 +118,10 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     novos.forEach((p) => tentados.current.add(p.id));
     setBuscandoFotos(true);
     try {
-      await completarImagens(novos, clienteId, (id, imagem) => {
+      const semFoto = await completarImagens(novos, clienteId, (id, imagem) => {
         if (imagem) setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, imagem } : p)));
       });
+      if (semFoto.length) toast.info(`Sem foto automática: ${semFoto.join(', ')}. Clique na foto do produto para escolher ou enviar a sua.`, { duration: 9000 });
     } finally {
       setBuscandoFotos(false);
     }

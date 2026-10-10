@@ -58,6 +58,10 @@ function nota(nomeProduto: string, termo: string, ps: string[]): number {
   return Math.max(s, 0.5);
 }
 
+/** Legenda que denuncia foto com pessoa/mão/ambiente (não serve de vitrine): descartada antes de qualquer conferência. */
+const GENTE = /\b(maos?|mao|pessoas?|homens?|homem|mulher(es)?|menin[oa]s?|crianc[as]s?|bebes?|modelo|monge|frades?|garot[oa]s?|jovens?|segurando|usando|aplicando|lavando|varrendo|limpando|cabelereiro|hands?|man|men|woman|women|girl|boy|child|people|person|holding|using|wearing|portrait|selfie|smiling)\b/;
+const temGente = (legenda: string) => GENTE.test(norm(legenda).replace(/[^a-z\s]/g, ' '));
+
 async function comTempo<T>(p: Promise<T>, ms: number): Promise<T | null> {
   return await Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 }
@@ -263,11 +267,12 @@ Deno.serve(async (req) => {
       comTempo(pexels(consulta, ps).catch(() => []), 7000),
       comTempo(pixabay(consulta, ps).catch(() => []), 7000),
     ]);
-    const todos = [...(off ?? []), ...(obf ?? []), ...(opff ?? []), ...(opf ?? []), ...(wik ?? []), ...(ove ?? []), ...(pex ?? []), ...(pix ?? [])];
-    // a IA olha as melhores de cada fonte (até 10) e diz quais são mesmo o produto
+    const todos = [...(off ?? []), ...(obf ?? []), ...(opff ?? []), ...(opf ?? []), ...(wik ?? []), ...(ove ?? []), ...(pex ?? []), ...(pix ?? [])].filter((c) => !temGente(c.legenda));
+    // Catálogos de produto (Open Facts) já casam pelo nome da embalagem: não gastam conferência.
+    // A IA olha só as fotos de Wikimedia, Openverse e bancos de imagens (2 melhores de cada, no máximo 6) e tem 15 s.
     const porFonte = new Map<string, number>();
-    const aConferir = todos.filter((c) => { const n = (porFonte.get(c.fonte) ?? 0) + 1; porFonte.set(c.fonte, n); return n <= 3; }).slice(0, 10);
-    await comTempo(conferirComIA(t, aConferir), 40000);
+    const aConferir = todos.filter((c) => c.fonte !== 'OPENFOODFACTS').filter((c) => { const n = (porFonte.get(c.fonte) ?? 0) + 1; porFonte.set(c.fonte, n); return n <= 2; }).slice(0, 6);
+    await comTempo(conferirComIA(t, aConferir), 15000);
     return json({ candidatos: todos });
   } catch {
     return json({ candidatos: [], erro: 'consulta inválida' }, 400);
