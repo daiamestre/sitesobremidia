@@ -86,7 +86,8 @@ export function recortarFundo(p: Pixels, tolerancia = 54): Caixa | null {
   const caixa = { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
   // produto branco em fundo branco: o recorte "come" o produto e sobra só um contorno fino — nesse caso não recorta
   const sobrou = total - removidos;
-  if (sobrou < total * 0.1 || sobrou < caixa.w * caixa.h * 0.4) return null;
+  // (produto pequeno no quadro é normal — imagem criada por IA deixa muita margem —, por isso o piso sobre a foto inteira é baixo)
+  if (sobrou < total * 0.02 || sobrou < caixa.w * caixa.h * 0.4) return null;
   return caixa;
 }
 

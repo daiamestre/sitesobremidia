@@ -8,7 +8,7 @@
  *   Pão francês 12,90/kg
  */
 
-export type FonteImagem = 'OPENFOODFACTS' | 'PEXELS' | 'PIXABAY' | 'UPLOAD';
+export type FonteImagem = 'OPENFOODFACTS' | 'PEXELS' | 'PIXABAY' | 'WIKIMEDIA' | 'OPENVERSE' | 'UPLOAD' | 'IA';
 
 export interface ImagemProduto {
   url: string;

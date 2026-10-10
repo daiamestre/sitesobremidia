@@ -12,47 +12,41 @@ import { chaveDoProduto, type FonteImagem, type ImagemProduto, type ProdutoTablo
 export interface CandidatoImagem extends ImagemProduto {
   miniatura: string;
   legenda: string;
+  /** Veredicto da IA de visão: a foto é mesmo o produto? (ausente = a conferência não rodou) */
+  conferido?: boolean;
 }
 
 /** Itens frescos/preparados: a foto de embalagem do Open Food Facts não serve, vale mais uma foto de banco de imagens. */
 const FRESCO = /\b(picanha|carne|bife|patinho|alcatra|contrafile|file|costela|coxa|frango|peixe|tilapia|camarao|linguica|salsicha|tomate|cebola|batata|alface|banana|maca|laranja|limao|uva|mamao|melancia|abacaxi|manga|cenoura|pepino|pimentao|verdura|fruta|legume|ovo|ovos|pao|bolo|salgado|coxinha|pizza|hamburguer|lanche|prato|marmita|feijoada|churrasco|sorvete|acai|suco|doce|torta|sushi|lasanha|queijo|presunto|mortadela|cerveja|chopp|caipirinha|vinho)\b/;
 
-const EMOJIS: Array<[RegExp, string]> = [
-  [/picanha|carne|bife|patinho|alcatra|contrafile|costela/, '🥩'], [/frango|coxa|sobrecoxa/, '🍗'], [/linguica|salsicha|calabresa/, '🌭'],
-  [/peixe|tilapia|sardinha|salmao|atum/, '🐟'], [/camarao/, '🍤'], [/tomate/, '🍅'], [/cebola/, '🧅'], [/batata/, '🥔'], [/cenoura/, '🥕'],
-  [/alface|verdura|couve|repolho|brocolis/, '🥬'], [/banana/, '🍌'], [/maca\b/, '🍎'], [/laranja|tangerina|mexerica/, '🍊'], [/limao/, '🍋'],
-  [/uva/, '🍇'], [/melancia/, '🍉'], [/abacaxi/, '🍍'], [/manga/, '🥭'], [/mamao/, '🥭'], [/morango/, '🍓'],
-  [/pao|baguete|croissant/, '🥖'], [/bolo|torta/, '🍰'], [/doce|brigadeiro|chocolate/, '🍫'], [/sorvete|picole/, '🍦'], [/cafe/, '☕'],
-  [/leite/, '🥛'], [/queijo/, '🧀'], [/ovo/, '🥚'], [/arroz/, '🍚'], [/feijao|feijoada/, '🫘'], [/macarrao|massa|lasanha/, '🍝'],
-  [/pizza/, '🍕'], [/hamburguer|burger|x-/, '🍔'], [/batata frita|fritas/, '🍟'], [/sushi/, '🍣'], [/refrigerante|coca|guarana|suco|agua/, '🥤'],
-  [/cerveja|chopp|long neck/, '🍺'], [/vinho/, '🍷'], [/caipirinha|drink/, '🍹'], [/dipirona|remedio|vitamina|capsula|comprimido|antibiotico|analgesico/, '💊'],
-  [/protetor|creme|hidratante/, '🧴'], [/shampoo|condicionador|sabonete/, '🧼'], [/consulta|exame|clinica|dentista|limpeza dental/, '🩺'],
-  [/racao|petisco|banho e tosa|pet/, '🐶'], [/areia/, '🐱'], [/cimento|tijolo|piso|porcelanato/, '🧱'], [/tinta/, '🎨'], [/torneira|ferramenta|furadeira/, '🔧'],
-  [/camiseta|camisa|blusa/, '👕'], [/calca|jeans|bermuda/, '👖'], [/vestido/, '👗'], [/tenis|sapato|sandalia/, '👟'],
-  [/corte|escova|manicure|pedicure|cabelo|massagem|estetica|pele/, '💇'], [/oleo|azeite/, '🫒'], [/acucar|sal\b|farinha/, '🧂'],
-];
-
-export function emojiDoProduto(nome: string, emojiPadrao = '🛒'): string {
-  const k = chaveDoProduto(nome);
-  for (const [re, e] of EMOJIS) if (re.test(k)) return e;
-  return emojiPadrao;
-}
-
 export function ehFresco(nome: string): boolean {
   return FRESCO.test(chaveDoProduto(nome));
 }
 
-/** Escolhe a melhor entre as fotos encontradas. */
-export function escolherMelhor(nome: string, cands: CandidatoImagem[]): CandidatoImagem | null {
-  if (!cands.length) return null;
-  const ordem: FonteImagem[] = ehFresco(nome) ? ['PEXELS', 'PIXABAY', 'OPENFOODFACTS'] : ['OPENFOODFACTS', 'PEXELS', 'PIXABAY'];
-  for (const fonte of ordem) {
-    const c = cands.find((x) => x.fonte === fonte);
-    if (c) return c;
-  }
-  return cands[0];
+/** Ordem de preferência entre fotos reais: embalagem/produto de catálogo primeiro; para frescos, foto de banco de imagens primeiro. */
+export function ordemDeFontes(nome: string): FonteImagem[] {
+  return ehFresco(nome)
+    ? ['WIKIMEDIA', 'PEXELS', 'PIXABAY', 'OPENVERSE', 'OPENFOODFACTS']
+    : ['OPENFOODFACTS', 'WIKIMEDIA', 'OPENVERSE', 'PEXELS', 'PIXABAY'];
 }
 
+/**
+ * Fotos reais aceitas, da melhor para a pior. Quando a IA de visão conferiu (veredicto presente), só entram as que ela
+ * confirmou ser o produto; quando a conferência não rodou, entram as que passaram no filtro de nome.
+ */
+export function fotosAceitas(nome: string, cands: CandidatoImagem[]): CandidatoImagem[] {
+  const conferiu = cands.some((c) => typeof c.conferido === 'boolean');
+  const base = conferiu
+    ? cands.filter((c) => c.conferido === true)
+    : cands.filter((c) => c.fonte === 'OPENFOODFACTS' || c.fonte === 'WIKIMEDIA' || (ehFresco(nome) && (c.fonte === 'PEXELS' || c.fonte === 'PIXABAY')));
+  const ordem = ordemDeFontes(nome);
+  return [...base].sort((x, y) => ordem.indexOf(x.fonte) - ordem.indexOf(y.fonte));
+}
+
+/** Escolhe a melhor entre as fotos encontradas (null = nenhuma serve). */
+export function escolherMelhor(nome: string, cands: CandidatoImagem[]): CandidatoImagem | null {
+  return fotosAceitas(nome, cands)[0] ?? null;
+}
 export async function buscarCandidatos(termo: string): Promise<CandidatoImagem[]> {
   const { data, error } = await supabase.functions.invoke('produto-imagem', { body: { termo } });
   if (error) return [];
@@ -81,6 +75,29 @@ export async function salvarNoCatalogo(nome: string, imagem: ImagemProduto, clie
   const { data } = await (clienteId ? filtro.eq('cliente_id', clienteId) : filtro.is('cliente_id', null)).select('id');
   if (data && data.length) return;
   await tabelaTabloide('tabloide_catalogo').insert({ nome_norm, nome, imagem_url: imagem.url, fonte: imagem.fonte, credito: imagem.credito ?? null, recortada: !!imagem.recortada, cliente_id: clienteId } as never);
+}
+
+/**
+ * F-174: cria a imagem do produto por IA (produto genérico, sem marca, fundo branco), recorta e guarda no nosso armazenamento.
+ * Devolve o motivo quando não dá (limite diário, cota da IA, falha).
+ */
+export async function gerarImagemIA(nome: string): Promise<{ imagem?: ImagemProduto; motivo?: string }> {
+  const { data, error } = await supabase.functions.invoke('produto-imagem', { body: { termo: nome, acao: 'gerar' } });
+  if (error || !data?.imagem) return { motivo: data?.motivo ?? 'A IA não conseguiu criar a imagem agora.' };
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id;
+    if (!uid) return { motivo: 'Sessão expirada. Entre novamente.' };
+    const bytes = Uint8Array.from(atob(String(data.imagem)), (c) => c.charCodeAt(0));
+    const original = new Blob([bytes], { type: 'image/jpeg' });
+    const temporaria = URL.createObjectURL(original);
+    const recortada = await recortarImagem(temporaria).finally(() => URL.revokeObjectURL(temporaria));
+    const arquivo = recortada ?? original;
+    const { publicUrl } = await uploadToR2(arquivo, `${uid}/tabloide/ia-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${recortada ? 'png' : 'jpg'}`, recortada ? 'image/png' : 'image/jpeg', uid);
+    return { imagem: { url: publicUrl, fonte: 'IA', credito: 'Imagem criada por IA', recortada: !!recortada } };
+  } catch {
+    return { motivo: 'Não foi possível guardar a imagem criada.' };
+  }
 }
 
 /**
@@ -126,10 +143,14 @@ export async function completarImagens(
       try {
         const cands = await buscarCandidatos(p.nome);
         const fresco = ehFresco(p.nome);
-        const reais = cands.filter((c) => c.fonte === 'OPENFOODFACTS');
-        // produto de marca/embalagem só recebe foto real do produto; banco de imagens é só para frescos e pratos
-        const lista = fresco ? [escolherMelhor(p.nome, cands)].filter((c): c is CandidatoImagem => !!c) : reais.slice(0, 4);
-        if (!lista.length) { aoAchar(p.id, null); continue; }
+        // só entra foto real que a IA de visão confirmou ser o produto; embalagem de marca vem do catálogo de produtos
+        const lista = fotosAceitas(p.nome, cands).slice(0, 4);
+        if (!lista.length) {
+          aoAchar(p.id, null); // sem foto real confirmada: a IA cria a imagem do produto
+          const criada = await gerarImagemIA(p.nome);
+          if (criada.imagem) { aoAchar(p.id, criada.imagem); void salvarNoCatalogo(p.nome, criada.imagem, clienteId); }
+          continue;
+        }
         const paraImagem = (c: CandidatoImagem): ImagemProduto => ({ url: c.url, fonte: c.fonte, credito: c.credito });
         aoAchar(p.id, paraImagem(lista[0])); // aparece na hora; o recorte troca em seguida
         let final = paraImagem(lista[0]);

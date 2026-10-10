@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, chaveDoProduto, formatarPreco } from '@/lib/tabloide/parseProdutos';
 import { montarPaginas, melhorGrade, medidasDoFormato } from '@/lib/tabloide/grade';
 import { FORMATOS, SEGMENTOS, TEMAS, temasDoSegmento, temaPorId, segmentoPorId, formatoPorId } from '@/lib/tabloide/temas';
-import { emojiDoProduto, ehFresco, escolherMelhor, type CandidatoImagem } from '@/lib/tabloide/imagens';
+import { ehFresco, escolherMelhor, fotosAceitas, type CandidatoImagem } from '@/lib/tabloide/imagens';
 import { TabloideCanvas, descontoPct } from '@/components/tabloide/TabloideCanvas';
 import { claridade, coresDoSelo, dividirTitulo, larguraDoPreco } from '@/lib/tabloide/selo3d';
 import { analisarFundo, recortarFundo } from '@/lib/tabloide/recorte';
@@ -151,13 +151,22 @@ describe('F-172 · foto do produto', () => {
     expect(ehFresco('Arroz 5kg')).toBe(false);
   });
 
-  it('sem foto boa, desenha o emoji do produto (ou do segmento)', () => {
-    expect(emojiDoProduto('Dipirona 500mg')).toBe('💊');
-    expect(emojiDoProduto('Picanha')).toBe('🥩');
-    expect(emojiDoProduto('Coisa estranha', '🐶')).toBe('🐶');
+  it('nunca usa desenho/emoji: sem foto real o cartão mostra espaço neutro', () => {
+    expect(fonte('src/lib/tabloide/imagens.ts')).not.toContain('emojiDoProduto');
+    expect(fonte('src/components/tabloide/TabloideCanvas.tsx')).not.toMatch(/emojiDoProduto|EmojiProduto/);
+    expect(fonte('src/components/tabloide/TabloideCanvas.tsx')).toContain('tabloide-sem-foto');
+  });
+
+  it('quando a IA de visão conferiu, só passam as fotos que ela confirmou; senão vale o filtro de nome', () => {
+    const c = (f: CandidatoImagem['fonte'], u: string, conferido?: boolean): CandidatoImagem => ({ ...cand(f, u), conferido });
+    const conferidas = [c('OPENFOODFACTS', 'a', false), c('WIKIMEDIA', 'b', true), c('PEXELS', 'c', false)];
+    expect(fotosAceitas('Vassoura', conferidas).map((x) => x.url)).toEqual(['b']);
+    expect(fotosAceitas('Vassoura', [c('OPENFOODFACTS', 'a', false), c('PEXELS', 'c', false)])).toEqual([]);
+    const semConferencia = [c('OPENVERSE', 'o'), c('PEXELS', 'p'), c('WIKIMEDIA', 'w'), c('OPENFOODFACTS', 'f')];
+    expect(fotosAceitas('Coca-Cola 2L', semConferencia).map((x) => x.url)).toEqual(['f', 'w']);
+    expect(fotosAceitas('Tomate kg', semConferencia).map((x) => x.url)).toEqual(['w', 'p', 'f']);
   });
 });
-
 describe('F-172 · cartaz', () => {
   it('desenha título, produtos, preços e o aviso de imagens ilustrativas', () => {
     const produtos = lerLista('Picanha kg R$ 49,90\nLeite de 6,50 por 4,99\nBolo de cenoura');
@@ -250,6 +259,56 @@ describe('F-173 · selo 3D, desconto e recorte de fundo', () => {
     const fn = fonte('supabase/functions/produto-imagem/index.ts');
     expect(fn).toContain('search.openfoodfacts.org');
     expect(fn).toContain('openbeautyfacts.org');
+  });
+});
+
+describe('F-174 · imagem criada por IA quando não há foto real', () => {
+  it('o serviço de IA só atende com o segredo e nunca escreve marca ou texto', () => {
+    const worker = fonte('cloudflare/tabloide-ia/worker.js');
+    expect(worker).toContain("req.headers.get('x-segredo') !== env.SEGREDO");
+    expect(worker).toContain("status: 401");
+    expect(worker).toContain('generic and unbranded');
+    expect(worker).toContain('No words, no letters');
+    expect(worker).toContain('pure white background');
+  });
+
+  it('nenhuma chave da Cloudflare vai para a função do Supabase nem para o site', () => {
+    const fn = fonte('supabase/functions/produto-imagem/index.ts');
+    expect(fn).not.toContain('CLOUDFLARE_API_TOKEN');
+    expect(fn).not.toContain('api.cloudflare.com');
+    expect(fn).toContain("Deno.env.get('TABLOIDE_IA_URL')");
+    expect(fn).toContain('tabloide_ia_registrar');
+    const front = fonte('src/lib/tabloide/imagens.ts') + fonte('src/components/tabloide/TabloideEditor.tsx') + fonte('src/components/tabloide/TabloideCanvas.tsx');
+    expect(front).not.toMatch(/CLOUDFLARE|TABLOIDE_IA_SEGREDO|TABLOIDE_IA_URL|workers\.dev/);
+    const publicar = fonte('scripts/ops/publicar-worker-ia.mjs');
+    expect(publicar).not.toMatch(/cfat_|[0-9a-f]{32}/);
+  });
+
+  it('há limite diário por pessoa e por empresa, e a foto do catálogo aceita a fonte IA', () => {
+    const sql = fonte('supabase/migrations/20261320_tabloide_imagem_ia.sql');
+    expect(sql).toContain("'IA'");
+    expect(sql).toContain('v_meu >= 25');
+    expect(sql).toContain('v_empresa >= 120');
+    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.tabloide_ia_registrar\(\) FROM PUBLIC, anon/);
+  });
+
+  it('a IA só entra para produto sem foto real, e o editor tem o botão "Criar com IA"', () => {
+    const img = fonte('src/lib/tabloide/imagens.ts');
+    expect(img.indexOf('if (!lista.length) {')).toBeGreaterThan(0);
+    expect(img.slice(img.indexOf('if (!lista.length) {'))).toContain('gerarImagemIA(p.nome)');
+    expect(fonte('src/components/tabloide/TabloideEditor.tsx')).toContain('tabloide-criar-ia');
+    expect(fonte('src/components/tabloide/TabloideCanvas.tsx')).toContain("IA: 'criadas por IA'");
+  });
+
+  it('produto pequeno no quadro (caso das imagens de IA) ainda é recortado', () => {
+    // produto ocupa ~6% da imagem
+    const w = 100; const h = 100;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dentro = x >= 40 && x < 60 && y >= 35 && y < 65;
+      data.set(dentro ? [30, 90, 60, 255] : [255, 255, 255, 255], (y * w + x) * 4);
+    }
+    expect(recortarFundo({ data, width: w, height: h })).toEqual({ x: 40, y: 35, w: 20, h: 30 });
   });
 });
 

@@ -20,7 +20,7 @@ import {
 } from '@/lib/tabloide/parseProdutos';
 import { FORMATOS, SEGMENTOS, TEMAS, TITULOS_PRONTOS, formatoPorId, segmentoPorId, temaPorId, temasDeDatas, temasDoSegmento, type SegmentoId } from '@/lib/tabloide/temas';
 import { GRADES_FIXAS, montarPaginas, rotuloGrade } from '@/lib/tabloide/grade';
-import { buscarCandidatos, completarImagens, emojiDoProduto, prepararImagem, salvarNoCatalogo, type CandidatoImagem } from '@/lib/tabloide/imagens';
+import { buscarCandidatos, completarImagens, gerarImagemIA, prepararImagem, salvarNoCatalogo, type CandidatoImagem } from '@/lib/tabloide/imagens';
 import { baixarBlob, nomeDeArquivo, renderizarPaginaEmPng } from '@/lib/tabloide/exportar';
 import { tabelaTabloide } from '@/lib/tabloide/db';
 import { TabloideCanvas } from './TabloideCanvas';
@@ -320,7 +320,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
                     <li key={p.id} className="flex items-center gap-2 rounded-lg border bg-background/50 p-2">
                       <button type="button" onClick={() => setTrocando(p)} title="Trocar a foto" aria-label={`Trocar a foto de ${p.nome}`}
                         className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-white text-2xl">
-                        {p.imagem ? <img src={p.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : emojiDoProduto(p.nome, segmento.emojiPadrao)}
+                        {p.imagem ? <img src={p.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="px-0.5 text-center text-[9px] font-bold leading-tight text-muted-foreground">{buscandoFotos ? 'buscando…' : 'sem foto'}</span>}
                       </button>
                       <div className="min-w-0 flex-1 space-y-1">
                         <Input aria-label="Nome do produto" className="h-8 text-sm" value={p.nome} onChange={(e) => atualizar(p.id, { nome: e.target.value })} />
@@ -460,7 +460,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
               {ocupado === 'enviar' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />} {contexto === 'portal' ? 'Enviar para minhas mídias' : 'Enviar para a biblioteca de mídias'}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">As fotos são ilustrativas e vêm do catálogo da sua conta, do Open Food Facts, do Pexels e do Pixabay. Clique na foto do produto para trocar ou enviar a sua.</p>
+          <p className="text-xs text-muted-foreground">As fotos são ilustrativas: foto real do produto quando existe (catálogo da sua conta e Open Food Facts), banco de imagens para frescos e, quando não há foto real, imagem criada por IA (produto genérico, sem marca). Clique na foto para trocar, criar com IA ou enviar a sua.</p>
         </div>
       </div>
 
@@ -495,6 +495,15 @@ function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: ProdutoTabloid
   const [termo, setTermo] = useState(produto.nome);
   const [cands, setCands] = useState<CandidatoImagem[] | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [criando, setCriando] = useState(false);
+
+  const criarComIA = async () => {
+    setCriando(true);
+    try {
+      const r = await gerarImagemIA(termo || produto.nome);
+      if (r.imagem) aoEscolher(r.imagem); else toast.error(r.motivo || 'A IA não conseguiu criar a imagem agora.');
+    } finally { setCriando(false); }
+  };
 
   const buscar = useCallback(async (t: string) => {
     setCands(null);
@@ -523,6 +532,9 @@ function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: ProdutoTabloid
         <div className="flex gap-2">
           <Input value={termo} onChange={(e) => setTermo(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar(termo)} aria-label="Buscar outra foto" />
           <Button variant="outline" onClick={() => buscar(termo)}>Buscar</Button>
+          <Button variant="outline" onClick={criarComIA} disabled={criando} data-testid="tabloide-criar-ia" title="Cria um produto genérico, sem marca">
+            {criando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />} {criando ? 'Criando (até 1 min)…' : 'Criar com IA'}
+          </Button>
           <label className="inline-flex h-10 cursor-pointer items-center gap-1 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground">
             {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Enviar a minha
             <input type="file" accept="image/*" className="hidden" onChange={(e) => enviar(e.target.files?.[0])} />

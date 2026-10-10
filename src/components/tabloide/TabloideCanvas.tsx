@@ -4,7 +4,6 @@
  * Estilo: selo 3D do título, faixa com o nome do produto, produto recortado e selo de preço.
  */
 import { useEffect, useRef, useState } from 'react';
-import { emojiDoProduto } from '@/lib/tabloide/imagens';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { medidasDoFormato, type Celula, type PaginaLayout } from '@/lib/tabloide/grade';
 import { coresDoSelo, desenharPreco, desenharSelo3D, larguraDoPreco, tom } from '@/lib/tabloide/selo3d';
@@ -12,7 +11,7 @@ import type { Formato, Segmento, Tema } from '@/lib/tabloide/temas';
 
 const FONTE = "'Arial Black','Segoe UI Black',Impact,system-ui,sans-serif";
 
-const NOMES_FONTE: Record<string, string> = { OPENFOODFACTS: 'Open Food Facts', PEXELS: 'Pexels', PIXABAY: 'Pixabay' };
+const NOMES_FONTE: Record<string, string> = { OPENFOODFACTS: 'Open Food Facts', PEXELS: 'Pexels', PIXABAY: 'Pixabay', WIKIMEDIA: 'Wikimedia Commons', OPENVERSE: 'Openverse', IA: 'criadas por IA' };
 
 /** Selo 3D do título (arte própria, desenhada no canvas). */
 function Selo3D({ titulo, tema, largura, altura }: { titulo: string; tema: Tema; largura: number; altura: number }) {
@@ -34,7 +33,7 @@ function FotoProduto({ produto, segmento, s }: { produto: ProdutoTabloide; segme
   if (img && !falhou) {
     // recortada: produto solto sobre o cartão; embalagem com fundo: moldura branca; foto de cenário: preenche a moldura
     const solta = !!img.recortada;
-    const embalagem = solta || img.fonte === 'OPENFOODFACTS' || img.fonte === 'UPLOAD';
+    const embalagem = solta || img.fonte === 'OPENFOODFACTS' || img.fonte === 'UPLOAD' || img.fonte === 'IA';
     return (
       <div style={{ width: '100%', height: '100%', background: solta ? 'transparent' : '#fff', borderRadius: s * 0.05, overflow: 'hidden' }}>
         <img
@@ -48,27 +47,10 @@ function FotoProduto({ produto, segmento, s }: { produto: ProdutoTabloide; segme
       </div>
     );
   }
-  return <EmojiProduto emoji={emojiDoProduto(produto.nome, segmento.emojiPadrao)} lado={Math.round(s * 0.5)} />;
-}
-
-/** Desenho de reserva (emoji) quando não há foto real do produto. */
-function EmojiProduto({ emoji, lado }: { emoji: string; lado: number }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const tela = ref.current;
-    if (!tela) return;
-    let ctx: CanvasRenderingContext2D | null = null;
-    try { ctx = tela.getContext('2d'); } catch { ctx = null; }
-    if (!ctx) return;
-    ctx.clearRect(0, 0, lado, lado);
-    ctx.font = `${lado * 0.78}px 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(emoji, lado / 2, lado * 0.54);
-  }, [emoji, lado]);
+  // sem foto real: nunca desenho/emoji. Espaço neutro; no editor o cliente vê o aviso e escolhe ou envia a foto.
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <canvas ref={ref} role="img" aria-label={emoji} data-testid="tabloide-emoji" width={lado} height={lado} style={{ width: lado, height: lado, maxWidth: '100%', maxHeight: '100%' }} />
+    <div data-testid="tabloide-sem-foto" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b8b8b8', fontSize: s * 0.09, fontWeight: 800, textAlign: 'center', lineHeight: 1.1, padding: s * 0.05 }}>
+      FOTO DO PRODUTO
     </div>
   );
 }

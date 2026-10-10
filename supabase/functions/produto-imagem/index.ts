@@ -13,7 +13,7 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-type Candidato = { url: string; miniatura: string; fonte: 'OPENFOODFACTS' | 'PEXELS' | 'PIXABAY'; credito: string; legenda: string };
+type Candidato = { url: string; miniatura: string; fonte: 'OPENFOODFACTS' | 'PEXELS' | 'PIXABAY' | 'WIKIMEDIA' | 'OPENVERSE'; credito: string; legenda: string; conferido?: boolean };
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -139,6 +139,61 @@ async function pexels(termo: string, ps: string[]): Promise<Candidato[]> {
     .filter((c: Candidato) => c.url);
 }
 
+/** Wikimedia Commons: fotos reais de objetos do dia a dia, com licença livre. */
+async function wikimedia(termo: string, ps: string[]): Promise<Candidato[]> {
+  const u = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=640&format=json&origin=*' +
+    `&gsrsearch=${encodeURIComponent(termo + ' filetype:bitmap')}`;
+  const r = await fetch(u, { headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0 (contato@sobremidia.com.br)' } });
+  if (!r.ok) return [];
+  const j = await r.json().catch(() => null);
+  return Object.values((j?.query?.pages ?? {}) as Record<string, any>)
+    .filter((p) => relacionado(String(p.title ?? ''), ps) && p.imageinfo?.[0]?.thumburl && !/\.(svg|gif|tiff?)$/i.test(String(p.title)))
+    .slice(0, 4)
+    .map((p) => ({
+      url: p.imageinfo[0].thumburl,
+      miniatura: p.imageinfo[0].thumburl,
+      fonte: 'WIKIMEDIA' as const,
+      credito: `Wikimedia Commons${p.imageinfo[0].extmetadata?.LicenseShortName?.value ? ' (' + String(p.imageinfo[0].extmetadata.LicenseShortName.value).slice(0, 20) + ')' : ''}`,
+      legenda: String(p.title ?? '').replace(/^File:/, '').slice(0, 80),
+    }));
+}
+
+/** Openverse: fotos reais (Flickr e outras) com licença livre. */
+async function openverse(termo: string, ps: string[]): Promise<Candidato[]> {
+  const r = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(termo)}&page_size=8&mature=false&category=photograph`, { headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0 (contato@sobremidia.com.br)' } });
+  if (!r.ok) return [];
+  const j = await r.json().catch(() => null);
+  return ((j?.results ?? []) as any[])
+    .filter((x) => relacionado(`${x.title ?? ''} ${(x.tags ?? []).map((g: any) => g.name).join(' ')}`, ps) && (x.thumbnail || x.url))
+    .slice(0, 3)
+    .map((x) => ({
+      url: x.url,
+      miniatura: x.thumbnail || x.url,
+      fonte: 'OPENVERSE' as const,
+      credito: `Foto: ${String(x.creator ?? 'autor desconhecido').slice(0, 30)} (${String(x.license ?? 'cc').toUpperCase()}${x.license_version ? ' ' + x.license_version : ''})`,
+      legenda: String(x.title ?? '').slice(0, 80),
+    }));
+}
+
+/** F-175: pede ao Worker de IA para olhar cada foto e dizer se é mesmo o produto. Sem resposta = sem veredicto (não derruba a busca). */
+async function conferirComIA(produto: string, cands: Candidato[]): Promise<void> {
+  const url = Deno.env.get('TABLOIDE_IA_URL');
+  const segredo = Deno.env.get('TABLOIDE_IA_SEGREDO');
+  // só roda depois que o Worker de IA foi atualizado com a conferência (TABLOIDE_IA_CONFERE=1); o Worker antigo gerava imagem em vez de conferir
+  if (!url || !segredo || !cands.length || Deno.env.get('TABLOIDE_IA_CONFERE') !== '1') return;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'x-segredo': segredo, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ acao: 'conferir', produto, imagens: cands.map((c) => c.miniatura || c.url) }),
+  }).catch(() => null);
+  const j = r?.ok ? await r.json().catch(() => null) : null;
+  if (!j?.resultados) return;
+  for (const c of cands) {
+    const v = j.resultados[c.miniatura || c.url];
+    if (typeof v === 'boolean') c.conferido = v;
+  }
+}
+
 async function pixabay(termo: string, ps: string[]): Promise<Candidato[]> {
   const chave = Deno.env.get('PIXABAY_API_KEY');
   if (!chave) return [];
@@ -158,25 +213,62 @@ async function pixabay(termo: string, ps: string[]): Promise<Candidato[]> {
     .filter((c: Candidato) => c.url);
 }
 
+/**
+ * F-174: cria a imagem do produto por IA quando não existe foto real.
+ * A geração roda num Worker dentro da Cloudflare do dono (cloudflare/tabloide-ia/worker.js, Workers AI);
+ * esta função só o chama com o segredo combinado — nenhum token da Cloudflare fica aqui.
+ * Sempre produto genérico, sem marca e sem texto, em fundo branco (o navegador recorta depois).
+ * Antes de gerar, o banco confere o limite diário da pessoa e da empresa (tabloide_ia_registrar).
+ */
+async function gerarPorIA(req: Request, termo: string): Promise<{ imagem?: string; motivo?: string }> {
+  const url = Deno.env.get('TABLOIDE_IA_URL');
+  const segredo = Deno.env.get('TABLOIDE_IA_SEGREDO');
+  if (!url || !segredo) return { motivo: 'A criação de imagem por IA não está configurada.' };
+  const limite = await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/tabloide_ia_registrar`, {
+    method: 'POST',
+    headers: { apikey: Deno.env.get('SUPABASE_ANON_KEY') ?? '', Authorization: req.headers.get('Authorization') ?? '', 'Content-Type': 'application/json' },
+    body: '{}',
+  }).then((r) => r.json()).catch(() => null);
+  if (!limite?.liberado) return { motivo: limite?.motivo ?? 'Não foi possível conferir o limite diário.' };
+  // o Worker traduz o nome e monta o pedido (objeto genérico, sem marca e sem texto, em fundo branco)
+  const r = await fetch(url, { method: 'POST', headers: { 'x-segredo': segredo, 'Content-Type': 'application/json' }, body: JSON.stringify({ produto: termo }) }).catch(() => null);
+  const j = r ? await r.json().catch(() => null) : null;
+  if (!r?.ok || !j?.image) {
+    // detalhe técnico (código e mensagem, nunca o segredo) para diagnóstico
+    const detalhe = `HTTP ${r?.status ?? 'sem resposta'} ${String(j?.erro ?? '').slice(0, 200)}`;
+    console.error('[produto-imagem] IA falhou:', detalhe);
+    return { motivo: r?.status === 429 ? 'A cota gratuita de imagens por IA acabou por hoje.' : 'A IA não conseguiu criar a imagem agora.', detalhe } as { motivo: string };
+  }
+  return { imagem: j.image, traduzido: j.nome } as { imagem: string };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const json = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
   try {
-    const { termo } = await req.json();
+    const { termo, acao } = await req.json();
     const t = String(termo ?? '').trim().slice(0, 80);
     if (t.length < 2) return json({ candidatos: [] });
+    if (acao === 'gerar') return json(await gerarPorIA(req, t));
     const ps = palavras(t);
     const consulta = ps.length ? ps.join(' ') : t;
-    const [off, obf, opff, opf, pex, pix] = await Promise.all([
+    const [off, obf, opff, opf, wik, ove, pex, pix] = await Promise.all([
       // alimentos: busca rápida primeiro; a antiga só entra se a rápida não achar nada
       comTempo(buscaRapida(t, ps).then((r) => (r.length ? r : openFoodFacts(t, ps))).catch(() => []), 14000),
       comTempo(openFoodFacts(t, ps, CATALOGOS[1]).catch(() => []), 9000),
       comTempo(openFoodFacts(t, ps, CATALOGOS[2]).catch(() => []), 9000),
       comTempo(openFoodFacts(t, ps, CATALOGOS[3]).catch(() => []), 9000),
+      comTempo(wikimedia(consulta, ps).catch(() => []), 9000),
+      comTempo(openverse(consulta, ps).catch(() => []), 9000),
       comTempo(pexels(consulta, ps).catch(() => []), 7000),
       comTempo(pixabay(consulta, ps).catch(() => []), 7000),
     ]);
-    return json({ candidatos: [...(off ?? []), ...(obf ?? []), ...(opff ?? []), ...(opf ?? []), ...(pex ?? []), ...(pix ?? [])] });
+    const todos = [...(off ?? []), ...(obf ?? []), ...(opff ?? []), ...(opf ?? []), ...(wik ?? []), ...(ove ?? []), ...(pex ?? []), ...(pix ?? [])];
+    // a IA olha as melhores de cada fonte (até 10) e diz quais são mesmo o produto
+    const porFonte = new Map<string, number>();
+    const aConferir = todos.filter((c) => { const n = (porFonte.get(c.fonte) ?? 0) + 1; porFonte.set(c.fonte, n); return n <= 3; }).slice(0, 10);
+    await comTempo(conferirComIA(t, aConferir), 40000);
+    return json({ candidatos: todos });
   } catch {
     return json({ candidatos: [], erro: 'consulta inválida' }, 400);
   }
