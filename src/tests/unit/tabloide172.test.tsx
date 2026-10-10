@@ -14,7 +14,7 @@ import { claridade, coresDoSelo, dividirTitulo, larguraDoPreco } from '@/lib/tab
 import { analisarFundo, caixaDoConteudo, recortarFundo } from '@/lib/tabloide/recorte';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { DATAS, pascoa, proximasDatas } from '@/lib/tabloide/datas';
-import { CATALOGO_INICIAL, CATEGORIAS, ajustarElemento, duplicarElemento, novoElemento, validarAlfa } from '@/lib/tabloide/selos';
+import { ajustarElemento, duplicarElemento, novoElemento, validarAlfa } from '@/lib/tabloide/selos';
 
 const fonte = (p: string) => readFileSync(p, 'utf8');
 
@@ -274,7 +274,8 @@ describe('F-173 · selo 3D, desconto e recorte de fundo', () => {
     expect(img).toContain("c.fonte === 'OPENFOODFACTS'");
     expect(img).toContain('prepararImagem');
     const editor = fonte('src/components/tabloide/TabloideEditor.tsx');
-    expect(fonte('src/components/tabloide/PainelSelos.tsx')).toContain('tabloide-enviar-selo');
+    // F-179: o envio de logo passou para o painel Temas (um caminho só)
+    expect(fonte('src/components/tabloide/PainelTemas.tsx')).toContain('testid="logo-enviar"');
     expect(editor).toContain('tabloide-exemplo');
     const fn = fonte('supabase/functions/produto-imagem/index.ts');
     expect(fn).toContain('search.openfoodfacts.org');
@@ -433,11 +434,10 @@ describe('F-177 · catálogo compartilhado e chave canônica do nome', () => {
 });
 
 describe('F-177 · biblioteca de selos 3D, camadas e datas', () => {
-  it('o catálogo inicial tem as 20 categorias pedidas, com identificador estável e único', () => {
-    expect(CATALOGO_INICIAL).toHaveLength(20);
-    for (const c of ['Ofertas do Dia', 'Ofertas da Semana', 'Ofertas do Mês', 'Super Oferta', 'Mega Promoção', 'Preço Baixo', 'Oferta Exclusiva', 'Ofertas Imperdíveis', 'Liquidação', 'Últimas Unidades', 'Leve Mais, Pague Menos', 'Black Friday', 'Oferta Relâmpago', 'Menor Preço', 'Preço Especial', 'Queima de Estoque', 'Lançamento', 'Só Hoje', 'Desconto Especial', 'Novidade']) expect(CATEGORIAS).toContain(c);
-    expect(new Set(CATALOGO_INICIAL.map((c) => c.slug)).size).toBe(20);
-    expect(CATALOGO_INICIAL.every((c) => /^[a-z0-9][a-z0-9-]{1,60}$/.test(c.slug))).toBe(true);
+  it('F-179: os selos simples desenhados em código saíram (ficam só as logos enviadas)', () => {
+    const lib = fonte('src/lib/tabloide/selos.ts');
+    expect(lib).not.toContain('CATALOGO_INICIAL');
+    expect(lib).not.toContain('CATEGORIAS');
   });
 
   function pixels(w: number, h: number, pintar: (x: number, y: number) => [number, number, number, number]) {
@@ -494,18 +494,17 @@ describe('F-177 · biblioteca de selos 3D, camadas e datas', () => {
     expect(sql).toMatch(/cliente_id IS NULL AND public\.is_central_privileged\(\)/);
   });
 
-  it('selo enviado pelo usuário nunca entra como "verificado": origem declarada e, sem transparência real, vai para revisão', () => {
+  it('imagem enviada pelo usuário nunca entra como "verificada": a origem e a licença ficam como declaradas por quem enviou', () => {
     const selos = fonte('src/lib/tabloide/selos.ts');
-    expect(selos).toContain("const estado = opcoes.alfa.transparente && opcoes.origemConhecida ? 'APROVADO' : 'REVISAO'");
-    expect(selos).toContain('Declarada pelo usuário (não verificada');
-    const painel = fonte('src/components/tabloide/PainelSelos.tsx');
-    expect(painel).toContain('origemConhecida: false');
-    expect(painel).toContain('Tirar do cartaz não apaga o selo da biblioteca');
+    expect(selos).toContain('Declarada por quem enviou (não verificada');
+    expect(selos).toContain('origem: opcoes.daEmpresa ? ORIGEM_CENTRAL : ORIGEM_UPLOAD');
+    // F-179 (pedido do dono): o envio é aceito na hora, sem fila de revisão
+    expect(selos).toContain("estado: 'APROVADO'");
   });
 
-  it('a barra lateral tem os botões do modelo (Produtos, Temas, Datas, Selos 3D, Sua Logo, Empresa, Formato)', () => {
+  it('a barra lateral tem os botões do modelo (F-179: Produtos, Temas, Datas, Sua Logo, Empresa, Fontes, Postar, Encarte, Portal)', () => {
     const editor = fonte('src/components/tabloide/TabloideEditor.tsx');
-    for (const r of ['Produtos', 'Temas', 'Datas', 'Selos 3D', 'Sua Logo', 'Empresa', 'Formato']) expect(editor).toContain(`rotulo: '${r}'`);
+    for (const r of ['Produtos', 'Temas', 'Datas', 'Sua Logo', 'Empresa', 'Fontes', 'Postar', 'Encarte', 'Portal']) expect(editor).toContain(`rotulo: '${r}'`);
     expect(editor).toContain('data-testid="tabloide-barra"');
     expect(editor).toContain('data-testid="tabloide-imprimir"');
     expect(editor).toContain('data-testid="tabloide-modelo"');

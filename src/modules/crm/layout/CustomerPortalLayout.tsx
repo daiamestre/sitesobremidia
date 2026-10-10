@@ -89,7 +89,7 @@ export default function CustomerPortalLayout() {
         { name: 'Produtos',        path: '/portal/produtos',  icon: ShoppingBasket },
         { name: 'Ofertas',         path: '/portal/ofertas',   icon: BadgePercent },
         { name: 'Encarte Digital', path: '/portal/encarte',   icon: BookOpen },
-        { name: 'Tabloide Digital', path: '/portal/tabloide', icon: Sparkles },
+        { name: 'Cartaz Digital', path: '/portal/tabloide', icon: Sparkles },
       ],
     },
     {

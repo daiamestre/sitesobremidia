@@ -1,5 +1,5 @@
 /**
- * Tabloide Digital (F-172) — foto automática do produto.
+ * Cartaz Digital (F-172) — foto automática do produto.
  * Ordem: 1) catálogo COMPARTILHADO da empresa (toda foto já achada ou escolhida por qualquer usuário, chave canônica do nome)
  * → 2) busca externa, só para produto que o sistema nunca viu → 3) imagem criada por IA. O cliente sempre pode trocar a foto.
  */

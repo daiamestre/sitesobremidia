@@ -1,5 +1,5 @@
 /**
- * Tabloide Digital (F-172) — distribui os produtos no cartaz (grade automática, grades fixas e destaques).
+ * Cartaz Digital (F-172) — distribui os produtos no cartaz (grade automática, grades fixas e destaques).
  * Tudo em pixels do tamanho de projeto do formato (1920×1080, 1080×1920...). O cartaz depois só é escalado.
  */
 import type { Formato } from './temas';
@@ -19,14 +19,15 @@ export interface Medidas {
   corpoA: number;
 }
 
-export function medidasDoFormato(f: Pick<Formato, 'largura' | 'altura'>): Medidas {
+export function medidasDoFormato(f: Pick<Formato, 'largura' | 'altura'>, linhasRodape = 1): Medidas {
   const { largura: l, altura: a } = f;
   const u = Math.min(l, a);
   const horizontal = l > a * 1.15;
   const pad = Math.round(u * 0.028);
   const gap = Math.round(u * 0.016);
   const cabecalho = Math.round(horizontal ? a * 0.2 : l > a * 0.95 ? a * 0.19 : a * 0.135);
-  const rodape = Math.round(u * 0.05);
+  // linhas a mais no rodapé: contato da loja (telefone, endereço, redes, pagamento) e advertência de medicamento
+  const rodape = Math.round(u * (0.05 + 0.038 * (Math.min(3, Math.max(1, linhasRodape)) - 1)));
   return {
     largura: l, altura: a, pad, gap, cabecalho, rodape,
     corpoX: pad, corpoY: cabecalho + gap, corpoL: l - pad * 2, corpoA: a - cabecalho - rodape - gap * 2 - pad * 0.4,
@@ -122,8 +123,8 @@ function montarPagina(itens: ProdutoTabloide[], m: Medidas, gradeId: string, des
 }
 
 /** Divide a lista em páginas e posiciona os produtos de cada uma. */
-export function montarPaginas(produtos: ProdutoTabloide[], formato: Pick<Formato, 'largura' | 'altura'>, gradeId: string, destaques: number): PaginaLayout[] {
-  const m = medidasDoFormato(formato);
+export function montarPaginas(produtos: ProdutoTabloide[], formato: Pick<Formato, 'largura' | 'altura'>, gradeId: string, destaques: number, linhasRodape = 1): PaginaLayout[] {
+  const m = medidasDoFormato(formato, linhasRodape);
   if (!produtos.length) return [{ celulas: [], cols: 1, rows: 1 }];
   const fixa = parseGrade(gradeId);
   const porPagina = fixa ? Math.max(1, fixa.cols * fixa.rows + Math.min(destaques, 2)) : LIMITE_AUTO + Math.min(destaques, 2);

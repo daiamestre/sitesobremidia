@@ -1,5 +1,5 @@
 /**
- * Tabloide Digital (F-177) — chave canônica do nome do produto.
+ * Cartaz Digital (F-177) — chave canônica do nome do produto.
  * "Coca-Cola 2L", "2 litros Coca Cola" e "coca cola 2 lt" viram a mesma chave, para a foto já guardada ser achada
  * na hora, não importa quem digitou nem em que ordem. Sem importações: o script de semeadura do catálogo usa este arquivo.
  */

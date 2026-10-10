@@ -1,5 +1,5 @@
 /**
- * Tabloide Digital (F-172) — exporta o cartaz em PNG no tamanho real do formato (ex.: 1920×1080).
+ * Cartaz Digital (F-172) — exporta o cartaz em PNG no tamanho real do formato (ex.: 1920×1080).
  * O cartaz é desenhado fora da tela, sem escala, e fotografado com html2canvas.
  */
 import { createRoot } from 'react-dom/client';
@@ -58,7 +58,7 @@ export function baixarBlob(blob: Blob, nome: string): void {
 }
 
 export function nomeDeArquivo(base: string, pagina: number, total: number): string {
-  const limpo = base.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tabloide';
+  const limpo = base.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'cartaz';
   return total > 1 ? `${limpo}-pagina-${pagina}.png` : `${limpo}.png`;
 }
 
@@ -71,7 +71,7 @@ export function imprimirBlobs(blobs: Blob[]): void {
   const doc = quadro.contentDocument;
   if (!doc) { quadro.remove(); urls.forEach((u) => URL.revokeObjectURL(u)); return; }
   doc.open();
-  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>Tabloide</title><style>@page{margin:0}html,body{margin:0}img{display:block;width:100%;page-break-after:always}</style></head><body>' + urls.map((u) => '<img src="' + u + '">').join('') + '</body></html>');
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>Cartaz</title><style>@page{margin:0}html,body{margin:0}img{display:block;width:100%;max-height:100vh;object-fit:contain;page-break-after:always;break-after:page}img:last-child{page-break-after:auto;break-after:auto}</style></head><body>' + urls.map((u) => '<img src="' + u + '">').join('') + '</body></html>');
   doc.close();
   const limpar = () => { setTimeout(() => { quadro.remove(); urls.forEach((u) => URL.revokeObjectURL(u)); }, 1500); };
   const imprimir = () => { quadro.contentWindow?.focus(); quadro.contentWindow?.print(); limpar(); };

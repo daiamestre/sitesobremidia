@@ -1,5 +1,5 @@
 /**
- * Tabloide Digital (F-172) — lê o que o cliente digitou: um produto por linha.
+ * Cartaz Digital (F-172) — lê o que o cliente digitou: um produto por linha.
  * Exemplos aceitos:
  *   Picanha kg R$ 49,90
  *   Arroz 5kg 25,90

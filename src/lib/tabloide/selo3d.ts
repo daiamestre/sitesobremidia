@@ -1,5 +1,5 @@
 /**
- * Tabloide Digital (F-173) — selo 3D do título ("OFERTAS / DA SEMANA"), desenhado por nós no canvas.
+ * Cartaz Digital (F-173) — selo 3D do título ("OFERTAS / DA SEMANA"), desenhado por nós no canvas.
  * É arte própria do SOBRE MÍDIA: placa com volume, aro dourado, letras com profundidade e faixa inclinada.
  * Qualquer título digitado vira selo 3D, em qualquer tema.
  */
@@ -257,12 +257,12 @@ export function larguraDoPreco(p: TextoPreco, grande: number): number {
 }
 
 /** Selo de preço com volume: "R$" pequeno, número grande, centavos e unidade ao lado. Encosta na direita do canvas. */
-export function desenharPreco(ctx: CanvasRenderingContext2D, largura: number, altura: number, p: TextoPreco, cor: string, corTexto: string): void {
+export function desenharPreco(ctx: CanvasRenderingContext2D, largura: number, altura: number, p: TextoPreco, cor: string, corTexto: string, fonteDe?: (tamanho: number) => string): void {
   ctx.clearRect(0, 0, largura, altura);
   const prof = Math.max(2, Math.round(altura * 0.07));
   const caixaA = altura - prof - 2;
   const g = caixaA / 1.16; // altura do número
-  const fonte = (t: number) => `900 ${t}px ${FONTE_SELO}`;
+  const fonte = fonteDe ?? ((t: number) => `900 ${t}px ${FONTE_SELO}`);
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
   if (p.inteiro == null) {

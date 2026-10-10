@@ -1,5 +1,5 @@
 /**
- * Tabloide Digital (F-173) — recorte de fundo da foto do produto, feito no próprio navegador (sem API).
+ * Cartaz Digital (F-173) — recorte de fundo da foto do produto, feito no próprio navegador (sem API).
  * Funciona quando o fundo é liso (branco, cinza, cor única), que é o caso das fotos de embalagem:
  * parte das bordas, apaga tudo que é "cor do fundo" e está ligado à borda, suaviza o contorno e corta as sobras.
  * Foto com cenário (mesa, prateleira, pessoa) não é mexida — continua emoldurada no cartaz.

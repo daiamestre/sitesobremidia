@@ -164,6 +164,7 @@ const AssetLibraryPage = lazyWithRetry(() => import("./modules/crm/pages/portal/
 const EncartePage = lazyWithRetry(() => import("./modules/crm/pages/portal/EncartePage"));
 const TabloidePage = lazyWithRetry(() => import("./modules/crm/pages/portal/TabloidePage"));
 const Tabloide = lazyWithRetry(() => import("./pages/dashboard/Tabloide"));
+const PortalOfertas = lazyWithRetry(() => import("./pages/PortalOfertas"));
 const BibliotecaIA = lazyWithRetry(() => import("./modules/crm/pages/portal/BibliotecaIA"));
 const PlaylistsClientePage = lazyWithRetry(() => import("./modules/crm/pages/portal/PlaylistsClientePage"));
 const MinhaEquipePage = lazyWithRetry(() => import("./modules/crm/pages/portal/MinhaEquipePage"));
@@ -236,6 +237,8 @@ const App = () => {
                   <Route path="/cobranca/:estabelecimentoSlug/:faturaSlug/:codigo" element={<PaginaCobranca />} />
                   <Route path="/cobranca/:codigo/:identificador" element={<PaginaCobranca />} />
                   <Route path="/cobranca/:codigo" element={<PaginaCobranca />} />
+                  {/* Cartaz Digital: página pública de ofertas da loja (F-179) */}
+                  <Route path="/ofertas/:slug" element={<PortalOfertas />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/corporate" element={<Auth />} />
                   <Route path="/auth/forgot-password" element={<ForgotPassword />} />

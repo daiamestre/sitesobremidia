@@ -1,5 +1,5 @@
 /**
- * Tabloide Digital (F-172) — segmentos do comércio, temas visuais e formatos.
+ * Cartaz Digital (F-172) — segmentos do comércio, temas visuais e formatos.
  * Os temas são desenhos próprios do SOBRE MÍDIA (CSS), pensados por segmento.
  */
 
@@ -113,7 +113,10 @@ export const segmentoPorId = (id: string): Segmento => SEGMENTOS.find((s) => s.i
 export const temasDoSegmento = (id: SegmentoId): Tema[] => TEMAS.filter((t) => t.grupo === id);
 export const temasDeDatas = (): Tema[] => TEMAS.filter((t) => t.grupo === 'data');
 
-export type FormatoId = 'feed' | 'story' | 'tv-h' | 'a4' | 'a4-h';
+export type FormatoId = 'feed' | 'feed-retrato' | 'story' | 'totem' | 'tv-h' | 'a4' | 'a4-h';
+
+/** Para que serve o modelo (agrupa a faixa "Modelos disponíveis"). */
+export type UsoDoFormato = 'tela' | 'rede' | 'impressao';
 
 export interface Formato {
   id: FormatoId;
@@ -121,14 +124,23 @@ export interface Formato {
   detalhe: string;
   largura: number;
   altura: number;
+  uso: UsoDoFormato;
 }
 
 export const FORMATOS: Formato[] = [
-  { id: 'tv-h', nome: 'TV horizontal', detalhe: '1920 × 1080 · telas e Player', largura: 1920, altura: 1080 },
-  { id: 'story', nome: 'TV vertical / Story', detalhe: '1080 × 1920 · totem, stories, reels', largura: 1080, altura: 1920 },
-  { id: 'feed', nome: 'Feed quadrado', detalhe: '1080 × 1080 · Instagram e Facebook', largura: 1080, altura: 1080 },
-  { id: 'a4', nome: 'Cartaz A4 vertical', detalhe: '1240 × 1754 · impressão', largura: 1240, altura: 1754 },
-  { id: 'a4-h', nome: 'Cartaz A4 horizontal', detalhe: '1754 × 1240 · impressão', largura: 1754, altura: 1240 },
+  { id: 'tv-h', nome: 'TV horizontal', detalhe: '1920 × 1080 · telas digitais e Player', largura: 1920, altura: 1080, uso: 'tela' },
+  { id: 'totem', nome: 'Totem / TV vertical', detalhe: '1080 × 1920 · totens e telas em pé', largura: 1080, altura: 1920, uso: 'tela' },
+  { id: 'story', nome: 'Story', detalhe: '1080 × 1920 · Instagram, Facebook e WhatsApp', largura: 1080, altura: 1920, uso: 'rede' },
+  { id: 'feed', nome: 'Feed quadrado', detalhe: '1080 × 1080 · Instagram e Facebook', largura: 1080, altura: 1080, uso: 'rede' },
+  { id: 'feed-retrato', nome: 'Feed retrato', detalhe: '1080 × 1350 · Instagram e Facebook', largura: 1080, altura: 1350, uso: 'rede' },
+  { id: 'a4', nome: 'Imprimir A4 em pé', detalhe: '1240 × 1754 · folha A4', largura: 1240, altura: 1754, uso: 'impressao' },
+  { id: 'a4-h', nome: 'Imprimir A4 deitado', detalhe: '1754 × 1240 · folha A4', largura: 1754, altura: 1240, uso: 'impressao' },
+];
+
+export const USOS_DO_FORMATO: Array<{ id: UsoDoFormato; nome: string }> = [
+  { id: 'tela', nome: 'Telas digitais e totens' },
+  { id: 'rede', nome: 'Redes sociais' },
+  { id: 'impressao', nome: 'Imprimir' },
 ];
 
 export const formatoPorId = (id: string): Formato => FORMATOS.find((f) => f.id === id) ?? FORMATOS[0];

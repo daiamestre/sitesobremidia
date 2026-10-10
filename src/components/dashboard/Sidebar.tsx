@@ -43,7 +43,7 @@ const menuItems = [
   { icon: Inbox, label: 'Central', path: '/dashboard/central' },
   { icon: Image, label: 'Minhas Mídias', path: '/dashboard/medias' },
   { icon: Library, label: 'Biblioteca de Mídias', path: '/dashboard/biblioteca' },
-  { icon: Sparkles, label: 'Tabloide Digital', path: '/dashboard/tabloide' },
+  { icon: Sparkles, label: 'Cartaz Digital', path: '/dashboard/tabloide' },
   { icon: ListVideo, label: 'Playlists', path: '/dashboard/playlists' },
   { icon: Monitor, label: 'Telas', path: '/dashboard/screens' },
   { icon: LayoutGrid, label: 'Widgets', path: '/dashboard/widgets' },

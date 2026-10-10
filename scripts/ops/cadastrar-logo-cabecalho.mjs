@@ -96,10 +96,10 @@ const origem = 'Arquivo fornecido pelo proprietário da SOBRE MÍDIA (logo do ca
 const licenca = 'Fornecida pelo proprietário; os direitos de uso não são verificados pelo sistema.';
 for (const empresa of EMPRESAS) {
   await sql(`update tabloide_selos set nome='${esc(nome)}', titulo='${esc(nome)}', imagem_url='${esc(urlOriginal)}', miniatura_url='${esc(urlMini)}', largura=${w}, altura=${h}, transparente=true, versao=${versao}, estado='APROVADO', origem='${esc(origem)}', licenca='${esc(licenca)}', ordem=${ORDEM}, updated_at=now()
-    where empresa_operadora_id='${empresa}' and cliente_id is null and slug='${esc(slug)}' and tipo='LOGO_CABECALHO'`);
+    where empresa_operadora_id='${empresa}' and cliente_id is null and dono_id is null and slug='${esc(slug)}' and tipo='LOGO_CABECALHO'`);
   await sql(`insert into tabloide_selos (empresa_operadora_id, cliente_id, slug, nome, categoria, titulo, imagem_url, miniatura_url, mime, largura, altura, transparente, versao, estado, origem, licenca, tipo, ordem)
     select '${empresa}', null, '${esc(slug)}', '${esc(nome)}', 'Logo do Cabeçalho', '${esc(nome)}', '${esc(urlOriginal)}', '${esc(urlMini)}', 'image/png', ${w}, ${h}, true, ${versao}, 'APROVADO', '${esc(origem)}', '${esc(licenca)}', 'LOGO_CABECALHO', ${ORDEM}
     where not exists (select 1 from tabloide_selos where empresa_operadora_id='${empresa}' and cliente_id is null and slug='${esc(slug)}')`);
 }
-const total = await sql(`select empresa_operadora_id e, count(*) n from tabloide_selos where tipo='LOGO_CABECALHO' and cliente_id is null group by 1 order by 1`);
+const total = await sql(`select empresa_operadora_id e, count(*) n from tabloide_selos where tipo='LOGO_CABECALHO' and cliente_id is null and dono_id is null group by 1 order by 1`);
 console.log(`cadastrada: "${nome}" (${slug}) versão ${versao}. Logos do cabeçalho por empresa:`, total.map((t) => `${t.e.slice(0, 8)}…=${t.n}`).join(' · '));

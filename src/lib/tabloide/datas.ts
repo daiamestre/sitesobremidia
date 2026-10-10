@@ -1,6 +1,6 @@
 /**
- * Tabloide Digital (F-177) — calendário de datas comemorativas do comércio.
- * Cada data aponta para um tema próprio e já sugere título e frase; o painel "Datas" lista as próximas.
+ * Cartaz Digital (F-177) — calendário de datas comemorativas do comércio.
+ * Cada data aponta para um tema próprio e já sugere título e frase; o painel "Temas" tem uma seção para cada uma, na ordem em que chegam.
  */
 
 export interface DataComemorativa {
