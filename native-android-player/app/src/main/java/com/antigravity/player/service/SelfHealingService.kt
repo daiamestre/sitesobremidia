@@ -103,7 +103,9 @@ class SelfHealingService : Service() {
                 Logger.w("KIOSK", "Foco ausente (${focusLossCounter * 2}s). Detectado: ${topActivity?.packageName}")
                 
                 // [RETORNO SOBERANO] Gatilho de 8 segundos (4 ciclos de 2s)
-                if (focusLossCounter >= 4) {
+                if (focusLossCounter >= 4 && com.antigravity.player.util.DeviceControl.instaladorDoSistemaAberto()) {
+                    focusLossCounter = 0 // F-183: instalador do Android aberto — deixa o usuário confirmar a atualização
+                } else if (focusLossCounter >= 4) {
                     Logger.e("KIOSK", "RETORNO SOBERANO: Forçando foco após 8s de ausência.")
                     forceFocusToFront(am)
                     focusLossCounter = 0

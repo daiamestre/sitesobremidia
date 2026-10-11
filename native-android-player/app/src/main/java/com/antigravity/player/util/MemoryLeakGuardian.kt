@@ -42,9 +42,8 @@ object MemoryLeakGuardian {
                 return true
             }
             
-            // Faxina Passiva Leve (Opcional, mas mantém a Heap enxuta em longo prazo)
-            // Chamamos mesmo com memória sobrando para evitar picos surpresas no futuro
-            System.gc()
+            // F-183: com memória sobrando NÃO se força coleta de lixo. O System.gc() completo travava a tela por instantes toda
+            // vez que a playlist dava a volta (no começo da primeira mídia), justo o engasgo que a faxina dizia evitar.
             return false
 
         } catch (e: Exception) {

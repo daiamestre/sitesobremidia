@@ -26,6 +26,10 @@ object DeviceControl {
     @Volatile
     var suppressExitCountUntilMs: Long = 0L
 
+    /** F-183: enquanto o instalador do Android está aberto (pedido de confirmação), o Player NÃO toma a tela de volta. */
+    @JvmStatic
+    fun instaladorDoSistemaAberto(): Boolean = System.currentTimeMillis() < suppressExitCountUntilMs
+
     fun enableKioskMode(activity: Activity) {
         // 1. Keep Screen On
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

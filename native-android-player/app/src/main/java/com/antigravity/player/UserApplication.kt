@@ -88,6 +88,9 @@ class UserApplication : Application() {
 
         setupCrashHandler()
         startSelfHealingService()
+
+        // F-183: pergunta por versão nova do aplicativo assim que ele abre (e a cada 15 min), em qualquer tela
+        com.antigravity.player.util.OtaCycle.start(this, applicationScope)
     }
 
     private fun setupCrashHandler() {

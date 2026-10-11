@@ -14,7 +14,8 @@ class BootReceiver : BroadcastReceiver() {
 
         if (action == Intent.ACTION_BOOT_COMPLETED ||
             action == "android.intent.action.QUICKBOOT_POWERON" ||
-            action == "com.htc.intent.action.QUICKBOOT_POWERON"
+            action == "com.htc.intent.action.QUICKBOOT_POWERON" ||
+            action == Intent.ACTION_MY_PACKAGE_REPLACED // F-183: acabou de ser atualizado — volta a tocar sem ninguém tocar na tela
         ) {
             Logger.i("BOOT_RECEIVER", "Iniciando Sobre Midia Player automaticamente...")
             

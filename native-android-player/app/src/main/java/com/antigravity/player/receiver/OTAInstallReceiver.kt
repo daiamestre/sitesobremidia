@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import com.antigravity.core.util.Logger
 import com.antigravity.player.ui.SplashActivity
+import com.antigravity.player.util.DeviceControl
+import com.antigravity.player.util.OtaStatus
 
 /**
  * SOBRE MÍDIA — OTA Install Status Receiver
@@ -21,6 +23,11 @@ class OTAInstallReceiver : BroadcastReceiver() {
         const val ACTION_INSTALL_STATUS = "com.antigravity.player.OTA_INSTALL_STATUS"
     }
 
+    /** O instalador desistiu: a tela mostra que não deu (o aparelho tenta de novo no próximo ciclo). */
+    private fun avisarFalha() {
+        OtaStatus.versaoEmInstalacao?.let { OtaStatus.definir(OtaStatus.Estado.Falhou(it)) }
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
         val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "No status message"
@@ -32,6 +39,9 @@ class OTAInstallReceiver : BroadcastReceiver() {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 Logger.w("OTA_INSTALL_RECEIVER", "Instalação exige ação do usuário (fallback para intent manual).")
                 val confirmationIntent = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                OtaStatus.versaoEmInstalacao?.let { OtaStatus.definir(OtaStatus.Estado.AguardandoConfirmacao(it)) }
+                // o instalador do Android é parte do trabalho do próprio Player: não conta como saída do usuário
+                DeviceControl.suppressExitCountUntilMs = System.currentTimeMillis() + 180_000L
                 if (confirmationIntent != null) {
                     confirmationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     try {
@@ -57,41 +67,49 @@ class OTAInstallReceiver : BroadcastReceiver() {
 
             PackageInstaller.STATUS_FAILURE -> {
                 Logger.e("OTA_INSTALL_RECEIVER", "❌ OTA INSTALL FAILED (STATUS_FAILURE): $message")
+                avisarFalha()
                 recordRollbackTelemetry(status, message)
             }
 
             PackageInstaller.STATUS_FAILURE_ABORTED -> {
                 Logger.w("OTA_INSTALL_RECEIVER", "⚠️ OTA INSTALL ABORTED: Instalação abortada pelo sistema ou usuário: $message")
+                avisarFalha()
                 recordRollbackTelemetry(status, message)
             }
 
             PackageInstaller.STATUS_FAILURE_BLOCKED -> {
                 Logger.e("OTA_INSTALL_RECEIVER", "❌ OTA INSTALL BLOCKED: Instalação bloqueada por política ou administrador: $message")
+                avisarFalha()
                 recordRollbackTelemetry(status, message)
             }
 
             PackageInstaller.STATUS_FAILURE_CONFLICT -> {
                 Logger.e("OTA_INSTALL_RECEIVER", "❌ OTA INSTALL CONFLICT: Conflito com pacote existente ($otherPackage): $message")
+                avisarFalha()
                 recordRollbackTelemetry(status, message)
             }
 
             PackageInstaller.STATUS_FAILURE_INCOMPATIBLE -> {
                 Logger.e("OTA_INSTALL_RECEIVER", "❌ OTA INSTALL INCOMPATIBLE: APK incompatível com hardware/SDK (ABI/minSdk): $message")
+                avisarFalha()
                 recordRollbackTelemetry(status, message)
             }
 
             PackageInstaller.STATUS_FAILURE_INVALID -> {
                 Logger.e("OTA_INSTALL_RECEIVER", "❌ OTA INSTALL INVALID: APK corrompido, assinatura inválida ou parse falhou: $message")
+                avisarFalha()
                 recordRollbackTelemetry(status, message)
             }
 
             PackageInstaller.STATUS_FAILURE_STORAGE -> {
                 Logger.e("OTA_INSTALL_RECEIVER", "❌ OTA INSTALL STORAGE: Espaço em disco insuficiente no dispositivo: $message")
+                avisarFalha()
                 recordRollbackTelemetry(status, message)
             }
 
             else -> {
                 Logger.w("OTA_INSTALL_RECEIVER", "Status desconhecido recebido do PackageInstaller: $status ($message)")
+                avisarFalha()
                 recordRollbackTelemetry(status, message)
             }
         }

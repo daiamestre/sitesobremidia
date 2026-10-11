@@ -7,13 +7,17 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
 import com.antigravity.core.util.Logger
+import com.antigravity.player.util.OtaPolicy.Resultado
+import com.antigravity.player.util.OtaStatus.Estado
 import com.antigravity.sync.service.MediaDownloader
 import com.antigravity.sync.service.RemoteDataSource
+import com.antigravity.sync.service.SessionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * [INDUSTRIAL] OTA UPDATE MANAGER
@@ -25,7 +29,11 @@ import java.security.MessageDigest
  * - Integridade por SHA-256: o APK só é instalado se o hash baixado
  *   bater com o hash publicado na tabela app_releases.sha256.
  * - Anti-downgrade: apenas version_code MAIOR que o instalado.
- * - Instalação SEMPRE via FileProvider (sem root, sem su).
+ * - Instalação SEMPRE via FileProvider/PackageInstaller (sem root, sem su).
+ *
+ * F-183 — o aparelho AVISA NA TELA (OtaStatus) que está atualizando e para qual versão; pergunta por versão nova logo ao abrir
+ * e a cada 15 minutos; não baixa de novo o que já baixou; instala por sessão do PackageInstaller (silencioso em Device Owner e,
+ * no Android 12+, quando este app foi quem instalou a versão atual).
  */
 class OTAUpdateManager(
     private val context: Context,
@@ -33,11 +41,23 @@ class OTAUpdateManager(
     private val downloader: MediaDownloader
 ) {
 
-    suspend fun checkForUpdates() = withContext(Dispatchers.IO) {
+    companion object {
+        /** Uma checagem por vez em todo o processo (o gerenciador é recriado a cada uso). */
+        private val emAndamento = AtomicBoolean(false)
+        private const val PREFS = "ota_prefs"
+        private const val CHAVE_ULTIMO_PEDIDO = "ultimo_pedido_instalacao_ms"
+    }
+
+    suspend fun checkForUpdates(): Resultado = withContext(Dispatchers.IO) {
+        if (!emAndamento.compareAndSet(false, true)) return@withContext Resultado.ATUALIZANDO
         try {
             Logger.i("OTA", "Checking for remote updates...")
-            val latest = remoteDataSource.getLatestAppRelease() ?: return@withContext
-            
+            val resposta = remoteDataSource.fetchLatestAppRelease()
+            val latest = resposta.getOrElse {
+                Logger.w("OTA", "Sem resposta do servidor de versões: ${it.message}")
+                return@withContext Resultado.SEM_RESPOSTA
+            } ?: return@withContext Resultado.EM_DIA
+
             val currentVersionCode = getCurrentVersionCode()
             Logger.d("OTA", "Current Version: $currentVersionCode | Remote: ${latest.versionCode}")
 
@@ -46,9 +66,13 @@ class OTAUpdateManager(
                 downloadAndInstall(latest.apkUrl, latest.versionName, latest.sha256)
             } else {
                 Logger.d("OTA", "App is up to date. (anti-downgrade: remote <= current é ignorado)")
+                Resultado.EM_DIA
             }
         } catch (e: Exception) {
             Logger.e("OTA", "Update check failed: ${e.message}")
+            Resultado.FALHOU
+        } finally {
+            emAndamento.set(false)
         }
     }
 
@@ -66,53 +90,88 @@ class OTAUpdateManager(
         }
     }
 
-    private suspend fun downloadAndInstall(url: String, versionName: String, expectedSha256: String?) {
+    /** Conta ao painel (screens.status_note) em que pé está a atualização deste aparelho. */
+    private suspend fun informarPainel(texto: String) {
+        try {
+            val tela = SessionManager.currentUUID ?: return
+            remoteDataSource.updateScreenActionStatus(tela, "AppUpdate", texto)
+        } catch (e: Exception) {
+            Logger.w("OTA", "Não foi possível avisar o painel: ${e.message}")
+        }
+    }
+
+    private fun falhou(versao: String, motivo: String): Resultado {
+        Logger.e("OTA", motivo)
+        OtaStatus.definir(Estado.Falhou(versao))
+        return Resultado.FALHOU
+    }
+
+    private suspend fun downloadAndInstall(url: String, versionName: String, expectedSha256: String?): Resultado {
         try {
             // [SECURITY] HTTPS obrigatório — nunca instalar APK vindo de HTTP
             if (!url.startsWith("https://")) {
-                Logger.e("OTA", "REJECTED: APK URL não é HTTPS. OTA abortado. URL=$url")
-                return
+                return falhou(versionName, "REJECTED: APK URL não é HTTPS. OTA abortado. URL=$url")
             }
 
             // [SECURITY] Hash ausente = release não publicável com integridade.
             // Bloqueia o download (fail-safe): melhor não instalar do que
             // instalar um APK não verificado.
             if (expectedSha256 == null || !expectedSha256.matches(Regex("^[a-fA-F0-9]{64}$"))) {
-                Logger.e("OTA", "REJECTED: release sem sha256 válido. OTA abortado.")
-                return
+                return falhou(versionName, "REJECTED: release sem sha256 válido. OTA abortado.")
             }
 
             val apkFile = File(context.getExternalFilesDir(null), "update_$versionName.apk")
-            if (apkFile.exists()) apkFile.delete()
-            
-            // [P1-01] Storage Guard
-            val usableSpace = context.getExternalFilesDir(null)?.usableSpace ?: 0L
-            if (usableSpace < 250_000_000L) { // 250 MB
-                Logger.e("OTA", "STORAGE GUARD: Espaço insuficiente para OTA. Disponível: ${usableSpace / 1024 / 1024}MB. Exigido: 250MB.")
-                return
-            }
 
-            Logger.i("OTA", "Downloading update to: ${apkFile.absolutePath}")
+            // Já baixado e íntegro (instalador aguardando toque): não baixa de novo e não reabre o instalador toda hora.
+            val jaBaixado = apkFile.exists() && apkFile.length() > 0L && sha256Of(apkFile).equals(expectedSha256, ignoreCase = true)
+            if (jaBaixado) {
+                val agora = System.currentTimeMillis()
+                val ultimo = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(CHAVE_ULTIMO_PEDIDO, 0L)
+                if (!OtaPolicy.podePedirInstalacao(ultimo, agora)) {
+                    Logger.i("OTA", "Versão $versionName já baixada e aguardando a instalação; não reabro o instalador agora.")
+                    OtaStatus.definir(Estado.AguardandoConfirmacao(versionName))
+                    return Resultado.ATUALIZANDO
+                }
+                Logger.i("OTA", "Versão $versionName já baixada e verificada: indo direto à instalação.")
+            } else {
+                if (apkFile.exists()) apkFile.delete()
 
-            val result = downloader.downloadFile(url, apkFile)
-            if (result.isFailure) {
-                Logger.e("OTA", "Download failed: ${result.exceptionOrNull()?.message}")
-                return
-            }
+                // [P1-01] Storage Guard
+                val usableSpace = context.getExternalFilesDir(null)?.usableSpace ?: 0L
+                if (usableSpace < 250_000_000L) { // 250 MB
+                    return falhou(versionName, "STORAGE GUARD: Espaço insuficiente para OTA. Disponível: ${usableSpace / 1024 / 1024}MB. Exigido: 250MB.")
+                }
 
-            if (!apkFile.exists() || apkFile.length() == 0L) {
-                Logger.e("OTA", "Downloaded file is empty or missing.")
-                return
-            }
+                Logger.i("OTA", "Downloading update to: ${apkFile.absolutePath}")
+                OtaStatus.definir(Estado.Baixando(versionName, null))
+                informarPainel("$versionName: baixando")
 
-            // [SECURITY] Verificação de integridade SHA-256
-            val actualSha256 = sha256Of(apkFile)
-            if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
-                Logger.e("OTA", "INTEGRITY FAIL: sha256 diverge. Esperado=$expectedSha256 Obtido=$actualSha256")
-                apkFile.delete()
-                return
+                var ultimoPct = -1
+                val result = downloader.downloadFile(url, apkFile) { lido, total ->
+                    if (total > 0) {
+                        val pct = (lido * 100 / total).toInt().coerceIn(0, 100)
+                        if (pct >= ultimoPct + 2 || pct == 100) {
+                            ultimoPct = pct
+                            OtaStatus.definir(Estado.Baixando(versionName, pct))
+                        }
+                    }
+                }
+                if (result.isFailure) {
+                    return falhou(versionName, "Download failed: ${result.exceptionOrNull()?.message}")
+                }
+
+                if (!apkFile.exists() || apkFile.length() == 0L) {
+                    return falhou(versionName, "Downloaded file is empty or missing.")
+                }
+
+                // [SECURITY] Verificação de integridade SHA-256
+                val actualSha256 = sha256Of(apkFile)
+                if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+                    apkFile.delete()
+                    return falhou(versionName, "INTEGRITY FAIL: sha256 diverge. Esperado=$expectedSha256 Obtido=$actualSha256")
+                }
+                Logger.i("OTA", "SHA-256 verificado com sucesso.")
             }
-            Logger.i("OTA", "SHA-256 verificado com sucesso.")
 
             // [SECURITY FASE F] Verificação de ASSINATURA do APK (cert pin):
             // quando OTA_RELEASE_CERT_SHA256 está configurado (keystore.properties),
@@ -122,16 +181,14 @@ class OTAUpdateManager(
             val pinnedCert = com.antigravity.player.BuildConfig.OTA_RELEASE_CERT_SHA256
             if (pinnedCert.isNotBlank()) {
                 if (!pinnedCert.matches(Regex("^[a-fA-F0-9]{64}$"))) {
-                    Logger.e("OTA", "REJECTED: OTA_RELEASE_CERT_SHA256 inválido (64 hex exigido).")
                     apkFile.delete()
-                    return
+                    return falhou(versionName, "REJECTED: OTA_RELEASE_CERT_SHA256 inválido (64 hex exigido).")
                 }
                 val apkCertSha256 = apkSigningCertSha256(apkFile)
                 if (apkCertSha256 == null || !apkCertSha256.equals(pinnedCert, ignoreCase = true)) {
-                    Logger.e("OTA", "SIGNATURE FAIL: certificado do APK diverge do pin. " +
-                        "Esperado=$pinnedCert Obtido=$apkCertSha256. Instalação bloqueada.")
                     apkFile.delete()
-                    return
+                    return falhou(versionName, "SIGNATURE FAIL: certificado do APK diverge do pin. " +
+                        "Esperado=$pinnedCert Obtido=$apkCertSha256. Instalação bloqueada.")
                 }
                 Logger.i("OTA", "Assinatura do APK verificada contra o pin de produção.")
             } else {
@@ -139,9 +196,13 @@ class OTAUpdateManager(
                     "Integridade SHA-256 mantida; configure o pin para produção.")
             }
 
+            OtaStatus.definir(Estado.Instalando(versionName))
+            informarPainel("$versionName: instalando")
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(CHAVE_ULTIMO_PEDIDO, System.currentTimeMillis()).apply()
             installApk(apkFile)
+            return Resultado.ATUALIZANDO
         } catch (e: Exception) {
-            Logger.e("OTA", "Download/Install sequence failed: ${e.message}")
+            return falhou(versionName, "Download/Install sequence failed: ${e.message}")
         }
     }
 
@@ -196,33 +257,59 @@ class OTAUpdateManager(
         }
     }
 
+    /** Instala pelo PackageInstaller (sessão): silencioso em Device Owner; nos outros, o Android pede a confirmação na tela. */
     private fun installApk(file: File) {
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
-        if (dpm.isDeviceOwnerApp(context.packageName)) {
-            installApkSilently(file)
-        } else {
-            installApkWithIntent(file)
+        val donoDoAparelho = dpm.isDeviceOwnerApp(context.packageName)
+        // F-183: sem a permissão "instalar apps desconhecidos" o Android recusa a instalação (e o aparelho ficava mudo)
+        if (!donoDoAparelho && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+            Logger.w("OTA", "Sem permissão de instalar apps desconhecidos: abrindo a tela de configuração do Android.")
+            OtaStatus.versaoEmInstalacao?.let { OtaStatus.definir(Estado.PrecisaPermissao(it)) }
+            DeviceControl.suppressExitCountUntilMs = System.currentTimeMillis() + 180_000L
+            try {
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (e: Exception) {
+                Logger.e("OTA", "Tela de permissão indisponível neste aparelho: ${e.message}")
+            }
+            return
         }
+        if (donoDoAparelho) Logger.i("OTA", "Device Owner detected. Starting Silent Install via PackageInstaller.")
+        else Logger.i("OTA", "Instalação por sessão do PackageInstaller (silenciosa no Android 12+ se este app instalou a versão atual; senão o Android pede confirmação).")
+        installApkBySession(file)
     }
 
-    private fun installApkSilently(file: File) {
+    /** Para testes no aparelho (androidTest): instala um APK local pelo mesmo caminho da atualização. */
+    @androidx.annotation.VisibleForTesting
+    internal fun instalarArquivoParaTeste(file: File, versao: String) {
+        OtaStatus.definir(Estado.Instalando(versao))
+        installApk(file)
+    }
+
+    private fun installApkBySession(file: File) {
         try {
-            Logger.i("OTA", "Device Owner detected. Starting Silent Install via PackageInstaller.")
             val packageInstaller = context.packageManager.packageInstaller
+            // pedidos antigos que ninguém confirmou não ficam acumulados
+            for (antiga in packageInstaller.mySessions) {
+                try { packageInstaller.abandonSession(antiga.sessionId) } catch (_: Exception) { /* já encerrada */ }
+            }
             val params = android.content.pm.PackageInstaller.SessionParams(android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setAppPackageName(context.packageName)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 params.setRequireUserAction(android.content.pm.PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             }
             val sessionId = packageInstaller.createSession(params)
             val session = packageInstaller.openSession(sessionId)
-            
+
             val out = session.openWrite("package", 0, -1)
             val input = FileInputStream(file)
             input.copyTo(out)
             session.fsync(out)
             input.close()
             out.close()
-            
+
             // Receptor canônico dedicado para telemetria e governança do PackageInstaller
             val intent = Intent(context, com.antigravity.player.receiver.OTAInstallReceiver::class.java).apply {
                 action = com.antigravity.player.receiver.OTAInstallReceiver.ACTION_INSTALL_STATUS
@@ -236,7 +323,7 @@ class OTAUpdateManager(
             session.commit(pendingIntent.intentSender)
             Logger.i("OTA", "PackageInstaller session committed with canonical OTAInstallReceiver callback.")
         } catch (e: Exception) {
-            Logger.e("OTA", "Silent install failed: ${e.message}")
+            Logger.e("OTA", "Instalação por sessão falhou: ${e.message}. Usando o instalador do sistema.")
             installApkWithIntent(file)
         }
     }
@@ -254,14 +341,16 @@ class OTAUpdateManager(
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            
+
             // [EXIT COUNTER P0] O instalador externo e configuracao necessaria do
             // proprio Player: nao conta como saida/abandono do usuario.
-            DeviceControl.suppressExitCountUntilMs = System.currentTimeMillis() + 120_000L
+            DeviceControl.suppressExitCountUntilMs = System.currentTimeMillis() + 180_000L
+            OtaStatus.versaoEmInstalacao?.let { OtaStatus.definir(Estado.AguardandoConfirmacao(it)) }
             context.startActivity(intent)
             Logger.i("OTA", "Installation intent fired successfully.")
         } catch (e: Exception) {
             Logger.e("OTA", "Failed to fire installation intent: ${e.message}")
+            OtaStatus.versaoEmInstalacao?.let { OtaStatus.definir(Estado.Falhou(it)) }
         }
     }
 }

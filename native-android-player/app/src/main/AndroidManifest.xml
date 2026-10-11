@@ -112,6 +112,10 @@
                 <action android:name="android.intent.action.REBOOT" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <!-- F-183: depois de atualizado, o aplicativo reabre sozinho (o Android o encerra ao trocar a versão) -->
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
         </receiver>
 
         <receiver

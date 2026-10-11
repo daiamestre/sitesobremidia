@@ -19,8 +19,11 @@ Kotlin, `compileSdk 34`, `minSdk 23`, Media3 1.2.1, Room 2.6.1, Supabase Kotlin 
 - JDK: `C:/Program Files/Android/Android Studio/jbr`. SDK: `%LOCALAPPDATA%/Android/Sdk`.
 
 ## OTA
-- O Player consulta `app_releases`, recusa versão menor ou igual (sem downgrade) e baixa em segundo plano **sem parar a reprodução**.
-- Confere o SHA-256 (64 hex) e instala. Com Device Owner é silencioso; nos demais aparelhos, pelo instalador do sistema.
+- O Player pergunta a versão mais nova pela função pública `get_latest_app_release()` (não precisa de login) **ao abrir o aplicativo** e a cada 15 minutos (`util/OtaCycle.kt`); recusa versão menor ou igual (sem downgrade) e baixa em segundo plano **sem parar a reprodução**. Pelo painel: comando `update_app`.
+- Confere o SHA-256 (64 hex) e instala. Com Device Owner é silencioso; nos demais aparelhos o Android pede um toque em "Instalar" (o Player não cobre o instalador por 3 minutos) e, se faltar a permissão "instalar apps desconhecidos", o Player abre a tela do Android onde ela é ligada.
+- **Aviso na tela** (`util/OtaStatus.kt`, faixa `ota_banner`): baixando N%, instalando, "confirme a instalação", "ative Permitir desta fonte", "Aplicativo atualizado para a versão X", falha.
+- Depois de trocado, o aplicativo reabre sozinho (`BootReceiver` + `MY_PACKAGE_REPLACED`).
+- Ensaio no emulador: `androidTest/OtaInstalacaoTest.kt` com um APK de `VERSION_CODE` maior.
 - Hash diferente ou falha na instalação: o arquivo é apagado e o Player fica na versão atual.
 
 ## Canário (antes de todo OTA)

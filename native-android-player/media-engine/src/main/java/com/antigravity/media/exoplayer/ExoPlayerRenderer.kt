@@ -159,8 +159,8 @@ class ExoPlayerRenderer(
                             Player.STATE_ENDED -> {
                                 _playbackState.value = RendererState.ENDED
                                 if (lastMediaDurationMs > HEAVY_MEDIA_DURATION_MS) {
-                                    Logger.i("PLAYER_$instanceName", "Heavy media ended. Memory hygiene.")
-                                    System.gc()
+                                    // F-183: sem System.gc() aqui: coleta forçada na troca de mídia congelava o início da próxima
+                                    Logger.i("PLAYER_$instanceName", "Heavy media ended.")
                                 }
                                 onPlaybackEnded?.invoke(true)
                             }

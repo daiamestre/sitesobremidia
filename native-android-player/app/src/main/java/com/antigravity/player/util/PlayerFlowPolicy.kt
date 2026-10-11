@@ -162,6 +162,14 @@ object PlayerFlowPolicy {
         if (syncSucceeded) "executed" to null
         else "failed" to ("Falha ao atualizar o player: " + (error?.takeIf { it.isNotBlank() } ?: "sem conexão ou sem resposta do servidor"))
 
+    /** O painel (tela física) está com a orientação trocada em relação à playlist? Então o quadro precisa girar por software. */
+    fun precisaGirarQuadroPorSoftware(larguraDoPainel: Int, alturaDoPainel: Int, orientacaoDaPlaylist: String?): Boolean {
+        if (larguraDoPainel <= 0 || alturaDoPainel <= 0) return false
+        val painelDeitado = larguraDoPainel >= alturaDoPainel
+        val playlistDeitada = orientacaoDaPlaylist != "portrait"
+        return painelDeitado != playlistDeitada
+    }
+
     /** Como o canvas (toda a tela do player) deve ser desenhado: tamanho, rotação e deslocamento. */
     data class CanvasTransform(val width: Int, val height: Int, val rotation: Float, val translationX: Float, val translationY: Float)
 

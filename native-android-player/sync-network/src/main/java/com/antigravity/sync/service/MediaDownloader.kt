@@ -37,7 +37,7 @@ class MediaDownloader {
         }
     }
 
-    suspend fun downloadFile(url: String, outputFile: File): Result<File> {
+    suspend fun downloadFile(url: String, outputFile: File, onProgress: ((lido: Long, total: Long) -> Unit)? = null): Result<File> {
         return withContext(Dispatchers.IO) {
             val tmpFile = File(outputFile.parentFile, "${outputFile.name}.tmp")
             try {
@@ -81,6 +81,7 @@ class MediaDownloader {
                             if (read <= 0) break
                             fos.write(buffer, 0, read)
                             totalRead += read
+                            onProgress?.invoke(totalRead, expectedSize)
                         }
                         fos.flush()
                         fos.fd.sync() // FORÇA A GRAVAÇÃO NO DISCO DO EMULADOR

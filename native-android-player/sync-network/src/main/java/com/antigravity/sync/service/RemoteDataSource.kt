@@ -47,7 +47,7 @@ class RemoteDataSource {
 
     private companion object {
         const val COMMAND_POLL_MAX_AGE_MS = 120_000L
-        val COMMAND_POLL_SAFE = listOf("screenshot", "reload", "reboot")
+        val COMMAND_POLL_SAFE = listOf("screenshot", "reload", "reboot", "update_app")
     }
 
     /**
@@ -1064,6 +1064,21 @@ class RemoteDataSource {
             Logger.w("TELEMETRY", "Telemetry report failed: ${e.message}")
             false
         }
+    }
+
+    /** F-183: a falha de rede vira Result.failure (antes virava null, igual a "estou em dia"). */
+    suspend fun fetchLatestAppRelease(): Result<com.antigravity.sync.dto.AppReleaseDto?> = try {
+        // função get_latest_app_release: devolve só os dados públicos da última versão e funciona SEM login
+        // (aparelho parado na tela de entrada também se atualiza)
+        val bruto = client.postgrest.rpc("get_latest_app_release").data.trim()
+        Result.success(
+            if (bruto.isEmpty() || bruto == "null") null
+            else kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString<com.antigravity.sync.dto.AppReleaseDto>(bruto)
+        )
+    } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        com.antigravity.core.util.Logger.e("OTA_SYNC", "Failed to fetch latest release: ${e.message}")
+        Result.failure(e)
     }
 
     suspend fun getLatestAppRelease(): com.antigravity.sync.dto.AppReleaseDto? {

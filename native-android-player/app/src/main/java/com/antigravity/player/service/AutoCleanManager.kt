@@ -12,15 +12,17 @@ import kotlinx.coroutines.launch
 /**
  * 🧹 AutoCleanManager - Limpeza Periódica
  * 
- * Executa manutenção a cada 4 horas para:
- * 1. Forçar Garbage Collection (Java Heap)
- * 2. Prevenir vazamentos de memória nativa (ExoPlayer/MediaCodec)
- * 3. Garantir longa duração (24/7) sem crash por OOM.
+ * Verifica a cada 4 horas e, SÓ quando convém (madrugada, memória apertada ou 12 h sem reiniciar), recria o motor de
+ * reprodução para:
+ * 1. Prevenir vazamentos de memória nativa (ExoPlayer/MediaCodec)
+ * 2. Garantir longa duração (24/7) sem crash por OOM.
+ * F-183: fora disso não mexe na reprodução (antes voltava a tela de sincronização no meio do expediente e forçava GC).
  */
 class AutoCleanManager(private val context: Context) {
 
     private val handler = Handler(Looper.getMainLooper())
     private val CLEAN_INTERVAL_MS = 4 * 60 * 60 * 1000L // 4 Horas
+    private var ultimoReinicioMs = System.currentTimeMillis() // a abertura do aplicativo conta como o último reinício
 
     // Callback para notificar a UI/Player para reiniciar o motor
     var onRestartRequested: (() -> Unit)? = null
@@ -38,17 +40,25 @@ class AutoCleanManager(private val context: Context) {
     }
 
     private fun performCleanup() {
-        println("AUTOCLEAN: Executing 4H Maintenance Cycle...")
+        val agora = System.currentTimeMillis()
+        val hora = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val memoriaBaixa = try {
+            val info = android.app.ActivityManager.MemoryInfo()
+            (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).getMemoryInfo(info)
+            info.lowMemory
+        } catch (e: Exception) { false }
+        if (!com.antigravity.player.util.ManutencaoPolicy.deveReiniciarMotor(hora, agora - ultimoReinicioMs, memoriaBaixa)) {
+            println("AUTOCLEAN: manutenção adiada (hora=$hora): a reprodução não é interrompida em horário de uso.")
+            return
+        }
+        ultimoReinicioMs = agora
+        println("AUTOCLEAN: Executing Maintenance Cycle (hora=$hora, memóriaBaixa=$memoriaBaixa)...")
 
-        // 1. Force Java GC
-        System.gc()
-        Runtime.getRuntime().gc()
-
-        // 2. Reiniciar Motor de Reprodução (Soft Restart)
+        // 1. Reiniciar Motor de Reprodução (Soft Restart)
         // Isso libera os decodificadores de hardware e recria a instância do ExoPlayer.
         onRestartRequested?.invoke()
 
-        // 3. [INDUSTRIAL] Manutenção Profunda (03:00 AM - 05:00 AM)
+        // 2. [INDUSTRIAL] Manutenção Profunda (03:00 AM - 05:00 AM)
         val calendar = java.util.Calendar.getInstance()
         val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
         if (hour in 3..5) {

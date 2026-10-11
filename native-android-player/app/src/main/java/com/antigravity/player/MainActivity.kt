@@ -302,6 +302,10 @@ class MainActivity : AppCompatActivity() {
     private var isSyncLoopRunning = false
     private var playbackLoopJob: Job? = null
     private var isThermalGuardStarted = false
+    private var otaBanner: TextView? = null
+    private val esconderAvisoDeAtualizacao = Runnable { otaBanner?.visibility = View.GONE; com.antigravity.player.util.OtaStatus.definir(com.antigravity.player.util.OtaStatus.Estado.Nenhum) }
+    /** Tela física que não girou como pedido (ex.: totem/tablet com a rotação travada): o quadro gira por software. */
+    private var rotacaoPorSoftwareLiberada = false
     private var isAutoCleanStarted = false
     
     // [ADVANCED KIOSK] Maintenance Mode State
@@ -408,6 +412,9 @@ class MainActivity : AppCompatActivity() {
         playerView2 = findViewById<PlayerView>(R.id.playerView2)
         standbyImage = findViewById<ImageView>(R.id.standbyImage)
         blockOverlay = findViewById<FrameLayout>(R.id.block_overlay)
+        // F-183: aviso de atualização do aplicativo na tela
+        otaBanner = findViewById(R.id.ota_banner)
+        iniciarAvisoDeAtualizacao()
         // F-103: logo do gestor de mídias (definido no login) no aviso de suspensão
         com.antigravity.player.util.MarcaDoGestor.aplicarLogo(this, findViewById(R.id.block_logo))
         staticImageLayer = findViewById<ImageView>(R.id.static_image_layer)
@@ -617,11 +624,7 @@ class MainActivity : AppCompatActivity() {
             statusTextView.setOnLongClickListener { if (isKioskEnforced) true else resetScreenAction() }
             syncOverlay?.setOnLongClickListener { if (isKioskEnforced) true else resetScreenAction() }
 
-               // [OTA] Auto-Update Initial Check 
-            lifecycleScope.launch {
-                delay(10000) // Wait for network to stabilize
-                ServiceLocator.getOTAUpdateManager(this@MainActivity).checkForUpdates()
-            }
+            // [OTA] F-183: a checagem de versão nova começa na abertura do aplicativo (OtaCycle, em UserApplication)
 
             // Initialize Dual Media Engine
             playerRenderer1 = ExoPlayerRenderer(this, "RENDERER_1").apply { currentScreenId = savedId }
@@ -871,6 +874,11 @@ class MainActivity : AppCompatActivity() {
                         "sync" -> {
                             ackRemoteCommand(commandId, "executed")
                             runOnUiThread { startSyncAndPlay() }
+                        }
+                        // F-183: "Atualizar aplicativo" — pergunta já por versão nova (o aviso aparece na tela do aparelho)
+                        "update_app", "check_update" -> {
+                            ackRemoteCommand(commandId, "executed")
+                            lifecycleScope.launch { com.antigravity.player.util.OtaCycle.checarAgora(applicationContext) }
                         }
                         "reload" -> updatePlayerNow(commandId)
                         "rotate_portrait" -> {
@@ -1846,7 +1854,7 @@ withContext(Dispatchers.Main) {
                 Logger.w("KIOSK", "Focus lost. Forcing MainActivity back to top.")
                 // Post to handler to ensure it runs after focus change completes
                 Handler(Looper.getMainLooper()).post {
-                    if (!isFinishing && !isDestroyed) {
+                    if (!isFinishing && !isDestroyed && !DeviceControl.instaladorDoSistemaAberto()) {
                         try {
                             val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
                             am.moveTaskToFront(taskId, android.app.ActivityManager.MOVE_TASK_WITH_HOME)
@@ -2038,7 +2046,7 @@ withContext(Dispatchers.Main) {
             return
         }
         val t = PlayerFlowPolicy.tvCanvasTransform(
-            isTelevision = DeviceTypeUtil.isTelevision(applicationContext),
+            isTelevision = DeviceTypeUtil.isTelevision(applicationContext) || rotacaoPorSoftwareLiberada,
             canonicalOrientation = SessionManager.currentOrientation,
             displayWidth = content.width,
             displayHeight = content.height
@@ -2083,6 +2091,28 @@ withContext(Dispatchers.Main) {
         window.decorView.requestLayout()
     }
 
+    /**
+     * F-183 — a playlist manda: 9x16 é em pé (totem), 16x9 é deitada. Celular/tablet/totem com Android pedem a orientação
+     * ao sistema; se a tela física NÃO girou (rotação travada pelo fabricante, placa de totem que só liga deitada), a mídia
+     * ficava pequena no meio, com faixas pretas. Depois do pedido, se o painel continua diferente da playlist, o quadro
+     * inteiro gira por software e ocupa a tela toda (a TV já fazia isso). Se a tela física girar depois, o giro some sozinho.
+     */
+    private fun reavaliarGiroDoQuadroDepoisDoPedido() {
+        if (DeviceTypeUtil.isTelevision(applicationContext)) return
+        val content = findViewById<android.view.ViewGroup>(android.R.id.content) ?: return
+        content.postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            val c = findViewById<android.view.ViewGroup>(android.R.id.content) ?: return@postDelayed
+            if (c.width <= 0 || c.height <= 0) return@postDelayed
+            val liberar = PlayerFlowPolicy.precisaGirarQuadroPorSoftware(c.width, c.height, SessionManager.currentOrientation)
+            if (liberar != rotacaoPorSoftwareLiberada) {
+                rotacaoPorSoftwareLiberada = liberar
+                Logger.i("ORIENTATION", "Tela física ${c.width}x${c.height} x playlist ${SessionManager.currentOrientation}: quadro girado por software = $liberar")
+                applyTvCanvasOrientation()
+            }
+        }, 2500L)
+    }
+
     private fun applyScreenRotation(orientation: String?, forcePhysicalLock: Boolean = false) {
         runOnUiThread {
             val canonicalOrientation = com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(
@@ -2107,6 +2137,7 @@ withContext(Dispatchers.Main) {
                 requestedOrientation = lock
             }
             applyTvCanvasOrientation()
+            reavaliarGiroDoQuadroDepoisDoPedido()
 
             val displayMetrics = resources.displayMetrics
             val dmWidth = displayMetrics.widthPixels
@@ -2140,13 +2171,39 @@ withContext(Dispatchers.Main) {
         }
     }
 
-    private fun startOTACycle() {
-        lifecycleScope.launch {
-            while (isActive) {
-                delay(43200000) // 12 hours
-                ServiceLocator.getOTAUpdateManager(this@MainActivity).checkForUpdates()
-            }
+    /** Mostra na tela que o aplicativo está atualizando (e que acabou de atualizar) para quem está olhando o aparelho. */
+    private fun iniciarAvisoDeAtualizacao() {
+        val prefs = getSharedPreferences("player_prefs", MODE_PRIVATE)
+        val anterior = prefs.getInt("ultima_versao_executada", 0)
+        val atual = com.antigravity.player.BuildConfig.VERSION_CODE
+        if (com.antigravity.player.util.OtaStatus.versaoMudou(anterior, atual)) {
+            com.antigravity.player.util.OtaStatus.definir(
+                com.antigravity.player.util.OtaStatus.Estado.Atualizado(com.antigravity.player.BuildConfig.VERSION_NAME)
+            )
         }
+        if (anterior != atual) prefs.edit().putInt("ultima_versao_executada", atual).apply()
+        lifecycleScope.launch {
+            com.antigravity.player.util.OtaStatus.estado.collect { mostrarAvisoDeAtualizacao(it) }
+        }
+    }
+
+    private fun mostrarAvisoDeAtualizacao(estado: com.antigravity.player.util.OtaStatus.Estado) {
+        val banner = otaBanner ?: return
+        banner.removeCallbacks(esconderAvisoDeAtualizacao)
+        val texto = com.antigravity.player.util.OtaStatus.mensagem(estado)
+        if (texto == null) {
+            banner.visibility = View.GONE
+            return
+        }
+        banner.text = texto
+        banner.visibility = View.VISIBLE
+        val ms = com.antigravity.player.util.OtaStatus.duracaoDoAvisoMs(estado)
+        if (ms > 0L) banner.postDelayed(esconderAvisoDeAtualizacao, ms)
+    }
+
+    private fun startOTACycle() {
+        // F-183: o ciclo (abertura + a cada 15 min) roda no processo (OtaCycle); aqui só garante que está de pé
+        com.antigravity.player.util.OtaCycle.start(applicationContext, ServiceLocator.getCoroutineScope())
     }
 
     private fun takeProofOfPlayScreenshot(commandId: String? = null) {
