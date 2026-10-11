@@ -5,7 +5,7 @@ Consolidado de `.agents/memory/player_architecture_baseline.md` e das lições d
 ## Módulos (`native-android-player/`)
 | Módulo | O que faz |
 |---|---|
-| `app/` | Telas (`ui/ScreenSelectionActivity.kt`, pareamento e "Transferir Tela"), widgets nativos (`widget/*`, `util/NativeWidgetEngine.kt`), OTA (`util/OTAUpdateManager.kt`, `receiver/OTAInstallReceiver.kt`), rodízio de pastas (`util/RodizioDePastas.kt`) |
+| `app/` | Telas (`ui/ScreenSelectionActivity.kt`, pareamento: o mesmo login vale em vários aparelhos, cada tela fica em um aparelho por vez; o aparelho pode trocar a própria tela), widgets nativos (`widget/*`, `util/NativeWidgetEngine.kt`), OTA (`util/OTAUpdateManager.kt`, `receiver/OTAInstallReceiver.kt`), rodízio de pastas (`util/RodizioDePastas.kt`) |
 | `core-player/` | ExoPlayer (Media3), troca atômica da playlist (`usecase/SyncPlaylistUseCase.kt`), estado de sincronização |
 | `cache-manager/` | Arquivos locais, integridade SHA-256, limpeza LRU, banco local Room (`cache/db/PlayerDatabase.kt`) |
 | `media-engine/` | Imagem, vídeo, widgets e proporção |
@@ -29,7 +29,7 @@ Abrir o app, entrar na tela, baixar as mídias reais, reproduzir sem tela preta 
 ## Modos de falha conhecidos
 | Sintoma | Causa | Solução certa |
 |---|---|---|
-| `DEVICE_ALREADY_BOUND` | Tela presa a outro aparelho | "Transferir Tela" na `ScreenSelectionActivity` (RPC `admin_unpair_screen`) |
+| `DEVICE_ALREADY_BOUND` | Tela presa a outro aparelho (ou aparelho ainda preso a outra tela) | O Player volta à escolha de tela com o aviso (`PlayerFlowPolicy.AVISO_TELA_EM_USO`). Liberar: painel > Telas > Desvincular aparelho (RPC `admin_unpair_screen`); o próprio aparelho troca de tela pela lista (RPC `player_unpair_screen`). O Player não toma mais a tela de outro aparelho |
 | Tela preta ao trocar playlist | Apagar mídias antes de baixar as novas | Baixar → validar → trocar de uma vez |
 | Crash por JSON novo | Campo novo obrigatório ou tipo mudado no servidor | DTO com `ignoreUnknownKeys` e valores padrão. Novidade só para versão nova (padrão W11/W12 `fn_*_suportado_no_aparelho`) |
 | Cache das telas apagado após atualizar | Room mudou sem migração (`fallbackToDestructiveMigration`) | Subir a versão do Room **com** `Migration` (`ALTER TABLE ADD COLUMN`) |

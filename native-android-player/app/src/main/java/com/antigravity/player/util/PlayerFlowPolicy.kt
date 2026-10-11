@@ -17,7 +17,13 @@ object PlayerFlowPolicy {
     /** Tempo mínimo em que "Mídias sincronizadas" fica visível antes de a mídia assumir a tela. */
     const val SYNC_DONE_MIN_VISIBLE_MS = 1500L
 
-    enum class SyncErrorAction { REAUTH, SELECT_SCREEN, RETRY }
+    enum class SyncErrorAction { REAUTH, SELECT_SCREEN, SCREEN_IN_USE, RETRY }
+
+    /** Aviso mostrado na escolha de tela quando a tela escolhida já está conectada em outro aparelho. */
+    const val AVISO_TELA_EM_USO =
+        "Não foi possível conectar esta tela: ela já está conectada em outro aparelho (ou este aparelho ainda está ligado a outra tela).\n\n" +
+        "O seu login pode ser usado em quantos aparelhos quiser, mas cada tela fica em um aparelho por vez. " +
+        "Escolha outra tela, ou libere esta no painel (Telas > Desvincular aparelho) e tente de novo."
 
     private val HTTP_401 = Regex("""(?<!\d)401(?!\d)""")
     private val DOWNLOAD_COUNTER = Regex("""Sincronizando: (\d+) de (\d+)""")
@@ -35,6 +41,9 @@ object PlayerFlowPolicy {
                 SyncErrorAction.REAUTH
             m.contains("[PERMANENT]", ignoreCase = true) ||
                 m.contains("Tela não encontrada", ignoreCase = true) -> SyncErrorAction.SELECT_SCREEN
+            // F-182: o servidor recusou o vínculo (tela de outro aparelho / aparelho preso a outra tela): voltar à escolha de
+            // tela explicando, em vez de ficar tentando para sempre atrás de uma tela de "Sincronizando".
+            m.contains("DEVICE_ALREADY_BOUND") || m.contains("DEVICE_BINDING_MISMATCH") -> SyncErrorAction.SCREEN_IN_USE
             else -> SyncErrorAction.RETRY
         }
     }

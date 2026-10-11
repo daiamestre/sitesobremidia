@@ -1302,6 +1302,19 @@ try {
                             val action = PlayerFlowPolicy.classifySyncError(errorMsg)
                             if (action == PlayerFlowPolicy.SyncErrorAction.REAUTH) {
                                 handleAuthError("Sessão Expirada (401)")
+                            } else if (action == PlayerFlowPolicy.SyncErrorAction.SCREEN_IN_USE) {
+                                // F-182: tela já conectada em outro aparelho (ou este aparelho ainda preso a outra tela): volta à
+                                // escolha de tela explicando, em vez de ficar para sempre em "Sincronizando Mídias".
+                                Logger.w("SYNC", "Tela em uso por outro aparelho. Voltando à seleção de tela...")
+                                isKioskEnforced = false
+                                getSharedPreferences("player_prefs", MODE_PRIVATE).edit().remove("saved_screen_id").apply()
+                                SessionManager.unpairScreen()
+                                ServiceLocator.resetRepository()
+                                val intent = Intent(this@MainActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java)
+                                intent.putExtra("extra_aviso", PlayerFlowPolicy.AVISO_TELA_EM_USO)
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                startActivity(intent)
+                                finish()
                             } else if (action == PlayerFlowPolicy.SyncErrorAction.SELECT_SCREEN) {
                                 Logger.w("SYNC", "Tela Inválida ou não encontrada. Abrindo seleção de tela...")
                                 // [EXIT COUNTER] Navegacao intencional: nao conta como saida do usuario

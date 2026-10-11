@@ -22,6 +22,11 @@ class LoginActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         
         
+        // F-182: depois de sair e entrar de novo, a identidade do aparelho precisa estar pronta antes da escolha de tela
+        if (com.antigravity.sync.service.SessionManager.deviceIdentityHash.isNullOrBlank()) {
+            com.antigravity.sync.service.SessionManager.setIdentity(com.antigravity.player.util.DeviceControl.getHardwareIdentity(applicationContext))
+        }
+
         // [ADAPTIVE UI] Detect hardware and set appropriate orientation
         val isTV = DeviceTypeUtil.isTelevision(applicationContext)
         requestedOrientation = if (isTV) {

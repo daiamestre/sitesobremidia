@@ -232,9 +232,9 @@ object DeviceControl {
             android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
         } catch (e: Exception) {
             null
-        } ?: "unknown"
-        val fingerprint = android.os.Build.FINGERPRINT ?: "unknown"
-        val raw = "sobremidia::device::$androidId::$fingerprint"
+        }
+        // F-182: ANDROID_ID bom => texto idêntico ao de antes; quebrado/repetido => sorteio próprio do aparelho
+        val raw = HardwareIdentity.textoBase(androidId, android.os.Build.FINGERPRINT) { sorteioDoAparelho(context) }
         return try {
             val digest = java.security.MessageDigest.getInstance("SHA-256")
                 .digest(raw.toByteArray(Charsets.UTF_8))
@@ -243,5 +243,14 @@ object DeviceControl {
             // Fallback determinístico nunca expõe o ANDROID_ID bruto
             raw.hashCode().toString(16).padStart(16, '0')
         }
+    }
+
+    /** Sorteio que fica guardado no aparelho (só usado quando o ANDROID_ID dele é inútil). */
+    private fun sorteioDoAparelho(context: android.content.Context): String {
+        val prefs = context.getSharedPreferences("player_identity", android.content.Context.MODE_PRIVATE)
+        prefs.getString("sorteio", null)?.takeIf { it.length >= 16 }?.let { return it }
+        val novo = java.util.UUID.randomUUID().toString()
+        prefs.edit().putString("sorteio", novo).commit()
+        return novo
     }
 }

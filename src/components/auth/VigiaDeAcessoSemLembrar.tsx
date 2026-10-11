@@ -7,7 +7,8 @@ export function VigiaDeAcessoSemLembrar() {
   useEffect(() => {
     if (!deveEncerrarSessaoEsquecida()) return;
     limparMarcaDeAcessoTemporario();
-    void supabase.auth.signOut().catch(() => undefined);
+    // escopo local: encerrar a sessão esquecida deste navegador não pode derrubar o login dos Players da mesma conta
+    void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
   }, []);
   return null;
 }

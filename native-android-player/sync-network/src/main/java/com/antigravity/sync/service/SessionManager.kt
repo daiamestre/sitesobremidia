@@ -198,7 +198,9 @@ object SessionManager {
         currentAccessToken = null
         currentUserId = null
         currentUUID = null
-        deviceIdentityHash = null
+        // F-182: a identidade de hardware NÃO é apagada ao sair da conta (é do aparelho, não do login). Antes ela era zerada
+        // aqui e, ao entrar de novo, a escolha de tela achava que nenhuma tela era deste aparelho e a sincronização
+        // esperava uma identidade que ninguém mais definia.
         boundDeviceId = null
         isDeviceRevoked = false
         currentCorrelationId = null
@@ -208,7 +210,6 @@ object SessionManager {
         cacheNextMedia = true
         lastConfigHash = null
         isScreenActive = true
-        _identityState.value = IdentityState.IDENTITY_INITIALIZING
         _sessionState.value = PlayerSessionState.UNKNOWN
     }
 }

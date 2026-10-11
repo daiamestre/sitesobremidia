@@ -20,15 +20,34 @@ import com.antigravity.player.MainActivity
 import com.antigravity.player.R
 import com.antigravity.player.di.ServiceLocator
 import com.antigravity.sync.dto.AuthorizedScreenDto
+import com.antigravity.sync.service.PairingPolicy
+import com.antigravity.sync.service.PairingPolicy.Disponibilidade
+import com.antigravity.sync.service.SessionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Escolha da tela deste aparelho (depois do login).
+ *
+ * F-182 — a regra: o MESMO login vale em quantos aparelhos o cliente quiser; o que não pode é ligar a MESMA tela a dois
+ * aparelhos. Tela conectada a outro aparelho não é tomada daqui (antes, o "Transferir" desligava o outro aparelho): a
+ * pessoa é avisada e libera pelo painel. Já o próprio aparelho pode trocar de tela: a tela antiga dele é liberada na hora.
+ */
 class ScreenSelectionActivity : AppCompatActivity() {
 
     private lateinit var loading: ProgressBar
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ScreensAdapter
+    private var telas: List<AuthorizedScreenDto> = emptyList()
+
+    /** Identidade deste aparelho (sempre disponível: se o login recém-feito a apagou, é recalculada). */
+    private fun minhaIdentidade(): String {
+        SessionManager.deviceIdentityHash?.takeIf { it.isNotBlank() }?.let { return it }
+        val h = com.antigravity.player.util.DeviceControl.getHardwareIdentity(applicationContext)
+        SessionManager.setIdentity(h)
+        return h
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,41 +71,75 @@ class ScreenSelectionActivity : AppCompatActivity() {
             }
         }
         recyclerView = findViewById(R.id.screens_recycler_view)
-        
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        adapter = ScreensAdapter(emptyList()) { selectedScreen ->
-            val currentHardwareHash = com.antigravity.sync.service.SessionManager.deviceIdentityHash
-            if (selectedScreen.boundDeviceId != null && selectedScreen.boundDeviceId != currentHardwareHash) {
-                // Tela já em uso: autenticado pode transferir de forma legítima
-                AlertDialog.Builder(this)
-                    .setTitle("Transferir Tela")
-                    .setMessage("Esta tela (${selectedScreen.name}) já está vinculada a outro aparelho.\n\nDeseja desvincular o aparelho anterior e vincular a este dispositivo?")
-                    .setPositiveButton("Transferir") { _, _ ->
-                        loading.visibility = View.VISIBLE
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            val unpairSuccess = try {
-                                com.antigravity.sync.service.RemoteDataSource().adminUnpairScreen(selectedScreen.id)
-                            } catch (e: Exception) { false }
 
-                            withContext(Dispatchers.Main) {
-                                loading.visibility = View.GONE
-                                if (unpairSuccess) {
-                                    saveScreenAndProceed(selectedScreen.id)
-                                } else {
-                                    Toast.makeText(this@ScreenSelectionActivity, "Falha ao transferir tela. Verifique sua conexão ou permissões.", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        }
-                    }
-                    .setNegativeButton("Cancelar", null)
-                    .show()
-                return@ScreensAdapter
-            }
-            saveScreenAndProceed(selectedScreen.id)
-        }
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        adapter = ScreensAdapter(emptyList(), { minhaIdentidade() }) { aoEscolher(it) }
         recyclerView.adapter = adapter
 
+        mostrarAviso(intent)
         fetchScreens()
+    }
+
+    /** Explicação vinda de outra tela (ex.: a tela escolhida estava conectada a outro aparelho). */
+    private fun mostrarAviso(origem: Intent?) {
+        val aviso = origem?.getStringExtra("extra_aviso")?.takeIf { it.isNotBlank() } ?: return
+        origem.removeExtra("extra_aviso")
+        AlertDialog.Builder(this)
+            .setTitle("Tela já conectada")
+            .setMessage(aviso)
+            .setPositiveButton("Entendi", null)
+            .show()
+    }
+
+    private fun nomeDe(tela: AuthorizedScreenDto) = tela.customId ?: tela.name
+
+    private fun aoEscolher(escolhida: AuthorizedScreenDto) {
+        val eu = minhaIdentidade()
+        when (PairingPolicy.disponibilidade(escolhida.boundDeviceId, eu)) {
+            Disponibilidade.EM_USO -> {
+                AlertDialog.Builder(this)
+                    .setTitle("Tela já conectada")
+                    .setMessage(
+                        "A tela ${nomeDe(escolhida)} já está conectada a outro aparelho, e uma tela só pode ficar em um aparelho por vez.\n\n" +
+                            "O seu login pode ser usado em quantos aparelhos você quiser: escolha outra tela, ou libere esta no painel " +
+                            "(Telas > ${nomeDe(escolhida)} > Desvincular aparelho) e tente de novo."
+                    )
+                    .setPositiveButton("Entendi", null)
+                    .show()
+            }
+            Disponibilidade.DESTE_APARELHO -> saveScreenAndProceed(escolhida.id)
+            Disponibilidade.LIVRE -> {
+                // Este aparelho só mostra uma tela por vez: se ele ainda está ligado a outra, ela é liberada na troca.
+                val atualId = PairingPolicy.telaAtualDoAparelho(telas.map { it.id to it.boundDeviceId }, eu, escolhida.id)
+                val atual = telas.firstOrNull { it.id == atualId }
+                if (atual == null) {
+                    saveScreenAndProceed(escolhida.id)
+                } else {
+                    AlertDialog.Builder(this)
+                        .setTitle("Trocar a tela deste aparelho")
+                        .setMessage("Este aparelho está conectado à tela ${nomeDe(atual)}.\n\nPara conectar à tela ${nomeDe(escolhida)}, a tela ${nomeDe(atual)} será liberada para outro aparelho. Continuar?")
+                        .setPositiveButton("Trocar") { _, _ -> liberarEConectar(atual, escolhida, eu) }
+                        .setNegativeButton("Cancelar", null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    private fun liberarEConectar(atual: AuthorizedScreenDto, escolhida: AuthorizedScreenDto, eu: String) {
+        loading.visibility = View.VISIBLE
+        lifecycleScope.launch(Dispatchers.IO) {
+            // Libera só o vínculo DESTE aparelho (o servidor confere que a tela está mesmo ligada a ele).
+            val liberou = try {
+                com.antigravity.sync.service.RemoteDataSource().unpairScreen(atual.id, eu)
+                true
+            } catch (e: Exception) { false }
+            withContext(Dispatchers.Main) {
+                loading.visibility = View.GONE
+                if (liberou) saveScreenAndProceed(escolhida.id)
+                else Toast.makeText(this@ScreenSelectionActivity, "Não foi possível liberar a tela anterior. Verifique a internet e tente de novo.", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun fetchScreens() {
@@ -96,13 +149,14 @@ class ScreenSelectionActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val screens = com.antigravity.sync.service.RemoteDataSource().getAuthorizedScreens()
-                
+
                 // Filter out inactive screens (deleted/deactivated in dashboard)
                 val activeScreens = screens.filter { it.isActive }
-                
+
                 withContext(Dispatchers.Main) {
                     loading.visibility = View.GONE
                     recyclerView.visibility = View.VISIBLE
+                    telas = activeScreens
                     if (activeScreens.isEmpty()) {
                         Toast.makeText(this@ScreenSelectionActivity, "Nenhuma tela disponível.", Toast.LENGTH_LONG).show()
                     } else {
@@ -114,7 +168,7 @@ class ScreenSelectionActivity : AppCompatActivity() {
                                 (it.customId ?: "").equals(autoSelect, ignoreCase = true)
                             }
                             if (target != null) {
-                                saveScreenAndProceed(target.id)
+                                aoEscolher(target)
                             }
                         }
                     }
@@ -122,7 +176,7 @@ class ScreenSelectionActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     loading.visibility = View.GONE
-                    
+
                     val msg = e.message ?: ""
                     if (msg.contains("JWT expired", ignoreCase = true) || msg.contains("UNAUTHORIZED", ignoreCase = true) ||
                         com.antigravity.player.util.PlayerFlowPolicy.classifySyncError(msg) ==
@@ -156,6 +210,7 @@ class ScreenSelectionActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
+        mostrarAviso(intent)
         val autoSelect = intent?.getStringExtra("extra_select_screen_id")
         if (!autoSelect.isNullOrBlank()) {
             saveScreenAndProceed(autoSelect)
@@ -167,21 +222,21 @@ class ScreenSelectionActivity : AppCompatActivity() {
     private fun saveScreenAndProceed(screenId: String) {
         val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
         prefs.edit().putString("saved_screen_id", screenId).apply()
-        
+
         // [SECURITY HARDENING] Explicitamente atualiza identidade volátil da tela
-        com.antigravity.sync.service.SessionManager.currentUUID = screenId
-        com.antigravity.sync.service.SessionManager.currentUserId = screenId
-        
+        SessionManager.currentUUID = screenId
+        SessionManager.currentUserId = screenId
+
         // [SECURITY HARDENING] Token lido da memória volátil (sessão ativa)
-        val token = com.antigravity.sync.service.SessionManager.currentAccessToken ?: ""
-        
+        val token = SessionManager.currentAccessToken ?: ""
+
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 ServiceLocator.getRepository(applicationContext).salvarCredenciais(token, screenId)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            
+
             withContext(Dispatchers.Main) {
                 // [CRITICAL] Reset Repository to use NEW Screen ID immediately
                 ServiceLocator.resetRepository()
@@ -210,6 +265,7 @@ class ScreenSelectionActivity : AppCompatActivity() {
 
 class ScreensAdapter(
     private var screens: List<AuthorizedScreenDto>,
+    private val minhaIdentidade: () -> String,
     private val onClick: (AuthorizedScreenDto) -> Unit
 ) : RecyclerView.Adapter<ScreensAdapter.ScreenViewHolder>() {
 
@@ -238,24 +294,25 @@ class ScreensAdapter(
             val displayName = screen.customId ?: screen.name
             nameTextView.text = displayName
 
-            val deviceHash = com.antigravity.sync.service.SessionManager.deviceIdentityHash
-
-            if (screen.boundDeviceId == null) {
-                statusTextView.text = "Disponível para Parear"
-                statusTextView.setTextColor(android.graphics.Color.parseColor("#10B981")) // Green
-                itemView.alpha = 1.0f
-                itemView.setOnClickListener { onClick(screen) }
-            } else if (screen.boundDeviceId == deviceHash) {
-                statusTextView.text = "Já vinculado a este aparelho"
-                statusTextView.setTextColor(android.graphics.Color.parseColor("#3B82F6")) // Blue
-                itemView.alpha = 1.0f
-                itemView.setOnClickListener { onClick(screen) }
-            } else {
-                statusTextView.text = "Ocupado por outro aparelho"
-                statusTextView.setTextColor(android.graphics.Color.parseColor("#EF4444")) // Red
-                itemView.alpha = 0.5f
-                itemView.setOnClickListener { onClick(screen) }
+            when (PairingPolicy.disponibilidade(screen.boundDeviceId, minhaIdentidade())) {
+                Disponibilidade.LIVRE -> {
+                    statusTextView.text = "Disponível para Parear"
+                    statusTextView.setTextColor(android.graphics.Color.parseColor("#10B981")) // Green
+                    itemView.alpha = 1.0f
+                }
+                Disponibilidade.DESTE_APARELHO -> {
+                    statusTextView.text = "Já vinculado a este aparelho"
+                    statusTextView.setTextColor(android.graphics.Color.parseColor("#3B82F6")) // Blue
+                    itemView.alpha = 1.0f
+                }
+                Disponibilidade.EM_USO -> {
+                    statusTextView.text = "Em uso em outro aparelho"
+                    statusTextView.setTextColor(android.graphics.Color.parseColor("#EF4444")) // Red
+                    itemView.alpha = 0.5f
+                }
             }
+            // a tela em uso também responde ao toque: explica por que não dá para conectar
+            itemView.setOnClickListener { onClick(screen) }
         }
     }
 }

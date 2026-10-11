@@ -205,7 +205,7 @@ class RemoteDataSource {
                 else -> null
             }
 
-            if (targetDeviceId != null && SessionManager.boundDeviceId != null && targetDeviceId != SessionManager.boundDeviceId) {
+            if (!PairingPolicy.comandoEhDesteAparelho(targetDeviceId, SessionManager.deviceIdentityHash, SessionManager.boundDeviceId)) {
                 Logger.w("UNPAIR", "[UNPAIR] Comando $command (ID: $commandId) direcionado ao aparelho $targetDeviceId, ignorado por este dispositivo (${SessionManager.boundDeviceId})")
                 return@onEach
             }
@@ -286,7 +286,7 @@ class RemoteDataSource {
         for (row in rows) {
             val targetDeviceId = (row.payload as? kotlinx.serialization.json.JsonObject)
                 ?.get("target_device_id")?.jsonPrimitive?.contentOrNull
-            if (targetDeviceId != null && SessionManager.boundDeviceId != null && targetDeviceId != SessionManager.boundDeviceId) {
+            if (!PairingPolicy.comandoEhDesteAparelho(targetDeviceId, SessionManager.deviceIdentityHash, SessionManager.boundDeviceId)) {
                 continue
             }
             if (!processedCommandIds.add(row.id)) continue // já tratado (Realtime ou ciclo anterior)

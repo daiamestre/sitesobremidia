@@ -287,7 +287,7 @@ export default function Auth() {
             </p>
             <Button 
               onClick={() => {
-                supabase.auth.signOut();
+                supabase.auth.signOut({ scope: 'local' });
                 navigate('/auth');
               }} 
               variant="outline" 

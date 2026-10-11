@@ -27,10 +27,13 @@ class EntradaDeTeste {
         val access = a.getString("access")
         val user = a.getString("user")
         val tela = a.getString("tela")
-        assumeTrue("sem argumentos de entrada de teste", !access.isNullOrBlank() && !user.isNullOrBlank() && !tela.isNullOrBlank())
+        assumeTrue("sem argumentos de entrada de teste", !access.isNullOrBlank() && !user.isNullOrBlank())
         val ctx: Context = InstrumentationRegistry.getInstrumentation().targetContext
         TokenStorage(ctx).saveSession(access!!, a.getString("refresh"), user!!, 3600)
-        ctx.getSharedPreferences("player_prefs", Context.MODE_PRIVATE).edit().putString("saved_screen_id", tela).commit()
+        // sem "tela": entra só com o login (como quem acabou de entrar) e a tela é escolhida na lista
+        val prefs = ctx.getSharedPreferences("player_prefs", Context.MODE_PRIVATE).edit()
+        if (tela.isNullOrBlank()) prefs.remove("saved_screen_id") else prefs.putString("saved_screen_id", tela)
+        prefs.commit()
         Thread.sleep(2000) // o cofre grava em segundo plano
     }
 }

@@ -248,7 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userId: data.user.id,
         details: { reason: 'EMAIL_NOT_CONFIRMED' }
       });
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' }); // só este aparelho: os Players da mesma conta seguem logados
       setUser(null); setSession(null); setUsuario(null); setRepresentante(null); setSolicitacaoStatus('NOT_FOUND');
       return { error: new Error('Acesso negado: seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.') };
     }
@@ -266,7 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userId: data.user.id,
         details: { reason: 'UNAUTHORIZED_ROLE', role: role || 'UNKNOWN' }
       });
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' }); // só este aparelho: os Players da mesma conta seguem logados
       setUser(null); setSession(null); setUsuario(null); setRepresentante(null); setSolicitacaoStatus('NOT_FOUND');
       return { error: new Error('Acesso negado: esta conta não possui permissão de Representante Comercial ou perfil corporativo do ERP.') };
     }
@@ -278,7 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userId: data.user.id,
         details: { reason: `STATUS_${status}` }
       });
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' }); // só este aparelho: os Players da mesma conta seguem logados
       setUser(null); setSession(null); setUsuario(null); setRepresentante(null); setSolicitacaoStatus('NOT_FOUND');
       
       const statusMessage = status === 'PENDING' ? 'Acesso negado: seu cadastro está PENDENTE de aprovação pelo Administrador (sobremidiadesigner@gmail.com).' :
@@ -350,7 +350,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userEmail: user?.email || undefined,
       });
     }
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'local' }); // só este aparelho: os Players da mesma conta seguem logados
     setUser(null);
     setSession(null);
     setUsuario(null);

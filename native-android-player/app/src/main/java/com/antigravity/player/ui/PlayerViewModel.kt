@@ -169,7 +169,10 @@ class PlayerViewModel(
                 // [MODO DE CONTINGÊNCIA] Se o Supabase bloqueou (403/429) ou deu timeout
                 // F-181: "ter arquivo no disco" não basta (download pela metade também é arquivo): só há o que tocar
                 // se existe uma playlist guardada.
-                val hasCache = temPlaylistGuardada || (try { repository.loadLocalCache().isSuccess } catch (e: Exception) { false })
+                // F-182: tela ocupada por outro aparelho não toca o cache de outra tela: volta à escolha de tela
+                val telaOcupada = com.antigravity.player.util.PlayerFlowPolicy.classifySyncError(result?.exceptionOrNull()?.message) ==
+                    com.antigravity.player.util.PlayerFlowPolicy.SyncErrorAction.SCREEN_IN_USE
+                val hasCache = !telaOcupada && (temPlaylistGuardada || (try { repository.loadLocalCache().isSuccess } catch (e: Exception) { false }))
                 Logger.w("SYNC_GATEKEEPER", "Falha ou Timeout no Sync. Cache Local Detectado: $hasCache")
                 
                 if (hasCache) {
