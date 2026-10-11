@@ -5,7 +5,7 @@ Consolidado de `.agents/memory/player_architecture_baseline.md` e das lições d
 ## Módulos (`native-android-player/`)
 | Módulo | O que faz |
 |---|---|
-| `app/` | Telas (`ui/ScreenSelectionActivity.kt`, pareamento: o mesmo login vale em vários aparelhos, cada tela fica em um aparelho por vez; o aparelho pode trocar a própria tela), widgets nativos (`widget/*`, `util/NativeWidgetEngine.kt`), OTA (`util/OTAUpdateManager.kt`, `receiver/OTAInstallReceiver.kt`), rodízio de pastas (`util/RodizioDePastas.kt`) |
+| `app/` | Telas (`ui/ScreenSelectionActivity.kt`, pareamento: o mesmo login vale em vários aparelhos, cada tela fica em um aparelho VIVO por vez — tela cujo aparelho está há mais de 10 min sem sinal volta a ficar livre, F-184; o aparelho pode trocar a própria tela), widgets nativos (`widget/*`, `util/NativeWidgetEngine.kt`), OTA (`util/OTAUpdateManager.kt`, `receiver/OTAInstallReceiver.kt`), rodízio de pastas (`util/RodizioDePastas.kt`) |
 | `core-player/` | ExoPlayer (Media3), troca atômica da playlist (`usecase/SyncPlaylistUseCase.kt`), estado de sincronização |
 | `cache-manager/` | Arquivos locais, integridade SHA-256, limpeza LRU, banco local Room (`cache/db/PlayerDatabase.kt`) |
 | `media-engine/` | Imagem, vídeo, widgets e proporção |
