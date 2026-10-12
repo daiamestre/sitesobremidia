@@ -215,4 +215,61 @@ class AtualizacaoEReproducaoTest {
         assertTrue(boot.contains("Intent.ACTION_MY_PACKAGE_REPLACED"))
         assertTrue(boot.contains("SplashActivity::class.java"))
     }
+
+    // ---------------------------------------------------------------- F-186: religar o aparelho não deixa tela preta
+
+    @Test
+    fun `a decisao de girar por software vale na abertura seguinte so para a mesma orientacao`() {
+        assertTrue(PlayerFlowPolicy.giroPorSoftwareGuardado(true, "portrait", "portrait"))
+        assertFalse(PlayerFlowPolicy.giroPorSoftwareGuardado(true, "portrait", "landscape"))
+        assertFalse(PlayerFlowPolicy.giroPorSoftwareGuardado(false, "portrait", "portrait"))
+        assertFalse(PlayerFlowPolicy.giroPorSoftwareGuardado(true, null, "portrait"))
+    }
+
+    @Test
+    fun `giro que muda com video no ar reinicia o motor, e durante a sincronizacao nao`() {
+        assertTrue(PlayerFlowPolicy.reiniciarMotorAoMudarGiro(motorDeVideoCriado = true, sincronizando = false))
+        assertFalse(PlayerFlowPolicy.reiniciarMotorAoMudarGiro(motorDeVideoCriado = true, sincronizando = true))
+        assertFalse(PlayerFlowPolicy.reiniciarMotorAoMudarGiro(motorDeVideoCriado = false, sincronizando = false))
+    }
+
+    @Test
+    fun `ao abrir, o giro guardado e aplicado antes de a reproducao comecar`() {
+        val principal = codigo("src/main/java/com/antigravity/player/MainActivity.kt")
+        val restaura = principal.indexOf("PlayerFlowPolicy.giroPorSoftwareGuardado(")
+        val primeiraRotacao = principal.indexOf("applyScreenRotation(initialOrientation)")
+        assertTrue(restaura in 1 until primeiraRotacao)
+        assertTrue(principal.contains("putBoolean(PREF_GIRO_POR_SOFTWARE, liberar)"))
+        assertTrue(principal.contains("PlayerFlowPolicy.reiniciarMotorAoMudarGiro(::playerRenderer1.isInitialized, isSyncInProgress)"))
+    }
+
+    @Test
+    fun `o reinicio do motor de video cria players novos e religa as telas`() {
+        val motor = codigo("../media-engine/src/main/java/com/antigravity/media/exoplayer/ExoPlayerRenderer.kt")
+        val recria = motor.substring(motor.indexOf("fun recreate()"))
+        assertTrue(recria.indexOf("release()") in 1 until recria.indexOf("initializePlayer()"))
+        val principal = codigo("src/main/java/com/antigravity/player/MainActivity.kt")
+        val reinicio = principal.substring(principal.indexOf("private fun reiniciarMotorDeVideo()"))
+        assertTrue(reinicio.indexOf("playerRenderer1.recreate()") < reinicio.indexOf("playerView1.player = playerRenderer1.getPlayerInstance()"))
+        // o laço para antes da troca e recomeça do zero depois (sem depender de startSyncAndPlay, que pode desistir)
+        val corpo = reinicio.substring(0, reinicio.indexOf("private fun reavaliarGiroDoQuadroDepoisDoPedido()"))
+        assertTrue(corpo.indexOf("playbackLoopJob?.cancel()") in 1 until corpo.indexOf("playerRenderer1.recreate()"))
+        assertTrue(corpo.indexOf("playbackStage.forget()") < corpo.indexOf("playerRenderer1.recreate()"))
+        assertTrue(corpo.indexOf("playerView2.player = playerRenderer2.getPlayerInstance()") < corpo.indexOf("startPlaybackLoop()"))
+        assertTrue(corpo.contains("isSyncLoopRunning = false"))
+        assertFalse(corpo.contains("startSyncAndPlay()"))
+        // ninguém mais libera o motor e segue tocando sem recriar
+        assertNull(Regex("playerRenderer2\\.release\\(\\)\\s+startSyncAndPlay\\(\\)").find(principal))
+        // a manutenção e a mudança de giro usam o reinício completo (2 chamadas + a declaração)
+        assertEquals(3, Regex("reiniciarMotorDeVideo\\(\\)").findAll(principal).count())
+    }
+
+    @Test
+    fun `o relogio aceita correcao grande em vez de ficar horas errado para sempre`() {
+        val tm = codigo("../core-player/src/main/java/com/antigravity/core/util/TimeManager.kt")
+        val corpo = tm.substring(tm.indexOf("fun updateOffset(newOffset: Long)"), tm.indexOf("fun setTimeZoneOffset"))
+        assertFalse("não existe mais a recusa de salto grande", corpo.contains("Rejecting massive drift"))
+        assertNull("nenhum caminho sai sem aplicar a correção", Regex("\breturn\b").find(corpo))
+        assertTrue(corpo.contains("timeOffsetMs = newOffset"))
+    }
 }

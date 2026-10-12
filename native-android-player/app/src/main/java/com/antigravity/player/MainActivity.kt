@@ -306,6 +306,8 @@ class MainActivity : AppCompatActivity() {
     private val esconderAvisoDeAtualizacao = Runnable { otaBanner?.visibility = View.GONE; com.antigravity.player.util.OtaStatus.definir(com.antigravity.player.util.OtaStatus.Estado.Nenhum) }
     /** Tela física que não girou como pedido (ex.: totem/tablet com a rotação travada): o quadro gira por software. */
     private var rotacaoPorSoftwareLiberada = false
+    private val PREF_GIRO_POR_SOFTWARE = "giro_por_software"
+    private val PREF_GIRO_POR_SOFTWARE_PARA = "giro_por_software_para"
     private var isAutoCleanStarted = false
     
     // [ADVANCED KIOSK] Maintenance Mode State
@@ -392,6 +394,15 @@ class MainActivity : AppCompatActivity() {
                 // hardcoded "landscape" for MOBILE caused orientation whiplash (PORTRAIT in
                 // ScreenSelectionActivity → forced LANDSCAPE in MainActivity on mobile).
                 if (isTV) "landscape" else "portrait")
+        // F-186: aparelho que ignora o pedido de girar (totem/TV Box de painel deitado) já abre com o quadro girado,
+        // ANTES de qualquer vídeo começar. Antes a decisão vinha 2,5 s depois de abrir: ao religar o aparelho, o vídeo
+        // (que parte do cache em 1 s) já estava tocando quando a área de vídeo mudava de tamanho e girava, e o
+        // decodificador por hardware ficava em tela preta.
+        rotacaoPorSoftwareLiberada = !isTV && PlayerFlowPolicy.giroPorSoftwareGuardado(
+            savedPrefs.getBoolean(PREF_GIRO_POR_SOFTWARE, false),
+            savedPrefs.getString(PREF_GIRO_POR_SOFTWARE_PARA, null),
+            com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(initialOrientation).canonicalName
+        )
         applyScreenRotation(initialOrientation)
         
         // [MISSION CRITICAL] Native Immersive Mode (Zero-Touch)
@@ -777,9 +788,7 @@ class MainActivity : AppCompatActivity() {
                     autoCleanManager.onRestartRequested = {
                         if (!isFinishing && !isDestroyed) {
                             Logger.i("AUTO_CLEAN", "Manutenção Programada (Auto-Clean) em execução...")
-                            if (::playerRenderer1.isInitialized) playerRenderer1.release()
-                            if (::playerRenderer2.isInitialized) playerRenderer2.release()
-                            startSyncAndPlay()
+                            reiniciarMotorDeVideo()
                             
                             // Take screenshot after recovery
                             takeProofOfPlayScreenshot()
@@ -2097,6 +2106,33 @@ withContext(Dispatchers.Main) {
      * ficava pequena no meio, com faixas pretas. Depois do pedido, se o painel continua diferente da playlist, o quadro
      * inteiro gira por software e ocupa a tela toda (a TV já fazia isso). Se a tela física girar depois, o giro some sozinho.
      */
+    /**
+     * F-186 — reinício suave do motor de vídeo (manutenção e mudança de giro): decodificadores liberados, ExoPlayers
+     * NOVOS, telas de vídeo religadas a eles e a reprodução retomada. Antes só liberava: o motor ficava sem player e a
+     * tela ficava preta, pulando item atrás de item, até alguém reabrir o aplicativo.
+     */
+    private fun reiniciarMotorDeVideo() {
+        if (isFinishing || isDestroyed) return
+        if (!::playerRenderer1.isInitialized || !::playerRenderer2.isInitialized) return
+        // O laço de reprodução PARA antes da troca e RECOMEÇA do zero depois dela. Se ele continuasse (ou se o recomeço
+        // dependesse de startSyncAndPlay, que desiste quando há sincronização em andamento), o palco seguia "exibindo"
+        // itens num player que não existe mais: registro de exibição normal, sinal normal e TELA PRETA.
+        playbackLoopJob?.cancel()
+        if (::playbackWatchdog.isInitialized) playbackWatchdog.stop()
+        try {
+            if (::playbackStage.isInitialized) playbackStage.forget() // o que estava na tela era do player antigo
+            playerRenderer1.recreate()
+            playerRenderer2.recreate()
+            playerView1.player = playerRenderer1.getPlayerInstance()
+            playerView2.player = playerRenderer2.getPlayerInstance()
+            Logger.i("AUTO_CLEAN", "Motor de vídeo recriado (players novos ligados às telas).")
+        } catch (e: Exception) {
+            Logger.e("AUTO_CLEAN", "Falha ao recriar o motor de vídeo: ${e.message}")
+        }
+        isSyncLoopRunning = false
+        startPlaybackLoop()
+    }
+
     private fun reavaliarGiroDoQuadroDepoisDoPedido() {
         if (DeviceTypeUtil.isTelevision(applicationContext)) return
         val content = findViewById<android.view.ViewGroup>(android.R.id.content) ?: return
@@ -2105,10 +2141,26 @@ withContext(Dispatchers.Main) {
             val c = findViewById<android.view.ViewGroup>(android.R.id.content) ?: return@postDelayed
             if (c.width <= 0 || c.height <= 0) return@postDelayed
             val liberar = PlayerFlowPolicy.precisaGirarQuadroPorSoftware(c.width, c.height, SessionManager.currentOrientation)
+            // guarda a decisão: na próxima abertura (ex.: depois de faltar energia) o quadro já nasce girado
+            try {
+                getSharedPreferences("player_prefs", MODE_PRIVATE).edit()
+                    .putBoolean(PREF_GIRO_POR_SOFTWARE, liberar)
+                    .putString(PREF_GIRO_POR_SOFTWARE_PARA, SessionManager.currentOrientation)
+                    .apply()
+            } catch (e: Exception) { /* preferência é só um atalho */ }
             if (liberar != rotacaoPorSoftwareLiberada) {
                 rotacaoPorSoftwareLiberada = liberar
                 Logger.i("ORIENTATION", "Tela física ${c.width}x${c.height} x playlist ${SessionManager.currentOrientation}: quadro girado por software = $liberar")
                 applyTvCanvasOrientation()
+                // F-186: o giro mudou com o vídeo já no ar => o motor de vídeo recomeça com a área no tamanho final
+                // (mesmo reinício suave da manutenção). Durante a tela de sincronização não precisa: nada toca ainda.
+                if (PlayerFlowPolicy.reiniciarMotorAoMudarGiro(::playerRenderer1.isInitialized, isSyncInProgress)) {
+                    Logger.w("ORIENTATION", "Giro do quadro mudou durante a reprodução: reiniciando o motor de vídeo.")
+                    c.post {
+                        if (isFinishing || isDestroyed) return@post
+                        reiniciarMotorDeVideo()
+                    }
+                }
             }
         }, 2500L)
     }
@@ -2132,7 +2184,10 @@ withContext(Dispatchers.Main) {
                 isTelevision = DeviceTypeUtil.isTelevision(applicationContext),
                 forcedByPanel = forcePhysicalLock
             )
-            if (lock != null && requestedOrientation != lock) {
+            // Ensaio em bancada: files/ignorar_pedido_de_giro faz o aparelho se comportar como TV Box/totem que IGNORA o
+            // pedido de orientação (em produção o arquivo não existe).
+            val ignoraPedido = java.io.File(filesDir, "ignorar_pedido_de_giro").exists()
+            if (lock != null && requestedOrientation != lock && !ignoraPedido) {
                 Logger.i("ORIENTATION", "Physical lock: $canonicalOrientation (playlist) -> requestedOrientation=$lock")
                 requestedOrientation = lock
             }

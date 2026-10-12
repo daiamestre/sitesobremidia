@@ -170,6 +170,17 @@ object PlayerFlowPolicy {
         return painelDeitado != playlistDeitada
     }
 
+    /**
+     * F-186 — a decisão de girar por software, guardada na última vez, vale para a abertura seguinte? Só quando foi
+     * tomada para a MESMA orientação de playlist (trocou a playlist de pé para deitada: decide de novo).
+     */
+    fun giroPorSoftwareGuardado(guardado: Boolean, guardadoPara: String?, orientacaoAoAbrir: String?): Boolean =
+        guardado && !guardadoPara.isNullOrBlank() && guardadoPara == orientacaoAoAbrir
+
+    /** F-186 — o giro mudou: o motor de vídeo precisa recomeçar? Só se já havia vídeo no ar (fora da sincronização). */
+    fun reiniciarMotorAoMudarGiro(motorDeVideoCriado: Boolean, sincronizando: Boolean): Boolean =
+        motorDeVideoCriado && !sincronizando
+
     /** Como o canvas (toda a tela do player) deve ser desenhado: tamanho, rotação e deslocamento. */
     data class CanvasTransform(val width: Int, val height: Int, val rotation: Float, val translationX: Float, val translationY: Float)
 

@@ -116,10 +116,12 @@ object TimeManager {
     }
 
     fun updateOffset(newOffset: Long) {
-        // [SAFETY] Don't accept huge jumps unless first sync
+        // F-186: a correção medida AGORA (NTP ou cabeçalho HTTP) sempre vale. Antes um salto maior que 1 h era recusado
+        // para sempre: o aparelho que guardou uma correção de quando o relógio estava errado (TV Box sem bateria, fuso
+        // trocado) e depois teve o relógio acertado ficava horas adiantado/atrasado — a consulta de comandos do painel
+        // procurava "os últimos 2 minutos" no horário errado e nunca achava nada (captura, reiniciar, atualizar).
         if (isSynced && Math.abs(newOffset - timeOffsetMs) > 3600000) {
-            Logger.w("TimeManager", "Rejecting massive drift: ${newOffset}ms (Current: ${timeOffsetMs}ms)")
-            return
+            Logger.w("TimeManager", "Correção grande do relógio aceita: ${newOffset}ms (antes: ${timeOffsetMs}ms)")
         }
         
         timeOffsetMs = newOffset

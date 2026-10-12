@@ -440,6 +440,16 @@ class ExoPlayerRenderer(
         _playbackState.value = RendererState.IDLE
     }
 
+    /**
+     * F-186 — reinício do motor: libera os decodificadores e cria um ExoPlayer NOVO. Só release() deixa o motor sem
+     * player para sempre (todo item falha e a tela fica preta até o aplicativo ser reaberto). Quem chama precisa
+     * religar a PlayerView ao novo getPlayerInstance().
+     */
+    fun recreate() {
+        release()
+        initializePlayer()
+    }
+
     val instanceIdentifier: String get() = instanceName
     var currentScreenId: String? = null
 

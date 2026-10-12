@@ -26,6 +26,11 @@ Kotlin, `compileSdk 34`, `minSdk 23`, Media3 1.2.1, Room 2.6.1, Supabase Kotlin 
 - Ensaio no emulador: `androidTest/OtaInstalacaoTest.kt` com um APK de `VERSION_CODE` maior.
 - Hash diferente ou falha na instalação: o arquivo é apagado e o Player fica na versão atual.
 
+## Reinício do motor e giro (F-186)
+- Reiniciar o motor de vídeo é SEMPRE `reiniciarMotorDeVideo()` (para o laço, `recreate()` nos dois players, religa as PlayerViews, recomeça o laço). Nunca `release()` + `startSyncAndPlay()`: deixa tela preta com registro de exibição normal.
+- Aparelho que ignora o pedido de girar: a decisão fica em `player_prefs` (`giro_por_software`) e o quadro abre girado antes do vídeo. Bancada: `files/ignorar_pedido_de_giro` (só debug) + `adb shell wm size 1280x720`.
+- Canário é no APK de PRODUÇÃO, com login por senha da conta de teste e religando o aparelho (`adb reboot`), olhando a TELA (captura), não só o registro.
+
 ## Canário (antes de todo OTA)
 Abrir o app, entrar na tela, baixar as mídias reais, reproduzir sem tela preta e mandar heartbeat. Depois tirar a rede (continua pelo cache) e devolver a rede (a playlist nova entra de forma atômica).
 
