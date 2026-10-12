@@ -43,3 +43,21 @@ describe('F-184 · tela de aparelho parado fica livre', () => {
     expect(fn).toContain('ELSIF v_screen.bound_device_id = p_device_id THEN');
   });
 });
+
+describe('F-185 · toda tela livre pode ser conectada', () => {
+  const sql185 = readFileSync('supabase/migrations/20261327_aparelho_solta_a_tela_anterior.sql', 'utf8');
+
+  it('o servidor não recusa mais o aparelho por "já estar vinculado a outra tela"', () => {
+    expect(sql185).not.toContain('ja esta vinculado a outra tela');
+  });
+
+  it('ao conectar, o aparelho solta a tela anterior (nos dois caminhos: tela livre e tela de aparelho parado)', () => {
+    const solta = /UPDATE public\.screens\s+SET bound_device_id = NULL\s+WHERE bound_device_id = p_device_id\s+AND id <> v_screen\.id;/g;
+    expect(sql185.match(solta)?.length).toBe(2);
+  });
+
+  it('tela de aparelho vivo continua recusada', () => {
+    expect(sql185).toContain(`ELSE\n        RETURN '{"status": "DEVICE_ALREADY_BOUND"}'::JSONB;`);
+    expect(sql185).toContain('public.fn_tela_com_aparelho_parado(v_screen.last_ping_at)');
+  });
+});
