@@ -27,6 +27,27 @@ export const fetchAlertDevices = async (): Promise<AlertaDeAparelho[]> => {
     return (data as unknown as AlertaDeAparelho[]) ?? [];
 };
 
+/** F-187 — Tela que dá sinal mas não está reproduzindo, com a causa e o que fazer (fn_telas_sem_reproducao). */
+export interface TelaSemReproducao {
+  screen_id: string;
+  tela: string | null;
+  motivo: "SEM_PLAYLIST" | "PLAYLIST_VAZIA" | "APARELHO_NAO_VINCULADO" | "PLAYER_SEM_IMAGEM" | "SEM_EXIBICAO";
+  causa: string;
+  o_que_fazer: string;
+  ultimo_sinal: string | null;
+  ultima_exibicao: string | null;
+  app_version: string | null;
+}
+
+export const fetchTelasSemReproducao = async (): Promise<TelaSemReproducao[]> => {
+    const { data, error } = await supabase.rpc("fn_telas_sem_reproducao" as never);
+    if (error) {
+        console.error("Erro ao buscar telas sem reprodução:", error);
+        return [];
+    }
+    return (data as unknown as TelaSemReproducao[]) ?? [];
+};
+
 /**
  * F-141 — Dispensa o alerta de um aparelho (ou de todos, sem argumento). O alerta volta sozinho se o aparelho
  * der sinal de novo e cair outra vez. Devolve quantos alertas foram dispensados.

@@ -374,7 +374,7 @@ describe('F-172 · ligação no sistema', () => {
     expect(fn).toContain("Deno.env.get('PIXABAY_API_KEY')");
     expect(fn).toContain('Open Food Facts');
     const cfg = fonte('supabase/config.toml');
-    expect(/\[functions\.produto-imagem\][^\[]*verify_jwt\s*=\s*false/.test(cfg)).toBe(false);
+    expect(/\[functions\.produto-imagem\][^[]*verify_jwt\s*=\s*false/.test(cfg)).toBe(false);
     const front = fonte('src/lib/tabloide/imagens.ts') + fonte('src/components/tabloide/TabloideEditor.tsx');
     expect(front).not.toMatch(/PEXELS_API_KEY|PIXABAY_API_KEY/);
   });

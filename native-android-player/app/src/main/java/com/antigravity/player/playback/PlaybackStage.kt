@@ -138,6 +138,20 @@ class PlaybackStage(
         shownImageLayer = null
     }
 
+    // ------------------------------------------------------------------ F-187: o que o vigia da imagem consulta
+
+    /** Há um item no ar (o palco já mostrou e não esqueceu)? */
+    fun temItemNoAr(): Boolean = shownView != null
+
+    /** A camada do item no ar está de fato visível (ela e todos os contêineres acima dela) e opaca? */
+    fun camadaDoItemVisivel(): Boolean = shownView?.let { it.isShown && it.alpha > 0.9f } ?: false
+
+    /** O item no ar é vídeo? */
+    fun videoNoAr(): Boolean = shownKind == Kind.VIDEO
+
+    /** Player do vídeo no ar (null: não é vídeo, ou o motor foi liberado). */
+    fun playerDoVideoNoAr(): Player? = if (shownKind == Kind.VIDEO) shownRenderer?.getPlayerInstance() else null
+
     /** A superfície pediu "só mídia": garante que a camada do item atual esteja visível e opaca. */
     fun restoreShown() {
         shownView?.let {

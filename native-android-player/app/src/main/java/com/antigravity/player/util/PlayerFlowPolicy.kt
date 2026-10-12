@@ -181,6 +181,43 @@ object PlayerFlowPolicy {
     fun reiniciarMotorAoMudarGiro(motorDeVideoCriado: Boolean, sincronizando: Boolean): Boolean =
         motorDeVideoCriado && !sincronizando
 
+    // ------------------------------------------------------------------ F-187: vigia da imagem
+
+    enum class AcaoDoVigia { NADA, MOSTRAR_MIDIA, REINICIAR_MOTOR }
+
+    /** De quanto em quanto tempo o vigia olha a tela. */
+    const val VIGIA_INTERVALO_MS = 2_000L
+    /** Tela de sincronização por cima de mídia no ar: tolerância (cobre "Mídias sincronizadas" e a troca de playlist). */
+    const val VIGIA_SYNC_POR_CIMA_MS = 8_000L
+    /** Camada do item escondida/transparente: tolerância (cobre o cruzamento entre mídias). */
+    const val VIGIA_CAMADA_ESCONDIDA_MS = 4_000L
+    /** Vídeo no ar sem andar: tolerância (cobre carregamento lento em TV Box). */
+    const val VIGIA_VIDEO_PARADO_MS = 12_000L
+
+    /**
+     * Garantia: se há mídia no ar, ela APARECE. O palco pode estar "exibindo" (registro de exibição e sinal normais) com
+     * a tela de sincronização por cima, com a camada escondida ou com o vídeo parado — o dono vê "Sincronizando" preso ou
+     * tela preta. O vigia olha a tela a cada 2 s e corrige: mostra a mídia, ou reinicia o motor de vídeo.
+     * Tela bloqueada/suspensa ou sem item no ar (1ª sincronização, sem playlist): não mexe.
+     */
+    fun acaoDoVigia(
+        itemNoAr: Boolean,
+        telaLiberada: Boolean,
+        syncPorCimaHaMs: Long,
+        camadaEscondidaHaMs: Long,
+        videoNoAr: Boolean,
+        videoParadoHaMs: Long
+    ): AcaoDoVigia = when {
+        !itemNoAr || !telaLiberada -> AcaoDoVigia.NADA
+        videoNoAr && videoParadoHaMs >= VIGIA_VIDEO_PARADO_MS -> AcaoDoVigia.REINICIAR_MOTOR
+        syncPorCimaHaMs >= VIGIA_SYNC_POR_CIMA_MS || camadaEscondidaHaMs >= VIGIA_CAMADA_ESCONDIDA_MS -> AcaoDoVigia.MOSTRAR_MIDIA
+        else -> AcaoDoVigia.NADA
+    }
+
+    /** O vídeo está andando? (tocando, ou a posição avançou desde a última olhada) */
+    fun videoAndando(playerExiste: Boolean, tocando: Boolean, posicaoMs: Long, posicaoAnteriorMs: Long): Boolean =
+        playerExiste && (tocando || posicaoMs != posicaoAnteriorMs)
+
     /** Como o canvas (toda a tela do player) deve ser desenhado: tamanho, rotação e deslocamento. */
     data class CanvasTransform(val width: Int, val height: Int, val rotation: Float, val translationX: Float, val translationY: Float)
 

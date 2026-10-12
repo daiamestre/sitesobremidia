@@ -24,6 +24,9 @@ import kotlinx.coroutines.flow.firstOrNull
  */
 class PersistentHeartbeatService : Service() {
 
+    /** Última causa de "sem reprodução" enviada ao painel (null = normal). */
+    @Volatile private var ultimaCausaInformada: String? = null
+
     private var wakeLock: PowerManager.WakeLock? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var isRunning = false
@@ -84,10 +87,17 @@ class PersistentHeartbeatService : Service() {
                     }
                     
                     // [BILLING] Status reflete o estado REAL da tela (blocked = "blocked")
-                    val status = when {
-                        !SessionManager.isScreenActive -> "blocked"
-                        playlist != null -> "playing"
-                        else -> "syncing"
+                    // F-187: "playing" só quando o vigia da imagem confirma mídia aparecendo (antes bastava existir
+                    // playlist guardada: tela presa em "Sincronizando" ou preta aparecia como normal no painel).
+                    val (status, causa) = com.antigravity.player.util.SaudeDaReproducao.statusParaOServidor(
+                        agoraMs = android.os.SystemClock.elapsedRealtime(),
+                        telaAtiva = SessionManager.isScreenActive,
+                        temPlaylist = playlist != null
+                    )
+                    if (causa != ultimaCausaInformada) {
+                        ultimaCausaInformada = causa
+                        // a causa vai para o painel (Central de Alertas): "Applied: SemReproducao (...)" / "Reproducao (normal)"
+                        try { repo.reportActionApplied(if (causa != null) "SemReproducao" else "Reproducao", causa ?: "normal") } catch (_: Exception) { }
                     }
 
                     Logger.d("HEARTBEAT_PROC", "Enviando sinal de vida (Foreground)... [$status]")

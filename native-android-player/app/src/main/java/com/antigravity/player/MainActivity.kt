@@ -721,6 +721,7 @@ class MainActivity : AppCompatActivity() {
             // Attach ExoPlayers to Views
             playerView1.player = playerRenderer1.getPlayerInstance()
             playerView2.player = playerRenderer2.getPlayerInstance()
+            iniciarVigiaDaImagem()
             
             // [HARDENING] Use solid black for shutter to prevent hardware glitches (like green flickering)
             playerView1.setShutterBackgroundColor(Color.BLACK)
@@ -2131,6 +2132,104 @@ withContext(Dispatchers.Main) {
         }
         isSyncLoopRunning = false
         startPlaybackLoop()
+    }
+
+    // ------------------------------------------------------------------ F-187: vigia da imagem
+    private var vigiaDaImagemJob: Job? = null
+    private var vigiaSyncDesdeMs = 0L
+    private var vigiaCamadaDesdeMs = 0L
+    private var vigiaVideoDesdeMs = 0L
+    private var vigiaUltimaPosicaoMs = -1L
+    private var vigiaUltimoReinicioMs = 0L
+    private var vigiaSemItemDesdeMs = 0L
+    private val vigiaReinicios = java.util.ArrayDeque<Long>()
+
+    /** Olha a tela a cada 2 s: mídia no ar tem de APARECER (ver PlayerFlowPolicy.acaoDoVigia). */
+    private fun iniciarVigiaDaImagem() {
+        if (vigiaDaImagemJob?.isActive == true) return
+        vigiaDaImagemJob = lifecycleScope.launch {
+            while (isActive) {
+                delay(PlayerFlowPolicy.VIGIA_INTERVALO_MS)
+                try { vigiarImagem() } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    Logger.w("VIGIA", "Falha ao vigiar a imagem: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun vigiarImagem() {
+        if (isFinishing || isDestroyed || !::playbackStage.isInitialized) return
+        // Ensaio em bancada: files/ensaio_tela_presa provoca UMA vez o defeito (tela de sincronização por cima e áreas de
+        // vídeo escondidas com mídia no ar) para provar que o vigia desfaz. Em produção o arquivo não existe.
+        java.io.File(filesDir, "ensaio_tela_presa").let { f ->
+            if (f.exists() && f.delete()) {
+                Logger.w("VIGIA", "ENSAIO: provocando tela de sincronização presa sobre mídia no ar.")
+                surfaceTarget.showSyncGuardSurface(null)
+            }
+        }
+        val agora = android.os.SystemClock.elapsedRealtime()
+        val itemNoAr = playbackStage.temItemNoAr()
+        val telaLiberada = SessionManager.isScreenActive && blockOverlay.visibility != View.VISIBLE
+        // F-187: a verdade sobre a tela vai para o sinal de vida (painel: "não está reproduzindo" + causa)
+        vigiaSemItemDesdeMs = if (itemNoAr) 0L else (if (vigiaSemItemDesdeMs == 0L) agora else vigiaSemItemDesdeMs)
+        while (vigiaReinicios.isNotEmpty() && agora - vigiaReinicios.peekFirst()!! > com.antigravity.player.util.SaudeDaReproducao.REINICIOS_JANELA_MS) vigiaReinicios.pollFirst()
+        val (reproduzindo, causa) = com.antigravity.player.util.SaudeDaReproducao.avaliar(
+            itemNoAr = itemNoAr,
+            telaLiberada = telaLiberada,
+            semItemHaMs = if (vigiaSemItemDesdeMs == 0L) 0L else agora - vigiaSemItemDesdeMs,
+            presoNaSincronizacao = syncGuard.isLocked(),
+            reiniciosDoMotorNaJanela = vigiaReinicios.size
+        )
+        com.antigravity.player.util.SaudeDaReproducao.informar(reproduzindo, causa, agora)
+        if (!itemNoAr || !telaLiberada) {
+            vigiaSyncDesdeMs = 0L; vigiaCamadaDesdeMs = 0L; vigiaVideoDesdeMs = 0L; vigiaUltimaPosicaoMs = -1L
+            return
+        }
+        vigiaSyncDesdeMs = if (syncGuard.isLocked()) (if (vigiaSyncDesdeMs == 0L) agora else vigiaSyncDesdeMs) else 0L
+        vigiaCamadaDesdeMs = if (!playbackStage.camadaDoItemVisivel()) (if (vigiaCamadaDesdeMs == 0L) agora else vigiaCamadaDesdeMs) else 0L
+        val videoNoAr = playbackStage.videoNoAr()
+        if (videoNoAr) {
+            val player = playbackStage.playerDoVideoNoAr()
+            val posicao = player?.currentPosition ?: -1L
+            val andando = PlayerFlowPolicy.videoAndando(player != null, player?.isPlaying == true, posicao, vigiaUltimaPosicaoMs)
+            vigiaUltimaPosicaoMs = posicao
+            vigiaVideoDesdeMs = if (andando) 0L else (if (vigiaVideoDesdeMs == 0L) agora else vigiaVideoDesdeMs)
+        } else {
+            vigiaVideoDesdeMs = 0L; vigiaUltimaPosicaoMs = -1L
+        }
+        val acao = PlayerFlowPolicy.acaoDoVigia(
+            itemNoAr = true,
+            telaLiberada = true,
+            syncPorCimaHaMs = if (vigiaSyncDesdeMs == 0L) 0L else agora - vigiaSyncDesdeMs,
+            camadaEscondidaHaMs = if (vigiaCamadaDesdeMs == 0L) 0L else agora - vigiaCamadaDesdeMs,
+            videoNoAr = videoNoAr,
+            videoParadoHaMs = if (vigiaVideoDesdeMs == 0L) 0L else agora - vigiaVideoDesdeMs
+        )
+        when (acao) {
+            PlayerFlowPolicy.AcaoDoVigia.NADA -> Unit
+            PlayerFlowPolicy.AcaoDoVigia.MOSTRAR_MIDIA -> {
+                Logger.w("VIGIA", "Mídia no ar sem aparecer (sincronização por cima=${syncGuard.isLocked()}, camada visível=${playbackStage.camadaDoItemVisivel()}): mostrando a mídia.")
+                logBlackBox("VIGIA", "MOSTRAR_MIDIA")
+                syncGuard.releaseLock()
+                statusTextView.visibility = View.GONE
+                standbyImage.visibility = View.GONE
+                playerView1.visibility = View.VISIBLE
+                playerView2.visibility = View.VISIBLE
+                playbackStage.restoreShown()
+                vigiaSyncDesdeMs = 0L; vigiaCamadaDesdeMs = 0L
+            }
+            PlayerFlowPolicy.AcaoDoVigia.REINICIAR_MOTOR -> {
+                if (agora - vigiaUltimoReinicioMs < 30_000L) return // no máximo um reinício a cada 30 s
+                vigiaUltimoReinicioMs = agora
+                vigiaReinicios.addLast(agora)
+                Logger.w("VIGIA", "Vídeo no ar parado: reiniciando o motor de vídeo.")
+                logBlackBox("VIGIA", "REINICIAR_MOTOR")
+                vigiaVideoDesdeMs = 0L; vigiaUltimaPosicaoMs = -1L
+                syncGuard.releaseLock()
+                reiniciarMotorDeVideo()
+            }
+        }
     }
 
     private fun reavaliarGiroDoQuadroDepoisDoPedido() {

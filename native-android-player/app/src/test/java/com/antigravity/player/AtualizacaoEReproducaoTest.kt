@@ -261,7 +261,7 @@ class AtualizacaoEReproducaoTest {
         // ninguém mais libera o motor e segue tocando sem recriar
         assertNull(Regex("playerRenderer2\\.release\\(\\)\\s+startSyncAndPlay\\(\\)").find(principal))
         // a manutenção e a mudança de giro usam o reinício completo (2 chamadas + a declaração)
-        assertEquals(3, Regex("reiniciarMotorDeVideo\\(\\)").findAll(principal).count())
+        assertEquals(4, Regex("reiniciarMotorDeVideo\\(\\)").findAll(principal).count())
     }
 
     @Test
@@ -271,5 +271,86 @@ class AtualizacaoEReproducaoTest {
         assertFalse("não existe mais a recusa de salto grande", corpo.contains("Rejecting massive drift"))
         assertNull("nenhum caminho sai sem aplicar a correção", Regex("\breturn\b").find(corpo))
         assertTrue(corpo.contains("timeOffsetMs = newOffset"))
+    }
+
+    // ---------------------------------------------------------------- F-187: mídia no ar tem de aparecer
+
+    private fun vigia(item: Boolean = true, liberada: Boolean = true, sync: Long = 0, camada: Long = 0, video: Boolean = false, parado: Long = 0) =
+        PlayerFlowPolicy.acaoDoVigia(item, liberada, sync, camada, video, parado)
+
+    @Test
+    fun `sincronizando por cima de midia no ar e solto depois da tolerancia`() {
+        assertEquals(PlayerFlowPolicy.AcaoDoVigia.NADA, vigia(sync = 7_000))
+        assertEquals(PlayerFlowPolicy.AcaoDoVigia.MOSTRAR_MIDIA, vigia(sync = 8_000))
+    }
+
+    @Test
+    fun `camada do item escondida volta a aparecer, e o cruzamento entre midias nao dispara`() {
+        assertEquals(PlayerFlowPolicy.AcaoDoVigia.NADA, vigia(camada = 2_000))
+        assertEquals(PlayerFlowPolicy.AcaoDoVigia.MOSTRAR_MIDIA, vigia(camada = 4_000))
+    }
+
+    @Test
+    fun `video no ar parado reinicia o motor, e imagem parada nao`() {
+        assertEquals(PlayerFlowPolicy.AcaoDoVigia.NADA, vigia(video = true, parado = 11_000))
+        assertEquals(PlayerFlowPolicy.AcaoDoVigia.REINICIAR_MOTOR, vigia(video = true, parado = 12_000))
+        assertEquals(PlayerFlowPolicy.AcaoDoVigia.NADA, vigia(video = false, parado = 60_000))
+        assertTrue(PlayerFlowPolicy.videoAndando(true, tocando = true, posicaoMs = 5, posicaoAnteriorMs = 5))
+        assertTrue(PlayerFlowPolicy.videoAndando(true, tocando = false, posicaoMs = 9, posicaoAnteriorMs = 5))
+        assertFalse(PlayerFlowPolicy.videoAndando(true, tocando = false, posicaoMs = 5, posicaoAnteriorMs = 5))
+        assertFalse(PlayerFlowPolicy.videoAndando(false, tocando = false, posicaoMs = -1, posicaoAnteriorMs = 7))
+    }
+
+    @Test
+    fun `sem item no ar ou com a tela bloqueada o vigia nao mexe`() {
+        assertEquals(PlayerFlowPolicy.AcaoDoVigia.NADA, vigia(item = false, sync = 600_000, camada = 600_000))
+        assertEquals(PlayerFlowPolicy.AcaoDoVigia.NADA, vigia(liberada = false, sync = 600_000, video = true, parado = 600_000))
+    }
+
+    @Test
+    fun `o vigia roda desde que o palco existe e usa o reinicio completo do motor`() {
+        val principal = codigo("src/main/java/com/antigravity/player/MainActivity.kt")
+        assertTrue(principal.contains("iniciarVigiaDaImagem()"))
+        val v = principal.substring(principal.indexOf("private fun vigiarImagem()"), principal.indexOf("private fun reavaliarGiroDoQuadroDepoisDoPedido()"))
+        assertTrue(v.contains("syncGuard.releaseLock()") && v.contains("playbackStage.restoreShown()") && v.contains("reiniciarMotorDeVideo()"))
+    }
+
+    // ---------------------------------------------------------------- F-187: o painel sabe quando não está reproduzindo
+
+    private val saude = com.antigravity.player.util.SaudeDaReproducao
+
+    @Test
+    fun `com midia no ar esta reproduzindo, e sem item so vira alerta depois da tolerancia`() {
+        assertEquals(true to null, saude.avaliar(itemNoAr = true, telaLiberada = true, semItemHaMs = 0, presoNaSincronizacao = false, reiniciosDoMotorNaJanela = 0))
+        assertEquals(true to null, saude.avaliar(false, true, 89_000, true, 0))
+        val preso = saude.avaliar(false, true, 90_000, true, 0)
+        assertFalse(preso.first); assertTrue(preso.second!!.contains("sincronização"))
+        val semItem = saude.avaliar(false, true, 120_000, false, 0)
+        assertFalse(semItem.first); assertTrue(semItem.second!!.contains("Nenhuma mídia no ar"))
+    }
+
+    @Test
+    fun `motor reiniciado demais vira alerta, e tela bloqueada no painel nao e defeito`() {
+        val motor = saude.avaliar(true, true, 0, false, 3)
+        assertFalse(motor.first); assertTrue(motor.second!!.contains("motor de vídeo"))
+        assertEquals(true to null, saude.avaliar(false, telaLiberada = false, semItemHaMs = 900_000, presoNaSincronizacao = true, reiniciosDoMotorNaJanela = 9))
+    }
+
+    @Test
+    fun `o sinal de vida so diz playing quando o vigia confirma, e explica a causa`() {
+        saude.informar(true, null, agoraMs = 1_000_000)
+        assertEquals("playing" to null, saude.statusParaOServidor(1_005_000, telaAtiva = true, temPlaylist = true))
+        assertEquals("blocked", saude.statusParaOServidor(1_005_000, telaAtiva = false, temPlaylist = true).first)
+        assertEquals("syncing", saude.statusParaOServidor(1_005_000, telaAtiva = true, temPlaylist = false).first)
+        // o vigia calou (tela do Player fechada): não é "playing"
+        val calado = saude.statusParaOServidor(1_000_000 + 31_000, true, true)
+        assertEquals("sem_reproducao", calado.first); assertTrue(calado.second!!.contains("não está aberta"))
+        saude.informar(false, "Preso na tela de sincronização há 120 s", agoraMs = 2_000_000)
+        assertEquals("sem_reproducao" to "Preso na tela de sincronização há 120 s", saude.statusParaOServidor(2_001_000, true, true))
+        saude.informar(true, null, agoraMs = 3_000_000) // não deixa estado sujo para os outros testes
+        val servico = codigo("src/main/java/com/antigravity/player/service/PersistentHeartbeatService.kt")
+        assertTrue(servico.contains("SaudeDaReproducao.statusParaOServidor("))
+        assertFalse("não existe mais o playing automático", servico.contains("playlist != null -> \"playing\""))
+        assertTrue(servico.contains("\"SemReproducao\""))
     }
 }

@@ -12,6 +12,7 @@ import { saudacao } from '@/lib/dashboardResumo';
 import { RedePorEstabelecimento } from '@/components/rede/RedePorEstabelecimento';
 import { PainelCompleto } from '@/components/dashboard/PainelCompleto';
 import { Link } from 'react-router-dom';
+import { TelasSemReproducao } from '@/components/central/TelasSemReproducao';
 
 export default function DashboardHome() {
   const { profile, perfilNome } = useAuth();
@@ -145,6 +146,9 @@ export default function DashboardHome() {
           )}
         </div>
       )}
+
+      {/* F-187: tela ligada, dando sinal, mas sem reproduzir (com a causa) */}
+      <TelasSemReproducao />
 
       {/* Device Alerts */}
       {alerts.length > 0 && (

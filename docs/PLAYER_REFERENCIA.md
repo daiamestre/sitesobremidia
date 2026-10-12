@@ -31,6 +31,11 @@ Kotlin, `compileSdk 34`, `minSdk 23`, Media3 1.2.1, Room 2.6.1, Supabase Kotlin 
 - Aparelho que ignora o pedido de girar: a decisão fica em `player_prefs` (`giro_por_software`) e o quadro abre girado antes do vídeo. Bancada: `files/ignorar_pedido_de_giro` (só debug) + `adb shell wm size 1280x720`.
 - Canário é no APK de PRODUÇÃO, com login por senha da conta de teste e religando o aparelho (`adb reboot`), olhando a TELA (captura), não só o registro.
 
+## Vigia da imagem (F-187)
+- `MainActivity.vigiarImagem()` roda a cada 2 s e garante o resultado: mídia no ar APARECE (regras em `PlayerFlowPolicy.acaoDoVigia`).
+- `util/SaudeDaReproducao.kt` é a verdade enviada no sinal de vida (`playing` só com o vigia confirmando; senão `sem_reproducao` + causa em `status_note`). O painel lê por `fn_telas_sem_reproducao()`.
+- Bancada (debug): `run-as com.antigravity.player touch files/ensaio_tela_presa` provoca a tela presa uma vez.
+
 ## Canário (antes de todo OTA)
 Abrir o app, entrar na tela, baixar as mídias reais, reproduzir sem tela preta e mandar heartbeat. Depois tirar a rede (continua pelo cache) e devolver a rede (a playlist nova entra de forma atômica).
 
