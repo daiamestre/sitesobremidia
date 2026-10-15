@@ -322,6 +322,8 @@ class PlaybackStage(
         val slot = timeline.claim(durMs)
         awaitUntil(slot.startAt)
         shownType = item.type
+        // F-188: o item emendado também avisa que começou (a medição de fluidez e o vigia acompanham cada vídeo)
+        hooks.videoShown(player, renderer, if (renderer === r1) r2 else r1)
         hooks.mediaVisible()
         hooks.log("PLAYBACK_SLOT", "show item=${item.name} kind=VIDEO fadeMs=0 t=${SystemClock.elapsedRealtime()}")
         hold(slot, item, next, 0L, audioEnabled) { player.playerError != null }

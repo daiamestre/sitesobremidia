@@ -295,6 +295,16 @@ class RemoteDataSource {
         }
     }
 
+    /** F-188 — fluidez de um vídeo exibido (melhor esforço: falha não interrompe nada). */
+    suspend fun registrarDesempenhoVideo(dados: kotlinx.serialization.json.JsonObject) {
+        try {
+            client.postgrest.rpc("fn_player_registrar_desempenho_video", buildJsonObject { put("p", dados) })
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Logger.w("DESEMPENHO", "Falha ao enviar a medição de fluidez: ${e.message}")
+        }
+    }
+
     private fun isoTimestampAt(epochMs: Long): String {
         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
         sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")

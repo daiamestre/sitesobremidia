@@ -149,6 +149,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun videoShown(player: androidx.media3.common.Player, active: ExoPlayerRenderer, standby: ExoPlayerRenderer) {
+            iniciarMedicaoDeVideo(active)
             activePlayer = active
             standbyPlayer = standby
             playbackWatchdog.watch(player)
@@ -159,6 +160,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun itemFinished() {
+            encerrarMedicaoDeVideo()
             if (::playbackWatchdog.isInitialized) playbackWatchdog.reset()
         }
 
@@ -1681,6 +1683,7 @@ withContext(Dispatchers.Main) {
                     // 3. EXECUÇÃO PELOS MOTORES (Isolamento de Hardware)
                     // O palco cuida do tempo exato, da pré-carga do próximo item e do cruzamento entre mídias.
                     zoneController?.onMainItemStarted(item.id) // F-149: nenhuma outra zona continua com a mesma mídia
+                    itemEmExibicao = item
                     val skipOnFail = playbackStage.play(item, nextItem, playlist.audioEnabled)
 
                     if (skipOnFail) {
@@ -2132,6 +2135,52 @@ withContext(Dispatchers.Main) {
         }
         isSyncLoopRunning = false
         startPlaybackLoop()
+    }
+
+    // ------------------------------------------------------------------ F-188: fluidez de cada vídeo exibido
+    @Volatile private var itemEmExibicao: com.antigravity.core.domain.model.MediaItem? = null
+    private class MedicaoDeVideo(val item: com.antigravity.core.domain.model.MediaItem, val motor: ExoPlayerRenderer, val inicio: IntArray?, val inicioMs: Long)
+    private var medicaoDeVideo: MedicaoDeVideo? = null
+
+    private fun iniciarMedicaoDeVideo(motor: ExoPlayerRenderer) {
+        encerrarMedicaoDeVideo() // item emendado: fecha o anterior antes de abrir o novo
+        val item = itemEmExibicao ?: return
+        // sem decodificador aberto ainda (ele abre logo depois): a leitura final conta o item inteiro
+        medicaoDeVideo = MedicaoDeVideo(item, motor, motor.contadoresDeQuadros(), android.os.SystemClock.elapsedRealtime())
+    }
+
+    private fun encerrarMedicaoDeVideo() {
+        val m = medicaoDeVideo ?: return
+        medicaoDeVideo = null
+        val fim = m.motor.contadoresDeQuadros() ?: return
+        val duracaoMs = android.os.SystemClock.elapsedRealtime() - m.inicioMs
+        if (duracaoMs < 2_000L) return
+        val d = com.antigravity.player.util.DesempenhoDeVideo.delta(m.inicio, fim)
+        val formato = m.motor.formatoDeVideo
+        val esperados = com.antigravity.player.util.DesempenhoDeVideo.quadrosEsperados(duracaoMs, com.antigravity.player.util.DesempenhoDeVideo.fpsDoFormato(formato))
+        val veredito = com.antigravity.player.util.DesempenhoDeVideo.veredito(d[0], d[1], esperados)
+        val decodificador = m.motor.decodificadorDeVideo
+        Logger.i("DESEMPENHO", "${m.item.name}: $formato decod=$decodificador exibidos=${d[0]}/$esperados perdidos=${d[1]} seguidos=${d[2]} -> $veredito")
+        val screenId = SessionManager.currentUUID ?: return
+        val dados = kotlinx.serialization.json.buildJsonObject {
+            put("screen_id", kotlinx.serialization.json.JsonPrimitive(screenId))
+            put("device_id", kotlinx.serialization.json.JsonPrimitive(SessionManager.deviceIdentityHash ?: ""))
+            put("media_id", kotlinx.serialization.json.JsonPrimitive(m.item.id))
+            put("midia", kotlinx.serialization.json.JsonPrimitive(m.item.name))
+            put("decodificador", kotlinx.serialization.json.JsonPrimitive(decodificador ?: ""))
+            put("por_software", kotlinx.serialization.json.JsonPrimitive(com.antigravity.player.util.DesempenhoDeVideo.porSoftware(decodificador)))
+            put("formato", kotlinx.serialization.json.JsonPrimitive(formato ?: ""))
+            put("duracao_ms", kotlinx.serialization.json.JsonPrimitive(duracaoMs))
+            put("quadros_exibidos", kotlinx.serialization.json.JsonPrimitive(d[0]))
+            put("quadros_perdidos", kotlinx.serialization.json.JsonPrimitive(d[1]))
+            put("max_perdidos_seguidos", kotlinx.serialization.json.JsonPrimitive(d[2]))
+            put("quadros_esperados", kotlinx.serialization.json.JsonPrimitive(esperados))
+            put("veredito", kotlinx.serialization.json.JsonPrimitive(veredito))
+            put("giro_por_software", kotlinx.serialization.json.JsonPrimitive(rotacaoPorSoftwareLiberada))
+            put("app_version", kotlinx.serialization.json.JsonPrimitive(com.antigravity.player.BuildConfig.VERSION_NAME))
+            put("modelo", kotlinx.serialization.json.JsonPrimitive(android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " / " + android.os.Build.HARDWARE))
+        }
+        lifecycleScope.launch(Dispatchers.IO) { ServiceLocator.getRemoteDataSource().registrarDesempenhoVideo(dados) }
     }
 
     // ------------------------------------------------------------------ F-187: vigia da imagem

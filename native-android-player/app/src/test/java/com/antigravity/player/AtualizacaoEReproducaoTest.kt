@@ -6,6 +6,7 @@ import com.antigravity.player.util.OtaPolicy.Resultado
 import com.antigravity.player.util.OtaStatus
 import com.antigravity.player.util.OtaStatus.Estado
 import com.antigravity.player.util.PlayerFlowPolicy
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -352,5 +353,41 @@ class AtualizacaoEReproducaoTest {
         assertTrue(servico.contains("SaudeDaReproducao.statusParaOServidor("))
         assertFalse("não existe mais o playing automático", servico.contains("playlist != null -> \"playing\""))
         assertTrue(servico.contains("\"SemReproducao\""))
+    }
+
+    // ---------------------------------------------------------------- F-188: fluidez medida no aparelho
+
+    private val dv = com.antigravity.player.util.DesempenhoDeVideo
+
+    @Test
+    fun `reconhece decodificador por software e por hardware`() {
+        assertTrue(dv.porSoftware("OMX.google.h264.decoder"))
+        assertTrue(dv.porSoftware("c2.android.avc.decoder"))
+        assertFalse(dv.porSoftware("OMX.rk.video_decoder.avc"))
+        assertFalse(dv.porSoftware("OMX.amlogic.avc.decoder.awesome"))
+        assertFalse(dv.porSoftware(null))
+    }
+
+    @Test
+    fun `veredito de fluidez pelos quadros exibidos e perdidos`() {
+        assertEquals(30f, dv.fpsDoFormato("1080x1920@30.0"))
+        assertNull(dv.fpsDoFormato("1080x1920@-1.0"))
+        assertEquals(900, dv.quadrosEsperados(30_000, 30f))
+        assertEquals("fluido", dv.veredito(exibidos = 895, perdidos = 3, esperados = 900))
+        assertEquals("engasgos leves", dv.veredito(exibidos = 800, perdidos = 30, esperados = 900))
+        assertEquals("travando", dv.veredito(exibidos = 420, perdidos = 200, esperados = 900))
+        assertEquals("travando", dv.veredito(exibidos = 400, perdidos = 0, esperados = 900)) // lento: mostrou menos da metade
+    }
+
+    @Test
+    fun `a medicao por item desconta o acumulado do player emendado`() {
+        // mesmo decodificador (identidade 7): desconta o acumulado
+        assertArrayEquals(intArrayOf(100, 2, 5, 1), dv.delta(intArrayOf(900, 10, 3, 0, 7), intArrayOf(1000, 12, 5, 1, 7)))
+        // decodificador reaberto no meio, ou inexistente no início: a leitura final já é só do item
+        assertArrayEquals(intArrayOf(700, 20, 4, 0), dv.delta(intArrayOf(900, 10, 3, 0, 7), intArrayOf(700, 20, 4, 0, 9)))
+        assertArrayEquals(intArrayOf(700, 20, 4, 0), dv.delta(null, intArrayOf(700, 20, 4, 0, 9)))
+        val principal = codigo("src/main/java/com/antigravity/player/MainActivity.kt")
+        assertTrue(principal.contains("iniciarMedicaoDeVideo(active)") && principal.contains("encerrarMedicaoDeVideo()"))
+        assertTrue(codigo("../sync-network/src/main/java/com/antigravity/sync/service/RemoteDataSource.kt").contains("fn_player_registrar_desempenho_video"))
     }
 }

@@ -64,6 +64,25 @@ class ExoPlayerRenderer(
      */
     fun getPlayerInstance(): Player? = exoPlayer
 
+    /** F-188 — nome do decodificador de vídeo em uso (ex.: OMX.rk.video_decoder.avc = hardware; OMX.google/c2.android = software). */
+    @Volatile var decodificadorDeVideo: String? = null
+        private set
+
+    /** F-188 — formato do vídeo que entrou no decodificador: "1080x1920@30.0". */
+    @Volatile var formatoDeVideo: String? = null
+        private set
+
+    /**
+     * F-188 — contadores do decodificador em uso: [exibidos, perdidos, maior sequência perdida, pulados, identidade do
+     * decodificador]. Cada vez que o decodificador é reaberto (troca de vídeo) os contadores recomeçam do zero; a
+     * identidade permite saber se a leitura final é do mesmo decodificador da inicial. null = nenhum decodificador aberto.
+     */
+    fun contadoresDeQuadros(): IntArray? {
+        val c = exoPlayer?.videoDecoderCounters ?: return null
+        c.ensureUpdated()
+        return intArrayOf(c.renderedOutputBufferCount, c.droppedBufferCount, c.maxConsecutiveDroppedBufferCount, c.skippedOutputBufferCount, System.identityHashCode(c))
+    }
+
     init {
         initializePlayer()
     }
@@ -117,6 +136,27 @@ class ExoPlayerRenderer(
                 
                 // [MICRO-GATE P0] Video Scaling Mode - preserve aspect ratio strictly without cropping or distortion
                 this.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+
+                // F-188: medição de fluidez (qual decodificador e qual formato) para o teste nos aparelhos reais
+                addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+                    override fun onVideoDecoderInitialized(
+                        eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                        decoderName: String,
+                        initializedTimestampMs: Long,
+                        initializationDurationMs: Long
+                    ) {
+                        decodificadorDeVideo = decoderName
+                        Logger.i("PLAYER_$instanceName", "Decodificador de vídeo: $decoderName")
+                    }
+
+                    override fun onVideoInputFormatChanged(
+                        eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                        format: androidx.media3.common.Format,
+                        decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
+                    ) {
+                        formatoDeVideo = "${format.width}x${format.height}@${format.frameRate}"
+                    }
+                })
 
                 addListener(object : Player.Listener {
                     override fun onVolumeChanged(newVolume: Float) {
