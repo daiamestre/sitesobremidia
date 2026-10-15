@@ -10,6 +10,7 @@ import com.antigravity.player.di.ServiceLocator
 import com.antigravity.core.util.Logger
 import com.antigravity.sync.service.SessionManager
 import com.antigravity.sync.service.MediaDownloader
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Industrial-Grade Media Downloader.
@@ -25,6 +26,11 @@ class MediaDownloadWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     private val mediaDownloader = MediaDownloader()
+
+    companion object {
+        /** F-189 — um download de mídia por vez no processo inteiro. */
+        val vezDeBaixar = kotlinx.coroutines.sync.Mutex()
+    }
 
     override suspend fun doWork(): Result {
         // [CRITICAL] Set low thread priority so downloads NEVER interfere with playback
@@ -62,7 +68,13 @@ class MediaDownloadWorker(
             repository.reportDownloadProgress(deviceId, mediaId, 0)
             
             // 2. Download via HTTP direto (suporta URLs completas do Supabase Storage)
-            val downloadResult = mediaDownloader.downloadFile(url, file)
+            // F-189: em TV Box fraca o download tem velocidade limitada e prioridade baixa (o vídeo no ar vem primeiro)
+            val limite = if (com.antigravity.media.exoplayer.ChipsetDetector.getRecommendedProfile() ==
+                com.antigravity.media.exoplayer.ChipsetDetector.HardwareProfile.LEGACY_STABILITY
+            ) com.antigravity.sync.service.RitmoDeDownload.LIMITE_TV_BOX_FRACA else 0L
+            // F-189: UM download de cada vez no aparelho. Antes vários vídeos baixavam ao mesmo tempo e o vídeo no ar
+            // engasgava; a falha de um não prende os outros (cada um espera só a sua vez).
+            val downloadResult = vezDeBaixar.withLock { mediaDownloader.downloadFile(url, file, limiteBytesPorSegundo = limite) }
             
             if (downloadResult.isFailure) {
                 Logger.e("DOWNLOAD", "Download failed for $mediaId: ${downloadResult.exceptionOrNull()?.message}")

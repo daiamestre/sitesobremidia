@@ -37,9 +37,23 @@ class MediaDownloader {
         }
     }
 
-    suspend fun downloadFile(url: String, outputFile: File, onProgress: ((lido: Long, total: Long) -> Unit)? = null): Result<File> {
+    /**
+     * F-189 — [limiteBytesPorSegundo] > 0 limita a velocidade e o download roda em prioridade baixa: em TV Box fraca, baixar
+     * vídeos novos na velocidade máxima disputava processador, memória e disco com o vídeo no ar, e TODOS os vídeos
+     * engasgavam ("câmera lenta") enquanto a playlist nova chegava.
+     */
+    suspend fun downloadFile(
+        url: String,
+        outputFile: File,
+        limiteBytesPorSegundo: Long = 0L,
+        onProgress: ((lido: Long, total: Long) -> Unit)? = null
+    ): Result<File> {
         return withContext(Dispatchers.IO) {
             val tmpFile = File(outputFile.parentFile, "${outputFile.name}.tmp")
+            val prioridadeAnterior = try { android.os.Process.getThreadPriority(android.os.Process.myTid()) } catch (e: Exception) { null }
+            if (limiteBytesPorSegundo > 0L) {
+                try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) } catch (e: Exception) { }
+            }
             try {
                 // 1. GARANTIA DE DIRETÓRIO: Força a criação da pasta media_content
                 outputFile.parentFile?.let {
@@ -76,12 +90,15 @@ class MediaDownloader {
                     java.io.FileOutputStream(tmpFile).use { fos ->
                         val buffer = ByteArray(8192)
                         var totalRead = 0L
+                        val inicioNs = System.nanoTime()
                         while (!channel.isClosedForRead) {
                             val read = channel.readAvailable(buffer, 0, buffer.size)
                             if (read <= 0) break
                             fos.write(buffer, 0, read)
                             totalRead += read
                             onProgress?.invoke(totalRead, expectedSize)
+                            val esperaMs = RitmoDeDownload.esperaMs(totalRead, (System.nanoTime() - inicioNs) / 1_000_000L, limiteBytesPorSegundo)
+                            if (esperaMs > 0L) kotlinx.coroutines.delay(esperaMs)
                         }
                         fos.flush()
                         fos.fd.sync() // FORÇA A GRAVAÇÃO NO DISCO DO EMULADOR
@@ -124,9 +141,15 @@ class MediaDownloader {
                 if (tmpFile.exists()) tmpFile.delete()
                 Result.failure(e)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 android.util.Log.e("MediaDownloader", "ERRO GENÉRICO NO DOWNLOAD", e)
                 if (tmpFile.exists()) tmpFile.delete()
                 Result.failure(e)
+            } finally {
+                // a linha é emprestada do conjunto de IO: devolve a prioridade que ela tinha
+                if (limiteBytesPorSegundo > 0L && prioridadeAnterior != null) {
+                    try { android.os.Process.setThreadPriority(prioridadeAnterior) } catch (e: Exception) { }
+                }
             }
         }
     }

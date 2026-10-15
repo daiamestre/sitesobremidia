@@ -390,4 +390,26 @@ class AtualizacaoEReproducaoTest {
         assertTrue(principal.contains("iniciarMedicaoDeVideo(active)") && principal.contains("encerrarMedicaoDeVideo()"))
         assertTrue(codigo("../sync-network/src/main/java/com/antigravity/sync/service/RemoteDataSource.kt").contains("fn_player_registrar_desempenho_video"))
     }
+
+    // ---------------------------------------------------------------- F-189: baixar vídeo novo não trava o vídeo no ar
+
+    @Test
+    fun `o ritmo do download respeita o limite e sem limite nunca espera`() {
+        val r = com.antigravity.sync.service.RitmoDeDownload
+        assertEquals(0L, r.esperaMs(bytesLidos = 3_000_000, decorridoMs = 100, limiteBytesPorSegundo = 0))
+        // 1,5 MB lidos em 0,5 s com limite de 1,5 MB/s: espera o meio segundo que falta
+        assertEquals(500L, r.esperaMs(1_500_000, 500, 1_500_000))
+        assertEquals(0L, r.esperaMs(1_500_000, 1_200, 1_500_000))
+        assertEquals(1_000L, r.esperaMs(15_000_000, 0, 1_500_000)) // nunca dorme mais de 1 s por vez
+    }
+
+    @Test
+    fun `em TV Box fraca o download e um por vez, lento e em prioridade baixa`() {
+        val w = codigo("src/main/java/com/antigravity/player/worker/MediaDownloadWorker.kt")
+        assertTrue(w.contains("vezDeBaixar.withLock { mediaDownloader.downloadFile(url, file, limiteBytesPorSegundo = limite) }"))
+        assertTrue(w.contains("RitmoDeDownload.LIMITE_TV_BOX_FRACA"))
+        val d = codigo("../sync-network/src/main/java/com/antigravity/sync/service/MediaDownloader.kt")
+        assertTrue(d.contains("THREAD_PRIORITY_BACKGROUND") && d.contains("setThreadPriority(prioridadeAnterior)"))
+        assertTrue(d.contains("RitmoDeDownload.esperaMs("))
+    }
 }

@@ -572,6 +572,7 @@ class PlayerRepositoryImpl(
                 .addTag("media_sync")
                 .build()
             
+            // F-189: os downloads saem juntos, mas o MediaDownloadWorker baixa UM de cada vez (vezDeBaixar)
             workManager.enqueue(downloadRequest)
             downloadRequest.id
         }

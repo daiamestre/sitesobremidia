@@ -2182,3 +2182,10 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Variantes de teste** (mesmos vídeos do hotel): playlist "TESTE FLUIDEZ TOTEM (temporária)" `2176127d` com A original 1080p30, B 1080p24 Main ~2,4 Mbps e C 720p24 Main ~1,4 Mbps (arquivos em `teste-fluidez/` no R2).
 - **Emulador (só decodificador por software, pior caso):** A exibiu 27–75% dos quadros (11–57% perdidos); B 84–86% (3–6% perdidos); C 84% (2%). Falta o aparelho real.
 - **Publicação:** Player 5.7.6 (código 563) publicado; o commit veio logo depois da publicação (o registro falhou na primeira tentativa por erro de aspas no comando).
+
+### F-189 — Acrescentar vídeos à playlist fazia TODOS os vídeos travarem ("câmera lenta") — DONE (Player 5.7.7)
+- **Queixa do dono (15/10):** com 4 vídeos na playlist, ao adicionar outros, todas as mídias começam a travar e a tocar em câmera lenta.
+- **Causa:** a playlist nova só entra depois de baixada (troca atômica, arquivo temporário renomeado no fim: nunca toca arquivo pela metade), mas enquanto isso o Player baixava TODOS os vídeos novos ao mesmo tempo, na velocidade máxima e em prioridade normal (o `setThreadPriority(BACKGROUND)` do trabalhador se perdia: o download roda em outra linha do conjunto de IO). Em TV Box fraca isso disputa processador, memória e disco com o vídeo no ar.
+- **Correção:** um download por vez no aparelho (`MediaDownloadWorker.vezDeBaixar`, a falha de um não prende os outros); em TV Box fraca (`ChipsetDetector` LEGACY) velocidade limitada a ~1,5 MB/s (`RitmoDeDownload`) e prioridade baixa na linha que realmente baixa, devolvida ao fim.
+- **Prova (Android virtual, mesmo cenário: tocando 3 vídeos 720p e a playlist ganha 6 vídeos novos):** versão anterior — antes 88% dos quadros exibidos/3% perdidos, durante os downloads 73%/12,8%. Versão corrigida — antes 97%/0,5%, durante os downloads 92%/2,1%. Os downloads levaram 53 s em vez de 30 s. Testes do Player: 375.
+- **Limites:** medido no emulador (decodificador por software); no aparelho real a medição da 5.7.6+ mostra o efeito. Vídeos grandes demais para o aparelho continuam pesados mesmo sem downloads (ver F-188).
