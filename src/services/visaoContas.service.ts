@@ -11,6 +11,8 @@ export interface ContaResumo {
   perfil: string;
   situacao: string | null;
   ativo: boolean;
+  /** F-191: limite de vídeo/áudio desta conta em segundos (null = padrão do perfil). */
+  limite_video_segundos: number | null;
   criado_em: string | null;
   ultimo_acesso: string | null;
   telas: number;
@@ -57,6 +59,20 @@ export async function buscarDetalheDaConta(usuarioId: string): Promise<ContaDeta
     campanhas: r.campanhas ?? [], contratos: r.contratos ?? [], exibicoes_por_dia: r.exibicoes_por_dia ?? [],
   };
 }
+
+/** F-191 — dono/ADM definem (ou limpam, com null) o limite de duração de vídeo de uma conta. */
+export async function definirLimiteDeVideo(usuarioId: string, segundos: number | null): Promise<void> {
+  const { data, error } = await supabase.rpc('fn_definir_limite_video' as never, { p_usuario: usuarioId, p_segundos: segundos } as never);
+  if (error) throw new Error(error.message);
+  const r = data as unknown as { status: string; mensagem?: string };
+  if (r?.status === 'SEM_PERMISSAO') throw new Error('Apenas o dono e o ADM podem mudar este limite.');
+  if (r?.status === 'FORA_DA_FAIXA') throw new Error(r.mensagem ?? 'Use de 5 a 600 segundos.');
+  if (r?.status !== 'OK') throw new Error('Conta não encontrada.');
+}
+
+/** Limite padrão do perfil (em segundos) quando a conta não tem limite próprio; null = sem limite. */
+export const limitePadraoDoPerfil = (perfil: string): number | null =>
+  perfil === 'GESTOR' ? 30 : perfil === 'ANUNCIANTE' || perfil === 'CLIENTE' ? 20 : null;
 
 /** Nome do perfil como aparece para o dono. */
 export const NOME_DO_PERFIL: Record<string, string> = {

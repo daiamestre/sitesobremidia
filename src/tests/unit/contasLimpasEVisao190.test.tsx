@@ -22,7 +22,7 @@ const visao = readFileSync('supabase/migrations/20261331_visao_das_contas.sql', 
 const conta = (c: Partial<ContaResumo>): ContaResumo => ({
   id: 'x', nome: 'X', email: 'x@x', perfil: 'GESTOR', situacao: 'APPROVED', ativo: true, criado_em: null, ultimo_acesso: null,
   telas: 0, telas_online: 0, telas_sem_playlist: 0, playlists: 0, midias: 0, espaco_bytes: 0, exibicoes_7d: 0,
-  pontos: 0, campanhas: 0, contratos: 0, clientes_carteira: 0, ...c,
+  pontos: 0, campanhas: 0, contratos: 0, clientes_carteira: 0, limite_video_segundos: null, ...c,
 });
 
 const comConsulta = (ui: ReactNode) =>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { AlertCircle, Eye, Film, ListVideo, Loader2, MapPin, Megaphone, Monitor, Search, Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
-  buscarContas, buscarDetalheDaConta, nomeDoPerfil, tamanhoLegivel, type ContaResumo,
+  buscarContas, buscarDetalheDaConta, definirLimiteDeVideo, limitePadraoDoPerfil, nomeDoPerfil, tamanhoLegivel, type ContaResumo,
 } from '@/services/visaoContas.service';
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ export default function VisaoDasContasPage() {
                 <Numero valor={c.clientes_carteira} rotulo="Clientes na carteira" />
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Criada em {data(c.criado_em)} · Último acesso: {data(c.ultimo_acesso)}
+                Criada em {data(c.criado_em)} · Último acesso: {data(c.ultimo_acesso)} · {textoDoLimite(c)}
                 {c.telas_sem_playlist > 0 ? ` · ${c.telas_sem_playlist} tela(s) sem playlist` : ''}
               </p>
             </CardContent>
@@ -147,6 +148,50 @@ export default function VisaoDasContasPage() {
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+/** F-191 — "Vídeos até 60 s (definido por você)", "Vídeos até 30 s (padrão do perfil)" ou "Vídeos sem limite". */
+function textoDoLimite(c: ContaResumo): string {
+  if (c.limite_video_segundos) return `Vídeos até ${c.limite_video_segundos} s (definido por você)`;
+  const padrao = limitePadraoDoPerfil(c.perfil);
+  return padrao ? `Vídeos até ${padrao} s (padrão do perfil)` : 'Vídeos sem limite';
+}
+
+function LimiteDeVideo({ conta }: { conta: ContaResumo }) {
+  const qc = useQueryClient();
+  const [valor, setValor] = useState(conta.limite_video_segundos ? String(conta.limite_video_segundos) : '');
+  const [salvando, setSalvando] = useState(false);
+  if (conta.perfil === 'OWNER') return null;
+  const salvar = async (segundos: number | null) => {
+    setSalvando(true);
+    try {
+      await definirLimiteDeVideo(conta.id, segundos);
+      toast.success(segundos ? `Limite de ${segundos} s salvo para ${conta.nome ?? 'a conta'}.` : 'Esta conta voltou ao limite padrão do perfil.');
+      if (!segundos) setValor('');
+      await qc.invalidateQueries({ queryKey: ['visao-contas'] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSalvando(false);
+    }
+  };
+  const padrao = limitePadraoDoPerfil(conta.perfil);
+  return (
+    <section className="space-y-2 rounded-md border border-border/60 p-3" data-testid="limite-video">
+      <h4 className="font-semibold text-sm">Duração máxima de vídeo e áudio</h4>
+      <p className="text-xs text-muted-foreground">
+        Vazio = padrão do perfil ({padrao ? `${padrao} s` : 'sem limite'}). Vale para os próximos envios desta conta.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input type="number" min={5} max={600} className="w-28" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={padrao ? String(padrao) : '—'} aria-label="Segundos" />
+        <span className="text-sm text-muted-foreground">segundos</span>
+        <Button size="sm" disabled={salvando || !valor} onClick={() => salvar(Number(valor))}>Salvar</Button>
+        {conta.limite_video_segundos != null && (
+          <Button size="sm" variant="outline" disabled={salvando} onClick={() => salvar(null)}>Voltar ao padrão</Button>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -179,6 +224,7 @@ function DetalheDaConta({ conta }: { conta: ContaResumo }) {
         <SheetTitle>{conta.nome || 'Sem nome'}</SheetTitle>
         <SheetDescription>{nomeDoPerfil(conta.perfil)} · {conta.email} · último acesso {data(conta.ultimo_acesso)}</SheetDescription>
       </SheetHeader>
+      <LimiteDeVideo conta={conta} />
       {detalhe.isLoading && <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>}
       {detalhe.error && <p className="text-red-400 text-sm">{(detalhe.error as Error).message}</p>}
       {d && (

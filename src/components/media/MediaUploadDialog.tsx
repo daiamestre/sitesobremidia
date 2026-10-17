@@ -180,9 +180,14 @@ const calculateFileMD5 = (file: File): Promise<string> => {
 export const LIMITE_GESTOR_MS = 30_500;
 /** Limite do anunciante (20 s + meio segundo de tolerância). */
 export const LIMITE_ANUNCIANTE_MS = 20_500;
-/** Limite de duração de vídeo/áudio por perfil; null = sem limite (OWNER/ADMIN e demais). */
-export const limiteDoPerfil = (perfil: string | null | undefined): number | null => {
+/**
+ * Limite de duração de vídeo/áudio; null = sem limite (OWNER/ADMIN e demais).
+ * F-191: [limiteDaContaSegundos] (definido pelo dono/ADM na Visão das Contas) vale no lugar do limite do perfil.
+ */
+export const limiteDoPerfil = (perfil: string | null | undefined, limiteDaContaSegundos?: number | null): number | null => {
   const p = String(perfil ?? '').toUpperCase();
+  if (p === 'OWNER') return null;
+  if (limiteDaContaSegundos != null && limiteDaContaSegundos > 0) return limiteDaContaSegundos * 1000 + 500;
   if (p === 'GESTOR') return LIMITE_GESTOR_MS;
   if (p === 'ANUNCIANTE' || p === 'CLIENTE') return LIMITE_ANUNCIANTE_MS;
   return null;
@@ -191,7 +196,10 @@ export const limiteDoPerfil = (perfil: string | null | undefined): number | null
 export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMedia, onUploadedIds, semPlaylist, titulo, somenteAudio = false }: MediaUploadDialogProps) {
   const { user, usuario } = useAuth();
   // F-111/F-114: anunciante até 20 s, gestor de mídia até 30 s, OWNER/ADMIN sem limite (o banco também confere).
-  const limiteGestorMs = limiteDoPerfil(usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : null));
+  const limiteGestorMs = limiteDoPerfil(
+    usuario?.perfil?.nome || (usuario?.is_owner ? 'OWNER' : null),
+    (usuario as { limite_video_segundos?: number | null } | null)?.limite_video_segundos,
+  );
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -311,7 +319,7 @@ export function MediaUploadDialog({ open, onOpenChange, onUploadComplete, editMe
         // Duração EXATA lida do arquivo (ms); o Tempo de Mídia é o segundo cheio para cima -> a tela toca o vídeo inteiro.
         realMs = await probeFileDurationMs(newFile.file);
         if (limiteGestorMs && realMs && realMs > limiteGestorMs) {
-          toast.error(`${newFile.file.name}: ${Math.round(realMs / 1000)} segundos. O máximo para o seu perfil é ${Math.round(limiteGestorMs / 1000)} segundos.`);
+          toast.error(`${newFile.file.name}: ${Math.round(realMs / 1000)} segundos. O máximo para esta conta é ${Math.floor(limiteGestorMs / 1000)} segundos.`);
           setFiles(prev => prev.filter(f => f.file !== newFile.file));
           continue;
         }
