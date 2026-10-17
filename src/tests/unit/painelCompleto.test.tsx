@@ -183,11 +183,12 @@ describe('tela do painel', () => {
     expect(screen.getByTestId('cartao-mapa')).toBeTruthy();
   });
 
-  it('sem telas visíveis ou com erro, o painel some sem quebrar a página', async () => {
+  it('F-190: conta sem telas vê o painel zerado (não some); com erro, o painel some sem quebrar a página', async () => {
     rpc.mockResolvedValue({ data: { ...BRUTO, telas: { total: 0, online: 0, hoje: 0, offline: 0 } }, error: null });
     const a = abrir();
     await waitFor(() => expect(rpc).toHaveBeenCalled());
-    await waitFor(() => expect(a.container.querySelector('[data-testid=painel-completo]')).toBeNull());
+    await waitFor(() => expect(a.container.querySelector('[data-testid=painel-completo]')).toBeTruthy());
+    expect(a.getByTestId('kpi-online').textContent).toBe('0');
     a.unmount();
     rpc.mockResolvedValue({ data: null, error: { message: 'x' } });
     const b = abrir();

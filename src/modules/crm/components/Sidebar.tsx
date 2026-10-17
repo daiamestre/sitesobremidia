@@ -29,7 +29,8 @@ import {
   Monitor,
   Store,
   Target,
-  PenLine
+  PenLine,
+  Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { areaDoCrm } from '@/lib/areaDoCrm';
@@ -98,6 +99,8 @@ export function CrmSidebar({ onNavigate, collapsed = false }: { onNavigate?: () 
     // Pontos Parceiros & Gestão de Contratos (OWNER / ADMIN)
     ...((isOwner || isAdmin)
       ? [
+          // F-190: o que cada conta (gestor, anunciante, representante...) tem e faz
+          ...(isWorkspace ? [{ label: 'Visão das Contas', icon: Eye, path: '/workspace/contas' }] : []),
           ...(isWorkspace ? [{ label: 'Pontos Parceiros', icon: Store, path: '/workspace/pontos-parceiros' }] : []),
           { label: 'Gestão de Contratos', icon: ShieldCheck, path: '/workspace/admin/contratos' },
           // F-166: valor da mídia por anunciante e mídias grátis

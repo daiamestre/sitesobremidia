@@ -1,0 +1,5 @@
+[
+ {
+  "d": "CREATE OR REPLACE FUNCTION public.fn_player_can_access_screen(p_screen_id uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  v_uid uuid := auth.uid();\n  v_tenant uuid;\nBEGIN\n  IF v_uid IS NULL THEN\n    RETURN false;\n  END IF;\n  IF public.has_role(v_uid, 'admin'::app_role) THEN\n    RETURN true;\n  END IF;\n  SELECT public.get_user_empresa_operadora_id(v_uid) INTO v_tenant;\n  RETURN EXISTS (\n    SELECT 1 FROM public.screens s\n    WHERE s.id = p_screen_id\n      AND (s.user_id = v_uid OR (v_tenant IS NOT NULL AND s.empresa_operadora_id = v_tenant))\n  );\nEND;\n$function$\n"
+ }
+]

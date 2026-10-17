@@ -86,7 +86,8 @@ export default function DashboardHome() {
       {gestaoEmpresa ? <CentralDoDiaMidiasOwner /> : <CentralDoDiaGestor />}
 
       {/* [SCALE 10K] Fleet Health Monitor */}
-      {fleet && fleet.total > 0 && (
+      {/* F-190: aparece sempre, só com os aparelhos das telas desta conta (zerado se não houver) */}
+      {fleet && (
         <div className="space-y-4">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <Monitor className="h-5 w-5 text-primary" /> Saude da Frota

@@ -163,7 +163,8 @@ export function PainelCompleto() {
 
   if (carregando) return <Card className="glass"><CardContent className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>;
   if (falhou && !painel) return null; // o resto do painel continua funcionando
-  if (!painel || painel.telas.total === 0) return null;
+  // F-190: o painel aparece sempre (conta sem telas vê tudo zerado, nunca dados de outra conta)
+  if (!painel) return null;
 
   const t = painel.telas;
   const pctOnline = porcentagem(t.online, t.total);

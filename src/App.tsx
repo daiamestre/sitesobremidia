@@ -80,6 +80,7 @@ const WorkspaceLayout = lazyWithRetry(() => import("./modules/corporate/layout/W
 const CorporateCommandCenter = lazyWithRetry(() => import("./modules/corporate/pages/CorporateCommandCenter"));
 const UsuariosAcessosPage = lazyWithRetry(() => import("./modules/corporate/pages/UsuariosAcessosPage"));
 const PontosParceirosPage = lazyWithRetry(() => import("./modules/corporate/pages/PontosParceirosPage"));
+const VisaoDasContasPage = lazyWithRetry(() => import("./modules/corporate/pages/VisaoDasContasPage"));
 const PontoParceiroEdicaoPage = lazyWithRetry(() => import("./modules/corporate/pages/PontoParceiroEdicaoPage"));
 const CrmLayout = lazyWithRetry(() => import("./modules/crm/layout/CrmLayout"));
 const CrmDashboardHome = lazyWithRetry(() => import("./modules/crm/pages/CrmDashboardHome"));
@@ -440,6 +441,8 @@ const App = () => {
                     <Route path="central" element={<CentralDashboard />} />
                     <Route path="media" element={<Medias />} />
                     <Route path="usuarios" element={<UsuariosAcessosPage />} />
+                    {/* F-190: o dono e o ADM veem o que cada conta tem e faz */}
+                    <Route path="contas" element={<RequireRole roles={['OWNER', 'ADMIN']}><VisaoDasContasPage /></RequireRole>} />
                     <Route path="pontos-parceiros" element={<PontosParceirosPage />} />
                     <Route path="pontos-parceiros/:id" element={<PontoParceiroEdicaoPage />} />
                     <Route path="configuracoes" element={<Settings />} />

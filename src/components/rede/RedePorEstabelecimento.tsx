@@ -36,7 +36,8 @@ export function RedePorEstabelecimento() {
   }, []);
 
   if (carregando) return <Card className="glass"><CardContent className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>;
-  if (!rede || rede.totais.telas === 0) return null;
+  // F-190: aparece sempre (conta sem telas vê tudo zerado, nunca dados de outra conta)
+  if (!rede) return null;
   const t = rede.totais;
 
   return (
@@ -58,6 +59,9 @@ export function RedePorEstabelecimento() {
         </div>
 
         <div className="space-y-4">
+          {rede.estabelecimentos.length === 0 && (
+            <p className="text-sm text-muted-foreground" data-testid="rede-vazia">Nenhuma tela cadastrada ainda. Assim que você criar telas e ligá-las a pontos parceiros, os estabelecimentos aparecem aqui.</p>
+          )}
           <ul className="space-y-2">
             {rede.estabelecimentos.map((e) => {
               const chave = e.id ?? 'sem';

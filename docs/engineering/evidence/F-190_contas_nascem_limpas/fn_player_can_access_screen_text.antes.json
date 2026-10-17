@@ -1,0 +1,5 @@
+[
+ {
+  "d": "CREATE OR REPLACE FUNCTION public.fn_player_can_access_screen_text(p_screen_id text)\n RETURNS boolean\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\r\nDECLARE\r\n  v_uid uuid := auth.uid();\r\n  v_tenant uuid;\r\nBEGIN\r\n  IF v_uid IS NULL OR p_screen_id IS NULL OR p_screen_id = '' THEN\r\n    RETURN false;\r\n  END IF;\r\n  IF public.has_role(v_uid, 'admin'::app_role) THEN\r\n    RETURN true;\r\n  END IF;\r\n  SELECT public.get_user_empresa_operadora_id(v_uid) INTO v_tenant;\r\n  RETURN EXISTS (\r\n    SELECT 1 FROM public.screens s\r\n    WHERE (s.id::text = p_screen_id OR s.custom_id = p_screen_id)\r\n      AND (s.user_id = v_uid OR (v_tenant IS NOT NULL AND s.empresa_operadora_id = v_tenant))\r\n  );\r\nEND;\r\n$function$\n"
+ }
+]
