@@ -91,7 +91,8 @@ class ScreenSelectionActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun nomeDe(tela: AuthorizedScreenDto) = tela.customId ?: tela.name
+    // F-194: o nome oficial é o NOME da tela (o mesmo do painel); o ID fica embaixo
+    private fun nomeDe(tela: AuthorizedScreenDto) = tela.name.ifBlank { tela.customId ?: tela.id }
 
     private fun aoEscolher(escolhida: AuthorizedScreenDto) {
         val eu = minhaIdentidade()
@@ -287,12 +288,15 @@ class ScreensAdapter(
 
     inner class ScreenViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val nameTextView: TextView = itemView.findViewById(R.id.screen_name)
+        private val idTextView: TextView = itemView.findViewById(R.id.screen_id)
         private val statusTextView: TextView = itemView.findViewById(R.id.screen_status)
         private val iconView: ImageView = itemView.findViewById(R.id.screen_icon)
 
         fun bind(screen: AuthorizedScreenDto) {
-            val displayName = screen.customId ?: screen.name
-            nameTextView.text = displayName
+            nameTextView.text = ScreenLabel.nome(screen.name, screen.customId, screen.id)
+            val id = ScreenLabel.id(screen.codigoOperacional, screen.customId, screen.name)
+            idTextView.text = id ?: ""
+            idTextView.visibility = if (id == null) View.GONE else View.VISIBLE
 
             when (PairingPolicy.disponibilidade(screen.boundDeviceId, minhaIdentidade())) {
                 Disponibilidade.LIVRE -> {

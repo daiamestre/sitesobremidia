@@ -31,6 +31,8 @@ class OtaInstalacaoTest {
         Thread.sleep(40_000) // o Player começa a tocar
         OtaStatus.definir(OtaStatus.Estado.Baixando("9.9.9-teste", 45))
         Thread.sleep(15_000) // tempo para a captura da tela com o aviso
+        // F-194: "-e pedido 1" = como se o painel tivesse mandado "Instalar atualização agora" (o instalador pode abrir)
+        if (InstrumentationRegistry.getArguments().getString("pedido") == "1") com.antigravity.player.util.OtaPolicy.registrarPedidoDoPainel()
         ServiceLocator.getOTAUpdateManager(ctx).instalarArquivoParaTeste(File(caminho!!), "9.9.9-teste")
         Thread.sleep(180_000) // o aplicativo é substituído e este processo morre
     }

@@ -14,6 +14,10 @@ import { toast } from 'sonner';
 import { Monitor, MonitorSmartphone, Loader2 } from 'lucide-react';
 
 import { Screen } from '@/types/models';
+import { SeletorDeRotacao } from './SeletorDeRotacao';
+import { CapaDaTela } from './CapaDaTela';
+import { pedirParaAplicarAgora } from './RotacaoDaTela';
+import { ehRotacao, rotacaoPadrao, type Rotacao } from '@/lib/rotacaoTela';
 
 interface Playlist {
   id: string;
@@ -44,6 +48,10 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
   const [seletor, setSeletor] = useState<'galeria' | 'playlist' | null>(null);
   useEffect(() => { if (open) { setMidiasEscolhidas([]); setSeletor(null); } }, [open, screen?.id]);
   const [customId, setCustomId] = useState('');
+  // F-194: rotação em 4 posições (9x16 nasce em 270) e capa da tela
+  const [rotacao, setRotacao] = useState<Rotacao>(0);
+  const [rotacaoEscolhida, setRotacaoEscolhida] = useState(false);
+  const [capa, setCapa] = useState<string | null>(null);
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -83,6 +91,10 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
       setCustomId(screen.custom_id || '');
       setPlaylistId(screen.playlist_id);
       setIsActive(screen.is_active);
+      const extra = screen as unknown as { rotacao_tela?: number | null; capa_url?: string | null };
+      setRotacao(ehRotacao(extra.rotacao_tela) ? extra.rotacao_tela : rotacaoPadrao(screen.resolution, screen.orientation));
+      setRotacaoEscolhida(true);
+      setCapa(extra.capa_url ?? null);
     } else {
       setName('');
       setDescription('');
@@ -91,8 +103,17 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
       setCustomId('');
       setPlaylistId(null);
       setIsActive(true);
+      setRotacao(0);
+      setRotacaoEscolhida(false);
+      setCapa(null);
     }
   }, [screen, open]);
+
+  // trocou o formato e a rotação ainda não foi escolhida à mão: 9x16 vai para 270 (padrão do totem), 16x9 para 0
+  const mudarFormato = (r: string) => {
+    setResolution(r);
+    if (!rotacaoEscolhida || !screen) setRotacao(rotacaoPadrao(r));
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -101,14 +122,9 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
       return;
     }
 
-    // Validar ID personalizado
-    if (!customId.trim()) {
-      toast.error('ID é obrigatório');
-      return;
-    }
-
+    // F-194: ID personalizado é opcional (o nome oficial é o nome da tela; o código TEL-… é criado sozinho)
     const idRegex = /^[a-zA-Z0-9_-]+$/;
-    if (!idRegex.test(customId)) {
+    if (customId.trim() && !idRegex.test(customId)) {
       toast.error('ID deve conter apenas letras, números, hífens e underscores');
       return;
     }
@@ -135,8 +151,10 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
             orientation,
             playlist_id: playlistFinal,
             is_active: isActive,
-            custom_id: customId,
-          })
+            custom_id: customId.trim() || null,
+            rotacao_tela: rotacao,
+            capa_url: capa,
+          } as never)
           .eq('id', screen.id);
         if (error) {
           if (error.code === '23505') {
@@ -145,6 +163,8 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
           }
           throw error;
         }
+        const rotacaoAntes = (screen as unknown as { rotacao_tela?: number | null }).rotacao_tela;
+        if (rotacaoAntes !== rotacao) { try { await pedirParaAplicarAgora(screen.id); } catch { /* aplica na próxima sincronização */ } }
         toast.success('Tela atualizada!');
       } else {
         const { error } = await supabase
@@ -158,8 +178,10 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
             playlist_id: playlistFinal,
             is_active: isActive,
             user_id: user.id,
-            custom_id: customId,
-          });
+            custom_id: customId.trim() || null,
+            rotacao_tela: rotacao,
+            capa_url: capa,
+          } as never);
         if (error) {
           if (error.code === '23505') {
             toast.error('Este ID já está em uso. Escolha outro.');
@@ -183,8 +205,12 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="p-6 pb-2 shrink-0">
-          <DialogTitle>{screen ? 'Editar Tela' : 'Nova Tela'}</DialogTitle>
+        {/* F-194: a capa fica no topo, ao lado do título */}
+        <DialogHeader className="p-6 pb-2 pr-12 shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle>{screen ? 'Editar Tela' : 'Nova Tela'}</DialogTitle>
+            <CapaDaTela compacto usuarioId={user?.id} valor={capa} onMudar={setCapa} />
+          </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-6 pt-2 custom-scrollbar space-y-4">
@@ -201,7 +227,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="custom_id">ID Personalizado *</Label>
+              <Label htmlFor="custom_id">ID Personalizado <span className="font-normal text-muted-foreground">(opcional)</span></Label>
               <div className="relative">
                 <Input
                   id="custom_id"
@@ -215,7 +241,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Usado para conectar o player: <code className="text-primary/70">{customId || 'ID'}</code>
+                No Player aparece o <strong>nome da tela</strong>, com o ID embaixo{customId ? <>: <code className="text-primary/70">{customId}</code></> : ' (o código TEL-… é criado sozinho)'}.
               </p>
             </div>
           </div>
@@ -234,7 +260,7 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Formato</Label>
-              <Select value={resolution} onValueChange={setResolution}>
+              <Select value={resolution} onValueChange={mudarFormato}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -283,6 +309,11 @@ export function ScreenDialog({ open, onOpenChange, screen, onSaved }: ScreenDial
 
 
 
+
+          <div className="space-y-2">
+            <Label>Rotação da tela</Label>
+            <SeletorDeRotacao valor={rotacao} onMudar={(r) => { setRotacao(r); setRotacaoEscolhida(true); }} />
+          </div>
 
           <div className="flex items-center justify-between border rounded-lg p-3">
             <div className="space-y-0.5">

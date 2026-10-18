@@ -73,6 +73,14 @@ object SessionManager {
 
     /** Só 90 ou 270; qualquer outro valor (ou ausente, painel antigo) = 90. */
     fun giroValido(valor: Int?): Int = if (valor == 270) 270 else 90
+
+    /**
+     * F-194: rotação da tela escolhida no painel — 0 (deitada), 90, 180 (de cabeça para baixo) ou 270 (em pé, padrão do 9x16).
+     * null = o painel ainda não manda (servidor antigo): vale a regra anterior (giroDoQuadro).
+     */
+    @Volatile var rotacaoTela: Int? = null
+
+    fun rotacaoValida(valor: Int?): Int? = valor?.takeIf { it == 0 || it == 90 || it == 180 || it == 270 }
     var currentScreenName: String? = null
 
     // --- Player Settings ---

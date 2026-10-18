@@ -59,6 +59,11 @@ export class ErrorBoundary extends Component<Props, State> {
     };
 
     private handleGlobalError = (event: ErrorEvent) => {
+        // F-194: aviso inofensivo do navegador ao abrir janelas/listas (ResizeObserver) não derruba a tela
+        if (/ResizeObserver loop/i.test(String(event.message ?? ''))) {
+            event.preventDefault?.();
+            return;
+        }
         this.setState({
             hasError: true,
             error: event.error || new Error(`GLOBAL ERROR: ${event.message}`)

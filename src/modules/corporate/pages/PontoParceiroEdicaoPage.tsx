@@ -144,7 +144,7 @@ export default function PontoParceiroEdicaoPage() {
     enabled: !!id,
     queryFn: async (): Promise<TelaLinha[]> => {
       const { data, error } = await supabase.from('screens')
-        .select('id, name, local_instalacao, foto_local_url, orientation, tamanho_polegadas, valor_anuncio, status_grade, last_ping_at, codigo_operacional, custom_id, playlist:playlists(name)' as never)
+        .select('id, name, local_instalacao, foto_local_url, orientation, rotacao_tela, tamanho_polegadas, valor_anuncio, status_grade, last_ping_at, codigo_operacional, custom_id, playlist:playlists(name)' as never)
         .eq('ponto_id' as never, id as never).eq('tipo_tela' as never, 'PARCEIRA' as never);
       if (error) throw error;
       const num = (t: TelaLinha) => Number(t.name.match(/Tela (\d+)/)?.[1] ?? 999);

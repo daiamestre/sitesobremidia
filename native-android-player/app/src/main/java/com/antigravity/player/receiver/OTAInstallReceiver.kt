@@ -42,7 +42,10 @@ class OTAInstallReceiver : BroadcastReceiver() {
                 OtaStatus.versaoEmInstalacao?.let { OtaStatus.definir(OtaStatus.Estado.AguardandoConfirmacao(it)) }
                 // o instalador do Android é parte do trabalho do próprio Player: não conta como saída do usuário
                 DeviceControl.suppressExitCountUntilMs = System.currentTimeMillis() + 180_000L
-                if (confirmationIntent != null) {
+                // F-194: o instalador do Android NÃO abre por cima das mídias sozinho — só a pedido do painel
+                if (!com.antigravity.player.util.OtaPolicy.podeAbrirTelaDoAndroid()) {
+                    Logger.i("OTA_INSTALL_RECEIVER", "Confirmação guardada: a reprodução continua; o instalador só abre a pedido do painel.")
+                } else if (confirmationIntent != null) {
                     confirmationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     try {
                         context.startActivity(confirmationIntent)

@@ -14,7 +14,8 @@ import { ClienteDaTela } from '@/components/screens/ClienteDaTela';
 import { DivisaoDaTela } from '@/components/screens/EditorDeZonas';
 import { SeletorDeZonaDoGrafico } from '@/components/screens/SeletorDeZonaDoGrafico';
 import { RadioDaTela } from '@/components/radio/RadioDaTela';
-import { GiroDoTotem } from '@/components/screens/GiroDoTotem';
+import { RotacaoDaTela } from '@/components/screens/RotacaoDaTela';
+import { AtualizacaoDoAplicativo } from '@/components/screens/AtualizacaoDoAplicativo';
 import { telaOnlineAgora, aparelhoDaTela, saudeDoAparelho } from '@/lib/statusDoAparelho';
 import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
@@ -1230,9 +1231,9 @@ return (
             {/* F-147: divisão da tela em zonas */}
             <DivisaoDaTela tela={{ id: screen.id, name: screen.name, resolution: screen.resolution, orientation: screen.orientation, user_id: (screen as { user_id?: string | null }).user_id }} />
 
-            {/* F-192: totem com imagem de cabeça para baixo — inverte o sentido do giro do quadro */}
-            <GiroDoTotem
-                tela={{ id: screen.id, resolution: screen.resolution, orientation: screen.orientation, giro_quadro: (screen as { giro_quadro?: number | null }).giro_quadro }}
+            {/* F-194: rotação da tela em 4 posições (substitui o "sentido do giro" do F-192) */}
+            <RotacaoDaTela
+                tela={{ id: screen.id, resolution: screen.resolution, orientation: screen.orientation, rotacao_tela: (screen as { rotacao_tela?: number | null }).rotacao_tela }}
                 aoMudar={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
             />
 
@@ -1314,6 +1315,9 @@ return (
                                         Reiniciar Player
                                     </Button>
                                 </div>
+
+                                {/* F-194: atualização do aplicativo sem interromper as mídias */}
+                                <AtualizacaoDoAplicativo tela={screen as unknown as { id: string; app_version?: string | null; version?: string | null; last_action?: string | null; last_action_value?: string | null; last_action_at?: string | null }} />
 
                                 <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
                                     <div className="space-y-0.5">

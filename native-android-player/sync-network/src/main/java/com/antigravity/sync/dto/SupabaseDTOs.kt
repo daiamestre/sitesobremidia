@@ -23,6 +23,8 @@ data class DeviceRemoteDTO(
     val resolution: String? = "16x9",
     /** F-192: sentido do giro do quadro (90 ou 270), escolhido no painel por tela. */
     @SerialName("giro_quadro") val giroQuadro: Int? = null,
+    /** F-194: rotação da tela (0, 90, 180 ou 270) escolhida no painel. */
+    @SerialName("rotacao_tela") val rotacaoTela: Int? = null,
     @SerialName("playlists") val playlist: PlaylistRemoteDTO? = null
 ) {
     val playlists: PlaylistRemoteDTO? get() = playlist

@@ -141,8 +141,10 @@ object PlayerFlowPolicy {
      * Signage: a playlist manda. Em celular/tablet a tela fica TRAVADA na orientação da playlist e não gira
      * com o sensor. Em TV (sem sensor) nada é forçado, salvo comando explícito do painel (rotate_*).
      */
-    fun physicalOrientationLock(canonicalOrientation: String?, isTelevision: Boolean, forcedByPanel: Boolean): Int? {
+    fun physicalOrientationLock(canonicalOrientation: String?, isTelevision: Boolean, forcedByPanel: Boolean, rotacaoTela: Int? = null): Int? {
         if (isTelevision && !forcedByPanel) return null
+        // F-194: rotação escolhida no painel (celular/tablet que obedecem): cada posição tem a sua trava
+        if (!forcedByPanel && rotacaoTela != null) return travaDaRotacao(rotacaoTela)
         return when (canonicalOrientation) {
             "portrait" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             "landscape" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -162,10 +164,38 @@ object PlayerFlowPolicy {
         if (syncSucceeded) "executed" to null
         else "failed" to ("Falha ao atualizar o player: " + (error?.takeIf { it.isNotBlank() } ?: "sem conexão ou sem resposta do servidor"))
 
+    // ------------------------------------------------------------------ F-194: rotação da tela em 4 posições
+
+    /** 270 (em pé) = PORTRAIT e 0 = LANDSCAPE: as mesmas travas de antes, então o padrão não muda nada em celular/tablet. */
+    fun travaDaRotacao(rotacao: Int): Int = when (rotacao) {
+        90 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+        180 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+        270 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        else -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    }
+
+    /** Orientação que a tela deve ter: a da rotação escolhida (90/270 = em pé) ou, sem escolha, a da playlist. */
+    fun orientacaoDesejada(rotacaoTela: Int?, orientacaoDaPlaylist: String?): String? = when (rotacaoTela) {
+        90, 270 -> "portrait"
+        0, 180 -> "landscape"
+        else -> orientacaoDaPlaylist
+    }
+
+    /** Chave da decisão "girar por software" guardada: sem rotação escolhida continua a de antes (só a orientação). */
+    fun chaveDoGiro(orientacao: String?, rotacaoTela: Int?): String? = if (rotacaoTela == null) orientacao else "$orientacao@$rotacaoTela"
+
     /** O painel (tela física) está com a orientação trocada em relação à playlist? Então o quadro precisa girar por software. */
-    fun precisaGirarQuadroPorSoftware(larguraDoPainel: Int, alturaDoPainel: Int, orientacaoDaPlaylist: String?): Boolean {
+    fun precisaGirarQuadroPorSoftware(
+        larguraDoPainel: Int,
+        alturaDoPainel: Int,
+        orientacaoDaPlaylist: String?,
+        /** F-194: 180 escolhido e o aparelho continuou em ROTATION_0 => ignorou o pedido: gira por software. */
+        rotacaoTela: Int? = null,
+        rotacaoDoDisplay: Int? = null
+    ): Boolean {
         if (larguraDoPainel <= 0 || alturaDoPainel <= 0) return false
         val painelDeitado = larguraDoPainel >= alturaDoPainel
+        if (rotacaoTela == 180) return painelDeitado && rotacaoDoDisplay == 0
         val playlistDeitada = orientacaoDaPlaylist != "portrait"
         return painelDeitado != playlistDeitada
     }
@@ -235,9 +265,23 @@ object PlayerFlowPolicy {
         displayWidth: Int,
         displayHeight: Int,
         /** F-192: 90 (padrão) ou 270 — o painel escolhe por tela, conforme o lado em que a TV do totem foi montada. */
-        giroGraus: Int = 90
+        giroGraus: Int = 90,
+        /** F-194: rotação escolhida no painel (0/90/180/270). Quando vem, ela manda (o painel é a referência deitada). */
+        rotacaoTela: Int? = null
     ): CanvasTransform? {
         if (!isTelevision || displayWidth <= 0 || displayHeight <= 0) return null
+        if (rotacaoTela != null) {
+            // painel já em pé (aparelho obedeceu ao pedido): a referência anda 90°
+            val efetiva = if (displayWidth >= displayHeight) rotacaoTela else (rotacaoTela + 90) % 360
+            return when (efetiva) {
+                0 -> null
+                180 -> CanvasTransform(displayWidth, displayHeight, 180f, 0f, 0f)
+                else -> CanvasTransform(
+                    width = displayHeight, height = displayWidth, rotation = efetiva.toFloat(),
+                    translationX = (displayWidth - displayHeight) / 2f, translationY = (displayHeight - displayWidth) / 2f
+                )
+            }
+        }
         val panelIsLandscape = displayWidth >= displayHeight
         val playlistIsLandscape = canonicalOrientation != "portrait"
         // Tela física já casa com a playlist (inclusive TV Box que obedeceu ao pedido de orientação): nada a girar.

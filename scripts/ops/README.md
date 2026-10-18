@@ -9,6 +9,7 @@ Todos os scripts leem as chaves de `~/.sobremidia-secrets/tokens.env`, que fica 
 | Publicar o site em produção (Vercel) | `node scripts/ops/deploy-vercel.mjs` (commit atual já enviado ao GitHub) |
 | Enviar para o site COM TRAVA de limite da Vercel | `node scripts/ops/publicar-main.mjs` (`--ver` só mostra o uso; `--forcar` ignora o teto diário, só para urgência) |
 | Liberar espaço na Vercel (apagar publicações antigas) | `node scripts/ops/limpar-deploys-vercel.mjs` (só simula) → `--executar` (precisa de chave válida da Vercel) |
+| Chamar uma Edge Function de produção (chave pública) | `node scripts/ops/chamar-funcao.mjs <funcao> '<json>'` |
 | Conferir se o código novo está no ar | `node scripts/ops/conferir-site.mjs "texto novo"` |
 | Sessão de teste no painel (sem senha) | `node scripts/ops/sessao-teste.mjs` (em segundo plano) |
 | Publicar o Player (GitHub + R2 + OTA) | `node scripts/ops/publicar-player.mjs "notas"` (depois do `assembleRelease` e do canário) |

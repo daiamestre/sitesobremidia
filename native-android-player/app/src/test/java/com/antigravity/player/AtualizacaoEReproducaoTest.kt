@@ -199,14 +199,14 @@ class AtualizacaoEReproducaoTest {
     }
 
     @Test
-    fun `sem a permissao de instalar o aviso explica e a tela do Android abre sozinha`() {
+    fun `sem a permissao de instalar o aviso explica e a tela do Android abre a pedido do painel`() {
         val m = OtaStatus.mensagem(OtaStatus.Estado.PrecisaPermissao("5.7.3"))!!
         assertTrue(m.contains("5.7.3") && m.contains("Permitir desta fonte"))
         assertTrue(OtaStatus.duracaoDoAvisoMs(OtaStatus.Estado.PrecisaPermissao("5.7.3")) > 0L)
         val ota = codigo("src/main/java/com/antigravity/player/util/OTAUpdateManager.kt")
         assertTrue(ota.contains("canRequestPackageInstalls()"))
         assertTrue(ota.contains("ACTION_MANAGE_UNKNOWN_APP_SOURCES"))
-        assertTrue("a checagem vem antes da instalação", ota.indexOf("canRequestPackageInstalls()") < ota.indexOf("installApkBySession(file)"))
+        assertTrue("a checagem vem antes da instalação por toque", ota.indexOf("canRequestPackageInstalls()") < ota.lastIndexOf("installApkBySession(file)"))
     }
 
     @Test

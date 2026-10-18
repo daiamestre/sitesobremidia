@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { enviarImagemR2 } from '@/lib/enviarImagem';
+import { SeletorDeRotacao } from '@/components/screens/SeletorDeRotacao';
+import { ehRotacao, rotacaoPadrao, type Rotacao } from '@/lib/rotacaoTela';
 
 /**
  * F-119 — Criar uma tela nova no ponto parceiro ou editar uma tela existente (OWNER/ADMIN).
@@ -17,6 +19,7 @@ import { enviarImagemR2 } from '@/lib/enviarImagem';
 export interface TelaParceiraEditavel {
   id: string; name: string; local_instalacao: string | null; foto_local_url: string | null; orientation: string | null;
   tamanho_polegadas: number | null; valor_anuncio: number | null; codigo_operacional?: string | null; custom_id?: string | null;
+  rotacao_tela?: number | null;
 }
 
 const paraTexto = (v: number | null | undefined) => (v === null || v === undefined ? '' : Number(v).toFixed(2).replace('.', ','));
@@ -26,7 +29,9 @@ export function TelaParceiraDialog({ aberto, onFechar, pontoId, tela, onSalvo }:
 }) {
   const [local, setLocal] = useState('');
   const [foto, setFoto] = useState('');
-  const [orientacao, setOrientacao] = useState<'landscape' | 'portrait'>('landscape');
+  // F-194: rotação em 4 posições (em pé = 90/270); a posição deitada/em pé sai dela
+  const [rotacao, setRotacao] = useState<Rotacao>(0);
+  const orientacao = rotacao === 90 || rotacao === 270 ? 'portrait' : 'landscape';
   const [polegadas, setPolegadas] = useState('');
   const [valor, setValor] = useState('');
   const [subindo, setSubindo] = useState(false);
@@ -38,7 +43,7 @@ export function TelaParceiraDialog({ aberto, onFechar, pontoId, tela, onSalvo }:
     if (!aberto) return;
     setLocal(tela?.local_instalacao ?? '');
     setFoto(tela?.foto_local_url ?? '');
-    setOrientacao(tela?.orientation === 'portrait' ? 'portrait' : 'landscape');
+    setRotacao(ehRotacao(tela?.rotacao_tela) ? tela!.rotacao_tela as Rotacao : rotacaoPadrao(null, tela?.orientation));
     setPolegadas(tela?.tamanho_polegadas ? String(tela.tamanho_polegadas) : '');
     setValor(tela ? paraTexto(tela.valor_anuncio) : '');
     setErro(null);
@@ -56,7 +61,7 @@ export function TelaParceiraDialog({ aberto, onFechar, pontoId, tela, onSalvo }:
     setSalvando(true); setErro(null);
     const { error } = await supabase.rpc('fn_salvar_tela_parceira' as never, {
       p_ponto: pontoId, p_tela: tela?.id ?? null,
-      p_dados: { local: local.trim(), foto_url: foto || null, orientacao: orientacao, polegadas: polegadas || null, valor: valor.replace(/\./g, '').replace(',', '.') },
+      p_dados: { local: local.trim(), foto_url: foto || null, orientacao: orientacao, rotacao, polegadas: polegadas || null, valor: valor.replace(/\./g, '').replace(',', '.') },
     } as never);
     setSalvando(false);
     if (error) return setErro(error.message);
@@ -78,7 +83,7 @@ export function TelaParceiraDialog({ aberto, onFechar, pontoId, tela, onSalvo }:
 
         <div className="space-y-4" data-testid="form-tela-parceira">
           <div className="space-y-2">
-            <Label>Foto do local da tela</Label>
+            <Label>Imagem de capa (foto do local da tela)</Label>
             <div className="relative overflow-hidden rounded-xl border bg-muted">
               {foto ? <img src={foto} alt="Local da tela" className="aspect-video w-full object-cover" />
                 : <div className="flex aspect-video items-center justify-center"><Monitor className="h-10 w-10 text-muted-foreground" /></div>}
@@ -94,18 +99,12 @@ export function TelaParceiraDialog({ aberto, onFechar, pontoId, tela, onSalvo }:
             <Input id="tela-local" value={local} onChange={(e) => setLocal(e.target.value)} placeholder="Ex.: Balcão de atendimento" />
           </div>
 
+          <div className="space-y-1.5">
+            <Label>Rotação da tela</Label>
+            <SeletorDeRotacao valor={rotacao} onMudar={setRotacao} />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Posição</Label>
-              <div className="grid grid-cols-2 gap-1 rounded-lg border p-1">
-                {(['landscape', 'portrait'] as const).map((o) => (
-                  <button key={o} type="button" onClick={() => setOrientacao(o)}
-                    className={`rounded-md px-2 py-1.5 text-xs font-medium ${orientacao === o ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
-                    {o === 'landscape' ? 'Deitada' : 'Em pé'}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="tela-pol">Tamanho (polegadas)</Label>
               <Input id="tela-pol" inputMode="numeric" value={polegadas} onChange={(e) => setPolegadas(e.target.value.replace(/\D/g, ''))} placeholder="43" />

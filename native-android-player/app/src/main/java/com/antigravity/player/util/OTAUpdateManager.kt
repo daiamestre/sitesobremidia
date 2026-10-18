@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Integridade por SHA-256: o APK só é instalado se o hash baixado
  *   bater com o hash publicado na tabela app_releases.sha256.
  * - Anti-downgrade: apenas version_code MAIOR que o instalado.
- * - Instalação SEMPRE via FileProvider/PackageInstaller (sem root, sem su).
+ * - Instalação: Device Owner ou root = silenciosa; nos outros aparelhos só abre o instalador a pedido do painel (F-194).
  *
  * F-183 — o aparelho AVISA NA TELA (OtaStatus) que está atualizando e para qual versão; pergunta por versão nova logo ao abrir
  * e a cada 15 minutos; não baixa de novo o que já baixou; instala por sessão do PackageInstaller (silencioso em Device Owner e,
@@ -127,7 +127,7 @@ class OTAUpdateManager(
             if (jaBaixado) {
                 val agora = System.currentTimeMillis()
                 val ultimo = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(CHAVE_ULTIMO_PEDIDO, 0L)
-                if (!OtaPolicy.podePedirInstalacao(ultimo, agora)) {
+                if (!OtaPolicy.podePedirInstalacao(ultimo, agora) && !OtaPolicy.pedidoDoPainelAtivo(agora)) {
                     Logger.i("OTA", "Versão $versionName já baixada e aguardando a instalação; não reabro o instalador agora.")
                     OtaStatus.definir(Estado.AguardandoConfirmacao(versionName))
                     return Resultado.ATUALIZANDO
@@ -199,7 +199,7 @@ class OTAUpdateManager(
             OtaStatus.definir(Estado.Instalando(versionName))
             informarPainel("$versionName: instalando")
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(CHAVE_ULTIMO_PEDIDO, System.currentTimeMillis()).apply()
-            installApk(apkFile)
+            installApk(apkFile)?.let { informarPainel("$versionName: $it") }
             return Resultado.ATUALIZANDO
         } catch (e: Exception) {
             return falhou(versionName, "Download/Install sequence failed: ${e.message}")
@@ -257,14 +257,42 @@ class OTAUpdateManager(
         }
     }
 
-    /** Instala pelo PackageInstaller (sessão): silencioso em Device Owner; nos outros, o Android pede a confirmação na tela. */
-    private fun installApk(file: File) {
+    /**
+     * F-194 — instala SEM interromper a reprodução:
+     *  - Device Owner: sessão do PackageInstaller, silenciosa;
+     *  - root: `pm install -r` por baixo (RootInstaller), silencioso, e o Player reabre sozinho;
+     *  - os outros: a sessão é enviada (no Android 12+ pode passar sem toque), mas o instalador/configuração do Android só
+     *    abre na tela se o painel pediu ("Instalar atualização agora"). Devolve a nota para o painel (null = nada a dizer).
+     */
+    private fun installApk(file: File): String? {
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
         val donoDoAparelho = dpm.isDeviceOwnerApp(context.packageName)
+        val modo = OtaPolicy.modoDeInstalacao(donoDoAparelho, !donoDoAparelho && RootInstaller.disponivel(context))
+        val versao = OtaStatus.versaoEmInstalacao ?: "nova versão"
+        when (modo) {
+            OtaPolicy.ModoDeInstalacao.DONO_DO_APARELHO -> {
+                Logger.i("OTA", "Device Owner detected. Starting Silent Install via PackageInstaller.")
+                installApkBySession(file)
+                return "instalando em silêncio (Device Owner)"
+            }
+            OtaPolicy.ModoDeInstalacao.ROOT -> {
+                // se der certo o processo é encerrado aqui dentro e a versão nova abre sozinha
+                val nota = RootInstaller.instalar(context, file)
+                Logger.w("OTA", "Instalação por root não concluiu: $nota. Seguindo pela sessão do PackageInstaller.")
+                installApkBySession(file)
+                return nota
+            }
+            OtaPolicy.ModoDeInstalacao.PEDIR_TOQUE -> Unit
+        }
+        val podeAbrir = OtaPolicy.podeAbrirTelaDoAndroid()
         // F-183: sem a permissão "instalar apps desconhecidos" o Android recusa a instalação (e o aparelho ficava mudo)
-        if (!donoDoAparelho && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
-            Logger.w("OTA", "Sem permissão de instalar apps desconhecidos: abrindo a tela de configuração do Android.")
-            OtaStatus.versaoEmInstalacao?.let { OtaStatus.definir(Estado.PrecisaPermissao(it)) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+            OtaStatus.definir(Estado.PrecisaPermissao(versao))
+            if (!podeAbrir) {
+                Logger.w("OTA", "Sem permissão de instalar apps desconhecidos; a tela de configuração só abre a pedido do painel.")
+                return "$versao: pronta, falta liberar \"instalar apps desconhecidos\" no aparelho (use \"Instalar atualização agora\" com alguém ao lado da TV)"
+            }
+            Logger.w("OTA", "Sem permissão de instalar apps desconhecidos: abrindo a tela de configuração do Android (pedido do painel).")
             DeviceControl.suppressExitCountUntilMs = System.currentTimeMillis() + 180_000L
             try {
                 context.startActivity(
@@ -274,11 +302,12 @@ class OTAUpdateManager(
             } catch (e: Exception) {
                 Logger.e("OTA", "Tela de permissão indisponível neste aparelho: ${e.message}")
             }
-            return
+            return null
         }
-        if (donoDoAparelho) Logger.i("OTA", "Device Owner detected. Starting Silent Install via PackageInstaller.")
-        else Logger.i("OTA", "Instalação por sessão do PackageInstaller (silenciosa no Android 12+ se este app instalou a versão atual; senão o Android pede confirmação).")
+        Logger.i("OTA", "Instalação por sessão do PackageInstaller (silenciosa no Android 12+ se este app instalou a versão atual; " +
+            "senão aguarda: o instalador só abre a pedido do painel).")
         installApkBySession(file)
+        return if (podeAbrir) null else OtaPolicy.notaPrecisaDeToque(versao)
     }
 
     /** Para testes no aparelho (androidTest): instala um APK local pelo mesmo caminho da atualização. */
@@ -323,8 +352,9 @@ class OTAUpdateManager(
             session.commit(pendingIntent.intentSender)
             Logger.i("OTA", "PackageInstaller session committed with canonical OTAInstallReceiver callback.")
         } catch (e: Exception) {
-            Logger.e("OTA", "Instalação por sessão falhou: ${e.message}. Usando o instalador do sistema.")
-            installApkWithIntent(file)
+            Logger.e("OTA", "Instalação por sessão falhou: ${e.message}.")
+            if (OtaPolicy.podeAbrirTelaDoAndroid()) installApkWithIntent(file)
+            else OtaStatus.versaoEmInstalacao?.let { OtaStatus.definir(Estado.AguardandoConfirmacao(it)) }
         }
     }
 

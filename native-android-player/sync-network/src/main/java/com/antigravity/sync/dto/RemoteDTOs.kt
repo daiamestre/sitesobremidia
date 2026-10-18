@@ -81,7 +81,9 @@ data class AuthorizedScreenDto(
     @SerialName("custom_id") val customId: String?,
     val name: String,
     @SerialName("is_active") val isActive: Boolean,
-    @SerialName("bound_device_id") val boundDeviceId: String?
+    @SerialName("bound_device_id") val boundDeviceId: String?,
+    /** F-194: código da tela (TEL-AAAA-NNNNNN), mostrado embaixo do nome na escolha da tela. */
+    @SerialName("codigo_operacional") val codigoOperacional: String? = null
 )
 
 @Serializable

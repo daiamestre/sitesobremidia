@@ -116,6 +116,11 @@
     // GLOBAL ERROR TRAP (Native JS)
     // Catches errors before React loads
     window.onerror = function (msg, url, line, col, error) {
+      // F-194: aviso inofensivo do navegador (ex.: ao abrir janelas/listas) não é erro de abertura
+      if (/ResizeObserver loop/i.test(String(msg))) return true;
+      // com o painel já aberto, quem trata os erros é o React — a tela vermelha só vale ANTES de o painel abrir
+      var raiz = document.getElementById('root');
+      if (raiz && raiz.childElementCount > 0) return false;
       // Create error box if it doesn't exist
       var errorBox = document.getElementById('native-error-box');
       if (!errorBox) {

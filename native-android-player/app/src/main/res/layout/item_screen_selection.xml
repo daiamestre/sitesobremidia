@@ -43,6 +43,17 @@
                 android:textSize="18sp"
                 android:textStyle="bold"/>
 
+            <!-- F-194: o ID fica embaixo do nome da tela -->
+            <TextView
+                android:id="@+id/screen_id"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ID: TEL-2026-000001"
+                android:textColor="#94A3B8"
+                android:textSize="13sp"
+                android:fontFamily="monospace"
+                android:layout_marginTop="2dp"/>
+
             <TextView
                 android:id="@+id/screen_status"
                 android:layout_width="wrap_content"

@@ -81,6 +81,35 @@ object OtaPolicy {
         Resultado.SEM_RESPOSTA, Resultado.FALHOU -> (20_000L * falhasSeguidas.coerceAtLeast(1)).coerceAtMost(5 * 60_000L)
     }
 
+    // ------------------------------------------------------------------ F-194: instalação sem interromper a reprodução
+
+    /** Como este aparelho instala: em silêncio (Device Owner ou root) ou só com um toque, quando alguém pedir pelo painel. */
+    enum class ModoDeInstalacao { DONO_DO_APARELHO, ROOT, PEDIR_TOQUE }
+
+    fun modoDeInstalacao(donoDoAparelho: Boolean, temRoot: Boolean): ModoDeInstalacao = when {
+        donoDoAparelho -> ModoDeInstalacao.DONO_DO_APARELHO
+        temRoot -> ModoDeInstalacao.ROOT
+        else -> ModoDeInstalacao.PEDIR_TOQUE
+    }
+
+    /** Depois do botão "Instalar atualização agora" do painel, por 10 minutos o instalador do Android PODE abrir na tela. */
+    const val JANELA_DO_PEDIDO_DO_PAINEL_MS = 10 * 60_000L
+    @Volatile var pedidoDoPainelAteMs: Long = 0L
+        private set
+
+    fun registrarPedidoDoPainel(agoraMs: Long = System.currentTimeMillis()) { pedidoDoPainelAteMs = agoraMs + JANELA_DO_PEDIDO_DO_PAINEL_MS }
+    fun pedidoDoPainelAtivo(agoraMs: Long = System.currentTimeMillis()): Boolean = agoraMs < pedidoDoPainelAteMs
+
+    /** Abrir instalador/configuração do Android por cima da reprodução? Só a pedido do painel (alguém ao lado da TV). */
+    fun podeAbrirTelaDoAndroid(agoraMs: Long = System.currentTimeMillis()): Boolean = pedidoDoPainelAtivo(agoraMs)
+
+    /** Aviso de atualização por cima das mídias? Também só a pedido do painel; no resto, a atualização é invisível. */
+    fun mostrarAvisoNaTela(agoraMs: Long = System.currentTimeMillis()): Boolean = pedidoDoPainelAtivo(agoraMs)
+
+    /** Texto que vai para o painel quando o aparelho não consegue instalar sozinho. */
+    fun notaPrecisaDeToque(versao: String): String =
+        "$versao: pronta, aguardando instalação — este aparelho não tem root nem Device Owner; use \"Instalar atualização agora\" com alguém ao lado da TV"
+
     /** Pode abrir de novo o instalador do Android? */
     fun podePedirInstalacao(ultimoPedidoMs: Long, agoraMs: Long): Boolean =
         ultimoPedidoMs <= 0L || agoraMs - ultimoPedidoMs >= REPETIR_PEDIDO_DE_INSTALACAO_MS

@@ -310,6 +310,7 @@ class MainActivity : AppCompatActivity() {
     private var rotacaoPorSoftwareLiberada = false
     private val PREF_GIRO_POR_SOFTWARE = "giro_por_software"
     private val PREF_GIRO_DO_QUADRO = "giro_do_quadro"
+    private val PREF_ROTACAO_TELA = "rotacao_tela"
     private val PREF_GIRO_POR_SOFTWARE_PARA = "giro_por_software_para"
     private var isAutoCleanStarted = false
     
@@ -402,10 +403,14 @@ class MainActivity : AppCompatActivity() {
         // (que parte do cache em 1 s) já estava tocando quando a área de vídeo mudava de tamanho e girava, e o
         // decodificador por hardware ficava em tela preta.
         SessionManager.giroDoQuadro = SessionManager.giroValido(savedPrefs.getInt(PREF_GIRO_DO_QUADRO, 90))
+        SessionManager.rotacaoTela = SessionManager.rotacaoValida(savedPrefs.getInt(PREF_ROTACAO_TELA, -1))
         rotacaoPorSoftwareLiberada = !isTV && PlayerFlowPolicy.giroPorSoftwareGuardado(
             savedPrefs.getBoolean(PREF_GIRO_POR_SOFTWARE, false),
             savedPrefs.getString(PREF_GIRO_POR_SOFTWARE_PARA, null),
-            com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(initialOrientation).canonicalName
+            PlayerFlowPolicy.chaveDoGiro(
+                com.antigravity.core.domain.model.PlaylistOrientation.fromResolutionOrOrientation(initialOrientation).canonicalName,
+                SessionManager.rotacaoTela
+            )
         )
         applyScreenRotation(initialOrientation)
         
@@ -891,6 +896,12 @@ class MainActivity : AppCompatActivity() {
                         }
                         // F-183: "Atualizar aplicativo" — pergunta já por versão nova (o aviso aparece na tela do aparelho)
                         "update_app", "check_update" -> {
+                            ackRemoteCommand(commandId, "executed")
+                            lifecycleScope.launch { com.antigravity.player.util.OtaCycle.checarAgora(applicationContext) }
+                        }
+                        // F-194: "Instalar atualização agora" — alguém está ao lado da TV: por 10 min o instalador pode abrir
+                        "install_update" -> {
+                            com.antigravity.player.util.OtaPolicy.registrarPedidoDoPainel()
                             ackRemoteCommand(commandId, "executed")
                             lifecycleScope.launch { com.antigravity.player.util.OtaCycle.checarAgora(applicationContext) }
                         }
@@ -2053,11 +2064,11 @@ withContext(Dispatchers.Main) {
      * do app, então o player gira o PRÓPRIO canvas (toda a tela: vídeo, imagem, widget, sync e bloqueio) 90°
      * quando a playlist não casa com o painel físico. Celular/tablet não passam por aqui (o sistema trava).
      */
-    private fun applyTvCanvasOrientation() {
+    private fun applyTvCanvasOrientation(reiniciarSeGirar: Boolean = true) {
         val content = findViewById<android.view.ViewGroup>(android.R.id.content) ?: return
         val canvas = content.getChildAt(0) ?: return
         if (content.width <= 0 || content.height <= 0) {
-            content.post { applyTvCanvasOrientation() }
+            content.post { applyTvCanvasOrientation(reiniciarSeGirar) }
             return
         }
         val t = PlayerFlowPolicy.tvCanvasTransform(
@@ -2065,7 +2076,8 @@ withContext(Dispatchers.Main) {
             canonicalOrientation = SessionManager.currentOrientation,
             displayWidth = content.width,
             displayHeight = content.height,
-            giroGraus = SessionManager.giroDoQuadro
+            giroGraus = SessionManager.giroDoQuadro,
+            rotacaoTela = SessionManager.rotacaoTela
         )
         val lp = canvas.layoutParams
         val wantW = t?.width ?: android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -2073,9 +2085,14 @@ withContext(Dispatchers.Main) {
         val wantRot = t?.rotation ?: 0f
         if (lp.width == wantW && lp.height == wantH && canvas.rotation == wantRot) return
         // F-192: o sentido do giro foi trocado (90 <-> 270) com o quadro já girado: guarda e recomeça o motor de vídeo
-        val inverteuOSentido = canvas.rotation != 0f && wantRot != 0f && canvas.rotation != wantRot
+        // F-194: com a rotação escolhida no painel, qualquer troca de giro com vídeo no ar recomeça o motor
+        val inverteuOSentido = if (SessionManager.rotacaoTela != null) canvas.rotation != wantRot && reiniciarSeGirar
+            else canvas.rotation != 0f && wantRot != 0f && canvas.rotation != wantRot
         try {
-            getSharedPreferences("player_prefs", MODE_PRIVATE).edit().putInt(PREF_GIRO_DO_QUADRO, SessionManager.giroDoQuadro).apply()
+            getSharedPreferences("player_prefs", MODE_PRIVATE).edit()
+                .putInt(PREF_GIRO_DO_QUADRO, SessionManager.giroDoQuadro)
+                .putInt(PREF_ROTACAO_TELA, SessionManager.rotacaoTela ?: -1)
+                .apply()
         } catch (e: Exception) { /* preferência é só um atalho */ }
         lp.width = wantW
         lp.height = wantH
@@ -2299,18 +2316,24 @@ withContext(Dispatchers.Main) {
             if (isFinishing || isDestroyed) return@postDelayed
             val c = findViewById<android.view.ViewGroup>(android.R.id.content) ?: return@postDelayed
             if (c.width <= 0 || c.height <= 0) return@postDelayed
-            val liberar = PlayerFlowPolicy.precisaGirarQuadroPorSoftware(c.width, c.height, SessionManager.currentOrientation)
+            @Suppress("DEPRECATION")
+            val rotacaoDoDisplay = try { windowManager.defaultDisplay.rotation } catch (e: Exception) { null }
+            val liberar = PlayerFlowPolicy.precisaGirarQuadroPorSoftware(
+                c.width, c.height,
+                PlayerFlowPolicy.orientacaoDesejada(SessionManager.rotacaoTela, SessionManager.currentOrientation),
+                SessionManager.rotacaoTela, rotacaoDoDisplay
+            )
             // guarda a decisão: na próxima abertura (ex.: depois de faltar energia) o quadro já nasce girado
             try {
                 getSharedPreferences("player_prefs", MODE_PRIVATE).edit()
                     .putBoolean(PREF_GIRO_POR_SOFTWARE, liberar)
-                    .putString(PREF_GIRO_POR_SOFTWARE_PARA, SessionManager.currentOrientation)
+                    .putString(PREF_GIRO_POR_SOFTWARE_PARA, PlayerFlowPolicy.chaveDoGiro(SessionManager.currentOrientation, SessionManager.rotacaoTela))
                     .apply()
             } catch (e: Exception) { /* preferência é só um atalho */ }
             if (liberar != rotacaoPorSoftwareLiberada) {
                 rotacaoPorSoftwareLiberada = liberar
-                Logger.i("ORIENTATION", "Tela física ${c.width}x${c.height} x playlist ${SessionManager.currentOrientation}: quadro girado por software = $liberar")
-                applyTvCanvasOrientation()
+                Logger.i("ORIENTATION", "Tela física ${c.width}x${c.height} x playlist ${SessionManager.currentOrientation} (rotação ${SessionManager.rotacaoTela}): quadro girado por software = $liberar")
+                applyTvCanvasOrientation(reiniciarSeGirar = false)
                 // F-186: o giro mudou com o vídeo já no ar => o motor de vídeo recomeça com a área no tamanho final
                 // (mesmo reinício suave da manutenção). Durante a tela de sincronização não precisa: nada toca ainda.
                 if (PlayerFlowPolicy.reiniciarMotorAoMudarGiro(::playerRenderer1.isInitialized, isSyncInProgress)) {
@@ -2341,7 +2364,8 @@ withContext(Dispatchers.Main) {
             val lock = PlayerFlowPolicy.physicalOrientationLock(
                 canonicalOrientation,
                 isTelevision = DeviceTypeUtil.isTelevision(applicationContext),
-                forcedByPanel = forcePhysicalLock
+                forcedByPanel = forcePhysicalLock,
+                rotacaoTela = SessionManager.rotacaoTela
             )
             // Ensaio em bancada: files/ignorar_pedido_de_giro faz o aparelho se comportar como TV Box/totem que IGNORA o
             // pedido de orientação (em produção o arquivo não existe).
@@ -2404,7 +2428,8 @@ withContext(Dispatchers.Main) {
     private fun mostrarAvisoDeAtualizacao(estado: com.antigravity.player.util.OtaStatus.Estado) {
         val banner = otaBanner ?: return
         banner.removeCallbacks(esconderAvisoDeAtualizacao)
-        val texto = com.antigravity.player.util.OtaStatus.mensagem(estado)
+        // F-194: a atualização é invisível para quem assiste; o aviso só aparece a pedido do painel
+        val texto = if (com.antigravity.player.util.OtaPolicy.mostrarAvisoNaTela()) com.antigravity.player.util.OtaStatus.mensagem(estado) else null
         if (texto == null) {
             banner.visibility = View.GONE
             return

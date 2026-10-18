@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { PastasPontosParceiros, useTelasDosPontos } from '@/components/screens/PastasPontosParceiros';
 import { CartoesDasTelas, resumirTelas } from '@/components/screens/CartoesDasTelas';
+import { CartaoDaTela, ResumoDasTelas, type TelaDoCartao } from '@/components/screens/CartaoDaTela';
 import { MapaDaRede } from '@/components/rede/MapaDaRede';
 import { telaOnlineAgora } from '@/lib/statusDoAparelho';
 import {
@@ -201,16 +202,18 @@ export default function Screens() {
               Telas de parceiros
             </Button>
           )}
-          {ehGestor && (
-            <Button variant="outline" className={`${BOTAO} border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10`} onClick={() => setTelaPagaOpen(true)}>
+          {/* F-194: gestor de mídia só cria tela PAGA (o banco também recusa tela grátis de gestor) */}
+          {ehGestor ? (
+            <Button className={`${BOTAO} bg-emerald-600 text-white hover:bg-emerald-500`} onClick={() => setTelaPagaOpen(true)} data-testid="botao-tela-paga">
               <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
               Nova Tela (R$ 22,99)
             </Button>
+          ) : (
+            <Button className={`${BOTAO} gradient-primary`} onClick={() => { setSelectedScreen(null); setDialogOpen(true); }} data-testid="botao-telas-anunciantes">
+              <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
+              Telas de Anunciantes
+            </Button>
           )}
-          <Button className={`${BOTAO} gradient-primary`} onClick={() => { setSelectedScreen(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
-            Nova Tela
-          </Button>
         </div>
       </div>
 
@@ -245,6 +248,12 @@ export default function Screens() {
         </button>
       )}
 
+      {secao === 'parceiros' && !pontoAberto && (
+        <ResumoDasTelas testId="resumo-parceiros" total={telasParceiras.length}
+          online={telasParceiras.filter((t) => isScreenOnline(t as unknown as Screen)).length}
+          ativas={telasParceiras.filter((t) => t.is_active !== false).length} />
+      )}
+
       {secao === 'parceiros' && (
         <PastasPontosParceiros
           pontoId={pontoAberto}
@@ -260,42 +269,8 @@ export default function Screens() {
         </button>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="glass">
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className="p-3 rounded-lg bg-primary/10">
-              <Monitor className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{telasAnunciantes.length}</p>
-              <p className="text-sm text-muted-foreground">Total de Telas</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass">
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className={`p-3 rounded-lg ${onlineCount > 0 ? 'bg-success/10' : 'bg-muted'}`}>
-              <Wifi className={`h-6 w-6 ${onlineCount > 0 ? 'text-success' : 'text-muted-foreground'}`} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{onlineCount}</p>
-              <p className="text-sm text-muted-foreground">Online Agora</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass">
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className="p-3 rounded-lg bg-accent/10">
-              <Monitor className="h-6 w-6 text-accent" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{activeCount}</p>
-              <p className="text-sm text-muted-foreground">Ativas</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* F-194: resumo no mesmo estilo dos cartões (total, online, offline, ativas) */}
+      <ResumoDasTelas testId="resumo-anunciantes" total={telasAnunciantes.length} online={onlineCount} ativas={activeCount} />
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -330,67 +305,31 @@ export default function Screens() {
             : 'Adicione telas para começar a exibir suas playlists.'}
           action={!searchQuery ? {
             label: 'Criar Tela',
-            onClick: () => { setSelectedScreen(null); setDialogOpen(true); },
+            onClick: () => { if (ehGestor) { setTelaPagaOpen(true); return; } setSelectedScreen(null); setDialogOpen(true); },
             icon: Plus
           } : undefined}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
           {filteredScreens.map(screen => {
             const isOnline = isScreenOnline(screen);
-            const statusColor = isOnline ? '#22c55e' : '#ef4444';
 
             // Use operational code (custom_id or codigo_operacional) for navigation URL
             // UUID remains internal identifier
             const displayId = screen.codigo_operacional || screen.custom_id || screen.id;
 
             return (
-              <Card
+              <CartaoDaTela
                 key={screen.id}
-                className="glass group hover:shadow-lg transition-shadow overflow-hidden border-l-4 cursor-pointer"
-                style={{ borderLeftColor: statusColor }}
-                onClick={() => navigate(`/dashboard/screens/${displayId}`)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(screen.id)}
-                        onClick={(e) => toggleSelect(screen.id, e)}
-                        onChange={() => {}}
-                        className="h-4 w-4 rounded border-muted-foreground/30 accent-primary cursor-pointer shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold truncate">{screen.name}</h3>
-                        {isOnline ? (
-                          <Badge className="bg-green-500 hover:bg-green-600">Online</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="bg-destructive/10 text-destructive hover:bg-destructive/20">Offline</Badge>
-                        )}
-                      </div>
-                      {screen.location && (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                          <MapPin className="h-3 w-3" />
-                          <span className="truncate">{screen.location}</span>
-                        </div>
-                      )}
-
-                      {/* Resolution Icon */}
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                        {screen.resolution === '9x16' ? (
-                          <MonitorSmartphone className="h-3 w-3" />
-                        ) : (
-                          <Monitor className="h-3 w-3" />
-                        )}
-                        <span>{screen.resolution === '9x16' ? '9x16 (Vertical)' : '16x9 (Horizontal)'}</span>
-                      </div>
-                    </div>
-                    </div>
+                tela={screen as unknown as TelaDoCartao}
+                online={isOnline}
+                selecionada={selectedIds.has(screen.id)}
+                onSelecionar={(e) => toggleSelect(screen.id, e)}
+                onAbrir={() => navigate(`/dashboard/screens/${displayId}`)}
+                menu={(
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 hover:text-white" onClick={(e) => e.stopPropagation()} aria-label="Ações da tela">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -441,50 +380,8 @@ export default function Screens() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </div>
-
-                  <div className="flex flex-col gap-2 text-sm text-muted-foreground mt-4 p-3 bg-muted/30 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium uppercase tracking-wider">Playlist Atual</span>
-                      {screen.playlist ? (
-                        <div className="flex items-center gap-1 text-primary">
-                          <Play className="h-3 w-3" />
-                          <span className="font-medium truncate max-w-[120px]">{screen.playlist.name}</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">Nenhuma definida</span>
-                      )}
-                    </div>
-
-                    <div className="h-px w-full bg-border/50" />
-
-                    <div className="flex items-center justify-between group/id border-t border-border/30 pt-3 mt-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">ID DO PLAYER</span>
-                      <ScreenIdBadge
-                        customId={screen.custom_id}
-                        codigoOperacional={screen.codigo_operacional}
-                        className="bg-background border-border/50 text-[10px] h-6 px-2"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      {isScreenOnline(screen) ? (
-                        <Wifi className="h-3 w-3 text-green-500" />
-                      ) : (
-                        <WifiOff className="h-3 w-3 text-red-500" />
-                      )}
-                      <span>
-                        {screen.last_ping_at
-                          ? `Visto ${format(new Date(screen.last_ping_at), "HH:mm", { locale: ptBR })}`
-                          : 'Nunca visto'}
-                      </span>
-                    </div>
-                    <span>v{screen.version || '1.0'}</span>
-                  </div>
-                </CardContent>
-              </Card>
+                )}
+              />
             );
           })}
         </div>

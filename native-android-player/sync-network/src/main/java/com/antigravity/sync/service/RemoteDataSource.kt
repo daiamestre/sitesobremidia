@@ -47,7 +47,7 @@ class RemoteDataSource {
 
     private companion object {
         const val COMMAND_POLL_MAX_AGE_MS = 120_000L
-        val COMMAND_POLL_SAFE = listOf("screenshot", "reload", "reboot", "update_app")
+        val COMMAND_POLL_SAFE = listOf("screenshot", "reload", "reboot", "update_app", "install_update")
     }
 
     /**
@@ -520,6 +520,14 @@ class RemoteDataSource {
                 if (giro != SessionManager.giroDoQuadro) {
                     Logger.i("ORIENTATION", "Sentido do giro do quadro mudou no painel: ${SessionManager.giroDoQuadro} -> $giro")
                     SessionManager.giroDoQuadro = giro
+                    SessionManager.triggerRotation(resolvedOrientation)
+                }
+
+                // F-194: rotação da tela em 4 posições; mudou => a tela gira já
+                val rotacao = SessionManager.rotacaoValida(device.rotacaoTela)
+                if (rotacao != null && rotacao != SessionManager.rotacaoTela) {
+                    Logger.i("ORIENTATION", "Rotação da tela mudou no painel: ${SessionManager.rotacaoTela} -> $rotacao")
+                    SessionManager.rotacaoTela = rotacao
                     SessionManager.triggerRotation(resolvedOrientation)
                 }
 

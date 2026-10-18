@@ -1,0 +1,5 @@
+[
+ {
+  "d": "CREATE OR REPLACE FUNCTION public.get_authorized_screens_for_player(payload jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\n    BEGIN\n        RETURN public.get_authorized_screens_for_player();\n    END;\n    $function$\n"
+ }
+]
