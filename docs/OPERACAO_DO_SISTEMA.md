@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.7.11** (modo nitidez — ver seção 6).
+Versão de teste atual: **5.7.12** (modo nitidez — seção 6 — e comandos pela consulta mesmo sem o tempo real, F-199).
 
 ## 2. Perfis e o que cada um vê
 
@@ -34,7 +34,7 @@ O painel apaga a memória ao trocar de conta (ninguém vê dados da sessão ante
 
 ## 3. Comandos do painel → Player 5.7.10 (testados em 18/10/2026)
 
-Chegam pelo canal em tempo real e, se ele falhar, por consulta a cada 10 s (`screenshot`, `reload`, `reboot`, `update_app`, `install_update`).
+Chegam pelo canal em tempo real e, se ele falhar, por consulta a cada 10 s. No 5.7.10 a consulta só cobre `screenshot`, `reload`, `reboot`, `update_app`, `install_update` e só liga depois que o tempo real conecta; em TV Box onde o tempo real não conecta, nenhum comando chega (F-199). A partir do 5.7.12 a consulta liga primeiro e traz todos os comandos.
 
 | Ação no painel | Comando / caminho | Tempo medido |
 |---|---|---|

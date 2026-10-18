@@ -89,7 +89,8 @@ class RemoteControlPolicyTest {
     @Test fun rebootIsPolledAsFallbackToo() {
         val s = src("../sync-network/src/main/java/com/antigravity/sync/service/RemoteDataSource.kt")
         // F-183: "update_app" (Atualizar aplicativo) também é consultado
-        assertTrue(s.contains("COMMAND_POLL_SAFE = listOf(\"screenshot\", \"reload\", \"reboot\", \"update_app\", \"install_update\")"))
+        val lista = s.substringAfter("COMMAND_POLL_SAFE = listOf(").substringBefore(")")
+        for (c in listOf("screenshot", "reload", "reboot", "update_app", "install_update")) assertTrue(c, lista.contains("\"$c\""))
     }
 }
 

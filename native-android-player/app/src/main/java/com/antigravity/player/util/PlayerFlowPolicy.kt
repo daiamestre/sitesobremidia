@@ -297,4 +297,13 @@ object PlayerFlowPolicy {
             translationY = (displayHeight - h) / 2f
         )
     }
+
+    // ------------------------------------------------------------------ F-199: comandos sem depender do tempo real
+
+    /** Quanto a assinatura do tempo real pode esperar antes de desistir desta tentativa. */
+    const val LIMITE_ASSINATURA_MS = 20_000L
+
+    /** Espera até a próxima tentativa de tempo real: 30 s, 60 s, 2 min… até 10 min (a consulta periódica cobre). */
+    fun esperaNovaAssinaturaMs(tentativa: Int): Long =
+        (30_000L shl (tentativa - 1).coerceIn(0, 5)).coerceAtMost(10 * 60_000L)
 }

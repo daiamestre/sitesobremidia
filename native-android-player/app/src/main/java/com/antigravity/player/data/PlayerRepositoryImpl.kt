@@ -40,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
@@ -486,16 +487,40 @@ class PlayerRepositoryImpl(
 
                 val uuid = knownScreenUuid ?: SessionManager.currentUUID!!
                 Logger.i("REPOS", "UUID Resolved: $uuid. Subscribing to Remote Commands...")
-                try {
-                    remoteDataSource.subscribeToRemoteCommands(uuid, repositoryScope)
-                } catch (e: Exception) {
-                    Logger.e("REPOS", "Realtime de comandos falhou (${e.message}); seguindo com polling.")
-                }
-                // Plano B: comandos do painel (screenshot/reload) chegam mesmo com o WebSocket caído.
+                // F-199: a consulta periódica dos comandos liga PRIMEIRO. Nas TV Box do hotel (Rockchip, Android 7) o tempo
+                // real nunca conecta e a assinatura ficava esperando para sempre: a consulta, que vinha depois, nunca
+                // ligava e NENHUM comando do painel chegava (captura, reiniciar, atualizar). Agora o tempo real tenta à
+                // parte, com tempo limite, e tenta de novo sozinho.
                 remoteDataSource.startCommandPolling(uuid, repositoryScope)
+                assinarComandosComLimite(uuid)
             } catch (e: Exception) {
                 isRemoteCommandsStarted = false
                 Logger.e("REPOS", "Remote Command Listener Failed: ${e.message}")
+            }
+        }
+    }
+
+    /** F-199: tempo real dos comandos com tempo limite e nova tentativa (a consulta periódica já está ligada). */
+    private fun assinarComandosComLimite(uuid: String) {
+        repositoryScope.launch {
+            var tentativa = 0
+            while (isActive) {
+                tentativa++
+                val ok = try {
+                    kotlinx.coroutines.withTimeout(com.antigravity.player.util.PlayerFlowPolicy.LIMITE_ASSINATURA_MS) {
+                        remoteDataSource.subscribeToRemoteCommands(uuid, repositoryScope)
+                    }
+                    true
+                } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                    Logger.w("REPOS", "Tempo real dos comandos não conectou em ${com.antigravity.player.util.PlayerFlowPolicy.LIMITE_ASSINATURA_MS / 1000}s (tentativa $tentativa); os comandos seguem pela consulta a cada 10 s.")
+                    false
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    Logger.w("REPOS", "Tempo real dos comandos falhou (${e.message}); os comandos seguem pela consulta a cada 10 s.")
+                    false
+                }
+                if (ok) return@launch
+                delay(com.antigravity.player.util.PlayerFlowPolicy.esperaNovaAssinaturaMs(tentativa))
             }
         }
     }
@@ -506,13 +531,17 @@ class PlayerRepositoryImpl(
                 // [YELOO] Realtime subscribe uses the screenToken (deviceId)
                 Logger.i("REPOS", "Starting Realtime Sync for Screen Token: $deviceId")
 
-                // 1. Subscribe to Websockets using the Screen Token
-                remoteDataSource.subscribeToRealtimeSync(deviceId, playlistId, repositoryScope)
-                
-                // 2. Listen for Nudges (from Realtime)
-                SessionManager.syncEvents.collect {
-                    Logger.i("REPOS", "Sync Nudge Received! Forcing Yeloo-Style Update...")
-                    syncWithRemote()
+                // F-199: os avisos de sincronização são ouvidos ANTES de assinar (a assinatura podia travar para sempre)
+                launch {
+                    SessionManager.syncEvents.collect {
+                        Logger.i("REPOS", "Sync Nudge Received! Forcing Yeloo-Style Update...")
+                        syncWithRemote()
+                    }
+                }
+
+                // 1. Subscribe to Websockets using the Screen Token (com tempo limite)
+                kotlinx.coroutines.withTimeout(com.antigravity.player.util.PlayerFlowPolicy.LIMITE_ASSINATURA_MS) {
+                    remoteDataSource.subscribeToRealtimeSync(deviceId, playlistId, repositoryScope)
                 }
             } catch (e: Exception) {
                 Logger.e("REPOS", "Realtime Connection Failed: ${e.message}")

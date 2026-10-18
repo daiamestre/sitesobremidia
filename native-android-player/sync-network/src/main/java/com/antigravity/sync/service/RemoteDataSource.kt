@@ -47,7 +47,13 @@ class RemoteDataSource {
 
     private companion object {
         const val COMMAND_POLL_MAX_AGE_MS = 120_000L
-        val COMMAND_POLL_SAFE = listOf("screenshot", "reload", "reboot", "update_app", "install_update")
+        // F-199: nas TV Box em que o tempo real não conecta, a consulta é o ÚNICO caminho — então todos os comandos do
+        // painel vêm por ela (cada um é respondido e sai de "pending"; repetição barrada por processedCommandIds).
+        val COMMAND_POLL_SAFE = listOf(
+            "screenshot", "take_screenshot", "reload", "reboot", "restart_player", "update_app", "check_update",
+            "install_update", "sync", "maintenance_open", "open_maintenance", "maintenance_close", "close_maintenance",
+            "rotate_portrait", "rotate_landscape", "reboot_device", "unpair"
+        )
     }
 
     /**
@@ -172,10 +178,22 @@ class RemoteDataSource {
     }
 
     // [INDUSTRIAL] Realtime Command Listener: The "Soberana" Remote control (com Idempotência)
+    // F-199: canal e ouvinte da tentativa anterior (o tempo real é tentado de novo quando não conecta)
+    @Volatile private var canalDeComandos: io.github.jan.supabase.realtime.RealtimeChannel? = null
+    @Volatile private var ouvinteDeComandos: kotlinx.coroutines.Job? = null
+
     suspend fun subscribeToRemoteCommands(screenUuid: String, scope: CoroutineScope) {
         Logger.w("SYNC_SNIFFER", ">>> ATTEMPTING COMMAND SUBSCRIPTION FOR UUID: $screenUuid")
         ensureRealtimeAuth()
+        // F-199: descarta a tentativa anterior que não conectou (sem ouvinte nem canal duplicado)
+        ouvinteDeComandos?.cancel()
+        canalDeComandos?.let { antigo ->
+            try { client.realtime.removeChannel(antigo) } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
+        }
         val channel = client.realtime.channel("remote_commands_channel")
+        canalDeComandos = channel
         
         val commandFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "remote_commands"
@@ -228,7 +246,7 @@ class RemoteDataSource {
             } else if (command == null || commandId == null) {
                 Logger.e("SYNC_SNIFFER", "### MALFORMED COMMAND PACKET: cmd=$command, id=$commandId")
             }
-        }.launchIn(scope)
+        }.launchIn(scope).also { ouvinteDeComandos = it }
         
         channel.subscribe()
         Logger.i("SYNC_SNIFFER", "### SUBSCRIPTION ACTIVE FOR UUID: $screenUuid")
@@ -258,8 +276,13 @@ class RemoteDataSource {
             Logger.i("CMD_POLL", "Polling de comandos ativo para a tela $screenUuid (${intervalMs}ms)")
             while (isActive) {
                 try {
-                    ensureRealtimeAuth() // acompanha a renovação do JWT
-                    pollPendingCommands(screenUuid)
+                    // F-199: uma consulta presa (rede ruim da TV Box) nunca pode travar o laço para sempre
+                    kotlinx.coroutines.withTimeout(15_000L) {
+                        ensureRealtimeAuth() // acompanha a renovação do JWT
+                        pollPendingCommands(screenUuid)
+                    }
+                } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                    Logger.w("CMD_POLL", "Consulta de comandos passou de 15 s; tentando de novo.")
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     Logger.w("CMD_POLL", "Falha ao consultar comandos: ${e.message}")

@@ -77,7 +77,7 @@ class AtualizacaoSilenciosaERotacaoTest {
         assertTrue(principal.contains("OtaPolicy.registrarPedidoDoPainel()"))
         assertTrue(principal.contains("if (com.antigravity.player.util.OtaPolicy.mostrarAvisoNaTela()) com.antigravity.player.util.OtaStatus.mensagem(estado) else null"))
         val rede = codigo("../sync-network/src/main/java/com/antigravity/sync/service/RemoteDataSource.kt")
-        assertTrue(rede.contains("\"update_app\", \"install_update\")"))
+        assertTrue(rede.contains("\"install_update\", \"sync\""))
     }
 
     // ---------------------------------------------------------------- rotação em 4 posições
