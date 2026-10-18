@@ -69,7 +69,9 @@ export default function Screens() {
       return (data ?? []) as unknown as Screen[];
     },
   });
-  const screens: Screen[] = [...telasDaConta, ...(telasDaEmpresa.data ?? []).filter((t) => !telasDaConta.some((c) => c.id === t.id))];
+  // F-195: as telas da empresa só entram para dono/ADM (antes, a memória guardada da sessão do dono aparecia para o gestor)
+  const telasDaEmpresaVisiveis = podeTelasParceiras ? (telasDaEmpresa.data ?? []) : [];
+  const screens: Screen[] = [...telasDaConta, ...telasDaEmpresaVisiveis.filter((t) => !telasDaConta.some((c) => c.id === t.id))];
   const loading = carregandoConta || (podeTelasParceiras && !!empresaOperadoraId && telasDaEmpresa.isLoading);
   const navigate = useNavigate();
   // F-112: dois cartões — Telas Pontos Parceiros (pastas por estabelecimento) e Telas Anunciantes
@@ -204,7 +206,7 @@ export default function Screens() {
           )}
           {/* F-194: gestor de mídia só cria tela PAGA (o banco também recusa tela grátis de gestor) */}
           {ehGestor ? (
-            <Button className={`${BOTAO} bg-emerald-600 text-white hover:bg-emerald-500`} onClick={() => setTelaPagaOpen(true)} data-testid="botao-tela-paga">
+            <Button className={`${BOTAO} gradient-primary`} onClick={() => setTelaPagaOpen(true)} data-testid="botao-tela-paga">
               <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
               Nova Tela (R$ 22,99)
             </Button>

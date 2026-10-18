@@ -1228,14 +1228,14 @@ return (
               </Card>
             )}
 
-            {/* F-147: divisão da tela em zonas */}
-            <DivisaoDaTela tela={{ id: screen.id, name: screen.name, resolution: screen.resolution, orientation: screen.orientation, user_id: (screen as { user_id?: string | null }).user_id }} />
-
-            {/* F-194: rotação da tela em 4 posições (substitui o "sentido do giro" do F-192) */}
-            <RotacaoDaTela
-                tela={{ id: screen.id, resolution: screen.resolution, orientation: screen.orientation, rotacao_tela: (screen as { rotacao_tela?: number | null }).rotacao_tela }}
-                aoMudar={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
-            />
+            {/* F-195: divisão da tela (F-147) e rotação (F-194) lado a lado */}
+            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:!mb-0 [&>*]:h-full" data-testid="zonas-e-rotacao">
+                <DivisaoDaTela tela={{ id: screen.id, name: screen.name, resolution: screen.resolution, orientation: screen.orientation, user_id: (screen as { user_id?: string | null }).user_id }} />
+                <RotacaoDaTela
+                    tela={{ id: screen.id, resolution: screen.resolution, orientation: screen.orientation, rotacao_tela: (screen as { rotacao_tela?: number | null }).rotacao_tela }}
+                    aoMudar={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
+                />
+            </div>
 
             {/* F-162: Rádio Comércio desta tela (abaixo da divisão por zonas): liga/desliga a rádio e o som das mídias, que nunca tocam juntos */}
             <RadioDaTela

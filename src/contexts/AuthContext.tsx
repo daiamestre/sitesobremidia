@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { deveLimparMemoria } from '@/lib/memoriaDaConta';
 import { TEMPO_MAX_VERIFICACAO_MS } from '@/lib/tempoLimites';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -173,10 +175,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // F-195: trocou a conta (ou saiu) => a memória do painel é apagada. Antes, o gestor que entrava no mesmo navegador
+  // depois do dono via as telas da empresa guardadas da sessão do dono (o banco já recusava; era só a memória).
+  const queryClient = useContext(QueryClientContext); // pode faltar em testes que montam só o login
+  const contaAnterior = useRef<string | null | undefined>(undefined);
+  const limparSeTrocouDeConta = (atual: string | null) => {
+    if (deveLimparMemoria(contaAnterior.current, atual)) queryClient?.clear();
+    contaAnterior.current = atual;
+  };
+
   useEffect(() => {
     // Configura listener de auth PRIMEIRO sem setTimeout 0
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, currentSession) => {
+        limparSeTrocouDeConta(currentSession?.user?.id ?? null);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
 
@@ -200,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       liberar();
     }, TEMPO_MAX_VERIFICACAO_MS);
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      limparSeTrocouDeConta(existingSession?.user?.id ?? null);
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
 
@@ -351,6 +364,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     }
     await supabase.auth.signOut({ scope: 'local' }); // só este aparelho: os Players da mesma conta seguem logados
+    limparSeTrocouDeConta(null);
     setUser(null);
     setSession(null);
     setUsuario(null);
