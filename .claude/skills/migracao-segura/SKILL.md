@@ -14,6 +14,7 @@ Estruturas protegidas (AGENTS.md): `get_player_playlist_for_screen`, `fn_save_pl
 3. **Mudança aditiva:** coluna nova com valor padrão, `CHECK` que continua aceitando as linhas atuais, e novidade só para Player novo (padrão W11/W12 com `fn_*_suportado_no_aparelho`).
 4. **Prova com as telas reais:**
    `node scripts/ops/comparar-telas.mjs antes`, aplicar com `node scripts/ops/sql.mjs @arquivo.sql`, depois `... depois`. Tem de sair "resposta de todas as telas idêntica".
+   E o contrato do Player comercial 5.7.10 (F-198): `node scripts/ops/contrato-player.mjs` antes e depois — tem de sair "CONTRATO DO PLAYER 5.7.10 ÍNTEGRO".
 5. **Simular a novidade sem gravar nada:** um bloco `DO $$ ... RAISE EXCEPTION 'RESULTADO %', ... $$` insere o caso de teste, chama a RPC e mostra o resultado; a transação é desfeita. Teste Player novo e antigo.
 6. **Funções que o Player chama** gravam `last_ping_at`: nunca chamar fora de transação desfeita.
 7. **Regex dentro de SQL gerado por script:** o `\d` costuma perder a barra. Prefira `[0-9]` e confira o texto aplicado.

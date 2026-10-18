@@ -6,6 +6,7 @@ import android.graphics.RectF
 import android.os.Build
 import android.os.Handler
 import android.view.PixelCopy
+import android.view.SurfaceView
 import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
@@ -20,6 +21,8 @@ import android.view.Window
  *
  * - API 26+: PixelCopy da janela + sobreposição dos TextureViews.
  * - API 23-25 (TV Box antiga) ou PixelCopy falhando: desenho da hierarquia + sobreposição dos TextureViews.
+ * - F-198 (modo nitidez): vídeo numa SurfaceView não aparece no desenho da janela; cada SurfaceView visível é copiada
+ *   com PixelCopy (Android 7+) e desenhada por cima, no lugar dela.
  * A imagem sai reduzida (lado maior <= [MAX_SIDE_PX]) para não estourar a RAM de boxes fracas nem o upload.
  * Chamar na main thread; [onDone] roda no looper de [handler] (use o da main).
  */
@@ -54,11 +57,11 @@ object ScreenCapture {
                         } catch (e: Throwable) {
                             // mantém o que o PixelCopy trouxe
                         }
-                        onDone(dest, null)
+                        sobreporSurfaceViews(root, dest, w, h, handler) { onDone(dest, null) }
                     } else {
                         dest.recycle()
                         val legacy = captureLegacy(root)
-                        if (legacy != null) onDone(legacy, null)
+                        if (legacy != null) sobreporSurfaceViews(root, legacy, w, h, handler) { onDone(legacy, null) }
                         else onDone(null, "PixelCopy falhou (código $result) e o fallback também")
                     }
                 }, handler)
@@ -70,7 +73,53 @@ object ScreenCapture {
         }
 
         val legacy = captureLegacy(root)
-        if (legacy != null) onDone(legacy, null) else onDone(null, "Captura legada falhou")
+        if (legacy != null) sobreporSurfaceViews(root, legacy, w, h, handler) { onDone(legacy, null) } else onDone(null, "Captura legada falhou")
+    }
+
+    /** F-198: copia cada SurfaceView visível (vídeo no plano de hardware) e desenha no lugar dela; depois chama [fim]. */
+    private fun sobreporSurfaceViews(root: View, alvo: Bitmap, w: Int, h: Int, handler: Handler, fim: () -> Unit) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) { fim(); return }
+        val lista = mutableListOf<SurfaceView>()
+        coletarSurfaceViews(root, lista)
+        if (lista.isEmpty()) { fim(); return }
+        val rootLoc = IntArray(2).also { root.getLocationInWindow(it) }
+        val escalaX = alvo.width.toFloat() / w
+        val escalaY = alvo.height.toFloat() / h
+        fun proxima(i: Int) {
+            if (i >= lista.size) { fim(); return }
+            val sv = lista[i]
+            val bw = maxOf(1, (sv.width * escalaX).toInt())
+            val bh = maxOf(1, (sv.height * escalaY).toInt())
+            val quadro = try { Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888) } catch (e: Throwable) { null }
+            if (quadro == null) { proxima(i + 1); return }
+            try {
+                PixelCopy.request(sv, quadro, { r ->
+                    if (r == PixelCopy.SUCCESS) {
+                        try {
+                            val loc = IntArray(2).also { sv.getLocationInWindow(it) }
+                            val left = (loc[0] - rootLoc[0]) * escalaX
+                            val top = (loc[1] - rootLoc[1]) * escalaY
+                            Canvas(alvo).drawBitmap(quadro, null, RectF(left, top, left + bw, top + bh), null)
+                        } catch (e: Throwable) { /* fica o que já havia */ }
+                    }
+                    quadro.recycle()
+                    proxima(i + 1)
+                }, handler)
+            } catch (e: Throwable) {
+                quadro.recycle()
+                proxima(i + 1)
+            }
+        }
+        proxima(0)
+    }
+
+    private fun coletarSurfaceViews(view: View, lista: MutableList<SurfaceView>) {
+        if (view.visibility != View.VISIBLE) return
+        if (view is SurfaceView) {
+            if (view.isShown && view.width > 0 && view.height > 0 && view.holder?.surface?.isValid == true) lista.add(view)
+            return
+        }
+        if (view is ViewGroup) for (i in 0 until view.childCount) coletarSurfaceViews(view.getChildAt(i), lista)
     }
 
     /** Caminho sem PixelCopy: hierarquia + TextureViews visíveis. Deve rodar na main thread. */

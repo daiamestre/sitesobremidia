@@ -179,7 +179,7 @@ object NativeWidgetEngine {
         return try {
             val legacy = ChipsetDetector.getRecommendedProfile() == ChipsetDetector.HardwareProfile.LEGACY_STABILITY
             val options = RequestOptions().centerCrop()
-                .format(if (legacy) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888)
+                .format(DecodeFormat.PREFER_ARGB_8888) // F-198: cores completas também na TV Box (RGB_565 fazia faixas em TV grande)
             Glide.with(context).asBitmap().load(url).apply(options)
                 .submit(min(w, 1920).coerceAtLeast(320), min(h, 1920).coerceAtLeast(320))
                 .get(BG_TIMEOUT_S, TimeUnit.SECONDS)
@@ -269,7 +269,7 @@ object NativeWidgetEngine {
         val candidatas = lista.filter { it.imagem != null }.take(spec.maxItems * 2)
         val legacy = ChipsetDetector.getRecommendedProfile() == ChipsetDetector.HardwareProfile.LEGACY_STABILITY
         val opcoes = RequestOptions().downsample(com.bumptech.glide.load.resource.bitmap.DownsampleStrategy.AT_MOST)
-            .format(if (legacy) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888)
+            .format(DecodeFormat.PREFER_ARGB_8888) // F-198: cores completas também na TV Box (RGB_565 fazia faixas em TV grande)
         val carregadas = candidatas.map { n ->
             async(Dispatchers.IO) {
                 n to try {
@@ -1508,7 +1508,7 @@ object NativeWidgetEngine {
         if (itens.isEmpty()) return@coroutineScope EsportesNewsPayload(itens, emptyList(), emptyMap())
         val legacy = ChipsetDetector.getRecommendedProfile() == ChipsetDetector.HardwareProfile.LEGACY_STABILITY
         val opcoes = RequestOptions().downsample(com.bumptech.glide.load.resource.bitmap.DownsampleStrategy.AT_MOST)
-            .format(if (legacy) DecodeFormat.PREFER_RGB_565 else DecodeFormat.PREFER_ARGB_8888)
+            .format(DecodeFormat.PREFER_ARGB_8888) // F-198: cores completas também na TV Box (RGB_565 fazia faixas em TV grande)
         val inicio = itens.indexOfFirst { it.id == lerCursorEsportesNews(context, spec.widgetId) }.coerceAtLeast(0)
         val ordem = itens.indices.map { (inicio + it) % itens.size }
         val sequencia = ArrayList<Int>()

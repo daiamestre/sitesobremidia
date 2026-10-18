@@ -25,11 +25,18 @@ export JAVA_HOME="C:/Program Files/Android/Android Studio/jbr"   # caminho Windo
 - Teste de desenho sem login: testes em `app/src/androidTest` rodados com `am instrument -w -e class <Classe> com.antigravity.player.test/androidx.test.runner.AndroidJUnitRunner`. Não use o `connectedAndroidTest` do Gradle: ele desinstala o app.
 - O Player em si pede login. Você **não** digita senha: peça ao proprietário para testar o APK no aparelho e confirmar.
 
-## 4. Publicar (depois do canário)
+## 4. Publicar — SEMPRE como TESTE (regra do dono, 18/10/2026)
+O Player **5.7.10 é a versão comercial (canal estável)**. Toda versão nova sai no canal **teste** e NÃO vai aos aparelhos:
 ```
 node scripts/ops/publicar-player.mjs "Notas da versão em português"
 ```
-O script confere a versão, que o APK não é depurável e o certificado `95a973c3…`. Depois cria a release no GitHub, copia para o R2 pelo workflow `publish-player-apk.yml`, confere o hash público e registra em `app_releases` (OTA). As telas atualizam no próximo início do app ou em até 12 h; sem Device Owner, o instalador pede um toque.
+O script confere a versão, que o APK não é depurável e o certificado `95a973c3…`, cria a release no GitHub como *pre-release*, copia para o R2 pelo workflow `publish-player-apk.yml`, confere o hash público e registra em `app_releases` com `canal = 'teste'`. Imprime o link do APK para instalar **à mão** no aparelho de teste. Precisa de `JAVA_HOME` e do `java` no PATH (apksigner).
+
+Só depois que o **dono aprovar** o teste no aparelho:
+```
+node scripts/ops/publicar-player.mjs --promover <version_code>
+```
+Vira estável e os aparelhos atualizam pelo OTA (silencioso com root/Device Owner; nos outros, a pedido do painel). Nunca promover por conta própria. Funcionalidade nova que dependa de APK novo vai para o APK de teste; o painel e o servidor nunca podem quebrar o que o 5.7.10 usa: `node scripts/ops/contrato-player.mjs` e `docs/OPERACAO_DO_SISTEMA.md`.
 
 ## 5. Registrar
 Ledger `docs/engineering/FINDINGS_LEDGER.md`: versão, código da versão, SHA-256 do APK de produção e do debug, e prova.

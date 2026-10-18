@@ -332,6 +332,8 @@ class MainActivity : AppCompatActivity() {
     private var isBootstrapComplete = false
 
     companion object {
+        /** F-198: reaberta por giro do quadro: não liga o modo nitidez de novo nesta execução (evita laço de reabertura). */
+        @Volatile var nitidezSuspensa = false
         // [EXIT COUNTER] Persistencia (sobrevive a recriacao da Activity/processo)
         private const val PREF_EXIT_COUNT = "exit_count"
         private const val PREF_LAST_EXIT_AT = "last_exit_at"
@@ -363,6 +365,77 @@ class MainActivity : AppCompatActivity() {
         
         deviceFleetManager?.initialize(screenId)
         Logger.i("DEVICE_FLEET", "Device Fleet Manager inicializado para screen: $screenId")
+        // F-198: resolução da saída HDMI x tela do Android (diz se o modo nitidez faz diferença neste aparelho)
+        if (descricaoDaTela.isNotBlank()) lifecycleScope.launch(Dispatchers.IO) {
+            delay(20_000)
+            try {
+                ServiceLocator.getRemoteDataSource().insertErrorLog(SessionManager.deviceIdentityHash ?: screenId, "TELA_FISICA", descricaoDaTela, "")
+            } catch (e: Exception) { Logger.w("NITIDEZ", "medição não enviada: ${e.message}") }
+        }
+    }
+
+    // ------------------------------------------------------------------ F-198: modo nitidez (versão de TESTE)
+    private var modoNitidez = false
+
+    private var descricaoDaTela = ""
+
+    /** Saída física (HDMI) e tela lógica do Android: (lógica L, lógica A, física L, física A). */
+    @Suppress("DEPRECATION")
+    private fun medidasDaTela(): IntArray {
+        val d = windowManager.defaultDisplay
+        val real = android.graphics.Point().also { d.getRealSize(it) }
+        var fw = real.x; var fh = real.y
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val maior = d.supportedModes?.maxByOrNull { it.physicalWidth.toLong() * it.physicalHeight }
+            val atual = d.mode
+            // a saída em uso; se o aparelho não informa, a maior suportada não vale (pode não estar ligada)
+            fw = maxOf(atual.physicalWidth, 0).takeIf { it > 0 } ?: fw
+            fh = maxOf(atual.physicalHeight, 0).takeIf { it > 0 } ?: fh
+            Logger.i("NITIDEZ", "modo atual ${atual.physicalWidth}x${atual.physicalHeight}@${atual.refreshRate} · maior suportado ${maior?.physicalWidth}x${maior?.physicalHeight}")
+        }
+        // a física vem na orientação natural do painel; compara pelo lado maior
+        return intArrayOf(real.x, real.y, fw, fh)
+    }
+
+    private fun decidirModoNitidez() {
+        if (nitidezSuspensa) {
+            // reaberta porque o quadro passou a girar: fica na camada comum até o aplicativo abrir de novo
+            Logger.i("NITIDEZ", "modo nitidez suspenso (quadro girado)")
+            modoNitidez = false
+            return
+        }
+        try {
+            val m = medidasDaTela()
+            val girado = PlayerFlowPolicy.tvCanvasTransform(
+                isTelevision = DeviceTypeUtil.isTelevision(applicationContext) || rotacaoPorSoftwareLiberada,
+                canonicalOrientation = SessionManager.currentOrientation,
+                displayWidth = m[0], displayHeight = m[1],
+                giroGraus = SessionManager.giroDoQuadro,
+                rotacaoTela = SessionManager.rotacaoTela
+            ) != null
+            modoNitidez = com.antigravity.player.util.ModoNitidez.usar(m[0], m[1], m[2], m[3], girado)
+            descricaoDaTela = com.antigravity.player.util.ModoNitidez.descrever(m[0], m[1], m[2], m[3], modoNitidez)
+            Logger.i("NITIDEZ", descricaoDaTela + (if (girado) " (quadro girado: fica a camada comum)" else ""))
+            if (modoNitidez) {
+                trocarPorCamadaDeHardware(R.id.playerView1)
+                trocarPorCamadaDeHardware(R.id.playerView2)
+            }
+        } catch (e: Exception) {
+            modoNitidez = false
+            Logger.w("NITIDEZ", "não foi possível decidir o modo nitidez: ${e.message}")
+        }
+    }
+
+    /** Troca o PlayerView (TextureView) do layout por um igual com SurfaceView, no mesmo lugar e com o mesmo id. */
+    private fun trocarPorCamadaDeHardware(id: Int) {
+        val antigo = findViewById<View>(id) ?: return
+        val pai = antigo.parent as? android.view.ViewGroup ?: return
+        val indice = pai.indexOfChild(antigo)
+        val lp = antigo.layoutParams
+        pai.removeViewAt(indice)
+        val novo = layoutInflater.inflate(R.layout.player_view_surface, pai, false)
+        novo.id = id
+        pai.addView(novo, indice, lp)
     }
 
     private var isOTACycleStarted = false
@@ -428,6 +501,8 @@ class MainActivity : AppCompatActivity() {
         }
         // Já no primeiro quadro: "Sincronizando Mídias" (e arma o timer de segurança) — nada aparece antes disso.
         syncGuard.lockScreen()
+        // F-198 (TESTE 5.7.11): modo nitidez — vídeo no plano de hardware, na resolução da saída HDMI
+        decidirModoNitidez()
         playerView1 = findViewById<PlayerView>(R.id.playerView1)
         playerView2 = findViewById<PlayerView>(R.id.playerView2)
         standbyImage = findViewById<ImageView>(R.id.standbyImage)
@@ -1735,6 +1810,8 @@ withContext(Dispatchers.Main) {
                         )
                     }
                 } catch (e: Exception) {
+                    // F-198: laço cancelado de propósito (reinício do motor, troca de playlist) não é falha
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Logger.e("LOOP_CRASH", "Exception in playback loop: ${e.message}", e)
                     logBlackBox("LOOP_CRASH", e.message ?: "Unknown")
                     reportErrorToSupabase("FATAL_LOOP_EXCEPTION", e.message ?: "Unknown")
@@ -2092,6 +2169,21 @@ withContext(Dispatchers.Main) {
         val wantH = t?.height ?: android.view.ViewGroup.LayoutParams.MATCH_PARENT
         val wantRot = t?.rotation ?: 0f
         if (lp.width == wantW && lp.height == wantH && canvas.rotation == wantRot) return
+        // F-198: a camada de hardware não gira com a View: com o quadro girando, reabre a tela na camada comum
+        if (modoNitidez && wantRot != 0f) {
+            Logger.w("NITIDEZ", "quadro vai girar ($wantRot°): reabrindo a tela sem o modo nitidez")
+            modoNitidez = false
+            // guarda a rotação nova ANTES de reabrir (senão a abertura lê a antiga, liga o modo de novo e entra em laço)
+            try {
+                getSharedPreferences("player_prefs", MODE_PRIVATE).edit()
+                    .putInt(PREF_GIRO_DO_QUADRO, SessionManager.giroDoQuadro)
+                    .putInt(PREF_ROTACAO_TELA, SessionManager.rotacaoTela ?: -1)
+                    .commit()
+            } catch (e: Exception) { /* a trava abaixo segura */ }
+            nitidezSuspensa = true
+            content.post { recreate() }
+            return
+        }
         // F-192: o sentido do giro foi trocado (90 <-> 270) com o quadro já girado: guarda e recomeça o motor de vídeo
         // F-194: com a rotação escolhida no painel, qualquer troca de giro com vídeo no ar recomeça o motor
         val inverteuOSentido = if (SessionManager.rotacaoTela != null) canvas.rotation != wantRot && reiniciarSeGirar
