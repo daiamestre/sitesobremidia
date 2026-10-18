@@ -15,6 +15,7 @@ import { DivisaoDaTela } from '@/components/screens/EditorDeZonas';
 import { SeletorDeZonaDoGrafico } from '@/components/screens/SeletorDeZonaDoGrafico';
 import { RadioDaTela } from '@/components/radio/RadioDaTela';
 import { GiroDoTotem } from '@/components/screens/GiroDoTotem';
+import { telaOnlineAgora, aparelhoDaTela, saudeDoAparelho } from '@/lib/statusDoAparelho';
 import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -303,9 +304,6 @@ export default function ScreenDetails() {
     const [pairingDialogOpen, setPairingDialogOpen] = useState(false);
 
     // Device Fleet / Device Health
-    const [deviceHealth, setDeviceHealth] = useState<DeviceHealth | null>(null);
-    const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
-    const [isLoadingDeviceHealthState, setIsLoadingDeviceHealthState] = useState(false);
 
     // Stats State
     const [statsPeriod, setStatsPeriod] = useState<'today' | 'week' | 'month'>('week');
@@ -420,23 +418,19 @@ export default function ScreenDetails() {
         refetchInterval: 30000, // Refresh every 30s
     });
 
-    // Sync device health state
-    useEffect(() => {
-        if (deviceHealthData) {
-            // device_health real columns have no status; derive it from last_seen freshness
-            const health = deviceHealthData as unknown as DeviceHealth;
-            const lastSeenMs = deviceHealthData.last_seen ? new Date(deviceHealthData.last_seen).getTime() : 0;
-            const isFresh = Date.now() - lastSeenMs < 5 * 60 * 1000;
-            setDeviceHealth({ ...health, status: isFresh ? 'ONLINE' : 'OFFLINE' });
-        }
-    }, [deviceHealthData]);
+    // F-193: aparelho e saúde vêm DIRETO da consulta desta tela (nada guardado de outra tela aberta antes) e o selo
+    // segue a mesma regra do topo (telaOnlineAgora): o topo dizia "Online" e o quadro do aparelho "Offline".
+    const deviceInfo = aparelhoDaTela(deviceInfoData, screen?.bound_device_id) as unknown as DeviceInfo | null;
+    const saudeDaTela = saudeDoAparelho(deviceHealthData, (deviceInfo as unknown as { id?: string } | null)?.id);
+    const deviceHealth: DeviceHealth | null = saudeDaTela && screen
+        ? { ...(saudeDaTela as unknown as DeviceHealth), status: telaOnlineAgora(screen, saudeDaTela.last_seen) ? 'ONLINE' : 'OFFLINE' }
+        : null;
 
-    // Sync device info state
-    useEffect(() => {
-        if (deviceInfoData) {
-            setDeviceInfo(deviceInfoData);
-        }
-    }, [deviceInfoData]);
+    // F-193: "Voltar" volta para a tela de onde o usuário veio (ex.: lista de Telas Anunciantes), não para os cartões
+    const voltar = () => {
+        const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+        if (idx > 0) navigate(-1); else navigate('/dashboard/screens?secao=anunciantes');
+    };
 
     // Consolidated Loading and Error states
     const isLoading = idLoading || (!!resolvedId && screenLoading);
@@ -923,13 +917,13 @@ export default function ScreenDetails() {
                 <Server className="h-10 w-10 mb-2 opacity-50" />
                 <h2 className="text-xl font-semibold">Erro ao carregar detalhes</h2>
                 <p>Não foi possível encontrar a tela ou os dados estão incompletos.</p>
-                <Button variant="link" onClick={() => navigate('/dashboard/screens')}>Voltar</Button>
+                <Button variant="link" onClick={voltar}>Voltar</Button>
             </div>
         );
     }
     // Status logic: Must be active AND have pinged in the last 5 minutes
     // F-151: online = aparelho pareado E sinal dele nos últimos 3 min (mexer na tela pelo painel não conta como sinal)
-    const isOnline = screen.is_active !== false && !!(screen as unknown as { bound_device_id?: string | null }).bound_device_id && !!screen.last_ping_at && (new Date().getTime() - new Date(screen.last_ping_at).getTime()) < 180000; // 3 min
+    const isOnline = telaOnlineAgora(screen, deviceHealth?.last_seen);
     const isPortrait = screen.resolution === '9x16';
 
     // ============================================================
@@ -1027,17 +1021,17 @@ export default function ScreenDetails() {
                 <Smartphone className="h-4 w-4 text-primary" /> Identificação do Dispositivo
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="space-y-1"><span className="text-muted-foreground">Tipo</span><span className="font-medium">{deviceInfo.device_type || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Nome</span><span className="font-medium">{deviceInfo.device_name || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Fabricante</span><span className="font-medium">{deviceInfo.manufacturer || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Marca</span><span className="font-medium">{deviceInfo.brand || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Modelo</span><span className="font-medium">{deviceInfo.model || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Número de Série</span><span className="font-medium font-mono">{deviceInfo.serial_number || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Android ID</span><span className="font-medium font-mono">{deviceInfo.android_id || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Android</span><span className="font-medium">{deviceInfo.os_version || 'N/A'} (SDK {deviceInfo.os_sdk || 'N/A'})</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Arquitetura</span><span className="font-medium">{deviceInfo.architecture || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Player</span><span className="font-medium">{deviceInfo.player_version || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Protocolo Telemetria</span><span className="font-medium">v{deviceInfo.telemetry_protocol_version || 1}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Tipo</span><span className="break-words font-medium">{deviceInfo.device_type || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Nome</span><span className="break-words font-medium">{deviceInfo.device_name || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Fabricante</span><span className="break-words font-medium">{deviceInfo.manufacturer || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Marca</span><span className="break-words font-medium">{deviceInfo.brand || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Modelo</span><span className="break-words font-medium">{deviceInfo.model || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Número de Série</span><span className="break-words font-medium font-mono">{deviceInfo.serial_number || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Android ID</span><span className="break-words font-medium font-mono">{deviceInfo.android_id || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Android</span><span className="break-words font-medium">{deviceInfo.os_version || 'N/A'} (SDK {deviceInfo.os_sdk || 'N/A'})</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Arquitetura</span><span className="break-words font-medium">{deviceInfo.architecture || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Player</span><span className="break-words font-medium">{deviceInfo.player_version || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Protocolo Telemetria</span><span className="break-words font-medium">v{deviceInfo.telemetry_protocol_version || 1}</span></div>
             </div>
         </div>
     );
@@ -1048,12 +1042,12 @@ export default function ScreenDetails() {
                 <Cpu className="h-4 w-4 text-primary" /> Hardware
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="space-y-1"><span className="text-muted-foreground">CPU</span><span className="font-medium">{deviceInfo.cpu_model || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Núcleos</span><span className="font-medium">{deviceInfo.cpu_cores || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">RAM Total</span><span className="font-medium">{deviceInfo.ram_total_mb ? formatBytes(deviceInfo.ram_total_mb * 1024 * 1024) : 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Armazenamento Total</span><span className="font-medium">{deviceInfo.storage_total_mb ? formatBytes(deviceInfo.storage_total_mb * 1024 * 1024) : 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">GPU</span><span className="font-medium">{deviceInfo.gpu || 'N/A'}</span></div>
-                <div className="space-y-1">
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">CPU</span><span className="break-words font-medium">{deviceInfo.cpu_model || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Núcleos</span><span className="break-words font-medium">{deviceInfo.cpu_cores || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">RAM Total</span><span className="break-words font-medium">{deviceInfo.ram_total_mb ? formatBytes(deviceInfo.ram_total_mb * 1024 * 1024) : 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Armazenamento Total</span><span className="break-words font-medium">{deviceInfo.storage_total_mb ? formatBytes(deviceInfo.storage_total_mb * 1024 * 1024) : 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">GPU</span><span className="break-words font-medium">{deviceInfo.gpu || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-muted-foreground">Display</span>
                     <span className="font-medium">
                         {deviceInfo.screen_width && deviceInfo.screen_height 
@@ -1081,18 +1075,18 @@ export default function ScreenDetails() {
                 </Badge>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                <div className="space-y-1"><span className="text-muted-foreground">Heartbeat</span><span className="font-medium">{health.last_seen ? formatDistanceToNow(new Date(health.last_seen), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Uptime</span><span className="font-medium">{formatUptime(health.uptime_seconds)}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">CPU</span><span className="font-medium">{formatPercent(health.cpu_usage_percent)}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">RAM</span><span className="font-medium">{formatPercent(health.memory_usage_percent)}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Armazenamento</span><span className="font-medium">{health.storage_total_mb && health.storage_used_mb ? formatPercent((health.storage_used_mb / health.storage_total_mb) * 100) : 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Temperatura</span><span className="font-medium">{formatTemperature(health.temperature_celsius)}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Estado Térmico</span><span className="font-medium">{health.thermal_status ? getThermalLabel(health.thermal_status).label : 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Bateria</span><span className="font-medium">{health.battery_level !== undefined ? `${health.battery_level}%${health.battery_status ? ` (${health.battery_status})` : ''}` : 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Erros Playback</span><span className="font-medium text-red-400">{health.playback_error_count || 0}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Último Sync</span><span className="font-medium">{health.last_sync_at ? formatDistanceToNow(new Date(health.last_sync_at), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Último Playback</span><span className="font-medium">{health.last_playback_at ? formatDistanceToNow(new Date(health.last_playback_at), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Protocolo</span><span className="font-medium">v{health.telemetry_protocol_version || 1}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Heartbeat</span><span className="break-words font-medium">{health.last_seen ? formatDistanceToNow(new Date(health.last_seen), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Uptime</span><span className="break-words font-medium">{formatUptime(health.uptime_seconds)}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">CPU</span><span className="break-words font-medium">{formatPercent(health.cpu_usage_percent)}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">RAM</span><span className="break-words font-medium">{formatPercent(health.memory_usage_percent)}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Armazenamento</span><span className="break-words font-medium">{health.storage_total_mb && health.storage_used_mb ? formatPercent((health.storage_used_mb / health.storage_total_mb) * 100) : 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Temperatura</span><span className="break-words font-medium">{formatTemperature(health.temperature_celsius)}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Estado Térmico</span><span className="break-words font-medium">{health.thermal_status ? getThermalLabel(health.thermal_status).label : 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Bateria</span><span className="break-words font-medium">{health.battery_level !== undefined ? `${health.battery_level}%${health.battery_status ? ` (${health.battery_status})` : ''}` : 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Erros Playback</span><span className="break-words font-medium text-red-400">{health.playback_error_count || 0}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Último Sync</span><span className="break-words font-medium">{health.last_sync_at ? formatDistanceToNow(new Date(health.last_sync_at), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Último Playback</span><span className="break-words font-medium">{health.last_playback_at ? formatDistanceToNow(new Date(health.last_playback_at), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Protocolo</span><span className="break-words font-medium">v{health.telemetry_protocol_version || 1}</span></div>
             </div>
         </div>
     );
@@ -1110,14 +1104,14 @@ export default function ScreenDetails() {
                     <Activity className="h-4 w-4 text-primary" /> Último Heartbeat da Tela
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                    <div className="space-y-1"><span className="text-muted-foreground">Versão do Player</span><span className="font-medium">{text(screen.app_version) !== 'N/A' ? text(screen.app_version) : text(screen.version)}</span></div>
-                    <div className="space-y-1"><span className="text-muted-foreground">IP</span><span className="font-medium font-mono">{text(screen.ip_address)}</span></div>
-                    <div className="space-y-1"><span className="text-muted-foreground">RAM em uso</span><span className="font-medium">{formatBytes(ram)}</span></div>
-                    <div className="space-y-1"><span className="text-muted-foreground">Espaço livre</span><span className="font-medium">{formatBytes(free)}</span></div>
-                    <div className="space-y-1"><span className="text-muted-foreground">Temperatura</span><span className="font-medium">{formatTemperature(temp)}</span></div>
-                    <div className="space-y-1"><span className="text-muted-foreground">Uptime</span><span className="font-medium">{text(screen.uptime)}</span></div>
-                    <div className="space-y-1"><span className="text-muted-foreground">Hardware</span><span className="font-medium">{text(screen.hardware_version)}</span></div>
-                    <div className="space-y-1"><span className="text-muted-foreground">Último sinal</span><span className="font-medium">{screen.last_ping_at ? formatDistanceToNow(new Date(String(screen.last_ping_at)), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
+                    <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Versão do Player</span><span className="break-words font-medium">{text(screen.app_version) !== 'N/A' ? text(screen.app_version) : text(screen.version)}</span></div>
+                    <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">IP</span><span className="break-words font-medium font-mono">{text(screen.ip_address)}</span></div>
+                    <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">RAM em uso</span><span className="break-words font-medium">{formatBytes(ram)}</span></div>
+                    <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Espaço livre</span><span className="break-words font-medium">{formatBytes(free)}</span></div>
+                    <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Temperatura</span><span className="break-words font-medium">{formatTemperature(temp)}</span></div>
+                    <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Uptime</span><span className="break-words font-medium">{text(screen.uptime)}</span></div>
+                    <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Hardware</span><span className="break-words font-medium">{text(screen.hardware_version)}</span></div>
+                    <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Último sinal</span><span className="break-words font-medium">{screen.last_ping_at ? formatDistanceToNow(new Date(String(screen.last_ping_at)), { addSuffix: true, locale: ptBR }) : 'N/A'}</span></div>
                 </div>
             </div>
         );
@@ -1129,11 +1123,11 @@ export default function ScreenDetails() {
                 <WifiIcon className="h-4 w-4 text-primary" /> Rede & Conectividade
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="space-y-1"><span className="text-muted-foreground">Tipo</span><span className="font-medium">{health.network_type || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Sinal Wi-Fi</span><span className="font-medium">{formatSignal(health.wifi_signal_dbm)}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Qualidade</span><span className="font-medium">{getSignalQuality(health.wifi_signal_dbm).label}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">IP</span><span className="font-medium font-mono">{health.ip_address || 'N/A'}</span></div>
-                <div className="space-y-1"><span className="text-muted-foreground">Status</span><span className="font-medium">{health.connection_status || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Tipo</span><span className="break-words font-medium">{health.network_type || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Sinal Wi-Fi</span><span className="break-words font-medium">{formatSignal(health.wifi_signal_dbm)}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Qualidade</span><span className="break-words font-medium">{getSignalQuality(health.wifi_signal_dbm).label}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">IP</span><span className="break-words font-medium font-mono">{health.ip_address || 'N/A'}</span></div>
+                <div className="flex min-w-0 flex-col gap-0.5"><span className="text-muted-foreground">Status</span><span className="break-words font-medium">{health.connection_status || 'N/A'}</span></div>
             </div>
         </div>
     );
@@ -1187,7 +1181,8 @@ return (
                                 <div className="flex items-center gap-1.5 font-mono bg-muted px-1.5 py-0.5 rounded text-xs">
                                     ID: {screen.codigo_operacional || screen.custom_id || '—'}
                                 </div>
-                                {screen.status && (
+                                {/* F-193: o texto que o Player gravou por último ("ONLINE | IDLE") só vale com a tela online agora */}
+                                {screen.status && isOnline && (
                                     <div className="flex items-center gap-1.5 font-mono bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded text-xs border border-blue-500/20">
                                         <Server className="h-3 w-3" />
                                         {screen.status}
@@ -1197,7 +1192,7 @@ return (
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/screens')}>
+                        <Button variant="outline" size="sm" onClick={voltar}>
                             <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
                         </Button>
                     </div>
@@ -1473,10 +1468,11 @@ return (
                                             {/* Health Status Badge */}
                                             <Badge 
                                                 variant="outline" 
-                                                className={getHealthStatusBadgeClass(deviceHealth?.status)}
+                                                className={getHealthStatusBadgeClass(isOnline ? 'ONLINE' : 'OFFLINE')}
+                                                data-testid="selo-dispositivo"
                                             >
-                                                <span className={`h-2 w-2 rounded-full ${getHealthStatusDotClass(deviceHealth?.status)}`} />
-                                                {getHealthStatusLabel(deviceHealth?.status)}
+                                                <span className={`h-2 w-2 rounded-full ${getHealthStatusDotClass(isOnline ? 'ONLINE' : 'OFFLINE')}`} />
+                                                {getHealthStatusLabel(isOnline ? 'ONLINE' : 'OFFLINE')}
                                             </Badge>
                                             {/* Device Type Badge */}
                                             {deviceInfo?.device_type && (

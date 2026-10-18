@@ -9,7 +9,10 @@ import {
   MapPin, Loader2, Wifi, WifiOff, Play, Calendar, ExternalLink, Copy, RefreshCw, Camera, MonitorSmartphone, Unlink, Store,
   ArrowLeft, ChevronRight, Folder, Megaphone
 } from 'lucide-react';
-import { PastasPontosParceiros, telaOnline, useTelasDosPontos } from '@/components/screens/PastasPontosParceiros';
+import { PastasPontosParceiros, useTelasDosPontos } from '@/components/screens/PastasPontosParceiros';
+import { CartoesDasTelas, resumirTelas } from '@/components/screens/CartoesDasTelas';
+import { MapaDaRede } from '@/components/rede/MapaDaRede';
+import { telaOnlineAgora } from '@/lib/statusDoAparelho';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,6 +81,7 @@ export default function Screens() {
   const telasDosPontos = useTelasDosPontos(podeTelasParceiras);
   const telasParceiras = telasDosPontos.data ?? [];
   const pontosComTelas = new Set(telasParceiras.map((t) => t.ponto_id)).size;
+  const cidadesDosPontos = new Set(telasParceiras.map((t) => (t.ponto?.cidade || '').trim().toLowerCase()).filter(Boolean)).size;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [telaPagaOpen, setTelaPagaOpen] = useState(false);
@@ -110,16 +114,8 @@ export default function Screens() {
   });
 
   // Helper to check online status based on activation AND last ping (threshold: 3 mins)
-  const isScreenOnline = (screen: Screen) => {
-    if (screen.is_active === false) return false;
-    if (!screen.last_ping_at) return false;
-    try {
-      const diff = differenceInMinutes(new Date(), new Date(screen.last_ping_at));
-      return diff < 3;
-    } catch (e) {
-      return false;
-    }
-  };
+  // F-193: online só pelo sinal do PRÓPRIO aparelho pareado da tela (mesma regra da página da tela)
+  const isScreenOnline = (screen: Screen) => telaOnlineAgora(screen as unknown as Parameters<typeof telaOnlineAgora>[0]);
 
   const handleCopyUrl = (screen: Screen) => {
     const displayId = screen.codigo_operacional || screen.custom_id || screen.id;
@@ -169,6 +165,7 @@ export default function Screens() {
   );
 
   const activeCount = telasAnunciantes.filter(s => s.is_active).length;
+  const cidadesDosAnunciantes = new Set(telasAnunciantes.map((s) => String((s as { cidade?: string | null }).cidade || '').trim().toLowerCase()).filter(Boolean)).size;
   const onlineCount = telasAnunciantes.filter(s => isScreenOnline(s)).length;
 
   return (
@@ -217,37 +214,35 @@ export default function Screens() {
         </div>
       </div>
 
-      {/* F-112: os dois cartões (sempre visíveis; o escolhido fica destacado) */}
-      {podeTelasParceiras && (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="cartoes-telas">
-        <button type="button" data-testid="cartao-telas-parceiros" onClick={() => irPara({ secao: 'parceiros' })}
-          className={`rounded-2xl border p-5 text-left transition-all hover:shadow-lg ${secao === 'parceiros' ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-card/60 hover:border-primary/50'}`}>
-          <div className="flex items-center gap-4">
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-sky-500/15"><Folder className="h-6 w-6 text-sky-400" /></span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-lg font-bold leading-tight">Telas Pontos Parceiros</p>
-              <p className="text-sm text-muted-foreground">
-                {telasDosPontos.isLoading ? 'Carregando…' : `${pontosComTelas} estabelecimento${pontosComTelas === 1 ? '' : 's'} · ${telasParceiras.length} tela${telasParceiras.length === 1 ? '' : 's'} · ${telasParceiras.filter(telaOnline).length} online`}
-              </p>
-            </div>
-            <ChevronRight className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+      {/* F-193: cartões em pé, lado a lado, com capa e números; abaixo, o mapa da rede (o mesmo da página inicial) */}
+      {podeTelasParceiras && !secao && (<>
+        <CartoesDasTelas
+          secao={secao as 'parceiros' | 'anunciantes' | null}
+          onAbrir={(s) => irPara({ secao: s })}
+          parceiros={{
+            resumo: resumirTelas(telasParceiras as never),
+            carregando: telasDosPontos.isLoading,
+            subtitulo: `${pontosComTelas} estabelecimento${pontosComTelas === 1 ? '' : 's'} · ${cidadesDosPontos} cidade${cidadesDosPontos === 1 ? '' : 's'}`,
+          }}
+          anunciantes={{
+            resumo: resumirTelas(telasAnunciantes as never),
+            carregando: loading,
+            subtitulo: `${cidadesDosAnunciantes} cidade${cidadesDosAnunciantes === 1 ? '' : 's'}`,
+          }}
+        />
+        <section className="space-y-3" data-testid="mapa-da-rede-telas">
+          <div>
+            <h2 className="font-display text-xl font-bold">Onde estamos</h2>
+            <p className="text-sm text-muted-foreground">Estados e cidades da rede SOBRE MÍDIA — aproxime o mapa para ver as cidades</p>
           </div>
-        </button>
-        <button type="button" data-testid="cartao-telas-anunciantes" onClick={() => irPara({ secao: 'anunciantes' })}
-          className={`rounded-2xl border p-5 text-left transition-all hover:shadow-lg ${secao === 'anunciantes' ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-card/60 hover:border-primary/50'}`}>
-          <div className="flex items-center gap-4">
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-primary/15"><Megaphone className="h-6 w-6 text-primary" /></span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-lg font-bold leading-tight">Telas Anunciantes</p>
-              <p className="text-sm text-muted-foreground">
-                {loading ? 'Carregando…' : `${telasAnunciantes.length} tela${telasAnunciantes.length === 1 ? '' : 's'} · ${onlineCount} online`}
-              </p>
-            </div>
-            <ChevronRight className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
-          </div>
-        </button>
-      </div>
+          <MapaDaRede />
+        </section>
+      </>)}
 
+      {podeTelasParceiras && secao === 'parceiros' && !pontoAberto && (
+        <button type="button" onClick={() => irPara({})} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> Voltar aos cartões
+        </button>
       )}
 
       {secao === 'parceiros' && (

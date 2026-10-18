@@ -28,7 +28,8 @@ describe('F-151 — online só com sinal do aparelho', () => {
   });
 
   it('no painel, tela sem aparelho pareado nunca aparece online', () => {
-    expect(ler('src/pages/dashboard/ScreenDetails.tsx')).toMatch(/const isOnline = screen\.is_active !== false && !!\(screen as unknown as \{ bound_device_id\?: string \| null \}\)\.bound_device_id && !!screen\.last_ping_at/);
+    // F-193: a regra (sem aparelho pareado = offline) está em telaOnlineAgora (testada em onlinePorTelaECartoes193)
+    expect(ler('src/pages/dashboard/ScreenDetails.tsx')).toContain('const isOnline = telaOnlineAgora(screen, deviceHealth?.last_seen);');
     expect(ler('src/hooks/useScreens.ts')).toContain('if (screen.last_ping_at && (screen as unknown as { bound_device_id?: string | null }).bound_device_id) {');
   });
 });

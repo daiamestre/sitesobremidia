@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
+import { telaOnlineAgora } from '@/lib/statusDoAparelho';
 
 /**
  * F-112 — Telas dos pontos parceiros em PASTAS: uma pasta por estabelecimento e, dentro dela, cada tela
@@ -22,8 +23,9 @@ export interface TelaDoPonto {
   playlist: { name: string } | null;
 }
 
-export const telaOnline = (t: { last_ping_at: string | null; is_active?: boolean | null }) =>
-  t.is_active !== false && !!t.last_ping_at && Date.now() - new Date(t.last_ping_at).getTime() < 3 * 60_000;
+// F-193: cada tela só é online pelo sinal do PRÓPRIO aparelho pareado (mesma regra da página da tela)
+export const telaOnline = (t: { last_ping_at: string | null; is_active?: boolean | null; bound_device_id?: string | null }) =>
+  telaOnlineAgora(t);
 
 export function useTelasDosPontos(ativo = true) {
   return useQuery({
