@@ -229,7 +229,14 @@ object PlayerFlowPolicy {
      * do app, então quando a orientação da playlist não bate com a tela física o player gira o canvas 90°
      * e ele ocupa a tela inteira (sem faixas) para quem olha a TV virada. null = desenhar normal.
      */
-    fun tvCanvasTransform(isTelevision: Boolean, canonicalOrientation: String?, displayWidth: Int, displayHeight: Int): CanvasTransform? {
+    fun tvCanvasTransform(
+        isTelevision: Boolean,
+        canonicalOrientation: String?,
+        displayWidth: Int,
+        displayHeight: Int,
+        /** F-192: 90 (padrão) ou 270 — o painel escolhe por tela, conforme o lado em que a TV do totem foi montada. */
+        giroGraus: Int = 90
+    ): CanvasTransform? {
         if (!isTelevision || displayWidth <= 0 || displayHeight <= 0) return null
         val panelIsLandscape = displayWidth >= displayHeight
         val playlistIsLandscape = canonicalOrientation != "portrait"
@@ -241,7 +248,7 @@ object PlayerFlowPolicy {
         return CanvasTransform(
             width = w,
             height = h,
-            rotation = TV_CANVAS_ROTATION,
+            rotation = if (giroGraus == 270) 270f else TV_CANVAS_ROTATION,
             translationX = (displayWidth - w) / 2f,
             translationY = (displayHeight - h) / 2f
         )

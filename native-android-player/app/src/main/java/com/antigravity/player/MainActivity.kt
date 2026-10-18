@@ -309,6 +309,7 @@ class MainActivity : AppCompatActivity() {
     /** Tela física que não girou como pedido (ex.: totem/tablet com a rotação travada): o quadro gira por software. */
     private var rotacaoPorSoftwareLiberada = false
     private val PREF_GIRO_POR_SOFTWARE = "giro_por_software"
+    private val PREF_GIRO_DO_QUADRO = "giro_do_quadro"
     private val PREF_GIRO_POR_SOFTWARE_PARA = "giro_por_software_para"
     private var isAutoCleanStarted = false
     
@@ -400,6 +401,7 @@ class MainActivity : AppCompatActivity() {
         // ANTES de qualquer vídeo começar. Antes a decisão vinha 2,5 s depois de abrir: ao religar o aparelho, o vídeo
         // (que parte do cache em 1 s) já estava tocando quando a área de vídeo mudava de tamanho e girava, e o
         // decodificador por hardware ficava em tela preta.
+        SessionManager.giroDoQuadro = SessionManager.giroValido(savedPrefs.getInt(PREF_GIRO_DO_QUADRO, 90))
         rotacaoPorSoftwareLiberada = !isTV && PlayerFlowPolicy.giroPorSoftwareGuardado(
             savedPrefs.getBoolean(PREF_GIRO_POR_SOFTWARE, false),
             savedPrefs.getString(PREF_GIRO_POR_SOFTWARE_PARA, null),
@@ -2062,13 +2064,19 @@ withContext(Dispatchers.Main) {
             isTelevision = DeviceTypeUtil.isTelevision(applicationContext) || rotacaoPorSoftwareLiberada,
             canonicalOrientation = SessionManager.currentOrientation,
             displayWidth = content.width,
-            displayHeight = content.height
+            displayHeight = content.height,
+            giroGraus = SessionManager.giroDoQuadro
         )
         val lp = canvas.layoutParams
         val wantW = t?.width ?: android.view.ViewGroup.LayoutParams.MATCH_PARENT
         val wantH = t?.height ?: android.view.ViewGroup.LayoutParams.MATCH_PARENT
         val wantRot = t?.rotation ?: 0f
         if (lp.width == wantW && lp.height == wantH && canvas.rotation == wantRot) return
+        // F-192: o sentido do giro foi trocado (90 <-> 270) com o quadro já girado: guarda e recomeça o motor de vídeo
+        val inverteuOSentido = canvas.rotation != 0f && wantRot != 0f && canvas.rotation != wantRot
+        try {
+            getSharedPreferences("player_prefs", MODE_PRIVATE).edit().putInt(PREF_GIRO_DO_QUADRO, SessionManager.giroDoQuadro).apply()
+        } catch (e: Exception) { /* preferência é só um atalho */ }
         lp.width = wantW
         lp.height = wantH
         canvas.layoutParams = lp
@@ -2077,6 +2085,9 @@ withContext(Dispatchers.Main) {
         canvas.translationY = t?.translationY ?: 0f
         Logger.i("ORIENTATION", "TV canvas: playlist=${SessionManager.currentOrientation} panel=${content.width}x${content.height} " +
             (if (t != null) "-> ${t.width}x${t.height} rot=${t.rotation}" else "-> normal"))
+        if (inverteuOSentido && PlayerFlowPolicy.reiniciarMotorAoMudarGiro(::playerRenderer1.isInitialized, isSyncInProgress)) {
+            content.post { reiniciarMotorDeVideo() }
+        }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {

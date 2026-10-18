@@ -21,6 +21,8 @@ data class DeviceRemoteDTO(
     @SerialName("version_signature") val versionSignature: String? = null,
     val orientation: String? = "landscape",
     val resolution: String? = "16x9",
+    /** F-192: sentido do giro do quadro (90 ou 270), escolhido no painel por tela. */
+    @SerialName("giro_quadro") val giroQuadro: Int? = null,
     @SerialName("playlists") val playlist: PlaylistRemoteDTO? = null
 ) {
     val playlists: PlaylistRemoteDTO? get() = playlist

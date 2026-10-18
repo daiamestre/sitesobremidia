@@ -262,7 +262,8 @@ class AtualizacaoEReproducaoTest {
         // ninguém mais libera o motor e segue tocando sem recriar
         assertNull(Regex("playerRenderer2\\.release\\(\\)\\s+startSyncAndPlay\\(\\)").find(principal))
         // a manutenção e a mudança de giro usam o reinício completo (2 chamadas + a declaração)
-        assertEquals(4, Regex("reiniciarMotorDeVideo\\(\\)").findAll(principal).count())
+        // manutenção, mudança de giro por software, vigia e (F-192) troca do sentido do giro, mais a declaração
+        assertEquals(5, Regex("reiniciarMotorDeVideo\\(\\)").findAll(principal).count())
     }
 
     @Test
@@ -411,5 +412,31 @@ class AtualizacaoEReproducaoTest {
         val d = codigo("../sync-network/src/main/java/com/antigravity/sync/service/MediaDownloader.kt")
         assertTrue(d.contains("THREAD_PRIORITY_BACKGROUND") && d.contains("setThreadPriority(prioridadeAnterior)"))
         assertTrue(d.contains("RitmoDeDownload.esperaMs("))
+    }
+
+    // ---------------------------------------------------------------- F-192: totem de cabeça para baixo
+
+    @Test
+    fun `o painel escolhe o sentido do giro do totem, 90 ou 270`() {
+        val padrao = PlayerFlowPolicy.tvCanvasTransform(true, "portrait", 1280, 720)!!
+        assertEquals(90f, padrao.rotation)
+        val contrario = PlayerFlowPolicy.tvCanvasTransform(true, "portrait", 1280, 720, giroGraus = 270)!!
+        assertEquals(270f, contrario.rotation)
+        // mesmo tamanho e mesmo centro: só o sentido muda (a imagem deixa de ficar de cabeça para baixo)
+        assertEquals(padrao.width, contrario.width); assertEquals(padrao.height, contrario.height)
+        assertEquals(padrao.translationX, contrario.translationX); assertEquals(padrao.translationY, contrario.translationY)
+        assertNull(PlayerFlowPolicy.tvCanvasTransform(true, "landscape", 1280, 720, giroGraus = 270))
+        val s = com.antigravity.sync.service.SessionManager
+        assertEquals(270, s.giroValido(270)); assertEquals(90, s.giroValido(null)); assertEquals(90, s.giroValido(180))
+    }
+
+    @Test
+    fun `o sentido vem da playlist, fica guardado e vale ao religar`() {
+        val rede = codigo("../sync-network/src/main/java/com/antigravity/sync/service/RemoteDataSource.kt")
+        assertTrue(rede.contains("SessionManager.giroValido(device.giroQuadro)"))
+        assertTrue(codigo("../sync-network/src/main/java/com/antigravity/sync/dto/SupabaseDTOs.kt").contains("@SerialName(\"giro_quadro\") val giroQuadro: Int? = null"))
+        val principal = codigo("src/main/java/com/antigravity/player/MainActivity.kt")
+        assertTrue(principal.contains("giroGraus = SessionManager.giroDoQuadro"))
+        assertTrue(principal.indexOf("savedPrefs.getInt(PREF_GIRO_DO_QUADRO, 90)") in 1 until principal.indexOf("applyScreenRotation(initialOrientation)"))
     }
 }

@@ -515,6 +515,14 @@ class RemoteDataSource {
                 
                 tokenStorage?.saveUUID(device.id)
 
+                // F-192: sentido do giro escolhido no painel; mudou => a tela redesenha o quadro já
+                val giro = SessionManager.giroValido(device.giroQuadro)
+                if (giro != SessionManager.giroDoQuadro) {
+                    Logger.i("ORIENTATION", "Sentido do giro do quadro mudou no painel: ${SessionManager.giroDoQuadro} -> $giro")
+                    SessionManager.giroDoQuadro = giro
+                    SessionManager.triggerRotation(resolvedOrientation)
+                }
+
                 return Pair(device, mapToProfessionalDomain(device, playlist, resolvedOrientation, resolution))
             }
             else -> throw Exception("RPC_ERROR")

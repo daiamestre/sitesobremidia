@@ -14,6 +14,7 @@ import { ClienteDaTela } from '@/components/screens/ClienteDaTela';
 import { DivisaoDaTela } from '@/components/screens/EditorDeZonas';
 import { SeletorDeZonaDoGrafico } from '@/components/screens/SeletorDeZonaDoGrafico';
 import { RadioDaTela } from '@/components/radio/RadioDaTela';
+import { GiroDoTotem } from '@/components/screens/GiroDoTotem';
 import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -1233,6 +1234,12 @@ return (
 
             {/* F-147: divisão da tela em zonas */}
             <DivisaoDaTela tela={{ id: screen.id, name: screen.name, resolution: screen.resolution, orientation: screen.orientation, user_id: (screen as { user_id?: string | null }).user_id }} />
+
+            {/* F-192: totem com imagem de cabeça para baixo — inverte o sentido do giro do quadro */}
+            <GiroDoTotem
+                tela={{ id: screen.id, resolution: screen.resolution, orientation: screen.orientation, giro_quadro: (screen as { giro_quadro?: number | null }).giro_quadro }}
+                aoMudar={() => queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] })}
+            />
 
             {/* F-162: Rádio Comércio desta tela (abaixo da divisão por zonas): liga/desliga a rádio e o som das mídias, que nunca tocam juntos */}
             <RadioDaTela

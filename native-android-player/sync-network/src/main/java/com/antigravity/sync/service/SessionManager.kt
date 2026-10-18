@@ -67,6 +67,12 @@ object SessionManager {
 
     // --- Screen Config ---
     var currentOrientation: String? = "landscape"
+
+    /** F-192: sentido do giro do quadro em totem/TV em pé (90 = padrão; 270 = contrário, quando a imagem ficava de cabeça para baixo). */
+    @Volatile var giroDoQuadro: Int = 90
+
+    /** Só 90 ou 270; qualquer outro valor (ou ausente, painel antigo) = 90. */
+    fun giroValido(valor: Int?): Int = if (valor == 270) 270 else 90
     var currentScreenName: String? = null
 
     // --- Player Settings ---
