@@ -39,44 +39,65 @@ object RegionalContextManager {
     }
 
     /**
-     * Suspend function to fetch context from IP-API asynchronously.
+     * F-197 — serviços de localização por IP com HTTPS gratuito. O antigo (ip-api.com) só aceita HTTPS no plano pago:
+     * respondia 403 / certificado inválido e a cidade da tela (clima, widgets) nunca era descoberta nos aparelhos.
+     */
+    val SERVICOS_DE_LOCALIZACAO = listOf(
+        "https://ipwho.is/?fields=success,city,region,timezone",
+        "https://ipapi.co/json/"
+    )
+
+    /** Lê a resposta de qualquer um dos serviços: (cidade, estado, fuso) ou null se não serviu. */
+    fun lerResposta(texto: String): Triple<String, String, String>? = try {
+        val json = JSONObject(texto)
+        if (json.has("success") && !json.optBoolean("success")) null
+        else if (json.optBoolean("error", false)) null
+        else {
+            val cidade = json.optString("city").takeIf { it.isNotBlank() }
+            val estado = json.optString("region").ifBlank { json.optString("regionName") }.takeIf { it.isNotBlank() }
+            val fuso = json.optJSONObject("timezone")?.optString("id")?.takeIf { it.isNotBlank() }
+                ?: json.optString("timezone").takeIf { it.isNotBlank() && !it.startsWith("{") } ?: "America/Sao_Paulo"
+            if (cidade == null || estado == null) null else Triple(cidade, estado, fuso)
+        }
+    } catch (e: Exception) { null }
+
+    /**
+     * Suspend function to fetch context from IP geolocation asynchronously.
      * Fires [onContextFetched] on success.
      */
     suspend fun fetchRegionalContext(onContextFetched: (String, String, String) -> Unit) {
         withContext(Dispatchers.IO) {
-            try {
-                // Fields required: status, regionName, city, timezone
-                // [SECURITY HARDENING] HTTPS obrigatório (P0: HTTP -> DENY)
-                val apiUrl = "https://ip-api.com/json/?fields=status,regionName,city,timezone"
-                val url = URL(apiUrl)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 5000
-                connection.readTimeout = 5000
-
-                if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val json = JSONObject(response)
-                    
-                    if (json.optString("status") == "success") {
-                        city = json.optString("city", "Unknown")
-                        state = json.optString("regionName", "Unknown") 
-                        timezone = json.optString("timezone", "UTC")
-                        isContextLoaded = true
-                        
-                        // Passa para a ViewModel persistir
-                        onContextFetched(city, state, timezone)
-
-                        Logger.i("REGIONAL_CONTEXT", "Successfully mapped and cached Geolocation: $city - $state ($timezone)")
-                    } else {
-                        Logger.w("REGIONAL_CONTEXT", "API Returned non-success status: $response")
+            for (apiUrl in SERVICOS_DE_LOCALIZACAO) {
+                try {
+                    // [SECURITY HARDENING] HTTPS obrigatório (P0: HTTP -> DENY)
+                    val connection = URL(apiUrl).openConnection() as HttpURLConnection
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.setRequestProperty("User-Agent", "SobreMidiaPlayer")
+                    if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                        Logger.w("REGIONAL_CONTEXT", "Localização indisponível em ${URL(apiUrl).host} (HTTP ${connection.responseCode})")
+                        continue
                     }
-                } else {
-                    Logger.e("REGIONAL_CONTEXT", "HTTP Error: ${connection.responseCode}")
+                    val resposta = connection.inputStream.bufferedReader().use { it.readText() }
+                    val lido = lerResposta(resposta)
+                    if (lido == null) {
+                        Logger.w("REGIONAL_CONTEXT", "Resposta sem cidade em ${URL(apiUrl).host}")
+                        continue
+                    }
+                    city = lido.first
+                    state = lido.second
+                    timezone = lido.third
+                    isContextLoaded = true
+                    // Passa para a ViewModel persistir
+                    onContextFetched(city, state, timezone)
+                    Logger.i("REGIONAL_CONTEXT", "Successfully mapped and cached Geolocation: $city - $state ($timezone)")
+                    return@withContext
+                } catch (e: Exception) {
+                    Logger.w("REGIONAL_CONTEXT", "Falha ao consultar ${URL(apiUrl).host}: ${e.message}")
                 }
-            } catch (e: Exception) {
-                Logger.e("REGIONAL_CONTEXT", "Failed to resolve IP location: ${e.message}")
             }
+            Logger.e("REGIONAL_CONTEXT", "Nenhum serviço de localização respondeu; mantendo a última cidade conhecida.")
         }
     }
 }

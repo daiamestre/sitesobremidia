@@ -95,7 +95,8 @@ class RadioController(private val context: Context, private val scope: Coroutine
         prefs.getString(CHAVE, null)?.let { (RadioParser.parse(it) as? RadioResult.Ok)?.let { r -> aplicar(r.radio) } }
         laco?.cancel()
         laco = scope.launch {
-            while (isActive) { refresh(); delay(INTERVALO_MS) }
+            // F-197: falhou (ex.: login renovando no boot) => tenta de novo em 10 s
+            while (isActive) { refresh(); delay(if (ultimaFalhou) 10_000L else INTERVALO_MS) }
         }
     }
 
@@ -104,15 +105,19 @@ class RadioController(private val context: Context, private val scope: Coroutine
         principal.post { parar() }
     }
 
+    @Volatile private var ultimaFalhou = false
+
     suspend fun refresh() {
         val tela = SessionManager.currentUUID ?: return
         val bruto = try {
             val aparelho = SessionManager.awaitIdentity()
             withContext(Dispatchers.IO) { ServiceLocator.getRemoteDataSource().getRadioForScreenRaw(tela, aparelho) }
         } catch (e: Exception) {
+            ultimaFalhou = true
             Logger.w("RADIO", "rádio indisponível agora (${e.message}); mantendo o que está tocando")
             return
         }
+        ultimaFalhou = false
         when (val r = RadioParser.parse(bruto)) {
             is RadioResult.Ok -> {
                 if (r.radio.signature() != atual?.signature()) { prefs.edit().putString(CHAVE, bruto).apply(); aplicar(r.radio) }

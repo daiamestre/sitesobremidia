@@ -684,7 +684,7 @@ class RemoteDataSource {
             val params = mapOf(
                 "device_id" to boundDeviceId,
                 "log_type" to type,
-                "message" to (message + "\n" + stackTrace).take(4000),
+                "message" to com.antigravity.core.util.Logger.limpar(message + "\n" + stackTrace).take(4000), // F-197: sem login/chaves
                 "occurrence_time" to getIsoTimestamp()
             )
             client.from("device_logs").insert(params)

@@ -105,7 +105,8 @@ class ZoneController(
             while (isActive) {
                 refresh()
                 enviarProvas()
-                delay(INTERVALO_MS)
+                // F-197: falhou (ex.: login renovando no boot) => tenta de novo em 10 s, não em 1 minuto
+                delay(if (ultimaFalhou) NOVA_TENTATIVA_MS else INTERVALO_MS)
             }
         }
     }
@@ -117,15 +118,19 @@ class ZoneController(
     }
 
     /** Pergunta ao servidor se a tela está dividida. Falha de rede não muda nada do que está no ar. */
+    @Volatile private var ultimaFalhou = false
+
     suspend fun refresh() {
         val tela = SessionManager.currentUUID ?: return
         val bruto = try {
             val aparelho = SessionManager.awaitIdentity()
             withContext(Dispatchers.IO) { ServiceLocator.getRemoteDataSource().getLayoutForScreenRaw(tela, aparelho) }
         } catch (e: Exception) {
+            ultimaFalhou = true
             Logger.w("ZONAS", "layout indisponível agora (${e.message}); mantendo o que está no ar")
             return
         }
+        ultimaFalhou = false
         when (val r = ZoneLayoutParser.parse(bruto)) {
             is ZoneLayoutResult.Ok -> if (r.layout.signature() != layout?.signature()) {
                 prefs.edit().putString(CHAVE_LAYOUT, bruto).apply()
@@ -399,6 +404,7 @@ class ZoneController(
         private const val PRINCIPAL = "principal"
         private const val CHAVE_LAYOUT = "layout_bruto"
         private const val INTERVALO_MS = 60_000L
+        private const val NOVA_TENTATIVA_MS = 10_000L
         private const val CHAVE_PROVAS = "provas_pendentes"
         private const val LIMITE_DE_PROVAS = 5000
     }

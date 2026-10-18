@@ -62,7 +62,7 @@ export function CartaoDaTela({ tela, online, selecionada, onSelecionar, onAbrir,
 }) {
   const emPe = telaEmPe(tela.resolution, tela.orientation);
   const rot = ehRotacao(tela.rotacao_tela) ? tela.rotacao_tela : rotacaoPadrao(tela.resolution, tela.orientation);
-  const versao = tela.app_version || tela.version;
+  const versao = tela.version || tela.app_version; // F-197: a versão do sinal vale mais
   return (
     <div role="button" tabIndex={0} onClick={onAbrir} onKeyDown={(e) => { if (e.key === 'Enter') onAbrir(); }} data-testid="cartao-da-tela"
       className={`group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-card/60 text-left transition-all hover:shadow-[0_0_18px_rgba(139,92,246,0.25)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${selecionada ? 'border-primary ring-1 ring-primary' : online ? 'border-emerald-500/40 hover:border-emerald-400/70' : 'border-border hover:border-primary/50'}`}>

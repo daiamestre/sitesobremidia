@@ -29,7 +29,7 @@ export function AtualizacaoDoAplicativo({ tela }: {
       return (data as unknown as { version_name?: string } | null)?.version_name ?? null;
     },
   });
-  const atual = tela.app_version || tela.version || null;
+  const atual = tela.version || tela.app_version || null; // F-197: a versão do sinal vale mais
   const desatualizada = !!ultima && !!atual && versaoDoNome(atual) < versaoDoNome(ultima);
   const nota = tela.last_action === 'AppUpdate' ? tela.last_action_value : null;
   // F-194: antes da 5.7.4 o relógio errado do aparelho fazia o Player descartar os comandos do painel (F-186)

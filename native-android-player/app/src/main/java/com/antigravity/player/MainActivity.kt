@@ -1093,6 +1093,14 @@ private fun checkLocalCacheAndPlay() {
                         Logger.i("SYNC", "Verificando atualizações em segundo plano enquanto vídeo toca...")
                         syncInBackground()
                     }
+
+                    // 6. F-197: saúde do aparelho (CPU, memória, temperatura, rede) para o painel. Este caminho — o normal
+                    // depois da primeira sincronização — nunca ligava o envio, e o quadro "Saúde do Dispositivo" ficava
+                    // parado em dias atrás (só a abertura sem mídias guardadas ligava).
+                    val telaDaSaude = SessionManager.currentUUID ?: SessionManager.currentUserId
+                    if (!telaDaSaude.isNullOrBlank() && telaDaSaude != "N/A" && telaDaSaude != "UNKNOWN") {
+                        initializeDeviceFleet(telaDaSaude)
+                    }
                 } else if (hasLocalItems && !screenIdValid) {
                     // Screen foi deletada/órfã do Dashboard. Invalida o saved_screen_id e força re-pareamento.
                     Logger.w("OFFLINE_FIRST", "Screen do cache foi removida do painel. Invalidação do saved_screen_id.")
