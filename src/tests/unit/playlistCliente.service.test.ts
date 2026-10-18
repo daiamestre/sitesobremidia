@@ -21,7 +21,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 vi.mock('@/modules/gestor/telaPago.service', () => ({
-  gerarBrcodePix: vi.fn((codigo: string, valor: number) => `PIX-${codigo}-${valor}`),
+  conferirPixNoBanco: vi.fn(async () => undefined),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { gerarBrcodePix, type StatusCobranca } from '@/modules/gestor/telaPago.service';
+import { conferirPixNoBanco, type StatusCobranca } from '@/modules/gestor/telaPago.service';
 import { conferirExclusao } from '@/lib/excluir';
 
 /** Valor padrão (o banco manda o valor real de cada anunciante; isto só serve de reserva na tela). */
@@ -219,8 +219,9 @@ export class PlaylistClienteService {
       : 'AGUARDANDO PAGAMENTO';
   }
 
-  gerarBrcodePix(codigo: string, valor = VALOR_VIDEO_ADICIONAL): string {
-    return gerarBrcodePix(codigo, valor);
+  /** F-196: confere no Banco Inter se o Pix da cobrança foi pago (e registra o pagamento). */
+  async conferirPix(cobrancaId: string): Promise<void> {
+    await conferirPixNoBanco(cobrancaId);
   }
 
   /** Após conciliação do PIX: insere o vídeo adicional (gate server-side de PAGA) */

@@ -93,16 +93,3 @@ export async function criarTelaPosPagamento(input: CriarTelaInput): Promise<{ te
   return data as unknown as { tela_id: string };
 }
 
-/**
- * ATENÇÃO (F-194): código antigo, NÃO é um Pix válido (sem chave real e sem CRC). A tela do gestor já usa o Pix do
- * Banco Inter (emitirPixDaCobranca); ainda é usado na cobrança de vídeo adicional do anunciante (a trocar).
- */
-export function gerarBrcodePix(codigo: string, valor: number): string {
-  const txid = codigo.replace(/[^A-Z0-9]/g, '').slice(0, 25);
-  const valorStr = valor.toFixed(2);
-  return (
-    `00020126580014BR.GOV.BCB.PIX0136${txid}` +
-    `520400005303986540${String(valorStr.length).padStart(2, '0')}${valorStr}` +
-    `5802BR5913SOBRE MIDIA6009CURITIBA62070503***6304`
-  );
-}

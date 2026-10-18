@@ -22,6 +22,7 @@ import {
 } from '@/modules/crm/services/playlistCliente.service';
 import { brl, dicaDeCusto, etiquetaDoItem } from '@/lib/cotaDeMidias';
 import { CotaDeMidiasBanner } from '@/modules/crm/components/portal/CotaDeMidiasBanner';
+import { PixDaCobranca } from '@/components/pagamento/PixDaCobranca';
 
 const COR_ETIQUETA = {
   verde: 'border-emerald-500/30 text-emerald-400',
@@ -278,6 +279,8 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
     queryKey: ['status-cobranca-video', cobrancaPendente?.cobrancaId],
     queryFn: async () => {
       if (!cobrancaPendente) return null;
+      // F-196: pergunta ao Banco Inter se o Pix foi pago (registra o pagamento quando foi)
+      await playlistClienteService.conferirPix(cobrancaPendente.cobrancaId);
       const st = await playlistClienteService.statusCobranca(cobrancaPendente.cobrancaId);
       if (st === 'PAGAMENTO CONFIRMADO') {
         try {
@@ -571,25 +574,8 @@ function DetalhePlaylistDialog({ playlistId, onClose }: { playlistId: string; on
                 AGUARDANDO PAGAMENTO · {brl(cobrancaPendente.valor)}
               </Badge>
             </div>
-            <p className="text-[11px] text-slate-400 break-all font-mono">
-              {playlistClienteService.gerarBrcodePix(cobrancaPendente.codigo, cobrancaPendente.valor)}
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(
-                    playlistClienteService.gerarBrcodePix(cobrancaPendente.codigo, cobrancaPendente.valor)
-                  );
-                  toast.success('PIX copia e cola copiado.');
-                } catch {
-                  toast.error('Não foi possível copiar.');
-                }
-              }}
-            >
-              <Copy className="h-3.5 w-3.5 mr-1" /> Copiar PIX
-            </Button>
+            {/* F-196: Pix oficial do Banco Inter (antes um texto montado no navegador, que nenhum banco aceitava) */}
+            <PixDaCobranca cobrancaId={cobrancaPendente.cobrancaId} valorTexto={brl(cobrancaPendente.valor)} />
             <p className="text-[11px] text-emerald-400/90 flex items-center gap-1">
               <ShieldCheck className="h-3.5 w-3.5" />
               A mídia será liberada automaticamente após a conciliação do pagamento.

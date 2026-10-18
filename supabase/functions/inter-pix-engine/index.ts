@@ -728,8 +728,16 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'cobranca_id obrigatório', code: 'BAD_REQUEST' }), { status: 400, headers: corsHeaders });
       }
 
+      // F-196: quem pede o Pix precisa ENXERGAR a cobrança com o próprio login (regras do banco: dono/ADM, o gestor a
+      // dele, o anunciante a dele). Conferido isso, a trava e a gravação do Pix usam a chave do servidor — o anunciante só
+      // lê contas_receber e antes recebia "acesso negado" (o Pix do vídeo adicional nunca era emitido).
+      const { data: visivel } = await supabase.from('contas_receber').select('id').eq('id', cobranca_id).maybeSingle();
+      if (!visivel) {
+        return new Response(JSON.stringify({ error: 'Cobrança inexistente ou acesso negado (RLS)', code: 'TENANT_DENIED' }), { status: 403, headers: corsHeaders });
+      }
+
       // Lock atômico para evitar cobrança duplicada em rajada
-      const { data: lockedCobranca, error: lockError } = await supabase
+      const { data: lockedCobranca, error: lockError } = await srv
         .from('contas_receber')
         .update({
           inter_pix_status: 'PROCESSING',
@@ -741,7 +749,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (lockError || !lockedCobranca) {
-        const { data: exist } = await supabase.from('contas_receber').select('inter_pix_status, inter_pix_copia_e_cola, inter_pix_txid').eq('id', cobranca_id).maybeSingle();
+        const { data: exist } = await srv.from('contas_receber').select('inter_pix_status, inter_pix_copia_e_cola, inter_pix_txid').eq('id', cobranca_id).maybeSingle();
         if (!exist) return new Response(JSON.stringify({ error: 'Cobrança inexistente ou acesso negado (RLS)', code: 'TENANT_DENIED' }), { status: 403, headers: corsHeaders });
         
         // Se já foi emitida anteriormente e tem Copia e Cola, devolve existente com sucesso (Idempotente)
@@ -801,7 +809,7 @@ serve(async (req) => {
         try { interData = JSON.parse(resTxt); } catch { interData = { raw: resTxt }; }
 
         if (!reqInter.ok) {
-          await supabase.from('contas_receber').update({ inter_pix_status: 'FAILED' }).eq('id', cobranca_id);
+          await srv.from('contas_receber').update({ inter_pix_status: 'FAILED' }).eq('id', cobranca_id);
           const sanitized = sanitizeError(resTxt);
           return new Response(JSON.stringify({ error: 'Erro API Pix Banco Inter', code: 'PIX_API_ERROR', status: reqInter.status, details: sanitized }), { status: reqInter.status, headers: corsHeaders });
         }
@@ -811,7 +819,7 @@ serve(async (req) => {
         const pixStatus = interData.status || 'ATIVA';
 
         // Persistir dados oficiais do Pix em contas_receber
-        await supabase.from('contas_receber').update({
+        await srv.from('contas_receber').update({
           inter_pix_txid: txid,
           inter_pix_copia_e_cola: pixCopiaECola,
           inter_pix_location: location,
@@ -828,7 +836,7 @@ serve(async (req) => {
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
       } catch (err: any) {
-        await supabase.from('contas_receber').update({ inter_pix_status: 'FAILED' }).eq('id', cobranca_id);
+        await srv.from('contas_receber').update({ inter_pix_status: 'FAILED' }).eq('id', cobranca_id);
         const msg = sanitizeError(err.message || String(err));
         return new Response(JSON.stringify({ error: 'Falha de comunicação com Banco Inter PIX', code: 'COMMUNICATION_ERROR', message: msg }), { status: 502, headers: corsHeaders });
       }
@@ -893,7 +901,7 @@ serve(async (req) => {
         }
 
         if (situacaoRemota) {
-          await supabase.from('contas_receber').update({ inter_pix_status: situacaoRemota }).eq('id', cobranca_id);
+          await srv.from('contas_receber').update({ inter_pix_status: situacaoRemota }).eq('id', cobranca_id);
         }
 
         return new Response(JSON.stringify({ success: true, data }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
