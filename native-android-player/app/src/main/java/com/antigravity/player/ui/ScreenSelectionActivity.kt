@@ -36,6 +36,16 @@ import kotlinx.coroutines.withContext
  */
 class ScreenSelectionActivity : AppCompatActivity() {
 
+    /** F-200: Home/Recentes saindo do app por aqui: oferece a launcher Sobre Mídia, uma vez por saída. */
+    private val vigiaDaSaida by lazy {
+        com.antigravity.player.launcher.PerguntaLauncherActivity.Companion.VigiaDaSaida(applicationContext) { true }
+    }
+
+    override fun onDestroy() {
+        vigiaDaSaida.desligar()
+        super.onDestroy()
+    }
+
     private lateinit var loading: ProgressBar
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ScreensAdapter
@@ -51,6 +61,7 @@ class ScreenSelectionActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        vigiaDaSaida.ligar()
 
         // [P0-FIX RC2] Orientation is controlled by Manifest (fullSensor) for ScreenSelection.
         // Forcing PORTRAIT here was the source of orientation whiplash when transitioning to

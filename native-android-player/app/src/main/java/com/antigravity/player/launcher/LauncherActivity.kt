@@ -310,7 +310,8 @@ class LauncherActivity : AppCompatActivity() {
                     1 -> AlertDialog.Builder(this)
                         .setTitle("Voltar para a launcher original?")
                         .setMessage("A launcher Sobre Mídia deixa de ser a tela inicial. O Player continua igual (abre pelo ícone dele). " +
-                            "Para usar a launcher Sobre Mídia de novo, use o comando \"Launcher Sobre Mídia\" no painel.")
+                            "Para usar a launcher Sobre Mídia de novo, responda \"Usar\" quando o Player perguntar (ao abrir ou sair dele) " +
+                            "ou use o comando \"Launcher Sobre Mídia\" no painel.")
                         .setPositiveButton("Voltar para a original") { _, _ ->
                             LauncherDoAparelho.usarOriginalComoPadrao(this)
                             LauncherDoAparelho.abrirOriginal(this, config.minutosDeUsoLivre)

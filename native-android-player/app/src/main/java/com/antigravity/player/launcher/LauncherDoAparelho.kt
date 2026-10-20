@@ -54,8 +54,38 @@ object LauncherDoAparelho {
         r?.activityInfo?.packageName == ctx.packageName && r?.activityInfo?.name == LauncherActivity::class.java.name
     } catch (e: Exception) { false }
 
-    /** Perguntar na abertura do Player? (uma vez por instalação, só se ainda não for a tela inicial) */
-    fun devePerguntar(ctx: Context): Boolean = !prefs(ctx).getBoolean(K_PERGUNTADO, false) && ativa(ctx) && !ehPadrao(ctx)
+    /**
+     * Oferecer "Usar a launcher Sobre Mídia?" faz sentido? Só se ela ainda não é a tela inicial nem foi escolhida (e não é a
+     * ROM Sobre Mídia, onde já nasce escolhida). Quem oferece: a abertura do app pelo ícone e a saída do app — nunca Home.
+     */
+    fun deveOferecer(ctx: Context): Boolean = !ehPadrao(ctx) && !escolhida(ctx) && !ehRomSobreMidia()
+
+    /** Perguntar nesta abertura do Player? (toda abertura pelo ícone, enquanto [deveOferecer]) */
+    fun devePerguntar(ctx: Context): Boolean = deveOferecer(ctx)
+
+    /** A abertura foi da pessoa tocando no ícone? (boot, atualização, contagem da launcher e o quiosque não perguntam) */
+    fun aberturaPeloUsuario(intent: Intent?): Boolean =
+        intent != null && intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER) &&
+            !intent.getBooleanExtra(EXTRA_SEM_PERGUNTA, false)
+
+    /** Quem abre o Player por código (quiosque) marca isto para não perguntar. */
+    const val EXTRA_SEM_PERGUNTA = "sem_pergunta_launcher"
+
+    /** F-201: o aparelho roda a ROM Sobre Mídia (propriedade gravada no build.prop da ROM). */
+    fun ehRomSobreMidia(): Boolean = try {
+        val sp = Class.forName("android.os.SystemProperties")
+        (sp.getMethod("get", String::class.java).invoke(null, "ro.sobremidia.rom") as? String) == "1"
+    } catch (e: Exception) { false }
+
+    /**
+     * F-201: na ROM Sobre Mídia a launcher já nasce escolhida (sem pergunta) na primeira vez. Se alguém voltou para a
+     * launcher original ("usar como padrão"), isso fica respeitado (não insiste). Rodar fora da thread principal.
+     */
+    fun aplicarRom(ctx: Context) {
+        if (!ehRomSobreMidia() || prefs(ctx).getBoolean(K_PERGUNTADO, false)) return
+        Logger.i("LAUNCHER", "ROM Sobre Mídia: launcher Sobre Mídia como tela inicial (primeira vez).")
+        tornarPadraoEmSilencio(ctx)
+    }
 
     fun marcarPerguntado(ctx: Context) { prefs(ctx).edit().putBoolean(K_PERGUNTADO, true).apply() }
 

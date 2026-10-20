@@ -21,6 +21,8 @@ class BootReceiver : BroadcastReceiver() {
             // abre o Player sozinha depois da contagem. Atualização do app (MY_PACKAGE_REPLACED) volta direto ao Player.
             if (action != Intent.ACTION_MY_PACKAGE_REPLACED) {
                 val launcher = com.antigravity.player.launcher.LauncherDoAparelho
+                // F-201: ROM Sobre Mídia — a launcher já nasce escolhida (Player é app de sistema e tem root)
+                if (launcher.ehRomSobreMidia()) Thread { launcher.aplicarRom(context.applicationContext) }.start()
                 if (launcher.ativa(context) && launcher.ehPadrao(context)) {
                     Logger.i("BOOT_RECEIVER", "Launcher Sobre Mídia é a tela inicial: ela abre o Player após a contagem.")
                     return

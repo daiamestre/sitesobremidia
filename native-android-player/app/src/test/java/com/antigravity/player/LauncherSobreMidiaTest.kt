@@ -131,6 +131,45 @@ class LauncherSobreMidiaTest {
     }
 
     @Test
+    fun `ROM Sobre Midia - app de sistema atualiza sem toque e sem root, launcher ja nasce escolhida`() {
+        assertEquals(com.antigravity.player.util.OtaPolicy.ModoDeInstalacao.APP_DE_SISTEMA,
+            com.antigravity.player.util.OtaPolicy.modoDeInstalacao(donoDoAparelho = false, temRoot = true, appDeSistema = true))
+        assertEquals(com.antigravity.player.util.OtaPolicy.ModoDeInstalacao.ROOT,
+            com.antigravity.player.util.OtaPolicy.modoDeInstalacao(donoDoAparelho = false, temRoot = true))
+        assertEquals(com.antigravity.player.util.OtaPolicy.ModoDeInstalacao.DONO_DO_APARELHO,
+            com.antigravity.player.util.OtaPolicy.modoDeInstalacao(donoDoAparelho = true, temRoot = true, appDeSistema = true))
+        assertTrue(File("src/main/AndroidManifest.xml").readText().contains("android.permission.INSTALL_PACKAGES"))
+        val l = File("src/main/java/com/antigravity/player/launcher/LauncherDoAparelho.kt").readText()
+        assertTrue(l.contains("\"ro.sobremidia.rom\"") && l.contains("&& !ehRomSobreMidia()"))
+        assertTrue("respeita quem voltou para a original", l.contains("if (!ehRomSobreMidia() || prefs(ctx).getBoolean(K_PERGUNTADO, false)) return"))
+        assertTrue(File("src/main/java/com/antigravity/player/receiver/BootReceiver.kt").readText().contains("launcher.aplicarRom("))
+    }
+
+    @Test
+    fun `a pergunta da launcher so aparece ao abrir o app pelo icone e ao sair do app, nunca sozinha`() {
+        val l = File("src/main/java/com/antigravity/player/launcher/LauncherDoAparelho.kt").readText()
+        assertTrue("só enquanto não é a tela inicial nem foi escolhida", l.contains("fun deveOferecer(ctx: Context): Boolean = !ehPadrao(ctx) && !escolhida(ctx) && !ehRomSobreMidia()"))
+        assertTrue("abertura pelo ícone", l.contains("intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER)"))
+        val splash = File("src/main/java/com/antigravity/player/ui/SplashActivity.kt").readText()
+        assertTrue(splash.contains("if (!launcher.devePerguntar(applicationContext) || !launcher.aberturaPeloUsuario(intent)) { rotear(); return }"))
+        val semResposta = splash.substring(splash.lastIndexOf("if (exibindo) {"), splash.indexOf("private fun rotear()"))
+        assertFalse("sem resposta não escolhe nada sozinho", semResposta.contains("tornarPadraoEmSilencio"))
+        val pergunta = File("src/main/java/com/antigravity/player/launcher/PerguntaLauncherActivity.kt").readText()
+        assertTrue("só se a pessoa saiu de verdade (nenhuma tela do app na frente)", pergunta.contains("if (TelasNaFrente.alguma() || !LauncherDoAparelho.deveOferecer(app)) return@postDelayed"))
+        assertTrue("só a tecla Home/Recentes conta como sair (telas que o Player abre não)", pergunta.contains("motivo == \"homekey\" || motivo == \"recentapps\""))
+        val principal = File("src/main/java/com/antigravity/player/MainActivity.kt").readText()
+        assertTrue("Player com quiosque ligado não pergunta", principal.contains("VigiaDaSaida(applicationContext) { !isKioskEnforced }"))
+        assertFalse(principal.contains("override fun onUserLeaveHint()"))
+        for (tela in listOf("LoginActivity", "ScreenSelectionActivity")) {
+            val src = File("src/main/java/com/antigravity/player/ui/$tela.kt").readText()
+            assertTrue(tela, src.contains("VigiaDaSaida(applicationContext) { true }") && src.contains("vigiaDaSaida.ligar()") && src.contains("vigiaDaSaida.desligar()"))
+        }
+        assertTrue("fecha a pergunta sem deixar janela presa", pergunta.contains("try { dialogo?.dismiss() }"))
+        assertTrue("o quiosque não conta como abrir pelo ícone", File("src/main/java/com/antigravity/player/service/SelfHealingService.kt").readText().contains("EXTRA_SEM_PERGUNTA, true"))
+        assertFalse("Home não mostra a pergunta", File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText().contains("aoSairDoApp"))
+    }
+
+    @Test
     fun `boot, vigia, uso livre e comandos estao ligados`() {
         val boot = File("src/main/java/com/antigravity/player/receiver/BootReceiver.kt").readText()
         assertTrue(boot.contains("launcher.ehPadrao(context)"))

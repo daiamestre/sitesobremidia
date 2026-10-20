@@ -18,8 +18,19 @@ import kotlinx.coroutines.launch
 
 class LoginActivity : AppCompatActivity() {
 
+    /** F-200: Home/Recentes saindo do app por aqui: oferece a launcher Sobre Mídia, uma vez por saída. */
+    private val vigiaDaSaida by lazy {
+        com.antigravity.player.launcher.PerguntaLauncherActivity.Companion.VigiaDaSaida(applicationContext) { true }
+    }
+
+    override fun onDestroy() {
+        vigiaDaSaida.desligar()
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        vigiaDaSaida.ligar()
         
         
         // F-182: depois de sair e entrar de novo, a identidade do aparelho precisa estar pronta antes da escolha de tela

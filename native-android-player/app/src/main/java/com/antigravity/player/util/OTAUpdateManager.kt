@@ -267,13 +267,20 @@ class OTAUpdateManager(
     private fun installApk(file: File): String? {
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
         val donoDoAparelho = dpm.isDeviceOwnerApp(context.packageName)
-        val modo = OtaPolicy.modoDeInstalacao(donoDoAparelho, !donoDoAparelho && RootInstaller.disponivel(context))
+        // F-201: app de sistema (ROM Sobre Mídia) com permissão de instalar — sessão do PackageInstaller sem toque e sem root
+        val appDeSistema = context.checkSelfPermission(android.Manifest.permission.INSTALL_PACKAGES) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val modo = OtaPolicy.modoDeInstalacao(donoDoAparelho, !donoDoAparelho && !appDeSistema && RootInstaller.disponivel(context), appDeSistema)
         val versao = OtaStatus.versaoEmInstalacao ?: "nova versão"
         when (modo) {
             OtaPolicy.ModoDeInstalacao.DONO_DO_APARELHO -> {
                 Logger.i("OTA", "Device Owner detected. Starting Silent Install via PackageInstaller.")
                 installApkBySession(file)
                 return "instalando em silêncio (Device Owner)"
+            }
+            OtaPolicy.ModoDeInstalacao.APP_DE_SISTEMA -> {
+                Logger.i("OTA", "App de sistema (ROM Sobre Mídia): instalação silenciosa pelo PackageInstaller.")
+                installApkBySession(file)
+                return "instalando em silêncio (app de sistema)"
             }
             OtaPolicy.ModoDeInstalacao.ROOT -> {
                 // se der certo o processo é encerrado aqui dentro e a versão nova abre sozinha

@@ -49,6 +49,8 @@ class UserApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         if (isRestartBridgeProcess()) return
+        // F-200: saber se alguma tela do app está na frente (a pergunta da launcher só aparece quando a pessoa SAIU do app)
+        registerActivityLifecycleCallbacks(com.antigravity.player.launcher.PerguntaLauncherActivity.Companion.TelasNaFrente)
 
         try {
             GlobalErrorReporter.install(this)

@@ -441,6 +441,7 @@ class MainActivity : AppCompatActivity() {
     private var isOTACycleStarted = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        vigiaDaSaida.ligar()
         
         // [SANDBOX] Must be called BEFORE any WebView is instantiated (including XML inflation)
         if (Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -1850,6 +1851,7 @@ withContext(Dispatchers.Main) {
 
 
     override fun onDestroy() {
+        vigiaDaSaida.desligar()
         super.onDestroy()
         zoneController?.stop()
         radioController?.stop()
@@ -1912,6 +1914,11 @@ withContext(Dispatchers.Main) {
 
         // [MAINTENANCE RECOVERY] Rede de seguranca: restaura se a janela venceu
         evaluateMaintenanceState()
+    }
+
+    /** F-200: Home/Recentes saindo do Player de verdade (manutenção, sem o quiosque puxar de volta): oferece a launcher. */
+    private val vigiaDaSaida by lazy {
+        com.antigravity.player.launcher.PerguntaLauncherActivity.Companion.VigiaDaSaida(applicationContext) { !isKioskEnforced }
     }
 
     override fun onStop() {

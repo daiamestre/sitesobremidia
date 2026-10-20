@@ -83,11 +83,15 @@ object OtaPolicy {
 
     // ------------------------------------------------------------------ F-194: instalação sem interromper a reprodução
 
-    /** Como este aparelho instala: em silêncio (Device Owner ou root) ou só com um toque, quando alguém pedir pelo painel. */
-    enum class ModoDeInstalacao { DONO_DO_APARELHO, ROOT, PEDIR_TOQUE }
+    /**
+     * Como este aparelho instala: em silêncio (Device Owner, app de sistema da ROM Sobre Mídia ou root) ou só com um toque,
+     * quando alguém pedir pelo painel. F-201: na ROM Sobre Mídia o Player é app de sistema com INSTALL_PACKAGES.
+     */
+    enum class ModoDeInstalacao { DONO_DO_APARELHO, APP_DE_SISTEMA, ROOT, PEDIR_TOQUE }
 
-    fun modoDeInstalacao(donoDoAparelho: Boolean, temRoot: Boolean): ModoDeInstalacao = when {
+    fun modoDeInstalacao(donoDoAparelho: Boolean, temRoot: Boolean, appDeSistema: Boolean = false): ModoDeInstalacao = when {
         donoDoAparelho -> ModoDeInstalacao.DONO_DO_APARELHO
+        appDeSistema -> ModoDeInstalacao.APP_DE_SISTEMA
         temRoot -> ModoDeInstalacao.ROOT
         else -> ModoDeInstalacao.PEDIR_TOQUE
     }

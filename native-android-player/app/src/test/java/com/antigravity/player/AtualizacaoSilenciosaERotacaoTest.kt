@@ -62,7 +62,7 @@ class AtualizacaoSilenciosaERotacaoTest {
     @Test
     fun `o gerenciador nao abre nada por cima das midias sem pedido do painel`() {
         val ota = codigo("src/main/java/com/antigravity/player/util/OTAUpdateManager.kt")
-        assertTrue(ota.contains("OtaPolicy.modoDeInstalacao(donoDoAparelho, !donoDoAparelho && RootInstaller.disponivel(context))"))
+        assertTrue(ota.contains("OtaPolicy.modoDeInstalacao(donoDoAparelho, !donoDoAparelho && !appDeSistema && RootInstaller.disponivel(context), appDeSistema)"))
         assertTrue(ota.contains("RootInstaller.instalar(context, file)"))
         // a tela de permissão e o instalador manual só abrem com o pedido do painel
         val ini = ota.indexOf("ACTION_MANAGE_UNKNOWN_APP_SOURCES")

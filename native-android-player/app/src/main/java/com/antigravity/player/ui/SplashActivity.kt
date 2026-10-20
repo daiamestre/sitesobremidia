@@ -32,6 +32,10 @@ class SplashActivity : AppCompatActivity() {
         
         // Ensure DI is ready
         ServiceLocator.init(applicationContext) 
+        // F-201: ROM Sobre Mídia — a launcher já nasce escolhida, sem pergunta
+        if (com.antigravity.player.launcher.LauncherDoAparelho.ehRomSobreMidia()) {
+            Thread { com.antigravity.player.launcher.LauncherDoAparelho.aplicarRom(applicationContext) }.start()
+        }
         
         checkOverlayPermission()
     }
@@ -104,21 +108,18 @@ class SplashActivity : AppCompatActivity() {
     }
 
     /**
-     * F-200: na primeira abertura, oferece a launcher Sobre Mídia como tela inicial (uma vez por instalação).
-     * "Agora não" segue o caminho de sempre (login → tela → Player). Aparelho que já exibe numa tela (atualização do
-     * Player) não pode ficar parado na pergunta: em 30 s ela some sozinha e o Player continua; nesse caso só se tenta o
-     * jeito silencioso (Device Owner/root), sem abrir telas do Android por cima da exibição.
+     * F-200: toda vez que a pessoa ABRE o app pelo ícone (e a launcher Sobre Mídia ainda não é a tela inicial), oferece usá-la.
+     * Boot, atualização, a contagem da launcher e o quiosque NÃO perguntam. "Agora não" (ou 30 s sem resposta num aparelho
+     * que já exibe) segue o caminho de sempre: login → tela → Player. Nada é escolhido sozinho.
      */
     private fun checkRouting() {
         val launcher = com.antigravity.player.launcher.LauncherDoAparelho
-        if (!launcher.devePerguntar(applicationContext)) { rotear(); return }
+        if (!launcher.devePerguntar(applicationContext) || !launcher.aberturaPeloUsuario(intent)) { rotear(); return }
         val exibindo = !getSharedPreferences("player_prefs", Context.MODE_PRIVATE).getString("saved_screen_id", null).isNullOrBlank()
         var respondeu = false
         val dialogo = android.app.AlertDialog.Builder(this)
             .setTitle("Launcher Sobre Mídia")
-            .setMessage("Usar a launcher Sobre Mídia como tela inicial deste aparelho?\n\n" +
-                "Ao ligar o aparelho ou sair do Player aparece a launcher Sobre Mídia, com o Player em destaque e os seus " +
-                "aplicativos. Dá para voltar para a launcher original quando quiser (botão \"Launcher original\").")
+            .setMessage(com.antigravity.player.launcher.PerguntaLauncherActivity.TEXTO)
             .setPositiveButton("Usar a launcher Sobre Mídia") { _, _ ->
                 respondeu = true
                 launcher.marcarPerguntado(applicationContext)
@@ -126,6 +127,7 @@ class SplashActivity : AppCompatActivity() {
                     lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { launcher.tornarPadraoEmSilencio(applicationContext) }
                     rotear()
                 } else {
+                    launcher.ativar(applicationContext) // pode ter sido desligada por "usar a launcher original como padrão"
                     startActivity(Intent(this, com.antigravity.player.launcher.LauncherActivity::class.java)
                         .putExtra(com.antigravity.player.launcher.LauncherActivity.EXTRA_PEDIR_PADRAO, true)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -145,10 +147,7 @@ class SplashActivity : AppCompatActivity() {
                 if (!respondeu && !isFinishing && !isDestroyed) {
                     respondeu = true
                     try { dialogo.dismiss() } catch (e: Exception) { }
-                    // aparelho em exibição: liga a launcher em silêncio (era o Player a tela inicial) e segue tocando
-                    launcher.marcarPerguntado(applicationContext)
-                    lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { launcher.tornarPadraoEmSilencio(applicationContext) }
-                    rotear()
+                    rotear() // sem resposta: o Player segue tocando; nada é escolhido sozinho
                 }
             }, 30_000)
         }

@@ -156,6 +156,7 @@ class SelfHealingService : Service() {
         
         // Fallback: Full relaunch with aggressive flags
         val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            putExtra(com.antigravity.player.launcher.LauncherDoAparelho.EXTRA_SEM_PERGUNTA, true) // quiosque: não é a pessoa abrindo
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         }
         if (intent != null) startActivity(intent)

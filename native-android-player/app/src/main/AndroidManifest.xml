@@ -18,6 +18,8 @@
     <uses-permission android:name="android.permission.REORDER_TASKS" />
     <!-- F-200: modo forçado da launcher (aparelho que insiste na launcher dele): saber quando ela aparece -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <!-- F-201: na ROM Sobre Mídia o Player é app de sistema (priv-app): atualiza em silêncio sem root. Fora dela é ignorada. -->
+    <uses-permission android:name="android.permission.INSTALL_PACKAGES" tools:ignore="ProtectedPermissions" />
 
     <!-- F-200: a launcher lista os apps instalados e as outras telas iniciais (Android 11+) -->
     <queries>
@@ -111,6 +113,16 @@
             android:theme="@style/Theme.Player.Main"
             android:screenOrientation="fullSensor"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode|smallestScreenSize|density" />
+
+        <!-- F-200: pergunta "Usar a launcher Sobre Mídia?" ao SAIR do app (uma vez por saída) -->
+        <activity
+            android:name=".launcher.PerguntaLauncherActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.antigravity.player.pergunta"
+            android:theme="@style/Theme.Player.Transparent" />
 
         <!-- F-200: launcher Sobre Mídia (tela inicial do aparelho quando o dono escolhe usá-la) -->
         <activity

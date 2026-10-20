@@ -89,3 +89,19 @@ para `/system/priv-app` e desativar a launcher original ("modo sistema"). Desfaz
 - Gravar sem a cópia do original e sem ter testado o modo de recuperação daquele aparelho.
 - Usar "apagar tudo/erase flash" sem necessidade; tirar o cabo/energia durante a gravação.
 - Distribuir a ROM de terceiros (Selenga) — ela serve só de referência.
+
+## 8. Situação em 20/10/2026 (F-201)
+
+- **ROM base analisada:** `Downloads/ROM TV BOX/Rom MXQ 5G R329Q V8.0/update.img` — Selenga R4 2+16G ROOT (by Bruski), Rockchip
+  RK3228A (chip "322A"), Android 7.1.2, modelo "R4" (o mesmo que as TV Box do Hotel Maxsuel informam), launcher MboxLauncher,
+  root SuperSU no sistema (`xbin/su`, `daemonsu`), Wi-Fi 8189ES/8189FS/9012P/SV6051/SV6x5x, idioma russo/Moscou, system 2,5 GB
+  aberto (1,5 GB usados) numa partição de 3 GB. MD5 do arquivo conferido.
+- **Kit pronto** em `scripts/rom/` (ver `scripts/rom/LEIA-ME.md`): ler firmware, sparse abrir/fechar (todos os blocos como dados:
+  a ROM base só usa RAW/DONT_CARE e marcar zeros como "não importa" pode corromper arquivos), alterar só o system,
+  remontar o update.img (provado: remontagem do original sai byte a byte idêntica) e conferir antes de gravar (provado com
+  um system sem alteração: 12 partes idênticas, CRC e MD5 corretos). Cópia do aparelho por ADB/root com SHA-256 dos dois lados.
+- **Player pronto para a ROM (5.8.5/5.8.6, teste):** com `ro.sobremidia.rom=1` a launcher nasce escolhida; como app de sistema
+  com INSTALL_PACKAGES atualiza em silêncio sem root (modo APP_DE_SISTEMA; root e Device Owner continuam).
+- **Falta:** gravar o Player dentro do system exige montar a imagem como administrador do Ubuntu (WSL). O Claude Code bloqueou
+  esse comando por segurança; precisa da autorização do dono (ou o dono roda o comando do LEIA-ME). Depois: fechar, remontar,
+  conferir, e testar em bancada com MaskROM testado antes.
