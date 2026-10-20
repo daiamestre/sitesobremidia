@@ -102,6 +102,6 @@ para `/system/priv-app` e desativar a launcher original ("modo sistema"). Desfaz
   um system sem alteração: 12 partes idênticas, CRC e MD5 corretos). Cópia do aparelho por ADB/root com SHA-256 dos dois lados.
 - **Player pronto para a ROM (5.8.5/5.8.6, teste):** com `ro.sobremidia.rom=1` a launcher nasce escolhida; como app de sistema
   com INSTALL_PACKAGES atualiza em silêncio sem root (modo APP_DE_SISTEMA; root e Device Owner continuam).
-- **Falta:** gravar o Player dentro do system exige montar a imagem como administrador do Ubuntu (WSL). O Claude Code bloqueou
+- **Feito (autorizado pelo dono):** ROM v1.0 gerada em `Downloads/ROM TV BOX/ROM Sobre Midia RK3228A v1.0/` (ver FINDINGS F-201). Antes estava pendente: gravar o Player dentro do system exige montar a imagem como administrador do Ubuntu (WSL). O Claude Code bloqueou
   esse comando por segurança; precisa da autorização do dono (ou o dono roda o comando do LEIA-ME). Depois: fechar, remontar,
   conferir, e testar em bancada com MaskROM testado antes.
