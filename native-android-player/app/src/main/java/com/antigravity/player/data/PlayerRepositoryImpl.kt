@@ -286,6 +286,11 @@ class PlayerRepositoryImpl(
                         prefs.edit().putString("current_orientation", sovereignOrientation).apply()
                     } catch (e: Exception) {}
                     SessionManager.currentScreenName = device.name ?: "Player ${device.customId ?: device.id}"
+                    // F-200: a launcher Sobre Mídia mostra o nome da tela (inclusive ao ligar, antes do Player)
+                    try {
+                        context.getSharedPreferences("player_prefs", android.content.Context.MODE_PRIVATE).edit()
+                            .putString("saved_screen_name", SessionManager.currentScreenName).apply()
+                    } catch (e: Exception) {}
                     SessionManager.currentUserId = device.customId ?: device.id
                     SessionManager.currentUUID = device.id 
                     

@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-200: launcher Sobre Mídia (tela inicial do aparelho). O quadro gira junto com a rotação da tela do Player (totem). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/launcher_raiz"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/sm_fundo">
+
+    <FrameLayout
+        android:id="@+id/launcher_quadro"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/launcher_fundo_padrao">
+
+        <ImageView
+            android:id="@+id/launcher_fundo_imagem"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/launcher_fundo_video"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:focusable="false"
+            android:visibility="gone"
+            app:resize_mode="zoom"
+            app:shutter_background_color="@android:color/transparent"
+            app:surface_type="texture_view"
+            app:use_controller="false" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/launcher_sombra" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:paddingStart="40dp"
+            android:paddingTop="28dp"
+            android:paddingEnd="40dp"
+            android:paddingBottom="24dp">
+
+            <!-- topo: logo do gestor (Minha Marca) · hora · clima · rede -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/launcher_logo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="56dp"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="Sobre Mídia"
+                    android:maxWidth="260dp"
+                    android:src="@drawable/logo" />
+
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <TextClock
+                    android:id="@+id/launcher_hora"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:format12Hour="HH:mm"
+                    android:format24Hour="HH:mm"
+                    android:shadowColor="#CC000000"
+                    android:shadowRadius="6"
+                    android:textColor="@color/sm_texto"
+                    android:textSize="34sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/launcher_clima"
+                    style="@style/LauncherSelo"
+                    android:layout_marginStart="18dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/launcher_rede"
+                    style="@style/LauncherSelo"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- cartão principal: Player Sobre Mídia -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/launcher_cartao_player"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/launcher_cartao_player"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:minWidth="380dp"
+                    android:orientation="horizontal"
+                    android:paddingStart="26dp"
+                    android:paddingTop="18dp"
+                    android:paddingEnd="30dp"
+                    android:paddingBottom="18dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="▶"
+                        android:textColor="@color/sm_texto"
+                        android:textSize="38sp" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="18dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:letterSpacing="0.04"
+                            android:text="PLAYER SOBRE MÍDIA"
+                            android:textColor="@color/sm_texto"
+                            android:textSize="24sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/launcher_contagem"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="#E6F8FAFC"
+                            android:textSize="16sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/launcher_status_tela"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="24dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:shadowColor="#CC000000"
+                    android:shadowRadius="6"
+                    android:textColor="@color/sm_texto"
+                    android:textSize="18sp" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/LauncherTitulo"
+                android:layout_marginTop="22dp"
+                android:text="Aplicativos" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/launcher_apps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp" />
+
+            <TextView
+                android:id="@+id/launcher_sem_apps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Nenhum outro aplicativo para mostrar."
+                android:textColor="@color/sm_texto_suave"
+                android:textSize="15sp"
+                android:visibility="gone" />
+
+            <TextView
+                style="@style/LauncherTitulo"
+                android:layout_marginTop="16dp"
+                android:text="Aparelho" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:clipChildren="false"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/launcher_btn_ajustes"
+                    style="@style/LauncherBotao"
+                    android:text="⚙  Ajustes" />
+
+                <TextView
+                    android:id="@+id/launcher_btn_wifi"
+                    style="@style/LauncherBotao"
+                    android:text="Wi-Fi" />
+
+                <TextView
+                    android:id="@+id/launcher_btn_original"
+                    style="@style/LauncherBotao"
+                    android:text="↩  Launcher original" />
+
+                <TextView
+                    android:id="@+id/launcher_btn_padrao"
+                    style="@style/LauncherBotao"
+                    android:text="★  Definir como tela inicial"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

@@ -16,6 +16,24 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.REBOOT" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.REORDER_TASKS" />
+    <!-- F-200: modo forçado da launcher (aparelho que insiste na launcher dele): saber quando ela aparece -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+
+    <!-- F-200: a launcher lista os apps instalados e as outras telas iniciais (Android 11+) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+    </queries>
 
     <!-- HARDWARE AGNOSTIC: Allow install on TV (No Touch), Tablets (No Sim), PC (No Camera) -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -82,7 +100,8 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Player (Main & System Launcher) -->
+        <!-- Player. F-200: a "tela inicial" do aparelho passou a ser a LauncherActivity (abaixo); o Player continua
+             abrindo pelo ícone, pelo boot e pela launcher. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -91,7 +110,23 @@
             android:stateNotNeeded="true"
             android:theme="@style/Theme.Player.Main"
             android:screenOrientation="fullSensor"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode|smallestScreenSize|density">
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode|smallestScreenSize|density" />
+
+        <!-- F-200: launcher Sobre Mídia (tela inicial do aparelho quando o dono escolhe usá-la) -->
+        <activity
+            android:name=".launcher.LauncherActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:label="Sobre Mídia"
+            android:launchMode="singleTask"
+            android:clearTaskOnLaunch="true"
+            android:taskAffinity="com.antigravity.player.telainicial"
+            android:stateNotNeeded="true"
+            android:excludeFromRecents="true"
+            android:hardwareAccelerated="true"
+            android:resumeWhilePausing="true"
+            android:theme="@style/Theme.Player.TelaInicial"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode|smallestScreenSize|density|keyboard|navigation">
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />

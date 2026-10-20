@@ -242,6 +242,10 @@ export default function MinhaMarca() {
             Aparece na abertura do aplicativo, na escolha da tela, durante a sincronização, na tela de espera e no aviso de suspensão.
             Os anúncios continuam em tela cheia. A foto de capa não aparece no Player.
           </p>
+          <p className="text-xs text-muted-foreground" data-testid="logo-na-launcher">
+            Também é a logo da <strong className="text-foreground">launcher Sobre Mídia</strong> (a tela inicial dos aparelhos que a usam, no
+            topo, ao lado da hora). O resto da launcher é configurado pelo dono e pelo ADM.
+          </p>
         </div>
       </div>
     </div>

@@ -30,7 +30,8 @@ import {
   Store,
   Target,
   PenLine,
-  Eye
+  Eye,
+  Smartphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { areaDoCrm } from '@/lib/areaDoCrm';
@@ -102,6 +103,8 @@ export function CrmSidebar({ onNavigate, collapsed = false }: { onNavigate?: () 
           // F-190: o que cada conta (gestor, anunciante, representante...) tem e faz
           ...(isWorkspace ? [{ label: 'Visão das Contas', icon: Eye, path: '/workspace/contas' }] : []),
           ...(isWorkspace ? [{ label: 'Pontos Parceiros', icon: Store, path: '/workspace/pontos-parceiros' }] : []),
+          // F-200: launcher Sobre Mídia dos aparelhos
+          ...(isWorkspace ? [{ label: 'Launcher', icon: Smartphone, path: '/workspace/launcher' }] : []),
           { label: 'Gestão de Contratos', icon: ShieldCheck, path: '/workspace/admin/contratos' },
           // F-166: valor da mídia por anunciante e mídias grátis
           ...(isWorkspace ? [{ label: 'Valor da Mídia para Anunciantes', icon: Tag, path: '/workspace/valor-midias' }] : []),

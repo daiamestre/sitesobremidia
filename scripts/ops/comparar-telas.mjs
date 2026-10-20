@@ -12,7 +12,7 @@ import { sql } from './sql.mjs';
 const modo = process.argv[2];
 if (!['antes', 'depois'].includes(modo)) { console.error('uso: node scripts/ops/comparar-telas.mjs antes|depois'); process.exit(2); }
 const BLOCO = `DO $$ DECLARE t text; BEGIN
-  SELECT string_agg(s.name || '=' || md5(public.get_player_playlist_for_screen(s.id::text, s.bound_device_id)::text), ' | ' ORDER BY s.id)
+  SELECT string_agg(s.name || ' #' || left(s.id::text, 8) || '=' || md5(public.get_player_playlist_for_screen(s.id::text, s.bound_device_id)::text), ' | ' ORDER BY s.id)
     INTO t FROM public.screens s WHERE s.bound_device_id IS NOT NULL;
   RAISE EXCEPTION 'RESULTADO %', t; END $$;`;
 let texto = '';
@@ -26,7 +26,9 @@ const antes = Object.fromEntries(fs.readFileSync(arq, 'utf8').split(' | ').map((
 let dif = 0;
 for (const par of texto.split(' | ')) {
   const [nome, h] = par.split('=');
-  const igual = antes[nome] === h; if (!igual) dif++;
+  // telas com o mesmo nome: compara pelo id (o retrato antigo, só com o nome, cai no nome)
+  const chave = nome in antes ? nome : nome.replace(/ #[0-9a-f]{8}$/, '');
+  const igual = antes[chave] === h; if (!igual) dif++;
   console.log(`${igual ? 'IDÊNTICA ' : 'DIFERENTE'} ${nome}`);
 }
 console.log(dif ? `${dif} tela(s) mudaram` : 'resposta de todas as telas idêntica');

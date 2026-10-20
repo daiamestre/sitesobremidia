@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-200: fundo enquanto não há mídia escolhida pelo dono/ADM -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:type="radial" android:gradientRadius="900dp" android:centerX="0.3" android:centerY="0.3"
+        android:startColor="#FF312E81" android:centerColor="#FF1E1B4B" android:endColor="@color/sm_fundo" />
+</shape>

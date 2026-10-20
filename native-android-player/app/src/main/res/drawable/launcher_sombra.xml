@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-200: escurece o fundo atrás dos textos (topo e base) para a leitura -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:angle="270" android:startColor="#B30F172A" android:centerColor="#1A0F172A" android:endColor="#F20F172A" />
+</shape>

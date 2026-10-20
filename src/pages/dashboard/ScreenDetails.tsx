@@ -16,6 +16,7 @@ import { SeletorDeZonaDoGrafico } from '@/components/screens/SeletorDeZonaDoGraf
 import { RadioDaTela } from '@/components/radio/RadioDaTela';
 import { RotacaoDaTela } from '@/components/screens/RotacaoDaTela';
 import { AtualizacaoDoAplicativo } from '@/components/screens/AtualizacaoDoAplicativo';
+import { LauncherDaTela } from '@/components/screens/LauncherDaTela';
 import { telaOnlineAgora, aparelhoDaTela, saudeDoAparelho } from '@/lib/statusDoAparelho';
 import { supabaseConfig } from '@/supabaseConfig';
 import { Button } from '@/components/ui/button';
@@ -1318,6 +1319,7 @@ return (
 
                                 {/* F-194: atualização do aplicativo sem interromper as mídias */}
                                 <AtualizacaoDoAplicativo tela={screen as unknown as { id: string; app_version?: string | null; version?: string | null; last_action?: string | null; last_action_value?: string | null; last_action_at?: string | null }} />
+                                <LauncherDaTela tela={screen as unknown as { id: string; app_version?: string | null; version?: string | null }} />
 
                                 <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
                                     <div className="space-y-0.5">

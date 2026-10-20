@@ -52,7 +52,8 @@ class RemoteDataSource {
         val COMMAND_POLL_SAFE = listOf(
             "screenshot", "take_screenshot", "reload", "reboot", "restart_player", "update_app", "check_update",
             "install_update", "sync", "maintenance_open", "open_maintenance", "maintenance_close", "close_maintenance",
-            "rotate_portrait", "rotate_landscape", "reboot_device", "unpair"
+            "rotate_portrait", "rotate_landscape", "reboot_device", "unpair",
+            "launcher_sobremidia", "launcher_original" // F-200
         )
     }
 
@@ -428,6 +429,34 @@ class RemoteDataSource {
             Logger.e("SYNC", "SCREEN DISCOVERY DENIED: Status=${response.status}, Message=${response.message}")
             throw Exception(response.message ?: response.status)
         }
+    }
+
+    // F-200: configuração da launcher Sobre Mídia (fundo, tempos, apps ocultos), em JSON cru. Falha → null (mantém a guardada).
+    suspend fun getLauncherDoPlayer(): String? = try {
+        ensureRealtimeAuth()
+        client.postgrest.rpc("fn_player_launcher").data.takeIf { it.isNotBlank() }
+    } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        Logger.w("LAUNCHER", "configuração da launcher não veio: ${e.message}")
+        null
+    }
+
+    // F-200: apps instalados no aparelho (o dono escolhe no painel o que esconder). Devolve true se o servidor aceitou.
+    suspend fun reportarAppsDaLauncher(aparelho: String, apps: List<Pair<String, String>>): Boolean = try {
+        ensureRealtimeAuth()
+        val corpo = buildJsonObject {
+            put("p_aparelho", aparelho)
+            put("p_apps", kotlinx.serialization.json.buildJsonArray {
+                apps.take(400).forEach { (pacote, nome) ->
+                    add(buildJsonObject { put("pacote", pacote); put("nome", nome) })
+                }
+            })
+        }
+        client.postgrest.rpc("fn_player_launcher_apps", corpo).data.contains("\"OK\"")
+    } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        Logger.w("LAUNCHER", "lista de apps não enviada: ${e.message}")
+        false
     }
 
     // F-103: marca do Gestor de Mídias logado (logo/cores no Player). Falha → null (Player mantém o que tem).

@@ -103,7 +103,58 @@ class SplashActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * F-200: na primeira abertura, oferece a launcher Sobre Mídia como tela inicial (uma vez por instalação).
+     * "Agora não" segue o caminho de sempre (login → tela → Player). Aparelho que já exibe numa tela (atualização do
+     * Player) não pode ficar parado na pergunta: em 30 s ela some sozinha e o Player continua; nesse caso só se tenta o
+     * jeito silencioso (Device Owner/root), sem abrir telas do Android por cima da exibição.
+     */
     private fun checkRouting() {
+        val launcher = com.antigravity.player.launcher.LauncherDoAparelho
+        if (!launcher.devePerguntar(applicationContext)) { rotear(); return }
+        val exibindo = !getSharedPreferences("player_prefs", Context.MODE_PRIVATE).getString("saved_screen_id", null).isNullOrBlank()
+        var respondeu = false
+        val dialogo = android.app.AlertDialog.Builder(this)
+            .setTitle("Launcher Sobre Mídia")
+            .setMessage("Usar a launcher Sobre Mídia como tela inicial deste aparelho?\n\n" +
+                "Ao ligar o aparelho ou sair do Player aparece a launcher Sobre Mídia, com o Player em destaque e os seus " +
+                "aplicativos. Dá para voltar para a launcher original quando quiser (botão \"Launcher original\").")
+            .setPositiveButton("Usar a launcher Sobre Mídia") { _, _ ->
+                respondeu = true
+                launcher.marcarPerguntado(applicationContext)
+                if (exibindo) {
+                    lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { launcher.tornarPadraoEmSilencio(applicationContext) }
+                    rotear()
+                } else {
+                    startActivity(Intent(this, com.antigravity.player.launcher.LauncherActivity::class.java)
+                        .putExtra(com.antigravity.player.launcher.LauncherActivity.EXTRA_PEDIR_PADRAO, true)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    finish()
+                }
+            }
+            .setNegativeButton("Agora não") { _, _ ->
+                respondeu = true
+                launcher.marcarPerguntado(applicationContext)
+                rotear()
+            }
+            .setCancelable(false)
+            .create()
+        dialogo.show()
+        if (exibindo) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (!respondeu && !isFinishing && !isDestroyed) {
+                    respondeu = true
+                    try { dialogo.dismiss() } catch (e: Exception) { }
+                    // aparelho em exibição: liga a launcher em silêncio (era o Player a tela inicial) e segue tocando
+                    launcher.marcarPerguntado(applicationContext)
+                    lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { launcher.tornarPadraoEmSilencio(applicationContext) }
+                    rotear()
+                }
+            }, 30_000)
+        }
+    }
+
+    private fun rotear() {
         val auth = ServiceLocator.authRepository
         val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
 

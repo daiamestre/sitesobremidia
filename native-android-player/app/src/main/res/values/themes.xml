@@ -37,4 +37,47 @@
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:windowAnimationStyle">@null</item>
     </style>
+
+    <!-- F-200: launcher Sobre Mídia (mesma paleta do painel) -->
+    <style name="Theme.Player.TelaInicial" parent="Theme.Player">
+        <item name="android:windowBackground">@color/sm_fundo</item>
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
+
+    <style name="LauncherBotao">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginEnd">14dp</item>
+        <item name="android:background">@drawable/launcher_cartao</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:paddingStart">22dp</item>
+        <item name="android:paddingEnd">22dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="android:textColor">@color/sm_texto</item>
+        <item name="android:textSize">17sp</item>
+    </style>
+
+    <style name="LauncherSelo">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/launcher_selo</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:textColor">@color/sm_texto</item>
+        <item name="android:textSize">18sp</item>
+    </style>
+
+    <style name="LauncherTitulo">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/sm_texto_suave</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:shadowColor">#CC000000</item>
+        <item name="android:shadowRadius">4</item>
+    </style>
 </resources>

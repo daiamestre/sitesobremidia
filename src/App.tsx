@@ -181,6 +181,7 @@ const Widgets = lazyWithRetry(() => import("./pages/dashboard/Widgets"));
 const RadioComercio = lazyWithRetry(() => import("./pages/dashboard/RadioComercio"));
 const MinhaMarca = lazyWithRetry(() => import("./pages/dashboard/MinhaMarca"));
 const TelasParceiras = lazyWithRetry(() => import("./pages/dashboard/TelasParceiras"));
+const LauncherPage = lazyWithRetry(() => import("./modules/corporate/pages/LauncherPage"));
 const Schedule = lazyWithRetry(() => import("./pages/dashboard/Schedule"));
 const ExternalLinks = lazyWithRetry(() => import("./pages/dashboard/ExternalLinks"));
 const Analytics = lazyWithRetry(() => import("./pages/dashboard/Analytics"));
@@ -443,6 +444,8 @@ const App = () => {
                     <Route path="usuarios" element={<UsuariosAcessosPage />} />
                     {/* F-190: o dono e o ADM veem o que cada conta tem e faz */}
                     <Route path="contas" element={<RequireRole roles={['OWNER', 'ADMIN']}><VisaoDasContasPage /></RequireRole>} />
+                    {/* F-200: launcher Sobre Mídia (fundo, apps, tempos) */}
+                    <Route path="launcher" element={<RequireRole roles={['OWNER', 'ADMIN']}><LauncherPage /></RequireRole>} />
                     <Route path="pontos-parceiros" element={<PontosParceirosPage />} />
                     <Route path="pontos-parceiros/:id" element={<PontoParceiroEdicaoPage />} />
                     <Route path="configuracoes" element={<Settings />} />

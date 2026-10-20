@@ -1055,6 +1055,33 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         }
+                        // F-200: "Launcher Sobre Mídia" — liga a launcher, tenta torná-la a tela inicial e mostra (uso livre)
+                        "launcher_sobremidia" -> {
+                            val minutos = com.antigravity.player.launcher.ConfigDaLauncher.atual(applicationContext).minutosDeUsoLivre
+                            com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.liberar(applicationContext, minutos)
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                val padrao = com.antigravity.player.launcher.LauncherDoAparelho.tornarPadraoEmSilencio(applicationContext)
+                                Logger.i("COMMAND", "Launcher Sobre Mídia ligada (tela inicial do aparelho: ${if (padrao) "sim" else "pede escolha/modo forçado"}).")
+                                ackRemoteCommand(commandId, "executed")
+                                withContext(Dispatchers.Main) {
+                                    try {
+                                        startActivity(Intent(this@MainActivity, com.antigravity.player.launcher.LauncherActivity::class.java)
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    } catch (e: Exception) { Logger.e("COMMAND", "Launcher não abriu: ${e.message}") }
+                                }
+                            }
+                        }
+                        // F-200: "Launcher original" — abre a launcher do aparelho (uso livre; a Sobre Mídia continua a tela inicial)
+                        "launcher_original" -> {
+                            val minutos = com.antigravity.player.launcher.ConfigDaLauncher.atual(applicationContext).minutosDeUsoLivre
+                            runOnUiThread {
+                                if (com.antigravity.player.launcher.LauncherDoAparelho.abrirOriginal(this@MainActivity, minutos)) {
+                                    ackRemoteCommand(commandId, "executed")
+                                } else {
+                                    ackRemoteCommand(commandId, "failed - nenhuma outra launcher encontrada neste aparelho")
+                                }
+                            }
+                        }
                         else -> Logger.w("COMMAND", "Comando desconhecido ignorado: $command")
                     }
                 }
@@ -1867,6 +1894,8 @@ withContext(Dispatchers.Main) {
 
     override fun onResume() {
         super.onResume()
+        // F-200: o Player voltou para a frente — acabou o uso livre da launcher
+        com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.encerrar(this)
         
         // Ensure player resumes immediately if it was paused/stopped
         val resumePlayer = activePlayer?.getPlayerInstance()
@@ -1958,7 +1987,8 @@ withContext(Dispatchers.Main) {
         } else {
             // [KIOSK LOCK] Lost focus (e.g., Home pressed, another intent opening)
             // If kiosk mode is enforced, force immediate return to MainActivity.
-            if (isKioskEnforced) {
+            // F-200: no uso livre (comando de launcher do painel) o Player não puxa a tela de volta.
+            if (isKioskEnforced && !com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.ativo(this)) {
                 // [EXIT COUNTER P0] Tentativa real de abandono (HOME/recents/outro app).
                 // O debounce interno evita dupla contagem com onStop do mesmo episodio.
                 registerValidExit()
@@ -1972,6 +2002,18 @@ withContext(Dispatchers.Main) {
                         } catch (e: Exception) {
                             Logger.e("KIOSK", "Failed to moveTaskToFront: ${e.message}")
                         }
+                        // F-200: a escolha de tela inicial do Android (Home sem launcher padrão) fica por cima mesmo
+                        // depois do moveTaskToFront; abrir o Player de novo passa por cima dela.
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            if (!isFinishing && !isDestroyed && !hasWindowFocus() && isKioskEnforced &&
+                                !com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.ativo(this) &&
+                                !DeviceControl.instaladorDoSistemaAberto()
+                            ) {
+                                try {
+                                    startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } catch (e: Exception) { Logger.e("KIOSK", "Player não voltou por cima: ${e.message}") }
+                            }
+                        }, 800)
                     }
                 }
             }
@@ -2770,6 +2812,7 @@ withContext(Dispatchers.Main) {
      */
     private fun registerValidExit() {
         if (!isKioskEnforced) return
+        if (com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.ativo(this)) return // F-200: saída liberada
         if (!isBootstrapComplete) {
             Logger.d("ESCAPE_PROTOCOL", "registerValidExit() ignorado: bootstrap ainda em progresso.")
             return

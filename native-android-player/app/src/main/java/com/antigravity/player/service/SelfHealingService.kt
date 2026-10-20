@@ -92,6 +92,15 @@ class SelfHealingService : Service() {
     }
 
     private fun checkFocus() {
+        // F-200: launcher Sobre Mídia nos aparelhos que insistem na launcher deles (modo forçado)
+        try { com.antigravity.player.launcher.LauncherDoAparelho.vigiar(this) } catch (e: Exception) { }
+        // F-200: uso livre (app aberto pela launcher, Ajustes, launcher original) — o Player não puxa a tela de volta.
+        // Sem tela escolhida (aparelho usado como launcher comum, sem exibição) também não há o que proteger.
+        if (com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.ativo(this) ||
+            getSharedPreferences("player_prefs", Context.MODE_PRIVATE).getString("saved_screen_id", null).isNullOrBlank()) {
+            focusLossCounter = 0
+            return
+        }
         val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         @Suppress("DEPRECATION")
         val tasks = am.getRunningTasks(1)
@@ -122,6 +131,12 @@ class SelfHealingService : Service() {
 
     private fun forceFocusToFront(am: ActivityManager) {
         val tasks = am.appTasks
+        // F-200: a tarefa do Player primeiro (a da launcher também é deste pacote, mas não é o que deve voltar)
+        tasks.firstOrNull { it.taskInfo.baseActivity?.className == com.antigravity.player.MainActivity::class.java.name }?.let {
+            Logger.i("KIOSK", "Movendo o Player para o topo")
+            it.moveToFront()
+            return
+        }
         for (task in tasks) {
             val taskInfo = task.taskInfo
             
