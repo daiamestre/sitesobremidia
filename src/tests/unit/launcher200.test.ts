@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import { appOcultoNaLauncher, nomeDaRegra, OCULTOS_PADRAO, regraQueOculta } from '@/lib/launcherApps';
 import { temLauncher } from '@/components/screens/LauncherDaTela';
+import { VITRINES } from '@/services/launcher.service';
 
 const ler = (p: string) => fs.readFileSync(p, 'utf8');
 
@@ -36,6 +37,16 @@ describe('F-200 launcher Sobre Mídia', () => {
     const comp = ler('src/components/screens/LauncherDaTela.tsx');
     expect(comp).toContain("isOwner || perfilNome === 'OWNER' || perfilNome === 'ADMIN'");
     expect(ler('supabase/migrations/20261343_launcher_so_dono_e_adm.sql')).toContain('NOT public.fn_biblioteca_admin()');
+  });
+
+  it('destaques com 4 telas (2 TVs 16:9 + 2 totens 9:16), iguais no painel, no Player e no banco', () => {
+    expect(VITRINES.map((v) => v.id)).toEqual(['tv1', 'tv2', 'totem1', 'totem2']);
+    expect(VITRINES.map((v) => v.formato)).toEqual(['16:9', '16:9', '9:16', '9:16']);
+    expect(ler('native-android-player/app/src/main/java/com/antigravity/player/launcher/LauncherPolicy.kt')).toContain('val VITRINES = listOf("tv1", "tv2", "totem1", "totem2")');
+    expect(ler('supabase/migrations/20261345_launcher_vitrine_tv_totem.sql')).toContain("CHECK (vitrine IN ('tv1', 'tv2', 'totem1', 'totem2'))");
+    const pagina = ler('src/modules/corporate/pages/LauncherPage.tsx');
+    expect(pagina).toContain('Destaques Sobre Mídia');
+    expect(pagina).toContain('data-testid="vitrines-launcher"');
   });
 
   it('página, menu, rota e Minha Marca ligados', () => {

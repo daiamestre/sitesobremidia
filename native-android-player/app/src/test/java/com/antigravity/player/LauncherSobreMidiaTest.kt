@@ -103,7 +103,31 @@ class LauncherSobreMidiaTest {
         assertTrue("logo maior", layout.contains("android:id=\"@+id/launcher_logo\"") && layout.contains("android:layout_height=\"84dp\""))
         assertFalse("sem nome da tela ao lado do Player", layout.contains("launcher_status_tela"))
         assertTrue("apps dentro do cartão Aplicativos", layout.contains("@+id/launcher_gaveta"))
+        assertTrue("cartão do Player com o ícone do app", layout.contains("android:src=\"@mipmap/ic_launcher_round\""))
         assertEquals("com.android.vending", LauncherPolicy.LOJAS.first())
+    }
+
+    @Test
+    fun `destaques Sobre Midia - 2 TVs 16x9 e 2 totens 9x16 cabem no cartao e cada midia vai para a sua tela`() {
+        val m = LauncherPolicy.medidasDaVitrine(808, 420, 12)
+        assertEquals(4, m.size)
+        for (tv in m.take(2)) assertEquals("TV 16:9", 16.0 / 9.0, tv.largura.toDouble() / tv.altura, 0.02)
+        for (to in m.drop(2)) assertEquals("totem 9:16", 9.0 / 16.0, to.largura.toDouble() / to.altura, 0.02)
+        assertTrue("cabe na largura", m[3].x + m[3].largura <= 808)
+        assertTrue("cabe na altura", m[2].y + m[2].altura <= 420)
+        assertTrue("TV 2 embaixo da TV 1", m[1].y > m[0].y)
+        assertTrue("totens à direita das TVs", m[2].x > m[0].x + m[0].largura && m[3].x > m[2].x + m[2].largura)
+        assertTrue(LauncherPolicy.medidasDaVitrine(0, 0, 12).all { it.largura == 0 })
+        val c = LauncherPolicy.lerConfig("""{"status":"OK","fundo":[
+            {"id":"a","media_id":"m1","url":"https://x/1.mp4","tipo":"video","duracao_s":8,"hash":"h1","vitrine":"totem2"},
+            {"id":"b","media_id":"m2","url":"https://x/2.jpg","tipo":"image","duracao_s":8,"hash":"h2"},
+            {"id":"c","media_id":"m3","url":"https://x/3.jpg","tipo":"image","duracao_s":8,"hash":"h3","vitrine":"invalida"}]}""")!!
+        assertEquals(listOf("totem2", "tv1", "tv1"), c.fundo.map { it.vitrine })
+        val layout = File("src/main/res/layout/activity_launcher.xml").readText()
+        assertTrue(layout.contains("Destaques Sobre Mídia") && layout.contains("com.antigravity.player.launcher.VitrineLayout"))
+        assertFalse("o título antigo saiu", layout.contains("Destaques dos pontos parceiros"))
+        val vitrine = File("src/main/java/com/antigravity/player/launcher/VitrineDaLauncher.kt").readText()
+        assertTrue("um vídeo de cada vez (TV Box fraca)", vitrine.contains("filaDeVideo") && vitrine.contains("if (!ativa || telaDoVideo != null) return"))
     }
 
     @Test

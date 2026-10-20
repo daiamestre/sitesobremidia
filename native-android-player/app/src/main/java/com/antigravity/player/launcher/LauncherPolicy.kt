@@ -30,7 +30,14 @@ object LauncherPolicy {
     const val SEGUNDOS_PADRAO = 30
     const val MINUTOS_USO_LIVRE_PADRAO = 30
 
-    data class ItemDeFundo(val id: String, val mediaId: String, val url: String, val video: Boolean, val duracaoS: Int, val hash: String) {
+    /** As 4 telas do cartão "Destaques Sobre Mídia": 2 TVs 16:9 e 2 totens 9:16. */
+    val VITRINES = listOf("tv1", "tv2", "totem1", "totem2")
+
+    data class ItemDeFundo(
+        val id: String, val mediaId: String, val url: String, val video: Boolean, val duracaoS: Int, val hash: String,
+        /** Em qual das 4 telas a mídia passa (sem a informação — servidor antigo — vai para a TV 1). */
+        val vitrine: String = "tv1"
+    ) {
         /** Nome do arquivo no aparelho: muda quando a mídia muda (o antigo é apagado). */
         val arquivo: String get() = "${seguro(mediaId)}_${seguro(hash).take(40)}.${if (video) "mp4" else "img"}"
     }
@@ -67,7 +74,8 @@ object LauncherPolicy {
                     url = url,
                     video = f["tipo"]?.jsonPrimitive?.contentOrNull == "video",
                     duracaoS = (f["duracao_s"]?.jsonPrimitive?.intOrNull ?: 10).coerceIn(3, 600),
-                    hash = f["hash"]?.jsonPrimitive?.contentOrNull ?: ""
+                    hash = f["hash"]?.jsonPrimitive?.contentOrNull ?: "",
+                    vitrine = f["vitrine"]?.jsonPrimitive?.contentOrNull?.takeIf { it in VITRINES } ?: "tv1"
                 )
             }.orEmpty()
             Config(
@@ -118,6 +126,35 @@ object LauncherPolicy {
     fun usoLivreAtivo(ateMs: Long, agoraMs: Long): Boolean = ateMs > agoraMs
 
     fun fimDoUsoLivre(agoraMs: Long, minutos: Int): Long = agoraMs + minutos.coerceIn(1, 1440) * 60_000L
+
+    /** Retângulos (x, y, largura, altura) das 4 telas, na ordem tv1, tv2, totem1, totem2. */
+    data class Retangulo(val x: Int, val y: Int, val largura: Int, val altura: Int)
+
+    /**
+     * Encaixa as 4 telas no espaço [largura] x [altura] (com [vao] entre elas), o maior possível e centralizado:
+     * à esquerda 2 TVs 16:9 uma sobre a outra; à direita 2 totens 9:16 lado a lado, da altura da coluna das TVs.
+     */
+    fun medidasDaVitrine(largura: Int, altura: Int, vao: Int): List<Retangulo> {
+        if (largura <= 0 || altura <= 0) return List(4) { Retangulo(0, 0, 0, 0) }
+        val g = vao.toDouble()
+        // largura da TV (tw): altura total = 2·tw·9/16 + g ≤ altura; largura total = tw·145/64 + g·25/8 ≤ largura
+        val pelaAltura = (altura - g) * 8.0 / 9.0
+        val pelaLargura = (largura - g * 25.0 / 8.0) * 64.0 / 145.0
+        val tw = minOf(pelaAltura, pelaLargura).coerceAtLeast(0.0)
+        val th = tw * 9.0 / 16.0
+        val alturaTotem = 2 * th + g
+        val larguraTotem = alturaTotem * 9.0 / 16.0
+        val larguraTotal = tw + g + larguraTotem + g + larguraTotem
+        val x0 = (largura - larguraTotal) / 2.0
+        val y0 = (altura - alturaTotem) / 2.0
+        fun r(x: Double, y: Double, w: Double, h: Double) = Retangulo(Math.round(x).toInt(), Math.round(y).toInt(), Math.round(w).toInt(), Math.round(h).toInt())
+        return listOf(
+            r(x0, y0, tw, th),
+            r(x0, y0 + th + g, tw, th),
+            r(x0 + tw + g, y0, larguraTotem, alturaTotem),
+            r(x0 + tw + g + larguraTotem + g, y0, larguraTotem, alturaTotem)
+        )
+    }
 
     /** Texto do cartão do Player. */
     fun textoDaContagem(segundos: Int?): String = when {

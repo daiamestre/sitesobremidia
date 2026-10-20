@@ -29,11 +29,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.antigravity.core.util.Logger
@@ -55,7 +51,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
@@ -73,12 +68,10 @@ class LauncherActivity : AppCompatActivity() {
     private val principal = Handler(Looper.getMainLooper())
     private lateinit var config: LauncherPolicy.Config
     private lateinit var quadro: View
-    private lateinit var fundoImagem: ImageView
-    private lateinit var fundoVideo: PlayerView
+    private lateinit var vitrine: VitrineDaLauncher
     private lateinit var cartaoPlayer: View
     private lateinit var contagemTexto: TextView
     private lateinit var gaveta: View
-    private lateinit var destaqueLogo: View
     private lateinit var appsTotal: TextView
     private lateinit var climaTexto: TextView
     private lateinit var redeTexto: TextView
@@ -92,10 +85,7 @@ class LauncherActivity : AppCompatActivity() {
     private var aguardandoEscolhaDePadrao = false
     private var ofereceuModoForcado = false
 
-    private var reprodutor: ExoPlayer? = null
-    private var fundo: List<Pair<LauncherPolicy.ItemDeFundo, File>> = emptyList()
-    private var indiceFundo = 0
-    private var falhasSeguidas = 0
+    private var assinaturaDoFundo: List<String>? = null
 
     private val pedidoDePadrao = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         conferirEscolhaDePadrao()
@@ -112,12 +102,10 @@ class LauncherActivity : AppCompatActivity() {
         ServiceLocator.init(applicationContext)
         setContentView(R.layout.activity_launcher)
         quadro = findViewById(R.id.launcher_quadro)
-        fundoImagem = findViewById(R.id.launcher_fundo_imagem)
-        fundoVideo = findViewById(R.id.launcher_fundo_video)
+        vitrine = VitrineDaLauncher(this, findViewById(R.id.launcher_vitrine))
         cartaoPlayer = findViewById(R.id.launcher_cartao_player)
         contagemTexto = findViewById(R.id.launcher_contagem)
         gaveta = findViewById(R.id.launcher_gaveta)
-        destaqueLogo = findViewById(R.id.launcher_destaque_logo)
         appsTotal = findViewById(R.id.launcher_apps_total)
         // as mídias do destaque ficam dentro dos cantos arredondados do cartão
         findViewById<View>(R.id.launcher_destaque).clipToOutline = true
@@ -191,7 +179,8 @@ class LauncherActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         principal.removeCallbacksAndMessages(null)
-        liberarVideo() // o decodificador fica livre para o Player
+        vitrine.parar() // o decodificador fica livre para o Player
+        assinaturaDoFundo = null
     }
 
     override fun onDestroy() {
@@ -507,64 +496,15 @@ class LauncherActivity : AppCompatActivity() {
         }
     }
 
-    // ------------------------------------------------------------------ fundo (mídias escolhidas pelo dono/ADM)
+    // ------------------------------------------------------------------ Destaques Sobre Mídia (2 TVs 16:9 + 2 totens 9:16)
 
+    /** Mídias de destaque escolhidas pelo dono/ADM, cada uma na sua tela; só recomeça se algo mudou. */
     private fun atualizarFundo(reiniciar: Boolean) {
-        val novo = ConfigDaLauncher.fundoPronto(this, config)
-        if (!reiniciar && novo.map { it.second.name } == fundo.map { it.second.name }) return
-        fundo = novo
-        indiceFundo = 0
-        falhasSeguidas = 0
-        principal.removeCallbacks(proximoFundo)
-        mostrarFundo()
-    }
-
-    private val proximoFundo = Runnable { indiceFundo++; mostrarFundo() }
-
-    private fun mostrarFundo() {
-        if (fundo.isEmpty() || falhasSeguidas >= fundo.size) {
-            liberarVideo(); fundoVideo.visibility = View.GONE; fundoImagem.visibility = View.GONE
-            destaqueLogo.visibility = View.VISIBLE // sem mídia escolhida: a logo da Sobre Mídia no destaque
-            return
-        }
-        destaqueLogo.visibility = View.GONE
-        val (item, arquivo) = fundo[indiceFundo % fundo.size]
-        if (item.video) {
-            val p = reprodutor ?: ExoPlayer.Builder(this).build().also { novo ->
-                novo.volume = 0f
-                novo.addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(estado: Int) {
-                        if (estado == Player.STATE_READY) { falhasSeguidas = 0; fundoVideo.visibility = View.VISIBLE }
-                        if (estado == Player.STATE_ENDED) principal.post(proximoFundo)
-                    }
-                    override fun onPlayerError(error: PlaybackException) {
-                        Logger.w("LAUNCHER", "Vídeo de fundo não tocou: ${error.errorCodeName}")
-                        falhasSeguidas++
-                        principal.post(proximoFundo)
-                    }
-                })
-                fundoVideo.player = novo
-                reprodutor = novo
-            }
-            p.repeatMode = if (fundo.size == 1) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-            p.setMediaItem(MediaItem.fromUri(Uri.fromFile(arquivo)))
-            p.prepare()
-            p.play()
-        } else {
-            reprodutor?.stop()
-            fundoVideo.visibility = View.GONE
-            try {
-                com.bumptech.glide.Glide.with(this).load(arquivo).into(fundoImagem)
-                fundoImagem.visibility = View.VISIBLE
-                falhasSeguidas = 0
-            } catch (e: Exception) { falhasSeguidas++ }
-            if (fundo.size > 1) principal.postDelayed(proximoFundo, item.duracaoS * 1000L)
-        }
-    }
-
-    private fun liberarVideo() {
-        reprodutor?.let { fundoVideo.player = null; it.release() }
-        reprodutor = null
+        val pronto = ConfigDaLauncher.fundoPronto(this, config)
+        val assinatura = pronto.map { it.first.vitrine + ":" + it.second.name }
+        if (!reiniciar && assinatura == assinaturaDoFundo) return
+        assinaturaDoFundo = assinatura
+        vitrine.mostrar(pronto)
     }
 
     // ------------------------------------------------------------------ clima (cidade pelo IP, guardado 30 min)

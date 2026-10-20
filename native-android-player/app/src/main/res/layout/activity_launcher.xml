@@ -97,107 +97,72 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- meio: destaque + 4 cartões -->
+            <!-- meio: "Destaques Sobre Mídia" (2 TVs 16:9 + 2 totens 9:16) e os 4 cartões, um pouco menores -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="20dp"
                 android:layout_weight="1"
                 android:clipChildren="false"
                 android:orientation="horizontal">
 
-                <FrameLayout
+                <LinearLayout
                     android:id="@+id/launcher_destaque"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1.35"
-                    android:background="@drawable/launcher_destaque">
+                    android:layout_weight="2.55"
+                    android:background="@drawable/launcher_destaque"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingTop="12dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="14dp">
 
-                    <ImageView
-                        android:id="@+id/launcher_destaque_logo"
-                        android:layout_width="wrap_content"
-                        android:layout_height="120dp"
-                        android:layout_gravity="center"
-                        android:adjustViewBounds="true"
-                        android:alpha="0.9"
-                        android:importantForAccessibility="no"
-                        android:src="@drawable/logo" />
-
-                    <ImageView
-                        android:id="@+id/launcher_fundo_imagem"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:importantForAccessibility="no"
-                        android:scaleType="centerCrop"
-                        android:visibility="gone" />
-
-                    <androidx.media3.ui.PlayerView
-                        android:id="@+id/launcher_fundo_video"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:focusable="false"
-                        android:visibility="gone"
-                        app:resize_mode="zoom"
-                        app:shutter_background_color="@android:color/transparent"
-                        app:surface_type="texture_view"
-                        app:use_controller="false" />
-
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:background="@drawable/launcher_destaque_sombra" />
-
-                    <LinearLayout
+                    <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="bottom|start"
-                        android:layout_margin="22dp"
-                        android:orientation="vertical">
+                        android:background="@drawable/launcher_pilula"
+                        android:letterSpacing="0.12"
+                        android:paddingStart="12dp"
+                        android:paddingTop="3dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="3dp"
+                        android:text="SOBRE MÍDIA"
+                        android:textColor="@color/sm_acento"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:background="@drawable/launcher_pilula"
-                            android:letterSpacing="0.12"
-                            android:paddingStart="12dp"
-                            android:paddingTop="4dp"
-                            android:paddingEnd="12dp"
-                            android:paddingBottom="4dp"
-                            android:text="SOBRE MÍDIA"
-                            android:textColor="@color/sm_acento"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:shadowColor="#CC000000"
+                        android:shadowRadius="8"
+                        android:text="Destaques Sobre Mídia"
+                        android:textColor="@color/sm_texto"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:shadowColor="#CC000000"
-                            android:shadowRadius="8"
-                            android:text="Destaques dos pontos parceiros"
-                            android:textColor="@color/sm_texto"
-                            android:textSize="20sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <View
+                    <com.antigravity.player.launcher.VitrineLayout
+                        android:id="@+id/launcher_vitrine"
                         android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:background="@drawable/launcher_destaque_borda" />
-                </FrameLayout>
+                        android:layout_height="0dp"
+                        android:layout_marginTop="10dp"
+                        android:layout_weight="1" />
+                </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
-                    android:layout_marginStart="22dp"
+                    android:layout_marginStart="20dp"
                     android:layout_weight="1"
                     android:clipChildren="false"
+                    android:gravity="center_vertical"
                     android:orientation="vertical">
 
                     <LinearLayout
                         android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_weight="1"
+                        android:layout_height="168dp"
                         android:clipChildren="false"
                         android:orientation="horizontal">
 
@@ -206,13 +171,17 @@
                             style="@style/LauncherCartao"
                             android:background="@drawable/launcher_card_player">
 
+                            <!-- o ícone do próprio app Sobre Mídia (o mesmo da launcher original e da Play Store) -->
                             <ImageView
-                                style="@style/LauncherCartaoIcone"
-                                android:src="@drawable/ic_launcher_play" />
+                                android:id="@+id/launcher_icone_app"
+                                android:layout_width="58dp"
+                                android:layout_height="58dp"
+                                android:contentDescription="Sobre Mídia Player"
+                                android:src="@mipmap/ic_launcher_round" />
 
                             <TextView
                                 style="@style/LauncherCartaoTitulo"
-                                android:text="Player Sobre Mídia" />
+                                android:text="Player" />
 
                             <TextView
                                 android:id="@+id/launcher_contagem"
@@ -222,7 +191,7 @@
                         <LinearLayout
                             android:id="@+id/launcher_card_apps"
                             style="@style/LauncherCartao"
-                            android:layout_marginStart="18dp"
+                            android:layout_marginStart="14dp"
                             android:background="@drawable/launcher_card_apps">
 
                             <ImageView
@@ -241,9 +210,8 @@
 
                     <LinearLayout
                         android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_marginTop="18dp"
-                        android:layout_weight="1"
+                        android:layout_height="168dp"
+                        android:layout_marginTop="14dp"
                         android:clipChildren="false"
                         android:orientation="horizontal">
 
@@ -268,7 +236,7 @@
                         <LinearLayout
                             android:id="@+id/launcher_btn_ajustes"
                             style="@style/LauncherCartao"
-                            android:layout_marginStart="18dp"
+                            android:layout_marginStart="14dp"
                             android:background="@drawable/launcher_card_ajustes">
 
                             <ImageView

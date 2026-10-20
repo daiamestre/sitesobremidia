@@ -14,18 +14,28 @@ export interface ConfigLauncher {
   apps_liberados: string[];
 }
 
+/** As 4 telas do cartão "Destaques Sobre Mídia" da launcher (F-200). */
+export const VITRINES = [
+  { id: 'tv1', nome: 'TV 1', formato: '16:9' },
+  { id: 'tv2', nome: 'TV 2', formato: '16:9' },
+  { id: 'totem1', nome: 'Totem 1', formato: '9:16' },
+  { id: 'totem2', nome: 'Totem 2', formato: '9:16' },
+] as const;
+export type Vitrine = (typeof VITRINES)[number]['id'];
+
 export interface ItemDeFundo {
   id: string;
   media_id: string;
+  vitrine: Vitrine;
   ordem: number;
   duracao_s: number;
   ativo: boolean;
-  media?: { id: string; name: string; file_url: string | null; file_type: string | null; thumbnail_url: string | null } | null;
+  media?: { id: string; name: string; file_url: string | null; file_type: string | null; thumbnail_url: string | null; aspect_ratio?: string | null } | null;
 }
 
 export interface AppVisto { pacote: string; nome: string; aparelhos: number; visto_em: string }
 
-export interface MidiaEscolhivel { id: string; name: string; file_url: string | null; file_type: string | null; thumbnail_url: string | null }
+export interface MidiaEscolhivel { id: string; name: string; file_url: string | null; file_type: string | null; thumbnail_url: string | null; aspect_ratio?: string | null }
 
 const db = supabase as unknown as { from: (t: string) => any; rpc: (f: string, a?: unknown) => any };
 
@@ -54,23 +64,23 @@ export async function salvarConfig(cfg: ConfigLauncher): Promise<void> {
 
 export async function carregarFundo(empresa: string): Promise<ItemDeFundo[]> {
   const { data, error } = await db.from('launcher_fundo')
-    .select('id, media_id, ordem, duracao_s, ativo, media:media_id (id, name, file_url, file_type, thumbnail_url)')
+    .select('id, media_id, vitrine, ordem, duracao_s, ativo, media:media_id (id, name, file_url, file_type, thumbnail_url, aspect_ratio)')
     .eq('empresa_operadora_id', empresa).order('ordem').order('created_at');
   if (error) throw error;
   return (data as ItemDeFundo[]) ?? [];
 }
 
-export async function adicionarAoFundo(empresa: string, midias: MidiaEscolhivel[], ordemInicial: number): Promise<void> {
+export async function adicionarAoFundo(empresa: string, midias: MidiaEscolhivel[], vitrine: Vitrine, ordemInicial: number): Promise<void> {
   if (!midias.length) return;
   const linhas = midias.map((m, i) => ({
-    empresa_operadora_id: empresa, media_id: m.id, ordem: ordemInicial + i,
+    empresa_operadora_id: empresa, media_id: m.id, vitrine, ordem: ordemInicial + i,
     duracao_s: (m.file_type ?? '').startsWith('video') ? 30 : 10,
   }));
   const { error } = await db.from('launcher_fundo').insert(linhas);
   if (error) throw error;
 }
 
-export async function atualizarItemDoFundo(id: string, mudanca: Partial<Pick<ItemDeFundo, 'ordem' | 'duracao_s' | 'ativo'>>): Promise<void> {
+export async function atualizarItemDoFundo(id: string, mudanca: Partial<Pick<ItemDeFundo, 'ordem' | 'duracao_s' | 'ativo' | 'vitrine'>>): Promise<void> {
   const { error } = await db.from('launcher_fundo').update(mudanca).eq('id', id);
   if (error) throw error;
 }
@@ -82,7 +92,7 @@ export async function removerDoFundo(id: string): Promise<void> {
 
 /** Mídias (imagem/vídeo) que o dono/ADM pode pôr no fundo, buscando pelo nome. */
 export async function buscarMidias(texto: string): Promise<MidiaEscolhivel[]> {
-  let q = db.from('media').select('id, name, file_url, file_type, thumbnail_url')
+  let q = db.from('media').select('id, name, file_url, file_type, thumbnail_url, aspect_ratio')
     .or('file_type.ilike.image%,file_type.ilike.video%').like('file_url', 'https://%')
     .order('created_at', { ascending: false }).limit(60);
   const t = texto.trim();
