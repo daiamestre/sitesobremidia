@@ -19,7 +19,7 @@ object LauncherPolicy {
 
     /** Ocultos por padrão (o painel do dono/ADM pode mudar). "re:" = expressão regular sobre pacote e nome. */
     val OCULTOS_PADRAO = listOf(
-        "youtube", "netflix", "com.amazon.avod", "primevideo", "prime video", "disney", "globoplay", "com.globo", "hbo",
+        "youtube", "netflix", "com.amazon.avod", "primevideo", "prime video", "disney", "globoplay", "com.globo", "re:\\bhbo\\b",
         "com.wbd", "paramount", "pluto", "twitch", "starplus", "crunchyroll", "iptv", "kodi", "xbmc", "livechannels",
         "re:\\btv\\b"
     )

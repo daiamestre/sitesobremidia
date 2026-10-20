@@ -13,6 +13,9 @@ describe('F-200 launcher Sobre Mídia', () => {
     expect(oculto('com.exemplo.canais', 'TV ao vivo')).toBe(true);
     expect(oculto('org.xbmc.kodi', 'Kodi')).toBe(true);
     expect(oculto('com.android.chrome', 'Chrome')).toBe(false);
+    // F-200: "hbo" não pode pegar o app Google (googlequicksearcHBOx)
+    expect(oculto('com.google.android.googlequicksearchbox', 'Google')).toBe(false);
+    expect(oculto('com.hbo.hbonow', 'HBO Max')).toBe(true);
     expect(oculto('com.teamviewer.host.market', 'TeamViewer Host')).toBe(false);
     expect(appOcultoNaLauncher('com.netflix.mediaclient', 'Netflix', OCULTOS_PADRAO, ['com.netflix.mediaclient'])).toBe(false);
     expect(regraQueOculta('com.exemplo.canais', 'TV ao vivo', OCULTOS_PADRAO)).toBe('re:\\btv\\b');
@@ -22,7 +25,7 @@ describe('F-200 launcher Sobre Mídia', () => {
   it('as regras padrão do painel e do Player são as mesmas', () => {
     const kotlin = ler('native-android-player/app/src/main/java/com/antigravity/player/launcher/LauncherPolicy.kt');
     for (const r of OCULTOS_PADRAO) expect(kotlin).toContain(`"${r.replace(/\\/g, '\\\\')}"`);
-    const sql = ler('supabase/migrations/20261342_launcher_sobre_midia.sql');
+    const sql = ler('supabase/migrations/20261342_launcher_sobre_midia.sql') + ler('supabase/migrations/20261344_launcher_regra_hbo.sql');
     for (const r of OCULTOS_PADRAO) expect(sql).toContain(`'${r}'`);
   });
 

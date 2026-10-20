@@ -3,7 +3,7 @@
  * o nome contém uma regra de "ocultos" (ou casa com "re:<expressão>"), a menos que caia numa regra de "liberados".
  */
 export const OCULTOS_PADRAO = [
-  'youtube', 'netflix', 'com.amazon.avod', 'primevideo', 'prime video', 'disney', 'globoplay', 'com.globo', 'hbo',
+  'youtube', 'netflix', 'com.amazon.avod', 'primevideo', 'prime video', 'disney', 'globoplay', 'com.globo', 're:\\bhbo\\b',
   'com.wbd', 'paramount', 'pluto', 'twitch', 'starplus', 'crunchyroll', 'iptv', 'kodi', 'xbmc', 'livechannels',
   're:\\btv\\b',
 ];
@@ -32,8 +32,14 @@ export function regraQueOculta(pacote: string, nome: string, ocultos: string[]):
   return ocultos.find((o) => casa(o, pacote, nome)) ?? null;
 }
 
+/** Ajustes do aparelho têm botão próprio na launcher (não entram na lista de apps). Igual ao Player. */
+export function ehAjustesDoSistema(pacote: string): boolean {
+  return pacote === 'com.android.settings' || pacote === 'com.android.tv.settings' || pacote.endsWith('.tvsettings');
+}
+
 /** Texto amigável da regra ("re:\btv\b" → "apps de TV"). */
 export function nomeDaRegra(regra: string): string {
+  if (regra === 're:\\bhbo\\b') return 'hbo (HBO Max)';
   if (regra === 're:\\btv\\b') return 'apps de TV (nome com "TV")';
   return regra.startsWith('re:') ? `expressão ${regra.slice(3)}` : regra;
 }

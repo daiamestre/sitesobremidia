@@ -23,7 +23,7 @@ class LauncherSobreMidiaTest {
             "br.com.qualquer.iptvplayer" to "IPTV Player", "com.exemplo.canais" to "TV ao vivo", "tv.pluto.android" to "Pluto TV"
         )) assertTrue("$n deveria estar oculto", LauncherPolicy.appOculto(p, n, cfg, proprio))
         for ((p, n) in listOf(
-            "com.android.chrome" to "Chrome", "com.android.vending" to "Play Store", "com.whatsapp" to "WhatsApp",
+            "com.android.chrome" to "Chrome", "com.android.vending" to "Play Store", "com.google.android.googlequicksearchbox" to "Google", "com.whatsapp" to "WhatsApp",
             "com.estrongs.android.pop" to "ES File Explorer", "com.spotify.music" to "Spotify", "com.teamviewer.host.market" to "TeamViewer Host"
         )) assertFalse("$n deveria aparecer", LauncherPolicy.appOculto(p, n, cfg, proprio))
         assertTrue("o próprio Player é o cartão principal, não um app da lista", LauncherPolicy.appOculto(proprio, "Sobre Mídia Player", cfg, proprio))

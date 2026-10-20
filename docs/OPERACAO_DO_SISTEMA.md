@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.8.0** (código 570) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6) e comandos pela consulta mesmo sem o tempo real (F-199). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
+Versão de teste atual: **5.8.1** (código 571) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6) e comandos pela consulta mesmo sem o tempo real (F-199). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
 
 ## 2. Perfis e o que cada um vê
 
@@ -79,7 +79,7 @@ Nas TV Box a tela do Android trabalha em 1280x720 mesmo com a saída HDMI em 108
 
 Silenciosa com root ou Device Owner; nos demais aparelhos a versão nova fica baixada e o instalador do Android só abre quando o painel pede ("Instalar atualização agora"), com alguém ao lado da TV. Nada aparece por cima das mídias.
 
-## 8. Launcher Sobre Mídia — versão de TESTE 5.8.0 (F-200)
+## 8. Launcher Sobre Mídia — versão de TESTE 5.8.1 (F-200)
 
 O Player pode ser também a **tela inicial** do aparelho (como as launchers de TV Box, Samsung, Motorola).
 - **Mostra:** logo do gestor (Minha Marca), hora, temperatura, Wi-Fi, mídias de fundo escolhidas pelo dono/ADM, o Player Sobre Mídia em destaque e os aplicativos instalados — **sem YouTube, Netflix e apps de TV** (continuam na launcher original). Botões: Ajustes, Wi-Fi, Launcher original.

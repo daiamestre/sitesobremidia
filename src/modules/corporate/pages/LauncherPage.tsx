@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { appOcultoNaLauncher, nomeDaRegra, regraQueOculta } from '@/lib/launcherApps';
+import { appOcultoNaLauncher, ehAjustesDoSistema, nomeDaRegra, regraQueOculta } from '@/lib/launcherApps';
 import {
   adicionarAoFundo, atualizarItemDoFundo, buscarMidias, carregarAppsVistos, carregarConfig, carregarFundo, empresaDaConta,
   removerDoFundo, salvarConfig, type ConfigLauncher, type ItemDeFundo, type MidiaEscolhivel,
@@ -342,7 +342,7 @@ export default function LauncherPage() {
             )}
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {listaDeApps.map((a) => (
-                <button key={a.pacote} type="button" onClick={() => alternarApp(a.pacote, a.nome)}
+                <button key={a.pacote} type="button" onClick={() => !ehAjustesDoSistema(a.pacote) && alternarApp(a.pacote, a.nome)}
                   className={`flex items-center gap-2 rounded-md border p-2 text-left transition hover:border-primary/50 ${a.oculto ? 'opacity-60' : ''}`}>
                   {a.oculto ? <EyeOff className="h-4 w-4 shrink-0 text-muted-foreground" /> : <Eye className="h-4 w-4 shrink-0 text-green-500" />}
                   <span className="min-w-0 flex-1">
@@ -350,7 +350,7 @@ export default function LauncherPage() {
                     <span className="block truncate text-[11px] text-muted-foreground">{a.pacote} · {a.aparelhos} aparelho(s)</span>
                   </span>
                   <Badge variant={a.oculto ? 'outline' : 'secondary'} className="shrink-0 text-[10px]">
-                    {a.oculto ? (a.regra ? `oculto: ${nomeDaRegra(a.regra)}` : 'oculto') : 'aparece'}
+                    {ehAjustesDoSistema(a.pacote) ? 'botão Ajustes' : a.oculto ? (a.regra ? `oculto: ${nomeDaRegra(a.regra)}` : 'oculto') : 'aparece'}
                   </Badge>
                 </button>
               ))}
