@@ -34,38 +34,51 @@ function Miniatura({ midia, className }: { midia?: MidiaEscolhivel | null; class
     : <div className={`flex items-center justify-center bg-muted ${className ?? ''}`}><Film className="h-6 w-6 text-muted-foreground" /></div>;
 }
 
+/** Prévia igual à launcher do aparelho (F-200, visual futurista): topo, destaque com as mídias e 4 cartões. */
 function Previa({ fundo, cfg }: { fundo: ItemDeFundo[]; cfg: ConfigLauncher | null }) {
   const primeiro = fundo.find((f) => f.ativo)?.media ?? null;
+  const cartoes = [
+    { nome: 'Player Sobre Mídia', sub: `abre sozinho em ${cfg?.segundos_para_abrir_player ?? 30} s`, cor: 'from-indigo-600 to-violet-600', icone: '▶' },
+    { nome: 'Aplicativos', sub: 'apps do aparelho', cor: 'from-violet-700 to-fuchsia-700', icone: '▦' },
+    { nome: 'Loja de apps', sub: 'Play Store', cor: 'from-emerald-600 to-teal-600', icone: '🛍' },
+    { nome: 'Ajustes', sub: 'do aparelho', cor: 'from-sky-700 to-cyan-600', icone: '⚙' },
+  ];
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-[#0F172A]" data-testid="previa-launcher">
-      {primeiro
-        ? <Miniatura midia={primeiro} className="absolute inset-0 h-full w-full" />
-        : <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,#312E81,#1E1B4B_45%,#0F172A)]" />}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0F172A]/70 via-transparent to-[#0F172A]/95" />
-      <div className="absolute inset-0 flex flex-col p-[4%] text-white">
-        <div className="flex items-center gap-2 text-[clamp(8px,1.6cqw,14px)]">
-          <span className="rounded bg-white/10 px-2 py-0.5 font-bold">Logo do gestor</span>
-          <span className="ml-auto font-bold">{cfg?.mostrar_relogio !== false ? '14:32' : ''}</span>
-          {cfg?.mostrar_clima !== false && <span className="rounded-full border border-white/20 bg-black/30 px-2">28°C</span>}
-          {cfg?.mostrar_wifi !== false && <span className="rounded-full border border-white/20 bg-black/30 px-2">Wi-Fi <span className="text-green-400">●</span></span>}
+    <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-[linear-gradient(315deg,#050A1F,#0B1A4A_55%,#14105A)] text-white" data-testid="previa-launcher">
+      <div className="absolute -left-[10%] top-[-30%] h-[70%] w-[70%] rotate-[-28deg] bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />
+      <div className="absolute inset-0 flex flex-col gap-[3cqw] p-[3.4cqw]">
+        <div className="flex items-center gap-[1.2cqw] text-[1.5cqw]">
+          <span className="rounded-[0.8cqw] bg-white/10 px-[1cqw] py-[0.6cqw] text-[1.9cqw] font-bold">Logo do gestor</span>
+          <span className="ml-auto" />
+          {cfg?.mostrar_clima !== false && <span className="rounded-full border border-white/20 bg-black/30 px-[1cqw] py-[0.3cqw]">31°C</span>}
+          {cfg?.mostrar_wifi !== false && <span className="rounded-full border border-indigo-400/40 bg-slate-900/60 px-[1cqw] py-[0.3cqw]">Wi-Fi <span className="text-green-400">●</span></span>}
+          {cfg?.mostrar_relogio !== false && (
+            <span className="text-right leading-none"><span className="block text-[3cqw] font-bold">14:32</span><span className="text-[1.2cqw] text-slate-400">20/10/2026</span></span>
+          )}
         </div>
-        <div className="mt-auto flex items-center gap-3">
-          <div className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-500 px-3 py-2 shadow-lg">
-            <p className="text-[clamp(8px,1.8cqw,15px)] font-bold">▶ PLAYER SOBRE MÍDIA</p>
-            <p className="text-[clamp(7px,1.3cqw,11px)] opacity-90">abre sozinho em {cfg?.segundos_para_abrir_player ?? 30} s</p>
+        <div className="flex min-h-0 flex-1 gap-[1.8cqw]">
+          <div className="relative flex-[1.35] overflow-hidden rounded-[2cqw] border-2 border-violet-400/60 bg-[#0B1230]">
+            {primeiro
+              ? <Miniatura midia={primeiro} className="absolute inset-0 h-full w-full" />
+              : <div className="absolute inset-0 flex items-center justify-center text-[3cqw] font-black text-indigo-300/80">SOBRE MÍDIA</div>}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#050A1F]/90 via-transparent to-transparent" />
+            <div className="absolute bottom-[1.6cqw] left-[1.6cqw]">
+              <span className="rounded-full border border-indigo-400/50 bg-slate-900/70 px-[0.9cqw] text-[1cqw] font-bold tracking-widest text-cyan-400">SOBRE MÍDIA</span>
+              <p className="mt-[0.4cqw] text-[1.7cqw] font-bold">Destaques dos pontos parceiros</p>
+            </div>
           </div>
-          <p className="text-[clamp(7px,1.4cqw,12px)]">Tela: Recepção · online</p>
+          <div className="grid flex-1 grid-cols-2 grid-rows-2 gap-[1.4cqw]">
+            {cartoes.map((c) => (
+              <div key={c.nome} className={`flex flex-col items-center justify-center rounded-[1.8cqw] border border-white/20 bg-gradient-to-br ${c.cor} text-center`}>
+                <span className="text-[3.4cqw] leading-none">{c.icone}</span>
+                <span className="mt-[0.6cqw] text-[1.5cqw] font-bold">{c.nome}</span>
+                <span className="text-[1.1cqw] opacity-85">{c.sub}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <p className="mt-2 text-[clamp(6px,1.1cqw,10px)] font-bold text-slate-400">Aplicativos</p>
-        <div className="mt-1 flex gap-1.5">
-          {['Navegador', 'Arquivos', 'Play Store', 'WhatsApp'].map((a) => (
-            <span key={a} className="rounded-md border border-slate-600 bg-slate-800/80 px-2 py-1 text-[clamp(6px,1.1cqw,10px)]">{a}</span>
-          ))}
-        </div>
-        <div className="mt-1.5 flex gap-1.5">
-          {['Ajustes', 'Wi-Fi', 'Launcher original'].map((a) => (
-            <span key={a} className="rounded-md border border-slate-600 bg-slate-800/80 px-2 py-1 text-[clamp(6px,1.1cqw,10px)]">{a}</span>
-          ))}
+        <div className="flex gap-[1cqw] text-[1.2cqw]">
+          <span className="rounded-full border border-indigo-400/40 bg-slate-900/60 px-[1.2cqw] py-[0.4cqw]">↩ Launcher original</span>
         </div>
       </div>
     </div>
@@ -150,7 +163,7 @@ export default function LauncherPage() {
     try {
       await salvarConfig(alvo);
       await qc.invalidateQueries({ queryKey: ['launcher-config', emp] });
-      toast.success('Launcher salva. Os aparelhos aplicam em até 5 minutos (ou ao abrir a launcher).');
+      toast.success('Launcher salva. Os aparelhos aplicam em até 1 minuto (ao abrir a launcher).');
     } catch (e) {
       toast.error(`Não foi possível salvar: ${(e as Error).message}`);
     } finally { setSalvando(false); }

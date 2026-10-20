@@ -34,7 +34,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.antigravity.core.util.Logger
 import com.antigravity.player.MainActivity
@@ -77,7 +77,9 @@ class LauncherActivity : AppCompatActivity() {
     private lateinit var fundoVideo: PlayerView
     private lateinit var cartaoPlayer: View
     private lateinit var contagemTexto: TextView
-    private lateinit var statusTela: TextView
+    private lateinit var gaveta: View
+    private lateinit var destaqueLogo: View
+    private lateinit var appsTotal: TextView
     private lateinit var climaTexto: TextView
     private lateinit var redeTexto: TextView
     private lateinit var btnPadrao: View
@@ -114,20 +116,27 @@ class LauncherActivity : AppCompatActivity() {
         fundoVideo = findViewById(R.id.launcher_fundo_video)
         cartaoPlayer = findViewById(R.id.launcher_cartao_player)
         contagemTexto = findViewById(R.id.launcher_contagem)
-        statusTela = findViewById(R.id.launcher_status_tela)
+        gaveta = findViewById(R.id.launcher_gaveta)
+        destaqueLogo = findViewById(R.id.launcher_destaque_logo)
+        appsTotal = findViewById(R.id.launcher_apps_total)
+        // as mídias do destaque ficam dentro dos cantos arredondados do cartão
+        findViewById<View>(R.id.launcher_destaque).clipToOutline = true
         climaTexto = findViewById(R.id.launcher_clima)
         redeTexto = findViewById(R.id.launcher_rede)
         btnPadrao = findViewById(R.id.launcher_btn_padrao)
         semApps = findViewById(R.id.launcher_sem_apps)
         lista = findViewById(R.id.launcher_apps)
-        lista.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        lista.layoutManager = GridLayoutManager(this, 6)
         lista.adapter = adaptador
 
         config = ConfigDaLauncher.atual(this)
         cartaoPlayer.setOnClickListener { abrirPlayer() }
-        realce(cartaoPlayer, 1.04f)
+        realce(cartaoPlayer, 1.06f)
         botao(R.id.launcher_btn_ajustes) { abrirAjustes(Settings.ACTION_SETTINGS) }
-        botao(R.id.launcher_btn_wifi) { abrirAjustes(Settings.ACTION_WIFI_SETTINGS) }
+        botao(R.id.launcher_rede) { abrirAjustes(Settings.ACTION_WIFI_SETTINGS) }
+        botao(R.id.launcher_card_apps) { abrirGaveta() }
+        botao(R.id.launcher_card_loja) { abrirLoja() }
+        botao(R.id.launcher_gaveta_voltar) { fecharGaveta() }
         botao(R.id.launcher_btn_original) { perguntarLauncherOriginal() }
         botao(R.id.launcher_btn_padrao) { pedirParaSerPadrao() }
 
@@ -145,6 +154,7 @@ class LauncherActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         // Home de novo: volta ao começo (foco no Player, contagem do início)
+        gaveta.visibility = View.GONE
         lista.scrollToPosition(0)
         cartaoPlayer.requestFocus()
         reiniciarContagem()
@@ -191,7 +201,9 @@ class LauncherActivity : AppCompatActivity() {
 
     @SuppressLint("MissingSuperCall")
     @Suppress("DEPRECATION")
-    override fun onBackPressed() { reiniciarContagem() } // é a tela inicial: "voltar" não sai dela
+    override fun onBackPressed() { // é a tela inicial: "voltar" só fecha o painel de aplicativos
+        if (gaveta.visibility == View.VISIBLE) fecharGaveta() else reiniciarContagem()
+    }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) reiniciarContagem()
@@ -241,8 +253,6 @@ class LauncherActivity : AppCompatActivity() {
         val p = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
         val tela = p.getString("saved_screen_id", null)
         logadoNumaTela = !tela.isNullOrBlank()
-        val nome = p.getString("saved_screen_name", null)?.takeIf { it.isNotBlank() }
-        statusTela.text = if (logadoNumaTela) "Tela: ${nome ?: "configurada"}" else "Faça login no Player para escolher a tela deste aparelho"
     }
 
     private fun reiniciarContagem() {
@@ -389,10 +399,6 @@ class LauncherActivity : AppCompatActivity() {
         val s = android.text.SpannableString(redeTexto.text)
         s.setSpan(android.text.style.ForegroundColorSpan(cor), s.length - 1, s.length, 0)
         redeTexto.text = s
-        if (logadoNumaTela) {
-            val nome = getSharedPreferences("player_prefs", Context.MODE_PRIVATE).getString("saved_screen_name", null)?.takeIf { it.isNotBlank() }
-            statusTela.text = "Tela: ${nome ?: "configurada"} · ${if (online) "online" else "sem internet"}"
-        }
     }
 
     private fun atualizarClima() {
@@ -428,7 +434,28 @@ class LauncherActivity : AppCompatActivity() {
             adaptador.itens = visiveis
             adaptador.notifyDataSetChanged()
             semApps.visibility = if (visiveis.isEmpty()) View.VISIBLE else View.GONE
+            appsTotal.text = if (visiveis.size == 1) "1 app" else "${visiveis.size} apps"
             ConfigDaLauncher.reportarApps(applicationContext, todos.map { it.pacote to it.nome })
+        }
+    }
+
+    private fun abrirGaveta() {
+        gaveta.visibility = View.VISIBLE
+        lista.post { (lista.getChildAt(0) ?: findViewById(R.id.launcher_gaveta_voltar))?.requestFocus() }
+    }
+
+    private fun fecharGaveta() {
+        gaveta.visibility = View.GONE
+        findViewById<View>(R.id.launcher_card_apps).requestFocus()
+    }
+
+    /** Loja de aplicativos do aparelho: Play Store; se não houver, a loja que o aparelho tiver (Aptoide TV, Amazon). */
+    private fun abrirLoja() {
+        val i = LauncherPolicy.LOJAS.firstNotNullOfOrNull { packageManager.getLaunchIntentForPackage(it) ?: packageManager.getLeanbackLaunchIntentForPackage(it) }
+        if (i == null) { Toast.makeText(this, "Nenhuma loja de aplicativos instalada neste aparelho", Toast.LENGTH_LONG).show(); return }
+        LauncherDoAparelho.UsoLivre.liberar(this, config.minutosDeUsoLivre)
+        try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) {
+            Toast.makeText(this, "A loja de aplicativos não abriu", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -497,8 +524,10 @@ class LauncherActivity : AppCompatActivity() {
     private fun mostrarFundo() {
         if (fundo.isEmpty() || falhasSeguidas >= fundo.size) {
             liberarVideo(); fundoVideo.visibility = View.GONE; fundoImagem.visibility = View.GONE
+            destaqueLogo.visibility = View.VISIBLE // sem mídia escolhida: a logo da Sobre Mídia no destaque
             return
         }
+        destaqueLogo.visibility = View.GONE
         val (item, arquivo) = fundo[indiceFundo % fundo.size]
         if (item.video) {
             val p = reprodutor ?: ExoPlayer.Builder(this).build().also { novo ->

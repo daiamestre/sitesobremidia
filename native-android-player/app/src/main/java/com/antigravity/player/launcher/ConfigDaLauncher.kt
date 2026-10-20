@@ -25,7 +25,7 @@ object ConfigDaLauncher {
     private const val K_BUSCADA_EM = "config_buscada_em"
     private const val K_APPS_ASSINATURA = "apps_assinatura"
     private const val K_APPS_ENVIADOS_EM = "apps_enviados_em"
-    private const val BUSCAR_A_CADA_MS = 5 * 60_000L
+    private const val BUSCAR_A_CADA_MS = 60_000L
     private const val REENVIAR_APPS_MS = 24 * 60 * 60_000L
     private const val PASTA = "launcher_fundo"
     private const val MAX_BYTES = 200L * 1024 * 1024
@@ -55,7 +55,7 @@ object ConfigDaLauncher {
         return true
     }
 
-    /** Busca no servidor (no máximo a cada 5 min, ou já se [forcar]) e baixa o que faltar do fundo. true = mudou. */
+    /** Busca no servidor (no máximo a cada 1 min, ou já se [forcar]) e baixa o que faltar do fundo. true = mudou. */
     suspend fun atualizar(ctx: Context, forcar: Boolean = false): Boolean = withContext(Dispatchers.IO) {
         val p = prefs(ctx)
         val agora = System.currentTimeMillis()

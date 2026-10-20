@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-200: cartão de destaque (as mídias de fundo passam dentro dele) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="26dp" />
+    <solid android:color="#FF0B1230" />
+    <stroke android:width="2dp" android:color="#997C6CF6" />
+</shape>

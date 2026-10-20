@@ -94,6 +94,19 @@ class LauncherSobreMidiaTest {
     }
 
     @Test
+    fun `visual futurista - 4 cartoes, logo maior e sem o nome da tela`() {
+        val layout = File("src/main/res/layout/activity_launcher.xml").readText()
+        for (id in listOf("launcher_cartao_player", "launcher_card_apps", "launcher_card_loja", "launcher_btn_ajustes")) {
+            assertTrue(id, layout.contains("@+id/$id"))
+        }
+        assertEquals("só 4 cartões", 4, Regex("style=\"@style/LauncherCartao\"").findAll(layout).count())
+        assertTrue("logo maior", layout.contains("android:id=\"@+id/launcher_logo\"") && layout.contains("android:layout_height=\"84dp\""))
+        assertFalse("sem nome da tela ao lado do Player", layout.contains("launcher_status_tela"))
+        assertTrue("apps dentro do cartão Aplicativos", layout.contains("@+id/launcher_gaveta"))
+        assertEquals("com.android.vending", LauncherPolicy.LOJAS.first())
+    }
+
+    @Test
     fun `boot, vigia, uso livre e comandos estao ligados`() {
         val boot = File("src/main/java/com/antigravity/player/receiver/BootReceiver.kt").readText()
         assertTrue(boot.contains("launcher.ehPadrao(context)"))

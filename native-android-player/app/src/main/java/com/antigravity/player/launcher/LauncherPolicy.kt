@@ -24,6 +24,9 @@ object LauncherPolicy {
         "re:\\btv\\b"
     )
 
+    /** Cartão "Loja de apps": a primeira que o aparelho tiver (Play Store primeiro). */
+    val LOJAS = listOf("com.android.vending", "cm.aptoidetv.pt", "cm.aptoide.pt", "com.amazon.venezia")
+
     const val SEGUNDOS_PADRAO = 30
     const val MINUTOS_USO_LIVRE_PADRAO = 30
 

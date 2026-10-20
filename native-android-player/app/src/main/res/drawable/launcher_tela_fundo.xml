@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-200: fundo futurista da launcher (gradiente + faixas diagonais translúcidas) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="315" android:startColor="#FF050A1F" android:centerColor="#FF0B1A4A" android:endColor="#FF14105A" />
+        </shape>
+    </item>
+    <item android:left="-200dp" android:top="-300dp" android:right="420dp" android:bottom="260dp">
+        <rotate android:fromDegrees="-28" android:pivotX="50%" android:pivotY="50%">
+            <shape android:shape="rectangle">
+                <gradient android:angle="0" android:startColor="#00312E81" android:centerColor="#334F46E5" android:endColor="#00312E81" />
+            </shape>
+        </rotate>
+    </item>
+    <item android:left="380dp" android:top="160dp" android:right="-260dp" android:bottom="-280dp">
+        <rotate android:fromDegrees="-28" android:pivotX="50%" android:pivotY="50%">
+            <shape android:shape="rectangle">
+                <gradient android:angle="0" android:startColor="#0006B6D4" android:centerColor="#2606B6D4" android:endColor="#0006B6D4" />
+            </shape>
+        </rotate>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:type="radial" android:gradientRadius="700dp" android:centerX="0.25" android:centerY="0.35"
+                android:startColor="#264F46E5" android:endColor="#00000000" />
+        </shape>
+    </item>
+</layer-list>
