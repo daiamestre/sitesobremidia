@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.8.6** (código 576) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6) e comandos pela consulta mesmo sem o tempo real (F-199). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
+Versão de teste atual: **5.8.7** (código 577) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6) e comandos pela consulta mesmo sem o tempo real (F-199). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
 
 ## 2. Perfis e o que cada um vê
 
@@ -79,7 +79,7 @@ Nas TV Box a tela do Android trabalha em 1280x720 mesmo com a saída HDMI em 108
 
 Silenciosa com root ou Device Owner; nos demais aparelhos a versão nova fica baixada e o instalador do Android só abre quando o painel pede ("Instalar atualização agora"), com alguém ao lado da TV. Nada aparece por cima das mídias.
 
-## 8. Launcher Sobre Mídia — versão de TESTE 5.8.6 (F-200)
+## 8. Launcher Sobre Mídia — versão de TESTE 5.8.7 (F-200)
 
 O Player pode ser também a **tela inicial** do aparelho (como as launchers de TV Box, Samsung, Motorola).
 - **Mostra:** logo do gestor (Minha Marca) maior, hora e data, temperatura, Wi-Fi, o cartão "Destaques Sobre Mídia" com 2 TVs 16:9 e 2 totens 9:16, cada um com as mídias escolhidas pelo dono/ADM (vídeos um de cada vez) e 4 cartões: Player Sobre Mídia, Aplicativos (painel com os apps instalados — **sem YouTube, Netflix e apps de TV** (continuam na launcher original). Botões: Ajustes, Wi-Fi, Launcher original.
@@ -90,3 +90,4 @@ O Player pode ser também a **tela inicial** do aparelho (como as launchers de T
 - **Uso livre:** abrir um app, Ajustes ou a launcher original pela launcher (ou pelos comandos do painel) faz o Player não puxar a tela de volta durante N minutos (padrão 30).
 - **Voltar para a original:** botão "Launcher original" (abrir agora ou usar como padrão) e comando "Launcher original" na página da tela.
 - **Painel:** `/workspace/launcher` (menu "Launcher", só dono/ADM). O banco recusa os comandos de launcher de quem não é dono/ADM.
+- **Home no Player (F-202, 5.8.7):** com a launcher Sobre Mídia como tela inicial, Home leva para ela (não aparece mais "Sincronizando mídias"); a contagem dela ou o cartão do Player trazem o Player de volta direto às mídias.

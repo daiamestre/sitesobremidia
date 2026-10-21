@@ -74,7 +74,8 @@ class LauncherSobreMidiaTest {
         val tela = File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText()
         val abrir = tela.substring(tela.indexOf("private fun abrirPlayer()")).substringBefore("// ----")
         assertTrue("abre pelo caminho normal (login → tela)", abrir.contains("Intent(this, SplashActivity::class.java)"))
-        assertFalse("nunca abre o Player direto", abrir.contains("Intent(this, MainActivity::class.java)"))
+        // F-202: só traz para a frente o Player que JÁ está aberto (login feito); nunca abre o Player sem login
+        assertTrue("Player direto só se já está aberto", abrir.indexOf("Intent(this, MainActivity::class.java)") > abrir.indexOf("if (MainActivity.viva) {"))
         assertTrue("só traz para a frente o Player que já está aberto", abrir.contains("tarefa.moveToFront()"))
         assertTrue(tela.contains("logadoNumaTela = !tela.isNullOrBlank()"))
     }
@@ -167,6 +168,21 @@ class LauncherSobreMidiaTest {
         assertTrue("fecha a pergunta sem deixar janela presa", pergunta.contains("try { dialogo?.dismiss() }"))
         assertTrue("o quiosque não conta como abrir pelo ícone", File("src/main/java/com/antigravity/player/service/SelfHealingService.kt").readText().contains("EXTRA_SEM_PERGUNTA, true"))
         assertFalse("Home não mostra a pergunta", File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText().contains("aoSairDoApp"))
+    }
+
+    @Test
+    fun `Home no Player vai para a launcher Sobre Midia e trazer o Player para a frente nao refaz a sincronizacao`() {
+        val principal = File("src/main/java/com/antigravity/player/MainActivity.kt").readText()
+        val quiosque = principal.substring(principal.indexOf("// [KIOSK LOCK] Lost focus"), principal.indexOf("override fun onAttachedToWindow()"))
+        assertTrue("decide depois que a launcher aparece", quiosque.contains("}, 500)"))
+        assertTrue("launcher na frente: o quiosque não puxa", quiosque.contains("if (com.antigravity.player.launcher.LauncherActivity.naFrente) {"))
+        assertTrue("só traz para a frente", quiosque.contains("putExtra(EXTRA_SO_TRAZER_PARA_FRENTE, true)"))
+        val novoIntent = principal.substring(principal.indexOf("override fun onNewIntent(intent: Intent?)"))
+        assertTrue("sem 'Sincronizando mídias' ao só trazer para a frente",
+            novoIntent.indexOf("EXTRA_SO_TRAZER_PARA_FRENTE, false) == true") in 1 until novoIntent.indexOf("checkLocalCacheAndPlay()"))
+        val launcher = File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText()
+        assertTrue(launcher.contains("naFrente = true") && launcher.contains("naFrente = false"))
+        assertTrue("a contagem da launcher só traz o Player aberto", launcher.contains("if (MainActivity.viva) {"))
     }
 
     @Test

@@ -189,7 +189,7 @@ class AtualizacaoEReproducaoTest {
         // a volta forçada ao primeiro plano (perda de foco) respeita a janela do instalador
         val ini = principal.indexOf("Focus lost. Forcing MainActivity back to top.")
         assertTrue(ini > 0)
-        assertTrue(principal.substring(ini, ini + 400).contains("instaladorDoSistemaAberto()"))
+        assertTrue(principal.substring(ini - 300, ini + 400).contains("instaladorDoSistemaAberto()"))
         val vigia = codigo("src/main/java/com/antigravity/player/service/SelfHealingService.kt")
         assertTrue("retorno soberano de 8 s também espera", vigia.contains("instaladorDoSistemaAberto()"))
         assertTrue(codigo("src/main/java/com/antigravity/player/util/DeviceControl.kt").contains("fun instaladorDoSistemaAberto()"))

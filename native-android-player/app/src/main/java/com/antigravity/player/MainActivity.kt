@@ -332,6 +332,10 @@ class MainActivity : AppCompatActivity() {
     private var isBootstrapComplete = false
 
     companion object {
+        /** F-202: abrir o Player só para trazê-lo para a frente (sem refazer a sincronização). */
+        const val EXTRA_SO_TRAZER_PARA_FRENTE = "so_trazer_para_frente"
+        /** F-202: o Player está aberto (a launcher só o traz para a frente). */
+        @Volatile var viva = false
         /** F-198: reaberta por giro do quadro: não liga o modo nitidez de novo nesta execução (evita laço de reabertura). */
         @Volatile var nitidezSuspensa = false
         // [EXIT COUNTER] Persistencia (sobrevive a recriacao da Activity/processo)
@@ -441,6 +445,7 @@ class MainActivity : AppCompatActivity() {
     private var isOTACycleStarted = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viva = true
         vigiaDaSaida.ligar()
         
         // [SANDBOX] Must be called BEFORE any WebView is instantiated (including XML inflation)
@@ -1851,6 +1856,7 @@ withContext(Dispatchers.Main) {
 
 
     override fun onDestroy() {
+        viva = false
         vigiaDaSaida.desligar()
         super.onDestroy()
         zoneController?.stop()
@@ -1931,6 +1937,11 @@ withContext(Dispatchers.Main) {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
+        // F-202: o quiosque ou a launcher só trouxeram o Player para a frente: nada de refazer a sincronização
+        if (intent?.getBooleanExtra(EXTRA_SO_TRAZER_PARA_FRENTE, false) == true) {
+            Logger.i("NAVIGATION", "Player trazido para a frente (sem nova sincronização).")
+            return
+        }
         // [MAINTENANCE RECOVERY] Alarme de 3 min entrega este intent quando a
         // Activity existe (singleInstance). Se morreu, onCreate cobre o caso.
         val isExplicitRestore = intent?.getBooleanExtra(EXTRA_RESTORE_MAINTENANCE, false) == true
@@ -1999,10 +2010,15 @@ withContext(Dispatchers.Main) {
                 // [EXIT COUNTER P0] Tentativa real de abandono (HOME/recents/outro app).
                 // O debounce interno evita dupla contagem com onStop do mesmo episodio.
                 registerValidExit()
-                Logger.w("KIOSK", "Focus lost. Forcing MainActivity back to top.")
-                // Post to handler to ensure it runs after focus change completes
-                Handler(Looper.getMainLooper()).post {
-                    if (!isFinishing && !isDestroyed && !DeviceControl.instaladorDoSistemaAberto()) {
+                // F-202: decide meio segundo depois — dá tempo da launcher Sobre Mídia (tela inicial) aparecer com o Home.
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (com.antigravity.player.launcher.LauncherActivity.naFrente) {
+                        // Home com a launcher Sobre Mídia: ela fica na frente; a contagem dela traz o Player de volta
+                        Logger.i("KIOSK", "Home: launcher Sobre Mídia na frente (o Player volta pela contagem dela).")
+                        return@postDelayed
+                    }
+                    if (!isFinishing && !isDestroyed && !hasWindowFocus() && !DeviceControl.instaladorDoSistemaAberto()) {
+                        Logger.w("KIOSK", "Focus lost. Forcing MainActivity back to top.")
                         try {
                             val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
                             am.moveTaskToFront(taskId, android.app.ActivityManager.MOVE_TASK_WITH_HOME)
@@ -2014,15 +2030,18 @@ withContext(Dispatchers.Main) {
                         Handler(Looper.getMainLooper()).postDelayed({
                             if (!isFinishing && !isDestroyed && !hasWindowFocus() && isKioskEnforced &&
                                 !com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.ativo(this) &&
+                                !com.antigravity.player.launcher.LauncherActivity.naFrente &&
                                 !DeviceControl.instaladorDoSistemaAberto()
                             ) {
                                 try {
-                                    startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    // F-202: só traz para a frente — sem refazer a sincronização ("Sincronizando mídias")
+                                    startActivity(Intent(this, MainActivity::class.java).putExtra(EXTRA_SO_TRAZER_PARA_FRENTE, true)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                                 } catch (e: Exception) { Logger.e("KIOSK", "Player não voltou por cima: ${e.message}") }
                             }
                         }, 800)
                     }
-                }
+                }, 500)
             }
         }
     }

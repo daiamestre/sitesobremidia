@@ -151,6 +151,7 @@ class LauncherActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        naFrente = true
         telaCheia()
         config = ConfigDaLauncher.atual(this)
         MarcaDoGestor.aplicarLogo(this, findViewById(R.id.launcher_logo))
@@ -178,6 +179,7 @@ class LauncherActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        naFrente = false
         principal.removeCallbacksAndMessages(null)
         vitrine.parar() // o decodificador fica livre para o Player
         assinaturaDoFundo = null
@@ -275,6 +277,12 @@ class LauncherActivity : AppCompatActivity() {
             }
             if (tarefa != null) { tarefa.moveToFront(); return }
         } catch (e: Exception) { }
+        // F-202: Player aberto — só traz para a frente (sem "Sincronizando mídias")
+        if (MainActivity.viva) {
+            startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_SO_TRAZER_PARA_FRENTE, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
         startActivity(Intent(this, SplashActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
@@ -536,6 +544,9 @@ class LauncherActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** F-202: a launcher está na frente (o quiosque do Player não a cobre: o Home foi para ela). */
+        @Volatile var naFrente = false
+
         /** Abrir a launcher já pedindo para ser a tela inicial (vem da pergunta na abertura do Player). */
         const val EXTRA_PEDIR_PADRAO = "pedir_padrao"
     }
