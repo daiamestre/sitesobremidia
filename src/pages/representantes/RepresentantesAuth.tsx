@@ -1,8 +1,8 @@
 import { CampoDeSenha } from '@/components/auth/CampoDeSenha';
 import { registrarLembrarAcesso } from '@/lib/lembrarAcesso';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { podeAcessarPortal, rotuloPortal, type PortalEntrada } from '@/lib/portalAccess';
+import { podeAcessarPortal, rotuloPortal, areaDoPerfil, loginDoPerfil, type PortalEntrada } from '@/lib/portalAccess';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,11 +40,31 @@ export default function RepresentantesAuth() {
   const [regCidade, setRegCidade] = useState('');
   const [isSubmittingReg, setIsSubmittingReg] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [portalNegado, setPortalNegado] = useState<{ portal: PortalEntrada; meuPortal: string } | null>(null);
 
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, isApproved, solicitacaoStatus, perfilNome, usuario } = useAuth();
+
+  /** F-204: porta errada → aviso e ida automática para a porta certa do perfil (que leva direto para a área dele). */
+  const irParaPortaCerta = (perfil: string | null | undefined) => {
+    const area = areaDoPerfil(perfil, !!usuario?.is_owner);
+    toast({
+      title: `Esta conta entra pelo ${rotuloPortal(area === 'TODAS' ? 'CORPORATIVO' : area)}`,
+      description: 'Levando você para a sua área de acesso.',
+    });
+    navigate(loginDoPerfil(perfil, !!usuario?.is_owner), { replace: true });
+  };
+
+  // Sessão já aberta: o Representante (e o dono/ADM) vai direto para o painel; os outros perfis, para a porta deles.
+  useEffect(() => {
+    if (!user || !isApproved || (solicitacaoStatus !== 'APPROVED' && solicitacaoStatus !== 'ACTIVE') || !perfilNome) return;
+    if (podeAcessarPortal('REPRESENTANTES', perfilNome)) {
+      navigate('/representantes/dashboard', { replace: true });
+    } else {
+      irParaPortaCerta(perfilNome);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isApproved, solicitacaoStatus, perfilNome]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,8 +102,9 @@ export default function RepresentantesAuth() {
     // VALIDAÇÃO DA PORTA DE ENTRADA × PERFIL REAL (RBAC do banco)
     const portal: PortalEntrada = 'REPRESENTANTES';
     if (!podeAcessarPortal(portal, role)) {
-      setPortalNegado({ portal, meuPortal: routeRedirect || '/dashboard' });
-      return; // sem redirecionamento silencioso
+      registrarLembrarAcesso(rememberMe);
+      irParaPortaCerta(role); // F-204: porta errada → porta certa
+      return;
     }
 
     registrarLembrarAcesso(rememberMe);
@@ -147,38 +168,6 @@ export default function RepresentantesAuth() {
       });
     }
   };
-
-  if (portalNegado) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass border-red-500/20 bg-slate-900 text-white rounded-2xl">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-display text-red-400">Acesso não autorizado</CardTitle>
-            <CardDescription className="text-slate-300 pt-3 text-sm leading-relaxed">
-              Este usuário não possui permissão para acessar o {rotuloPortal(portalNegado.portal)}.
-              <br />
-              Seu perfil atual não possui acesso a este portal.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              onClick={() => navigate(portalNegado.meuPortal, { replace: true })}
-              className="w-full gradient-primary text-white font-bold"
-            >
-              Ir para meu portal
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setPortalNegado(null)}
-              className="w-full bg-slate-950 border-white/10 text-white hover:bg-slate-800"
-            >
-              Voltar
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 relative overflow-hidden">

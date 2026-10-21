@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.8.8** (código 578) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6) e comandos pela consulta mesmo sem o tempo real (F-199). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
+Versão de teste atual: **5.8.9** (código 579) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
 
 ## 2. Perfis e o que cada um vê
 
@@ -31,6 +31,8 @@ Regra permanente (F-190/F-195): **cada conta vê só o que é dela; só o dono (
 | Anunciante / Cliente / Parceiro | Só o próprio: telas do catálogo de parceiros, as próprias e as que exibiram sua mídia; exibições só das suas mídias | — |
 
 O painel apaga a memória ao trocar de conta (ninguém vê dados da sessão anterior no mesmo navegador).
+
+**Login por função (F-204):** cada perfil entra só pela porta e pela área dele — Anunciante/Cliente: Portal do Anunciante (`/portal`); Representante: Portal do Representante (`/representantes`); Gestor de mídia e a equipe dele (Funcionário, Operacional, Designer, Parceiro): Portal do Gestor (`/dashboard`); Financeiro, Gerente e Supervisor: Área Corporativa (`/workspace`); Dono e ADM: todas. Quem entra pela porta errada recebe o aviso "Esta conta entra pelo …" e é levado sozinho para a porta certa (já entrando na área dele); quem abre uma página de outra área volta para a própria. Regra única em `src/lib/portalAccess.ts`.
 
 ## 3. Comandos do painel → Player 5.7.10 (testados em 18/10/2026)
 
@@ -82,13 +84,20 @@ Silenciosa com root ou Device Owner; nos demais aparelhos a versão nova fica ba
 ## 8. Launcher Sobre Mídia — versão de TESTE 5.8.8 (F-200)
 
 O Player pode ser também a **tela inicial** do aparelho (como as launchers de TV Box, Samsung, Motorola).
-- **Mostra:** logo do gestor (Minha Marca) maior, hora e data, temperatura, Wi-Fi, o cartão "Destaques Sobre Mídia" com 2 TVs 16:9 e 2 totens 9:16, cada um com as mídias escolhidas pelo dono/ADM (vídeos um de cada vez) e 4 cartões: Player Sobre Mídia, Aplicativos (painel com os apps instalados — **sem YouTube, Netflix e apps de TV** (continuam na launcher original). Botões: Ajustes, Wi-Fi, Launcher original.
+- **Mostra:** logo da empresa logada (Minha Marca ou, sem ela, a foto de perfil; sem nenhuma, a Sobre Mídia) no topo, no cartão do Player e nas telas vazias dos Destaques, hora e data, temperatura, Wi-Fi, o cartão "Destaques Sobre Mídia" com 2 TVs 16:9 e 2 totens 9:16, cada um com as mídias escolhidas pelo dono/ADM (vídeos um de cada vez) e 4 cartões: Player Sobre Mídia, Aplicativos (painel com os apps instalados — **sem YouTube, Netflix e apps de TV** (continuam na launcher original). Botões: Ajustes, Wi-Fi, Launcher original.
 - **Não libera o Player:** a launcher é só a tela inicial. Sem login o cartão do Player leva ao login e à escolha da tela; a contagem "abre sozinho" só existe com login feito e tela escolhida.
 - **Ao ligar o aparelho** (launcher escolhida): aparece a launcher Sobre Mídia; depois de N segundos sem ninguém mexer abre o Player (padrão 30 s).
-- **Pergunta:** "Usar a launcher Sobre Mídia?" só ao abrir o app pelo ícone e ao sair dele (Home/Recentes); nunca sozinha. Quem responde "Agora não" usa o Player pelo ícone na launcher original, como sempre.
+- **Pergunta (F-204, 5.8.9):** "Usar a launcher Sobre Mídia?" ao abrir o app pelo ícone **só até a pessoa decidir**. "Usar" → a launcher vira a tela inicial, aparece e o Player abre logo em seguida (login → tela). "Agora não" → abre só o Player (login) e o ícone não pergunta mais. Para quem usa a launcher original, a pergunta volta a cada saída pelo **3º Home** e fica no máximo **40 s** (sem resposta some e a pessoa segue na original). Quem usa a launcher Sobre Mídia nunca vê a pergunta.
+- **Painel sem APK novo:** o que o dono/ADM muda nos Destaques e a logo da empresa chegam sozinhos — a launcher confere a cada 1 minuto enquanto está na tela e o Player deixa tudo baixado a cada 5 minutos.
 - **Virar tela inicial:** Device Owner ou root = automático; senão o Android pergunta uma vez (Sobre Mídia → "Sempre"); aparelho que não deixa = modo forçado ("Acesso ao uso").
 - **Uso livre:** abrir um app, Ajustes ou a launcher original pela launcher (ou pelos comandos do painel) faz o Player não puxar a tela de volta durante N minutos (padrão 30).
 - **Voltar para a original:** botão "Launcher original" (abrir agora ou usar como padrão) e comando "Launcher original" na página da tela.
 - **Painel:** `/workspace/launcher` (menu "Launcher", só dono/ADM). O banco recusa os comandos de launcher de quem não é dono/ADM.
 - **Home no Player (F-202, 5.8.7):** com a launcher Sobre Mídia como tela inicial, Home leva para ela (não aparece mais "Sincronizando mídias"); a contagem dela ou o cartão do Player trazem o Player de volta direto às mídias.
 - **Regra do Home (F-203, 5.8.8):** 1º e 2º Home — launcher e o Player volta logo; 3º seguido — livre por 1 minuto e o Player volta sozinho. O Player nunca fica mais de 1 minuto fora da tela (o uso livre do painel vale no máximo 1 minuto).
+
+## 9. Desvincular e "Vincular outro aparelho" — versão de TESTE 5.8.9 (F-205)
+
+- **Desvincular** (página da tela): o aparelho sai da tela e mostra a **tela de suporte** (logo, "Aparelho desvinculado", "Entre em contato com o suporte…"), mesmo depois de reiniciar. A tela e a playlist ficam preservadas e livres. (No 5.7.10 o aparelho vai para a escolha de tela, como antes.)
+- **Vincular outro aparelho** (ao lado de "Desvincular Tela"): lista os aparelhos da **mesma conta** da tela (o Player só enxerga as telas da conta em que está logado), com o que cada um reproduz, online/offline e a versão. Escolhido um, ele sai da tela antiga (que fica livre), passa a reproduzir a nova, baixa as mídias dela e apaga sozinho as da playlist antiga. Se a tela nova tinha outro aparelho, esse vai para a tela de suporte. Aparelho na tela de suporte também pode ser escolhido (volta em até 15 s).
+- **Segurança:** o Player sempre confere no servidor a qual tela está ligado antes de agir — comando velho ou repetido nunca tira do ar uma tela certa; aparelho que estava offline recebe a troca quando volta. Só funciona com o Player 5.8.9 ou mais novo (os antigos aparecem na lista como "precisa atualizar").

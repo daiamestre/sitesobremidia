@@ -108,9 +108,10 @@ class SplashActivity : AppCompatActivity() {
     }
 
     /**
-     * F-200: toda vez que a pessoa ABRE o app pelo ícone (e a launcher Sobre Mídia ainda não é a tela inicial), oferece usá-la.
-     * Boot, atualização, a contagem da launcher e o quiosque NÃO perguntam. "Agora não" (ou 30 s sem resposta num aparelho
-     * que já exibe) segue o caminho de sempre: login → tela → Player. Nada é escolhido sozinho.
+     * F-200/F-204: na abertura do app pelo ícone, enquanto a pessoa não decidiu, oferece a launcher Sobre Mídia.
+     * "Usar" → a launcher vira a tela inicial, aparece e o Player abre logo em seguida (login → tela).
+     * "Agora não" → só o Player (login), e o ícone não pergunta mais. Boot, atualização, a contagem da launcher e o
+     * quiosque NÃO perguntam. 30 s sem resposta num aparelho que já exibe: segue o Player, nada é escolhido sozinho.
      */
     private fun checkRouting() {
         val launcher = com.antigravity.player.launcher.LauncherDoAparelho
@@ -123,16 +124,13 @@ class SplashActivity : AppCompatActivity() {
             .setPositiveButton("Usar a launcher Sobre Mídia") { _, _ ->
                 respondeu = true
                 launcher.marcarPerguntado(applicationContext)
-                if (exibindo) {
-                    lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { launcher.tornarPadraoEmSilencio(applicationContext) }
-                    rotear()
-                } else {
-                    launcher.ativar(applicationContext) // pode ter sido desligada por "usar a launcher original como padrão"
-                    startActivity(Intent(this, com.antigravity.player.launcher.LauncherActivity::class.java)
-                        .putExtra(com.antigravity.player.launcher.LauncherActivity.EXTRA_PEDIR_PADRAO, true)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    finish()
-                }
+                launcher.ativar(applicationContext) // pode ter sido desligada por "usar a launcher original como padrão"
+                // a launcher vira a tela inicial, aparece e abre o Player logo em seguida (login → tela)
+                startActivity(Intent(this, com.antigravity.player.launcher.LauncherActivity::class.java)
+                    .putExtra(com.antigravity.player.launcher.LauncherActivity.EXTRA_PEDIR_PADRAO, true)
+                    .putExtra(com.antigravity.player.launcher.LauncherActivity.EXTRA_ABRIR_PLAYER, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                finish()
             }
             .setNegativeButton("Agora não") { _, _ ->
                 respondeu = true
@@ -159,6 +157,13 @@ class SplashActivity : AppCompatActivity() {
 
         // Make it async to allow network calls (refresh token)
         lifecycleScope.launch {
+            // F-205: desvinculado no painel: tela de suporte (ela espera o painel ligar o aparelho a uma tela)
+            if (AparelhoDesvinculadoActivity.estaDesvinculado(applicationContext)) {
+                startActivity(Intent(this@SplashActivity, AparelhoDesvinculadoActivity::class.java))
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                finish()
+                return@launch
+            }
             
             // [AUTO-LOGIN] Prioridade Máxima: Checar Banco Persistente (Room)
             val credentials = try {

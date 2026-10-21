@@ -53,8 +53,11 @@ class RemoteDataSource {
             "screenshot", "take_screenshot", "reload", "reboot", "restart_player", "update_app", "check_update",
             "install_update", "sync", "maintenance_open", "open_maintenance", "maintenance_close", "close_maintenance",
             "rotate_portrait", "rotate_landscape", "reboot_device", "unpair",
-            "launcher_sobremidia", "launcher_original" // F-200
+            "launcher_sobremidia", "launcher_original", // F-200
+            "trocar_tela" // F-205
         )
+        /** F-205: desvincular/trocar de tela valem mesmo atrasados (aparelho que ficou offline); o Player confere no servidor. */
+        val COMANDOS_DE_VINCULO = listOf("unpair", "trocar_tela")
     }
 
     /**
@@ -275,12 +278,15 @@ class RemoteDataSource {
         commandPollJob?.cancel()
         commandPollJob = scope.launch {
             Logger.i("CMD_POLL", "Polling de comandos ativo para a tela $screenUuid (${intervalMs}ms)")
+            var voltas = 0
             while (isActive) {
                 try {
                     // F-199: uma consulta presa (rede ruim da TV Box) nunca pode travar o laço para sempre
                     kotlinx.coroutines.withTimeout(15_000L) {
                         ensureRealtimeAuth() // acompanha a renovação do JWT
                         pollPendingCommands(screenUuid)
+                        // F-205: a cada ~1 min, desvincular/trocar de tela pendentes de qualquer idade
+                        if (voltas++ % 6 == 0) pollComandosDeVinculo(screenUuid)
                     }
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                     Logger.w("CMD_POLL", "Consulta de comandos passou de 15 s; tentando de novo.")
@@ -317,6 +323,52 @@ class RemoteDataSource {
             Logger.w("CMD_POLL", "Comando recebido por polling: ${row.command} (ID: ${row.id})")
             SessionManager.triggerRemoteCommand(row.command, row.id)
         }
+    }
+
+    /** F-205: "unpair"/"trocar_tela" pendentes desta tela, sem limite de idade (o Player confere no servidor antes de agir). */
+    private suspend fun pollComandosDeVinculo(screenUuid: String) {
+        val rows = client.from("remote_commands")
+            .select(columns = Columns.list("id", "command", "status", "payload")) {
+                filter {
+                    eq("screen_id", screenUuid)
+                    eq("status", "pending")
+                    isIn("command", COMANDOS_DE_VINCULO)
+                }
+                order("created_at", Order.ASCENDING)
+                limit(5)
+            }.decodeList<PendingCommandRow>()
+        for (row in rows) {
+            val targetDeviceId = (row.payload as? kotlinx.serialization.json.JsonObject)
+                ?.get("target_device_id")?.jsonPrimitive?.contentOrNull
+            if (!PairingPolicy.comandoEhDesteAparelho(targetDeviceId, SessionManager.deviceIdentityHash, SessionManager.boundDeviceId)) continue
+            if (!processedCommandIds.add(row.id)) continue
+            Logger.w("CMD_POLL", "Comando de vínculo pendente: ${row.command} (ID: ${row.id})")
+            SessionManager.triggerRemoteCommand(row.command, row.id)
+        }
+    }
+
+    /** F-205: libera o comando para ser tratado de novo numa próxima consulta (ex.: servidor não respondeu). */
+    fun esquecerComando(commandId: String) { processedCommandIds.remove(commandId) }
+
+    /**
+     * F-205: a qual tela este aparelho está ligado no servidor agora (screens.bound_device_id, só telas da conta logada).
+     * Devolve (true, id) ligado, (false, null) livre/desvinculado, ou null se o servidor não respondeu.
+     */
+    suspend fun telaDoAparelho(aparelho: String): Pair<Boolean, String?>? = try {
+        ensureRealtimeAuth()
+        val r = client.postgrest.rpc("fn_player_tela_do_aparelho", buildJsonObject { put("p_aparelho", aparelho) })
+            .decodeAs<kotlinx.serialization.json.JsonObject>()
+        val status = r["status"]?.jsonPrimitive?.contentOrNull
+        val tela = r["screen_id"]?.jsonPrimitive?.contentOrNull
+        when (status) {
+            "LIGADO" -> true to tela
+            "LIVRE" -> false to null
+            else -> null
+        }
+    } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        Logger.w("VINCULO", "Não consegui perguntar a tela deste aparelho: ${e.message}")
+        null
     }
 
     /** F-188 — fluidez de um vídeo exibido (melhor esforço: falha não interrompe nada). */

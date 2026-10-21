@@ -6,6 +6,7 @@ import { useRbac, RoleName } from '@/hooks/useRbac';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { securityAuditService } from '@/services/securityAudit.service';
+import { areaDaRota, podeAbrirRota } from '@/lib/portalAccess';
 
 interface GuardProps {
   children: ReactNode;
@@ -41,8 +42,10 @@ export function RequireAuth({ children }: GuardProps) {
  * Exige que a solicitação de acesso do usuário esteja APPROVED e valida SESSÃO REAL DO SUPABASE (FASE 4)
  */
 export function RequireApproval({ children }: GuardProps) {
-  const { isAuthenticated, isApproved, loading, solicitacaoStatus, user, signOut, empresaOperadoraId, usuario } = useAuth();
+  const { isAuthenticated, isApproved, loading, solicitacaoStatus, user, signOut, empresaOperadoraId, usuario, perfilNome, workspaceRoute } = useAuth();
   const { role } = useRbac();
+  const location = useLocation();
+  const isOwnerAdmin = role === 'OWNER' || role === 'ADMIN';
   const [verifyingRealSession, setVerifyingRealSession] = useState(true);
   const [realSessionValid, setRealSessionValid] = useState(false);
 
@@ -101,100 +104,27 @@ export function RequireApproval({ children }: GuardProps) {
     return <Navigate to="/auth/change-password" replace />;
   }
 
-  // 2.3 NOVA REGRA: Isolamento por perfil de portal (missão P0)
-  // Cada perfil só pode acessar seu próprio portal - bloqueio rigoroso
-  const isAnunciante = role === 'ANUNCIANTE' || role === 'CLIENTE';
-  const isRepresentante = role === 'REPRESENTANTE';
-  const isGestor = role === 'GESTOR' || role === 'GERENTE' || role === 'FINANCEIRO' || role === 'SUPERVISOR';
-  const isOwnerAdmin = role === 'OWNER' || role === 'ADMIN';
-
-  // Anunciante NÃO pode acessar representante, workspace, dashboard
-  if (isAnunciante) {
-    // Bloqueia acesso ao portal do representante
-    if (location.pathname.startsWith('/representantes')) {
-      securityAuditService.logEvent('ACCESS_DENIED', {
-        userEmail: user.email || undefined,
-        userId: user.id,
-        details: { reason: 'ANUNCIANTE_BLOCKED_REPRESENTANTE' }
-      });
-      return <Navigate to="/portal" replace />;
-    }
-    // Bloqueia acesso ao workspace/ERP (todas as subpaths)
-    if (location.pathname.startsWith('/workspace')) {
-      securityAuditService.logEvent('ACCESS_DENIED', {
-        userEmail: user.email || undefined,
-        userId: user.id,
-        details: { reason: 'ANUNCIANTE_BLOCKED_WORKSPACE' }
-      });
-      return <Navigate to="/portal" replace />;
-    }
-    // Bloqueia acesso ao dashboard do Gestor de Mídias (rota exata e todas subpaths)
-    if (location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard/')) {
-      securityAuditService.logEvent('ACCESS_DENIED', {
-        userEmail: user.email || undefined,
-        userId: user.id,
-        details: { reason: 'ANUNCIANTE_BLOCKED_DASHBOARD' }
-      });
-      return <Navigate to="/portal" replace />;
-    }
-    // Bloqueia acesso ao financeiro standalone (todas as subpaths)
-    if (location.pathname.startsWith('/financeiro')) {
-      securityAuditService.logEvent('ACCESS_DENIED', {
-        userEmail: user.email || undefined,
-        userId: user.id,
-        details: { reason: 'ANUNCIANTE_BLOCKED_FINANCE_STANDALONE' }
-      });
-      return <Navigate to="/portal" replace />;
-    }
-    // Bloqueia acesso a qualquer rota administrativa
-    if (location.pathname.startsWith('/admin')) {
-      securityAuditService.logEvent('ACCESS_DENIED', {
-        userEmail: user.email || undefined,
-        userId: user.id,
-        details: { reason: 'ANUNCIANTE_BLOCKED_ADMIN' }
-      });
-      return <Navigate to="/portal" replace />;
-    }
+  // 2.3 Isolamento por área (F-204): cada perfil só abre a SUA área — Anunciante /portal, Representante /representantes,
+  // Gestor (e equipe) /dashboard, Financeiro/Gerente/Supervisor /workspace. Fora dela vai direto para a própria área.
+  // OWNER/ADMIN abrem todas. Regra única em src/lib/portalAccess.ts (a mesma do login).
+  if (perfilNome && !podeAbrirRota(location.pathname, perfilNome, !!usuario?.is_owner)) {
+    const area = areaDaRota(location.pathname);
+    securityAuditService.logEvent('ACCESS_DENIED', {
+      userEmail: user.email || undefined,
+      userId: user.id,
+      details: { reason: `${String(perfilNome).toUpperCase()}_BLOCKED_${area}`, path: location.pathname }
+    });
+    return <Navigate to={workspaceRoute || '/dashboard'} replace />;
   }
 
-  // Representante NÃO pode acessar portal do anunciante
-  if (isRepresentante) {
-    if (location.pathname === '/portal') {
-      securityAuditService.logEvent('ACCESS_DENIED', {
-        userEmail: user.email || undefined,
-        userId: user.id,
-        details: { reason: 'REPRESENTANTE_BLOCKED_PORTAL' }
-      });
-      return <Navigate to={`/representantes/dashboard`} replace />;
-    }
-    if (location.pathname.startsWith('/portal/')) {
-      securityAuditService.logEvent('ACCESS_DENIED', {
-        userEmail: user.email || undefined,
-        userId: user.id,
-        details: { reason: 'REPRESENTANTE_BLOCKED_PORTAL_SUBPATH' }
-      });
-      return <Navigate to={`/representantes/dashboard`} replace />;
-    }
-  }
-
-  // Gestor de Mídias NÃO pode acessar portal do anunciante
-  if (isGestor) {
-    if (location.pathname === '/portal') {
-      securityAuditService.logEvent('ACCESS_DENIED', {
-        userEmail: user.email || undefined,
-        userId: user.id,
-        details: { reason: 'GESTOR_BLOCKED_PORTAL' }
-      });
-      return <Navigate to={`/dashboard`} replace />;
-    }
-    if (location.pathname.startsWith('/portal/')) {
-      securityAuditService.logEvent('ACCESS_DENIED', {
-        userEmail: user.email || undefined,
-        userId: user.id,
-        details: { reason: 'GESTOR_BLOCKED_PORTAL_SUBPATH' }
-      });
-      return <Navigate to={`/dashboard`} replace />;
-    }
+  // Anunciante NÃO abre nenhuma rota administrativa
+  if ((role === 'ANUNCIANTE' || role === 'CLIENTE') && location.pathname.startsWith('/admin')) {
+    securityAuditService.logEvent('ACCESS_DENIED', {
+      userEmail: user.email || undefined,
+      userId: user.id,
+      details: { reason: 'ANUNCIANTE_BLOCKED_ADMIN' }
+    });
+    return <Navigate to="/portal" replace />;
   }
 
   // Owner/Admin NÃO deve acessar portal do anunciante como se fosse anunciante

@@ -26,6 +26,9 @@ object ConfigDaLauncher {
     private const val K_APPS_ASSINATURA = "apps_assinatura"
     private const val K_APPS_ENVIADOS_EM = "apps_enviados_em"
     private const val BUSCAR_A_CADA_MS = 60_000L
+    /** F-204: o Player deixa a launcher pronta a cada 5 min (mídias do painel e logo); visível, ela confere a cada 1 min. */
+    const val PREPARAR_A_CADA_MS = 5 * 60_000L
+    const val CONFERIR_VISIVEL_A_CADA_MS = 60_000L
     private const val REENVIAR_APPS_MS = 24 * 60 * 60_000L
     private const val PASTA = "launcher_fundo"
     private const val MAX_BYTES = 200L * 1024 * 1024

@@ -60,8 +60,11 @@ object LauncherDoAparelho {
      */
     fun deveOferecer(ctx: Context): Boolean = !ehPadrao(ctx) && !escolhida(ctx) && !ehRomSobreMidia()
 
-    /** Perguntar nesta abertura do Player? (toda abertura pelo ícone, enquanto [deveOferecer]) */
-    fun devePerguntar(ctx: Context): Boolean = deveOferecer(ctx)
+    /**
+     * Perguntar nesta abertura do Player pelo ícone? F-204: só até a pessoa decidir. Quem respondeu "Agora não" usa a
+     * launcher original e o ícone abre só o Player, sem pergunta (ela volta a ser oferecida a cada saída pelo 3º Home).
+     */
+    fun devePerguntar(ctx: Context): Boolean = deveOferecer(ctx) && !prefs(ctx).getBoolean(K_PERGUNTADO, false)
 
     /** A abertura foi da pessoa tocando no ícone? (boot, atualização, contagem da launcher e o quiosque não perguntam) */
     fun aberturaPeloUsuario(intent: Intent?): Boolean =

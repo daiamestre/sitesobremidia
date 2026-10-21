@@ -9,9 +9,9 @@ import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * F-200 — pergunta "Usar a launcher Sobre Mídia?" quando a pessoa SAI do app Sobre Mídia (Home/abrir outro app saindo
- * do Player, do login ou da escolha da tela). Aparece uma vez por saída e some sozinha em 20 s sem escolher nada.
- * Depois disso o aparelho segue normal: Home e as outras teclas nunca mostram a pergunta.
+ * F-200/F-204 — pergunta "Usar a launcher Sobre Mídia?" quando a pessoa SAI do app Sobre Mídia (3º Home no Player, ou
+ * Home saindo do login/escolha da tela) e usa a launcher original. Aparece uma vez por saída e some sozinha em 40 s sem
+ * escolher nada (a pessoa fica na launcher original). Quem já usa a launcher Sobre Mídia nunca vê a pergunta.
  */
 class PerguntaLauncherActivity : AppCompatActivity() {
     private val principal = Handler(Looper.getMainLooper())
@@ -30,12 +30,12 @@ class PerguntaLauncherActivity : AppCompatActivity() {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 finish()
             }
-            .setNegativeButton("Agora não") { _, _ -> finish() }
+            .setNegativeButton("Agora não") { _, _ -> LauncherDoAparelho.marcarPerguntado(this); finish() }
             .setOnCancelListener { finish() }
             .create()
         this.dialogo = dialogo
         dialogo.show()
-        principal.postDelayed({ if (!isFinishing) { try { dialogo.dismiss() } catch (e: Exception) { }; finish() } }, 20_000)
+        principal.postDelayed({ if (!isFinishing) { try { dialogo.dismiss() } catch (e: Exception) { }; finish() } }, TEMPO_NA_TELA_MS)
     }
 
     override fun onDestroy() {
@@ -46,6 +46,9 @@ class PerguntaLauncherActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** F-204: a pergunta fica no máximo 40 s na tela; sem resposta some e a pessoa segue na launcher original. */
+        const val TEMPO_NA_TELA_MS = 40_000L
+
         const val TEXTO = "Usar a launcher Sobre Mídia como tela inicial deste aparelho?\n\n" +
             "Ao ligar o aparelho ou sair do Player aparece a launcher Sobre Mídia, com o Player em destaque e os seus " +
             "aplicativos. Dá para voltar para a launcher original quando quiser (botão \"Launcher original\"). " +

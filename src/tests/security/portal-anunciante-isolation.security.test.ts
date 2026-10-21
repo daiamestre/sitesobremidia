@@ -12,6 +12,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
+import { podeAbrirRota } from '@/lib/portalAccess';
 import { resolve } from 'path';
 
 // ──────────────────────────────────────────────────────────────────────
@@ -266,12 +267,18 @@ describe('MISSÃO P0 — Isolamento do Portal do Anunciante', () => {
       );
     });
 
+    // F-204: o guarda usa a regra única de áreas (src/lib/portalAccess.ts) — o anunciante só abre /portal
+    it('Guard aplica a regra única de áreas', () => {
+      expect(guardSrc).toContain('podeAbrirRota(location.pathname, perfilNome');
+    });
+
     it('Guard deve bloquear /dashboard/ (subpaths)', () => {
-      expect(guardSrc).toContain("startsWith('/dashboard/')");
+      expect(podeAbrirRota('/dashboard', 'ANUNCIANTE')).toBe(false);
+      expect(podeAbrirRota('/dashboard/screens', 'ANUNCIANTE')).toBe(false);
     });
 
     it('Guard deve bloquear /financeiro (todas subpaths)', () => {
-      expect(guardSrc).toContain("startsWith('/financeiro')");
+      expect(podeAbrirRota('/financeiro/cobrancas', 'ANUNCIANTE')).toBe(false);
     });
 
     it('Guard deve bloquear /admin', () => {
@@ -279,11 +286,11 @@ describe('MISSÃO P0 — Isolamento do Portal do Anunciante', () => {
     });
 
     it('Guard deve bloquear /workspace (todas subpaths)', () => {
-      expect(guardSrc).toContain("startsWith('/workspace')");
+      expect(podeAbrirRota('/workspace/corporate', 'CLIENTE')).toBe(false);
     });
 
     it('Guard deve bloquear /representantes (todas subpaths)', () => {
-      expect(guardSrc).toContain("startsWith('/representantes')");
+      expect(podeAbrirRota('/representantes/dashboard', 'ANUNCIANTE')).toBe(false);
     });
   });
 });

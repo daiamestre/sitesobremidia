@@ -406,6 +406,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     workspaceRoute = '/workspace/corporate';
   } else if (perfilNome === 'FINANCEIRO') {
     workspaceRoute = '/workspace/financeiro';
+  } else if (perfilNome === 'MARKETING') {
+    workspaceRoute = '/workspace/marketing'; // F-204: igual ao signIn (a área dele é a corporativa)
   } else if (perfilNome === 'ANUNCIANTE') {
     workspaceRoute = '/portal';
   } else if (perfilNome === 'GERENTE' || perfilNome === 'SUPERVISOR') {

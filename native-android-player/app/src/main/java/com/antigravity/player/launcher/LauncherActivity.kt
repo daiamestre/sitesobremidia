@@ -136,6 +136,7 @@ class LauncherActivity : AppCompatActivity() {
         } catch (e: Exception) { Logger.w("LAUNCHER", "apps: ${e.message}") }
 
         quadro.post { aplicarRotacao() }
+        if (intent?.getBooleanExtra(EXTRA_ABRIR_PLAYER, false) == true) marcarAbrirPlayerDepois()
         if (intent?.getBooleanExtra(EXTRA_PEDIR_PADRAO, false) == true) principal.postDelayed({ pedirParaSerPadrao() }, 600)
     }
 
@@ -146,7 +147,19 @@ class LauncherActivity : AppCompatActivity() {
         lista.scrollToPosition(0)
         cartaoPlayer.requestFocus()
         reiniciarContagem()
+        if (intent?.getBooleanExtra(EXTRA_ABRIR_PLAYER, false) == true) marcarAbrirPlayerDepois()
         if (intent?.getBooleanExtra(EXTRA_PEDIR_PADRAO, false) == true) pedirParaSerPadrao()
+    }
+
+    /**
+     * F-204: a pessoa aceitou a launcher ao abrir o app — depois de resolver a tela inicial, a launcher aparece um instante
+     * e o Player abre sozinho (login → escolha da tela, ou a tela que já toca).
+     */
+    private fun marcarAbrirPlayerDepois() { abrirPlayerDepoisAte = System.currentTimeMillis() + 3 * 60_000L }
+    private fun seguirParaOPlayer() {
+        if (abrirPlayerDepoisAte < System.currentTimeMillis()) return
+        abrirPlayerDepoisAte = 0L
+        Handler(Looper.getMainLooper()).postDelayed({ abrirPlayer() }, 1_500)
     }
 
     override fun onResume() {
@@ -154,7 +167,7 @@ class LauncherActivity : AppCompatActivity() {
         naFrente = true
         telaCheia()
         config = ConfigDaLauncher.atual(this)
-        MarcaDoGestor.aplicarLogo(this, findViewById(R.id.launcher_logo))
+        aplicarMarca()
         lerEstadoDoPlayer()
         aplicarConfig()
         carregarApps()
@@ -164,17 +177,39 @@ class LauncherActivity : AppCompatActivity() {
         principal.post(relogio)
         btnPadrao.visibility = if (LauncherDoAparelho.ehPadrao(this)) View.GONE else View.VISIBLE
         if (aguardandoEscolhaDePadrao) conferirEscolhaDePadrao()
-        lifecycleScope.launch {
-            if (ConfigDaLauncher.atualizar(this@LauncherActivity)) {
-                config = ConfigDaLauncher.atual(this@LauncherActivity)
-                aplicarConfig()
-                carregarApps()
-                atualizarFundo(reiniciar = false)
+        else if (LauncherDoAparelho.ehPadrao(this)) seguirParaOPlayer()
+        conferirPainel.run()
+    }
+
+    /**
+     * F-204: o que o dono/ADM muda no painel (Destaques, apps ocultos, contagem) e a logo da empresa chegam sozinhos —
+     * ao abrir e a cada 1 minuto com a launcher na tela. Sem APK novo.
+     */
+    private val conferirPainel = object : Runnable {
+        override fun run() {
+            principal.removeCallbacks(this)
+            lifecycleScope.launch {
+                try {
+                    if (ConfigDaLauncher.atualizar(this@LauncherActivity)) {
+                        config = ConfigDaLauncher.atual(this@LauncherActivity)
+                        aplicarConfig()
+                        carregarApps()
+                        atualizarFundo(reiniciar = false)
+                    }
+                } catch (e: Exception) { Logger.w("LAUNCHER", "painel: ${e.message}") }
+                if (try { MarcaDoGestor.atualizar(this@LauncherActivity) } catch (e: Exception) { false }) aplicarMarca()
+                atualizarClima()
             }
-            try { MarcaDoGestor.atualizar(this@LauncherActivity) } catch (e: Exception) { }
-            MarcaDoGestor.aplicarLogo(this@LauncherActivity, findViewById(R.id.launcher_logo))
-            atualizarClima()
+            principal.postDelayed(this, ConfigDaLauncher.CONFERIR_VISIVEL_A_CADA_MS)
         }
+    }
+
+    /** F-204: todas as logos da launcher (topo, telas vazias dos Destaques e o cartão do Player) viram a da empresa. */
+    private fun aplicarMarca() {
+        val logo = MarcaDoGestor.logo(this)
+        MarcaDoGestor.aplicarLogo(this, findViewById(R.id.launcher_logo), bmp = logo)
+        MarcaDoGestor.aplicarLogo(this, findViewById(R.id.launcher_icone_app), R.mipmap.ic_launcher_round, logo)
+        vitrine.aplicarMarca(logo)
     }
 
     override fun onPause() {
@@ -347,6 +382,7 @@ class LauncherActivity : AppCompatActivity() {
             if (pronto) {
                 btnPadrao.visibility = View.GONE
                 Toast.makeText(this@LauncherActivity, "Pronto: a launcher Sobre Mídia é a tela inicial", Toast.LENGTH_LONG).show()
+                seguirParaOPlayer()
                 return@launch
             }
             val i = LauncherDoAparelho.intencaoParaPedir(this@LauncherActivity)
@@ -359,12 +395,13 @@ class LauncherActivity : AppCompatActivity() {
     /** Depois do pedido: se o aparelho não aceitou, oferece o modo forçado (vigia com "Acesso ao uso"). */
     private fun conferirEscolhaDePadrao() {
         aguardandoEscolhaDePadrao = false
-        if (LauncherDoAparelho.ehPadrao(this)) { btnPadrao.visibility = View.GONE; return }
+        if (LauncherDoAparelho.ehPadrao(this)) { btnPadrao.visibility = View.GONE; seguirParaOPlayer(); return }
         if (LauncherDoAparelho.acessoDeUsoLiberado(this)) {
             Toast.makeText(this, "Modo forçado ativo: a launcher Sobre Mídia volta sempre que a original aparecer", Toast.LENGTH_LONG).show()
+            seguirParaOPlayer()
             return
         }
-        if (ofereceuModoForcado) return
+        if (ofereceuModoForcado) { seguirParaOPlayer(); return }
         ofereceuModoForcado = true
         AlertDialog.Builder(this)
             .setTitle("Este aparelho não deixou trocar a tela inicial")
@@ -375,7 +412,8 @@ class LauncherActivity : AppCompatActivity() {
                     Toast.makeText(this, "Este aparelho não tem a tela de Acesso ao uso", Toast.LENGTH_LONG).show()
                 }
             }
-            .setNegativeButton("Agora não", null)
+            .setNegativeButton("Agora não") { _, _ -> seguirParaOPlayer() }
+            .setCancelable(false)
             .show()
     }
 
@@ -558,5 +596,9 @@ class LauncherActivity : AppCompatActivity() {
 
         /** Abrir a launcher já pedindo para ser a tela inicial (vem da pergunta na abertura do Player). */
         const val EXTRA_PEDIR_PADRAO = "pedir_padrao"
+
+        /** F-204: depois de virar a tela inicial, abrir o Player logo em seguida (a pessoa aceitou ao abrir o app). */
+        const val EXTRA_ABRIR_PLAYER = "abrir_player"
+        @Volatile private var abrirPlayerDepoisAte = 0L
     }
 }

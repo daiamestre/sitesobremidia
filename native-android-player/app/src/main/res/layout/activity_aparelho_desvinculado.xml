@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-205: aparelho desvinculado no painel — a mesma tela de "tela desativada" (logo, aviso, contato com o suporte) -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000"
+    android:keepScreenOn="true">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="48dp">
+
+        <ImageView
+            android:id="@+id/desvinculado_logo"
+            android:layout_width="280dp"
+            android:layout_height="80dp"
+            android:layout_marginBottom="32dp"
+            android:contentDescription="Sobre Mídia"
+            android:scaleType="fitCenter"
+            android:src="@drawable/logo" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="⚠"
+            android:textSize="48sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="Aparelho desvinculado"
+            android:textAlignment="center"
+            android:textColor="#FF5252"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:text="Este aparelho foi desvinculado da tela no painel.\nEntre em contato com o suporte para vinculá-lo novamente."
+            android:textAlignment="center"
+            android:textColor="#B0BEC5"
+            android:textSize="18sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sobre Mídia Player"
+            android:textColor="#9C27B0"
+            android:textSize="16sp"
+            android:textStyle="italic" />
+
+        <TextView
+            android:id="@+id/desvinculado_escolher"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="36dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:focusable="true"
+            android:padding="10dp"
+            android:text="Escolher outra tela neste aparelho"
+            android:textColor="#78909C"
+            android:textSize="14sp" />
+    </LinearLayout>
+</FrameLayout>

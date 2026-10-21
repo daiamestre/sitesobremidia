@@ -54,6 +54,7 @@ import { Screen, ScreenStatus, Playlist, Media, Widget, WidgetConfig, ExternalLi
 import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { ScreenPairingDialog } from '@/components/screens/ScreenPairingDialog';
+import { VincularOutroAparelhoDialog } from '@/components/screens/VincularOutroAparelhoDialog';
 import {
     BarChart,
     Bar,
@@ -302,6 +303,8 @@ export default function ScreenDetails() {
     const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
     const [linkPickerOpen, setLinkPickerOpen] = useState(false);
     const [isUnpairDialogOpen, setIsUnpairDialogOpen] = useState(false);
+    // F-205: "Vincular outro aparelho" (um aparelho já conectado passa para esta tela)
+    const [vincularOutroOpen, setVincularOutroOpen] = useState(false);
     const [isUnpairing, setIsUnpairing] = useState(false);
     const [pairingDialogOpen, setPairingDialogOpen] = useState(false);
 
@@ -707,7 +710,7 @@ export default function ScreenDetails() {
             const result = data as Record<string, unknown> | null;
             if (result?.status === 'SUCCESS') {
                 toast.success('Dispositivo desvinculado com sucesso!', {
-                    description: 'A tela e sua playlist foram preservadas e estão livres para novo pareamento.'
+                    description: 'O aparelho mostra a tela de suporte. A tela e a playlist foram preservadas e estão livres para outro aparelho.'
                 });
                 setIsUnpairDialogOpen(false);
                 queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] });
@@ -1165,6 +1168,16 @@ return (
                                         Desvincular Tela
                                     </Button>
                                 )}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setVincularOutroOpen(true)}
+                                    className="h-7 text-xs gap-1 px-2 whitespace-nowrap"
+                                    data-testid="btn-vincular-outro-aparelho"
+                                >
+                                    <MonitorSmartphone className="h-3 w-3" />
+                                    Vincular outro aparelho
+                                </Button>
 
                             </div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground mt-2">
@@ -1536,6 +1549,15 @@ return (
                                                 <Unlink className="h-4 w-4" />
                                                 Desvincular dispositivo
                                             </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex items-center gap-2 shrink-0 font-medium"
+                                                onClick={() => setVincularOutroOpen(true)}
+                                            >
+                                                <MonitorSmartphone className="h-4 w-4" />
+                                                Vincular outro aparelho
+                                            </Button>
                                         </div>
                                     </div>
                                 ) : (
@@ -1557,6 +1579,15 @@ return (
                                         >
                                             <MonitorSmartphone className="h-4 w-4" />
                                             Parear aparelho
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center gap-2 shrink-0 font-medium"
+                                            onClick={() => setVincularOutroOpen(true)}
+                                        >
+                                            <MonitorSmartphone className="h-4 w-4" />
+                                            Vincular outro aparelho
                                         </Button>
                                     </div>
                                 )}
@@ -1592,7 +1623,7 @@ return (
                                                 )}
                                             </div>
                                         )}
-                                        <p>O dispositivo atualmente conectado <strong>perderá o vínculo</strong> com esta tela.</p>
+                                        <p>O dispositivo atualmente conectado <strong>perderá o vínculo</strong> com esta tela e passará a mostrar a <strong>tela de suporte</strong> (a mesma de tela desativada) até ser vinculado de novo.</p>
                                         <p className="text-emerald-400 font-medium">✓ A Screen e a Playlist <strong>NÃO serão excluídas</strong> e ficarão disponíveis para novo pareamento.</p>
                                     </div>
                                 </AlertDialogDescription>
@@ -1622,6 +1653,17 @@ return (
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
+
+                    {/* F-205: Vincular outro aparelho */}
+                    {screen && (
+                        <VincularOutroAparelhoDialog
+                            open={vincularOutroOpen}
+                            onOpenChange={setVincularOutroOpen}
+                            telaId={screen.id}
+                            telaNome={screen.name}
+                            onVinculado={() => { queryClient.invalidateQueries({ queryKey: ['screen', resolvedId] }); refetch(); }}
+                        />
+                    )}
 
                     {/* Dialog de Pareamento */}
                     <ScreenPairingDialog

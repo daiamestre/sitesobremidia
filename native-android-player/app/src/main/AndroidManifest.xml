@@ -95,6 +95,14 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
             android:exported="true"/>
 
+        <!-- F-205: aparelho desvinculado no painel (tela de suporte, espera ser vinculado de novo) -->
+        <activity
+            android:name=".ui.AparelhoDesvinculadoActivity"
+            android:screenOrientation="fullSensor"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
+            android:exported="false"/>
+
         <!-- [HEARTBEAT] Serviço Imortal para garantir status verde no Dashboard 24/7 -->
         <service
             android:name=".service.PersistentHeartbeatService"

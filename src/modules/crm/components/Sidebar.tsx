@@ -73,8 +73,8 @@ export function CrmSidebar({ onNavigate, collapsed = false }: { onNavigate?: () 
     { label: 'Dashboard', icon: Home, path: isWorkspace ? '/workspace/corporate' : '/representantes/dashboard' },
     // GATE 6.7 — CLIENT TYPE GATE unificado: mesma porta para REPRESENTANTE/ADM/OWNER
     { label: 'Nova Prospecção', icon: Target, path: `${basePath}/clientes/novo` },
-    // Gestor de Mídias Digital Signage
-    ...(isWorkspace
+    // Gestor de Mídias Digital Signage (F-204: área do Gestor — no corporativo, só dono/ADM entram nela)
+    ...(isWorkspace && (isOwner || isAdmin)
       ? [
           { label: 'Gestor de Mídias', icon: Monitor, path: '/dashboard' },
         ]

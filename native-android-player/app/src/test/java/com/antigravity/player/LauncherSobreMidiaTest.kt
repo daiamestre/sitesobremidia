@@ -229,4 +229,40 @@ class LauncherSobreMidiaTest {
         assertTrue(splash.contains("launcher.devePerguntar(applicationContext)"))
         assertTrue("quem não quer a launcher segue para o login", splash.contains(".setNegativeButton(\"Agora não\")"))
     }
+
+    @Test
+    fun `F-204 - painel e logo chegam sem APK, abertura pergunta uma vez e a saida pergunta por 40 s`() {
+        val base = "src/main/java/com/antigravity/player/"
+        val launcher = File(base + "launcher/LauncherActivity.kt").readText()
+        // mídias do painel e logo: ao abrir e a cada 1 min com a launcher na tela; o Player prepara a cada 5 min
+        assertTrue(launcher.contains("principal.postDelayed(this, ConfigDaLauncher.CONFERIR_VISIVEL_A_CADA_MS)"))
+        assertEquals(60_000L, com.antigravity.player.launcher.ConfigDaLauncher.CONFERIR_VISIVEL_A_CADA_MS)
+        assertEquals(5 * 60_000L, com.antigravity.player.launcher.ConfigDaLauncher.PREPARAR_A_CADA_MS)
+        val principal = File(base + "MainActivity.kt").readText()
+        assertTrue(principal.contains("iniciarPreparoDaLauncher()") && principal.contains("ConfigDaLauncher.atualizar(applicationContext)"))
+        // todas as logos da launcher viram a da empresa (topo, telas vazias dos Destaques, cartão do Player)
+        assertTrue(launcher.contains("MarcaDoGestor.aplicarLogo(this, findViewById(R.id.launcher_logo), bmp = logo)"))
+        assertTrue(launcher.contains("MarcaDoGestor.aplicarLogo(this, findViewById(R.id.launcher_icone_app), R.mipmap.ic_launcher_round, logo)"))
+        assertTrue(launcher.contains("vitrine.aplicarMarca(logo)"))
+        assertTrue("sem logo da empresa fica a da Sobre Mídia", File(base + "util/MarcaDoGestor.kt").readText().contains("imageView.setImageResource(padrao)"))
+        // abertura pelo ícone: pergunta só até decidir
+        val l = File(base + "launcher/LauncherDoAparelho.kt").readText()
+        assertTrue(l.contains("fun devePerguntar(ctx: Context): Boolean = deveOferecer(ctx) && !prefs(ctx).getBoolean(K_PERGUNTADO, false)"))
+        // aceitar: launcher vira a tela inicial, aparece e abre o Player em seguida
+        val splash = File(base + "ui/SplashActivity.kt").readText()
+        val usar = splash.substringAfter("setPositiveButton(\"Usar a launcher Sobre Mídia\")").substringBefore("setNegativeButton")
+        assertTrue(usar.contains("EXTRA_PEDIR_PADRAO, true") && usar.contains("EXTRA_ABRIR_PLAYER, true"))
+        assertFalse("aceitar não pula a launcher", usar.contains("rotear()"))
+        // recusar: só o Player (login), sem launcher
+        val agoraNao = splash.substringAfter("setNegativeButton(\"Agora não\")").substringBefore(".setCancelable")
+        assertTrue(agoraNao.contains("marcarPerguntado") && agoraNao.contains("rotear()") && !agoraNao.contains("LauncherActivity"))
+        assertTrue(launcher.contains("private fun seguirParaOPlayer()"))
+        // 3º Home: quem usa a launcher original recebe a pergunta (não a launcher Sobre Mídia); quem usa a Sobre Mídia não
+        val home = principal.substringAfter("private val contadorDeHome").substringBefore("private val vigiaDaSaida")
+        assertTrue(home.contains("if (launcher.deveOferecer(applicationContext)) {") && home.contains("PerguntaLauncherActivity.aoSairDoApp(applicationContext)"))
+        // a pergunta da saída fica no máximo 40 s
+        assertEquals(40_000L, com.antigravity.player.launcher.PerguntaLauncherActivity.TEMPO_NA_TELA_MS)
+        val pergunta = File(base + "launcher/PerguntaLauncherActivity.kt").readText()
+        assertTrue(pergunta.contains("}, TEMPO_NA_TELA_MS)") && !pergunta.contains("20_000)"))
+    }
 }

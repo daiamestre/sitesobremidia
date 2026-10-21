@@ -861,6 +861,7 @@ class MainActivity : AppCompatActivity() {
                 
                 // 3. Start Screenshot Heartbeat (Proof of Life - 1 hour)
                 startScreenshotHeartbeat()
+                iniciarPreparoDaLauncher()
 
                 // 4. Initial Capture (Boot Evidence)
                 lifecycleScope.launch(Dispatchers.Main) {
@@ -1029,45 +1030,9 @@ class MainActivity : AppCompatActivity() {
                                 Logger.w("COMMAND", "Reboot Físico ignorado. App não é Device Owner.")
                             }
                         }
-                        "unpair" -> {
-                            Logger.w("COMMAND", ">>> UNPAIR COMMAND RECEIVED FROM SERVER. Unbinding device and redirecting...")
-                            runOnUiThread {
-                                try {
-                                    // [EXIT COUNTER] Navegacao intencional: nao conta como saida do usuario
-                                    isKioskEnforced = false
-                                    // 1. Limpa o saved_screen_id nas SharedPreferences
-                                    getSharedPreferences("player_prefs", MODE_PRIVATE).edit().remove("saved_screen_id").apply()
-
-                                    // 2. Limpa o vínculo e contexto de sessão
-                                    SessionManager.unpairScreen()
-                                    playbackWatchdog.stop()
-
-                                    // [DEVICE FLEET] Encerra Device Fleet Manager
-                                    deviceFleetManager?.shutdown()
-                                    deviceFleetManager = null
-
-                                    // [SIGNAGE NOTIFICATION SHIELD] Saiu do modo signage: restaura notificacoes
-                                    DeviceControl.restoreInterruptionFilter(this@MainActivity, previousInterruptionFilter)
-
-                                    Logger.i("COMMAND", "Dispositivo desvinculado pelo painel.")
-
-                                    // 3. Redireciona para ScreenSelectionActivity
-                                    val intent = Intent(this@MainActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                                    }
-                                    startActivity(intent)
-
-                                    // 4. Envia ACK 'executed' após conclusão local com sucesso
-                                    ackRemoteCommand(commandId, "executed")
-
-                                    finish()
-                                } catch (e: Exception) {
-                                    Logger.e("COMMAND", "Erro ao processar unpair localmente: ${e.message}", e)
-                                    ackRemoteCommand(commandId, "executed")
-                                    finish()
-                                }
-                            }
-                        }
+                        // F-205: desvincular / trocar de tela. O Player confere no servidor a qual tela está ligado agora e
+                        // segue isso (comando atrasado ou repetido nunca tira do ar uma tela que está certa)
+                        "unpair", "trocar_tela" -> resolverVinculo(command, commandId)
                         // F-200: "Launcher Sobre Mídia" — liga a launcher, tenta torná-la a tela inicial e mostra (uso livre)
                         "launcher_sobremidia" -> {
                             val minutos = com.antigravity.player.launcher.ConfigDaLauncher.atual(applicationContext).minutosDeUsoLivre
@@ -1975,7 +1940,12 @@ withContext(Dispatchers.Main) {
             if (homesSeguidos >= com.antigravity.player.launcher.LauncherPolicy.HOMES_PARA_FICAR_LIVRE) {
                 // livre por 1 minuto: nem o Player nem o vigia puxam a tela de volta
                 com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.liberar(applicationContext, 1)
-                if (!com.antigravity.player.launcher.LauncherDoAparelho.ehPadrao(applicationContext)) {
+                val launcher = com.antigravity.player.launcher.LauncherDoAparelho
+                if (launcher.deveOferecer(applicationContext)) {
+                    // F-204: quem usa a launcher original fica nela e recebe a pergunta (40 s) a cada saída pelo 3º Home
+                    com.antigravity.player.launcher.PerguntaLauncherActivity.aoSairDoApp(applicationContext)
+                } else if (!launcher.ehPadrao(applicationContext)) {
+                    // escolheu a launcher Sobre Mídia mas o aparelho não deixou ser a tela inicial: abre ela (modo forçado)
                     try {
                         startActivity(Intent(applicationContext, com.antigravity.player.launcher.LauncherActivity::class.java)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -2232,6 +2202,71 @@ withContext(Dispatchers.Main) {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             })
             finish()
+        }
+    }
+
+    /**
+     * F-205: "unpair" (Desvincular no painel) e "trocar_tela" (Vincular outro aparelho). Decide pelo servidor:
+     * mesma tela, segue tocando; outra tela, vai para ela (escolha automática, sincroniza a playlist nova e a limpeza da
+     * sincronização apaga as mídias da antiga); sem tela, tela de suporte.
+     */
+    private fun resolverVinculo(command: String, commandId: String?) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val aparelho = SessionManager.deviceIdentityHash?.takeIf { it.isNotBlank() }
+                ?: DeviceControl.getHardwareIdentity(applicationContext)
+            val remoto = ServiceLocator.getRemoteDataSource()
+            var vinculo = remoto.telaDoAparelho(aparelho)
+            if (vinculo == null) { delay(3_000); vinculo = remoto.telaDoAparelho(aparelho) }
+            // a tela atual pode estar guardada pelo código (TEL-...) ou pelo id: vale qualquer um que bata com o servidor
+            val candidatos = listOfNotNull(SessionManager.currentUUID, SessionManager.currentUserId,
+                getSharedPreferences("player_prefs", MODE_PRIVATE).getString("saved_screen_id", null))
+            val atual = candidatos.firstOrNull { it.equals(vinculo?.second, ignoreCase = true) } ?: candidatos.firstOrNull()
+            val acao = com.antigravity.sync.service.PairingPolicy.acaoDoVinculo(command, atual, vinculo?.first, vinculo?.second)
+            Logger.w("VINCULO", "Comando $command: servidor=${vinculo?.first}/${vinculo?.second}, tela atual=$atual, ação=$acao")
+            withContext(Dispatchers.Main) {
+                when (acao) {
+                    com.antigravity.sync.service.PairingPolicy.AcaoDoVinculo.CONTINUAR ->
+                        ackRemoteCommand(commandId, "failed - aparelho continua ligado a esta tela (comando antigo ignorado)")
+                    com.antigravity.sync.service.PairingPolicy.AcaoDoVinculo.TENTAR_DEPOIS ->
+                        commandId?.let { remoto.esquecerComando(it) } // a consulta de vínculo traz de novo em ~1 min
+                    com.antigravity.sync.service.PairingPolicy.AcaoDoVinculo.TROCAR_DE_TELA -> {
+                        sairDaTelaAtual()
+                        ackRemoteCommand(commandId, "executed")
+                        startActivity(Intent(this@MainActivity, com.antigravity.player.ui.ScreenSelectionActivity::class.java).apply {
+                            putExtra("extra_select_screen_id", vinculo?.second)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                        })
+                        finish()
+                    }
+                    com.antigravity.sync.service.PairingPolicy.AcaoDoVinculo.TELA_DE_SUPORTE -> {
+                        sairDaTelaAtual()
+                        com.antigravity.player.ui.AparelhoDesvinculadoActivity.marcar(applicationContext, true)
+                        ackRemoteCommand(commandId, "executed")
+                        startActivity(Intent(this@MainActivity, com.antigravity.player.ui.AparelhoDesvinculadoActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                        finish()
+                    }
+                }
+            }
+        }
+    }
+
+    /** Deixa a tela atual (o mesmo que o desvincular sempre fez): sem quiosque, sem tela salva, sessão da tela limpa. */
+    private fun sairDaTelaAtual() {
+        try {
+            // [EXIT COUNTER] Navegacao intencional: nao conta como saida do usuario
+            isKioskEnforced = false
+            getSharedPreferences("player_prefs", MODE_PRIVATE).edit().remove("saved_screen_id").apply()
+            SessionManager.unpairScreen()
+            playbackWatchdog.stop()
+            // [DEVICE FLEET] Encerra Device Fleet Manager
+            deviceFleetManager?.shutdown()
+            deviceFleetManager = null
+            // [SIGNAGE NOTIFICATION SHIELD] Saiu do modo signage: restaura notificacoes
+            DeviceControl.restoreInterruptionFilter(this@MainActivity, previousInterruptionFilter)
+            Logger.i("COMMAND", "Aparelho saiu da tela atual (painel).")
+        } catch (e: Exception) {
+            Logger.e("COMMAND", "Erro ao sair da tela atual: ${e.message}", e)
         }
     }
 
@@ -2636,6 +2671,28 @@ withContext(Dispatchers.Main) {
                 if (SessionManager.isScreenActive) {
                     takeProofOfPlayScreenshot()
                 }
+            }
+        }
+    }
+
+    /**
+     * F-204: enquanto o Player toca, deixa a launcher pronta — as mídias dos Destaques que o dono/ADM mudou no painel já
+     * ficam baixadas e a logo da empresa (Minha Marca ou foto de perfil) já fica guardada. Sem APK novo.
+     */
+    private var preparoDaLauncherIniciado = false
+    private fun iniciarPreparoDaLauncher() {
+        if (preparoDaLauncherIniciado) return
+        preparoDaLauncherIniciado = true
+        lifecycleScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                delay(com.antigravity.player.launcher.ConfigDaLauncher.PREPARAR_A_CADA_MS)
+                try {
+                    val l = com.antigravity.player.launcher.LauncherDoAparelho
+                    if (l.escolhida(applicationContext) || l.ehPadrao(applicationContext)) {
+                        com.antigravity.player.launcher.ConfigDaLauncher.atualizar(applicationContext)
+                    }
+                    com.antigravity.player.util.MarcaDoGestor.atualizar(applicationContext)
+                } catch (e: Exception) { Logger.w("LAUNCHER", "Preparo da launcher: ${e.message}") }
             }
         }
     }

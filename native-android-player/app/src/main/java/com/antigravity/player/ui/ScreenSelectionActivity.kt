@@ -232,6 +232,7 @@ class ScreenSelectionActivity : AppCompatActivity() {
     }
 
     private fun saveScreenAndProceed(screenId: String) {
+        AparelhoDesvinculadoActivity.marcar(this, false) // F-205: escolheu tela, não está mais desvinculado
         val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
         prefs.edit().putString("saved_screen_id", screenId).apply()
 

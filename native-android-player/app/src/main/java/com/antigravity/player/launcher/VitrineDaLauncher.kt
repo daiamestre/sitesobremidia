@@ -97,6 +97,11 @@ class VitrineDaLauncher(context: Context, private val layout: VitrineLayout) {
         }
     }
 
+    /** F-204: telas sem mídia mostram a logo da empresa logada (ou a da SOBRE MÍDIA, se ela não tem logo). */
+    fun aplicarMarca(logo: android.graphics.Bitmap?) {
+        telas.forEach { com.antigravity.player.util.MarcaDoGestor.aplicarLogo(ctx, it.vazia as? ImageView, bmp = logo) }
+    }
+
     /** Para tudo e libera o decodificador de vídeo (a launcher saiu da frente). */
     fun parar() {
         ativa = false

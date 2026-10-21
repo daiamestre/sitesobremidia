@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,8 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { accessRequestService } from '@/services/accessRequest.service';
-import { resolverPortalSolicitado, podeAcessarPortal, rotuloPortal, type PortalEntrada } from '@/lib/portalAccess';
-import { Loader2, Mail, Lock, User, Building, ShieldAlert } from 'lucide-react';
+import { resolverPortalSolicitado, podeAcessarPortal, rotuloPortal, areaDoPerfil, loginDoPerfil } from '@/lib/portalAccess';
+import { Loader2, Mail, Lock, User, Building } from 'lucide-react';
 import { CampoDeSenha } from '@/components/auth/CampoDeSenha';
 import { Checkbox } from '@/components/ui/checkbox';
 import { registrarLembrarAcesso } from '@/lib/lembrarAcesso';
@@ -54,16 +54,25 @@ export default function Auth() {
   // VALIDAÇÃO DA PORTA DE ENTRADA × RBAC REAL
   // ?role=/rota só declara QUAL portal se pretende entrar;
   // a autorização é o perfil REAL carregado do banco (signIn.role).
-  // Sem redirecionamento silencioso: tela de negação explícita.
+  // F-204: porta errada → aviso e ida AUTOMÁTICA para a porta certa do perfil; com a sessão aberta, ela leva direto
+  // para a área dele (cada um só entra pela sua função).
   // ============================================================
-  const [portalNegado, setPortalNegado] = useState<{ portal: PortalEntrada; meuPortal: string } | null>(null);
+  const levandoParaPortaCerta = useRef<string | null>(null);
 
   const validarPortalSolicitado = (roleParam: string | null | undefined, roleReal: string | null | undefined): boolean => {
-    setPortalNegado(null);
     const portal = resolverPortalSolicitado(roleParam, location.pathname);
-    if (!portal) return true; // porta sem portal declarado (corporativo genérico)
+    if (!portal) return true; // porta sem portal declarado (login geral)
     if (podeAcessarPortal(portal, roleReal)) return true;
-    setPortalNegado({ portal, meuPortal: workspaceRoute || '/dashboard' });
+    const destino = loginDoPerfil(roleReal);
+    if (levandoParaPortaCerta.current !== destino) {
+      levandoParaPortaCerta.current = destino;
+      const area = areaDoPerfil(roleReal);
+      toast({
+        title: `Esta conta entra pelo ${rotuloPortal(area === 'TODAS' ? 'CORPORATIVO' : area)}`,
+        description: 'Levando você para a sua área de acesso.',
+      });
+    }
+    navigate(destino, { replace: true });
     return false;
   };
 
@@ -83,7 +92,7 @@ export default function Auth() {
     // protegidas exige. Com condições diferentes, login e guarda ficavam se redirecionando sem parar.
     if (user && isApproved && (solicitacaoStatus === 'APPROVED' || solicitacaoStatus === 'ACTIVE')) {
       // VALIDAÇÃO DA PORTA: portal solicitado × perfil REAL do banco
-      if (!validarPortalSolicitado(roleParam, perfilNome)) return; // tela de negação
+      if (!validarPortalSolicitado(roleParam, perfilNome)) return; // foi para a porta certa
       const target = redirect || (roleParam === 'gestor' ? '/dashboard' : workspaceRoute) || '/dashboard';
       navigate(target, { replace: true });
     }
@@ -121,7 +130,7 @@ export default function Auth() {
       const redirect = params.get('redirect');
       const roleParam = params.get('role');
 
-      // VALIDAÇÃO DA PORTA DE ENTRADA × PERFIL REAL (sem redirect silencioso)
+      // VALIDAÇÃO DA PORTA DE ENTRADA × PERFIL REAL (porta errada → porta certa, F-204)
       if (!validarPortalSolicitado(roleParam, role)) {
         setIsLoading(false);
         return;
@@ -224,45 +233,6 @@ export default function Auth() {
       solicitacaoStatus === 'REJECTED' ? 'Seu cadastro não possui autorização para acesso.' :
       solicitacaoStatus === 'SUSPENDED' ? 'Seu acesso está temporariamente suspenso.' :
       'Seu cadastro está aguardando aprovação da administração.';
-
-  // ============================================================
-  // TELA DE NEGAÇÃO — portal solicitado não compatível com o perfil REAL
-  // (sem redirecionamento silencioso; sem expor arquitetura interna)
-  // ============================================================
-  if (portalNegado) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card style={{ maxWidth: '28rem' }} className="w-full max-w-md glass animate-fade-in border-red-500/20 bg-slate-900 text-white rounded-2xl">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-3 p-3 rounded-2xl bg-red-500/15 text-red-400 border border-red-500/25 w-fit">
-              <ShieldAlert className="h-10 w-10" />
-            </div>
-            <CardTitle className="text-2xl font-display text-white">Acesso não autorizado</CardTitle>
-            <CardDescription className="text-slate-300 pt-3 text-sm leading-relaxed">
-              Este usuário não possui permissão para acessar o {rotuloPortal(portalNegado.portal)}.
-              <br />
-              Seu perfil atual não possui acesso a este portal.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              onClick={() => navigate(portalNegado.meuPortal, { replace: true })}
-              className="w-full gradient-primary text-white font-bold"
-            >
-              Ir para meu portal
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setPortalNegado(null)}
-              className="w-full bg-slate-950 border-white/10 text-white hover:bg-slate-800"
-            >
-              Voltar
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">

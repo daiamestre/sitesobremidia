@@ -116,7 +116,7 @@ export function useScreens(userId?: string) {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['screens'] });
             toast.success('Dispositivo desvinculado com sucesso!', {
-                description: 'A tela e sua playlist foram preservadas e estão livres para novo pareamento.'
+                description: 'O aparelho mostra a tela de suporte. A tela e a playlist foram preservadas e estão livres para outro aparelho.'
             });
         },
         onError: (error: Error) => {

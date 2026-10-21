@@ -45,6 +45,29 @@ object PairingPolicy {
         return destino.equals(identidade, ignoreCase = true) || destino.equals(uuid, ignoreCase = true)
     }
 
+    /** F-205: o que fazer com um "unpair"/"trocar_tela", decidido pelo que o SERVIDOR diz agora (fonte única). */
+    enum class AcaoDoVinculo {
+        /** O servidor confirma esta mesma tela: comando antigo/repetido, segue tocando. */
+        CONTINUAR,
+        /** O painel ligou este aparelho a OUTRA tela: vai para ela (baixa as mídias novas, apaga as antigas). */
+        TROCAR_DE_TELA,
+        /** O aparelho ficou sem tela (desvinculado no painel): tela de suporte. */
+        TELA_DE_SUPORTE,
+        /** Sem resposta do servidor numa troca: tenta de novo mais tarde (não arrisca tirar a tela do ar). */
+        TENTAR_DEPOIS,
+    }
+
+    /**
+     * [servidorLigado] null = o servidor não respondeu. Um "unpair" sem resposta segue o comando (tela de suporte);
+     * um "trocar_tela" sem resposta espera, porque sem saber a tela nova não há para onde ir.
+     */
+    fun acaoDoVinculo(comando: String, telaAtual: String?, servidorLigado: Boolean?, telaNoServidor: String?): AcaoDoVinculo = when {
+        servidorLigado == null -> if (comando == "unpair") AcaoDoVinculo.TELA_DE_SUPORTE else AcaoDoVinculo.TENTAR_DEPOIS
+        !servidorLigado || telaNoServidor.isNullOrBlank() -> AcaoDoVinculo.TELA_DE_SUPORTE
+        telaNoServidor.equals(telaAtual?.trim(), ignoreCase = true) -> AcaoDoVinculo.CONTINUAR
+        else -> AcaoDoVinculo.TROCAR_DE_TELA
+    }
+
     /** Entre as telas da lista, a que já está conectada a este aparelho (outra que não a escolhida), se houver. */
     fun telaAtualDoAparelho(telas: List<Pair<String, String?>>, minhaIdentidade: String?, exceto: String?): String? =
         telas.firstOrNull { (id, vinculo) ->

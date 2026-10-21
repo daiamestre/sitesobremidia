@@ -135,7 +135,8 @@ class LoginEmVariosAparelhosTest {
     @Test
     fun `o recebimento de comandos usa a identidade do aparelho nos dois caminhos (tempo real e consulta)`() {
         val rede = File("../sync-network/src/main/java/com/antigravity/sync/service/RemoteDataSource.kt").readText()
-        assertEquals(2, Regex("PairingPolicy\\.comandoEhDesteAparelho\\(targetDeviceId, SessionManager\\.deviceIdentityHash, SessionManager\\.boundDeviceId\\)").findAll(rede).count())
+        // F-205: tempo real, consulta e consulta de vínculo (desvincular/trocar de tela atrasados)
+        assertEquals(3, Regex("PairingPolicy\\.comandoEhDesteAparelho\\(targetDeviceId, SessionManager\\.deviceIdentityHash, SessionManager\\.boundDeviceId\\)").findAll(rede).count())
         assertFalse(rede.contains("targetDeviceId != SessionManager.boundDeviceId"))
     }
 

@@ -1,6 +1,7 @@
 package com.antigravity.player.util
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.view.View
@@ -87,24 +88,28 @@ object MarcaDoGestor {
         antes != prefs.all.toString()
     }
 
-    /** Troca o logo da SOBRE MÍDIA pelo do gestor (se houver); senão mantém o padrão. */
-    fun aplicarLogo(context: Context, imageView: ImageView?) {
-        imageView ?: return
+    /** A logo da empresa guardada no aparelho (null = usar a da SOBRE MÍDIA). */
+    fun logo(context: Context): Bitmap? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val f = arquivo(context)
-        if (prefs.getString(K_STATUS, null) == "OK" && f.exists()) {
-            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(f.path, opts)
-            var amostra = 1
-            while (opts.outWidth / amostra > 1600 || opts.outHeight / amostra > 1600) amostra *= 2
-            val bmp = BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = amostra })
-            if (bmp != null) {
-                imageView.setImageBitmap(bmp)
-                imageView.contentDescription = prefs.getString(K_NOME, null) ?: imageView.contentDescription
-                return
-            }
+        if (prefs.getString(K_STATUS, null) != "OK" || !f.exists()) return null
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(f.path, opts)
+        var amostra = 1
+        while (opts.outWidth / amostra > 1600 || opts.outHeight / amostra > 1600) amostra *= 2
+        return BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = amostra })
+    }
+
+    /** Troca o logo da SOBRE MÍDIA pelo do gestor (se houver); senão mantém o padrão ([padrao]). */
+    fun aplicarLogo(context: Context, imageView: ImageView?, padrao: Int = R.drawable.logo, bmp: Bitmap? = logo(context)) {
+        imageView ?: return
+        if (bmp != null) {
+            imageView.setImageBitmap(bmp)
+            imageView.contentDescription = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(K_NOME, null)
+                ?: imageView.contentDescription
+            return
         }
-        imageView.setImageResource(R.drawable.logo)
+        imageView.setImageResource(padrao)
     }
 
     /** Cor de fundo da marca para telas de espera/sincronização (null = manter a do layout). */

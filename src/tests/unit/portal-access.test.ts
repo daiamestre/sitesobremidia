@@ -8,6 +8,11 @@ import {
   podeAcessarPortal,
   resolverPortalSolicitado,
   ROTULO_PORTAL,
+  LOGIN_DO_PORTAL,
+  areaDoPerfil,
+  loginDoPerfil,
+  areaDaRota,
+  podeAbrirRota,
   type PortalEntrada,
 } from '@/lib/portalAccess';
 
@@ -36,12 +41,12 @@ describe('Gestor (GESTOR)', () => {
   it('â†’ Gestor PASS', () => expect(podeAcessarPortal(P.GES, 'GESTOR')).toBe(true));
   it('â†’ Anunciantes DENY', () => expect(podeAcessarPortal(P.ANU, 'GESTOR')).toBe(false));
   it('â†’ Representantes DENY', () => expect(podeAcessarPortal(P.REP, 'GESTOR')).toBe(false));
-  it('â†’ Corporate PASS (perfil corporativo interno)', () =>
-    expect(podeAcessarPortal(P.CORP, 'GESTOR')).toBe(true));
+  it('F-204: Corporate DENY (o Gestor entra só pela área do Gestor)', () =>
+    expect(podeAcessarPortal(P.CORP, 'GESTOR')).toBe(false));
 });
 
 describe('Corporativos existentes â†’ Corporate', () => {
-  it.each(['OWNER', 'ADMIN', 'FUNCIONARIO', 'GERENTE', 'FINANCEIRO', 'DESIGNER', 'OPERACIONAL', 'SUPERVISOR'])(
+  it.each(['OWNER', 'ADMIN', 'GERENTE', 'FINANCEIRO', 'SUPERVISOR'])(
     '%s PASS',
     (p) => expect(podeAcessarPortal(P.CORP, p)).toBe(true),
   );
@@ -92,5 +97,68 @@ describe('resolverPortalSolicitado â€” query string só DECLARA a porta, nu
 describe('Rótulos sem vazamento de arquitetura', () => {
   it.each(Object.entries(ROTULO_PORTAL) as [PortalEntrada, string][])('%s â†’ "%s"', (k, label) => {
     expect(label).not.toMatch(/supabase|rpc|rls|role|perfil_id/i);
+  });
+});
+
+describe('F-204 — cada perfil só pela sua área; porta errada leva para a certa', () => {
+  const PERFIS = ['ANUNCIANTE', 'CLIENTE', 'REPRESENTANTE', 'GESTOR', 'FUNCIONARIO', 'OPERACIONAL', 'DESIGNER', 'PARCEIRO',
+    'FINANCEIRO', 'GERENTE', 'SUPERVISOR', 'OWNER', 'ADMIN'];
+  // o mesmo início de área do AuthContext.workspaceRoute
+  const INICIO: Record<string, string> = {
+    ANUNCIANTE: '/portal', CLIENTE: '/portal', REPRESENTANTE: '/representantes/dashboard', GESTOR: '/dashboard',
+    FUNCIONARIO: '/dashboard', OPERACIONAL: '/dashboard', DESIGNER: '/dashboard', PARCEIRO: '/dashboard',
+    FINANCEIRO: '/workspace/financeiro', GERENTE: '/workspace/corporate', SUPERVISOR: '/workspace/corporate',
+    OWNER: '/workspace/corporate', ADMIN: '/workspace/corporate',
+  };
+
+  it('Gestor NÃO entra pelo Representante nem pelo Corporativo', () => {
+    expect(podeAcessarPortal('REPRESENTANTES', 'GESTOR')).toBe(false);
+    expect(podeAcessarPortal('CORPORATIVO', 'GESTOR')).toBe(false);
+    expect(podeAbrirRota('/representantes/dashboard', 'GESTOR')).toBe(false);
+    expect(podeAbrirRota('/workspace/corporate', 'GESTOR')).toBe(false);
+    expect(podeAbrirRota('/financeiro/cobrancas', 'GESTOR')).toBe(false);
+    expect(podeAbrirRota('/dashboard/screens', 'GESTOR')).toBe(true);
+  });
+
+  it('cada perfil só abre a sua área; dono/ADM abrem todas', () => {
+    const areas = ['/portal/contrato', '/representantes/clientes', '/dashboard/screens', '/workspace/corporate'];
+    for (const perfil of PERFIS) {
+      const abre = areas.filter((r) => podeAbrirRota(r, perfil));
+      if (perfil === 'OWNER' || perfil === 'ADMIN') expect(abre).toHaveLength(4);
+      else expect(abre).toHaveLength(1);
+    }
+    expect(podeAbrirRota('/dashboard', 'REPRESENTANTE')).toBe(false);
+    expect(podeAbrirRota('/workspace/clientes', 'REPRESENTANTE')).toBe(false);
+    expect(podeAbrirRota('/representantes/dashboard', 'FINANCEIRO')).toBe(false);
+    expect(podeAbrirRota('/dashboard', 'FINANCEIRO')).toBe(false);
+    expect(podeAbrirRota('/portal', 'GESTOR')).toBe(false);
+  });
+
+  it('rotas sem área (login, player, cobrança pública) ficam livres', () => {
+    for (const r of ['/representantes/login', '/auth', '/auth/corporate', '/player/x', '/cobranca/abc', '/']) {
+      expect(areaDaRota(r)).toBeNull();
+      expect(podeAbrirRota(r, 'ANUNCIANTE')).toBe(true);
+    }
+    expect(areaDaRota('/dashboardx')).toBeNull();
+  });
+
+  it('sem laço: a porta certa aceita o perfil e o início da área dele é uma rota que ele pode abrir', () => {
+    for (const perfil of PERFIS) {
+      expect(podeAbrirRota(INICIO[perfil], perfil)).toBe(true);
+      const destino = loginDoPerfil(perfil);
+      const url = new URL(destino, 'https://x.local');
+      const portal = resolverPortalSolicitado(url.searchParams.get('role'), url.pathname);
+      if (portal) expect(podeAcessarPortal(portal, perfil)).toBe(true);
+    }
+  });
+
+  it('porta certa de cada perfil', () => {
+    expect(loginDoPerfil('GESTOR')).toBe(LOGIN_DO_PORTAL.GESTOR);
+    expect(loginDoPerfil('REPRESENTANTE')).toBe('/representantes/login');
+    expect(loginDoPerfil('ANUNCIANTE')).toBe(LOGIN_DO_PORTAL.ANUNCIANTES);
+    expect(loginDoPerfil('FINANCEIRO')).toBe('/auth/corporate');
+    expect(loginDoPerfil('PARCEIRO')).toBe('/auth?tab=login');
+    expect(areaDoPerfil('ADMIN')).toBe('TODAS');
+    expect(areaDoPerfil('GESTOR', true)).toBe('TODAS');
   });
 });
