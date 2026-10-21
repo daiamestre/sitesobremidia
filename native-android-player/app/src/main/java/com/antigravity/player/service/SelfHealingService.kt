@@ -109,6 +109,11 @@ class SelfHealingService : Service() {
             val topActivity = tasks[0].topActivity
             if (topActivity?.packageName != packageName) {
                 focusLossCounter++
+                // F-203: o Player já ficou 1 minuto fora (regra do dono): volta agora, sem esperar os 8 s
+                if (com.antigravity.player.MainActivity.viva && !com.antigravity.player.MainActivity.naFrente &&
+                    com.antigravity.player.MainActivity.pausouEm > 0L &&
+                    System.currentTimeMillis() - com.antigravity.player.MainActivity.pausouEm >= com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS
+                ) focusLossCounter = 4
                 Logger.w("KIOSK", "Foco ausente (${focusLossCounter * 2}s). Detectado: ${topActivity?.packageName}")
                 
                 // [RETORNO SOBERANO] Gatilho de 8 segundos (4 ciclos de 2s)

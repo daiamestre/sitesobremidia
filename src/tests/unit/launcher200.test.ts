@@ -47,6 +47,9 @@ describe('F-200 launcher Sobre Mídia', () => {
     const pagina = ler('src/modules/corporate/pages/LauncherPage.tsx');
     expect(pagina).toContain('Destaques Sobre Mídia');
     expect(pagina).toContain('data-testid="vitrines-launcher"');
+    // F-203: o Player nunca fica mais de 1 minuto fora (painel explica a regra dos 3 Home)
+    expect(pagina).toContain('data-testid="regra-home-launcher"');
+    expect(pagina).toContain('max={60}');
   });
 
   it('página, menu, rota e Minha Marca ligados', () => {

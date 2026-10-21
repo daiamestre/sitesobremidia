@@ -116,16 +116,24 @@ object LauncherPolicy {
         pacote == "com.android.settings" || pacote == "com.android.tv.settings" || pacote.endsWith(".tvsettings")
 
     /**
-     * Segundos até abrir o Player sozinho. Sem login numa tela não há contagem (null): a launcher é só a tela inicial e
-     * NÃO libera o Player — quem não fez login entra pelo caminho normal (login → escolha da tela).
+     * Segundos até abrir o Player sozinho (nunca mais de 1 minuto — regra do dono). Sem login numa tela não há contagem
+     * (null): a launcher é só a tela inicial e NÃO libera o Player — quem não fez login entra pelo caminho normal.
      */
     fun contagemParaAbrirPlayer(logadoNumaTela: Boolean, config: Config): Int? =
-        if (logadoNumaTela) config.segundosParaAbrirPlayer else null
+        if (logadoNumaTela) config.segundosParaAbrirPlayer.coerceAtMost((MAX_FORA_DO_PLAYER_MS / 1000).toInt()) else null
+
+    /** F-203: o Player fica fora da tela no máximo 1 minuto; depois volta, mexa a pessoa ou não. */
+    const val MAX_FORA_DO_PLAYER_MS = 60_000L
+
+    /** Quantos segundos ainda faltam para o Player ter de voltar (saiu da frente em [saiuEmMs]). */
+    fun segundosAteVoltaObrigatoria(saiuEmMs: Long, agoraMs: Long): Int =
+        (((saiuEmMs + MAX_FORA_DO_PLAYER_MS - agoraMs) + 999) / 1000).toInt().coerceAtLeast(0)
 
     /** Janela de uso livre (o Player não puxa a tela de volta): termina em [ateMs]. */
     fun usoLivreAtivo(ateMs: Long, agoraMs: Long): Boolean = ateMs > agoraMs
 
-    fun fimDoUsoLivre(agoraMs: Long, minutos: Int): Long = agoraMs + minutos.coerceIn(1, 1440) * 60_000L
+    /** F-203: o uso livre dura no máximo 1 minuto (o valor do painel acima disso não vale mais). */
+    fun fimDoUsoLivre(agoraMs: Long, minutos: Int): Long = agoraMs + (minutos.coerceAtLeast(1) * 60_000L).coerceAtMost(MAX_FORA_DO_PLAYER_MS)
 
     /** Retângulos (x, y, largura, altura) das 4 telas, na ordem tv1, tv2, totem1, totem2. */
     data class Retangulo(val x: Int, val y: Int, val largura: Int, val altura: Int)
@@ -155,6 +163,23 @@ object LauncherPolicy {
             r(x0 + tw + g + larguraTotem + g, y0, larguraTotem, alturaTotem)
         )
     }
+
+    // ------------------------------------------------------------------ F-203: Home no Player (regra do dono)
+
+    /** Home seguidos contam juntos se vierem com até 1 minuto entre um e outro. */
+    const val JANELA_DO_HOME_MS = 60_000L
+    /** No 3º Home seguido a pessoa fica livre na launcher/aparelho por 1 minuto. */
+    const val HOMES_PARA_FICAR_LIVRE = 3
+    const val VOLTA_RAPIDA_S = 3
+    const val VOLTA_LIVRE_S = 60
+
+    /** Quantos Home seguidos (1, 2, 3…) contando este. */
+    fun contarHome(contagemAnterior: Int, ultimoHomeMs: Long, agoraMs: Long): Int =
+        if (ultimoHomeMs <= 0L || agoraMs - ultimoHomeMs > JANELA_DO_HOME_MS || contagemAnterior >= HOMES_PARA_FICAR_LIVRE) 1
+        else contagemAnterior + 1
+
+    /** Em quantos segundos o Player volta depois deste Home: logo (1º e 2º) ou em 1 minuto (3º). */
+    fun voltaDoPlayerEmSegundos(contagem: Int): Int = if (contagem >= HOMES_PARA_FICAR_LIVRE) VOLTA_LIVRE_S else VOLTA_RAPIDA_S
 
     /** Texto do cartão do Player. */
     fun textoDaContagem(segundos: Int?): String = when {

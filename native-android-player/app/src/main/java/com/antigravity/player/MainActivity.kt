@@ -336,6 +336,9 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_SO_TRAZER_PARA_FRENTE = "so_trazer_para_frente"
         /** F-202: o Player está aberto (a launcher só o traz para a frente). */
         @Volatile var viva = false
+        /** F-203: o Player está na frente / quando saiu da frente (o Home conta só se foi apertado com ele na frente). */
+        @Volatile var naFrente = false
+        @Volatile var pausouEm = 0L
         /** F-198: reaberta por giro do quadro: não liga o modo nitidez de novo nesta execução (evita laço de reabertura). */
         @Volatile var nitidezSuspensa = false
         // [EXIT COUNTER] Persistencia (sobrevive a recriacao da Activity/processo)
@@ -447,6 +450,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         viva = true
         vigiaDaSaida.ligar()
+        try {
+            androidx.core.content.ContextCompat.registerReceiver(this, contadorDeHome,
+                android.content.IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS), androidx.core.content.ContextCompat.RECEIVER_EXPORTED)
+        } catch (e: Exception) { }
         
         // [SANDBOX] Must be called BEFORE any WebView is instantiated (including XML inflation)
         if (Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -1858,6 +1865,7 @@ withContext(Dispatchers.Main) {
     override fun onDestroy() {
         viva = false
         vigiaDaSaida.desligar()
+        try { unregisterReceiver(contadorDeHome) } catch (e: Exception) { }
         super.onDestroy()
         zoneController?.stop()
         radioController?.stop()
@@ -1900,8 +1908,32 @@ withContext(Dispatchers.Main) {
         return super.onKeyDown(keyCode, event)
     }
 
+    override fun onPause() {
+        super.onPause()
+        naFrente = false
+        pausouEm = System.currentTimeMillis()
+        // F-203: o Player fica fora no MÁXIMO 1 minuto (launcher, outro app, Ajustes…): depois disso volta sozinho
+        voltaObrigatoria.removeCallbacksAndMessages(null)
+        if (isKioskEnforced) voltaObrigatoria.postDelayed({ voltarDepoisDoLimite() }, com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS)
+    }
+
+    private val voltaObrigatoria = Handler(Looper.getMainLooper())
+
+    /** F-203: passou 1 minuto fora — o Player volta para a frente (sem refazer a sincronização). */
+    private fun voltarDepoisDoLimite() {
+        if (naFrente || isFinishing || isDestroyed || !isKioskEnforced || DeviceControl.instaladorDoSistemaAberto()) return
+        Logger.i("KIOSK", "1 minuto fora do Player: voltando às mídias.")
+        com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.encerrar(applicationContext)
+        try {
+            startActivity(Intent(applicationContext, MainActivity::class.java).putExtra(EXTRA_SO_TRAZER_PARA_FRENTE, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) { Logger.e("KIOSK", "Player não voltou depois de 1 minuto: ${e.message}") }
+    }
+
     override fun onResume() {
         super.onResume()
+        naFrente = true
+        voltaObrigatoria.removeCallbacksAndMessages(null)
         // F-200: o Player voltou para a frente — acabou o uso livre da launcher
         com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.encerrar(this)
         
@@ -1920,6 +1952,37 @@ withContext(Dispatchers.Main) {
 
         // [MAINTENANCE RECOVERY] Rede de seguranca: restaura se a janela venceu
         evaluateMaintenanceState()
+    }
+
+    /**
+     * F-203 — regra do dono para o Home no Player (com o quiosque ligado): 1º e 2º Home → a launcher Sobre Mídia aparece e
+     * o Player volta logo; 3º Home seguido (até 1 min entre eles) → a pessoa fica livre por 1 minuto (launcher ou qualquer
+     * app) e só então o Player volta.
+     */
+    private var homesSeguidos = 0
+    private var ultimoHomeMs = 0L
+    private val contadorDeHome = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) {
+            val motivo = i?.getStringExtra("reason")
+            val agora = System.currentTimeMillis()
+            if (motivo != "homekey" || !isKioskEnforced) return
+            if (!(naFrente || agora - pausouEm < 1_500L)) return // o Home não foi apertado com o Player na frente
+            homesSeguidos = com.antigravity.player.launcher.LauncherPolicy.contarHome(homesSeguidos, ultimoHomeMs, agora)
+            ultimoHomeMs = agora
+            val volta = com.antigravity.player.launcher.LauncherPolicy.voltaDoPlayerEmSegundos(homesSeguidos)
+            Logger.i("KIOSK", "Home $homesSeguidos de 3: o Player volta em $volta s.")
+            com.antigravity.player.launcher.LauncherDoAparelho.pedirVoltaDoPlayer(volta)
+            if (homesSeguidos >= com.antigravity.player.launcher.LauncherPolicy.HOMES_PARA_FICAR_LIVRE) {
+                // livre por 1 minuto: nem o Player nem o vigia puxam a tela de volta
+                com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.liberar(applicationContext, 1)
+                if (!com.antigravity.player.launcher.LauncherDoAparelho.ehPadrao(applicationContext)) {
+                    try {
+                        startActivity(Intent(applicationContext, com.antigravity.player.launcher.LauncherActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (e: Exception) { }
+                }
+            }
+        }
     }
 
     /** F-200: Home/Recentes saindo do Player de verdade (manutenção, sem o quiosque puxar de volta): oferece a launcher. */

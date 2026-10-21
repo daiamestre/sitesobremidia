@@ -258,6 +258,21 @@ object LauncherDoAparelho {
         } catch (e: Exception) { Logger.w("LAUNCHER", "Vigia não abriu a launcher: ${e.message}") }
     }
 
+    // ------------------------------------------------------------------ F-203: volta do Player depois do Home
+
+    @Volatile private var voltaPendenteS: Int? = null
+    @Volatile private var voltaPendenteEm = 0L
+
+    /** O Player pede para a launcher trazê-lo de volta em [segundos] (o Home acabou de levar a pessoa para a launcher). */
+    fun pedirVoltaDoPlayer(segundos: Int) { voltaPendenteS = segundos; voltaPendenteEm = System.currentTimeMillis() }
+
+    /** A launcher pega o pedido (vale por 10 s; depois disso a contagem normal manda). */
+    fun pegarVoltaDoPlayer(agora: Long = System.currentTimeMillis()): Int? {
+        val s = voltaPendenteS ?: return null
+        voltaPendenteS = null
+        return if (agora - voltaPendenteEm in 0..10_000L) s else null
+    }
+
     // ------------------------------------------------------------------ uso livre (o Player não puxa a tela de volta)
 
     object UsoLivre {

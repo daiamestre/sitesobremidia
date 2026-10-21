@@ -270,16 +270,17 @@ export default function LauncherPage() {
               <>
                 <label className="block space-y-1">
                   <span className="text-sm font-medium">Abrir o Player sozinho depois de (segundos sem ninguém mexer)</span>
-                  <Input type="number" min={5} max={3600} value={cfg.segundos_para_abrir_player}
-                    onChange={(e) => setCfg({ ...cfg, segundos_para_abrir_player: Math.max(5, Math.min(3600, Number(e.target.value) || 30)) })} />
-                  <span className="text-xs text-muted-foreground">Só nos aparelhos que já estão numa tela. Ao ligar o aparelho, a launcher aparece e o Player abre após esse tempo.</span>
+                  <Input type="number" min={5} max={60} value={Math.min(60, cfg.segundos_para_abrir_player)}
+                    onChange={(e) => setCfg({ ...cfg, segundos_para_abrir_player: Math.max(5, Math.min(60, Number(e.target.value) || 30)) })} />
+                  <span className="text-xs text-muted-foreground">Só nos aparelhos que já estão numa tela. Ao ligar o aparelho, a launcher aparece e o Player abre após esse tempo (no máximo 60 s).</span>
                 </label>
-                <label className="block space-y-1">
-                  <span className="text-sm font-medium">Uso livre (minutos)</span>
-                  <Input type="number" min={1} max={1440} value={cfg.minutos_de_uso_livre}
-                    onChange={(e) => setCfg({ ...cfg, minutos_de_uso_livre: Math.max(1, Math.min(1440, Number(e.target.value) || 30)) })} />
-                  <span className="text-xs text-muted-foreground">Ao abrir um app, os Ajustes ou a launcher original, o Player não puxa a tela de volta durante esse tempo.</span>
-                </label>
+                <div className="space-y-1 rounded-md border bg-muted/20 p-2" data-testid="regra-home-launcher">
+                  <span className="text-sm font-medium">Home no Player e uso livre</span>
+                  <p className="text-xs text-muted-foreground">
+                    1º e 2º Home: a launcher aparece e o Player volta logo. 3º Home seguido: a pessoa fica livre (launcher, apps, Ajustes)
+                    e o Player volta em 1 minuto. O Player nunca fica mais de <strong>1 minuto</strong> fora da tela (Player 5.8.8 ou mais novo).
+                  </p>
+                </div>
                 <div className="grid gap-2 sm:grid-cols-3">
                   {([['mostrar_relogio', 'Hora', Clock], ['mostrar_clima', 'Temperatura', Eye], ['mostrar_wifi', 'Wi-Fi', Wifi]] as const).map(([chave, rotulo, Icone]) => (
                     <label key={chave} className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">

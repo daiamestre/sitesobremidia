@@ -253,6 +253,15 @@ class LauncherActivity : AppCompatActivity() {
 
     private val relogio = object : Runnable {
         override fun run() {
+            // F-203: o Player saiu pelo Home — volta logo (1º e 2º Home) ou em 1 minuto (3º Home seguido)
+            LauncherDoAparelho.pegarVoltaDoPlayer()?.let { s ->
+                if (logadoNumaTela) { restante = s; contagemTexto.text = LauncherPolicy.textoDaContagem(s) }
+            }
+            // F-203: o Player fica fora no máximo 1 minuto — mexer na launcher não adia além disso
+            if (logadoNumaTela && MainActivity.viva && !MainActivity.naFrente && MainActivity.pausouEm > 0L) {
+                val limite = LauncherPolicy.segundosAteVoltaObrigatoria(MainActivity.pausouEm, System.currentTimeMillis())
+                if (restante == null || restante!! > limite) restante = limite
+            }
             restante?.let { s ->
                 val novo = s - 1
                 restante = novo

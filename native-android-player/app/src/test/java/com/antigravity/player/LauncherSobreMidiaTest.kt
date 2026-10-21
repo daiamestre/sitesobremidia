@@ -63,9 +63,11 @@ class LauncherSobreMidiaTest {
         assertNull(LauncherPolicy.contagemParaAbrirPlayer(false, cfg))
         assertEquals("abre sozinho em 30 s", LauncherPolicy.textoDaContagem(30))
         assertEquals("Toque para fazer login", LauncherPolicy.textoDaContagem(null))
+        // F-203: o uso livre dura no máximo 1 minuto, mesmo que o painel diga 30
         val fim = LauncherPolicy.fimDoUsoLivre(1_000L, 30)
-        assertTrue(LauncherPolicy.usoLivreAtivo(fim, 1_000L + 29 * 60_000L))
-        assertFalse(LauncherPolicy.usoLivreAtivo(fim, 1_000L + 30 * 60_000L))
+        assertTrue(LauncherPolicy.usoLivreAtivo(fim, 1_000L + 59_000L))
+        assertFalse(LauncherPolicy.usoLivreAtivo(fim, 1_000L + 60_000L))
+        assertEquals(60, LauncherPolicy.contagemParaAbrirPlayer(true, LauncherPolicy.Config(segundosParaAbrirPlayer = 3600)))
     }
 
     @Test
@@ -183,6 +185,28 @@ class LauncherSobreMidiaTest {
         val launcher = File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText()
         assertTrue(launcher.contains("naFrente = true") && launcher.contains("naFrente = false"))
         assertTrue("a contagem da launcher só traz o Player aberto", launcher.contains("if (MainActivity.viva) {"))
+    }
+
+    @Test
+    fun `Home no Player - 1o e 2o voltam logo, 3o seguido deixa livre por 1 minuto, e nunca mais de 1 minuto fora`() {
+        assertEquals(1, LauncherPolicy.contarHome(0, 0L, 10_000L))
+        assertEquals(2, LauncherPolicy.contarHome(1, 10_000L, 20_000L))
+        assertEquals(3, LauncherPolicy.contarHome(2, 20_000L, 30_000L))
+        assertEquals("depois do 3º recomeça", 1, LauncherPolicy.contarHome(3, 30_000L, 35_000L))
+        assertEquals("mais de 1 minuto entre eles recomeça", 1, LauncherPolicy.contarHome(2, 20_000L, 81_000L))
+        assertEquals(LauncherPolicy.VOLTA_RAPIDA_S, LauncherPolicy.voltaDoPlayerEmSegundos(1))
+        assertEquals(LauncherPolicy.VOLTA_RAPIDA_S, LauncherPolicy.voltaDoPlayerEmSegundos(2))
+        assertEquals(60, LauncherPolicy.voltaDoPlayerEmSegundos(3))
+        assertEquals(60, LauncherPolicy.segundosAteVoltaObrigatoria(0L, 0L))
+        assertEquals(1, LauncherPolicy.segundosAteVoltaObrigatoria(0L, 59_500L))
+        assertEquals(0, LauncherPolicy.segundosAteVoltaObrigatoria(0L, 61_000L))
+        val principal = File("src/main/java/com/antigravity/player/MainActivity.kt").readText()
+        assertTrue(principal.contains("if (motivo != \"homekey\" || !isKioskEnforced) return"))
+        assertTrue(principal.contains("LauncherDoAparelho.UsoLivre.liberar(applicationContext, 1)"))
+        val launcher = File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText()
+        assertTrue("mexer na launcher não adia além de 1 minuto", launcher.contains("LauncherPolicy.segundosAteVoltaObrigatoria(MainActivity.pausouEm"))
+        assertTrue(File("src/main/java/com/antigravity/player/service/SelfHealingService.kt").readText().contains("LauncherPolicy.MAX_FORA_DO_PLAYER_MS"))
+        assertTrue("volta obrigatória marcada ao sair da frente", principal.contains("voltaObrigatoria.postDelayed({ voltarDepoisDoLimite() }, com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS)"))
     }
 
     @Test
