@@ -30,6 +30,7 @@ class AparelhoDesvinculadoActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_aparelho_desvinculado)
+        com.antigravity.player.util.OrientacaoDoAparelho.girarActivity(this) // F-212: TV em pé = tela em pé
         ServiceLocator.init(applicationContext)
         marcar(this, true)
         com.antigravity.player.util.MarcaDoGestor.aplicarLogo(this, findViewById(R.id.desvinculado_logo))

@@ -47,6 +47,7 @@ class LoginActivity : AppCompatActivity() {
         }
         
         setContentView(R.layout.activity_login)
+        com.antigravity.player.util.OrientacaoDoAparelho.girarActivity(this) // F-212: TV em pé = tela em pé
 
         val emailInput = findViewById<EditText>(R.id.email_input)
         val passInput = findViewById<EditText>(R.id.password_input)
@@ -57,6 +58,8 @@ class LoginActivity : AppCompatActivity() {
         val autoPass = intent.getStringExtra("extra_password")
         if (!autoEmail.isNullOrBlank()) emailInput.setText(autoEmail)
         if (!autoPass.isNullOrBlank()) passInput.setText(autoPass)
+        // F-212: TV em pé — teclado próprio em pé, dentro da tela girada (o do Android sairia deitado)
+        com.antigravity.player.util.TecladoNaTela.ligar(this, listOf(emailInput, passInput)) { loginBtn.requestFocus() }
 
         // [UX 10-foot UI] Increase font for TVs
         if (isTV) {

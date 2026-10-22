@@ -630,7 +630,10 @@ class RemoteDataSource {
 
                 // F-194: rotação da tela em 4 posições; mudou => a tela gira já
                 val rotacao = SessionManager.rotacaoValida(device.rotacaoTela)
-                if (rotacao != null && rotacao != SessionManager.rotacaoTela) {
+                // F-212: a 1ª resposta do painel vale mesmo igual à posição do aparelho (passa a ser guardada como do painel)
+                val primeiraDoPainel = rotacao != null && !SessionManager.rotacaoVeioDoPainel
+                if (rotacao != null) SessionManager.rotacaoVeioDoPainel = true
+                if (rotacao != null && (rotacao != SessionManager.rotacaoTela || primeiraDoPainel)) {
                     Logger.i("ORIENTATION", "Rotação da tela mudou no painel: ${SessionManager.rotacaoTela} -> $rotacao")
                     SessionManager.rotacaoTela = rotacao
                     SessionManager.triggerRotation(resolvedOrientation)

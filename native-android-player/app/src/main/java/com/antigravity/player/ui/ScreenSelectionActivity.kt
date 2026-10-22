@@ -12,7 +12,6 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -70,6 +69,7 @@ class ScreenSelectionActivity : AppCompatActivity() {
         // both mobile and TV correctly without any requestedOrientation override.
 
         setContentView(R.layout.activity_screen_selection)
+        com.antigravity.player.util.OrientacaoDoAparelho.girarActivity(this) // F-212: TV em pé = tela em pé
 
         loading = findViewById(R.id.selection_loading)
 
@@ -95,11 +95,7 @@ class ScreenSelectionActivity : AppCompatActivity() {
     private fun mostrarAviso(origem: Intent?) {
         val aviso = origem?.getStringExtra("extra_aviso")?.takeIf { it.isNotBlank() } ?: return
         origem.removeExtra("extra_aviso")
-        AlertDialog.Builder(this)
-            .setTitle("Tela já conectada")
-            .setMessage(aviso)
-            .setPositiveButton("Entendi", null)
-            .show()
+        com.antigravity.player.util.CaixaNaTela.mostrar(this, "Tela já conectada", aviso, listOf(com.antigravity.player.util.CaixaNaTela.Opcao("Entendi")))
     }
 
     // F-194: o nome oficial é o NOME da tela (o mesmo do painel); o ID fica embaixo
@@ -109,15 +105,11 @@ class ScreenSelectionActivity : AppCompatActivity() {
         val eu = minhaIdentidade()
         when (PairingPolicy.disponibilidade(escolhida.boundDeviceId, eu)) {
             Disponibilidade.EM_USO -> {
-                AlertDialog.Builder(this)
-                    .setTitle("Tela já conectada")
-                    .setMessage(
+                com.antigravity.player.util.CaixaNaTela.mostrar(this, "Tela já conectada",
                         "A tela ${nomeDe(escolhida)} já está conectada a outro aparelho, e uma tela só pode ficar em um aparelho por vez.\n\n" +
                             "O seu login pode ser usado em quantos aparelhos você quiser: escolha outra tela, ou libere esta no painel " +
-                            "(Telas > ${nomeDe(escolhida)} > Desvincular aparelho) e tente de novo."
-                    )
-                    .setPositiveButton("Entendi", null)
-                    .show()
+                            "(Telas > ${nomeDe(escolhida)} > Desvincular aparelho) e tente de novo.",
+                    listOf(com.antigravity.player.util.CaixaNaTela.Opcao("Entendi")))
             }
             Disponibilidade.DESTE_APARELHO -> saveScreenAndProceed(escolhida.id)
             Disponibilidade.LIVRE -> {
@@ -127,12 +119,9 @@ class ScreenSelectionActivity : AppCompatActivity() {
                 if (atual == null) {
                     saveScreenAndProceed(escolhida.id)
                 } else {
-                    AlertDialog.Builder(this)
-                        .setTitle("Trocar a tela deste aparelho")
-                        .setMessage("Este aparelho está conectado à tela ${nomeDe(atual)}.\n\nPara conectar à tela ${nomeDe(escolhida)}, a tela ${nomeDe(atual)} será liberada para outro aparelho. Continuar?")
-                        .setPositiveButton("Trocar") { _, _ -> liberarEConectar(atual, escolhida, eu) }
-                        .setNegativeButton("Cancelar", null)
-                        .show()
+                    com.antigravity.player.util.CaixaNaTela.mostrar(this, "Trocar a tela deste aparelho",
+                        "Este aparelho está conectado à tela ${nomeDe(atual)}.\n\nPara conectar à tela ${nomeDe(escolhida)}, a tela ${nomeDe(atual)} será liberada para outro aparelho. Continuar?",
+                        listOf(com.antigravity.player.util.CaixaNaTela.Opcao("Trocar") { liberarEConectar(atual, escolhida, eu) }, com.antigravity.player.util.CaixaNaTela.Opcao("Cancelar")))
                 }
             }
         }

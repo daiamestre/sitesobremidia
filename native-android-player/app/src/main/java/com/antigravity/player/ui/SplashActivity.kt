@@ -27,6 +27,7 @@ class SplashActivity : AppCompatActivity() {
         }
         
         setContentView(com.antigravity.player.R.layout.activity_splash)
+        com.antigravity.player.util.OrientacaoDoAparelho.girarActivity(this) // F-212: TV em pé = tela em pé
         // F-103: logo do gestor de mídias guardado no aparelho (senão, SOBRE MÍDIA)
         com.antigravity.player.util.MarcaDoGestor.aplicarLogo(this, findViewById(com.antigravity.player.R.id.app_logo))
         
@@ -118,10 +119,9 @@ class SplashActivity : AppCompatActivity() {
         if (!launcher.devePerguntar(applicationContext) || !launcher.aberturaPeloUsuario(intent)) { rotear(); return }
         val exibindo = !getSharedPreferences("player_prefs", Context.MODE_PRIVATE).getString("saved_screen_id", null).isNullOrBlank()
         var respondeu = false
-        val dialogo = android.app.AlertDialog.Builder(this)
-            .setTitle("Launcher Sobre Mídia")
-            .setMessage(com.antigravity.player.launcher.PerguntaLauncherActivity.TEXTO)
-            .setPositiveButton("Usar a launcher Sobre Mídia") { _, _ ->
+        // F-212: deitada é o diálogo de sempre; com a TV em pé a caixa gira junto (CaixaNaTela)
+        val fecharPergunta = com.antigravity.player.util.CaixaNaTela.mostrar(this, "Launcher Sobre Mídia", com.antigravity.player.launcher.PerguntaLauncherActivity.TEXTO, listOf(
+            com.antigravity.player.util.CaixaNaTela.Opcao("Usar a launcher Sobre Mídia") {
                 respondeu = true
                 launcher.marcarPerguntado(applicationContext)
                 launcher.ativar(applicationContext) // pode ter sido desligada por "usar a launcher original como padrão"
@@ -131,20 +131,18 @@ class SplashActivity : AppCompatActivity() {
                     .putExtra(com.antigravity.player.launcher.LauncherActivity.EXTRA_ABRIR_PLAYER, true)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 finish()
-            }
-            .setNegativeButton("Agora não") { _, _ ->
+            },
+            com.antigravity.player.util.CaixaNaTela.Opcao("Agora não") {
                 respondeu = true
                 launcher.marcarPerguntado(applicationContext)
                 rotear()
             }
-            .setCancelable(false)
-            .create()
-        dialogo.show()
+        ), cancelavel = false)
         if (exibindo) {
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 if (!respondeu && !isFinishing && !isDestroyed) {
                     respondeu = true
-                    try { dialogo.dismiss() } catch (e: Exception) { }
+                    fecharPergunta()
                     rotear() // sem resposta: o Player segue tocando; nada é escolhido sozinho
                 }
             }, 30_000)

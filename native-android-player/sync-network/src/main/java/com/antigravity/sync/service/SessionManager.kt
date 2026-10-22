@@ -80,6 +80,12 @@ object SessionManager {
      */
     @Volatile var rotacaoTela: Int? = null
 
+    /**
+     * F-212: a rotação acima já veio do painel? Antes da 1ª resposta ela pode ser a "Posição da tela" do aparelho ou a da
+     * ROM — que nunca é guardada como se fosse do painel.
+     */
+    @Volatile var rotacaoVeioDoPainel: Boolean = false
+
     fun rotacaoValida(valor: Int?): Int? = valor?.takeIf { it == 0 || it == 90 || it == 180 || it == 270 }
     var currentScreenName: String? = null
 

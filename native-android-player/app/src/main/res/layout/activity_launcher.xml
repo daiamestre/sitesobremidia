@@ -5,6 +5,8 @@
     Meio: Destaques Sobre Mídia grande e centralizado, sem moldura — só as 4 telas (2 TVs 16:9 e 2 totens 9:16).
     Base, centralizados: Player e Menu (Menu abre aplicativos, loja de apps e Ajustes).
     Fundo: o padrão Sobre Mídia, a cor escolhida no painel ou a imagem de capa. O quadro gira junto com a tela (totem).
+    F-212: TV em pé (retrato 9:16) — LauncherActivity.organizar() arruma esta mesma tela como celular: Destaques em
+    coluna (TV 1, TV 2 embaixo dela, os 2 totens 9:16 lado a lado no fim), botões e Menu na largura da tela em pé.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/launcher_raiz"
@@ -35,6 +37,7 @@
             android:visibility="gone" />
 
         <LinearLayout
+            android:id="@+id/launcher_coluna"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipChildren="false"
@@ -47,6 +50,7 @@
 
             <!-- topo -->
             <LinearLayout
+                android:id="@+id/launcher_topo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
@@ -196,6 +200,7 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/launcher_botoes"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
@@ -303,6 +308,7 @@
 
             <!-- funções do aparelho -->
             <LinearLayout
+                android:id="@+id/launcher_gaveta_funcoes"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"
@@ -377,6 +383,24 @@
                     <TextView
                         style="@style/LauncherOpcaoTexto"
                         android:text="Arquivos" />
+                </LinearLayout>
+
+                <!-- F-212: como a TV está instalada (deitada ou em pé) — vale antes de o aparelho ter uma tela no painel -->
+                <LinearLayout
+                    android:id="@+id/launcher_menu_posicao"
+                    style="@style/LauncherOpcaoMenu"
+                    android:layout_marginStart="16dp"
+                    android:background="@drawable/launcher_botao_menu">
+
+                    <ImageView
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_launcher_posicao" />
+
+                    <TextView
+                        style="@style/LauncherOpcaoTexto"
+                        android:text="Posição da tela" />
                 </LinearLayout>
             </LinearLayout>
 

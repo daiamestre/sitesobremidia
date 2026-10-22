@@ -190,7 +190,7 @@ class LauncherSobreMidiaTest {
             val src = File("src/main/java/com/antigravity/player/ui/$tela.kt").readText()
             assertTrue(tela, src.contains("VigiaDaSaida(applicationContext) { true }") && src.contains("vigiaDaSaida.ligar()") && src.contains("vigiaDaSaida.desligar()"))
         }
-        assertTrue("fecha a pergunta sem deixar janela presa", pergunta.contains("try { dialogo?.dismiss() }"))
+        assertTrue("fecha a pergunta sem deixar janela presa", pergunta.contains("try { fecharCaixa?.invoke() }"))
         assertTrue("o quiosque não conta como abrir pelo ícone", File("src/main/java/com/antigravity/player/service/SelfHealingService.kt").readText().contains("EXTRA_SEM_PERGUNTA, true"))
         assertFalse("Home não mostra a pergunta", File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText().contains("aoSairDoApp"))
     }
@@ -279,7 +279,7 @@ class LauncherSobreMidiaTest {
         assertTrue(rede.contains("rpc(\"fn_player_launcher\")"))
         val splash = File("src/main/java/com/antigravity/player/ui/SplashActivity.kt").readText()
         assertTrue(splash.contains("launcher.devePerguntar(applicationContext)"))
-        assertTrue("quem não quer a launcher segue para o login", splash.contains(".setNegativeButton(\"Agora não\")"))
+        assertTrue("quem não quer a launcher segue para o login", splash.contains("CaixaNaTela.Opcao(\"Agora não\")"))
     }
 
     @Test
@@ -302,11 +302,11 @@ class LauncherSobreMidiaTest {
         assertTrue(l.contains("fun devePerguntar(ctx: Context): Boolean = deveOferecer(ctx) && !prefs(ctx).getBoolean(K_PERGUNTADO, false)"))
         // aceitar: launcher vira a tela inicial, aparece e abre o Player em seguida
         val splash = File(base + "ui/SplashActivity.kt").readText()
-        val usar = splash.substringAfter("setPositiveButton(\"Usar a launcher Sobre Mídia\")").substringBefore("setNegativeButton")
+        val usar = splash.substringAfter("Opcao(\"Usar a launcher Sobre Mídia\")").substringBefore("Opcao(\"Agora não\")")
         assertTrue(usar.contains("EXTRA_PEDIR_PADRAO, true") && usar.contains("EXTRA_ABRIR_PLAYER, true"))
         assertFalse("aceitar não pula a launcher", usar.contains("rotear()"))
         // recusar: só o Player (login), sem launcher
-        val agoraNao = splash.substringAfter("setNegativeButton(\"Agora não\")").substringBefore(".setCancelable")
+        val agoraNao = splash.substringAfter("Opcao(\"Agora não\")").substringBefore("cancelavel = false")
         assertTrue(agoraNao.contains("marcarPerguntado") && agoraNao.contains("rotear()") && !agoraNao.contains("LauncherActivity"))
         assertTrue(launcher.contains("private fun seguirParaOPlayer()"))
         // 3º Home: quem usa a launcher original recebe a pergunta (não a launcher Sobre Mídia); quem usa a Sobre Mídia não

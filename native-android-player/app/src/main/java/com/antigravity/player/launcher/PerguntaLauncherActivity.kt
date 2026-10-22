@@ -1,6 +1,5 @@
 package com.antigravity.player.launcher
 
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -15,33 +14,30 @@ import androidx.appcompat.app.AppCompatActivity
  */
 class PerguntaLauncherActivity : AppCompatActivity() {
     private val principal = Handler(Looper.getMainLooper())
-    private var dialogo: AlertDialog? = null
+    private var fecharCaixa: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (!LauncherDoAparelho.deveOferecer(this)) { finish(); return }
-        val dialogo = AlertDialog.Builder(this)
-            .setTitle("Launcher Sobre Mídia")
-            .setMessage(TEXTO)
-            .setPositiveButton("Usar a launcher Sobre Mídia") { _, _ ->
+        // F-212: deitada é o diálogo de sempre; com a TV em pé a caixa gira junto (CaixaNaTela)
+        val fechar = com.antigravity.player.util.CaixaNaTela.mostrar(this, "Launcher Sobre Mídia", TEXTO, listOf(
+            com.antigravity.player.util.CaixaNaTela.Opcao("Usar a launcher Sobre Mídia") {
                 LauncherDoAparelho.ativar(this) // pode ter sido desligada por "usar a launcher original como padrão"
                 startActivity(Intent(this, LauncherActivity::class.java)
                     .putExtra(LauncherActivity.EXTRA_PEDIR_PADRAO, true)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 finish()
-            }
-            .setNegativeButton("Agora não") { _, _ -> LauncherDoAparelho.marcarPerguntado(this); finish() }
-            .setOnCancelListener { finish() }
-            .create()
-        this.dialogo = dialogo
-        dialogo.show()
-        principal.postDelayed({ if (!isFinishing) { try { dialogo.dismiss() } catch (e: Exception) { }; finish() } }, TEMPO_NA_TELA_MS)
+            },
+            com.antigravity.player.util.CaixaNaTela.Opcao("Agora não") { LauncherDoAparelho.marcarPerguntado(this); finish() }
+        ), aoCancelar = { finish() })
+        this.fecharCaixa = fechar
+        principal.postDelayed({ if (!isFinishing) { fechar(); finish() } }, TEMPO_NA_TELA_MS)
     }
 
     override fun onDestroy() {
         principal.removeCallbacksAndMessages(null)
-        try { dialogo?.dismiss() } catch (e: Exception) { } // Home com a pergunta aberta: fecha sem deixar janela presa
-        dialogo = null
+        try { fecharCaixa?.invoke() } catch (e: Exception) { } // Home com a pergunta aberta: fecha sem deixar janela presa
+        fecharCaixa = null
         com.antigravity.player.MainActivity.perguntaTerminou() // F-210: agora começa o minuto fora do Player
         super.onDestroy()
     }

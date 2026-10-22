@@ -196,6 +196,28 @@ object LauncherPolicy {
         )
     }
 
+    /**
+     * F-212 — TV em pé (totem, retrato 9:16), pedido do dono: a TV 1 (16:9) em cima, a TV 2 (16:9) embaixo dela e, por
+     * último, os 2 totens 9:16 lado a lado. Uma coluna só (as TVs têm a largura dos 2 totens juntos), o maior possível e
+     * centralizada.
+     */
+    fun medidasDaVitrineEmPe(largura: Int, altura: Int, vao: Int): List<Retangulo> {
+        if (largura <= 0 || altura <= 0) return List(4) { Retangulo(0, 0, 0, 0) }
+        val g = vao.toDouble()
+        // largura do totem (cw); TV = 2·cw + g de largura. Largura: 2·cw + g ≤ largura.
+        // Altura: 2·(2·cw + g)·9/16 + 2·g + cw·16/9 ≤ altura
+        val porAltura = (altura - g * 9.0 / 8.0 - 2 * g) / (9.0 / 4.0 + 16.0 / 9.0)
+        val cw = minOf((largura - g) / 2.0, porAltura).coerceAtLeast(0.0)
+        val tw = 2 * cw + g
+        val th = tw * 9.0 / 16.0
+        val ch = cw * 16.0 / 9.0
+        val x0 = (largura - tw) / 2.0
+        val y0 = (altura - (2 * th + 2 * g + ch)) / 2.0
+        fun r(x: Double, y: Double, w: Double, h: Double) = Retangulo(Math.round(x).toInt(), Math.round(y).toInt(), Math.round(w).toInt(), Math.round(h).toInt())
+        val yTotens = y0 + 2 * th + 2 * g
+        return listOf(r(x0, y0, tw, th), r(x0, y0 + th + g, tw, th), r(x0, yTotens, cw, ch), r(x0 + cw + g, yTotens, cw, ch))
+    }
+
     // ------------------------------------------------------------------ F-203: Home no Player (regra do dono)
 
     /** Home seguidos contam juntos se vierem com até 1 minuto entre um e outro. */

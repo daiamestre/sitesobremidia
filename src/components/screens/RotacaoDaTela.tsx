@@ -57,6 +57,11 @@ export function RotacaoDaTela({ tela, aoMudar }: {
       <CardContent>
         <SeletorDeRotacao valor={valor} onMudar={mudar} />
         <p className="mt-2 text-[11px] text-muted-foreground">Telas 9x16 nascem em 270°. As 4 posições valem no Player 5.7.9 ou mais novo.</p>
+        {/* F-212: é a posição FÍSICA da TV — não muda a orientação das mídias, só como o aparelho se apresenta */}
+        <p className="mt-1 text-[11px] text-muted-foreground" data-testid="rotacao-posicao-fisica">
+          É como a TV está instalada. Em pé (90° ou 270°), a partir do Player 5.8.15 a launcher, o login, as perguntas e o
+          teclado também ficam em pé (9:16). As mídias continuam na orientação delas.
+        </p>
       </CardContent>
     </Card>
   );

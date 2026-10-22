@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.8.14** (código 584) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
+Versão de teste atual: **5.8.15** (código 585) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
 
 ## 2. Perfis e o que cada um vê
 
@@ -81,7 +81,9 @@ Nas TV Box a tela do Android trabalha em 1280x720 mesmo com a saída HDMI em 108
 
 Silenciosa com root ou Device Owner; nos demais aparelhos a versão nova fica baixada e o instalador do Android só abre quando o painel pede ("Instalar atualização agora"), com alguém ao lado da TV. Nada aparece por cima das mídias.
 
-## 8. Launcher Sobre Mídia — versão de TESTE 5.8.14 (F-200..F-211)
+## 8. Launcher Sobre Mídia — versão de TESTE 5.8.15 (F-200..F-212)
+
+- **TV em pé / totem (F-212, 5.8.15):** a posição FÍSICA da TV é uma só para o aparelho inteiro, nesta ordem: **"Rotação da tela" do painel** (tela vinculada) → **"Posição da tela"** no Menu da launcher (aparelho ainda sem tela no painel) → **ROM de totem** (`ro.sobremidia.orientacao`) → sem nada, a orientação lógica do Android (TV = deitada). TV Box não tem sensor e informa sempre a saída de vídeo deitada (1280x720): a resolução NÃO prova a posição, por isso é configuração. Em pé (90°/270°) tudo gira por software e se arruma em 9:16: launcher (Destaques com a TV 1 em cima, a TV 2 embaixo dela e os 2 totens 9:16 lado a lado; Player e Menu dividindo a largura, um pouco acima do rodapé; selo "App Oficial" no canto inferior esquerdo; Menu em lista e apps em 3 colunas), abertura, login, escolha da tela, aparelho desvinculado, as perguntas (caixa desenhada dentro da tela girada) e o **teclado** (teclado próprio em pé, pelo controle remoto ou mouse — o do Android é do sistema e sairia deitado). As mídias continuam na orientação delas (a escala do palco decide o encaixe). Apps de terceiros (loja, Ajustes, apps instalados) abrem como o Android os desenha — o app não gira janelas de outros apps.
 
 - **Visual (F-211, 5.8.14):** só a logo no topo (sem sombra); embaixo, centralizados, **Sobre Mídia Player** (abre já selecionado) e **Menu** (ícone + nome centralizados), os dois da mesma cor; o cartão selecionado ganha um brilho neon azul leve. No canto inferior esquerdo, o selo **"App Oficial"** (neon, verificado azul) — é o botão da launcher original. O Menu mostra também **Instalar APK** e **Arquivos** (os do próprio aparelho, quando existem) e, com pendrive plugado, aparece o ícone **Pendrive** no topo (abre os arquivos).
 - **Launcher original (F-210, 5.8.14):** ao escolher a original o Player abre logo em seguida e segue a mesma regra dos 3 Home. No 3º Home aparece a pergunta "usar a launcher Sobre Mídia como padrão?" e o minuto fora do Player **só começa quando ela termina** (Sim/Agora não, ou 30 s sem resposta — ela some); depois de 60 s o Player volta.

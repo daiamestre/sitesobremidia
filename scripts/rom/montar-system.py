@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """F-201 — altera SÓ a partição system (imagem comum/raw) para a ROM Sobre Mídia. Roda no Ubuntu do WSL como root.
 
-    python3 montar-system.py <system.raw> <SobreMidiaPlayer.apk> <versao-da-rom>
+    python3 montar-system.py <system.raw> <SobreMidiaPlayer.apk> <versao-da-rom> [posicao]
+
+[posicao] (opcional, F-212) = ROM para TOTEM: grava ro.sobremidia.orientacao (270 = em pé com a base à esquerda, padrão
+9x16; 90 = em pé com a base à direita; 0 = deitada; 180 = de cabeça para baixo; "retrato"/"totem" = 270). O Player
+5.8.15+ usa como posição da TV de fábrica: a launcher e o login já nascem em pé, antes de qualquer login. O painel
+("Rotação da tela") e a "Posição da tela" do Menu continuam mandando quando definidos. Sem o argumento = ROM comum.
 
 O que faz (e nada além disso):
   1. Sobre Mídia Player como app de sistema PRIVILEGIADO: /system/priv-app/SobreMidiaPlayer/SobreMidiaPlayer.apk
@@ -17,9 +22,15 @@ import shutil
 import subprocess
 import sys
 
-if len(sys.argv) != 4:
-    sys.exit("uso: montar-system.py <system.raw> <SobreMidiaPlayer.apk> <versao-da-rom>")
+if len(sys.argv) not in (4, 5):
+    sys.exit("uso: montar-system.py <system.raw> <SobreMidiaPlayer.apk> <versao-da-rom> [posicao]")
 imagem, apk, versao = sys.argv[1:4]
+POSICOES = {"0": "0", "90": "90", "180": "180", "270": "270", "retrato": "270", "totem": "270", "paisagem": "0"}
+posicao = None
+if len(sys.argv) == 5:
+    posicao = POSICOES.get(sys.argv[4].strip().lower())
+    if posicao is None:
+        sys.exit("posicao invalida: use 0, 90, 180, 270, retrato/totem ou paisagem")
 ponto = "/mnt/sm_system_rw"
 os.makedirs(ponto, exist_ok=True)
 subprocess.run(["mount", "-o", "loop,rw", imagem, ponto], check=True)
@@ -66,11 +77,15 @@ try:
                 novas.append(linha)
         while novas and novas[-1] == "":
             novas.pop()
-        novas += ["", "# SOBRE MIDIA (F-201)", "ro.sobremidia.rom=1", f"ro.sobremidia.rom.versao={versao}", "ro.product.locale=pt-BR", ""]
+        novas += ["", "# SOBRE MIDIA (F-201)", "ro.sobremidia.rom=1", f"ro.sobremidia.rom.versao={versao}", "ro.product.locale=pt-BR"]
+        if posicao is not None:
+            novas.append(f"ro.sobremidia.orientacao={posicao}")  # F-212: ROM de totem (posição da TV de fábrica)
+        novas.append("")
         f.seek(0)
         f.write("\n".join(novas))
         f.truncate()
-    relatorio.append("build.prop: pt-BR, America/Sao_Paulo, ro.sobremidia.rom=1, versão " + versao)
+    relatorio.append("build.prop: pt-BR, America/Sao_Paulo, ro.sobremidia.rom=1, versão " + versao
+                     + (f", posição da TV {posicao}° (totem)" if posicao is not None else ""))
     subprocess.run(["sync"], check=True)
 finally:
     subprocess.run(["umount", ponto], check=False)

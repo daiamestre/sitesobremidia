@@ -27,11 +27,16 @@ import java.io.File
  */
 class VitrineLayout @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : ViewGroup(context, attrs) {
     private val vao = (12 * resources.displayMetrics.density).toInt()
+    /** F-212: TV em pé — TV 1 em cima, TV 2 embaixo dela, totens 9:16 lado a lado no fim (LauncherPolicy.medidasDaVitrineEmPe). */
+    var emPe = false
+        set(v) { if (field != v) { field = v; requestLayout() } }
+    private fun medidas(w: Int, h: Int) =
+        if (emPe) LauncherPolicy.medidasDaVitrineEmPe(w, h, vao) else LauncherPolicy.medidasDaVitrine(w, h, vao)
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
         val h = MeasureSpec.getSize(heightMeasureSpec)
-        val medidas = LauncherPolicy.medidasDaVitrine(w - paddingLeft - paddingRight, h - paddingTop - paddingBottom, vao)
+        val medidas = medidas(w - paddingLeft - paddingRight, h - paddingTop - paddingBottom)
         for (i in 0 until childCount) {
             val m = medidas.getOrNull(i) ?: continue
             getChildAt(i).measure(MeasureSpec.makeMeasureSpec(m.largura, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(m.altura, MeasureSpec.EXACTLY))
@@ -40,7 +45,7 @@ class VitrineLayout @JvmOverloads constructor(context: Context, attrs: Attribute
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        val medidas = LauncherPolicy.medidasDaVitrine(width - paddingLeft - paddingRight, height - paddingTop - paddingBottom, vao)
+        val medidas = medidas(width - paddingLeft - paddingRight, height - paddingTop - paddingBottom)
         for (i in 0 until childCount) {
             val m = medidas.getOrNull(i) ?: continue
             getChildAt(i).layout(paddingLeft + m.x, paddingTop + m.y, paddingLeft + m.x + m.largura, paddingTop + m.y + m.altura)
@@ -85,6 +90,9 @@ class VitrineDaLauncher(context: Context, private val layout: VitrineLayout) {
             Tela(v, raiz)
         }
     }
+
+    /** F-212: TV em pé — TV 1 em cima, TV 2 embaixo dela e os 2 totens 9:16 lado a lado no fim. */
+    fun emPe(sim: Boolean) { layout.emPe = sim }
 
     /** Começa (ou recomeça) a passar as mídias de cada tela. */
     fun mostrar(fundo: List<Pair<LauncherPolicy.ItemDeFundo, File>>) {

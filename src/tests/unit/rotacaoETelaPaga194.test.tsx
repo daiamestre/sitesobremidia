@@ -52,6 +52,14 @@ describe('F-194 · rotação em 4 posições', () => {
     await waitFor(() => expect(insert).toHaveBeenCalledWith({ screen_id: 't1', command: 'reload', status: 'pending' }));
   });
 
+  it('F-212: a rotação é a posição física da TV — em pé, launcher, login, perguntas e teclado ficam em pé', () => {
+    render(<RotacaoDaTela tela={{ id: 't2', resolution: '9x16', orientation: 'portrait', rotacao_tela: 270 }} />);
+    const aviso = screen.getByTestId('rotacao-posicao-fisica').textContent ?? '';
+    expect(aviso).toContain('Player 5.8.15');
+    expect(aviso).toContain('teclado');
+    expect(aviso).toContain('As mídias continuam na orientação delas');
+  });
+
   it('nova tela (anunciantes e parceiros) e tela paga têm rotação e capa; ID personalizado é opcional', () => {
     const nova = ler('src/components/screens/ScreenDialog.tsx');
     expect(nova).toContain('<SeletorDeRotacao');

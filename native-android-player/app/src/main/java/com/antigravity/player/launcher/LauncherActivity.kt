@@ -2,7 +2,6 @@ package com.antigravity.player.launcher
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
-import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -20,7 +19,9 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,9 +38,9 @@ import com.antigravity.player.MainActivity
 import com.antigravity.player.R
 import com.antigravity.player.di.ServiceLocator
 import com.antigravity.player.ui.SplashActivity
-import com.antigravity.player.util.DeviceTypeUtil
 import com.antigravity.player.util.MarcaDoGestor
-import com.antigravity.player.util.PlayerFlowPolicy
+import com.antigravity.player.util.CaixaNaTela
+import com.antigravity.player.util.OrientacaoDoAparelho
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -132,6 +133,7 @@ class LauncherActivity : AppCompatActivity() {
         botao(R.id.launcher_menu_apk) { abrirPorPacote(instaladorDeApk) }
         botao(R.id.launcher_menu_arquivos) { abrirPorPacote(explorador) }
         botao(R.id.launcher_usb) { abrirPorPacote(explorador) }
+        botao(R.id.launcher_menu_posicao) { escolherPosicao() }
         try {
             registerReceiver(mudancaDeApps, IntentFilter().apply {
                 addAction(Intent.ACTION_PACKAGE_ADDED); addAction(Intent.ACTION_PACKAGE_REMOVED)
@@ -147,6 +149,10 @@ class LauncherActivity : AppCompatActivity() {
         } catch (e: Exception) { Logger.w("LAUNCHER", "pendrive: ${e.message}") }
 
         quadro.post { aplicarRotacao() }
+        // F-212: a tela muda de tamanho quando o Android esconde as barras do sistema: recalcula o giro com o tamanho final
+        findViewById<View>(R.id.launcher_raiz).addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
+            if (r - l != or - ol || b - t != ob - ot) quadro.post { aplicarRotacao() }
+        }
         if (intent?.getBooleanExtra(EXTRA_ABRIR_PLAYER, false) == true) marcarAbrirPlayerDepois()
         if (intent?.getBooleanExtra(EXTRA_PEDIR_PADRAO, false) == true) principal.postDelayed({ pedirParaSerPadrao() }, 600)
     }
@@ -184,6 +190,7 @@ class LauncherActivity : AppCompatActivity() {
         carregarApps()
         atualizarPendrive()
         atualizarFundo(reiniciar = true)
+        aplicarRotacao() // F-212: a posição pode ter mudado no painel enquanto a launcher estava fora
         selecionarPlayer()
         reiniciarContagem()
         principal.post(relogio)
@@ -283,27 +290,101 @@ class LauncherActivity : AppCompatActivity() {
         } catch (e: Exception) { }
     }
 
-    /** Totem / TV em pé: a launcher gira igual ao Player (mesma regra e mesma rotação escolhida no painel). */
+    /**
+     * Totem / TV em pé: a launcher gira igual ao Player. F-212: a posição vem da autoridade única
+     * ([OrientacaoDoAparelho]: painel > Posição da tela no aparelho > ROM) e, em pé, a tela se arruma como celular.
+     */
     private fun aplicarRotacao() {
         val raiz = findViewById<View>(R.id.launcher_raiz)
         if (raiz.width <= 0 || raiz.height <= 0) { raiz.post { aplicarRotacao() }; return }
         val p = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-        val rotacao = p.getInt("rotacao_tela", -1).takeIf { it in setOf(0, 90, 180, 270) }
-        val t = PlayerFlowPolicy.tvCanvasTransform(
-            isTelevision = DeviceTypeUtil.isTelevision(applicationContext),
-            canonicalOrientation = p.getString("current_orientation", null),
-            displayWidth = raiz.width,
-            displayHeight = raiz.height,
-            giroGraus = if (p.getInt("giro_do_quadro", 90) == 270) 270 else 90,
-            rotacaoTela = rotacao
-        )
-        val lp = quadro.layoutParams
-        lp.width = t?.width ?: ViewGroup.LayoutParams.MATCH_PARENT
-        lp.height = t?.height ?: ViewGroup.LayoutParams.MATCH_PARENT
-        quadro.layoutParams = lp
-        quadro.rotation = t?.rotation ?: 0f
-        quadro.translationX = t?.translationX ?: 0f
-        quadro.translationY = t?.translationY ?: 0f
+        val t = OrientacaoDoAparelho.transformacao(this, raiz.width, raiz.height, p.getString("current_orientation", null))
+        organizar(OrientacaoDoAparelho.aplicar(quadro, t, raiz.width, raiz.height))
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        quadro.post { aplicarRotacao() }
+    }
+
+    private var emRetrato: Boolean? = null
+
+    /**
+     * F-212 — TV em pé (retrato 9:16): a MESMA tela se arruma como celular, sem layout espremido nem cartões um por cima
+     * do outro: Destaques numa coluna (TV 1 em cima, TV 2 embaixo dela, os 2 totens 9:16 lado a lado no fim, maiores e centralizados), Player e Menu
+     * dividindo a largura, selo "App Oficial" embaixo à esquerda, e no Menu as funções em lista e os apps em 3 colunas.
+     */
+    private fun organizar(retrato: Boolean) {
+        if (emRetrato == retrato) return
+        emRetrato = retrato
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        findViewById<View>(R.id.launcher_coluna).setPadding(
+            dp(if (retrato) 24 else 40), dp(if (retrato) 26 else 22), dp(if (retrato) 24 else 40), dp(if (retrato) 30 else 24))
+        findViewById<View>(R.id.launcher_logo).apply { layoutParams = layoutParams.apply { height = dp(if (retrato) 56 else 70) } }
+        findViewById<TextView>(R.id.launcher_hora).textSize = if (retrato) 32f else 38f
+        vitrine.emPe(retrato)
+
+        // Player e Menu: lado a lado nos dois jeitos; em pé dividem a largura e o selo fica na linha de baixo
+        val botoes = findViewById<LinearLayout>(R.id.launcher_botoes)
+        botoes.layoutParams = (botoes.layoutParams as FrameLayout.LayoutParams).apply {
+            width = if (retrato) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT
+            bottomMargin = if (retrato) dp(70) else 0 // em pé o selo "App Oficial" fica embaixo, à esquerda, com folga
+        }
+        listOf(R.id.launcher_cartao_player, R.id.launcher_card_apps).forEachIndexed { i, id ->
+            val v = findViewById<View>(id)
+            v.layoutParams = (v.layoutParams as LinearLayout.LayoutParams).apply {
+                width = if (retrato) 0 else dp(320)
+                weight = if (retrato) 1f else 0f
+                height = dp(if (retrato) 104 else 118)
+                marginStart = if (i == 1) dp(if (retrato) 14 else 24) else 0
+            }
+            if (i == 0) v.setPadding(dp(if (retrato) 20 else 30), 0, dp(if (retrato) 14 else 24), 0)
+        }
+
+        // Menu: funções em lista na largura da tela (em pé) ou em linha (deitada); apps em 3 ou 6 colunas
+        val funcoes = findViewById<LinearLayout>(R.id.launcher_gaveta_funcoes)
+        funcoes.orientation = if (retrato) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        for (i in 0 until funcoes.childCount) {
+            val v = funcoes.getChildAt(i)
+            v.layoutParams = (v.layoutParams as LinearLayout.LayoutParams).apply {
+                width = if (retrato) ViewGroup.LayoutParams.MATCH_PARENT else dp(236)
+                height = dp(if (retrato) 62 else 72)
+                marginStart = if (retrato || i == 0) 0 else dp(16)
+                topMargin = if (retrato && i > 0) dp(10) else 0
+            }
+        }
+        gaveta.setPadding(dp(if (retrato) 26 else 44), dp(28), dp(if (retrato) 26 else 44), dp(20))
+        (lista.layoutManager as? GridLayoutManager)?.spanCount = if (retrato) 3 else 6
+        Logger.i("LAUNCHER", "Arrumação: " + (if (retrato) "em pé (retrato 9:16)" else "deitada") + " — " + OrientacaoDoAparelho.atual(this))
+    }
+
+    /**
+     * F-212 — "Posição da tela" no Menu: como a TV está instalada. Vale enquanto o aparelho não tem tela no painel
+     * (antes do login, ou depois de desvincular); com tela vinculada a posição é a "Rotação da tela" do painel.
+     */
+    private fun escolherPosicao() {
+        val estado = OrientacaoDoAparelho.atual(this)
+        if (estado.fonte == OrientacaoDoAparelho.Fonte.PAINEL) {
+            CaixaNaTela.mostrar(this, "Posição da tela",
+                "Esta TV está: ${OrientacaoDoAparelho.titulo(estado.rotacao)}.\n\nEla está ligada a uma tela do painel, então a " +
+                    "posição é a \"Rotação da tela\" escolhida lá (Telas > a tela > Rotação da tela). Ela vale para o Player, " +
+                    "a launcher e as telas de entrada.",
+                listOf(CaixaNaTela.Opcao("Entendi")))
+            return
+        }
+        val marca = { sim: Boolean -> if (sim) "✓  " else "" }
+        val opcoes = OrientacaoDoAparelho.ROTACOES.map { r ->
+            CaixaNaTela.Opcao(marca(estado.fonte == OrientacaoDoAparelho.Fonte.APARELHO && estado.rotacao == r) + OrientacaoDoAparelho.titulo(r)) { definirPosicao(r) }
+        } + CaixaNaTela.Opcao(marca(estado.fonte != OrientacaoDoAparelho.Fonte.APARELHO) + OrientacaoDoAparelho.titulo(null)) { definirPosicao(null) }
+        CaixaNaTela.mostrar(this, "Como esta TV está instalada?", null, opcoes)
+    }
+
+    private fun definirPosicao(rotacao: Int?) {
+        OrientacaoDoAparelho.definirNoAparelho(this, rotacao)
+        aplicarRotacao()
+        Toast.makeText(this, "Posição da tela: ${OrientacaoDoAparelho.titulo(OrientacaoDoAparelho.atual(this).rotacao)}", Toast.LENGTH_SHORT).show()
+        findViewById<View>(R.id.launcher_menu_posicao).post { findViewById<View>(R.id.launcher_menu_posicao).requestFocus() }
     }
 
     // ------------------------------------------------------------------ Player e contagem
@@ -429,30 +510,30 @@ class LauncherActivity : AppCompatActivity() {
     }
 
     private fun perguntarLauncherOriginal() {
-        val opcoes = arrayOf("Abrir a launcher original agora", "Usar a launcher original como padrão", "Cancelar")
-        AlertDialog.Builder(this)
-            .setTitle("Launcher original")
-            .setItems(opcoes) { _, qual ->
-                when (qual) {
-                    0 -> if (!LauncherDoAparelho.abrirOriginal(this, config.minutosDeUsoLivre))
-                        Toast.makeText(this, "Nenhuma outra launcher encontrada neste aparelho", Toast.LENGTH_LONG).show()
-                    else voltarPlayerDepoisDaOriginal()
-                    1 -> AlertDialog.Builder(this)
-                        .setTitle("Voltar para a launcher original?")
-                        .setMessage("A launcher Sobre Mídia deixa de ser a tela inicial. O Player continua igual (abre pelo ícone dele). " +
-                            "Para usar a launcher Sobre Mídia de novo, responda \"Usar\" quando o Player perguntar (ao abrir ou sair dele) " +
-                            "ou use o comando \"Launcher Sobre Mídia\" no painel.")
-                        .setPositiveButton("Voltar para a original") { _, _ ->
+        // F-212: CaixaNaTela = AlertDialog deitada; em pé a caixa gira junto com a tela
+        CaixaNaTela.mostrar(this, "Launcher original", null, listOf(
+            CaixaNaTela.Opcao("Abrir a launcher original agora") {
+                if (!LauncherDoAparelho.abrirOriginal(this, config.minutosDeUsoLivre))
+                    Toast.makeText(this, "Nenhuma outra launcher encontrada neste aparelho", Toast.LENGTH_LONG).show()
+                else voltarPlayerDepoisDaOriginal()
+            },
+            CaixaNaTela.Opcao("Usar a launcher original como padrão") {
+                CaixaNaTela.mostrar(this, "Voltar para a launcher original?",
+                    "A launcher Sobre Mídia deixa de ser a tela inicial. O Player continua igual (abre pelo ícone dele). " +
+                        "Para usar a launcher Sobre Mídia de novo, responda \"Usar\" quando o Player perguntar (ao abrir ou sair dele) " +
+                        "ou use o comando \"Launcher Sobre Mídia\" no painel.",
+                    listOf(
+                        CaixaNaTela.Opcao("Voltar para a original") {
                             LauncherDoAparelho.usarOriginalComoPadrao(this)
                             LauncherDoAparelho.abrirOriginal(this, config.minutosDeUsoLivre)
                             voltarPlayerDepoisDaOriginal()
                             finish()
-                        }
-                        .setNegativeButton("Cancelar", null)
-                        .show()
-                }
-            }
-            .show()
+                        },
+                        CaixaNaTela.Opcao("Cancelar")
+                    ))
+            },
+            CaixaNaTela.Opcao("Cancelar")
+        ))
     }
 
     /**
@@ -500,18 +581,17 @@ class LauncherActivity : AppCompatActivity() {
         }
         if (ofereceuModoForcado) { seguirParaOPlayer(); return }
         ofereceuModoForcado = true
-        AlertDialog.Builder(this)
-            .setTitle("Este aparelho não deixou trocar a tela inicial")
-            .setMessage("Para a launcher Sobre Mídia aparecer mesmo assim, permita \"Acesso ao uso\" para o Sobre Mídia Player na próxima tela.")
-            .setPositiveButton("Permitir") { _, _ ->
-                aguardandoEscolhaDePadrao = true
-                try { startActivity(LauncherDoAparelho.intencaoDoAcessoDeUso()) } catch (e: Exception) {
-                    Toast.makeText(this, "Este aparelho não tem a tela de Acesso ao uso", Toast.LENGTH_LONG).show()
-                }
-            }
-            .setNegativeButton("Agora não") { _, _ -> seguirParaOPlayer() }
-            .setCancelable(false)
-            .show()
+        CaixaNaTela.mostrar(this, "Este aparelho não deixou trocar a tela inicial",
+            "Para a launcher Sobre Mídia aparecer mesmo assim, permita \"Acesso ao uso\" para o Sobre Mídia Player na próxima tela.",
+            listOf(
+                CaixaNaTela.Opcao("Permitir") {
+                    aguardandoEscolhaDePadrao = true
+                    try { startActivity(LauncherDoAparelho.intencaoDoAcessoDeUso()) } catch (e: Exception) {
+                        Toast.makeText(this, "Este aparelho não tem a tela de Acesso ao uso", Toast.LENGTH_LONG).show()
+                    }
+                },
+                CaixaNaTela.Opcao("Agora não") { seguirParaOPlayer() }
+            ), cancelavel = false)
     }
 
     // ------------------------------------------------------------------ configuração do painel
@@ -647,21 +727,17 @@ class LauncherActivity : AppCompatActivity() {
     }
 
     private fun detalhesDoApp(app: AppDaLauncher) {
-        AlertDialog.Builder(this)
-            .setTitle(app.nome)
-            .setItems(arrayOf("Abrir", "Informações do aplicativo", "Cancelar")) { _, qual ->
-                when (qual) {
-                    0 -> abrirApp(app)
-                    1 -> {
-                        LauncherDoAparelho.UsoLivre.liberar(this, config.minutosDeUsoLivre)
-                        try {
-                            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.pacote}"))
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        } catch (e: Exception) { }
-                    }
-                }
-            }
-            .show()
+        CaixaNaTela.mostrar(this, app.nome, null, listOf(
+            CaixaNaTela.Opcao("Abrir") { abrirApp(app) },
+            CaixaNaTela.Opcao("Informações do aplicativo") {
+                LauncherDoAparelho.UsoLivre.liberar(this, config.minutosDeUsoLivre)
+                try {
+                    startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.pacote}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (e: Exception) { }
+            },
+            CaixaNaTela.Opcao("Cancelar")
+        ))
     }
 
     private inner class Adaptador : RecyclerView.Adapter<Adaptador.Item>() {

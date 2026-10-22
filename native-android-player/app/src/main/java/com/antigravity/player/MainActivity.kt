@@ -498,7 +498,10 @@ class MainActivity : AppCompatActivity() {
         // (que parte do cache em 1 s) já estava tocando quando a área de vídeo mudava de tamanho e girava, e o
         // decodificador por hardware ficava em tela preta.
         SessionManager.giroDoQuadro = SessionManager.giroValido(savedPrefs.getInt(PREF_GIRO_DO_QUADRO, 90))
-        SessionManager.rotacaoTela = SessionManager.rotacaoValida(savedPrefs.getInt(PREF_ROTACAO_TELA, -1))
+        val rotacaoDoPainel = SessionManager.rotacaoValida(savedPrefs.getInt(PREF_ROTACAO_TELA, -1))
+        SessionManager.rotacaoVeioDoPainel = rotacaoDoPainel != null
+        // F-212: antes de o painel responder vale a posição física do aparelho ("Posição da tela" ou ROM de totem)
+        SessionManager.rotacaoTela = rotacaoDoPainel ?: com.antigravity.player.util.OrientacaoDoAparelho.rotacaoSemPainel(applicationContext)
         rotacaoPorSoftwareLiberada = !isTV && PlayerFlowPolicy.giroPorSoftwareGuardado(
             savedPrefs.getBoolean(PREF_GIRO_POR_SOFTWARE, false),
             savedPrefs.getString(PREF_GIRO_POR_SOFTWARE_PARA, null),
@@ -2434,7 +2437,14 @@ withContext(Dispatchers.Main) {
         val wantW = t?.width ?: android.view.ViewGroup.LayoutParams.MATCH_PARENT
         val wantH = t?.height ?: android.view.ViewGroup.LayoutParams.MATCH_PARENT
         val wantRot = t?.rotation ?: 0f
-        if (lp.width == wantW && lp.height == wantH && canvas.rotation == wantRot) return
+        if (lp.width == wantW && lp.height == wantH && canvas.rotation == wantRot) {
+            // F-212: o quadro já está certo, mas a rotação pode ter acabado de chegar do painel: guarda
+            try {
+                val p = getSharedPreferences("player_prefs", MODE_PRIVATE)
+                p.edit().putInt(PREF_ROTACAO_TELA, rotacaoParaGuardar(p)).apply()
+            } catch (e: Exception) { /* preferência é só um atalho */ }
+            return
+        }
         // F-198: a camada de hardware não gira com a View: com o quadro girando, reabre a tela na camada comum
         if (modoNitidez && wantRot != 0f) {
             Logger.w("NITIDEZ", "quadro vai girar ($wantRot°): reabrindo a tela sem o modo nitidez")
@@ -2443,7 +2453,7 @@ withContext(Dispatchers.Main) {
             try {
                 getSharedPreferences("player_prefs", MODE_PRIVATE).edit()
                     .putInt(PREF_GIRO_DO_QUADRO, SessionManager.giroDoQuadro)
-                    .putInt(PREF_ROTACAO_TELA, SessionManager.rotacaoTela ?: -1)
+                    .putInt(PREF_ROTACAO_TELA, rotacaoParaGuardar(getSharedPreferences("player_prefs", MODE_PRIVATE)))
                     .commit()
             } catch (e: Exception) { /* a trava abaixo segura */ }
             nitidezSuspensa = true
@@ -2457,7 +2467,7 @@ withContext(Dispatchers.Main) {
         try {
             getSharedPreferences("player_prefs", MODE_PRIVATE).edit()
                 .putInt(PREF_GIRO_DO_QUADRO, SessionManager.giroDoQuadro)
-                .putInt(PREF_ROTACAO_TELA, SessionManager.rotacaoTela ?: -1)
+                .putInt(PREF_ROTACAO_TELA, rotacaoParaGuardar(getSharedPreferences("player_prefs", MODE_PRIVATE)))
                 .apply()
         } catch (e: Exception) { /* preferência é só um atalho */ }
         lp.width = wantW
@@ -2472,6 +2482,10 @@ withContext(Dispatchers.Main) {
             content.post { reiniciarMotorDeVideo() }
         }
     }
+
+    /** F-212: só a rotação que veio do painel é guardada como "do painel"; a do aparelho/ROM fica onde está. */
+    private fun rotacaoParaGuardar(p: android.content.SharedPreferences): Int =
+        if (SessionManager.rotacaoVeioDoPainel) SessionManager.rotacaoTela ?: -1 else p.getInt(PREF_ROTACAO_TELA, -1)
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
