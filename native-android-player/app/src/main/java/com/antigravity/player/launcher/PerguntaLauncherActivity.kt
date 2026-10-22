@@ -42,12 +42,13 @@ class PerguntaLauncherActivity : AppCompatActivity() {
         principal.removeCallbacksAndMessages(null)
         try { dialogo?.dismiss() } catch (e: Exception) { } // Home com a pergunta aberta: fecha sem deixar janela presa
         dialogo = null
+        com.antigravity.player.MainActivity.perguntaTerminou() // F-210: agora começa o minuto fora do Player
         super.onDestroy()
     }
 
     companion object {
-        /** F-204: a pergunta fica no máximo 40 s na tela; sem resposta some e a pessoa segue na launcher original. */
-        const val TEMPO_NA_TELA_MS = 40_000L
+        /** F-210: a pergunta fica no máximo 30 s na tela; sem resposta some, a pessoa segue na launcher original e o minuto fora do Player começa. */
+        const val TEMPO_NA_TELA_MS = 30_000L
 
         const val TEXTO = "Usar a launcher Sobre Mídia como tela inicial deste aparelho?\n\n" +
             "Ao ligar o aparelho ou sair do Player aparece a launcher Sobre Mídia, com o Player em destaque e os seus " +
@@ -81,13 +82,16 @@ class PerguntaLauncherActivity : AppCompatActivity() {
          * verdade). Uma vez por saída.
          */
         fun aoSairDoApp(ctx: Context) {
-            if (!LauncherDoAparelho.deveOferecer(ctx)) return
+            // F-210: sem pergunta, o minuto fora do Player começa já
+            if (!LauncherDoAparelho.deveOferecer(ctx)) { com.antigravity.player.MainActivity.perguntaTerminou(); return }
             val app = ctx.applicationContext
             Handler(Looper.getMainLooper()).postDelayed({
-                if (TelasNaFrente.alguma() || !LauncherDoAparelho.deveOferecer(app)) return@postDelayed
+                if (TelasNaFrente.alguma() || !LauncherDoAparelho.deveOferecer(app)) {
+                    com.antigravity.player.MainActivity.perguntaTerminou(); return@postDelayed
+                }
                 try {
                     app.startActivity(Intent(app, PerguntaLauncherActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                } catch (e: Exception) { }
+                } catch (e: Exception) { com.antigravity.player.MainActivity.perguntaTerminou() }
             }, 1_500)
         }
 

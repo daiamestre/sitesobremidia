@@ -129,13 +129,22 @@ class LauncherActivity : AppCompatActivity() {
         botao(R.id.launcher_gaveta_voltar) { fecharGaveta() }
         botao(R.id.launcher_btn_original) { perguntarLauncherOriginal() }
         botao(R.id.launcher_btn_padrao) { pedirParaSerPadrao() }
-
+        botao(R.id.launcher_menu_apk) { abrirPorPacote(instaladorDeApk) }
+        botao(R.id.launcher_menu_arquivos) { abrirPorPacote(explorador) }
+        botao(R.id.launcher_usb) { abrirPorPacote(explorador) }
         try {
             registerReceiver(mudancaDeApps, IntentFilter().apply {
                 addAction(Intent.ACTION_PACKAGE_ADDED); addAction(Intent.ACTION_PACKAGE_REMOVED)
                 addAction(Intent.ACTION_PACKAGE_CHANGED); addDataScheme("package")
             })
         } catch (e: Exception) { Logger.w("LAUNCHER", "apps: ${e.message}") }
+        try {
+            registerReceiver(mudancaDePendrive, IntentFilter().apply {
+                addAction(Intent.ACTION_MEDIA_MOUNTED); addAction(Intent.ACTION_MEDIA_UNMOUNTED)
+                addAction(Intent.ACTION_MEDIA_REMOVED); addAction(Intent.ACTION_MEDIA_EJECT); addAction(Intent.ACTION_MEDIA_BAD_REMOVAL)
+                addDataScheme("file")
+            })
+        } catch (e: Exception) { Logger.w("LAUNCHER", "pendrive: ${e.message}") }
 
         quadro.post { aplicarRotacao() }
         if (intent?.getBooleanExtra(EXTRA_ABRIR_PLAYER, false) == true) marcarAbrirPlayerDepois()
@@ -147,7 +156,7 @@ class LauncherActivity : AppCompatActivity() {
         // Home de novo: volta ao começo (foco no Player, contagem do início)
         gaveta.visibility = View.GONE
         lista.scrollToPosition(0)
-        cartaoPlayer.requestFocus()
+        selecionarPlayer()
         reiniciarContagem()
         if (intent?.getBooleanExtra(EXTRA_ABRIR_PLAYER, false) == true) marcarAbrirPlayerDepois()
         if (intent?.getBooleanExtra(EXTRA_PEDIR_PADRAO, false) == true) pedirParaSerPadrao()
@@ -173,8 +182,9 @@ class LauncherActivity : AppCompatActivity() {
         lerEstadoDoPlayer()
         aplicarConfig()
         carregarApps()
+        atualizarPendrive()
         atualizarFundo(reiniciar = true)
-        cartaoPlayer.requestFocus()
+        selecionarPlayer()
         reiniciarContagem()
         principal.post(relogio)
         btnPadrao.visibility = if (LauncherDoAparelho.ehPadrao(this)) View.GONE else View.VISIBLE
@@ -224,6 +234,7 @@ class LauncherActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         try { unregisterReceiver(mudancaDeApps) } catch (e: Exception) { }
+        try { unregisterReceiver(mudancaDePendrive) } catch (e: Exception) { }
         super.onDestroy()
     }
 
@@ -233,7 +244,27 @@ class LauncherActivity : AppCompatActivity() {
         if (gaveta.visibility == View.VISIBLE) fecharGaveta() else reiniciarContagem()
     }
 
+    /**
+     * F-211: o cartão do Player abre SEMPRE selecionado (brilho azul). Muitas TV Box ligam em "modo toque", e nesse modo o
+     * requestFocus() comum é ignorado — requestFocusFromTouch() sai do modo toque e seleciona de verdade.
+     */
+    private fun selecionarPlayer() {
+        cartaoPlayer.post { if (gaveta.visibility != View.VISIBLE && !cartaoPlayer.isFocused) cartaoPlayer.requestFocusFromTouch() }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && currentFocus == null) selecionarPlayer()
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // F-211: nada selecionado (ex.: tela recém-aberta) → a primeira tecla seleciona o Player
+        if (event.action == KeyEvent.ACTION_DOWN && gaveta.visibility != View.VISIBLE && currentFocus == null &&
+            event.keyCode in listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER)) {
+            selecionarPlayer()
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN) reiniciarContagem()
         return super.dispatchKeyEvent(event)
     }
@@ -341,6 +372,39 @@ class LauncherActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------------ aparelho
 
+    // ------------------------------------------------------------------ F-210: Instalar APK, Arquivos e pendrive
+
+    private var instaladorDeApk: String? = null
+    private var explorador: String? = null
+
+    private fun abrirPorPacote(pacote: String?) {
+        val p = pacote ?: return
+        val i = packageManager.getLaunchIntentForPackage(p) ?: packageManager.getLeanbackLaunchIntentForPackage(p)
+        if (i == null) { Toast.makeText(this, "Este aparelho não tem esse aplicativo", Toast.LENGTH_SHORT).show(); return }
+        LauncherDoAparelho.UsoLivre.liberar(this, config.minutosDeUsoLivre)
+        try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) {
+            Toast.makeText(this, "Não foi possível abrir", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Pendrive (ou cartão) plugado e montado? Android 7+ pelos volumes; antes, pelas pastas de montagem. */
+    private fun temPendrive(): Boolean = try {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            val sm = getSystemService(Context.STORAGE_SERVICE) as android.os.storage.StorageManager
+            sm.storageVolumes.any { it.isRemovable && it.state == android.os.Environment.MEDIA_MOUNTED }
+        } else {
+            listOf("/mnt/usb_storage", "/mnt/media_rw", "/storage/usb0").any { java.io.File(it).listFiles()?.isNotEmpty() == true }
+        }
+    } catch (e: Exception) { false }
+
+    private fun atualizarPendrive() {
+        findViewById<View>(R.id.launcher_usb).visibility = if (temPendrive()) View.VISIBLE else View.GONE
+    }
+
+    private val mudancaDePendrive = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) { principal.postDelayed({ atualizarPendrive() }, 600) }
+    }
+
     private fun botao(id: Int, acao: () -> Unit) {
         findViewById<View>(id).apply { setOnClickListener { acao() }; realce(this, 1.06f) }
     }
@@ -372,6 +436,7 @@ class LauncherActivity : AppCompatActivity() {
                 when (qual) {
                     0 -> if (!LauncherDoAparelho.abrirOriginal(this, config.minutosDeUsoLivre))
                         Toast.makeText(this, "Nenhuma outra launcher encontrada neste aparelho", Toast.LENGTH_LONG).show()
+                    else voltarPlayerDepoisDaOriginal()
                     1 -> AlertDialog.Builder(this)
                         .setTitle("Voltar para a launcher original?")
                         .setMessage("A launcher Sobre Mídia deixa de ser a tela inicial. O Player continua igual (abre pelo ícone dele). " +
@@ -380,6 +445,7 @@ class LauncherActivity : AppCompatActivity() {
                         .setPositiveButton("Voltar para a original") { _, _ ->
                             LauncherDoAparelho.usarOriginalComoPadrao(this)
                             LauncherDoAparelho.abrirOriginal(this, config.minutosDeUsoLivre)
+                            voltarPlayerDepoisDaOriginal()
                             finish()
                         }
                         .setNegativeButton("Cancelar", null)
@@ -387,6 +453,24 @@ class LauncherActivity : AppCompatActivity() {
                 }
             }
             .show()
+    }
+
+    /**
+     * F-210 — regra do dono: escolheu a launcher original → ela abre e o Player volta logo em seguida (como dentro da
+     * launcher Sobre Mídia); dali em diante vale a regra dos 3 Home (1º/2º volta logo, 3º fica livre 1 minuto), sempre.
+     * Só para aparelho que já exibe uma tela (sem login a launcher não abre o Player).
+     */
+    private fun voltarPlayerDepoisDaOriginal() {
+        if (!logadoNumaTela) return
+        val app = applicationContext
+        Handler(Looper.getMainLooper()).postDelayed({
+            LauncherDoAparelho.UsoLivre.encerrar(app)
+            try {
+                val i = if (MainActivity.viva) Intent(app, MainActivity::class.java).putExtra(MainActivity.EXTRA_SO_TRAZER_PARA_FRENTE, true)
+                    else Intent(app, SplashActivity::class.java)
+                app.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (e: Exception) { Logger.w("LAUNCHER", "Player não voltou depois da original: ${e.message}") }
+        }, LauncherPolicy.VOLTA_RAPIDA_S * 1000L)
     }
 
     private fun pedirParaSerPadrao() {
@@ -522,6 +606,10 @@ class LauncherActivity : AppCompatActivity() {
             }
             adaptador.itens = visiveis
             adaptador.notifyDataSetChanged()
+            instaladorDeApk = todos.firstOrNull { LauncherPolicy.ehInstaladorDeApk(it.pacote, it.nome) }?.pacote
+            explorador = (todos.firstOrNull { it.pacote in LauncherPolicy.EXPLORADORES } ?: todos.firstOrNull { LauncherPolicy.ehExplorador(it.pacote, it.nome) })?.pacote
+            findViewById<View>(R.id.launcher_menu_apk).visibility = if (instaladorDeApk != null) View.VISIBLE else View.GONE
+            findViewById<View>(R.id.launcher_menu_arquivos).visibility = if (explorador != null) View.VISIBLE else View.GONE
             semApps.visibility = if (visiveis.isEmpty()) View.VISIBLE else View.GONE
             appsTotal.text = if (visiveis.size == 1) "Aplicativos (1)" else "Aplicativos (${visiveis.size})"
             try { ConfigDaLauncher.reportarApps(applicationContext, todos.map { it.pacote to it.nome }) } catch (e: Throwable) { Logger.w("LAUNCHER", "apps: ${e.message}") }

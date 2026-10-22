@@ -105,13 +105,13 @@ class LauncherSobreMidiaTest {
         }
         assertEquals("só 2 botões embaixo (Player e Menu)", 2, Regex("style=\"@style/LauncherBotaoBase\"").findAll(layout).count())
         assertFalse("sem os 4 cartões antigos", layout.contains("style=\"@style/LauncherCartao\""))
-        assertTrue("selo Oficial no lugar de Launcher original", layout.contains("android:text=\"✓ Oficial\"") && !layout.contains("Launcher original"))
+        assertTrue("selo App Oficial no lugar de Launcher original", layout.contains("android:text=\"App Oficial\"") && !layout.contains("Launcher original"))
         val base = layout.substring(layout.indexOf("@+id/launcher_destaque"), layout.indexOf("@+id/launcher_gaveta"))
         assertTrue("Player e Menu abaixo dos Destaques", base.indexOf("launcher_vitrine") < base.indexOf("launcher_cartao_player"))
         val menu = layout.substring(layout.indexOf("@+id/launcher_gaveta"))
         assertTrue("Menu tem loja, Ajustes e apps", menu.contains("launcher_card_loja") && menu.contains("launcher_btn_ajustes") && menu.contains("launcher_apps"))
         val estilos = File("src/main/res/values/themes.xml").readText()
-        assertTrue("retângulo quase quadrado", estilos.contains("<item name=\"android:layout_width\">232dp</item>") && estilos.contains("<item name=\"android:layout_height\">104dp</item>"))
+        assertTrue("retângulo quase quadrado", estilos.contains("<item name=\"android:layout_width\">320dp</item>") && estilos.contains("<item name=\"android:layout_height\">118dp</item>"))
         assertTrue(File("src/main/res/drawable/launcher_botao_player.xml").readText().contains("android:radius=\"30dp\""))
         assertTrue("cartão do Player com o ícone do app", layout.contains("android:src=\"@mipmap/ic_launcher_round\""))
         assertEquals("com.android.vending", LauncherPolicy.LOJAS.first())
@@ -181,7 +181,7 @@ class LauncherSobreMidiaTest {
         val semResposta = splash.substring(splash.lastIndexOf("if (exibindo) {"), splash.indexOf("private fun rotear()"))
         assertFalse("sem resposta não escolhe nada sozinho", semResposta.contains("tornarPadraoEmSilencio"))
         val pergunta = File("src/main/java/com/antigravity/player/launcher/PerguntaLauncherActivity.kt").readText()
-        assertTrue("só se a pessoa saiu de verdade (nenhuma tela do app na frente)", pergunta.contains("if (TelasNaFrente.alguma() || !LauncherDoAparelho.deveOferecer(app)) return@postDelayed"))
+        assertTrue("só se a pessoa saiu de verdade (nenhuma tela do app na frente)", pergunta.contains("if (TelasNaFrente.alguma() || !LauncherDoAparelho.deveOferecer(app)) {"))
         assertTrue("só a tecla Home/Recentes conta como sair (telas que o Player abre não)", pergunta.contains("motivo == \"homekey\" || motivo == \"recentapps\""))
         val principal = File("src/main/java/com/antigravity/player/MainActivity.kt").readText()
         assertTrue("Player com quiosque ligado não pergunta", principal.contains("VigiaDaSaida(applicationContext) { !isKioskEnforced }"))
@@ -313,8 +313,47 @@ class LauncherSobreMidiaTest {
         val home = principal.substringAfter("private val contadorDeHome").substringBefore("private val vigiaDaSaida")
         assertTrue(home.contains("if (launcher.deveOferecer(applicationContext)) {") && home.contains("PerguntaLauncherActivity.aoSairDoApp(applicationContext)"))
         // a pergunta da saída fica no máximo 40 s
-        assertEquals(40_000L, com.antigravity.player.launcher.PerguntaLauncherActivity.TEMPO_NA_TELA_MS)
+        assertEquals(30_000L, com.antigravity.player.launcher.PerguntaLauncherActivity.TEMPO_NA_TELA_MS) // F-210: 30 s
         val pergunta = File(base + "launcher/PerguntaLauncherActivity.kt").readText()
         assertTrue(pergunta.contains("}, TEMPO_NA_TELA_MS)") && !pergunta.contains("20_000)"))
+    }
+
+    @Test
+    fun `F-210 - selo App Oficial no canto, logo com sombra, botoes iguais piscando em verde neon, Instalar APK, Arquivos e pendrive`() {
+        val layout = File("src/main/res/layout/activity_launcher.xml").readText()
+        val base = layout.substring(layout.indexOf("@+id/launcher_destaque"), layout.indexOf("@+id/launcher_gaveta"))
+        assertTrue("selo no canto inferior esquerdo", base.contains("@+id/launcher_btn_original") && base.contains("android:layout_gravity=\"start|bottom\""))
+        assertTrue("verificado azul", layout.contains("@drawable/ic_verificado") && File("src/main/res/drawable/ic_verificado.xml").readText().contains("#FF1D9BF0"))
+        assertFalse("F-211: logo sem sombra nem fumaça", File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText().contains("fumacaNaLogo"))
+        val menu = File("src/main/res/layout/activity_launcher.xml").readText().substringAfter("launcher_card_apps").substringBefore("</FrameLayout>")
+        assertTrue("F-211: Menu centralizado no cartão", menu.contains("android:gravity=\"center\"") && menu.contains("android:layout_weight=\"0\""))
+        assertEquals("Player e Menu com a mesma cor", 2, Regex("@drawable/launcher_botao_principal").findAll(layout).count())
+        val launcher = File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText()
+        val brilho = File("src/main/res/drawable/launcher_botao_principal.xml").readText()
+        assertTrue("F-211: brilho neon azul só no selecionado", brilho.contains("#6600D4FF") && brilho.substringAfterLast("<item>").contains("#33FFFFFF") && !brilho.contains("39FF14"))
+        assertTrue("F-211: Sobre Mídia Player numa linha", layout.contains("android:text=\"Sobre Mídia Player\"") && File("src/main/res/values/themes.xml").readText().contains("<item name=\"android:singleLine\">true</item>"))
+        assertTrue("F-211: o Player sempre selecionado", launcher.contains("currentFocus == null") && launcher.contains("requestFocusFromTouch()"))
+        for (id in listOf("launcher_menu_apk", "launcher_menu_arquivos", "launcher_usb")) assertTrue(id, layout.contains("@+id/$id"))
+        assertTrue(LauncherPolicy.ehInstaladorDeApk("com.android.apkinstaller", "ApkInstaller"))
+        assertTrue(LauncherPolicy.ehExplorador("com.android.rockchip", "FileExplorer"))
+        assertTrue(LauncherPolicy.ehExplorador("x.y", "Explore"))
+        assertFalse(LauncherPolicy.ehExplorador("com.google.android.youtube", "YouTube"))
+        assertTrue("pendrive pelos volumes", launcher.contains("it.isRemovable && it.state == android.os.Environment.MEDIA_MOUNTED"))
+        assertTrue("escolheu a original: o Player volta logo", launcher.contains("voltarPlayerDepoisDaOriginal()"))
+    }
+
+    @Test
+    fun `F-210 - launcher original - no 3o Home a pergunta aparece e o minuto fora so comeca depois dela`() {
+        val principal = File("src/main/java/com/antigravity/player/MainActivity.kt").readText()
+        val home = principal.substring(principal.indexOf("private val contadorDeHome"), principal.indexOf("private val vigiaDaSaida"))
+        assertTrue(home.indexOf("esperarPergunta()") in 0 until home.indexOf("PerguntaLauncherActivity.aoSairDoApp(applicationContext)"))
+        assertTrue("onPause não marca o minuto enquanto a pergunta está na tela", principal.contains("if (isKioskEnforced && !esperandoPergunta) voltaObrigatoria.postDelayed("))
+        assertTrue("a volta espera a pergunta", principal.contains("if (esperandoPergunta) return // F-210"))
+        val comecar = principal.substringAfter("private fun comecarMinutoFora()").substringBefore("override fun onResume()")
+        assertTrue(comecar.contains("pausouEm = System.currentTimeMillis()") && comecar.contains("LauncherPolicy.MAX_FORA_DO_PLAYER_MS"))
+        assertTrue("se a pergunta não vier, a espera acaba sozinha", principal.contains("PerguntaLauncherActivity.TEMPO_NA_TELA_MS + 6_000L"))
+        val pergunta = File("src/main/java/com/antigravity/player/launcher/PerguntaLauncherActivity.kt").readText()
+        assertTrue("ao fechar (resposta ou 30 s) avisa o Player", pergunta.substringAfter("override fun onDestroy()").substringBefore("companion object").contains("MainActivity.perguntaTerminou()"))
+        assertEquals("ao fechar + sem pergunta (3 caminhos)", 4, pergunta.split("MainActivity.perguntaTerminou()").size - 1)
     }
 }

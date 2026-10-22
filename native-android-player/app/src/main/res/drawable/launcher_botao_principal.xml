@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    F-211: botões Player e Menu (mesma cor, cor primária do sistema). Selecionado: brilho NEON AZUL suave em volta do
+    cartão (camadas de luz que vão sumindo para fora), só no cartão que tem o foco. Sem foco: nenhum contorno de luz.
+    O cartão fica 7dp para dentro em todos os estados (o brilho mora nessa margem, sem mudar o tamanho).
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="36dp" />
+                    <stroke android:width="7dp" android:color="#1A00D4FF" />
+                </shape>
+            </item>
+            <item android:left="2dp" android:top="2dp" android:right="2dp" android:bottom="2dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="34dp" />
+                    <stroke android:width="5dp" android:color="#3300D4FF" />
+                </shape>
+            </item>
+            <item android:left="4dp" android:top="4dp" android:right="4dp" android:bottom="4dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="32dp" />
+                    <stroke android:width="3dp" android:color="#6600D4FF" />
+                </shape>
+            </item>
+            <item android:left="7dp" android:top="7dp" android:right="7dp" android:bottom="7dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="29dp" />
+                    <gradient android:angle="315" android:startColor="#FF4F46E5" android:endColor="#FF7C3AED" />
+                    <stroke android:width="1.5dp" android:color="#FF7FEBFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item android:left="7dp" android:top="7dp" android:right="7dp" android:bottom="7dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="29dp" />
+                    <gradient android:angle="315" android:startColor="#E64F46E5" android:endColor="#E67C3AED" />
+                    <stroke android:width="1dp" android:color="#33FFFFFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

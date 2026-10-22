@@ -60,8 +60,10 @@ describe('F-209 página da launcher', () => {
     expect(src).toContain('<MediaUploadDialog');
     expect(src).toContain('onUploadedIds={async (ids) => {');
   });
-  it('prévia com selo Oficial, Player e Menu (Menu só com o nome)', () => {
-    expect(src).toContain('✓ Oficial');
+  it('prévia com selo App Oficial, Sobre Mídia Player e Menu (Menu só com o nome, centralizado)', () => {
+    expect(src).toContain('App Oficial');
+    expect(src).toContain('Sobre Mídia Player');
+    expect(src).toContain('justify-center gap-[1.1cqw] rounded-[2.3cqw]');
     expect(src).not.toContain('Apps · Loja · Ajustes');
     expect(src).not.toContain('Launcher original</span>');
   });

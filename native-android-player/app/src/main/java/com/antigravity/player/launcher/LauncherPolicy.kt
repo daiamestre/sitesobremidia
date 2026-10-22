@@ -24,6 +24,20 @@ object LauncherPolicy {
         "re:\\btv\\b"
     )
 
+    /** F-210: instalador de APK do aparelho (Rockchip: com.android.apkinstaller "ApkInstaller"). */
+    val INSTALADORES_DE_APK = listOf("com.android.apkinstaller", "com.droidlogic.appinstall", "com.softwinner.apkinstaller")
+
+    /** F-210: explorador de arquivos do aparelho (Rockchip: com.android.rockchip "FileExplorer"/Explore). */
+    val EXPLORADORES = listOf("com.android.rockchip", "com.droidlogic.FileBrower", "com.softwinner.TvdFileManager",
+        "com.estrongs.android.pop", "com.android.documentsui")
+
+    /** Pelo nome, quando o pacote é outro (cada fabricante usa o seu). */
+    fun ehInstaladorDeApk(pacote: String, nome: String): Boolean =
+        pacote in INSTALADORES_DE_APK || Regex("apk ?install", RegexOption.IGNORE_CASE).containsMatchIn(nome) || pacote.lowercase().contains("apkinstaller")
+
+    fun ehExplorador(pacote: String, nome: String): Boolean =
+        pacote in EXPLORADORES || Regex("explor|file ?manager|gerenciador de arquivos|arquivos", RegexOption.IGNORE_CASE).containsMatchIn(nome)
+
     /** Cartão "Loja de apps": a primeira que o aparelho tiver (Play Store primeiro). */
     val LOJAS = listOf("com.android.vending", "cm.aptoidetv.pt", "cm.aptoide.pt", "com.amazon.venezia")
 

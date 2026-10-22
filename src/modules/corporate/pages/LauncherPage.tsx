@@ -46,8 +46,8 @@ function TelaDaPrevia({ midia, formato }: { midia: ItemDeFundo['media'] | null; 
 }
 
 /**
- * Prévia igual à launcher do aparelho (F-209): topo com logo + selo "Oficial", Destaques grande e centralizado (só as 4
- * telas) e, embaixo, os botões Player e Menu. Fundo: padrão, cor escolhida ou imagem de capa.
+ * Prévia igual à launcher do aparelho (F-209/F-211): topo com a logo, Destaques grande e centralizado (só as 4
+ * telas) e, embaixo, Sobre Mídia Player e Menu, com o selo "App Oficial" no canto. Fundo: padrão, cor escolhida ou imagem de capa.
  */
 function Previa({ fundo, cfg, capa }: { fundo: ItemDeFundo[]; cfg: ConfigLauncher | null; capa: MidiaEscolhivel | null }) {
   const primeiroDa = (v: Vitrine) => fundo.find((f) => f.ativo && (f.vitrine ?? 'tv1') === v)?.media ?? null;
@@ -67,7 +67,6 @@ function Previa({ fundo, cfg, capa }: { fundo: ItemDeFundo[]; cfg: ConfigLaunche
       <div className="absolute inset-0 flex flex-col p-[3.1cqw]">
         <div className="flex items-center gap-[1cqw] text-[1.4cqw]">
           <span className="rounded-[0.8cqw] bg-white/10 px-[1cqw] py-[0.5cqw] text-[1.7cqw] font-bold">Logo da empresa</span>
-          <span className="rounded-full border border-cyan-500/50 px-[0.9cqw] py-[0.15cqw] text-[1cqw] font-bold text-cyan-400">✓ Oficial</span>
           <span className="ml-auto" />
           {cfg?.mostrar_clima !== false && <span className="rounded-full border border-white/20 bg-black/30 px-[1cqw] py-[0.3cqw]">31°C</span>}
           {cfg?.mostrar_wifi !== false && <span className="rounded-full border border-indigo-400/40 bg-slate-900/60 px-[1cqw] py-[0.3cqw]">Wi-Fi <span className="text-green-400">●</span></span>}
@@ -81,12 +80,17 @@ function Previa({ fundo, cfg, capa }: { fundo: ItemDeFundo[]; cfg: ConfigLaunche
           </div>
           {(['totem1', 'totem2'] as const).map((v) => <TelaDaPrevia key={v} midia={primeiroDa(v)} formato="9:16" />)}
         </div>
-        <div className="mt-[1.4cqw] flex justify-center gap-[1.9cqw]">
-          <div className="flex h-[8.1cqw] w-[18.1cqw] items-center gap-[1.1cqw] rounded-[2.3cqw] border-[0.25cqw] border-cyan-400 bg-gradient-to-br from-indigo-600 to-violet-600 px-[1.7cqw]">
+        <div className="relative mt-[1.4cqw] flex justify-center gap-[1.9cqw]">
+          {/* F-211: selo "App Oficial" no canto inferior esquerdo, neon com verificado azul */}
+          <span className="absolute bottom-0 left-0 flex items-center gap-[0.5cqw] rounded-full border border-cyan-400/80 bg-[#050A1F]/80 px-[1cqw] py-[0.5cqw] text-[1.05cqw] font-bold text-cyan-50 shadow-[0_0_1cqw_rgba(0,212,255,0.45)]">
+            <span className="flex h-[1.7cqw] w-[1.7cqw] items-center justify-center rounded-full bg-sky-500 text-[1cqw] leading-none">✓</span>App Oficial
+          </span>
+          {/* Player e Menu da mesma cor; o selecionado (Player ao abrir) ganha o brilho neon azul */}
+          <div className="flex h-[8.1cqw] w-[24.9cqw] items-center gap-[1.1cqw] rounded-[2.3cqw] border border-cyan-200 bg-gradient-to-br from-indigo-600 to-violet-600 px-[2.3cqw] shadow-[0_0_1.4cqw_rgba(0,212,255,0.6)]">
             <span className="text-[2.6cqw] leading-none">▶</span>
-            <span className="leading-tight"><span className="block text-[1.65cqw] font-bold">Player</span><span className="text-[0.95cqw] opacity-85">abre sozinho em {cfg?.segundos_para_abrir_player ?? 30} s</span></span>
+            <span className="leading-tight"><span className="block whitespace-nowrap text-[1.55cqw] font-bold">Sobre Mídia Player</span><span className="text-[0.95cqw] opacity-85">abre sozinho em {cfg?.segundos_para_abrir_player ?? 30} s</span></span>
           </div>
-          <div className="flex h-[8.1cqw] w-[18.1cqw] items-center gap-[1.1cqw] rounded-[2.3cqw] border border-violet-400/40 bg-[#111A3D]/80 px-[1.7cqw]">
+          <div className="flex h-[8.1cqw] w-[24.9cqw] items-center justify-center gap-[1.1cqw] rounded-[2.3cqw] border border-white/20 bg-gradient-to-br from-indigo-600/90 to-violet-600/90">
             <span className="text-[2.6cqw] leading-none">▦</span>
             <span className="text-[1.65cqw] font-bold">Menu</span>
           </div>
@@ -505,7 +509,7 @@ export default function LauncherPage() {
           <p>1. Instale o Player 5.8.0 (versão de teste) no aparelho. Na abertura ele pergunta se quer usar a launcher Sobre Mídia; quem disser "Agora não" usa o Player normalmente pela launcher original.</p>
           <p>2. Aparelho com root ou "Device Owner": vira a tela inicial sozinho. Nos outros, o Android pergunta uma vez (escolha Sobre Mídia e "Sempre").</p>
           <p>3. Aparelho que não deixa trocar a tela inicial: a launcher pede "Acesso ao uso" e volta sempre que a original aparecer (modo forçado).</p>
-          <p>4. Na página de cada tela: botões "Launcher Sobre Mídia" e "Launcher original". No aparelho: o selo "Oficial" (ao lado da logo) é o botão que volta para a launcher original.</p>
+          <p>4. Na página de cada tela: botões "Launcher Sobre Mídia" e "Launcher original". No aparelho: o selo "App Oficial" (canto inferior esquerdo) é o botão que volta para a launcher original.</p>
         </CardContent>
       </Card>
 

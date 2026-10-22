@@ -87,14 +87,14 @@
 
     <!-- F-209: botões Player e Menu (retângulo arredondado, quase quadrado) -->
     <style name="LauncherBotaoBase">
-        <item name="android:layout_width">232dp</item>
-        <item name="android:layout_height">104dp</item>
+        <item name="android:layout_width">320dp</item>
+        <item name="android:layout_height">118dp</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
         <item name="android:gravity">center_vertical</item>
         <item name="android:orientation">horizontal</item>
-        <item name="android:paddingStart">22dp</item>
-        <item name="android:paddingEnd">18dp</item>
+        <item name="android:paddingStart">30dp</item>
+        <item name="android:paddingEnd">24dp</item>
     </style>
 
     <style name="LauncherBotaoTextos">
@@ -109,8 +109,9 @@
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:maxLines">1</item>
+        <item name="android:singleLine">true</item>
         <item name="android:textColor">@color/sm_texto</item>
-        <item name="android:textSize">21sp</item>
+        <item name="android:textSize">20sp</item>
         <item name="android:textStyle">bold</item>
     </style>
 
@@ -125,7 +126,7 @@
 
     <!-- F-209: opções dentro do Menu (Loja de apps, Ajustes do aparelho) -->
     <style name="LauncherOpcaoMenu">
-        <item name="android:layout_width">260dp</item>
+        <item name="android:layout_width">236dp</item>
         <item name="android:layout_height">72dp</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>

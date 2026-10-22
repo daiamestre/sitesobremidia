@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.8.13** (código 583) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
+Versão de teste atual: **5.8.14** (código 584) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
 
 ## 2. Perfis e o que cada um vê
 
@@ -81,15 +81,17 @@ Nas TV Box a tela do Android trabalha em 1280x720 mesmo com a saída HDMI em 108
 
 Silenciosa com root ou Device Owner; nos demais aparelhos a versão nova fica baixada e o instalador do Android só abre quando o painel pede ("Instalar atualização agora"), com alguém ao lado da TV. Nada aparece por cima das mídias.
 
-## 8. Launcher Sobre Mídia — versão de TESTE 5.8.13 (F-200..F-209)
+## 8. Launcher Sobre Mídia — versão de TESTE 5.8.14 (F-200..F-211)
 
+- **Visual (F-211, 5.8.14):** só a logo no topo (sem sombra); embaixo, centralizados, **Sobre Mídia Player** (abre já selecionado) e **Menu** (ícone + nome centralizados), os dois da mesma cor; o cartão selecionado ganha um brilho neon azul leve. No canto inferior esquerdo, o selo **"App Oficial"** (neon, verificado azul) — é o botão da launcher original. O Menu mostra também **Instalar APK** e **Arquivos** (os do próprio aparelho, quando existem) e, com pendrive plugado, aparece o ícone **Pendrive** no topo (abre os arquivos).
+- **Launcher original (F-210, 5.8.14):** ao escolher a original o Player abre logo em seguida e segue a mesma regra dos 3 Home. No 3º Home aparece a pergunta "usar a launcher Sobre Mídia como padrão?" e o minuto fora do Player **só começa quando ela termina** (Sim/Agora não, ou 30 s sem resposta — ela some); depois de 60 s o Player volta.
 - **Visual (F-209):** topo com a logo da empresa e o selo **"Oficial"** (é o botão que volta para a launcher original), clima, Wi-Fi e hora; no meio, **Destaques Sobre Mídia** grande e centralizado (2 TVs 16:9 e 2 totens 9:16, sem moldura); embaixo, centralizados, **Player** e **Menu** (Menu abre Loja de apps, Ajustes do aparelho e os aplicativos). Fundo: padrão Sobre Mídia, uma **cor** ou uma **imagem de capa** escolhidas no painel (chegam sozinhas, sem APK).
 
 O Player pode ser também a **tela inicial** do aparelho (como as launchers de TV Box, Samsung, Motorola).
 - **Mostra:** logo da empresa logada (Minha Marca ou, sem ela, a foto de perfil; sem nenhuma, a Sobre Mídia) no topo, no cartão do Player e nas telas vazias dos Destaques, hora e data, temperatura, Wi-Fi, o cartão "Destaques Sobre Mídia" com 2 TVs 16:9 e 2 totens 9:16, cada um com as mídias escolhidas pelo dono/ADM (vídeos um de cada vez) e 4 cartões: Player Sobre Mídia, Aplicativos (painel com os apps instalados — **sem YouTube, Netflix e apps de TV** (continuam na launcher original). Botões: Ajustes, Wi-Fi, Launcher original.
 - **Não libera o Player:** a launcher é só a tela inicial. Sem login o cartão do Player leva ao login e à escolha da tela; a contagem "abre sozinho" só existe com login feito e tela escolhida.
 - **Ao ligar o aparelho** (launcher escolhida): aparece a launcher Sobre Mídia; depois de N segundos sem ninguém mexer abre o Player (padrão 30 s).
-- **Pergunta (F-204, 5.8.9):** "Usar a launcher Sobre Mídia?" ao abrir o app pelo ícone **só até a pessoa decidir**. "Usar" → a launcher vira a tela inicial, aparece e o Player abre logo em seguida (login → tela). "Agora não" → abre só o Player (login) e o ícone não pergunta mais. Para quem usa a launcher original, a pergunta volta a cada saída pelo **3º Home** e fica no máximo **40 s** (sem resposta some e a pessoa segue na original). Quem usa a launcher Sobre Mídia nunca vê a pergunta.
+- **Pergunta (F-204, 5.8.9):** "Usar a launcher Sobre Mídia?" ao abrir o app pelo ícone **só até a pessoa decidir**. "Usar" → a launcher vira a tela inicial, aparece e o Player abre logo em seguida (login → tela). "Agora não" → abre só o Player (login) e o ícone não pergunta mais. Para quem usa a launcher original, a pergunta volta a cada saída pelo **3º Home** e fica no máximo **30 s** (sem resposta some e a pessoa segue na original). Quem usa a launcher Sobre Mídia nunca vê a pergunta.
 - **Painel sem APK novo:** o que o dono/ADM muda nos Destaques e a logo da empresa chegam sozinhos — a launcher confere a cada 1 minuto enquanto está na tela e o Player deixa tudo baixado a cada 5 minutos.
 - **Virar tela inicial:** Device Owner ou root = automático; senão o Android pergunta uma vez (Sobre Mídia → "Sempre"); aparelho que não deixa = modo forçado ("Acesso ao uso").
 - **Uso livre:** abrir um app, Ajustes ou a launcher original pela launcher (ou pelos comandos do painel) faz o Player não puxar a tela de volta durante N minutos (padrão 30).

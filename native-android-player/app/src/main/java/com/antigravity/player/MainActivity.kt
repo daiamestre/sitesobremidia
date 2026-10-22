@@ -336,6 +336,12 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_SO_TRAZER_PARA_FRENTE = "so_trazer_para_frente"
         /** F-202: o Player está aberto (a launcher só o traz para a frente). */
         @Volatile var viva = false
+        @Volatile private var instancia: java.lang.ref.WeakReference<MainActivity>? = null
+
+        /** F-210: a pergunta da launcher terminou (resposta, 30 s sem resposta ou não apareceu) — começa o minuto fora. */
+        fun perguntaTerminou() {
+            Handler(Looper.getMainLooper()).post { instancia?.get()?.comecarMinutoFora() }
+        }
         /** F-203: o Player está na frente / quando saiu da frente (o Home conta só se foi apertado com ele na frente). */
         @Volatile var naFrente = false
         @Volatile var pausouEm = 0L
@@ -451,6 +457,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viva = true
+        instancia = java.lang.ref.WeakReference(this)
         vigiaDaSaida.ligar()
         try {
             androidx.core.content.ContextCompat.registerReceiver(this, contadorDeHome,
@@ -1893,7 +1900,40 @@ withContext(Dispatchers.Main) {
         pausouEm = System.currentTimeMillis()
         // F-203: o Player fica fora no MÁXIMO 1 minuto (launcher, outro app, Ajustes…): depois disso volta sozinho
         voltaObrigatoria.removeCallbacksAndMessages(null)
-        if (isKioskEnforced) voltaObrigatoria.postDelayed({ voltarDepoisDoLimite() }, com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS)
+        // F-210: com a pergunta da launcher na tela o minuto ainda não começou (começa quando ela termina)
+        if (isKioskEnforced && !esperandoPergunta) voltaObrigatoria.postDelayed({ voltarDepoisDoLimite() }, com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS)
+    }
+
+    /**
+     * F-210 — regra do dono para quem usa a launcher ORIGINAL: no 3º Home a pergunta "usar a launcher Sobre Mídia como
+     * padrão?" aparece e o minuto fora do Player SÓ COMEÇA quando ela termina (respondeu Sim/Agora não, ou 30 s sem
+     * resposta). Depois, 60 s e o Player volta. Se a pergunta não chegar a aparecer, a espera acaba sozinha.
+     */
+    @Volatile private var esperandoPergunta = false
+    private val esperaDaPergunta = Handler(Looper.getMainLooper())
+
+    private fun esperarPergunta() {
+        esperandoPergunta = true
+        voltaObrigatoria.removeCallbacksAndMessages(null)
+        esperaDaPergunta.removeCallbacksAndMessages(null)
+        esperaDaPergunta.postDelayed({ comecarMinutoFora() },
+            com.antigravity.player.launcher.PerguntaLauncherActivity.TEMPO_NA_TELA_MS + 6_000L)
+    }
+
+    /** A pergunta terminou (ou não veio): agora sim conta 1 minuto fora e o Player volta. */
+    private fun comecarMinutoFora() {
+        esperaDaPergunta.removeCallbacksAndMessages(null)
+        if (!esperandoPergunta) return
+        esperandoPergunta = false
+        if (naFrente || isFinishing || isDestroyed || !isKioskEnforced) return
+        pausouEm = System.currentTimeMillis()
+        val uso = com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre
+        uso.encerrar(applicationContext)
+        uso.liberar(applicationContext, 1)
+        com.antigravity.player.launcher.LauncherDoAparelho.pedirVoltaDoPlayer(com.antigravity.player.launcher.LauncherPolicy.VOLTA_LIVRE_S)
+        voltaObrigatoria.removeCallbacksAndMessages(null)
+        voltaObrigatoria.postDelayed({ voltarDepoisDoLimite() }, com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS)
+        Logger.i("KIOSK", "Pergunta da launcher terminou: o Player volta em 60 s.")
     }
 
     private val voltaObrigatoria = Handler(Looper.getMainLooper())
@@ -1901,6 +1941,7 @@ withContext(Dispatchers.Main) {
     /** Hora de voltar (1º/2º Home ou 1 minuto fora) — o Player volta para a frente (sem refazer a sincronização). */
     private fun voltarDepoisDoLimite() {
         if (naFrente || isFinishing || isDestroyed || !isKioskEnforced || DeviceControl.instaladorDoSistemaAberto()) return
+        if (esperandoPergunta) return // F-210: a pergunta da launcher ainda está na tela
         Logger.i("KIOSK", "Hora de voltar: voltando às mídias.")
         com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.encerrar(applicationContext)
         try {
@@ -1919,6 +1960,8 @@ withContext(Dispatchers.Main) {
         voltaObrigatoria.removeCallbacksAndMessages(null)
         voltaRapida.removeCallbacksAndMessages(null)
         com.antigravity.player.launcher.LauncherDoAparelho.limparVoltaDoPlayer()
+        esperandoPergunta = false
+        esperaDaPergunta.removeCallbacksAndMessages(null)
         // F-200: o Player voltou para a frente — acabou o uso livre da launcher
         com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.encerrar(this)
         
@@ -1973,6 +2016,7 @@ withContext(Dispatchers.Main) {
                 if (launcher.deveOferecer(applicationContext)) {
                     // F-204: quem usa a launcher original fica nela e recebe a pergunta (40 s) a cada saída pelo 3º Home
                     if (homesSeguidos >= com.antigravity.player.launcher.LauncherPolicy.HOMES_PARA_FICAR_LIVRE) {
+                        esperarPergunta() // F-210: o minuto só começa quando a pergunta terminar
                         com.antigravity.player.launcher.PerguntaLauncherActivity.aoSairDoApp(applicationContext)
                     }
                 } else if (!launcher.ehPadrao(applicationContext)) {
