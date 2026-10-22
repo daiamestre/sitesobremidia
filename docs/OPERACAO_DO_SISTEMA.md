@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.8.9** (código 579) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
+Versão de teste atual: **5.8.10** (código 580) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
 
 ## 2. Perfis e o que cada um vê
 
@@ -94,7 +94,7 @@ O Player pode ser também a **tela inicial** do aparelho (como as launchers de T
 - **Voltar para a original:** botão "Launcher original" (abrir agora ou usar como padrão) e comando "Launcher original" na página da tela.
 - **Painel:** `/workspace/launcher` (menu "Launcher", só dono/ADM). O banco recusa os comandos de launcher de quem não é dono/ADM.
 - **Home no Player (F-202, 5.8.7):** com a launcher Sobre Mídia como tela inicial, Home leva para ela (não aparece mais "Sincronizando mídias"); a contagem dela ou o cartão do Player trazem o Player de volta direto às mídias.
-- **Regra do Home (F-203, 5.8.8):** 1º e 2º Home — launcher e o Player volta logo; 3º seguido — livre por 1 minuto e o Player volta sozinho. O Player nunca fica mais de 1 minuto fora da tela (o uso livre do painel vale no máximo 1 minuto).
+- **Regra do Home (F-206, 5.8.10 — REGRA ABSOLUTA DO DONO):** todo Home (ou saída do Player para a launcher/apps) leva para a launcher e o Player só volta **exatamente 1 minuto depois** — nem antes (nada de volta rápida, nada de o quiosque puxar o Player, mexer na launcher não adianta) nem depois. Volta direto às mídias, sem nova sincronização. Tocar no cartão do Player volta na hora (escolha da pessoa).
 
 ## 9. Desvincular e "Vincular outro aparelho" — versão de TESTE 5.8.9 (F-205)
 

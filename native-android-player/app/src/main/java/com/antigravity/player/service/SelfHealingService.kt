@@ -108,6 +108,14 @@ class SelfHealingService : Service() {
         if (tasks.isNotEmpty()) {
             val topActivity = tasks[0].topActivity
             if (topActivity?.packageName != packageName) {
+                // F-206 — regra absoluta do dono: o Player saiu (Home/saída) há menos de 1 minuto — não puxa antes do minuto
+                val saiuEm = com.antigravity.player.MainActivity.pausouEm
+                if (com.antigravity.player.MainActivity.viva && !com.antigravity.player.MainActivity.naFrente && saiuEm > 0L &&
+                    System.currentTimeMillis() - saiuEm < com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS
+                ) {
+                    focusLossCounter = 0
+                    return
+                }
                 focusLossCounter++
                 // F-203: o Player já ficou 1 minuto fora (regra do dono): volta agora, sem esperar os 8 s
                 if (com.antigravity.player.MainActivity.viva && !com.antigravity.player.MainActivity.naFrente &&

@@ -1934,16 +1934,16 @@ withContext(Dispatchers.Main) {
             if (!(naFrente || agora - pausouEm < 1_500L)) return // o Home não foi apertado com o Player na frente
             homesSeguidos = com.antigravity.player.launcher.LauncherPolicy.contarHome(homesSeguidos, ultimoHomeMs, agora)
             ultimoHomeMs = agora
-            val volta = com.antigravity.player.launcher.LauncherPolicy.voltaDoPlayerEmSegundos(homesSeguidos)
-            Logger.i("KIOSK", "Home $homesSeguidos de 3: o Player volta em $volta s.")
-            com.antigravity.player.launcher.LauncherDoAparelho.pedirVoltaDoPlayer(volta)
-            if (homesSeguidos >= com.antigravity.player.launcher.LauncherPolicy.HOMES_PARA_FICAR_LIVRE) {
-                // livre por 1 minuto: nem o Player nem o vigia puxam a tela de volta
-                com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.liberar(applicationContext, 1)
+            Logger.i("KIOSK", "Home ($homesSeguidos seguido): Player fora por 1 minuto, depois volta sozinho.")
+            // F-206 — REGRA ABSOLUTA: TODO Home deixa a pessoa livre (launcher ou qualquer app) e o Player só volta em 60 s
+            liberarSaidaDoPlayer()
+            run {
                 val launcher = com.antigravity.player.launcher.LauncherDoAparelho
                 if (launcher.deveOferecer(applicationContext)) {
                     // F-204: quem usa a launcher original fica nela e recebe a pergunta (40 s) a cada saída pelo 3º Home
-                    com.antigravity.player.launcher.PerguntaLauncherActivity.aoSairDoApp(applicationContext)
+                    if (homesSeguidos >= com.antigravity.player.launcher.LauncherPolicy.HOMES_PARA_FICAR_LIVRE) {
+                        com.antigravity.player.launcher.PerguntaLauncherActivity.aoSairDoApp(applicationContext)
+                    }
                 } else if (!launcher.ehPadrao(applicationContext)) {
                     // escolheu a launcher Sobre Mídia mas o aparelho não deixou ser a tela inicial: abre ela (modo forçado)
                     try {
@@ -1953,6 +1953,16 @@ withContext(Dispatchers.Main) {
                 }
             }
         }
+    }
+
+    /**
+     * F-206: o Player saiu da frente (Home ou outra saída para a launcher/apps). Nem o Player nem o vigia puxam a tela de
+     * volta durante 1 minuto; a launcher conta 60 s e a volta obrigatória do onPause traz o Player no fim do minuto.
+     */
+    private fun liberarSaidaDoPlayer() {
+        val uso = com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre
+        if (!uso.ativo(applicationContext)) uso.liberar(applicationContext, 1)
+        com.antigravity.player.launcher.LauncherDoAparelho.pedirVoltaDoPlayer(com.antigravity.player.launcher.LauncherPolicy.VOLTA_LIVRE_S)
     }
 
     /** F-200: Home/Recentes saindo do Player de verdade (manutenção, sem o quiosque puxar de volta): oferece a launcher. */
@@ -2043,36 +2053,15 @@ withContext(Dispatchers.Main) {
                 // [EXIT COUNTER P0] Tentativa real de abandono (HOME/recents/outro app).
                 // O debounce interno evita dupla contagem com onStop do mesmo episodio.
                 registerValidExit()
-                // F-202: decide meio segundo depois — dá tempo da launcher Sobre Mídia (tela inicial) aparecer com o Home.
+                // F-206 — REGRA ABSOLUTA DO DONO: sair do Player (Home, Recentes, launcher, outro app) NÃO faz o Player
+                // se jogar de volta. Antes ele esperava só 0,5 s e, se a launcher ainda não estava na tela (TV Box lenta),
+                // voltava por cima "a todo custo". Agora: se o Player saiu mesmo da tela, a pessoa fica livre e ele volta
+                // sozinho em exatamente 1 minuto (volta obrigatória do onPause). Janela por cima do Player (ele continua
+                // na tela) não é saída: nada a fazer.
                 Handler(Looper.getMainLooper()).postDelayed({
-                    if (com.antigravity.player.launcher.LauncherActivity.naFrente) {
-                        // Home com a launcher Sobre Mídia: ela fica na frente; a contagem dela traz o Player de volta
-                        Logger.i("KIOSK", "Home: launcher Sobre Mídia na frente (o Player volta pela contagem dela).")
-                        return@postDelayed
-                    }
-                    if (!isFinishing && !isDestroyed && !hasWindowFocus() && !DeviceControl.instaladorDoSistemaAberto()) {
-                        Logger.w("KIOSK", "Focus lost. Forcing MainActivity back to top.")
-                        try {
-                            val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-                            am.moveTaskToFront(taskId, android.app.ActivityManager.MOVE_TASK_WITH_HOME)
-                        } catch (e: Exception) {
-                            Logger.e("KIOSK", "Failed to moveTaskToFront: ${e.message}")
-                        }
-                        // F-200: a escolha de tela inicial do Android (Home sem launcher padrão) fica por cima mesmo
-                        // depois do moveTaskToFront; abrir o Player de novo passa por cima dela.
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            if (!isFinishing && !isDestroyed && !hasWindowFocus() && isKioskEnforced &&
-                                !com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.ativo(this) &&
-                                !com.antigravity.player.launcher.LauncherActivity.naFrente &&
-                                !DeviceControl.instaladorDoSistemaAberto()
-                            ) {
-                                try {
-                                    // F-202: só traz para a frente — sem refazer a sincronização ("Sincronizando mídias")
-                                    startActivity(Intent(this, MainActivity::class.java).putExtra(EXTRA_SO_TRAZER_PARA_FRENTE, true)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                } catch (e: Exception) { Logger.e("KIOSK", "Player não voltou por cima: ${e.message}") }
-                            }
-                        }, 800)
+                    if (!isFinishing && !isDestroyed && !naFrente && isKioskEnforced && !DeviceControl.instaladorDoSistemaAberto()) {
+                        Logger.i("KIOSK", "Player saiu da tela: livre por 1 minuto, depois volta sozinho.")
+                        liberarSaidaDoPlayer()
                     }
                 }, 500)
             }

@@ -281,21 +281,29 @@ class LauncherActivity : AppCompatActivity() {
         logadoNumaTela = !tela.isNullOrBlank()
     }
 
+    /** F-206: quando o Player (aberto, com tela) saiu da frente; null = Player não está fora (ex.: launcher ao ligar). */
+    private fun saidaDoPlayer(): Long? =
+        if (logadoNumaTela && MainActivity.viva && !MainActivity.naFrente && MainActivity.pausouEm > 0L) MainActivity.pausouEm else null
+
     private fun reiniciarContagem() {
-        restante = LauncherPolicy.contagemParaAbrirPlayer(logadoNumaTela, config)
+        restante = LauncherPolicy.contagemDaLauncher(saidaDoPlayer(), System.currentTimeMillis(),
+            LauncherPolicy.contagemParaAbrirPlayer(logadoNumaTela, config))
         contagemTexto.text = LauncherPolicy.textoDaContagem(restante)
     }
 
     private val relogio = object : Runnable {
         override fun run() {
-            // F-203: o Player saiu pelo Home — volta logo (1º e 2º Home) ou em 1 minuto (3º Home seguido)
-            LauncherDoAparelho.pegarVoltaDoPlayer()?.let { s ->
-                if (logadoNumaTela) { restante = s; contagemTexto.text = LauncherPolicy.textoDaContagem(s) }
-            }
-            // F-203: o Player fica fora no máximo 1 minuto — mexer na launcher não adia além disso
-            if (logadoNumaTela && MainActivity.viva && !MainActivity.naFrente && MainActivity.pausouEm > 0L) {
-                val limite = LauncherPolicy.segundosAteVoltaObrigatoria(MainActivity.pausouEm, System.currentTimeMillis())
-                if (restante == null || restante!! > limite) restante = limite
+            LauncherDoAparelho.pegarVoltaDoPlayer() // F-206: a volta é sempre 1 minuto depois da saída (abaixo)
+            // F-206 (regra absoluta do dono): o Player saiu pelo Home/saída — volta EXATAMENTE 1 minuto depois, nem antes
+            // nem depois; mexer na launcher não muda isso
+            saidaDoPlayer()?.let { saiu ->
+                val s = LauncherPolicy.segundosAteVoltaObrigatoria(saiu, System.currentTimeMillis())
+                restante = s
+                contagemTexto.text = LauncherPolicy.textoDaContagem(s)
+                if (s <= 0) { restante = null; abrirPlayer(); return }
+                atualizarRede()
+                principal.postDelayed(this, 1000)
+                return
             }
             restante?.let { s ->
                 val novo = s - 1
