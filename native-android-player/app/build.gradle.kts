@@ -49,8 +49,8 @@ android {
         applicationId = "com.antigravity.player"
         minSdk = 23
         targetSdk = 34
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 580
-        versionName = System.getenv("VERSION_NAME") ?: "5.8.10-MicroGate"
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 581
+        versionName = System.getenv("VERSION_NAME") ?: "5.8.11-MicroGate"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -140,6 +140,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // F-207: TV Box com Android 7.1 (SDK 25) não tem java.time; a biblioteca do Supabase usa (kotlinx-datetime) e
+        // quebrava a launcher e o tempo real. O desugaring inclui o java.time no app para Android < 8.
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "17"
@@ -147,6 +150,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5") // F-207: java.time no Android 7.1
     implementation(project(":core-player"))
     implementation(project(":sync-network"))
     implementation(project(":media-engine"))

@@ -74,9 +74,10 @@ class RemoteDataSource {
                 client.auth.importAuthToken(token, refreshToken = "", retrieveUser = false, autoRefresh = false)
                 Logger.i("REALTIME", "JWT do Player aplicado ao Realtime (papel autenticado).")
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // F-207: erro de classe (ex.: java.time ausente no Android 7.1) também não pode derrubar o app
             if (e is kotlinx.coroutines.CancellationException) throw e
-            Logger.w("REALTIME", "Falha ao aplicar o JWT ao Realtime: ${e.message}")
+            Logger.w("REALTIME", "Falha ao aplicar o JWT ao Realtime: ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 

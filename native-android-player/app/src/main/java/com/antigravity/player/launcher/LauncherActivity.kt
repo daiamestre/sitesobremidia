@@ -196,8 +196,8 @@ class LauncherActivity : AppCompatActivity() {
                         carregarApps()
                         atualizarFundo(reiniciar = false)
                     }
-                } catch (e: Exception) { Logger.w("LAUNCHER", "painel: ${e.message}") }
-                if (try { MarcaDoGestor.atualizar(this@LauncherActivity) } catch (e: Exception) { false }) aplicarMarca()
+                } catch (e: Throwable) { Logger.w("LAUNCHER", "painel: ${e.message}") }
+                if (try { MarcaDoGestor.atualizar(this@LauncherActivity) } catch (e: Throwable) { false }) aplicarMarca()
                 atualizarClima()
             }
             principal.postDelayed(this, ConfigDaLauncher.CONFERIR_VISIVEL_A_CADA_MS)
@@ -488,7 +488,7 @@ class LauncherActivity : AppCompatActivity() {
             adaptador.notifyDataSetChanged()
             semApps.visibility = if (visiveis.isEmpty()) View.VISIBLE else View.GONE
             appsTotal.text = if (visiveis.size == 1) "1 app" else "${visiveis.size} apps"
-            ConfigDaLauncher.reportarApps(applicationContext, todos.map { it.pacote to it.nome })
+            try { ConfigDaLauncher.reportarApps(applicationContext, todos.map { it.pacote to it.nome }) } catch (e: Throwable) { Logger.w("LAUNCHER", "apps: ${e.message}") }
         }
     }
 

@@ -379,6 +379,8 @@ class MainActivity : AppCompatActivity() {
                 ServiceLocator.getRemoteDataSource().insertErrorLog(SessionManager.deviceIdentityHash ?: screenId, "TELA_FISICA", descricaoDaTela, "")
             } catch (e: Exception) { Logger.w("NITIDEZ", "medição não enviada: ${e.message}") }
         }
+        // F-207: erro que o anti-queda engoliu (ex.: launcher quebrando) vai ao painel
+        lifecycleScope.launch(Dispatchers.IO) { delay(25_000); com.antigravity.player.util.FalhaDoApp.enviar(applicationContext) }
     }
 
     // ------------------------------------------------------------------ F-198: modo nitidez (versão de TESTE)
@@ -2681,6 +2683,7 @@ withContext(Dispatchers.Main) {
                         com.antigravity.player.launcher.ConfigDaLauncher.atualizar(applicationContext)
                     }
                     com.antigravity.player.util.MarcaDoGestor.atualizar(applicationContext)
+                    com.antigravity.player.util.FalhaDoApp.enviar(applicationContext) // F-207
                 } catch (e: Exception) { Logger.w("LAUNCHER", "Preparo da launcher: ${e.message}") }
             }
         }

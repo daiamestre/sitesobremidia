@@ -102,7 +102,8 @@ class UserApplication : Application() {
                 try {
                     android.os.Looper.loop()
                 } catch (e: Throwable) {
-                    Log.e("SELF_HEALING", "Main Thread Crash Intercepted: ${e.message}")
+                    Log.e("SELF_HEALING", "Main Thread Crash Intercepted: ${e.message}", e)
+                    com.antigravity.player.util.FalhaDoApp.guardar(this, "principal", e)
                     relaunchMainActivitySilence()
                 }
             }
@@ -110,7 +111,8 @@ class UserApplication : Application() {
 
         // [ZERO-CRASH] Intercepta crashes de Background Threads
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e("SELF_HEALING", "Worker Thread Crash in ${thread.name}: ${throwable.message}")
+            Log.e("SELF_HEALING", "Worker Thread Crash in ${thread.name}: ${throwable.message}", throwable)
+            com.antigravity.player.util.FalhaDoApp.guardar(this, thread.name, throwable)
             relaunchMainActivitySilence()
         }
     }
@@ -119,6 +121,8 @@ class UserApplication : Application() {
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                // F-207: o Player já está aberto — só traz para a frente (sem "Sincronizando mídias" de novo)
+                if (MainActivity.viva) putExtra(MainActivity.EXTRA_SO_TRAZER_PARA_FRENTE, true)
             }
             startActivity(intent)
         } catch (e: Exception) {

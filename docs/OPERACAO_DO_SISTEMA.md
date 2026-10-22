@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.8.10** (código 580) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
+Versão de teste atual: **5.8.11** (código 581) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
 
 ## 2. Perfis e o que cada um vê
 
