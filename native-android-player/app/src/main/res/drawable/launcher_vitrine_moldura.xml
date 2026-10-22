@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- F-200: moldura de cada tela do destaque (TV 16:9 / totem 9:16) -->
+<!-- F-209: cada tela do destaque (TV 16:9 / totem 9:16) — escura, cantos suaves -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <corners android:radius="12dp" />
-    <solid android:color="#FF070D24" />
+    <corners android:radius="16dp" />
+    <solid android:color="#E60A1230" />
 </shape>

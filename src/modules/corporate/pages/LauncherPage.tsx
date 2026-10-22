@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-  AppWindow, ArrowDown, ArrowUp, Clock, Eye, EyeOff, Film, Image as ImageIcon, Loader2, Palette, Play, Plus, Search, Smartphone, Trash2, Wifi, X,
+  AppWindow, ArrowDown, ArrowUp, Clock, Eye, EyeOff, Film, Image as ImageIcon, Loader2, Palette, Play, Plus, Search, Smartphone, Trash2, Upload, Wifi, X,
 } from 'lucide-react';
+import { MediaUploadDialog } from '@/components/media/MediaUploadDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { appOcultoNaLauncher, ehAjustesDoSistema, nomeDaRegra, regraQueOculta } from '@/lib/launcherApps';
 import {
   adicionarAoFundo, atualizarItemDoFundo, buscarMidias, carregarAppsVistos, carregarConfig, carregarFundo, empresaDaConta,
-  removerDoFundo, salvarConfig, VITRINES, type ConfigLauncher, type ItemDeFundo, type MidiaEscolhivel, type Vitrine,
+  midiasPorId, removerDoFundo, salvarConfig, VITRINES, type ConfigLauncher, type ItemDeFundo, type MidiaEscolhivel, type OrigemDasMidias, type Vitrine,
 } from '@/services/launcher.service';
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -36,59 +37,59 @@ function Miniatura({ midia, className }: { midia?: MidiaEscolhivel | null; class
 
 function TelaDaPrevia({ midia, formato }: { midia: ItemDeFundo['media'] | null; formato: '16:9' | '9:16' }) {
   return (
-    <div className={`relative overflow-hidden rounded-[0.8cqw] border border-violet-400/50 bg-[#070D24] ${formato === '16:9' ? 'aspect-video h-[46%]' : 'aspect-[9/16] h-full'}`}>
+    <div className={`relative overflow-hidden rounded-[1cqw] border border-cyan-400/30 bg-[#0A1230]/90 ${formato === '16:9' ? 'aspect-video h-[48.5%]' : 'aspect-[9/16] h-full'}`}>
       {midia ? <Miniatura midia={midia} className="absolute inset-0 h-full w-full" />
-        : <div className="absolute inset-0 flex items-center justify-center text-[1cqw] font-black text-indigo-300/70">SOBRE MÍDIA</div>}
-      <span className="absolute bottom-[0.4cqw] right-[0.4cqw] rounded-full bg-slate-950/80 px-[0.5cqw] text-[0.7cqw] font-bold text-cyan-400">{formato === '16:9' ? 'TV 16:9' : 'TOTEM 9:16'}</span>
+        : <div className="absolute inset-0 flex items-center justify-center text-[1.3cqw] font-black text-indigo-300/60">SOBRE MÍDIA</div>}
+      <span className="absolute bottom-[0.5cqw] right-[0.5cqw] rounded-full border border-cyan-400/40 bg-slate-950/80 px-[0.6cqw] text-[0.75cqw] font-bold text-cyan-400">{formato === '16:9' ? 'TV 16:9' : 'TOTEM 9:16'}</span>
     </div>
   );
 }
 
-/** Prévia igual à launcher do aparelho (F-200, visual futurista): topo, destaque com as mídias e 4 cartões. */
-function Previa({ fundo, cfg }: { fundo: ItemDeFundo[]; cfg: ConfigLauncher | null }) {
+/**
+ * Prévia igual à launcher do aparelho (F-209): topo com logo + selo "Oficial", Destaques grande e centralizado (só as 4
+ * telas) e, embaixo, os botões Player e Menu. Fundo: padrão, cor escolhida ou imagem de capa.
+ */
+function Previa({ fundo, cfg, capa }: { fundo: ItemDeFundo[]; cfg: ConfigLauncher | null; capa: MidiaEscolhivel | null }) {
   const primeiroDa = (v: Vitrine) => fundo.find((f) => f.ativo && (f.vitrine ?? 'tv1') === v)?.media ?? null;
-  const cartoes = [
-    { nome: 'Player', sub: `abre sozinho em ${cfg?.segundos_para_abrir_player ?? 30} s`, cor: 'from-indigo-600 to-violet-600', icone: '▶' },
-    { nome: 'Aplicativos', sub: 'apps do aparelho', cor: 'from-violet-700 to-fuchsia-700', icone: '▦' },
-    { nome: 'Loja de apps', sub: 'Play Store', cor: 'from-emerald-600 to-teal-600', icone: '🛍' },
-    { nome: 'Ajustes', sub: 'do aparelho', cor: 'from-sky-700 to-cyan-600', icone: '⚙' },
-  ];
+  const fundoDaTela = capa?.file_url
+    ? undefined
+    : cfg?.fundo_cor ? { background: `linear-gradient(135deg, ${cfg.fundo_cor}, color-mix(in srgb, ${cfg.fundo_cor} 45%, black))` } : undefined;
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-[linear-gradient(315deg,#050A1F,#0B1A4A_55%,#14105A)] text-white" data-testid="previa-launcher">
-      <div className="absolute -left-[10%] top-[-30%] h-[70%] w-[70%] rotate-[-28deg] bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />
-      <div className="absolute inset-0 flex flex-col gap-[3cqw] p-[3.4cqw]">
-        <div className="flex items-center gap-[1.2cqw] text-[1.5cqw]">
-          <span className="rounded-[0.8cqw] bg-white/10 px-[1cqw] py-[0.6cqw] text-[1.9cqw] font-bold">Logo do gestor</span>
+    <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-[linear-gradient(315deg,#050A1F,#0B1A4A_55%,#14105A)] text-white"
+      style={fundoDaTela} data-testid="previa-launcher">
+      {capa?.file_url && (
+        <>
+          <img src={capa.file_url} alt="" className="absolute inset-0 h-full w-full object-cover" data-testid="previa-capa" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#050A1F]/60 via-[#050A1F]/30 to-[#050A1F]/70" />
+        </>
+      )}
+      {!capa?.file_url && !cfg?.fundo_cor && <div className="absolute -left-[10%] top-[-30%] h-[70%] w-[70%] rotate-[-28deg] bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />}
+      <div className="absolute inset-0 flex flex-col p-[3.1cqw]">
+        <div className="flex items-center gap-[1cqw] text-[1.4cqw]">
+          <span className="rounded-[0.8cqw] bg-white/10 px-[1cqw] py-[0.5cqw] text-[1.7cqw] font-bold">Logo da empresa</span>
+          <span className="rounded-full border border-cyan-500/50 px-[0.9cqw] py-[0.15cqw] text-[1cqw] font-bold text-cyan-400">✓ Oficial</span>
           <span className="ml-auto" />
           {cfg?.mostrar_clima !== false && <span className="rounded-full border border-white/20 bg-black/30 px-[1cqw] py-[0.3cqw]">31°C</span>}
           {cfg?.mostrar_wifi !== false && <span className="rounded-full border border-indigo-400/40 bg-slate-900/60 px-[1cqw] py-[0.3cqw]">Wi-Fi <span className="text-green-400">●</span></span>}
           {cfg?.mostrar_relogio !== false && (
-            <span className="text-right leading-none"><span className="block text-[3cqw] font-bold">14:32</span><span className="text-[1.2cqw] text-slate-400">20/10/2026</span></span>
+            <span className="text-right leading-none"><span className="block text-[2.9cqw] font-bold">14:32</span><span className="text-[1.1cqw] text-slate-400">20/10/2026</span></span>
           )}
         </div>
-        <div className="flex min-h-0 flex-1 gap-[1.8cqw]">
-          <div className="flex flex-[2.55] flex-col overflow-hidden rounded-[2cqw] border-2 border-violet-400/60 bg-[#0B1230] p-[1.2cqw]">
-            <span className="self-start rounded-full border border-indigo-400/50 bg-slate-900/70 px-[0.9cqw] text-[0.9cqw] font-bold tracking-widest text-cyan-400">SOBRE MÍDIA</span>
-            <p className="mt-[0.3cqw] text-[1.5cqw] font-bold">Destaques Sobre Mídia</p>
-            <div className="mt-[0.8cqw] flex min-h-0 flex-1 items-center justify-center gap-[0.9cqw]">
-              <div className="flex h-full flex-col justify-center gap-[0.9cqw]">
-                {(['tv1', 'tv2'] as const).map((v) => <TelaDaPrevia key={v} midia={primeiroDa(v)} formato="16:9" />)}
-              </div>
-              {(['totem1', 'totem2'] as const).map((v) => <TelaDaPrevia key={v} midia={primeiroDa(v)} formato="9:16" />)}
-            </div>
+        <div className="mt-[1.3cqw] flex min-h-0 flex-1 items-center justify-center gap-[0.9cqw]">
+          <div className="flex h-full flex-col justify-between">
+            {(['tv1', 'tv2'] as const).map((v) => <TelaDaPrevia key={v} midia={primeiroDa(v)} formato="16:9" />)}
           </div>
-          <div className="grid flex-1 grid-cols-2 grid-rows-2 gap-[1.2cqw] self-center" style={{ height: '70%' }}>
-            {cartoes.map((c) => (
-              <div key={c.nome} className={`flex flex-col items-center justify-center rounded-[1.8cqw] border border-white/20 bg-gradient-to-br ${c.cor} text-center`}>
-                <span className="text-[3.4cqw] leading-none">{c.icone}</span>
-                <span className="mt-[0.6cqw] text-[1.5cqw] font-bold">{c.nome}</span>
-                <span className="text-[1.1cqw] opacity-85">{c.sub}</span>
-              </div>
-            ))}
-          </div>
+          {(['totem1', 'totem2'] as const).map((v) => <TelaDaPrevia key={v} midia={primeiroDa(v)} formato="9:16" />)}
         </div>
-        <div className="flex gap-[1cqw] text-[1.2cqw]">
-          <span className="rounded-full border border-indigo-400/40 bg-slate-900/60 px-[1.2cqw] py-[0.4cqw]">↩ Launcher original</span>
+        <div className="mt-[1.4cqw] flex justify-center gap-[1.9cqw]">
+          <div className="flex h-[8.1cqw] w-[18.1cqw] items-center gap-[1.1cqw] rounded-[2.3cqw] border-[0.25cqw] border-cyan-400 bg-gradient-to-br from-indigo-600 to-violet-600 px-[1.7cqw]">
+            <span className="text-[2.6cqw] leading-none">▶</span>
+            <span className="leading-tight"><span className="block text-[1.65cqw] font-bold">Player</span><span className="text-[0.95cqw] opacity-85">abre sozinho em {cfg?.segundos_para_abrir_player ?? 30} s</span></span>
+          </div>
+          <div className="flex h-[8.1cqw] w-[18.1cqw] items-center gap-[1.1cqw] rounded-[2.3cqw] border border-violet-400/40 bg-[#111A3D]/80 px-[1.7cqw]">
+            <span className="text-[2.6cqw] leading-none">▦</span>
+            <span className="text-[1.65cqw] font-bold">Menu</span>
+          </div>
         </div>
       </div>
     </div>
@@ -102,67 +103,103 @@ const formatoDaMidia = (m: { aspect_ratio?: string | null }) => {
   return null;
 };
 
-function EscolherMidias({ vitrine, onFechar, onEscolher }: {
-  vitrine: Vitrine | null; onFechar: () => void; onEscolher: (m: MidiaEscolhivel[]) => Promise<void>;
+/**
+ * Seletor de mídias da launcher. F-209: abas "Enviadas" (as mídias que foram enviadas — Minhas Mídias) e "Biblioteca"
+ * (conteúdo da galeria compartilhada), e "Enviar do computador ou celular" (arquivos/galeria do aparelho que estiver
+ * usando — a mídia enviada entra direto). [capa] = escolher UMA imagem para o fundo da launcher.
+ */
+function EscolherMidias({ aberto, titulo, descricao, formato, capa, onFechar, onEscolher }: {
+  aberto: boolean; titulo: string; descricao: string; formato?: '16:9' | '9:16'; capa?: boolean;
+  onFechar: () => void; onEscolher: (m: MidiaEscolhivel[]) => Promise<void>;
 }) {
-  const aberto = !!vitrine;
-  const tela = VITRINES.find((v) => v.id === vitrine);
   const [busca, setBusca] = useState('');
   const [termo, setTermo] = useState('');
+  const [origem, setOrigem] = useState<OrigemDasMidias>('enviadas');
   const [marcadas, setMarcadas] = useState<Map<string, MidiaEscolhivel>>(new Map());
   const [salvando, setSalvando] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setTermo(busca), 350); return () => clearTimeout(t); }, [busca]);
-  useEffect(() => { if (!aberto) { setMarcadas(new Map()); setBusca(''); } }, [aberto]);
-  const midias = useQuery({ queryKey: ['launcher-midias', termo], queryFn: () => buscarMidias(termo), enabled: aberto });
+  const [enviando, setEnviando] = useState(false);
+  useEffect(() => { const tm = setTimeout(() => setTermo(busca), 350); return () => clearTimeout(tm); }, [busca]);
+  useEffect(() => { if (!aberto) { setMarcadas(new Map()); setBusca(''); setOrigem('enviadas'); } }, [aberto]);
+  const midias = useQuery({ queryKey: ['launcher-midias', termo, origem, !!capa], queryFn: () => buscarMidias(termo, origem, !!capa), enabled: aberto });
   const alternar = (m: MidiaEscolhivel) => setMarcadas((atual) => {
-    const novo = new Map(atual);
-    if (novo.has(m.id)) novo.delete(m.id); else novo.set(m.id, m);
+    const novo = capa ? new Map<string, MidiaEscolhivel>() : new Map(atual);
+    if (atual.has(m.id)) novo.delete(m.id); else novo.set(m.id, m);
     return novo;
   });
+  const usar = async (lista: MidiaEscolhivel[]) => {
+    setSalvando(true);
+    try { await onEscolher(lista); onFechar(); } finally { setSalvando(false); }
+  };
   return (
-    <Dialog open={aberto} onOpenChange={(v) => !v && onFechar()}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Destaques Sobre Mídia — {tela?.nome} ({tela?.formato})</DialogTitle>
-          <DialogDescription>
-            Pontos parceiros e tutoriais do sistema. Para esta tela use mídias {tela?.formato} ({tela?.formato === '9:16' ? 'em pé, como no totem' : 'deitadas, como na TV'}). Vídeos tocam sem som.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pelo nome da mídia" className="pl-9" />
-        </div>
-        <div className="grid max-h-[50vh] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-4">
-          {midias.isLoading && <p className="col-span-full py-6 text-center text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Buscando…</p>}
-          {midias.data?.map((m) => {
-            const marcada = marcadas.has(m.id);
-            return (
-              <button key={m.id} type="button" onClick={() => alternar(m)}
-                className={`group overflow-hidden rounded-lg border text-left transition ${marcada ? 'border-primary ring-2 ring-primary' : 'hover:border-primary/50'}`}>
-                <div className="relative">
-                  <Miniatura midia={m} className="aspect-video w-full" />
-                  <Badge variant="secondary" className="absolute left-1 top-1 h-5 px-1.5 text-[10px]">{ehVideo(m.file_type) ? 'Vídeo' : 'Foto'}</Badge>
-                  {formatoDaMidia(m) && (
-                    <Badge variant={formatoDaMidia(m) === tela?.formato ? 'default' : 'outline'} className="absolute right-1 top-1 h-5 px-1.5 text-[10px]">{formatoDaMidia(m)}</Badge>
-                  )}
-                </div>
-                <p className="truncate px-2 py-1 text-xs">{m.name}</p>
-              </button>
-            );
-          })}
-          {midias.data && midias.data.length === 0 && <p className="col-span-full py-6 text-center text-sm text-muted-foreground">Nenhuma mídia encontrada.</p>}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onFechar}>Cancelar</Button>
-          <Button disabled={!marcadas.size || salvando} onClick={async () => {
-            setSalvando(true);
-            try { await onEscolher([...marcadas.values()]); onFechar(); } finally { setSalvando(false); }
-          }}>
-            {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Adicionar {marcadas.size || ''}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={aberto && !enviando} onOpenChange={(v) => !v && onFechar()}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{titulo}</DialogTitle>
+            <DialogDescription>{descricao}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-md border p-0.5" role="tablist" data-testid="origem-midias">
+              {([['enviadas', 'Enviadas'], ['biblioteca', 'Biblioteca']] as const).map(([id, rotulo]) => (
+                <button key={id} type="button" role="tab" aria-selected={origem === id} onClick={() => setOrigem(id)}
+                  className={`rounded px-3 py-1 text-sm ${origem === id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>{rotulo}</button>
+              ))}
+            </div>
+            <Button type="button" variant="outline" size="sm" className="ml-auto gap-1.5" onClick={() => setEnviando(true)} data-testid="enviar-do-aparelho">
+              <Upload className="h-4 w-4" />Enviar do computador ou celular
+            </Button>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pelo nome da mídia" className="pl-9" />
+          </div>
+          <div className="grid max-h-[50vh] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-4">
+            {midias.isLoading && <p className="col-span-full py-6 text-center text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Buscando…</p>}
+            {midias.data?.map((m) => {
+              const marcada = marcadas.has(m.id);
+              return (
+                <button key={m.id} type="button" onClick={() => alternar(m)}
+                  className={`group overflow-hidden rounded-lg border text-left transition ${marcada ? 'border-primary ring-2 ring-primary' : 'hover:border-primary/50'}`}>
+                  <div className="relative">
+                    <Miniatura midia={m} className="aspect-video w-full" />
+                    <Badge variant="secondary" className="absolute left-1 top-1 h-5 px-1.5 text-[10px]">{ehVideo(m.file_type) ? 'Vídeo' : 'Foto'}</Badge>
+                    {formato && formatoDaMidia(m) && (
+                      <Badge variant={formatoDaMidia(m) === formato ? 'default' : 'outline'} className="absolute right-1 top-1 h-5 px-1.5 text-[10px]">{formatoDaMidia(m)}</Badge>
+                    )}
+                  </div>
+                  <p className="truncate px-2 py-1 text-xs">{m.name}</p>
+                </button>
+              );
+            })}
+            {midias.data && midias.data.length === 0 && (
+              <p className="col-span-full py-6 text-center text-sm text-muted-foreground">
+                {origem === 'enviadas' ? 'Nenhuma mídia enviada encontrada. Use "Enviar do computador ou celular".' : 'Nenhuma mídia encontrada na Biblioteca.'}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={onFechar}>Cancelar</Button>
+            <Button disabled={!marcadas.size || salvando} onClick={() => usar([...marcadas.values()])}>
+              {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{capa ? 'Usar como capa' : `Adicionar ${marcadas.size || ''}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <MediaUploadDialog
+        open={aberto && enviando}
+        onOpenChange={(v) => { if (!v) setEnviando(false); }}
+        onUploadComplete={() => undefined}
+        semPlaylist
+        titulo={capa ? 'Enviar imagem de capa da launcher' : `Enviar mídia para ${titulo}`}
+        onUploadedIds={async (ids) => {
+          const novas = (await midiasPorId(ids)).filter((m) => !capa || !ehVideo(m.file_type));
+          if (!novas.length) { toast.error(capa ? 'A capa precisa ser uma imagem.' : 'Nenhuma mídia enviada.'); return; }
+          await onEscolher(capa ? novas.slice(0, 1) : novas);
+          setEnviando(false);
+          onFechar();
+        }}
+      />
+    </>
   );
 }
 
@@ -175,9 +212,12 @@ export default function LauncherPage() {
   const apps = useQuery({ queryKey: ['launcher-apps', emp], queryFn: () => carregarAppsVistos(emp!), enabled: !!emp });
   const [cfg, setCfg] = useState<ConfigLauncher | null>(null);
   const [escolhendo, setEscolhendo] = useState<Vitrine | null>(null);
+  const [escolhendoCapa, setEscolhendoCapa] = useState(false);
   const [novaRegra, setNovaRegra] = useState('');
   const [salvando, setSalvando] = useState(false);
   useEffect(() => { if (config.data) setCfg(config.data); }, [config.data]);
+  const capaId = cfg?.capa_media_id ?? null;
+  const capa = useQuery({ queryKey: ['launcher-capa', capaId], queryFn: async () => (await midiasPorId([capaId!]))[0] ?? null, enabled: !!capaId });
 
   const alterado = !!cfg && !!config.data && JSON.stringify(cfg) !== JSON.stringify(config.data);
   const salvar = async (proxima?: ConfigLauncher) => {
@@ -254,7 +294,7 @@ export default function LauncherPage() {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">Como fica no aparelho</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div style={{ containerType: 'inline-size' }}><Previa fundo={itens} cfg={cfg} /></div>
+            <div style={{ containerType: 'inline-size' }}><Previa fundo={itens} cfg={cfg} capa={capaId ? capa.data ?? null : null} /></div>
             <p className="flex items-start gap-2 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
               <Palette className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               A logo é a de cada gestor de mídia (a "Minha Marca" de quem está logado no aparelho); sem marca, aparece a da Sobre Mídia.
@@ -294,6 +334,50 @@ export default function LauncherPage() {
           </CardContent>
         </Card>
       </div>
+
+      {cfg && (
+        <Card data-testid="fundo-launcher">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base"><Palette className="h-4 w-4" />Fundo da launcher</CardTitle>
+            <p className="text-xs text-muted-foreground">O fundo padrão Sobre Mídia, uma cor ou uma imagem de capa (do computador, do celular ou da galeria de mídias). A capa tem prioridade sobre a cor.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {([['padrao', 'Padrão Sobre Mídia'], ['cor', 'Cor'], ['capa', 'Imagem de capa']] as const).map(([modo, rotulo]) => {
+                const atual = cfg.capa_media_id ? 'capa' : cfg.fundo_cor ? 'cor' : 'padrao';
+                return (
+                  <Button key={modo} type="button" size="sm" variant={atual === modo ? 'default' : 'outline'} data-testid={`fundo-${modo}`}
+                    onClick={() => {
+                      if (modo === 'padrao') setCfg({ ...cfg, fundo_cor: null, capa_media_id: null });
+                      if (modo === 'cor') setCfg({ ...cfg, capa_media_id: null, fundo_cor: cfg.fundo_cor ?? '#1E1B4B' });
+                      if (modo === 'capa') setEscolhendoCapa(true);
+                    }}>{rotulo}</Button>
+                );
+              })}
+            </div>
+            {!cfg.capa_media_id && cfg.fundo_cor && (
+              <div className="flex flex-wrap items-center gap-3">
+                <input type="color" aria-label="Cor do fundo" value={cfg.fundo_cor} onChange={(e) => setCfg({ ...cfg, fundo_cor: e.target.value.toUpperCase() })}
+                  className="h-10 w-14 cursor-pointer rounded border bg-transparent p-0.5" data-testid="fundo-cor" />
+                {['#0F172A', '#1E1B4B', '#312E81', '#4C1D95', '#0C4A6E', '#064E3B', '#7F1D1D', '#111827'].map((c) => (
+                  <button key={c} type="button" aria-label={`Cor ${c}`} onClick={() => setCfg({ ...cfg, fundo_cor: c })}
+                    className={`h-8 w-8 rounded-full border-2 ${cfg.fundo_cor === c ? 'border-primary' : 'border-transparent'}`} style={{ background: c }} />
+                ))}
+                <span className="font-mono text-xs text-muted-foreground">{cfg.fundo_cor}</span>
+              </div>
+            )}
+            {cfg.capa_media_id && (
+              <div className="flex flex-wrap items-center gap-3">
+                <Miniatura midia={capa.data ?? null} className="h-16 w-28 rounded" />
+                <span className="min-w-0 flex-1 truncate text-sm">{capa.data?.name ?? 'Carregando…'}</span>
+                <Button type="button" size="sm" variant="outline" onClick={() => setEscolhendoCapa(true)}>Trocar capa</Button>
+                <Button type="button" size="sm" variant="ghost" className="text-destructive" onClick={() => setCfg({ ...cfg, capa_media_id: null })}>Tirar capa</Button>
+              </div>
+            )}
+            {alterado && <p className="text-xs text-amber-600">Clique em "Salvar alterações" (no alto da página) para levar o fundo aos aparelhos.</p>}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">
@@ -421,11 +505,23 @@ export default function LauncherPage() {
           <p>1. Instale o Player 5.8.0 (versão de teste) no aparelho. Na abertura ele pergunta se quer usar a launcher Sobre Mídia; quem disser "Agora não" usa o Player normalmente pela launcher original.</p>
           <p>2. Aparelho com root ou "Device Owner": vira a tela inicial sozinho. Nos outros, o Android pergunta uma vez (escolha Sobre Mídia e "Sempre").</p>
           <p>3. Aparelho que não deixa trocar a tela inicial: a launcher pede "Acesso ao uso" e volta sempre que a original aparecer (modo forçado).</p>
-          <p>4. Na página de cada tela: botões "Launcher Sobre Mídia" e "Launcher original". No aparelho: botão "Launcher original".</p>
+          <p>4. Na página de cada tela: botões "Launcher Sobre Mídia" e "Launcher original". No aparelho: o selo "Oficial" (ao lado da logo) é o botão que volta para a launcher original.</p>
         </CardContent>
       </Card>
 
-      <EscolherMidias vitrine={escolhendo} onFechar={() => setEscolhendo(null)} onEscolher={async (m) => {
+      <EscolherMidias aberto={escolhendoCapa} capa titulo="Imagem de capa da launcher"
+        descricao="Uma imagem para o fundo inteiro da launcher (de preferência 1920x1080, deitada). Os botões e a hora continuam legíveis por cima."
+        onFechar={() => setEscolhendoCapa(false)} onEscolher={async (m) => {
+          if (!cfg || !m[0]) return;
+          const proxima: ConfigLauncher = { ...cfg, capa_media_id: m[0].id, fundo_cor: null };
+          setCfg(proxima);
+          await salvar(proxima);
+        }} />
+
+      <EscolherMidias aberto={!!escolhendo} formato={VITRINES.find((v) => v.id === escolhendo)?.formato}
+        titulo={`Destaques Sobre Mídia — ${VITRINES.find((v) => v.id === escolhendo)?.nome ?? ''} (${VITRINES.find((v) => v.id === escolhendo)?.formato ?? ''})`}
+        descricao={`Pontos parceiros e tutoriais do sistema. Use mídias ${VITRINES.find((v) => v.id === escolhendo)?.formato === '9:16' ? 'em pé (9:16), como no totem' : 'deitadas (16:9), como na TV'}. Vídeos tocam sem som.`}
+        onFechar={() => setEscolhendo(null)} onEscolher={async (m) => {
         if (!escolhendo) return;
         try {
           await adicionarAoFundo(emp, m, escolhendo, daTela(escolhendo).length);

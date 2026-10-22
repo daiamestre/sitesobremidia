@@ -85,6 +85,65 @@
         <item name="android:elevation">0dp</item>
     </style>
 
+    <!-- F-209: botões Player e Menu (retângulo arredondado, quase quadrado) -->
+    <style name="LauncherBotaoBase">
+        <item name="android:layout_width">232dp</item>
+        <item name="android:layout_height">104dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingStart">22dp</item>
+        <item name="android:paddingEnd">18dp</item>
+    </style>
+
+    <style name="LauncherBotaoTextos">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">14dp</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <style name="LauncherBotaoTitulo">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/sm_texto</item>
+        <item name="android:textSize">21sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="LauncherBotaoSub">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">#D9F8FAFC</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- F-209: opções dentro do Menu (Loja de apps, Ajustes do aparelho) -->
+    <style name="LauncherOpcaoMenu">
+        <item name="android:layout_width">260dp</item>
+        <item name="android:layout_height">72dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingStart">22dp</item>
+        <item name="android:paddingEnd">18dp</item>
+    </style>
+
+    <style name="LauncherOpcaoTexto">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">14dp</item>
+        <item name="android:textColor">@color/sm_texto</item>
+        <item name="android:textSize">17sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
     <style name="LauncherCartaoIcone">
         <item name="android:layout_width">42dp</item>
         <item name="android:layout_height">42dp</item>

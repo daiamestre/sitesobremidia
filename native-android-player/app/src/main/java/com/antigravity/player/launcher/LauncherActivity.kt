@@ -432,7 +432,38 @@ class LauncherActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------------ configuração do painel
 
+    /**
+     * F-209: fundo da launcher escolhido no painel — imagem de capa (com véu, para o texto continuar legível), ou a cor
+     * escolhida (em degradê suave), ou o fundo padrão Sobre Mídia.
+     */
+    private var fundoAplicado: String? = null
+    private fun aplicarFundoDaTela() {
+        val capa = ConfigDaLauncher.capaPronta(this, config)
+        val assinatura = capa?.path ?: config.fundoCor ?: "padrao"
+        if (assinatura == fundoAplicado) return
+        fundoAplicado = assinatura
+        val imagem = findViewById<ImageView>(R.id.launcher_capa)
+        val veu = findViewById<View>(R.id.launcher_capa_veu)
+        if (capa != null) {
+            try { com.bumptech.glide.Glide.with(this).load(capa).into(imagem) } catch (e: Exception) { }
+            imagem.visibility = View.VISIBLE; veu.visibility = View.VISIBLE
+            return
+        }
+        imagem.setImageDrawable(null); imagem.visibility = View.GONE; veu.visibility = View.GONE
+        val cor = config.fundoCor
+        if (cor != null) {
+            val base = android.graphics.Color.parseColor(cor)
+            val escura = android.graphics.Color.rgb((android.graphics.Color.red(base) * 0.45).toInt(),
+                (android.graphics.Color.green(base) * 0.45).toInt(), (android.graphics.Color.blue(base) * 0.45).toInt())
+            quadro.background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(base, escura))
+        } else {
+            quadro.setBackgroundResource(R.drawable.launcher_tela_fundo)
+        }
+    }
+
     private fun aplicarConfig() {
+        aplicarFundoDaTela()
         findViewById<View>(R.id.launcher_hora).visibility = if (config.mostrarRelogio) View.VISIBLE else View.GONE
         redeTexto.visibility = if (config.mostrarWifi) View.VISIBLE else View.GONE
         if (!config.mostrarClima) climaTexto.visibility = View.GONE
@@ -492,14 +523,15 @@ class LauncherActivity : AppCompatActivity() {
             adaptador.itens = visiveis
             adaptador.notifyDataSetChanged()
             semApps.visibility = if (visiveis.isEmpty()) View.VISIBLE else View.GONE
-            appsTotal.text = if (visiveis.size == 1) "1 app" else "${visiveis.size} apps"
+            appsTotal.text = if (visiveis.size == 1) "Aplicativos (1)" else "Aplicativos (${visiveis.size})"
             try { ConfigDaLauncher.reportarApps(applicationContext, todos.map { it.pacote to it.nome }) } catch (e: Throwable) { Logger.w("LAUNCHER", "apps: ${e.message}") }
         }
     }
 
     private fun abrirGaveta() {
         gaveta.visibility = View.VISIBLE
-        lista.post { (lista.getChildAt(0) ?: findViewById(R.id.launcher_gaveta_voltar))?.requestFocus() }
+        // F-209: o Menu abre com o foco na Loja de apps (Ajustes ao lado, aplicativos logo abaixo)
+        findViewById<View>(R.id.launcher_card_loja).post { findViewById<View>(R.id.launcher_card_loja).requestFocus() }
     }
 
     private fun fecharGaveta() {

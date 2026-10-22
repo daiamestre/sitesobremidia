@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    F-200: launcher Sobre Mídia (tela inicial do aparelho), visual futurista.
-    Topo: logo do gestor (maior) · temperatura · Wi-Fi · hora e data.
-    Meio: cartão de destaque (mídias escolhidas pelo dono/ADM) + 4 cartões: Player, Aplicativos, Loja de apps, Ajustes.
-    O quadro gira junto com a rotação da tela do Player (totem).
+    F-209: launcher Sobre Mídia (tela inicial do aparelho).
+    Topo: logo (da empresa logada) + selo "Oficial" (é o botão da launcher original) · temperatura · Wi-Fi · hora e data.
+    Meio: Destaques Sobre Mídia grande e centralizado, sem moldura — só as 4 telas (2 TVs 16:9 e 2 totens 9:16).
+    Base, centralizados: Player e Menu (Menu abre aplicativos, loja de apps e Ajustes).
+    Fundo: o padrão Sobre Mídia, a cor escolhida no painel ou a imagem de capa. O quadro gira junto com a tela (totem).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/launcher_raiz"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -18,16 +18,32 @@
         android:layout_height="match_parent"
         android:background="@drawable/launcher_tela_fundo">
 
+        <!-- capa escolhida no painel (some quando não há) + véu para o texto continuar legível -->
+        <ImageView
+            android:id="@+id/launcher_capa"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+
+        <View
+            android:id="@+id/launcher_capa_veu"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/launcher_capa_veu"
+            android:visibility="gone" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipChildren="false"
             android:clipToPadding="false"
             android:orientation="vertical"
-            android:paddingStart="44dp"
-            android:paddingTop="26dp"
-            android:paddingEnd="44dp"
-            android:paddingBottom="26dp">
+            android:paddingStart="40dp"
+            android:paddingTop="22dp"
+            android:paddingEnd="40dp"
+            android:paddingBottom="24dp">
 
             <!-- topo -->
             <LinearLayout
@@ -39,16 +55,42 @@
                 <ImageView
                     android:id="@+id/launcher_logo"
                     android:layout_width="wrap_content"
-                    android:layout_height="84dp"
+                    android:layout_height="64dp"
                     android:adjustViewBounds="true"
                     android:contentDescription="Sobre Mídia"
-                    android:maxWidth="340dp"
+                    android:maxWidth="300dp"
                     android:src="@drawable/logo" />
+
+                <!-- selo "Oficial": por fora é o selo da launcher oficial; por dentro, o botão da launcher original -->
+                <TextView
+                    android:id="@+id/launcher_btn_original"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:background="@drawable/launcher_selo_oficial"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:letterSpacing="0.08"
+                    android:paddingStart="12dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="4dp"
+                    android:text="✓ Oficial"
+                    android:textColor="@color/sm_acento"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
 
                 <Space
                     android:layout_width="0dp"
                     android:layout_height="1dp"
                     android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/launcher_btn_padrao"
+                    style="@style/LauncherPilula"
+                    android:layout_marginEnd="12dp"
+                    android:text="★  Tela inicial"
+                    android:visibility="gone" />
 
                 <TextView
                     android:id="@+id/launcher_clima"
@@ -80,10 +122,8 @@
                         android:format12Hour="HH:mm"
                         android:format24Hour="HH:mm"
                         android:includeFontPadding="false"
-                        android:shadowColor="#CC000000"
-                        android:shadowRadius="8"
                         android:textColor="@color/sm_texto"
-                        android:textSize="40sp"
+                        android:textSize="38sp"
                         android:textStyle="bold" />
 
                     <TextClock
@@ -93,193 +133,82 @@
                         android:format12Hour="dd/MM/yyyy"
                         android:format24Hour="dd/MM/yyyy"
                         android:textColor="@color/sm_texto_suave"
-                        android:textSize="14sp" />
+                        android:textSize="13sp" />
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- meio: "Destaques Sobre Mídia" (2 TVs 16:9 + 2 totens 9:16) e os 4 cartões, um pouco menores -->
-            <LinearLayout
+            <!-- meio: Destaques Sobre Mídia — só as 4 telas, grandes e centralizadas -->
+            <FrameLayout
+                android:id="@+id/launcher_destaque"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_marginTop="20dp"
-                android:layout_weight="1"
-                android:clipChildren="false"
-                android:orientation="horizontal">
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="18dp"
+                android:layout_weight="1">
 
-                <LinearLayout
-                    android:id="@+id/launcher_destaque"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="2.55"
-                    android:background="@drawable/launcher_destaque"
-                    android:orientation="vertical"
-                    android:paddingStart="16dp"
-                    android:paddingTop="12dp"
-                    android:paddingEnd="16dp"
-                    android:paddingBottom="14dp">
+                <com.antigravity.player.launcher.VitrineLayout
+                    android:id="@+id/launcher_vitrine"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+            </FrameLayout>
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/launcher_pilula"
-                        android:letterSpacing="0.12"
-                        android:paddingStart="12dp"
-                        android:paddingTop="3dp"
-                        android:paddingEnd="12dp"
-                        android:paddingBottom="3dp"
-                        android:text="SOBRE MÍDIA"
-                        android:textColor="@color/sm_acento"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:shadowColor="#CC000000"
-                        android:shadowRadius="8"
-                        android:text="Destaques Sobre Mídia"
-                        android:textColor="@color/sm_texto"
-                        android:textSize="19sp"
-                        android:textStyle="bold" />
-
-                    <com.antigravity.player.launcher.VitrineLayout
-                        android:id="@+id/launcher_vitrine"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_marginTop="10dp"
-                        android:layout_weight="1" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginStart="20dp"
-                    android:layout_weight="1"
-                    android:clipChildren="false"
-                    android:gravity="center_vertical"
-                    android:orientation="vertical">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="168dp"
-                        android:clipChildren="false"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:id="@+id/launcher_cartao_player"
-                            style="@style/LauncherCartao"
-                            android:background="@drawable/launcher_card_player">
-
-                            <!-- o ícone do próprio app Sobre Mídia (o mesmo da launcher original e da Play Store) -->
-                            <ImageView
-                                android:id="@+id/launcher_icone_app"
-                                android:layout_width="58dp"
-                                android:layout_height="58dp"
-                                android:contentDescription="Sobre Mídia Player"
-                                android:src="@mipmap/ic_launcher_round" />
-
-                            <TextView
-                                style="@style/LauncherCartaoTitulo"
-                                android:text="Player" />
-
-                            <TextView
-                                android:id="@+id/launcher_contagem"
-                                style="@style/LauncherCartaoSub" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:id="@+id/launcher_card_apps"
-                            style="@style/LauncherCartao"
-                            android:layout_marginStart="14dp"
-                            android:background="@drawable/launcher_card_apps">
-
-                            <ImageView
-                                style="@style/LauncherCartaoIcone"
-                                android:src="@drawable/ic_launcher_apps" />
-
-                            <TextView
-                                style="@style/LauncherCartaoTitulo"
-                                android:text="Aplicativos" />
-
-                            <TextView
-                                android:id="@+id/launcher_apps_total"
-                                style="@style/LauncherCartaoSub" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="168dp"
-                        android:layout_marginTop="14dp"
-                        android:clipChildren="false"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:id="@+id/launcher_card_loja"
-                            style="@style/LauncherCartao"
-                            android:background="@drawable/launcher_card_loja">
-
-                            <ImageView
-                                style="@style/LauncherCartaoIcone"
-                                android:src="@drawable/ic_launcher_loja" />
-
-                            <TextView
-                                style="@style/LauncherCartaoTitulo"
-                                android:text="Loja de apps" />
-
-                            <TextView
-                                style="@style/LauncherCartaoSub"
-                                android:text="Play Store" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:id="@+id/launcher_btn_ajustes"
-                            style="@style/LauncherCartao"
-                            android:layout_marginStart="14dp"
-                            android:background="@drawable/launcher_card_ajustes">
-
-                            <ImageView
-                                style="@style/LauncherCartaoIcone"
-                                android:src="@drawable/ic_launcher_ajustes" />
-
-                            <TextView
-                                style="@style/LauncherCartaoTitulo"
-                                android:text="Ajustes" />
-
-                            <TextView
-                                style="@style/LauncherCartaoSub"
-                                android:text="do aparelho" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- base: launcher original (sempre à mão) e "definir como tela inicial" quando ainda não é -->
+            <!-- base: Player e Menu, centralizados -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
                 android:clipChildren="false"
-                android:gravity="center_vertical"
+                android:gravity="center"
                 android:orientation="horizontal">
 
-                <TextView
-                    android:id="@+id/launcher_btn_original"
-                    style="@style/LauncherPilula"
-                    android:drawableStart="@drawable/ic_launcher_voltar"
-                    android:text="Launcher original" />
+                <LinearLayout
+                    android:id="@+id/launcher_cartao_player"
+                    style="@style/LauncherBotaoBase"
+                    android:background="@drawable/launcher_botao_player">
 
-                <TextView
-                    android:id="@+id/launcher_btn_padrao"
-                    style="@style/LauncherPilula"
-                    android:layout_marginStart="12dp"
-                    android:text="★  Definir como tela inicial"
-                    android:visibility="gone" />
+                    <!-- o ícone do app Sobre Mídia (ou a logo da empresa logada) -->
+                    <ImageView
+                        android:id="@+id/launcher_icone_app"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:contentDescription="Sobre Mídia Player"
+                        android:src="@mipmap/ic_launcher_round" />
+
+                    <LinearLayout style="@style/LauncherBotaoTextos">
+
+                        <TextView
+                            style="@style/LauncherBotaoTitulo"
+                            android:text="Player" />
+
+                        <TextView
+                            android:id="@+id/launcher_contagem"
+                            style="@style/LauncherBotaoSub" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/launcher_card_apps"
+                    style="@style/LauncherBotaoBase"
+                    android:layout_marginStart="24dp"
+                    android:background="@drawable/launcher_botao_menu">
+
+                    <ImageView
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_launcher_apps" />
+
+                    <LinearLayout style="@style/LauncherBotaoTextos">
+
+                        <!-- só o nome "Menu" (pedido do dono) -->
+                        <TextView
+                            style="@style/LauncherBotaoTitulo"
+                            android:text="Menu" />
+                    </LinearLayout>
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 
-        <!-- painel de aplicativos (abre pelo cartão "Aplicativos") -->
+        <!-- Menu (abre pelo botão "Menu"): loja de apps, Ajustes do aparelho e todos os aplicativos -->
         <LinearLayout
             android:id="@+id/launcher_gaveta"
             android:layout_width="match_parent"
@@ -288,7 +217,7 @@
             android:clickable="true"
             android:orientation="vertical"
             android:paddingStart="44dp"
-            android:paddingTop="30dp"
+            android:paddingTop="28dp"
             android:paddingEnd="44dp"
             android:paddingBottom="20dp"
             android:visibility="gone">
@@ -300,8 +229,8 @@
                 android:orientation="horizontal">
 
                 <ImageView
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:importantForAccessibility="no"
                     android:src="@drawable/ic_launcher_apps" />
 
@@ -310,9 +239,9 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
                     android:layout_weight="1"
-                    android:text="Aplicativos"
+                    android:text="Menu"
                     android:textColor="@color/sm_texto"
-                    android:textSize="30sp"
+                    android:textSize="28sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -322,11 +251,62 @@
                     android:text="Voltar" />
             </LinearLayout>
 
+            <!-- funções do aparelho -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:clipChildren="false"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/launcher_card_loja"
+                    style="@style/LauncherOpcaoMenu"
+                    android:background="@drawable/launcher_botao_menu">
+
+                    <ImageView
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_launcher_loja" />
+
+                    <TextView
+                        style="@style/LauncherOpcaoTexto"
+                        android:text="Loja de apps" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/launcher_btn_ajustes"
+                    style="@style/LauncherOpcaoMenu"
+                    android:layout_marginStart="16dp"
+                    android:background="@drawable/launcher_botao_menu">
+
+                    <ImageView
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_launcher_ajustes" />
+
+                    <TextView
+                        style="@style/LauncherOpcaoTexto"
+                        android:text="Ajustes do aparelho" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/launcher_apps_total"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:textColor="@color/sm_texto_suave"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/launcher_apps"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="8dp"
                 android:layout_weight="1"
                 android:clipChildren="false"
                 android:clipToPadding="false"

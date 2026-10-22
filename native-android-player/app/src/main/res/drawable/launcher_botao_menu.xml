@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-209: botão Menu e opções do Menu (vidro escuro do sistema); com foco ganha a borda ciano -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="30dp" />
+            <solid android:color="#F2312E81" />
+            <stroke android:width="3dp" android:color="#FF22D3EE" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="30dp" />
+            <solid android:color="#F2312E81" />
+            <stroke android:width="3dp" android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="30dp" />
+            <solid android:color="#CC111A3D" />
+            <stroke android:width="1dp" android:color="#667C6CF6" />
+        </shape>
+    </item>
+</selector>

@@ -97,17 +97,40 @@ class LauncherSobreMidiaTest {
     }
 
     @Test
-    fun `visual futurista - 4 cartoes, logo maior e sem o nome da tela`() {
+    fun `F-209 - visual - Destaques no centro, Player e Menu embaixo, selo Oficial e Menu com loja, ajustes e apps`() {
         val layout = File("src/main/res/layout/activity_launcher.xml").readText()
-        for (id in listOf("launcher_cartao_player", "launcher_card_apps", "launcher_card_loja", "launcher_btn_ajustes")) {
+        for (id in listOf("launcher_cartao_player", "launcher_card_apps", "launcher_card_loja", "launcher_btn_ajustes", "launcher_btn_original",
+            "launcher_capa", "launcher_capa_veu", "launcher_vitrine", "launcher_gaveta", "launcher_apps")) {
             assertTrue(id, layout.contains("@+id/$id"))
         }
-        assertEquals("só 4 cartões", 4, Regex("style=\"@style/LauncherCartao\"").findAll(layout).count())
-        assertTrue("logo maior", layout.contains("android:id=\"@+id/launcher_logo\"") && layout.contains("android:layout_height=\"84dp\""))
-        assertFalse("sem nome da tela ao lado do Player", layout.contains("launcher_status_tela"))
-        assertTrue("apps dentro do cartão Aplicativos", layout.contains("@+id/launcher_gaveta"))
+        assertEquals("só 2 botões embaixo (Player e Menu)", 2, Regex("style=\"@style/LauncherBotaoBase\"").findAll(layout).count())
+        assertFalse("sem os 4 cartões antigos", layout.contains("style=\"@style/LauncherCartao\""))
+        assertTrue("selo Oficial no lugar de Launcher original", layout.contains("android:text=\"✓ Oficial\"") && !layout.contains("Launcher original"))
+        val base = layout.substring(layout.indexOf("@+id/launcher_destaque"), layout.indexOf("@+id/launcher_gaveta"))
+        assertTrue("Player e Menu abaixo dos Destaques", base.indexOf("launcher_vitrine") < base.indexOf("launcher_cartao_player"))
+        val menu = layout.substring(layout.indexOf("@+id/launcher_gaveta"))
+        assertTrue("Menu tem loja, Ajustes e apps", menu.contains("launcher_card_loja") && menu.contains("launcher_btn_ajustes") && menu.contains("launcher_apps"))
+        val estilos = File("src/main/res/values/themes.xml").readText()
+        assertTrue("retângulo quase quadrado", estilos.contains("<item name=\"android:layout_width\">232dp</item>") && estilos.contains("<item name=\"android:layout_height\">104dp</item>"))
+        assertTrue(File("src/main/res/drawable/launcher_botao_player.xml").readText().contains("android:radius=\"30dp\""))
         assertTrue("cartão do Player com o ícone do app", layout.contains("android:src=\"@mipmap/ic_launcher_round\""))
         assertEquals("com.android.vending", LauncherPolicy.LOJAS.first())
+    }
+
+    @Test
+    fun `F-209 - cor de fundo e capa vindas do painel`() {
+        val cfg = LauncherPolicy.lerConfig("""{"status":"OK","fundo":[],"fundo_cor":"#1E3A8A","capa":{"media_id":"m1","url":"https://x/capa.png","hash":"h1"}}""")!!
+        assertEquals("#1E3A8A", cfg.fundoCor)
+        assertEquals("m1", cfg.capa?.mediaId)
+        assertTrue(cfg.capa!!.arquivo.startsWith("capa_m1_h1"))
+        val semNada = LauncherPolicy.lerConfig("""{"status":"OK","fundo":[]}""")!!
+        assertEquals(null, semNada.fundoCor); assertEquals(null, semNada.capa)
+        assertEquals("cor inválida vira padrão", null, LauncherPolicy.lerConfig("""{"status":"OK","fundo_cor":"azul"}""")!!.fundoCor)
+        assertEquals("capa sem https é ignorada", null, LauncherPolicy.lerConfig("""{"status":"OK","capa":{"media_id":"m","url":"http://x"}}""")!!.capa)
+        val config = File("src/main/java/com/antigravity/player/launcher/ConfigDaLauncher.kt").readText()
+        assertTrue("a capa é baixada e apagada quando trocam", config.contains("listOfNotNull(cfg.capa?.let { it.arquivo to it.url })"))
+        val launcher = File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText()
+        assertTrue(launcher.contains("private fun aplicarFundoDaTela()") && launcher.contains("ConfigDaLauncher.capaPronta(this, config)"))
     }
 
     @Test

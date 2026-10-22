@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.8.12** (código 582) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
+Versão de teste atual: **5.8.13** (código 583) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
 
 ## 2. Perfis e o que cada um vê
 
@@ -81,7 +81,9 @@ Nas TV Box a tela do Android trabalha em 1280x720 mesmo com a saída HDMI em 108
 
 Silenciosa com root ou Device Owner; nos demais aparelhos a versão nova fica baixada e o instalador do Android só abre quando o painel pede ("Instalar atualização agora"), com alguém ao lado da TV. Nada aparece por cima das mídias.
 
-## 8. Launcher Sobre Mídia — versão de TESTE 5.8.8 (F-200)
+## 8. Launcher Sobre Mídia — versão de TESTE 5.8.13 (F-200..F-209)
+
+- **Visual (F-209):** topo com a logo da empresa e o selo **"Oficial"** (é o botão que volta para a launcher original), clima, Wi-Fi e hora; no meio, **Destaques Sobre Mídia** grande e centralizado (2 TVs 16:9 e 2 totens 9:16, sem moldura); embaixo, centralizados, **Player** e **Menu** (Menu abre Loja de apps, Ajustes do aparelho e os aplicativos). Fundo: padrão Sobre Mídia, uma **cor** ou uma **imagem de capa** escolhidas no painel (chegam sozinhas, sem APK).
 
 O Player pode ser também a **tela inicial** do aparelho (como as launchers de TV Box, Samsung, Motorola).
 - **Mostra:** logo da empresa logada (Minha Marca ou, sem ela, a foto de perfil; sem nenhuma, a Sobre Mídia) no topo, no cartão do Player e nas telas vazias dos Destaques, hora e data, temperatura, Wi-Fi, o cartão "Destaques Sobre Mídia" com 2 TVs 16:9 e 2 totens 9:16, cada um com as mídias escolhidas pelo dono/ADM (vídeos um de cada vez) e 4 cartões: Player Sobre Mídia, Aplicativos (painel com os apps instalados — **sem YouTube, Netflix e apps de TV** (continuam na launcher original). Botões: Ajustes, Wi-Fi, Launcher original.

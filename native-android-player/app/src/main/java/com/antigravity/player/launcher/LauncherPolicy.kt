@@ -42,6 +42,14 @@ object LauncherPolicy {
         val arquivo: String get() = "${seguro(mediaId)}_${seguro(hash).take(40)}.${if (video) "mp4" else "img"}"
     }
 
+    /** F-209: imagem de capa (fundo inteiro da launcher), escolhida no painel. */
+    data class Capa(val mediaId: String, val url: String, val hash: String) {
+        val arquivo: String get() = "capa_${seguro(mediaId)}_${seguro(hash).take(40)}.img"
+    }
+
+    /** F-209: cor de fundo válida (#RRGGBB) ou null. */
+    fun corValida(cor: String?): String? = cor?.trim()?.takeIf { Regex("^#[0-9A-Fa-f]{6}$").matches(it) }
+
     data class Config(
         val segundosParaAbrirPlayer: Int = SEGUNDOS_PADRAO,
         val minutosDeUsoLivre: Int = MINUTOS_USO_LIVRE_PADRAO,
@@ -50,7 +58,11 @@ object LauncherPolicy {
         val mostrarWifi: Boolean = true,
         val appsOcultos: List<String> = OCULTOS_PADRAO,
         val appsLiberados: List<String> = emptyList(),
-        val fundo: List<ItemDeFundo> = emptyList()
+        val fundo: List<ItemDeFundo> = emptyList(),
+        /** F-209: cor escolhida no painel (null = fundo padrão Sobre Mídia). */
+        val fundoCor: String? = null,
+        /** F-209: imagem de capa (tem prioridade sobre a cor). */
+        val capa: Capa? = null
     )
 
     private fun seguro(s: String) = s.replace(Regex("[^A-Za-z0-9_-]"), "")
@@ -86,7 +98,13 @@ object LauncherPolicy {
                 mostrarWifi = bool("mostrar_wifi"),
                 appsOcultos = lista("apps_ocultos") ?: OCULTOS_PADRAO,
                 appsLiberados = lista("apps_liberados").orEmpty(),
-                fundo = fundo
+                fundo = fundo,
+                fundoCor = corValida(o["fundo_cor"]?.jsonPrimitive?.contentOrNull),
+                capa = (o["capa"] as? JsonObject)?.let { c ->
+                    val url = c["url"]?.jsonPrimitive?.contentOrNull?.takeIf { it.startsWith("https://") } ?: return@let null
+                    val id = c["media_id"]?.jsonPrimitive?.contentOrNull ?: return@let null
+                    Capa(id, url, c["hash"]?.jsonPrimitive?.contentOrNull ?: "")
+                }
             )
         }
     } catch (e: Exception) {

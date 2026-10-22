@@ -48,6 +48,10 @@ object ConfigDaLauncher {
     fun fundoPronto(ctx: Context, cfg: LauncherPolicy.Config = atual(ctx)): List<Pair<LauncherPolicy.ItemDeFundo, File>> =
         cfg.fundo.mapNotNull { item -> File(pasta(ctx), item.arquivo).takeIf { it.isFile && it.length() > 0 }?.let { item to it } }
 
+    /** F-209: a imagem de capa já baixada (null = sem capa ou ainda baixando). */
+    fun capaPronta(ctx: Context, cfg: LauncherPolicy.Config = atual(ctx)): File? =
+        cfg.capa?.let { c -> File(pasta(ctx), c.arquivo).takeIf { it.isFile && it.length() > 0 } }
+
     /** Há sessão do Player neste aparelho? (a launcher pode abrir antes do Player, logo ao ligar) */
     private suspend fun garantirSessao(ctx: Context): Boolean {
         val atual = SessionManager.currentAccessToken
@@ -74,15 +78,17 @@ object ConfigDaLauncher {
     /** Baixa as mídias de fundo que faltam (uma por vez) e apaga as que saíram. true = algo novo ficou pronto. */
     private suspend fun baixarFundo(ctx: Context, cfg: LauncherPolicy.Config): Boolean = baixando.withLock {
         val dir = pasta(ctx)
-        val nomes = cfg.fundo.map { it.arquivo }.toSet()
+        // F-209: a capa (se houver) é baixada junto com as mídias dos Destaques e sai do aparelho quando é trocada
+        val baixar = cfg.fundo.map { it.arquivo to it.url } + listOfNotNull(cfg.capa?.let { it.arquivo to it.url })
+        val nomes = baixar.map { it.first }.toSet()
         dir.listFiles()?.forEach { if (it.name !in nomes) it.delete() } // inclui .tmp de download interrompido
         var novo = false
-        for (item in cfg.fundo) {
-            val destino = File(dir, item.arquivo)
+        for ((arquivo, url) in baixar) {
+            val destino = File(dir, arquivo)
             if (destino.isFile && destino.length() > 0) continue
-            val tmp = File(dir, item.arquivo + ".tmp")
+            val tmp = File(dir, arquivo + ".tmp")
             try {
-                http.newCall(Request.Builder().url(item.url).build()).execute().use { r ->
+                http.newCall(Request.Builder().url(url).build()).execute().use { r ->
                     val corpo = r.body
                     if (!r.isSuccessful || corpo == null) error("HTTP ${r.code}")
                     if (corpo.contentLength() > MAX_BYTES) error("arquivo grande demais")
@@ -90,10 +96,10 @@ object ConfigDaLauncher {
                 }
                 if (tmp.length() == 0L || !tmp.renameTo(destino)) error("arquivo vazio")
                 novo = true
-                Logger.i("LAUNCHER", "Fundo baixado: ${item.arquivo}")
+                Logger.i("LAUNCHER", "Fundo baixado: ${arquivo}")
             } catch (e: Exception) {
                 tmp.delete()
-                Logger.w("LAUNCHER", "Fundo não baixado (${item.arquivo}): ${e.message}")
+                Logger.w("LAUNCHER", "Fundo não baixado (${arquivo}): ${e.message}")
             }
         }
         novo

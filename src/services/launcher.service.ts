@@ -12,6 +12,10 @@ export interface ConfigLauncher {
   mostrar_wifi: boolean;
   apps_ocultos: string[];
   apps_liberados: string[];
+  /** F-209: cor do fundo (#RRGGBB) ou null = fundo padrão Sobre Mídia. */
+  fundo_cor?: string | null;
+  /** F-209: imagem de capa (tem prioridade sobre a cor). */
+  capa_media_id?: string | null;
 }
 
 /** As 4 telas do cartão "Destaques Sobre Mídia" da launcher (F-200). */
@@ -48,6 +52,7 @@ export function configPadrao(empresa: string): ConfigLauncher {
   return {
     empresa_operadora_id: empresa, segundos_para_abrir_player: 30, minutos_de_uso_livre: 30,
     mostrar_relogio: true, mostrar_clima: true, mostrar_wifi: true, apps_ocultos: [...OCULTOS_PADRAO], apps_liberados: [],
+    fundo_cor: null, capa_media_id: null,
   };
 }
 
@@ -90,11 +95,18 @@ export async function removerDoFundo(id: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Mídias (imagem/vídeo) que o dono/ADM pode pôr no fundo, buscando pelo nome. */
-export async function buscarMidias(texto: string): Promise<MidiaEscolhivel[]> {
+/** F-209: de onde vêm as mídias — as enviadas (Minhas Mídias) ou a Biblioteca automática/compartilhada. */
+export type OrigemDasMidias = 'enviadas' | 'biblioteca';
+
+/**
+ * Mídias que o dono/ADM pode pôr nos Destaques (ou como capa), buscando pelo nome. F-209: separadas por origem — antes
+ * vinham só as 60 mais recentes de tudo, e o robô de conteúdo automático (centenas por semana) escondia as enviadas.
+ */
+export async function buscarMidias(texto: string, origem: OrigemDasMidias = 'enviadas', somenteImagem = false): Promise<MidiaEscolhivel[]> {
   let q = db.from('media').select('id, name, file_url, file_type, thumbnail_url, aspect_ratio')
-    .or('file_type.ilike.image%,file_type.ilike.video%').like('file_url', 'https://%')
-    .order('created_at', { ascending: false }).limit(60);
+    .or(somenteImagem ? 'file_type.ilike.image%' : 'file_type.ilike.image%,file_type.ilike.video%').like('file_url', 'https://%')
+    .eq('biblioteca', origem === 'biblioteca')
+    .order('created_at', { ascending: false }).limit(120);
   const t = texto.trim();
   if (t) q = q.ilike('name', `%${t.replace(/[%_]/g, '')}%`);
   const { data, error } = await q;
@@ -116,4 +128,13 @@ export async function carregarAppsVistos(empresa: string): Promise<AppVisto[]> {
     porPacote.set(l.pacote, atual);
   }
   return [...porPacote.values()].map(({ _ap: _ignorado, ...a }) => a).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** F-209: mídias pelos ids (as que acabaram de ser enviadas, a capa escolhida). */
+export async function midiasPorId(ids: string[]): Promise<MidiaEscolhivel[]> {
+  if (!ids.length) return [];
+  const { data, error } = await db.from('media').select('id, name, file_url, file_type, thumbnail_url, aspect_ratio').in('id', ids);
+  if (error) throw error;
+  const porId = new Map(((data as MidiaEscolhivel[]) ?? []).map((m) => [m.id, m]));
+  return ids.map((id) => porId.get(id)).filter((m): m is MidiaEscolhivel => !!m);
 }
