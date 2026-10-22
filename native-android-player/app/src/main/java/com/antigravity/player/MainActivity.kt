@@ -1262,6 +1262,13 @@ private fun checkLocalCacheAndPlay() {
                 val currentPlaylist = repo.getActivePlaylist().firstOrNull()
                 currentPlaylist?.let { playlist ->
                     val signatureAfter = PlayerFlowPolicy.playlistSignature(playlist)
+                    // F-208: Player fora da tela (launcher/apps) — não mexe na tela nem no laço com a janela parada (isso
+                    // deixava a tela preta na volta); guarda e aplica na volta (onRestart recria o motor com a playlist nova)
+                    if (motorPausadoForaDaTela) {
+                        orientacaoPendente = playlist.orientation
+                        Logger.i("SYNC", "Player fora da tela: sequência nova fica para a volta.")
+                        return@let
+                    }
                     runOnUiThread {
                         SessionManager.apply {
                             heartbeatIntervalSeconds = playlist.heartbeatIntervalSeconds
@@ -1685,6 +1692,11 @@ withContext(Dispatchers.Main) {
     }
 
     private fun startPlaybackLoop() {
+        // F-208: Player fora da tela — o laço só recomeça na volta (onRestart → reiniciarMotorDeVideo), com a janela visível
+        if (motorPausadoForaDaTela) {
+            Logger.i("PLAYBACK_LOOP", "Player fora da tela: o laço recomeça na volta.")
+            return
+        }
         // [SINGLE LOOP OWNER] Um loop saudavel bloqueia novos spawns.
         // Chamadores que resetam isSyncLoopRunning=false forcam restart legitimo:
         // o novo Job CANCELA o anterior (cancelAndJoin) em vez de rodar em paralelo.
@@ -1886,10 +1898,10 @@ withContext(Dispatchers.Main) {
 
     private val voltaObrigatoria = Handler(Looper.getMainLooper())
 
-    /** F-203: passou 1 minuto fora — o Player volta para a frente (sem refazer a sincronização). */
+    /** Hora de voltar (1º/2º Home ou 1 minuto fora) — o Player volta para a frente (sem refazer a sincronização). */
     private fun voltarDepoisDoLimite() {
         if (naFrente || isFinishing || isDestroyed || !isKioskEnforced || DeviceControl.instaladorDoSistemaAberto()) return
-        Logger.i("KIOSK", "1 minuto fora do Player: voltando às mídias.")
+        Logger.i("KIOSK", "Hora de voltar: voltando às mídias.")
         com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.encerrar(applicationContext)
         try {
             startActivity(Intent(applicationContext, MainActivity::class.java).putExtra(EXTRA_SO_TRAZER_PARA_FRENTE, true)
@@ -1897,10 +1909,16 @@ withContext(Dispatchers.Main) {
         } catch (e: Exception) { Logger.e("KIOSK", "Player não voltou depois de 1 minuto: ${e.message}") }
     }
 
+    /** F-208: volta rápida do 1º/2º Home (não é apagada pelo onPause, que chega depois do aviso do Home). */
+    private val voltaRapida = Handler(Looper.getMainLooper())
+    private var voltaRapidaPedidaEm = 0L
+
     override fun onResume() {
         super.onResume()
         naFrente = true
         voltaObrigatoria.removeCallbacksAndMessages(null)
+        voltaRapida.removeCallbacksAndMessages(null)
+        com.antigravity.player.launcher.LauncherDoAparelho.limparVoltaDoPlayer()
         // F-200: o Player voltou para a frente — acabou o uso livre da launcher
         com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre.encerrar(this)
         
@@ -1936,9 +1954,20 @@ withContext(Dispatchers.Main) {
             if (!(naFrente || agora - pausouEm < 1_500L)) return // o Home não foi apertado com o Player na frente
             homesSeguidos = com.antigravity.player.launcher.LauncherPolicy.contarHome(homesSeguidos, ultimoHomeMs, agora)
             ultimoHomeMs = agora
-            Logger.i("KIOSK", "Home ($homesSeguidos seguido): Player fora por 1 minuto, depois volta sozinho.")
-            // F-206 — REGRA ABSOLUTA: TODO Home deixa a pessoa livre (launcher ou qualquer app) e o Player só volta em 60 s
-            liberarSaidaDoPlayer()
+            val volta = com.antigravity.player.launcher.LauncherPolicy.voltaDoPlayerEmSegundos(homesSeguidos)
+            Logger.i("KIOSK", "Home $homesSeguidos de 3: o Player volta em $volta s.")
+            if (homesSeguidos >= com.antigravity.player.launcher.LauncherPolicy.HOMES_PARA_FICAR_LIVRE) {
+                // F-208: 3º Home seguido — a pessoa fica livre e o Player só volta em 60 s
+                voltaRapida.removeCallbacksAndMessages(null)
+                voltaRapidaPedidaEm = 0L
+                liberarSaidaDoPlayer()
+            } else {
+                // F-208: 1º e 2º Home = toque acidental — a launcher aparece e o Player volta logo
+                voltaRapidaPedidaEm = agora
+                com.antigravity.player.launcher.LauncherDoAparelho.pedirVoltaDoPlayer(volta)
+                voltaRapida.removeCallbacksAndMessages(null)
+                voltaRapida.postDelayed({ voltarDepoisDoLimite() }, volta * 1000L)
+            }
             run {
                 val launcher = com.antigravity.player.launcher.LauncherDoAparelho
                 if (launcher.deveOferecer(applicationContext)) {
@@ -1962,6 +1991,8 @@ withContext(Dispatchers.Main) {
      * volta durante 1 minuto; a launcher conta 60 s e a volta obrigatória do onPause traz o Player no fim do minuto.
      */
     private fun liberarSaidaDoPlayer() {
+        // F-208: o 1º/2º Home acabou de pedir a volta rápida — esta saída é ele (não vira 1 minuto livre)
+        if (voltaRapidaPedidaEm > 0L && System.currentTimeMillis() - voltaRapidaPedidaEm < 5_000L) return
         val uso = com.antigravity.player.launcher.LauncherDoAparelho.UsoLivre
         if (!uso.ativo(applicationContext)) uso.liberar(applicationContext, 1)
         com.antigravity.player.launcher.LauncherDoAparelho.pedirVoltaDoPlayer(com.antigravity.player.launcher.LauncherPolicy.VOLTA_LIVRE_S)
@@ -1977,6 +2008,40 @@ withContext(Dispatchers.Main) {
         // [EXIT COUNTER P0] Perda efetiva de primeiro plano provocada pelo usuario.
         // Rotacao NAO chega aqui (configChanges no Manifest); dialogs internos tambem nao.
         registerValidExit()
+        pausarMotorForaDaTela()
+    }
+
+    /**
+     * F-208 — tela preta na volta: fora da tela o Player continuava tocando "escondido" (sem superfície de vídeo); na TV
+     * Box, que tem poucos decodificadores, a launcher usa o decodificador nos Destaques e o vídeo do Player ficava preso
+     * sem imagem quando ele voltava. Agora, ao sair da tela, o laço para e os vídeos pausam (decodificador livre); ao
+     * voltar, o motor de vídeo é recriado e a reprodução recomeça na hora (sem "Sincronizando mídias").
+     */
+    private var motorPausadoForaDaTela = false
+
+    private fun pausarMotorForaDaTela() {
+        if (isFinishing || isDestroyed || !isKioskEnforced || !isBootstrapComplete) return
+        if (!::playerRenderer1.isInitialized || !::playerRenderer2.isInitialized) return
+        motorPausadoForaDaTela = true
+        playbackLoopJob?.cancel()
+        if (::playbackWatchdog.isInitialized) playbackWatchdog.stop()
+        cancelPlaybackWatchdogAlarm() // o laço religa o alarme quando recomeçar
+        try { playerRenderer1.getPlayerInstance()?.pause() } catch (e: Exception) { }
+        try { playerRenderer2.getPlayerInstance()?.pause() } catch (e: Exception) { }
+        Logger.i("KIOSK", "Player fora da tela: reprodução pausada (decodificador livre).")
+    }
+
+    /** F-208: giro da playlist que chegou com o Player fora da tela (aplicado na volta). */
+    @Volatile private var orientacaoPendente: String? = null
+
+    override fun onRestart() {
+        super.onRestart()
+        if (motorPausadoForaDaTela) {
+            motorPausadoForaDaTela = false
+            orientacaoPendente?.let { o -> orientacaoPendente = null; try { applyScreenRotation(o) } catch (e: Exception) { } }
+            Logger.i("KIOSK", "Player de volta à tela: motor de vídeo recriado, reprodução recomeça.")
+            reiniciarMotorDeVideo()
+        }
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -2494,6 +2559,7 @@ withContext(Dispatchers.Main) {
 
     private fun vigiarImagem() {
         if (isFinishing || isDestroyed || !::playbackStage.isInitialized) return
+        if (!naFrente || motorPausadoForaDaTela) return // F-208: Player fora da tela (launcher/apps)
         // Ensaio em bancada: files/ensaio_tela_presa provoca UMA vez o defeito (tela de sincronização por cima e áreas de
         // vídeo escondidas com mídia no ar) para provar que o vigia desfaz. Em produção o arquivo não existe.
         java.io.File(filesDir, "ensaio_tela_presa").let { f ->

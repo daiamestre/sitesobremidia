@@ -81,7 +81,8 @@
         <item name="android:gravity">center</item>
         <item name="android:orientation">vertical</item>
         <item name="android:padding">12dp</item>
-        <item name="android:elevation">6dp</item>
+        <!-- F-208: sem sombra (redesenhar sombra a cada troca de foco deixava a navegação lenta na TV Box) -->
+        <item name="android:elevation">0dp</item>
     </style>
 
     <style name="LauncherCartaoIcone">

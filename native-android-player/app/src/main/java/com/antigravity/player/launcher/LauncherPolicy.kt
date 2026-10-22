@@ -168,12 +168,12 @@ object LauncherPolicy {
 
     /** Home seguidos contam juntos se vierem com até 1 minuto entre um e outro. */
     const val JANELA_DO_HOME_MS = 60_000L
-    /** No 3º Home seguido quem usa a launcher original recebe a pergunta da launcher Sobre Mídia (F-204). */
-    const val HOMES_PARA_FICAR_LIVRE = 3
     /**
-     * F-206 — REGRA ABSOLUTA DO DONO (21/10/2026): TODO Home (ou saída do Player para a launcher) deixa a pessoa livre e o
-     * Player só volta depois de 60 s — nem antes (nada de volta rápida no 1º/2º Home) nem depois (MAX_FORA_DO_PLAYER_MS).
+     * F-208 — REGRA DO DONO (22/10/2026, substitui a do F-206): 1º e 2º Home seguidos = toque acidental — a launcher aparece
+     * e o Player volta logo (VOLTA_RAPIDA_S); no 3º Home seguido a pessoa fica livre e o Player só volta em 60 s.
      */
+    const val HOMES_PARA_FICAR_LIVRE = 3
+    const val VOLTA_RAPIDA_S = 3
     const val VOLTA_LIVRE_S = 60
 
     /** Quantos Home seguidos (1, 2, 3…) contando este. */
@@ -181,16 +181,21 @@ object LauncherPolicy {
         if (ultimoHomeMs <= 0L || agoraMs - ultimoHomeMs > JANELA_DO_HOME_MS || contagemAnterior >= HOMES_PARA_FICAR_LIVRE) 1
         else contagemAnterior + 1
 
-    /** Em quantos segundos o Player volta depois de um Home: sempre 1 minuto (F-206), qualquer que seja a contagem. */
-    @Suppress("UNUSED_PARAMETER")
-    fun voltaDoPlayerEmSegundos(contagem: Int): Int = VOLTA_LIVRE_S
+    /** Em quantos segundos o Player volta depois deste Home: logo (1º e 2º, toque acidental) ou em 1 minuto (3º). */
+    fun voltaDoPlayerEmSegundos(contagem: Int): Int = if (contagem >= HOMES_PARA_FICAR_LIVRE) VOLTA_LIVRE_S else VOLTA_RAPIDA_S
 
     /**
-     * F-206: segundos que faltam na contagem da launcher. Se o Player saiu da frente (Home/saída), a volta é exatamente
-     * 1 minuto depois da saída — mexer na launcher não adianta nem atrasa. Sem Player aberto vale a contagem do painel.
+     * Segundos que faltam na contagem da launcher com o Player fora: até a volta pedida pelo Home ([voltaPedidaAteMs],
+     * 1º/2º Home) ou, no máximo, 1 minuto depois da saída — mexer na launcher não adianta nem atrasa. Sem Player fora vale a
+     * contagem do painel.
      */
-    fun contagemDaLauncher(playerSaiuEmMs: Long?, agoraMs: Long, contagemDoPainel: Int?): Int? =
-        if (playerSaiuEmMs != null && playerSaiuEmMs > 0L) segundosAteVoltaObrigatoria(playerSaiuEmMs, agoraMs) else contagemDoPainel
+    fun contagemDaLauncher(playerSaiuEmMs: Long?, agoraMs: Long, contagemDoPainel: Int?, voltaPedidaAteMs: Long = 0L): Int? {
+        if (playerSaiuEmMs == null || playerSaiuEmMs <= 0L) return contagemDoPainel
+        val limite = segundosAteVoltaObrigatoria(playerSaiuEmMs, agoraMs)
+        if (voltaPedidaAteMs <= 0L) return limite
+        val pedida = (((voltaPedidaAteMs - agoraMs) + 999) / 1000).toInt().coerceAtLeast(0)
+        return minOf(limite, pedida)
+    }
 
     /** Texto do cartão do Player. */
     fun textoDaContagem(segundos: Int?): String = when {

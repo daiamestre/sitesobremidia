@@ -115,6 +115,8 @@ class LauncherActivity : AppCompatActivity() {
         semApps = findViewById(R.id.launcher_sem_apps)
         lista = findViewById(R.id.launcher_apps)
         lista.layoutManager = GridLayoutManager(this, 6)
+        lista.itemAnimator = null // F-208: sem animação ao (re)carregar a lista de apps
+        lista.setHasFixedSize(true)
         lista.adapter = adaptador
 
         config = ConfigDaLauncher.atual(this)
@@ -287,17 +289,16 @@ class LauncherActivity : AppCompatActivity() {
 
     private fun reiniciarContagem() {
         restante = LauncherPolicy.contagemDaLauncher(saidaDoPlayer(), System.currentTimeMillis(),
-            LauncherPolicy.contagemParaAbrirPlayer(logadoNumaTela, config))
+            LauncherPolicy.contagemParaAbrirPlayer(logadoNumaTela, config), LauncherDoAparelho.voltaPedidaAteMs)
         contagemTexto.text = LauncherPolicy.textoDaContagem(restante)
     }
 
     private val relogio = object : Runnable {
         override fun run() {
-            LauncherDoAparelho.pegarVoltaDoPlayer() // F-206: a volta é sempre 1 minuto depois da saída (abaixo)
-            // F-206 (regra absoluta do dono): o Player saiu pelo Home/saída — volta EXATAMENTE 1 minuto depois, nem antes
-            // nem depois; mexer na launcher não muda isso
+            // F-208: o Player saiu pelo Home — volta logo (1º e 2º Home, toque acidental) ou em 1 minuto (3º Home seguido);
+            // mexer na launcher não adianta nem atrasa
             saidaDoPlayer()?.let { saiu ->
-                val s = LauncherPolicy.segundosAteVoltaObrigatoria(saiu, System.currentTimeMillis())
+                val s = LauncherPolicy.contagemDaLauncher(saiu, System.currentTimeMillis(), null, LauncherDoAparelho.voltaPedidaAteMs) ?: 0
                 restante = s
                 contagemTexto.text = LauncherPolicy.textoDaContagem(s)
                 if (s <= 0) { restante = null; abrirPlayer(); return }
@@ -344,10 +345,14 @@ class LauncherActivity : AppCompatActivity() {
         findViewById<View>(id).apply { setOnClickListener { acao() }; realce(this, 1.06f) }
     }
 
+    /**
+     * F-208: navegação fluida no controle remoto — o foco aparece NA HORA pela borda ciano do próprio fundo (estado
+     * focado). Antes cada troca de cartão animava a escala por 120 ms com sombra: na TV Box (GPU fraca) a navegação ficava
+     * lenta e com efeito de transição. [escala] fica só como compatibilidade (não anima mais).
+     */
+    @Suppress("UNUSED_PARAMETER")
     private fun realce(v: View, escala: Float) {
-        v.setOnFocusChangeListener { view, foco ->
-            view.animate().scaleX(if (foco) escala else 1f).scaleY(if (foco) escala else 1f).setDuration(120).start()
-        }
+        v.onFocusChangeListener = null
     }
 
     private fun abrirAjustes(acao: String) {

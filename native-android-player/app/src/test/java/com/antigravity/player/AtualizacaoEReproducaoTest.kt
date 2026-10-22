@@ -262,8 +262,8 @@ class AtualizacaoEReproducaoTest {
         // ninguém mais libera o motor e segue tocando sem recriar
         assertNull(Regex("playerRenderer2\\.release\\(\\)\\s+startSyncAndPlay\\(\\)").find(principal))
         // a manutenção e a mudança de giro usam o reinício completo (2 chamadas + a declaração)
-        // manutenção, mudança de giro por software, vigia e (F-192) troca do sentido do giro, mais a declaração
-        assertEquals(5, Regex("reiniciarMotorDeVideo\\(\\)").findAll(principal).count())
+        // manutenção, mudança de giro por software, vigia, (F-192) troca do sentido do giro, (F-208) volta à tela, mais a declaração
+        assertEquals(6, Regex("reiniciarMotorDeVideo\\(\\)").findAll(principal).count())
     }
 
     @Test

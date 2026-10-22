@@ -190,31 +190,52 @@ class LauncherSobreMidiaTest {
     }
 
     @Test
-    fun `F-206 - todo Home deixa o Player fora exatamente 1 minuto, nem antes nem depois`() {
+    fun `F-208 - 1o e 2o Home voltam logo (toque acidental), 3o seguido deixa livre 60 s`() {
         assertEquals(1, LauncherPolicy.contarHome(0, 0L, 10_000L))
         assertEquals(2, LauncherPolicy.contarHome(1, 10_000L, 20_000L))
         assertEquals(3, LauncherPolicy.contarHome(2, 20_000L, 30_000L))
         assertEquals("depois do 3º recomeça", 1, LauncherPolicy.contarHome(3, 30_000L, 35_000L))
         assertEquals("mais de 1 minuto entre eles recomeça", 1, LauncherPolicy.contarHome(2, 20_000L, 81_000L))
-        for (n in 1..3) assertEquals("o ${n}º Home também volta só em 60 s", 60, LauncherPolicy.voltaDoPlayerEmSegundos(n))
-        // a contagem da launcher com o Player fora é a do minuto (o painel não adianta); sem Player fora vale o painel
+        assertEquals(LauncherPolicy.VOLTA_RAPIDA_S, LauncherPolicy.voltaDoPlayerEmSegundos(1))
+        assertEquals(LauncherPolicy.VOLTA_RAPIDA_S, LauncherPolicy.voltaDoPlayerEmSegundos(2))
+        assertEquals(60, LauncherPolicy.voltaDoPlayerEmSegundos(3))
+        assertTrue(LauncherPolicy.VOLTA_RAPIDA_S in 1..5)
+        // contagem da launcher: a volta pedida (1º/2º Home) ou, no máximo, 1 minuto depois da saída; sem Player fora, o painel
+        assertEquals(3, LauncherPolicy.contagemDaLauncher(1_000L, 1_000L, 30, voltaPedidaAteMs = 4_000L))
         assertEquals(60, LauncherPolicy.contagemDaLauncher(1_000L, 1_000L, 30))
         assertEquals(31, LauncherPolicy.contagemDaLauncher(1_000L, 30_000L, 5))
         assertEquals(30, LauncherPolicy.contagemDaLauncher(null, 30_000L, 30))
         assertEquals(60, LauncherPolicy.segundosAteVoltaObrigatoria(0L, 0L))
-        assertEquals(1, LauncherPolicy.segundosAteVoltaObrigatoria(0L, 59_500L))
         assertEquals(0, LauncherPolicy.segundosAteVoltaObrigatoria(0L, 61_000L))
         val principal = File("src/main/java/com/antigravity/player/MainActivity.kt").readText()
         assertTrue(principal.contains("if (motivo != \"homekey\" || !isKioskEnforced) return"))
         val home = principal.substring(principal.indexOf("private val contadorDeHome"), principal.indexOf("private val vigiaDaSaida"))
-        assertTrue("todo Home libera o minuto (não só o 3º)", home.indexOf("liberarSaidaDoPlayer()") in 0 until home.indexOf("HOMES_PARA_FICAR_LIVRE"))
-        assertTrue(principal.contains("if (!uso.ativo(applicationContext)) uso.liberar(applicationContext, 1)"))
+        assertTrue("3º Home: 1 minuto livre", home.indexOf("liberarSaidaDoPlayer()") > home.indexOf("HOMES_PARA_FICAR_LIVRE"))
+        assertTrue("1º/2º Home: volta rápida", home.contains("voltaRapida.postDelayed({ voltarDepoisDoLimite() }, volta * 1000L)"))
+        assertTrue("a saída do 1º/2º Home não vira 1 minuto", home.contains("System.currentTimeMillis() - voltaRapidaPedidaEm < 5_000L"))
         val launcher = File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText()
-        assertTrue("mexer na launcher não adianta nem atrasa", launcher.contains("LauncherPolicy.segundosAteVoltaObrigatoria(saiu, System.currentTimeMillis())"))
-        assertTrue(launcher.contains("LauncherPolicy.contagemDaLauncher(saidaDoPlayer()"))
+        assertTrue(launcher.contains("LauncherDoAparelho.voltaPedidaAteMs"))
         val vigia = File("src/main/java/com/antigravity/player/service/SelfHealingService.kt").readText()
         assertTrue("o vigia não puxa antes do minuto", vigia.contains("System.currentTimeMillis() - saiuEm < com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS"))
-        assertTrue("volta obrigatória marcada ao sair da frente", principal.contains("voltaObrigatoria.postDelayed({ voltarDepoisDoLimite() }, com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS)"))
+        assertTrue(principal.contains("voltaObrigatoria.postDelayed({ voltarDepoisDoLimite() }, com.antigravity.player.launcher.LauncherPolicy.MAX_FORA_DO_PLAYER_MS)"))
+    }
+
+    @Test
+    fun `F-208 - fora da tela o Player pausa e na volta recria o motor de video (sem tela preta)`() {
+        val principal = File("src/main/java/com/antigravity/player/MainActivity.kt").readText()
+        val parar = principal.substringAfter("override fun onStop()").substringBefore("override fun onRestart()")
+        assertTrue(parar.contains("pausarMotorForaDaTela()") && parar.contains("playbackLoopJob?.cancel()") && parar.contains("cancelPlaybackWatchdogAlarm()"))
+        val voltar = principal.substringAfter("override fun onRestart()").substringBefore("override fun onNewIntent")
+        assertTrue(voltar.contains("reiniciarMotorDeVideo()"))
+        assertTrue("vigia não mexe com o Player fora da tela", principal.contains("if (!naFrente || motorPausadoForaDaTela) return"))
+    }
+
+    @Test
+    fun `F-208 - navegacao da launcher sem animacao nem sombra (fluida na TV Box)`() {
+        val launcher = File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText()
+        assertFalse(launcher.contains(".animate().scaleX("))
+        assertTrue(launcher.contains("lista.itemAnimator = null"))
+        assertTrue(File("src/main/res/values/themes.xml").readText().contains("<item name=\"android:elevation\">0dp</item>"))
     }
 
     @Test
