@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { OCULTOS_PADRAO } from '@/lib/launcherApps';
+import { buscarMidias as buscarNaBiblioteca, listarPastas } from '@/lib/biblioteca';
 
 /** F-200 — launcher Sobre Mídia: configuração, mídias de fundo e apps vistos nos aparelhos (só dono/ADM). */
 
@@ -14,7 +15,7 @@ export interface ConfigLauncher {
   apps_liberados: string[];
   /** F-209: cor do fundo (#RRGGBB) ou null = fundo padrão Sobre Mídia. */
   fundo_cor?: string | null;
-  /** F-209: imagem de capa (tem prioridade sobre a cor). */
+  /** F-209: imagem de capa. F-213: a cor continua sendo a cor do app (botões, Menu) por cima da capa. */
   capa_media_id?: string | null;
 }
 
@@ -34,12 +35,14 @@ export interface ItemDeFundo {
   ordem: number;
   duracao_s: number;
   ativo: boolean;
-  media?: { id: string; name: string; file_url: string | null; file_type: string | null; thumbnail_url: string | null; aspect_ratio?: string | null } | null;
+  media?: { id: string; name: string; file_url: string | null; file_type: string | null; thumbnail_url: string | null; aspect_ratio?: string | null; duration_ms?: number | null } | null;
 }
 
 export interface AppVisto { pacote: string; nome: string; aparelhos: number; visto_em: string }
 
-export interface MidiaEscolhivel { id: string; name: string; file_url: string | null; file_type: string | null; thumbnail_url: string | null; aspect_ratio?: string | null }
+export interface MidiaEscolhivel { id: string; name: string; file_url: string | null; file_type: string | null; thumbnail_url: string | null; aspect_ratio?: string | null; duration_ms?: number | null }
+
+const CAMPOS_DA_MIDIA = 'id, name, file_url, file_type, thumbnail_url, aspect_ratio, duration_ms';
 
 const db = supabase as unknown as { from: (t: string) => any; rpc: (f: string, a?: unknown) => any };
 
@@ -69,7 +72,7 @@ export async function salvarConfig(cfg: ConfigLauncher): Promise<void> {
 
 export async function carregarFundo(empresa: string): Promise<ItemDeFundo[]> {
   const { data, error } = await db.from('launcher_fundo')
-    .select('id, media_id, vitrine, ordem, duracao_s, ativo, media:media_id (id, name, file_url, file_type, thumbnail_url, aspect_ratio)')
+    .select('id, media_id, vitrine, ordem, duracao_s, ativo, media:media_id (id, name, file_url, file_type, thumbnail_url, aspect_ratio, duration_ms)')
     .eq('empresa_operadora_id', empresa).order('ordem').order('created_at');
   if (error) throw error;
   return (data as ItemDeFundo[]) ?? [];
@@ -103,7 +106,7 @@ export type OrigemDasMidias = 'enviadas' | 'biblioteca';
  * vinham só as 60 mais recentes de tudo, e o robô de conteúdo automático (centenas por semana) escondia as enviadas.
  */
 export async function buscarMidias(texto: string, origem: OrigemDasMidias = 'enviadas', somenteImagem = false): Promise<MidiaEscolhivel[]> {
-  let q = db.from('media').select('id, name, file_url, file_type, thumbnail_url, aspect_ratio')
+  let q = db.from('media').select(CAMPOS_DA_MIDIA)
     .or(somenteImagem ? 'file_type.ilike.image%' : 'file_type.ilike.image%,file_type.ilike.video%').like('file_url', 'https://%')
     .eq('biblioteca', origem === 'biblioteca')
     .order('created_at', { ascending: false }).limit(120);
@@ -133,8 +136,53 @@ export async function carregarAppsVistos(empresa: string): Promise<AppVisto[]> {
 /** F-209: mídias pelos ids (as que acabaram de ser enviadas, a capa escolhida). */
 export async function midiasPorId(ids: string[]): Promise<MidiaEscolhivel[]> {
   if (!ids.length) return [];
-  const { data, error } = await db.from('media').select('id, name, file_url, file_type, thumbnail_url, aspect_ratio').in('id', ids);
+  const { data, error } = await db.from('media').select(CAMPOS_DA_MIDIA).in('id', ids);
   if (error) throw error;
   const porId = new Map(((data as MidiaEscolhivel[]) ?? []).map((m) => [m.id, m]));
   return ids.map((id) => porId.get(id)).filter((m): m is MidiaEscolhivel => !!m);
+}
+
+/**
+ * F-213 — pastas do seletor de mídias da launcher. "Enviadas" = as pastas de Minhas Mídias (Vídeos e Fotos);
+ * "Biblioteca" = as pastas da página Biblioteca (mesma RPC e permissões), com quantas mídias têm.
+ */
+export interface PastaDeMidias { id: string; nome: string; total: number; capa_url?: string | null; automatica?: boolean }
+
+const ehTipoAceito = (tipo: string | null | undefined, somenteImagem: boolean) =>
+  somenteImagem ? (tipo ?? '').startsWith('image') : /^(image|video)/.test(tipo ?? '');
+
+export async function buscarPastas(_empresa: string, origem: OrigemDasMidias, somenteImagem = false): Promise<PastaDeMidias[]> {
+  if (origem === 'enviadas') {
+    const contar = async (tipo: 'video' | 'image') => {
+      const { count, error } = await db.from('media').select('id', { count: 'exact', head: true })
+        .eq('biblioteca', false).ilike('file_type', `${tipo}%`).like('file_url', 'https://%');
+      if (error) throw error;
+      return count ?? 0;
+    };
+    const fotos: PastaDeMidias = { id: 'image', nome: 'Fotos', total: await contar('image') };
+    if (somenteImagem) return [fotos];
+    return [{ id: 'video', nome: 'Vídeos', total: await contar('video') }, fotos];
+  }
+  // Biblioteca: as mesmas pastas e permissões da página Biblioteca (RPC oficial, com a contagem de vídeos e fotos)
+  const pastas = await listarPastas();
+  return pastas.map((p) => ({ id: p.id, nome: p.nome, total: somenteImagem ? p.imagens : p.videos + p.imagens, capa_url: p.capa_url }))
+    .filter((p) => p.total > 0);
+}
+
+/** F-213: as mídias de UMA pasta (Enviadas: "video"/"image"; Biblioteca: o id da pasta), filtrando pelo nome. */
+export async function buscarMidiasDaPasta(origem: OrigemDasMidias, pasta: string, texto = '', somenteImagem = false): Promise<MidiaEscolhivel[]> {
+  const t = texto.trim().replace(/[%_]/g, '');
+  if (origem === 'enviadas') {
+    let q = db.from('media').select(CAMPOS_DA_MIDIA).eq('biblioteca', false).ilike('file_type', `${pasta === 'video' ? 'video' : 'image'}%`)
+      .like('file_url', 'https://%').order('created_at', { ascending: false }).limit(300);
+    if (t) q = q.ilike('name', `%${t}%`);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data as MidiaEscolhivel[]) ?? [];
+  }
+  // Biblioteca: a busca oficial dentro da pasta (mesma ordem e permissões da página Biblioteca)
+  const lista = await buscarNaBiblioteca({ pastaId: pasta, busca: t, tipo: somenteImagem ? 'image' : '', limite: 500 });
+  return lista.filter((m) => (m.file_url ?? '').startsWith('https://') && ehTipoAceito(m.file_type, somenteImagem))
+    .map((m) => ({ id: m.media_id, name: m.nome, file_url: m.file_url, file_type: m.file_type, thumbnail_url: m.thumbnail_url,
+      aspect_ratio: m.aspect_ratio, duration_ms: m.duration_ms }));
 }

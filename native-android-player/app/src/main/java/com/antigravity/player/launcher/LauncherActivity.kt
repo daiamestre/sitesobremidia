@@ -626,8 +626,49 @@ class LauncherActivity : AppCompatActivity() {
         }
     }
 
+    // ------------------------------------------------------------------ F-213: o app na cor escolhida no painel
+
+    private var temaAplicado: String? = null
+    private var paleta: TemaDaLauncher.Paleta? = null
+
+    /** Troca o fundo de uma view sem perder o espaçamento interno dela. */
+    private fun fundo(v: View, d: android.graphics.drawable.Drawable?) {
+        val (l, t, r, b) = listOf(v.paddingLeft, v.paddingTop, v.paddingRight, v.paddingBottom)
+        v.background = d
+        v.setPadding(l, t, r, b)
+    }
+
+    /**
+     * F-213 — a cor escolhida no painel pinta o app inteiro, não só o fundo: botões Player e Menu, opções do Menu,
+     * cartões dos apps, pílulas do topo, o painel do Menu e o véu da imagem de capa. Com capa o app continua na cor.
+     * Sem cor = os desenhos padrão Sobre Mídia.
+     */
+    private fun aplicarTema() {
+        val chave = config.fundoCor ?: "padrao"
+        if (chave == temaAplicado) return
+        temaAplicado = chave
+        val p = TemaDaLauncher.paleta(config.fundoCor)
+        paleta = p
+        listOf(R.id.launcher_cartao_player, R.id.launcher_card_apps).forEach { id ->
+            fundo(findViewById(id), if (p != null) TemaDaLauncher.botaoPrincipal(this, p) else getDrawable(R.drawable.launcher_botao_principal))
+        }
+        val funcoes = findViewById<ViewGroup>(R.id.launcher_gaveta_funcoes)
+        for (i in 0 until funcoes.childCount) {
+            fundo(funcoes.getChildAt(i), if (p != null) TemaDaLauncher.botaoDoMenu(this, p) else getDrawable(R.drawable.launcher_botao_menu))
+        }
+        listOf(R.id.launcher_usb, R.id.launcher_btn_padrao, R.id.launcher_rede, R.id.launcher_gaveta_voltar).forEach { id ->
+            fundo(findViewById(id), if (p != null) TemaDaLauncher.pilula(this, p) else getDrawable(R.drawable.launcher_pilula))
+        }
+        fundo(climaTexto, if (p != null) TemaDaLauncher.pilula(this, p) else getDrawable(R.drawable.launcher_selo))
+        gaveta.background = if (p != null) TemaDaLauncher.gaveta(p) else getDrawable(R.drawable.launcher_gaveta)
+        findViewById<View>(R.id.launcher_capa_veu).background = if (p != null) TemaDaLauncher.veu(p) else getDrawable(R.drawable.launcher_capa_veu)
+        adaptador.notifyDataSetChanged()
+        Logger.i("LAUNCHER", "Tema: " + (config.fundoCor ?: "padrão Sobre Mídia"))
+    }
+
     private fun aplicarConfig() {
         aplicarFundoDaTela()
+        aplicarTema() // F-213
         findViewById<View>(R.id.launcher_hora).visibility = if (config.mostrarRelogio) View.VISIBLE else View.GONE
         redeTexto.visibility = if (config.mostrarWifi) View.VISIBLE else View.GONE
         if (!config.mostrarClima) climaTexto.visibility = View.GONE
@@ -757,6 +798,8 @@ class LauncherActivity : AppCompatActivity() {
             h.nome.text = app.nome
             h.icone.setImageDrawable(app.icone)
             h.itemView.setOnClickListener { abrirApp(app) }
+            // F-213: cartões dos apps na cor do app
+            fundo(h.itemView, paleta?.let { TemaDaLauncher.botaoDoMenu(this@LauncherActivity, it, 18f) } ?: getDrawable(R.drawable.launcher_cartao))
             h.itemView.setOnLongClickListener { detalhesDoApp(app); true }
         }
     }

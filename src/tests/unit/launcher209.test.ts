@@ -55,10 +55,12 @@ describe('F-209 página da launcher', () => {
     expect(src).toContain('type="color"');
     expect(src).toContain('capa_media_id: m[0].id');
   });
-  it('seletor com Enviadas, Biblioteca e envio do computador ou celular', () => {
-    expect(src).toContain("['enviadas', 'Enviadas'], ['biblioteca', 'Biblioteca']");
-    expect(src).toContain('<MediaUploadDialog');
-    expect(src).toContain('onUploadedIds={async (ids) => {');
+  it('seletor com Enviadas, Biblioteca e Upload do aparelho (F-213: componente próprio)', () => {
+    const seletor = readFileSync(resolve(__dirname, '../../components/launcher/SeletorDeMidiasLauncher.tsx'), 'utf-8');
+    expect(src).toContain('<SeletorDeMidiasLauncher');
+    expect(seletor).toContain("['enviadas', 'Enviadas'], ['biblioteca', 'Biblioteca']");
+    expect(seletor).toContain('<MediaUploadDialog');
+    expect(seletor).toContain('onUploadedIds={async (ids) => {');
   });
   it('prévia com selo App Oficial, Sobre Mídia Player e Menu (Menu só com o nome, centralizado)', () => {
     expect(src).toContain('App Oficial');
