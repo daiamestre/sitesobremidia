@@ -313,6 +313,13 @@ export default function LauncherPage() {
             {VITRINES.map((v) => (
               <CartaoDaVitrine key={v.id} vitrine={v} itens={daTela(v.id)} onAdicionar={() => setEscolhendo(v.id)}
                 onReordenar={reordenar} onAtualizar={atualizarItem}
+                onAdicionarMidias={async (m) => {
+                  try {
+                    await adicionarAoFundo(emp, m, v.id, daTela(v.id).length);
+                    toast.success(`${m.length} mídia(s) em ${v.nome}.`);
+                  } catch (e) { toast.error(`Não foi possível adicionar: ${(e as Error).message}`); }
+                  await recarregarFundo();
+                }}
                 onRemover={async (id) => {
                   try { await removerDoFundo(id); toast.success('Mídia removida dos destaques.'); } catch (e) { toast.error((e as Error).message); }
                   recarregarFundo();

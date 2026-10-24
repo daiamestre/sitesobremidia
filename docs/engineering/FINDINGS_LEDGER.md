@@ -2478,3 +2478,41 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:**
   - Emulador com #15803D: seleção do Player com brilho verde, selo "App Oficial" verde com verificado verde, as 4 telas dos Destaques em verde-escuro e sem rótulos (`docs/engineering/f215_launcher_tudo_na_cor.png`). Conta de teste devolvida.
   - JVM 364/0; painel 25/25.
+
+### F-216 — Logos da Sobre Mídia nítidas e iguais às originais (3 modelos) + lista de reprodução fina com "Gerenciar" — DONE / Player 5.8.19 (TESTE) / ROM v1.12
+
+- **Pedido do dono (24/10/2026):**
+  - As logos são pequenas e borradas. Dar qualidade às logos ORIGINAIS, sem redesenhar: as 2 propostas de logo nova foram recusadas.
+  - Tirar as sobras de borda do nome; o "R" igual ao original; o botão de play 3D e "robusto" igual ao original.
+  - O ícone/capa do app com as MESMAS cores e o mesmo botão da original.
+  - Existem 3 modelos diferentes, e cada um deve ser refeito idêntico (mesma textura, 3D e realismo).
+  - Lista de reprodução dos cartões TV 1/TV 2/Totem mais fina, com rolagem, e o título abre um cartão de gerenciamento (upload, lixeira etc.).
+- **Os 3 modelos (cada um com o seu botão e o seu fundo):**
+  1. **Ícone do app** (`mipmap-*/ic_launcher*.webp`, `favicon*`): botão "joia" rosa/ciano com o "Sm" sobre o fundo roxo de circuito (#3A44E3 → #6948ED → #A642F7).
+     - Ficaram os ORIGINAIS, pixel a pixel: já estão na resolução de cada densidade.
+     - É o que aparece no cartão "Sobre Mídia Player" da launcher.
+     - `ic_launcher_background.xml` (fundo do ícone adaptativo e das telas de login/escolha da tela) deixou o quadriculado verde do Android Studio e usa o mesmo degradê roxo do ícone original.
+     - (A tentativa intermediária com fundo azul-noite e o botão da logo foi desfeita.)
+  2. **Capa/PWA** (`pwa-512x512`, `pwa-maskable-512x512`, `pwa-192x192`, `drawable-*/banner.png` da TV): nome branco + botão joia sobre o roxo de circuito.
+     - O fundo, o circuito e o botão são os pixels da original (o arquivo de "512" tinha 1024 px e era uma ampliação borrada).
+     - Ampliação de qualidade e realce leve de nitidez só no botão.
+     - O nome branco borrado foi refeito nítido nas fontes medidas letra a letra: SOBRE = Open Sans ExtraBold, MIDIA = Saira Extra Condensed ExtraBold. Cada letra fica na caixa exata da original, com o contorno e a sombra azul-marinho da original.
+     - Gerador: `scripts/marca/realce-capa-pwa.html`.
+  3. **Logo** (`drawable-nodpi/logo.png` do Player, `logo-3d.png`, `logo-3d-white.png`, `docs/marca/logo-sobre-midia-{4x,8x}.png`, tela da ROM): nome em degradê + botão magenta/azul 3D.
+     - Gerador: `scripts/marca/realce-logo.html`.
+     - Nome refeito nas fontes medidas (SOBRE = Catamaran ExtraBold: o "R" coincide 90%, contra 73% da Montserrat; MIDIA = Anton), com as cores da original sem a franja escura.
+     - O 3D do nome voltou: extrusão roxa (#3C267A) embaixo/à direita e friso claro lavanda na borda, medidos na original. A versão de nome branco é lisa, como a original.
+     - Botão: contorno liso que coincide 98% com o da original. O lado esquerdo foi para x=200,9, então a lateral 3D roxa da original cabe inteira (antes era cortada e o botão parecia "achatado").
+     - Cores do botão: todas da original (degradê, chanfro e lateral), com nitidez moderada (0,35).
+     - "Sm" com o traço grosso da original (corte 0,24–0,46) e o sombreado dele.
+     - Comparação: `docs/marca/f216_logo_antes_depois.png`.
+- **Lista de reprodução (painel, `CartaoDaVitrine.tsx`):**
+  - Linhas finas (número, miniatura, nome, tipo · duração, lixeira) numa caixa com rolagem própria.
+  - O título "Lista de reprodução (N) · Gerenciar" abre um cartão com: Adicionar mídias, Upload (vai direto para a lista dessa tela), Limpar lista (com confirmação), arrastar/setas, duração das fotos, ativo, tela e lixeira.
+- **Prova:**
+  - Testes: identidade visual e launcher 24/24; JVM sem falhas; `contrato-player.mjs` íntegro.
+  - Emulador TVBox_API25 com 5.8.19: abertura com a logo nítida; a launcher mostra no cartão do Player o ícone original (botão joia) e no topo a logo nítida.
+  - Tablet 800 px: lista fina e o cartão "Gerenciar" (`docs/engineering/f216_lista_fina_tablet.jpg`, `f216_gerenciar_lista_tablet.jpg`).
+- **Entrega:**
+  - Player 5.8.19 (589) no canal TESTE: https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/releases/sobremidia-player-v589.apk, sha256 `73a1ff000bf21f5cbf0526f0d1ef7f2301fa529fe1db1e9e8d56370cab32e1fe` (a 5.8.18 foi um build intermediário, substituída).
+  - ROM: `Downloads/ROM TV BOX/ROM Sobre Midia RK3228A v1.12/update.img` (v1.11 substituída), SHA-256 `28af6c83b49d18ca2bae97027915c8e1f88769a125b59adbf5b981a9a00ffe53`. Tela de inicialização com a logo nova; conferir-rom OK (só system e logo mudaram).

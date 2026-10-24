@@ -19,11 +19,11 @@ describe('Micro-Gate: SOBRE MÍDIA Visual Identity & Canonical Assets', () => {
     expect(buf[2]).toBe(0x4e);
     expect(buf[3]).toBe(0x47);
 
-    // Dimensions: 500x500
+    // Dimensions: 1000x1000 (F-216: a logo realçada em alta resolução, nítida em telas de alta densidade)
     const width = buf.readUInt32BE(16);
     const height = buf.readUInt32BE(20);
-    expect(width).toBe(500);
-    expect(height).toBe(500);
+    expect(width).toBe(1000);
+    expect(height).toBe(1000);
   });
 
   it('2. [Favicon] favicon.ico must exist and have SOBRE MÍDIA branding, not Lovable template', () => {
@@ -54,6 +54,15 @@ describe('Micro-Gate: SOBRE MÍDIA Visual Identity & Canonical Assets', () => {
     expect(html).toContain('rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"');
     expect(html).toContain('rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"');
     expect(html).toContain('rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png"');
+  });
+
+  it('4b. [F-216] ícones do PWA no tamanho que o manifesto declara (antes o 512 tinha 1024 px)', () => {
+    for (const [nome, lado] of [['pwa-192x192.png', 192], ['pwa-512x512.png', 512], ['pwa-maskable-512x512.png', 512], ['favicon-32x32.png', 32], ['favicon-16x16.png', 16]] as const) {
+      const b = fs.readFileSync(path.join(publicDir, nome));
+      expect([b.readUInt32BE(16), b.readUInt32BE(20)], nome).toEqual([lado, lado]);
+    }
+    const ico = fs.readFileSync(path.join(publicDir, 'favicon.ico'));
+    expect(ico.readUInt16LE(4)).toBeGreaterThanOrEqual(1); // o favicon original (ícone do app, vários tamanhos)
   });
 
   it('4. [PWA Assets] PWA icons and maskable assets must exist in public directory', () => {
@@ -116,8 +125,11 @@ describe('Micro-Gate: SOBRE MÍDIA Visual Identity & Canonical Assets', () => {
     expect(forgotContent).toContain('src="/logo-3d.png"');
   });
 
-  it('10. [Android Canonical Asset] native-android-player res/drawable/logo.png must exist', () => {
-    const androidLogoPath = path.join(rootDir, 'native-android-player/app/src/main/res/drawable/logo.png');
+  it('10. [Android Canonical Asset] native-android-player res/drawable-nodpi/logo.png must exist', () => {
+    // F-216: a logo realçada (mesmas formas da original, nítida) em drawable-nodpi — o Android não amplia nem reduz o
+    // arquivo por densidade; a ImageView encaixa. Só pode existir UMA logo (a antiga em drawable/ saiu).
+    expect(fs.existsSync(path.join(rootDir, 'native-android-player/app/src/main/res/drawable/logo.png'))).toBe(false);
+    const androidLogoPath = path.join(rootDir, 'native-android-player/app/src/main/res/drawable-nodpi/logo.png');
     expect(fs.existsSync(androidLogoPath), 'Android logo.png must exist').toBe(true);
 
     const buf = fs.readFileSync(androidLogoPath);
@@ -125,12 +137,12 @@ describe('Micro-Gate: SOBRE MÍDIA Visual Identity & Canonical Assets', () => {
     // PNG signature
     expect(buf[0]).toBe(0x89);
     expect(buf[1]).toBe(0x50);
-    // Logo oficial SOBRE MÍDIA (texto + play "Sm"), 383x207, em uso desde a 5.2.4. A exigência antiga (1024x277) era de
-    // um PRINT da tela de erro de build do Android Studio salvo por engano como logo.png em 2026-02; nunca pode voltar.
+    // Logo oficial SOBRE MÍDIA (texto + play "Sm"): a original 383x207 realçada 3x (F-216). A exigência antiga (1024x277)
+    // era de um PRINT da tela de erro de build do Android Studio salvo por engano como logo.png em 2026-02; nunca pode voltar.
     const width = buf.readUInt32BE(16);
     const height = buf.readUInt32BE(20);
-    expect(width).toBe(383);
-    expect(height).toBe(207);
+    expect(width).toBe(1149);
+    expect(height).toBe(621);
     const sha1 = crypto.createHash('sha1').update(buf).digest('hex');
     expect(sha1.startsWith('60ada7fa40'), 'logo.png não pode ser o print do Android Studio').toBe(false);
   });

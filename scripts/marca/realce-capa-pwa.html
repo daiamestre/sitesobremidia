@@ -1,0 +1,85 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@700;800&family=Montserrat:wght@700;800&family=Catamaran:wght@800;900&family=Poppins:wght@700;800&family=Nunito+Sans:wght@800;900&family=Mulish:wght@800;900&family=Raleway:wght@800&family=Lato:wght@900&family=Roboto:wght@700;900&family=Anton&family=Oswald:wght@600;700&family=Bebas+Neue&family=League+Gothic&family=Fjalla+One&family=Antonio:wght@700&family=Roboto+Condensed:wght@700;800&family=Barlow+Condensed:wght@700;800&family=Archivo+Narrow:wght@700&family=Pathway+Gothic+One&family=Saira+Extra+Condensed:wght@700;800&family=Sofia+Sans+Extra+Condensed:wght@800&family=Teko:wght@600&display=block" rel="stylesheet">
+</head><body style="background:#222;color:#ddd;font:12px monospace"><pre id="saida">…</pre>
+<script>
+// PWA original (1024x1024: nome branco + botão joia + circuito) — mede as letras do nome e acha as fontes
+const PWA = new Image(); PWA.src = 'original-pwa.png';
+const sm = (e0, e1, v) => { const t = Math.max(0, Math.min(1, (v - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+const N = 1024, NOME = { x0: 120, x1: 525, y0: 360, y1: 660 };
+let brancoP; // peso do branco do nome (0..1)
+function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function caixaDe(m, x0, x1, y0, y1) { let a = 1e9, b = -1, c = 1e9, d = -1;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (m[y * N + x] > 0.5) { a = Math.min(a, x); b = Math.max(b, x); c = Math.min(c, y); d = Math.max(d, y); }
+  return { x: a, y: c, w: b - a + 1, h: d - c + 1 }; }
+function letras(m, cx) { const cols = []; let dentro = false, ini = 0;
+  for (let x = cx.x; x <= cx.x + cx.w; x++) { let tem = false; for (let y = cx.y; y < cx.y + cx.h; y++) if (m[y * N + x] > 0.5) { tem = true; break; }
+    if (tem && !dentro) { dentro = true; ini = x; } if (!tem && dentro) { dentro = false; cols.push([ini, x - 1]); } }
+  if (dentro) cols.push([ini, cx.x + cx.w]);
+  return cols.filter(([a, b]) => b - a > 4).map(([a, b]) => { const k = caixaDe(m, a, b + 1, cx.y, cx.y + cx.h); return k; }); }
+function render(ch, fonte, b) { const c = canvas(N, N), x = c.getContext('2d'); x.font = fonte; const m = x.measureText(ch);
+  const lw = m.actualBoundingBoxLeft + m.actualBoundingBoxRight, lh = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+  x.translate(b.x, b.y); x.scale(b.w / lw, b.h / lh); x.fillStyle = '#fff'; x.fillText(ch, m.actualBoundingBoxLeft, m.actualBoundingBoxAscent);
+  const d = x.getImageData(0, 0, N, N).data, o = new Float32Array(N * N); for (let i = 0; i < N * N; i++) o[i] = d[i * 4 + 3] / 255; return o; }
+function iou(a, b, cx) { let i = 0, u = 0; for (let y = cx.y - 3; y < cx.y + cx.h + 3; y++) for (let x = cx.x - 3; x < cx.x + cx.w + 3; x++) { const p = y * N + x, A = a[p] > 0.5, B = b[p] > 0.5; if (A && B) i++; if (A || B) u++; } return i / u; }
+async function rodar() {
+  await new Promise((ok) => (PWA.complete && PWA.naturalWidth ? ok() : (PWA.onload = ok))); await document.fonts.ready;
+  const c = canvas(N, N), x = c.getContext('2d'); x.drawImage(PWA, 0, 0); const d = x.getImageData(0, 0, N, N).data; window.pwaPx = d;
+  brancoP = new Float32Array(N * N);
+  for (let y = NOME.y0; y < NOME.y1; y++) for (let xx = NOME.x0; xx < NOME.x1; xx++) { const i = y * N + xx; const mn = Math.min(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]); brancoP[i] = sm(150, 215, mn); }
+  window.brancoP = brancoP;
+  const cxS = caixaDe(brancoP, NOME.x0, NOME.x1, 380, 480), cxM = caixaDe(brancoP, NOME.x0, NOME.x1, 482, 650);
+  const lS = letras(brancoP, cxS), lM = letras(brancoP, cxM); window.CX = { SOBRE: lS, MIDIA: lM, cxS, cxM };
+  const fontes = []; for (const f of document.fonts) { const nome = f.family.replace(/"/g, ''); if (!fontes.some((g) => g.nome === nome && g.peso === f.weight)) fontes.push({ nome, peso: f.weight }); }
+  for (const f of fontes) await document.fonts.load(`${f.peso} 400px "${f.nome}"`);
+  const nota = (pal, cxs, f) => cxs.length !== pal.length ? 0 : pal.split('').reduce((s, ch, i) => s + iou(render(ch, `${f.peso} 400px "${f.nome}"`, cxs[i]), brancoP, cxs[i]), 0) / pal.length;
+  const res = fontes.map((f) => ({ f: f.nome + ' ' + f.peso, sobre: nota('SOBRE', lS, f), midia: nota('MIDIA', lM, f) }));
+  const top = (k) => [...res].sort((a, b) => b[k] - a[k]).slice(0, 6).map((r) => r[k].toFixed(3) + ' ' + r.f).join('\n');
+  document.getElementById('saida').textContent = `letras ${lS.length}/${lM.length} ${JSON.stringify([cxS, cxM])}\nSOBRE\n${top('sobre')}\nMIDIA\n${top('midia')}`;
+  window.pronto = true;
+}
+// ---------------------------------------------------------------- reconstrução do modelo 2 (PWA / capa)
+// fundo roxo com circuito e botão joia = os pixels da original (cores e textura iguais), ampliados com qualidade e com um
+// realce leve de nitidez no botão; o nome branco borrado é refeito nítido nas fontes medidas (SOBRE = Open Sans
+// ExtraBold, MIDIA = Saira Extra Condensed ExtraBold), cada letra na caixa da letra original, com o contorno e a sombra
+// azul-marinho da original
+window.mascaraNome = (escala = 1, fonteS = '800 400px "Open Sans"', fonteM = '800 400px "Saira Extra Condensed"') => {
+  const W = N * escala, c = canvas(W, W), x = c.getContext('2d'); x.fillStyle = '#fff';
+  [['SOBRE', fonteS], ['MIDIA', fonteM]].forEach(([p, f]) => p.split('').forEach((ch, i) => { const b = CX[p][i]; x.save(); x.font = f; const m = x.measureText(ch);
+    const lw = m.actualBoundingBoxLeft + m.actualBoundingBoxRight, lh = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+    x.translate(b.x * escala, b.y * escala); x.scale(b.w * escala / lw, b.h * escala / lh); x.fillText(ch, m.actualBoundingBoxLeft, m.actualBoundingBoxAscent); x.restore(); }));
+  return c;
+};
+const tingir = (m, cor) => { const c = canvas(m.width, m.height), x = c.getContext('2d'); x.drawImage(m, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = cor; x.fillRect(0, 0, c.width, c.height); return c; };
+const dilatar = (m, r) => { const c = canvas(m.width, m.height), x = c.getContext('2d'); x.filter = `blur(${r / 2}px)`; x.drawImage(m, 0, 0); x.filter = 'none';
+  const im = x.getImageData(0, 0, c.width, c.height); for (let i = 3; i < im.data.length; i += 4) im.data[i] = Math.min(255, im.data[i] * 4); x.putImageData(im, 0, 0); return c; };
+window.AJ = { contorno: 9, sombraX: 2, sombraY: 5, borrao: 3, aro: 5, nitidezBotao: 0.6 };
+window.pwaRefeito = (escala = 2) => {
+  const A = window.AJ, W = N * escala, c = canvas(W, W), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(PWA, 0, 0, W, W);
+  if (A.nitidezBotao > 0) { const bx = 525 * escala, by = 315 * escala, bw = 370 * escala, bh = 400 * escala;
+    const b = canvas(bw, bh), xb = b.getContext('2d'); xb.filter = `blur(${2.2 * escala}px)`; xb.drawImage(c, bx, by, bw, bh, 0, 0, bw, bh);
+    const o = x.getImageData(bx, by, bw, bh), bl = xb.getImageData(0, 0, bw, bh).data;
+    for (let i = 0; i < o.data.length; i += 4) for (let k = 0; k < 3; k++) o.data[i + k] = Math.max(0, Math.min(255, o.data[i + k] + A.nitidezBotao * (o.data[i + k] - bl[i + k])));
+    x.putImageData(o, bx, by); }
+  const M = mascaraNome(escala);
+  x.save(); x.filter = `blur(${A.borrao * escala}px)`; x.drawImage(tingir(dilatar(M, A.contorno * escala), '#07135f'), A.sombraX * escala, A.sombraY * escala); x.restore();
+  x.save(); x.filter = `blur(${1 * escala}px)`; x.globalAlpha = 0.9; x.drawImage(tingir(dilatar(M, A.aro * escala), '#0a1868'), 0, 0); x.restore();
+  x.drawImage(tingir(M, '#fdfdfd'), 0, 0);
+  return c;
+};
+function emEscala(src, w, h) { let cur = src;
+  while (cur.width / 2 > w) { const t = canvas(Math.round(cur.width / 2), Math.round(cur.height / 2)); const x = t.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, t.width, t.height); cur = t; }
+  const f = canvas(w, h); const x = f.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, w, h); return f; }
+const salvar = async (c, nome) => (await fetch('/salvar?nome=' + nome, { method: 'POST', body: c.toDataURL('image/png') })).text();
+window.gerarModelo2 = async () => {
+  const r = pwaRefeito(2), out = [];
+  out.push(await salvar(emEscala(r, 512, 512), 'm2_pwa-512x512.png'));
+  out.push(await salvar(emEscala(r, 192, 192), 'm2_pwa-192x192.png'));
+  // capa 16:9 (banner da TV): o meio da mesma arte (nome + botão + circuito)
+  const corte = (w, h) => { const c = canvas(w, h); c.getContext('2d').drawImage(emEscala(r, w, w), 0, -Math.round(224 * w / 1024)); return c; };
+  out.push(await salvar(corte(640, 360), 'm2_banner_640.png'));
+  out.push(await salvar(corte(320, 180), 'm2_banner_320.png'));
+  return out;
+};
+rodar();
+</script></body></html>

@@ -130,7 +130,12 @@ describe('F-213 prévia rápida e cartões das telas', () => {
       onAdicionar={vi.fn()} onReordenar={vi.fn()} onAtualizar={vi.fn()} onRemover={vi.fn()} />);
     expect(screen.getByText('25 mídias · 4:10 por volta')).toBeTruthy();
     expect(screen.getByText('Mídia 25')).toBeTruthy();
-    expect(screen.getByText('Lista de reprodução')).toBeTruthy();
+    expect(screen.getByText('Lista de reprodução (25)')).toBeTruthy();
+    expect(screen.getAllByTestId('item-da-lista')).toHaveLength(25); // lista fina, com rolagem própria
+    fireEvent.click(screen.getByTestId('abrir-lista-tv1'));
+    expect(screen.getByTestId('gerenciar-tv1')).toBeTruthy();
+    expect(screen.getByText('Adicionar mídias')).toBeTruthy();
+    expect(screen.getByText('Limpar lista')).toBeTruthy();
     expect(segundosDoItem({ ...itens[0], media: { ...itens[0].media!, file_type: 'video', duration_ms: 65000 } })).toBe(65);
   });
   it('setas reordenam a lista (celular)', () => {
@@ -141,6 +146,7 @@ describe('F-213 prévia rápida e cartões das telas', () => {
     }));
     render(<CartaoDaVitrine vitrine={{ id: 'totem1', nome: 'Totem 1', formato: '9:16' }} itens={itens}
       onAdicionar={vi.fn()} onReordenar={reordenar} onAtualizar={vi.fn()} onRemover={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('abrir-lista-totem1')); // a ordem fica no cartão de gerenciamento da lista
     fireEvent.click(screen.getAllByLabelText('Mover para baixo')[0]);
     expect(reordenar.mock.calls[0][0].map((i: ItemDeFundo) => i.id)).toEqual(['b', 'a']);
   });
