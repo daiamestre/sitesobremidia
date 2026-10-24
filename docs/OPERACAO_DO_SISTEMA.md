@@ -17,7 +17,7 @@ Toda mudança que afete o que está aqui exige atualizar este documento e o `scr
 4. Funcionalidade nova que precise de APK novo vai para o APK de teste. O 5.7.10 continua recebendo os comandos que já existem.
 5. `get_latest_app_release()` (o que o Player consulta) só devolve o canal estável.
 
-Versão de teste atual: **5.8.19** (código 589) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
+Versão de teste atual: **5.8.21** (código 591) — launcher Sobre Mídia (seção 8), modo nitidez (seção 6), comandos pela consulta mesmo sem o tempo real (F-199) e desvincular/vincular outro aparelho (seção 9). Versões que funcionam guardadas em `native-android-player/app/build/outputs/apk/versoes-funcionando/` (5.7.10 e 5.7.12, com LEIA-ME).
 
 ## 2. Perfis e o que cada um vê
 
@@ -81,9 +81,9 @@ Nas TV Box a tela do Android trabalha em 1280x720 mesmo com a saída HDMI em 108
 
 Silenciosa com root ou Device Owner; nos demais aparelhos a versão nova fica baixada e o instalador do Android só abre quando o painel pede ("Instalar atualização agora"), com alguém ao lado da TV. Nada aparece por cima das mídias.
 
-## 8. Launcher Sobre Mídia — versão de TESTE 5.8.19 (F-200..F-216)
+## 8. Launcher Sobre Mídia — versão de TESTE 5.8.21 (F-200..F-216)
 
-- **ROM Sobre Mídia (F-214, ROM v1.12 com as logos nítidas do F-216):** ao ligar aparece sempre a tela Sobre Mídia (logo + "Sobre Mídia Player"), nunca "Selenga", até a launcher abrir. O Player vem instalado, mas só abre sozinho depois que a pessoa toca nele pela 1ª vez; depois disso abre ao ligar e segue a regra dos 3 Home.
+- **ROM Sobre Mídia (F-214, ROM v1.13 com as logos nítidas do F-216):** ao ligar aparece sempre a tela Sobre Mídia (logo + "Sobre Mídia Player"), nunca "Selenga", até a launcher abrir. O Player vem instalado, mas só abre sozinho depois que a pessoa toca nele pela 1ª vez; depois disso abre ao ligar e segue a regra dos 3 Home.
 - **Cor em tudo (F-215):** a cor escolhida também pinta o brilho da seleção, o selo "App Oficial" e as telas dos Destaques. "TV 16:9"/"TOTEM 9:16" aparecem só nos cartões de edição do painel.
 
 - **Edição no painel (F-213):** mídias dos Destaques escolhidas por **pastas** (Enviadas: Vídeos e Fotos; Biblioteca: as pastas dela), cada uma identificada pelo nome, com prévia rápida (tocar/pausar e volume) e botão **Upload**. Cada tela (TV 1, TV 2, Totem 1, Totem 2) tem um cartão com a sua **lista de reprodução**, como a playlist das telas: quantas mídias quiser, arrastar para ordenar, duração, ligar/desligar, mudar de tela e remover. **Cor do app:** a cor escolhida pinta o fundo e o app inteiro no aparelho (Player 5.8.16+). Com imagem de capa, o app continua na cor. Trocar a cor tira a capa.

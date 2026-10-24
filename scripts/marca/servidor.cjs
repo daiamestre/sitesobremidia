@@ -1,4 +1,4 @@
-// servidor local só para o desenho da logo: entrega logo.html e grava os PNG enviados pela página
+// servidor local só para o desenho da logo: entrega as páginas de realce (realce-logo.html, realce-capa-pwa.html) e grava os PNG enviados pela página
 const http = require('http'); const fs = require('fs'); const path = require('path');
 const pasta = __dirname;
 http.createServer((req, res) => {
@@ -11,5 +11,5 @@ http.createServer((req, res) => {
   }
   const f = path.join(pasta, req.url === '/' ? 'logo.html' : req.url.slice(1).split('?')[0]);
   if (!fs.existsSync(f)) { res.statusCode = 404; return res.end('404'); }
-  res.setHeader('Content-Type', f.endsWith('.html') ? 'text/html; charset=utf-8' : 'image/png'); res.end(fs.readFileSync(f));
+  res.setHeader('Content-Type', f.endsWith('.html') ? 'text/html; charset=utf-8' : f.endsWith('.webp') ? 'image/webp' : 'image/png'); res.end(fs.readFileSync(f));
 }).listen(8771, '127.0.0.1', () => console.log('pronto 8771'));

@@ -2479,7 +2479,7 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Emulador com #15803D: seleção do Player com brilho verde, selo "App Oficial" verde com verificado verde, as 4 telas dos Destaques em verde-escuro e sem rótulos (`docs/engineering/f215_launcher_tudo_na_cor.png`). Conta de teste devolvida.
   - JVM 364/0; painel 25/25.
 
-### F-216 — Logos da Sobre Mídia nítidas e iguais às originais (3 modelos) + lista de reprodução fina com "Gerenciar" — DONE / Player 5.8.19 (TESTE) / ROM v1.12
+### F-216 — Logos da Sobre Mídia nítidas e iguais às originais (3 modelos) + lista de reprodução fina com "Gerenciar" — DONE / Player 5.8.21 (TESTE) / ROM v1.13
 
 - **Pedido do dono (24/10/2026):**
   - As logos são pequenas e borradas. Dar qualidade às logos ORIGINAIS, sem redesenhar: as 2 propostas de logo nova foram recusadas.
@@ -2494,9 +2494,9 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
      - `ic_launcher_background.xml` (fundo do ícone adaptativo e das telas de login/escolha da tela) deixou o quadriculado verde do Android Studio e usa o mesmo degradê roxo do ícone original.
      - (A tentativa intermediária com fundo azul-noite e o botão da logo foi desfeita.)
   2. **Capa/PWA** (`pwa-512x512`, `pwa-maskable-512x512`, `pwa-192x192`, `drawable-*/banner.png` da TV): nome branco + botão joia sobre o roxo de circuito.
-     - O fundo, o circuito e o botão são os pixels da original (o arquivo de "512" tinha 1024 px e era uma ampliação borrada).
-     - Ampliação de qualidade e realce leve de nitidez só no botão.
-     - O nome branco borrado foi refeito nítido nas fontes medidas letra a letra: SOBRE = Open Sans ExtraBold, MIDIA = Saira Extra Condensed ExtraBold. Cada letra fica na caixa exata da original, com o contorno e a sombra azul-marinho da original.
+     - O fundo e o circuito são os pixels da original (o arquivo de "512" tinha 1024 px e era uma ampliação borrada de uma arte pequena).
+     - Botão joia (2ª correção, depois de o dono ver o botão borrado na capa da TV): é o MESMO botão do ícone original, tirado da camada da frente de 432 px (a versão de maior resolução dele). Foi recortado pelo contorno da joia, ajustado aos pixels rosa/branco/ciano dela, e posto sobre o botão borrado (alinhado por menor diferença de cor: escala 1,795). A arte é montada já no tamanho final (512, 192, 640 e 320 px), sem ampliar nada depois. Comparação: `docs/marca/f216_capa_botao_joia_antes_depois.png`.
+     - O nome branco borrado foi refeito nítido nas fontes medidas letra a letra: SOBRE = Open Sans Bold (81% de coincidência; o ExtraBold dava 72%), MIDIA = Saira Extra Condensed ExtraBold. Cada letra fica na caixa exata da original. O nome borrado antigo é apagado com a cor do fundo em volta, e o contorno azul-marinho é fino e suave: na 5.8.20 o contorno era grosso e o dono pediu para tirar essa "sobra preta exagerada".
      - Gerador: `scripts/marca/realce-capa-pwa.html`.
   3. **Logo** (`drawable-nodpi/logo.png` do Player, `logo-3d.png`, `logo-3d-white.png`, `docs/marca/logo-sobre-midia-{4x,8x}.png`, tela da ROM): nome em degradê + botão magenta/azul 3D.
      - Gerador: `scripts/marca/realce-logo.html`.
@@ -2516,3 +2516,6 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Entrega:**
   - Player 5.8.19 (589) no canal TESTE: https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/releases/sobremidia-player-v589.apk, sha256 `73a1ff000bf21f5cbf0526f0d1ef7f2301fa529fe1db1e9e8d56370cab32e1fe` (a 5.8.18 foi um build intermediário, substituída).
   - ROM: `Downloads/ROM TV BOX/ROM Sobre Midia RK3228A v1.12/update.img` (v1.11 substituída), SHA-256 `28af6c83b49d18ca2bae97027915c8e1f88769a125b59adbf5b981a9a00ffe53`. Tela de inicialização com a logo nova; conferir-rom OK (só system e logo mudaram).
+- **2ª entrega (botão joia nítido e nome sem a sobra preta na capa):** Player 5.8.21 (591) de TESTE e ROM v1.13 (a 5.8.20 saiu com o contorno grosso e foi substituída).
+  - Player 5.8.21 (591) no canal TESTE: https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/releases/sobremidia-player-v591.apk, sha256 `e39c1cff77a9ab566cb45cc236ed63230f18b5d54faccf98b750e8b664e1f088`. Contrato do 5.7.10 íntegro; instalado no TVBox_API25.
+  - ROM: `Downloads/ROM TV BOX/ROM Sobre Midia RK3228A v1.13/update.img` (v1.12 substituída), SHA-256 `e7101e02a2cc2a0f274f201735d5f972251f1a01bb60bb116343dce4065f4646`; conferir-rom OK.
