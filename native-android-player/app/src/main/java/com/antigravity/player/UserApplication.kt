@@ -118,6 +118,8 @@ class UserApplication : Application() {
     }
 
     private fun relaunchMainActivitySilence() {
+        // F-214: ROM com o Player ainda nunca aberto pela pessoa: uma falha da launcher não abre o Player
+        if (!com.antigravity.player.launcher.LauncherDoAparelho.playerLiberado(this)) return
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)

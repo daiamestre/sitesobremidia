@@ -17,6 +17,13 @@ class BootReceiver : BroadcastReceiver() {
             action == "com.htc.intent.action.QUICKBOOT_POWERON" ||
             action == Intent.ACTION_MY_PACKAGE_REPLACED // F-183: acabou de ser atualizado — volta a tocar sem ninguém tocar na tela
         ) {
+            // F-214: ROM Sobre Mídia com o Player ainda nunca aberto pela pessoa — liga só na launcher, o Player espera o 1º toque
+            val launcherDoAparelho = com.antigravity.player.launcher.LauncherDoAparelho
+            if (!launcherDoAparelho.playerLiberado(context)) {
+                if (action != Intent.ACTION_MY_PACKAGE_REPLACED) Thread { launcherDoAparelho.aplicarRom(context.applicationContext) }.start()
+                Logger.i("BOOT_RECEIVER", "ROM Sobre Mídia: o Player só abre depois que a pessoa o abrir pela 1ª vez.")
+                return
+            }
             // F-200: aparelho que usa a launcher Sobre Mídia: ao LIGAR aparece a launcher (nunca a original antes); ela
             // abre o Player sozinha depois da contagem. Atualização do app (MY_PACKAGE_REPLACED) volta direto ao Player.
             if (action != Intent.ACTION_MY_PACKAGE_REPLACED) {

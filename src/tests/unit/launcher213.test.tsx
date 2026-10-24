@@ -58,6 +58,23 @@ describe('F-213 cor do app', () => {
   });
 });
 
+describe('F-215 a cor acompanha tudo e o formato só aparece na edição', () => {
+  it('paleta tem o brilho da seleção, o verificado e a tela dos Destaques no mesmo tom', () => {
+    const p = paletaDaLauncher('#15803D')!;
+    for (const c of [p.brilho, p.verificado, p.tela.slice(0, 7)]) expect(Math.abs(hue(c) - hue('#15803D'))).toBeLessThan(4);
+    expect(rgbParaHsv(...([1, 3, 5].map((i) => parseInt(p.brilho.slice(i, i + 2), 16)) as [number, number, number]))[2]).toBeGreaterThan(0.95);
+  });
+  it('prévia: sem "TV 16:9"/"TOTEM 9:16" nas telas; seleção, selo e telas na cor do app', () => {
+    const src = readFileSync(resolve(__dirname, '../../modules/corporate/pages/LauncherPage.tsx'), 'utf-8');
+    expect(src).not.toContain("{formato === '16:9' ? 'TV 16:9' : 'TOTEM 9:16'}");
+    expect(src).toContain('style={selecionado} data-testid="previa-botao-player"');
+    expect(src).toContain('data-testid="previa-selo"');
+    expect(src).toContain("style={pal ? { background: pal.tela, borderColor: `${pal.brilho}4D` } : undefined}");
+    const cartao = readFileSync(resolve(__dirname, '../../components/launcher/CartaoDaVitrine.tsx'), 'utf-8');
+    expect(cartao).toContain('{vitrine.formato}</Badge>'); // na edição o formato continua aparecendo
+  });
+});
+
 describe('F-213 seletor de mídias', () => {
   const seletor = readFileSync(resolve(__dirname, '../../components/launcher/SeletorDeMidiasLauncher.tsx'), 'utf-8');
   it('botão só "Upload" e rolagem num quadro próprio (a grade não esmaga as mídias)', () => {

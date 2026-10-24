@@ -57,6 +57,8 @@ class OTAInstallReceiver : BroadcastReceiver() {
 
             PackageInstaller.STATUS_SUCCESS -> {
                 Logger.i("OTA_INSTALL_RECEIVER", "🎉 OTA INSTALL SUCCESS: Pacote instalado com sucesso absoluto pelo sistema.")
+                // F-214: ROM com o Player ainda nunca aberto pela pessoa: atualiza sem abrir o Player
+                if (!com.antigravity.player.launcher.LauncherDoAparelho.playerLiberado(context)) return
                 // Reinicia a aplicação de forma limpa para carregar a nova versão
                 val restartIntent = Intent(context, SplashActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)

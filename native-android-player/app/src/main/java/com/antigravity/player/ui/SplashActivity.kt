@@ -31,6 +31,9 @@ class SplashActivity : AppCompatActivity() {
         // F-103: logo do gestor de mídias guardado no aparelho (senão, SOBRE MÍDIA)
         com.antigravity.player.util.MarcaDoGestor.aplicarLogo(this, findViewById(com.antigravity.player.R.id.app_logo))
         
+        // F-214: a pessoa abriu o Player (cartão da launcher ou ícone) — na ROM ele passa a abrir e voltar sozinho
+        com.antigravity.player.launcher.LauncherDoAparelho.marcarPlayerIniciado(applicationContext)
+
         // Ensure DI is ready
         ServiceLocator.init(applicationContext) 
         // F-201: ROM Sobre Mídia — a launcher já nasce escolhida, sem pergunta

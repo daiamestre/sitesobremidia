@@ -47,4 +47,19 @@ class TemaDaLauncherTest {
                 "TemaDaLauncher.gaveta(p)", "TemaDaLauncher.veu(p)", "TemaDaLauncher.botaoDoMenu(this@LauncherActivity, it, 18f)"))
             assertTrue(trecho, l.contains(trecho))
     }
+
+    @Test
+    fun `F-215 - selecao, selo App Oficial e telas dos Destaques na cor e formato some da TV`() {
+        val p = TemaDaLauncher.paleta("#15803D")!!
+        val base = hsv(0x15803D)
+        for (c in listOf(p.brilho, p.verificado, p.tela)) assertEquals(base[0], hsv(c)[0], 3f)
+        assertTrue("brilho bem claro", hsv(p.brilho)[2] > 0.95f)
+        val tema = File("src/main/java/com/antigravity/player/launcher/TemaDaLauncher.kt").readText()
+        assertTrue(tema.contains("forma(ctx, 36f, borda = alfa(p.brilho, 0x1A)"))
+        assertTrue(!tema.contains("0x1A00D4FF"))
+        val l = File("src/main/java/com/antigravity/player/launcher/LauncherActivity.kt").readText()
+        assertTrue(l.contains("TemaDaLauncher.seloOficial(this, p)") && l.contains("TemaDaLauncher.iconeVerificado(this, it)") && l.contains("vitrine.aplicarTema(p)"))
+        val tela = File("src/main/res/layout/launcher_vitrine_tela.xml").readText()
+        assertTrue("TV 16:9 / TOTEM 9:16 não aparecem na TV", tela.substringAfter("vitrine_formato").substringBefore("/>").contains("android:visibility=\"gone\""))
+    }
 }

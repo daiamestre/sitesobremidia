@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """F-201 — altera SÓ a partição system (imagem comum/raw) para a ROM Sobre Mídia. Roda no Ubuntu do WSL como root.
 
-    python3 montar-system.py <system.raw> <SobreMidiaPlayer.apk> <versao-da-rom> [posicao]
+    python3 montar-system.py <system.raw> <SobreMidiaPlayer.apk> <versao-da-rom> [posicao] [bootanimation.zip]
+
+[bootanimation.zip] (opcional, F-214) = a animação de inicialização do Android na marca Sobre Mídia (gerada por
+montar-inicializacao.mjs) no lugar da da ROM base ("SELENGA"), em /system/media/bootanimation.zip.
 
 [posicao] (opcional, F-212) = ROM para TOTEM: grava ro.sobremidia.orientacao (270 = em pé com a base à esquerda, padrão
 9x16; 90 = em pé com a base à direita; 0 = deitada; 180 = de cabeça para baixo; "retrato"/"totem" = 270). O Player
@@ -22,13 +25,17 @@ import shutil
 import subprocess
 import sys
 
-if len(sys.argv) not in (4, 5):
-    sys.exit("uso: montar-system.py <system.raw> <SobreMidiaPlayer.apk> <versao-da-rom> [posicao]")
+if not 4 <= len(sys.argv) <= 6:
+    sys.exit("uso: montar-system.py <system.raw> <SobreMidiaPlayer.apk> <versao-da-rom> [posicao] [bootanimation.zip]")
 imagem, apk, versao = sys.argv[1:4]
 POSICOES = {"0": "0", "90": "90", "180": "180", "270": "270", "retrato": "270", "totem": "270", "paisagem": "0"}
 posicao = None
-if len(sys.argv) == 5:
-    posicao = POSICOES.get(sys.argv[4].strip().lower())
+animacao = None
+for extra in sys.argv[4:]:
+    if extra.lower().endswith(".zip"):
+        animacao = extra
+        continue
+    posicao = POSICOES.get(extra.strip().lower())
     if posicao is None:
         sys.exit("posicao invalida: use 0, 90, 180, 270, retrato/totem ou paisagem")
 ponto = "/mnt/sm_system_rw"
@@ -86,6 +93,15 @@ try:
         f.truncate()
     relatorio.append("build.prop: pt-BR, America/Sao_Paulo, ro.sobremidia.rom=1, versão " + versao
                      + (f", posição da TV {posicao}° (totem)" if posicao is not None else ""))
+    # 3) F-214: animação de inicialização Sobre Mídia (escreve no próprio arquivo: mesmo dono, permissão e etiqueta)
+    if animacao:
+        destino = os.path.join(ponto, "media", "bootanimation.zip")
+        ctx_anim = contexto(destino) if os.path.exists(destino) else ctx_apk
+        shutil.copyfile(animacao, destino)
+        os.chown(destino, 0, 0)
+        os.chmod(destino, 0o644)
+        aplicar_contexto(destino, ctx_anim)
+        relatorio.append(f"media/bootanimation.zip Sobre Mídia ({os.path.getsize(destino)} bytes, contexto {ctx_anim!r})")
     subprocess.run(["sync"], check=True)
 finally:
     subprocess.run(["umount", ponto], check=False)

@@ -2424,3 +2424,57 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Conta de teste devolvida ao padrão.
   - Testes: JVM 361/0; painel 23/23 (`launcher200`, `launcher209`, `launcher213`).
 - **Publicação:** release `player-v5.8.16-teste`, APK https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/releases/sobremidia-player-v586.apk — SHA-256 `2745befb8d921196cf4f2744b9deb24cd9dc655abd617023f37dfb2eca5d7667`. Canal TESTE (promoção só com o dono: `--promover 586`).
+
+### F-214 — ROM Sobre Mídia: liga sempre com a tela Sobre Mídia (nunca "SELENGA") e o Player só abre sozinho depois do 1º toque — DONE / Player 5.8.17 (TESTE) / ROM v1.10
+
+- **Pedido do dono (24/10/2026):**
+  - Com a ROM gravada, o aparelho liga SEMPRE com a logo Sobre Mídia, nunca "Selenga".
+  - Na 1ª tela, a logo e, embaixo, "Sobre Mídia Player" maior que a logo (60% da largura), parada até a launcher abrir.
+  - A launcher abre igual à escolhida como padrão.
+  - Na ROM o Player NÃO abre sozinho até a pessoa abri-lo pela 1ª vez; ele já vem instalado e precisa de um toque.
+  - Depois vale tudo de sempre: abre ao ligar e volta a tocar; Home 1º/2º volta logo, o 3º em 60 s.
+- **O que a ROM mostrava:**
+  - A 1ª imagem é o `logo.bmp` da partição **resource** da Rockchip (formato RSCE: `rk-kernel.dtb` + `logo.bmp` 1280x720 24 bits) = "SELENGA".
+  - Depois vinha a animação PADRÃO do Android (`/system/media/bootanimation.zip`, 543x143, "android"), não uma da Selenga.
+  - Comparação: `docs/engineering/f214_inicializacao_selenga_x_sobremidia.png`.
+- **Como o Player agia na ROM:**
+  - No 1º boot, o `BootReceiver` tornava a launcher padrão em segundo plano e, sem ela já escolhida, abria o Player (login).
+  - A atualização (OTA) e uma falha da launcher também reabriam o Player.
+- **Correção no Player 5.8.17 (código 587):**
+  - `LauncherDoAparelho.playerLiberado()`: fora da ROM sempre libera. Na ROM, libera depois do 1º toque (`player_iniciado_pelo_usuario`) ou com uma tela já em uso.
+  - `marcarPlayerIniciado()` é chamado no toque do cartão do Player, no Splash e na MainActivity.
+  - `BootReceiver` (ligar/atualizar), `OTAInstallReceiver` e o anti-queda da `UserApplication` não abrem o Player antes disso.
+  - Ensaio no emulador só no APK debug: `setprop persist.sobremidia.ensaio_rom 1`.
+- **ROM (kit):**
+  - `scripts/rom/inicializacao/gerar-tela.ps1` (C# no PowerShell): a tela (fundo azul-noite → índigo, logo do app, "Sobre Mídia Player" a 87 px = 60% da largura) e a **animação pedida pelo dono**: um reflexo diagonal "/" passa primeiro na logo (18 quadros) e depois no nome (24 quadros), com uma pausa (12). São 54 quadros JPEG a 20 por segundo (2,7 s por volta), e o reflexo fica recortado na logo e nas letras. O nome ficou em índigo claro para o reflexo branco aparecer. A 1ª imagem (logo da Rockchip) não anima e fica com a tela parada.
+  - `montar-inicializacao.mjs`: `logo-sobremidia.bmp` (cabeçalho e tamanho exatos da logo original, 2.764.856 bytes) e `bootanimation.zip` sem compressão (`1280 720 20 / p 0 0 part0`: a volta do reflexo repetindo até o boot terminar, 2,4 MB).
+  - `montar-system.py ... <bootanimation.zip>`: troca a animação mantendo dono, permissão e etiqueta SELinux.
+  - `montar-update-img.mjs --logo`: troca só o logo.bmp no lugar (`logo-resource.mjs`).
+  - `conferir-rom.mjs`: aceita no resource só a troca da logo com as mesmas medidas.
+- **Provas:**
+  - Emulador Android 7.1 agindo como ROM, sem tela vinculada, após reiniciar: 50 s só com a launcher ("Toque para fazer login") e nenhuma tela do Player. Log do BootReceiver: "o Player só abre depois que a pessoa o abrir pela 1ª vez" (`f214_rom_primeiro_boot_so_launcher.png`).
+  - O toque no cartão abriu o Player e gravou `player_iniciado_pelo_usuario=true`.
+  - Com a tela vinculada, ao religar, a launcher abriu o Player sozinha pela contagem.
+  - Animação provada num Android 7.1 de verdade (emulador com sistema gravável, `bootanimation` do próprio Android lendo o zip): o reflexo passa na logo e depois no nome (`docs/engineering/f214_animacao_reflexo_no_android71.png`). Arquivo de teste removido depois.
+  - JVM 364/0.
+  - ROM v1.10 conferida: bootloader, parameter, trust, uboot, misc, kernel, boot e recovery idênticos. Resource com só a logo trocada (`rk-kernel.dtb` idêntico; a logo extraída da ROM pronta = a Sobre Mídia). System 2560 de 3072 MB. CRC e MD5 corretos.
+- **Publicação:**
+  - Release `player-v5.8.17-teste`, APK https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/releases/sobremidia-player-v587.apk — SHA-256 `a0e2a996368c9f54a079d4cf5e0c35038eccf148498d64bcad8666c0a1e09adf`. Canal TESTE (`--promover 587` só com o dono).
+  - ROM: `Downloads/ROM TV BOX/ROM Sobre Midia RK3228A v1.10/update.img` (v1.9 substituída), SHA-256 `5864a13b3d5dc326645f7405ff60d139d15264bb22f5f5946e27c2cb776c50da`.
+  - Ainda não gravada em aparelho: conferir em bancada a logo ao ligar (uboot/kernel) e a animação na TV real.
+
+### F-215 — Launcher: a cor escolhida também pinta o brilho da seleção, o selo "App Oficial" e as telas dos Destaques; "TV 16:9/TOTEM 9:16" só na edição — DONE no site / Player 5.8.17 (TESTE)
+
+- **Pedido do dono (24/10/2026):**
+  - O contorno de seleção dos cartões, o selo "App Oficial" e o fundo dos cartões dos Destaques acompanham a cor escolhida (toda a launcher na cor).
+  - "TV"/proporção nos Destaques só na tela de edição do dono/ADM.
+- **Correção:**
+  - `TemaDaLauncher`/`temaLauncher.ts` ganharam `brilho` (V=1), `verificado` e `tela` no tom da cor.
+  - Usam `brilho`: o brilho neon da seleção (Player/Menu), o foco das opções, os apps e as pílulas.
+  - `seloOficial()`: o desenho neon do F-211 na cor. O verificado foi separado em `ic_verificado_fundo` (pintado) + `ic_verificado_check` (✓ branco).
+  - `VitrineDaLauncher.aplicarTema()`: fundo e fio de luz das 4 telas na cor.
+  - `vitrine_formato` fica escondido na TV.
+  - Prévia do painel: telas e selo na cor, sem os rótulos (eles continuam nos cartões de edição).
+- **Prova:**
+  - Emulador com #15803D: seleção do Player com brilho verde, selo "App Oficial" verde com verificado verde, as 4 telas dos Destaques em verde-escuro e sem rótulos (`docs/engineering/f215_launcher_tudo_na_cor.png`). Conta de teste devolvida.
+  - JVM 364/0; painel 25/25.

@@ -48,9 +48,12 @@
         android:paddingBottom="1dp"
         android:textColor="@color/sm_acento"
         android:textSize="10sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:visibility="gone" />
 
+    <!-- F-215: o formato (TV 16:9 / TOTEM 9:16) só aparece na edição do painel (dono/ADM), não na TV -->
     <View
+        android:id="@+id/vitrine_borda"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/launcher_vitrine_borda" />

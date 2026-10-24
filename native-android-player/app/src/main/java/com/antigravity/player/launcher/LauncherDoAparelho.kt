@@ -31,6 +31,7 @@ object LauncherDoAparelho {
     private const val PREFS = "launcher_prefs"
     private const val K_ESCOLHIDA = "escolhida"
     private const val K_PERGUNTADO = "perguntado"
+    private const val K_PLAYER_INICIADO = "player_iniciado_pelo_usuario"
     private const val K_ORIGINAL = "launcher_original"
     private const val K_ORIGINAL_LIBERADA_ATE = "original_liberada_ate"
     private const val K_USO_LIVRE_ATE = "uso_livre_ate"
@@ -77,7 +78,10 @@ object LauncherDoAparelho {
     /** F-201: o aparelho roda a ROM Sobre Mídia (propriedade gravada no build.prop da ROM). */
     fun ehRomSobreMidia(): Boolean = try {
         val sp = Class.forName("android.os.SystemProperties")
-        (sp.getMethod("get", String::class.java).invoke(null, "ro.sobremidia.rom") as? String) == "1"
+        val get = sp.getMethod("get", String::class.java)
+        (get.invoke(null, "ro.sobremidia.rom") as? String) == "1" ||
+            // ensaio no emulador (só no APK de testes): `setprop persist.sobremidia.ensaio_rom 1` faz o aparelho agir como a ROM
+            (com.antigravity.player.BuildConfig.DEBUG && (get.invoke(null, "persist.sobremidia.ensaio_rom") as? String) == "1")
     } catch (e: Exception) { false }
 
     /**
@@ -88,6 +92,22 @@ object LauncherDoAparelho {
         if (!ehRomSobreMidia() || prefs(ctx).getBoolean(K_PERGUNTADO, false)) return
         Logger.i("LAUNCHER", "ROM Sobre Mídia: launcher Sobre Mídia como tela inicial (primeira vez).")
         tornarPadraoEmSilencio(ctx)
+    }
+
+    /**
+     * F-214 — regra do dono para a ROM Sobre Mídia: o aparelho liga na launcher e o Player NÃO abre sozinho até a pessoa
+     * abri-lo pela 1ª vez (tocar no cartão do Player ou no ícone). Daí em diante vale tudo de sempre: ao ligar, a launcher
+     * abre o Player depois da contagem; Home 1º/2º volta logo e o 3º só em 60 s. Fora da ROM nada muda. Aparelho que já
+     * exibe uma tela (ROM antiga já em uso) conta como iniciado.
+     */
+    fun playerLiberado(ctx: Context): Boolean = !ehRomSobreMidia() || prefs(ctx).getBoolean(K_PLAYER_INICIADO, false) ||
+        !ctx.getSharedPreferences("player_prefs", Context.MODE_PRIVATE).getString("saved_screen_id", null).isNullOrBlank()
+
+    fun marcarPlayerIniciado(ctx: Context) {
+        if (!prefs(ctx).getBoolean(K_PLAYER_INICIADO, false)) {
+            prefs(ctx).edit().putBoolean(K_PLAYER_INICIADO, true).commit()
+            Logger.i("LAUNCHER", "Player aberto pela pessoa: a partir de agora ele abre e volta sozinho.")
+        }
     }
 
     fun marcarPerguntado(ctx: Context) { prefs(ctx).edit().putBoolean(K_PERGUNTADO, true).apply() }

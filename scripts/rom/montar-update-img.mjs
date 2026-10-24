@@ -1,14 +1,18 @@
 // F-201 — remonta um update.img da Rockchip (RKFW/RKAF) trocando SÓ a partição system.
 // Tudo o mais (carregador, parameter/tabela de partições, trust, uboot, misc, kernel, resource, boot, recovery) é
 // copiado byte a byte do original. Recalcula a tabela interna, o CRC da Rockchip e o MD5 do fim do arquivo.
-//   node scripts/rom/montar-update-img.mjs <update.img original> <saida.img> [--system <novo system.img sparse>]
+//   node scripts/rom/montar-update-img.mjs <update.img original> <saida.img> [--system <novo system.img sparse>] [--logo <logo.bmp>]
 // Sem --system, remonta o original (prova de que o remontador está certo: a saída tem de ser idêntica).
+// F-214: --logo troca SÓ a imagem de inicialização (logo.bmp da partição resource) pela da Sobre Mídia (logo-resource.mjs).
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { trocarLogo } from './logo-resource.mjs';
 
 const [origem, saida] = process.argv.slice(2);
 const iSys = process.argv.indexOf('--system');
 const novoSystem = iSys > 0 ? process.argv[iSys + 1] : null;
+const iLogo = process.argv.indexOf('--logo');
+const novaLogo = iLogo > 0 ? fs.readFileSync(process.argv[iLogo + 1]) : null;
 if (!origem || !saida || saida.startsWith('--')) { console.error('uso: montar-update-img.mjs <original> <saida> [--system <system.img>]'); process.exit(2); }
 if (fs.existsSync(saida)) { console.error(`já existe: ${saida} (apague antes; nada foi sobrescrito)`); process.exit(2); }
 
@@ -79,6 +83,7 @@ for (const it of itens) {
   if (it.novaPos === undefined) continue;
   if (posSaida - inicioAf !== it.novaPos) escrever(Buffer.alloc(it.novaPos - (posSaida - inicioAf)), true);
   if (it === sys && fdSys) copiarDe(fdSys, 0, it.novoTam, true);
+  else if (it.nome === 'resource' && novaLogo) escrever(trocarLogo(ler(inicioAf + it.pos, it.tam), novaLogo), true); // F-214
   else copiarDe(fdIn, inicioAf + it.pos, it.tam, true);
   const resto = it.blocos * 2048 - it.novoTam;
   if (resto > 0) {
@@ -92,4 +97,4 @@ const fim = Buffer.from(md5.digest('hex'), 'latin1');
 fs.writeSync(fdOut, fim, 0, 32, posSaida); posSaida += 32;
 fs.closeSync(fdOut); fs.closeSync(fdIn); if (fdSys) fs.closeSync(fdSys);
 console.log(JSON.stringify({ saida, tamanho: posSaida, crcRockchip: crc.toString(16), md5: fim.toString('latin1'),
-  particoes: itens.filter((x) => x.novaPos !== undefined).map((x) => ({ nome: x.nome, posicao: x.novaPos, tamanho: x.novoTam, trocada: x === sys && !!fdSys })) }, null, 2));
+  particoes: itens.filter((x) => x.novaPos !== undefined).map((x) => ({ nome: x.nome, posicao: x.novaPos, tamanho: x.novoTam, trocada: (x === sys && !!fdSys) || (x.nome === 'resource' && !!novaLogo) })) }, null, 2));

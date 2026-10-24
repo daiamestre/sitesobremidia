@@ -121,7 +121,10 @@ class LauncherActivity : AppCompatActivity() {
         lista.adapter = adaptador
 
         config = ConfigDaLauncher.atual(this)
-        cartaoPlayer.setOnClickListener { abrirPlayer() }
+        cartaoPlayer.setOnClickListener {
+            LauncherDoAparelho.marcarPlayerIniciado(this) // F-214: o 1º toque libera o Player na ROM
+            abrirPlayer()
+        }
         realce(cartaoPlayer, 1.06f)
         botao(R.id.launcher_btn_ajustes) { abrirAjustes(Settings.ACTION_SETTINGS) }
         botao(R.id.launcher_rede) { abrirAjustes(Settings.ACTION_WIFI_SETTINGS) }
@@ -662,6 +665,13 @@ class LauncherActivity : AppCompatActivity() {
         fundo(climaTexto, if (p != null) TemaDaLauncher.pilula(this, p) else getDrawable(R.drawable.launcher_selo))
         gaveta.background = if (p != null) TemaDaLauncher.gaveta(p) else getDrawable(R.drawable.launcher_gaveta)
         findViewById<View>(R.id.launcher_capa_veu).background = if (p != null) TemaDaLauncher.veu(p) else getDrawable(R.drawable.launcher_capa_veu)
+        // F-215: o selo "App Oficial" (contorno neon e verificado) e as telas dos Destaques também acompanham a cor
+        fundo(findViewById(R.id.launcher_btn_original), if (p != null) TemaDaLauncher.seloOficial(this, p) else getDrawable(R.drawable.launcher_selo_oficial))
+        findViewById<ImageView>(R.id.launcher_selo_icone).setImageDrawable(
+            p?.let { TemaDaLauncher.iconeVerificado(this, it) } ?: getDrawable(R.drawable.ic_verificado))
+        findViewById<TextView>(R.id.launcher_selo_texto).setShadowLayer(10f, 0f, 0f,
+            if (p != null) (p.brilho and 0xFFFFFF) or (0x99 shl 24) else 0x9900D4FF.toInt())
+        vitrine.aplicarTema(p)
         adaptador.notifyDataSetChanged()
         Logger.i("LAUNCHER", "Tema: " + (config.fundoCor ?: "padrão Sobre Mídia"))
     }

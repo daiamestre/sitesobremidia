@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-215: só o selo (a "estrela") do verificado — ganha a cor do app; o ✓ branco fica em ic_verificado_check -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.6" android:strokeLineJoin="round" android:pathData="M12.00,0.80L14.56,2.44L17.60,2.30L19.00,5.00L21.70,6.40L21.56,9.44L23.20,12.00L21.56,14.56L21.70,17.60L19.00,19.00L17.60,21.70L14.56,21.56L12.00,23.20L9.44,21.56L6.40,21.70L5.00,19.00L2.30,17.60L2.44,14.56L0.80,12.00L2.44,9.44L2.30,6.40L5.00,5.00L6.40,2.30L9.44,2.44Z" />
+</vector>

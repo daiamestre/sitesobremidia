@@ -458,6 +458,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         viva = true
         instancia = java.lang.ref.WeakReference(this)
+        // F-214: o Player abriu — na ROM ele só abre depois do 1º toque da pessoa, então daqui em diante abre e volta sozinho
+        com.antigravity.player.launcher.LauncherDoAparelho.marcarPlayerIniciado(applicationContext)
         vigiaDaSaida.ligar()
         try {
             androidx.core.content.ContextCompat.registerReceiver(this, contadorDeHome,

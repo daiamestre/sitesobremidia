@@ -1,10 +1,12 @@
 // F-201 — confere uma ROM gerada ANTES de gravar em qualquer aparelho:
-//   - carregador, parameter (tabela de partições), trust, uboot, misc, kernel, resource, boot, recovery: IDÊNTICOS ao original;
+//   - carregador, parameter (tabela de partições), trust, uboot, misc, kernel, resource, boot, recovery: IDÊNTICOS ao original
+//     (F-214: no resource só pode mudar a imagem logo.bmp — a logo Sobre Mídia ao ligar —, com as mesmas medidas);
 //   - CRC da Rockchip e MD5 do fim do arquivo corretos (o FactoryTool recusa arquivo corrompido);
 //   - system: só ele mudou, cabe na partição do parameter.
 //   node scripts/rom/conferir-rom.mjs <update.img original> <update.img gerado>
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { soALogoMudou } from './logo-resource.mjs';
 
 const [orig, novo] = process.argv.slice(2);
 if (!orig || !novo) { console.error('uso: conferir-rom.mjs <original> <gerado>'); process.exit(2); }
@@ -38,7 +40,12 @@ ok(g.ler(0x66, o.base - 0x66).equals(o.ler(0x66, o.base - 0x66)), 'carregador (M
 for (const nome of Object.keys(o.itens)) {
   if (nome === 'system' || o.itens[nome].tam === 0) continue;
   const a = o.itens[nome], b = g.itens[nome];
-  ok(!!b && b.tam === a.tam && hashDe(o, o.base + a.pos, a.tam) === hashDe(g, g.base + b.pos, b.tam), `${nome} idêntico ao original`);
+  const igual = !!b && b.tam === a.tam && hashDe(o, o.base + a.pos, a.tam) === hashDe(g, g.base + b.pos, b.tam);
+  if (nome === 'resource' && !igual && b && b.tam === a.tam) {
+    ok(soALogoMudou(o.ler(o.base + a.pos, a.tam), g.ler(g.base + b.pos, b.tam)), 'resource: só a logo de inicialização mudou (Sobre Mídia), o resto idêntico');
+    continue;
+  }
+  ok(igual, `${nome} idêntico ao original`);
 }
 const sys = g.itens.system;
 const limite = o.itens.system.nand * 512;
@@ -58,5 +65,5 @@ ok(g.ler(g.base + g.afLen, 4).readUInt32LE(0) === crc, 'CRC da Rockchip correto'
 const md5 = crypto.createHash('md5');
 await new Promise((res) => fs.createReadStream(novo, { start: 0, end: g.tamanho - 33, highWaterMark: 8 << 20 }).on('data', (d) => md5.update(d)).on('end', res));
 ok(g.ler(g.tamanho - 32, 32).toString('latin1') === md5.digest('hex'), 'MD5 do fim do arquivo correto');
-console.log(problemas.length ? `\nNÃO GRAVAR: ${problemas.length} problema(s)` : '\nROM CONFERIDA: só o system mudou; o resto é idêntico à ROM base');
+console.log(problemas.length ? `\nNÃO GRAVAR: ${problemas.length} problema(s)` : '\nROM CONFERIDA: só o system (e a logo de inicialização) mudou; o resto é idêntico à ROM base');
 process.exitCode = problemas.length ? 1 : 0;

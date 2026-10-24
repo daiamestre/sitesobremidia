@@ -105,6 +105,15 @@ class VitrineDaLauncher(context: Context, private val layout: VitrineLayout) {
         }
     }
 
+    /** F-215: as 4 telas na cor do app (fundo e fio de luz); null = o desenho padrão. */
+    fun aplicarTema(p: TemaDaLauncher.Paleta?) {
+        telas.forEach { t ->
+            t.raiz.background = if (p != null) TemaDaLauncher.telaDoDestaque(ctx, p) else ctx.getDrawable(R.drawable.launcher_vitrine_moldura)
+            t.raiz.findViewById<View>(R.id.vitrine_borda).background =
+                if (p != null) TemaDaLauncher.bordaDoDestaque(ctx, p) else ctx.getDrawable(R.drawable.launcher_vitrine_borda)
+        }
+    }
+
     /** F-204: telas sem mídia mostram a logo da empresa logada (ou a da SOBRE MÍDIA, se ela não tem logo). */
     fun aplicarMarca(logo: android.graphics.Bitmap?) {
         telas.forEach { com.antigravity.player.util.MarcaDoGestor.aplicarLogo(ctx, it.vazia as? ImageView, bmp = logo) }

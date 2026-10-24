@@ -15,7 +15,9 @@ As 3 TV Box do Hotel Maxsuel informam "rockchip R4, Android 7.1.2" — muito pro
 | `ler-firmware-rockchip.mjs <update.img>` | Lê o cabeçalho: chip, partições, tabela de partições (parameter). Só leitura. |
 | `sparse.mjs abrir/fechar` | Tira o system.img de dentro do update.img (sparse → imagem comum) e fecha de volta (todos os blocos como dados — seguro). |
 | `montar-system.py` (Ubuntu do WSL, como root) | Altera SÓ a partição system: Player em `priv-app` + português/São Paulo + `ro.sobremidia.rom=1` (+ `ro.sobremidia.orientacao` na ROM de totem, F-212). |
-| `montar-update-img.mjs <original> <saida> --system <novo>` | Remonta o update.img trocando só o system; recalcula CRC da Rockchip e MD5. Sem `--system` sai idêntico ao original (provado: mesmo SHA-256). |
+| `montar-update-img.mjs <original> <saida> --system <novo> [--logo <bmp>]` | Remonta o update.img trocando só o system (e, com `--logo`, só a imagem logo.bmp da partição resource); recalcula CRC da Rockchip e MD5. Sem opções sai idêntico ao original (provado: mesmo SHA-256). |
+| `montar-inicializacao.mjs <pasta da tela> <update.img base> <pasta>` | F-214: a tela de inicialização Sobre Mídia (logo + "Sobre Mídia Player" em 60% da largura) em `logo-sobremidia.bmp` (formato exato da logo original) e `bootanimation.zip` (reflexo diagonal passando na logo e depois no nome, repetindo até o boot terminar). Tela e quadros saem de `inicializacao/gerar-tela.ps1` (`inicializacao/tela-inicio.png` = a tela parada). |
+| `logo-resource.mjs` | Lê/troca o logo.bmp da partição resource (formato RSCE) e prova que só ele mudou. |
 | `conferir-rom.mjs <original> <gerado>` | Prova antes de gravar: carregador, parameter, trust, uboot, misc, kernel, resource, boot e recovery idênticos; CRC e MD5 corretos; system cabe na partição. |
 | `copia-do-aparelho.mjs [--so-informacoes]` | Cópia completa do firmware de uma TV Box ligada por USB/ADB (lê as partições com root e confere o SHA-256 dos dois lados). |
 
@@ -26,11 +28,13 @@ As 3 TV Box do Hotel Maxsuel informam "rockchip R4, Android 7.1.2" — muito pro
 2. **Montar a ROM**:
    ```
    node scripts/rom/sparse.mjs abrir "<update.img Selenga>" "<trabalho>/system.raw" --posicao 26315188
-   wsl -u root python3 montar-system.py "<trabalho>/system.raw" "<SobreMidiaPlayer.apk>" "1.0-rk3228a"
+   powershell -File inicializacao/gerar-tela.ps1 -logo "<logo.png do app>" -saida "<trabalho>/tela"
+   node scripts/rom/montar-inicializacao.mjs "<trabalho>/tela" "<update.img Selenga>" "<trabalho>"
+   wsl -u root python3 montar-system.py "<trabalho>/system.raw" "<SobreMidiaPlayer.apk>" "1.0-rk3228a" "<trabalho>/bootanimation.zip"
    # ROM de TOTEM (F-212): mesmo comando com a posição da TV no fim (270 = em pé, base à esquerda; 90 = base à direita)
    wsl -u root python3 montar-system.py "<trabalho>/system.raw" "<SobreMidiaPlayer.apk>" "1.0-rk3228a-totem" 270
    node scripts/rom/sparse.mjs fechar "<trabalho>/system.raw" "<trabalho>/system.img"
-   node scripts/rom/montar-update-img.mjs "<update.img Selenga>" "<saida>/SobreMidia-ROM-RK3228A.img" --system "<trabalho>/system.img"
+   node scripts/rom/montar-update-img.mjs "<update.img Selenga>" "<saida>/SobreMidia-ROM-RK3228A.img" --system "<trabalho>/system.img" --logo "<trabalho>/logo-sobremidia.bmp"
    node scripts/rom/conferir-rom.mjs "<update.img Selenga>" "<saida>/SobreMidia-ROM-RK3228A.img"
    ```
    (posição do system dentro do update.img Selenga = 197044 + 26118144 = 26315188)

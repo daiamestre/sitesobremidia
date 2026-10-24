@@ -2,7 +2,8 @@
  * F-213 — tema da launcher Sobre Mídia a partir da cor escolhida no painel. A cor pinta o fundo E o app inteiro (botões
  * Player e Menu, opções do Menu, pílulas e o painel do Menu); com imagem de capa o app continua na mesma cor.
  * A MESMA conta existe no aparelho (native-android-player/.../launcher/TemaDaLauncher.kt): a prévia sai igual à TV.
- * Sem cor = o tema padrão Sobre Mídia (índigo → violeta).
+ * Sem cor = o tema padrão Sobre Mídia (índigo → violeta). F-215: o brilho da seleção, o selo "App Oficial" e as telas dos
+ * Destaques também acompanham a cor.
  */
 export interface PaletaDaLauncher {
   /** degradê dos botões Player e Menu */
@@ -18,6 +19,12 @@ export interface PaletaDaLauncher {
   gaveta: string;
   /** véu por cima da imagem de capa */
   veu: string;
+  /** F-215: brilho neon da seleção, contorno do selo "App Oficial" e das telas dos Destaques */
+  brilho: string;
+  /** F-215: fundo do verificado do selo */
+  verificado: string;
+  /** F-215: fundo das telas dos Destaques */
+  tela: string;
 }
 
 const lerHex = (hex: string): [number, number, number] | null => {
@@ -62,5 +69,8 @@ export function paletaDaLauncher(corDoFundo?: string | null): PaletaDaLauncher |
     borda: hsvParaHex(h, viva * 0.6, 0.85, 0.4),
     gaveta: hsvParaHex(h, Math.min(viva, 0.7), 0.1, 0.99),
     veu: hsvParaHex(h, Math.min(viva, 0.7), 0.1, 0.55),
+    brilho: hsvParaHex(h, Math.min(viva, 0.75), 1),
+    verificado: hsvParaHex(h, viva, 0.85),
+    tela: hsvParaHex(h, Math.min(viva, 0.6), 0.12, 0.9),
   };
 }

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { CartaoDaVitrine } from '@/components/launcher/CartaoDaVitrine';
 import { SeletorDeMidiasLauncher } from '@/components/launcher/SeletorDeMidiasLauncher';
-import { paletaDaLauncher } from '@/lib/temaLauncher';
+import { paletaDaLauncher, type PaletaDaLauncher } from '@/lib/temaLauncher';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,12 +36,13 @@ function Miniatura({ midia, className }: { midia?: MidiaEscolhivel | null; class
     : <div className={`flex items-center justify-center bg-muted ${className ?? ''}`}><Film className="h-6 w-6 text-muted-foreground" /></div>;
 }
 
-function TelaDaPrevia({ midia, formato }: { midia: ItemDeFundo['media'] | null; formato: '16:9' | '9:16' }) {
+function TelaDaPrevia({ midia, formato, pal }: { midia: ItemDeFundo['media'] | null; formato: '16:9' | '9:16'; pal: PaletaDaLauncher | null }) {
+  // F-215: na TV não aparece "TV 16:9"/"TOTEM 9:16" (só nos cartões de edição abaixo); fundo e fio de luz na cor do app
   return (
-    <div className={`relative overflow-hidden rounded-[1cqw] border border-cyan-400/30 bg-[#0A1230]/90 ${formato === '16:9' ? 'aspect-video h-[48.5%]' : 'aspect-[9/16] h-full'}`}>
+    <div className={`relative overflow-hidden rounded-[1cqw] border border-cyan-400/30 bg-[#0A1230]/90 ${formato === '16:9' ? 'aspect-video h-[48.5%]' : 'aspect-[9/16] h-full'}`}
+      style={pal ? { background: pal.tela, borderColor: `${pal.brilho}4D` } : undefined} data-testid="previa-tela">
       {midia ? <Miniatura midia={midia} className="absolute inset-0 h-full w-full" />
         : <div className="absolute inset-0 flex items-center justify-center text-[1.3cqw] font-black text-indigo-300/60">SOBRE MÍDIA</div>}
-      <span className="absolute bottom-[0.5cqw] right-[0.5cqw] rounded-full border border-cyan-400/40 bg-slate-950/80 px-[0.6cqw] text-[0.75cqw] font-bold text-cyan-400">{formato === '16:9' ? 'TV 16:9' : 'TOTEM 9:16'}</span>
     </div>
   );
 }
@@ -59,6 +60,8 @@ function Previa({ fundo, cfg, capa }: { fundo: ItemDeFundo[]; cfg: ConfigLaunche
   // F-213: a cor escolhida pinta o app inteiro (mesma conta do aparelho), com ou sem imagem de capa
   const pal = paletaDaLauncher(cfg?.fundo_cor);
   const botao = pal ? { background: `linear-gradient(315deg, ${pal.botaoInicio}, ${pal.botaoFim})` } : undefined;
+  // F-215: o brilho da seleção e o selo "App Oficial" também na cor do app
+  const selecionado = pal ? { ...botao, borderColor: pal.brilho, boxShadow: `0 0 1.4cqw ${pal.brilho}99` } : undefined;
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-[linear-gradient(315deg,#050A1F,#0B1A4A_55%,#14105A)] text-white"
       style={fundoDaTela} data-testid="previa-launcher">
@@ -82,18 +85,20 @@ function Previa({ fundo, cfg, capa }: { fundo: ItemDeFundo[]; cfg: ConfigLaunche
         </div>
         <div className="mt-[1.3cqw] flex min-h-0 flex-1 items-center justify-center gap-[0.9cqw]">
           <div className="flex h-full flex-col justify-between">
-            {(['tv1', 'tv2'] as const).map((v) => <TelaDaPrevia key={v} midia={primeiroDa(v)} formato="16:9" />)}
+            {(['tv1', 'tv2'] as const).map((v) => <TelaDaPrevia key={v} midia={primeiroDa(v)} formato="16:9" pal={pal} />)}
           </div>
-          {(['totem1', 'totem2'] as const).map((v) => <TelaDaPrevia key={v} midia={primeiroDa(v)} formato="9:16" />)}
+          {(['totem1', 'totem2'] as const).map((v) => <TelaDaPrevia key={v} midia={primeiroDa(v)} formato="9:16" pal={pal} />)}
         </div>
         <div className="relative mt-[1.4cqw] flex justify-center gap-[1.9cqw]">
           {/* F-211: selo "App Oficial" no canto inferior esquerdo, neon com verificado azul */}
-          <span className="absolute bottom-0 left-0 flex items-center gap-[0.5cqw] rounded-full border border-cyan-400/80 bg-[#050A1F]/80 px-[1cqw] py-[0.5cqw] text-[1.05cqw] font-bold text-cyan-50 shadow-[0_0_1cqw_rgba(0,212,255,0.45)]">
-            <span className="flex h-[1.7cqw] w-[1.7cqw] items-center justify-center rounded-full bg-sky-500 text-[1cqw] leading-none">✓</span>App Oficial
+          <span className="absolute bottom-0 left-0 flex items-center gap-[0.5cqw] rounded-full border border-cyan-400/80 bg-[#050A1F]/80 px-[1cqw] py-[0.5cqw] text-[1.05cqw] font-bold text-cyan-50 shadow-[0_0_1cqw_rgba(0,212,255,0.45)]"
+            style={pal ? { borderColor: pal.brilho, background: `${pal.gaveta.slice(0, 7)}CC`, boxShadow: `0 0 1cqw ${pal.brilho}73` } : undefined} data-testid="previa-selo">
+            <span className="flex h-[1.7cqw] w-[1.7cqw] items-center justify-center rounded-full bg-sky-500 text-[1cqw] leading-none"
+              style={pal ? { background: pal.verificado } : undefined}>✓</span>App Oficial
           </span>
           {/* Player e Menu da mesma cor; o selecionado (Player ao abrir) ganha o brilho neon azul */}
           <div className="flex h-[8.1cqw] w-[24.9cqw] items-center gap-[1.1cqw] rounded-[2.3cqw] border border-cyan-200 bg-gradient-to-br from-indigo-600 to-violet-600 px-[2.3cqw] shadow-[0_0_1.4cqw_rgba(0,212,255,0.6)]"
-            style={botao} data-testid="previa-botao-player">
+            style={selecionado} data-testid="previa-botao-player">
             <span className="text-[2.6cqw] leading-none">▶</span>
             <span className="leading-tight"><span className="block whitespace-nowrap text-[1.55cqw] font-bold">Sobre Mídia Player</span><span className="text-[0.95cqw] opacity-85">abre sozinho em {cfg?.segundos_para_abrir_player ?? 30} s</span></span>
           </div>
