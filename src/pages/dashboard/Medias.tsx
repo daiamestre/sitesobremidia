@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Upload, Search, Grid, List, Image, Video, Music, Loader2, ArrowLeft } from 'lucide-react';
+import { Upload, Search, Grid, List, Image, Video, Music, Loader2, ArrowLeft, Gem } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { MediaUploadDialog } from '@/components/media/MediaUploadDialog';
 import { MediaCard } from '@/components/media/MediaCard';
 import { MediaPreviewDialog } from '@/components/media/MediaPreviewDialog';
+import { PastaLogosSobreMidia } from '@/components/media/PastaLogosSobreMidia';
+import { LOGOS_SOBRE_MIDIA, veLogosDaMarca } from '@/lib/logosSobreMidia';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,12 +27,14 @@ import { LoadingState } from '@/components/ui/loading-state';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Medias() {
-  const { user } = useAuth();
+  const { user, isOwner, perfilNome } = useAuth();
+  // F-217: a pasta "Logos Sobre Mídia" (as 9 logos da marca para baixar) só aparece para o dono e o ADM
+  const veLogos = veLogosDaMarca(isOwner, perfilNome);
   const { medias, loading, fetchMedias, deleteMedia } = useMedia(user?.id);
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentFolder, setCurrentFolder] = useState<'image' | 'video' | 'audio' | null>(null);
+  const [currentFolder, setCurrentFolder] = useState<'image' | 'video' | 'audio' | 'logos' | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   // F-157: "Enviar áudio" abre a janela só de áudio (nada de empresa, proporção ou vídeo)
   const [envioSomenteAudio, setEnvioSomenteAudio] = useState(false);
@@ -124,19 +128,21 @@ export default function Medias() {
               </Button>
             )}
             <h1 className="text-3xl font-display font-bold">
-              {searchQuery ? 'Resultados da Busca' : currentFolder ? (
+              {searchQuery ? 'Resultados da Busca' : currentFolder === 'logos' ? 'Logos Sobre Mídia' : currentFolder ? (
                 currentFolder === 'image' ? 'Imagens' :
                   currentFolder === 'video' ? 'Vídeos' : 'Áudios'
               ) : 'Minhas Mídias'}
             </h1>
           </div>
           <p className="text-muted-foreground">
-            {currentFolder
+            {currentFolder === 'logos'
+              ? 'As logos da marca, para baixar'
+              : currentFolder
               ? `Gerenciando ${currentFolder === 'image' ? 'imagens' : currentFolder === 'video' ? 'vídeos' : 'áudios'}`
               : 'Gerencie seus arquivos de mídia'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {currentFolder !== 'logos' && <div className="flex flex-wrap gap-2">
           {currentFolder !== 'audio' && (
             <Button variant="outline" onClick={() => abrirEnvio(true)} data-testid="enviar-audio">
               <Music className="h-4 w-4 mr-2" />
@@ -147,7 +153,7 @@ export default function Medias() {
             {currentFolder === 'audio' ? <Music className="h-4 w-4 mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
             {currentFolder === 'audio' ? 'Enviar áudio' : 'Enviar'}
           </Button>
-        </div>
+        </div>}
       </div>
 
       {/* Toolbar */}
@@ -161,7 +167,7 @@ export default function Medias() {
             className="pl-10"
           />
         </div>
-        {(currentFolder || searchQuery) && (
+        {((currentFolder && currentFolder !== 'logos') || searchQuery) && (
           <div className="flex gap-2">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'outline'}
@@ -210,7 +216,26 @@ export default function Medias() {
               label="Áudios"
               colorClass="bg-success/10 text-success"
             />
+            {veLogos && (
+              <Card
+                className="glass hover:bg-muted/50 transition-colors cursor-pointer group"
+                onClick={() => setCurrentFolder('logos')}
+                data-testid="pasta-logos-sobre-midia"
+              >
+                <CardContent className="flex flex-col items-center justify-center p-8 gap-4 text-center">
+                  <div className="p-4 rounded-2xl bg-fuchsia-500/10 text-fuchsia-400 group-hover:scale-110 transition-transform">
+                    <Gem className="h-12 w-12" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold">Logos Sobre Mídia</h3>
+                    <p className="text-muted-foreground">{LOGOS_SOBRE_MIDIA.length} logos para baixar</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
+        ) : currentFolder === 'logos' && !searchQuery ? (
+          <PastaLogosSobreMidia />
         ) : filteredMedias.length === 0 ? (
           // Empty State
           <EmptyState

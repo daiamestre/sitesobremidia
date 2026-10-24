@@ -1,11 +1,12 @@
-// servidor local só para o desenho da logo: entrega as páginas de realce (realce-logo.html, realce-capa-pwa.html) e grava os PNG enviados pela página
+// servidor local só para o desenho da logo: entrega as páginas de realce (realce-logo.html, realce-capa-pwa.html,
+// realce-icone.html, ampliar-ia.html) e grava os PNG/WebP enviados pela página
 const http = require('http'); const fs = require('fs'); const path = require('path');
 const pasta = __dirname;
 http.createServer((req, res) => {
   if (req.method === 'POST' && req.url.startsWith('/salvar?')) {
     const nome = new URL(req.url, 'http://x').searchParams.get('nome').replace(/[^a-z0-9_.-]/gi, '');
     const partes = []; req.on('data', (d) => partes.push(d)); req.on('end', () => {
-      const b64 = Buffer.concat(partes).toString().replace(/^data:image\/png;base64,/, '');
+      const b64 = Buffer.concat(partes).toString().replace(/^data:image\/[a-z]+;base64,/, ''); // PNG ou WebP
       fs.writeFileSync(path.join(pasta, nome), Buffer.from(b64, 'base64')); res.end('ok ' + nome);
     }); return;
   }

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Ampliar com ESRGAN</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.22.0/dist/tf-backend-wasm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/upscaler@1.0.0/dist/browser/umd/upscaler.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@upscalerjs/esrgan-thick@1.0.0/dist/umd/models/esrgan-thick/src/x4/index.min.js"></script>
+</head><body style="margin:0;background:#222;color:#ddd;font:12px monospace"><pre id="saida">carregando…</pre>
+<script>
+// Ampliação 4x por super-resolução (ESRGAN "thick", UpscalerJS, roda no próprio navegador — a imagem não sai da máquina).
+// window.ampliar(arquivo, nomeDeSaida) → grava o PNG ampliado pelo servidor local.
+const log = (t) => (document.getElementById('saida').textContent += '\n' + t);
+let upscaler;
+// sem WebGL (painel do app): WebAssembly. Roda em segundo plano: window.estado diz o andamento
+window.estado = 'parado';
+window.iniciarAmpliacao = (arquivo, saida, opts) => { window.estado = 'rodando ' + arquivo; ampliar(arquivo, saida, opts).then((r) => (window.estado = 'feito ' + r), (e) => (window.estado = 'erro ' + e)); return 'iniciado'; };
+window.ampliar = async (arquivo, saida, opts = {}) => {
+  if (!upscaler) {
+    tf.wasm.setWasmPaths('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.22.0/dist/');
+    await tf.setBackend(opts.backend || 'wasm'); await tf.ready(); log('backend ' + tf.getBackend());
+    upscaler = new Upscaler({ model: ESRGANThick4x });
+  }
+  const img = new Image(); img.src = arquivo + '?' + Date.now(); await new Promise((ok, erro) => { img.onload = ok; img.onerror = erro; });
+  const t0 = performance.now();
+  const b64 = await upscaler.upscale(img, { patchSize: opts.patch || 64, padding: opts.padding || 6, output: 'base64' });
+  log(`${arquivo} ${img.naturalWidth}x${img.naturalHeight} → 4x em ${Math.round(performance.now() - t0)} ms`);
+  return (await fetch('/salvar?nome=' + saida, { method: 'POST', body: b64 })).text();
+};
+// ampliação em pedaços de [lado] pontos com [margem] de sobra em volta (só o miolo de cada pedaço entra no resultado,
+// então não aparece emenda); um pedaço por vez, com o andamento em window.estado
+window.ampliarEmPedacos = (arquivo, saida, lado = 48, margem = 8) => {
+  window.estado = 'rodando ' + saida;
+  (async () => {
+    if (!upscaler) {
+      tf.wasm.setWasmPaths('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.22.0/dist/');
+      await tf.setBackend('wasm'); await tf.ready(); upscaler = new Upscaler({ model: ESRGANThick4x });
+    }
+    const img = new Image(); img.src = arquivo + '?' + Date.now(); await new Promise((ok, erro) => { img.onload = ok; img.onerror = erro; });
+    const w = img.naturalWidth, h = img.naturalHeight, K = 4, t0 = performance.now();
+    const fonte = document.createElement('canvas'); fonte.width = w; fonte.height = h; fonte.getContext('2d').drawImage(img, 0, 0);
+    const out = document.createElement('canvas'); out.width = w * K; out.height = h * K; const xo = out.getContext('2d');
+    const nx = Math.ceil(w / lado), ny = Math.ceil(h / lado); let feitos = 0;
+    for (let py = 0; py < ny; py++) for (let px = 0; px < nx; px++) {
+      const x0 = px * lado, y0 = py * lado, x1 = Math.min(w, x0 + lado), y1 = Math.min(h, y0 + lado);
+      const ax = Math.max(0, x0 - margem), ay = Math.max(0, y0 - margem), bx = Math.min(w, x1 + margem), by = Math.min(h, y1 + margem);
+      const p = document.createElement('canvas'); p.width = bx - ax; p.height = by - ay; p.getContext('2d').drawImage(fonte, ax, ay, p.width, p.height, 0, 0, p.width, p.height);
+      const b64 = await upscaler.upscale(p, { output: 'base64' });
+      const r = new Image(); r.src = b64; await new Promise((ok) => (r.onload = ok));
+      xo.drawImage(r, (x0 - ax) * K, (y0 - ay) * K, (x1 - x0) * K, (y1 - y0) * K, x0 * K, y0 * K, (x1 - x0) * K, (y1 - y0) * K);
+      feitos++; window.estado = `rodando ${saida} ${feitos}/${nx * ny} (${Math.round((performance.now() - t0) / 1000)} s)`;
+    }
+    const res = await (await fetch('/salvar?nome=' + saida, { method: 'POST', body: out.toDataURL('image/png') })).text();
+    window.estado = `feito ${res} em ${Math.round((performance.now() - t0) / 1000)} s`;
+  })().catch((e) => (window.estado = 'erro ' + e));
+  return 'iniciado';
+};
+// fila: amplia vários arquivos, um depois do outro
+window.fila = async (lista) => { for (const [a, s] of lista) { ampliarEmPedacos(a, s); await new Promise((ok) => { const t = setInterval(() => { if (!String(window.estado).startsWith('rodando')) { clearInterval(t); ok(); } }, 1000); }); window.historico = (window.historico || []).concat(window.estado); } window.estado = 'fila terminada'; };
+log('pronto: ' + typeof Upscaler + ' ' + typeof ESRGANThick4x + ' tf ' + tf.version.tfjs);
+window.pronto = true;
+</script></body></html>

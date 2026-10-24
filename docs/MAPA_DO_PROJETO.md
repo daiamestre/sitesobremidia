@@ -18,6 +18,7 @@ Serve para achar rápido **onde mexer** em cada pedido, sem varrer o projeto int
 | Widgets: desenho no Player Android | `native-android-player/app/src/main/java/com/antigravity/player/widget/*` e `util/NativeWidgetEngine.kt` | release-player |
 | Notícias, RSS e esportes (dados) | `supabase/functions/news-engine-sync`, `fetch-rss`, `sports-engine-sync`, `sports-escudos-sync`; `src/lib/esportes*.ts` | deploy-producao |
 | Mídias (envio, R2, duração) | `src/pages/dashboard/Medias.tsx`, `src/lib/r2Upload.ts`, `r2Client.ts`, `mediaDuration.ts`; funções `get-upload-url`, `process-media`, `delete-media-object` | — |
+| Logos da marca (pasta "Logos Sobre Mídia" da galeria, só owner/ADM; geradores das logos e ícones) | `src/components/media/PastaLogosSobreMidia.tsx`, `src/lib/logosSobreMidia.ts`, `public/marca/`, `docs/marca/alta-definicao/`, `scripts/marca/*` (servidor.cjs, realce-logo, realce-capa-pwa, realce-icone, ampliar-ia, montar-pasta-logos.mjs) | — |
 | Agenda / programação | `src/pages/dashboard/Schedule.tsx`, `src/modules/crm/pages/Schedule*Page.tsx` | — |
 | CRM: clientes, propostas, contratos, PI | `src/modules/crm/pages/Clientes*`, `Propostas*`, `Contrat*`, `PedidoInsercao*`; funções `generate-contract-pdf`, `generate-proposal-pdf`, `contract-signature-flow` | — |
 | Financeiro, cobranças, PIX, comissões | `src/modules/crm/pages/Billing*`, `CashFlow*`, `Commission*`, `DREPage`, `InvoicesPage`; `src/pages/PaginaCobranca.tsx`; funções `billing-worker`, `inter-billing-engine`, `inter-pix-engine`, `payment-webhook` | — |

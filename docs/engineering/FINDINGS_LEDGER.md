@@ -2519,3 +2519,34 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **2ª entrega (botão joia nítido e nome sem a sobra preta na capa):** Player 5.8.21 (591) de TESTE e ROM v1.13 (a 5.8.20 saiu com o contorno grosso e foi substituída).
   - Player 5.8.21 (591) no canal TESTE: https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/releases/sobremidia-player-v591.apk, sha256 `e39c1cff77a9ab566cb45cc236ed63230f18b5d54faccf98b750e8b664e1f088`. Contrato do 5.7.10 íntegro; instalado no TVBox_API25.
   - ROM: `Downloads/ROM TV BOX/ROM Sobre Midia RK3228A v1.13/update.img` (v1.12 substituída), SHA-256 `e7101e02a2cc2a0f274f201735d5f972251f1a01bb60bb116343dce4065f4646`; conferir-rom OK.
+
+### F-217 — Pasta "Logos Sobre Mídia" na galeria (owner/ADM) com as 9 logos em alta definição + ícone e capa nítidos por super-resolução — DONE / Player 5.8.22 (TESTE) / ROM v1.14
+
+- **Pedido do dono (24/10/2026):**
+  - Uma pasta na galeria de mídias, ao lado de Áudios, com as 9 logos recriadas, iguais às 9 originais e em alta definição, com download.
+  - A pasta é exclusiva do owner e do ADM.
+  - O botão joia continuava borrado ao ser visto grande; ele deve ficar nítido como os ícones de apps da Google Play.
+- **Por que borrava:** a maior arte do botão joia que existe tem 432 px (a camada da frente do ícone) e a do PWA é uma ampliação borrada de uma arte de ~256 px. Filtros de nitidez comuns não criam detalhe; a reconstrução por filtros (contorno vetorial + Sm refeito) deixava manchas em volta do "Sm".
+- **Correção (super-resolução):**
+  - ESRGAN "thick" 4x (UpscalerJS + TensorFlow.js, no próprio navegador, WebAssembly, sem enviar a imagem a ninguém): `scripts/marca/ampliar-ia.html`, em pedaços de 48 px com 8 px de margem.
+    - Ampliados: arte do ícone 432 → 1728 px; ícone quadrado e redondo 192 → 768 px; arte do PWA 256 → 1024 px.
+    - A transparência dos ícones é ampliada à parte e recortada lisa. Os cantos são preenchidos antes de ampliar, para não surgir contorno escuro.
+  - Ícones do app (mipmaps de todas as densidades) reduzidos dessas versões; `realce-icone.html`.
+  - Capa/PWA e banner: fundo ampliado pela IA, a joia nítida da arte de 1728 px e o nome refeito (F-216); `realce-capa-pwa.html`.
+  - Ícone 512 px no padrão Google Play: `docs/marca/icone-google-play-512.png`.
+- **Pasta na galeria (`Medias.tsx` + `PastaLogosSobreMidia.tsx` + `src/lib/logosSobreMidia.ts`):**
+  - Cartão "Logos Sobre Mídia" ao lado de Áudios, só para owner/ADM (`veLogosDaMarca`).
+  - As 9 logos com os nomes das originais, em alta definição:
+    - ícones 192/768/768/1728 px;
+    - PWA 1024 px;
+    - logo 3D e nome branco 2000 px;
+    - logo 3064×1656.
+  - Cada logo tem prévia (quadriculado escuro), nome, modelo, arquivo, tamanho e "Baixar"; há também "Baixar todas (ZIP)".
+  - Os arquivos são estáticos em `public/marca/logos-sobre-midia/` (sem banco e sem função nova na Vercel), montados por `node scripts/marca/montar-pasta-logos.mjs` a partir de `docs/marca/alta-definicao/`.
+- **Prova:**
+  - `logosSobreMidia.test.tsx` 4/4 (arquivos e tamanhos, ZIP com os 9 iguais, 9 cartões com download, só owner/ADM); identidade visual 11/11.
+  - Painel local em 800 px com a conta de teste: a pasta ao lado de Áudios, as 9 prévias carregadas (1728/1024/2000/3064 px) e os botões de download. Sessão de teste apagada.
+  - Emulador TVBox_API25 com 5.8.22: a launcher mostra o ícone novo no cartão do Player. Contrato do 5.7.10 íntegro.
+- **Entrega:**
+  - Player 5.8.22 (592) no canal TESTE: https://pub-560b3bffe687403695c61035c8c8f7a7.r2.dev/releases/sobremidia-player-v592.apk, sha256 `c1b02f1709bde7769cb46f15e63889b13461a94461513a2687db88fe54984404`. O `publicar-player.mjs` caiu depois de criar a release (o `gh run watch` saiu com erro enquanto o workflow ainda rodava); o workflow terminou com sucesso, o hash no R2 foi conferido e o registro no canal TESTE foi feito com a mesma consulta do script.
+  - ROM `Downloads/ROM TV BOX/ROM Sobre Midia RK3228A v1.14/update.img` (v1.13 substituída), SHA-256 `d43c9f99941a0e1f9aac389b5da967278beca302c5e45934d876df88a86b6d9e`; conferir-rom OK.

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Ícone Sobre Mídia — alta definição</title></head>
+<body style="margin:0;background:#222;color:#ddd;font:12px monospace"><pre id="saida">…</pre>
+<script>
+// F-217 — modelo 1 (ícone do app: botão joia sobre o roxo de circuito) em alta definição, a partir dos arquivos
+// ORIGINAIS ampliados 4x por super-resolução (ESRGAN, ampliar-ia.html). A IA só trata a cor: a transparência (cantos
+// do ícone quadrado e do redondo) é ampliada à parte e recortada lisa; antes de ampliar, os cantos transparentes são
+// preenchidos com a cor da borda vizinha (senão a IA desenha um contorno escuro).
+// Passo a passo (servidor: node scripts/marca/servidor.cjs, páginas em http://127.0.0.1:8771/):
+//   1. realce-icone.html: window.prepararParaIA() → prep_launcher.png, prep_round.png (192 px, sem transparência), prep_pwa_256.png
+//   2. ampliar-ia.html (aba na FRENTE: em segundo plano o navegador freia o cálculo):
+//      fila([['original-icone-frente.webp','ia_frente_4x.png'], ['prep_launcher.png','ia_launcher_4x.png'],
+//            ['prep_round.png','ia_round_4x.png'], ['prep_pwa_256.png','ia_pwa_4x.png']])  (uns 7 min sem placa de vídeo)
+//   3. realce-icone.html: window.gerarIcones() → mipmaps do app (mesmos tamanhos e nomes) + versões em alta definição (hd_*)
+//   4. realce-capa-pwa.html: window.gerarModelo2() → PWA 1024/512/192 e capa da TV 640/320
+//   5. copiar para docs/marca/alta-definicao e o app; node scripts/marca/montar-pasta-logos.mjs
+const sm = (e0, e1, v) => { const t = Math.max(0, Math.min(1, (v - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+const carregar = (src) => new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = src + '?' + Date.now(); });
+const salvar = async (c, nome) => (await fetch('/salvar?nome=' + nome, { method: 'POST',
+  body: nome.endsWith('.webp') ? c.toDataURL('image/webp', 1) : c.toDataURL('image/png') })).text();
+function emEscala(src, w, h) { let cur = src;
+  while (cur.width / 2 > w) { const t = canvas(Math.round(cur.width / 2), Math.round(cur.height / 2)); const x = t.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, t.width, t.height); cur = t; }
+  const f = canvas(w, h); const x = f.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, w, h); return f; }
+
+// cantos transparentes preenchidos com a cor da borda vizinha (desfoque normalizado), sem mexer no que é opaco
+function semTransparencia(img) {
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  const a = canvas(w, h); a.getContext('2d').drawImage(img, 0, 0);
+  const b = canvas(w, h), xb = b.getContext('2d');
+  for (const r of [24, 8, 3]) { xb.filter = `blur(${r}px)`; for (let n = 0; n < 4; n++) xb.drawImage(a, 0, 0); }
+  xb.filter = 'none';
+  const im = xb.getImageData(0, 0, w, h); for (let i = 3; i < im.data.length; i += 4) im.data[i] = 255; xb.putImageData(im, 0, 0);
+  xb.drawImage(a, 0, 0); return b;
+}
+// transparência ampliada k vezes e recortada lisa (a forma do ícone é uma curva suave)
+function alfaNitido(img, k) {
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height, W = w * k, H = h * k;
+  const c = canvas(W, H), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.filter = `blur(${0.35 * k}px)`; x.drawImage(img, 0, 0, W, H);
+  const d = x.getImageData(0, 0, W, H).data, o = new Float32Array(W * H); for (let i = 0; i < W * H; i++) o[i] = sm(0.3, 0.7, d[i * 4 + 3] / 255); return o;
+}
+function comAlfa(rgb, alfa) {
+  const W = rgb.width, H = rgb.height, c = canvas(W, H), x = c.getContext('2d'); x.drawImage(rgb, 0, 0);
+  const im = x.getImageData(0, 0, W, H); for (let i = 0; i < W * H; i++) im.data[i * 4 + 3] = Math.round(alfa[i] * 255); x.putImageData(im, 0, 0); return c;
+}
+window.prepararParaIA = async () => {
+  const r = [];
+  for (const [arq, saida] of [['original-icone.webp', 'prep_launcher.png'], ['original-icone-redondo.webp', 'prep_round.png']])
+    r.push(await salvar(semTransparencia(await carregar(arq)), saida));
+  // a arte do PWA original tem 1024 px, mas é uma ampliação borrada: reduzida a 256 px (o detalhe que ela tem de fato)
+  r.push(await salvar(emEscala(await carregar('original-pwa.png'), 256, 256), 'prep_pwa_256.png'));
+  return r;
+};
+window.gerarIcones = async () => {
+  const frente = emEscala(await carregar('ia_frente_4x.png'), 1728, 1728); // 1728 px, opaca (arte inteira, sem transparência)
+  const quad = comAlfa(await carregar('ia_launcher_4x.png'), alfaNitido(await carregar('original-icone.webp'), 4)); // 768
+  const red = comAlfa(await carregar('ia_round_4x.png'), alfaNitido(await carregar('original-icone-redondo.webp'), 4)); // 768
+  const r = [];
+  // app: os mesmos arquivos e tamanhos de cada densidade, agora reduzidos da versão nítida
+  for (const [d, t] of [['mdpi', 48], ['hdpi', 72], ['xhdpi', 96], ['xxhdpi', 144], ['xxxhdpi', 192]]) {
+    r.push(await salvar(emEscala(quad, t, t), `app_${d}_ic_launcher.webp`));
+    r.push(await salvar(emEscala(red, t, t), `app_${d}_ic_launcher_round.webp`));
+    r.push(await salvar(emEscala(frente, t * 108 / 48, t * 108 / 48), `app_${d}_ic_launcher_foreground.webp`));
+  }
+  // galeria (alta definição: 4x o tamanho do arquivo original)
+  r.push(await salvar(emEscala(quad, 192, 192), 'hd_mdpi_ic_launcher.webp'));
+  r.push(await salvar(quad, 'hd_xxxhdpi_ic_launcher.webp'));
+  r.push(await salvar(red, 'hd_xxxhdpi_ic_launcher_round.webp'));
+  r.push(await salvar(frente, 'hd_xxxhdpi_ic_launcher_foreground.webp'));
+  // ícone 512 px no padrão da Google Play (arte inteira, quadrada, sem transparência)
+  r.push(await salvar(emEscala(frente, 512, 512), 'hd_icone-google-play-512.png'));
+  return r;
+};
+document.getElementById('saida').textContent = 'pronto'; window.pronto = true;
+</script></body></html>

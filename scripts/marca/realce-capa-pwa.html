@@ -56,7 +56,9 @@ const dilatar = (m, r) => { const c = canvas(m.width, m.height), x = c.getContex
 // botão joia NÍTIDO: o mesmo botão do ícone original (camada da frente de 432 px, a versão de maior resolução dele),
 // recortado pelo contorno da joia (coincide 83% com os pixels rosa/branco/ciano dela) e posto exatamente sobre o botão
 // borrado da arte do PWA (alinhado por mínima diferença de cor: escala 1,795, deslocamento 308,5/131 em pontos de 1024)
-const FG = new Image(); FG.src = 'original-icone-frente.webp';
+// F-217: a joia e o fundo vêm das versões ampliadas 4x por super-resolução (ESRGAN, ampliar-ia.html) — nítidas de verdade
+const FG = new Image(); FG.src = 'ia_frente_4x.png'; // a camada da frente do ícone original (432 px) ampliada para 1728 px
+const PWA_HD = new Image(); PWA_HD.src = 'ia_pwa_4x.png'; // a arte do PWA original (borrada) reduzida a 256 px e ampliada para 1024 px
 const GEMA = { V: [[129.5, 93.8], [128, 339.9], [344.6, 213.7]], d: [61, 67, 62] }, ALINHA = { s: 1.795, ox: 308.5, oy: 131 };
 function caminhoGema(x, V, d, esc = 1, ox = 0, oy = 0) { x.beginPath();
   for (let i = 0; i < 3; i++) { const p0 = V[(i + 2) % 3], p1 = V[i], p2 = V[(i + 1) % 3];
@@ -68,7 +70,7 @@ function caminhoGema(x, V, d, esc = 1, ox = 0, oy = 0) { x.beginPath();
 window.AJ = { borracha: 22, contorno: 5, sombraX: 1.5, sombraY: 4, borrao: 4, alfaSombra: 0.8, aro: 2, alfaAro: 0.55 };
 // a arte é montada já no tamanho final (escala 1 = 1024 px): nada é ampliado depois, então botão e nome ficam nítidos
 window.pwaRefeito = (escala = 0.5) => {
-  const A = window.AJ, W = Math.round(N * escala), c = canvas(W, W), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(PWA, 0, 0, W, W);
+  const A = window.AJ, W = Math.round(N * escala), c = canvas(W, W), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(emEscala(PWA_HD, W, W), 0, 0);
   const e = ALINHA.s * escala, ox = ALINHA.ox * escala, oy = ALINHA.oy * escala;
   const joia = canvas(W, W), xj = joia.getContext('2d'); xj.imageSmoothingQuality = 'high';
   caminhoGema(xj, GEMA.V, GEMA.d, e, ox, oy); xj.fillStyle = '#fff'; xj.fill();
@@ -77,7 +79,7 @@ window.pwaRefeito = (escala = 0.5) => {
   // o nome borrado antigo some por baixo de uma "borracha" da cor do fundo (o fundo da original desfocado em volta)
   const borracha = dilatar(M, A.borracha * escala);
   // fundo sem o nome e sem o botão: a original com os dois recortados, desfocada e normalizada (só a cor do fundo em volta)
-  const semNome = canvas(W, W), xs = semNome.getContext('2d'); xs.drawImage(PWA, 0, 0, W, W); xs.globalCompositeOperation = 'destination-out';
+  const semNome = canvas(W, W), xs = semNome.getContext('2d'); xs.drawImage(emEscala(PWA_HD, W, W), 0, 0); xs.globalCompositeOperation = 'destination-out';
   xs.drawImage(dilatar(M, (A.borracha + 18) * escala), 0, 0); caminhoGema(xs, GEMA.V, GEMA.d, e, ox, oy); xs.lineWidth = 40 * escala; xs.fill(); xs.stroke();
   const fundoLiso = canvas(W, W), xf = fundoLiso.getContext('2d'); for (const r of [160, 60, 20]) { xf.filter = `blur(${r * escala}px)`; for (let n = 0; n < 3; n++) xf.drawImage(semNome, 0, 0); } xf.filter = 'none'; xf.drawImage(semNome, 0, 0);
   const fl = xf.getImageData(0, 0, W, W); for (let i = 3; i < fl.data.length; i += 4) fl.data[i] = 255; xf.putImageData(fl, 0, 0);
@@ -94,8 +96,9 @@ function emEscala(src, w, h) { let cur = src;
   const f = canvas(w, h); const x = f.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, w, h); return f; }
 const salvar = async (c, nome) => (await fetch('/salvar?nome=' + nome, { method: 'POST', body: c.toDataURL('image/png') })).text();
 window.gerarModelo2 = async () => {
-  await new Promise((ok) => (FG.complete && FG.naturalWidth ? ok() : (FG.onload = ok)));
+  for (const im of [FG, PWA_HD]) await new Promise((ok) => (im.complete && im.naturalWidth ? ok() : (im.onload = ok)));
   const out = [];
+  out.push(await salvar(pwaRefeito(1), 'm2_pwa-1024.png')); // alta definição (pasta de logos da galeria)
   out.push(await salvar(pwaRefeito(0.5), 'm2_pwa-512x512.png'));
   out.push(await salvar(pwaRefeito(0.1875), 'm2_pwa-192x192.png'));
   // capa 16:9 (banner da TV): o meio da mesma arte (nome + botão + circuito), montada na largura final
