@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Coins, Gift, Loader2, PlayCircle, Receipt, Settings } from 'lucide-react';
 import { toast } from 'sonner';
-import { PixDaCobranca } from '@/components/pagamento/PixDaCobranca';
+import { PagamentoCreditos } from '@/components/studioai/PagamentoCreditos';
 import { playlistClienteService } from '@/modules/crm/services/playlistCliente.service';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -16,7 +16,8 @@ const caixa = 'space-y-4 rounded-xl border border-white/10 bg-[#140632] p-5';
 export default function ConfiguracoesPage() {
   const qc = useQueryClient();
   const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo });
-  const anunciante = !!saldo.data?.cliente;
+  // F-219: todos pagam pela criação com IA, menos owner/ADM (que veem a gestão abaixo)
+  const anunciante = !!saldo.data?.paga;
   const admin = !!saldo.data?.admin;
   const mov = useQuery({ queryKey: ['studio-ai-extrato'], queryFn: extrato });
   const pendentes = useQuery({ queryKey: ['studio-ai-compras'], queryFn: comprasPendentes, enabled: anunciante });
@@ -58,7 +59,7 @@ export default function ConfiguracoesPage() {
                 <div className="flex gap-1.5">{[1, 5, 10, 20].map((n) => (
                   <button key={n} type="button" onClick={() => setQtd(n)} className={cn('rounded-lg border px-3 py-2 text-sm font-bold', qtd === n ? 'border-[#FFD400] bg-[#FFD400]/15 text-[#FFD400]' : 'border-white/15 text-white')}>{n}</button>
                 ))}</div>
-                <button type="button" disabled={!!ocupado} data-testid="studio-comprar" onClick={() => agir('comprar', async () => { setCompra(await comprarCreditos(qtd)); void qc.invalidateQueries({ queryKey: ['studio-ai-compras'] }); })}
+                <button type="button" disabled={!!ocupado} data-testid="studio-comprar" onClick={() => setCompra({ compra_id: '', cobranca_id: '', valor_centavos: qtd * preco })}
                   className="flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-bold text-[#0b2a17]">
                   {ocupado === 'comprar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" />}Comprar {qtd} crédito{qtd > 1 ? 's' : ''} · {brl(qtd * preco)}
                 </button>
@@ -66,14 +67,8 @@ export default function ConfiguracoesPage() {
             )}
           </div>
           {compra && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <PixDaCobranca cobrancaId={compra.cobranca_id} valorTexto={brl(compra.valor_centavos)} />
-              <div className="space-y-3 text-sm text-slate-300">
-                <p>Pague o PIX e toque em <b>Já paguei</b>. Os créditos entram assim que o banco confirmar.</p>
-                <button type="button" disabled={ocupado === 'conferir'} onClick={() => void conferir(compra.compra_id, compra.cobranca_id)} className="w-full rounded-xl bg-[#FFD400] py-2.5 font-bold text-[#22004A]">{ocupado === 'conferir' && <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />}Já paguei</button>
-                <button type="button" onClick={() => setCompra(null)} className="w-full text-xs text-slate-400 hover:text-white">Pagar depois</button>
-              </div>
-            </div>
+            <PagamentoCreditos quantidade={qtd} compraExistente={compra.compra_id ? compra : null} onCancelar={() => { setCompra(null); recarregar(); }}
+              onCreditado={() => { setCompra(null); recarregar(); }} />
           )}
           {!compra && (pendentes.data?.length ?? 0) > 0 && (
             <div className="space-y-2">

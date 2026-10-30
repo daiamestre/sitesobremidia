@@ -22,7 +22,8 @@ async function rpc<T>(f: string, args: Record<string, unknown> = {}): Promise<T>
   return data as T;
 }
 
-export interface MeuSaldo { cliente: string | null; admin: boolean; pode: boolean; saldo: number; reservado: number; preco_centavos: number; habilitado: boolean }
+/** paga = todos menos owner/ADM (F-219): 1 crédito (R$ 4,99) por criação com IA. */
+export interface MeuSaldo { cliente: string | null; admin: boolean; pode: boolean; paga: boolean; saldo: number; reservado: number; preco_centavos: number; habilitado: boolean }
 export interface Projeto { id: string; modelo_id: string; nome: string; formato: '16:9' | '9:16'; dados: Partial<ModeloDeArte>; miniatura_url: string | null; atualizado_em: string }
 export interface Conversa { id: string; titulo: string; cliente_id: string | null; atualizado_em: string }
 export type StatusJob = 'AGUARDANDO' | 'RESERVANDO' | 'PROCESSANDO' | 'CONCLUIDO' | 'FALHA' | 'CANCELADO' | 'ESTORNO_PENDENTE' | 'ESTORNADO';
@@ -34,6 +35,14 @@ export const brl = (centavos: number) => (centavos / 100).toLocaleString('pt-BR'
 export const EM_ANDAMENTO: StatusJob[] = ['AGUARDANDO', 'RESERVANDO', 'PROCESSANDO', 'ESTORNO_PENDENTE'];
 
 export const meuSaldo = () => rpc<MeuSaldo>('studio_ai_meu_saldo');
+
+// ---------------------------------------------------------------- modelos novos do catálogo (owner/ADM criam; todos usam)
+export async function modelosDaEmpresa(): Promise<Array<ModeloDeArte & { daEmpresa: true; ativo: boolean }>> {
+  const { data } = await db.from<{ id: string; dados: ModeloDeArte; ativo: boolean }>('studio_modelos').select('id, dados, ativo').order('atualizado_em', { ascending: false }).limit(500);
+  return (data ?? []).map((m) => ({ ...m.dados, id: m.id, daEmpresa: true as const, ativo: m.ativo }));
+}
+export const salvarModelo = (id: string, dados: ModeloDeArte) => rpc<string>('studio_modelo_salvar', { p_id: id, p_dados: dados });
+export const arquivarModelo = (id: string) => rpc('studio_modelo_arquivar', { p_id: id });
 
 // ---------------------------------------------------------------- projetos do editor
 export async function listarProjetos(): Promise<Projeto[]> {

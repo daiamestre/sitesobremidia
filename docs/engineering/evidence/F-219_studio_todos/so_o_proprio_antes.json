@@ -1,0 +1,10 @@
+[
+ {
+  "policyname": "so_o_proprio",
+  "permissive": "RESTRICTIVE",
+  "roles": "{authenticated}",
+  "cmd": "SELECT",
+  "qual": "((NOT ( SELECT fn_perfil_so_proprias_telas() AS fn_perfil_so_proprias_telas)) OR (notes = (('Criacao de tela — Gestor de Midias (user '::text || (( SELECT auth.uid() AS uid))::text) || ')'::text)) OR (notes ~~ (('Criacao de tela — Gestor de Midias (user '::text || (( SELECT auth.uid() AS uid))::text) || ')%'::text)) OR (cliente_id IN ( SELECT fn_meus_clientes() AS fn_meus_clientes)))",
+  "with_check": null
+ }
+]

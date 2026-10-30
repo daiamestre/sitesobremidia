@@ -32,6 +32,7 @@ import {
   PenLine,
   Eye,
   Smartphone,
+  Clapperboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { areaDoCrm } from '@/lib/areaDoCrm';
@@ -71,6 +72,8 @@ export function CrmSidebar({ onNavigate, collapsed = false }: { onNavigate?: () 
     // Dashboard aponta para rotas existentes em CADA painel (corrige o 404 do
     // painel de representantes: /representantes/corporate não existe)
     { label: 'Dashboard', icon: Home, path: isWorkspace ? '/workspace/corporate' : '/representantes/dashboard' },
+    // F-219: SOBRE MÍDIA Studio para todos os perfis (modelos, edição e criação com IA)
+    { label: 'Sobre Mídia Studio', icon: Clapperboard, path: '/studio' },
     // GATE 6.7 — CLIENT TYPE GATE unificado: mesma porta para REPRESENTANTE/ADM/OWNER
     { label: 'Nova Prospecção', icon: Target, path: `${basePath}/clientes/novo` },
     // Gestor de Mídias Digital Signage (F-204: área do Gestor — no corporativo, só dono/ADM entram nela)

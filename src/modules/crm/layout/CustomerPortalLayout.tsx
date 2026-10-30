@@ -55,6 +55,8 @@ export default function CustomerPortalLayout() {
       label: 'Principal',
       items: [
         { name: 'Início', path: '/portal', icon: Home },
+        // F-219: SOBRE MÍDIA Studio para todos (modelos prontos, edição, criação com IA e publicação)
+        { name: 'Sobre Mídia Studio', path: '/studio', icon: Sparkles },
       ],
     },
     {
@@ -62,8 +64,6 @@ export default function CustomerPortalLayout() {
       somente: ['ANUNCIANTE', 'HIBRIDO'],
       items: [
         { name: 'Minhas Mídias',        path: '/portal/assets',     icon: ImagePlus },
-        // SOBRE MÍDIA STUDIO AI: modelos prontos, edição, criação com IA e publicação nas playlists/telas
-        { name: 'Studio AI',            path: '/studio',            icon: Sparkles },
       ],
     },
     {

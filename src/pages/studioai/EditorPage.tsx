@@ -8,7 +8,9 @@ import { PublicarDialog } from '@/components/studioai/PublicarDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { MODELOS, modeloPorId, type FonteDaArte, type ModeloDeArte } from '@/lib/studio/modelos';
-import { meuSaldo, obterProjeto, salvarProjeto } from '@/lib/studioai/api';
+import { meuSaldo, obterProjeto, salvarModelo, salvarProjeto } from '@/lib/studioai/api';
+import { idDoModelo, useCatalogo } from '@/lib/studioai/modelos';
+import { SEGMENTOS, type SegmentoId } from '@/lib/studio/catalogo';
 import { baixar, nomeDoArquivo, renderizarArte } from '@/lib/studioai/exportar';
 import { cn } from '@/lib/utils';
 
@@ -40,7 +42,10 @@ export default function EditorPage() {
   const { user } = useAuth();
   const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo, staleTime: 30_000 });
   const projeto = useQuery({ queryKey: ['studio-projeto', projetoId], queryFn: () => obterProjeto(projetoId!), enabled: !!projetoId });
-  const base = useMemo(() => modeloPorId(projeto.data?.modelo_id ?? modeloId ?? '') ?? null, [projeto.data, modeloId]);
+  const catalogo = useCatalogo();
+  const idBase = projeto.data?.modelo_id ?? modeloId ?? '';
+  const base = useMemo(() => modeloPorId(idBase) ?? catalogo.todos.find((m) => m.id === idBase) ?? null, [idBase, catalogo.todos]);
+  const [novoModelo, setNovoModelo] = useState<{ nome: string; segmento: SegmentoId } | null>(null);
   const [arte, setArte] = useState<ModeloDeArte | null>(null);
   const [nome, setNome] = useState('');
   const [idProjeto, setIdProjeto] = useState<string | null>(projetoId ?? null);
@@ -54,7 +59,7 @@ export default function EditorPage() {
     setNome(projeto.data?.nome ?? base.nome);
   }, [base, projeto.data, arte]);
 
-  if ((projetoId && projeto.isLoading) || (!arte && base)) return <p className="p-10 text-sm text-slate-400">Abrindo o Studio de criação…</p>;
+  if ((projetoId && projeto.isLoading) || (!arte && base) || (!base && catalogo.carregando)) return <p className="p-10 text-sm text-slate-400">Abrindo o Studio de criação…</p>;
   if (!base || !arte) return <div className="p-10 text-sm text-slate-300">Modelo não encontrado. <Link to="/studio" className="text-[#FFD400] hover:underline">Voltar aos modelos</Link></div>;
 
   const t = arte.textos;
@@ -83,6 +88,14 @@ export default function EditorPage() {
     baixar(png, nomeDoArquivo(nome));
     window.open('https://www.canva.com/', '_blank', 'noopener');
     toast.info('A arte foi baixada. No Canva, use "Uploads" para abrir o arquivo e continuar a edição.', { duration: 8000 });
+  });
+  // owner/ADM: a arte atual vira um modelo NOVO do catálogo (os demais usuários só editam cópias)
+  const adicionarAoCatalogo = () => novoModelo && agir('modelo', async () => {
+    const id = idDoModelo(novoModelo.nome);
+    await salvarModelo(id, { ...arte, id, nome: novoModelo.nome.trim(), segmento: novoModelo.segmento, edicao: ['rapida'], criadoEm: new Date().toISOString().slice(0, 10), etiquetas: [...new Set([...(arte.etiquetas ?? []), 'novo'])] });
+    void qc.invalidateQueries({ queryKey: ['studio-modelos'] });
+    setNovoModelo(null);
+    toast.success('Modelo adicionado ao catálogo para todos os usuários.');
   });
   const [px, py] = (arte.fotoPosicao ?? '50% 50%').split(' ').map((v) => parseInt(v, 10) || 50);
 
@@ -165,14 +178,34 @@ export default function EditorPage() {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Outras ferramentas</p>
             <button type="button" onClick={editarComIA} disabled={!!ocupado} className="flex w-full items-center gap-3 rounded-lg border border-[#FFD400]/40 bg-[#FFD400]/10 p-3 text-left text-sm text-white hover:bg-[#FFD400]/20">
               {ocupado === 'ia' ? <Loader2 className="h-5 w-5 animate-spin text-[#FFD400]" /> : <Sparkles className="h-5 w-5 text-[#FFD400]" />}
-              <span><b>Editar com ChatGPT</b><span className="block text-xs text-slate-300">A IA cria uma nova versão a partir desta arte{saldo.data?.cliente ? ` · ${(saldo.data.preco_centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por criação` : ''}</span></span>
+              <span><b>Editar com ChatGPT</b><span className="block text-xs text-slate-300">A IA cria uma nova versão a partir desta arte{saldo.data?.paga ? ` · ${(saldo.data.preco_centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por criação` : ''}</span></span>
             </button>
             <button type="button" onClick={abrirNoCanva} disabled={!!ocupado} className="flex w-full items-center gap-3 rounded-lg border border-white/15 p-3 text-left text-sm text-white hover:bg-white/5">
               {ocupado === 'canva' ? <Loader2 className="h-5 w-5 animate-spin" /> : <ExternalLink className="h-5 w-5 text-[#00c4cc]" />}
               <span><b>Abrir no Canva</b><span className="block text-xs text-slate-300">Baixa a arte e abre o Canva para você continuar lá</span></span>
             </button>
           </div>
-          <p className="text-[11px] text-slate-500 sm:col-span-2 xl:col-span-1">Modelos do catálogo: {MODELOS.length}. As fotos dos modelos são próprias da SOBRE MÍDIA; troque pela foto do seu produto quando quiser.</p>
+          {saldo.data?.admin && (
+            <div className="space-y-2 rounded-xl border border-[#25D366]/30 bg-[#25D366]/5 p-4 sm:col-span-2 xl:col-span-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#7dffb0]">Owner / ADM</p>
+              {!novoModelo ? (
+                <button type="button" onClick={() => setNovoModelo({ nome, segmento: arte.segmento })} className="w-full rounded-lg border border-[#25D366]/50 py-2 text-sm font-semibold text-white hover:bg-[#25D366]/10" data-testid="studio-novo-modelo">Adicionar ao catálogo como modelo novo</button>
+              ) : (
+                <div className="space-y-2">
+                  <input className={campo} value={novoModelo.nome} maxLength={80} onChange={(e) => setNovoModelo({ ...novoModelo, nome: e.target.value })} aria-label="Nome do modelo" placeholder="Nome do modelo" />
+                  <select className={campo} value={novoModelo.segmento} onChange={(e) => setNovoModelo({ ...novoModelo, segmento: e.target.value as SegmentoId })} aria-label="Segmento">
+                    {SEGMENTOS.map((sg) => <option key={sg.id} value={sg.id} className="bg-[#140632]">{sg.nome}</option>)}
+                  </select>
+                  <div className="flex gap-2">
+                    <button type="button" disabled={!!ocupado || novoModelo.nome.trim().length < 3} onClick={adicionarAoCatalogo} className="flex-1 rounded-lg bg-[#25D366] py-2 text-sm font-bold text-[#0b2a17]">{ocupado === 'modelo' && <Loader2 className="mr-1 inline h-4 w-4 animate-spin" />}Publicar no catálogo</button>
+                    <button type="button" onClick={() => setNovoModelo(null)} className="rounded-lg border border-white/15 px-3 text-sm">Cancelar</button>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Use a foto própria ("Trocar pela minha foto") para o modelo novo. Todos os usuários poderão personalizar.</p>
+                </div>
+              )}
+            </div>
+          )}
+          <p className="text-[11px] text-slate-500 sm:col-span-2 xl:col-span-1">Modelos do catálogo: {catalogo.todos.length}. As fotos dos modelos são próprias da SOBRE MÍDIA; troque pela foto do seu produto quando quiser.</p>
         </div>
       </div>
 

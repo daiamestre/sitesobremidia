@@ -42,6 +42,8 @@ import { AvatarCabecalho } from '@/components/perfil/AvatarCabecalho';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+  // F-219: SOBRE MÍDIA Studio para todos os perfis
+  { icon: Clapperboard, label: 'Sobre Mídia Studio', path: '/studio' },
   { icon: Inbox, label: 'Central', path: '/dashboard/central' },
   { icon: Image, label: 'Minhas Mídias', path: '/dashboard/medias' },
   { icon: Library, label: 'Biblioteca de Mídias', path: '/dashboard/biblioteca' },
@@ -95,8 +97,6 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
           { icon: Store, label: 'Pontos parceiros', path: '/dashboard/pontos-parceiros' },
           // F-200: launcher Sobre Mídia dos aparelhos (dono/ADM)
           { icon: Smartphone, label: 'Launcher', path: '/workspace/launcher' },
-          // SOBRE MÍDIA STUDIO AI (modelos, editor, criação com IA); o anunciante entra por "Criar mídia" no portal
-          { icon: Clapperboard, label: 'Studio IA', path: '/studio' },
         ]
       : []),
     {

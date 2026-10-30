@@ -4,6 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Coins, Copy, Download, GitBranch, ImagePlus, Loader2, MessageSquarePlus, Paperclip, Send, ShieldCheck, Sparkles, Wand2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { PublicarDialog } from '@/components/studioai/PublicarDialog';
+import { PagamentoCreditos } from '@/components/studioai/PagamentoCreditos';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { EM_ANDAMENTO, SemCreditos, brl, gerarImagem, listarConversas, meuSaldo, obterConversa, sugerirPrompt, type ImagemIA, type Job } from '@/lib/studioai/api';
@@ -46,7 +48,9 @@ export default function IAPage() {
   const [publicar, setPublicar] = useState<ImagemIA | null>(null);
   const fim = useRef<HTMLDivElement>(null);
 
-  const anunciante = !!saldo.data?.cliente;
+  // F-219: todos pagam por criação, menos owner/ADM
+  const anunciante = !!saldo.data?.paga;
+  const [pagando, setPagando] = useState(false);
   const preco = brl(saldo.data?.preco_centavos ?? 499);
   const semSaldo = anunciante && (saldo.data?.saldo ?? 0) < 1;
   const jobs = conversa.data?.jobs ?? [];
@@ -184,7 +188,7 @@ export default function IAPage() {
               {sugestao.prompt && <p className="text-slate-100"><b className="text-[#FFD400]">Sugestão:</b> {sugestao.prompt}</p>}
               {sugestao.dicas.length > 0 && <ul className="list-disc pl-5 text-xs text-slate-300">{sugestao.dicas.map((d) => <li key={d}>{d}</li>)}</ul>}
               <div className="flex gap-2">
-                {sugestao.prompt && <button type="button" onClick={() => void gerar(sugestao.prompt!, texto)} disabled={!!ocupado || semSaldo} className="rounded-lg bg-[#FFD400] px-3 py-1.5 text-xs font-bold text-[#22004A]">Criar com a sugestão</button>}
+                {sugestao.prompt && <button type="button" onClick={() => { if (semSaldo) { setTexto(sugestao.prompt!); setPagando(true); } else void gerar(sugestao.prompt!, texto); }} disabled={!!ocupado} className="rounded-lg bg-[#FFD400] px-3 py-1.5 text-xs font-bold text-[#22004A]">Criar com a sugestão</button>}
                 <button type="button" onClick={() => setSugestao(null)} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white">Manter o meu texto</button>
               </div>
             </div>
@@ -207,16 +211,29 @@ export default function IAPage() {
             <button type="button" onClick={melhorar} disabled={!!ocupado} className="flex items-center gap-1.5 rounded-lg border border-[#FFD400]/40 px-3 py-2 text-xs text-[#FFD400] hover:bg-[#FFD400]/10">
               {ocupado === 'melhorar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}Melhorar descrição
             </button>
-            <button type="button" onClick={() => void gerar()} disabled={!!ocupado || semSaldo} data-testid="studio-ia-gerar"
+            <button type="button" onClick={() => { if (!semSaldo) { void gerar(); return; } if (texto.trim().length < 5) { toast.info('Descreva primeiro o que você quer criar.'); return; } setPagando(true); }} disabled={!!ocupado} data-testid="studio-ia-gerar"
               className="col-span-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r sm:ml-auto from-[#5D1BFF] to-[#8A2EFF] px-5 py-2.5 text-sm font-bold text-white shadow-[0_0_20px_rgba(138,46,255,0.45)] disabled:opacity-50">
               {ocupado === 'gerar' ? <Loader2 className="h-4 w-4 animate-spin" /> : origem ? <ImagePlus className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-              {origem ? 'Criar nova versão' : 'Gerar imagem'}{anunciante ? ` · 1 crédito (${preco})` : ''}
+              {semSaldo ? `Pagar ${preco} e criar` : `${origem ? 'Criar nova versão' : 'Gerar imagem'}${anunciante ? ` · 1 crédito (${preco})` : ''}`}
             </button>
           </div>
-          {semSaldo && <p className="text-xs text-amber-200">Você está sem créditos. <Link to="/studio/configuracoes" className="font-bold text-[#FFD400] hover:underline">Comprar créditos por PIX</Link> ({preco} cada criação).</p>}
+          {semSaldo && <p className="text-xs text-amber-200">Cada criação custa {preco}: você paga por PIX aqui mesmo e a criação começa assim que o pagamento é confirmado. Quer vários de uma vez? <Link to="/studio/configuracoes" className="font-bold text-[#FFD400] hover:underline">Comprar pacote de créditos</Link>.</p>}
           <p className="hidden text-[11px] text-slate-500 sm:block">Cada imagem criada consome 1 crédito{anunciante ? ` (${preco})` : ''}. Se a criação falhar, o crédito volta automaticamente. Imagens de produto criadas pela IA são ilustrativas: para a foto real use a foto do seu produto.</p>
         </footer>
       </section>
+
+      <Dialog open={pagando} onOpenChange={(v) => { if (!v) setPagando(false); }}>
+        <DialogContent className="max-w-2xl border-[#8A2EFF]/40 bg-[#14062f] text-slate-100">
+          <DialogHeader>
+            <DialogTitle>Pagar {preco} e criar</DialogTitle>
+            <DialogDescription className="text-slate-400">Pagamento por PIX dentro da SOBRE MÍDIA. Confirmado o pagamento, a sua imagem começa a ser criada na hora.</DialogDescription>
+          </DialogHeader>
+          {pagando && (
+            <PagamentoCreditos quantidade={1} onCancelar={() => setPagando(false)}
+              onCreditado={() => { void qc.invalidateQueries({ queryKey: ['studio-ai-saldo'] }); setPagando(false); setTimeout(() => { void gerar(); }, 400); }} />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <PublicarDialog aberto={!!publicar} onFechar={() => setPublicar(null)} clienteId={saldo.data?.cliente ?? null}
         nome={`Criação IA ${publicar ? new Date(publicar.criado_em).toLocaleDateString('pt-BR') : ''}`} formato={publicar && publicar.largura > publicar.altura ? '16:9' : publicar && publicar.largura < publicar.altura ? '9:16' : '1:1'}

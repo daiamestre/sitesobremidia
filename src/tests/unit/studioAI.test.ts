@@ -66,3 +66,30 @@ describe('banco: créditos imutáveis e preço do dono', () => {
     expect(sql).toMatch(/idempotencia text not null unique/);
   });
 });
+
+describe('F-219: Studio para todos, modelos só owner/ADM, todos pagam (menos owner/ADM)', () => {
+  const ler = (f: string) => fs.readFileSync(f, 'utf8');
+  it('"Sobre Mídia Studio" está nos três menus laterais, sem restrição de perfil', () => {
+    const portal = ler('src/modules/crm/layout/CustomerPortalLayout.tsx');
+    const grupoPrincipal = portal.slice(portal.indexOf("label: 'Principal'"), portal.indexOf("label: 'Minhas Mídias'"));
+    expect(grupoPrincipal).toContain("{ name: 'Sobre Mídia Studio', path: '/studio'");
+    expect(grupoPrincipal).not.toContain('somente');
+    const painel = ler('src/components/dashboard/Sidebar.tsx');
+    const itensFixos = painel.slice(painel.indexOf('const menuItems = ['), painel.indexOf('];', painel.indexOf('const menuItems = [')));
+    expect(itensFixos).toContain("label: 'Sobre Mídia Studio', path: '/studio'");
+    expect(ler('src/modules/crm/components/Sidebar.tsx')).toContain("{ label: 'Sobre Mídia Studio', icon: Clapperboard, path: '/studio' }");
+  });
+  it('banco: todos usam, owner/ADM não pagam, só owner/ADM criam modelos, cobrança visível só ao dono', () => {
+    const sql = ler('supabase/migrations/20261353_studio_ai_todos.sql');
+    expect(sql).toMatch(/u\.empresa_operadora_id is not null\s*\n\s*from public\.usuarios/);
+    expect(sql).toContain("if e.admin then raise exception 'Owner e administradores criam sem cobrança.'");
+    expect(sql).toContain("Só o proprietário e os administradores adicionam modelos.");
+    expect(sql).toContain("'Studio AI (user ' || auth.uid()::text || ')");
+    expect(sql).toMatch(/create policy so_o_proprio on public\.contas_receber as restrictive/);
+  });
+  it('a função cobra todos menos owner/ADM e libera sozinha o PIX pago', () => {
+    const fn = ler('supabase/functions/studio-ai/index.ts');
+    expect(fn).toContain('const cobrar = !e.admin;');
+    expect(fn).toContain("srv.rpc('studio_ai_creditar_pagas')");
+  });
+});

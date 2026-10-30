@@ -81,13 +81,15 @@ serve(async (req) => {
   const acao = String(body.acao ?? '');
 
   if (acao === 'varrer') {
+    // PIX já pago (o webhook do banco marca a cobrança PAGA) → crédito liberado mesmo sem a pessoa voltar à tela
+    const { data: creditadas } = await srv.rpc('studio_ai_creditar_pagas');
     const limite = new Date(Date.now() - 15 * 60_000).toISOString();
     const { data } = await srv.from('studio_ai_jobs').select('id, cobrar').in('status', ['RESERVANDO', 'PROCESSANDO']).lt('criado_em', limite).limit(50);
     for (const j of data ?? []) {
       await srv.rpc('studio_ai_estornar', { p_job: j.id, p_motivo: 'Geração interrompida' });
       await srv.from('studio_ai_jobs').update({ status: j.cobrar ? 'ESTORNADO' : 'FALHA', erro: 'A geração foi interrompida. Seu crédito foi devolvido.', concluido_em: new Date().toISOString() }).eq('id', j.id);
     }
-    return json(200, { recuperadas: (data ?? []).length });
+    return json(200, { recuperadas: (data ?? []).length, creditadas: creditadas ?? 0 });
   }
 
   // ----- daqui em diante: só usuário autenticado com acesso ao Studio
@@ -145,11 +147,13 @@ serve(async (req) => {
     conversaId = nova.id;
   }
 
-  // anunciante paga 1 crédito por criação; owner/ADM criam para a empresa (uso interno, custo registrado)
-  const cobrar = !!e.cliente;
+  // F-219: todos pagam 1 crédito (R$ 4,99) por criação, menos owner/ADM (uso interno, custo registrado).
+  // Carteira: a do cliente (anunciante) ou a pessoal (equipe sem cadastro de cliente).
+  const cobrar = !e.admin;
   let carteiraId: string | null = null;
   if (cobrar) {
-    const { data: cart } = await srv.from('studio_ai_carteiras').select('id, saldo').eq('cliente_id', e.cliente).maybeSingle();
+    const consulta = srv.from('studio_ai_carteiras').select('id, saldo');
+    const { data: cart } = await (e.cliente ? consulta.eq('cliente_id', e.cliente) : consulta.eq('usuario_id', u.user.id)).maybeSingle();
     if (!cart || cart.saldo < 1) return json(402, { error: 'Você não tem créditos. Compre créditos para criar com IA.', sem_creditos: true });
     carteiraId = cart.id;
   }

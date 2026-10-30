@@ -65,7 +65,7 @@ BEGIN
   END;
   SELECT count(*) INTO n FROM public.studio_projetos WHERE id = proj; r := r || format(E'\\n[17] A2 não apaga projeto de A1: %s', n = 1);
   BEGIN ${como(U.fin)}
-    j := public.studio_ai_meu_saldo(); r := r || format(E'\\n[18] FINANCEIRO sem acesso ao Studio: %s', (j->>'pode')::boolean = false);
+    j := public.studio_ai_meu_saldo(); r := r || format(E'\\n[18] FINANCEIRO usa o Studio pagando (regra F-219: todos menos owner/ADM pagam): %s', (j->>'pode')::boolean and (j->>'paga')::boolean);
     SELECT count(*) INTO n FROM public.studio_ai_carteiras; r := r || format(E'\\n[19] FINANCEIRO vê carteiras: %s', n);
     EXECUTE 'reset role';
   END;

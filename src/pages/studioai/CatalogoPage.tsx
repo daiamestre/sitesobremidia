@@ -5,6 +5,10 @@ import {
   Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
 import { ArteModelo } from '@/components/studio/ArteModelo';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { arquivarModelo, meuSaldo } from '@/lib/studioai/api';
+import { useCatalogo } from '@/lib/studioai/modelos';
 import { MODELOS, type ModeloDeArte } from '@/lib/studio/modelos';
 import {
   FILTRO_INICIAL, FORMATOS, ORDENS, SEGMENTOS, TIPOS_DE_EDICAO, contarPorSegmento, filtrarModelos, nomeDoSegmento,
@@ -45,8 +49,17 @@ export default function CatalogoPage() {
   const [segmentosAbertos, setSegmentosAbertos] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches);
   useEffect(() => { setFiltro((f) => ({ ...f, busca: params.get('busca') ?? '' })); }, [params]);
 
-  const lista = useMemo(() => filtrarModelos(MODELOS, filtro, favoritos), [filtro, favoritos]);
-  const contagem = useMemo(() => contarPorSegmento(MODELOS, filtro), [filtro]);
+  // catálogo = modelos próprios + modelos novos do owner/ADM (studio_modelos)
+  const catalogo = useCatalogo();
+  const qc = useQueryClient();
+  const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo, staleTime: 30_000 });
+  const admin = !!saldo.data?.admin;
+  const lista = useMemo(() => filtrarModelos(catalogo.todos, filtro, favoritos), [catalogo.todos, filtro, favoritos]);
+  const contagem = useMemo(() => contarPorSegmento(catalogo.todos, filtro), [catalogo.todos, filtro]);
+  const arquivar = async (m: ModeloDeArte) => {
+    if (!window.confirm(`Arquivar o modelo "${m.nome}"? Ele sai do catálogo (projetos já salvos continuam).`)) return;
+    try { await arquivarModelo(m.id); void qc.invalidateQueries({ queryKey: ['studio-modelos'] }); toast.success('Modelo arquivado.'); } catch (e) { toast.error((e as Error).message); }
+  };
   const tvs = useMemo(vitrine, []);
   const alternarFavorito = (id: string) => setFavoritos((s) => {
     const n = new Set(s);
@@ -114,7 +127,7 @@ export default function CatalogoPage() {
         <Selecao rotulo="Tipo de edição" valor={filtro.edicao ?? ''} opcoes={[{ id: '', nome: 'Todos' }, ...TIPOS_DE_EDICAO]} onChange={(v) => setFiltro((f) => ({ ...f, edicao: (v || null) as FiltroDoCatalogo['edicao'] }))} />
         <div className="col-span-2 flex flex-wrap items-center gap-3 sm:ml-auto [&>label]:flex-1 sm:[&>label]:flex-none">
           <Selecao rotulo="Ordenar por" valor={filtro.ordem} opcoes={ORDENS} onChange={(v) => setFiltro((f) => ({ ...f, ordem: v as FiltroDoCatalogo['ordem'] }))} />
-          <p className="text-xs text-slate-400" aria-live="polite">Mostrando {lista.length} de {MODELOS.length} modelos</p>
+          <p className="text-xs text-slate-400" aria-live="polite">Mostrando {lista.length} de {catalogo.todos.length} modelos</p>
         </div>
       </div>
 
@@ -156,6 +169,7 @@ export default function CatalogoPage() {
                 </div>
                 <span className="mt-2 inline-flex w-fit items-center gap-1 rounded bg-[#5D1BFF]/40 px-1.5 py-0.5 text-[10px] font-bold text-white">{m.formato === '16:9' ? <Monitor className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}{m.formato}</span>
                 <h3 className="mt-1 truncate text-sm font-semibold text-white" title={m.nome}>{m.nome}</h3>
+                {catalogo.daEmpresa.has(m.id) && admin && <button type="button" onClick={() => void arquivar(m)} className="w-fit text-[11px] text-slate-500 hover:text-rose-300">Arquivar modelo</button>}
                 <p className="text-xs text-slate-400">{nomeDoSegmento(m.segmento)}</p>
                 <Link to={`/studio/editar/${m.id}`} className="mt-3 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]">Personalizar arte</Link>
               </article>

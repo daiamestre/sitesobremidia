@@ -87,7 +87,7 @@ export function StudioAILayout() {
         <div className="ml-auto flex shrink-0 items-center gap-2 md:ml-0">
           <Link to="/studio/configuracoes" title="Créditos de criação com IA"
             className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#FFD400]/40 bg-[#FFD400]/10 px-3 py-1.5 text-xs font-bold text-[#FFD400] sm:flex">
-            <Coins className="h-3.5 w-3.5" />{saldo.data ? (anunciante ? `${saldo.data.saldo} crédito${saldo.data.saldo === 1 ? '' : 's'}` : 'Uso interno') : '—'}
+            <Coins className="h-3.5 w-3.5" />{saldo.data ? (saldo.data.paga ? `${saldo.data.saldo} crédito${saldo.data.saldo === 1 ? '' : 's'}` : 'Uso interno') : '—'}
           </Link>
           <button type="button" className="rounded-full p-2 text-slate-300 hover:bg-white/5" aria-label="Notificações"><Bell className="h-5 w-5" /></button>
           <div className="relative">
