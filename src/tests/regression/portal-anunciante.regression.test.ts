@@ -155,7 +155,7 @@ describe('[REGRESSÃO] Recuperação de senha COM AUTORIZAÃ‡ÃO (Central)', (
 
 describe('[REGRESSÃO] Regra comercial da mídia — grátis só na 1ª playlist, o resto pelo valor do anunciante (F-166)', () => {
   it('RPC adicionar_midia_playlist: 1ª playlist grátis, depois cortesia liberada, depois cobra o valor do anunciante', () => {
-    const m = lerUltimaMigrationContendo('adicionar_midia_playlist');
+    const m = lerMigrationDefinindo('CREATE OR REPLACE FUNCTION public.adicionar_midia_playlist');
     expect(m).not.toBeNull();
     const sql = m!.sql;
     expect(sql).toContain('v_cota.primeira_playlist_id = p_playlist_id');
