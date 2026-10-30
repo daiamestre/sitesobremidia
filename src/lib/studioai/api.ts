@@ -24,7 +24,7 @@ async function rpc<T>(f: string, args: Record<string, unknown> = {}): Promise<T>
 
 /** paga = todos menos owner/ADM (F-219): 1 crédito (R$ 4,99) por criação com IA. */
 export interface MeuSaldo { cliente: string | null; admin: boolean; pode: boolean; paga: boolean; saldo: number; reservado: number; preco_centavos: number; habilitado: boolean }
-export interface Projeto { id: string; modelo_id: string; nome: string; formato: '16:9' | '9:16'; dados: Partial<ModeloDeArte>; miniatura_url: string | null; atualizado_em: string }
+export interface Projeto { id: string; modelo_id: string; nome: string; formato: '16:9' | '9:16'; dados: Partial<ModeloDeArte> & Record<string, unknown>; miniatura_url: string | null; atualizado_em: string }
 export interface Conversa { id: string; titulo: string; cliente_id: string | null; atualizado_em: string }
 export type StatusJob = 'AGUARDANDO' | 'RESERVANDO' | 'PROCESSANDO' | 'CONCLUIDO' | 'FALHA' | 'CANCELADO' | 'ESTORNO_PENDENTE' | 'ESTORNADO';
 export interface Job { id: string; conversa_id: string; tipo: 'gerar' | 'editar'; status: StatusJob; prompt_original: string; prompt_enviado: string; parametros: { proporcao: string; qualidade: string; transparente: boolean }; modelo: string; referencias: string[]; origem_imagem_id: string | null; cobrar: boolean; creditos: number; erro: string | null; criado_em: string; concluido_em: string | null }
@@ -54,7 +54,7 @@ export async function obterProjeto(id: string): Promise<Projeto | null> {
   const { data } = await db.from<Projeto>('studio_projetos').select('*').eq('id', id).maybeSingle();
   return data;
 }
-export const salvarProjeto = (p: { id: string | null; modeloId: string; nome: string; formato: string; dados: Partial<ModeloDeArte>; miniatura: string | null }) =>
+export const salvarProjeto = (p: { id: string | null; modeloId: string; nome: string; formato: string; dados: Partial<ModeloDeArte> | Record<string, unknown>; miniatura: string | null }) =>
   rpc<string>('studio_projeto_salvar', { p_id: p.id, p_modelo: p.modeloId, p_nome: p.nome, p_formato: p.formato, p_dados: p.dados, p_miniatura: p.miniatura });
 export const apagarProjeto = (id: string) => rpc('studio_projeto_apagar', { p_id: id });
 

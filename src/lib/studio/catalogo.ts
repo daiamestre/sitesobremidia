@@ -4,12 +4,13 @@ import type { ModeloDeArte } from './modelos';
 
 export type SegmentoId =
   | 'supermercados' | 'alimentacao' | 'saude' | 'beleza' | 'servicos' | 'moda'
-  | 'educacao' | 'imobiliaria' | 'fitness' | 'pet' | 'tecnologia';
+  | 'educacao' | 'imobiliaria' | 'fitness' | 'pet' | 'tecnologia' | 'campanhas';
 
 export interface Segmento { id: SegmentoId; nome: string }
 
 /** Os 11 segmentos, na ordem da referência visual (a categoria "Todos" vem antes deles). */
 export const SEGMENTOS: Segmento[] = [
+  { id: 'campanhas', nome: 'Campanhas e datas' },
   { id: 'supermercados', nome: 'Supermercados' },
   { id: 'alimentacao', nome: 'Alimentação' },
   { id: 'saude', nome: 'Saúde' },

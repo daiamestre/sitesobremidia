@@ -2,8 +2,9 @@
 // na conta Cloudflare do dono, sem pessoas reais nem marcas, em public/studio/fotos). Cada modelo é desenhado por
 // src/components/studio/ArteModelo.tsx em qualquer tamanho, e a edição rápida (MG03) troca só estes campos.
 import type { Formato, SegmentoId, TipoDeEdicao } from './catalogo';
+import type { Documento } from './documento';
 
-export type LayoutDaArte = 'faixa' | 'claro' | 'escuro' | 'vertical-foto' | 'vertical-painel';
+export type LayoutDaArte = 'faixa' | 'claro' | 'escuro' | 'vertical-foto' | 'vertical-painel' | 'neon';
 export type FonteDaArte = 'anton' | 'bebas' | 'montserrat' | 'fira-condensed';
 
 export interface SeloDaArte { topo?: string; valor: string; sufixo?: string; base?: string }
@@ -45,6 +46,10 @@ export interface ModeloDeArte {
   fonte: FonteDaArte;
   textos: TextosDaArte;
   cores: CoresDaArte;
+  /** F-221: documento de camadas gravado pelo owner/ADM (senão é montado a partir do layout) */
+  documentos?: Partial<Record<'16:9' | '9:16', Documento>>;
+  /** F-221: pasta (modelo de capa) em que o modelo aparece */
+  pasta?: string;
 }
 
 export const PASTA_DAS_FOTOS = '/studio/fotos';

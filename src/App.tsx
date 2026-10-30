@@ -164,6 +164,7 @@ const StudioAILayout = lazyWithRetry(() => import("./components/studioai/StudioA
 const StudioCatalogo = lazyWithRetry(() => import("./pages/studioai/CatalogoPage"));
 const StudioEditor = lazyWithRetry(() => import("./pages/studioai/EditorPage"));
 const StudioIA = lazyWithRetry(() => import("./pages/studioai/IAPage"));
+const StudioPasta = lazyWithRetry(() => import("./pages/studioai/PastaPage"));
 const StudioProjetos = lazyWithRetry(() => import("./pages/studioai/ProjetosPage"));
 const StudioConfiguracoes = lazyWithRetry(() => import("./pages/studioai/ConfiguracoesPage"));
 const ExpansaoPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ExpansaoPage"));
@@ -358,6 +359,7 @@ const App = () => {
 
                   <Route path="/studio" element={<RequireApproval><StudioAILayout /></RequireApproval>}>
                     <Route index element={<StudioCatalogo />} />
+                    <Route path="pasta/:pastaId" element={<StudioPasta />} />
                     <Route path="editar/:modeloId" element={<StudioEditor />} />
                     <Route path="projeto/:projetoId" element={<StudioEditor />} />
                     <Route path="ia" element={<StudioIA />} />

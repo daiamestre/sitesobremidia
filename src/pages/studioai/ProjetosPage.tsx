@@ -2,14 +2,24 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderKanban, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { ArteModelo } from '@/components/studio/ArteModelo';
+import { useMemo } from 'react';
+import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
+import { modeloParaDocumento, type Documento, type FormatoDoc } from '@/lib/studio/documento';
 import { modeloPorId, type ModeloDeArte } from '@/lib/studio/modelos';
+import { acharModelo } from '@/lib/studio/pastas';
 import { apagarProjeto, listarProjetos, ultimasImagens, type Projeto } from '@/lib/studioai/api';
 
-function arteDoProjeto(p: Projeto): ModeloDeArte | null {
-  const base = modeloPorId(p.modelo_id);
+/** Documento do projeto: o salvo em camadas (F-221) ou o antigo convertido. */
+function documentoDoProjeto(p: Projeto): Documento | null {
+  const d = p.dados as Partial<ModeloDeArte> & { versao?: number; documentos?: Partial<Record<FormatoDoc, Documento>> };
+  if (d.versao === 2 && d.documentos) return d.documentos[p.formato] ?? Object.values(d.documentos)[0] ?? null;
+  const base = acharModelo(p.modelo_id) ?? modeloPorId(p.modelo_id);
   if (!base) return null;
-  return { ...base, ...p.dados, textos: { ...base.textos, ...(p.dados.textos ?? {}) }, cores: { ...base.cores, ...(p.dados.cores ?? {}) } };
+  return modeloParaDocumento({ ...base, ...d, textos: { ...base.textos, ...(d.textos ?? {}) }, cores: { ...base.cores, ...(d.cores ?? {}) } }, p.formato);
+}
+function Miniatura({ p }: { p: Projeto }) {
+  const doc = useMemo(() => documentoDoProjeto(p), [p]);
+  return doc ? <div className={p.formato === '16:9' ? 'w-full' : 'h-full aspect-[9/16]'}><PreviaDocumento doc={doc} /></div> : null;
 }
 
 export default function ProjetosPage() {
@@ -28,11 +38,10 @@ export default function ProjetosPage() {
         {projetos.data?.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">Nenhum projeto salvo. <Link to="/studio" className="font-semibold text-[#FFD400] hover:underline">Escolha um modelo</Link> para começar.</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {projetos.data?.map((p) => {
-            const arte = arteDoProjeto(p);
             return (
               <article key={p.id} className="overflow-hidden rounded-xl border border-white/10 bg-[#140632] p-3">
                 <Link to={`/studio/projeto/${p.id}`} className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  {arte && <div className={p.formato === '16:9' ? 'w-full' : 'h-full aspect-[9/16]'}><ArteModelo modelo={arte} /></div>}
+                  <Miniatura p={p} />
                 </Link>
                 <div className="mt-2 flex items-start justify-between gap-2">
                   <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{p.nome}</p><p className="text-xs text-slate-500">{p.formato} · {new Date(p.atualizado_em).toLocaleString('pt-BR')}</p></div>

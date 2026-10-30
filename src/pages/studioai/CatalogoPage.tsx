@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ArrowRight, BriefcaseMedical, ChevronDown, Dumbbell, Filter, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
-  Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
+  ArrowRight, BriefcaseMedical, ChevronDown, Dumbbell, Filter, FolderOpen, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
+  Percent, Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
-import { ArteModelo } from '@/components/studio/ArteModelo';
+import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
+import { modeloParaDocumento, type FormatoDoc } from '@/lib/studio/documento';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { arquivarModelo, meuSaldo } from '@/lib/studioai/api';
 import { useCatalogo } from '@/lib/studioai/modelos';
 import { MODELOS, type ModeloDeArte } from '@/lib/studio/modelos';
+import { BLACK_FRIDAY } from '@/lib/studio/pastas';
 import {
   FILTRO_INICIAL, FORMATOS, ORDENS, SEGMENTOS, TIPOS_DE_EDICAO, contarPorSegmento, filtrarModelos, nomeDoSegmento,
   type FiltroDoCatalogo, type SegmentoId,
@@ -18,15 +20,22 @@ import { cn } from '@/lib/utils';
 
 const ICONE: Record<SegmentoId | 'todos', typeof LayoutGrid> = {
   todos: LayoutGrid, supermercados: ShoppingCart, alimentacao: Utensils, saude: BriefcaseMedical, beleza: Flower2, servicos: Settings2,
-  moda: Shirt, educacao: GraduationCap, imobiliaria: House, fitness: Dumbbell, pet: PawPrint, tecnologia: Monitor,
+  moda: Shirt, educacao: GraduationCap, imobiliaria: House, fitness: Dumbbell, pet: PawPrint, tecnologia: Monitor, campanhas: Percent,
 };
 const CHAVE_FAVORITOS = 'studio-favoritos';
 const lerFavoritos = (): Set<string> => { try { return new Set(JSON.parse(localStorage.getItem(CHAVE_FAVORITOS) ?? '[]')); } catch { return new Set(); } };
 
 /** As 3 TVs do banner: modelos reais do catálogo (16:9, 16:9 e 9:16), não imagens de demonstração. */
-function vitrine(): ModeloDeArte[] {
-  const por = (seg: SegmentoId, f: '16:9' | '9:16') => MODELOS.find((m) => m.segmento === seg && m.formato === f) ?? MODELOS.find((m) => m.formato === f)!;
-  return [por('alimentacao', '16:9'), por('saude', '16:9'), por('fitness', '9:16')];
+function vitrine(capas: ModeloDeArte[]): { m: ModeloDeArte; f: FormatoDoc }[] {
+  const por = (seg: SegmentoId) => MODELOS.find((m) => m.segmento === seg)!;
+  const bf = capas.find((m) => m.id === BLACK_FRIDAY.id);
+  return [{ m: por('alimentacao'), f: '16:9' }, { m: por('saude'), f: '16:9' }, { m: bf ?? por('fitness'), f: '9:16' }];
+}
+
+/** Miniatura de um modelo no formato pedido (cada modelo existe em 16:9 e 9:16). */
+function Miniatura({ m, formato, className }: { m: ModeloDeArte; formato: FormatoDoc; className?: string }) {
+  const doc = useMemo(() => modeloParaDocumento(m, formato), [m, formato]);
+  return <PreviaDocumento doc={doc} className={className} />;
 }
 
 function Selecao({ rotulo, valor, opcoes, onChange }: { rotulo: string; valor: string; opcoes: { id: string; nome: string }[]; onChange: (v: string) => void }) {
@@ -54,13 +63,20 @@ export default function CatalogoPage() {
   const qc = useQueryClient();
   const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo, staleTime: 30_000 });
   const admin = !!saldo.data?.admin;
-  const lista = useMemo(() => filtrarModelos(catalogo.todos, filtro, favoritos), [catalogo.todos, filtro, favoritos]);
-  const contagem = useMemo(() => contarPorSegmento(catalogo.todos, filtro), [catalogo.todos, filtro]);
+  // F-221: cada card é uma PASTA; a busca acha a pasta por qualquer modelo dentro dela ("picanha" → Açougue)
+  const pastaDe = useMemo(() => new Map(catalogo.pastas.map((p) => [p.capa.id, p])), [catalogo.pastas]);
+  const casam = useMemo(() => {
+    const ids = new Set(filtrarModelos(catalogo.todos, { ...filtro, formato: null, segmentos: [] }).map((m) => (m.pasta && pastaDe.has(m.pasta) ? m.pasta : m.id)));
+    return catalogo.pastas.map((p) => p.capa).filter((c) => ids.has(c.id));
+  }, [catalogo.todos, catalogo.pastas, filtro, pastaDe]);
+  const lista = useMemo(() => filtrarModelos(casam, { ...filtro, formato: null, busca: '' }, favoritos), [casam, filtro, favoritos]);
+  const contagem = useMemo(() => contarPorSegmento(casam, { ...filtro, formato: null, busca: '' }), [casam, filtro]);
+  const total = catalogo.todos.length;
   const arquivar = async (m: ModeloDeArte) => {
     if (!window.confirm(`Arquivar o modelo "${m.nome}"? Ele sai do catálogo (projetos já salvos continuam).`)) return;
     try { await arquivarModelo(m.id); void qc.invalidateQueries({ queryKey: ['studio-modelos'] }); toast.success('Modelo arquivado.'); } catch (e) { toast.error((e as Error).message); }
   };
-  const tvs = useMemo(vitrine, []);
+  const tvs = useMemo(() => vitrine(catalogo.pastas.map((p) => p.capa)), [catalogo.pastas]);
   const alternarFavorito = (id: string) => setFavoritos((s) => {
     const n = new Set(s);
     if (n.has(id)) n.delete(id); else n.add(id);
@@ -84,10 +100,10 @@ export default function CatalogoPage() {
             <a href="#modelos" className="inline-flex items-center gap-2 rounded-full bg-[#FFD400] px-6 py-3 text-sm font-bold text-[#22004A] shadow-[0_8px_24px_rgba(255,212,0,0.35)] transition hover:brightness-105">Explorar modelos <ArrowRight className="h-4 w-4" /></a>
           </div>
           <div className="relative flex items-end justify-center gap-3 pb-6" aria-label="Exemplos de artes nas telas">
-            {tvs.map((m, i) => (
-              <div key={m.id} className={cn('relative rounded-lg border-[3px] border-[#2a2a3a] bg-black p-0.5 shadow-[0_20px_40px_rgba(0,0,0,0.6)]',
-                m.formato === '9:16' ? 'w-[22%]' : i === 1 ? 'z-10 w-[40%]' : 'w-[34%]')}>
-                <ArteModelo modelo={m} className="rounded" />
+            {tvs.map(({ m, f }, i) => (
+              <div key={m.id + f} className={cn('relative rounded-lg border-[3px] border-[#2a2a3a] bg-black p-0.5 shadow-[0_20px_40px_rgba(0,0,0,0.6)]',
+                f === '9:16' ? 'w-[22%]' : i === 1 ? 'z-10 w-[40%]' : 'w-[34%]')}>
+                <Miniatura m={m} formato={f} className="rounded" />
               </div>
             ))}
             <div aria-hidden className="absolute bottom-2 left-[6%] right-[6%] h-3 rounded-full bg-gradient-to-r from-transparent via-[#B04DFF] to-transparent blur-sm" />
@@ -104,7 +120,7 @@ export default function CatalogoPage() {
       {/* ── categorias */}
       <section aria-labelledby="titulo-categorias" className="space-y-3">
         <h2 id="titulo-categorias" className="flex items-center gap-2 text-lg font-bold text-white"><span className="h-5 w-1 rounded bg-[#8A2EFF]" />Categorias</h2>
-        <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:grid md:grid-cols-6 md:overflow-visible md:px-0 xl:grid-cols-12">
+        <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:grid md:grid-cols-7 md:overflow-visible md:px-0 xl:grid-cols-[repeat(13,minmax(0,1fr))]">
           {([{ id: 'todos' as const, nome: 'Todos' }, ...SEGMENTOS]).map((s) => {
             const ativo = s.id === 'todos' ? filtro.segmentos.length === 0 : filtro.segmentos.length === 1 && filtro.segmentos[0] === s.id;
             const Icone = ICONE[s.id];
@@ -127,7 +143,7 @@ export default function CatalogoPage() {
         <Selecao rotulo="Tipo de edição" valor={filtro.edicao ?? ''} opcoes={[{ id: '', nome: 'Todos' }, ...TIPOS_DE_EDICAO]} onChange={(v) => setFiltro((f) => ({ ...f, edicao: (v || null) as FiltroDoCatalogo['edicao'] }))} />
         <div className="col-span-2 flex flex-wrap items-center gap-3 sm:ml-auto [&>label]:flex-1 sm:[&>label]:flex-none">
           <Selecao rotulo="Ordenar por" valor={filtro.ordem} opcoes={ORDENS} onChange={(v) => setFiltro((f) => ({ ...f, ordem: v as FiltroDoCatalogo['ordem'] }))} />
-          <p className="text-xs text-slate-400" aria-live="polite">Mostrando {lista.length} de {catalogo.todos.length} modelos</p>
+          <p className="text-xs text-slate-400" aria-live="polite">{lista.length} pastas · {total} modelos, todos em 16:9 e 9:16</p>
         </div>
       </div>
 
@@ -158,22 +174,30 @@ export default function CatalogoPage() {
             </div>
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {lista.map((m) => (
-              <article key={m.id} className="group flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#140632] p-3 transition hover:border-[#8A2EFF]/70 hover:shadow-[0_0_28px_rgba(93,27,255,0.35)]">
+            {lista.map((m) => {
+              const f: FormatoDoc = filtro.formato ?? (m.formato as FormatoDoc);
+              const qtd = pastaDe.get(m.id)?.modelos.length ?? 1;
+              return (
+              <article key={m.id} className="group flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#140632] p-3 transition hover:border-[#8A2EFF]/70 hover:shadow-[0_0_28px_rgba(93,27,255,0.35)]" data-testid="studio-pasta-card">
                 <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  <div className={cn(m.formato === '16:9' ? 'w-full' : 'h-full aspect-[9/16]')}><ArteModelo modelo={m} /></div>
+                  <Link to={`/studio/pasta/${m.id}`} aria-label={`Abrir a pasta ${m.nome}`} className={cn('block', f === '16:9' ? 'w-full' : 'h-full aspect-[9/16]')}><Miniatura m={m} formato={f} /></Link>
+                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><FolderOpen className="h-3 w-3 text-[#FFD400]" />{qtd} {qtd === 1 ? 'modelo' : 'modelos'}</span>
                   <button type="button" onClick={() => alternarFavorito(m.id)} aria-label={favoritos.has(m.id) ? 'Tirar dos favoritos' : 'Favoritar'} aria-pressed={favoritos.has(m.id)}
                     className="absolute right-2 top-2 rounded-full bg-black/40 p-1.5 text-white backdrop-blur hover:bg-black/60">
                     <Heart className={cn('h-4 w-4', favoritos.has(m.id) && 'fill-[#FFD400] text-[#FFD400]')} />
                   </button>
                 </div>
-                <span className="mt-2 inline-flex w-fit items-center gap-1 rounded bg-[#5D1BFF]/40 px-1.5 py-0.5 text-[10px] font-bold text-white">{m.formato === '16:9' ? <Monitor className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}{m.formato}</span>
+                <span className="mt-2 flex gap-1">{(['16:9', '9:16'] as const).map((x) => <span key={x} className={cn('inline-flex w-fit items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold text-white', x === f ? 'bg-[#5D1BFF]' : 'bg-[#5D1BFF]/30')}>{x === '16:9' ? <Monitor className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}{x}</span>)}</span>
                 <h3 className="mt-1 truncate text-sm font-semibold text-white" title={m.nome}>{m.nome}</h3>
                 {catalogo.daEmpresa.has(m.id) && admin && <button type="button" onClick={() => void arquivar(m)} className="w-fit text-[11px] text-slate-500 hover:text-rose-300">Arquivar modelo</button>}
                 <p className="text-xs text-slate-400">{nomeDoSegmento(m.segmento)}</p>
-                <Link to={`/studio/editar/${m.id}`} className="mt-3 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]">Personalizar arte</Link>
+                <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                  <Link to={`/studio/pasta/${m.id}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
+                  <Link to={`/studio/editar/${m.id}?formato=${encodeURIComponent(f)}`} title="Personalizar esta arte" aria-label="Personalizar esta arte" className="rounded-lg border border-white/15 px-3 py-2 text-sm text-white hover:bg-white/5"><PenLine className="h-4 w-4" /></Link>
+                </div>
               </article>
-            ))}
+              );
+            })}
           </div>
           <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-xl border border-[#FFD400]/30 bg-gradient-to-r from-[#22004A] to-[#14062f] p-5 sm:flex-row">
             <p className="text-sm text-slate-200"><Sparkles className="mr-2 inline h-4 w-4 text-[#FFD400]" />Não achou o que queria? Descreva a sua ideia e a IA cria uma arte nova para você.</p>
