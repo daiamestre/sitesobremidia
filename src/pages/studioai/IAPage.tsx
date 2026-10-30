@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Coins, Copy, Download, GitBranch, ImagePlus, Loader2, MessageSquarePlus, Paperclip, Send, ShieldCheck, Sparkles, Wand2, X } from 'lucide-react';
+import { AlertTriangle, Bot, Coins, Copy, Download, GitBranch, ImagePlus, Loader2, MessageSquarePlus, Paperclip, Send, ShieldCheck, Sparkles, Wand2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { PublicarDialog } from '@/components/studioai/PublicarDialog';
 import { PagamentoCreditos } from '@/components/studioai/PagamentoCreditos';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { uploadToR2 } from '@/lib/r2Upload';
-import { EM_ANDAMENTO, SemCreditos, brl, gerarImagem, listarConversas, meuSaldo, obterConversa, sugerirPrompt, type ImagemIA, type Job } from '@/lib/studioai/api';
+import { EM_ANDAMENTO, SemCreditos, analisarReferencia, brl, gerarImagem, type AnaliseDoAgente, listarConversas, meuSaldo, obterConversa, sugerirPrompt, type ImagemIA, type Job } from '@/lib/studioai/api';
 import { baixar } from '@/lib/studioai/exportar';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +19,24 @@ const STATUS: Record<string, string> = {
   AGUARDANDO: 'Aguardando', RESERVANDO: 'Reservando crédito', PROCESSANDO: 'Criando a imagem…', CONCLUIDO: 'Pronto', FALHA: 'Falhou',
   CANCELADO: 'Cancelado', ESTORNO_PENDENTE: 'Devolvendo crédito', ESTORNADO: 'Falhou · crédito devolvido',
 };
+
+/** Lê o tamanho real da imagem e reduz fotos grandes (até 2048 px, JPEG) antes de enviar: análise mais rápida e leve. */
+async function prepararImagem(arq: File): Promise<{ blob: Blob; tipo: string; largura: number; altura: number }> {
+  const url = URL.createObjectURL(arq);
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => erro(new Error('Imagem inválida.')); i.src = url; });
+    const largura = img.naturalWidth, altura = img.naturalHeight;
+    if (Math.max(largura, altura) <= 2048 && arq.size <= 3.5 * 1024 * 1024) return { blob: arq, tipo: arq.type, largura, altura };
+    const escala = Math.min(1, 2048 / Math.max(largura, altura));
+    const tela = document.createElement('canvas');
+    tela.width = Math.round(largura * escala); tela.height = Math.round(altura * escala);
+    tela.getContext('2d')?.drawImage(img, 0, 0, tela.width, tela.height);
+    const blob = await new Promise<Blob | null>((ok) => tela.toBlob(ok, 'image/jpeg', 0.9));
+    if (!blob) throw new Error('Não foi possível preparar a imagem.');
+    return { blob, tipo: 'image/jpeg', largura, altura };
+  } finally { URL.revokeObjectURL(url); }
+}
+const TAMANHO_POR_PROPORCAO = { quadrado: [1024, 1024], horizontal: [1536, 864], vertical: [864, 1536] } as const;
 
 async function blobDaUrl(url: string) {
   const r = await fetch(url);
@@ -46,6 +64,11 @@ export default function IAPage() {
   const [sugestao, setSugestao] = useState<{ prompt: string | null; dicas: string[]; aviso: string | null } | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [publicar, setPublicar] = useState<ImagemIA | null>(null);
+  // F-220: motor da criação — o Agente SOBRE MÍDIA (Cloudflare, analisa a referência e escreve o prompt) ou o ChatGPT
+  const [motor, setMotor] = useState<'cloudflare' | 'openai'>('cloudflare');
+  const [dims, setDims] = useState<Record<string, { largura: number; altura: number }>>({});
+  const [analise, setAnalise] = useState<AnaliseDoAgente | null>(null);
+  const [promptAgente, setPromptAgente] = useState('');
   const fim = useRef<HTMLDivElement>(null);
 
   // F-219: todos pagam por criação, menos owner/ADM
@@ -64,8 +87,11 @@ export default function IAPage() {
     if (!/^image\/(jpeg|png|webp)$/.test(arq.type) || arq.size > 20 * 1024 * 1024) { toast.error('Envie JPG, PNG ou WebP de até 20 MB.'); return; }
     setOcupado('anexo');
     try {
-      const { publicUrl } = await uploadToR2(arq, `${user.id}/studio/ref-${Date.now()}.${arq.type.split('/')[1]}`, arq.type, user.id, { preventOverwrite: true });
+      const p = await prepararImagem(arq);
+      const { publicUrl } = await uploadToR2(p.blob, `${user.id}/studio/ref-${Date.now()}.${p.tipo.split('/')[1]}`, p.tipo, user.id, { preventOverwrite: true });
+      setDims((d) => ({ ...d, [publicUrl]: { largura: p.largura, altura: p.altura } }));
       setRefs((r) => [...r, publicUrl].slice(0, 4));
+      setAnalise(null);
     } catch (e) { toast.error((e as Error).message); } finally { setOcupado(null); }
   };
 
@@ -75,12 +101,28 @@ export default function IAPage() {
     try { setSugestao(await sugerirPrompt(texto)); } catch (e) { toast.error((e as Error).message); } finally { setOcupado(null); }
   };
 
-  const gerar = async (prompt = texto, original = texto) => {
+  const analisar = async () => {
+    const ref = refs[0];
+    if (!ref) { toast.info('Anexe a imagem de referência primeiro.'); return; }
+    setOcupado('analisar');
+    try {
+      const d = dims[ref] ?? { largura: 1024, altura: 1024 };
+      const a = await analisarReferencia(ref, d.largura, d.altura, texto.trim() || null);
+      setAnalise(a); setPromptAgente(a.prompt);
+    } catch (e) { toast.error((e as Error).message || 'O agente não conseguiu analisar a imagem.'); } finally { setOcupado(null); }
+  };
+
+  const gerar = async (promptInformado?: string, originalInformado?: string) => {
+    const cf = motor === 'cloudflare';
+    const prompt = promptInformado ?? (cf && analise ? promptAgente : texto);
+    const original = originalInformado ?? (cf && analise ? `Recriar a imagem de referência${texto.trim() ? ` — ${texto.trim()}` : ''}` : texto);
     if (prompt.trim().length < 5) { toast.info('Descreva o que você quer criar.'); return; }
     setOcupado('gerar');
     try {
-      const r = await gerarImagem({ conversaId, prompt: prompt.trim(), promptOriginal: original.trim(), proporcao, qualidade, transparente, referencias: refs, origemImagemId: origem?.id ?? null });
-      setTexto(''); setRefs([]); setOrigem(null); setSugestao(null);
+      const [lw, lh] = cf && analise ? [analise.width, analise.height] : TAMANHO_POR_PROPORCAO[proporcao];
+      const r = await gerarImagem({ conversaId, prompt: prompt.trim(), promptOriginal: original.trim(), proporcao, qualidade, transparente, referencias: refs, origemImagemId: cf ? null : origem?.id ?? null,
+        motor, largura: lw, altura: lh, agenteVersao: analise?.agente_versao ?? null });
+      setTexto(''); setRefs([]); setOrigem(null); setSugestao(null); setAnalise(null); setPromptAgente('');
       if (r.conversa_id !== conversaId) setParams({ conversa: r.conversa_id });
       void qc.invalidateQueries({ queryKey: ['studio-ai-conversa', r.conversa_id] });
       void qc.invalidateQueries({ queryKey: ['studio-ai-conversas'] });
@@ -113,7 +155,7 @@ export default function IAPage() {
       <section className="flex min-h-[70vh] flex-col rounded-xl border border-[#8A2EFF]/30 bg-[#0e0424]">
         <header className="flex flex-wrap items-center gap-3 border-b border-white/5 p-4">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#FFD400] to-[#ff9d00] text-[#22004A]"><Sparkles className="h-5 w-5" /></span>
-          <div className="mr-auto"><h1 className="text-lg font-black text-white">Criar com IA</h1><p className="text-xs text-slate-400">ChatGPT (OpenAI GPT Image) dentro da SOBRE MÍDIA</p></div>
+          <div className="mr-auto"><h1 className="text-lg font-black text-white">Criar com IA</h1><p className="text-xs text-slate-400">Agente SOBRE MÍDIA (Cloudflare) ou ChatGPT (OpenAI), dentro da SOBRE MÍDIA</p></div>
           {anunciante ? (
             <Link to="/studio/configuracoes" className="flex items-center gap-2 rounded-full border border-[#FFD400]/40 bg-[#FFD400]/10 px-3 py-1.5 text-xs font-bold text-[#FFD400]"><Coins className="h-4 w-4" />{saldo.data?.saldo ?? 0} crédito(s) · {preco} por criação</Link>
           ) : <span className="rounded-full bg-white/5 px-3 py-1.5 text-xs text-slate-300">Uso interno da equipe (sem cobrança)</span>}
@@ -142,7 +184,7 @@ export default function IAPage() {
                 <div className="ml-auto max-w-2xl rounded-2xl rounded-tr-sm bg-[#5D1BFF]/35 p-3 text-sm text-white">
                   <p className="whitespace-pre-line">{j.prompt_original}</p>
                   {j.prompt_enviado !== j.prompt_original && <p className="mt-2 border-t border-white/10 pt-2 text-xs text-slate-300">Prompt usado: {j.prompt_enviado}</p>}
-                  <p className="mt-1 text-[10px] text-slate-300">{j.tipo === 'editar' ? 'Nova versão / com referências' : 'Criação'} · {j.parametros.proporcao} · {j.parametros.qualidade}{j.parametros.transparente ? ' · fundo transparente' : ''}{j.cobrar ? ` · ${j.creditos} crédito` : ''}</p>
+                  <p className="mt-1 text-[10px] text-slate-300">{j.modelo.includes('lucid') ? 'Agente SOBRE MÍDIA (Cloudflare)' : j.tipo === 'editar' ? 'ChatGPT · nova versão / com referências' : 'ChatGPT'} · {j.parametros.proporcao} · {j.parametros.qualidade}{j.parametros.transparente ? ' · fundo transparente' : ''}{j.cobrar ? ` · ${j.creditos} crédito` : ''}</p>
                 </div>
                 <div className="max-w-2xl rounded-2xl rounded-tl-sm border border-white/10 bg-[#170838] p-3">
                   {EM_ANDAMENTO.includes(j.status) && <p className="flex items-center gap-2 text-sm text-slate-300"><Loader2 className="h-4 w-4 animate-spin text-[#B04DFF]" />{STATUS[j.status]}</p>}
@@ -193,25 +235,54 @@ export default function IAPage() {
               </div>
             </div>
           )}
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1" role="radiogroup" aria-label="Quem cria a imagem">
+            {([['cloudflare', 'Agente SOBRE MÍDIA', 'analisa a sua imagem e recria'], ['openai', 'ChatGPT', 'OpenAI GPT Image']] as const).map(([id, nome, dica]) => (
+              <button key={id} type="button" role="radio" aria-checked={motor === id} onClick={() => { setMotor(id); setAnalise(null); }}
+                className={cn('rounded-lg px-3 py-2 text-left text-xs transition', motor === id ? 'bg-[#5D1BFF] text-white' : 'text-slate-300 hover:bg-white/5')}>
+                <span className="flex items-center gap-1.5 font-bold">{id === 'cloudflare' ? <Bot className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{nome}</span>
+                <span className="block text-[10px] opacity-75">{dica}</span>
+              </button>
+            ))}
+          </div>
+          {motor === 'cloudflare' && analise && (
+            <div className="space-y-2 rounded-xl border border-[#25D366]/30 bg-[#25D366]/5 p-3 text-sm" data-testid="studio-analise">
+              <p className="flex items-center gap-2 text-xs font-bold text-[#7dffb0]"><Bot className="h-4 w-4" />Prompt escrito pelo Agente SOBRE MÍDIA (versão {analise.agente_versao}) · imagem {analise.width}×{analise.height}</p>
+              {analise.textos.length > 0 && <p className="text-xs text-slate-300">Textos lidos na imagem: {analise.textos.map((x) => <b key={x} className="mr-1 rounded bg-white/10 px-1.5 text-white">{x}</b>)}</p>}
+              <textarea value={promptAgente} onChange={(e) => setPromptAgente(e.target.value)} rows={5} maxLength={2400} aria-label="Prompt do agente (pode editar)"
+                className="w-full resize-y rounded-lg border border-white/15 bg-[#170838] p-2 text-xs text-white focus:border-[#25D366] focus:outline-none" />
+              {analise.observacoes && <p className="text-[11px] text-amber-200">Atenção: {analise.observacoes}</p>}
+              <p className="text-[11px] text-slate-400">O resultado sai no mesmo estilo e composição, não uma cópia idêntica. Você pode editar o prompt antes de criar.</p>
+            </div>
+          )}
           <textarea id="studio-ia-texto" value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={4000} rows={2}
-            placeholder={origem ? 'Ex.: deixe a garrafa maior, o fundo mais escuro e o preço com mais destaque.' : 'Ex.: Crie uma logo promocional 3D com o texto "SUPER OFERTA", letras brancas e amarelas, extrusão profunda, contorno vermelho e brilho dourado, fundo transparente.'}
+            placeholder={motor === 'cloudflare' && refs.length ? 'Opcional: o que mudar em relação à imagem (ex.: troque os eletrodomésticos por bebidas geladas).' : origem ? 'Ex.: deixe a garrafa maior, o fundo mais escuro e o preço com mais destaque.' : 'Ex.: Crie uma logo promocional 3D com o texto "SUPER OFERTA", letras brancas e amarelas, extrusão profunda, contorno vermelho e brilho dourado, fundo transparente.'}
             className="w-full resize-y rounded-xl border border-[#8A2EFF]/40 bg-[#170838] p-3 text-sm sm:min-h-[84px] text-white placeholder:text-slate-500 focus:border-[#B04DFF] focus:outline-none" />
           <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
             <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white hover:bg-white/5">
-              {ocupado === 'anexo' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}Referência
+              {ocupado === 'anexo' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}{motor === 'cloudflare' ? 'Imagem de referência' : 'Referência'}
               <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { void anexar(e.target.files?.[0]); e.target.value = ''; }} />
             </label>
             <select value={proporcao} onChange={(e) => setProporcao(e.target.value as typeof proporcao)} aria-label="Proporção" className="rounded-lg border border-white/15 bg-[#170838] px-2 py-2 text-xs text-white">
               <option value="quadrado">Quadrado 1:1</option><option value="horizontal">Horizontal 3:2</option><option value="vertical">Vertical 2:3</option>
             </select>
-            <select value={qualidade} onChange={(e) => setQualidade(e.target.value as typeof qualidade)} aria-label="Qualidade" className="rounded-lg border border-white/15 bg-[#170838] px-2 py-2 text-xs text-white">
+            {motor === 'cloudflare' && refs.length > 0 && (
+              <button type="button" onClick={analisar} disabled={!!ocupado} data-testid="studio-analisar" className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg border border-[#25D366]/60 bg-[#25D366]/10 px-3 py-2 text-xs font-bold text-[#7dffb0] hover:bg-[#25D366]/20">
+                {ocupado === 'analisar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}{analise ? 'Analisar de novo' : 'Analisar imagem (grátis)'}
+              </button>
+            )}
+            {motor === 'openai' && <select value={qualidade} onChange={(e) => setQualidade(e.target.value as typeof qualidade)} aria-label="Qualidade" className="rounded-lg border border-white/15 bg-[#170838] px-2 py-2 text-xs text-white">
               <option value="low">Rascunho</option><option value="medium">Profissional</option><option value="high">Máxima</option>
-            </select>
-            <label className="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white"><input type="checkbox" checked={transparente} onChange={(e) => setTransparente(e.target.checked)} className="accent-[#8A2EFF]" />Fundo transparente</label>
-            <button type="button" onClick={melhorar} disabled={!!ocupado} className="flex items-center gap-1.5 rounded-lg border border-[#FFD400]/40 px-3 py-2 text-xs text-[#FFD400] hover:bg-[#FFD400]/10">
+            </select>}
+            {motor === 'openai' && <label className="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white"><input type="checkbox" checked={transparente} onChange={(e) => setTransparente(e.target.checked)} className="accent-[#8A2EFF]" />Fundo transparente</label>}
+            {motor === 'openai' && <button type="button" onClick={melhorar} disabled={!!ocupado} className="flex items-center gap-1.5 rounded-lg border border-[#FFD400]/40 px-3 py-2 text-xs text-[#FFD400] hover:bg-[#FFD400]/10">
               {ocupado === 'melhorar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}Melhorar descrição
-            </button>
-            <button type="button" onClick={() => { if (!semSaldo) { void gerar(); return; } if (texto.trim().length < 5) { toast.info('Descreva primeiro o que você quer criar.'); return; } setPagando(true); }} disabled={!!ocupado} data-testid="studio-ia-gerar"
+            </button>}
+            <button type="button" onClick={() => {
+                if (motor === 'cloudflare' && refs.length > 0 && !analise) { toast.info('Toque em "Analisar imagem" para o agente escrever o prompt.'); return; }
+                if (!semSaldo) { void gerar(); return; }
+                if (!(motor === 'cloudflare' && analise) && texto.trim().length < 5) { toast.info('Descreva primeiro o que você quer criar.'); return; }
+                setPagando(true);
+              }} disabled={!!ocupado} data-testid="studio-ia-gerar"
               className="col-span-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r sm:ml-auto from-[#5D1BFF] to-[#8A2EFF] px-5 py-2.5 text-sm font-bold text-white shadow-[0_0_20px_rgba(138,46,255,0.45)] disabled:opacity-50">
               {ocupado === 'gerar' ? <Loader2 className="h-4 w-4 animate-spin" /> : origem ? <ImagePlus className="h-4 w-4" /> : <Send className="h-4 w-4" />}
               {semSaldo ? `Pagar ${preco} e criar` : `${origem ? 'Criar nova versão' : 'Gerar imagem'}${anunciante ? ` · 1 crédito (${preco})` : ''}`}

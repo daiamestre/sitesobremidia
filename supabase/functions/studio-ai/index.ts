@@ -1,6 +1,9 @@
 // SOBRE MÍDIA STUDIO AI — criação de imagens com a OpenAI (GPT Image), cobrada por crédito do cliente.
 //   POST { acao: 'gerar', … }            → JWT obrigatório: reserva 1 crédito, cria a imagem em segundo plano e devolve o job
 //   POST { acao: 'melhorar_prompt', texto } → JWT: sugere um prompt publicitário (mostrado ao cliente, nunca trocado em silêncio)
+//   POST { acao: 'analisar_referencia', referencia_url, largura, altura, pedido? } → JWT: o AGENTE ANALISTA DE REFERÊNCIAS
+//        (instruções no banco, studio_agentes; modelo de visão da Cloudflare) lê a imagem e escreve o prompt (F-220)
+//   POST { acao: 'gerar', motor: 'cloudflare', prompt, largura, altura, … } → cria pela Cloudflare (lucid-origin)
 //   POST { acao: 'varrer' }               → cron: gerações interrompidas há mais de 15 min viram falha + crédito devolvido
 // A chave OPENAI_API_KEY só existe aqui (segredo da função). O navegador acompanha o status real pela tabela studio_ai_jobs.
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
@@ -8,6 +11,10 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { decode } from 'npm:fast-png@6.2.0';
 import { analisarAlfa, criarImagem, custoDaImagem, ErroOpenAI, faltando, melhorarPrompt, mensagemDoErro, type Proporcao, type Qualidade } from '../_shared/studio/openai.ts';
 import { configR2, enviarAoR2 } from '../_shared/studio/r2.ts';
+import {
+  INSTRUCOES_PADRAO, MODELO_IMAGEM, MODELO_VISAO, SCHEMA_ANALISE, SLUG_AGENTE, custoDaGeracao, mensagensDoAgente, tamanhoDaImagem, validarAnalise,
+  type AnaliseReferencia,
+} from '../_shared/studio/agente-referencia.ts';
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -35,10 +42,86 @@ async function baixarReferencia(url: string): Promise<{ bytes: Uint8Array<ArrayB
   return { bytes, tipo, nome: `referencia.${tipo.split('/')[1]}` };
 }
 
+class ErroCloudflare extends Error {}
+
+/** Roda um modelo da Workers AI pelo Worker da SOBRE MÍDIA (ligação AI da conta; nenhum token da Cloudflare aqui). */
+async function cloudflare(modelo: string, entrada: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const url = env('TABLOIDE_IA_URL'), segredo = env('TABLOIDE_IA_SEGREDO');
+  if (!url || !segredo) throw new ErroCloudflare('IA da Cloudflare não configurada no servidor.');
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-segredo': segredo }, body: JSON.stringify({ acao: 'studio-modelo', modelo, entrada }), signal: AbortSignal.timeout(120_000) });
+  const j = await r.json().catch(() => ({})) as Record<string, unknown>;
+  if (!r.ok) {
+    const msg = String(j.erro ?? r.status);
+    throw new ErroCloudflare(r.status === 429 || /quota|neurons|allocation/i.test(msg)
+      ? 'A cota diária de IA da SOBRE MÍDIA na Cloudflare acabou. Tente de novo mais tarde.' : 'A IA da Cloudflare recusou o pedido (' + msg.slice(0, 120) + ').');
+  }
+  return j;
+}
+
+const paraDataUrl = (b: Uint8Array, tipo: string) => {
+  let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return 'data:' + tipo + ';base64,' + btoa(s);
+};
+
+/** Instruções vivas do agente (banco); reserva no código se o banco não responder. */
+async function instrucoesDoAgente(srv: SupabaseClient): Promise<{ texto: string; versao: number }> {
+  const { data } = await srv.from('studio_agentes').select('instrucoes, versao').eq('slug', SLUG_AGENTE).eq('ativo', true).maybeSingle();
+  return data ? { texto: data.instrucoes as string, versao: data.versao as number } : { texto: INSTRUCOES_PADRAO, versao: 1 };
+}
+
+function lerJson(r: Record<string, unknown>): unknown {
+  const choices = r.choices as Array<{ message?: { content?: unknown } }> | undefined;
+  let v: unknown = choices?.[0]?.message?.content ?? r.response;
+  if (typeof v === 'string') v = JSON.parse(v.trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim());
+  return v;
+}
+
+/** O agente lê a imagem e escreve o prompt; até 2 tentativas, devolvendo os erros da validação ao modelo. */
+async function analisarReferencia(srv: SupabaseClient, imagem: string, pedido: string | null, largura: number, altura: number) {
+  const ag = await instrucoesDoAgente(srv);
+  const mensagens: Array<{ role: string; content: unknown }> = mensagensDoAgente(ag.texto, imagem, pedido, largura, altura);
+  let ultimo: AnaliseReferencia | null = null;
+  let erros: string[] = [];
+  for (let tentativa = 1; tentativa <= 2; tentativa++) {
+    const r = await cloudflare(MODELO_VISAO, { messages: mensagens, max_tokens: 1600, temperature: 0.3, response_format: { type: 'json_schema', json_schema: SCHEMA_ANALISE } });
+    try { ultimo = lerJson(r) as AnaliseReferencia; } catch { erros = ['Responda só com o JSON pedido.']; continue; }
+    erros = validarAnalise(ultimo);
+    if (!erros.length) break;
+    mensagens.push({ role: 'assistant', content: JSON.stringify(ultimo) }, { role: 'user', content: 'Corrija e responda o JSON completo de novo. Problemas: ' + erros.join(' ') });
+  }
+  if (!ultimo?.prompt) throw new ErroCloudflare('O agente não conseguiu analisar esta imagem. Tente outra imagem ou um print mais nítido.');
+  return { ...ultimo, avisos: erros, agenteVersao: ag.versao };
+}
+
 async function processar(srv: SupabaseClient, jobId: string) {
   const { data: job } = await srv.from('studio_ai_jobs').select('*').eq('id', jobId).single();
   if (!job) return;
   try {
+    if ((job.parametros as { motor?: string }).motor === 'cloudflare') {
+      const p = job.parametros as { width: number; height: number; passos: number };
+      const r = await cloudflare(MODELO_IMAGEM, { prompt: job.prompt_enviado, width: p.width, height: p.height, steps: p.passos, guidance: 4.5 });
+      const b64 = String((r as { image?: string }).image ?? '');
+      if (!b64) throw new ErroCloudflare('A IA da Cloudflare não devolveu imagem.');
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const ehPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+      const r2 = configR2(env);
+      if (!r2) throw new Error('Armazenamento não configurado.');
+      const caminho = 'tenants/' + job.empresa_operadora_id + '/studio/' + job.conversa_id + '/ia-' + job.id + (ehPng ? '.png' : '.jpg');
+      const url = await enviarAoR2(r2, caminho, bytes, ehPng ? 'image/png' : 'image/jpeg');
+      await srv.from('studio_ai_imagens').insert({
+        job_id: job.id, conversa_id: job.conversa_id, empresa_operadora_id: job.empresa_operadora_id, cliente_id: job.cliente_id, versao_de: job.origem_imagem_id,
+        url, path: caminho, mime: ehPng ? 'image/png' : 'image/jpeg', largura: p.width, altura: p.height, bytes: bytes.length, sha256: await sha256(bytes),
+        alfa: 'nao_verificado', alfa_relatorio: null, modelo: job.modelo,
+      });
+      const custo = custoDaGeracao(p.width, p.height, p.passos);
+      await srv.rpc('studio_ai_consumir', { p_job: job.id });
+      await srv.from('studio_ai_jobs').update({ status: 'CONCLUIDO', concluido_em: new Date().toISOString(), uso: { neurons: custo.neurons }, custo_usd: custo.usd }).eq('id', job.id);
+      await srv.from('studio_ai_conversas').update({ atualizado_em: new Date().toISOString() }).eq('id', job.conversa_id);
+      return;
+    }
     const refs: { bytes: Uint8Array<ArrayBuffer>; tipo: string; nome: string }[] = [];
     if (job.origem_imagem_id) {
       const { data: origem } = await srv.from('studio_ai_imagens').select('url, conversa_id').eq('id', job.origem_imagem_id).single();
@@ -67,7 +150,8 @@ async function processar(srv: SupabaseClient, jobId: string) {
     await srv.rpc('studio_ai_estornar', { p_job: job.id, p_motivo: String((e as Error)?.message ?? e).slice(0, 200) });
     await srv.from('studio_ai_jobs').update({
       status: job.cobrar ? 'ESTORNADO' : 'FALHA', concluido_em: new Date().toISOString(),
-      erro: e instanceof ErroOpenAI ? (job.cobrar ? mensagemDoErro(e) : mensagemDoErro(e).replace(' Seu crédito foi devolvido.', '')) : String((e as Error)?.message ?? e).slice(0, 300),
+      erro: e instanceof ErroOpenAI ? (job.cobrar ? mensagemDoErro(e) : mensagemDoErro(e).replace(' Seu crédito foi devolvido.', ''))
+        : String((e as Error)?.message ?? e).slice(0, 280) + (job.cobrar ? ' Seu crédito foi devolvido.' : ''),
     }).eq('id', job.id);
   }
 }
@@ -102,7 +186,6 @@ serve(async (req) => {
   const { data: cfgLinha } = await srv.from('studio_ai_config').select('*').eq('empresa_operadora_id', e.empresa).maybeSingle();
   const cfg = cfgLinha as Config | null;
   if (!cfg?.habilitado) return json(403, { error: 'A criação com IA está desligada para esta empresa.' });
-  if (!env('OPENAI_API_KEY')) return json(503, { error: 'IA não configurada no servidor.' });
 
   // teto mensal de gasto real com a OpenAI (proteção da SOBRE MÍDIA, além do saldo da conta na OpenAI)
   const inicioMes = new Date(); inicioMes.setUTCDate(1); inicioMes.setUTCHours(0, 0, 0, 0);
@@ -110,7 +193,19 @@ serve(async (req) => {
   const gastoMes = (gastos ?? []).reduce((s, g) => s + Number(g.custo_usd ?? 0), 0);
   if (gastoMes >= Number(cfg.limite_usd_mes)) return json(429, { error: 'O limite mensal de uso de IA da empresa foi atingido. Fale com a SOBRE MÍDIA.' });
 
+  if (acao === 'analisar_referencia') {
+    // F-220: grátis (só lê e escreve o prompt); a criação da imagem é que custa 1 crédito
+    try {
+      const ref = await baixarReferencia(String(body.referencia_url ?? ''));
+      if (ref.bytes.length > 4 * 1024 * 1024) return json(400, { error: 'Envie uma imagem de até 4 MB.' });
+      const a = await analisarReferencia(srv, paraDataUrl(ref.bytes, ref.tipo), body.pedido ? String(body.pedido) : null, Number(body.largura) || 0, Number(body.altura) || 0);
+      const tamanho = tamanhoDaImagem(Number(body.largura) || 1024, Number(body.altura) || 1024);
+      return json(200, { prompt: a.prompt, textos: a.textos, observacoes: a.observacoes, avisos: a.avisos, agente_versao: a.agenteVersao, ...tamanho });
+    } catch (err) { return json(502, { error: String((err as Error)?.message ?? err).slice(0, 300) }); }
+  }
+
   if (acao === 'melhorar_prompt') {
+    if (!env('OPENAI_API_KEY')) return json(503, { error: 'IA não configurada no servidor.' });
     const texto = String(body.texto ?? '').trim();
     if (texto.length < 5) return json(400, { error: 'Descreva o que você quer criar.' });
     try {
@@ -124,12 +219,15 @@ serve(async (req) => {
 
   const prompt = String(body.prompt ?? '').trim();
   const chave = String(body.chave ?? '');
+  const motor = body.motor === 'cloudflare' ? 'cloudflare' : 'openai';
+  if (motor === 'openai' && !env('OPENAI_API_KEY')) return json(503, { error: 'IA não configurada no servidor.' });
+  const tamanhoCf = tamanhoDaImagem(Number(body.largura) || 1024, Number(body.altura) || 1024);
   const proporcao = (['quadrado', 'horizontal', 'vertical'].includes(String(body.proporcao)) ? body.proporcao : 'quadrado') as Proporcao;
   const qualidade = (['low', 'medium', 'high'].includes(String(body.qualidade)) ? body.qualidade : cfg.qualidade_padrao) as Qualidade;
   const transparente = body.transparente === true;
   const referencias = (Array.isArray(body.referencias) ? body.referencias : []).map(String).slice(0, cfg.max_referencias);
   const origem = body.origem_imagem_id ? String(body.origem_imagem_id) : null;
-  if (prompt.length < 5 || prompt.length > 4000) return json(400, { error: 'Descreva o que você quer criar (5 a 4000 caracteres).' });
+  if (prompt.length < 5 || prompt.length > (motor === 'cloudflare' ? 2400 : 4000)) return json(400, { error: 'Descreva o que você quer criar (5 a 4000 caracteres).' });
   if (!/^[A-Za-z0-9-]{16,64}$/.test(chave)) return json(400, { error: 'Chave do pedido inválida.' });
 
   const idem = `${u.user.id}:${chave}`;
@@ -160,7 +258,10 @@ serve(async (req) => {
   const { data: job, error: errJob } = await srv.from('studio_ai_jobs').insert({
     conversa_id: conversaId, empresa_operadora_id: e.empresa, cliente_id: e.cliente, operador_id: u.user.id,
     tipo: origem || referencias.length ? 'editar' : 'gerar', status: 'RESERVANDO', prompt_original: String(body.prompt_original ?? prompt).slice(0, 4000), prompt_enviado: prompt,
-    parametros: { proporcao, qualidade, transparente }, modelo: cfg.modelo_padrao, referencias, origem_imagem_id: origem,
+    parametros: motor === 'cloudflare'
+      ? { motor, ...tamanhoCf, passos: 25, proporcao: tamanhoCf.width > tamanhoCf.height ? 'horizontal' : tamanhoCf.width < tamanhoCf.height ? 'vertical' : 'quadrado', qualidade: 'high', transparente: false, agente_versao: Number(body.agente_versao) || null }
+      : { motor, proporcao, qualidade, transparente },
+    modelo: motor === 'cloudflare' ? MODELO_IMAGEM : cfg.modelo_padrao, referencias, origem_imagem_id: motor === 'cloudflare' ? null : origem,
     cobrar, carteira_id: carteiraId, creditos: cobrar ? 1 : 0, idempotencia: idem,
   }).select('id').single();
   if (errJob || !job) {

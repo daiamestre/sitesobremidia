@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Coins, Gift, Loader2, PlayCircle, Receipt, Settings } from 'lucide-react';
+import { Bot, Coins, Gift, Loader2, PlayCircle, Receipt, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { PagamentoCreditos } from '@/components/studioai/PagamentoCreditos';
 import { playlistClienteService } from '@/modules/crm/services/playlistCliente.service';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  brl, carteirasDaEmpresa, clientesDaEmpresa, comprarCreditos, comprasPendentes, confirmarCompra, creditarManual, extrato, meuSaldo, salvarConfig,
+  agenteAtivo, brl, carteirasDaEmpresa, clientesDaEmpresa, comprarCreditos, comprasPendentes, confirmarCompra, creditarManual, extrato, meuSaldo, salvarAgente, salvarConfig,
 } from '@/lib/studioai/api';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +27,9 @@ export default function ConfiguracoesPage() {
     queryKey: ['studio-ai-config'], enabled: admin,
     queryFn: async () => (await (supabase as unknown as { from: (t: string) => { select: (c: string) => { maybeSingle: () => Promise<{ data: Record<string, unknown> | null }> } } }).from('studio_ai_config').select('*').maybeSingle()).data,
   });
+  // F-220: o agente que analisa as referências mora no banco (studio_agentes), versionado; só owner/ADM editam
+  const agente = useQuery({ queryKey: ['studio-agente'], queryFn: () => agenteAtivo(), enabled: admin });
+  const [instrucoes, setInstrucoes] = useState<string | null>(null);
   const [qtd, setQtd] = useState(5);
   const [compra, setCompra] = useState<{ compra_id: string; cobranca_id: string; valor_centavos: number } | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -129,6 +132,19 @@ export default function ConfiguracoesPage() {
         </section>
       )}
 
+      {admin && agente.data && (
+        <section className={caixa} data-testid="studio-agente">
+          <h2 className="flex items-center gap-2 font-bold text-white"><Bot className="h-5 w-5 text-[#25D366]" />Agente SOBRE MÍDIA · {agente.data.nome}</h2>
+          <p className="text-xs text-slate-400">Lê a imagem que o usuário envia e escreve o prompt para a Cloudflare criar ({agente.data.modelo}). Versão {agente.data.versao}, de {new Date(agente.data.criado_em).toLocaleString('pt-BR')}. Ao salvar, nasce uma versão nova e a anterior fica guardada.</p>
+          <textarea value={instrucoes ?? agente.data.instrucoes} onChange={(e) => setInstrucoes(e.target.value)} rows={12} aria-label="Instruções do agente"
+            className="w-full resize-y rounded-lg border border-white/10 bg-[#0f0428] p-3 font-mono text-xs text-white" />
+          <button type="button" disabled={!!ocupado || instrucoes === null || instrucoes.trim().length < 200} onClick={() => agir('agente', async () => {
+            const v = await salvarAgente(agente.data!.slug, instrucoes!.trim());
+            toast.success(`Agente atualizado (versão ${v}).`); setInstrucoes(null); void qc.invalidateQueries({ queryKey: ['studio-agente'] });
+          })} className="rounded-lg bg-[#5D1BFF] px-4 py-2 text-sm font-semibold disabled:opacity-50">{ocupado === 'agente' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar nova versão'}</button>
+        </section>
+      )}
+
       <section className={caixa}>
         <h2 className="flex items-center gap-2 font-bold text-white"><Receipt className="h-5 w-5 text-[#B04DFF]" />Extrato de créditos</h2>
         {mov.data?.length === 0 && <p className="text-sm text-slate-400">Sem movimentos ainda.</p>}
@@ -148,6 +164,7 @@ export default function ConfiguracoesPage() {
           <li>Em <b>Início</b>, escolha a categoria e o segmento da sua loja e clique em <b>Personalizar arte</b> no modelo que quiser.</li>
           <li>No Studio de criação, troque textos, cores, fonte e a foto pela do seu produto. Salve o projeto quando quiser.</li>
           <li>Quer ir além? Use <b>Editar com ChatGPT</b> (cria uma nova versão com IA, 1 crédito) ou <b>Abrir no Canva</b>.</li>
+          <li>Tem uma arte de referência? Em <b>Criar com IA</b>, escolha <b>Agente SOBRE MÍDIA</b>, envie a imagem e toque em <b>Analisar imagem</b>: o agente escreve o prompt e a IA cria uma arte no mesmo estilo (1 crédito).</li>
           <li>Em <b>Salvar e publicar</b>, a arte vai para as suas mídias e você escolhe a playlist ou a tela.</li>
         </ol>
       </section>

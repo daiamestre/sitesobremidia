@@ -68,7 +68,12 @@ export default {
     if (corpo.acao === 'studio-modelo') {
       const PERMITIDOS = ['@cf/meta/llama-4-scout-17b-16e-instruct', '@cf/black-forest-labs/flux-1-schnell', '@cf/leonardo/lucid-origin'];
       if (!PERMITIDOS.includes(corpo.modelo)) return Response.json({ erro: 'modelo não permitido' }, { status: 400 });
-      if (corpo.modelo === '@cf/leonardo/lucid-origin' && env.STUDIO_PERMITIR_IMAGEM_PAGA !== '1') return Response.json({ erro: 'modelo pago desligado' }, { status: 403 });
+      // F-220: o lucid-origin (alta resolução) atende o Agente de Referências do Studio, que cobra o cliente por criação.
+      // Teto de custo por chamada: até 1536 px de lado e 30 passos.
+      if (corpo.modelo === '@cf/leonardo/lucid-origin') {
+        const e = corpo.entrada ?? {};
+        if (Number(e.width) > 1536 || Number(e.height) > 1536 || Number(e.steps ?? e.num_steps ?? 0) > 30) return Response.json({ erro: 'tamanho ou passos acima do limite' }, { status: 400 });
+      }
       try {
         return Response.json(await env.AI.run(corpo.modelo, corpo.entrada ?? {}));
       } catch (e) {

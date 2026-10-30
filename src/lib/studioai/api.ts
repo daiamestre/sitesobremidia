@@ -89,11 +89,22 @@ async function chamarFuncao<T>(corpo: Record<string, unknown>): Promise<T> {
 }
 export class SemCreditos extends Error {}
 
-export interface PedidoIA { conversaId: string | null; prompt: string; promptOriginal: string; proporcao: 'quadrado' | 'horizontal' | 'vertical'; qualidade: 'low' | 'medium' | 'high'; transparente: boolean; referencias: string[]; origemImagemId: string | null }
+export interface PedidoIA { motor?: 'openai' | 'cloudflare'; largura?: number; altura?: number; agenteVersao?: number | null; conversaId: string | null; prompt: string; promptOriginal: string; proporcao: 'quadrado' | 'horizontal' | 'vertical'; qualidade: 'low' | 'medium' | 'high'; transparente: boolean; referencias: string[]; origemImagemId: string | null }
 export const gerarImagem = (p: PedidoIA) => chamarFuncao<{ job_id: string; conversa_id: string }>({
   acao: 'gerar', conversa_id: p.conversaId, prompt: p.prompt, prompt_original: p.promptOriginal, proporcao: p.proporcao, qualidade: p.qualidade,
   transparente: p.transparente, referencias: p.referencias, origem_imagem_id: p.origemImagemId, chave: crypto.randomUUID(),
+  motor: p.motor ?? 'openai', largura: p.largura, altura: p.altura, agente_versao: p.agenteVersao ?? null,
 });
+/** F-220: o Agente Analista de Referências (no banco da SOBRE MÍDIA, roda na Cloudflare) lê a imagem e escreve o prompt. */
+export interface AnaliseDoAgente { prompt: string; textos: string[]; observacoes: string; avisos: string[]; agente_versao: number; width: number; height: number }
+export const analisarReferencia = (referenciaUrl: string, largura: number, altura: number, pedido: string | null) =>
+  chamarFuncao<AnaliseDoAgente>({ acao: 'analisar_referencia', referencia_url: referenciaUrl, largura, altura, pedido });
+export interface AgenteDoStudio { slug: string; versao: number; nome: string; modelo: string; instrucoes: string; criado_em: string }
+export async function agenteAtivo(slug = 'analista-referencias'): Promise<AgenteDoStudio | null> {
+  const { data } = await db.from<AgenteDoStudio>('studio_agentes').select('slug, versao, nome, modelo, instrucoes, criado_em').eq('slug', slug).eq('ativo', true).maybeSingle();
+  return data;
+}
+export const salvarAgente = (slug: string, instrucoes: string) => rpc<number>('studio_agente_salvar', { p_slug: slug, p_instrucoes: instrucoes });
 export const sugerirPrompt = (texto: string) => chamarFuncao<{ prompt: string | null; dicas: string[]; aviso: string | null }>({ acao: 'melhorar_prompt', texto });
 
 // ---------------------------------------------------------------- créditos (PIX pelo mesmo caminho das playlists)

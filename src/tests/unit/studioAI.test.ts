@@ -93,3 +93,55 @@ describe('F-219: Studio para todos, modelos só owner/ADM, todos pagam (menos ow
     expect(fn).toContain("srv.rpc('studio_ai_creditar_pagas')");
   });
 });
+
+// F-220 — Agente Analista de Referências (Cloudflare, instruções no banco)
+import { INSTRUCOES_PADRAO, custoDaGeracao, tamanhoDaImagem, validarAnalise } from '../../../supabase/functions/_shared/studio/agente-referencia';
+
+describe('F-220 agente de referências', () => {
+  it('mantém a proporção da referência dentro do teto de 6 blocos de 512 px', () => {
+    expect(tamanhoDaImagem(1080, 1350)).toEqual({ width: 1024, height: 1280 });
+    expect(tamanhoDaImagem(1920, 1080)).toEqual({ width: 1536, height: 864 });
+    for (const [w, h] of [[1000, 1000], [1080, 1920], [3000, 900], [500, 4000]]) {
+      const t = tamanhoDaImagem(w, h);
+      expect(Math.ceil(t.width / 512) * Math.ceil(t.height / 512)).toBeLessThanOrEqual(6);
+      expect(Math.max(t.width, t.height)).toBeLessThanOrEqual(1536);
+      expect(t.width % 16 + t.height % 16).toBe(0);
+    }
+  });
+
+  it('calcula o custo do lucid-origin pela tabela oficial', () => {
+    expect(custoDaGeracao(1024, 1280, 25)).toEqual({ neurons: 6 * 636 + 300, usd: 0.045 });
+  });
+
+  it('recusa prompt curto e exige cada texto lido entre aspas no prompt', () => {
+    const base = 'x'.repeat(400);
+    expect(validarAnalise({ prompt: 'curto', textos: [], proporcao: 'vertical', observacoes: '' }).length).toBeGreaterThan(0);
+    expect(validarAnalise({ prompt: base, textos: ['BLACK'], proporcao: 'vertical', observacoes: '' })[0]).toContain('"BLACK"');
+    expect(validarAnalise({ prompt: base + ' "BLACK"', textos: ['BLACK'], proporcao: 'vertical', observacoes: '' })).toEqual([]);
+  });
+
+  it('a migração guarda o agente no banco, versionado e só owner/ADM editam', () => {
+    const sql = fs.readFileSync('supabase/migrations/20261354_studio_agentes.sql', 'utf8');
+    expect(sql).toContain('analista-referencias');
+    expect(sql).toContain('studio_agente_salvar');
+    expect(sql).toContain('Método obrigatório');
+    expect(INSTRUCOES_PADRAO).toContain('Ignore e NÃO descreva');
+  });
+
+  it('o Worker limita o lucid-origin a 1536 px e 30 passos', () => {
+    const w = fs.readFileSync('cloudflare/tabloide-ia/worker.js', 'utf8');
+    expect(w).toContain("'@cf/leonardo/lucid-origin'");
+    expect(w).toMatch(/> 1536[\s\S]*> 30/);
+  });
+});
+
+describe('F-220 formato real da referência', () => {
+  it('diz ao agente o formato pelo tamanho do arquivo', async () => {
+    const { formatoDe, mensagensDoAgente } = await import('../../../supabase/functions/_shared/studio/agente-referencia');
+    expect(formatoDe(1024, 1280)).toBe('vertical');
+    expect(formatoDe(1920, 1080)).toBe('horizontal');
+    expect(formatoDe(1000, 1020)).toBe('quadrado');
+    const m = mensagensDoAgente('x', 'data:image/jpeg;base64,AA', null, 1024, 1280);
+    expect(JSON.stringify(m)).toContain('vertical (1024×1280 px)');
+  });
+});
