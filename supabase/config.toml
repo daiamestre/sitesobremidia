@@ -5,3 +5,11 @@ verify_jwt = false
 [functions.process-media]
 # F-85: a função valida o JWT do usuário (getUser) e o retorno do workflow (x-pipeline-secret) por conta própria.
 verify_jwt = false
+[functions.studio-orquestrador]
+# Studio de IA: o cron chama sem JWT ("tick" só avança produções já pedidas); "cutucar" confere o usuário pela RLS;
+# as chamadas do GitHub Actions exigem x-studio-segredo.
+verify_jwt = false
+[functions.studio-ai]
+# Studio AI: o cron chama "varrer" sem JWT (só devolve créditos de gerações interrompidas); as ações do usuário
+# conferem o JWT com auth.getUser() e o acesso com studio_ai_escopo().
+verify_jwt = false

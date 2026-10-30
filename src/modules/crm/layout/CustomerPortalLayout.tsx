@@ -62,6 +62,8 @@ export default function CustomerPortalLayout() {
       somente: ['ANUNCIANTE', 'HIBRIDO'],
       items: [
         { name: 'Minhas Mídias',        path: '/portal/assets',     icon: ImagePlus },
+        // SOBRE MÍDIA STUDIO AI: modelos prontos, edição, criação com IA e publicação nas playlists/telas
+        { name: 'Studio AI',            path: '/studio',            icon: Sparkles },
       ],
     },
     {

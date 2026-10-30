@@ -159,6 +159,13 @@ const CentralAnunciantePage = lazyWithRetry(() => import("./modules/crm/pages/po
 const PortalPontosParceirosPage = lazyWithRetry(() => import("./modules/crm/pages/portal/PontosParceirosPage"));
 const PontoParceiroPage = lazyWithRetry(() => import("./modules/crm/pages/portal/PontoParceiroPage"));
 const CriarMidiaPage = lazyWithRetry(() => import("./modules/crm/pages/portal/CriarMidiaPage"));
+// SOBRE MÍDIA STUDIO AI (/studio): catálogo de modelos → Studio de criação → ChatGPT/Canva → salvar → playlist/tela
+const StudioAILayout = lazyWithRetry(() => import("./components/studioai/StudioAILayout").then((m) => ({ default: m.StudioAILayout })));
+const StudioCatalogo = lazyWithRetry(() => import("./pages/studioai/CatalogoPage"));
+const StudioEditor = lazyWithRetry(() => import("./pages/studioai/EditorPage"));
+const StudioIA = lazyWithRetry(() => import("./pages/studioai/IAPage"));
+const StudioProjetos = lazyWithRetry(() => import("./pages/studioai/ProjetosPage"));
+const StudioConfiguracoes = lazyWithRetry(() => import("./pages/studioai/ConfiguracoesPage"));
 const ExpansaoPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ExpansaoPage"));
 const BrandKitPage = lazyWithRetry(() => import("./modules/crm/pages/portal/BrandKitPage"));
 const AssetLibraryPage = lazyWithRetry(() => import("./modules/crm/pages/portal/AssetLibraryPage"));
@@ -347,6 +354,15 @@ const App = () => {
                     <Route path="equipe" element={<MinhaEquipePage />} />
                     <Route path="perfil" element={<MeuPerfilAnunciantePage />} />
                     <Route path="configuracoes" element={<ConfiguracoesPortalPage />} />
+                  </Route>
+
+                  <Route path="/studio" element={<RequireApproval><StudioAILayout /></RequireApproval>}>
+                    <Route index element={<StudioCatalogo />} />
+                    <Route path="editar/:modeloId" element={<StudioEditor />} />
+                    <Route path="projeto/:projetoId" element={<StudioEditor />} />
+                    <Route path="ia" element={<StudioIA />} />
+                    <Route path="projetos" element={<StudioProjetos />} />
+                    <Route path="configuracoes" element={<StudioConfiguracoes />} />
                   </Route>
 
                   <Route path="/device-pairing" element={<DevicePairingScreen />} />

@@ -34,6 +34,7 @@ import {
   LayoutDashboard,
   Building2,
   Smartphone,
+  Clapperboard,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
@@ -94,6 +95,8 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
           { icon: Store, label: 'Pontos parceiros', path: '/dashboard/pontos-parceiros' },
           // F-200: launcher Sobre Mídia dos aparelhos (dono/ADM)
           { icon: Smartphone, label: 'Launcher', path: '/workspace/launcher' },
+          // SOBRE MÍDIA STUDIO AI (modelos, editor, criação com IA); o anunciante entra por "Criar mídia" no portal
+          { icon: Clapperboard, label: 'Studio IA', path: '/studio' },
         ]
       : []),
     {
