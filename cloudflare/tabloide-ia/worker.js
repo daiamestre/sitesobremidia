@@ -63,6 +63,19 @@ export default {
     if (!env.SEGREDO || req.headers.get('x-segredo') !== env.SEGREDO) return new Response('negado', { status: 401 });
     let corpo = {};
     try { corpo = await req.json(); } catch { /* corpo inválido */ }
+    // Studio de IA: roda UM modelo da lista permitida (a mesma de supabase/functions/_shared/studio/provedores.ts).
+    // A lógica dos agentes, as validações e a cota ficam no orquestrador (Supabase); aqui é só a ligação com a Workers AI.
+    if (corpo.acao === 'studio-modelo') {
+      const PERMITIDOS = ['@cf/meta/llama-4-scout-17b-16e-instruct', '@cf/black-forest-labs/flux-1-schnell', '@cf/leonardo/lucid-origin'];
+      if (!PERMITIDOS.includes(corpo.modelo)) return Response.json({ erro: 'modelo não permitido' }, { status: 400 });
+      if (corpo.modelo === '@cf/leonardo/lucid-origin' && env.STUDIO_PERMITIR_IMAGEM_PAGA !== '1') return Response.json({ erro: 'modelo pago desligado' }, { status: 403 });
+      try {
+        return Response.json(await env.AI.run(corpo.modelo, corpo.entrada ?? {}));
+      } catch (e) {
+        const msg = String(e?.message ?? e).slice(0, 200);
+        return Response.json({ erro: msg }, { status: /quota|limit|allocation|neurons/i.test(msg) ? 429 : 502 });
+      }
+    }
     let produto = String(corpo.produto ?? '');
     // só letras, números e espaço; sem medidas ("350ml", "5kg"), que o gerador tentaria escrever na imagem
     produto = produto.replace(/\b\d+([.,]\d+)?\s*(kg|g|gr|ml|l|lt|mg|un|und)\b/gi, ' ').replace(/[^\p{L}\p{N}\s-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);

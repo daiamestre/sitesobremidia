@@ -1,0 +1,46 @@
+name: Studio de IA — montagem e conferência
+
+# Disparado pelo orquestrador (Edge Function studio-orquestrador, repository_dispatch "studio_montar") quando o cliente
+# pede a montagem. Mesmo padrão do compress-video (FFmpeg) e do robô de conteúdo (Playwright): nada roda na Vercel.
+# Monta o MP4 (H.264 High 4.1, perfil que o Player já toca) ou as artes PNG, confere preço/duração/formato e devolve
+# o resultado ao orquestrador. Segredos: SUPABASE_URL, STUDIO_SEGREDO e os do R2 (os mesmos do robô de conteúdo).
+on:
+  repository_dispatch:
+    types: [studio_montar]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-${{ github.event.client_payload.producao_id }}
+  cancel-in-progress: false
+
+jobs:
+  montar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: scripts/studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Dependências da montagem
+        run: npm install --no-audit --no-fund
+      - name: Navegador para desenhar as cenas
+        run: npx playwright install --with-deps chromium
+      - name: Montar, conferir e devolver
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          STUDIO_SEGREDO: ${{ secrets.STUDIO_SEGREDO }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          PRODUCAO_ID: ${{ github.event.client_payload.producao_id }}
+          CHAVE: ${{ github.event.client_payload.chave }}
+        run: node montar.mjs
