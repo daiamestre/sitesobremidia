@@ -2669,3 +2669,31 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Cloudflare 429 → modo local;
   - 15/15 no Core, 111/111 nos testes do Studio;
   - ensaio de RLS com 5 logins (anunciantes A/B, financeiro, outra empresa, admin), tudo desfeito.
+
+### F-229 — Mídias do Studio não chegavam às telas: cópias soltas na galeria, telas sem playlist fora da lista, formato errado — CORRIGIDO
+
+- **Sintoma (dono, 31/10/2026):** artes criadas ou salvas no Studio apareciam nas pastas da galeria, mas não passavam no Player.
+- **Provas no banco:**
+  - o servidor e o Player funcionavam: a "Academia Tela 3" baixou (100%) e exibiu 18 vezes as 2 artes do Studio que estavam na playlist;
+  - **cada arte foi gravada 2 vezes** (mesmo tamanho): a 1ª cópia ficou só na pasta, fora de qualquer playlist;
+  - **9 de 19 telas sem playlist** não apareciam como destino (a lista só trazia telas com playlist);
+  - o "Salvar" do editor só guardava o projeto (nada na galeria);
+  - a arte ia no formato aberto (9:16 numa tela deitada);
+  - a mídia do Studio ia sem `file_hash`.
+- **Correção:**
+  - `salvarNasMidias` grava o MD5 (`file_hash`, o mesmo que o Player confere) e devolve a MESMA mídia quando a arte é igual (sessão + banco). Fim das cópias.
+  - `destinos` traz todas as telas (orientação, ligada/desligada, "entra na playlist que já passa").
+  - `publicar` em tela:
+    - põe na playlist que a tela já está passando (`screens.playlist_id`, a mesma que `get_player_playlist_for_screen` entrega);
+    - tela sem playlist ganha uma na orientação dela (9x16/16x9) e fica ligada;
+    - não repete o item;
+    - avisa o Player como o "Salvar" das Playlists (`playlists.updated_at`).
+  - `PublicarDialog` em cartões:
+    1. salva na galeria ao abrir;
+    2. escolhe várias telas, cada uma com a versão do seu formato (o editor gera 16:9 e 9:16; telas da mesma playlist recebem uma só);
+    3. acompanha até a tela EXIBIR (`playback_logs`).
+  - O "Salvar" do editor guarda o projeto e a imagem na galeria e abre os cartões.
+- **Provas:**
+  - `src/tests/unit/studioPublicarNaTela229.test.ts` (8);
+  - no navegador, com a conta de teste: 2 telas de homologação → payload do Player com as 2 versões e o MD5;
+  - salvar de novo → "já está na sua galeria", sem mídia nova.

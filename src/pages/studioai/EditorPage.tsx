@@ -186,6 +186,15 @@ export default function EditorPage() {
   const { w: W, h: H } = TAMANHO_DOC[formato];
   const agir = async (n: string, f: () => Promise<void>) => { setOcupado(n); try { await f(); } catch (e) { toast.error((e as Error).message || 'Não foi possível concluir.'); } finally { setOcupado(null); } };
   const png = () => documentoParaPng(doc);
+  // F-229: cada tela recebe a arte no formato dela (o outro formato herda textos, cores e fotos já editados)
+  const gerarArte = (f?: string) => {
+    const alvo = (f ?? formato) as FormatoDoc;
+    if (alvo === formato || !TAMANHO_DOC[alvo]) return documentoParaPng(doc);
+    const pronto = docs[alvo];
+    if (pronto) return documentoParaPng(pronto);
+    const h = herdarEstilo(doc, modeloParaDocumento(base, alvo));
+    return documentoParaPng({ ...h, camadas: h.camadas.map(normalizar) });
+  };
   const dados = (): DadosV2 => ({ versao: 2, documentos: docs, formato });
 
   const gravar = async () => {
@@ -194,7 +203,8 @@ export default function EditorPage() {
     void qc.invalidateQueries({ queryKey: ['studio-projetos'] });
     return id;
   };
-  const salvar = () => agir('salvar', async () => { await gravar(); toast.success('Projeto salvo em Meus Projetos (os dois formatos, com as cores e textos).'); });
+  // F-229: Salvar = projeto (Meus Projetos) + a imagem na GALERIA (sem cópia repetida), com o cartão para mandar às telas
+  const salvar = () => agir('salvar', async () => { await gravar(); setPublicando('arte'); });
   // "Salvar e publicar" também guarda o projeto: as edições (cores, textos) nunca se perdem
   const abrirPublicar = () => agir('publicar', async () => { await gravar(); setPublicando('arte'); });
 
@@ -458,7 +468,8 @@ export default function EditorPage() {
       </div>
 
       <PublicarDialog aberto={!!publicando} onFechar={() => setPublicando(false)} pasta={pastaGaleria} video={publicando === 'video'}
-        gerarPng={publicando === 'video' && videoPronto ? async () => ({ video: videoPronto.v, largura: videoPronto.v.largura, altura: videoPronto.v.altura }) : png}
+        gerarPng={publicando === 'video' && videoPronto ? async () => ({ video: videoPronto.v, largura: videoPronto.v.largura, altura: videoPronto.v.altura }) : gerarArte}
+        formatos={publicando === 'video' ? undefined : ['16:9', '9:16']}
         nome={nome || base.nome} formato={publicando === 'video' && videoPronto ? videoPronto.formato : formato} clienteId={saldo.data?.cliente ?? null} />
     </div>
   );

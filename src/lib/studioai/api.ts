@@ -1,6 +1,7 @@
 // SOBRE MÍDIA STUDIO AI — acesso do navegador: lê as tabelas (RLS) e muda tudo por funções do banco ou pela Edge Function
 // studio-ai (a chave da OpenAI nunca passa por aqui). Salvar e publicar reaproveitam os caminhos oficiais:
 // cliente_assets + análise de conteúdo + playlists do portal (anunciante) e media + playlist_items (equipe).
+import SparkMD5 from 'spark-md5';
 import { supabase } from '@/integrations/supabase/client';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { playlistClienteService } from '@/modules/crm/services/playlistCliente.service';
@@ -141,23 +142,49 @@ export async function clientesDaEmpresa(): Promise<Array<{ id: string; nome: str
 }
 
 // ---------------------------------------------------------------- salvar nas mídias e publicar (caminhos oficiais)
-export interface Salvo { tipo: 'cliente_assets' | 'media'; id: string; url: string; /** segundos na playlist (vídeo: a duração dele) */ duracao: number; video?: boolean }
+export interface Salvo { tipo: 'cliente_assets' | 'media'; id: string; url: string; /** segundos na playlist (vídeo: a duração dele) */ duracao: number; video?: boolean; formato?: string; /** a mesma arte já estava salva: não criou cópia */ repetido?: boolean }
+
+/** MD5 do arquivo (o mesmo `file_hash` que o envio de mídias do site grava; o Player confere o arquivo baixado por ele). */
+export async function md5DoArquivo(b: Blob): Promise<string> {
+  const s = new SparkMD5.ArrayBuffer();
+  const passo = 4 * 1024 * 1024;
+  for (let i = 0; i < b.size; i += passo) s.append(await b.slice(i, i + passo).arrayBuffer());
+  return s.end();
+}
+
+// a mesma arte salva de novo (Salvar, Publicar, outra tela) reaproveita a mídia: nada de cópias soltas na galeria
+const jaSalvos = new Map<string, Salvo>();
 
 /**
  * Envia a arte (PNG) ou o VÍDEO animado (F-225) ao R2 (pasta do usuário) e registra como mídia: anunciante → Minhas
  * Mídias (com análise; vídeo leva 3 quadros para o robô); equipe → Mídias (vídeo passa pela compressão do site).
  * Com `pasta`, a mídia entra na galeria da pessoa, na mesma pasta do modelo do Studio.
+ * F-229: a arte igual (mesmo MD5) já salva devolve a mesma mídia, sem criar cópia.
  */
 export async function salvarNasMidias(o: { userId: string; clienteId: string | null; png?: Blob; video?: VideoGravado; nome: string; largura: number; altura: number; formato: string; pasta?: PastaDaGaleria | null }): Promise<Salvo> {
   const arquivo = o.video?.video ?? o.png;
   if (!arquivo) throw new Error('Nada para salvar.');
   const mime = o.video?.mime ?? 'image/png';
+  const duracao = o.video ? Math.max(1, Math.ceil(o.video.duracaoMs / 1000)) : 10;
+  const hash = await md5DoArquivo(arquivo);
+  const chave = `${o.userId}:${o.clienteId ?? '-'}:${hash}`;
+  const antes = jaSalvos.get(chave);
+  if (antes) return { ...antes, repetido: true };
+  if (!o.clienteId) {
+    const { data: igual } = await supabase.from('media').select('id, file_url').eq('user_id', o.userId).eq('file_hash', hash).limit(1).maybeSingle();
+    if (igual) {
+      const m = igual as { id: string; file_url: string };
+      const s: Salvo = { tipo: 'media', id: m.id, url: m.file_url, duracao, video: !!o.video, formato: o.formato };
+      jaSalvos.set(chave, s);
+      if (o.pasta) { try { await guardarNaPasta(o.userId, 'media', s.id, o.pasta); } catch { /* a pasta é só organização */ } }
+      return { ...s, repetido: true };
+    }
+  }
   const base = `${o.userId}/studio/${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const { publicUrl, filePath } = await uploadToR2(arquivo, `${base}.${o.video?.ext ?? 'png'}`, mime, o.userId, { preventOverwrite: true });
   const quadros: string[] = [];
   for (const [i, q] of (o.video?.quadros ?? []).entries()) quadros.push((await uploadToR2(q, `${base}-quadro${i + 1}.jpg`, 'image/jpeg', o.userId, { preventOverwrite: true })).publicUrl);
   const capa = quadros[quadros.length - 1] ?? publicUrl;
-  const duracao = o.video ? Math.max(1, Math.ceil(o.video.duracaoMs / 1000)) : 10;
   let salvo: Salvo;
   if (o.clienteId) {
     const tenant = (await supabase.rpc('get_user_tenant_id')).data as string;
@@ -169,27 +196,32 @@ export async function salvarNasMidias(o: { userId: string; clienteId: string | n
     if (error || !data) throw new Error(error?.message || 'Não foi possível salvar em Minhas Mídias.');
     const id = (data as { id: string }).id;
     void supabase.functions.invoke('analisar-midia', { body: { asset_id: id } });
-    salvo = { tipo: 'cliente_assets', id, url: publicUrl, duracao, video: !!o.video };
+    salvo = { tipo: 'cliente_assets', id, url: publicUrl, duracao, video: !!o.video, formato: o.formato };
   } else {
     const { data, error } = await supabase.from('media').insert({
       user_id: o.userId, name: o.nome.slice(0, 120), file_path: filePath, file_url: publicUrl, file_type: o.video ? 'video' : 'image', file_size: arquivo.size,
-      mime_type: mime, aspect_ratio: o.formato, thumbnail_url: capa, ...(o.video ? { duration_ms: o.video.duracaoMs } : {}),
+      mime_type: mime, aspect_ratio: o.formato, thumbnail_url: capa, file_hash: hash, ...(o.video ? { duration_ms: o.video.duracaoMs } : {}),
     } as never).select('id').single();
     if (error || !data) throw new Error(error?.message || 'Não foi possível salvar nas mídias.');
     const id = (data as { id: string }).id;
     // vídeo: mesma compressão dos vídeos enviados pelo site (deixa leve para as telas)
     if (o.video) void supabase.functions.invoke('process-media', { body: { media_id: id, file_url: publicUrl, file_path: filePath, file_type: mime, file_size: arquivo.size, user_id: o.userId } });
-    salvo = { tipo: 'media', id, url: publicUrl, duracao, video: !!o.video };
+    salvo = { tipo: 'media', id, url: publicUrl, duracao, video: !!o.video, formato: o.formato };
   }
+  jaSalvos.set(chave, salvo);
   if (o.pasta) {
     try { await guardarNaPasta(o.userId, salvo.tipo, salvo.id, o.pasta); } catch (e) { console.warn('[galeria] não foi possível pôr na pasta:', e); }
   }
   return salvo;
 }
 
-export interface Destino { id: string; nome: string; detalhe?: string }
+export interface Destino { id: string; nome: string; detalhe?: string; /** telas: em pé (portrait) ou deitada */ orientacao?: 'portrait' | 'landscape'; online?: boolean; playlist?: string | null; playlistId?: string | null }
 
-/** Playlists e telas em que o usuário pode publicar. */
+/** Formato da arte que a tela mostra inteira: tela em pé → 9:16; deitada → 16:9. */
+export const formatoDaTela = (orientacao?: string | null) => (orientacao === 'portrait' ? '9:16' : '16:9');
+const ONLINE_MS = 5 * 60_000;
+
+/** Playlists e telas em que o usuário pode publicar (equipe: TODAS as telas, inclusive as que ainda não têm playlist). */
 export async function destinos(clienteId: string | null): Promise<{ playlists: Destino[]; telas: Destino[] }> {
   if (clienteId) {
     const [pls, pontos] = await Promise.all([playlistClienteService.listarPlaylists(), playlistClienteService.listarPontosContratados()]);
@@ -199,18 +231,30 @@ export async function destinos(clienteId: string | null): Promise<{ playlists: D
     };
   }
   const [{ data: pls }, { data: telas }] = await Promise.all([
-    supabase.from('playlists').select('id, name').order('name').limit(200),
-    supabase.from('screens').select('id, name, playlist_id').not('playlist_id', 'is', null).order('name').limit(300),
+    supabase.from('playlists').select('id, name').order('name').limit(300),
+    supabase.from('screens').select('id, name, playlist_id, orientation, last_ping_at').order('name').limit(300),
   ]);
+  const nomes = new Map((pls ?? []).map((p: { id: string; name: string }) => [p.id, p.name]));
+  const agora = Date.now();
+  type Tela = { id: string; name: string; playlist_id: string | null; orientation: string | null; last_ping_at: string | null };
   return {
     playlists: (pls ?? []).map((p: { id: string; name: string }) => ({ id: p.id, nome: p.name })),
-    telas: (telas ?? []).map((t: { id: string; name: string; playlist_id: string }) => ({ id: t.id, nome: t.name, detalhe: t.playlist_id })),
+    telas: ((telas ?? []) as Tela[]).map((t): Destino => ({
+      id: t.id, nome: t.name, orientacao: t.orientation === 'portrait' ? 'portrait' : 'landscape',
+      online: !!t.last_ping_at && agora - new Date(t.last_ping_at).getTime() < ONLINE_MS,
+      playlist: t.playlist_id ? nomes.get(t.playlist_id) ?? 'Playlist da tela' : null, playlistId: t.playlist_id,
+      detalhe: t.playlist_id ? `Entra na playlist que já passa: ${nomes.get(t.playlist_id) ?? 'da tela'}` : 'Sem playlist: o Studio cria uma para ela',
+    })),
   };
 }
 
-export interface ResultadoPublicacao { ok: boolean; mensagem: string; cobrancaId?: string; valor?: number; playlistId?: string }
+export interface ResultadoPublicacao { ok: boolean; mensagem: string; cobrancaId?: string; valor?: number; playlistId?: string; telaId?: string }
 
-/** Anunciante: regra oficial de mídias da playlist (grátis/cortesia/paga por PIX). Equipe: item no fim da playlist. */
+/**
+ * Anunciante: regra oficial de mídias da playlist (grátis/cortesia/paga por PIX). Equipe: item no fim da playlist da tela
+ * (F-229: tela sem playlist ganha uma, na orientação dela; a mesma mídia não entra duas vezes) e o aviso ao Player é o
+ * mesmo do "Salvar" das Playlists (playlists.updated_at); o Player também lê playlist_items em tempo real e a cada 60 s.
+ */
 export async function publicar(salvo: Salvo, destino: { tipo: 'playlist' | 'tela'; id: string; nome: string }): Promise<ResultadoPublicacao> {
   if (salvo.tipo === 'cliente_assets') {
     let playlistId = destino.id;
@@ -230,12 +274,38 @@ export async function publicar(salvo: Salvo, destino: { tipo: 'playlist' | 'tela
   }
   let playlistId = destino.id;
   if (destino.tipo === 'tela') {
-    const { data: tela } = await supabase.from('screens').select('playlist_id').eq('id', destino.id).maybeSingle();
-    if (!(tela as { playlist_id?: string } | null)?.playlist_id) throw new Error('Esta tela não tem playlist.');
-    playlistId = (tela as { playlist_id: string }).playlist_id;
+    const { data: tela } = await supabase.from('screens').select('playlist_id, orientation').eq('id', destino.id).maybeSingle();
+    const t = tela as { playlist_id?: string | null; orientation?: string | null } | null;
+    if (!t) throw new Error('Tela não encontrada.');
+    if (t.playlist_id) playlistId = t.playlist_id;
+    else {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: nova, error: e1 } = await supabase.from('playlists').insert({
+        user_id: user?.id, name: `Studio – ${destino.nome}`.slice(0, 80), description: 'Criada pelo SOBRE MÍDIA Studio',
+        resolution: t.orientation === 'portrait' ? '9x16' : '16x9',
+      } as never).select('id').single();
+      if (e1 || !nova) throw new Error(e1?.message || 'Não foi possível criar a playlist da tela.');
+      playlistId = (nova as { id: string }).id;
+      const { error: e2 } = await supabase.from('screens').update({ playlist_id: playlistId } as never).eq('id', destino.id);
+      if (e2) throw new Error(`Não foi possível ligar a playlist à tela: ${e2.message}`);
+    }
   }
-  const { data: ultimo } = await supabase.from('playlist_items').select('position').eq('playlist_id', playlistId).order('position', { ascending: false }).limit(1).maybeSingle();
-  const { error } = await supabase.from('playlist_items').insert({ playlist_id: playlistId, media_id: salvo.id, position: ((ultimo as { position?: number } | null)?.position ?? -1) + 1, duration: salvo.duracao } as never);
-  if (error) throw new Error(error.message);
-  return { ok: true, mensagem: salvo.video ? 'Vídeo adicionado à playlist.' : 'Imagem adicionada à playlist.', playlistId };
+  const { data: ja } = await supabase.from('playlist_items').select('id').eq('playlist_id', playlistId).eq('media_id', salvo.id).limit(1).maybeSingle();
+  if (!ja) {
+    const { data: ultimo } = await supabase.from('playlist_items').select('position').eq('playlist_id', playlistId).order('position', { ascending: false }).limit(1).maybeSingle();
+    const { error } = await supabase.from('playlist_items').insert({ playlist_id: playlistId, media_id: salvo.id, position: ((ultimo as { position?: number } | null)?.position ?? -1) + 1, duration: salvo.duracao } as never);
+    if (error) throw new Error(error.message);
+  }
+  // mesmo aviso do fn_save_playlist_items: o Player recarrega na hora
+  const agora = new Date().toISOString();
+  await supabase.from('playlists').update({ updated_at: agora, last_modified: agora } as never).eq('id', playlistId);
+  const oQue = salvo.video ? 'Vídeo' : 'Imagem';
+  return { ok: true, mensagem: ja ? `${oQue} já estava na playlist.` : `${oQue} adicionado(a) à playlist.`, playlistId, telaId: destino.tipo === 'tela' ? destino.id : undefined };
+}
+
+/** F-229: prova real de que a tela EXIBIU a mídia (registro de exibição que o próprio Player envia), desde `desde`. */
+export async function exibidaNaTela(mediaId: string, telaId: string, desde: string): Promise<string | null> {
+  const { data } = await supabase.from('playback_logs').select('started_at').eq('screen_id', telaId).eq('media_id', mediaId)
+    .gte('started_at', desde).order('started_at', { ascending: false }).limit(1).maybeSingle();
+  return (data as { started_at?: string } | null)?.started_at ?? null;
 }
