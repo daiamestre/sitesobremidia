@@ -9,6 +9,7 @@ import { MediaUploadDialog } from '@/components/media/MediaUploadDialog';
 import { MediaCard } from '@/components/media/MediaCard';
 import { MediaPreviewDialog } from '@/components/media/MediaPreviewDialog';
 import { PastaLogosSobreMidia } from '@/components/media/PastaLogosSobreMidia';
+import { GaleriaEmPastas } from '@/components/media/GaleriaEmPastas';
 import { LOGOS_SOBRE_MIDIA, veLogosDaMarca } from '@/lib/logosSobreMidia';
 import {
   AlertDialog,
@@ -78,6 +79,21 @@ export default function Medias() {
     }
     return false; // Should not reach here in root view logic, but technically 'all' if needed
   });
+
+  const desenharMidias = (lista: { media: Media }[]) => (
+    <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' : 'space-y-2'}>
+      {lista.map(({ media }) => (
+        <MediaCard
+          key={media.id}
+          media={media}
+          viewMode={viewMode}
+          onDelete={setDeleteMediaId}
+          onPreview={setPreviewMedia}
+          onEdit={(m) => { setEditMedia(m); setUploadDialogOpen(true); }}
+        />
+      ))}
+    </div>
+  );
 
   const imageCount = medias.filter(m => m.file_type === 'image').length;
   const videoCount = medias.filter(m => m.file_type === 'video').length;
@@ -250,35 +266,11 @@ export default function Medias() {
               icon: currentFolder === 'audio' ? Music : Upload
             } : undefined}
           />
-        ) : viewMode === 'grid' ? (
-          // Media Grid
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredMedias.map(media => (
-              <MediaCard
-                key={media.id}
-                media={media}
-                viewMode={viewMode}
-                onDelete={setDeleteMediaId}
-                onPreview={setPreviewMedia}
-                onEdit={(m) => { setEditMedia(m); setUploadDialogOpen(true); }}
-              />
-            ))}
-          </div>
-        ) : (
-          // Media List
-          <div className="space-y-2">
-            {filteredMedias.map(media => (
-              <MediaCard
-                key={media.id}
-                media={media}
-                viewMode={viewMode}
-                onDelete={setDeleteMediaId}
-                onPreview={setPreviewMedia}
-                onEdit={(m) => { setEditMedia(m); setUploadDialogOpen(true); }}
-              />
-            ))}
-          </div>
-        )}
+        ) : (currentFolder === 'image' || currentFolder === 'video') && !searchQuery ? (
+          // F-225: imagens e vídeos em pastas por segmento (as mesmas do SOBRE MÍDIA Studio)
+          <GaleriaEmPastas origem="media" video={currentFolder === 'video'} render={(l) => desenharMidias(l)}
+            itens={filteredMedias.map((m) => ({ id: m.id, nome: m.name, capa: m.thumbnail_url || (m.file_type === 'image' ? m.file_url : null), criado: m.created_at, media: m }))} />
+        ) : desenharMidias(filteredMedias.map((m) => ({ media: m })))}
       </div>
 
       {/* Upload Dialog */}

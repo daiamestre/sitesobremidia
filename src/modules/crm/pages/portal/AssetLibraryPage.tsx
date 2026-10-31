@@ -5,7 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Upload, Loader2, Image as ImageIcon, Video, FileText, Trash2, ShieldCheck, ShieldAlert, Clock } from 'lucide-react';
+import { Upload, Loader2, Image as ImageIcon, Video, FileText, Trash2, ShieldCheck, ShieldAlert, Clock, ArrowLeft } from 'lucide-react';
+import { GaleriaEmPastas } from '@/components/media/GaleriaEmPastas';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatBytes } from '@/utils/formatters';
 import { DiretrizesConteudo, DURACAO_MAXIMA_VIDEO } from '@/components/portal/DiretrizesConteudo';
@@ -59,6 +60,8 @@ export default function AssetLibraryPage() {
   const [assets, setAssets] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingAssets, setIsLoadingAssets] = useState(true);
+  // F-225: como em Minhas Mídias da equipe — cartões Imagens e Vídeos, e dentro deles as pastas por segmento do Studio
+  const [tipoAberto, setTipoAberto] = useState<'imagem' | 'video' | 'outros' | null>(null);
 
   const fetchAssets = async () => {
     if (!cliente?.id) return;
@@ -153,6 +156,52 @@ export default function AssetLibraryPage() {
     else toast.error('Erro ao remover a mídia.');
   };
 
+  const desenharAssets = (lista: any[]) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" data-testid="lista-midias">
+      {lista.map((asset) => {
+        const sit = SITUACAO[asset.moderacao_status];
+        return (
+          <Card key={asset.id} className="overflow-hidden group">
+            <div className="relative aspect-video bg-muted flex items-center justify-center">
+              {asset.tipo === 'imagem' ? (
+                <img src={asset.object_url} alt={asset.nome} className="object-cover w-full h-full" />
+              ) : asset.tipo === 'video' ? (
+                <video src={asset.object_url} className="object-cover w-full h-full bg-black" muted preload="metadata" />
+              ) : (
+                <FileText className="h-12 w-12 text-muted-foreground/50" />
+              )}
+              {sit && (
+                <span className={cn('absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold backdrop-blur', sit.cor)} data-testid="situacao-midia">
+                  <sit.icone className="h-3 w-3" /> {sit.texto}
+                </span>
+              )}
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full shadow-md" onClick={() => handleDelete(asset.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                {asset.tipo === 'imagem' && <ImageIcon className="h-4 w-4 text-blue-500" />}
+                {asset.tipo === 'video' && <Video className="h-4 w-4 text-purple-500" />}
+                {asset.tipo === 'documento' && <FileText className="h-4 w-4 text-orange-500" />}
+                <h4 className="font-medium truncate text-sm" title={asset.nome}>{asset.nome}</h4>
+              </div>
+              <div className="flex justify-between items-center text-xs text-muted-foreground">
+                <span>{new Date(asset.created_at).toLocaleDateString('pt-BR')}{asset.duracao ? ` · ${asset.duracao}s` : ''}</span>
+                <span>{formatBytes(asset.tamanho || 0)}</span>
+              </div>
+              {asset.moderacao_status === 'RECUSADA' && asset.moderacao_motivo && (
+                <p className="mt-2 text-xs text-red-400">{asset.moderacao_motivo}</p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+
   if (isLoading || isLoadingAssets) {
     return (
       <div className="p-8 space-y-8">
@@ -191,49 +240,39 @@ export default function AssetLibraryPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" data-testid="lista-midias">
-          {assets.map((asset) => {
-            const sit = SITUACAO[asset.moderacao_status];
-            return (
-              <Card key={asset.id} className="overflow-hidden group">
-                <div className="relative aspect-video bg-muted flex items-center justify-center">
-                  {asset.tipo === 'imagem' ? (
-                    <img src={asset.object_url} alt={asset.nome} className="object-cover w-full h-full" />
-                  ) : asset.tipo === 'video' ? (
-                    <video src={asset.object_url} className="object-cover w-full h-full bg-black" muted preload="metadata" />
-                  ) : (
-                    <FileText className="h-12 w-12 text-muted-foreground/50" />
-                  )}
-                  {sit && (
-                    <span className={cn('absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold backdrop-blur', sit.cor)} data-testid="situacao-midia">
-                      <sit.icone className="h-3 w-3" /> {sit.texto}
-                    </span>
-                  )}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full shadow-md" onClick={() => handleDelete(asset.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    {asset.tipo === 'imagem' && <ImageIcon className="h-4 w-4 text-blue-500" />}
-                    {asset.tipo === 'video' && <Video className="h-4 w-4 text-purple-500" />}
-                    {asset.tipo === 'documento' && <FileText className="h-4 w-4 text-orange-500" />}
-                    <h4 className="font-medium truncate text-sm" title={asset.nome}>{asset.nome}</h4>
-                  </div>
-                  <div className="flex justify-between items-center text-xs text-muted-foreground">
-                    <span>{new Date(asset.created_at).toLocaleDateString('pt-BR')}{asset.duracao ? ` · ${asset.duracao}s` : ''}</span>
-                    <span>{formatBytes(asset.tamanho || 0)}</span>
-                  </div>
-                  {asset.moderacao_status === 'RECUSADA' && asset.moderacao_motivo && (
-                    <p className="mt-2 text-xs text-red-400">{asset.moderacao_motivo}</p>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <PastasDoAnunciante assets={assets} tipoAberto={tipoAberto} setTipoAberto={setTipoAberto} desenhar={desenharAssets} />
+      )}
+    </div>
+  );
+}
+
+/** Cartões Imagens / Vídeos (/ Outros arquivos); ao abrir, as pastas por segmento do Studio (F-225). */
+function PastasDoAnunciante({ assets, tipoAberto, setTipoAberto, desenhar }: {
+  assets: any[]; tipoAberto: 'imagem' | 'video' | 'outros' | null; setTipoAberto: (t: 'imagem' | 'video' | 'outros' | null) => void; desenhar: (lista: any[]) => React.ReactNode;
+}) {
+  const doTipo = (t: 'imagem' | 'video' | 'outros') => assets.filter((a) => (t === 'outros' ? a.tipo !== 'imagem' && a.tipo !== 'video' : a.tipo === t));
+  if (!tipoAberto) {
+    const cartoes = ([['imagem', 'Imagens', ImageIcon], ['video', 'Vídeos', Video], ['outros', 'Outros arquivos', FileText]] as const).filter(([t]) => t !== 'outros' || doTipo('outros').length);
+    return (
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3" data-testid="lista-midias">
+        {cartoes.map(([t, nome, I]) => (
+          <Card key={t} className="cursor-pointer transition hover:border-primary/60 hover:shadow-[0_0_24px_-6px_hsl(var(--primary)/0.8)]" onClick={() => setTipoAberto(t)} data-testid={"pasta-" + t}>
+            <CardContent className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <div className="rounded-2xl bg-primary/10 p-4 text-primary"><I className="h-10 w-10" /></div>
+              <div><h3 className="text-lg font-bold">{nome}</h3><p className="text-sm text-muted-foreground">{doTipo(t).length} arquivo(s)</p></div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+  const lista = doTipo(tipoAberto);
+  return (
+    <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={() => setTipoAberto(null)}><ArrowLeft className="mr-1 h-4 w-4" />{tipoAberto === 'imagem' ? 'Imagens' : tipoAberto === 'video' ? 'Vídeos' : 'Outros arquivos'}</Button>
+      {tipoAberto === 'outros' ? desenhar(lista) : (
+        <GaleriaEmPastas origem="cliente_assets" video={tipoAberto === 'video'} render={(l) => desenhar(l.map((x) => x.asset))}
+          itens={lista.map((a) => ({ id: a.id, nome: a.nome, capa: a.tipo === 'imagem' ? a.object_url : (a.quadros?.[0] ?? null), criado: a.created_at, asset: a }))} />
       )}
     </div>
   );

@@ -36,7 +36,8 @@ export function MapaDaRede({ linhas, className = '' }: { linhas?: LinhaDePresenc
   const [larguraNaTela, setLarguraNaTela] = useState(600); // largura real do mapa, para os marcadores terem tamanho fixo na tela
   const svg = useRef<SVGSVGElement>(null);
   const ponteiros = useRef(new Map<number, { x: number; y: number }>());
-  const arrasto = useRef<{ x: number; y: number; vista: Vista; moveu: boolean; distancia: number | null } | null>(null);
+  // F-224: no toque, um dedo na VERTICAL rola a página (touch-action pan-y); de lado ou com dois dedos mexe no mapa
+  const arrasto = useRef<{ x: number; y: number; vista: Vista; moveu: boolean; distancia: number | null; meio?: { x: number; y: number } } | null>(null);
 
   useEffect(() => { carregarGeo().then(setGeo).catch(() => setErro(true)); }, []);
   useEffect(() => {
@@ -105,7 +106,7 @@ export function MapaDaRede({ linhas, className = '' }: { linhas?: LinhaDePresenc
     ponteiros.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     svg.current?.setPointerCapture?.(e.pointerId);
     const pts = [...ponteiros.current.values()];
-    arrasto.current = { x: e.clientX, y: e.clientY, vista, moveu: false, distancia: pts.length === 2 ? Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) : null };
+    arrasto.current = { x: e.clientX, y: e.clientY, vista, moveu: false, distancia: pts.length === 2 ? Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) : null, meio: pts.length === 2 ? { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 } : undefined };
   };
   const aoMover = (e: EventoDePonteiro) => {
     if (!ponteiros.current.has(e.pointerId) || !arrasto.current) return;
@@ -114,7 +115,13 @@ export function MapaDaRede({ linhas, className = '' }: { linhas?: LinhaDePresenc
     const a = arrasto.current;
     if (pts.length === 2 && a.distancia) { // dois dedos: aproxima/afasta
       const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      if (Math.abs(d - a.distancia) > 4) { aproximarEm(d / a.distancia, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2); a.distancia = d; a.moveu = true; }
+      const meio = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      if (Math.abs(d - a.distancia) > 4) { aproximarEm(d / a.distancia, meio.x, meio.y); a.distancia = d; a.moveu = true; }
+      if (a.meio) { // dois dedos juntos arrastam o mapa em qualquer direção
+        const r2 = svg.current!.getBoundingClientRect(); const mx = meio.x - a.meio.x; const my = meio.y - a.meio.y;
+        if (Math.abs(mx) + Math.abs(my) > 1) { setVista((v) => limitar({ escala: v.escala, x: v.x - (mx / r2.width) * (LARGURA_DO_MAPA / v.escala), y: v.y - (my / r2.height) * (ALTURA_DO_MAPA / v.escala) })); a.moveu = true; }
+        a.meio = meio;
+      }
       return;
     }
     const r = svg.current!.getBoundingClientRect();
@@ -143,7 +150,7 @@ export function MapaDaRede({ linhas, className = '' }: { linhas?: LinhaDePresenc
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60">
         <svg ref={svg} role="img" aria-label={`Mapa da rede: ${presenca.total.total} cadastros em ${presenca.cidades} cidades e ${presenca.estados.length} estados`}
           viewBox={`${vista.x} ${vista.y} ${LARGURA_DO_MAPA / vista.escala} ${ALTURA_DO_MAPA / vista.escala}`}
-          className="block w-full cursor-grab select-none active:cursor-grabbing" style={{ aspectRatio: `${LARGURA_DO_MAPA} / ${ALTURA_DO_MAPA}`, maxHeight: '70dvh', touchAction: 'none' }}
+          className="block w-full cursor-grab select-none active:cursor-grabbing" style={{ aspectRatio: `${LARGURA_DO_MAPA} / ${ALTURA_DO_MAPA}`, maxHeight: '70dvh', touchAction: 'pan-y' }}
           onPointerDown={aoPressionar} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar} data-escala={vista.escala.toFixed(2)}>
           {formas.map((f) => {
             const e = porUf.get(f.uf);
@@ -192,6 +199,7 @@ export function MapaDaRede({ linhas, className = '' }: { linhas?: LinhaDePresenc
           <button type="button" aria-label="Afastar" title="Afastar" onClick={() => aproximarEm(1 / 1.6)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900/90 text-white ring-1 ring-white/20 hover:bg-slate-800" data-testid="mapa-afastar"><Minus className="h-4 w-4" /></button>
           <button type="button" aria-label="Ver o Brasil inteiro" title="Ver o Brasil inteiro" onClick={() => { setVista(VISTA_INICIAL); setUfAberta(null); }} className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900/90 text-white ring-1 ring-white/20 hover:bg-slate-800" data-testid="mapa-inteiro"><RotateCcw className="h-4 w-4" /></button>
         </div>
+        <p className="pointer-events-none absolute bottom-2 left-2 hidden rounded-md bg-slate-950/80 px-2 py-1 text-[10px] text-slate-300 [@media(pointer:coarse)]:block">Role a página normalmente · mexa no mapa de lado ou com dois dedos · + / − aproxima</p>
         <p className="pointer-events-none absolute bottom-2 left-3 text-[11px] text-slate-400">
           {mostrarCidades ? 'Cidades com a quantidade de cadastros' : 'Toque num estado ou aproxime para ver as cidades'}
         </p>

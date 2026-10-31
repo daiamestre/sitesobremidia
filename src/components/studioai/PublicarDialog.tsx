@@ -8,6 +8,8 @@ import { PixDaCobranca } from '@/components/pagamento/PixDaCobranca';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { destinos, publicar, salvarNasMidias, type Destino, type Salvo } from '@/lib/studioai/api';
+import type { PastaDaGaleria } from '@/lib/galeria';
+import type { VideoGravado } from '@/lib/studio/video';
 import { playlistClienteService } from '@/modules/crm/services/playlistCliente.service';
 
 /**
@@ -15,8 +17,9 @@ import { playlistClienteService } from '@/modules/crm/services/playlistCliente.s
  * anunciante → Minhas Mídias (análise de conteúdo) + regra de mídias da playlist (grátis, cortesia ou PIX);
  * equipe → Mídias + item no fim da playlist (ou da playlist da tela).
  */
-export function PublicarDialog({ aberto, onFechar, gerarPng, nome, formato, clienteId }: {
-  aberto: boolean; onFechar: () => void; gerarPng: () => Promise<{ png: Blob; largura: number; altura: number }>; nome: string; formato: string; clienteId: string | null;
+export function PublicarDialog({ aberto, onFechar, gerarPng, nome, formato, clienteId, pasta, video = false }: {
+  aberto: boolean; onFechar: () => void; gerarPng: () => Promise<{ png?: Blob; video?: VideoGravado; largura: number; altura: number }>; nome: string; formato: string; clienteId: string | null;
+  /** F-225: pasta da galeria (a do modelo do Studio) em que a mídia entra */ pasta?: PastaDaGaleria | null; video?: boolean;
 }) {
   const { user } = useAuth();
   const [salvo, setSalvo] = useState<Salvo | null>(null);
@@ -33,10 +36,10 @@ export function PublicarDialog({ aberto, onFechar, gerarPng, nome, formato, clie
     if (!user) return;
     setOcupado('salvar');
     try {
-      const { png, largura, altura } = await gerarPng();
-      const s = await salvarNasMidias({ userId: user.id, clienteId, png, nome, largura, altura, formato });
+      const { png, video: gravado, largura, altura } = await gerarPng();
+      const s = await salvarNasMidias({ userId: user.id, clienteId, png, video: gravado, nome, largura, altura, formato, pasta });
       setSalvo(s);
-      toast.success(clienteId ? 'Salvo em Minhas Mídias. Ele passa pela análise de conteúdo antes de ir às telas.' : 'Salvo nas mídias.');
+      toast.success(clienteId ? `Salvo em Minhas Mídias${pasta ? ` (pasta ${pasta.nome})` : ''}. Passa pela análise de conteúdo antes de ir às telas.` : `Salvo nas mídias${pasta ? ` (pasta ${pasta.nome})` : ''}.`);
     } catch (e) { toast.error((e as Error).message || 'Não foi possível salvar.'); } finally { setOcupado(null); }
   };
 
@@ -67,8 +70,8 @@ export function PublicarDialog({ aberto, onFechar, gerarPng, nome, formato, clie
     <Dialog open={aberto} onOpenChange={(v) => { if (!v) onFechar(); }}>
       <DialogContent className="max-w-lg border-[#8A2EFF]/40 bg-[#14062f] text-slate-100">
         <DialogHeader>
-          <DialogTitle>Salvar e publicar</DialogTitle>
-          <DialogDescription className="text-slate-400">Salve a arte nas suas mídias e escolha uma playlist ou uma tela.</DialogDescription>
+          <DialogTitle>{video ? 'Salvar e publicar o vídeo' : 'Salvar e publicar'}</DialogTitle>
+          <DialogDescription className="text-slate-400">{video ? 'Salve o vídeo' : 'Salve a arte'} nas suas mídias{pasta ? ` (pasta ${pasta.nome})` : ''} e escolha uma playlist ou uma tela.</DialogDescription>
         </DialogHeader>
         {!salvo ? (
           <Button className="w-full bg-[#5D1BFF] text-white hover:bg-[#8A2EFF]" disabled={!!ocupado} onClick={salvar} data-testid="studio-salvar-midias">
@@ -76,7 +79,7 @@ export function PublicarDialog({ aberto, onFechar, gerarPng, nome, formato, clie
           </Button>
         ) : (
           <div className="space-y-4">
-            <p className="flex items-center gap-2 rounded-lg bg-[#25D366]/10 p-3 text-sm text-[#7dffb0]"><CheckCircle2 className="h-4 w-4" />Arte salva nas suas mídias.</p>
+            <p className="flex items-center gap-2 rounded-lg bg-[#25D366]/10 p-3 text-sm text-[#7dffb0]"><CheckCircle2 className="h-4 w-4" />{video ? 'Vídeo salvo' : 'Arte salva'} nas suas mídias{pasta ? ` · pasta ${pasta.nome}` : ''}.</p>
             {feito ? (
               <div className="space-y-3 text-sm">
                 <p className="rounded-lg bg-[#25D366]/10 p-3 text-[#7dffb0]">{feito}</p>

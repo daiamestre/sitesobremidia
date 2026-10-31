@@ -2,9 +2,11 @@
  * SOBRE MÍDIA STUDIO — palco do editor de camadas (F-221): a arte desenhada no canvas e, por cima, as caixas de cada
  * camada para clicar, ARRASTAR, REDIMENSIONAR (8 alças) e GIRAR (alça de cima), com guias de centro e bordas.
  * Funciona com mouse e com o dedo (pointer events). Shift mantém a proporção / gira de 15 em 15 graus.
+ * F-224 (tablet/celular): o dedo só ARRASTA o elemento já escolhido; tocar num elemento não escolhido apenas o escolhe
+ * (e deixa a página rolar), para quem desce a tela não mover a arte sem querer. Lixeira e duplicar ficam junto da seleção.
  */
 import { useEffect, useRef, useState, type PointerEvent as PE } from 'react';
-import { RotateCw } from 'lucide-react';
+import { Copy, RotateCw, Trash2 } from 'lucide-react';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { TAMANHO_DOC, type Camada, type Documento } from '@/lib/studio/documento';
 
@@ -23,6 +25,10 @@ export interface PalcoProps {
   onInicio: () => void;
   onMudar: (id: string, patch: Partial<Camada>) => void;
   onEditarTexto?: (id: string) => void;
+  onApagar?: (id: string) => void;
+  onDuplicar?: (id: string) => void;
+  /** F-225: tocando a animação (sem caixas de seleção por cima) */
+  animar?: boolean;
 }
 
 /** Caixa que a alça mexe, já considerando a rotação da camada. */
@@ -39,7 +45,7 @@ export function redimensionar(c: Pick<Camada, 'x' | 'y' | 'w' | 'h' | 'rot'>, sx
   return { x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w: Math.round(w), h: Math.round(h) };
 }
 
-export function Palco({ doc, sel, onSelecionar, onInicio, onMudar, onEditarTexto }: PalcoProps) {
+export function Palco({ doc, sel, onSelecionar, onInicio, onMudar, onEditarTexto, onApagar, onDuplicar, animar = false }: PalcoProps) {
   const caixa = useRef<HTMLDivElement>(null);
   const [largura, setLargura] = useState(0);
   const [guias, setGuias] = useState<{ x?: number; y?: number }>({});
@@ -57,6 +63,8 @@ export function Palco({ doc, sel, onSelecionar, onInicio, onMudar, onEditarTexto
 
   const arrastar = (ev: PE, c: Camada, modo: 'mover' | Alca | 'girar') => {
     ev.stopPropagation();
+    // dedo num elemento que ainda não foi escolhido: só escolhe no "toque" (onClick) e deixa a página rolar
+    if (modo === 'mover' && ev.pointerType !== 'mouse' && c.id !== sel) return;
     ev.preventDefault();
     onSelecionar(c.id);
     if (c.bloqueada) return;
@@ -105,16 +113,19 @@ export function Palco({ doc, sel, onSelecionar, onInicio, onMudar, onEditarTexto
   const semAlturaLivre = selecionada && (selecionada.tipo === 'texto' || selecionada.tipo === 'itens');
 
   return (
-    <div ref={caixa} className="relative w-full touch-none select-none" style={{ aspectRatio: `${W} / ${H}` }} data-testid="studio-palco">
-      <PreviaDocumento doc={doc} sempre className="rounded-lg shadow-2xl" />
-      <div className="absolute inset-0" onPointerDown={() => onSelecionar(null)}>
+    <div ref={caixa} className="relative w-full select-none" style={{ aspectRatio: `${W} / ${H}` }} data-testid="studio-palco">
+      <PreviaDocumento doc={doc} sempre animar={animar} className="rounded-lg shadow-2xl" />
+      <div className="absolute inset-0" style={{ touchAction: 'pan-y' }}
+        onPointerDown={(ev) => { if (ev.pointerType === 'mouse' && ev.target === ev.currentTarget) onSelecionar(null); }}
+        onClick={(ev) => { if (ev.target === ev.currentTarget) onSelecionar(null); }}>
         {/* camada travada não pega o clique no palco (fundo e esfumados): escolha pela lista de camadas */}
         {doc.camadas.map((c) => c.visivel && !c.bloqueada && (
           <div key={c.id} data-camada={c.id}
             onPointerDown={(ev) => arrastar(ev, c, 'mover')}
+            onClick={(ev) => { ev.stopPropagation(); onSelecionar(c.id); }}
             onDoubleClick={() => c.tipo === 'texto' && onEditarTexto?.(c.id)}
             className={c.bloqueada ? 'cursor-default' : 'cursor-move'}
-            style={{ position: 'absolute', left: c.x * e, top: c.y * e, width: c.w * e, height: c.h * e, transform: `rotate(${c.rot}deg)` }}
+            style={{ position: 'absolute', left: c.x * e, top: c.y * e, width: c.w * e, height: c.h * e, transform: `rotate(${c.rot}deg)`, touchAction: c.id === sel ? 'none' : 'pan-y' }}
             title={c.nome} />
         ))}
         {selecionada && (
@@ -122,14 +133,21 @@ export function Palco({ doc, sel, onSelecionar, onInicio, onMudar, onEditarTexto
             <div className="absolute inset-0 rounded-[2px] border-2 border-[#22d3ee] shadow-[0_0_0_1px_rgba(0,0,0,.5)]" />
             {!selecionada.bloqueada && ALCAS.filter((a) => !(semAlturaLivre && a.sx === 0)).map((a) => (
               <span key={a.a} onPointerDown={(ev) => arrastar(ev, selecionada, a.a)} data-alca={a.a}
-                className="pointer-events-auto absolute h-3.5 w-3.5 rounded-full border-2 border-[#22d3ee] bg-white shadow"
-                style={{ left: `calc(${(a.sx + 1) * 50}% - 7px)`, top: `calc(${(a.sy + 1) * 50}% - 7px)`, cursor: a.cursor }} />
+                className="pointer-events-auto absolute flex h-7 w-7 touch-none items-center justify-center"
+                style={{ left: `calc(${(a.sx + 1) * 50}% - 14px)`, top: `calc(${(a.sy + 1) * 50}% - 14px)`, cursor: a.cursor }}>
+                <span className="h-3.5 w-3.5 rounded-full border-2 border-[#22d3ee] bg-white shadow" />
+              </span>
             ))}
             {!selecionada.bloqueada && (
               <span onPointerDown={(ev) => arrastar(ev, selecionada, 'girar')} data-alca="girar" title="Girar (Shift: de 15 em 15°)"
-                className="pointer-events-auto absolute left-1/2 flex h-6 w-6 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border-2 border-[#22d3ee] bg-white text-[#0b1324] shadow"
-                style={{ top: -34 }}><RotateCw className="h-3.5 w-3.5" /></span>
+                className="pointer-events-auto absolute left-1/2 flex h-8 w-8 -translate-x-1/2 cursor-grab touch-none items-center justify-center rounded-full border-2 border-[#22d3ee] bg-white text-[#0b1324] shadow"
+                style={{ top: -42 }}><RotateCw className="h-4 w-4" /></span>
             )}
+            {/* atalhos junto da seleção (como no Canva): duplicar e LIXEIRA */}
+            <div className="pointer-events-auto absolute left-1/2 flex -translate-x-1/2 gap-1 rounded-full border border-white/20 bg-[#0b0420]/95 p-1 shadow-lg" style={{ top: 'calc(100% + 16px)', transform: `translateX(-50%) rotate(${-selecionada.rot}deg)` }}>
+              {onDuplicar && <button type="button" onPointerDown={(ev) => ev.stopPropagation()} onClick={(ev) => { ev.stopPropagation(); onDuplicar(selecionada.id); }} aria-label="Duplicar" title="Duplicar" className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:bg-white/10"><Copy className="h-4 w-4" /></button>}
+              {onApagar && !selecionada.bloqueada && <button type="button" onPointerDown={(ev) => ev.stopPropagation()} onClick={(ev) => { ev.stopPropagation(); onApagar(selecionada.id); }} aria-label="Excluir" title="Excluir" data-testid="studio-lixeira-palco" className="flex h-8 w-8 items-center justify-center rounded-full text-rose-300 hover:bg-rose-500/20"><Trash2 className="h-4 w-4" /></button>}
+            </div>
           </div>
         )}
         {guias.x !== undefined && <div className="pointer-events-none absolute bottom-0 top-0 w-px bg-[#ff3df2]" style={{ left: guias.x * e }} />}

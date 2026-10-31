@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { playlistClienteService } from '@/modules/crm/services/playlistCliente.service';
 import type { ModeloDeArte } from '@/lib/studio/modelos';
+import type { VideoGravado } from '@/lib/studio/video';
+import { guardarNaPasta, type PastaDaGaleria } from '@/lib/galeria';
 
 type Resposta<T> = Promise<{ data: T | null; error: { message: string } | null }>;
 interface Consulta<T> extends PromiseLike<{ data: T[] | null; error: { message: string } | null }> {
@@ -139,29 +141,50 @@ export async function clientesDaEmpresa(): Promise<Array<{ id: string; nome: str
 }
 
 // ---------------------------------------------------------------- salvar nas mídias e publicar (caminhos oficiais)
-export interface Salvo { tipo: 'cliente_assets' | 'media'; id: string; url: string }
+export interface Salvo { tipo: 'cliente_assets' | 'media'; id: string; url: string; /** segundos na playlist (vídeo: a duração dele) */ duracao: number; video?: boolean }
 
-/** Envia o PNG ao R2 (pasta do usuário) e registra como mídia: anunciante → Minhas Mídias (com análise); equipe → Mídias. */
-export async function salvarNasMidias(o: { userId: string; clienteId: string | null; png: Blob; nome: string; largura: number; altura: number; formato: string }): Promise<Salvo> {
-  const caminho = `${o.userId}/studio/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.png`;
-  const { publicUrl, filePath } = await uploadToR2(o.png, caminho, 'image/png', o.userId, { preventOverwrite: true });
+/**
+ * Envia a arte (PNG) ou o VÍDEO animado (F-225) ao R2 (pasta do usuário) e registra como mídia: anunciante → Minhas
+ * Mídias (com análise; vídeo leva 3 quadros para o robô); equipe → Mídias (vídeo passa pela compressão do site).
+ * Com `pasta`, a mídia entra na galeria da pessoa, na mesma pasta do modelo do Studio.
+ */
+export async function salvarNasMidias(o: { userId: string; clienteId: string | null; png?: Blob; video?: VideoGravado; nome: string; largura: number; altura: number; formato: string; pasta?: PastaDaGaleria | null }): Promise<Salvo> {
+  const arquivo = o.video?.video ?? o.png;
+  if (!arquivo) throw new Error('Nada para salvar.');
+  const mime = o.video?.mime ?? 'image/png';
+  const base = `${o.userId}/studio/${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const { publicUrl, filePath } = await uploadToR2(arquivo, `${base}.${o.video?.ext ?? 'png'}`, mime, o.userId, { preventOverwrite: true });
+  const quadros: string[] = [];
+  for (const [i, q] of (o.video?.quadros ?? []).entries()) quadros.push((await uploadToR2(q, `${base}-quadro${i + 1}.jpg`, 'image/jpeg', o.userId, { preventOverwrite: true })).publicUrl);
+  const capa = quadros[quadros.length - 1] ?? publicUrl;
+  const duracao = o.video ? Math.max(1, Math.ceil(o.video.duracaoMs / 1000)) : 10;
+  let salvo: Salvo;
   if (o.clienteId) {
     const tenant = (await supabase.rpc('get_user_tenant_id')).data as string;
     const { data, error } = await supabase.from('cliente_assets').insert({
-      cliente_id: o.clienteId, empresa_operadora_id: tenant, nome: o.nome.slice(0, 120), tipo: 'imagem', mime_type: 'image/png', object_url: publicUrl,
-      tamanho: o.png.size, largura: o.largura, altura: o.altura, tags: ['studio-ai'], usuario_id: o.userId,
+      cliente_id: o.clienteId, empresa_operadora_id: tenant, nome: o.nome.slice(0, 120), tipo: o.video ? 'video' : 'imagem', mime_type: mime, object_url: publicUrl,
+      tamanho: arquivo.size, largura: o.largura, altura: o.altura, tags: ['studio-ai'], usuario_id: o.userId,
+      ...(o.video ? { duracao, quadros } : {}),
     } as never).select('id').single();
     if (error || !data) throw new Error(error?.message || 'Não foi possível salvar em Minhas Mídias.');
     const id = (data as { id: string }).id;
     void supabase.functions.invoke('analisar-midia', { body: { asset_id: id } });
-    return { tipo: 'cliente_assets', id, url: publicUrl };
+    salvo = { tipo: 'cliente_assets', id, url: publicUrl, duracao, video: !!o.video };
+  } else {
+    const { data, error } = await supabase.from('media').insert({
+      user_id: o.userId, name: o.nome.slice(0, 120), file_path: filePath, file_url: publicUrl, file_type: o.video ? 'video' : 'image', file_size: arquivo.size,
+      mime_type: mime, aspect_ratio: o.formato, thumbnail_url: capa, ...(o.video ? { duration_ms: o.video.duracaoMs } : {}),
+    } as never).select('id').single();
+    if (error || !data) throw new Error(error?.message || 'Não foi possível salvar nas mídias.');
+    const id = (data as { id: string }).id;
+    // vídeo: mesma compressão dos vídeos enviados pelo site (deixa leve para as telas)
+    if (o.video) void supabase.functions.invoke('process-media', { body: { media_id: id, file_url: publicUrl, file_path: filePath, file_type: mime, file_size: arquivo.size, user_id: o.userId } });
+    salvo = { tipo: 'media', id, url: publicUrl, duracao, video: !!o.video };
   }
-  const { data, error } = await supabase.from('media').insert({
-    user_id: o.userId, name: o.nome.slice(0, 120), file_path: filePath, file_url: publicUrl, file_type: 'image', file_size: o.png.size,
-    mime_type: 'image/png', aspect_ratio: o.formato, thumbnail_url: publicUrl,
-  } as never).select('id').single();
-  if (error || !data) throw new Error(error?.message || 'Não foi possível salvar nas mídias.');
-  return { tipo: 'media', id: (data as { id: string }).id, url: publicUrl };
+  if (o.pasta) {
+    try { await guardarNaPasta(o.userId, salvo.tipo, salvo.id, o.pasta); } catch (e) { console.warn('[galeria] não foi possível pôr na pasta:', e); }
+  }
+  return salvo;
 }
 
 export interface Destino { id: string; nome: string; detalhe?: string }
@@ -200,7 +223,7 @@ export async function publicar(salvo: Salvo, destino: { tipo: 'playlist' | 'tela
         await playlistClienteService.vincularPontos(playlistId, [destino.id]);
       }
     }
-    const r = await playlistClienteService.adicionarMidia(playlistId, salvo.id, 10);
+    const r = await playlistClienteService.adicionarMidia(playlistId, salvo.id, salvo.duracao);
     return r.cobrado
       ? { ok: false, mensagem: r.mensagem ?? 'Esta mídia tem custo na playlist.', cobrancaId: r.cobrancaId, valor: r.valor, playlistId }
       : { ok: true, mensagem: r.mensagem ?? 'Mídia adicionada à playlist.', playlistId };
@@ -212,7 +235,7 @@ export async function publicar(salvo: Salvo, destino: { tipo: 'playlist' | 'tela
     playlistId = (tela as { playlist_id: string }).playlist_id;
   }
   const { data: ultimo } = await supabase.from('playlist_items').select('position').eq('playlist_id', playlistId).order('position', { ascending: false }).limit(1).maybeSingle();
-  const { error } = await supabase.from('playlist_items').insert({ playlist_id: playlistId, media_id: salvo.id, position: ((ultimo as { position?: number } | null)?.position ?? -1) + 1, duration: 10 } as never);
+  const { error } = await supabase.from('playlist_items').insert({ playlist_id: playlistId, media_id: salvo.id, position: ((ultimo as { position?: number } | null)?.position ?? -1) + 1, duration: salvo.duracao } as never);
   if (error) throw new Error(error.message);
-  return { ok: true, mensagem: 'Imagem adicionada à playlist.', playlistId };
+  return { ok: true, mensagem: salvo.video ? 'Vídeo adicionado à playlist.' : 'Imagem adicionada à playlist.', playlistId };
 }

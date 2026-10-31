@@ -4,6 +4,7 @@
 // A foto sempre ocupa uma área quadrada (1080×1080) nos dois formatos: a foto quadrada 1024 px não perde qualidade.
 import { fonteCanvas, fonteDoStudio } from './fontes';
 import type { ModeloDeArte } from './modelos';
+import type { Animacao } from './animacao';
 
 export type FormatoDoc = '16:9' | '9:16';
 export const TAMANHO_DOC: Record<FormatoDoc, { w: number; h: number }> = { '16:9': { w: 1920, h: 1080 }, '9:16': { w: 1080, h: 1920 } };
@@ -18,6 +19,8 @@ interface CamadaBase {
   /** graus, no sentido horário */
   rot: number; opacidade: number; visivel: boolean; bloqueada: boolean;
   sombra?: Sombra | null;
+  /** F-225: movimento do elemento no vídeo (a arte parada não muda) */
+  animacao?: Animacao | null;
 }
 export interface CamadaTexto extends CamadaBase {
   tipo: 'texto'; texto: string; fonte: string; peso?: number; italico: boolean; tamanho: number;
@@ -45,7 +48,7 @@ export interface CamadaItens extends CamadaBase {
 export type Camada = CamadaTexto | CamadaForma | CamadaImagem | CamadaSelo | CamadaItens;
 export type TipoDeCamada = Camada['tipo'];
 
-export interface Documento { versao: 2; formato: FormatoDoc; fundo: string; camadas: Camada[] }
+export interface Documento { versao: 2; formato: FormatoDoc; fundo: string; camadas: Camada[]; /** F-225: duração do vídeo (s) quando há animação */ video?: { duracao: number } | null }
 
 // ───────────────────────────────────────────────────────────── medida de texto (canvas; reserva por estimativa)
 let ctxMedida: CanvasRenderingContext2D | null | undefined;
@@ -86,6 +89,12 @@ export function linhasDoTexto(c: Pick<CamadaTexto, 'texto' | 'fonte' | 'tamanho'
 /** Altura que o texto ocupa (a caixa do texto cresce com o conteúdo, como no Canva). */
 export function alturaDoTexto(c: CamadaTexto) {
   return linhasDoTexto(c).length * c.tamanho * c.entrelinha + 2 * (c.fundo?.margem ?? 0) * (c.fundo ? 0.55 : 0);
+}
+
+/** Largura da lista em linha (ícone + texto de cada item), igual ao desenho. */
+export function larguraDosItens(c: Pick<CamadaItens, 'itens' | 'tamanho' | 'fonte'>) {
+  const t = c.tamanho;
+  return c.itens.reduce((s, i) => s + t * 1.44 + t * 0.35 + larguraDoTexto(i, c.fonte, t, 700) + t * 1.1, 0) - t * 1.1;
 }
 
 export function alturaDosItens(c: Pick<CamadaItens, 'itens' | 'tamanho' | 'vertical'>) {
@@ -145,6 +154,8 @@ function coluna(m: ModeloDeArte, col: Coluna, estilo: { corPilula: string; texto
   if (textos.subtitulo) out.push(texto('Subtítulo', textos.subtitulo, col.x, 0, col.w, { fonte: 'poppins', peso: estilo.subMaiusculo ? 700 : 600, tamanho: (estilo.subMaiusculo ? 32 : 40) * e, cor: estilo.corSub ?? cores.texto, maiusculas: !!estilo.subMaiusculo, espacamento: estilo.subMaiusculo ? 0.05 : 0, alinhamento }));
   if (textos.itens?.length) {
     const c = itens(textos.itens, col.x, 0, col.w, { cor: cores.texto, destaque: cores.destaque, tamanho: (estilo.vertical ? 44 : 34) * e, vertical: !!estilo.vertical });
+    // F-224: lista em linha que não cabe na coluna (9:16 estreito) vira um item embaixo do outro, sem cortar
+    if (!c.vertical && larguraDosItens(c) > col.w) Object.assign(c, { vertical: true, tamanho: 40 * e, h: alturaDosItens({ ...c, vertical: true, tamanho: 40 * e }) });
     out.push(c);
   }
   if (textos.cta) out.push(texto('Botão', textos.cta, col.x, 0, col.w, { fonte: 'poppins', peso: 800, tamanho: 38 * e, cor: estilo.textoPilula, alinhamento, fundo: { cor: estilo.corPilula, raio: 60 * e, margem: 34 * e }, sombra: { cor: 'rgba(0,0,0,.3)', desfoque: 24, dx: 0, dy: 8 } }));

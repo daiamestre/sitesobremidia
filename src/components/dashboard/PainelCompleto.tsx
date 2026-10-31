@@ -109,7 +109,7 @@ function MapaDaSincronizacao({ painel }: { painel: Painel }) {
     <div>
       <div className="relative overflow-hidden rounded-xl border border-border/60 bg-slate-950/50">
         <svg ref={svg} role="img" aria-label={`Mapa da sincronização: ${pontos.length} telas localizadas`} viewBox={`${centro[0] - w / 2} ${centro[1] - h / 2} ${w} ${h}`}
-          className="block w-full cursor-grab select-none active:cursor-grabbing" style={{ aspectRatio: `${LARGURA_DO_MAPA} / ${ALTURA_DO_MAPA}`, maxHeight: '46dvh', touchAction: 'none' }} data-testid="mapa-sincronizacao"
+          className="block w-full cursor-grab select-none active:cursor-grabbing" style={{ aspectRatio: `${LARGURA_DO_MAPA} / ${ALTURA_DO_MAPA}`, maxHeight: '46dvh', touchAction: 'pan-y' }} data-testid="mapa-sincronizacao"
           onPointerDown={(e) => { svg.current?.setPointerCapture?.(e.pointerId); arrasto.current = { x: e.clientX, y: e.clientY, centro, moveu: false }; }}
           onPointerMove={(e) => {
             const a = arrasto.current; const r = svg.current?.getBoundingClientRect();
@@ -133,6 +133,7 @@ function MapaDaSincronizacao({ painel }: { painel: Painel }) {
           <button type="button" aria-label="Afastar" onClick={() => ajustar(escala / 1.6, centro)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900/90 text-white ring-1 ring-white/20 hover:bg-slate-800"><Minus className="h-4 w-4" /></button>
           <button type="button" aria-label="Ver o Brasil inteiro" onClick={() => ajustar(1, [LARGURA_DO_MAPA / 2, ALTURA_DO_MAPA / 2])} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900/90 text-white ring-1 ring-white/20 hover:bg-slate-800"><RotateCcw className="h-4 w-4" /></button>
         </div>
+        <p className="pointer-events-none absolute bottom-2 left-2 hidden rounded-md bg-slate-950/80 px-2 py-1 text-[10px] text-slate-300 [@media(pointer:coarse)]:block">Role a página normalmente · mexa no mapa de lado ou com dois dedos · + / − aproxima</p>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:gap-x-4 sm:text-xs" data-testid="legenda-sincronizacao">
         {ESTADOS_SYNC.map((s) => (

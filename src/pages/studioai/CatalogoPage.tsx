@@ -5,6 +5,9 @@ import {
   Percent, Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
+import { Carrossel, TvEmLoop } from '@/components/studio/Vitrines';
+import '@/components/studio/studio-efeitos.css';
+import { intercalarPorSegmento } from '@/lib/studio/miniaturas';
 import { modeloParaDocumento, type FormatoDoc } from '@/lib/studio/documento';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -25,11 +28,14 @@ const ICONE: Record<SegmentoId | 'todos', typeof LayoutGrid> = {
 const CHAVE_FAVORITOS = 'studio-favoritos';
 const lerFavoritos = (): Set<string> => { try { return new Set(JSON.parse(localStorage.getItem(CHAVE_FAVORITOS) ?? '[]')); } catch { return new Set(); } };
 
-/** As 3 TVs do banner: modelos reais do catálogo (16:9, 16:9 e 9:16), não imagens de demonstração. */
-function vitrine(capas: ModeloDeArte[]): { m: ModeloDeArte; f: FormatoDoc }[] {
-  const por = (seg: SegmentoId) => MODELOS.find((m) => m.segmento === seg)!;
-  const bf = capas.find((m) => m.id === BLACK_FRIDAY.id);
-  return [{ m: por('alimentacao'), f: '16:9' }, { m: por('saude'), f: '16:9' }, { m: bf ?? por('fitness'), f: '9:16' }];
+/** F-224: as 3 TVs do banner passam 10 artes reais cada, em loop (cada TV com modelos diferentes das outras). */
+function vitrine(todos: ModeloDeArte[]): [ModeloDeArte[], ModeloDeArte[], ModeloDeArte[]] {
+  const base = intercalarPorSegmento(todos.length ? todos : MODELOS);
+  const bf = base.find((m) => m.id === BLACK_FRIDAY.id);
+  const l: [ModeloDeArte[], ModeloDeArte[], ModeloDeArte[]] = [[], [], []];
+  base.filter((m) => m !== bf).slice(0, 30).forEach((m, i) => l[i % 3].push(m));
+  if (bf) l[2] = [bf, ...l[2]].slice(0, 10);
+  return l;
 }
 
 /** Miniatura de um modelo no formato pedido (cada modelo existe em 16:9 e 9:16). */
@@ -40,9 +46,9 @@ function Miniatura({ m, formato, className }: { m: ModeloDeArte; formato: Format
 
 function Selecao({ rotulo, valor, opcoes, onChange }: { rotulo: string; valor: string; opcoes: { id: string; nome: string }[]; onChange: (v: string) => void }) {
   return (
-    <label className="relative flex min-w-0 flex-col rounded-lg border border-white/10 bg-[#170838] px-3 py-1.5 sm:min-w-[150px]">
-      <span className="text-[10px] text-slate-400">{rotulo}</span>
-      <select value={valor} onChange={(e) => onChange(e.target.value)} className="appearance-none bg-transparent pr-6 text-sm text-white focus:outline-none">
+    <label className="relative flex h-[46px] min-w-0 flex-col justify-center rounded-lg border border-white/10 bg-[#170838] px-2.5">
+      <span className="truncate text-[10px] leading-tight text-slate-400">{rotulo}</span>
+      <select value={valor} onChange={(e) => onChange(e.target.value)} className="w-full min-w-0 appearance-none truncate bg-transparent pr-5 text-[13px] text-white focus:outline-none">
         {opcoes.map((o) => <option key={o.id} value={o.id} className="bg-[#170838]">{o.nome}</option>)}
       </select>
       <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -76,7 +82,9 @@ export default function CatalogoPage() {
     if (!window.confirm(`Arquivar o modelo "${m.nome}"? Ele sai do catálogo (projetos já salvos continuam).`)) return;
     try { await arquivarModelo(m.id); void qc.invalidateQueries({ queryKey: ['studio-modelos'] }); toast.success('Modelo arquivado.'); } catch (e) { toast.error((e as Error).message); }
   };
-  const tvs = useMemo(() => vitrine(catalogo.pastas.map((p) => p.capa)), [catalogo.pastas]);
+  const tvs = useMemo(() => vitrine(catalogo.todos), [catalogo.todos]);
+  const vitrineH = useMemo(() => intercalarPorSegmento(catalogo.todos), [catalogo.todos]);
+  const vitrineV = useMemo(() => [...vitrineH].reverse(), [vitrineH]);
   const alternarFavorito = (id: string) => setFavoritos((s) => {
     const n = new Set(s);
     if (n.has(id)) n.delete(id); else n.add(id);
@@ -88,63 +96,69 @@ export default function CatalogoPage() {
 
   return (
     <div className="space-y-6" data-testid="studio-catalogo">
-      {/* ── banner */}
-      <section className="relative overflow-hidden rounded-2xl border border-[#8A2EFF]/40 bg-gradient-to-br from-[#22004A] via-[#14062f] to-[#0B0420] p-6 shadow-[0_0_40px_rgba(93,27,255,0.25)] md:p-9">
-        <div aria-hidden className="pointer-events-none absolute -left-20 top-0 h-full w-1/2 bg-[radial-gradient(ellipse_at_left,rgba(138,46,255,0.35),transparent_65%)]" />
-        <div aria-hidden className="pointer-events-none absolute bottom-0 left-1/3 h-24 w-2/3 bg-[radial-gradient(ellipse_at_bottom,rgba(176,77,255,0.55),transparent_70%)]" />
-        <div className="relative grid items-center gap-8 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,0.7fr)]">
-          <div className="space-y-4">
-            <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#B04DFF]">Sobre <span className="text-white">Mídia</span> Studio</p>
-            <h1 className="text-4xl font-black leading-[1.05] text-white 2xl:text-5xl"><span className="block whitespace-nowrap">Encontre sua</span><span className="block whitespace-nowrap text-[#B04DFF]">próxima arte</span></h1>
-            <p className="max-w-md text-sm text-slate-300 md:text-base">Personalize modelos prontos e crie anúncios incríveis para suas telas digitais. É rápido, fácil e sem complicação.</p>
-            <a href="#modelos" className="inline-flex items-center gap-2 rounded-full bg-[#FFD400] px-6 py-3 text-sm font-bold text-[#22004A] shadow-[0_8px_24px_rgba(255,212,0,0.35)] transition hover:brightness-105">Explorar modelos <ArrowRight className="h-4 w-4" /></a>
+      {/* ── banner compacto: texto + 3 TVs girando 10 artes cada (como o Player) + 4 vantagens em 2×2 */}
+      <section className="sm-borda-viva relative overflow-hidden rounded-2xl p-5 sm:p-6" data-testid="studio-banner">
+        <div aria-hidden className="sm-bolha -left-16 -top-16 h-56 w-56 bg-[#8A2EFF]" />
+        <div aria-hidden className="sm-bolha -bottom-20 right-0 h-56 w-56 bg-[#22d3ee]" style={{ animationDelay: '-7s', opacity: 0.25 }} />
+        <div className="relative grid items-center gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-8">
+          <div className="min-w-0 space-y-3">
+            <p className="whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.25em] text-[#B04DFF]">Sobre <span className="text-white">Mídia</span> Studio</p>
+            <h1 className="text-3xl font-black leading-[1.05] text-white sm:text-4xl"><span className="block whitespace-nowrap">Encontre sua</span><span className="block whitespace-nowrap bg-gradient-to-r from-[#B04DFF] to-[#22d3ee] bg-clip-text text-transparent">próxima arte</span></h1>
+            <p className="max-w-md text-sm text-slate-300">Personalize modelos prontos e crie anúncios incríveis para suas telas digitais. Rápido, fácil e sem complicação.</p>
+            <a href="#modelos" className="sm-reflexo sm-pulsar inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[#FFD400] px-5 py-2.5 text-sm font-bold text-[#22004A] transition hover:brightness-105">Explorar modelos <ArrowRight className="h-4 w-4" /></a>
           </div>
-          <div className="relative flex items-end justify-center gap-3 pb-6" aria-label="Exemplos de artes nas telas">
-            {tvs.map(({ m, f }, i) => (
-              <div key={m.id + f} className={cn('relative rounded-lg border-[3px] border-[#2a2a3a] bg-black p-0.5 shadow-[0_20px_40px_rgba(0,0,0,0.6)]',
-                f === '9:16' ? 'w-[22%]' : i === 1 ? 'z-10 w-[40%]' : 'w-[34%]')}>
-                <Miniatura m={m} formato={f} className="rounded" />
-              </div>
-            ))}
-            <div aria-hidden className="absolute bottom-2 left-[6%] right-[6%] h-3 rounded-full bg-gradient-to-r from-transparent via-[#B04DFF] to-transparent blur-sm" />
+          <div className="relative flex items-end justify-center gap-2.5 pb-4" aria-label="Exemplos de artes rodando nas telas">
+            <TvEmLoop modelos={tvs[0]} formato="16:9" className="sm-tv w-[38%] rounded-lg" />
+            <TvEmLoop modelos={tvs[1]} formato="16:9" atraso={1500} className="sm-tv z-10 w-[44%] rounded-lg" />
+            <TvEmLoop modelos={tvs[2]} formato="9:16" atraso={3000} className="sm-tv w-[18%] rounded-lg" />
+            <div aria-hidden className="absolute bottom-0 left-[6%] right-[6%] h-2.5 rounded-full bg-gradient-to-r from-transparent via-[#B04DFF] to-transparent blur-sm" />
           </div>
-          <ul className="hidden space-y-4 text-sm text-slate-200 md:block">
-            {[['Modelos profissionais', PenLine], ['Edição simples e rápida', Wand2], ['Diversos formatos', Smartphone], ['Para todos os segmentos', Layers]].map(([t, I]) => {
-              const Icone = I as typeof PenLine;
-              return <li key={t as string} className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#8A2EFF]/50 text-[#B04DFF]"><Icone className="h-4 w-4" /></span>{t as string}</li>;
-            })}
-          </ul>
+            <ul className="grid grid-cols-2 gap-2 text-xs text-slate-200 md:col-span-2 lg:grid-cols-4">
+              {[['Modelos prontos', PenLine], ['Edição fácil', Wand2], ['16:9 e 9:16', Smartphone], ['Vários nichos', Layers]].map(([t, I]) => {
+                const Icone = I as typeof PenLine;
+                return <li key={t as string} className="flex min-w-0 items-center gap-2 rounded-lg border border-[#8A2EFF]/30 bg-white/[0.03] px-2 py-1.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#5D1BFF]/30 text-[#B04DFF]"><Icone className="h-3.5 w-3.5" /></span><span className="truncate whitespace-nowrap">{t as string}</span></li>;
+              })}
+            </ul>
         </div>
       </section>
 
-      {/* ── categorias */}
-      <section aria-labelledby="titulo-categorias" className="space-y-3">
-        <h2 id="titulo-categorias" className="flex items-center gap-2 text-lg font-bold text-white"><span className="h-5 w-1 rounded bg-[#8A2EFF]" />Categorias</h2>
-        <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:grid md:grid-cols-7 md:overflow-visible md:px-0 xl:grid-cols-[repeat(13,minmax(0,1fr))]">
+      {/* ── categorias: pílulas que se arrumam sozinhas (uma fileira que desliza no celular; quebram em linhas no tablet/PC) */}
+      <section aria-labelledby="titulo-categorias" className="space-y-2.5">
+        <h2 id="titulo-categorias" className="flex items-center gap-2 text-base font-bold text-white"><span className="h-5 w-1 rounded bg-[#8A2EFF]" />Categorias</h2>
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {([{ id: 'todos' as const, nome: 'Todos' }, ...SEGMENTOS]).map((s) => {
             const ativo = s.id === 'todos' ? filtro.segmentos.length === 0 : filtro.segmentos.length === 1 && filtro.segmentos[0] === s.id;
             const Icone = ICONE[s.id];
             return (
               <button key={s.id} type="button" onClick={() => escolherSegmento(s.id)} aria-pressed={ativo}
-                className={cn('flex min-w-[88px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-xl border px-2 py-3 text-xs font-medium transition md:min-w-0 md:py-4',
-                  ativo ? 'border-[#B04DFF] bg-gradient-to-b from-[#8A2EFF] to-[#5D1BFF] text-white shadow-[0_0_24px_rgba(138,46,255,0.5)]' : 'border-white/10 bg-[#140632] text-slate-200 hover:border-[#8A2EFF]/60')}>
-                <Icone className="h-7 w-7" strokeWidth={1.5} />{s.nome}
+                className={cn('inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition',
+                  ativo ? 'border-[#B04DFF] bg-gradient-to-r from-[#8A2EFF] to-[#5D1BFF] text-white shadow-[0_0_20px_rgba(138,46,255,0.6)]' : 'border-white/10 bg-[#140632] text-slate-200 hover:border-[#8A2EFF]/60 hover:shadow-[0_0_14px_rgba(138,46,255,0.35)]')}>
+                <Icone className="h-4 w-4" strokeWidth={1.8} />{s.nome}
               </button>
             );
           })}
         </div>
       </section>
 
-      {/* ── filtros */}
-      <div id="modelos" className="grid scroll-mt-24 grid-cols-2 gap-2 rounded-xl border border-white/5 bg-[#12052b] p-3 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
-        <button type="button" onClick={() => setSegmentosAbertos((v) => !v)} aria-expanded={segmentosAbertos} className={cn('flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm text-white hover:bg-white/5', segmentosAbertos ? 'border-[#8A2EFF]/70 bg-[#5D1BFF]/20' : 'border-white/10')}><Filter className="h-4 w-4" />Filtros{filtro.segmentos.length > 0 && <span className="rounded-full bg-[#FFD400] px-1.5 text-[10px] font-bold text-[#22004A]">{filtro.segmentos.length}</span>}</button>
-        <Selecao rotulo="Formato" valor={filtro.formato ?? ''} opcoes={[{ id: '', nome: 'Todos' }, ...FORMATOS]} onChange={(v) => setFiltro((f) => ({ ...f, formato: (v || null) as FiltroDoCatalogo['formato'] }))} />
-        <Selecao rotulo="Segmento" valor={filtro.segmentos.length === 1 ? filtro.segmentos[0] : ''} opcoes={[{ id: '', nome: 'Todos' }, ...SEGMENTOS]} onChange={(v) => escolherSegmento((v || 'todos') as SegmentoId | 'todos')} />
-        <Selecao rotulo="Tipo de edição" valor={filtro.edicao ?? ''} opcoes={[{ id: '', nome: 'Todos' }, ...TIPOS_DE_EDICAO]} onChange={(v) => setFiltro((f) => ({ ...f, edicao: (v || null) as FiltroDoCatalogo['edicao'] }))} />
-        <div className="col-span-2 flex flex-wrap items-center gap-3 sm:ml-auto [&>label]:flex-1 sm:[&>label]:flex-none">
+      {/* ── todos os modelos girando: 16:9 para a esquerda, 9:16 para a direita (o dedo acelera ou inverte) */}
+      {vitrineH.length > 0 && (
+        <section aria-label="Todos os modelos em movimento" className="space-y-1 overflow-hidden rounded-2xl border border-white/5 bg-[#0d0424]/70 py-3">
+          <p className="flex items-center gap-2 px-4 text-xs font-semibold text-slate-300"><Sparkles className="h-3.5 w-3.5 text-[#FFD400]" />{total} modelos, todos em 16:9 e 9:16 · deslize para acelerar</p>
+          <Carrossel modelos={vitrineH} formato="16:9" direcao={-1} largura={220} rotulo="Modelos em 16:9" />
+          <Carrossel modelos={vitrineV} formato="9:16" direcao={1} largura={118} rotulo="Modelos em 9:16" />
+        </section>
+      )}
+
+      {/* ── filtros: grade que se ajusta sozinha à largura (nunca quebra o texto) */}
+      <div id="modelos" className="scroll-mt-24 space-y-2 rounded-xl border border-white/5 bg-[#12052b] p-2.5">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(138px,1fr))] gap-2">
+          <button type="button" onClick={() => setSegmentosAbertos((v) => !v)} aria-expanded={segmentosAbertos} className={cn('flex h-[46px] items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-3 text-sm text-white hover:bg-white/5', segmentosAbertos ? 'border-[#8A2EFF]/70 bg-[#5D1BFF]/20' : 'border-white/10')}><Filter className="h-4 w-4" />Filtros{filtro.segmentos.length > 0 && <span className="rounded-full bg-[#FFD400] px-1.5 text-[10px] font-bold text-[#22004A]">{filtro.segmentos.length}</span>}</button>
+          <Selecao rotulo="Formato" valor={filtro.formato ?? ''} opcoes={[{ id: '', nome: 'Todos' }, ...FORMATOS]} onChange={(v) => setFiltro((f) => ({ ...f, formato: (v || null) as FiltroDoCatalogo['formato'] }))} />
+          <Selecao rotulo="Segmento" valor={filtro.segmentos.length === 1 ? filtro.segmentos[0] : ''} opcoes={[{ id: '', nome: 'Todos' }, ...SEGMENTOS]} onChange={(v) => escolherSegmento((v || 'todos') as SegmentoId | 'todos')} />
+          <Selecao rotulo="Tipo de edição" valor={filtro.edicao ?? ''} opcoes={[{ id: '', nome: 'Todos' }, ...TIPOS_DE_EDICAO]} onChange={(v) => setFiltro((f) => ({ ...f, edicao: (v || null) as FiltroDoCatalogo['edicao'] }))} />
           <Selecao rotulo="Ordenar por" valor={filtro.ordem} opcoes={ORDENS} onChange={(v) => setFiltro((f) => ({ ...f, ordem: v as FiltroDoCatalogo['ordem'] }))} />
-          <p className="text-xs text-slate-400" aria-live="polite">{lista.length} pastas · {total} modelos, todos em 16:9 e 9:16</p>
         </div>
+        <p className="truncate px-1 text-xs text-slate-400" aria-live="polite">{lista.length} pastas · {total} modelos, todos em 16:9 e 9:16</p>
       </div>
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
@@ -178,7 +192,7 @@ export default function CatalogoPage() {
               const f: FormatoDoc = filtro.formato ?? (m.formato as FormatoDoc);
               const qtd = pastaDe.get(m.id)?.modelos.length ?? 1;
               return (
-              <article key={m.id} className="group flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#140632] p-3 transition hover:border-[#8A2EFF]/70 hover:shadow-[0_0_28px_rgba(93,27,255,0.35)]" data-testid="studio-pasta-card">
+              <article key={m.id} className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-card">
                 <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
                   <Link to={`/studio/pasta/${m.id}`} aria-label={`Abrir a pasta ${m.nome}`} className={cn('block', f === '16:9' ? 'w-full' : 'h-full aspect-[9/16]')}><Miniatura m={m} formato={f} /></Link>
                   <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><FolderOpen className="h-3 w-3 text-[#FFD400]" />{qtd} {qtd === 1 ? 'modelo' : 'modelos'}</span>
