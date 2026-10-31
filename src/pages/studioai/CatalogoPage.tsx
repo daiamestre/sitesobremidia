@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ArrowRight, BriefcaseMedical, ChevronDown, Dumbbell, Filter, FolderOpen, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
+  ArrowRight, BriefcaseMedical, Clapperboard, ChevronDown, Dumbbell, Filter, FolderOpen, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
   Percent, Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
 import { Carrossel, MiniaturaDoModelo, TvEmLoop } from '@/components/studio/Vitrines';
@@ -102,6 +102,7 @@ export default function CatalogoPage() {
             <h1 className="text-3xl font-black leading-[1.05] text-white sm:text-4xl"><span className="block whitespace-nowrap">Encontre sua</span><span className="block whitespace-nowrap bg-gradient-to-r from-[#B04DFF] to-[#22d3ee] bg-clip-text text-transparent">próxima arte</span></h1>
             <p className="max-w-md text-sm text-slate-300">Personalize modelos prontos e crie anúncios incríveis para suas telas digitais. Rápido, fácil e sem complicação.</p>
             <a href="#modelos" className="sm-reflexo sm-pulsar inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[#FFD400] px-5 py-2.5 text-sm font-bold text-[#22004A] transition hover:brightness-105">Explorar modelos <ArrowRight className="h-4 w-4" /></a>
+            <Link to="/studio/video" className="ml-2 inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-[#B04DFF]/70 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#8A2EFF]/30" data-testid="atalho-editor-video"><Clapperboard className="h-4 w-4 text-[#FFD400]" />Editor de vídeo</Link>
           </div>
           <div className="relative flex items-end justify-center gap-2.5 pb-4" aria-label="Exemplos de artes rodando nas telas">
             <TvEmLoop modelos={tvs[0]} formato="16:9" className="sm-tv w-[38%] rounded-lg" />

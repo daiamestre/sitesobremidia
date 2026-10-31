@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FolderKanban, Sparkles, Trash2 } from 'lucide-react';
+import { Clapperboard, FolderKanban, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMemo } from 'react';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
@@ -17,8 +17,13 @@ function documentoDoProjeto(p: Projeto): Documento | null {
   if (!base) return null;
   return modeloParaDocumento({ ...base, ...d, textos: { ...base.textos, ...(d.textos ?? {}) }, cores: { ...base.cores, ...(d.cores ?? {}) } }, p.formato);
 }
+// F-227: projeto do editor de vídeo abre no editor de vídeo
+const ehVideo = (p: Projeto) => (p.dados as { tipo?: string }).tipo === 'video';
+const destino = (p: Projeto) => (ehVideo(p) ? `/studio/video/${p.id}` : `/studio/projeto/${p.id}`);
+
 function Miniatura({ p }: { p: Projeto }) {
-  const doc = useMemo(() => documentoDoProjeto(p), [p]);
+  const doc = useMemo(() => (ehVideo(p) ? null : documentoDoProjeto(p)), [p]);
+  if (ehVideo(p)) return <span className="flex flex-col items-center gap-1 text-xs text-slate-300"><Clapperboard className="h-10 w-10 text-[#FFD400]" />Projeto de vídeo</span>;
   return doc ? <div className={p.formato === '16:9' ? 'w-full' : 'h-full aspect-[9/16]'}><PreviaDocumento doc={doc} /></div> : null;
 }
 
@@ -40,14 +45,14 @@ export default function ProjetosPage() {
           {projetos.data?.map((p) => {
             return (
               <article key={p.id} className="overflow-hidden rounded-xl border border-white/10 bg-[#140632] p-3">
-                <Link to={`/studio/projeto/${p.id}`} className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-black">
+                <Link to={destino(p)} className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-black">
                   <Miniatura p={p} />
                 </Link>
                 <div className="mt-2 flex items-start justify-between gap-2">
                   <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{p.nome}</p><p className="text-xs text-slate-500">{p.formato} · {new Date(p.atualizado_em).toLocaleString('pt-BR')}</p></div>
                   <button type="button" aria-label={`Apagar ${p.nome}`} onClick={() => void apagar(p)} className="rounded p-1 text-slate-500 hover:text-rose-300"><Trash2 className="h-4 w-4" /></button>
                 </div>
-                <Link to={`/studio/projeto/${p.id}`} className="mt-2 block rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white hover:bg-[#8A2EFF]">Continuar editando</Link>
+                <Link to={destino(p)} className="mt-2 block rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white hover:bg-[#8A2EFF]">Continuar editando</Link>
               </article>
             );
           })}

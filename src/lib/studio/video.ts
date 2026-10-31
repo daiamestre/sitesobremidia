@@ -12,9 +12,15 @@ const OPCOES: [string, 'mp4' | 'webm'][] = [
   ['video/webm;codecs=vp9', 'webm'], ['video/webm;codecs=vp8', 'webm'], ['video/webm', 'webm'],
 ];
 
-export function formatoDeVideo(): { mime: string; ext: 'mp4' | 'webm' } | null {
+// com som (editor de vídeo, F-227): o formato precisa levar também o áudio (AAC no MP4, Opus no WebM)
+const OPCOES_COM_SOM: [string, 'mp4' | 'webm'][] = [
+  ['video/mp4;codecs="avc1.640028,mp4a.40.2"', 'mp4'], ['video/mp4;codecs="avc1,mp4a"', 'mp4'], ['video/mp4;codecs="avc1,opus"', 'mp4'],
+  ['video/webm;codecs="vp9,opus"', 'webm'], ['video/webm;codecs="vp8,opus"', 'webm'], ['video/webm', 'webm'],
+];
+
+export function formatoDeVideo(comSom = false): { mime: string; ext: 'mp4' | 'webm' } | null {
   if (typeof MediaRecorder === 'undefined' || typeof HTMLCanvasElement === 'undefined' || !('captureStream' in HTMLCanvasElement.prototype)) return null;
-  const achado = OPCOES.find(([m]) => MediaRecorder.isTypeSupported(m));
+  const achado = (comSom ? OPCOES_COM_SOM : OPCOES).find(([m]) => MediaRecorder.isTypeSupported(m));
   return achado ? { mime: achado[0], ext: achado[1] } : null;
 }
 

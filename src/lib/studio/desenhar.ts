@@ -162,6 +162,26 @@ function desenharItens(ctx: CanvasRenderingContext2D, c: CamadaItens) {
   }
 }
 
+/** Pinta uma camada (com a animação no instante `tempo`, se houver). Usado pela arte e pelo editor de vídeo (F-227). */
+export function desenharCamada(ctx: CanvasRenderingContext2D, c: Camada, imgs: Imagens, escala: number, tempo?: number, total = 8) {
+  if (!c.visivel || c.opacidade <= 0) return;
+  const a = tempo === undefined ? null : estadoNoTempo(c, tempo, total);
+  if (a && a.alfa <= 0) return;
+  ctx.save();
+  ctx.globalAlpha *= c.opacidade * (a?.alfa ?? 1);
+  ctx.translate(c.x + c.w / 2 + (a?.dx ?? 0), c.y + c.h / 2 + (a?.dy ?? 0));
+  const giro = c.rot + (a?.rot ?? 0);
+  if (giro) ctx.rotate((giro * Math.PI) / 180);
+  if (a && a.escala !== 1) ctx.scale(a.escala, a.escala);
+  sombra(ctx, c, escala);
+  if (c.tipo === 'forma') desenharForma(ctx, c);
+  else if (c.tipo === 'imagem') desenharImagem(ctx, a && a.zoom !== 1 ? { ...c, zoom: Math.max(1, c.zoom) * a.zoom } : c, imgs.get(c.src), escala);
+  else if (c.tipo === 'texto') desenharTexto(ctx, a?.letras != null ? { ...c, texto: c.texto.slice(0, a.letras) } : c);
+  else if (c.tipo === 'selo') desenharSelo(ctx, c);
+  else desenharItens(ctx, c);
+  ctx.restore();
+}
+
 /** Pinta o documento inteiro; `escala` = pixels do canvas por pixel do documento. Com `tempo` (segundos), aplica as animações (F-225). */
 export function desenharDocumento(ctx: CanvasRenderingContext2D, d: Documento, imgs: Imagens, escala = 1, ocultar?: string | null, tempo?: number) {
   const total = duracaoDoVideo(d);
@@ -170,24 +190,7 @@ export function desenharDocumento(ctx: CanvasRenderingContext2D, d: Documento, i
   ctx.setTransform(escala, 0, 0, escala, 0, 0);
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = d.fundo; ctx.fillRect(0, 0, w, h);
-  for (const c of d.camadas) {
-    if (!c.visivel || c.opacidade <= 0 || c.id === ocultar) continue;
-    const a = tempo === undefined ? null : estadoNoTempo(c, tempo, total);
-    if (a && a.alfa <= 0) continue;
-    ctx.save();
-    ctx.globalAlpha = c.opacidade * (a?.alfa ?? 1);
-    ctx.translate(c.x + c.w / 2 + (a?.dx ?? 0), c.y + c.h / 2 + (a?.dy ?? 0));
-    const giro = c.rot + (a?.rot ?? 0);
-    if (giro) ctx.rotate((giro * Math.PI) / 180);
-    if (a && a.escala !== 1) ctx.scale(a.escala, a.escala);
-    sombra(ctx, c, escala);
-    if (c.tipo === 'forma') desenharForma(ctx, c);
-    else if (c.tipo === 'imagem') desenharImagem(ctx, a && a.zoom !== 1 ? { ...c, zoom: Math.max(1, c.zoom) * a.zoom } : c, imgs.get(c.src), escala);
-    else if (c.tipo === 'texto') desenharTexto(ctx, a?.letras != null ? { ...c, texto: c.texto.slice(0, a.letras) } : c);
-    else if (c.tipo === 'selo') desenharSelo(ctx, c);
-    else desenharItens(ctx, c);
-    ctx.restore();
-  }
+  for (const c of d.camadas) if (c.id !== ocultar) desenharCamada(ctx, c, imgs, escala, tempo, total);
   ctx.restore();
 }
 

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, ChevronDown, Coins, FolderKanban, Home, ImagePlay, LogOut, Menu, MonitorPlay, Play, Search, Settings, Sparkles, X } from 'lucide-react';
+import { Bell, ChevronDown, Clapperboard, Coins, FolderKanban, Home, ImagePlay, LogOut, Menu, MonitorPlay, Play, Search, Settings, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { meuSaldo } from '@/lib/studioai/api';
@@ -27,6 +27,7 @@ export function LogoStudio() {
 function MenuLateral({ anunciante, onNavegar }: { anunciante: boolean; onNavegar?: () => void }) {
   const itens = [
     { nome: 'Início', to: '/studio', icone: Home, fim: true },
+    { nome: 'Editor de vídeo', to: '/studio/video', icone: Clapperboard },
     { nome: 'Meus Projetos', to: '/studio/projetos', icone: FolderKanban },
     { nome: 'Criar com IA', to: '/studio/ia', icone: Sparkles },
     { nome: 'Minhas Mídias', to: anunciante ? '/portal/assets' : '/dashboard/medias', icone: ImagePlay },

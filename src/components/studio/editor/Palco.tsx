@@ -29,6 +29,8 @@ export interface PalcoProps {
   onDuplicar?: (id: string) => void;
   /** F-225: tocando a animação (sem caixas de seleção por cima) */
   animar?: boolean;
+  /** F-227: só as caixas de mexer (o desenho fica por conta de quem usa, ex.: o vídeo por baixo) */
+  semPrevia?: boolean;
 }
 
 /** Caixa que a alça mexe, já considerando a rotação da camada. */
@@ -45,7 +47,7 @@ export function redimensionar(c: Pick<Camada, 'x' | 'y' | 'w' | 'h' | 'rot'>, sx
   return { x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w: Math.round(w), h: Math.round(h) };
 }
 
-export function Palco({ doc, sel, onSelecionar, onInicio, onMudar, onEditarTexto, onApagar, onDuplicar, animar = false }: PalcoProps) {
+export function Palco({ doc, sel, onSelecionar, onInicio, onMudar, onEditarTexto, onApagar, onDuplicar, animar = false, semPrevia = false }: PalcoProps) {
   const caixa = useRef<HTMLDivElement>(null);
   const [largura, setLargura] = useState(0);
   const [guias, setGuias] = useState<{ x?: number; y?: number }>({});
@@ -114,7 +116,7 @@ export function Palco({ doc, sel, onSelecionar, onInicio, onMudar, onEditarTexto
 
   return (
     <div ref={caixa} className="relative w-full select-none" style={{ aspectRatio: `${W} / ${H}` }} data-testid="studio-palco">
-      <PreviaDocumento doc={doc} sempre animar={animar} className="rounded-lg shadow-2xl" />
+      {!semPrevia && <PreviaDocumento doc={doc} sempre animar={animar} className="rounded-lg shadow-2xl" />}
       <div className="absolute inset-0" style={{ touchAction: 'pan-y' }}
         onPointerDown={(ev) => { if (ev.pointerType === 'mouse' && ev.target === ev.currentTarget) onSelecionar(null); }}
         onClick={(ev) => { if (ev.target === ev.currentTarget) onSelecionar(null); }}>

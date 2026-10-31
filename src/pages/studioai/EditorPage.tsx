@@ -20,6 +20,7 @@ import { herdarEstilo, levarMudanca } from '@/lib/studio/sincronizar';
 import { DURACAO_PADRAO, animarTudo, duracaoDoVideo, temAnimacao, tirarAnimacoes } from '@/lib/studio/animacao';
 import { documentoParaVideo, formatoDeVideo, type VideoGravado } from '@/lib/studio/video';
 import type { PastaDaGaleria } from '@/lib/galeria';
+import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
 import { modeloPorId, type ModeloDeArte } from '@/lib/studio/modelos';
 import { acharModelo } from '@/lib/studio/pastas';
 import { SEGMENTOS, type SegmentoId } from '@/lib/studio/catalogo';
@@ -309,6 +310,8 @@ export default function EditorPage() {
           </div>
         </div>
       )}
+      <button type="button" onClick={() => { try { sessionStorage.setItem(CHAVE_ARTE_PARA_VIDEO, JSON.stringify({ doc, nome: nome.trim() || base.nome })); } catch { /* sem armazenamento */ } navegar('/studio/video'); }}
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#B04DFF]/60 text-sm font-semibold text-white hover:bg-[#5D1BFF]/25" data-testid="studio-levar-video"><Clapperboard className="h-4 w-4 text-[#FFD400]" />Levar para o editor de vídeo (juntar com vídeos, música, cortes…)</button>
       {!animado && <p className="text-[11px] text-slate-500">Dica: toque num elemento e use o botão <b>Animar</b>, ou toque em <b>Animar tudo</b>. Padrão: {DURACAO_PADRAO} s.</p>}
     </div>
   );

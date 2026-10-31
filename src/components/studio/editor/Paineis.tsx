@@ -16,13 +16,13 @@ import type { Camada, CamadaForma, CamadaImagem, CamadaItens, CamadaSelo, Camada
 import { cn } from '@/lib/utils';
 
 export const campo = 'w-full rounded-lg border border-white/10 bg-[#0f0428] px-2.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-[#8A2EFF] focus:outline-none';
-const Rot = ({ t, children, className }: { t: string; children: ReactNode; className?: string }) => (
+export const Rot = ({ t, children, className }: { t: string; children: ReactNode; className?: string }) => (
   <label className={cn('block space-y-1', className)}><span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{t}</span>{children}</label>
 );
 const hex = (c: string | null | undefined) => corHex(c) ?? '#000000';
 
 /** Cor: amostra (abre a paleta do aparelho), código e bolinhas com as últimas cores usadas, as da arte e a paleta. */
-function Cor({ t, valor, onChange, doc }: { t: string; valor: string; onChange: (v: string) => void; doc?: Documento }) {
+export function Cor({ t, valor, onChange, doc }: { t: string; valor: string; onChange: (v: string) => void; doc?: Documento }) {
   const [recentes, setRecentes] = useState(coresRecentes);
   const espera = useRef<ReturnType<typeof setTimeout>>();
   const guardar = (c: string) => { lembrarCor(c); setRecentes(coresRecentes()); };
@@ -69,7 +69,7 @@ function Tamanho({ valor, onChange, min = 8, max = 600 }: { valor: number; onCha
   );
 }
 /** Régua com o nome à esquerda e o valor (em %, °, px…) à direita. */
-function Faixa({ t, valor, onChange, min, max, passo = 1, sufixo = '', mostrar }: { t: string; valor: number; onChange: (v: number) => void; min: number; max: number; passo?: number; sufixo?: string; mostrar?: string }) {
+export function Faixa({ t, valor, onChange, min, max, passo = 1, sufixo = '', mostrar }: { t: string; valor: number; onChange: (v: number) => void; min: number; max: number; passo?: number; sufixo?: string; mostrar?: string }) {
   return (
     <label className="block">
       <span className="flex items-center justify-between text-[11px] font-semibold text-slate-300">{t}<span className="rounded-md bg-[#5D1BFF]/30 px-1.5 py-0.5 font-mono text-[11px] text-white">{mostrar ?? `${Math.round(valor * 100) / 100}${sufixo}`}</span></span>
@@ -77,7 +77,7 @@ function Faixa({ t, valor, onChange, min, max, passo = 1, sufixo = '', mostrar }
     </label>
   );
 }
-function Chave({ t, ligado, onChange }: { t: string; ligado: boolean; onChange: (v: boolean) => void }) {
+export function Chave({ t, ligado, onChange }: { t: string; ligado: boolean; onChange: (v: boolean) => void }) {
   return (
     <button type="button" role="switch" aria-checked={ligado} onClick={() => onChange(!ligado)}
       className={cn('flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm', ligado ? 'border-[#8A2EFF] bg-[#5D1BFF]/25 text-white' : 'border-white/10 text-slate-300 hover:bg-white/5')}>
@@ -88,7 +88,7 @@ function Chave({ t, ligado, onChange }: { t: string; ligado: boolean; onChange: 
 const Grupo = ({ t, children }: { t: string; children: ReactNode }) => (
   <div className="space-y-2 border-t border-white/5 pt-3 first:border-0 first:pt-0"><p className="text-[11px] font-bold text-[#B04DFF]">{t}</p>{children}</div>
 );
-const Segmento = ({ ativo, onClick, children, rotulo }: { ativo: boolean; onClick: () => void; children: ReactNode; rotulo: string }) => (
+export const Segmento = ({ ativo, onClick, children, rotulo }: { ativo: boolean; onClick: () => void; children: ReactNode; rotulo: string }) => (
   <button type="button" onClick={onClick} aria-pressed={ativo} aria-label={rotulo} title={rotulo}
     className={cn('flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border text-xs', ativo ? 'border-[#8A2EFF] bg-[#5D1BFF]/40 text-white' : 'border-white/10 text-slate-200 hover:bg-white/5')}>{children}</button>
 );
