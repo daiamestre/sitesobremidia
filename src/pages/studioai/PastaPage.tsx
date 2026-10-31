@@ -1,20 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FolderOpen, Monitor, PenLine, Smartphone } from 'lucide-react';
-import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
-import { modeloParaDocumento, type FormatoDoc } from '@/lib/studio/documento';
+import { MiniaturaDoModelo } from '@/components/studio/Vitrines';
+import type { FormatoDoc } from '@/lib/studio/documento';
 import { nomeDoSegmento } from '@/lib/studio/catalogo';
 import type { ModeloDeArte } from '@/lib/studio/modelos';
 import { useCatalogo } from '@/lib/studioai/modelos';
 import { cn } from '@/lib/utils';
 
 function Cartao({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
-  const doc = useMemo(() => modeloParaDocumento(m, formato), [m, formato]);
   const destino = `/studio/editar/${m.id}?formato=${encodeURIComponent(formato)}`;
   return (
     <article className="flex flex-col rounded-xl border border-white/10 bg-[#140632] p-3 transition hover:border-[#8A2EFF]/70 hover:shadow-[0_0_28px_rgba(93,27,255,0.35)]" data-testid="studio-modelo-da-pasta">
       <Link to={destino} className={cn('mx-auto block w-full overflow-hidden rounded-lg bg-black', formato === '9:16' && 'max-w-[260px]')} aria-label={`Personalizar ${m.nome}`}>
-        <PreviaDocumento doc={doc} />
+        <MiniaturaDoModelo m={m} formato={formato} />
       </Link>
       <h3 className="mt-2 truncate text-sm font-semibold text-white" title={m.nome}>{m.nome}</h3>
       <Link to={destino} className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-sm font-semibold text-white transition hover:bg-[#8A2EFF]"><PenLine className="h-4 w-4" />Personalizar</Link>

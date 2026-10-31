@@ -4,11 +4,10 @@ import {
   ArrowRight, BriefcaseMedical, ChevronDown, Dumbbell, Filter, FolderOpen, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
   Percent, Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
-import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
-import { Carrossel, TvEmLoop } from '@/components/studio/Vitrines';
+import { Carrossel, MiniaturaDoModelo, TvEmLoop } from '@/components/studio/Vitrines';
 import '@/components/studio/studio-efeitos.css';
 import { intercalarPorSegmento } from '@/lib/studio/miniaturas';
-import { modeloParaDocumento, type FormatoDoc } from '@/lib/studio/documento';
+import type { FormatoDoc } from '@/lib/studio/documento';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { arquivarModelo, meuSaldo } from '@/lib/studioai/api';
@@ -40,8 +39,7 @@ function vitrine(todos: ModeloDeArte[]): [ModeloDeArte[], ModeloDeArte[], Modelo
 
 /** Miniatura de um modelo no formato pedido (cada modelo existe em 16:9 e 9:16). */
 function Miniatura({ m, formato, className }: { m: ModeloDeArte; formato: FormatoDoc; className?: string }) {
-  const doc = useMemo(() => modeloParaDocumento(m, formato), [m, formato]);
-  return <PreviaDocumento doc={doc} className={className} />;
+  return <MiniaturaDoModelo m={m} formato={formato} className={className} />;
 }
 
 function Selecao({ rotulo, valor, opcoes, onChange }: { rotulo: string; valor: string; opcoes: { id: string; nome: string }[]; onChange: (v: string) => void }) {
@@ -98,8 +96,6 @@ export default function CatalogoPage() {
     <div className="space-y-6" data-testid="studio-catalogo">
       {/* ── banner compacto: texto + 3 TVs girando 10 artes cada (como o Player) + 4 vantagens em 2×2 */}
       <section className="sm-borda-viva relative overflow-hidden rounded-2xl p-5 sm:p-6" data-testid="studio-banner">
-        <div aria-hidden className="sm-bolha -left-16 -top-16 h-56 w-56 bg-[#8A2EFF]" />
-        <div aria-hidden className="sm-bolha -bottom-20 right-0 h-56 w-56 bg-[#22d3ee]" style={{ animationDelay: '-7s', opacity: 0.25 }} />
         <div className="relative grid items-center gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-8">
           <div className="min-w-0 space-y-3">
             <p className="whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.25em] text-[#B04DFF]">Sobre <span className="text-white">Mídia</span> Studio</p>

@@ -44,13 +44,21 @@ jobs:
           TABLOIDE_IA_URL: ${{ secrets.TABLOIDE_IA_URL }}
           TABLOIDE_IA_SEGREDO: ${{ secrets.TABLOIDE_IA_SEGREDO }}
         run: node scripts/studio/gerar-fotos-pastas.mjs || true
+      - name: Miniaturas prontas com as fotos novas (F-226 — o site não desenha no aparelho)
+        if: steps.falta.outputs.prontas != '126'
+        run: |
+          if git diff --quiet -- src/lib/studio/fotos-prontas.ts; then echo "sem foto nova"; exit 0; fi
+          [ -L node_modules ] && rm node_modules
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          node scripts/studio/gerar-miniaturas.mjs
       - name: Gravar no main (o site publica sozinho)
         if: steps.falta.outputs.prontas != '126'
         run: |
-          rm -f node_modules
+          [ -L node_modules ] && rm node_modules || true
           git config user.name "sobremidia-robo"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/studio/fotos/*.webp src/lib/studio/fotos-prontas.ts
+          git add public/studio/fotos/*.webp src/lib/studio/fotos-prontas.ts public/studio/miniaturas src/lib/studio/miniaturas-prontas.ts
           if git diff --cached --quiet; then echo "nenhuma foto nova (cota do dia)"; exit 0; fi
           git commit -m "feat(studio): fotos novas das pastas de modelos geradas pela IA da Cloudflare da SOBRE MÍDIA (F-221)"
           git push origin HEAD:main
