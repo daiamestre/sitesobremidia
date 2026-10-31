@@ -159,7 +159,7 @@ export function validarPedido(p: PedidoStudio): string[] {
   if (!Number.isInteger(p.cenas) || p.cenas < LIMITES.cenasMin || p.cenas > LIMITES.cenasMax) erros.push(`As cenas vão de ${LIMITES.cenasMin} a ${LIMITES.cenasMax}.`);
   if (Number.isInteger(p.cenas) && Number.isInteger(p.duracao_s) && p.duracao_s / Math.max(1, p.cenas) < 2) erros.push('Cada cena precisa de pelo menos 2 segundos.');
   if (!(p.tipo in ROTULO)) erros.push('Tipo de produção inválido.');
-  if (!Array.isArray(p.produtos) || p.produtos.length === 0) erros.push('Informe pelo menos um produto ou serviço.');
+  if (!Array.isArray(p.produtos)) erros.push('Produtos inválidos.'); // 0 produto vale (serviço/campanha: o Creative Core cria as cenas — MG-STUDIO-03)
   else if (p.produtos.length > LIMITES.produtos) erros.push(`No máximo ${LIMITES.produtos} produtos por produção.`);
   const ids = new Set<string>();
   (p.produtos ?? []).forEach((pr, i) => {

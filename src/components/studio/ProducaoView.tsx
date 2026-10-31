@@ -16,6 +16,9 @@ import { dadosDaCena } from '../../../supabase/functions/_shared/studio/layout.t
 import { ESTADOS_EM_ANDAMENTO, SeloEstado, SeloRotulo, StudioFundo, StudioMarca, nomeDoEstado } from './comum';
 import { EditorCena } from './EditorCena';
 import { PreviaCena } from './PreviaCena';
+import { CHAVE_PROJETO_DO_CORE, projetoDaProducao } from '@/lib/studio/video/doCore';
+import { CAPAS } from '@/lib/studio/pastas';
+import { segmentoDoPedido } from '../../../supabase/functions/_shared/studio/core/core.ts';
 
 const LINHA_DO_TEMPO: { id: string; nome: string; estados: Estado[] }[] = [
   { id: 'pedido', nome: 'Pedido', estados: ['recebido'] },
@@ -141,11 +144,19 @@ export function ProducaoView({ id, base, areaEquipe }: { id: string; base: strin
         )}
 
         {p.plano && (
-          <Secao titulo="Plano criativo e storyboard" icone={Sparkles} acao={p.estado === 'aguardando_aprovacao_plano' && (
+          <Secao titulo="Plano criativo e storyboard" icone={Sparkles} acao={<>
+            {/* MG-STUDIO-03: o plano do Creative Core vira um projeto editável do editor de vídeo (cenas, tempos, preços reais) */}
+            <Button size="sm" variant="outline" className="mr-2" data-testid="studio-abrir-editor-video" onClick={() => {
+              const seg = segmentoDoPedido(pedido).segmento;
+              const modelo = CAPAS.find((m) => seg.catalogo.includes(m.segmento)) ?? null;
+              try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ nome: p.titulo, projeto: projetoDaProducao({ formato: p.formato, plano: p.plano!, produtos: p.produtos, cenas: p.cenas, ordem: p.ordem }, modelo) })); } catch { /* sem armazenamento */ }
+              navegar('/studio/video');
+            }}>Abrir no editor de vídeo</Button>
+            {p.estado === 'aguardando_aprovacao_plano' && (
             <Button className="bg-amber-400 font-bold text-black hover:bg-amber-300" disabled={!!ocupado} onClick={() => agir('aprovar', () => aprovarPlano(p.id), 'Plano aprovado. Gerando os cenários…')} data-testid="studio-aprovar-plano">
               {ocupado === 'aprovar' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />} Aprovar plano e gerar cenários
             </Button>
-          )}>
+          )}</>}>
             <div className="grid gap-4 lg:grid-cols-3">
               <div className="space-y-2 lg:col-span-2">
                 <p className="text-lg font-bold text-white">{p.plano.conceito}</p>

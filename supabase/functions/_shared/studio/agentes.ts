@@ -1,7 +1,10 @@
 // SOBRE MÍDIA Studio — agentes de IA (componentes lógicos coordenados pelo orquestrador).
 // Cada agente: diretriz versionada (biblia.ts), entrada, saída em JSON com esquema, validação e registro (neurons, tentativas).
 // Os agentes NUNCA recebem os valores dos preços: não há como escrevê-los. Preço, loja e condições entram por código (layout.ts).
-import { DIRETRIZ, VERSAO_BIBLIA, estiloDa } from './biblia.ts';
+import { DIRETRIZ, VERSAO_BIBLIA } from './biblia.ts';
+// MG-STUDIO-03: os agentes recebem o contexto do SOBRE MÍDIA CREATIVE CORE (DNA visual + segmento + modalidade)
+import { contextoParaAgente, estiloDoPedido } from './core/core.ts';
+import { VERSAO_DNA } from './core/dna.ts';
 import {
   CAMERAS, type CenaPlano, type PedidoStudio, type PlanoCriativo, neuronsDoTexto, validarPlano,
 } from './contrato.ts';
@@ -12,7 +15,7 @@ export const MODELO_TEXTO = '@cf/meta/llama-4-scout-17b-16e-instruct';
 export type Executar = (modelo: string, entrada: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
 export interface RegistroAgente<T> {
-  agente: 'produtos' | 'diretor' | 'roteirista' | 'fotografia' | 'prompts';
+  agente: 'produtos' | 'diretor' | 'roteirista' | 'fotografia' | 'prompts' | 'core' | 'core-local';
   modelo: string;
   versao: string;
   entrada: unknown;
@@ -64,7 +67,7 @@ async function chamar<T>(exec: Executar, agente: RegistroAgente<T>['agente'], si
       continue;
     }
     const erros = validar(valor);
-    if (!erros.length) return { agente, modelo: MODELO_TEXTO, versao: VERSAO_BIBLIA, entrada: usuario, saida: valor, neurons, tentativas: t };
+    if (!erros.length) return { agente, modelo: MODELO_TEXTO, versao: `${VERSAO_BIBLIA}+${VERSAO_DNA}`, entrada: usuario, saida: valor, neurons, tentativas: t };
     ultimo = erros.join(' ');
     mensagens.push({ role: 'assistant', content: JSON.stringify(valor) }, { role: 'user', content: `Corrija e responda de novo o JSON completo. Problemas: ${ultimo}` });
   }
@@ -104,8 +107,8 @@ const SCHEMA_DIRECAO = {
   properties: { conceito: { type: 'string' }, estilo_visual: { type: 'string' }, linguagem: { type: 'string' }, paleta: { type: 'array', items: { type: 'string' } }, duracao_recomendada_s: { type: 'integer' }, cenas_recomendadas: { type: 'integer' } },
 };
 export function diretorCriativo(exec: Executar, p: PedidoStudio, analises: Record<string, AnaliseProduto>) {
-  const estilo = estiloDa(p.briefing.categoria);
-  return chamar<Direcao>(exec, 'diretor', DIRETRIZ.diretor,
+  const estilo = estiloDoPedido(p);
+  return chamar<Direcao>(exec, 'diretor', contextoParaAgente('diretor', p),
     `Briefing: ${JSON.stringify(briefingParaIA(p))}\nProdutos: ${JSON.stringify(produtosParaIA(p))}\nAnálise visual dos produtos: ${JSON.stringify(analises)}\nEstilo de referência do segmento: ${JSON.stringify(estilo)}\nResponda em português (paleta em códigos hexadecimais #RRGGBB).`,
     SCHEMA_DIRECAO, (v) => {
       const e: string[] = [];
@@ -141,7 +144,7 @@ export function normalizarDuracoes<T extends { duracao_s: number }>(cenas: T[], 
 }
 
 export function roteirista(exec: Executar, p: PedidoStudio, direcao: Direcao) {
-  return chamar<Roteiro>(exec, 'roteirista', DIRETRIZ.roteirista,
+  return chamar<Roteiro>(exec, 'roteirista', contextoParaAgente('roteirista', p),
     `Briefing: ${JSON.stringify(briefingParaIA(p))}\nProdutos (use o id em produto_id; null para abertura/fechamento): ${JSON.stringify(produtosParaIA(p))}\nDireção criativa: ${JSON.stringify(direcao)}\nCrie exatamente ${p.cenas} cenas numeradas de 1 a ${p.cenas}, somando ${p.duracao_s} segundos, cada uma com pelo menos 2 segundos. Todos os produtos devem aparecer em ao menos uma cena se couber.`,
     schemaRoteiro(p.cenas), (v) => {
       if (!Array.isArray(v?.cenas)) return ['Faltam as cenas.'];
@@ -161,8 +164,8 @@ const schemaFotografia = (n: number) => ({
     properties: { numero: { type: 'integer' }, enquadramento: { type: 'string' }, iluminacao: { type: 'string' }, lente: { type: 'string' }, camera: { type: 'string', enum: CAMERAS.map((c) => c.id) } } } } },
 });
 export function diretorFotografia(exec: Executar, p: PedidoStudio, direcao: Direcao, roteiro: Roteiro) {
-  const estilo = estiloDa(p.briefing.categoria);
-  return chamar<Fotografia>(exec, 'fotografia', DIRETRIZ.fotografia,
+  const estilo = estiloDoPedido(p);
+  return chamar<Fotografia>(exec, 'fotografia', contextoParaAgente('fotografia', p),
     `Formato da tela: ${p.formato}. Direção: ${JSON.stringify(direcao)}\nEstilo do segmento: ${JSON.stringify(estilo)}\nCenas: ${JSON.stringify(roteiro.cenas)}\nResponda em português (camera com um dos valores permitidos).`,
     schemaFotografia(p.cenas), (v) => (Array.isArray(v?.cenas) && v.cenas.length === p.cenas && v.cenas.every((c) => CAMERAS.some((k) => k.id === c.camera)) ? [] : ['Cenas incompletas ou câmera inválida.']), 1200);
 }
@@ -176,9 +179,9 @@ const schemaPrompts = (n: number) => ({
     properties: { numero: { type: 'integer' }, prompt_cenario: { type: 'string' }, negativo: { type: 'string' } } } } },
 });
 export function especialistaPrompts(exec: Executar, p: PedidoStudio, direcao: Direcao, roteiro: Roteiro, foto: Fotografia, analises: Record<string, AnaliseProduto>) {
-  const estilo = estiloDa(p.briefing.categoria);
+  const estilo = estiloDoPedido(p);
   const onde = p.formato === '9:16' ? 'empty space in the lower-middle for the product' : 'empty space on the right third for the product';
-  return chamar<Prompts>(exec, 'prompts', DIRETRIZ.prompts,
+  return chamar<Prompts>(exec, 'prompts', contextoParaAgente('prompts', p),
     `Formato: ${p.formato} (${onde}). Estilo do segmento: ${JSON.stringify(estilo)}\nDireção: ${JSON.stringify(direcao)}\nCenas do roteiro: ${JSON.stringify(roteiro.cenas)}\nFotografia: ${JSON.stringify(foto.cenas)}\nProdutos (só para combinar cores do cenário, NÃO desenhar): ${JSON.stringify(analises)}`,
     schemaPrompts(p.cenas), (v) => {
       if (!Array.isArray(v?.cenas) || v.cenas.length !== p.cenas) return ['Cenas incompletas.'];

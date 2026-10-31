@@ -10,7 +10,8 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { ajustarPrompt, FalhaDoAgente, type RegistroAgente } from '../_shared/studio/agentes.ts';
 import { planejarProducao } from '../_shared/studio/pipeline.ts';
 import { edicaoInicial, validarEdicao, validarPedido, type EdicaoCena, type PedidoStudio, type PlanoCriativo, type VersaoImagem, usdDosNeurons } from '../_shared/studio/contrato.ts';
-import { executorCloudflare, gerarCenario, statusDosProvedores } from '../_shared/studio/provedores.ts';
+import { executorCloudflare, gerarCenario, statusDosProvedores, textoGratis } from '../_shared/studio/provedores.ts';
+import type { Segmento } from '../_shared/studio/core/segmentos.ts';
 import { configR2, enviarAoR2 } from '../_shared/studio/r2.ts';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-studio-segredo' };
@@ -37,10 +38,25 @@ function executor() {
   return executorCloudflare({ via: 'worker', url, segredo });
 }
 
+/** MG-STUDIO-03: modelo de TEXTO dos agentes = IA grátis de texto (poupa a cota de imagens da Cloudflare); sem ela, a Cloudflare. */
+function executorDeTexto() {
+  const t = textoGratis(env);
+  return t ? { exec: t.exec, provedor: t.provedor } : { exec: executor(), provedor: 'cloudflare-workers-ai' };
+}
+
+/** Conhecimento VIVO do Creative Core no banco (segmentos editados/acrescentados; global + empresa). Sem banco: só os de fábrica. */
+async function segmentosDoBanco(srv: SupabaseClient, empresa: string): Promise<Segmento[]> {
+  const { data, error } = await srv.from('studio_conhecimento').select('escopo, conteudo').eq('tipo', 'segmento').eq('ativo', true)
+    .or(`escopo.eq.global,and(escopo.eq.empresa,empresa_operadora_id.eq.${empresa})`);
+  if (error) { console.warn('[studio] conhecimento indisponível, usando o de fábrica:', error.message); return []; }
+  // o da empresa vem por último e substitui o global de mesmo id
+  return (data ?? []).sort((a, b) => (a.escopo === 'global' ? -1 : 1) - (b.escopo === 'global' ? -1 : 1)).map((x) => x.conteudo as Segmento);
+}
+
 async function registrar(srv: SupabaseClient, p: Producao, chave: string, r: Partial<RegistroAgente<unknown>> & { agente: string }, extra: Record<string, unknown> = {}) {
   await srv.from('studio_etapas').upsert({
     producao_id: p.id, empresa_operadora_id: p.empresa_operadora_id, agente: r.agente, chave, plano_versao: p.plano_versao,
-    provedor: 'cloudflare-workers-ai', modelo: r.modelo ?? null, versao_diretriz: r.versao ?? null, entrada: r.entrada ?? null, saida: r.saida ?? null,
+    provedor: (extra.provedor as string | undefined) ?? 'cloudflare-workers-ai', modelo: r.modelo ?? null, versao_diretriz: r.versao ?? null, entrada: r.entrada ?? null, saida: r.saida ?? null,
     neurons: r.neurons ?? 0, custo_usd: usdDosNeurons(r.neurons ?? 0), tentativas: r.tentativas ?? 1, idempotencia: `${p.id}:${p.plano_versao}:${chave}`, ...extra,
   }, { onConflict: 'idempotencia', ignoreDuplicates: true });
 }
@@ -80,12 +96,18 @@ async function planejar(srv: SupabaseClient, p: Producao) {
   const { data: feitas } = await srv.from('studio_etapas').select('chave, saida').eq('producao_id', p.id).eq('plano_versao', p.plano_versao).eq('estado', 'ok');
   const memoria = Object.fromEntries((feitas ?? []).filter((e) => e.chave !== 'pedido').map((e) => [e.chave, e.saida]));
   let neurons = 0;
+  const texto = executorDeTexto();
+  const disponiveis = new Set(['interno', ...statusDosProvedores(env).filter((x) => x.disponivel).map((x) => x.id)]);
   try {
-    const { plano, erros: errosPlano } = await planejarProducao(executor(), pedido, {
+    const { plano, erros: errosPlano } = await planejarProducao(texto.exec, pedido, {
       feitas: memoria,
       imagem: imagemComoDataUrl,
-      gravar: async (chave, r) => { neurons += r.neurons; await registrar(srv, p, chave, r); },
-    });
+      gravar: async (chave, r) => {
+        neurons += r.neurons;
+        const provedor = r.agente === 'produtos' ? 'cloudflare-workers-ai' : r.agente === 'core' || r.agente === 'core-local' ? 'sobremidia-creative-core' : texto.provedor;
+        await registrar(srv, p, chave, r, { provedor });
+      },
+    }, { visao: executor(), core: { segmentos: await segmentosDoBanco(srv, p.empresa_operadora_id), disponiveis, ia: textoGratis(env) } });
     if (errosPlano.length) return falhar(srv, p, `O plano dos agentes não passou na validação: ${errosPlano.join(' ')}`);
     const cenas = Object.fromEntries(plano.cenas.map((c) => [String(c.numero), { versoes: [], gerar: true }]));
     const edicoes = Object.fromEntries(plano.cenas.map((c) => [String(c.numero), edicaoInicial(c, p.formato)]));

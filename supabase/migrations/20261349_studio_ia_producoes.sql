@@ -1,5 +1,8 @@
 -- =====================================================================================================================
--- STUDIO DE IA (MG01) — produções, etapas dos agentes e cota de uso.
+-- STUDIO DE IA (MG01) — produções e etapas dos agentes. REVISADA em 31/10/2026 (MG-STUDIO-03, nunca tinha sido aplicada):
+--   * SEM a tabela studio_uso: a contagem diária sai de studio_producoes/studio_etapas (regra do dono: nada de 2º sistema de cota);
+--   * studio_escopo() = studio_ai_escopo() (a regra de acesso que já está no ar; Studio para todos da empresa, cada um vê o seu);
+--   * produção pode ter 0 produto (o Creative Core cria cenas de serviço, ex.: clínica, academia).
 -- Motivo: docs/studio-ai/ARQUITETURA_PROPOSTA.md §5 e MATRIZ_DE_EXECUCAO.md (MG01).
 -- ADITIVO: só cria tabelas/funções novas com prefixo studio_. Não altera nenhuma tabela, função, RLS ou dado existente.
 -- Impacto no Player: NENHUM (o Player continua recebendo media/cliente_assets comuns pelas playlists).
@@ -18,7 +21,7 @@
 --     public.studio_transicao_valida(text, text), public.studio_escopo(), public.studio_pode_ver(uuid),
 --     public.studio_registrar(uuid, text, jsonb), public.studio_minha(uuid), public.studio_tentar_de_novo(uuid),
 --     public.studio_tocar_atualizado();
---   drop table if exists public.studio_etapas, public.studio_uso, public.studio_producoes;
+--   drop table if exists public.studio_etapas, public.studio_producoes;
 -- =====================================================================================================================
 
 -- ---------------------------------------------------------------- tabelas
@@ -89,35 +92,20 @@ create table if not exists public.studio_etapas (
 );
 create index if not exists studio_etapas_producao_idx on public.studio_etapas (producao_id, criado_em);
 
-create table if not exists public.studio_uso (
-  empresa_operadora_id uuid not null,
-  user_id uuid not null,
-  dia date not null,
-  modalidade text not null check (modalidade in ('plano', 'imagem', 'montagem', 'imagem_paga', 'video_ia', 'voz')),
-  quantidade int not null default 0,
-  neurons int not null default 0,
-  primary key (empresa_operadora_id, user_id, dia, modalidade)
-);
+-- (studio_uso removida na revisão de 31/10/2026: a contagem usa studio_producoes/studio_etapas)
 
 alter table public.studio_producoes enable row level security;
 alter table public.studio_etapas enable row level security;
-alter table public.studio_uso enable row level security;
-revoke all on public.studio_producoes, public.studio_etapas, public.studio_uso from anon;
-revoke insert, update, delete, truncate on public.studio_producoes, public.studio_etapas, public.studio_uso from authenticated;
-grant select on public.studio_producoes, public.studio_etapas, public.studio_uso to authenticated;
+revoke all on public.studio_producoes, public.studio_etapas from anon;
+revoke insert, update, delete, truncate on public.studio_producoes, public.studio_etapas from authenticated;
+grant select on public.studio_producoes, public.studio_etapas to authenticated;
 
 -- ---------------------------------------------------------------- quem pode usar (modelo real do banco: usuarios + perfis + user_roles)
 
 create or replace function public.studio_escopo()
 returns table (empresa uuid, cliente uuid, admin boolean, pode boolean)
 language sql stable security definer set search_path = public, pg_temp as $$
-  select u.empresa_operadora_id,
-         case when upper(coalesce(p.nome, '')) in ('ANUNCIANTE', 'CLIENTE') and not coalesce(u.is_owner, false) then u.cliente_id end,
-         (coalesce(u.is_owner, false) or upper(coalesce(p.nome, '')) in ('OWNER', 'ADMIN') or public.has_role(u.id, 'admin'::app_role)),
-         (coalesce(u.is_owner, false) or upper(coalesce(p.nome, '')) in ('OWNER', 'ADMIN') or public.has_role(u.id, 'admin'::app_role)
-           or (upper(coalesce(p.nome, '')) in ('ANUNCIANTE', 'CLIENTE') and u.cliente_id is not null))
-    from public.usuarios u left join public.perfis p on p.id = u.perfil_id
-   where u.id = auth.uid();
+  select * from public.studio_ai_escopo();   -- a mesma regra do Studio no ar (sem regra paralela)
 $$;
 
 create or replace function public.studio_pode_ver(p_producao uuid)
@@ -130,8 +118,6 @@ $$;
 
 create policy studio_producoes_ver on public.studio_producoes for select to authenticated using (public.studio_pode_ver(id));
 create policy studio_etapas_ver on public.studio_etapas for select to authenticated using (public.studio_pode_ver(producao_id));
-create policy studio_uso_ver on public.studio_uso for select to authenticated using (
-  user_id = auth.uid() or exists (select 1 from public.studio_escopo() e where e.admin and e.empresa = studio_uso.empresa_operadora_id));
 
 create or replace function public.studio_tocar_atualizado() returns trigger language plpgsql as $$
 begin new.atualizado_em := now(); return new; end $$;
@@ -169,29 +155,37 @@ $$;
 create or replace function public.studio_consumir_cota(p_empresa uuid, p_user uuid, p_modalidade text, p_qtd int default 1, p_neurons int default 0)
 returns boolean language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  v_dia date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_ini timestamptz := date_trunc('day', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo';
   v_lim_pessoa int; v_lim_empresa int; v_meu int; v_emp int;
 begin
   select lp, le into v_lim_pessoa, v_lim_empresa from (values
     ('plano', 10, 60), ('imagem', 40, 200), ('montagem', 10, 60), ('imagem_paga', 0, 0), ('video_ia', 0, 0), ('voz', 0, 0)) t(m, lp, le)
    where m = p_modalidade;
   if v_lim_pessoa is null then return false; end if;
-  perform pg_advisory_xact_lock(hashtext('studio_uso:' || p_empresa::text || p_modalidade));
-  select coalesce(sum(quantidade), 0) into v_emp from public.studio_uso where empresa_operadora_id = p_empresa and dia = v_dia and modalidade = p_modalidade;
-  select coalesce(sum(quantidade), 0) into v_meu from public.studio_uso where empresa_operadora_id = p_empresa and user_id = p_user and dia = v_dia and modalidade = p_modalidade;
-  if v_meu + p_qtd > v_lim_pessoa or v_emp + p_qtd > v_lim_empresa then return false; end if;
-  insert into public.studio_uso as u (empresa_operadora_id, user_id, dia, modalidade, quantidade, neurons)
-  values (p_empresa, p_user, v_dia, p_modalidade, p_qtd, p_neurons)
-  on conflict (empresa_operadora_id, user_id, dia, modalidade) do update set quantidade = u.quantidade + excluded.quantidade, neurons = u.neurons + excluded.neurons;
-  return true;
+  perform pg_advisory_xact_lock(hashtext('studio_cota:' || p_empresa::text || p_modalidade));
+  if p_modalidade = 'plano' then
+    select count(*) into v_emp from public.studio_producoes where empresa_operadora_id = p_empresa and criado_em >= v_ini;
+    select count(*) into v_meu from public.studio_producoes where empresa_operadora_id = p_empresa and user_id = p_user and criado_em >= v_ini;
+  else
+    select count(*) into v_emp from public.studio_etapas e where e.empresa_operadora_id = p_empresa and e.agente = p_modalidade and e.estado = 'ok' and e.criado_em >= v_ini
+       and e.chave not like 'montagem:disparo:%';
+    select count(*) into v_meu from public.studio_etapas e join public.studio_producoes s on s.id = e.producao_id
+     where e.empresa_operadora_id = p_empresa and s.user_id = p_user and e.agente = p_modalidade and e.estado = 'ok' and e.criado_em >= v_ini
+       and e.chave not like 'montagem:disparo:%';
+  end if;
+  return v_meu + p_qtd <= v_lim_pessoa and v_emp + p_qtd <= v_lim_empresa;
 end $$;
 
 create or replace function public.studio_minha_cota()
 returns jsonb language sql stable security definer set search_path = public, pg_temp as $$
-  select coalesce(jsonb_object_agg(m, jsonb_build_object('usado', coalesce(u.q, 0), 'limite', lp)), '{}'::jsonb)
-    from (values ('plano', 10), ('imagem', 40), ('montagem', 10)) t(m, lp)
-    left join lateral (select sum(quantidade) q from public.studio_uso
-                        where user_id = auth.uid() and modalidade = t.m and dia = (now() at time zone 'America/Sao_Paulo')::date) u on true;
+  with ini as (select date_trunc('day', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo' as t)
+  select jsonb_build_object(
+    'plano', jsonb_build_object('usado', (select count(*) from public.studio_producoes, ini where user_id = auth.uid() and criado_em >= ini.t), 'limite', 10),
+    'imagem', jsonb_build_object('usado', (select count(*) from public.studio_etapas e join public.studio_producoes s on s.id = e.producao_id, ini
+                                            where s.user_id = auth.uid() and e.agente = 'imagem' and e.estado = 'ok' and e.criado_em >= ini.t), 'limite', 40),
+    'montagem', jsonb_build_object('usado', (select count(*) from public.studio_etapas e join public.studio_producoes s on s.id = e.producao_id, ini
+                                              where s.user_id = auth.uid() and e.agente = 'montagem' and e.estado = 'ok' and e.criado_em >= ini.t
+                                                and e.chave not like 'montagem:disparo:%'), 'limite', 10));
 $$;
 
 -- ---------------------------------------------------------------- ações do usuário (empresa/cliente/usuário SEMPRE da sessão)
@@ -213,7 +207,7 @@ begin
   if (p_pedido->>'formato') not in ('16:9', '9:16', '1:1') then raise exception 'Formato inválido.'; end if;
   if jsonb_typeof(p_pedido->'produtos') <> 'array' then raise exception 'Produtos inválidos.'; end if;
   v_n := jsonb_array_length(p_pedido->'produtos');
-  if v_n < 1 or v_n > 6 then raise exception 'Informe de 1 a 6 produtos.'; end if;
+  if v_n > 6 then raise exception 'Informe no máximo 6 produtos.'; end if;   -- 0 = serviço/campanha sem produto (Creative Core)
   for v_prod in select * from jsonb_array_elements(p_pedido->'produtos') loop
     if coalesce(trim(v_prod->>'nome'), '') = '' then raise exception 'Produto sem nome.'; end if;
     if v_prod->'preco_centavos' is not null and jsonb_typeof(v_prod->'preco_centavos') <> 'null' then

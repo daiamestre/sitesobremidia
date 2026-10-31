@@ -33,6 +33,7 @@ import {
 import { listarProjetos, meuSaldo, obterProjeto, salvarNasMidias, salvarProjeto } from '@/lib/studioai/api';
 import { baixar, nomeDoArquivo } from '@/lib/studioai/exportar';
 import type { PastaDaGaleria } from '@/lib/galeria';
+import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
 
 const PASTA_VIDEOS: PastaDaGaleria = { chave: 'studio-videos', nome: 'Vídeos do Studio', segmento: null };
@@ -111,6 +112,15 @@ export default function VideoEditorPage() {
       });
       return;
     }
+    try {
+      // MG-STUDIO-03: projeto montado pelo Creative Core a partir do plano de uma produção
+      const doCore = sessionStorage.getItem(CHAVE_PROJETO_DO_CORE);
+      if (doCore) {
+        sessionStorage.removeItem(CHAVE_PROJETO_DO_CORE);
+        const { projeto, nome: n } = JSON.parse(doCore) as { projeto: ProjetoDeVideo; nome: string };
+        if (projeto?.tipo === 'video') { setP(projeto); setNome(n); return; }
+      }
+    } catch { /* sem projeto do Core */ }
     try {
       const bruto = sessionStorage.getItem(CHAVE_ARTE_PARA_VIDEO);
       if (!bruto) return;

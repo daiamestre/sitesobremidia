@@ -21,6 +21,10 @@ export interface Provedor {
 export const PROVEDORES: Provedor[] = [
   { id: 'cf-llama4-scout', tipo: 'texto', nome: 'Cloudflare Workers AI · Llama 4 Scout', modelo: '@cf/meta/llama-4-scout-17b-16e-instruct', custo: 'gratuito_na_cota', custoTexto: '≈ 100–300 neurons por agente (cota grátis de 10.000/dia da conta do dono)', requer: ['TABLOIDE_IA_URL', 'TABLOIDE_IA_SEGREDO'], documentacao: 'https://developers.cloudflare.com/workers-ai/models/llama-4-scout-17b-16e-instruct/' },
   { id: 'cf-llama4-scout-visao', tipo: 'visao', nome: 'Cloudflare Workers AI · Llama 4 Scout (visão)', modelo: '@cf/meta/llama-4-scout-17b-16e-instruct', custo: 'gratuito_na_cota', custoTexto: '≈ 50–150 neurons por foto', requer: ['TABLOIDE_IA_URL', 'TABLOIDE_IA_SEGREDO'] },
+  // MG-STUDIO-03: texto grátis de reserva (as mesmas chaves do F-222/F-223). O planejamento usa estes primeiro para POUPAR a cota da Cloudflare para as imagens.
+  { id: 'groq-texto', tipo: 'texto', nome: 'Groq · gpt-oss-120b', modelo: 'openai/gpt-oss-120b', custo: 'gratuito_na_cota', custoTexto: 'grátis dentro do limite da conta Groq', requer: ['GROQ_API_KEY'] },
+  { id: 'gemini-texto', tipo: 'texto', nome: 'Google AI Studio · Gemini Flash-Lite', modelo: 'gemini-flash-lite-latest', custo: 'gratuito_na_cota', custoTexto: 'grátis dentro do limite do Google AI Studio', requer: ['GEMINI_API_KEY'] },
+  { id: 'openrouter-texto', tipo: 'texto', nome: 'OpenRouter · modelo :free', modelo: 'nvidia/nemotron-3-ultra-550b-a55b:free', custo: 'gratuito_na_cota', custoTexto: 'modelos :free do OpenRouter (limite diário da conta)', requer: ['OPENROUTER_API_KEY'] },
   { id: 'cf-flux-schnell', tipo: 'imagem', nome: 'Cloudflare Workers AI · FLUX.1 schnell', modelo: '@cf/black-forest-labs/flux-1-schnell', custo: 'gratuito_na_cota', custoTexto: '≈ 96 neurons por cenário 1024×1024', requer: ['TABLOIDE_IA_URL', 'TABLOIDE_IA_SEGREDO'], documentacao: 'https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/' },
   { id: 'cf-lucid-origin', tipo: 'imagem_paga', nome: 'Cloudflare Workers AI · Lucid Origin (1920×1080 nativo)', modelo: '@cf/leonardo/lucid-origin', custo: 'pago', custoTexto: '≈ 7.900 neurons ≈ US$ 0,087 por imagem 1920×1080 (consome a cota grátis inteira em 1 imagem)', requer: ['TABLOIDE_IA_URL', 'TABLOIDE_IA_SEGREDO', 'STUDIO_PERMITIR_IMAGEM_PAGA'], bloqueio: 'Desligado até o dono autorizar gasto (STUDIO_PERMITIR_IMAGEM_PAGA=1) e o plano Workers Paid.' },
   { id: 'gh-actions-ffmpeg', tipo: 'montagem', nome: 'GitHub Actions · FFmpeg + Playwright', custo: 'infraestrutura_existente', custoTexto: 'R$ 0 (repositório público: minutos grátis)', requer: ['GITHUB_TOKEN', 'GITHUB_REPO', 'STUDIO_SEGREDO'] },
@@ -72,4 +76,36 @@ export async function gerarCenario(exec: Executar, prompt: string, pago = false)
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return { bytes, modelo, neurons: pago ? 7_872 : 96 };
+}
+
+// ---------------------------------------------------------------- texto grátis compatível com OpenAI (Groq, Gemini, OpenRouter)
+
+const URL_TEXTO: Record<string, { url: string; chave: string; modeloEnv: string }> = {
+  'groq-texto': { url: 'https://api.groq.com/openai/v1/chat/completions', chave: 'GROQ_API_KEY', modeloEnv: 'GROQ_MODELO_AGENTE' },
+  'gemini-texto': { url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', chave: 'GEMINI_API_KEY', modeloEnv: 'GEMINI_MODELO_AGENTE' },
+  'openrouter-texto': { url: 'https://openrouter.ai/api/v1/chat/completions', chave: 'OPENROUTER_API_KEY', modeloEnv: 'OPENROUTER_MODELO_AGENTE' },
+};
+
+/** Executor no formato do Studio para um provedor compatível com OpenAI (pede JSON simples: nem todos aceitam json_schema). */
+export function executorCompativelOpenAI(id: string, env: (k: string) => string | undefined, tempoMs = 60_000): { exec: Executar; modelo: string; provedor: string } | null {
+  const cfg = URL_TEXTO[id];
+  const p = PROVEDORES.find((x) => x.id === id);
+  const chave = cfg && env(cfg.chave);
+  if (!cfg || !p || !chave) return null;
+  const modelo = env(cfg.modeloEnv) || p.modelo!;
+  const exec: Executar = async (_modelo, entrada) => {
+    const { response_format, ...resto } = entrada as { response_format?: unknown } & Record<string, unknown>;
+    const r = await fetch(cfg.url, { method: 'POST', headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...resto, model: modelo, ...(response_format ? { response_format: { type: 'json_object' } } : {}) }), signal: AbortSignal.timeout(tempoMs) });
+    const texto = await r.text();
+    if (!r.ok) throw new Error(`${r.status} ${texto.slice(0, 200)}`);
+    return JSON.parse(texto) as Record<string, unknown>;
+  };
+  return { exec, modelo, provedor: id };
+}
+
+/** O primeiro modelo de texto grátis disponível (Groq → Google → OpenRouter), poupando a cota de imagens da Cloudflare. */
+export function textoGratis(env: (k: string) => string | undefined) {
+  for (const id of ['groq-texto', 'gemini-texto', 'openrouter-texto']) { const e = executorCompativelOpenAI(id, env); if (e) return e; }
+  return null;
 }

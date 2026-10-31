@@ -2644,3 +2644,28 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Achado:** foto/vídeo do R2 que a galeria já tinha mostrado SEM `crossOrigin` ficava no cache do navegador sem o cabeçalho de permissão e o canvas não conseguia usar (saía preto). Correção: a galeria do editor pede com `crossOrigin` e o motor tenta de novo com outro endereço (`?sm=cors`).
 - **Ainda não dá no navegador (exigiria servidor de vídeo):** vídeo de trás para frente, recorte de fundo/chroma key em tempo real, legenda automática por voz e exportar mais rápido que o próprio tempo do vídeo.
 - **Prova (800×1280 e 375×812, conta de teste):** vídeo + foto da galeria, texto, música (WAV de teste), filtro P&B, transição Cortina → exportado MP4 1920×1080 de 11,8 s com faixas avc1 + mp4a; quadros conferidos (texto sobre o vídeo, cortina no meio, foto P&B com zoom); Dividir (2→3 clipes) e Congelar (→4); celular sem rolagem lateral; unitários `studioEditorVideo227.test.ts`.
+
+### F-228 — SOBRE MÍDIA CREATIVE CORE (MG-STUDIO-02 + MG-STUDIO-03) — CÓDIGO PRONTO; banco/função AGUARDANDO aprovação para aplicar
+- **Pedido do dono:** o Creative Core como inteligência central do Studio, aproveitando agentes/orquestrador existentes, sem arquitetura paralela; banco só depois de apresentar o esquema e as migrações; publicar só no fim.
+- **Achado:** não existe `sobre-midia-orchestrator` no projeto nem no histórico. O orquestrador real é `studio-orquestrador` + `_shared/studio` (agentes de 30/10, nunca publicados). `.agents/` é a governança do trabalho de programação, não a do produto.
+- **Feito:**
+  - DNA v2 e manual (`_shared/studio/core/dna.ts`); taxonomia de 10 segmentos extensível (`core/segmentos.ts`).
+  - Core (`core/core.ts`): briefing com o que falta/não bate, segmento sem IA, direção local + refino opcional por IA grátis que só entra se passar nas regras, roteamento (composição / fotografia de produto / imagem IA / motion / vídeo IA, com bloqueio e alternativa), prompt próprio por provedor, QA do plano, roteiro 15/20 s, plano local sem IA.
+  - Agentes existentes recebem DNA + segmento + modalidade (`contextoParaAgente`, `estiloDoPedido`).
+  - Pipeline: etapa `core` primeiro, `core-local` se a IA cair; texto dos agentes nas IAs grátis (Groq → Gemini → OpenRouter), poupando a cota de imagens da Cloudflare (`provedores.ts`: `textoGratis`).
+  - Orquestrador lê segmentos do banco (`studio_conhecimento`, fallback Git).
+  - Plano → projeto do editor de vídeo com preço real (`src/lib/studio/video/doCore.ts`, botão na tela da produção).
+- **Banco (ensaiado e desfeito, NÃO aplicado):**
+  - `20261357_studio_conhecimento.sql`: memória versionada por escopo global/empresa/cliente/campanha; RLS; escrita só por OWNER/ADMIN pela função; global só pela semente do Git.
+  - `20261349` revisada: sem `studio_uso` (a cota conta em `studio_producoes`/`studio_etapas`); `studio_escopo` = `studio_ai_escopo` (regra no ar); 0 produto permitido.
+  - Semente: `scripts/studio/semear-conhecimento.mjs`.
+- **Fotos (decisão 5):** as 62 novas auditadas uma a uma.
+  - 4 retiradas e com instrução corrigida: `clinica-exames` ("-29%" inventado), `oficina-funilaria` (emblema), `assist-pelicula` e `oficina-oleo` (letras falsas); o robô regera.
+  - Crianças com rosto realista: decisão do dono.
+  - Miniaturas: 145 modelos.
+  - Referência Buratino: imagem com erro 400 (pendente, descrita).
+- **Provas:** `docs/studio/creative-core/EVIDENCIAS_MG02_MG03.md`:
+  - Groq real refinou a direção dos testes B, C e D;
+  - Cloudflare 429 → modo local;
+  - 15/15 no Core, 111/111 nos testes do Studio;
+  - ensaio de RLS com 5 logins (anunciantes A/B, financeiro, outra empresa, admin), tudo desfeito.
