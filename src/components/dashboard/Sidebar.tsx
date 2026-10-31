@@ -34,6 +34,7 @@ import {
   LayoutDashboard,
   Building2,
   Smartphone,
+  Bot,
   Clapperboard,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -44,6 +45,8 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   // F-219: SOBRE MÍDIA Studio para todos os perfis
   { icon: Clapperboard, label: 'Sobre Mídia Studio', path: '/studio' },
+  // F-223: agente com IA grátis (relatórios, cobranças com confirmação, oportunidades)
+  { icon: Bot, label: 'Trabalhar com IA', path: '/dashboard/ia' },
   { icon: Inbox, label: 'Central', path: '/dashboard/central' },
   { icon: Image, label: 'Minhas Mídias', path: '/dashboard/medias' },
   { icon: Library, label: 'Biblioteca de Mídias', path: '/dashboard/biblioteca' },

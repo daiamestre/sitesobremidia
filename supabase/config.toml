@@ -13,3 +13,7 @@ verify_jwt = false
 # Studio AI: o cron chama "varrer" sem JWT (só devolve créditos de gerações interrompidas); as ações do usuário
 # conferem o JWT com auth.getUser() e o acesso com studio_ai_escopo().
 verify_jwt = false
+
+[functions.agente-ia]
+# F-223 "Trabalhar com IA": confere o JWT com auth.getUser() e o acesso com agente_ia_escopo().
+verify_jwt = false

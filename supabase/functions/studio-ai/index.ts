@@ -79,13 +79,13 @@ function lerJson(r: Record<string, unknown>): unknown {
 
 /**
  * F-222: reservas GRÁTIS do agente quando a cota da Cloudflare acaba — todas falam o formato da OpenAI e só entram se a
- * chave estiver nos segredos da função: Groq (o MESMO modelo de visão, Llama 4 Scout), Google AI Studio (Gemini
- * Flash-Lite) e OpenRouter (modelo de visão ":free"). A criação da imagem continua na Cloudflare.
+ * chave estiver nos segredos da função: Groq (Qwen 3.8, lê imagem), Google AI Studio (Gemini
+ * Flash-Lite) e OpenRouter (Nemotron VL grátis). A criação da imagem continua na Cloudflare.
  */
 const RESERVAS = [
-  { nome: 'Groq', chave: 'GROQ_API_KEY', url: 'https://api.groq.com/openai/v1/chat/completions', modelo: () => env('GROQ_MODELO') || 'meta-llama/llama-4-scout-17b-16e-instruct' },
-  { nome: 'Google AI Studio', chave: 'GEMINI_API_KEY', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', modelo: () => env('GEMINI_MODELO') || 'gemini-2.5-flash-lite' },
-  { nome: 'OpenRouter', chave: 'OPENROUTER_API_KEY', url: 'https://openrouter.ai/api/v1/chat/completions', modelo: () => env('OPENROUTER_MODELO') || 'google/gemma-3-27b-it:free' },
+  { nome: 'Groq', chave: 'GROQ_API_KEY', url: 'https://api.groq.com/openai/v1/chat/completions', modelo: () => env('GROQ_MODELO') || 'qwen/qwen3.8-27b' },
+  { nome: 'Google AI Studio', chave: 'GEMINI_API_KEY', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', modelo: () => env('GEMINI_MODELO') || 'gemini-flash-lite-latest' },
+  { nome: 'OpenRouter', chave: 'OPENROUTER_API_KEY', url: 'https://openrouter.ai/api/v1/chat/completions', modelo: () => env('OPENROUTER_MODELO') || 'nvidia/nemotron-3.5-super-vl:free' },
 ];
 
 /** Visão do agente: Cloudflare primeiro; se falhar (cota, fora do ar), a primeira reserva configurada que responder. */

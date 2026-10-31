@@ -165,6 +165,7 @@ const StudioCatalogo = lazyWithRetry(() => import("./pages/studioai/CatalogoPage
 const StudioEditor = lazyWithRetry(() => import("./pages/studioai/EditorPage"));
 const StudioIA = lazyWithRetry(() => import("./pages/studioai/IAPage"));
 const StudioPasta = lazyWithRetry(() => import("./pages/studioai/PastaPage"));
+const TrabalharComIA = lazyWithRetry(() => import("./pages/dashboard/TrabalharComIA"));
 const StudioProjetos = lazyWithRetry(() => import("./pages/studioai/ProjetosPage"));
 const StudioConfiguracoes = lazyWithRetry(() => import("./pages/studioai/ConfiguracoesPage"));
 const ExpansaoPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ExpansaoPage"));
@@ -391,6 +392,7 @@ const App = () => {
                     <Route path="tabloide" element={<Tabloide />} />
                     <Route path="playlists" element={<Playlists />} />
                     <Route path="screens" element={<Screens />} />
+                    <Route path="ia" element={<TrabalharComIA />} />
                     <Route path="screens/:id" element={<ScreenDetails />} />
                     <Route path="widgets" element={<Widgets />} />
                     <Route path="radio" element={<RadioComercio />} />
