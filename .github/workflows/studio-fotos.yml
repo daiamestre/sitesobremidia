@@ -1,0 +1,56 @@
+name: Studio — fotos das pastas de modelos
+
+# F-221 — gera, pela IA da Cloudflare da SOBRE MÍDIA (Worker sobremidia-tabloide-ia, só modelos da lista permitida), as
+# fotos que ainda faltam nas variações das pastas do Studio (com pessoas, Black Friday e eletrônicos; sem pessoas reais
+# nem marcas). Para na cota grátis do dia e tenta de novo a cada 3 horas. Quando gera fotos novas, grava no main e o
+# site publica sozinho. Com todas as fotos prontas, não faz mais nada.
+on:
+  schedule:
+    - cron: '40 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: studio-fotos
+  cancel-in-progress: false
+
+jobs:
+  fotos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Faltam fotos?
+        id: falta
+        run: |
+          n=$(grep -c "^  '" src/lib/studio/fotos-prontas.ts || true)
+          echo "prontas=$n" >> "$GITHUB_OUTPUT"
+          echo "fotos prontas: $n de 126"
+      - name: Só o sharp (sem instalar o site inteiro)
+        if: steps.falta.outputs.prontas != '126'
+        run: |
+          mkdir -p /tmp/sharp && cd /tmp/sharp && npm init -y >/dev/null && npm install --no-audit --no-fund sharp@0.34.5
+          ln -s /tmp/sharp/node_modules "$GITHUB_WORKSPACE/node_modules"
+      - name: Gerar as fotos que faltam
+        if: steps.falta.outputs.prontas != '126'
+        env:
+          TABLOIDE_IA_URL: ${{ secrets.TABLOIDE_IA_URL }}
+          TABLOIDE_IA_SEGREDO: ${{ secrets.TABLOIDE_IA_SEGREDO }}
+        run: node scripts/studio/gerar-fotos-pastas.mjs || true
+      - name: Gravar no main (o site publica sozinho)
+        if: steps.falta.outputs.prontas != '126'
+        run: |
+          rm -f node_modules
+          git config user.name "sobremidia-robo"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/studio/fotos/*.webp src/lib/studio/fotos-prontas.ts
+          if git diff --cached --quiet; then echo "nenhuma foto nova (cota do dia)"; exit 0; fi
+          git commit -m "feat(studio): fotos novas das pastas de modelos geradas pela IA da Cloudflare da SOBRE MÍDIA (F-221)"
+          git push origin HEAD:main

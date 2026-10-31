@@ -18,14 +18,25 @@ export async function resolve(spec, ctx, next) {
 }`));
 const { PEDIDOS_DE_FOTO } = await import('../../src/lib/studio/pastas.ts');
 
-carregarSegredos();
-exigir('CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN');
+// no PC: cofre de segredos; no GitHub (studio-fotos.yml): só o endereço e o segredo do Worker da SOBRE MÍDIA
+try { carregarSegredos(); } catch { /* sem cofre: usa as variáveis de ambiente */ }
+const PELO_WORKER = !!(process.env.TABLOIDE_IA_URL && process.env.TABLOIDE_IA_SEGREDO);
+if (!PELO_WORKER) exigir('CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN');
 const arg = (n, p) => { const i = process.argv.indexOf(n); return i > 0 ? Number(process.argv[i + 1]) : p; };
 const MAX = arg('--max', 999), PASSOS = arg('--passos', 8);
 const PASTA = 'public/studio/fotos';
 const ESTILO = 'ultra realistic advertising photography, high detail, sharp focus, professional lighting. No text, no letters, no words, no numbers, no logo, no brand, no watermark';
 
 async function gerar(prompt) {
+  if (PELO_WORKER) {
+    // Worker sobremidia-tabloide-ia, ação studio-modelo (só modelos da lista permitida)
+    const w = await fetch(process.env.TABLOIDE_IA_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-segredo': process.env.TABLOIDE_IA_SEGREDO },
+      body: JSON.stringify({ acao: 'studio-modelo', modelo: '@cf/black-forest-labs/flux-1-schnell', entrada: { prompt: `${prompt}. ${ESTILO}`, steps: PASSOS } }), signal: AbortSignal.timeout(120_000) });
+    const j = await w.json().catch(() => ({}));
+    if (j?.image) return Buffer.from(j.image, 'base64');
+    if (w.status === 429 || /neuron|quota|allocation/i.test(String(j?.erro))) throw Object.assign(new Error('cota'), { cota: true });
+    throw new Error(`${w.status} ${String(j?.erro ?? '').slice(0, 200)}`);
+  }
   const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell`, {
     method: 'POST', headers: { Authorization: 'Bearer ' + process.env.CLOUDFLARE_API_TOKEN, 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: `${prompt}. ${ESTILO}`, steps: PASSOS }), signal: AbortSignal.timeout(120_000),
