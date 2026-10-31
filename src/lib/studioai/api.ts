@@ -96,7 +96,7 @@ export const gerarImagem = (p: PedidoIA) => chamarFuncao<{ job_id: string; conve
   motor: p.motor ?? 'openai', largura: p.largura, altura: p.altura, agente_versao: p.agenteVersao ?? null,
 });
 /** F-220: o Agente Analista de Referências (no banco da SOBRE MÍDIA, roda na Cloudflare) lê a imagem e escreve o prompt. */
-export interface AnaliseDoAgente { prompt: string; textos: string[]; observacoes: string; avisos: string[]; agente_versao: number; width: number; height: number }
+export interface AnaliseDoAgente { prompt: string; textos: string[]; observacoes: string; avisos: string[]; agente_versao: number; width: number; height: number; provedor?: string }
 export const analisarReferencia = (referenciaUrl: string, largura: number, altura: number, pedido: string | null) =>
   chamarFuncao<AnaliseDoAgente>({ acao: 'analisar_referencia', referencia_url: referenciaUrl, largura, altura, pedido });
 export interface AgenteDoStudio { slug: string; versao: number; nome: string; modelo: string; instrucoes: string; criado_em: string }

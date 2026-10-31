@@ -77,21 +77,56 @@ function lerJson(r: Record<string, unknown>): unknown {
   return v;
 }
 
+/**
+ * F-222: reservas GRÁTIS do agente quando a cota da Cloudflare acaba — todas falam o formato da OpenAI e só entram se a
+ * chave estiver nos segredos da função: Groq (o MESMO modelo de visão, Llama 4 Scout), Google AI Studio (Gemini
+ * Flash-Lite) e OpenRouter (modelo de visão ":free"). A criação da imagem continua na Cloudflare.
+ */
+const RESERVAS = [
+  { nome: 'Groq', chave: 'GROQ_API_KEY', url: 'https://api.groq.com/openai/v1/chat/completions', modelo: () => env('GROQ_MODELO') || 'meta-llama/llama-4-scout-17b-16e-instruct' },
+  { nome: 'Google AI Studio', chave: 'GEMINI_API_KEY', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', modelo: () => env('GEMINI_MODELO') || 'gemini-2.5-flash-lite' },
+  { nome: 'OpenRouter', chave: 'OPENROUTER_API_KEY', url: 'https://openrouter.ai/api/v1/chat/completions', modelo: () => env('OPENROUTER_MODELO') || 'google/gemma-3-27b-it:free' },
+];
+
+/** Visão do agente: Cloudflare primeiro; se falhar (cota, fora do ar), a primeira reserva configurada que responder. */
+async function visaoDoAgente(mensagens: Array<{ role: string; content: unknown }>): Promise<{ resposta: Record<string, unknown>; provedor: string }> {
+  try {
+    return { resposta: await cloudflare(MODELO_VISAO, { messages: mensagens, max_tokens: 1600, temperature: 0.3, response_format: { type: 'json_schema', json_schema: SCHEMA_ANALISE } }), provedor: 'Cloudflare' };
+  } catch (erroCf) {
+    for (const r of RESERVAS) {
+      const chave = env(r.chave);
+      if (!chave) continue;
+      try {
+        const resp = await fetch(r.url, {
+          method: 'POST', headers: { Authorization: 'Bearer ' + chave, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: r.modelo(), messages: mensagens, max_tokens: 1600, temperature: 0.3, response_format: { type: 'json_object' } }),
+          signal: AbortSignal.timeout(90_000),
+        });
+        if (resp.ok) return { resposta: await resp.json() as Record<string, unknown>, provedor: r.nome };
+        console.warn('reserva do agente recusou', r.nome, resp.status);
+      } catch (e) { console.warn('reserva do agente falhou', r.nome, String((e as Error)?.message ?? e).slice(0, 120)); }
+    }
+    throw erroCf;
+  }
+}
+
 /** O agente lê a imagem e escreve o prompt; até 2 tentativas, devolvendo os erros da validação ao modelo. */
 async function analisarReferencia(srv: SupabaseClient, imagem: string, pedido: string | null, largura: number, altura: number) {
   const ag = await instrucoesDoAgente(srv);
   const mensagens: Array<{ role: string; content: unknown }> = mensagensDoAgente(ag.texto, imagem, pedido, largura, altura);
   let ultimo: AnaliseReferencia | null = null;
   let erros: string[] = [];
+  let provedor = 'Cloudflare';
   for (let tentativa = 1; tentativa <= 2; tentativa++) {
-    const r = await cloudflare(MODELO_VISAO, { messages: mensagens, max_tokens: 1600, temperature: 0.3, response_format: { type: 'json_schema', json_schema: SCHEMA_ANALISE } });
+    const { resposta: r, provedor: p } = await visaoDoAgente(mensagens);
+    provedor = p;
     try { ultimo = lerJson(r) as AnaliseReferencia; } catch { erros = ['Responda só com o JSON pedido.']; continue; }
     erros = validarAnalise(ultimo);
     if (!erros.length) break;
     mensagens.push({ role: 'assistant', content: JSON.stringify(ultimo) }, { role: 'user', content: 'Corrija e responda o JSON completo de novo. Problemas: ' + erros.join(' ') });
   }
   if (!ultimo?.prompt) throw new ErroCloudflare('O agente não conseguiu analisar esta imagem. Tente outra imagem ou um print mais nítido.');
-  return { ...ultimo, avisos: erros, agenteVersao: ag.versao };
+  return { ...ultimo, avisos: erros, agenteVersao: ag.versao, provedor };
 }
 
 async function processar(srv: SupabaseClient, jobId: string) {
@@ -200,7 +235,7 @@ serve(async (req) => {
       if (ref.bytes.length > 4 * 1024 * 1024) return json(400, { error: 'Envie uma imagem de até 4 MB.' });
       const a = await analisarReferencia(srv, paraDataUrl(ref.bytes, ref.tipo), body.pedido ? String(body.pedido) : null, Number(body.largura) || 0, Number(body.altura) || 0);
       const tamanho = tamanhoDaImagem(Number(body.largura) || 1024, Number(body.altura) || 1024);
-      return json(200, { prompt: a.prompt, textos: a.textos, observacoes: a.observacoes, avisos: a.avisos, agente_versao: a.agenteVersao, ...tamanho });
+      return json(200, { prompt: a.prompt, textos: a.textos, observacoes: a.observacoes, avisos: a.avisos, agente_versao: a.agenteVersao, provedor: a.provedor, ...tamanho });
     } catch (err) { return json(502, { error: String((err as Error)?.message ?? err).slice(0, 300) }); }
   }
 

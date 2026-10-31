@@ -246,7 +246,7 @@ export default function IAPage() {
           </div>
           {motor === 'cloudflare' && analise && (
             <div className="space-y-2 rounded-xl border border-[#25D366]/30 bg-[#25D366]/5 p-3 text-sm" data-testid="studio-analise">
-              <p className="flex items-center gap-2 text-xs font-bold text-[#7dffb0]"><Bot className="h-4 w-4" />Prompt escrito pelo Agente SOBRE MÍDIA (versão {analise.agente_versao}) · imagem {analise.width}×{analise.height}</p>
+              <p className="flex items-center gap-2 text-xs font-bold text-[#7dffb0]"><Bot className="h-4 w-4" />Prompt escrito pelo Agente SOBRE MÍDIA (versão {analise.agente_versao}{analise.provedor && analise.provedor !== 'Cloudflare' ? ` · reserva grátis: ${analise.provedor}` : ''}) · imagem {analise.width}×{analise.height}</p>
               {analise.textos.length > 0 && <p className="text-xs text-slate-300">Textos lidos na imagem: {analise.textos.map((x) => <b key={x} className="mr-1 rounded bg-white/10 px-1.5 text-white">{x}</b>)}</p>}
               <textarea value={promptAgente} onChange={(e) => setPromptAgente(e.target.value)} rows={5} maxLength={2400} aria-label="Prompt do agente (pode editar)"
                 className="w-full resize-y rounded-lg border border-white/15 bg-[#170838] p-2 text-xs text-white focus:border-[#25D366] focus:outline-none" />
