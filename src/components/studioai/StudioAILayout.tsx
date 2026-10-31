@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, ChevronDown, Clapperboard, Coins, FolderKanban, Home, ImagePlay, LogOut, Menu, MonitorPlay, Play, Search, Settings, Sparkles, X } from 'lucide-react';
+import { Bell, ChevronDown, Clapperboard, Coins, FolderKanban, Home, ImagePlay, LogOut, Menu, Play, Search, Settings, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { meuSaldo } from '@/lib/studioai/api';
+import { gruposDoPortal, gruposPermitidos, useMenuDoGestor, type ItemDoMenu } from '@/lib/menuDoPainel';
+import { useCentralUnread } from '@/hooks/useCentral';
+import { useClienteModalidade } from '@/modules/crm/hooks/useClienteModalidade';
 
 /** Identidade SOBRE MÍDIA (roxos, amarelo e verde oficiais). */
 export const COR = { escuro: '#22004A', roxo: '#5D1BFF', vibrante: '#8A2EFF', claro: '#B04DFF', amarelo: '#FFD400', verde: '#25D366' };
@@ -23,27 +26,68 @@ export function LogoStudio() {
   );
 }
 
-/** Menu lateral do Studio (igual à referência): as entradas externas levam às páginas oficiais de cada perfil. */
-function MenuLateral({ anunciante, onNavegar }: { anunciante: boolean; onNavegar?: () => void }) {
+const estiloDoItem = (ativo: boolean) => cn('flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition',
+  ativo ? 'bg-gradient-to-r from-[#5D1BFF]/60 to-[#8A2EFF]/30 text-white shadow-[inset_0_0_0_1px_rgba(176,77,255,0.35)]' : 'text-slate-300 hover:bg-white/5 hover:text-white');
+
+function ItemDoPainel({ i, onNavegar }: { i: ItemDoMenu; onNavegar?: () => void }) {
+  return (
+    <NavLink to={i.path} end onClick={onNavegar} className={({ isActive }) => estiloDoItem(isActive && i.path !== '/studio')}>
+      <i.icon className="h-5 w-5 shrink-0" /><span className="min-w-0 flex-1 truncate">{i.label}</span>
+      {(i.badge ?? 0) > 0 && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#8A2EFF] px-1 text-[10px] font-bold text-white">{(i.badge ?? 0) > 99 ? '99+' : i.badge}</span>}
+    </NavLink>
+  );
+}
+
+const Titulo = ({ t }: { t: string }) => <p className="px-4 pb-1 pt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B04DFF]">{t}</p>;
+
+/** F-230: o menu COMPLETO do painel da equipe (mesma lista e regras do painel), dentro do Studio. */
+function PainelDoGestor({ onNavegar }: { onNavegar?: () => void }) {
+  const { principal, rodape } = useMenuDoGestor();
+  return (
+    <>
+      <Titulo t="Painel" />
+      {principal.map((i) => <ItemDoPainel key={`${i.path}-${i.label}`} i={i} onNavegar={onNavegar} />)}
+      <Titulo t="Conta" />
+      {rodape.map((i) => <ItemDoPainel key={`${i.path}-${i.label}`} i={i} onNavegar={onNavegar} />)}
+    </>
+  );
+}
+
+/** F-230: o menu COMPLETO do portal do anunciante/host (mesmos grupos e regras de modalidade), dentro do Studio. */
+function PainelDoPortal({ onNavegar }: { onNavegar?: () => void }) {
+  const { total } = useCentralUnread();
+  const { modalidade } = useClienteModalidade();
+  return (
+    <>
+      {gruposPermitidos(gruposDoPortal(total), modalidade).map((g) => (
+        <div key={g.label}>
+          <Titulo t={g.label} />
+          {g.items.map((i) => <ItemDoPainel key={i.path} i={{ icon: i.icon, label: i.name, path: i.path, badge: i.badge }} onNavegar={onNavegar} />)}
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Menu lateral do Studio: entradas do Studio, o cartão "Sua marca em todos os lugares" e o menu completo do painel. */
+function MenuLateral({ anunciante, carregado, onNavegar }: { anunciante: boolean; carregado: boolean; onNavegar?: () => void }) {
+  const { signOut } = useAuth();
   const itens = [
     { nome: 'Início', to: '/studio', icone: Home, fim: true },
     { nome: 'Editor de vídeo', to: '/studio/video', icone: Clapperboard },
     { nome: 'Meus Projetos', to: '/studio/projetos', icone: FolderKanban },
     { nome: 'Criar com IA', to: '/studio/ia', icone: Sparkles },
-    { nome: 'Minhas Mídias', to: anunciante ? '/portal/assets' : '/dashboard/medias', icone: ImagePlay },
-    { nome: 'Telas Autorizadas', to: anunciante ? '/portal/pontos' : '/dashboard/screens', icone: MonitorPlay },
-    { nome: 'Configurações', to: '/studio/configuracoes', icone: Settings },
+    { nome: 'Configurações do Studio', to: '/studio/configuracoes', icone: Settings },
   ];
   return (
-    <nav className="flex h-full flex-col gap-1 p-4" aria-label="Menu do Studio">
+    <nav className="flex flex-col gap-1 p-4" aria-label="Menu do Studio">
+      <Titulo t="Studio" />
       {itens.map((i) => (
-        <NavLink key={i.nome} to={i.to} end={i.fim} onClick={onNavegar}
-          className={({ isActive }) => cn('flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition',
-            isActive ? 'bg-gradient-to-r from-[#5D1BFF]/60 to-[#8A2EFF]/30 text-white shadow-[inset_0_0_0_1px_rgba(176,77,255,0.35)]' : 'text-slate-300 hover:bg-white/5 hover:text-white')}>
-          <i.icone className="h-5 w-5" />{i.nome}
+        <NavLink key={i.nome} to={i.to} end={i.fim} onClick={onNavegar} className={({ isActive }) => estiloDoItem(isActive)}>
+          <i.icone className="h-5 w-5 shrink-0" />{i.nome}
         </NavLink>
       ))}
-      <div className="relative mt-6 overflow-hidden rounded-2xl border border-[#8A2EFF]/40 bg-gradient-to-br from-[#5D1BFF]/50 via-[#22004A] to-[#22004A] p-5">
+      <div className="relative mt-4 overflow-hidden rounded-2xl border border-[#8A2EFF]/40 bg-gradient-to-br from-[#5D1BFF]/50 via-[#22004A] to-[#22004A] p-5">
         <div aria-hidden className="absolute -right-10 -top-10 h-32 w-32 rotate-45 bg-gradient-to-b from-[#B04DFF]/40 to-transparent" />
         <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-[#8A2EFF] text-white"><ImagePlay className="h-5 w-5" /></span>
         <p className="text-lg font-extrabold leading-tight text-white">Sua marca em todos os lugares</p>
@@ -52,6 +96,10 @@ function MenuLateral({ anunciante, onNavegar }: { anunciante: boolean; onNavegar
           <Play className="h-3.5 w-3.5" /> Ver tutorial
         </Link>
       </div>
+      {carregado && (anunciante ? <PainelDoPortal onNavegar={onNavegar} /> : <PainelDoGestor onNavegar={onNavegar} />)}
+      <button type="button" onClick={() => void signOut()} className="mt-2 flex items-center gap-3 rounded-xl px-4 py-2.5 text-left text-sm font-medium text-rose-300 hover:bg-rose-500/10" data-testid="studio-sair">
+        <LogOut className="h-5 w-5" />Sair
+      </button>
     </nav>
   );
 }
@@ -112,7 +160,7 @@ export function StudioAILayout() {
 
       <div className="flex">
         <aside className="sticky top-[72px] hidden h-[calc(100vh-72px)] w-[230px] shrink-0 overflow-y-auto border-r border-white/5 lg:block">
-          <MenuLateral anunciante={anunciante} />
+          <MenuLateral anunciante={anunciante} carregado={!!saldo.data} />
         </aside>
         {menuAberto && (
           <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
@@ -122,7 +170,7 @@ export function StudioAILayout() {
               <form onSubmit={(e) => { buscar(e); setMenuAberto(false); }} className="p-4 pb-0" role="search">
                 <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar modelos..." aria-label="Buscar modelos" className="w-full rounded-full border border-[#8A2EFF]/50 bg-[#22004A]/60 px-4 py-2 text-sm text-white placeholder:text-slate-400" />
               </form>
-              <MenuLateral anunciante={anunciante} onNavegar={() => setMenuAberto(false)} />
+              <MenuLateral anunciante={anunciante} carregado={!!saldo.data} onNavegar={() => setMenuAberto(false)} />
             </div>
           </div>
         )}

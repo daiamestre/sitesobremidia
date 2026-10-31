@@ -70,12 +70,13 @@ describe('banco: créditos imutáveis e preço do dono', () => {
 describe('F-219: Studio para todos, modelos só owner/ADM, todos pagam (menos owner/ADM)', () => {
   const ler = (f: string) => fs.readFileSync(f, 'utf8');
   it('"Sobre Mídia Studio" está nos três menus laterais, sem restrição de perfil', () => {
-    const portal = ler('src/modules/crm/layout/CustomerPortalLayout.tsx');
-    const grupoPrincipal = portal.slice(portal.indexOf("label: 'Principal'"), portal.indexOf("label: 'Minhas Mídias'"));
+    const portal = ler('src/lib/menuDoPainel.ts'); // F-230: painel, portal e Studio leem a lista daqui
+    const inicio = portal.indexOf("label: 'Principal'");
+    const grupoPrincipal = portal.slice(inicio, portal.indexOf("label: 'Minhas Mídias'", inicio));
     expect(grupoPrincipal).toContain("{ name: 'Sobre Mídia Studio', path: '/studio'");
     expect(grupoPrincipal).not.toContain('somente');
-    const painel = ler('src/components/dashboard/Sidebar.tsx');
-    const itensFixos = painel.slice(painel.indexOf('const menuItems = ['), painel.indexOf('];', painel.indexOf('const menuItems = [')));
+    const painel = ler('src/lib/menuDoPainel.ts');
+    const itensFixos = painel.slice(painel.indexOf('export const ITENS_DO_GESTOR'), painel.indexOf('];', painel.indexOf('export const ITENS_DO_GESTOR')));
     expect(itensFixos).toContain("label: 'Sobre Mídia Studio', path: '/studio'");
     expect(ler('src/modules/crm/components/Sidebar.tsx')).toContain("{ label: 'Sobre Mídia Studio', icon: Clapperboard, path: '/studio' }");
   });

@@ -36,7 +36,7 @@ export async function trocarCapa(chave: string, capaUrl: string | null) {
   if (error) throw new Error(error.message);
 }
 
-export interface ItemDaGaleria { id: string; nome: string; capa: string | null; criado?: string }
+export interface ItemDaGaleria { id: string; nome: string; capa: string | null; criado?: string; /** F-230: endereço do vídeo (toca animado na capa da pasta) */ video?: string | null }
 export interface GrupoDaGaleria<T extends ItemDaGaleria> { chave: string; nome: string; capa: string | null; capaPropria: boolean; itens: T[] }
 
 /** Agrupa as mídias nas pastas (mais recentes primeiro) e deixa "Outras mídias" por último. */

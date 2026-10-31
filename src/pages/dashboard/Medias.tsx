@@ -269,7 +269,7 @@ export default function Medias() {
         ) : (currentFolder === 'image' || currentFolder === 'video') && !searchQuery ? (
           // F-225: imagens e vídeos em pastas por segmento (as mesmas do SOBRE MÍDIA Studio)
           <GaleriaEmPastas origem="media" video={currentFolder === 'video'} render={(l) => desenharMidias(l)}
-            itens={filteredMedias.map((m) => ({ id: m.id, nome: m.name, capa: m.thumbnail_url || (m.file_type === 'image' ? m.file_url : null), criado: m.created_at, media: m }))} />
+            itens={filteredMedias.map((m) => ({ id: m.id, nome: m.name, capa: m.thumbnail_url || (m.file_type === 'image' ? m.file_url : null), video: m.file_type === 'video' ? m.file_url : null, criado: m.created_at, media: m }))} />
         ) : desenharMidias(filteredMedias.map((m) => ({ media: m })))}
       </div>
 

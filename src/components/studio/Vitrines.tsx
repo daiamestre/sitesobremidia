@@ -1,45 +1,47 @@
 /**
  * SOBRE MÍDIA STUDIO — vitrines que giram sem parar (F-224).
- * - TvEmLoop: uma TV do banner trocando as artes em sequência, para sempre, como o Player nas telas.
+ * - TvEmLoop: uma TV do banner (ou a capa de uma pasta) trocando as artes a cada 8 s, para sempre, como o Player (F-230).
  * - Carrossel: fileira infinita de modelos. Anda devagar sozinha; o dedo (ou o mouse) dá impulso: arrastar para um
  *   lado acelera e/ou inverte o sentido, e depois ela volta a andar devagar nesse sentido. Não é clicável.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { modeloParaDocumento } from '@/lib/studio/documento';
-import type { FormatoDoc } from '@/lib/studio/documento';
+import type { Documento, FormatoDoc } from '@/lib/studio/documento';
+import { temAnimacao } from '@/lib/studio/animacao';
+import { CapaQueGira, ordemDaCapa, TEMPO_DE_CADA_MIDIA, type Slide } from '@/components/media/CapaQueGira';
 import type { ModeloDeArte } from '@/lib/studio/modelos';
 import { miniaturaDoModelo, urlPronta, useMiniatura } from '@/lib/studio/miniaturas';
 import { CRUZEIRO, impulsoDoGesto, passoDoCarrossel } from '@/lib/studio/carrossel';
 import { cn } from '@/lib/utils';
 
-export function TvEmLoop({ modelos, formato, intervalo = 4500, atraso = 0, className }: { modelos: ModeloDeArte[]; formato: FormatoDoc; intervalo?: number; atraso?: number; className?: string }) {
+/** F-230: a arte do modelo que tem animação gravada (owner/ADM) toca animada nas capas. */
+export function docAnimado(m: ModeloDeArte, formato: FormatoDoc): Documento | null {
+  const d = m.documentos?.[formato];
+  return d && temAnimacao(d) ? d : null;
+}
+
+/**
+ * Uma TV (ou a capa de uma pasta) passando as artes como o Player: 8 s cada, para sempre; arte animada toca animada
+ * e entra primeiro. Só baixa e troca quando está na tela (CapaQueGira).
+ */
+export function TvEmLoop({ modelos, formato, intervalo = TEMPO_DE_CADA_MIDIA, atraso = 0, className }: { modelos: ModeloDeArte[]; formato: FormatoDoc; intervalo?: number; atraso?: number; className?: string }) {
   const largura = formato === '16:9' ? 480 : 270;
-  const [i, setI] = useState(0);
-  const [urls, setUrls] = useState<(string | null)[]>([]);
+  const [urls, setUrls] = useState<Record<string, string | null>>({});
   useEffect(() => {
     let vivo = true;
-    setUrls([]);
-    modelos.forEach((m, k) => void miniaturaDoModelo(m, formato, largura).then((u) => { if (vivo) setUrls((l) => { const n = [...l]; n[k] = u; return n; }); }));
+    // as miniaturas prontas (build) já têm endereço; só os modelos gravados no banco são desenhados (na fila ociosa)
+    modelos.forEach((m) => {
+      if (urlPronta(m, formato) || docAnimado(m, formato)) return;
+      void miniaturaDoModelo(m, formato, largura).then((u) => { if (vivo) setUrls((l) => ({ ...l, [m.id]: u })); });
+    });
     return () => { vivo = false; };
   }, [modelos, formato, largura]);
-  useEffect(() => {
-    let relogio: ReturnType<typeof setInterval> | undefined;
-    const inicio = setTimeout(() => { relogio = setInterval(() => setI((x) => x + 1), intervalo); }, atraso);
-    return () => { clearTimeout(inicio); clearInterval(relogio); };
-  }, [intervalo, atraso]);
-  const prontas = urls.map((u, k) => ({ u, k })).filter((x) => x.u);
-  const atual = prontas.length ? prontas[i % prontas.length].k : -1;
-  return (
-    <div className={cn('relative overflow-hidden bg-black', className)} style={{ aspectRatio: formato === '16:9' ? '16 / 9' : '9 / 16' }}>
-      {urls.map((u, k) => {
-        // só a arte da vez, a anterior (saindo) e a próxima (já baixando) ficam na página
-        const perto = prontas.length && (k === atual || k === prontas[(i + 1) % prontas.length]?.k || k === prontas[(i + prontas.length - 1) % prontas.length]?.k);
-        return u && perto ? <img key={k} src={u} alt="" draggable={false} decoding="async" className="absolute inset-0 h-full w-full object-cover transition-opacity duration-700" style={{ opacity: k === atual ? 1 : 0 }} /> : null;
-      })}
-      {atual < 0 && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-[#22004A] to-[#0B0420]" />}
-    </div>
-  );
+  const slides = useMemo(() => ordemDaCapa(modelos.map((m): Slide => {
+    const d = docAnimado(m, formato);
+    return d ? { chave: m.id, animada: () => <PreviaDocumento doc={d} animar sempre /> } : { chave: m.id, imagem: urlPronta(m, formato) ?? urls[m.id] ?? null };
+  }).filter((x) => x.animada || x.imagem)), [modelos, formato, urls]);
+  return <CapaQueGira slides={slides} tempo={intervalo} atraso={atraso} className={className} style={{ aspectRatio: formato === '16:9' ? '16 / 9' : '9 / 16' }} />;
 }
 
 function Item({ m, formato, largura }: { m: ModeloDeArte; formato: FormatoDoc; largura: number }) {

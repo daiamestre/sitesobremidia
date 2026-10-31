@@ -21,9 +21,9 @@ describe('Central de Cobranças — registro de rota e menu', () => {
   });
 
   it('menu do painel de mídias aponta para /financeiro/cobrancas protegido por ADMIN/OWNER', () => {
-    const sidebar = read('src/components/dashboard/Sidebar.tsx');
+    const sidebar = read('src/lib/menuDoPainel.ts'); // F-230: a lista do menu do painel mora aqui
     expect(sidebar).toContain("label: 'Central de Cobranças'");
-    expect(sidebar).toMatch(/\(isAdmin \|\| isOwner\)/);
+    expect(sidebar).toMatch(/o\.isAdmin \|\| o\.isOwner \? \[\{ icon: Banknote, label: 'Central de Cobranças'/);
   });
 
   it('menu do painel CRM aponta para /financeiro/cobrancas protegido por OWNER/ADMIN', () => {

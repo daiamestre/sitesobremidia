@@ -131,9 +131,9 @@ describe('F-179 · nome e menu lateral', () => {
     render(<TabloideEditor contexto="painel" />);
     expect((await screen.findByRole('heading', { level: 1 })).textContent).toContain('Cartaz Digital');
     expect(document.body.textContent).not.toMatch(/tabloide/i);
-    expect(fonte('src/components/dashboard/Sidebar.tsx')).toContain("label: 'Cartaz Digital', path: '/dashboard/tabloide'");
-    expect(fonte('src/modules/crm/layout/CustomerPortalLayout.tsx')).toContain("name: 'Cartaz Digital', path: '/portal/tabloide'");
-    for (const p of ['src/components/dashboard/Sidebar.tsx', 'src/modules/crm/layout/CustomerPortalLayout.tsx']) expect(fonte(p)).not.toContain('Tabloide Digital');
+    expect(fonte('src/lib/menuDoPainel.ts')).toContain("label: 'Cartaz Digital', path: '/dashboard/tabloide'"); // F-230: a lista dos menus mora aqui
+    expect(fonte('src/lib/menuDoPainel.ts')).toContain("name: 'Cartaz Digital', path: '/portal/tabloide'");
+    for (const p of ['src/components/dashboard/Sidebar.tsx', 'src/modules/crm/layout/CustomerPortalLayout.tsx', 'src/lib/menuDoPainel.ts']) expect(fonte(p)).not.toContain('Tabloide Digital');
   });
 
   it('o menu tem exatamente as 9 opções do modelo, nesta ordem, e cada uma abre o seu painel', async () => {

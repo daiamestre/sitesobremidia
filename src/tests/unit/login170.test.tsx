@@ -117,9 +117,10 @@ describe('Menu do Owner/ADM não troca na Central de Cobranças', () => {
 describe('Gestor de Mídias do Owner/ADM e o código da empresa', () => {
   const dash = ler('src/components/dashboard/Sidebar.tsx');
   it('Painel Principal acima do Dashboard, só para Owner/ADM', () => {
-    expect(dash).toContain("label: 'Painel Principal', path: '/workspace/corporate'");
-    expect(dash.indexOf("label: 'Painel Principal'")).toBeLessThan(dash.indexOf('...menuItems,'));
-    expect(dash).toContain('podeTelasParceiras ? [{ icon: Building2');
+    const menu = ler('src/lib/menuDoPainel.ts'); // F-230: a lista do menu do painel mora aqui
+    expect(menu).toContain("label: 'Painel Principal', path: '/workspace/corporate'");
+    expect(menu.indexOf("label: 'Painel Principal'")).toBeLessThan(menu.indexOf('...ITENS_DO_GESTOR,'));
+    expect(menu).toContain('donoOuAdm ? [{ icon: Building2');
   });
   it('nenhum menu mostra o código interno da empresa', () => {
     expect(dash).not.toContain('profile.company_name');

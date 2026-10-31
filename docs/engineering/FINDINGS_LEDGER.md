@@ -2697,3 +2697,23 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `src/tests/unit/studioPublicarNaTela229.test.ts` (8);
   - no navegador, com a conta de teste: 2 telas de homologação → payload do Player com as 2 versões e o MD5;
   - salvar de novo → "já está na sua galeria", sem mídia nova.
+
+### F-230 — Menu completo do painel dentro do Studio + capas que passam todas as mídias da pasta (8 s; vídeo animado) — FEITO
+
+- **Pedido do dono (31/10/2026):**
+  - o menu lateral do Studio traz o menu COMPLETO do painel, mantendo o cartão "Sua marca em todos os lugares";
+  - as capas passam todas as mídias da pasta, como as 3 TVs do início;
+  - **regra:** cada mídia passa 8 s; se a pasta tiver vídeo, a capa reproduz a mídia animada.
+- **Menu:**
+  - a lista mora num lugar só, `src/lib/menuDoPainel.ts`: `ITENS_DO_GESTOR`/`menuDoGestor`/`useMenuDoGestor` para a equipe, `gruposDoPortal`/`gruposPermitidos` para o anunciante/host;
+  - o painel (`components/dashboard/Sidebar.tsx`), o portal (`CustomerPortalLayout.tsx`) e o Studio (`StudioAILayout.tsx`) leem dali: item novo aparece nos três, com as mesmas regras de perfil e modalidade;
+  - o Studio mostra: as entradas do Studio, o cartão, o painel completo da pessoa (com o contador de Mensagens), "Conta" e "Sair".
+- **Capas:** um componente só, `src/components/media/CapaQueGira.tsx` (`TEMPO_DE_CADA_MIDIA = 8000`).
+  - Vídeo e arte animada vêm primeiro e tocam animados; depois as imagens.
+  - Só a mídia da vez, a que está saindo e a próxima ficam na página.
+  - Fora da tela, para. Se o aparelho não avisar se a capa está visível, gira assim mesmo depois de 1,5 s.
+  - Usada nas 3 TVs do início (`TvEmLoop`, agora 8 s), nos cartões das pastas de modelos (todas as artes da pasta; modelo com animação gravada toca animado) e nas pastas da galeria (Minhas Mídias da equipe e do anunciante: vídeo toca como capa; a capa escolhida abre a fila).
+- **Provas:**
+  - `src/tests/unit/studioMenuECapas230.test.ts`;
+  - 6 testes antigos de menu apontados para a fonte única, com as mesmas exigências;
+  - no navegador (conta de teste): menu do Studio com 30 itens; cartão "Academia – Fitness" trocou de arte depois de 8 s; o vídeo das pastas da galeria está tocando (`paused=false`, `readyState=4`).

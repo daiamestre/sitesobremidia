@@ -168,6 +168,6 @@ describe('Fluxo de Caixa', () => {
 describe('Menu: Central de Cobranças dentro do mesmo painel (sem remontar o menu)', () => {
   it('os menus apontam para a rota do próprio painel', () => {
     expect(ler('src/modules/crm/components/Sidebar.tsx')).toContain('path: `${basePath}/financeiro/cobrancas`');
-    expect(ler('src/components/dashboard/Sidebar.tsx')).toContain("path: '/workspace/financeiro/cobrancas'");
+    expect(ler('src/lib/menuDoPainel.ts')).toContain("path: '/workspace/financeiro/cobrancas'");
   });
 });

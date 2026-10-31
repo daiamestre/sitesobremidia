@@ -30,7 +30,8 @@ describe('Cadastro das telas do ponto parceiro (F-109)', () => {
     const pagina = readFileSync(path.join(process.cwd(), 'src', 'pages', 'dashboard', 'TelasParceiras.tsx'), 'utf8');
     expect(pagina).toContain("perfilNome === 'ADMIN'");
     expect(pagina).toContain('<Navigate to="/dashboard/screens" replace />');
-    const menu = readFileSync(path.join(process.cwd(), 'src', 'components', 'dashboard', 'Sidebar.tsx'), 'utf8');
+    // F-230: a lista do menu do painel mora em src/lib/menuDoPainel.ts (o Studio usa a mesma)
+    const menu = readFileSync(path.join(process.cwd(), 'src', 'lib', 'menuDoPainel.ts'), 'utf8');
     // F-116: o menu abre a página nova de Telas (cartão de pontos parceiros); a página antiga segue pelo botão "Telas de parceiros"
     expect(menu).toContain("'/dashboard/screens?secao=parceiros'");
     // F-119: o menu leva à sala de pontos parceiros; o botão "Novo Ponto Parceiro" da sala abre o cadastro completo

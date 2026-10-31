@@ -362,9 +362,9 @@ describe('F-172 · ligação no sistema', () => {
     const app = fonte('src/App.tsx');
     expect(app).toContain('path="tabloide" element={<TabloidePage />}');
     expect(app).toContain('path="tabloide" element={<Tabloide />}');
-    expect(fonte('src/components/dashboard/Sidebar.tsx')).toContain("path: '/dashboard/tabloide'");
+    expect(fonte('src/lib/menuDoPainel.ts')).toContain("path: '/dashboard/tabloide'"); // F-230: a lista dos menus mora aqui
+    expect(fonte('src/lib/menuDoPainel.ts')).toContain("path: '/portal/tabloide'");
     const portal = fonte('src/modules/crm/layout/CustomerPortalLayout.tsx');
-    expect(portal).toContain("path: '/portal/tabloide'");
     expect(portal).toContain("paths.add('/portal/tabloide')");
   });
 

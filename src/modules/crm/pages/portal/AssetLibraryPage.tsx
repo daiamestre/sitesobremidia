@@ -272,7 +272,7 @@ function PastasDoAnunciante({ assets, tipoAberto, setTipoAberto, desenhar }: {
       <Button variant="ghost" size="sm" onClick={() => setTipoAberto(null)}><ArrowLeft className="mr-1 h-4 w-4" />{tipoAberto === 'imagem' ? 'Imagens' : tipoAberto === 'video' ? 'Vídeos' : 'Outros arquivos'}</Button>
       {tipoAberto === 'outros' ? desenhar(lista) : (
         <GaleriaEmPastas origem="cliente_assets" video={tipoAberto === 'video'} render={(l) => desenhar(l.map((x) => x.asset))}
-          itens={lista.map((a) => ({ id: a.id, nome: a.nome, capa: a.tipo === 'imagem' ? a.object_url : (a.quadros?.[0] ?? null), criado: a.created_at, asset: a }))} />
+          itens={lista.map((a) => ({ id: a.id, nome: a.nome, capa: a.tipo === 'imagem' ? a.object_url : (a.quadros?.[0] ?? null), video: a.tipo === 'video' ? a.object_url : null, criado: a.created_at, asset: a }))} />
       )}
     </div>
   );

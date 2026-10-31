@@ -3,14 +3,9 @@ import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-d
 import { useAuth } from '@/contexts/AuthContext';
 import { useCentralUnread } from '@/hooks/useCentral';
 import { useClienteModalidade, type ModalidadePortal } from '../hooks/useClienteModalidade';
-import {
-  LayoutDashboard, MapPin, LogOut, FileText,
-  Calendar, Megaphone, ListVideo, ImagePlus,
-  TrendingUp, Rocket, Menu, X, Loader2, Building2,
-  ShoppingBasket, BadgePercent, BookOpen, Settings,
-  Briefcase, Home, MessageSquare, LifeBuoy, PanelLeftClose, PanelLeftOpen, Sparkles,
-} from 'lucide-react';
+import { LogOut, TrendingUp, Rocket, Menu, X, Loader2, Building2, Briefcase, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
+import { gruposDoPortal } from '@/lib/menuDoPainel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -48,77 +43,8 @@ export default function CustomerPortalLayout() {
   // Sidebar lateral persistente exclusivamente para ANUNCIANTE/HOST/HÍBRIDO.
   // NUNCA expõe links para ERP, CRM, Admin, Representante, Gestor ou Owner.
   // ============================================================
-  const navGroups: NavGroup[] = useMemo(() => [
-    // F-164 — ordem pedida pelo proprietário: Início → Minhas Mídias → Publicidade → Meus Pontos → Comércio → (Rede do host) →
-    // Mensagens e Contratos e Faturas → Conta.
-    {
-      label: 'Principal',
-      items: [
-        { name: 'Início', path: '/portal', icon: Home },
-        // F-219: SOBRE MÍDIA Studio para todos (modelos prontos, edição, criação com IA e publicação)
-        { name: 'Sobre Mídia Studio', path: '/studio', icon: Sparkles },
-      ],
-    },
-    {
-      label: 'Minhas Mídias',
-      somente: ['ANUNCIANTE', 'HIBRIDO'],
-      items: [
-        { name: 'Minhas Mídias',        path: '/portal/assets',     icon: ImagePlus },
-      ],
-    },
-    {
-      label: 'Publicidade',
-      somente: ['ANUNCIANTE', 'HIBRIDO'],
-      items: [
-        { name: 'Minhas Campanhas',    path: '/portal/campanhas',     icon: Megaphone },
-        { name: 'Nova Campanha',       path: '/portal/nova-campanha', icon: Rocket },
-        { name: 'Inserções por Dia',   path: '/portal/insercoes',     icon: Calendar },
-        { name: 'Playlists',           path: '/portal/playlists',     icon: ListVideo },
-      ],
-    },
-    {
-      label: 'Meus Pontos',
-      somente: ['ANUNCIANTE', 'HIBRIDO'],
-      items: [
-        { name: 'Meus Pontos',          path: '/portal/pontos',    icon: MapPin },
-        { name: 'Pontos para Anunciar', path: '/portal/pontos-parceiros', icon: TrendingUp },
-      ],
-    },
-    {
-      label: 'Comércio',
-      somente: ['ANUNCIANTE', 'HIBRIDO'],
-      items: [
-        { name: 'Produtos',        path: '/portal/produtos',  icon: ShoppingBasket },
-        { name: 'Ofertas',         path: '/portal/ofertas',   icon: BadgePercent },
-        { name: 'Encarte Digital', path: '/portal/encarte',   icon: BookOpen },
-        { name: 'Cartaz Digital', path: '/portal/tabloide', icon: Sparkles },
-      ],
-    },
-    {
-      label: 'Rede (Host)',
-      somente: ['HOST', 'HIBRIDO'],
-      items: [
-        { name: 'Minha Rede',       path: '/portal/minha-rede', icon: MapPin },
-        { name: 'Ocupação da Rede', path: '/portal/ocupacao',   icon: LayoutDashboard },
-        { name: 'Receita',          path: '/portal/receita',    icon: FileText },
-      ],
-    },
-    {
-      label: 'Mensagens e Contratos',
-      items: [
-        { name: 'Mensagens',           path: '/portal/central',    icon: MessageSquare, badge: totalNaoLidas },
-        { name: 'Contratos e Faturas', path: '/portal/financeiro', icon: FileText },
-      ],
-    },
-    {
-      label: 'Conta',
-      items: [
-        { name: 'Meu Perfil',    path: '/portal/perfil',         icon: Briefcase },
-        { name: 'Suporte',       path: '/portal/central?aba=suporte', icon: LifeBuoy },
-        { name: 'Configurações', path: '/portal/configuracoes',  icon: Settings },
-      ],
-    },
-  ], [totalNaoLidas]);
+  // F-230: a lista mora em lib/menuDoPainel (o menu do SOBRE MÍDIA Studio usa a mesma)
+  const navGroups: NavGroup[] = useMemo(() => gruposDoPortal(totalNaoLidas), [totalNaoLidas]);
 
   // Filtra grupos e itens pela modalidade do cliente
   const itemAllowed = (item: NavItem) =>

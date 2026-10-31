@@ -13,6 +13,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { OUTRAS, agruparEmPastas, lerGaleria, trocarCapa, type GrupoDaGaleria, type ItemDaGaleria, type OrigemDaMidia } from '@/lib/galeria';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { cn } from '@/lib/utils';
+import { CapaQueGira, ordemDaCapa } from '@/components/media/CapaQueGira';
+
+/** F-230: a capa da pasta passa todas as mídias dela (8 s cada); vídeo toca animado e vem primeiro; capa escolhida abre a fila. */
+function slidesDaPasta<T extends ItemDaGaleria>(g: GrupoDaGaleria<T>) {
+  const itens = ordemDaCapa(g.itens.slice(0, 24).map((i) => ({ chave: i.id, imagem: i.capa, video: i.video ?? null }))).filter((s) => s.imagem || s.video);
+  return g.capaPropria && g.capa ? [{ chave: 'capa', imagem: g.capa }, ...itens] : itens;
+}
 
 interface Props<T extends ItemDaGaleria> {
   origem: OrigemDaMidia;
@@ -76,7 +83,9 @@ export function GaleriaEmPastas<T extends ItemDaGaleria>({ origem, itens, video 
             <div key={g.chave} className="group relative overflow-hidden rounded-xl border border-primary/25 bg-card shadow-[0_0_18px_-8px_hsl(var(--primary)/0.7)] transition hover:border-primary/60 hover:shadow-[0_0_28px_-6px_hsl(var(--primary)/0.9)]" data-testid="galeria-pasta">
               <button type="button" onClick={() => setAberta(g.chave)} className="block w-full text-left">
                 <div className="relative aspect-[4/3] bg-black">
-                  {g.capa ? <img src={g.capa} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full items-center justify-center text-muted-foreground"><FolderOpen className="h-10 w-10" /></div>}
+                  {slidesDaPasta(g).length
+                    ? <CapaQueGira slides={slidesDaPasta(g)} atraso={(grupos.indexOf(g) % 8) * 1000} className="absolute inset-0" />
+                    : <div className="flex h-full items-center justify-center text-muted-foreground"><FolderOpen className="h-10 w-10" /></div>}
                   {video && <span className="absolute left-2 top-2 rounded-full bg-black/60 p-1.5 text-white"><Play className="h-3.5 w-3.5" /></span>}
                   <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur"><FolderOpen className="h-3 w-3 text-[#FFD400]" />{g.itens.length}</span>
                 </div>

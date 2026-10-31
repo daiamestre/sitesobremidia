@@ -3,64 +3,10 @@ import { cn } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCentralUnread } from '@/hooks/useCentral';
-import { supabase } from '@/integrations/supabase/client';
-import {
-  Image,
-  PlaySquare,
-  ListVideo,
-  Calendar,
-  Monitor,
-  Link2,
-  History,
-  Settings,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  Shield,
-  LayoutGrid,
-  BarChart3,
-  Inbox,
-  Bell,
-  AlertTriangle,
-  FileText,
-  Briefcase,
-  Banknote,
-  UserCircle,
-  Library,
-  Sparkles,
-  Palette,
-  Store,
-  LayoutDashboard,
-  Building2,
-  Smartphone,
-  Bot,
-  Clapperboard,
-} from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { LogOut, ChevronLeft, ChevronRight, Shield, Briefcase, UserCircle, Settings } from 'lucide-react';
+import { useMenuDoGestor } from '@/lib/menuDoPainel';
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed';
 import { AvatarCabecalho } from '@/components/perfil/AvatarCabecalho';
-
-const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-  // F-219: SOBRE MÍDIA Studio para todos os perfis
-  { icon: Clapperboard, label: 'Sobre Mídia Studio', path: '/studio' },
-  // F-223: agente com IA grátis (relatórios, cobranças com confirmação, oportunidades)
-  { icon: Bot, label: 'Trabalhar com IA', path: '/dashboard/ia' },
-  { icon: Inbox, label: 'Central', path: '/dashboard/central' },
-  { icon: Image, label: 'Minhas Mídias', path: '/dashboard/medias' },
-  { icon: Library, label: 'Biblioteca de Mídias', path: '/dashboard/biblioteca' },
-  { icon: Sparkles, label: 'Cartaz Digital', path: '/dashboard/tabloide' },
-  { icon: ListVideo, label: 'Playlists', path: '/dashboard/playlists' },
-  { icon: Monitor, label: 'Telas', path: '/dashboard/screens' },
-  { icon: LayoutGrid, label: 'Widgets', path: '/dashboard/widgets' },
-  { icon: Palette, label: 'Minha Marca', path: '/dashboard/marca' },
-  { icon: Calendar, label: 'Agendamento', path: '/dashboard/schedule' },
-  { icon: Link2, label: 'Links Externos', path: '/dashboard/links' },
-  { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics' },
-  { icon: History, label: 'Histórico', path: '/dashboard/history' },
-  { icon: Calendar, label: 'Relatórios', path: '/dashboard/reports' },
-];
 
 /** Texto sob o nome no menu (nunca o código interno da empresa). */
 function rotuloDoPerfil(perfilNome: string | null | undefined, isOwner: boolean): string {
@@ -76,54 +22,10 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
   // Recolhido no computador lembrado por navegador; na gaveta (tablet/celular) sempre aberto
   const [collapsedPref, toggleCollapsed] = useSidebarCollapsed('gestor');
   const collapsed = !hideCollapse && collapsedPref;
-  const [isAdmin, setIsAdmin] = useState(false);
-  const { signOut, profile, user, isOwner, perfilNome } = useAuth();
-  // F-109: telas de pontos parceiros — OWNER/ADMIN (perfil ou papel antigo)
-  const podeTelasParceiras = isAdmin || isOwner || perfilNome === 'OWNER' || perfilNome === 'ADMIN';
+  const { signOut, profile, isOwner, perfilNome } = useAuth();
   const location = useLocation();
-  const { total: totalNaoLidas } = useCentralUnread();
-
-  // MENSAGENS: entrada logo abaixo de BI & Relatórios (Relatórios) em todos os painéis
-  // Central de Cobranças restrita a ADMIN/OWNER (mesma regra do módulo financeiro)
-  const menuComMensagens = [
-    // F-170: Owner/ADM voltam ao painel principal (o mesmo que abre quando fazem login) acima do Dashboard do gestor
-    ...(podeTelasParceiras ? [{ icon: Building2, label: 'Painel Principal', path: '/workspace/corporate' }] : []),
-    ...menuItems,
-    ...((isAdmin || isOwner)
-      ? [{ icon: Banknote, label: 'Central de Cobranças', path: '/workspace/financeiro/cobrancas' }]
-      : []),
-    // F-116: estrutura de pontos parceiros só para OWNER/ADMIN (gestor não vê); abre a página nova de Telas
-    ...(podeTelasParceiras
-      ? [
-          { icon: Store, label: 'Telas de pontos parceiros', path: '/dashboard/screens?secao=parceiros' },
-          // F-119: a sala de pontos parceiros (cartões, edição completa, telas; "Novo Ponto Parceiro" = cadastro completo)
-          { icon: Store, label: 'Pontos parceiros', path: '/dashboard/pontos-parceiros' },
-          // F-200: launcher Sobre Mídia dos aparelhos (dono/ADM)
-          { icon: Smartphone, label: 'Launcher', path: '/workspace/launcher' },
-        ]
-      : []),
-    {
-      icon: Bell,
-      label: 'Mensagens',
-      path: '/dashboard/central',
-      badge: totalNaoLidas,
-    },
-  ];
-
-  useEffect(() => {
-    const checkAdmin = async () => {
-      if (user) {
-        const { data } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .eq('role', 'admin')
-          .maybeSingle();
-        setIsAdmin(!!data);
-      }
-    };
-    checkAdmin();
-  }, [user]);
+  // F-230: a lista do menu mora em lib/menuDoPainel (o menu do Studio usa a mesma)
+  const { principal: menuComMensagens, isAdmin } = useMenuDoGestor();
 
   return (
     <aside
@@ -180,9 +82,9 @@ export function Sidebar({ onNavigate, hideCollapse }: { onNavigate?: () => void;
               {!collapsed && (
                 <>
                   <span className="flex-1">{item.label}</span>
-                  {'badge' in item && item.badge > 0 && (
+                  {(item.badge ?? 0) > 0 && (
                     <span className="min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
-                      {item.badge > 99 ? '99+' : item.badge}
+                      {(item.badge ?? 0) > 99 ? '99+' : item.badge}
                     </span>
                   )}
                 </>

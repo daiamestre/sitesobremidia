@@ -4,7 +4,7 @@ import {
   ArrowRight, BriefcaseMedical, Clapperboard, ChevronDown, Dumbbell, Filter, FolderOpen, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
   Percent, Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
-import { Carrossel, MiniaturaDoModelo, TvEmLoop } from '@/components/studio/Vitrines';
+import { Carrossel, TvEmLoop } from '@/components/studio/Vitrines';
 import '@/components/studio/studio-efeitos.css';
 import { intercalarPorSegmento } from '@/lib/studio/miniaturas';
 import type { FormatoDoc } from '@/lib/studio/documento';
@@ -35,11 +35,6 @@ function vitrine(todos: ModeloDeArte[]): [ModeloDeArte[], ModeloDeArte[], Modelo
   base.filter((m) => m !== bf).slice(0, 30).forEach((m, i) => l[i % 3].push(m));
   if (bf) l[2] = [bf, ...l[2]].slice(0, 10);
   return l;
-}
-
-/** Miniatura de um modelo no formato pedido (cada modelo existe em 16:9 e 9:16). */
-function Miniatura({ m, formato, className }: { m: ModeloDeArte; formato: FormatoDoc; className?: string }) {
-  return <MiniaturaDoModelo m={m} formato={formato} className={className} />;
 }
 
 function Selecao({ rotulo, valor, opcoes, onChange }: { rotulo: string; valor: string; opcoes: { id: string; nome: string }[]; onChange: (v: string) => void }) {
@@ -185,13 +180,17 @@ export default function CatalogoPage() {
             </div>
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {lista.map((m) => {
+            {lista.map((m, n) => {
               const f: FormatoDoc = filtro.formato ?? (m.formato as FormatoDoc);
-              const qtd = pastaDe.get(m.id)?.modelos.length ?? 1;
+              const daPasta = pastaDe.get(m.id)?.modelos ?? [m];
+              const qtd = daPasta.length;
               return (
               <article key={m.id} className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-card">
                 <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  <Link to={`/studio/pasta/${m.id}`} aria-label={`Abrir a pasta ${m.nome}`} className={cn('block', f === '16:9' ? 'w-full' : 'h-full aspect-[9/16]')}><Miniatura m={m} formato={f} /></Link>
+                  <Link to={`/studio/pasta/${m.id}`} aria-label={`Abrir a pasta ${m.nome}`} className={cn('block', f === '16:9' ? 'w-full' : 'h-full aspect-[9/16]')}>
+                    {/* F-230: a capa passa TODAS as artes da pasta, 8 s cada (animada primeiro), como o Player */}
+                    <TvEmLoop modelos={daPasta} formato={f} atraso={(n % 8) * 1000} className={f === '16:9' ? 'w-full' : 'h-full'} />
+                  </Link>
                   <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><FolderOpen className="h-3 w-3 text-[#FFD400]" />{qtd} {qtd === 1 ? 'modelo' : 'modelos'}</span>
                   <button type="button" onClick={() => alternarFavorito(m.id)} aria-label={favoritos.has(m.id) ? 'Tirar dos favoritos' : 'Favoritar'} aria-pressed={favoritos.has(m.id)}
                     className="absolute right-2 top-2 rounded-full bg-black/40 p-1.5 text-white backdrop-blur hover:bg-black/60">
