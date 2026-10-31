@@ -1,0 +1,317 @@
+{
+ "mercado-bebidas": {
+  "fotografo": "Bent Vermeiren",
+  "url": "https://www.pexels.com/photo/champagne-bottles-chilling-in-ice-bucket-29811323/",
+  "pexels_id": 29811323
+ },
+ "mercado-limpeza": {
+  "fotografo": "Anna Shvets",
+  "url": "https://www.pexels.com/photo/plastic-bottles-and-cleaning-supplies-for-washing-5218014/",
+  "pexels_id": 5218014
+ },
+ "mercado-cesta-basica": {
+  "fotografo": "Vanessa Loring",
+  "url": "https://www.pexels.com/photo/healthy-food-ingredients-on-a-ceramic-plate-5966151/",
+  "pexels_id": 5966151
+ },
+ "mercado-frios": {
+  "fotografo": "basunga visual",
+  "url": "https://www.pexels.com/photo/delicious-charcuterie-board-with-assorted-meats-and-cheeses-37382228/",
+  "pexels_id": 37382228
+ },
+ "mercado-padaria": {
+  "fotografo": "Calvin Seng",
+  "url": "https://www.pexels.com/photo/variety-of-fresh-bread-rolls-in-a-wooden-basket-31141324/",
+  "pexels_id": 31141324
+ },
+ "horti-frutas": {
+  "fotografo": "Liane Ferreira",
+  "url": "https://www.pexels.com/photo/vibrant-fruit-market-display-in-madeira-portugal-33713302/",
+  "pexels_id": 33713302
+ },
+ "horti-verduras": {
+  "fotografo": "Lum3n",
+  "url": "https://www.pexels.com/photo/close-up-of-vegetables-in-market-319798/",
+  "pexels_id": 319798
+ },
+ "horti-sucos": {
+  "fotografo": "Ylanite Koppens",
+  "url": "https://www.pexels.com/photo/strawberries-on-table-beside-drinking-glass-2479242/",
+  "pexels_id": 2479242
+ },
+ "horti-organicos": {
+  "fotografo": "Nataliya Vaitkevich",
+  "url": "https://www.pexels.com/photo/fresh-vegetables-on-a-woven-basket-5425893/",
+  "pexels_id": 5425893
+ },
+ "horti-feira": {
+  "fotografo": "Helena Jankovičová Kováčová",
+  "url": "https://www.pexels.com/photo/outdoors-market-on-city-square-10697692/",
+  "pexels_id": 10697692
+ },
+ "acougue-picanha": {
+  "fotografo": "Надежда Окопник",
+  "url": "https://www.pexels.com/photo/raw-beef-steaks-with-rosemary-and-pepper-33663502/",
+  "pexels_id": 33663502
+ },
+ "acougue-costela": {
+  "fotografo": "Jagjeet Dhuna",
+  "url": "https://www.pexels.com/photo/close-up-of-raw-meat-18756768/",
+  "pexels_id": 18756768
+ },
+ "acougue-kit": {
+  "fotografo": "Susanne Jutzeler, suju-foto",
+  "url": "https://www.pexels.com/photo/assorted-sausages-grilling-on-bbq-grill-38339991/",
+  "pexels_id": 38339991
+ },
+ "acougue-linguica": {
+  "fotografo": "Mateusz Feliksik",
+  "url": "https://www.pexels.com/photo/chopped-sausages-on-a-wooden-chopping-board-13376638/",
+  "pexels_id": 13376638
+ },
+ "burger-duplo": {
+  "fotografo": "Natan Machado Fotografia  Gastronômica",
+  "url": "https://www.pexels.com/photo/delicious-hamburger-on-wooden-board-15010309/",
+  "pexels_id": 15010309
+ },
+ "burger-combo": {
+  "fotografo": "Sylwester Ficek",
+  "url": "https://www.pexels.com/photo/mouthwatering-burgers-and-fries-on-a-wooden-trays-12653336/",
+  "pexels_id": 12653336
+ },
+ "burger-smash": {
+  "fotografo": "Vinícius Caricatte",
+  "url": "https://www.pexels.com/photo/juicy-burger-with-melted-cheddar-cheese-29250659/",
+  "pexels_id": 29250659
+ },
+ "burger-frango": {
+  "fotografo": "Ali Dashti",
+  "url": "https://www.pexels.com/photo/a-person-holding-a-chicken-sandwich-in-front-of-a-pink-box-27758760/",
+  "pexels_id": 27758760
+ },
+ "burger-batata": {
+  "fotografo": "Valeria Boltneva",
+  "url": "https://www.pexels.com/photo/fries-for-lunch-17035142/",
+  "pexels_id": 17035142
+ },
+ "pizza-calabresa": {
+  "fotografo": "Jeferson santos",
+  "url": "https://www.pexels.com/photo/close-up-of-a-pizza-with-tomatoes-and-ham-20030851/",
+  "pexels_id": 20030851
+ },
+ "pizza-doce": {
+  "fotografo": "SAULO LEITE",
+  "url": "https://www.pexels.com/photo/pizza-with-chocolate-and-strawberries-17637080/",
+  "pexels_id": 17637080
+ },
+ "pizza-familia": {
+  "fotografo": "Anhelina Vasylyk",
+  "url": "https://www.pexels.com/photo/delicious-artisan-pizzas-on-wooden-table-34425639/",
+  "pexels_id": 34425639
+ },
+ "pizza-borda": {
+  "fotografo": "Cats Coming",
+  "url": "https://www.pexels.com/photo/seafood-pizza-melting-cheese-365459/",
+  "pexels_id": 365459
+ },
+ "pizza-rodizio": {
+  "fotografo": "ROMAN ODINTSOV",
+  "url": "https://www.pexels.com/photo/different-flavor-of-pizzas-on-a-wooden-surface-5903237/",
+  "pexels_id": 5903237
+ },
+ "cafe-bolos": {
+  "fotografo": "Lais  Queiroz",
+  "url": "https://www.pexels.com/photo/chocolate-cake-on-white-plate-10849887/",
+  "pexels_id": 10849887
+ },
+ "cafe-salgados": {
+  "fotografo": "Heidi Brittany Enríquez Esparragoza",
+  "url": "https://www.pexels.com/photo/street-food-display-with-fries-and-plantains-36886535/",
+  "pexels_id": 36886535
+ },
+ "cafe-cappuccino": {
+  "fotografo": "Pixabay",
+  "url": "https://www.pexels.com/photo/cup-of-coffee-on-saucer-459489/",
+  "pexels_id": 459489
+ },
+ "cafe-festa": {
+  "fotografo": "Ihsan Adityawarman",
+  "url": "https://www.pexels.com/photo/festive-party-table-with-assorted-treats-and-decor-31972322/",
+  "pexels_id": 31972322
+ },
+ "cafe-pao-de-queijo": {
+  "fotografo": "Nathalia Crispim",
+  "url": "https://www.pexels.com/photo/basket-of-traditional-brazilian-pao-de-queijo-34259860/",
+  "pexels_id": 34259860
+ },
+ "odonto-urgencia": {
+  "fotografo": "Tima Miroshnichenko",
+  "url": "https://www.pexels.com/photo/dental-facility-5355863/",
+  "pexels_id": 5355863
+ },
+ "barba-produtos": {
+  "fotografo": "Daniel Żabiński",
+  "url": "https://www.pexels.com/photo/professional-barber-tools-on-wooden-table-31840003/",
+  "pexels_id": 31840003
+ },
+ "oficina-freio": {
+  "fotografo": "Tuesday Temptation",
+  "url": "https://www.pexels.com/photo/red-brake-caliper-of-a-automobile-833320/",
+  "pexels_id": 833320
+ },
+ "oficina-pneus": {
+  "fotografo": "wal_ 172619",
+  "url": "https://www.pexels.com/photo/stacked-vehicle-tires-in-black-and-white-37002235/",
+  "pexels_id": 37002235
+ },
+ "lavanderia-edredom": {
+  "fotografo": "Ofir Eliav",
+  "url": "https://www.pexels.com/photo/white-bed-linen-and-pillows-9893931/",
+  "pexels_id": 9893931
+ },
+ "lavanderia-ternos": {
+  "fotografo": "Twinkle Singh",
+  "url": "https://www.pexels.com/photo/elegant-suit-jackets-and-shirts-in-fashion-store-33800036/",
+  "pexels_id": 33800036
+ },
+ "lavanderia-tenis": {
+  "fotografo": "Alexander Mass",
+  "url": "https://www.pexels.com/photo/stylish-white-sneakers-on-wooden-deck-34319005/",
+  "pexels_id": 34319005
+ },
+ "lavanderia-delivery": {
+  "fotografo": "Castorly Stock",
+  "url": "https://www.pexels.com/photo/blue-denim-jeans-with-pockets-4109759/",
+  "pexels_id": 4109759
+ },
+ "lavanderia-plano": {
+  "fotografo": "Mathias Reding",
+  "url": "https://www.pexels.com/photo/washing-machines-inside-a-laundry-business-9669475/",
+  "pexels_id": 9669475
+ },
+ "moda-jeans": {
+  "fotografo": "Viktorya  Sergeeva 🫂",
+  "url": "https://www.pexels.com/photo/denim-textile-in-stacks-10133275/",
+  "pexels_id": 10133275
+ },
+ "liquida-calcados": {
+  "fotografo": "Markus Winkler",
+  "url": "https://www.pexels.com/photo/black-and-white-shoes-on-white-shelf-5067482/",
+  "pexels_id": 5067482
+ },
+ "liquida-bolsas": {
+  "fotografo": "Magda Ehlers",
+  "url": "https://www.pexels.com/photo/leather-storefront-display-with-mannequin-35989689/",
+  "pexels_id": 35989689
+ },
+ "liquida-queima": {
+  "fotografo": "Arnie Chou",
+  "url": "https://www.pexels.com/photo/hanged-assorted-shirts-965632/",
+  "pexels_id": 965632
+ },
+ "liquida-acessorios": {
+  "fotografo": "O'NEIL GONZALES",
+  "url": "https://www.pexels.com/photo/close-up-shot-of-a-wristwatch-13695978/",
+  "pexels_id": 13695978
+ },
+ "escola-material": {
+  "fotografo": "https://kaboompics.com/",
+  "url": "https://www.pexels.com/photo/pen-and-sticky-notes-5412111/",
+  "pexels_id": 5412111
+ },
+ "imovel-apartamento": {
+  "fotografo": "Gustavo Galeano Maz",
+  "url": "https://www.pexels.com/photo/flower-and-figurine-on-table-8363711/",
+  "pexels_id": 8363711
+ },
+ "imovel-aluguel": {
+  "fotografo": "Zeynep Sude  Emek",
+  "url": "https://www.pexels.com/photo/plants-in-front-of-a-door-17133438/",
+  "pexels_id": 17133438
+ },
+ "imovel-terreno": {
+  "fotografo": "Артем Дворецкий",
+  "url": "https://www.pexels.com/photo/town-on-sea-coast-20286941/",
+  "pexels_id": 20286941
+ },
+ "imovel-luxo": {
+  "fotografo": "Pure house On the lake",
+  "url": "https://www.pexels.com/photo/sunset-poolside-retreat-with-palm-trees-34675728/",
+  "pexels_id": 34675728
+ },
+ "lancamento-studio": {
+  "fotografo": "Max Vakhtbovych",
+  "url": "https://www.pexels.com/photo/apartment-studio-interior-8142976/",
+  "pexels_id": 8142976
+ },
+ "lancamento-lazer": {
+  "fotografo": "quang vinh",
+  "url": "https://www.pexels.com/photo/modern-skyscraper-with-stunning-glass-pool-36465296/",
+  "pexels_id": 36465296
+ },
+ "lancamento-obras": {
+  "fotografo": "Abdulvahap Demir",
+  "url": "https://www.pexels.com/photo/low-angle-shot-of-cranes-17297091/",
+  "pexels_id": 17297091
+ },
+ "lancamento-casas": {
+  "fotografo": "Mathias Reding",
+  "url": "https://www.pexels.com/photo/buildings-with-apartments-along-street-11363469/",
+  "pexels_id": 11363469
+ },
+ "lancamento-vista": {
+  "fotografo": "ha  Sanh",
+  "url": "https://www.pexels.com/photo/apartment-balcony-at-sea-sunset-16051613/",
+  "pexels_id": 16051613
+ },
+ "academia-equipamentos": {
+  "fotografo": "大 董",
+  "url": "https://www.pexels.com/photo/modern-gym-interior-with-exercise-machines-40371849/",
+  "pexels_id": 40371849
+ },
+ "pet-gato": {
+  "fotografo": "Pet foto",
+  "url": "https://www.pexels.com/photo/cute-cat-sleeping-in-pet-bath-17802936/",
+  "pexels_id": 17802936
+ },
+ "pet-hotel": {
+  "fotografo": "Alexas Fotos",
+  "url": "https://www.pexels.com/photo/two-dogs-playfully-wrestling-on-grass-39052938/",
+  "pexels_id": 39052938
+ },
+ "pet-acessorios": {
+  "fotografo": "Yaroslav Shuraev",
+  "url": "https://www.pexels.com/photo/a-siberian-husky-on-grass-9631834/",
+  "pexels_id": 9631834
+ },
+ "racao-gatos": {
+  "fotografo": "Engin Akyurt",
+  "url": "https://www.pexels.com/photo/cat-sitting-by-bowls-with-food-on-ground-18418977/",
+  "pexels_id": 18418977
+ },
+ "racao-filhotes": {
+  "fotografo": "Matheus Bertelli",
+  "url": "https://www.pexels.com/photo/dogs-drinking-water-from-a-bowl-in-a-park-16652409/",
+  "pexels_id": 16652409
+ },
+ "racao-petiscos": {
+  "fotografo": "RDNE Stock project",
+  "url": "https://www.pexels.com/photo/a-paper-bag-with-dog-treats-on-a-brown-table-7310213/",
+  "pexels_id": 7310213
+ },
+ "racao-premium": {
+  "fotografo": "Masood Aslami",
+  "url": "https://www.pexels.com/photo/portrait-of-a-golden-retriever-in-nature-30810890/",
+  "pexels_id": 30810890
+ },
+ "racao-entrega": {
+  "fotografo": "Mete Kaan Özdilek",
+  "url": "https://www.pexels.com/photo/dog-sitting-near-door-with-windows-25656051/",
+  "pexels_id": 25656051
+ },
+ "tec-fones": {
+  "fotografo": "Sound On",
+  "url": "https://www.pexels.com/photo/white-wireless-headphones-3394650/",
+  "pexels_id": 3394650
+ }
+}
