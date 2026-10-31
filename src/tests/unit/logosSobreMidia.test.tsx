@@ -5,6 +5,7 @@ import path from 'path';
 import { render, screen } from '@testing-library/react';
 import { PastaLogosSobreMidia } from '@/components/media/PastaLogosSobreMidia';
 import { LOGOS_SOBRE_MIDIA, PASTA_DAS_LOGOS, ZIP_DAS_LOGOS, veLogosDaMarca } from '@/lib/logosSobreMidia';
+import { montarZip } from '@/lib/zipSimples';
 
 const publico = path.resolve(__dirname, '../../../public');
 
@@ -19,7 +20,8 @@ describe('F-217 — Logos Sobre Mídia na galeria', () => {
   });
 
   it('o ZIP do "Baixar todas" tem as 9 logos, iguais às da pasta', () => {
-    const zip = fs.readFileSync(path.join(publico, ZIP_DAS_LOGOS));
+    const zip = Buffer.from(montarZip(LOGOS_SOBRE_MIDIA.map((l) => ({ nome: `logos-sobre-midia/${l.arquivo}`, dados: fs.readFileSync(path.join(publico, PASTA_DAS_LOGOS, l.arquivo)) }))));
+    expect(ZIP_DAS_LOGOS).toBe('logos-sobre-midia.zip');
     const fim = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
     expect(zip.readUInt16LE(fim + 10)).toBe(9);
     for (const l of LOGOS_SOBRE_MIDIA) {
@@ -37,7 +39,7 @@ describe('F-217 — Logos Sobre Mídia na galeria', () => {
       expect(a.getAttribute('href')).toBe(`${PASTA_DAS_LOGOS}/${l.arquivo}`);
       expect(a.getAttribute('download')).toBe(l.arquivo);
     }
-    expect(screen.getByTestId('baixar-todas-logos').getAttribute('href')).toBe(ZIP_DAS_LOGOS);
+    expect(screen.getByTestId('baixar-todas-logos').textContent).toContain('Baixar todas (ZIP)');
   });
 
   it('a pasta é exclusiva do owner e do ADM', () => {

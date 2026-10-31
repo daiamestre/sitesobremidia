@@ -1,5 +1,5 @@
 // F-217 — pasta "Logos Sobre Mídia" da galeria de mídias: as 9 logos (as mesmas 9 da original, com os mesmos nomes)
-// em alta definição, em public/marca/logos-sobre-midia/, e o ZIP com todas para o "Baixar todas".
+// em alta definição, em public/marca/logos-sobre-midia/ (cada arquivo até 2 MB).
 //   node scripts/marca/montar-pasta-logos.mjs
 // Rodar de novo sempre que uma logo de docs/marca/alta-definicao/ mudar.
 import fs from 'node:fs';
@@ -20,23 +20,11 @@ fs.rmSync(PASTA, { recursive: true, force: true });
 fs.mkdirSync(PASTA, { recursive: true });
 for (const [nome, de] of LOGOS) fs.copyFileSync(path.join(RAIZ, de), path.join(PASTA, nome));
 
-// ZIP sem compressão (PNG/WebP já são comprimidos), com data fixa: o mesmo conteúdo gera sempre o mesmo arquivo
-const crcTab = new Int32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
-const crc32 = (buf) => { let c = -1; for (const x of buf) c = crcTab[(c ^ x) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; };
-const DATA = ((2026 - 1980) << 9) | (10 << 5) | 24, HORA = 12 << 11;
-const locais = [], central = []; let pos = 0;
-for (const [nome] of LOGOS) {
-  const dados = fs.readFileSync(path.join(PASTA, nome)), n = Buffer.from(`logos-sobre-midia/${nome}`, 'utf8'), crc = crc32(dados);
-  const h = Buffer.alloc(30); h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(10, 4); h.writeUInt16LE(0x0800, 6); h.writeUInt16LE(HORA, 10); h.writeUInt16LE(DATA, 12);
-  h.writeUInt32LE(crc, 14); h.writeUInt32LE(dados.length, 18); h.writeUInt32LE(dados.length, 22); h.writeUInt16LE(n.length, 26);
-  locais.push(h, n, dados);
-  const c = Buffer.alloc(46); c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(10, 6); c.writeUInt16LE(0x0800, 8); c.writeUInt16LE(HORA, 12); c.writeUInt16LE(DATA, 14);
-  c.writeUInt32LE(crc, 16); c.writeUInt32LE(dados.length, 20); c.writeUInt32LE(dados.length, 24); c.writeUInt16LE(n.length, 28); c.writeUInt32LE(pos, 42);
-  central.push(c, n);
-  pos += 30 + n.length + dados.length;
-}
-const cd = Buffer.concat(central), fim = Buffer.alloc(22);
-fim.writeUInt32LE(0x06054b50, 0); fim.writeUInt16LE(LOGOS.length, 8); fim.writeUInt16LE(LOGOS.length, 10); fim.writeUInt32LE(cd.length, 12); fim.writeUInt32LE(pos, 16);
-const zip = path.join(RAIZ, 'public/marca/logos-sobre-midia.zip');
-fs.writeFileSync(zip, Buffer.concat([...locais, cd, fim]));
-console.log(JSON.stringify({ pasta: PASTA, logos: LOGOS.length, zip, bytes: fs.statSync(zip).size }));
+// teto de 2 MB por arquivo do site: recomprime SEM PERDA (mesmos pixels) os dois maiores; o ZIP do "Baixar todas"
+// é montado no navegador (src/lib/zipSimples.ts)
+const sharp = (await import('sharp')).default;
+const recomprimir = async (nome, f) => { const p = path.join(PASTA, nome); fs.writeFileSync(p, await f(sharp(fs.readFileSync(p)))); };
+await recomprimir('logo-sobre-midia.png', (i) => i.png({ compressionLevel: 9, adaptiveFiltering: true, palette: false }).toBuffer());
+await recomprimir('xxxhdpi_ic_launcher_foreground.webp', (i) => i.webp({ lossless: true, effort: 6 }).toBuffer());
+fs.rmSync(path.join(RAIZ, 'public/marca/logos-sobre-midia.zip'), { force: true });
+console.log(JSON.stringify({ pasta: PASTA, logos: LOGOS.length, maior: Math.max(...LOGOS.map(([n]) => fs.statSync(path.join(PASTA, n)).size)) }));

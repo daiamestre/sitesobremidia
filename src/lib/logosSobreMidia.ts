@@ -2,7 +2,8 @@
 // servidas como arquivos fixos do site em /marca/logos-sobre-midia/ (pasta exclusiva do dono/ADM na galeria de mídias).
 // Os ícones e a capa foram ampliados 4x por super-resolução (ESRGAN) a partir dos originais, com o nome e a joia refeitos
 // nítidos; as logos de nome 3D saem da reconstrução vetorial do F-216. Montadas por scripts/marca/montar-pasta-logos.mjs,
-// que também gera o ZIP do "Baixar todas".
+// e recomprime sem perda os dois arquivos maiores (teto de 2 MB por arquivo do site). O ZIP do "Baixar todas" é
+// montado no navegador (src/lib/zipSimples.ts).
 
 export type ModeloDaLogo = 'icone' | 'capa' | 'logo';
 
@@ -17,7 +18,8 @@ export interface LogoSobreMidia {
 }
 
 export const PASTA_DAS_LOGOS = '/marca/logos-sobre-midia';
-export const ZIP_DAS_LOGOS = '/marca/logos-sobre-midia.zip';
+/** nome do ZIP do "Baixar todas" (montado no navegador com os 9 arquivos) */
+export const ZIP_DAS_LOGOS = 'logos-sobre-midia.zip';
 
 export const MODELOS_DAS_LOGOS: Record<ModeloDaLogo, string> = {
   icone: 'Ícone do app (botão joia)',

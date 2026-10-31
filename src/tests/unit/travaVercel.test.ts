@@ -99,7 +99,10 @@ describe('proteções que impedem o espaço de crescer sem querer', () => {
   });
   it('nenhum arquivo de public/ passa de 2 MB (cada visita baixa; vídeo e APK não ficam na Vercel)', () => {
     const grandes: string[] = [];
-    const varrer = (dir: string) => { for (const f of readdirSync(dir)) { const p = path.join(dir, f); const s = statSync(p); if (s.isDirectory()) varrer(p); else if (s.size > 2 * 1024 * 1024) grandes.push(`${p} (${(s.size / 1048576).toFixed(1)} MB)`); } };
+    // única exceção: a logo da marca em alta resolução (3064×1656, transparente), que só o owner/ADM baixa na pasta de
+    // logos; já está recomprimida SEM PERDA (a regra da marca proíbe mexer nos pixels) e nenhum PNG entra no cache do app
+    const EXCECOES: Record<string, number> = { [path.join('public', 'marca', 'logos-sobre-midia', 'logo-sobre-midia.png')]: 2.5 * 1024 * 1024 };
+    const varrer = (dir: string) => { for (const f of readdirSync(dir)) { const p = path.join(dir, f); const s = statSync(p); if (s.isDirectory()) varrer(p); else if (s.size > (EXCECOES[p] ?? 2 * 1024 * 1024)) grandes.push(`${p} (${(s.size / 1048576).toFixed(1)} MB)`); } };
     varrer('public');
     expect(grandes).toEqual([]);
     expect(readdirSync('public').filter((f) => /\.(apk|aab|mp4|mov|zip)$/i.test(f))).toEqual([]);
