@@ -166,6 +166,7 @@ const StudioEditor = lazyWithRetry(() => import("./pages/studioai/EditorPage"));
 const StudioIA = lazyWithRetry(() => import("./pages/studioai/IAPage"));
 const StudioPasta = lazyWithRetry(() => import("./pages/studioai/PastaPage"));
 const StudioVideo = lazyWithRetry(() => import("./pages/studioai/VideoEditorPage"));
+const StudioEncarte = lazyWithRetry(() => import("./pages/studioai/EncartePage"));
 const TrabalharComIA = lazyWithRetry(() => import("./pages/dashboard/TrabalharComIA"));
 const StudioProjetos = lazyWithRetry(() => import("./pages/studioai/ProjetosPage"));
 const StudioConfiguracoes = lazyWithRetry(() => import("./pages/studioai/ConfiguracoesPage"));
@@ -365,6 +366,7 @@ const App = () => {
                     <Route path="editar/:modeloId" element={<StudioEditor />} />
                     <Route path="projeto/:projetoId" element={<StudioEditor />} />
                     <Route path="ia" element={<StudioIA />} />
+                    <Route path="encarte/:encarteId" element={<StudioEncarte />} />
                     <Route path="video" element={<StudioVideo />} />
                     <Route path="video/:projetoId" element={<StudioVideo />} />
                     <Route path="projetos" element={<StudioProjetos />} />

@@ -124,7 +124,12 @@ export interface ConfigCartaz {
   rodapeEstilo: EstiloRodape;
   /** primeira página só com a arte, o título, a validade e a loja */
   capa: boolean;
-  destaques: 0 | 1 | 2;
+  /** F-231: até 3 produtos grandes no topo (o encarte de mercado usa 3) */
+  destaques: 0 | 1 | 2 | 3;
+  /** F-231: arte da faixa do topo que vem com o modelo de encarte do Studio (quando não há tema da biblioteca escolhido) */
+  faixaArte: { url: string; largura: number; altura: number } | null;
+  /** F-231: sem logo enviada, mostra a caixa "Sua logo aqui" (modelos de encarte) */
+  logoAqui: boolean;
   texto: string;
   elementos: ElementoLivre[];
   observacoes: string;
@@ -143,7 +148,7 @@ export function configPadrao(): ConfigCartaz {
     logoMarcaUrl: null, mostrarLogo: true, fundoLogo: 'branco',
     logoCabecalhoId: null, seloUrl: null, cabecalhoEmTexto: false, temaFotoId: null,
     temaModo: 'cabecalho', boxes: 'inteligente', tamanhoTexto: 'medio', cores: 'inteligente', rodapeEstilo: 'faixa', capa: false,
-    destaques: 0, texto: '', elementos: [], observacoes: '',
+    destaques: 0, faixaArte: null, logoAqui: false, texto: '', elementos: [], observacoes: '',
   };
 }
 
@@ -184,7 +189,11 @@ export function normalizarConfig(bruto: unknown): ConfigCartaz {
   p.cores = um(b.cores, CORES_DO_BOX, 'inteligente');
   p.rodapeEstilo = um(b.rodapeEstilo, ESTILOS_DE_RODAPE, 'faixa');
   p.capa = sim(b.capa, false);
-  p.destaques = b.destaques === 1 || b.destaques === 2 ? b.destaques : 0;
+  p.destaques = b.destaques === 1 || b.destaques === 2 || b.destaques === 3 ? b.destaques : 0;
+  const fa = (b.faixaArte && typeof b.faixaArte === 'object' ? b.faixaArte : null) as Record<string, unknown> | null;
+  p.faixaArte = fa && typeof fa.url === 'string' && /^(https:\/\/|\/)/.test(fa.url) && Number(fa.largura) > 0 && Number(fa.altura) > 0
+    ? { url: fa.url, largura: Number(fa.largura), altura: Number(fa.altura) } : null;
+  p.logoAqui = sim(b.logoAqui, false);
   p.texto = texto(b.texto, 20000);
   p.elementos = Array.isArray(b.elementos) ? (b.elementos as ElementoLivre[]).filter((e) => e && typeof e.url === 'string') : [];
   p.observacoes = texto(b.observacoes, 2000) || (typeof b.validade === 'string' && b.validade ? `Validade anotada no rascunho antigo: ${texto(b.validade, 90)}` : '');
@@ -283,11 +292,18 @@ export function resolverCabecalho(cfg: ConfigCartaz, selos: Selo[] | null): { se
   return { seloUrl: padrao ? padrao.imagem_url : null, semTitulo: false };
 }
 
+/** A arte do topo: o tema escolhido na biblioteca vale mais; senão, a arte que veio com o modelo de encarte (F-231). */
+function arteDoTema(cfg: ConfigCartaz, selos: Selo[] | null): { imagem_url: string; largura: number; altura: number } | null {
+  const foto = resolverImagem(selos, cfg.temaFotoId, 'TEMA');
+  if (foto) return foto;
+  return cfg.faixaArte ? { imagem_url: cfg.faixaArte.url, largura: cfg.faixaArte.largura, altura: cfg.faixaArte.altura } : null;
+}
+
 /** Medidas que dependem das escolhas do cartaz (faixa do tema, rodapé e estilo do box). */
 export function ajusteDoCartaz(c: CartazParaDesenhar, selos: Selo[] | null): AjusteDeMedidas {
   const cfg = c.config;
   const formato = formatoPorId(c.formatoId);
-  const foto = resolverImagem(selos, cfg.temaFotoId, 'TEMA');
+  const foto = arteDoTema(cfg, selos);
   // a faixa do tema entra inteira na largura do cartaz; a altura acompanha a proporção da arte
   const cabecalho = foto && cfg.temaModo === 'cabecalho' && foto.largura > 0 ? formato.largura * (foto.altura / foto.largura) : undefined;
   return { cabecalho, rodape: cfg.rodapeEstilo, boxIdeal: boxIdeal(cfg.boxes) };
@@ -304,12 +320,12 @@ export function propsDasPaginas(c: CartazParaDesenhar, selos: Selo[] | null): Ta
   const ajuste = ajusteDoCartaz(c, selos);
   const paginas = montarPaginas(c.produtos, formato, c.grade, cfg.destaques, linhas, ajuste);
   const cab = resolverCabecalho(cfg, selos);
-  const foto = resolverImagem(selos, cfg.temaFotoId, 'TEMA');
+  const foto = arteDoTema(cfg, selos);
   const naFaixa = !!foto && cfg.temaModo === 'cabecalho';
   const comum = {
     formato, tema, segmento, titulo: cfg.titulo, subtitulo: cfg.regras.mostrarFrase ? cfg.regras.frase : '', validade: '', empresa: '',
     rodape, linhasRodape: linhas, fontes: cfg.fontes,
-    logoUrl: cfg.mostrarLogo ? cfg.logoMarcaUrl : null, fundoLogo: cfg.fundoLogo,
+    logoUrl: cfg.mostrarLogo ? cfg.logoMarcaUrl : null, fundoLogo: cfg.fundoLogo, logoAqui: cfg.mostrarLogo && !cfg.logoMarcaUrl && cfg.logoAqui,
     seloUrl: cab.seloUrl, semTitulo: cab.semTitulo,
     fundoUrl: foto && !naFaixa ? foto.imagem_url : null, faixaUrl: naFaixa ? foto.imagem_url : null,
     ajuste, boxes: cfg.boxes, tamanhoTexto: cfg.tamanhoTexto, rodapeEstilo: cfg.rodapeEstilo,

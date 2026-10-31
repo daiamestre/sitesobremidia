@@ -8,7 +8,7 @@ import { rpcTabloide, tabelaTabloide } from './db';
 import { chaveCanonica } from './chave';
 import { cortarMargens, recortarImagem } from './recorte';
 import { uploadToR2 } from '@/lib/r2Upload';
-import { chaveDoProduto, type FonteImagem, type ImagemProduto, type ProdutoTabloide } from './parseProdutos';
+import { chaveDoProduto, ehNomeDoCodigo, type FonteImagem, type ImagemProduto, type ProdutoTabloide } from './parseProdutos';
 
 export interface CandidatoImagem extends ImagemProduto {
   miniatura: string;
@@ -58,6 +58,19 @@ export async function buscarCandidatos(termo: string): Promise<CandidatoImagem[]
 export interface ImagemCatalogada extends ImagemProduto {
   /** O recorte de fundo já foi tentado nesta foto (com ou sem sucesso): não tenta de novo. */
   recorteTentado?: boolean;
+  /** nome guardado (no código de barras é o nome certo do produto) */
+  nome?: string;
+}
+
+/** F-231: chave do código de barras no catálogo da empresa (a linha guarda o nome certo e a foto do produto). */
+export const chaveDoCodigo = (codigo: string) => chaveCanonica(`codigo ${codigo}`);
+
+/** Produto achado pelo código de barras na base aberta (Open Food Facts e família) ou na Cosmos. */
+export interface ProdutoPorCodigo { codigo: string; nome: string; marca: string; quantidade: string; imagem: string | null; miniatura: string | null; fonte: 'OPENFOODFACTS' | 'COSMOS'; credito: string }
+export async function buscarPorCodigo(codigo: string): Promise<ProdutoPorCodigo | null> {
+  const { data, error } = await supabase.functions.invoke('produto-imagem', { body: { acao: 'codigo', codigo } });
+  if (error) return null;
+  return (data?.produto ?? null) as ProdutoPorCodigo | null;
 }
 
 /** Uma consulta só ao catálogo da empresa: devolve, por chave canônica, a foto já guardada (a preferência do anunciante vale mais). */
@@ -66,12 +79,12 @@ export async function buscarNoCatalogo(nomes: string[]): Promise<Map<string, Ima
   const mapa = new Map<string, ImagemCatalogada>();
   if (!chaves.length) return mapa;
   const { data, error } = await tabelaTabloide('tabloide_catalogo')
-    .select('nome_norm, imagem_url, fonte, credito, cliente_id, recortada, recorte_tentado')
+    .select('nome_norm, nome, imagem_url, fonte, credito, cliente_id, recortada, recorte_tentado')
     .in('nome_norm', chaves);
   if (error || !data) return mapa;
   const linhas = [...(data as any[])].sort((a, b) => (a.cliente_id ? 0 : 1) - (b.cliente_id ? 0 : 1));
   for (const l of linhas) {
-    if (!mapa.has(l.nome_norm)) mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada, recorteTentado: !!l.recorte_tentado });
+    if (!mapa.has(l.nome_norm)) mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada, recorteTentado: !!l.recorte_tentado, nome: l.nome ?? undefined });
   }
   return mapa;
 }
@@ -80,9 +93,11 @@ export async function buscarNoCatalogo(nomes: string[]): Promise<Map<string, Ima
  * Guarda a foto de um produto para a empresa toda (regras no banco: tabloide_catalogo_salvar).
  * AUTO = achada pelo sistema · ESCOLHA = o usuário escolheu entre as opções · UPLOAD = foto enviada (fica só do anunciante).
  */
-export async function salvarNoCatalogo(nome: string, imagem: ImagemProduto, origem: 'AUTO' | 'ESCOLHA' | 'UPLOAD' = 'AUTO', recorteTentado = false): Promise<void> {
-  const chave = chaveCanonica(nome);
+export async function salvarNoCatalogo(nome: string, imagem: ImagemProduto, origem: 'AUTO' | 'ESCOLHA' | 'UPLOAD' = 'AUTO', recorteTentado = false, chaveFixa?: string): Promise<void> {
+  const chave = chaveFixa ?? chaveCanonica(nome);
   if (chave.length < 2) return;
+  // a base (check de fonte) ainda não aceita fotos da Cosmos: elas valem no cartaz, mas não entram no catálogo
+  if (imagem.fonte === 'COSMOS') return;
   await rpcTabloide('tabloide_catalogo_salvar', {
     p_nome: nome.slice(0, 160), p_nome_norm: chave, p_url: imagem.url, p_fonte: imagem.fonte, p_credito: imagem.credito ?? null,
     p_recortada: !!imagem.recortada, p_origem: imagem.fonte === 'UPLOAD' ? 'UPLOAD' : origem, p_recorte_tentado: recorteTentado || !!imagem.recortada,
@@ -167,11 +182,47 @@ export async function completarImagens(
   produtos: ProdutoTabloide[],
   aoAchar: (id: string, imagem: ImagemProduto | null) => void,
   aoSaberNovos?: (nomes: string[]) => void,
+  /** F-231: o código de barras trouxe o nome certo do produto (marca e medida) */
+  aoNomear?: (id: string, nome: string, codigo: string) => void,
 ): Promise<string[]> {
-  const faltam = produtos.filter((p) => !p.imagem);
-  if (!faltam.length) { aoSaberNovos?.([]); return []; }
+  const pendentes = produtos.filter((p) => !p.imagem);
+  if (!pendentes.length) { aoSaberNovos?.([]); return []; }
   const semFoto = new Set<string>();
   const resolver = (id: string, imagem: ImagemProduto | null) => { if (imagem) semFoto.delete(id); else semFoto.add(id); aoAchar(id, imagem); };
+
+  // F-231: código de barras primeiro — o produto EXATO (nome, marca, medida e foto da embalagem).
+  // 1) catálogo da empresa (código já bipado por alguém: instantâneo); 2) base aberta / Cosmos; a foto é recortada e guardada
+  // no catálogo pelo código e pelo nome, para valer para todos.
+  const comCodigo = pendentes.filter((p) => p.codigo);
+  const naBase = new Map<string, { nome: string; imagem: ImagemProduto }>();
+  if (comCodigo.length) {
+    const { data } = await tabelaTabloide('tabloide_catalogo').select('nome_norm, nome, imagem_url, fonte, credito, recortada').in('nome_norm', comCodigo.map((p) => chaveDoCodigo(p.codigo!)));
+    for (const l of (data ?? []) as any[]) naBase.set(l.nome_norm, { nome: String(l.nome ?? ''), imagem: { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada } });
+  }
+  const naoAchados: ProdutoTabloide[] = [];
+  await Promise.all(comCodigo.map(async (p) => {
+    const codigo = p.codigo!;
+    const guardado = naBase.get(chaveDoCodigo(codigo));
+    if (guardado) {
+      if (ehNomeDoCodigo(p) && guardado.nome) aoNomear?.(p.id, guardado.nome, codigo);
+      resolver(p.id, guardado.imagem);
+      return;
+    }
+    const achado = await buscarPorCodigo(codigo).catch(() => null);
+    if (!achado) { naoAchados.push(p); return; }
+    if (ehNomeDoCodigo(p)) aoNomear?.(p.id, achado.nome, codigo);
+    if (!achado.imagem || !(await fotoCarrega(achado.miniatura || achado.imagem))) { naoAchados.push({ ...p, nome: achado.nome, codigo: null }); return; }
+    const bruta: ImagemProduto = { url: achado.imagem, fonte: achado.fonte, credito: achado.credito };
+    resolver(p.id, bruta);
+    const pronta = await prepararImagem(bruta);
+    resolver(p.id, pronta);
+    void salvarNoCatalogo(achado.nome, pronta, 'AUTO', true, chaveDoCodigo(codigo));
+    void salvarNoCatalogo(achado.nome, pronta, 'AUTO', true);
+  }));
+  // código sem cadastro nas bases: segue pela busca por nome (se o cliente escreveu o nome) — senão avisa
+  const faltam = [...pendentes.filter((p) => !p.codigo), ...naoAchados.filter((p) => !ehNomeDoCodigo(p))];
+  naoAchados.filter((p) => ehNomeDoCodigo(p)).forEach((p) => resolver(p.id, null));
+  if (!faltam.length) { aoSaberNovos?.([]); return pendentes.filter((p) => semFoto.has(p.id)).map((p) => p.nome); }
   const catalogo = await buscarNoCatalogo(faltam.map((p) => p.nome));
   const buscar: ProdutoTabloide[] = [];
   const melhorar: Array<{ p: ProdutoTabloide; achada: ImagemCatalogada }> = [];
@@ -224,5 +275,5 @@ export async function completarImagens(
       await salvarNoCatalogo(p.nome, pronta, 'AUTO', true).catch(() => undefined);
     }
   })();
-  return faltam.filter((p) => semFoto.has(p.id)).map((p) => p.nome);
+  return pendentes.filter((p) => semFoto.has(p.id)).map((p) => p.nome);
 }

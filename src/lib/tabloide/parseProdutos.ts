@@ -8,7 +8,7 @@
  *   Pão francês 12,90/kg
  */
 
-export type FonteImagem = 'OPENFOODFACTS' | 'PEXELS' | 'PIXABAY' | 'WIKIMEDIA' | 'OPENVERSE' | 'UPLOAD' | 'IA';
+export type FonteImagem = 'OPENFOODFACTS' | 'PEXELS' | 'PIXABAY' | 'WIKIMEDIA' | 'OPENVERSE' | 'UPLOAD' | 'IA' | 'COSMOS';
 
 export interface ImagemProduto {
   url: string;
@@ -27,7 +27,13 @@ export interface ProdutoTabloide {
   unidade: string | null;
   obs: string | null;
   imagem: ImagemProduto | null;
+  /** F-231: código de barras (EAN/GTIN) lido pela pistola, pela câmera ou digitado — traz o produto exato */
+  codigo?: string | null;
 }
+
+/** Nome provisório de um produto que só tem o código de barras (o nome certo chega da base de produtos). */
+export const nomeDoCodigo = (codigo: string) => `Código ${codigo}`;
+export const ehNomeDoCodigo = (p: Pick<ProdutoTabloide, 'nome' | 'codigo'>) => !!p.codigo && p.nome === nomeDoCodigo(p.codigo);
 
 const UNIDADES: Record<string, string> = {
   kg: 'KG', kilo: 'KG', quilo: 'KG',
@@ -84,6 +90,10 @@ function limparBordas(s: string): string {
 export function lerLinha(linha: string): ProdutoTabloide | null {
   let resto = linha.trim();
   if (!resto) return null;
+  // F-231: código de barras (pistola, câmera ou digitado): 8, 12, 13 ou 14 dígitos seguidos — nunca é preço
+  let codigo: string | null = null;
+  const cod = /(?<![\d.,])(\d{8}|\d{12,14})(?![\d.,])/.exec(resto);
+  if (cod) { codigo = cod[1]; resto = `${resto.slice(0, cod.index)} ${resto.slice(cod.index + cod[0].length)}`.trim(); }
   let preco: number | null = null;
   let precoDe: number | null = null;
   let posFim = -1; // posição logo após o preço (para achar "/kg" colado)
@@ -127,9 +137,9 @@ export function lerLinha(linha: string): ProdutoTabloide | null {
     }
   }
 
-  const nome = limparBordas(resto);
+  const nome = limparBordas(resto) || (codigo ? nomeDoCodigo(codigo) : '');
   if (nome.length < 2) return null;
-  return { id: criarId(), nome, preco, precoDe, unidade, obs: null, imagem: null };
+  return { id: criarId(), nome, preco, precoDe, unidade, obs: null, imagem: null, ...(codigo ? { codigo } : {}) };
 }
 
 export function lerLista(texto: string): ProdutoTabloide[] {
@@ -148,5 +158,5 @@ export function mesclarListas(antiga: ProdutoTabloide[], nova: ProdutoTabloide[]
 /** Volta o produto para uma linha de texto (usado para preencher a caixa de digitação). */
 export function paraLinha(p: ProdutoTabloide): string {
   const preco = p.preco == null ? '' : p.precoDe != null ? ` de ${precoParaTexto(p.precoDe)} por ${precoParaTexto(p.preco)}` : ` R$ ${precoParaTexto(p.preco)}`;
-  return `${p.nome}${p.unidade && p.unidade !== 'UN' ? ` ${p.unidade.toLowerCase()}` : ''}${preco}`.trim();
+  return `${ehNomeDoCodigo(p) ? p.codigo : p.nome}${p.unidade && p.unidade !== 'UN' ? ` ${p.unidade.toLowerCase()}` : ''}${preco}`.trim();
 }

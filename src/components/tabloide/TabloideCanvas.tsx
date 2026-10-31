@@ -13,7 +13,7 @@ import type { Formato, Segmento, Tema } from '@/lib/tabloide/temas';
 import type { ElementoLivre } from '@/lib/tabloide/selos';
 import type { EstiloBox, EstiloRodape, FontesCartaz, FundoLogo, LinhasDoRodape, TamanhoTexto } from '@/lib/tabloide/cartaz';
 
-const NOMES_FONTE: Record<string, string> = { OPENFOODFACTS: 'Open Food Facts', PEXELS: 'Pexels', PIXABAY: 'Pixabay', WIKIMEDIA: 'Wikimedia Commons', OPENVERSE: 'Openverse', IA: 'criadas por IA' };
+const NOMES_FONTE: Record<string, string> = { OPENFOODFACTS: 'Open Food Facts', PEXELS: 'Pexels', PIXABAY: 'Pixabay', WIKIMEDIA: 'Wikimedia Commons', OPENVERSE: 'Openverse', IA: 'criadas por IA', COSMOS: 'Cosmos' };
 const ESCALA_TEXTO: Record<TamanhoTexto, number> = { pequeno: 0.82, medio: 1, grande: 1.2 };
 
 /** Título em texto com volume (usado só quando não há logo 3D para o cabeçalho). */
@@ -273,6 +273,8 @@ export interface TabloideCanvasProps {
   fontes?: FontesCartaz;
   logoUrl?: string | null;
   fundoLogo?: FundoLogo;
+  /** F-231: sem logo, mostra a caixa "Sua logo aqui" no lugar dela */
+  logoAqui?: boolean;
   /** Logo 3D do cabeçalho (PNG transparente). */
   seloUrl?: string | null;
   /** Sem logo e sem título em texto (a foto do tema já traz a arte do cabeçalho). */
@@ -313,7 +315,7 @@ export function TabloideCanvas(p: TabloideCanvasProps) {
   const m = medidasDoFormato(formato, linhas, { ...p.ajuste, rodape: rodapeEstilo });
   const texto = (titulo || segmento.titulo).toUpperCase();
   const horizontal = m.largura > m.altura * 1.15;
-  const logoLado = logoUrl ? Math.min(m.cabecalho * 0.8, m.largura * 0.2) : 0;
+  const logoLado = logoUrl || p.logoAqui ? Math.min(m.cabecalho * 0.8, m.largura * 0.2) : 0;
   const temCabecalho = !!seloUrl || !p.semTitulo;
   // sobre a faixa do tema a arte já traz o título: a frase só entra quando há logo/título por cima
   const mostrarFrase = !!subtitulo && !(p.faixaUrl && p.semTitulo && !seloUrl);
@@ -337,7 +339,11 @@ export function TabloideCanvas(p: TabloideCanvasProps) {
   ) : null;
 
   const fundoDaLogo = p.fundoLogo === 'sem' ? 'transparent' : p.fundoLogo === 'escuro' ? '#111827' : '#fff';
-  const logoDaLoja = (lado: number) => logoUrl ? (
+  const logoDaLoja = (lado: number) => !logoUrl && p.logoAqui ? (
+    <div data-testid="tabloide-logo-aqui" style={{ width: lado, height: lado, flexShrink: 0, borderRadius: lado * 0.14, background: '#fff', border: `${Math.max(3, lado * 0.035)}px solid ${tema.cartaoBorda}`, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', boxShadow: '0 4px 0 rgba(0,0,0,.2)', color: '#111827', fontWeight: 900, fontSize: lado * 0.2, lineHeight: 1.02, padding: lado * 0.06, boxSizing: 'border-box', ...cssDaFonte(fontes.produto) }}>
+      Sua logo aqui
+    </div>
+  ) : logoUrl ? (
     <div data-testid="tabloide-logo-marca" style={{ width: lado, height: lado, flexShrink: 0, borderRadius: p.fundoLogo === 'sem' ? 0 : '50%', background: fundoDaLogo, border: p.fundoLogo === 'sem' ? 'none' : `${Math.max(3, lado * 0.04)}px solid ${tema.cartaoBorda}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: p.fundoLogo === 'sem' ? 'none' : '0 4px 0 rgba(0,0,0,.2)' }}>
       <img src={logoUrl} alt="" crossOrigin="anonymous" referrerPolicy="no-referrer" style={{ width: p.fundoLogo === 'sem' ? '100%' : '78%', height: p.fundoLogo === 'sem' ? '100%' : '78%', objectFit: 'contain' }} />
     </div>

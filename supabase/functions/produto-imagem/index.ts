@@ -7,6 +7,7 @@
  * Só entra foto cuja descrição/etiqueta tem relação com o que foi digitado.
  * O JWT é verificado pelo gateway do Supabase (função publicada COM verificação).
  */
+import { codigoValido, nomeDoProduto, norm, respeitarMarcaEMedida } from './regras.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -14,8 +15,6 @@ const cors = {
 };
 
 type Candidato = { url: string; miniatura: string; fonte: 'OPENFOODFACTS' | 'PEXELS' | 'PIXABAY' | 'WIKIMEDIA' | 'OPENVERSE'; credito: string; legenda: string; conferido?: boolean };
-
-const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Palavras que dizem o que é o produto (tira peso, volume, marca de quantidade). */
 function palavras(termo: string): string[] {
@@ -37,6 +36,7 @@ function relacionado(legenda: string, ps: string[]): boolean {
 function medidas(termo: string): string[] {
   return [...norm(termo).matchAll(/(\d+(?:[.,]\d+)?)\s*(kg|g|gr|ml|l|lt|mg)\b/g)].map((m) => m[1].replace(',', '.') + (m[2] === 'lt' ? 'l' : m[2] === 'gr' ? 'g' : m[2]));
 }
+
 
 /**
  * Nota de semelhança entre o que foi digitado e o nome do produto do catálogo (sem a marca).
@@ -69,19 +69,20 @@ async function comTempo<T>(p: Promise<T>, ms: number): Promise<T | null> {
 /** Busca rápida do Open Food Facts (serviço novo de pesquisa): responde em menos de 1 s e não trava como a busca antiga. */
 async function buscaRapida(termo: string, ps: string[]): Promise<Candidato[]> {
   const q = `${termo} countries_tags:"en:brazil"`;
-  const url = `https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&page_size=24&langs=pt&fields=product_name,brands,image_front_url,image_front_small_url`;
+  const url = `https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&page_size=24&langs=pt&fields=product_name,brands,quantity,image_front_url,image_front_small_url`;
   const r = await fetch(url, { headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0 (contato@sobremidia.com.br)' } });
   if (!r.ok) return [];
   const j = await r.json().catch(() => null);
   const texto = (v: unknown) => (Array.isArray(v) ? v.join(' ') : String(v ?? ''));
-  const achados: Array<{ c: Candidato; n: number }> = [];
+  const brutos: Array<{ c: Candidato; n: number; nome: string; marcas: string }> = [];
   for (const p of j?.hits ?? []) {
     const produto = texto(p.product_name).trim();
-    const n = nota(produto, termo, ps);
+    const n = nota(`${produto} ${texto(p.quantity)}`, termo, ps);
     if (!p.image_front_url || n <= 0) continue;
     const nome = `${produto} ${texto(p.brands)}`.trim();
-    achados.push({ n, c: { url: p.image_front_url, miniatura: p.image_front_small_url || p.image_front_url, fonte: 'OPENFOODFACTS', credito: 'Open Food Facts (CC BY-SA)', legenda: nome.slice(0, 80) } });
+    brutos.push({ n, nome: `${produto} ${texto(p.quantity)}`, marcas: texto(p.brands), c: { url: p.image_front_url, miniatura: p.image_front_small_url || p.image_front_url, fonte: 'OPENFOODFACTS', credito: 'Open Food Facts (CC BY-SA)', legenda: nome.slice(0, 80) } });
   }
+  const achados = respeitarMarcaEMedida(termo, ps, brutos);
   achados.sort((a, b) => b.n - a.n);
   // só ficam os parecidos de verdade: quem apenas cita a palavra no meio do nome ("chocolate ao leite") sai
   const corte = Math.max(3, (achados[0]?.n ?? 0) * 0.6);
@@ -94,7 +95,7 @@ const CATALOGOS = ['world.openfoodfacts.org', 'world.openbeautyfacts.org', 'worl
 async function openFoodFacts(termo: string, ps: string[], host = CATALOGOS[0]): Promise<Candidato[]> {
   const url =
     `https://${host}/cgi/search.pl?` + 'search_simple=1&action=process&json=1&page_size=12' +
-    '&fields=product_name,brands,image_front_url,image_front_small_url&tagtype_0=countries&tag_contains_0=contains&tag_0=brazil' +
+    '&fields=product_name,brands,quantity,image_front_url,image_front_small_url&tagtype_0=countries&tag_contains_0=contains&tag_0=brazil' +
     `&search_terms=${encodeURIComponent(termo)}`;
   // o Open Food Facts às vezes responde com página de erro; tenta de novo uma vez
   let j: any = null;
@@ -104,9 +105,10 @@ async function openFoodFacts(termo: string, ps: string[], host = CATALOGOS[0]): 
   }
   if (!j) return [];
   const out: Candidato[] = [];
-  const ordenados = [...(j?.products ?? [])]
-    .map((p: any) => ({ p, n: nota(String(p.product_name ?? ''), termo, ps) }))
-    .filter((x) => x.n > 0)
+  const pontuados = [...(j?.products ?? [])]
+    .map((p: any) => ({ p, n: nota(`${p.product_name ?? ''} ${p.quantity ?? ''}`, termo, ps), nome: `${p.product_name ?? ''} ${p.quantity ?? ''}`, marcas: String(p.brands ?? '') }))
+    .filter((x) => x.n > 0);
+  const ordenados = respeitarMarcaEMedida(termo, ps, pontuados)
     .sort((a, b) => b.n - a.n)
     .map((x) => x.p);
   for (const p of ordenados) {
@@ -246,11 +248,49 @@ async function gerarPorIA(req: Request, termo: string): Promise<{ imagem?: strin
   return { imagem: j.image, traduzido: j.nome } as { imagem: string };
 }
 
+/** Produto achado pelo código de barras (EAN/GTIN): nome completo com marca e medida + foto da embalagem. */
+interface ProdutoPorCodigo { codigo: string; nome: string; marca: string; quantidade: string; imagem: string | null; miniatura: string | null; fonte: 'OPENFOODFACTS' | 'COSMOS'; credito: string }
+
+/**
+ * F-231: leitura por código de barras (pistola USB/Bluetooth ou câmera do tablet).
+ * 1) as 4 bases abertas da família Open Food Facts (alimentos, beleza, pet, produtos em geral), de graça;
+ * 2) Cosmos (Bluesoft, a maior base brasileira de GTIN) quando o segredo COSMOS_TOKEN tiver franquia de API.
+ * O site guarda o resultado no catálogo da empresa: o próximo bipe do mesmo código é instantâneo.
+ */
+async function porCodigo(codigo: string): Promise<ProdutoPorCodigo | null> {
+  for (const host of CATALOGOS) {
+    const r = await comTempo(fetch(`https://${host}/api/v2/product/${codigo}.json?fields=product_name,product_name_pt,brands,quantity,image_front_url,image_front_small_url`, { headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0 (contato@sobremidia.com.br)' } }), 8000).catch(() => null);
+    const j = r && r.ok ? await r.json().catch(() => null) : null;
+    const p = j?.status === 1 ? j.product : null;
+    const nome = String(p?.product_name_pt || p?.product_name || '').trim();
+    if (p && nome) {
+      return { codigo, nome: nomeDoProduto(nome, String(p.brands ?? ''), String(p.quantity ?? '')), marca: String(p.brands ?? '').split(',')[0]?.trim() ?? '', quantidade: String(p.quantity ?? ''),
+        imagem: p.image_front_url ?? null, miniatura: p.image_front_small_url ?? p.image_front_url ?? null, fonte: 'OPENFOODFACTS', credito: 'Open Food Facts (CC BY-SA)' };
+    }
+  }
+  const token = Deno.env.get('COSMOS_TOKEN');
+  if (token) {
+    const r = await comTempo(fetch(`https://api.cosmos.bluesoft.com.br/gtins/${codigo}.json`, { headers: { 'X-Cosmos-Token': token, 'User-Agent': 'Cosmos-API-Request', 'Content-Type': 'application/json' } }), 8000).catch(() => null);
+    const p = r && r.ok ? await r.json().catch(() => null) : null;
+    if (p?.description) {
+      const qtd = p.net_weight ? `${p.net_weight}${p.gtins?.[0]?.commercial_unit?.type_packaging === 'Litro' ? 'l' : 'g'}` : '';
+      return { codigo, nome: nomeDoProduto(String(p.description), String(p.brand?.name ?? ''), ''), marca: String(p.brand?.name ?? ''), quantidade: qtd,
+        imagem: p.thumbnail ?? null, miniatura: p.thumbnail ?? null, fonte: 'COSMOS', credito: 'Cosmos Bluesoft' };
+    }
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const json = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
   try {
-    const { termo, acao } = await req.json();
+    const { termo, acao, codigo } = await req.json();
+    if (acao === 'codigo') {
+      const c = String(codigo ?? '').replace(/\D/g, '');
+      if (!codigoValido(c)) return json({ produto: null, motivo: 'Código de barras inválido.' });
+      return json({ produto: await porCodigo(c) });
+    }
     const t = String(termo ?? '').trim().slice(0, 80);
     if (t.length < 2) return json({ candidatos: [] });
     if (acao === 'gerar') return json(await gerarPorIA(req, t));

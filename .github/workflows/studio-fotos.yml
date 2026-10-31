@@ -62,3 +62,31 @@ jobs:
           if git diff --cached --quiet; then echo "nenhuma foto nova (cota do dia)"; exit 0; fi
           git commit -m "feat(studio): fotos novas das pastas de modelos geradas pela IA da Cloudflare da SOBRE MÍDIA (F-221)"
           git push origin HEAD:main
+      # F-231 — artes da faixa dos ENCARTES de mercado: os agentes do Creative Core planejam e a IA da Cloudflare cria.
+      # Sem cota, o encarte segue com a faixa nas cores do tema; tenta de novo no próximo ciclo (3 h).
+      - name: Faltam artes dos encartes?
+        id: encartes
+        run: |
+          total=$(grep -c "{ id: 'encarte-" src/lib/tabloide/encartes.ts || true)
+          prontas=$(grep -c "^  'encarte-" src/lib/tabloide/encartes-artes.ts || true)
+          echo "faltam=$((total - prontas))" >> "$GITHUB_OUTPUT"
+          echo "artes de encarte: $prontas de $total"
+      - name: Artes dos encartes (Creative Core + IA da Cloudflare)
+        if: steps.encartes.outputs.faltam != '0'
+        env:
+          TABLOIDE_IA_URL: ${{ secrets.TABLOIDE_IA_URL }}
+          TABLOIDE_IA_SEGREDO: ${{ secrets.TABLOIDE_IA_SEGREDO }}
+        run: |
+          git pull --ff-only origin main || true
+          if [ ! -e node_modules/sharp ]; then
+            mkdir -p /tmp/sharp && (cd /tmp/sharp && npm init -y >/dev/null && npm install --no-audit --no-fund sharp@0.34.5)
+            [ -L node_modules ] && rm node_modules; [ -e node_modules ] || ln -s /tmp/sharp/node_modules node_modules
+          fi
+          node scripts/studio/gerar-artes-encartes.mjs || true
+          [ -L node_modules ] && rm node_modules || true
+          git config user.name "sobremidia-robo"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/studio/encartes src/lib/tabloide/encartes-artes.ts docs/studio/creative-core/encartes-planos.json 2>/dev/null || true
+          if git diff --cached --quiet; then echo "nenhuma arte nova (cota do dia)"; exit 0; fi
+          git commit -m "feat(studio): artes dos encartes de mercado — Creative Core + IA da Cloudflare da SOBRE MÍDIA (F-231)"
+          git push origin HEAD:main

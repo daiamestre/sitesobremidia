@@ -22,7 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
-  chaveDoProduto, lerLista, mesclarListas, paraLinha, precoParaTexto, lerValor, UNIDADES_DISPONIVEIS,
+  chaveDoProduto, lerLinha, lerLista, mesclarListas, paraLinha, precoParaTexto, lerValor, UNIDADES_DISPONIVEIS,
   type ImagemProduto, type ProdutoTabloide,
 } from '@/lib/tabloide/parseProdutos';
 import { FORMATOS, USOS_DO_FORMATO, formatoPorId, segmentoPorId, temasDoSegmento, type SegmentoId } from '@/lib/tabloide/temas';
@@ -38,7 +38,9 @@ import { gerarPngsDoCartaz, listarCartazes, NOME_PADRAO, publicarNoPortal, salva
 import { carregarFonte } from '@/lib/tabloide/fontes';
 import { aplicarPerfil, carregarPerfil, perfilDoCartaz, salvarPerfil, salvarPortal, type PerfilDaLoja, type PortalDaLoja } from '@/lib/tabloide/perfil';
 import { ajustarElemento, duplicarElemento, ehCentral, listarSelos, novoElemento, type ElementoLivre, type Selo } from '@/lib/tabloide/selos';
+import { ENCARTE_FORMATO, ENCARTE_GRADE, configDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
 import { TabloideCanvas } from './TabloideCanvas';
+import { LeitorDeCodigo } from './LeitorDeCodigo';
 import { PainelTemas } from './PainelTemas';
 import { PainelDatas, PainelEmpresa, PainelEncarte, PainelFontes, PainelLogo, PainelPortal, PainelPostar } from './PaineisCartaz';
 import { MeusCartazes } from './MeusCartazes';
@@ -49,6 +51,8 @@ export interface TabloideEditorProps {
   empresaPadrao?: string;
   logoPadrao?: string | null;
   segmentoPadrao?: string | null;
+  /** F-231: abre já montado com um modelo de ENCARTE do SOBRE MÍDIA Studio (o cliente troca produtos, nomes e preços) */
+  encarte?: ModeloDeEncarte | null;
 }
 
 /** O menu lateral, na mesma ordem dos criadores de encarte. */
@@ -88,9 +92,9 @@ function Opcao({ rotulo, children }: { rotulo: string; children: React.ReactNode
   return <label className="flex shrink-0 flex-col gap-1 text-xs font-semibold">{rotulo}:{children}</label>;
 }
 
-export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '', logoPadrao = null, segmentoPadrao = null }: TabloideEditorProps) {
+export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '', logoPadrao = null, segmentoPadrao = null, encarte = null }: TabloideEditorProps) {
   const { user } = useAuth();
-  const segInicial = useMemo(() => segmentoDoCadastro(segmentoPadrao), [segmentoPadrao]);
+  const segInicial = useMemo(() => encarte?.segmento ?? segmentoDoCadastro(segmentoPadrao), [segmentoPadrao, encarte]);
 
   const perfil = useRef<PerfilDaLoja>({});
   /** Cartaz em branco: padrão do sistema + o que a loja já deixou guardado (dados, fontes, logo). */
@@ -118,12 +122,13 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     return () => window.removeEventListener('resize', medir);
   }, []);
   const [segmentoId, setSegmentoId] = useState<SegmentoId>(segInicial);
-  const [temaId, setTemaId] = useState<string>(() => temasDoSegmento(segInicial)[0]?.id ?? 'ofertao');
-  const [formatoId, setFormatoId] = useState<string>('tv-h');
-  const [grade, setGrade] = useState<string>('auto');
-  const [produtos, setProdutos] = useState<ProdutoTabloide[]>([]);
-  const [cfg, setCfg] = useState<ConfigCartaz>(() => cfgNovo(segInicial));
-  const [nome, setNome] = useState(NOME_PADRAO);
+  const [temaId, setTemaId] = useState<string>(() => encarte?.temaId ?? temasDoSegmento(segInicial)[0]?.id ?? 'ofertao');
+  const [formatoId, setFormatoId] = useState<string>(encarte ? ENCARTE_FORMATO : 'tv-h');
+  const [grade, setGrade] = useState<string>(encarte ? ENCARTE_GRADE : 'auto');
+  // F-231: o encarte do Studio chega montado, com os produtos de exemplo já na lista (o cliente troca nomes e preços)
+  const [produtos, setProdutos] = useState<ProdutoTabloide[]>(() => (encarte ? lerLista(encarte.produtos) : []));
+  const [cfg, setCfg] = useState<ConfigCartaz>(() => (encarte ? configDoEncarte(encarte, cfgNovo(segInicial)) : cfgNovo(segInicial)));
+  const [nome, setNome] = useState(encarte ? encarte.nome.replace(/ – Encarte Grande$/, '') : NOME_PADRAO);
   const [cartazId, setCartazId] = useState<string | null>(null);
   const [publicado, setPublicado] = useState(false);
   const [selos, setSelos] = useState<Selo[] | null>(null);
@@ -241,12 +246,36 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
         novos,
         (id, imagem) => { if (imagem) setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, imagem } : p))); },
         (nomesNovos) => { setNovosBuscando(nomesNovos); },
+        // F-231: o código de barras trouxe o nome certo (marca e medida): a lista e a caixa de texto passam a mostrá-lo
+        (id, nomeCerto, codigo) => {
+          setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, nome: nomeCerto } : p)));
+          setCfg((c) => ({ ...c, texto: c.texto.split('\n').map((l) => (l.includes(codigo) ? l.replace(codigo, nomeCerto) : l)).join('\n') }));
+        },
       );
       if (semFoto.length) toast.info(`Sem foto automática: ${semFoto.join(', ')}. Clique na foto do produto para escolher ou enviar a sua.`, { duration: 9000 });
     } finally {
       setNovosBuscando([]);
     }
   }, []);
+
+  // F-231: o encarte do Studio abre com os produtos de exemplo: as fotos vêm do catálogo/busca, como num cartaz montado
+  const fotosDoEncarte = useRef(false);
+  useEffect(() => {
+    if (!encarte || fotosDoEncarte.current) return;
+    fotosDoEncarte.current = true;
+    void procurarFotos(produtos);
+  }, [encarte, procurarFotos, produtos]);
+
+  /** F-231: produto lido pela pistola/câmera entra na lista na hora (o preço o cliente digita depois). */
+  const adicionarCodigo = (codigo: string) => {
+    if (produtos.some((p) => p.codigo === codigo)) { toast.info('Este produto já está no cartaz.'); return; }
+    const p = lerLinha(codigo);
+    if (!p) return;
+    mexeu.current = true;
+    setCfg((c) => ({ ...c, texto: `${c.texto.trimEnd()}${c.texto.trim() ? '\n' : ''}${codigo}` }));
+    setProdutos((atual) => [...atual, p]);
+    void procurarFotos([p]);
+  };
 
   const montarCartaz = () => {
     const lidos = lerLista(cfg.texto);
@@ -562,7 +591,8 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
                   <Button onClick={montarCartaz} data-testid="tabloide-montar"><Wand2 className="mr-1 h-4 w-4" /> Montar cartaz</Button>
                   <Button variant="outline" onClick={() => mudar({ texto: segmento.exemplo })} type="button">Usar exemplo de {segmento.nome.toLowerCase()}</Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Aceita: <i>Arroz 5kg 25,90</i> · <i>Picanha kg R$ 49,90</i> · <i>Leite de 6,50 por 4,99</i></p>
+                <p className="text-xs text-muted-foreground">Aceita: <i>Arroz 5kg 25,90</i> · <i>Picanha kg R$ 49,90</i> · <i>Leite de 6,50 por 4,99</i> · <i>7894900027013 9,99</i> (código de barras)</p>
+                <LeitorDeCodigo aoLer={adicionarCodigo} />
                 {buscandoFotos && <p className="flex items-center gap-2 text-sm text-primary" data-testid="tabloide-procurando"><Loader2 className="h-4 w-4 animate-spin" /> Produto novo para o sistema: procurando a foto de {novosBuscando.length === 1 ? novosBuscando[0] : `${novosBuscando.length} produtos`}…</p>}
 
                 {produtos.length > 0 && (
@@ -641,8 +671,8 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
                 </select>
               </Opcao>
               <Opcao rotulo="Destaques">
-                <select aria-label="Produtos em destaque" className={CAIXA} value={cfg.destaques} onChange={(e) => mudar({ destaques: Number(e.target.value) as 0 | 1 | 2 })} data-testid="tabloide-destaques">
-                  <option value={0}>Nenhum</option><option value={1}>1 produto</option><option value={2}>2 produtos</option>
+                <select aria-label="Produtos em destaque" className={CAIXA} value={cfg.destaques} onChange={(e) => mudar({ destaques: Number(e.target.value) as 0 | 1 | 2 | 3 })} data-testid="tabloide-destaques">
+                  <option value={0}>Nenhum</option><option value={1}>1 produto</option><option value={2}>2 produtos</option><option value={3}>3 produtos</option>
                 </select>
               </Opcao>
               <Opcao rotulo="Gerar capa">

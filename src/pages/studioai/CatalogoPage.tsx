@@ -5,6 +5,7 @@ import {
   Percent, Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
 import { Carrossel, TvEmLoop } from '@/components/studio/Vitrines';
+import { EncartesDoStudio } from '@/components/studio/EncartesDoStudio';
 import '@/components/studio/studio-efeitos.css';
 import { intercalarPorSegmento } from '@/lib/studio/miniaturas';
 import type { FormatoDoc } from '@/lib/studio/documento';
@@ -140,6 +141,9 @@ export default function CatalogoPage() {
           <Carrossel modelos={vitrineV} formato="9:16" direcao={1} largura={118} rotulo="Modelos em 9:16" />
         </section>
       )}
+
+      {/* ── F-231: encartes de mercado (o editor do Cartaz Digital dentro do Studio) */}
+      {(filtro.segmentos.length === 0 || filtro.segmentos.includes('supermercados')) && !filtro.busca && <EncartesDoStudio />}
 
       {/* ── filtros: grade que se ajusta sozinha à largura (nunca quebra o texto) */}
       <div id="modelos" className="scroll-mt-24 space-y-2 rounded-xl border border-white/5 bg-[#12052b] p-2.5">

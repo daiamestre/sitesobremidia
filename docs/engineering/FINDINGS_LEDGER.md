@@ -2717,3 +2717,35 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `src/tests/unit/studioMenuECapas230.test.ts`;
   - 6 testes antigos de menu apontados para a fonte única, com as mesmas exigências;
   - no navegador (conta de teste): menu do Studio com 30 itens; cartão "Academia – Fitness" trocou de arte depois de 8 s; o vídeo das pastas da galeria está tocando (`paused=false`, `readyState=4`).
+
+### F-231 — Encartes de mercado no Studio + fotos reais com marca/medida + leitor de código de barras — FEITO
+
+- **Pedido do dono (31/10/2026):**
+  - encartes de mercado com a estrutura das referências (QR Ofertas) dentro dos modelos do Studio, editáveis com as opções do Cartaz Digital;
+  - consertar as fotos de produto (marca, litros e kg certos);
+  - 3 possibilidades de leitor de código de barras;
+  - agentes + segmentos + Cloudflare primeiro.
+- **Encartes:**
+  - `src/lib/tabloide/encartes.ts`: 12 modelos;
+  - `EncartesDoStudio` no início do Studio;
+  - `/studio/encarte/:id` → `TabloideEditor` com `encarte` (mesmo editor do Cartaz Digital, nada paralelo).
+- **Motor do Cartaz Digital** (vale para o painel e o portal):
+  - destaques até 3;
+  - `faixaArte` (arte do modelo na faixa);
+  - `logoAqui` (caixa "Sua logo aqui").
+- **Arte própria:**
+  - `scripts/studio/gerar-artes-encartes.mjs`: Creative Core planeja (`planejarComCore`) → Cloudflare cria (Lucid Origin 1536 × 512 / FLUX);
+  - sem cota, sai a faixa nas cores do tema; o robô `studio-fotos.yml` tenta a cada 3 h;
+  - Gemini (cota de imagem zero) e Pollinations (marca d'água) foram testados e descartados.
+- **Fotos de produto** (`supabase/functions/produto-imagem/regras.ts`, publicada):
+  - medida, marca e tipo do produto valem como regra (5 kg ≠ 1 kg; 1 L = 1000 ml; soja ≠ algodão);
+  - ação `codigo`: Open Food Facts ×4 + Cosmos (sem franquia hoje).
+- **Leitor de código de barras:**
+  - `LeitorDeCodigo` (pistola USB/Bluetooth e câmera via `BarcodeDetector`);
+  - código na lista vira produto (nunca preço);
+  - nome e foto guardados no catálogo pela chave `codigo <EAN>` (sem migração).
+- **Provas:**
+  - `src/tests/unit/encartesProdutos231.test.tsx` (12);
+  - função em produção: 4 códigos reais e 8 buscas por nome;
+  - navegador: 12 encartes no Studio; "Promoção de Inverno" abriu com 14/15 fotos; o bipe de 7891000100103 trouxe "Leite Condensado Integral Moça Nestlé 395g" com foto, guardado no catálogo.
+- **Documento:** `docs/studio/ENCARTES_E_FOTOS_DE_PRODUTO.md`.

@@ -111,7 +111,7 @@ function posicionarGrade(itens: ProdutoTabloide[], cols: number, rows: number, x
 }
 
 function montarPagina(itens: ProdutoTabloide[], m: Medidas, gradeId: string, destaques: number, ideal?: [number, number]): PaginaLayout {
-  const d = Math.min(destaques, itens.length, 2);
+  const d = Math.min(destaques, itens.length, 3);
   const top = itens.slice(0, d);
   const resto = itens.slice(d);
   const fixa = parseGrade(gradeId);
@@ -142,7 +142,7 @@ export function montarPaginas(produtos: ProdutoTabloide[], formato: Pick<Formato
   const m = medidasDoFormato(formato, linhasRodape, ajuste);
   if (!produtos.length) return [{ celulas: [], cols: 1, rows: 1 }];
   const fixa = parseGrade(gradeId);
-  const porPagina = fixa ? Math.max(1, fixa.cols * fixa.rows + Math.min(destaques, 2)) : LIMITE_AUTO + Math.min(destaques, 2);
+  const porPagina = fixa ? Math.max(1, fixa.cols * fixa.rows + Math.min(destaques, 3)) : LIMITE_AUTO + Math.min(destaques, 3);
   const paginas = Math.ceil(produtos.length / porPagina);
   const tamanho = Math.ceil(produtos.length / paginas); // páginas equilibradas
   const out: PaginaLayout[] = [];
