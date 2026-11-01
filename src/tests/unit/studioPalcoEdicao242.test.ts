@@ -42,10 +42,7 @@ describe('movimento e tempo do palco', () => {
   });
   it('o botão fica com o texto centrado na caixa dele', () => {
     const d = palcoDoProduto(produto, '16:9', { fundo });
-    const b = d.camadas.find((x) => x.nome === 'Botão')!, t = d.camadas.find((x) => x.nome === 'Botão — texto')!;
-    expect(t).toMatchObject({ alinhamento: 'center' });
-    expect(t.x + t.w / 2).toBeCloseTo(b.x + b.w / 2, 3);
-    expect(t.y + t.h / 2).toBeCloseTo(b.y + b.h / 2, 3);
+    expect(d.camadas.find((x) => x.nome === 'Botão')).toMatchObject({ alinhamento: 'center', fundo: { cheio: true } });
   });
 });
 
@@ -67,7 +64,7 @@ describe('as telas', () => {
   const palco = fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8');
   const painel = fs.readFileSync('src/components/studio/ProdutosComFotos.tsx', 'utf8');
   it('o palco tem a edição do produto, tocar no nome/preço/foto, a fila, e o movimento', () => {
-    expect(palco).toMatch(/<PalcoEditavel /);
+    expect(palco).toMatch(/<PalcoDoEditor /);
     for (const c of ['palco-nome', 'palco-promocao', 'palco-preco', 'palco-trocar-foto', 'palco-fila', 'palco-mov-transicao']) expect(palco, c).toContain(c);
   });
   it('"Seus produtos" começa fechado, com exemplos, e a foto escolhida é gravada no catálogo', () => {
@@ -83,6 +80,6 @@ describe('as telas', () => {
   it('todo texto e balão centraliza pela medida real da letra', () => {
     const d = fs.readFileSync('src/lib/studio/desenhar.ts', 'utf8');
     expect(d).toMatch(/measureText\('H'\)\.actualBoundingBoxAscent/);
-    expect(d).toMatch(/textosDoSelo\(ctx, c, r \* 0\.96, false\)/);
+    expect(d).toMatch(/const arr = arranjoDoBalao\(/);
   });
 });

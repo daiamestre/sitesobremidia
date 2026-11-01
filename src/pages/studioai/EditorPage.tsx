@@ -22,6 +22,10 @@ import { documentoParaVideo, formatoDeVideo, type VideoGravado } from '@/lib/stu
 import type { PastaDaGaleria } from '@/lib/galeria';
 import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
 import { lerArtePronta } from '@/lib/studio/artePronta';
+import { EscolherLogo } from '@/components/studio/PastaDeLogos';
+import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
+import { prepararImagem, salvarNoCatalogo } from '@/lib/tabloide/imagens';
+import type { ImagemProduto } from '@/lib/tabloide/parseProdutos';
 import { modeloPorId, type ModeloDeArte } from '@/lib/studio/modelos';
 import { acharModelo } from '@/lib/studio/pastas';
 import { SEGMENTOS, type SegmentoId } from '@/lib/studio/catalogo';
@@ -75,6 +79,12 @@ export default function EditorPage() {
   const [publicando, setPublicando] = useState<false | 'arte' | 'video'>(false);
   // F-225: animação e vídeo
   const [tocando, setTocando] = useState(false);
+  // F-249: ao escolher um movimento, o elemento repete o movimento 2 vezes e depois a arte inteira toca
+  const [demo, setDemo] = useState<{ id: string; ciclo: number } | null>(null);
+  const fimDoDemo = useRef<ReturnType<typeof setTimeout>>();
+  const [trocandoLogo, setTrocandoLogo] = useState(false);
+  // F-250: trocar o produto do encarte: lista de produtos, foto da galeria ou criar com IA, no tamanho do produto trocado
+  const [trocandoProduto, setTrocandoProduto] = useState<string | null>(null);
   const [gravando, setGravando] = useState<number | null>(null);
   const [videoPronto, setVideoPronto] = useState<{ v: VideoGravado; url: string; formato: FormatoDoc } | null>(null);
   const [novoModelo, setNovoModelo] = useState<{ nome: string; segmento: SegmentoId; pasta: string } | null>(null);
@@ -162,7 +172,15 @@ export default function EditorPage() {
   const mudarFundo = (cor: string) => { lembrar(); setDocs((ds) => ds && Object.fromEntries(Object.entries(ds).map(([k, d]) => [k, { ...d!, fundo: cor }])) as Docs); };
   // mudança pelo painel: cada alteração pode ser desfeita (agrupa digitação rápida em um passo)
   const ultimoPainel = useRef(0);
-  const mudarPeloPainel = (id: string, p: Partial<Camada>) => { const agora = Date.now(); if (agora - ultimoPainel.current > 800) lembrar(); ultimoPainel.current = agora; mudarCamada(id, p); };
+  const mudarPeloPainel = (id: string, p: Partial<Camada>) => {
+    const agora = Date.now(); if (agora - ultimoPainel.current > 800) lembrar(); ultimoPainel.current = agora; mudarCamada(id, p);
+    if (p.animacao) {
+      const ciclo = Math.max(1.4, 0.2 + p.animacao.duracao + 0.5);
+      setDemo({ id, ciclo }); setTocando(false);
+      clearTimeout(fimDoDemo.current);
+      fimDoDemo.current = setTimeout(() => { setDemo(null); setTocando(true); }, 2 * (ciclo + 0.35) * 1000);
+    }
+  };
 
   const desfazer = useCallback(() => { const a = passado.current.pop(); if (!a || !docs) return; futuro.current.push(clonar(docs)); setDocs(a); setVersao((v) => v + 1); }, [docs]);
   const refazer = useCallback(() => { const a = futuro.current.pop(); if (!a || !docs) return; passado.current.push(clonar(docs)); setDocs(a); setVersao((v) => v + 1); }, [docs]);
@@ -236,6 +254,23 @@ export default function EditorPage() {
 
   // ── F-225: vídeo da arte animada
   const maxVideo = saldo.data?.cliente ? 20 : 30; // anunciante: até 20 s (regra das mídias dele); equipe: até 30 s
+  // F-250: o nome do produto é a camada irmã ("Produto 3" → "Nome do produto 3"); a moldura da foto não muda
+  const produtoEmTroca = doc.camadas.find((c) => c.id === trocandoProduto) ?? null;
+  const nomeDoProduto = (c: Camada) => { const n = c.nome.replace(/^Produto/, 'Nome do produto'); const t = doc.camadas.find((x) => x.nome === n); return t?.tipo === 'texto' ? t : null; };
+  const trocarProduto = async (c: Camada, img: ImagemProduto, termo: string) => {
+    setTrocandoProduto(null);
+    lembrar();
+    mudarCamada(c.id, { src: img.url, ajuste: 'conter' } as Partial<Camada>);
+    const nomeAtual = nomeDoProduto(c);
+    const nome = termo.trim() || nomeAtual?.texto || '';
+    if (nomeAtual && nome !== nomeAtual.texto) mudarCamada(nomeAtual.id, { texto: nome } as Partial<Camada>);
+    try {
+      // tira o fundo e guarda: da próxima vez que este produto entrar, a foto volta sozinha
+      const pronta = await prepararImagem(img);
+      if (pronta.url !== img.url) mudarCamada(c.id, { src: pronta.url } as Partial<Camada>);
+      if (nome) await salvarNoCatalogo(nome, pronta, 'ESCOLHA', true);
+    } catch { /* a arte já foi atualizada */ }
+  };
   const pastaGaleria: PastaDaGaleria = pronta?.pasta ?? {
     chave: base.pasta ?? base.id,
     nome: catalogo.pastas.find((p) => p.capa.id === (base.pasta ?? base.id))?.capa.nome ?? base.nome,
@@ -357,6 +392,8 @@ export default function EditorPage() {
   // ações diretas do elemento escolhido (sem cartão): trocar/espelhar foto, duplicar, travar e LIXEIRA
   const acoes: { n: string; I: typeof Type; f: () => void; perigo?: boolean; ativo?: boolean; id: string }[] = camadaSel ? [
     ...(camadaSel.tipo === 'imagem' ? [
+      ...(/logo/i.test(camadaSel.nome) ? [{ id: 'logo', n: 'Trocar logo', I: ImagePlus, f: () => setTrocandoLogo(true) }] : []),
+      ...(/^Produto( \d+)?$/.test(camadaSel.nome) ? [{ id: 'produto', n: 'Trocar produto', I: ImagePlus, f: () => setTrocandoProduto(camadaSel.id) }] : []),
       { id: 'trocar', n: 'Trocar foto', I: ImagePlus, f: () => pedirFoto('trocar') },
       { id: 'espelhar', n: 'Espelhar', I: FlipHorizontal, ativo: camadaSel.espelhar, f: () => mudarPeloPainel(camadaSel.id, { espelhar: !camadaSel.espelhar } as Partial<Camada>) },
     ] : []),
@@ -412,7 +449,7 @@ export default function EditorPage() {
         <div className={cn('min-w-0 rounded-2xl border border-[#8A2EFF]/30 bg-[#0a031c] px-6 pb-14 pt-12 shadow-[0_0_40px_rgba(93,27,255,0.25)]', vertical ? 'sm:px-8' : 'sm:px-10')}>
           <div className="mx-auto [--lv:62vw] sm:[--lv:40vw] lg:[--lv:30vw]"
             style={vertical ? { width: 'min(var(--lv), calc((100dvh - 260px) * 0.5625), 400px)' } : { maxWidth: 'calc((100dvh - 330px) * 1.7778)', minWidth: 240 }}>
-            <Palco doc={doc} animar={tocando} sel={sel} onSelecionar={(id) => { if (id) setTocando(false); setSel(id); }} onInicio={lembrar} onMudar={mudarCamada} onApagar={apagar} onDuplicar={duplicar}
+            <Palco doc={demo ? { ...doc, camadas: doc.camadas.map((c) => (c.id === demo.id ? { ...c, animacao: c.animacao ? { ...c.animacao, atraso: 0.2 } : null } : { ...c, animacao: null })) } : doc} animar={tocando || !!demo} ciclo={demo?.ciclo} sel={sel} onSelecionar={(id) => { if (id) setTocando(false); setSel(id); }} onInicio={lembrar} onMudar={mudarCamada} onApagar={apagar} onDuplicar={duplicar}
               onEditarTexto={() => { setAba('texto'); setTimeout(() => textoRef.current?.focus(), 30); }} />
           </div>
           {!vertical && <p className="mt-10 hidden text-center text-[11px] text-slate-500 md:block">Toque para escolher · arraste o escolhido para mover · alças redimensionam · bolinha de cima gira · Delete apaga · Ctrl+Z desfaz</p>}
@@ -489,6 +526,8 @@ export default function EditorPage() {
           )}
       </div>
 
+      {trocandoLogo && camadaSel && <EscolherLogo titulo="Trocar logo" aoEscolher={(l) => { mudarPeloPainel(camadaSel.id, { src: l.url, ajuste: 'conter' } as Partial<Camada>); setTrocandoLogo(false); }} aoFechar={() => setTrocandoLogo(false)} />}
+      {trocandoProduto && produtoEmTroca && <TrocarFoto produto={{ nome: nomeDoProduto(produtoEmTroca)?.texto ?? '' }} aoFechar={() => setTrocandoProduto(null)} aoEscolher={(img, termo) => void trocarProduto(produtoEmTroca, img, termo)} />}
       <PublicarDialog aberto={!!publicando} onFechar={() => setPublicando(false)} pasta={pastaGaleria} video={publicando === 'video'}
         gerarPng={publicando === 'video' && videoPronto ? async () => ({ video: videoPronto.v, largura: videoPronto.v.largura, altura: videoPronto.v.altura }) : gerarArte}
         formatos={publicando === 'video' ? undefined : formatosDeTela}

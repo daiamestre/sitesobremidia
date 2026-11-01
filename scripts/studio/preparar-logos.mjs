@@ -12,6 +12,44 @@ const LOGOS = [
   ['alerta-de-oferta', 'Alerta de Oferta em 3D (1).png'],
 ];
 
+// a redoma da sirene no arquivo original (o que está dentro dela fica)
+const REDOMA = [[596, 310], [618, 190], [640, 90], [690, 42], [772, 32], [855, 42], [905, 90], [930, 190], [952, 310]];
+const SOBRA = 140; // espaço acima da arte, para o clarão não cortar
+const LAMPADA = [772, 175 + SOBRA];
+function naRedoma(x, y) {
+  let dentro = false;
+  for (let i = 0, j = REDOMA.length - 1; i < REDOMA.length; j = i++) {
+    const [xi, yi] = REDOMA[i], [xj, yj] = REDOMA[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) dentro = !dentro;
+  }
+  return dentro;
+}
+function tirarClarao(rgba, W, H) {
+  for (let y = 0; y < Math.min(H, 240); y++) for (let x = 500; x < 1045; x++) {
+    if (naRedoma(x, y)) continue;
+    const i = (y * W + x) * 4;
+    if (rgba[i + 1] > 70 || rgba[i + 3] < 255) rgba[i + 3] = 0; // laranja e amarelo do clarão; o vermelho da peça fica
+  }
+}
+async function comClarao(png, W, H) {
+  const [cx, cy] = LAMPADA;
+  const raios = Array.from({ length: 28 }, (_, k) => {
+    const a = (k / 28) * Math.PI * 2 + (k % 2 ? 0.05 : 0), comp = k % 2 ? 330 : 430, larg = 0.035;
+    const p = (r, t) => `${(cx + Math.cos(t) * r).toFixed(1)},${(cy + Math.sin(t) * r).toFixed(1)}`;
+    return `<polygon points="${p(70, a - larg)} ${p(comp, a)} ${p(70, a + larg)}" fill="url(#raio)"/>`;
+  }).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H + SOBRA}">
+    <defs>
+      <radialGradient id="halo" gradientUnits="userSpaceOnUse" cx="${cx}" cy="${cy}" r="360"><stop offset="0" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".3" stop-color="#ffd23c" stop-opacity=".72"/><stop offset=".62" stop-color="#ff8a1e" stop-opacity=".3"/><stop offset="1" stop-color="#ff5a14" stop-opacity="0"/></radialGradient>
+      <radialGradient id="raio" gradientUnits="userSpaceOnUse" cx="${cx}" cy="${cy}" r="430"><stop offset="0" stop-color="#fffbe0" stop-opacity=".95"/><stop offset=".55" stop-color="#ffd84a" stop-opacity=".55"/><stop offset="1" stop-color="#ffb030" stop-opacity="0"/></radialGradient>
+      <filter id="b" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3"/></filter>
+    </defs>
+    <circle cx="${cx}" cy="${cy}" r="360" fill="url(#halo)"/><g filter="url(#b)">${raios}</g>
+  </svg>`;
+  // só em cima da peça: embaixo, a própria logo cobre
+  return sharp(Buffer.from(svg)).composite([{ input: png, left: 0, top: SOBRA }]).png().toBuffer();
+}
+
 for (const [id, arquivo] of LOGOS) {
   const { data, info } = await sharp(`${DOWNLOADS}/${arquivo}`).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width: W, height: H } = info;
@@ -44,7 +82,11 @@ for (const [id, arquivo] of LOGOS) {
     rgba[i * 4 + 2] = Math.max(0, Math.min(255, Math.round(cb)));
     rgba[i * 4 + 3] = a;
   }
-  const png = await sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
+  // Alerta de Oferta: o clarão da sirene sobre o branco não vira transparência limpa (fica com borda dura e recortada).
+  // Ele sai e entra um clarão desenhado POR TRÁS da sirene, com raios e queda suave, que funde com qualquer fundo.
+  if (id === 'alerta-de-oferta') tirarClarao(rgba, W, H);
+  let png = await sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
+  if (id === 'alerta-de-oferta') png = await comClarao(png, W, H);
   const saida = `public/studio/logos/${id}.webp`;
   await sharp(await sharp(png).trim({ threshold: 2, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer().catch(() => png)).webp({ quality: 95, alphaQuality: 100 }).toFile(saida);
   const m = await sharp(saida).metadata();

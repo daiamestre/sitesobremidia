@@ -14,23 +14,13 @@ describe('catálogo de balões', () => {
     expect(layoutDoEncarte(frango, '9:16').colunas.every((c) => c.etiqueta === ESTILOS_DE_BALAO['oval-vermelho'])).toBe(true);
     expect(layoutDoEncarte(mega, '9:16').colunas.map((c) => c.etiqueta)).toEqual([ESTILOS_DE_BALAO['placa-amarela'], ESTILOS_DE_BALAO['placa-vermelha']]);
   });
-  it('o balão oval tem aro, corpo em elipse e o preço centralizado nele', () => {
-    const c = etiquetaDePreco(caixa, { preco: 12.99, precoDe: null, unidade: null }, ESTILOS_DE_BALAO['oval-vermelho']);
-    const nome = (n: string) => c.find((x) => x.nome === n)!;
-    expect(nome('Preço — aro')).toMatchObject({ tipo: 'forma', forma: 'elipse', cor: '#ffffff' });
-    expect(nome('Preço')).toMatchObject({ forma: 'elipse' });
-    // o conjunto R$ + valor + centavos fica no meio do balão
-    const rs = nome('Preço — R$'), cent = nome('Preço — centavos');
-    expect((rs.x + cent.x + cent.w) / 2).toBeCloseTo(caixa.x + caixa.w / 2, -1);
-    const valor = nome('Preço — valor');
-    expect(valor.y + valor.h / 2).toBeCloseTo(caixa.y + caixa.h / 2, -1);
-    expect(valor).toMatchObject({ texto: '12', cor: '#ffffff' });
+  it('o balão oval é um objeto só: aro, cor e valor nele mesmo', () => {
+    const [c] = etiquetaDePreco(caixa, { preco: 12.99, precoDe: null, unidade: null }, ESTILOS_DE_BALAO['oval-vermelho']);
+    expect(c).toMatchObject({ tipo: 'selo', formato: 'oval', aroFora: '#ffffff', borda: '#ffd21f', valor: '12', sufixo: ',99', corValor: '#ffffff', corMoeda: '#ffd21f' });
   });
-  it('na promoção mostra o "de" sem cruzar o valor; sem preço, sem balão', () => {
-    const c = etiquetaDePreco(caixa, { preco: 12.99, precoDe: 19.9, unidade: null }, ESTILOS_DE_BALAO['oval-vermelho']);
-    const de = c.find((x) => x.nome === 'Preço — de')!, valor = c.find((x) => x.nome === 'Preço — valor')!;
-    expect(de).toMatchObject({ texto: 'DE 19,90' });
-    expect(de.y + de.h).toBeLessThanOrEqual(valor.y + 2);
+  it('na promoção mostra o "de"; sem preço, sem balão', () => {
+    const [c] = etiquetaDePreco(caixa, { preco: 12.99, precoDe: 19.9, unidade: null }, ESTILOS_DE_BALAO['oval-vermelho']);
+    expect(c).toMatchObject({ topo: 'DE 19,90' });
     expect(etiquetaDePreco(caixa, { preco: null, precoDe: null, unidade: null }, ESTILOS_DE_BALAO['oval-vermelho'])).toEqual([]);
   });
 });

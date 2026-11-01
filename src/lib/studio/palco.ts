@@ -17,10 +17,13 @@ export interface OpcoesDoPalco {
   textoBotao?: string;
   /** F-248: logo do palco escolhida na pasta Logos (padrão: a logo oficial do fundo) */
   logoDoPalco?: LogoDaPasta | null;
+  /** F-249: o que o cliente editou em cada elemento, por formato: vale para todos os produtos do palco */
+  ajustes?: AjustesDoPalco;
   /** F-242: de que lado cada elemento entra (escolha do cliente) e para que lado o carrossel passa de um produto ao outro */
   movimento?: MovimentoDoPalco;
 }
 
+export type AjustesDoPalco = Partial<Record<FormatoDoc, Record<string, Partial<Camada>>>>;
 export interface MovimentoDoPalco { produto?: TipoDeAnimacao; nome?: TipoDeAnimacao; preco?: TipoDeAnimacao; transicao?: TipoDeTransicao }
 /** opções que o cliente escolhe na tela do palco */
 export const ENTRADAS: Array<{ id: TipoDeAnimacao; nome: string }> = [
@@ -68,14 +71,27 @@ export interface FundoDoPalco {
   botao: Record<FormatoDoc, Caixa>;
   /** F-248: a logo é uma camada: o fundo não tem título gravado */
   titulo: Record<FormatoDoc, Caixa>; logoPadrao: LogoDaPasta;
+  /** F-249: faixas com letreiro em loop: linha do centro de ponta a ponta, espessura e o texto */
+  faixas?: { texto: string; cor: string; corTexto: string; linhas: Record<FormatoDoc, Array<{ de: [number, number]; ate: [number, number]; esp: number }>> };
   corBotao: string; bordaBotao: string;
   botoes: string[];
 }
-export const srcDoFundo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/palco/${f.id}-${formato === '9:16' ? 'v' : 'h'}-st.webp`;
+export const srcDoFundo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/palco/${f.id}-${formato === '9:16' ? 'v' : 'h'}.webp`;
+
+/** O fundo sem a logo gravada: só entra quando o cliente troca ou mexe na logo (por padrão fica a arte original do dono). */
+export const srcSemLogo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/palco/${f.id}-${formato === '9:16' ? 'v' : 'h'}-st.webp`;
 
 export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
   {
     id: 'alerta-de-oferta', nome: 'Alerta de Oferta (sirene)',
+    // as 3 faixas da arte (medidas na imagem): em cima, embaixo à esquerda e embaixo à direita, por cima do texto gravado
+    faixas: {
+      texto: 'ALERTA DE OFERTA', cor: '#fde615', corTexto: '#111111',
+      linhas: {
+        '9:16': [{ de: [-60, 80], ate: [560, -56], esp: 84 }, { de: [-60, 1645.5], ate: [340, 1940.5], esp: 96 }, { de: [1140, 1655.4], ate: [680, 1961.6], esp: 92 }],
+        '16:9': [{ de: [-60, 147.4], ate: [680, -33.1], esp: 94 }, { de: [-60, 883.2], ate: [520, 1136.9], esp: 97 }, { de: [1980, 878.6], ate: [1460, 1093.8], esp: 92 }],
+      },
+    },
     titulo: { '9:16': { x: 0.05, y: 0.012, w: 0.9, h: 0.325 }, '16:9': { x: 0.235, y: 0.012, w: 0.53, h: 0.49 } }, logoPadrao: LOGO_ALERTA_DE_OFERTA,
     produto: { '9:16': { x: 0.22, y: 0.445, w: 0.56, h: 0.3 }, '16:9': { x: 0.415, y: 0.475, w: 0.17, h: 0.27 } },
     nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.19, y: 0.5, w: 0.215, h: 0.2, alinhamento: 'right' } },
@@ -116,7 +132,7 @@ export const ESTILOS_DE_BALAO = {
 } as const;
 
 /**
- * Etiqueta de preço profissional: placa vermelha com borda amarela; "R$" pequeno, o valor grande e os centavos em cima,
+ * Balão de preço retangular ou oval (estilos em ESTILOS_DE_BALAO): placa vermelha com borda amarela; "R$" pequeno, o valor grande e os centavos em cima,
  * à direita (como nos encartes). O "de" (preço antigo) vai pequeno, ao lado do R$, nunca por cima do valor.
  */
 export function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'precoDe' | 'unidade'>, cores: CoresDaEtiqueta = ETIQUETA_VERMELHA): Camada[] {
@@ -124,52 +140,15 @@ export function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'pr
   const v = formatarPreco(p.preco);
   const de = p.precoDe != null && p.precoDe > p.preco ? formatarPreco(p.precoDe) : null;
   const un = p.unidade && p.unidade !== 'UN' ? p.unidade : '';
-  return balaoDePreco(b, v, de, un, cores, ani('zoom', 0.9, 0.5));
-}
-
-/**
- * REGRA DO DONO (F-247), obrigatória em todo encarte: texto e valor SEMPRE organizados e centralizados dentro do balão.
- * É o único desenho de balão retangular ou oval: "de" centralizado em cima, R$ + valor + centavos centralizados como um
- * conjunto, e de/valor juntos no meio da altura. Estilo novo entra em ESTILOS_DE_BALAO, nunca com texto posicionado à mão.
- * O teste regraBaloesCentralizados.test.ts reprova qualquer encarte fora disso.
- */
-function balaoDePreco(b: Caixa, v: { inteiro: string; centavos: string }, de: { inteiro: string; centavos: string } | null, un: string, cores: CoresDaEtiqueta, entrada: NonNullable<Camada['animacao']>): Camada[] {
-  const oval = cores.formato === 'oval';
-  const aro = cores.aroFora ? Math.max(3, Math.round(b.h * 0.04)) : 0;
-  const out: Camada[] = [];
-  if (cores.aroFora) out.push({ ...forma('Preço — aro', b.x, b.y, b.w, b.h, { forma: oval ? 'elipse' : 'retangulo', cor: cores.aroFora, raio: Math.round(b.h * 0.22), sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 20, dx: 0, dy: 8 } }), animacao: entrada });
-  const c = { x: b.x + aro, y: b.y + aro, w: b.w - 2 * aro, h: b.h - 2 * aro };
-  const borda = { cor: cores.borda, largura: Math.max(3, Math.round(b.h * (oval ? 0.05 : 0.06))) };
-  const degrade = { de: cores.de, para: cores.para, angulo: 180 };
-  out.push({ ...forma('Preço', c.x, c.y, c.w, c.h, oval ? { forma: 'elipse', cor: cores.de, degrade, borda } : { cor: cores.de, degrade, borda, raio: Math.round(c.h * 0.22), sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 24, dx: 0, dy: 10 } }), animacao: entrada });
-  // os tamanhos descem juntos até o conjunto caber (o oval tem menos largura útil que a placa)
-  const util = oval ? 0.74 : 0.86;
-  const base = oval ? (de ? 0.54 : 0.64) : de ? 0.6 : 0.76;
-  const tDe = Math.max(13, c.h * 0.16);
-  let k = 1;
-  const medidas = () => {
-    const tInt = c.h * base * k, tRs = tInt * 0.34, tCent = tInt * 0.44;
-    const wInt = larguraDoTexto(v.inteiro, 'anton', tInt), wCent = larguraDoTexto(`,${v.centavos}`, 'anton', tCent), wRs = larguraDoTexto('R$', 'anton', tRs);
-    return { tInt, tRs, tCent, wInt, wCent, wRs, total: wRs + tInt * 0.08 + wInt + tInt * 0.03 + wCent };
-  };
-  let m = medidas();
-  while (m.total > c.w * util && k > 0.4) { k *= 0.93; m = medidas(); }
-  const t = (nome: string, txt: string, fonte: string, tam: number, xx: number, yy: number, w: number, cor: string, peso?: number, alinhamento: 'left' | 'center' = 'left') =>
-    ({ ...texto(nome, txt, xx, yy, w, { fonte, peso, tamanho: Math.round(tam), alinhamento, cor, entrelinha: 1 }), animacao: entrada });
-  // de + valor formam um bloco, e o bloco fica no meio da altura
-  const vao = de ? c.h * 0.03 : 0;
-  const altura = (de ? tDe + vao : 0) + m.tInt;
-  const yBloco = c.y + (c.h - altura) / 2;
-  const yInt = yBloco + (de ? tDe + vao : 0);
-  if (de) out.push(t('Preço — de', `DE ${de.inteiro},${de.centavos}`, 'poppins', tDe, c.x, yBloco, c.w, cores.detalhe, 800, 'center'));
-  let x = c.x + (c.w - m.total) / 2;
-  out.push(t('Preço — R$', 'R$', 'anton', m.tRs, x, yInt + m.tInt * 0.34, m.wRs + 4, cores.moeda));
-  x += m.wRs + m.tInt * 0.08;
-  out.push(t('Preço — valor', v.inteiro, 'anton', m.tInt, x, yInt, m.wInt + 4, cores.valor));
-  x += m.wInt + m.tInt * 0.03;
-  out.push(t('Preço — centavos', `,${v.centavos}`, 'anton', m.tCent, x, yInt + m.tInt * 0.02, m.wCent + 4, cores.valor));
-  if (un) out.push(t('Preço — unidade', un, 'poppins', Math.max(13, m.tInt * 0.24), x, yInt + m.tInt * 0.56, m.wCent + 4, cores.detalhe, 800));
-  return out;
+  // F-249: o balão é UM objeto (dá para mover, girar, mudar cor e texto), e o texto sai centralizado do desenho dele
+  return [{
+    ...selo(b.x, b.y, b.h, {
+      formato: cores.formato === 'oval' ? 'oval' : 'placa', topo: de ? `DE ${de.inteiro},${de.centavos}` : '', moeda: 'R$', valor: v.inteiro, sufixo: `,${v.centavos}`, base: un,
+      cor: cores.de, corFim: cores.para, borda: cores.borda, aroFora: cores.aroFora ?? null, corTexto: cores.detalhe, corTopo: cores.detalhe, corValor: cores.valor, corMoeda: cores.moeda,
+      sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 20, dx: 0, dy: 8 },
+    }),
+    w: b.w, h: b.h, nome: 'Preço', animacao: ani('zoom', 0.9, 0.5),
+  }];
 }
 
 /** O produto em cima do palco do fundo oficial: nome em branco por cima, produto inteiro com o pé no tampo, etiqueta de preço. */
@@ -177,9 +156,19 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   const { w: W, h: H } = TAMANHO_DOC[formato];
   const px = <T extends Caixa>(b: T): T => ({ ...b, x: b.x * W, y: b.y * H, w: b.w * W, h: b.h * H });
   const c: Camada[] = [];
-  c.push({ ...imagem('Fundo oficial', srcDoFundo(f, formato), 0, 0, W, H), bloqueada: true });
+  // F-251: regra do dono: o fundo é a arte dele, com a logo e a iluminação dela. A logo só vira camada visível sobre o fundo sem
+  // logo quando o cliente troca ou mexe nela; até lá a camada fica invisível, só para o toque abrir as opções
+  const logoDaArte = !o.logoDoPalco && !o.ajustes?.[formato]?.['Logo do palco'];
+  c.push({ ...imagem('Fundo oficial', logoDaArte ? srcDoFundo(f, formato) : srcSemLogo(f, formato), 0, 0, W, H), bloqueada: true });
+  (f.faixas?.linhas[formato] ?? []).forEach((l, i) => {
+    const comp = Math.hypot(l.ate[0] - l.de[0], l.ate[1] - l.de[1]);
+    const cx = (l.de[0] + l.ate[0]) / 2, cy = (l.de[1] + l.ate[1]) / 2;
+    const giro = (Math.atan2(l.ate[1] - l.de[1], l.ate[0] - l.de[0]) * 180) / Math.PI;
+    const rot = giro > 90 ? giro - 180 : giro < -90 ? giro + 180 : giro; // o texto nunca fica de cabeça para baixo
+    c.push({ ...texto(`Faixa ${i + 1}`, f.faixas!.texto, cx - comp / 2, cy - l.esp / 2, comp, { fonte: 'poppins', peso: 800, tamanho: Math.round(l.esp * 0.56), cor: f.faixas!.corTexto, alinhamento: 'left' }), h: l.esp, rot, letreiro: { velocidade: 110, fundo: f.faixas!.cor } });
+  });
   const ti = px(f.titulo[formato]);
-  c.push({ ...imagem('Logo do palco', (o.logoDoPalco ?? f.logoPadrao).url, ti.x, ti.y, ti.w, ti.h, { ajuste: 'conter' }), animacao: ani('surgir', 0, 0.4) });
+  c.push({ ...imagem('Logo do palco', (o.logoDoPalco ?? f.logoPadrao).url, ti.x, ti.y, ti.w, ti.h, { ajuste: 'conter', opacidade: logoDaArte ? 0 : 1 }), animacao: ani('surgir', 0, 0.4) });
   // produto: 'conter' (inteiro, sem cortar) e focoY 100 = o pé encosta no tampo do palco
   const pr = px(f.produto[formato]);
   const mov = o.movimento ?? {};
@@ -190,12 +179,10 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   const d = s.d * Math.min(W, H);
   const balao = seloDoPreco(p, s.cx * W - d / 2, s.cy * H - d / 2, d);
   if (balao) c.push({ ...balao, animacao: ani(mov.preco ?? 'zoom', 0.9, 0.55, 'pulsar') });
-  // botão no lugar do "YOUR LOGO" do fundo: cobre desde o 1º quadro (sem entrada) e pulsa
+  // F-249: botão de um objeto só no lugar do "YOUR LOGO": cobre desde o 1º quadro (sem entrada), pulsa e o texto é centralizado
   const bb = px(f.botao[formato]);
-  c.push({ ...forma('Botão', bb.x, bb.y, bb.w, bb.h, { cor: f.corBotao, raio: Math.round(bb.h * 0.32), borda: { cor: f.bordaBotao, largura: Math.max(6, Math.round(bb.h * 0.08)) } }), animacao: ani('pulsar', 0, 1) });
-  const tb = texto('Botão — texto', (o.textoBotao ?? f.botoes[0]).toUpperCase(), bb.x, bb.y, bb.w, { fonte: 'anton', tamanho: Math.round(bb.h * 0.62), maiusculas: true, alinhamento: 'center', cor: '#ffffff' });
-  tb.y = bb.y + (bb.h - tb.h) / 2;
-  c.push({ ...tb, animacao: ani('pulsar', 0, 1) });
+  const tamanhoBotao = Math.round(bb.h * 0.62);
+  c.push({ ...texto('Botão', (o.textoBotao ?? f.botoes[0]).toUpperCase(), bb.x, bb.y, bb.w, { fonte: 'anton', tamanho: tamanhoBotao, maiusculas: true, alinhamento: 'center', cor: '#ffffff', entrelinha: 1, fundo: { cor: f.corBotao, raio: Math.round(bb.h * 0.32), margem: (bb.h - tamanhoBotao) / 1.1, cheio: true, borda: { cor: f.bordaBotao, largura: Math.max(6, Math.round(bb.h * 0.08)) } } }), animacao: ani('pulsar', 0, 1) });
   return { versao: 2, formato, fundo: '#c40f24', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } };
 }
 /** F-242: regra do dono — cada produto fica 8 s no palco */
@@ -205,9 +192,22 @@ export const PASTA_PALCO = 'palco-de-ofertas';
 type Ani = NonNullable<Camada['animacao']>;
 const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depois'] = null): Ani => ({ tipo, atraso, duracao, depois });
 
+/**
+ * F-249: cada elemento tem o nome como identidade (a seleção não se perde entre um produto e outro) e recebe o que o cliente
+ * editou; o texto "DE x POR" da promoção é de cada produto, então não é trocado.
+ */
+function comAjustes(d: Documento, formato: FormatoDoc, o: OpcoesDoPalco): Documento {
+  const a = o.ajustes?.[formato] ?? {};
+  return { ...d, camadas: d.camadas.map((c) => {
+    const { topo, ...resto } = (a[c.nome] ?? {}) as Partial<Camada> & { topo?: string };
+    const promo = c.tipo === 'selo' && c.topo.startsWith('DE ');
+    return { ...c, ...resto, ...(topo != null && !promo ? { topo } : {}), id: c.nome } as Camada;
+  }) };
+}
+
 /** A arte de UM produto no palco (16:9 ou 9:16), com as animações da coreografia do palco. */
 export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, o: OpcoesDoPalco = {}): Documento {
-  if (o.fundo) return palcoOficial(p, formato, o.fundo, o);
+  if (o.fundo) return comAjustes(palcoOficial(p, formato, o.fundo, o), formato, o);
   const { w: W, h: H } = TAMANHO_DOC[formato];
   const em = formato === '9:16';
   const titulo = (o.titulo ?? 'SUPER OFERTAS').toUpperCase();
@@ -274,7 +274,7 @@ export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'prec
   Object.assign(aviso, { x: (W - aviso.w) / 2, y: H - aviso.h - 26 });
   c.push({ ...aviso, animacao: ani('surgir', 1.3, 0.5) });
 
-  return { versao: 2, formato, fundo: '#3a0209', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } };
+  return comAjustes({ versao: 2, formato, fundo: '#3a0209', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } }, formato, o);
 }
 
 /** O CARROSSEL: um clipe por produto (nome e preço de cada vez), deslizando de um para o outro. */

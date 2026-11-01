@@ -3,24 +3,27 @@
  * pedestal, com o nome e o preço. "Criar vídeo do carrossel" abre o editor de vídeo com um clipe por produto (dá para pôr
  * música, mudar o tempo e exportar MP4 para as telas).
  * F-242: tela de edição COMPACTA e responsiva (PC, tablet, celular):
- *  - a tela no meio e, embaixo, a fila de produtos: tocar num produto para o carrossel e abre a edição dele; tocar no nome,
- *    no preço ou na foto, na própria tela, abre o campo certo (nome, promoção/de/por, trocar foto — a foto fica guardada);
+ *  - a tela no meio e, embaixo, a fila de produtos. F-249: tocar em QUALQUER elemento da tela (produto, nome, balão, botão, logo,
+ *    faixas), mesmo com ela se mexendo, abre as ferramentas completas do editor do Studio: arrastar, aumentar, girar, trocar,
+ *    texto, fonte, cor e movimento. O que se edita vale para todos os produtos do palco (só nome, preço e foto são de cada um);
  *  - "Seus produtos" fica fechado num cartão (abre a lista ao tocar);
  *  - F-244: o cliente escolhe quantos produtos passam no palco (padrão 16, até 20);
  *  - fundo e botão OFERTAS/ALERTAS; MOVIMENTO: de que lado entram o produto, o nome e o balão, e para que lado o
  *    carrossel passa de um produto ao outro (vale na tela e no vídeo); cada produto fica 8 s.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Clapperboard, FolderOpen, ImagePlus, Monitor, Move, Palette, PenLine, Play, Smartphone } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Clapperboard, FolderOpen, ImagePlus, Monitor, Move, MousePointerClick, Palette, Pause, PenLine, Play, RotateCcw, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
+import { Palco as PalcoDoEditor } from '@/components/studio/editor/Palco';
+import { CartaoDaAba, abasDe, type Aba } from '@/components/studio/editor/Paineis';
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, lerValor, precoParaTexto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { CESTA_MERCADO } from '@/lib/tabloide/encartes';
-import type { Documento, FormatoDoc } from '@/lib/studio/documento';
-import { ENTRADAS, FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
+import { TAMANHO_DOC, camadaNoPonto, type Camada, type Documento, type FormatoDoc } from '@/lib/studio/documento';
+import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
@@ -50,9 +53,16 @@ const ESTILO_DAS_TROCAS = Object.keys(TROCA).map((t) => {
   return `@keyframes palco-entra-${n}{from{transform:${TROCA[t].entra};opacity:${t === 'dissolver' ? 0 : 1}}to{transform:none;opacity:1}}@keyframes palco-sai-${n}{from{transform:none;opacity:1}to{transform:${TROCA[t].sai};opacity:${t === 'dissolver' ? 0 : 1}}}`;
 }).join('');
 
+/** F-249: qual elemento está no ponto tocado da tela. */
+function elementoTocado(ev: MouseEvent<HTMLElement>, d: Documento): string | null {
+  const r = ev.currentTarget.getBoundingClientRect();
+  const { w, h } = TAMANHO_DOC[d.formato];
+  return camadaNoPonto(d, ((ev.clientX - r.left) / r.width) * w, ((ev.clientY - r.top) / r.height) * h)?.nome ?? null;
+}
+
 /** A tela tocando o carrossel: um produto por vez (8 s), cada um com a sua animação, trocando para o lado escolhido. */
-export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo = FUNDOS_DO_PALCO[0], textoBotao, movimento, logoDoPalco }: { produtos: ProdutoDoPalco[]; formato: FormatoDoc; titulo?: string; className?: string; fundo?: FundoDoPalco | null; textoBotao?: string; movimento?: MovimentoDoPalco; logoDoPalco?: LogoDaPasta | null }) {
-  const docs = useMemo(() => produtos.map((p) => palcoDoProduto(p, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco })), [produtos, formato, titulo, fundo, textoBotao, movimento, logoDoPalco]);
+export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo = FUNDOS_DO_PALCO[0], textoBotao, movimento, logoDoPalco, ajustes, aoTocar }: { produtos: ProdutoDoPalco[]; formato: FormatoDoc; titulo?: string; className?: string; fundo?: FundoDoPalco | null; textoBotao?: string; movimento?: MovimentoDoPalco; logoDoPalco?: LogoDaPasta | null; ajustes?: AjustesDoPalco; /** F-249: tocou num elemento da tela */ aoTocar?: (produto: number, elemento: string | null) => void }) {
+  const docs = useMemo(() => produtos.map((p) => palcoDoProduto(p, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes })), [produtos, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes]);
   const [vez, setVez] = useState({ i: 0, anterior: null as number | null, n: 0 });
   useEffect(() => {
     if (docs.length < 2) return;
@@ -62,7 +72,8 @@ export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo =
   useEffect(() => { if (vez.anterior == null) return; const t = setTimeout(() => setVez((v) => ({ ...v, anterior: null })), 600); return () => clearTimeout(t); }, [vez.anterior]);
   const i = docs.length ? vez.i % docs.length : 0;
   return (
-    <div className={cn('relative overflow-hidden rounded-xl bg-black', className)} style={{ aspectRatio: formato === '9:16' ? '9 / 16' : '16 / 9' }} data-testid="palco-carrossel">
+    <div className={cn('relative overflow-hidden rounded-xl bg-black', aoTocar && 'cursor-pointer', className)} style={{ aspectRatio: formato === '9:16' ? '9 / 16' : '16 / 9' }} data-testid="palco-carrossel"
+      onClick={aoTocar && docs[i] ? (ev) => aoTocar(i, elementoTocado(ev, docs[i])) : undefined}>
       <style>{ESTILO_DAS_TROCAS}</style>
       {vez.anterior != null && docs[vez.anterior] && (
         <div key={`sai-${vez.n}`} className="absolute inset-0" style={estiloDaTroca(movimento?.transicao, 'sai')}><PreviaDocumento doc={docs[vez.anterior]} sempre className="h-full w-full" /></div>
@@ -79,26 +90,8 @@ export function CapaDaPastaPalco() {
   return <CarrosselNoPalco produtos={produtos} formato="9:16" className="h-full" />;
 }
 
-type Campo = 'nome' | 'preco' | 'foto';
-/** Um produto parado na tela: tocar no nome, no preço ou na foto abre o campo para editar. */
-function PalcoEditavel({ doc, aoTocar, campo }: { doc: Documento; aoTocar: (c: Campo) => void; campo: Campo | null }) {
-  const W = doc.formato === '9:16' ? 1080 : 1920, H = doc.formato === '9:16' ? 1920 : 1080;
-  const alvos: Array<{ nome: string; campo: Campo; rotulo: string }> = [{ nome: 'Produto', campo: 'foto', rotulo: 'Trocar a foto' }, { nome: 'Nome do produto', campo: 'nome', rotulo: 'Editar o nome' }, { nome: 'Preço', campo: 'preco', rotulo: 'Editar o preço' }];
-  return (
-    <div className="relative overflow-hidden rounded-xl bg-black" style={{ aspectRatio: doc.formato === '9:16' ? '9 / 16' : '16 / 9' }} data-testid="palco-editavel">
-      <PreviaDocumento doc={doc} sempre className="h-full w-full" />
-      {alvos.map((a) => {
-        const c = doc.camadas.find((x) => x.nome === a.nome);
-        if (!c) return null;
-        return (
-          <button key={a.nome} type="button" onClick={() => aoTocar(a.campo)} aria-label={a.rotulo} title={a.rotulo} data-testid={`palco-alvo-${a.campo}`}
-            className={cn('absolute rounded-lg border-2 border-dashed transition hover:border-[#FFD400] hover:bg-[#FFD400]/10', campo === a.campo ? 'border-[#FFD400] bg-[#FFD400]/10' : 'border-white/40')}
-            style={{ left: `${(c.x / W) * 100}%`, top: `${(c.y / H) * 100}%`, width: `${(c.w / W) * 100}%`, height: `${(c.h / H) * 100}%` }} />
-        );
-      })}
-    </div>
-  );
-}
+const ROTULOS: Record<string, string> = { Produto: 'Foto do produto', 'Nome do produto': 'Nome do produto', 'Preço': 'Balão de preço', 'Botão': 'Botão', 'Logo do palco': 'Logo' };
+const rotulo = (nome: string) => ROTULOS[nome] ?? nome;
 
 function Cartao({ titulo, icone: Icone, children, acao }: { titulo: string; icone: typeof Move; children: ReactNode; acao?: ReactNode }) {
   return (
@@ -110,7 +103,7 @@ function Cartao({ titulo, icone: Icone, children, acao }: { titulo: string; icon
 }
 const campoCss = 'h-10 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-sm text-white focus:border-[#B04DFF] focus:outline-none';
 
-function lerOpcoes(): { fundoId?: string; textoBotao?: string; movimento?: MovimentoDoPalco; formato?: FormatoDoc } {
+function lerOpcoes(): { fundoId?: string; textoBotao?: string; movimento?: MovimentoDoPalco; formato?: FormatoDoc; ajustes?: AjustesDoPalco } {
   try { return JSON.parse(localStorage.getItem(CHAVE_OPCOES) ?? '{}'); } catch { return {}; }
 }
 
@@ -125,7 +118,9 @@ export function PalcoDeOfertas() {
   const fundo = FUNDOS_DO_PALCO.find((f) => f.id === fundoId) ?? null;
   const [textoBotao, setTextoBotao] = useState(salvas.textoBotao ?? FUNDOS_DO_PALCO[0].botoes[0]);
   const [movimento, setMovimento] = useState<MovimentoDoPalco>(salvas.movimento ?? {});
-  useEffect(() => { try { localStorage.setItem(CHAVE_OPCOES, JSON.stringify({ fundoId, textoBotao, movimento, formato })); } catch { /* sem armazenamento */ } }, [fundoId, textoBotao, movimento, formato]);
+  // F-249: o que o cliente editou nos elementos fica guardado e vale para todos os produtos
+  const [ajustes, setAjustes] = useState<AjustesDoPalco>(salvas.ajustes ?? {});
+  useEffect(() => { try { localStorage.setItem(CHAVE_OPCOES, JSON.stringify({ fundoId, textoBotao, movimento, formato, ajustes })); } catch { /* sem armazenamento */ } }, [fundoId, textoBotao, movimento, formato, ajustes]);
 
   // F-244: só os produtos escolhidos passam no palco
   const comPreco = s.produtos.filter((p) => p.preco != null).slice(0, s.quantos);
@@ -138,28 +133,61 @@ export function PalcoDeOfertas() {
   // produto escolhido para editar (null = a tela toca o carrossel)
   const [selId, setSelId] = useState<string | null>(null);
   const sel = comPreco.find((p) => p.id === selId) ?? null;
-  const [campo, setCampo] = useState<Campo | null>(null);
   const [trocando, setTrocando] = useState<ProdutoTabloide | null>(null);
   const [promo, setPromo] = useState(false);
   useEffect(() => { setPromo(sel?.precoDe != null); }, [selId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // F-249: o elemento escolhido na tela (a identidade é o nome dele), a tela tocando e o "ver o movimento" de um elemento
+  const [nomeSel, setNomeSel] = useState<string | null>(null);
+  const [aba, setAba] = useState<Aba>('texto');
+  const [tocando, setTocando] = useState(true);
+  const [demo, setDemo] = useState<{ nome: string; ciclo: number } | null>(null);
+  const fimDoDemo = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(fimDoDemo.current), []);
   const edicao = useRef<HTMLDivElement>(null);
-  const nomeRef = useRef<HTMLInputElement>(null);
-  const precoRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (!campo || !sel) return;
+  const docSel = useMemo(() => (sel ? palcoDoProduto(sel, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes }) : null), [sel, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes]);
+  const camadaSel = docSel?.camadas.find((c) => c.id === nomeSel) ?? null;
+  const abas = abasDe(camadaSel).filter((a) => a.id !== 'camadas' && a.id !== 'video' && a.id !== 'fundo');
+  const andar = (d: number) => { if (!comPreco.length) return; const i = Math.max(0, comPreco.findIndex((p) => p.id === selId)); setSelId(comPreco[(i + d + comPreco.length) % comPreco.length].id); };
+  const escolherElemento = (nome: string | null) => {
+    clearTimeout(fimDoDemo.current); setDemo(null); setNomeSel(nome);
+    if (!nome) return;
+    setTocando(false);
     edicao.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    if (campo === 'nome') nomeRef.current?.focus();
-    else if (campo === 'preco') precoRef.current?.focus();
-    else if (campo === 'foto') setTrocando(sel);
-  }, [campo, selId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const docSel = useMemo(() => (sel ? palcoDoProduto(sel, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco }) : null), [sel, formato, titulo, fundo, textoBotao, movimento, logoDoPalco]);
-  const andar = (d: number) => { if (!comPreco.length) return; const i = Math.max(0, comPreco.findIndex((p) => p.id === selId)); setSelId(comPreco[(i + d + comPreco.length) % comPreco.length].id); setCampo(null); };
+  };
+  useEffect(() => { if (camadaSel) setAba(abasDe(camadaSel)[0].id); }, [nomeSel]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** o nome e o preço são de cada produto; todo o resto vale para todos */
+  const mudarElemento = (nome: string, patch: Partial<Camada>) => {
+    if (!sel || !docSel) return;
+    const c = docSel.camadas.find((x) => x.id === nome);
+    if (!c) return;
+    const resto = { ...patch } as Partial<Camada> & Record<string, unknown>;
+    if (nome === 'Nome do produto' && typeof resto.texto === 'string') { s.mudar(sel.id, { nome: resto.texto }); delete resto.texto; }
+    if (c.tipo === 'selo' && nome === 'Preço' && ('valor' in resto || 'sufixo' in resto)) {
+      const inteiro = String(resto.valor ?? c.valor), cent = String(resto.sufixo ?? c.sufixo).replace(/\D/g, '');
+      s.mudar(sel.id, { preco: lerValor(`${inteiro},${cent || '00'}`) });
+      delete resto.valor; delete resto.sufixo;
+    }
+    if (nome === 'Produto') delete resto.src;
+    if (Object.keys(resto).length) setAjustes((a) => ({ ...a, [formato]: { ...a[formato], [nome]: { ...a[formato]?.[nome], ...resto } } }));
+    // escolheu um movimento: o elemento repete 2 vezes e depois a arte inteira toca
+    if (patch.animacao) {
+      const ciclo = Math.max(1.4, 0.2 + patch.animacao.duracao + 0.5);
+      setDemo({ nome, ciclo }); setTocando(false);
+      clearTimeout(fimDoDemo.current);
+      fimDoDemo.current = setTimeout(() => { setDemo(null); setTocando(true); }, 2 * (ciclo + 0.35) * 1000);
+    }
+  };
+  const voltarAoPadrao = (nome: string) => setAjustes((a) => { const f = { ...a[formato] }; delete f[nome]; return { ...a, [formato]: f }; });
+  const docNaTela = useMemo(() => {
+    if (!docSel || !demo) return docSel;
+    return { ...docSel, camadas: docSel.camadas.map((c) => (c.id === demo.nome ? { ...c, animacao: c.animacao ? { ...c.animacao, atraso: 0.2 } : null } : { ...c, animacao: null })) };
+  }, [docSel, demo]);
 
   const criarVideo = () => {
     if (!comPreco.length) { toast.error('Coloque pelo menos um produto com preço.'); return; }
     const incompletos = comPreco.filter((p) => faltasDoProduto(p).length);
     if (incompletos.length) { toast.error(`Complete antes: falta ${faltasDoProduto(incompletos[0]).join(', ')} em “${incompletos[0].nome}”.`); setSelId(incompletos[0].id); return; }
-    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco });
+    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes });
     try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ projeto, nome: `Palco de Ofertas – ${fundo ? textoBotao : titulo}` })); } catch { toast.error('Não foi possível abrir o editor de vídeo.'); return; }
     navegar('/studio/video');
   };
@@ -171,7 +199,7 @@ export function PalcoDeOfertas() {
         <Link to="/studio" className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">Modelos</span></Link>
         <div className="mr-auto min-w-0">
           <h1 className="flex items-center gap-2 truncate text-lg font-black text-white sm:text-xl"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />Palco de Ofertas – Mercado</h1>
-          <p className="hidden text-xs text-slate-400 sm:block">Um produto de cada vez no palco, com nome e preço ({SEGUNDOS_POR_PRODUTO} s cada) · toque no produto para editar</p>
+          <p className="hidden text-xs text-slate-400 sm:block">Um produto de cada vez no palco, com nome e preço ({SEGUNDOS_POR_PRODUTO} s cada) · toque em qualquer elemento da tela para editar</p>
         </div>
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1" role="radiogroup" aria-label="Formato">
           {(['9:16', '16:9'] as const).map((f) => (
@@ -188,23 +216,32 @@ export function PalcoDeOfertas() {
         <section className="min-w-0 space-y-2">
           <div className={cn('mx-auto w-full', formato === '9:16' ? 'max-w-[min(340px,calc(56dvh*0.5625))] lg:max-w-[340px]' : 'max-w-[760px]')} data-testid="palco-tela">
             {!comPreco.length ? <p className="rounded-xl border border-dashed border-white/15 p-10 text-center text-sm text-slate-400">Coloque produtos com preço em “Seus produtos”.</p>
-              : docSel ? <PalcoEditavel doc={docSel} campo={campo} aoTocar={(c) => setCampo(c)} />
-                : <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} />}
+              : docNaTela && docSel ? (
+                <div className="relative" data-testid="palco-editavel">
+                  <PalcoDoEditor doc={docNaTela} animar={tocando || !!demo} ciclo={demo?.ciclo} sel={tocando || demo ? null : nomeSel} onSelecionar={escolherElemento} onInicio={() => undefined} onMudar={mudarElemento} />
+                  {tocando && <button type="button" aria-label="Tocar num elemento para editar" className="absolute inset-0 cursor-pointer" onClick={(ev) => { const n = elementoTocado(ev, docSel); if (n) escolherElemento(n); }} data-testid="palco-toque" />}
+                </div>
+              ) : <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} ajustes={ajustes} aoTocar={(i, nome) => { setSelId(comPreco[i]?.id ?? null); setTocando(true); if (nome) escolherElemento(nome); }} />}
           </div>
           {comPreco.length > 0 && (
             <div className="flex gap-1.5 overflow-x-auto pb-1" role="listbox" aria-label="Produtos do palco" data-testid="palco-fila">
-              <button type="button" onClick={() => { setSelId(null); setCampo(null); }} aria-selected={!sel} role="option"
+              <button type="button" onClick={() => { setSelId(null); escolherElemento(null); setTocando(true); }} aria-selected={!sel} role="option"
                 className={cn('flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border text-[10px] font-bold', !sel ? 'border-[#FFD400] bg-[#FFD400]/10 text-[#FFD400]' : 'border-white/10 text-slate-300')}>
                 <Play className="h-5 w-5" />Tocar
               </button>
               {comPreco.map((p) => (
-                <button key={p.id} type="button" role="option" aria-selected={sel?.id === p.id} onClick={() => { setSelId(p.id); setCampo(null); }} title={p.nome}
+                <button key={p.id} type="button" role="option" aria-selected={sel?.id === p.id} onClick={() => { setSelId(p.id); escolherElemento(null); setTocando(true); }} title={p.nome}
                   className={cn('relative flex h-16 w-16 shrink-0 flex-col items-center overflow-hidden rounded-xl border bg-white', sel?.id === p.id ? 'border-[3px] border-[#FFD400]' : 'border-white/10', faltasDoProduto(p).length && 'ring-2 ring-amber-400')} data-testid="palco-fila-produto">
                   {p.imagem ? <img src={p.imagem.url} alt="" className="h-11 w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="flex h-11 items-center px-1 text-center text-[8px] font-bold text-slate-500">sem foto</span>}
                   <span className="w-full truncate bg-[#c40f24] px-0.5 text-center text-[10px] font-black text-white">{precoParaTexto(p.preco)}</span>
                 </button>
               ))}
             </div>
+          )}
+          {sel && (
+            <button type="button" onClick={() => { setDemo(null); clearTimeout(fimDoDemo.current); setTocando((t) => !t); }} className="mx-auto flex h-10 w-full max-w-md items-center justify-center gap-2 rounded-xl border border-white/15 text-sm font-semibold text-white hover:bg-white/5" data-testid="palco-ver-movimento">
+              {tocando ? <><Pause className="h-4 w-4" />Parar para editar</> : <><Play className="h-4 w-4" />Ver todo o movimento</>}
+            </button>
           )}
           <button type="button" onClick={criarVideo} className="mx-auto flex h-11 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-bold text-[#0b2a17] hover:brightness-105" data-testid="palco-criar-video">
             <Clapperboard className="h-5 w-5" />Criar vídeo ({comPreco.length} produtos · {comPreco.length * SEGUNDOS_POR_PRODUTO} s)
@@ -216,19 +253,35 @@ export function PalcoDeOfertas() {
           <PainelDeProdutos s={s} destaques={0} botao="Colocar no palco" emGrade={false} />
 
           <div ref={edicao}>
+            <Cartao titulo={camadaSel ? rotulo(camadaSel.nome) : 'Editar elemento'} icone={MousePointerClick}
+              acao={camadaSel && <button type="button" onClick={() => voltarAoPadrao(camadaSel.nome)} title="Voltar este elemento ao padrão" aria-label="Voltar este elemento ao padrão" className="rounded-lg p-1.5 text-white hover:bg-white/10" data-testid="palco-elemento-padrao"><RotateCcw className="h-4 w-4" /></button>}>
+              {!camadaSel ? <p className="text-xs text-slate-400">Toque em qualquer elemento da tela: <b className="text-white">produto, nome, balão de preço, botão, logo ou faixa</b>. Dá para arrastar, aumentar, girar e mudar texto, fonte, cor e movimento. Vale para todos os produtos.</p> : (
+                <div className="space-y-2" data-testid="palco-elemento">
+                  <div className="flex flex-wrap gap-1" role="tablist" aria-label="Ferramentas do elemento">
+                    {abas.map((a) => <button key={a.id} type="button" role="tab" aria-selected={aba === a.id} onClick={() => setAba(a.id)} className={cn('flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold', aba === a.id ? 'bg-[#5D1BFF] text-white' : 'bg-white/5 text-slate-200 hover:bg-white/10')} data-testid={`palco-aba-${a.id}`}><a.I className="h-3.5 w-3.5" />{a.nome}</button>)}
+                  </div>
+                  {camadaSel.nome === 'Logo do palco' && <button type="button" onClick={() => setTrocandoLogo(true)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar logo</button>}
+                  {camadaSel.nome === 'Produto' && sel && <button type="button" onClick={() => setTrocando(sel)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar produto, foto ou criar com IA</button>}
+                  <CartaoDaAba aba={abas.some((a) => a.id === aba) ? aba : abas[0].id} c={camadaSel} doc={docSel!} mudar={(p) => mudarElemento(camadaSel.nome, p)} mudarFundo={() => undefined} mover={() => undefined} camadas={null} />
+                </div>
+              )}
+            </Cartao>
+          </div>
+
+          <div>
             <Cartao titulo={sel ? 'Editar produto' : 'Editar produto'} icone={PenLine}
               acao={sel && <span className="flex gap-1"><button type="button" onClick={() => andar(-1)} aria-label="Produto anterior" className="rounded-lg p-1.5 text-white hover:bg-white/10"><ChevronLeft className="h-4 w-4" /></button><button type="button" onClick={() => andar(1)} aria-label="Próximo produto" className="rounded-lg p-1.5 text-white hover:bg-white/10"><ChevronRight className="h-4 w-4" /></button></span>}>
-              {!sel ? <p className="text-xs text-slate-400">Toque num produto da fila (embaixo da tela) — depois toque no <b className="text-white">nome</b>, no <b className="text-white">preço</b> ou na <b className="text-white">foto</b>, na própria tela, para editar.</p> : (
+              {!sel ? <p className="text-xs text-slate-400">Toque num produto da fila, embaixo da tela, para mudar o nome, o preço e a foto dele.</p> : (
                 <div className="space-y-2" data-testid="palco-edicao">
                   <label className="block text-xs text-slate-300">Nome do produto (com marca e medida)
-                    <input ref={nomeRef} value={sel.nome} onChange={(e) => s.mudar(sel.id, { nome: e.target.value })} className={cn(campoCss, campo === 'nome' && 'border-[#FFD400]')} data-testid="palco-nome" />
+                    <input value={sel.nome} onChange={(e) => s.mudar(sel.id, { nome: e.target.value })} className={campoCss} data-testid="palco-nome" />
                   </label>
                   <div className="flex flex-wrap items-end gap-2">
                     <label className={cn('flex h-10 cursor-pointer items-center gap-1.5 rounded-lg border px-2 text-xs font-semibold', promo ? 'border-[#ff4d5e] bg-[#ff4d5e]/15 text-[#ff8a96]' : 'border-white/15 text-slate-300')}>
                       <input type="checkbox" className="h-4 w-4 accent-[#ff4d5e]" checked={promo} onChange={(e) => { setPromo(e.target.checked); if (!e.target.checked) s.mudar(sel.id, { precoDe: null }); }} data-testid="palco-promocao" />É promoção?
                     </label>
                     {promo && <label className="w-24 text-xs text-slate-300">De<input inputMode="decimal" value={precoParaTexto(sel.precoDe)} onChange={(e) => s.mudar(sel.id, { precoDe: lerValor(e.target.value) })} placeholder="49,90" className={campoCss} data-testid="palco-de" /></label>}
-                    <label className="w-28 text-xs text-slate-300">{promo ? 'Por' : 'Preço'}<input ref={precoRef} inputMode="decimal" value={precoParaTexto(sel.preco)} onChange={(e) => s.mudar(sel.id, { preco: lerValor(e.target.value) })} placeholder="39,90" className={cn(campoCss, 'font-bold', campo === 'preco' && 'border-[#FFD400]')} data-testid="palco-preco" /></label>
+                    <label className="w-28 text-xs text-slate-300">{promo ? 'Por' : 'Preço'}<input inputMode="decimal" value={precoParaTexto(sel.preco)} onChange={(e) => s.mudar(sel.id, { preco: lerValor(e.target.value) })} placeholder="39,90" className={cn(campoCss, 'font-bold')} data-testid="palco-preco" /></label>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white">{sel.imagem ? <img src={sel.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="text-[8px] font-bold text-slate-500">sem foto</span>}</span>
@@ -261,7 +314,7 @@ export function PalcoDeOfertas() {
             )}
             {fundo ? (
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">Botão:
-                {fundo.botoes.map((b) => <button key={b} type="button" onClick={() => setTextoBotao(b)} className={cn('h-8 rounded-full border px-3 font-bold', textoBotao === b ? 'border-[#FFD400] text-[#FFD400]' : 'border-white/10')} data-testid="palco-botao">{b}</button>)}
+                {fundo.botoes.map((b) => <button key={b} type="button" onClick={() => { setTextoBotao(b); setAjustes((a) => { const atual = a[formato]?.['Botão'] as Partial<Camada> & { texto?: string } | undefined; if (!atual?.texto) return a; const { texto: _t, ...resto } = atual; return { ...a, [formato]: { ...a[formato], 'Botão': resto } }; }); }} className={cn('h-8 rounded-full border px-3 font-bold', textoBotao === b ? 'border-[#FFD400] text-[#FFD400]' : 'border-white/10')} data-testid="palco-botao">{b}</button>)}
               </div>
             ) : (
               <label className="flex flex-col gap-1 text-xs text-slate-300">Título do palco
@@ -271,27 +324,18 @@ export function PalcoDeOfertas() {
           </Cartao>
 
           <Cartao titulo="Movimento" icone={Move}>
-            <div className="grid grid-cols-2 gap-2">
-              {([['produto', 'Produto entra'], ['nome', 'Nome entra'], ['preco', 'Balão entra']] as const).map(([k, rotulo]) => (
-                <label key={k} className="text-xs text-slate-300">{rotulo}
-                  <select value={movimento[k] ?? ''} onChange={(e) => mover(k, e.target.value)} className={campoCss} data-testid={`palco-mov-${k}`}>
-                    <option value="">Padrão</option>
-                    {ENTRADAS.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-                  </select>
-                </label>
-              ))}
-              <label className="text-xs text-slate-300">Troca de produto
-                <select value={movimento.transicao ?? 'deslizar-esquerda'} onChange={(e) => mover('transicao', e.target.value)} className={campoCss} data-testid="palco-mov-transicao">
-                  {TRANSICOES_DO_CARROSSEL.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-                </select>
-              </label>
-            </div>
+            <label className="block text-xs text-slate-300">Troca de um produto para o outro
+              <select value={movimento.transicao ?? 'deslizar-esquerda'} onChange={(e) => mover('transicao', e.target.value)} className={campoCss} data-testid="palco-mov-transicao">
+                {TRANSICOES_DO_CARROSSEL.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </select>
+            </label>
+            <p className="text-[10px] text-slate-500">O movimento de cada elemento fica em Animar: toque no elemento na tela.</p>
             <p className="text-[10px] text-slate-500">Vale na tela e no vídeo. Cada produto fica {SEGUNDOS_POR_PRODUTO} s.</p>
           </Cartao>
         </aside>
       </div>
       {trocandoLogo && <EscolherLogo titulo="Logo do palco" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
-      {trocando && <TrocarFoto produto={trocando} aoFechar={() => { setTrocando(null); setCampo(null); }} aoEscolher={(img) => { const p = trocando; setTrocando(null); setCampo(null); void s.trocarFoto(p, img); }} />}
+      {trocando && <TrocarFoto produto={trocando} aoFechar={() => setTrocando(null)} aoEscolher={(img, termo) => { const nome = termo.trim() || trocando.nome; const p = { ...trocando, nome }; setTrocando(null); if (nome !== trocando.nome) s.mudar(p.id, { nome }); void s.trocarFoto(p, img); }} />}
     </div>
   );
 }

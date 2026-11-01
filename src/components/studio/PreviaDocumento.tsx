@@ -9,9 +9,9 @@ import { desenharDocumento, prepararDocumento, type Imagens } from '@/lib/studio
 import { duracaoDoVideo } from '@/lib/studio/animacao';
 
 /** `animar`: toca as animações sem parar (F-225), como o vídeo vai ficar */
-interface Props { doc: Documento; className?: string; style?: CSSProperties; ocultar?: string | null; sempre?: boolean; animar?: boolean }
+interface Props { doc: Documento; className?: string; style?: CSSProperties; ocultar?: string | null; sempre?: boolean; animar?: boolean; /** F-249: repete só este trecho (segundos): ver o movimento de um elemento */ ciclo?: number | null }
 
-export function PreviaDocumento({ doc, className, style, ocultar, sempre = false, animar = false }: Props) {
+export function PreviaDocumento({ doc, className, style, ocultar, sempre = false, animar = false, ciclo = null }: Props) {
   const caixa = useRef<HTMLDivElement>(null);
   const tela = useRef<HTMLCanvasElement>(null);
   const [visivel, setVisivel] = useState(sempre);
@@ -54,17 +54,18 @@ export function PreviaDocumento({ doc, className, style, ocultar, sempre = false
     const ctx = c.getContext('2d');
     if (!ctx) return;
     if (!animar) { desenharDocumento(ctx, doc, imgs, escala, ocultar); return; }
-    const total = duracaoDoVideo(doc);
+    const total = ciclo ?? duracaoDoVideo(doc);
+    const pausa = ciclo ? 0.35 : 1.2;
     const inicio = performance.now();
     let raf = 0;
     const quadro = () => {
-      const t = ((performance.now() - inicio) / 1000) % (total + 1.2); // repete, com uma pausa no fim
+      const t = ((performance.now() - inicio) / 1000) % (total + pausa); // repete, com uma pausa no fim
       desenharDocumento(ctx, doc, imgs, escala, ocultar, Math.min(t, total));
       raf = requestAnimationFrame(quadro);
     };
     raf = requestAnimationFrame(quadro);
     return () => cancelAnimationFrame(raf);
-  }, [doc, imgs, largura, w, h, ocultar, animar]);
+  }, [doc, imgs, largura, w, h, ocultar, animar, ciclo]);
 
   return (
     <div ref={caixa} className={className} style={{ position: 'relative', width: '100%', aspectRatio: `${w} / ${h}`, background: doc.fundo, overflow: 'hidden', ...style }} data-testid="previa-documento">

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import sharp from 'sharp';
 import { LOGOS_OFICIAIS, LOGO_ALERTA_DE_OFERTA, LOGO_MEGA_OFERTA, gravarLogoDoEncarte, lerLogoDoEncarte, logosDaPasta } from '@/lib/studio/logos';
 import { ENCARTES_OFICIAIS, documentoDoEncarteOficial, formatosDoEncarte, layoutDoEncarte } from '@/lib/studio/encartesOficiais';
-import { FUNDOS_DO_PALCO, palcoDoProduto, srcDoFundo } from '@/lib/studio/palco';
+import { FUNDOS_DO_PALCO, palcoDoProduto, srcDoFundo, srcSemLogo } from '@/lib/studio/palco';
 import { TAMANHO_DOC } from '@/lib/studio/documento';
 import { configDoEncarte, ENCARTES } from '@/lib/tabloide/encartes';
 import { configPadrao } from '@/lib/tabloide/cartaz';
@@ -59,8 +59,18 @@ describe('palco e encartes A4', () => {
     const f = FUNDOS_DO_PALCO[0];
     for (const fm of ['9:16', '16:9'] as const) {
       expect(fs.existsSync(`public${srcDoFundo(f, fm)}`), fm).toBe(true);
-      expect(palcoDoProduto(produto, fm, { fundo: f }).camadas.find((c) => c.nome === 'Logo do palco')).toMatchObject({ src: f.logoPadrao.url, ajuste: 'conter' });
-      expect(palcoDoProduto(produto, fm, { fundo: f, logoDoPalco: LOGO_MEGA_OFERTA }).camadas.find((c) => c.nome === 'Logo do palco')).toMatchObject({ src: LOGO_MEGA_OFERTA.url });
+      // regra do dono: por padrão fica a arte original dele, com a logo gravada; a camada é invisível e só abre as opções ao toque
+      const padrao = palcoDoProduto(produto, fm, { fundo: f });
+      expect(padrao.camadas.find((c) => c.nome === 'Fundo oficial')).toMatchObject({ src: srcDoFundo(f, fm) });
+      expect(padrao.camadas.find((c) => c.nome === 'Logo do palco')).toMatchObject({ src: f.logoPadrao.url, ajuste: 'conter', opacidade: 0 });
+      expect(fs.existsSync(`public${srcSemLogo(f, fm)}`), fm).toBe(true);
+      const trocada = palcoDoProduto(produto, fm, { fundo: f, logoDoPalco: LOGO_MEGA_OFERTA });
+      expect(trocada.camadas.find((c) => c.nome === 'Logo do palco')).toMatchObject({ src: LOGO_MEGA_OFERTA.url, opacidade: 1 });
+      expect(trocada.camadas.find((c) => c.nome === 'Fundo oficial')).toMatchObject({ src: srcSemLogo(f, fm) });
+      // mexer na logo também passa para a camada, sem duplicar a logo
+      const movida = palcoDoProduto(produto, fm, { fundo: f, ajustes: { [fm]: { 'Logo do palco': { x: 10 } } } });
+      expect(movida.camadas.find((c) => c.nome === 'Fundo oficial')).toMatchObject({ src: srcSemLogo(f, fm) });
+      expect(movida.camadas.find((c) => c.nome === 'Logo do palco')).toMatchObject({ x: 10, opacidade: 1 });
     }
   });
   it('no encarte A4 a logo escolhida vai para o cabeçalho, no lugar do título desenhado', () => {

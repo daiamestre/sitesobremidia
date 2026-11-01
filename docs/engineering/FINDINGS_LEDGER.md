@@ -2987,3 +2987,25 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `PastaDeLogos.tsx`: pasta em `/studio/pasta/logos` (catálogo e menu), envio, "Para todos os usuários" para a central, e a janela `EscolherLogo` ("Trocar logo") nos encartes oficiais, nos A4 (`logoUrl` → `seloUrl`, também no editor) e no Palco, com "Logo original do encarte".
 - **Limites:** o envio aceita PNG, JPG e WebP (SVG não, regra da biblioteca); a logo escolhida fica guardada no navegador da pessoa; as logos oficiais têm 1024 px de altura, então no A3 (título com cerca de 1000 px de largura) ficam nítidas.
 - **Prova:** `studioLogos248.test.ts`; navegador: pasta, troca no oficial e no A4, logo cabendo no cabeçalho (medido).
+
+### F-249 — Edição completa no Palco e balão/botão de um objeto só; REGRA: toda tela de edição nasce completa — FEITO
+
+- **Pedido do dono (01/11/2026):** tocar em qualquer elemento (mesmo com a arte se mexendo) e editar tudo: produto, nome, preço, botão, balão, logo; posição, tamanho, rotação, cor, texto, fonte e movimento; o movimento escolhido repete 2 vezes e depois a arte inteira toca; faixas "ALERTA DE OFERTA" passando em loop. Deve ser regra do sistema, sem precisar pedir de novo.
+- **Feito:**
+  - `balao.ts`: `arranjoDoBalao`, conta pura de onde vai cada texto do balão (redondo, oval, placa), usada por todo balão. Balão virou um objeto só (`selo` com `formato`, `corFim`, `corMoeda`, `aroFora`), e o botão também (`texto` com `fundo.cheio` e borda), então o texto sai centralizado do próprio desenho.
+  - Letreiro: `CamadaTexto.letreiro` (faixa + texto em loop), com as faixas medidas pixel a pixel na arte; vale na tela e no vídeo.
+  - Tela do Palco: usa `Palco` e `CartaoDaAba` do editor do Studio; tocar na tela (também no carrossel, por `camadaNoPonto`) seleciona o elemento; `ajustes` por formato valem para todos os produtos (nome, preço, foto e "DE x POR" continuam de cada um); ao escolher movimento, o elemento repete 2 vezes e a arte volta a tocar. Mesma repetição no `EditorPage`.
+  - Painéis: forma do balão, moeda, textos, cor do valor, do R$, do texto; cor do botão e da borda; cor da faixa e velocidade.
+  - Regra gravada no `CLAUDE.md`, na memória e em `studioEdicaoCompleta249.test.ts`.
+
+### F-250 — Trocar produto no editor do encarte — FEITO
+
+- **Pedido do dono:** em "Editar e publicar", tocar no produto abre as opções e permite trocar por outro produto da lista, por foto da galeria ou criar com IA, no tamanho do produto trocado.
+- **Feito:** ação "Trocar produto" (camadas `Produto n`) com a janela `TrocarFoto`; a foto entra na mesma moldura, o nome acompanha o produto buscado e a escolha fica no catálogo. No Palco, igual. Produto sem foto também vira elemento tocável.
+
+### F-251 — Palco: volta a arte original do dono; sirene da logo corrigida — FEITO
+
+- **Pedido do dono:** não pediu para recriar o fundo; quer só o texto passando nas faixas, centralizado, e a iluminação da sirene da logo corrigida.
+- **Causa:** a F-248 passou o Palco para fundo sem logo + logo em camada; ao tirar o branco, o clarão da sirene ficou com borda dura.
+- **Feito:** por padrão o Palco usa a arte original (`srcDoFundo`), com a camada da logo invisível só para o toque; o fundo sem logo (`srcSemLogo`) só entra se o cliente trocar ou mexer na logo. Em `preparar-logos.mjs`, o clarão recortado sai e entra um clarão desenhado por trás da sirene, com raios e queda suave.
+- **Aberto:** encartes A4 usam o editor do Cartaz Digital, sem mover ou girar produto a produto.

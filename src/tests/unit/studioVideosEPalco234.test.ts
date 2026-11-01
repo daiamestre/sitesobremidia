@@ -88,7 +88,7 @@ describe('F-237 — fundo OFICIAL do Palco de Ofertas (arte do dono)', () => {
       const W = formato === '9:16' ? 1080 : 1920, H = formato === '9:16' ? 1920 : 1080;
       expect(Math.abs(pr.x + pr.w / 2 - W / 2)).toBeLessThan(W * 0.02);
       expect((pr.y + pr.h) / H).toBeCloseTo(f.produto[formato].y + f.produto[formato].h, 3);
-      expect(nome('Botão — texto')).toMatchObject({ texto: 'ALERTAS' });
+      expect(nome('Botão')).toMatchObject({ texto: 'ALERTAS' });
       expect(nome('Botão').animacao?.atraso).toBe(0); // cobre o "YOUR LOGO" desde o 1º quadro
       // F-238: nome em branco por cima/à esquerda; etiqueta de preço sem nada escrito em cima do valor
       expect(nome('Nome do produto')).toMatchObject({ cor: '#ffffff', texto: 'Arroz Camil 5kg' });

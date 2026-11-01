@@ -181,7 +181,7 @@ function celula(p: Produto, b: Caixa, col: ColunaDoEncarte, n: number, atraso: n
     const tw = oval ? Math.min(rw, th * 2.2) : rw;
     preco = { x: rx + (rw - tw) / 2, y: b.y + b.h - pad - th, w: tw, h: th };
   }
-  if (p.imagem?.url) out.push({ ...imagem(`Produto ${n}`, p.imagem.url, foto.x, foto.y, foto.w, foto.h, { ajuste: 'conter', focoX: 50, focoY: vertical ? 100 : 50, sombra: null }), animacao: ani('zoom', atraso + 0.15, 0.55) });
+  out.push({ ...imagem(`Produto ${n}`, p.imagem?.url ?? '', foto.x, foto.y, foto.w, foto.h, { ajuste: 'conter', focoX: 50, focoY: vertical ? 100 : 50, sombra: null }), animacao: ani('zoom', atraso + 0.15, 0.55) });
   const nome = nomeDoProduto(p.nome, { ...nomeB, alinhamento: vertical ? 'center' : 'left' });
   out.push({ ...nome, nome: `Nome do produto ${n}`, ...(col.corNome ? { cor: col.corNome } : {}), sombra: col.corNome ? null : { cor: col.sombraNome, desfoque: 10, dx: 0, dy: 4 }, animacao: ani('subir', atraso + 0.3, 0.5) } as Camada);
   out.push(...etiquetaDePreco(preco, p, col.etiqueta).map((c) => ({ ...nomear(c), animacao: ani('zoom', atraso + 0.45, 0.5) })));

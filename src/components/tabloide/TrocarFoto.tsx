@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { buscarCandidatos, gerarImagemIA, type CandidatoImagem } from '@/lib/tabloide/imagens';
 import type { ImagemProduto, ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
-export function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: ProdutoTabloide; aoFechar: () => void; aoEscolher: (img: ImagemProduto) => void }) {
+export function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: Pick<ProdutoTabloide, 'nome'>; aoFechar: () => void; /** `termo` é o produto buscado: diferente do atual, é a troca por outro produto */ aoEscolher: (img: ImagemProduto, termo: string) => void }) {
   const { user } = useAuth();
   const [termo, setTermo] = useState(produto.nome);
   const [cands, setCands] = useState<CandidatoImagem[] | null>(null);
@@ -24,7 +24,7 @@ export function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: Produto
     setCriando(true);
     try {
       const r = await gerarImagemIA(termo || produto.nome);
-      if (r.imagem) aoEscolher(r.imagem); else toast.error(r.motivo || 'A IA não conseguiu criar a imagem agora.');
+      if (r.imagem) aoEscolher(r.imagem, termo); else toast.error(r.motivo || 'A IA não conseguiu criar a imagem agora.');
     } finally { setCriando(false); }
   };
 
@@ -42,7 +42,7 @@ export function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: Produto
     try {
       const ext = (arq.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
       const { publicUrl } = await uploadToR2(arq, `${user.id}/tabloide/${Date.now()}-produto.${ext}`, arq.type, user.id);
-      aoEscolher({ url: publicUrl, fonte: 'UPLOAD' });
+      aoEscolher({ url: publicUrl, fonte: 'UPLOAD' }, termo);
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível enviar a imagem.');
     } finally { setEnviando(false); }
@@ -70,7 +70,7 @@ export function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: Produto
         ) : (
           <div className="grid max-h-[50vh] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
             {cands.map((c) => (
-              <button key={c.url} type="button" onClick={() => aoEscolher({ url: c.url, fonte: c.fonte, credito: c.credito })} className="overflow-hidden rounded-lg border bg-white text-left hover:ring-2 hover:ring-primary">
+              <button key={c.url} type="button" onClick={() => aoEscolher({ url: c.url, fonte: c.fonte, credito: c.credito }, termo)} className="overflow-hidden rounded-lg border bg-white text-left hover:ring-2 hover:ring-primary">
                 <img src={c.miniatura} alt={c.legenda} loading="lazy" referrerPolicy="no-referrer" className="aspect-square w-full object-contain" />
                 <span className="block truncate bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">{c.legenda || c.fonte}</span>
               </button>

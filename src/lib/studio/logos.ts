@@ -7,7 +7,7 @@ export interface LogoDaPasta { id: string; nome: string; url: string; largura: n
 
 export const LOGO_MEGA_OFERTA: LogoDaPasta = { id: 'oficial-mega-oferta', nome: 'Mega Oferta', url: '/studio/logos/mega-oferta.webp', largura: 1531, altura: 1024, oficial: true };
 export const LOGO_SEMANA_DO_FRANGO: LogoDaPasta = { id: 'oficial-semana-do-frango', nome: 'Semana do Frango', url: '/studio/logos/semana-do-frango.webp', largura: 1460, altura: 1024, oficial: true };
-export const LOGO_ALERTA_DE_OFERTA: LogoDaPasta = { id: 'oficial-alerta-de-oferta', nome: 'Alerta de Oferta', url: '/studio/logos/alerta-de-oferta.webp', largura: 1532, altura: 1024, oficial: true };
+export const LOGO_ALERTA_DE_OFERTA: LogoDaPasta = { id: 'oficial-alerta-de-oferta', nome: 'Alerta de Oferta', url: '/studio/logos/alerta-de-oferta.webp', largura: 1530, altura: 1164, oficial: true };
 /** Logo oficial nova do dono = o arquivo em scripts/studio/preparar-logos.mjs e uma entrada aqui. */
 export const LOGOS_OFICIAIS: LogoDaPasta[] = [LOGO_MEGA_OFERTA, LOGO_SEMANA_DO_FRANGO, LOGO_ALERTA_DE_OFERTA];
 

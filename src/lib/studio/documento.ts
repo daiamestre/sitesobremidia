@@ -41,8 +41,10 @@ export interface CamadaTexto extends CamadaBase {
   cor: string; degrade?: Degrade | null; corUltimaLinha?: string | null;
   alinhamento: 'left' | 'center' | 'right'; entrelinha: number; espacamento: number; maiusculas: boolean;
   contorno?: { cor: string; largura: number } | null;
-  /** caixa/pílula atrás do texto */
-  fundo?: { cor: string; raio: number; margem: number } | null;
+  /** caixa/pílula atrás do texto; F-249: `cheio` = o botão ocupa a caixa toda, com o texto centralizado, e pode ter borda */
+  fundo?: { cor: string; raio: number; margem: number; cheio?: boolean; borda?: { cor: string; largura: number } | null } | null;
+  /** F-249: faixa com o texto passando em loop infinito (a caixa é a faixa; velocidade em px/s) */
+  letreiro?: { velocidade: number; fundo: string } | null;
 }
 export interface CamadaForma extends CamadaBase {
   tipo: 'forma'; forma: 'retangulo' | 'elipse'; cor: string; degrade?: Degrade | null; raio: number;
@@ -63,6 +65,8 @@ export interface CamadaSelo extends CamadaBase {
   realista?: boolean;
   /** F-242: cores próprias — "DE x POR"/"POR APENAS" (corTopo), R$ + valor + centavos (corValor, com contorno para ler no amarelo) */
   corTopo?: string | null; corValor?: string | null; contornoValor?: { cor: string; largura: number } | null;
+  /** F-249: balão de um objeto só: redondo, oval ou placa, com a cor final do degradê, cor do R$ e aro externo */
+  formato?: 'circulo' | 'oval' | 'placa'; corFim?: string | null; corMoeda?: string | null; aroFora?: string | null;
 }
 export interface CamadaItens extends CamadaBase {
   tipo: 'itens'; itens: string[]; fonte: string; cor: string; destaque: string; tamanho: number; vertical: boolean;
@@ -110,6 +114,7 @@ export function linhasDoTexto(c: Pick<CamadaTexto, 'texto' | 'fonte' | 'tamanho'
 
 /** Altura que o texto ocupa (a caixa do texto cresce com o conteúdo, como no Canva). */
 export function alturaDoTexto(c: CamadaTexto) {
+  if (c.letreiro) return c.h; // a faixa tem a altura dela
   return linhasDoTexto(c).length * c.tamanho * c.entrelinha + 2 * (c.fundo?.margem ?? 0) * (c.fundo ? 0.55 : 0);
 }
 
@@ -313,6 +318,18 @@ export function modeloParaDocumento(m: ModeloDeArte, formato: FormatoDoc = m.for
 }
 
 export const clonar = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+/** F-249: o elemento que está no ponto (x, y) da arte, de cima para baixo; o fundo travado não conta. */
+export function camadaNoPonto(d: Documento, x: number, y: number): Camada | null {
+  for (let i = d.camadas.length - 1; i >= 0; i--) {
+    const c = d.camadas[i];
+    if (!c.visivel || c.bloqueada) continue;
+    const a = (-c.rot * Math.PI) / 180, dx = x - (c.x + c.w / 2), dy = y - (c.y + c.h / 2);
+    const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+    if (Math.abs(lx) <= c.w / 2 && Math.abs(ly) <= c.h / 2) return c;
+  }
+  return null;
+}
 
 /**
  * F-246 — readapta uma arte de camadas para outro tamanho sem deformar: fotos e fundos que ocupam a tela continuam

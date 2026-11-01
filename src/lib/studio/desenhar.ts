@@ -1,6 +1,7 @@
 // SOBRE MÍDIA STUDIO — desenha um documento de camadas num canvas 2D (F-221). O mesmo código pinta a miniatura do
 // catálogo, a prévia do editor e o PNG final (1920×1080 / 1080×1920): o que o usuário vê é o que vai para a tela.
 import { carregarFonteStudio, fonteCanvas } from './fontes';
+import { arranjoDoBalao, type Medir } from './balao';
 import {
   TAMANHO_DOC, fontesDo, imagensDo, linhasDoTexto,
   type Camada, type CamadaForma, type CamadaImagem, type CamadaItens, type CamadaSelo, type CamadaTexto, type Degrade, type Documento,
@@ -111,12 +112,13 @@ function desenharTexto(ctx: CanvasRenderingContext2D, c: CamadaTexto) {
   const topo = -c.h / 2;
   const xLinha = c.alinhamento === 'left' ? -c.w / 2 + m : c.alinhamento === 'right' ? c.w / 2 - m : 0;
   if (c.fundo) {
-    const largura = Math.min(c.w, Math.max(...larguras) + 2 * m);
-    const x0 = c.alinhamento === 'left' ? -c.w / 2 : c.alinhamento === 'right' ? c.w / 2 - largura : -largura / 2;
+    const largura = c.fundo.cheio ? c.w : Math.min(c.w, Math.max(...larguras) + 2 * m);
+    const x0 = c.fundo.cheio ? -c.w / 2 : c.alinhamento === 'left' ? -c.w / 2 : c.alinhamento === 'right' ? c.w / 2 - largura : -largura / 2;
     ctx.fillStyle = c.fundo.cor;
     caminho(ctx, x0, topo, largura, c.h, c.fundo.raio);
     ctx.fill();
     ctx.shadowColor = 'transparent';
+    if (c.fundo.borda?.largura) { ctx.lineWidth = c.fundo.borda.largura; ctx.strokeStyle = c.fundo.borda.cor; ctx.stroke(); }
   }
   const y0 = topo + (c.fundo ? m * 0.55 : 0) + lh / 2;
   const fill = preenchimento(ctx, c.cor, c.degrade, c.w, c.h);
@@ -171,67 +173,78 @@ function desenharSeloRealista(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
   b.addColorStop(0, 'rgba(255,255,255,.55)'); b.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = b; ctx.beginPath(); ctx.ellipse(0, -r * 0.52, r * 0.78, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
-  textosDoSelo(ctx, c, r, true);
+  textosDoSelo(ctx, c, true);
 }
 
-/**
- * F-240: textos de TODO balão de preço, organizados e centralizados pela medida real da fonte — "de/por" em cima,
- * R$ + valor + centavos no meio (o valor no centro do balão), unidade embaixo; o tamanho diminui até caber.
- */
-function textosDoSelo(ctx: CanvasRenderingContext2D, c: CamadaSelo, r: number, relevo: boolean) {
-  // textos: valor no CENTRO do balão; R$ pequeno à esquerda, centavos em cima à direita; "de/por" em cima, unidade embaixo
-  // F-242: sem sombra borrada nos textos (atrapalhava ler o "DE x POR"); o valor pode ter cor própria e contorno
+/** REGRA (F-247/F-249): os textos de TODO balão saem de arranjoDoBalao, centralizados pela medida real da letra. */
+function textosDoSelo(ctx: CanvasRenderingContext2D, c: CamadaSelo, relevo: boolean) {
+  const medir: Medir = (txt, tam, f) => {
+    ctx.font = f === 'valor' ? fonteCanvas(c.fonte, tam) : fonteCanvas('poppins', tam, 800);
+    const m = ctx.measureText(txt);
+    return { largura: m.width, sobe: m.actualBoundingBoxAscent || tam * 0.75, desce: m.actualBoundingBoxDescent || 0 };
+  };
+  const r = Math.min(c.w, c.h) / 2;
+  const arr = arranjoDoBalao({ ...c, classico: !c.realista && (c.formato ?? 'circulo') === 'circulo' }, medir);
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-  ctx.fillStyle = c.corTexto; ctx.textBaseline = 'middle';
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   const corValor = c.corValor || c.corTexto;
   const contorno = c.contornoValor?.largura ? c.contornoValor : null;
-  const relevoDoValor = () => { if (relevo && !contorno) { ctx.shadowColor = clarear(c.corTexto, -0.45); ctx.shadowOffsetY = r * 0.025; } };
-  let tv = r * 0.95;
-  const larguras = () => {
-    ctx.font = fonteCanvas(c.fonte, tv * 0.32); const wm = c.moeda ? ctx.measureText(c.moeda).width + tv * 0.06 : 0;
-    ctx.font = fonteCanvas(c.fonte, tv); const wv = ctx.measureText(c.valor).width;
-    ctx.font = fonteCanvas(c.fonte, tv * 0.44); const ws = c.sufixo ? ctx.measureText(c.sufixo).width + tv * 0.02 : 0;
-    return { wm, wv, ws, total: wm + wv + ws };
+  const valor = (p: { texto: string; tamanho: number; x: number; y: number } | null, cor: string) => {
+    if (!p) return;
+    ctx.font = fonteCanvas(c.fonte, p.tamanho);
+    if (contorno) { ctx.lineJoin = 'round'; ctx.lineWidth = contorno.largura * (r / 100); ctx.strokeStyle = contorno.cor; ctx.strokeText(p.texto, p.x, p.y); }
+    if (relevo && !contorno) { ctx.shadowColor = clarear(c.corTexto, -0.45); ctx.shadowOffsetY = r * 0.025; }
+    ctx.fillStyle = cor; ctx.fillText(p.texto, p.x, p.y);
+    ctx.shadowColor = 'transparent'; ctx.shadowOffsetY = 0;
   };
-  let w = larguras();
-  while (w.total > r * 1.62 && tv > r * 0.3) { tv *= 0.93; w = larguras(); }
-  // medidas reais da fonte: os algarismos do valor ficam com o MEIO exatamente no centro do balão
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = fonteCanvas(c.fonte, tv);
-  const mv = ctx.measureText(c.valor);
-  const asc = mv.actualBoundingBoxAscent || tv * 0.75, desc = mv.actualBoundingBoxDescent || 0;
-  const tTopo = r * (relevo ? 0.17 : 0.2), tBase = r * (relevo ? 0.16 : 0.2), folga = r * 0.085;
-  // o conjunto (de/por + valor + unidade) fica centralizado na vertical
-  const desloc = ((c.topo ? tTopo + folga : 0) - (c.base ? tBase + folga : 0)) / 2;
-  const topoValor = -(asc + desc) / 2 + desloc;
-  const linhaBase = topoValor + asc;
-  const alturaValor = asc + desc;
-  let x = -w.total / 2;
-  ctx.textAlign = 'left';
-  // valor (R$, número e centavos): contorno por baixo e a cor por cima — lê bem em qualquer amarelo
-  const escrever = (txt: string, xx: number, yy: number) => {
-    if (contorno) { ctx.lineJoin = 'round'; ctx.lineWidth = contorno.largura * (r / 100); ctx.strokeStyle = contorno.cor; ctx.strokeText(txt, xx, yy); }
-    ctx.fillStyle = corValor; relevoDoValor(); ctx.fillText(txt, xx, yy); ctx.shadowColor = 'transparent'; ctx.shadowOffsetY = 0;
+  valor(arr.moeda, c.corMoeda || corValor); valor(arr.valor, corValor); valor(arr.sufixo, corValor);
+  const detalhe = (p: { texto: string; tamanho: number; x: number; y: number } | null, cor: string) => {
+    if (!p) return;
+    ctx.font = fonteCanvas('poppins', p.tamanho, 800); ctx.fillStyle = cor; ctx.fillText(p.texto, p.x, p.y);
   };
-  const peloTopo = (txt: string, tam: number, xx: number, topo: number) => { ctx.font = fonteCanvas(c.fonte, tam); const a = ctx.measureText(txt).actualBoundingBoxAscent || tam * 0.75; escrever(txt, xx, topo + a); };
-  // R$ pequeno à esquerda, na altura do meio do valor; centavos alinhados pelo topo do valor
-  if (c.moeda) { peloTopo(c.moeda, tv * 0.32, x, topoValor + alturaValor * 0.22); x += w.wm; }
-  ctx.font = fonteCanvas(c.fonte, tv); escrever(c.valor, x, linhaBase); x += w.wv + tv * 0.02;
-  if (c.sufixo) peloTopo(c.sufixo, tv * 0.44, x, topoValor);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = c.corTopo || c.corTexto;
-  if (c.topo) { ctx.font = fonteCanvas('poppins', tTopo, 800); ctx.fillText(c.topo, 0, topoValor - folga - tTopo / 2); }
-  ctx.fillStyle = c.corTexto;
-  if (c.base) { ctx.font = fonteCanvas('poppins', tBase, 800); ctx.fillText(c.base, 0, topoValor + alturaValor + folga + tBase / 2); }
+  detalhe(arr.topo, c.corTopo || c.corTexto); detalhe(arr.base, c.corTexto);
+}
+
+/** F-249: balão oval ou placa, de um objeto só: aro externo, corpo com degradê e borda. */
+function desenharBalaoReto(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
+  const oval = c.formato === 'oval';
+  const contorno = (w: number, h: number) => { ctx.beginPath(); if (oval) ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2); else caminho(ctx, -w / 2, -h / 2, w, h, h * 0.22); };
+  const aro = c.aroFora ? Math.max(3, c.h * 0.04) : 0;
+  if (c.aroFora) { contorno(c.w, c.h); ctx.fillStyle = c.aroFora; ctx.fill(); ctx.shadowColor = 'transparent'; }
+  const w = c.w - 2 * aro, h = c.h - 2 * aro;
+  const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+  g.addColorStop(0, c.cor); g.addColorStop(1, c.corFim || c.cor);
+  contorno(w, h); ctx.fillStyle = g; ctx.fill(); ctx.shadowColor = 'transparent';
+  ctx.lineWidth = Math.max(3, c.h * 0.05); ctx.strokeStyle = c.borda; contorno(w, h); ctx.stroke();
+  textosDoSelo(ctx, c, false);
 }
 
 function desenharSelo(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
+  if (c.formato === 'oval' || c.formato === 'placa') { desenharBalaoReto(ctx, c); return; }
   if (c.realista) { desenharSeloRealista(ctx, c); return; }
   const r = Math.min(c.w, c.h) / 2;
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = c.cor; ctx.fill();
   ctx.shadowColor = 'transparent';
   ctx.lineWidth = r * 0.055; ctx.strokeStyle = c.borda; ctx.beginPath(); ctx.arc(0, 0, r - ctx.lineWidth / 2, 0, Math.PI * 2); ctx.stroke();
-  textosDoSelo(ctx, c, r * 0.96, false);
+  textosDoSelo(ctx, c, false);
+}
+
+/** F-249: faixa com o texto passando sem parar. Sem tempo (imagem parada), mostra a faixa com o texto no começo. */
+function desenharLetreiro(ctx: CanvasRenderingContext2D, c: CamadaTexto, tempo: number) {
+  const l = c.letreiro!;
+  ctx.fillStyle = l.fundo;
+  ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+  ctx.shadowColor = 'transparent';
+  ctx.save();
+  ctx.beginPath(); ctx.rect(-c.w / 2, -c.h / 2, c.w, c.h); ctx.clip();
+  ctx.font = fonteCanvas(c.fonte, c.tamanho, c.peso, c.italico);
+  const txt = c.maiusculas ? c.texto.toUpperCase() : c.texto;
+  const periodo = ctx.measureText(txt).width + c.tamanho * 2;
+  const alto = ctx.measureText('H').actualBoundingBoxAscent || c.tamanho * 0.7;
+  ctx.fillStyle = c.cor; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  const passo = ((tempo * l.velocidade) % periodo + periodo) % periodo;
+  for (let x = -c.w / 2 - passo; x < c.w / 2; x += periodo) ctx.fillText(txt, x, alto / 2);
+  ctx.restore();
 }
 
 function desenharItens(ctx: CanvasRenderingContext2D, c: CamadaItens) {
@@ -265,6 +278,7 @@ export function desenharCamada(ctx: CanvasRenderingContext2D, c: Camada, imgs: I
   sombra(ctx, c, escala);
   if (c.tipo === 'forma') desenharForma(ctx, c);
   else if (c.tipo === 'imagem') desenharImagem(ctx, a && a.zoom !== 1 ? { ...c, zoom: Math.max(1, c.zoom) * a.zoom } : c, imgs.get(c.src), escala);
+  else if (c.tipo === 'texto' && c.letreiro) desenharLetreiro(ctx, c, tempo ?? 0);
   else if (c.tipo === 'texto') desenharTexto(ctx, a?.letras != null ? { ...c, texto: c.texto.slice(0, a.letras) } : c);
   else if (c.tipo === 'selo') desenharSelo(ctx, c);
   else desenharItens(ctx, c);

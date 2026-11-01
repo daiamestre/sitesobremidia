@@ -173,6 +173,18 @@ export function CartaoDaAba({ aba, c, doc, mudar, mudarFundo, mover, camadas, vi
       </div>
     );
   }
+  if (c.tipo === 'texto' && aba === 'cor' && (c.letreiro || c.fundo?.cheio)) {
+    // F-249: faixa com letreiro e botão: a cor do fundo deles e, na faixa, a velocidade
+    return (
+      <div className="space-y-3">
+        <CorTexto c={c} m={m} doc={doc} />
+        {c.letreiro && <Cor t="Cor da faixa" valor={c.letreiro.fundo} onChange={(v) => m<CamadaTexto>({ letreiro: { ...c.letreiro!, fundo: v } })} doc={doc} />}
+        {c.letreiro && <Faixa t="Velocidade do texto" valor={c.letreiro.velocidade} min={0} max={400} sufixo=" px/s" onChange={(v) => m<CamadaTexto>({ letreiro: { ...c.letreiro!, velocidade: v } })} />}
+        {c.fundo?.cheio && <Cor t="Cor do botão" valor={c.fundo.cor} onChange={(v) => m<CamadaTexto>({ fundo: { ...c.fundo!, cor: v } })} doc={doc} />}
+        {c.fundo?.cheio && c.fundo.borda && <Cor t="Cor da borda do botão" valor={c.fundo.borda.cor} onChange={(v) => m<CamadaTexto>({ fundo: { ...c.fundo!, borda: { ...c.fundo!.borda!, cor: v } } })} doc={doc} />}
+      </div>
+    );
+  }
   switch (c.tipo) {
     case 'texto': return aba === 'cor' ? <CorTexto c={c} m={m} doc={doc} /> : aba === 'formatar' ? <FormatarTexto c={c} m={m} /> : <PropsTexto c={c} m={m} textoRef={textoRef} />;
     case 'imagem': return aba === 'enquadrar' ? <EnquadrarImagem c={c} m={m} /> : <AjustesImagem c={c} m={m} />;
@@ -356,10 +368,16 @@ function PropsSelo({ c, m }: { c: CamadaSelo; m: (p: Partial<CamadaSelo>) => voi
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
-        <Rot t="Topo"><input className={campo} value={c.topo} maxLength={12} onChange={(e) => m({ topo: e.target.value })} /></Rot>
+        <Rot t="Formato do balão">
+          <select className={campo} value={c.formato ?? 'circulo'} onChange={(e) => m({ formato: e.target.value as CamadaSelo['formato'] })} data-testid="selo-formato">
+            <option value="circulo">Redondo</option><option value="oval">Oval</option><option value="placa">Placa</option>
+          </select>
+        </Rot>
+        <Rot t="Moeda"><input className={campo} value={c.moeda ?? ''} maxLength={4} placeholder="R$" onChange={(e) => m({ moeda: e.target.value })} /></Rot>
+        <Rot t="Texto de cima"><input className={campo} value={c.topo} maxLength={18} onChange={(e) => m({ topo: e.target.value })} /></Rot>
         <Rot t="Valor"><input className={campo} value={c.valor} maxLength={8} onChange={(e) => m({ valor: e.target.value })} /></Rot>
-        <Rot t="Sufixo"><input className={campo} value={c.sufixo} maxLength={4} onChange={(e) => m({ sufixo: e.target.value })} /></Rot>
-        <Rot t="Base"><input className={campo} value={c.base} maxLength={12} onChange={(e) => m({ base: e.target.value })} /></Rot>
+        <Rot t="Centavos"><input className={campo} value={c.sufixo} maxLength={4} onChange={(e) => m({ sufixo: e.target.value })} /></Rot>
+        <Rot t="Texto de baixo"><input className={campo} value={c.base} maxLength={12} onChange={(e) => m({ base: e.target.value })} /></Rot>
       </div>
       <Fonte valor={c.fonte} onChange={(v) => m({ fonte: v })} />
     </div>
@@ -368,8 +386,12 @@ function PropsSelo({ c, m }: { c: CamadaSelo; m: (p: Partial<CamadaSelo>) => voi
 function CorSelo({ c, m, doc }: { c: CamadaSelo; m: (p: Partial<CamadaSelo>) => void; doc: Documento }) {
   return (
     <div className="space-y-3">
-      <Cor t="Fundo do selo" valor={c.cor} onChange={(v) => m({ cor: v })} doc={doc} />
-      <Cor t="Texto do selo" valor={c.corTexto} onChange={(v) => m({ corTexto: v })} doc={doc} />
+      <Cor t="Cor do balão" valor={c.cor} onChange={(v) => m({ cor: v })} doc={doc} />
+      {c.formato && c.formato !== 'circulo' && <Cor t="Cor de baixo do balão" valor={c.corFim ?? c.cor} onChange={(v) => m({ corFim: v })} doc={doc} />}
+      <Cor t="Cor do valor" valor={c.corValor ?? c.corTexto} onChange={(v) => m({ corValor: v })} doc={doc} />
+      <Cor t="Cor do R$" valor={c.corMoeda ?? c.corValor ?? c.corTexto} onChange={(v) => m({ corMoeda: v })} doc={doc} />
+      <Cor t="Cor do texto de cima" valor={c.corTopo ?? c.corTexto} onChange={(v) => m({ corTopo: v })} doc={doc} />
+      <Cor t="Cor do texto de baixo" valor={c.corTexto} onChange={(v) => m({ corTexto: v })} doc={doc} />
       <Cor t="Aro" valor={c.borda} onChange={(v) => m({ borda: v })} doc={doc} />
     </div>
   );
