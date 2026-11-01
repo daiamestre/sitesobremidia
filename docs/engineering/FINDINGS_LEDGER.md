@@ -2843,3 +2843,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - A tela do palco tem o seletor de fundos (o oficial é o padrão; o palco desenhado continua como opção) e o seletor do texto do botão.
 - **Fundo novo do dono:** os 2 arquivos (`<id>-h.webp`, `<id>-v.webp`) + uma entrada em `FUNDOS_DO_PALCO` com as caixas medidas na arte.
 - **Prova:** teste em `studioVideosEPalco234.test.ts`; navegador nos 2 formatos (Macarrão Renata e Extrato Elefante no palco, preço, nome na faixa, botão OFERTAS).
+
+### F-238 — Palco oficial: nome do produto em branco por cima, produto menor e etiqueta de preço profissional — FEITO
+
+- **Pedido do dono (01/11/2026):** o nome ficou no meio do palco. Ele quer o nome em cima, em branco e com texto profissional, o produto um pouco menor, e o preço num balão organizado, sem nada escrito em cima do valor.
+- **Feito** (`palco.ts`: `nomeDoProduto`, `etiquetaDePreco`):
+  - em pé: nome em branco centralizado logo abaixo do título e acima do produto; deitado: à esquerda, no espaço livre;
+  - tamanho automático (até 3 linhas), com sombra para leitura;
+  - produto menor, ainda com o pé no tampo;
+  - etiqueta vermelha com borda amarela: "R$" pequeno, o valor grande e os centavos em cima, à direita; o "de" pequeno ao lado do R$ (nunca por cima do valor); a unidade embaixo dos centavos;
+  - em pé, a etiqueta fica na frente do palco; deitado, à direita do título.
+- **Prova:** teste confere que nenhum texto cruza o valor; imagens finais conferidas nos 2 formatos.

@@ -90,7 +90,20 @@ describe('F-237 — fundo OFICIAL do Palco de Ofertas (arte do dono)', () => {
       expect((pr.y + pr.h) / H).toBeCloseTo(f.produto[formato].y + f.produto[formato].h, 3);
       expect(nome('Botão — texto')).toMatchObject({ texto: 'ALERTAS' });
       expect(nome('Botão').animacao?.atraso).toBe(0); // cobre o "YOUR LOGO" desde o 1º quadro
-      expect(nome('Preço')).toMatchObject({ valor: '25', sufixo: ',90' });
+      // F-238: nome em branco por cima/à esquerda; etiqueta de preço sem nada escrito em cima do valor
+      expect(nome('Nome do produto')).toMatchObject({ cor: '#ffffff', texto: 'Arroz Camil 5kg' });
+      expect(nome('Nome do produto').y + nome('Nome do produto').h).toBeLessThanOrEqual(formato === '9:16' ? pr.y + 1 : H);
+      expect(nome('Preço')).toMatchObject({ tipo: 'forma' });
+      expect(nome('Preço — valor')).toMatchObject({ texto: '25' });
+      expect(nome('Preço — centavos')).toMatchObject({ texto: ',90' });
+      const etq = nome('Preço');
+      // nenhum texto de nome ou de "de/por" passa por cima do valor
+      const valor = nome('Preço — valor');
+      for (const c of d.camadas.filter((x) => x.tipo === 'texto' && x !== valor && x.nome !== 'Preço — centavos')) {
+        const cruza = c.x < valor.x + valor.w && c.x + c.w > valor.x && c.y < valor.y + valor.h && c.y + c.h > valor.y;
+        expect(cruza, c.nome).toBe(false);
+      }
+      expect(valor.x).toBeGreaterThanOrEqual(etq.x);
     }
   });
 });
