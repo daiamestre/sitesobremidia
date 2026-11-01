@@ -3,7 +3,8 @@
 // o pedestal sobe, o produto entra com zoom e fica flutuando, o nome sobe e o selo do preço entra com zoom e pulsa.
 // O CARROSSEL vira um projeto do editor de vídeo: um clipe por produto, com transição deslizando — exporta MP4.
 import { TAMANHO_DOC, forma, imagem, larguraDoTexto, selo, texto, type Camada, type Documento, type FormatoDoc } from './documento';
-import { novoClipe, projetoVazio, type ProjetoDeVideo } from './video/linha';
+import { novoClipe, projetoVazio, type ProjetoDeVideo, type TipoDeTransicao } from './video/linha';
+import type { TipoDeAnimacao } from './animacao';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
 export interface OpcoesDoPalco {
@@ -13,6 +14,36 @@ export interface OpcoesDoPalco {
   fundo?: FundoDoPalco | null;
   /** texto do botão no lugar do "YOUR LOGO" do fundo oficial */
   textoBotao?: string;
+  /** F-242: de que lado cada elemento entra (escolha do cliente) e para que lado o carrossel passa de um produto ao outro */
+  movimento?: MovimentoDoPalco;
+}
+
+export interface MovimentoDoPalco { produto?: TipoDeAnimacao; nome?: TipoDeAnimacao; preco?: TipoDeAnimacao; transicao?: TipoDeTransicao }
+/** opções que o cliente escolhe na tela do palco */
+export const ENTRADAS: Array<{ id: TipoDeAnimacao; nome: string }> = [
+  { id: 'subir', nome: 'De baixo' }, { id: 'descer', nome: 'De cima' }, { id: 'esquerda', nome: 'Da esquerda' }, { id: 'direita', nome: 'Da direita' }, { id: 'zoom', nome: 'Zoom' }, { id: 'surgir', nome: 'Aparecer' },
+];
+export const TRANSICOES_DO_CARROSSEL: Array<{ id: TipoDeTransicao; nome: string }> = [
+  { id: 'deslizar-esquerda', nome: 'Sai pela esquerda' }, { id: 'deslizar-direita', nome: 'Sai pela direita' }, { id: 'deslizar-cima', nome: 'Sai por cima' }, { id: 'zoom', nome: 'Zoom' }, { id: 'dissolver', nome: 'Dissolver' },
+];
+
+/**
+ * F-242: o balão de preço de TODO palco — amarelo forte, R$ e valor em BRANCO com contorno vermelho (lê bem no amarelo),
+ * "DE x POR" em vermelho na promoção e "POR APENAS" em verde fora dela; tudo centralizado no balão.
+ */
+export function seloDoPreco(p: Pick<ProdutoTabloide, 'preco' | 'precoDe' | 'unidade'>, x: number, y: number, d: number): Camada | null {
+  if (p.preco == null) return null;
+  const v = formatarPreco(p.preco);
+  const de = p.precoDe != null && p.precoDe > p.preco ? formatarPreco(p.precoDe) : null;
+  return {
+    ...selo(x, y, d, {
+      topo: de ? `DE ${de.inteiro},${de.centavos} POR` : 'POR APENAS', corTopo: de ? '#d90f1f' : '#0a8a3a',
+      moeda: 'R$', valor: v.inteiro, sufixo: `,${v.centavos}`, base: p.unidade && p.unidade !== 'UN' ? p.unidade : '',
+      cor: '#FFC400', corTexto: '#b3001b', corValor: '#ffffff', contornoValor: { cor: '#c4001d', largura: 9 }, borda: '#ffffff', realista: true,
+      sombra: { cor: 'rgba(0,0,0,.45)', desfoque: 34, dx: 0, dy: 16 },
+    }),
+    nome: 'Preço',
+  };
 }
 
 /** Caixa em frações da largura/altura da tela (0 a 1). */
@@ -113,19 +144,14 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   c.push({ ...imagem('Fundo oficial', srcDoFundo(f, formato), 0, 0, W, H), bloqueada: true });
   // produto: 'conter' (inteiro, sem cortar) e focoY 100 = o pé encosta no tampo do palco
   const pr = px(f.produto[formato]);
-  c.push({ ...imagem('Produto', p.imagem?.url ?? '', pr.x, pr.y, pr.w, pr.h, { ajuste: 'conter', focoX: 50, focoY: 100, sombra: null }), animacao: ani('subir', 0.25, 0.7, 'flutuar') });
-  c.push({ ...nomeDoProduto(p.nome, px(f.nome_[formato])), animacao: ani(formato === '9:16' ? 'descer' : 'esquerda', 0.55, 0.55) });
+  const mov = o.movimento ?? {};
+  c.push({ ...imagem('Produto', p.imagem?.url ?? '', pr.x, pr.y, pr.w, pr.h, { ajuste: 'conter', focoX: 50, focoY: 100, sombra: null }), animacao: ani(mov.produto ?? 'subir', 0.25, 0.7, 'flutuar') });
+  c.push({ ...nomeDoProduto(p.nome, px(f.nome_[formato])), animacao: ani(mov.nome ?? (formato === '9:16' ? 'descer' : 'esquerda'), 0.55, 0.55) });
   // F-239: balão AMARELO realista na lateral, pulsando — "POR"/"DE" em cima, R$ + valor + centavos no centro, unidade embaixo
-  if (p.preco != null) {
-    const v = formatarPreco(p.preco);
-    const s = f.preco[formato];
-    const d = s.d * Math.min(W, H);
-    const de = p.precoDe != null && p.precoDe > p.preco ? formatarPreco(p.precoDe) : null;
-    c.push({
-      ...selo(s.cx * W - d / 2, s.cy * H - d / 2, d, { topo: de ? `DE ${de.inteiro},${de.centavos} POR` : 'POR APENAS', moeda: 'R$', valor: v.inteiro, sufixo: `,${v.centavos}`, base: p.unidade && p.unidade !== 'UN' ? p.unidade : '', cor: '#FFD21F', corTexto: '#c40f24', borda: '#ffffff', realista: true, sombra: { cor: 'rgba(0,0,0,.45)', desfoque: 34, dx: 0, dy: 16 } }),
-      nome: 'Preço', animacao: ani('zoom', 0.9, 0.55, 'pulsar'),
-    });
-  }
+  const s = f.preco[formato];
+  const d = s.d * Math.min(W, H);
+  const balao = seloDoPreco(p, s.cx * W - d / 2, s.cy * H - d / 2, d);
+  if (balao) c.push({ ...balao, animacao: ani(mov.preco ?? 'zoom', 0.9, 0.55, 'pulsar') });
   // botão no lugar do "YOUR LOGO" do fundo: cobre desde o 1º quadro (sem entrada) e pulsa
   const bb = px(f.botao[formato]);
   c.push({ ...forma('Botão', bb.x, bb.y, bb.w, bb.h, { cor: f.corBotao, raio: Math.round(bb.h * 0.32), borda: { cor: f.bordaBotao, largura: Math.max(6, Math.round(bb.h * 0.08)) } }), animacao: ani('pulsar', 0, 1) });
@@ -134,7 +160,8 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   c.push({ ...tb, animacao: ani('pulsar', 0, 1) });
   return { versao: 2, formato, fundo: '#c40f24', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } };
 }
-export const SEGUNDOS_POR_PRODUTO = 4;
+/** F-242: regra do dono — cada produto fica 8 s no palco */
+export const SEGUNDOS_POR_PRODUTO = 8;
 export const PASTA_PALCO = 'palco-de-ofertas';
 
 type Ani = NonNullable<Camada['animacao']>;
@@ -202,10 +229,8 @@ export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'prec
   if (preco) {
     const d = em ? 330 : 300;
     const sx = em ? W - d - 40 : W * 0.56 + (W * 0.4 - d) / 2, sy = em ? py - d * 0.9 : nome.y + nome.h + 40;
-    c.push({
-      ...selo(sx, sy, d, { topo: p.precoDe != null && p.precoDe > p.preco! ? `DE ${formatarPreco(p.precoDe).inteiro},${formatarPreco(p.precoDe).centavos}` : 'POR', valor: preco.inteiro, sufixo: `,${preco.centavos}`, base: p.unidade && p.unidade !== 'UN' ? `R$ / ${p.unidade}` : 'R$', cor: '#FFD21F', corTexto: '#c40f24', borda: '#ffffff' }),
-      nome: 'Preço', animacao: ani('zoom', 1.15, 0.55, 'pulsar'),
-    });
+    const balao = seloDoPreco(p, sx, sy, d);
+    if (balao) c.push({ ...balao, animacao: ani(o.movimento?.preco ?? 'zoom', 1.15, 0.55, 'pulsar') });
   }
   const aviso = texto('Aviso', 'Ofertas válidas enquanto durarem os estoques · Imagens ilustrativas', 0, 0, W * 0.9, { tamanho: em ? 26 : 22, alinhamento: 'center', cor: 'rgba(255,255,255,.75)' });
   Object.assign(aviso, { x: (W - aviso.w) / 2, y: H - aviso.h - 26 });
@@ -222,7 +247,7 @@ export function projetoDoCarrossel(produtos: Array<Pick<ProdutoTabloide, 'nome' 
     fundo: '#3a0209',
     clipes: produtos.map((p) => novoClipe('arte', '', p.nome, {
       documento: palcoDoProduto(p, formato, { ...o, segundos: seg }), duracao: seg, zoomDe: 1, zoomPara: 1,
-      transicao: { tipo: 'deslizar-esquerda', duracao: 0.5 },
+      transicao: { tipo: o.movimento?.transicao ?? 'deslizar-esquerda', duracao: 0.5 },
     })),
   };
 }

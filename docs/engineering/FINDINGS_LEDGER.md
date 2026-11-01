@@ -2911,3 +2911,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:**
   - `studioEncarteOficial240.test.ts` roda tudo nos 2 formatos: lados, formato dos cartões, rodapé lado a lado e editor.
   - Conferido no navegador: pasta com 15 produtos reais nos dois formatos, editor com 16:9 e 9:16 do encarte.
+
+### F-242 — Palco: balão legível, tela de edição compacta e responsiva, 8 s por produto, produtos obrigatórios e foto lembrada; textos centralizados em todo botão e balão — FEITO
+
+- **Pedido do dono (01/11/2026):** a cor do balão estava estranha e a sombra atrapalhava ler; "DE x POR" em vermelho e "POR APENAS" em verde, com R$ e valor em branco; nome do botão centralizado; edição direta no Palco (nome, preço, foto); escolher o lado do movimento e do carrossel; 8 s por produto; nome + marca + medida + preço obrigatórios, com exemplos e a pergunta "é promoção?"; lembrar a foto usada; grade de produtos fechada em um cartão; tudo responsivo.
+- **Feito:**
+  - Balão (`seloDoPreco`, usado nos dois palcos): amarelo #FFC400, "DE x POR" vermelho, "POR APENAS" verde, R$ e valor brancos com contorno vermelho, sem sombra borrada no texto.
+  - `desenhar.ts`: todo texto agora centraliza cada linha pela altura real da maiúscula (`measureText('H')`), e não pela caixa da fonte. Vale para botões, pílulas e cartões de todos os modelos, e move alguns pixels os textos dos modelos existentes.
+  - `SEGUNDOS_POR_PRODUTO = 8`. `OpcoesDoPalco.movimento`: entrada do produto, do nome e do balão e a troca do carrossel (a tela usa as mesmas opções do vídeo: esquerda, direita, cima, zoom, dissolver).
+  - Tela do Palco reescrita: tela + fila de produtos; tocar num produto para o carrossel e abre a edição; tocar no nome, no preço ou na foto na própria tela abre o campo certo. Cartões compactos: Editar produto, Fundo e botão, Movimento. As escolhas ficam guardadas no navegador.
+  - `PainelDeProdutos` (Palco e pasta de encartes): começa fechado num cartão; exemplos de escrita; `faltasDoProduto` exige preço, medida e marca (carnes, frutas e verduras sem marca; código de barras traz os dados); a lista só entra completa; "Promoção" por produto abre o "de".
+  - `TrocarFoto.tsx`: a janela de foto saiu do `TabloideEditor` e é uma só no Cartaz Digital e no Studio. `trocarFoto` grava a escolha em `tabloide_catalogo` pelo nome e pelo código de barras (`ESCOLHA`/`UPLOAD`), e a foto volta sozinha quando o produto entra de novo.
+- **Prova:** `studioPalcoEdicao242.test.ts` (12 testes); navegador com a conta de teste: edição, tocar no nome, promoção, largura sem transbordar em 375 e 800 px. A largura de notebook (1280) não foi medida, porque a janela de teste limitou a 1008 px.

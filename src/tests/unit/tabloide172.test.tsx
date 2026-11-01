@@ -317,7 +317,7 @@ describe('F-174 · imagem criada por IA quando não há foto real', () => {
     const img = fonte('src/lib/tabloide/imagens.ts');
     expect(img.indexOf('if (!vivas.length) {')).toBeGreaterThan(0);
     expect(img.slice(img.indexOf('if (!vivas.length) {'))).toContain('gerarImagemIA(p.nome)');
-    expect(fonte('src/components/tabloide/TabloideEditor.tsx')).toContain('tabloide-criar-ia');
+    expect(fonte('src/components/tabloide/TrocarFoto.tsx')).toContain('tabloide-criar-ia');
     expect(fonte('src/components/tabloide/TabloideCanvas.tsx')).toContain("IA: 'criadas por IA'");
   });
 

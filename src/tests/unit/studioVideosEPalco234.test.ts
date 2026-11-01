@@ -44,7 +44,7 @@ describe('palco de ofertas (mercado)', () => {
       expect(nome('Produto')).toMatchObject({ tipo: 'imagem', src: 'https://x/coca.png', ajuste: 'conter' });
       expect(nome('Produto').animacao).toMatchObject({ tipo: 'zoom', depois: 'flutuar' });
       expect(nome('Nome do produto')).toMatchObject({ texto: 'Coca-Cola 2L' });
-      expect(nome('Preço')).toMatchObject({ tipo: 'selo', valor: '9', sufixo: ',99', topo: 'DE 12,99' });
+      expect(nome('Preço')).toMatchObject({ tipo: 'selo', valor: '9', sufixo: ',99', topo: 'DE 12,99 POR', corTopo: '#d90f1f', corValor: '#ffffff' });
       expect(nome('Preço').animacao).toMatchObject({ depois: 'pulsar' });
       expect(d.video?.duracao).toBe(SEGUNDOS_POR_PRODUTO);
       expect(d.camadas.some((c) => c.nome === 'Sua logo')).toBe(true);
@@ -95,7 +95,7 @@ describe('F-237 — fundo OFICIAL do Palco de Ofertas (arte do dono)', () => {
       expect(nome('Nome do produto').y + nome('Nome do produto').h).toBeLessThanOrEqual(formato === '9:16' ? pr.y + 1 : H);
       // F-239: balão AMARELO realista na lateral, pulsando; R$ + valor + centavos centralizados dentro dele
       const balao = nome('Preço');
-      expect(balao).toMatchObject({ tipo: 'selo', realista: true, cor: '#FFD21F', moeda: 'R$', valor: '25', sufixo: ',90', topo: 'POR APENAS' });
+      expect(balao).toMatchObject({ tipo: 'selo', realista: true, cor: '#FFC400', moeda: 'R$', valor: '25', sufixo: ',90', topo: 'POR APENAS', corTopo: '#0a8a3a', corValor: '#ffffff' });
       expect(balao.animacao).toMatchObject({ tipo: 'zoom', depois: 'pulsar' });
       // F-240: tamanho normal (proporcional ao produto) e do outro lado do nome; deitado, o nome fica colado à esquerda do produto
       expect(balao.w).toBeLessThanOrEqual(Math.min(pr.w, pr.h) * 1.05);

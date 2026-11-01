@@ -47,6 +47,8 @@ export interface CamadaSelo extends CamadaBase {
   moeda?: string | null;
   /** F-239: balão realista (degradê com volume, brilho em cima, aro dourado) */
   realista?: boolean;
+  /** F-242: cores próprias — "DE x POR"/"POR APENAS" (corTopo), R$ + valor + centavos (corValor, com contorno para ler no amarelo) */
+  corTopo?: string | null; corValor?: string | null; contornoValor?: { cor: string; largura: number } | null;
 }
 export interface CamadaItens extends CamadaBase {
   tipo: 'itens'; itens: string[]; fonte: string; cor: string; destaque: string; tamanho: number; vertical: boolean;
