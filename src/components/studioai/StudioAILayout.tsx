@@ -79,6 +79,8 @@ function MenuLateral({ anunciante, carregado, onNavegar }: { anunciante: boolean
     { nome: 'Criar com IA', to: '/studio/ia', icone: Sparkles },
     // F-235: títulos 3D de encarte (volume, chanfro, brilho, enfeites) que vão para os encartes e o Palco
     { nome: 'Logos 3D', to: '/studio/logos', icone: Gem },
+    // F-248: a pasta com todas as logos, de onde os encartes e o Palco escolhem
+    { nome: 'Pasta de Logos', to: '/studio/pasta/logos', icone: FolderKanban },
     { nome: 'Configurações do Studio', to: '/studio/configuracoes', icone: Settings },
   ];
   return (

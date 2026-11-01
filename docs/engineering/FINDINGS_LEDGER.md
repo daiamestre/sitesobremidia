@@ -2975,3 +2975,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Causas corrigidas:** (1) na placa com promoção, o "DE x,xx" ficava na coluna esquerda e empurrava o valor; (2) nos encartes A4 e no Cartaz Digital, a placa de preço era desenhada encostada à direita do seu espaço, fora do centro do cartão.
 - **Feito:** `balaoDePreco` é o único desenho de balão retangular e oval ("de" centralizado em cima; R$ + valor + centavos centralizados; bloco no meio da altura); `desenharPreco` centraliza a placa; `Preco` centraliza por padrão.
 - **Trava permanente:** `src/tests/unit/regraBaloesCentralizados.test.ts` percorre `ESTILOS_DE_BALAO`, `ENCARTES_OFICIAIS` e `FUNDOS_DO_PALCO` em todos os tamanhos e reprova o que nascer fora da regra; regra gravada no `CLAUDE.md` e na memória do projeto.
+
+### F-248 — Pasta Logos no Studio e troca de logo em todos os encartes e no Palco — FEITO
+
+- **Pedido do dono (01/11/2026):** mandou as logos Mega Oferta, Semana do Frango e Alerta de Oferta para ampliar nos formatos; quer uma pasta no Studio com todas as logos e a opção de trocar a logo em todos os encartes, para ele e para o cliente.
+- **Feito:**
+  - `scripts/studio/preparar-logos.mjs`: tira o fundo branco (só o branco ligado à borda, com cor para transparência, preservando o brilho) e grava em `public/studio/logos/`.
+  - `scripts/studio/tirar-titulo-dos-fundos.mjs`: tira dos fundos a logo que vinha gravada, recompondo com o próprio fundo (dobra de trecho limpo nos encartes; continuação dos raios no Palco). Gera `*-st.webp`, de onde `adaptar-encartes.mjs` tira os outros tamanhos.
+  - A logo agora é camada (`Logo do encarte`, `Logo do palco`), com caixa `titulo` por formato; `adaptarLayout` a leva a todos os tamanhos.
+  - `src/lib/studio/logos.ts`: `LOGOS_OFICIAIS`, `logosDaPasta` (oficiais + `tabloide_selos` tipo `LOGO_CABECALHO`, cada conta vê as suas e as da empresa), escolha guardada por encarte no navegador.
+  - `PastaDeLogos.tsx`: pasta em `/studio/pasta/logos` (catálogo e menu), envio, "Para todos os usuários" para a central, e a janela `EscolherLogo` ("Trocar logo") nos encartes oficiais, nos A4 (`logoUrl` → `seloUrl`, também no editor) e no Palco, com "Logo original do encarte".
+- **Limites:** o envio aceita PNG, JPG e WebP (SVG não, regra da biblioteca); a logo escolhida fica guardada no navegador da pessoa; as logos oficiais têm 1024 px de altura, então no A3 (título com cerca de 1000 px de largura) ficam nítidas.
+- **Prova:** `studioLogos248.test.ts`; navegador: pasta, troca no oficial e no A4, logo cabendo no cabeçalho (medido).

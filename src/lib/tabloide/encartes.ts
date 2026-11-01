@@ -35,6 +35,8 @@ export interface ModeloDeEncarte {
   produtos: string;
   /** F-235: logo 3D da galeria (criada no Studio) no lugar do título desenhado */
   logoCabecalhoId?: string | null;
+  /** F-248: logo escolhida na pasta Logos do Studio (endereço completo) */
+  logoUrl?: string | null;
   /** F-236: estrutura das referências de encarte de mercado */
   layout?: LayoutDoCartaz;
   grade?: string;
@@ -244,7 +246,8 @@ export function configDoEncarte(e: ModeloDeEncarte, c: ConfigCartaz): ConfigCart
     fundoCss: e.fundoCss ?? null,
     corPainel: e.corPainel ?? null,
     temaModo: 'cabecalho',
-    cabecalhoEmTexto: !e.logoCabecalhoId,
+    cabecalhoEmTexto: !e.logoCabecalhoId && !e.logoUrl,
+    seloUrl: e.logoUrl ?? c.seloUrl,
     logoCabecalhoId: e.logoCabecalhoId ?? null,
     logoAqui: true,
     boxes: e.boxes ?? 'coluna',

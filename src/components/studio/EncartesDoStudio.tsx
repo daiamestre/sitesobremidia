@@ -17,6 +17,7 @@ import { CESTA_PADRAO, ENCARTES, ENCARTE_FORMATO, arranjoDoEncarte, configDoEnca
 import { QUANTIDADE_PADRAO, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
 import { formatoPorId } from '@/lib/tabloide/temas';
 import { logoSalvaDoStudio, seloDaLogo } from '@/lib/studio/logoDoStudio';
+import { urlCompleta, type LogoDaPasta } from '@/lib/studio/logos';
 import { ENCARTES_OFICIAIS, documentoDoEncarteOficial } from '@/lib/studio/encartesOficiais';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 
@@ -41,7 +42,7 @@ export function CapaDaPastaDeEncartes({ atraso = 0 }: { atraso?: number }) {
   return <CapaQueGira slides={slides} atraso={atraso} ajuste="contain" className="h-full" style={{ aspectRatio: '1240 / 1754' }} />;
 }
 
-export function MiniaturaDoEncarte({ e, fotos, produtos: daPessoa, quantos = QUANTIDADE_PADRAO }: { e: ModeloDeEncarte; fotos: Map<string, ImagemProduto> | undefined; /** F-233: os produtos que a pessoa colocou na pasta (já com as fotos) */ produtos?: ProdutoTabloide[]; /** F-244: quantos produtos mostrar */ quantos?: number }) {
+export function MiniaturaDoEncarte({ e, fotos, produtos: daPessoa, quantos = QUANTIDADE_PADRAO, logoEscolhida }: { e: ModeloDeEncarte; /** F-248: logo da pasta Logos */ logoEscolhida?: LogoDaPasta | null; fotos: Map<string, ImagemProduto> | undefined; /** F-233: os produtos que a pessoa colocou na pasta (já com as fotos) */ produtos?: ProdutoTabloide[]; /** F-244: quantos produtos mostrar */ quantos?: number }) {
   const caixa = useRef<HTMLDivElement>(null);
   const naTela = useNaTela(caixa, '400px');
   const formato = formatoPorId(ENCARTE_FORMATO);
@@ -50,12 +51,12 @@ export function MiniaturaDoEncarte({ e, fotos, produtos: daPessoa, quantos = QUA
     // F-244: grade exata para a quantidade escolhida, sem fileira incompleta
     const n = quantidadeCompleta(quantos, todos.length);
     const produtos = todos.slice(0, n);
-    const comGrade = { ...e, ...arranjoDoEncarte(e.layout, n) };
+    const comGrade = { ...e, ...arranjoDoEncarte(e.layout, n), ...(logoEscolhida ? { logoUrl: urlCompleta(logoEscolhida.url) } : {}) };
     // F-235: com a logo 3D criada no Studio, o cabeçalho mostra a logo
-    const logo = logoSalvaDoStudio();
+    const logo = logoEscolhida ? null : logoSalvaDoStudio();
     const comLogo = logo ? { ...comGrade, logoCabecalhoId: logo.id } : comGrade;
     return propsDasPaginas({ formatoId: ENCARTE_FORMATO, temaId: e.temaId, segmentoId: e.segmento, grade: gradeDoEncarte(comGrade), produtos, config: configDoEncarte(comLogo, configPadrao()) }, logo ? [seloDaLogo(logo)] : [])[0];
-  }, [e, fotos, daPessoa, quantos]);
+  }, [e, fotos, daPessoa, quantos, logoEscolhida]);
   const [largura, setLargura] = useState(0);
   useEffect(() => {
     const el = caixa.current;

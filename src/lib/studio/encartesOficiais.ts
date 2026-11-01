@@ -5,12 +5,13 @@
 // Fundo novo do dono = uma entrada em ENCARTES_OFICIAIS + as imagens em public/studio/encartes-oficiais/.
 import { TAMANHO_DOC, forma, imagem, larguraDoTexto, texto, type Camada, type Documento, type FormatoArte, type FormatoDoc } from './documento';
 import { ESTILOS_DE_BALAO, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta } from './palco';
+import { LOGO_MEGA_OFERTA, LOGO_SEMANA_DO_FRANGO, type LogoDaPasta } from './logos';
 import { QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta, type GradeDaArea } from './gradeInteligente';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
 /** Logo (ou foto) do cliente. `recortada` = PNG sem fundo, logo redonda ou vetor: fica solta, como a logo "MEGA OFERTA". */
 export interface LogoDoCliente { url: string; largura: number; altura: number; recortada: boolean }
-export interface DadosDoEncarte { logo?: LogoDoCliente | null; telefone?: string; endereco?: string; /** F-244: quantos produtos o cliente quer mostrar (padrão 16) */ quantos?: number }
+export interface DadosDoEncarte { logo?: LogoDoCliente | null; telefone?: string; endereco?: string; /** F-244: quantos produtos o cliente quer mostrar (padrão 16) */ quantos?: number; /** F-248: logo do encarte escolhida na pasta Logos (padrão: a logo oficial dele) */ logoDoEncarte?: LogoDaPasta | null }
 
 export interface ColunaDoEncarte extends Caixa {
   etiqueta: CoresDaEtiqueta; sombraNome: string;
@@ -21,6 +22,8 @@ export interface ColunaDoEncarte extends Caixa {
 export interface LayoutDoEncarte {
   /** fundo com a caixa "SUA LOGO AQUI" (sem logo) e sem ela (com a logo do cliente) */
   fundo: string; fundoLimpo: string;
+  /** F-248: onde fica a logo do encarte (ela é uma camada: o fundo não tem mais título gravado) */
+  titulo: Caixa;
   /** colunas de produtos; os produtos alternam entre elas */
   colunas: ColunaDoEncarte[];
   logo: Caixa;
@@ -32,6 +35,8 @@ export interface EncarteOficial {
   id: string; nome: string;
   /** F-240: o mesmo encarte em pé (9:16) e deitado (16:9), cada um com o fundo do dono; F-246: e os formatos adaptados */
   formatos: Partial<Record<FormatoArte, LayoutDoEncarte>>;
+  /** F-248: a logo padrão do encarte */
+  logoPadrao: LogoDaPasta;
   corTelefone: string; corEndereco: string;
   /** F-245: sombra nos contatos quando eles ficam sobre o fundo azul */
   sombraContato?: boolean;
@@ -51,8 +56,9 @@ const BASES: EncarteOficial[] = [
     formatos: {
       // 1080×1920: a curva entre o vermelho e o azul passa entre x 513 e 581; o rodapé amarelo começa em 1693
       '9:16': {
-        fundo: '/studio/encartes-oficiais/mega-oferta-bicolor-v.webp',
-        fundoLimpo: '/studio/encartes-oficiais/mega-oferta-bicolor-v-limpo.webp',
+        fundo: '/studio/encartes-oficiais/mega-oferta-bicolor-v-st.webp',
+        fundoLimpo: '/studio/encartes-oficiais/mega-oferta-bicolor-v-st-limpo.webp',
+        titulo: { x: 14, y: 20, w: 640, h: 476 },
         colunas: [
           { x: 26, y: 505, w: 468, h: 1160, ...VERMELHO }, // lado vermelho (abaixo da logo MEGA OFERTA)
           { x: 602, y: 455, w: 454, h: 1210, ...AZUL }, // lado azul (abaixo dos ícones)
@@ -63,8 +69,9 @@ const BASES: EncarteOficial[] = [
       },
       // 1920×1080: a curva passa entre x 907 e 983; o rodapé amarelo começa em 954
       '16:9': {
-        fundo: '/studio/encartes-oficiais/mega-oferta-bicolor-h.webp',
-        fundoLimpo: '/studio/encartes-oficiais/mega-oferta-bicolor-h-limpo.webp',
+        fundo: '/studio/encartes-oficiais/mega-oferta-bicolor-h-st.webp',
+        fundoLimpo: '/studio/encartes-oficiais/mega-oferta-bicolor-h-st-limpo.webp',
+        titulo: { x: 150, y: 10, w: 730, h: 456 },
         colunas: [
           { x: 30, y: 468, w: 848, h: 474, ...VERMELHO },
           { x: 1012, y: 380, w: 878, h: 562, ...AZUL },
@@ -74,6 +81,7 @@ const BASES: EncarteOficial[] = [
         cartao: 0.8,
       },
     },
+    logoPadrao: LOGO_MEGA_OFERTA,
     corTelefone: '#c4001d', corEndereco: '#0b2a8f',
   },
   {
@@ -82,8 +90,9 @@ const BASES: EncarteOficial[] = [
       // 1080×1920: o cartão amarelo vai de y 606 a 1468, com a beira esquerda indo de x 726 (y 700) a 592 (y 1400);
       // moedas: em cima à esquerda até y 635, à direita até y 643 e embaixo à direita a partir de y 1578
       '9:16': {
-        fundo: '/studio/encartes-oficiais/semana-do-frango-v.webp',
-        fundoLimpo: '/studio/encartes-oficiais/semana-do-frango-v-limpo.webp',
+        fundo: '/studio/encartes-oficiais/semana-do-frango-v-st.webp',
+        fundoLimpo: '/studio/encartes-oficiais/semana-do-frango-v-st-limpo.webp',
+        titulo: { x: 110, y: 40, w: 640, h: 486 },
         colunas: [
           { x: 24, y: 645, w: 552, h: 1140, ...AZUL_CLARO },
           { x: 745, y: 660, w: 319, h: 780, ...CARTAO_AMARELO },
@@ -95,8 +104,9 @@ const BASES: EncarteOficial[] = [
       // 1920×1080: o cartão amarelo começa em y 290, com a beira esquerda indo de x 1234 a 1083; moedas à direita até
       // y 367 e a partir de y 827
       '16:9': {
-        fundo: '/studio/encartes-oficiais/semana-do-frango-h.webp',
-        fundoLimpo: '/studio/encartes-oficiais/semana-do-frango-h-limpo.webp',
+        fundo: '/studio/encartes-oficiais/semana-do-frango-h-st.webp',
+        fundoLimpo: '/studio/encartes-oficiais/semana-do-frango-h-st-limpo.webp',
+        titulo: { x: 268, y: 14, w: 700, h: 490 },
         colunas: [
           { x: 30, y: 545, w: 1035, h: 425, ...AZUL_CLARO },
           { x: 1245, y: 375, w: 655, h: 445, ...CARTAO_AMARELO },
@@ -106,6 +116,7 @@ const BASES: EncarteOficial[] = [
         cartao: 0.8,
       },
     },
+    logoPadrao: LOGO_SEMANA_DO_FRANGO,
     corTelefone: '#ffffff', corEndereco: '#ffffff', sombraContato: true,
   },
 ];
@@ -127,7 +138,7 @@ function adaptarLayout(id: string, base: LayoutDoEncarte, de: FormatoDoc, y1: nu
   const caixa = <T extends Caixa>(b: T): T => ({ ...b, x: b.x * s, y: y(b.y), w: b.w * s, h: y(b.y + b.h) - y(b.y) });
   return {
     fundo: `/studio/encartes-oficiais/${id}-${SUFIXO[alvo]}.webp`, fundoLimpo: `/studio/encartes-oficiais/${id}-${SUFIXO[alvo]}-limpo.webp`,
-    colunas: base.colunas.map(caixa), logo: caixa(base.logo), rodape: caixa(base.rodape), cartao: base.cartao,
+    titulo: caixa(base.titulo), colunas: base.colunas.map(caixa), logo: caixa(base.logo), rodape: caixa(base.rodape), cartao: base.cartao,
   };
 }
 /** Todo fundo oficial sai nos 7 tamanhos: fundo novo do dono = uma entrada em BASES e outra em ADAPTACOES. */
@@ -251,6 +262,9 @@ export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[]
   const lay = layoutDoEncarte(e, f);
   const { w: W, h: H } = TAMANHO_DOC[f];
   const c: Camada[] = [{ ...imagem('Fundo oficial', d.logo ? lay.fundoLimpo : lay.fundo, 0, 0, W, H), bloqueada: true }];
+  // F-248: a logo do encarte é uma camada (troca pela pasta Logos e fica nítida em qualquer tamanho)
+  const logoTitulo = d.logoDoEncarte ?? e.logoPadrao;
+  c.push({ ...imagem('Logo do encarte', logoTitulo.url, lay.titulo.x, lay.titulo.y, lay.titulo.w, lay.titulo.h, { ajuste: 'conter' }), animacao: ani('zoom', 0, 0.6) });
   if (d.logo) c.push(...camadasDaLogo(d.logo, lay.logo));
   // F-244: grade completa e inteligente para a quantidade escolhida (vale para todo fundo oficial novo)
   const lista = produtos.slice(0, quantidadeCompleta(d.quantos ?? QUANTIDADE_PADRAO, produtos.length));

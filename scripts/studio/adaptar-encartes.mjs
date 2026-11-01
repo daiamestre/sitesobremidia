@@ -27,7 +27,7 @@ async function adaptar(entrada, saida, base, y1, y2, W, H) {
 for (const [id, formatos] of Object.entries(ADAPTACOES)) {
   for (const [f, [fonte, y1, y2]] of Object.entries(formatos)) {
     const [W, H] = TAMANHOS[f];
-    for (const fim of ['', '-limpo']) await adaptar(`${PASTA}/${id}-${fonte}${fim}.webp`, `${PASTA}/${id}-${f}${fim}.webp`, SOURCES[fonte], y1, y2, W, H);
+    for (const fim of ['', '-limpo']) await adaptar(`${PASTA}/${id}-${fonte}-st${fim}.webp`, `${PASTA}/${id}-${f}${fim}.webp`, SOURCES[fonte], y1, y2, W, H);
   }
 }
 console.log('fundos adaptados');

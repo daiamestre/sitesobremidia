@@ -9,6 +9,7 @@ import { CapaDaPastaDeEncartes, PASTA_ENCARTES } from '@/components/studio/Encar
 import { ENCARTES } from '@/lib/tabloide/encartes';
 import { CapaDaPastaPalco } from '@/components/studio/PalcoDeOfertas';
 import { PASTA_PALCO } from '@/lib/studio/palco';
+import { CapaDaPastaDeLogos, PASTA_LOGOS } from '@/components/studio/PastaDeLogos';
 import '@/components/studio/studio-efeitos.css';
 import { intercalarPorSegmento } from '@/lib/studio/miniaturas';
 import type { FormatoDoc } from '@/lib/studio/documento';
@@ -215,6 +216,20 @@ export default function CatalogoPage() {
                 <p className="text-xs text-slate-400">Supermercados · vídeo</p>
                 <div className="mt-3">
                   <Link to={`/studio/pasta/${PASTA_PALCO}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-palco"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
+                </div>
+              </article>
+            )}
+            {/* F-248: pasta LOGOS — todas as logos; os encartes e o Palco escolhem daqui */}
+            {mostrarEncartes && (
+              <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-logos-capa">
+                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-[#1c1630]">
+                  <Link to={`/studio/pasta/${PASTA_LOGOS}`} aria-label="Abrir a pasta Logos" className="block h-full w-full"><CapaDaPastaDeLogos /></Link>
+                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
+                </div>
+                <h3 className="mt-2 truncate text-sm font-semibold text-white">Logos</h3>
+                <p className="text-xs text-slate-400">Oficiais, criadas e enviadas</p>
+                <div className="mt-3">
+                  <Link to={`/studio/pasta/${PASTA_LOGOS}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]">Abrir pasta</Link>
                 </div>
               </article>
             )}

@@ -6,6 +6,7 @@ import { useClienteModalidade } from '@/modules/crm/hooks/useClienteModalidade';
 import { meuSaldo } from '@/lib/studioai/api';
 import { encarteComQuantidade, encartePorId } from '@/lib/tabloide/encartes';
 import { lerQuantidade } from '@/lib/studio/gradeInteligente';
+import { lerLogoDoEncarte, urlCompleta } from '@/lib/studio/logos';
 import { CHAVE_PRODUTOS_DO_ENCARTE } from '@/components/studio/PastaDeEncartes';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 
@@ -24,7 +25,9 @@ export default function EncarteStudioPage() {
   const comProdutos = naPasta ? encarteComQuantidade(naPasta, lerQuantidade()) : naPasta;
   // F-235: a logo 3D criada no Studio vai para o cabeçalho
   const logo = logoSalvaDoStudio();
-  const encarte = comProdutos && logo ? { ...comProdutos, logoCabecalhoId: logo.id } : comProdutos;
+  // F-248: a logo escolhida na pasta vale mais que a última logo criada
+  const escolhida = modelo ? lerLogoDoEncarte(modelo.id) : null;
+  const encarte = comProdutos && escolhida ? { ...comProdutos, logoUrl: urlCompleta(escolhida.url) } : comProdutos && logo ? { ...comProdutos, logoCabecalhoId: logo.id } : comProdutos;
   const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo, staleTime: 30_000 });
   const { cliente } = useClienteModalidade();
   if (!encarte) return <div className="p-10 text-sm text-slate-300">Encarte não encontrado. <Link to="/studio" className="text-[#FFD400] hover:underline">Voltar aos modelos</Link></div>;

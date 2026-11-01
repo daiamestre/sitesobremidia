@@ -4,6 +4,7 @@ import { ArrowLeft, Clapperboard, FolderOpen, Image as ImageIcon, Monitor, PenLi
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { PalcoDeOfertas } from '@/components/studio/PalcoDeOfertas';
 import { PASTA_PALCO } from '@/lib/studio/palco';
+import { PASTA_LOGOS, PastaDeLogos } from '@/components/studio/PastaDeLogos';
 import { coreografia, temAnimacao } from '@/lib/studio/animacao';
 import { modeloParaDocumento } from '@/lib/studio/documento';
 import { MiniaturaDoModelo } from '@/components/studio/Vitrines';
@@ -48,6 +49,7 @@ function Cartao({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
 export default function PastaPage() {
   const { pastaId } = useParams();
   if (pastaId === PASTA_PALCO) return <PalcoDeOfertas />;
+  if (pastaId === PASTA_LOGOS) return <PastaDeLogos />;
   return pastaId === PASTA_ENCARTES ? <PastaDeEncartes /> : <PastaDeModelos pastaId={pastaId} />;
 }
 

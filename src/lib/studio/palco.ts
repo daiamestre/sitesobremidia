@@ -5,6 +5,7 @@
 import { TAMANHO_DOC, forma, imagem, larguraDoTexto, selo, texto, type Camada, type Documento, type FormatoDoc } from './documento';
 import { novoClipe, projetoVazio, type ProjetoDeVideo, type TipoDeTransicao } from './video/linha';
 import type { TipoDeAnimacao } from './animacao';
+import { LOGO_ALERTA_DE_OFERTA, type LogoDaPasta } from './logos';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
 export interface OpcoesDoPalco {
@@ -14,6 +15,8 @@ export interface OpcoesDoPalco {
   fundo?: FundoDoPalco | null;
   /** texto do botão no lugar do "YOUR LOGO" do fundo oficial */
   textoBotao?: string;
+  /** F-248: logo do palco escolhida na pasta Logos (padrão: a logo oficial do fundo) */
+  logoDoPalco?: LogoDaPasta | null;
   /** F-242: de que lado cada elemento entra (escolha do cliente) e para que lado o carrossel passa de um produto ao outro */
   movimento?: MovimentoDoPalco;
 }
@@ -63,14 +66,17 @@ export interface FundoDoPalco {
   /** F-239: balão AMARELO de preço na lateral (centro e diâmetro em frações; d = fração do lado menor), pulsando */
   preco: Record<FormatoDoc, { cx: number; cy: number; d: number }>;
   botao: Record<FormatoDoc, Caixa>;
+  /** F-248: a logo é uma camada: o fundo não tem título gravado */
+  titulo: Record<FormatoDoc, Caixa>; logoPadrao: LogoDaPasta;
   corBotao: string; bordaBotao: string;
   botoes: string[];
 }
-export const srcDoFundo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/palco/${f.id}-${formato === '9:16' ? 'v' : 'h'}.webp`;
+export const srcDoFundo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/palco/${f.id}-${formato === '9:16' ? 'v' : 'h'}-st.webp`;
 
 export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
   {
     id: 'alerta-de-oferta', nome: 'Alerta de Oferta (sirene)',
+    titulo: { '9:16': { x: 0.05, y: 0.012, w: 0.9, h: 0.325 }, '16:9': { x: 0.235, y: 0.012, w: 0.53, h: 0.49 } }, logoPadrao: LOGO_ALERTA_DE_OFERTA,
     produto: { '9:16': { x: 0.22, y: 0.445, w: 0.56, h: 0.3 }, '16:9': { x: 0.415, y: 0.475, w: 0.17, h: 0.27 } },
     nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.19, y: 0.5, w: 0.215, h: 0.2, alinhamento: 'right' } },
     // F-240: balão amarelo de tamanho normal, proporcional ao produto; deitado: nome colado à esquerda do produto e balão à direita
@@ -172,6 +178,8 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   const px = <T extends Caixa>(b: T): T => ({ ...b, x: b.x * W, y: b.y * H, w: b.w * W, h: b.h * H });
   const c: Camada[] = [];
   c.push({ ...imagem('Fundo oficial', srcDoFundo(f, formato), 0, 0, W, H), bloqueada: true });
+  const ti = px(f.titulo[formato]);
+  c.push({ ...imagem('Logo do palco', (o.logoDoPalco ?? f.logoPadrao).url, ti.x, ti.y, ti.w, ti.h, { ajuste: 'conter' }), animacao: ani('surgir', 0, 0.4) });
   // produto: 'conter' (inteiro, sem cortar) e focoY 100 = o pé encosta no tampo do palco
   const pr = px(f.produto[formato]);
   const mov = o.movimento ?? {};

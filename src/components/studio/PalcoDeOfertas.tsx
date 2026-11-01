@@ -27,6 +27,8 @@ import { cn } from '@/lib/utils';
 import { useFotosDosEncartes } from './EncartesDoStudio';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { PainelDeProdutos, faltasDoProduto, useProdutosComFotos } from './ProdutosComFotos';
+import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
+import { EscolherLogo } from './PastaDeLogos';
 
 type ProdutoDoPalco = Parameters<typeof palcoDoProduto>[0];
 const CHAVE_OPCOES = 'studio-palco-opcoes';
@@ -49,8 +51,8 @@ const ESTILO_DAS_TROCAS = Object.keys(TROCA).map((t) => {
 }).join('');
 
 /** A tela tocando o carrossel: um produto por vez (8 s), cada um com a sua animação, trocando para o lado escolhido. */
-export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo = FUNDOS_DO_PALCO[0], textoBotao, movimento }: { produtos: ProdutoDoPalco[]; formato: FormatoDoc; titulo?: string; className?: string; fundo?: FundoDoPalco | null; textoBotao?: string; movimento?: MovimentoDoPalco }) {
-  const docs = useMemo(() => produtos.map((p) => palcoDoProduto(p, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento })), [produtos, formato, titulo, fundo, textoBotao, movimento]);
+export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo = FUNDOS_DO_PALCO[0], textoBotao, movimento, logoDoPalco }: { produtos: ProdutoDoPalco[]; formato: FormatoDoc; titulo?: string; className?: string; fundo?: FundoDoPalco | null; textoBotao?: string; movimento?: MovimentoDoPalco; logoDoPalco?: LogoDaPasta | null }) {
+  const docs = useMemo(() => produtos.map((p) => palcoDoProduto(p, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco })), [produtos, formato, titulo, fundo, textoBotao, movimento, logoDoPalco]);
   const [vez, setVez] = useState({ i: 0, anterior: null as number | null, n: 0 });
   useEffect(() => {
     if (docs.length < 2) return;
@@ -127,6 +129,12 @@ export function PalcoDeOfertas() {
 
   // F-244: só os produtos escolhidos passam no palco
   const comPreco = s.produtos.filter((p) => p.preco != null).slice(0, s.quantos);
+  // F-248: a logo do palco vem da pasta Logos
+  const chaveLogo = `palco-${fundoId}`;
+  const [logoDoPalco, setLogoDoPalco] = useState<LogoDaPasta | null>(() => lerLogoDoEncarte(chaveLogo));
+  useEffect(() => { setLogoDoPalco(lerLogoDoEncarte(chaveLogo)); }, [chaveLogo]);
+  const [trocandoLogo, setTrocandoLogo] = useState(false);
+  const escolherLogo = (l: LogoDaPasta | null) => { gravarLogoDoEncarte(chaveLogo, l); setLogoDoPalco(l); setTrocandoLogo(false); };
   // produto escolhido para editar (null = a tela toca o carrossel)
   const [selId, setSelId] = useState<string | null>(null);
   const sel = comPreco.find((p) => p.id === selId) ?? null;
@@ -144,14 +152,14 @@ export function PalcoDeOfertas() {
     else if (campo === 'preco') precoRef.current?.focus();
     else if (campo === 'foto') setTrocando(sel);
   }, [campo, selId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const docSel = useMemo(() => (sel ? palcoDoProduto(sel, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento }) : null), [sel, formato, titulo, fundo, textoBotao, movimento]);
+  const docSel = useMemo(() => (sel ? palcoDoProduto(sel, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco }) : null), [sel, formato, titulo, fundo, textoBotao, movimento, logoDoPalco]);
   const andar = (d: number) => { if (!comPreco.length) return; const i = Math.max(0, comPreco.findIndex((p) => p.id === selId)); setSelId(comPreco[(i + d + comPreco.length) % comPreco.length].id); setCampo(null); };
 
   const criarVideo = () => {
     if (!comPreco.length) { toast.error('Coloque pelo menos um produto com preço.'); return; }
     const incompletos = comPreco.filter((p) => faltasDoProduto(p).length);
     if (incompletos.length) { toast.error(`Complete antes: falta ${faltasDoProduto(incompletos[0]).join(', ')} em “${incompletos[0].nome}”.`); setSelId(incompletos[0].id); return; }
-    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento });
+    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco });
     try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ projeto, nome: `Palco de Ofertas – ${fundo ? textoBotao : titulo}` })); } catch { toast.error('Não foi possível abrir o editor de vídeo.'); return; }
     navegar('/studio/video');
   };
@@ -181,7 +189,7 @@ export function PalcoDeOfertas() {
           <div className={cn('mx-auto w-full', formato === '9:16' ? 'max-w-[min(340px,calc(56dvh*0.5625))] lg:max-w-[340px]' : 'max-w-[760px]')} data-testid="palco-tela">
             {!comPreco.length ? <p className="rounded-xl border border-dashed border-white/15 p-10 text-center text-sm text-slate-400">Coloque produtos com preço em “Seus produtos”.</p>
               : docSel ? <PalcoEditavel doc={docSel} campo={campo} aoTocar={(c) => setCampo(c)} />
-                : <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} />}
+                : <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} />}
           </div>
           {comPreco.length > 0 && (
             <div className="flex gap-1.5 overflow-x-auto pb-1" role="listbox" aria-label="Produtos do palco" data-testid="palco-fila">
@@ -244,6 +252,13 @@ export function PalcoDeOfertas() {
               ))}
               <button type="button" role="radio" aria-checked={!fundo} onClick={() => setFundoId('')} className={cn('flex w-24 shrink-0 items-center justify-center rounded-lg border-2 px-1 text-center text-[10px] text-slate-300', !fundo ? 'border-[#FFD400]' : 'border-white/10')}>Palco desenhado (com título)</button>
             </div>
+            {fundo && (
+              <div className="flex items-center gap-2">
+                <img src={(logoDoPalco ?? fundo.logoPadrao).url} alt="" crossOrigin="anonymous" className="h-10 w-14 rounded-md bg-black/30 object-contain" />
+                <span className="min-w-0 flex-1 truncate text-xs text-slate-300">Logo: {(logoDoPalco ?? fundo.logoPadrao).nome}</span>
+                <button type="button" onClick={() => setTrocandoLogo(true)} className="h-9 shrink-0 rounded-lg border border-white/15 px-3 text-xs font-semibold text-white hover:bg-white/5" data-testid="palco-trocar-logo">Trocar logo</button>
+              </div>
+            )}
             {fundo ? (
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">Botão:
                 {fundo.botoes.map((b) => <button key={b} type="button" onClick={() => setTextoBotao(b)} className={cn('h-8 rounded-full border px-3 font-bold', textoBotao === b ? 'border-[#FFD400] text-[#FFD400]' : 'border-white/10')} data-testid="palco-botao">{b}</button>)}
@@ -275,6 +290,7 @@ export function PalcoDeOfertas() {
           </Cartao>
         </aside>
       </div>
+      {trocandoLogo && <EscolherLogo titulo="Logo do palco" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
       {trocando && <TrocarFoto produto={trocando} aoFechar={() => { setTrocando(null); setCampo(null); }} aoEscolher={(img) => { const p = trocando; setTrocando(null); setCampo(null); void s.trocarFoto(p, img); }} />}
     </div>
   );

@@ -14,6 +14,8 @@ import { animarTudo, temAnimacao } from '@/lib/studio/animacao';
 import { documentoDoEncarteOficial, formatosDoEncarte, PASTA_ENCARTES_OFICIAIS, type DadosDoEncarte, type EncarteOficial as Encarte, type LogoDoCliente } from '@/lib/studio/encartesOficiais';
 import { OPCOES_DE_FORMATO, TAMANHO_DOC, telaDoFormato, type Documento, type FormatoArte } from '@/lib/studio/documento';
 import { quantidadeCompleta } from '@/lib/studio/gradeInteligente';
+import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
+import { EscolherLogo } from './PastaDeLogos';
 import { cn } from '@/lib/utils';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
@@ -67,13 +69,17 @@ export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: En
   const navegar = useNavigate();
   const [dados, setDados] = useState<DadosDoEncarte>(lerDados);
   const arquivo = useRef<HTMLInputElement>(null);
+  // F-248: a logo do encarte vem da pasta Logos
+  const [logoDoEncarte, setLogoDoEncarte] = useState<LogoDaPasta | null>(() => lerLogoDoEncarte(e.id));
+  const [trocandoLogo, setTrocandoLogo] = useState(false);
+  const escolherLogo = (l: LogoDaPasta | null) => { gravarLogoDoEncarte(e.id, l); setLogoDoEncarte(l); setTrocandoLogo(false); };
   useEffect(() => { try { localStorage.setItem(CHAVE_DADOS, JSON.stringify(dados)); } catch { /* logo grande demais para guardar: segue sem lembrar */ } }, [dados]);
   // F-240: o mesmo encarte em pé (9:16) e deitado (16:9); o editor recebe os dois
   const formatos = useMemo(() => formatosDoEncarte(e), [e]);
   // F-246: a escolha é por opção (Totem e Story têm a mesma medida)
   const [opcao, setOpcao] = useState('totem');
   const formato: FormatoArte = OPCOES_DE_FORMATO.flatMap((g) => g.itens).find((o) => o.id === opcao)?.formato ?? formatos[0];
-  const docs = useMemo(() => Object.fromEntries(formatos.map((f) => [f, documentoDoEncarteOficial(e, produtos, { ...dados, quantos }, f)])) as Partial<Record<FormatoArte, Documento>>, [e, formatos, produtos, dados, quantos]);
+  const docs = useMemo(() => Object.fromEntries(formatos.map((f) => [f, documentoDoEncarteOficial(e, produtos, { ...dados, quantos, logoDoEncarte }, f)])) as Partial<Record<FormatoArte, Documento>>, [e, formatos, produtos, dados, quantos, logoDoEncarte]);
   const doc = docs[formato] ?? docs[formatos[0]]!;
   const deitado = TAMANHO_DOC[doc.formato].w > TAMANHO_DOC[doc.formato].h;
   const naGrade = quantidadeCompleta(quantos, produtos.length);
@@ -119,6 +125,11 @@ export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: En
         </div>
 
         <div className="space-y-1.5">
+          <div className="mb-2 flex items-center gap-2">
+            <img src={(logoDoEncarte ?? e.logoPadrao).url} alt="" crossOrigin="anonymous" className="h-12 w-16 rounded-md bg-black/30 object-contain" />
+            <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-200">Logo do encarte: {(logoDoEncarte ?? e.logoPadrao).nome}</span>
+            <button type="button" onClick={() => setTrocandoLogo(true)} className="h-9 shrink-0 rounded-lg bg-[#5D1BFF] px-3 text-xs font-semibold text-white hover:bg-[#8A2EFF]" data-testid="encarte-trocar-logo">Trocar logo</button>
+          </div>
           <p className="text-xs font-semibold text-slate-200">Sua logo (no lugar de "SUA LOGO AQUI")</p>
           <div className="flex flex-wrap items-center gap-2">
             <input ref={arquivo} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={(ev) => { void escolher(ev.target.files?.[0]); ev.target.value = ''; }} data-testid="encarte-logo-arquivo" />
@@ -143,6 +154,7 @@ export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: En
           <button type="button" onClick={video} className="flex h-10 items-center gap-1.5 rounded-lg border border-white/15 px-4 text-sm text-white hover:bg-white/5"><Clapperboard className="h-4 w-4" />Criar vídeo</button>
         </div>
       </div>
+      {trocandoLogo && <EscolherLogo titulo={`Logo do encarte: ${e.nome}`} aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
     </article>
   );
 }
