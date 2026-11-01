@@ -4,6 +4,7 @@
  * parte das bordas, apaga tudo que é "cor do fundo" e está ligado à borda, suaviza o contorno e corta as sobras.
  * Foto com cenário (mesa, prateleira, pessoa) não é mexida — continua emoldurada no cartaz.
  */
+import { acabamento, inspecionar, realcar, repararMordidas, type Inspecao } from './qualidadeRecorte';
 
 export interface Pixels {
   data: Uint8ClampedArray;
@@ -219,6 +220,78 @@ export function caixaOpaca(data: ArrayLike<number>, w: number, h: number, recort
   }
   if (recortada && (cheios / (w * h) > 0.995 || cheios / (w * h) < 0.02)) return null; // não tirou nada, ou apagou o produto
   return x1 < x0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+/** Do tamanho do lado maior para baixo, o produto é ampliado (com fidelidade) até este lado: no cartaz ele não pode sair borrado. */
+const LADO_PADRAO = 1200;
+
+const pixelsDe = (img: HTMLImageElement, w: number, h: number) => {
+  const tela = document.createElement('canvas');
+  tela.width = w;
+  tela.height = h;
+  const ctx = tela.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('sem canvas');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
+};
+
+/**
+ * F-253 — o recorte que veio da nuvem passa pela inspeção contra a foto original ANTES de ser entregue: conserta o que dá, reprova
+ * o que tem defeito e só o aprovado recebe o acabamento (contorno limpo, sem halo) e a nitidez do padrão de qualidade.
+ */
+export async function finalizarRecorte(fotoUrl: string, recorte: Blob): Promise<{ png: Blob | null; inspecao: Inspecao | null }> {
+  const local = URL.createObjectURL(recorte);
+  try {
+    const [rec, foto] = await Promise.all([carregar(local), carregar(fotoUrl)]);
+    const w = rec.naturalWidth, h = rec.naturalHeight;
+    const pixels = pixelsDe(rec, w, h), original = pixelsDe(foto, w, h).data;
+    repararMordidas(original, pixels.data, w, h);
+    const inspecao = inspecionar(pixels.data, w, h, original);
+    if (!inspecao.aprovado) return { png: null, inspecao };
+    acabamento(original, pixels.data, w, h);
+    const caixa = caixaOpaca(pixels.data, w, h, true);
+    if (!caixa) return { png: null, inspecao };
+    const tela = document.createElement('canvas');
+    tela.width = w;
+    tela.height = h;
+    tela.getContext('2d')?.putImageData(pixels, 0, 0);
+    const escala = Math.max(1, Math.min(2.5, LADO_PADRAO / Math.max(caixa.w, caixa.h)));
+    const saida = document.createElement('canvas');
+    saida.width = Math.round(caixa.w * escala);
+    saida.height = Math.round(caixa.h * escala);
+    const ctx = saida.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return { png: null, inspecao };
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(tela, caixa.x, caixa.y, caixa.w, caixa.h, 0, 0, saida.width, saida.height);
+    const final = ctx.getImageData(0, 0, saida.width, saida.height);
+    realcar(final.data, saida.width, saida.height, escala > 1 ? 0.8 : 0.4);
+    ctx.putImageData(final, 0, 0);
+    return { png: await new Promise<Blob | null>((ok) => saida.toBlob(ok, 'image/png')), inspecao };
+  } finally {
+    URL.revokeObjectURL(local);
+  }
+}
+
+/** O recorte pronto sobre fundo chapado, em JPEG leve: é o que a IA de visão olha para achar defeito no contorno. */
+export async function fotoParaInspecao(png: Blob, lado = 640): Promise<string> {
+  const local = URL.createObjectURL(png);
+  try {
+    const img = await carregar(local);
+    const e = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight));
+    const tela = document.createElement('canvas');
+    tela.width = lado;
+    tela.height = lado;
+    const ctx = tela.getContext('2d');
+    if (!ctx) return '';
+    ctx.fillStyle = '#ff2bd6';
+    ctx.fillRect(0, 0, lado, lado);
+    const w = img.naturalWidth * e, h = img.naturalHeight * e;
+    ctx.drawImage(img, (lado - w) / 2, (lado - h) / 2, w, h);
+    return tela.toDataURL('image/jpeg', 0.85);
+  } finally {
+    URL.revokeObjectURL(local);
+  }
 }
 
 /** Corta as margens vazias em volta do produto (mantém o fundo). Devolve null se não há o que cortar ou não deu. */

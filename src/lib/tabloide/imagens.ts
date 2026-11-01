@@ -6,7 +6,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { rpcTabloide, tabelaTabloide } from './db';
 import { chaveCanonica } from './chave';
-import { cortarMargens, pngSemSobras, recortarImagem } from './recorte';
+import { cortarMargens, finalizarRecorte, fotoParaInspecao, pngSemSobras } from './recorte';
+import { MENSAGEM_DO_DEFEITO } from './qualidadeRecorte';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { chaveDoProduto, ehNomeDoCodigo, type FonteImagem, type ImagemProduto, type ProdutoTabloide } from './parseProdutos';
 
@@ -138,59 +139,62 @@ export async function gerarImagemIA(nome: string): Promise<{ imagem?: ImagemProd
     if (!uid) return { motivo: 'Sessão expirada. Entre novamente.' };
     const bytes = Uint8Array.from(atob(String(data.imagem)), (c) => c.charCodeAt(0));
     const original = new Blob([bytes], { type: 'image/jpeg' });
-    const temporaria = URL.createObjectURL(original);
-    // 1) tira o fundo; 2) se não deu, ao menos aproxima o produto cortando a margem vazia; 3) senão fica como veio
-    const recortada = await recortarImagem(temporaria);
-    const aproximada = recortada ? null : await cortarMargens(temporaria);
-    URL.revokeObjectURL(temporaria);
-    const arquivo = recortada ?? aproximada ?? original;
-    const eJpeg = arquivo === original;
-    const { publicUrl } = await uploadToR2(arquivo, `${uid}/tabloide/ia-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${eJpeg ? 'jpg' : 'png'}`, eJpeg ? 'image/jpeg' : 'image/png', uid);
-    return { imagem: { url: publicUrl, fonte: 'IA', credito: 'Imagem criada por IA', recortada: !!recortada } };
+    const envio = (arquivo: Blob, ext: string, tipo: string) => uploadToR2(arquivo, `${uid}/tabloide/ia-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`, tipo, uid);
+    const imagem: ImagemProduto = { url: (await envio(original, 'jpg', 'image/jpeg')).publicUrl, fonte: 'IA', credito: 'Imagem criada por IA' };
+    // 1) tira o fundo com a inspeção de qualidade; 2) se não deu, ao menos aproxima o produto cortando a margem vazia
+    const pronta = await prepararImagem(imagem, nome);
+    if (pronta.recortada) return { imagem: pronta };
+    const aproximada = await cortarMargens(imagem.url);
+    return { imagem: aproximada ? { ...imagem, url: (await envio(aproximada, 'png', 'image/png')).publicUrl } : imagem };
   } catch {
     return { motivo: 'Não foi possível guardar a imagem criada.' };
   }
 }
 
-/**
- * Deixa a foto pronta para o cartaz: tira o fundo liso, corta as sobras e guarda o PNG transparente no nosso armazenamento.
- * Se a foto tem cenário (não dá para recortar com segurança) ou algo falha, devolve a foto original.
- */
-export async function prepararImagem(imagem: ImagemProduto): Promise<ImagemProduto> {
-  if (imagem.recortada) return imagem;
-  try {
-    const png = await recortarImagem(imagem.url);
-    if (!png) return imagem;
-    const { data: { session } } = await supabase.auth.getSession();
-    const uid = session?.user?.id;
-    if (!uid) return imagem;
-    const { publicUrl } = await uploadToR2(png, `${uid}/tabloide/recorte-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.png`, 'image/png', uid);
-    return { ...imagem, url: publicUrl, recortada: true };
-  } catch {
-    return imagem;
-  }
-}
-
-/** F-252: a foto sem fundo, feita na Cloudflare e cortada no produto; null se não saiu fundo nenhum ou o serviço não respondeu. */
-async function recortarNaNuvem(url: string): Promise<Blob | null> {
-  if (!/^https:\/\//.test(url)) return null;
-  const { data } = await supabase.functions.invoke('produto-imagem', { body: { acao: 'recortar', url } });
-  if (!data?.imagem) return null;
-  const local = URL.createObjectURL(new Blob([Uint8Array.from(atob(String(data.imagem)), (c) => c.charCodeAt(0))], { type: 'image/png' }));
-  try {
-    return await pngSemSobras(local, 1400, true);
-  } finally {
-    URL.revokeObjectURL(local);
-  }
+/** F-253: o Open Food Facts guarda a foto original: é ela que recorta melhor e sai nítida, e não a miniatura de 400 pontos. */
+export function fotoEmTamanhoReal(url: string): string {
+  return /openfoodfacts\.org\/images\/products\//.test(url) ? url.replace(/\.\d+\.(jpg|jpeg|png)$/i, '.full.$1') : url;
 }
 
 /**
- * F-252 — REGRA DO DONO: a foto que o cliente põe no produto entra sempre SEM FUNDO, com o produto inteiro. O sistema identifica:
- * 1) já é PNG sem fundo: só corta as sobras; 2) tem fundo: recorte profissional na Cloudflare (produto inteiro, sem cortar);
- * 3) se a nuvem não responder, recorte do fundo liso, aqui no navegador. Se nada der certo, devolve a foto como veio
- * (recortada falso) e quem chamou não a torna a foto oficial do produto.
+ * A IA de visão olha o recorte pronto e devolve o motivo da reprovação; '' se aprovou ou não respondeu (aí vale a inspeção dos pixels).
+ * Foto enviada pelo cliente é a escolha dele: ali só importa o contorno. Na busca automática, ela também confere se é o produto e se está em pé.
  */
-export async function prepararFotoDoProduto(imagem: ImagemProduto): Promise<ImagemProduto> {
+async function reprovadoPelaIA(png: Blob, imagemDe: ImagemProduto, nome?: string): Promise<string> {
+  const imagem = await fotoParaInspecao(png).catch(() => '');
+  if (!imagem) return '';
+  const { data } = await supabase.functions.invoke('produto-imagem', { body: { acao: 'inspecionar', imagem, termo: nome ?? '' } }).catch(() => ({ data: null }));
+  if (data?.completo === false) return MENSAGEM_DO_DEFEITO['contorno-irregular'];
+  if (imagemDe.fonte === 'UPLOAD') return '';
+  if (data?.eh_o_produto === false) return 'esta foto não mostra a embalagem do produto';
+  if (data?.em_pe === false) return 'o produto está deitado ou de cabeça para baixo na foto';
+  return '';
+}
+
+/**
+ * F-252/F-253: tira o fundo na Cloudflare, com a foto no maior tamanho que existe, e só devolve o PNG que passou na inspeção.
+ * `motivo`: a inspeção reprovou. Sem motivo e sem PNG: o serviço não respondeu.
+ */
+async function recortarNaNuvem(imagem: ImagemProduto, nome?: string): Promise<{ png: Blob | null; motivo?: string }> {
+  const { url } = imagem;
+  if (!/^https:\/\//.test(url)) return { png: null };
+  const real = fotoEmTamanhoReal(url);
+  const origem = real !== url && (await fotoCarrega(real)) ? real : url;
+  const { data } = await supabase.functions.invoke('produto-imagem', { body: { acao: 'recortar', url: origem } });
+  if (!data?.imagem) return { png: null };
+  const recorte = new Blob([Uint8Array.from(atob(String(data.imagem)), (c) => c.charCodeAt(0))], { type: 'image/png' });
+  const { png, inspecao } = await finalizarRecorte(origem, recorte);
+  if (!png) return { png: null, motivo: MENSAGEM_DO_DEFEITO[inspecao?.defeitos[0] ?? 'nao-tirou-fundo'] };
+  const reprovado = await reprovadoPelaIA(png, imagem, nome);
+  return reprovado ? { png: null, motivo: reprovado } : { png };
+}
+
+/**
+ * F-252/F-253 — REGRA DO DONO: a foto de produto entra sempre SEM FUNDO, com o produto inteiro, no padrão profissional. O sistema
+ * identifica: 1) já é PNG sem fundo: só corta as sobras; 2) tem fundo: recorte na Cloudflare, que só é entregue se passar na inspeção.
+ * Recorte reprovado NUNCA é entregue: volta a foto como veio, com `recusa` dizendo o motivo, e ela não vira a foto do produto.
+ */
+export async function prepararImagem(imagem: ImagemProduto, nome?: string): Promise<ImagemProduto> {
   if (imagem.recortada) return imagem;
   const guardar = async (png: Blob) => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -202,20 +206,22 @@ export async function prepararFotoDoProduto(imagem: ImagemProduto): Promise<Imag
   try {
     const semFundo = await pngSemSobras(imagem.url);
     if (semFundo) return await guardar(semFundo);
-    const naNuvem = await recortarNaNuvem(imagem.url);
-    if (naNuvem) return await guardar(naNuvem);
-    return await prepararImagem(imagem);
+    const { png, motivo } = await recortarNaNuvem(imagem, nome);
+    if (png) return await guardar(png);
+    return motivo ? { ...imagem, recusa: motivo } : imagem;
   } catch {
     return imagem;
   }
 }
 
+export const prepararFotoDoProduto = prepararImagem;
+
 /**
  * Grava a foto como a foto do produto, pelo nome que o cliente deu: enviada por alguém, vira a oficial se o produto ainda não
- * tem foto (regra no banco: tabloide_catalogo_salvar). Foto enviada que ficou com fundo não vira oficial.
+ * tem foto (regra no banco: tabloide_catalogo_salvar). Foto que ficou com fundo ou foi reprovada na inspeção não vira a do produto.
  */
 export async function guardarFotoDoProduto(nome: string, pronta: ImagemProduto, codigo?: string | null): Promise<boolean> {
-  if (pronta.fonte === 'UPLOAD' && !pronta.recortada) return false;
+  if (!pronta.recortada) return false;
   await salvarNoCatalogo(nome, pronta, 'ESCOLHA', true);
   if (codigo) await salvarNoCatalogo(nome, pronta, 'ESCOLHA', true, chaveDoCodigo(codigo));
   return true;
@@ -264,7 +270,7 @@ export async function completarImagens(
     if (!achado.imagem || !(await fotoCarrega(achado.miniatura || achado.imagem))) { naoAchados.push({ ...p, nome: achado.nome, codigo: null }); return; }
     const bruta: ImagemProduto = { url: achado.imagem, fonte: achado.fonte, credito: achado.credito };
     resolver(p.id, bruta);
-    const pronta = await prepararImagem(bruta);
+    const pronta = await prepararImagem(bruta, achado.nome);
     resolver(p.id, pronta);
     void salvarNoCatalogo(achado.nome, pronta, 'AUTO', true, chaveDoCodigo(codigo));
     void salvarNoCatalogo(achado.nome, pronta, 'AUTO', true);
@@ -306,7 +312,7 @@ export async function completarImagens(
         let final = paraImagem(vivas[0]);
         // entre as fotos reais, fica a primeira que dá para recortar (fundo liso = foto de embalagem bem feita)
         for (const c of vivas) {
-          const pronta = await prepararImagem(paraImagem(c));
+          const pronta = await prepararImagem(paraImagem(c), p.nome);
           if (pronta.recortada) { final = pronta; break; }
         }
         resolver(p.id, final);
@@ -320,7 +326,7 @@ export async function completarImagens(
   // melhoria em segundo plano (não segura a tela): recorta uma vez a foto já guardada e passa a valer para todos
   void (async () => {
     for (const { p, achada } of melhorar) {
-      const pronta = await prepararImagem(achada);
+      const pronta = await prepararImagem(achada, p.nome);
       if (pronta.recortada) aoAchar(p.id, pronta);
       await salvarNoCatalogo(p.nome, pronta, 'AUTO', true).catch(() => undefined);
     }

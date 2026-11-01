@@ -264,6 +264,19 @@ async function recortar(foto: string): Promise<{ imagem?: string; motivo?: strin
   return { imagem: btoa(texto) };
 }
 
+/** F-253: a IA de visão olha o recorte pronto: contorno, posição e se é mesmo o produto. Sem resposta = sem veredicto: vale a inspeção dos pixels. */
+async function inspecionar(imagem: string, nome: string): Promise<{ completo?: boolean; em_pe?: boolean; eh_o_produto?: boolean }> {
+  const url = Deno.env.get('TABLOIDE_IA_URL');
+  const segredo = Deno.env.get('TABLOIDE_IA_SEGREDO');
+  if (!url || !segredo || !/^data:image\/jpeg;base64,/.test(imagem) || imagem.length > 1_500_000) return {};
+  const pedido = 'This image shows a retail product cut out from its background and placed on a flat magenta backdrop. You are a strict quality inspector. Answer with JSON only: {"completo": true|false, "em_pe": true|false, "eh_o_produto": true|false}. completo=false if any part of the product is missing, bitten off, torn, has an irregular jagged edge, a notch, holes, or if leftover pieces of the original background remain attached, or if the package is visibly cut off by the photo frame (text or artwork ending abruptly at a straight edge). em_pe=false if the product is rotated sideways, tilted more than about 15 degrees, or upside down (its main text is not horizontal and readable). eh_o_produto=false if the image is not a retail package of the product named below: for example only a logo, only a barcode, a label, a cup or glass of the drink, the raw food, a different product, or a combo with other products. Product name: ';
+  const r = await comTempo(fetch(url, { method: 'POST', headers: { 'x-segredo': segredo, 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'studio-modelo', modelo: '@cf/meta/llama-4-scout-17b-16e-instruct', entrada: { max_tokens: 60, temperature: 0, messages: [{ role: 'user', content: [{ type: 'text', text: pedido + (nome || 'a retail product') }, { type: 'image_url', image_url: { url: imagem } }] }] } }) }), 15000).catch(() => null);
+  const j = r?.ok ? await r.json().catch(() => null) : null;
+  const texto = j?.response ?? j?.choices?.[0]?.message?.content;
+  const o = typeof texto === 'object' && texto ? texto : JSON.parse(String(texto ?? '').match(/\{[\s\S]*\}/)?.[0] ?? 'null');
+  return typeof o?.completo === 'boolean' ? { completo: o.completo, em_pe: o.em_pe !== false, eh_o_produto: o.eh_o_produto !== false } : {};
+}
+
 /** Produto achado pelo código de barras (EAN/GTIN): nome completo com marca e medida + foto da embalagem. */
 interface ProdutoPorCodigo { codigo: string; nome: string; marca: string; quantidade: string; imagem: string | null; miniatura: string | null; fonte: 'OPENFOODFACTS' | 'COSMOS'; credito: string }
 
@@ -301,7 +314,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const json = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
   try {
-    const { termo, acao, codigo, url } = await req.json();
+    const { termo, acao, codigo, url, imagem } = await req.json();
+    if (acao === 'inspecionar') return json(await inspecionar(String(imagem ?? ''), String(termo ?? '').slice(0, 80)).catch(() => ({})));
     if (acao === 'recortar') return json(await recortar(String(url ?? '')));
     if (acao === 'codigo') {
       const c = String(codigo ?? '').replace(/\D/g, '');

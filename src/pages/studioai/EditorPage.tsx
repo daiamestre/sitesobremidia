@@ -267,11 +267,11 @@ export default function EditorPage() {
     try {
       // F-252: identifica se tem fundo, tira e grava como a foto do produto, pelo nome dele
       const aviso = toast.loading('Tirando o fundo do produto…');
-      const pronta = await prepararFotoDoProduto(img);
+      const pronta = await prepararFotoDoProduto(img, nome);
       toast.dismiss(aviso);
       if (pronta.url !== img.url) mudarCamada(c.id, { src: pronta.url } as Partial<Camada>);
       if (nome && await guardarFotoDoProduto(nome, pronta)) toast.success(`Foto guardada como a foto de "${nome}".`);
-      else if (!pronta.recortada) toast.error('Não foi possível tirar o fundo desta foto: ela ficou só nesta arte. Tente uma foto com o produto mais à vista.');
+      else if (!pronta.recortada) toast.error(`Foto não aprovada${pronta.recusa ? `: ${pronta.recusa}` : ''}. Ela ficou só nesta arte; envie uma foto do produto inteiro.`);
     } catch { /* a arte já foi atualizada */ }
   };
   const pastaGaleria: PastaDaGaleria = pronta?.pasta ?? {

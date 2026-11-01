@@ -16,6 +16,8 @@ export interface ImagemProduto {
   credito?: string;
   /** Foto já sem fundo (PNG transparente): o cartaz desenha o produto solto. */
   recortada?: boolean;
+  /** F-253: por que o recorte foi reprovado na inspeção. Não vai para o catálogo. */
+  recusa?: string;
 }
 
 export interface ProdutoTabloide {

@@ -324,9 +324,9 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     try {
       // tira o fundo e corta as sobras; o cartaz troca para a versão recortada quando ficar pronta
       // F-252: a foto escolhida sai sem fundo e fica como a foto do produto, pelo nome dele
-      const pronta = await prepararFotoDoProduto(imagem);
+      const pronta = await prepararFotoDoProduto(imagem, produto.nome);
       if (pronta !== imagem) setProdutos((l) => l.map((p) => (p.id === produto.id ? { ...p, imagem: pronta } : p)));
-      if (!await guardarFotoDoProduto(produto.nome, pronta, produto.codigo)) toast.error('Não foi possível tirar o fundo desta foto: ela ficou só neste cartaz.');
+      if (!await guardarFotoDoProduto(produto.nome, pronta, produto.codigo)) toast.error(`Foto não aprovada${pronta.recusa ? `: ${pronta.recusa}` : ''}. Ela ficou só neste cartaz; envie uma foto do produto inteiro.`);
     } catch { /* o cartaz já foi atualizado */ }
   };
 

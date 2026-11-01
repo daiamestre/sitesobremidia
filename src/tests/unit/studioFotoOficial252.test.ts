@@ -49,9 +49,9 @@ describe('recorte profissional na nuvem', () => {
     const f = fs.readFileSync('supabase/functions/produto-imagem/index.ts', 'utf8');
     expect(f).toMatch(/acao === 'recortar'\) return json\(await recortar\(/);
   });
-  it('a busca automática de fotos não gasta recorte: só a foto que o cliente escolhe', () => {
+  it('a busca automática passa pelo mesmo recorte e pela mesma inspeção', () => {
     const i = fs.readFileSync('src/lib/tabloide/imagens.ts', 'utf8');
-    expect(i.slice(i.indexOf('export async function completarImagens'))).not.toMatch(/prepararFotoDoProduto|recortarNaNuvem/);
+    expect(i.slice(i.indexOf('export async function completarImagens'))).toContain('await prepararImagem(');
   });
 });
 

@@ -111,11 +111,11 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO): ProdutosComFotos {
     try {
       // F-252: identifica se tem fundo e tira; grava no catálogo pelo nome (e pelo código de barras): vira a foto do produto
       const aviso = toast.loading('Tirando o fundo do produto…');
-      const pronta = await prepararFotoDoProduto(imagem);
+      const pronta = await prepararFotoDoProduto(imagem, produto.nome);
       toast.dismiss(aviso);
       if (pronta !== imagem) setProdutos((a) => a.map((p) => (p.id === produto.id ? { ...p, imagem: pronta } : p)));
       if (await guardarFotoDoProduto(produto.nome, pronta, produto.codigo)) toast.success(`Foto guardada como a foto de "${produto.nome}".`);
-      else toast.error('Não foi possível tirar o fundo desta foto: ela ficou só nesta arte. Tente uma foto com o produto mais à vista.');
+      else toast.error(`Foto não aprovada${pronta.recusa ? `: ${pronta.recusa}` : ''}. Ela ficou só nesta arte; envie uma foto do produto inteiro.`);
     } catch { toast.error('A foto entrou, mas não foi possível guardá-la para a próxima vez.'); }
   };
   return { texto, setTexto, produtos, buscando, erros, aplicar, mudar, remover, porCodigo, gravar, trocarFoto, quantos, escolherQuantos };

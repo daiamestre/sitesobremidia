@@ -2,7 +2,7 @@
 // (studio_*), que tiram empresa/cliente/usuário da sessão. Nenhuma chave de IA passa por aqui.
 import { supabase } from '@/integrations/supabase/client';
 import { uploadToR2 } from '@/lib/r2Upload';
-import { recortarImagem } from '@/lib/tabloide/recorte';
+import { prepararFotoDoProduto } from '@/lib/tabloide/imagens';
 import {
   chaveDoPedido, type EdicaoCena, type Estado, type FotoProduto, type PedidoStudio, type PlanoCriativo, type VersaoImagem,
 } from '../../../supabase/functions/_shared/studio/contrato.ts';
@@ -93,11 +93,7 @@ export async function enviarFotoProduto(userId: string, arquivo: File): Promise<
   const base = `${userId}/studio/${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const ext = arquivo.type === 'image/png' ? 'png' : arquivo.type === 'image/webp' ? 'webp' : 'jpg';
   const original = await uploadToR2(arquivo, `${base}.${ext}`, arquivo.type, userId, { preventOverwrite: true });
-  let recorte_url: string | null = null;
-  const local = URL.createObjectURL(arquivo);
-  try {
-    const png = await recortarImagem(local, 1400);
-    if (png) recorte_url = (await uploadToR2(png, `${base}-recorte.png`, 'image/png', userId, { preventOverwrite: true })).publicUrl;
-  } catch { /* sem recorte: usa a foto inteira em moldura */ } finally { URL.revokeObjectURL(local); }
-  return { url: original.publicUrl, path: original.filePath, recorte_url };
+  // F-253: mesmo recorte e mesma inspeção de qualidade do catálogo; reprovado, a foto entra inteira em moldura
+  const pronta = await prepararFotoDoProduto({ url: original.publicUrl, fonte: 'UPLOAD' });
+  return { url: original.publicUrl, path: original.filePath, recorte_url: pronta.recortada ? pronta.url : null };
 }
