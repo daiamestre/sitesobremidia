@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { uploadToR2 } from '@/lib/r2Upload';
-import { TAMANHO_DOC, alturaDoTexto, alturaDosItens, forma, imagem, itens, selo, texto, type Camada, type Documento, type FormatoDoc } from '@/lib/studio/documento';
+import { TAMANHO_DOC, alturaDoTexto, alturaDosItens, forma, imagem, itens, selo, texto, type Camada, type Documento, type FormatoDoc, telaDoFormato } from '@/lib/studio/documento';
 import { duracaoDoVideo } from '@/lib/studio/animacao';
 import { MotorDeVideo, type VideoExportado } from '@/lib/studio/video/motor';
 import {
@@ -127,7 +127,7 @@ export default function VideoEditorPage() {
       if (!bruto) return;
       sessionStorage.removeItem(CHAVE_ARTE_PARA_VIDEO);
       const { doc, nome: n } = JSON.parse(bruto) as { doc: Documento; nome: string };
-      setP((x) => ({ ...x, formato: doc.formato, clipes: [novoClipe('arte', '', n, { documento: doc, duracao: duracaoDoVideo(doc), zoomPara: 1 })] }));
+      setP((x) => ({ ...x, formato: telaDoFormato(doc.formato), clipes: [novoClipe('arte', '', n, { documento: doc, duracao: duracaoDoVideo(doc), zoomPara: 1 })] }));
       setNome(n);
     } catch { /* sem arte para trazer */ }
   }, [projetoId]);

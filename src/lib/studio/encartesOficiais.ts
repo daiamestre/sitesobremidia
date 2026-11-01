@@ -3,7 +3,7 @@
 // vermelho e lado azul, alternando), a logo do cliente vai no lugar do "SUA LOGO AQUI" e o rodapé recebe telefone e
 // endereço. O resultado é uma arte de camadas do Studio (abre no editor, anima, vira vídeo e vai para as telas).
 // Fundo novo do dono = uma entrada em ENCARTES_OFICIAIS + as imagens em public/studio/encartes-oficiais/.
-import { TAMANHO_DOC, forma, imagem, larguraDoTexto, texto, type Camada, type Documento, type FormatoDoc } from './documento';
+import { TAMANHO_DOC, forma, imagem, larguraDoTexto, texto, type Camada, type Documento, type FormatoArte, type FormatoDoc } from './documento';
 import { ESTILOS_DE_BALAO, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta } from './palco';
 import { QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta, type GradeDaArea } from './gradeInteligente';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
@@ -30,8 +30,8 @@ export interface LayoutDoEncarte {
 }
 export interface EncarteOficial {
   id: string; nome: string;
-  /** F-240: o mesmo encarte em pé (9:16) e deitado (16:9), cada um com o fundo do dono */
-  formatos: Partial<Record<FormatoDoc, LayoutDoEncarte>>;
+  /** F-240: o mesmo encarte em pé (9:16) e deitado (16:9), cada um com o fundo do dono; F-246: e os formatos adaptados */
+  formatos: Partial<Record<FormatoArte, LayoutDoEncarte>>;
   corTelefone: string; corEndereco: string;
   /** F-245: sombra nos contatos quando eles ficam sobre o fundo azul */
   sombraContato?: boolean;
@@ -45,7 +45,7 @@ const AZUL = { etiqueta: ESTILOS_DE_BALAO['placa-vermelha'], sombraNome: 'rgba(0
 const AZUL_CLARO = { etiqueta: ESTILOS_DE_BALAO['oval-vermelho'], sombraNome: 'rgba(0,30,90,.75)', corPlaca: 'rgba(0,40,120,.22)', bordaPlaca: 'rgba(255,255,255,.4)' };
 const CARTAO_AMARELO = { etiqueta: ESTILOS_DE_BALAO['oval-vermelho'], sombraNome: 'transparent', corNome: '#6e0010', corPlaca: 'rgba(255,255,255,.5)', bordaPlaca: 'rgba(255,255,255,.75)' };
 
-export const ENCARTES_OFICIAIS: EncarteOficial[] = [
+const BASES: EncarteOficial[] = [
   {
     id: 'mega-oferta-bicolor', nome: 'Mega Oferta – vermelho e azul',
     formatos: {
@@ -109,9 +109,38 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = [
     corTelefone: '#ffffff', corEndereco: '#ffffff', sombraContato: true,
   },
 ];
+/**
+ * F-246 — o MESMO encarte nos outros tamanhos: título, logo e rodapé só mudam de escala (por igual); apenas a faixa de fundo
+ * entre y1 e y2 da arte de origem ajusta a altura. São as faixas de scripts/studio/adaptar-encartes.mjs, que gera as imagens.
+ */
+const ADAPTACOES: Record<string, Partial<Record<FormatoArte, [FormatoDoc, number, number]>>> = {
+  'mega-oferta-bicolor': { a4: ['9:16', 500, 1690], a3: ['9:16', 500, 1690], '4:5': ['9:16', 500, 1690], 'a4-h': ['16:9', 470, 945], '1:1': ['16:9', 470, 945] },
+  'semana-do-frango': { a4: ['9:16', 650, 1570], a3: ['9:16', 650, 1570], '4:5': ['16:9', 540, 820], 'a4-h': ['16:9', 540, 820], '1:1': ['16:9', 540, 820] },
+};
+const SUFIXO: Partial<Record<FormatoArte, string>> = { '1:1': '1x1', '4:5': '4x5', a4: 'a4', 'a4-h': 'a4-h', a3: 'a3' };
+function adaptarLayout(id: string, base: LayoutDoEncarte, de: FormatoDoc, y1: number, y2: number, alvo: FormatoArte): LayoutDoEncarte {
+  const { w: W0, h: H0 } = TAMANHO_DOC[de];
+  const { w: W, h: H } = TAMANHO_DOC[alvo];
+  const s = W / W0;
+  const k = (H - y1 * s - (H0 - y2) * s) / (y2 - y1);
+  const y = (v: number) => (v <= y1 ? v * s : v <= y2 ? y1 * s + (v - y1) * k : H - (H0 - v) * s);
+  const caixa = <T extends Caixa>(b: T): T => ({ ...b, x: b.x * s, y: y(b.y), w: b.w * s, h: y(b.y + b.h) - y(b.y) });
+  return {
+    fundo: `/studio/encartes-oficiais/${id}-${SUFIXO[alvo]}.webp`, fundoLimpo: `/studio/encartes-oficiais/${id}-${SUFIXO[alvo]}-limpo.webp`,
+    colunas: base.colunas.map(caixa), logo: caixa(base.logo), rodape: caixa(base.rodape), cartao: base.cartao,
+  };
+}
+/** Todo fundo oficial sai nos 7 tamanhos: fundo novo do dono = uma entrada em BASES e outra em ADAPTACOES. */
+export const ENCARTES_OFICIAIS: EncarteOficial[] = BASES.map((e) => ({
+  ...e,
+  formatos: {
+    ...e.formatos,
+    ...Object.fromEntries(Object.entries(ADAPTACOES[e.id] ?? {}).map(([alvo, [de, y1, y2]]) => [alvo, adaptarLayout(e.id, e.formatos[de]!, de, y1, y2, alvo as FormatoArte)])),
+  },
+}));
 export const encarteOficialPorId = (id: string | null | undefined) => ENCARTES_OFICIAIS.find((e) => e.id === id) ?? null;
-export const formatosDoEncarte = (e: EncarteOficial) => (['9:16', '16:9'] as FormatoDoc[]).filter((f) => e.formatos[f]);
-export const layoutDoEncarte = (e: EncarteOficial, formato?: FormatoDoc): LayoutDoEncarte => e.formatos[formato ?? formatosDoEncarte(e)[0]] ?? e.formatos[formatosDoEncarte(e)[0]]!;
+export const formatosDoEncarte = (e: EncarteOficial) => (['9:16', '16:9', '1:1', '4:5', 'a4', 'a4-h', 'a3'] as FormatoArte[]).filter((f) => e.formatos[f]);
+export const layoutDoEncarte = (e: EncarteOficial, formato?: FormatoArte): LayoutDoEncarte => e.formatos[formato ?? formatosDoEncarte(e)[0]] ?? e.formatos[formatosDoEncarte(e)[0]]!;
 
 type Ani = NonNullable<Camada['animacao']>;
 const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depois'] = null): Ani => ({ tipo, atraso, duracao, depois });
@@ -180,15 +209,15 @@ function camadasDoRodape(e: EncarteOficial, r: Caixa, d: DadosDoEncarte): Camada
   const tel = d.telefone?.trim(), end = d.endereco?.trim();
   if (!tel && !end) return [];
   const emLinha = r.h < 160;
-  const icone = Math.round(emLinha ? r.h * 0.62 : 64), vao = Math.round(icone * 0.22);
-  const tTel = Math.round(emLinha ? r.h * 0.5 : 62);
+  const icone = Math.round(emLinha ? r.h * 0.62 : r.h * 0.3), vao = Math.round(icone * 0.22);
+  const tTel = Math.round(emLinha ? r.h * 0.5 : r.h * 0.3);
   const sombra = e.sombraContato ? { cor: 'rgba(0,30,90,.7)', desfoque: 6, dx: 0, dy: 3 } : null;
   const wTelTexto = tel ? larguraDoTexto(tel, 'anton', tTel) + 8 : 0;
   const wTel = tel ? icone + vao + wTelTexto : 0;
   const espaco = tel && end ? Math.round(r.w * 0.04) : 0;
   // o endereço diminui até caber em 2 linhas no que sobra da faixa
   const larguraEnd = Math.max(120, (emLinha ? r.w - wTel - espaco : r.w) - icone - vao);
-  let tEnd = Math.round(emLinha ? r.h * 0.3 : 38);
+  let tEnd = Math.round(emLinha ? r.h * 0.3 : r.h * 0.18);
   const textoEnd = (x: number) => texto('Endereço', end ?? '', x, 0, larguraEnd, { fonte: 'poppins', peso: 800, tamanho: tEnd, maiusculas: true, alinhamento: 'left', cor: e.corEndereco, entrelinha: 1.1, sombra });
   const alturaEnd = emLinha ? r.h : r.h * 0.46;
   while (end && textoEnd(0).h > alturaEnd && tEnd > 16) tEnd -= 2;
@@ -217,7 +246,7 @@ function camadasDoRodape(e: EncarteOficial, r: Caixa, d: DadosDoEncarte): Camada
 }
 
 /** A arte do encarte oficial com os produtos, a logo e os contatos do cliente. */
-export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[], d: DadosDoEncarte = {}, formato?: FormatoDoc): Documento {
+export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[], d: DadosDoEncarte = {}, formato?: FormatoArte): Documento {
   const f = formato && e.formatos[formato] ? formato : formatosDoEncarte(e)[0];
   const lay = layoutDoEncarte(e, f);
   const { w: W, h: H } = TAMANHO_DOC[f];

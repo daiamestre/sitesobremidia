@@ -7,7 +7,21 @@ import type { ModeloDeArte } from './modelos';
 import type { Animacao } from './animacao';
 
 export type FormatoDoc = '16:9' | '9:16';
-export const TAMANHO_DOC: Record<FormatoDoc, { w: number; h: number }> = { '16:9': { w: 1920, h: 1080 }, '9:16': { w: 1080, h: 1920 } };
+/** F-246: todos os tamanhos em que uma arte pode sair: as telas (16:9 e 9:16) e os formatos de redes sociais e impressão */
+export type FormatoArte = FormatoDoc | '1:1' | '4:5' | 'a4' | 'a4-h' | 'a3';
+export const TAMANHO_DOC: Record<FormatoArte, { w: number; h: number }> = {
+  '16:9': { w: 1920, h: 1080 }, '9:16': { w: 1080, h: 1920 }, '1:1': { w: 1080, h: 1080 }, '4:5': { w: 1080, h: 1350 },
+  a4: { w: 1240, h: 1754 }, 'a4-h': { w: 1754, h: 1240 }, a3: { w: 1754, h: 2480 },
+};
+export const ehFormatoDeTela = (f: FormatoArte): f is FormatoDoc => f === '16:9' || f === '9:16';
+/** A tela mais próxima do formato (a que recebe a arte ao publicar). */
+export const telaDoFormato = (f: FormatoArte): FormatoDoc => (ehFormatoDeTela(f) ? f : TAMANHO_DOC[f].w > TAMANHO_DOC[f].h ? '16:9' : '9:16');
+/** As opções de tamanho, como no Cartaz Digital (Totem e Story têm a mesma medida). */
+export const OPCOES_DE_FORMATO: Array<{ grupo: string; itens: Array<{ id: string; formato: FormatoArte; nome: string }> }> = [
+  { grupo: 'Telas digitais e totens', itens: [{ id: 'tv', formato: '16:9', nome: 'TV horizontal' }, { id: 'totem', formato: '9:16', nome: 'Totem / TV vertical' }] },
+  { grupo: 'Redes sociais', itens: [{ id: 'story', formato: '9:16', nome: 'Story' }, { id: 'feed', formato: '1:1', nome: 'Feed quadrado' }, { id: 'feed-retrato', formato: '4:5', nome: 'Feed retrato' }] },
+  { grupo: 'Imprimir', itens: [{ id: 'a4', formato: 'a4', nome: 'Imprimir A4 em pé' }, { id: 'a4-h', formato: 'a4-h', nome: 'Imprimir A4 deitado' }, { id: 'a3', formato: 'a3', nome: 'Encarte grande (A3)' }] },
+];
 
 export interface Sombra { cor: string; desfoque: number; dx: number; dy: number }
 /** degradê linear; ângulo 0 = da esquerda para a direita, 90 = de cima para baixo */
@@ -56,7 +70,7 @@ export interface CamadaItens extends CamadaBase {
 export type Camada = CamadaTexto | CamadaForma | CamadaImagem | CamadaSelo | CamadaItens;
 export type TipoDeCamada = Camada['tipo'];
 
-export interface Documento { versao: 2; formato: FormatoDoc; fundo: string; camadas: Camada[]; /** F-225: duração do vídeo (s) quando há animação */ video?: { duracao: number } | null }
+export interface Documento { versao: 2; formato: FormatoArte; fundo: string; camadas: Camada[]; /** F-225: duração do vídeo (s) quando há animação */ video?: { duracao: number } | null }
 
 // ───────────────────────────────────────────────────────────── medida de texto (canvas; reserva por estimativa)
 let ctxMedida: CanvasRenderingContext2D | null | undefined;
@@ -299,6 +313,39 @@ export function modeloParaDocumento(m: ModeloDeArte, formato: FormatoDoc = m.for
 }
 
 export const clonar = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+/**
+ * F-246 — readapta uma arte de camadas para outro tamanho sem deformar: fotos e fundos que ocupam a tela continuam
+ * ocupando (a foto é recortada, nunca esticada); os elementos mudam de lugar na proporção do novo tamanho e todos crescem
+ * ou diminuem por igual, pelo lado mais apertado, então nada encavala.
+ */
+export function adaptarDocumento(d: Documento, alvo: FormatoArte): Documento {
+  const { w: W, h: H } = TAMANHO_DOC[d.formato];
+  const { w: W2, h: H2 } = TAMANHO_DOC[alvo];
+  const ex = W2 / W, ey = H2 / H, s = Math.min(ex, ey);
+  const sombra = (c: Sombra | null | undefined) => (c ? { ...c, desfoque: c.desfoque * s, dx: c.dx * s, dy: c.dy * s } : c);
+  const camadas = d.camadas.map((c0): Camada => {
+    const c = clonar(c0);
+    const cx = (c.x + c.w / 2) * ex, cy = (c.y + c.h / 2) * ey;
+    const larga = c.w >= W * 0.85, alta = c.h >= H * 0.85;
+    const texto = c.tipo === 'texto' || c.tipo === 'itens';
+    const w = larga ? c.w * ex : c.w * s, h = alta ? c.h * ey : c.h * s;
+    c.w = w; c.h = h; c.x = cx - w / 2; c.y = cy - h / 2;
+    if (texto) {
+      c.tamanho *= s;
+      if (c.tipo === 'texto') {
+        if (c.contorno) c.contorno = { ...c.contorno, largura: c.contorno.largura * s };
+        if (c.fundo) c.fundo = { ...c.fundo, raio: c.fundo.raio * s, margem: c.fundo.margem * s };
+        c.h = alturaDoTexto(c); c.y = cy - c.h / 2;
+      } else { c.h = alturaDosItens(c); c.y = cy - c.h / 2; }
+    }
+    if (c.tipo === 'forma') { c.raio *= s; if (c.borda) c.borda = { ...c.borda, largura: c.borda.largura * s }; }
+    if (c.tipo === 'imagem') c.raio *= s;
+    c.sombra = sombra(c.sombra);
+    return c;
+  });
+  return { ...d, formato: alvo, camadas };
+}
 
 /** Lista das fotos/imagens do documento (para pré-carregar antes de desenhar). */
 export const imagensDo = (d: Documento) => [...new Set(d.camadas.filter((c): c is CamadaImagem => c.tipo === 'imagem').map((c) => c.src))];

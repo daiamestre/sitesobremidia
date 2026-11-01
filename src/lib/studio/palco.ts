@@ -118,64 +118,51 @@ export function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'pr
   const v = formatarPreco(p.preco);
   const de = p.precoDe != null && p.precoDe > p.preco ? formatarPreco(p.precoDe) : null;
   const un = p.unidade && p.unidade !== 'UN' ? p.unidade : '';
-  const entrada = ani('zoom', 0.9, 0.5);
-  const oval = cores.formato === 'oval';
-  if (oval) return baloesOvais(b, v, de, un, cores, entrada);
-  const out: Camada[] = [{ ...forma('Preço', b.x, b.y, b.w, b.h, { cor: cores.de, degrade: { de: cores.de, para: cores.para, angulo: 180 }, raio: Math.round(b.h * 0.22), borda: { cor: cores.borda, largura: Math.max(4, Math.round(b.h * 0.06)) }, sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 24, dx: 0, dy: 10 } }), animacao: entrada }];
-  // tamanhos a partir da altura da placa; reduz junto se não couber na largura
-  let k = 1;
-  const medidas = () => {
-    const tInt = b.h * 0.78 * k, tRs = b.h * 0.25 * k, tCent = b.h * 0.36 * k, tDe = b.h * 0.18 * k;
-    const wInt = larguraDoTexto(v.inteiro, 'anton', tInt), wCent = larguraDoTexto(`,${v.centavos}`, 'anton', tCent);
-    const wEsq = Math.max(larguraDoTexto('R$', 'anton', tRs), de ? larguraDoTexto(`DE ${de.inteiro},${de.centavos}`, 'poppins', tDe, 800) : 0);
-    const wUn = un ? larguraDoTexto(un, 'poppins', tDe, 800) : 0;
-    return { tInt, tRs, tCent, tDe, wInt, wCent, wEsq, wUn, total: wEsq + b.h * 0.1 * k + wInt + b.h * 0.04 * k + Math.max(wCent, wUn) };
-  };
-  let m = medidas();
-  while (m.total > b.w * 0.86 && k > 0.4) { k *= 0.92; m = medidas(); }
-  let x = b.x + (b.w - m.total) / 2;
-  const yInt = b.y + (b.h - m.tInt * 1.02) / 2;
-  const t = (nome: string, txt: string, fonte: string, tam: number, xx: number, yy: number, w: number, cor: string, peso?: number) =>
-    ({ ...texto(nome, txt, xx, yy, w + 4, { fonte, peso, tamanho: Math.round(tam), alinhamento: 'left', cor, entrelinha: 1 }), animacao: entrada });
-  if (de) {
-    out.push(t('Preço — de', `DE ${de.inteiro},${de.centavos}`, 'poppins', m.tDe, x, b.y + b.h * 0.18, m.wEsq, cores.detalhe, 800));
-    out.push(t('Preço — R$', 'R$', 'anton', m.tRs, x, b.y + b.h * 0.46, m.wEsq, cores.moeda));
-  } else out.push(t('Preço — R$', 'R$', 'anton', m.tRs, x, yInt + m.tInt * 0.42, m.wEsq, cores.moeda));
-  x += m.wEsq + b.h * 0.1 * k;
-  out.push(t('Preço — valor', v.inteiro, 'anton', m.tInt, x, yInt, m.wInt, cores.valor));
-  x += m.wInt + b.h * 0.04 * k;
-  out.push(t('Preço — centavos', `,${v.centavos}`, 'anton', m.tCent, x, yInt + m.tInt * 0.06, m.wCent, cores.valor));
-  if (un) out.push(t('Preço — unidade', un, 'poppins', m.tDe, x, yInt + m.tInt * 0.52, m.wUn, cores.detalhe, 800));
-  return out;
+  return balaoDePreco(b, v, de, un, cores, ani('zoom', 0.9, 0.5));
 }
 
-/** F-245: balão oval: aro externo, corpo com degradê, "de" em cima (na promoção) e R$ + valor + centavos centralizados. */
-function baloesOvais(b: Caixa, v: { inteiro: string; centavos: string }, de: { inteiro: string; centavos: string } | null, un: string, cores: CoresDaEtiqueta, entrada: NonNullable<Camada['animacao']>): Camada[] {
-  const aro = Math.max(3, Math.round(b.h * 0.04));
+/**
+ * REGRA DO DONO (F-247), obrigatória em todo encarte: texto e valor SEMPRE organizados e centralizados dentro do balão.
+ * É o único desenho de balão retangular ou oval: "de" centralizado em cima, R$ + valor + centavos centralizados como um
+ * conjunto, e de/valor juntos no meio da altura. Estilo novo entra em ESTILOS_DE_BALAO, nunca com texto posicionado à mão.
+ * O teste regraBaloesCentralizados.test.ts reprova qualquer encarte fora disso.
+ */
+function balaoDePreco(b: Caixa, v: { inteiro: string; centavos: string }, de: { inteiro: string; centavos: string } | null, un: string, cores: CoresDaEtiqueta, entrada: NonNullable<Camada['animacao']>): Camada[] {
+  const oval = cores.formato === 'oval';
+  const aro = cores.aroFora ? Math.max(3, Math.round(b.h * 0.04)) : 0;
   const out: Camada[] = [];
-  if (cores.aroFora) out.push({ ...forma('Preço — aro', b.x, b.y, b.w, b.h, { forma: 'elipse', cor: cores.aroFora, sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 20, dx: 0, dy: 8 } }), animacao: entrada });
+  if (cores.aroFora) out.push({ ...forma('Preço — aro', b.x, b.y, b.w, b.h, { forma: oval ? 'elipse' : 'retangulo', cor: cores.aroFora, raio: Math.round(b.h * 0.22), sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 20, dx: 0, dy: 8 } }), animacao: entrada });
   const c = { x: b.x + aro, y: b.y + aro, w: b.w - 2 * aro, h: b.h - 2 * aro };
-  out.push({ ...forma('Preço', c.x, c.y, c.w, c.h, { forma: 'elipse', cor: cores.de, degrade: { de: cores.de, para: cores.para, angulo: 180 }, borda: { cor: cores.borda, largura: Math.max(3, Math.round(b.h * 0.05)) } }), animacao: entrada });
-  // a parte central do oval é a que cabe texto; os tamanhos descem juntos até caber
+  const borda = { cor: cores.borda, largura: Math.max(3, Math.round(b.h * (oval ? 0.05 : 0.06))) };
+  const degrade = { de: cores.de, para: cores.para, angulo: 180 };
+  out.push({ ...forma('Preço', c.x, c.y, c.w, c.h, oval ? { forma: 'elipse', cor: cores.de, degrade, borda } : { cor: cores.de, degrade, borda, raio: Math.round(c.h * 0.22), sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 24, dx: 0, dy: 10 } }), animacao: entrada });
+  // os tamanhos descem juntos até o conjunto caber (o oval tem menos largura útil que a placa)
+  const util = oval ? 0.74 : 0.86;
+  const base = oval ? (de ? 0.54 : 0.64) : de ? 0.6 : 0.76;
+  const tDe = Math.max(13, c.h * 0.16);
   let k = 1;
   const medidas = () => {
-    const tInt = c.h * (de ? 0.54 : 0.64) * k, tRs = tInt * 0.34, tCent = tInt * 0.44;
+    const tInt = c.h * base * k, tRs = tInt * 0.34, tCent = tInt * 0.44;
     const wInt = larguraDoTexto(v.inteiro, 'anton', tInt), wCent = larguraDoTexto(`,${v.centavos}`, 'anton', tCent), wRs = larguraDoTexto('R$', 'anton', tRs);
     return { tInt, tRs, tCent, wInt, wCent, wRs, total: wRs + tInt * 0.08 + wInt + tInt * 0.03 + wCent };
   };
   let m = medidas();
-  while (m.total > c.w * 0.74 && k > 0.4) { k *= 0.93; m = medidas(); }
+  while (m.total > c.w * util && k > 0.4) { k *= 0.93; m = medidas(); }
   const t = (nome: string, txt: string, fonte: string, tam: number, xx: number, yy: number, w: number, cor: string, peso?: number, alinhamento: 'left' | 'center' = 'left') =>
     ({ ...texto(nome, txt, xx, yy, w, { fonte, peso, tamanho: Math.round(tam), alinhamento, cor, entrelinha: 1 }), animacao: entrada });
-  const yInt = c.y + (c.h - m.tInt) / 2 + (de ? c.h * 0.1 : 0);
-  if (de) out.push(t('Preço — de', `DE ${de.inteiro},${de.centavos}`, 'poppins', Math.max(14, c.h * 0.15), c.x, c.y + c.h * 0.11, c.w, cores.detalhe, 800, 'center'));
+  // de + valor formam um bloco, e o bloco fica no meio da altura
+  const vao = de ? c.h * 0.03 : 0;
+  const altura = (de ? tDe + vao : 0) + m.tInt;
+  const yBloco = c.y + (c.h - altura) / 2;
+  const yInt = yBloco + (de ? tDe + vao : 0);
+  if (de) out.push(t('Preço — de', `DE ${de.inteiro},${de.centavos}`, 'poppins', tDe, c.x, yBloco, c.w, cores.detalhe, 800, 'center'));
   let x = c.x + (c.w - m.total) / 2;
   out.push(t('Preço — R$', 'R$', 'anton', m.tRs, x, yInt + m.tInt * 0.34, m.wRs + 4, cores.moeda));
   x += m.wRs + m.tInt * 0.08;
   out.push(t('Preço — valor', v.inteiro, 'anton', m.tInt, x, yInt, m.wInt + 4, cores.valor));
   x += m.wInt + m.tInt * 0.03;
   out.push(t('Preço — centavos', `,${v.centavos}`, 'anton', m.tCent, x, yInt + m.tInt * 0.02, m.wCent + 4, cores.valor));
-  if (un) out.push(t('Preço — unidade', un, 'poppins', Math.max(13, m.tInt * 0.24), x, yInt + m.tInt * 0.56, m.wCent + 4, cores.moeda, 800));
+  if (un) out.push(t('Preço — unidade', un, 'poppins', Math.max(13, m.tInt * 0.24), x, yInt + m.tInt * 0.56, m.wCent + 4, cores.detalhe, 800));
   return out;
 }
 

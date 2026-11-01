@@ -12,6 +12,8 @@ import type { LayoutDoCartaz } from './grade';
 import type { SegmentoId } from './temas';
 import { ARTES_PRONTAS } from './encartes-artes';
 import { fatores, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
+import { medidasDoFormato } from './grade';
+import { formatoPorId } from './temas';
 
 export interface ModeloDeEncarte {
   id: string;
@@ -191,16 +193,18 @@ export function arteDoEncarte(e: ModeloDeEncarte): ConfigCartaz['faixaArte'] {
   return a ? { url: `/studio/encartes/${e.id}.webp?v=${a.v}`, largura: a.largura, altura: a.altura } : null;
 }
 
-// área dos produtos numa folha A4 com o cabeçalho do título (em pixels do projeto)
-const CORPO_A4 = { w: 1170, h: 1290 };
 const distancia = (w: number, h: number) => Math.abs(Math.log(w / h));
+export const ENCARTE_FORMATO = 'a4';
 /**
  * F-244 — grade inteligente dos encartes A4: para n produtos, a grade exata (toda fileira completa) no desenho do modelo.
  * Grade comum: colunas × fileiras = n. Coluna lateral: um destaque em cada fileira. Tela dividida: as duas metades iguais.
  * Os produtos preenchem a folha: poucos ficam grandes e muitos, menores.
  */
-export function arranjoDoEncarte(layout: ModeloDeEncarte['layout'], n: number): { grade: string; destaques: number } {
-  const { w, h } = CORPO_A4;
+export function arranjoDoEncarte(layout: ModeloDeEncarte['layout'], n: number, formatoId = ENCARTE_FORMATO): { grade: string; destaques: number } {
+  // F-246: a área dos produtos do tamanho escolhido, com o cabeçalho do título
+  const f = formatoPorId(formatoId);
+  const med = medidasDoFormato(f, 1, { cabecalho: f.altura * 0.21 });
+  const w = med.corpoL, h = med.corpoA;
   const melhor = <T,>(ops: T[], nota: (o: T) => number) => ops.reduce((a, b) => (nota(b) < nota(a) - 1e-9 ? b : a));
   if (n < 2) return { grade: '1x1', destaques: 0 };
   if (layout === 'lateral') {
@@ -212,7 +216,9 @@ export function arranjoDoEncarte(layout: ModeloDeEncarte['layout'], n: number): 
     const o = melhor(fatores(n / 2, 3, 6), (x) => distancia(w / 2 / x.cols, h / x.rows));
     return { grade: `${o.cols * 2}x${o.rows}`, destaques: 0 };
   }
-  const o = melhor(fatores(n, 6, 6), (x) => distancia(w / x.cols, h / x.rows));
+  const ops = fatores(n, 6, 6);
+  if (!ops.length) return { grade: 'auto', destaques: 0 };
+  const o = melhor(ops, (x) => distancia(w / x.cols, h / x.rows));
   return { grade: `${o.cols}x${o.rows}`, destaques: 0 };
 }
 
@@ -224,7 +230,6 @@ export function encarteComQuantidade(e: ModeloDeEncarte, quantos: number): Model
 }
 
 /** O que o modelo muda no Cartaz Digital: folha em pé, 3 destaques, grade 4 × 3, título 3D sobre a arte e a caixa da logo. */
-export const ENCARTE_FORMATO = 'a4';
 export const ENCARTE_GRADE = '4x3';
 export const gradeDoEncarte = (e: ModeloDeEncarte) => e.grade ?? ENCARTE_GRADE;
 export function configDoEncarte(e: ModeloDeEncarte, c: ConfigCartaz): ConfigCartaz {

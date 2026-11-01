@@ -6,13 +6,13 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clapperboard, ImagePlus, MapPin, Monitor, PenLine, Phone, Smartphone, Sparkles, Trash2 } from 'lucide-react';
+import { Clapperboard, ImagePlus, MapPin, PenLine, Phone, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { enderecoDaArtePronta } from '@/lib/studio/artePronta';
 import { animarTudo, temAnimacao } from '@/lib/studio/animacao';
 import { documentoDoEncarteOficial, formatosDoEncarte, PASTA_ENCARTES_OFICIAIS, type DadosDoEncarte, type EncarteOficial as Encarte, type LogoDoCliente } from '@/lib/studio/encartesOficiais';
-import type { Documento, FormatoDoc } from '@/lib/studio/documento';
+import { OPCOES_DE_FORMATO, TAMANHO_DOC, telaDoFormato, type Documento, type FormatoArte } from '@/lib/studio/documento';
 import { quantidadeCompleta } from '@/lib/studio/gradeInteligente';
 import { cn } from '@/lib/utils';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
@@ -60,6 +60,9 @@ function bordaTransparente(ctx: CanvasRenderingContext2D, w: number, h: number) 
   return total > 0 && vazios / total >= 0.5;
 }
 
+// o vídeo sai sempre no formato de tela mais próximo
+const animarSeFaltar = (d: Documento) => (temAnimacao(d) ? d : animarTudo(d));
+
 export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: Encarte; produtos: ProdutoTabloide[]; /** F-244: quantos produtos mostrar */ quantos: number; aoGravar: () => void }) {
   const navegar = useNavigate();
   const [dados, setDados] = useState<DadosDoEncarte>(lerDados);
@@ -67,10 +70,12 @@ export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: En
   useEffect(() => { try { localStorage.setItem(CHAVE_DADOS, JSON.stringify(dados)); } catch { /* logo grande demais para guardar: segue sem lembrar */ } }, [dados]);
   // F-240: o mesmo encarte em pé (9:16) e deitado (16:9); o editor recebe os dois
   const formatos = useMemo(() => formatosDoEncarte(e), [e]);
-  const [formato, setFormato] = useState<FormatoDoc>(formatos[0]);
-  const docs = useMemo(() => Object.fromEntries(formatos.map((f) => [f, documentoDoEncarteOficial(e, produtos, { ...dados, quantos }, f)])) as Partial<Record<FormatoDoc, Documento>>, [e, formatos, produtos, dados, quantos]);
+  // F-246: a escolha é por opção (Totem e Story têm a mesma medida)
+  const [opcao, setOpcao] = useState('totem');
+  const formato: FormatoArte = OPCOES_DE_FORMATO.flatMap((g) => g.itens).find((o) => o.id === opcao)?.formato ?? formatos[0];
+  const docs = useMemo(() => Object.fromEntries(formatos.map((f) => [f, documentoDoEncarteOficial(e, produtos, { ...dados, quantos }, f)])) as Partial<Record<FormatoArte, Documento>>, [e, formatos, produtos, dados, quantos]);
   const doc = docs[formato] ?? docs[formatos[0]]!;
-  const deitado = doc.formato === '16:9';
+  const deitado = TAMANHO_DOC[doc.formato].w > TAMANHO_DOC[doc.formato].h;
   const naGrade = quantidadeCompleta(quantos, produtos.length);
   const logo3d = logoSalvaDoStudio();
 
@@ -94,7 +99,7 @@ export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: En
   };
   const video = () => {
     aoGravar();
-    try { sessionStorage.setItem(CHAVE_ARTE_PARA_VIDEO, JSON.stringify({ doc: temAnimacao(doc) ? doc : animarTudo(doc), nome })); navegar('/studio/video'); }
+    try { sessionStorage.setItem(CHAVE_ARTE_PARA_VIDEO, JSON.stringify({ doc: animarSeFaltar(docs[telaDoFormato(formato)] ?? doc), nome })); navegar('/studio/video'); }
     catch { toast.error('Não foi possível abrir o editor de vídeo.'); }
   };
 
@@ -104,16 +109,12 @@ export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: En
       <div className="flex min-w-0 flex-col gap-3">
         <div>
           <p className="flex items-center gap-1.5 text-sm font-bold text-white"><Sparkles className="h-4 w-4 text-[#FFD400]" />{e.nome} <span className="rounded bg-[#FFD400]/15 px-1.5 text-[10px] font-semibold text-[#FFD400]">OFICIAL</span></p>
-          {formatos.length > 1 && (
-            <div className="my-2 inline-grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1" role="radiogroup" aria-label="Formato do encarte">
-              {formatos.map((f) => (
-                <button key={f} type="button" role="radio" aria-checked={formato === f} onClick={() => setFormato(f)} data-testid="encarte-oficial-formato"
-                  className={cn('flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold', formato === f ? 'bg-[#5D1BFF] text-white' : 'text-slate-300 hover:bg-white/5')}>
-                  {f === '16:9' ? <Monitor className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}{f === '16:9' ? 'TV deitada' : 'TV em pé'}
-                </button>
-              ))}
-            </div>
-          )}
+          <label className="my-2 block max-w-xs text-xs font-semibold text-slate-200">Tamanho do encarte
+            <select value={opcao} onChange={(ev) => setOpcao(ev.target.value)} aria-label="Tamanho do encarte" data-testid="encarte-oficial-formato"
+              className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-sm font-semibold text-white focus:border-[#B04DFF] focus:outline-none [&_optgroup]:bg-[#14062f] [&_option]:bg-[#14062f]">
+              {OPCOES_DE_FORMATO.map((g) => <optgroup key={g.grupo} label={g.grupo}>{g.itens.filter((o) => formatos.includes(o.formato)).map((o) => <option key={o.id} value={o.id}>{o.nome} ({TAMANHO_DOC[o.formato].w} × {TAMANHO_DOC[o.formato].h})</option>)}</optgroup>)}
+            </select>
+          </label>
           <p className="text-xs text-slate-400">Grade com {naGrade} produtos, organizada sozinha nos dois lados. Escolha a quantidade em “Seus produtos”.</p>
         </div>
 

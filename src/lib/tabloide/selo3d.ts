@@ -256,7 +256,7 @@ export function larguraDoPreco(p: TextoPreco, grande: number): number {
   return grande * (0.5 + 0.72 + p.inteiro.length * 0.7 + lado + 0.25);
 }
 
-/** Selo de preço com volume: "R$" pequeno, número grande, centavos e unidade ao lado. Encosta na direita do canvas. */
+/** Selo de preço com volume: "R$" pequeno, número grande, centavos e unidade ao lado. REGRA (F-247): a placa fica no CENTRO do canvas e o conteúdo no centro da placa. */
 export function desenharPreco(ctx: CanvasRenderingContext2D, largura: number, altura: number, p: TextoPreco, cor: string, corTexto: string, fonteDe?: (tamanho: number) => string): void {
   ctx.clearRect(0, 0, largura, altura);
   const prof = Math.max(2, Math.round(altura * 0.07));
@@ -286,7 +286,7 @@ export function desenharPreco(ctx: CanvasRenderingContext2D, largura: number, al
   const folga = g * 0.22;
   const conteudo = lRs + g * 0.06 + lInt + g * 0.04 + lado;
   const caixaL = Math.min(largura - 2, conteudo + folga * 2);
-  const x0 = largura - 1 - caixaL;
+  const x0 = (largura - caixaL) / 2;
   placa3D(ctx, x0, 1, caixaL, caixaA, caixaA * 0.26, cor, prof, 0);
   ctx.lineWidth = Math.max(2, g * 0.045);
   ctx.strokeStyle = '#ffffff';

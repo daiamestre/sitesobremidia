@@ -14,7 +14,7 @@ describe('F-243 — Semana do Frango', () => {
   const f = ENCARTES_OFICIAIS.find((x) => x.id === 'semana-do-frango')!;
   it('está na lista junto do Mega Oferta, nos dois formatos', () => {
     expect(ENCARTES_OFICIAIS.map((x) => x.id)).toEqual(['mega-oferta-bicolor', 'semana-do-frango']);
-    expect(formatosDoEncarte(f)).toEqual(['9:16', '16:9']);
+    expect(formatosDoEncarte(f)).toEqual(expect.arrayContaining(['9:16', '16:9']));
   });
   it('no cartão amarelo o nome é escuro; no azul é branco; os dois com o balão oval do encarte', () => {
     const d = documentoDoEncarteOficial(f, [produto(1), produto(2)], {}, '9:16');
@@ -33,7 +33,7 @@ describe('F-243 — Semana do Frango', () => {
 
 describe.each(ENCARTES_OFICIAIS)('encarte oficial $id', (e) => {
   it('tem os dois formatos e os fundos existem (com a caixa "SUA LOGO AQUI" e sem ela)', () => {
-    expect(formatosDoEncarte(e)).toEqual(['9:16', '16:9']);
+    expect(formatosDoEncarte(e)).toEqual(expect.arrayContaining(['9:16', '16:9']));
     for (const f of FORMATOS) {
       const l = layoutDoEncarte(e, f);
       expect(fs.existsSync(`public${l.fundo}`), f).toBe(true);
@@ -108,6 +108,6 @@ describe.each(ENCARTES_OFICIAIS)('encarte oficial $id', (e) => {
     expect(fs.readFileSync('src/components/studio/EncarteOficial.tsx', 'utf8')).toMatch(/enderecoDaArtePronta\(\{ docs,/);
     const editor = fs.readFileSync('src/pages/studioai/EditorPage.tsx', 'utf8');
     expect(editor).toMatch(/lerArtePronta\(\)/);
-    expect(editor).toMatch(/formatos=\{publicando === 'video' \? undefined : formatosDaArte\}/);
+    expect(editor).toMatch(/formatos=\{publicando === 'video' \? undefined : formatosDeTela\}/);
   });
 });

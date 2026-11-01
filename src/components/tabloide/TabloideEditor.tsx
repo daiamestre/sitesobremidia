@@ -38,7 +38,8 @@ import { gerarPngsDoCartaz, listarCartazes, NOME_PADRAO, publicarNoPortal, salva
 import { carregarFonte } from '@/lib/tabloide/fontes';
 import { aplicarPerfil, carregarPerfil, perfilDoCartaz, salvarPerfil, salvarPortal, type PerfilDaLoja, type PortalDaLoja } from '@/lib/tabloide/perfil';
 import { ajustarElemento, duplicarElemento, ehCentral, listarSelos, novoElemento, type ElementoLivre, type Selo } from '@/lib/tabloide/selos';
-import { ENCARTE_FORMATO, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
+import { ENCARTE_FORMATO, arranjoDoEncarte, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
+import { QUANTIDADES } from '@/lib/studio/gradeInteligente';
 import { TabloideCanvas } from './TabloideCanvas';
 import { TrocarFoto } from './TrocarFoto';
 import { LeitorDeCodigo } from './LeitorDeCodigo';
@@ -286,6 +287,17 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     setProdutos(mesclados);
     setPagina(0);
     void procurarFotos(mesclados);
+  };
+
+  // F-246: no encarte do Studio, trocar o tamanho refaz a grade exata do novo tamanho (o mesmo encarte, sem fileira incompleta)
+  const trocarFormato = (id: string) => {
+    setFormatoId(id);
+    setPagina(0);
+    if (encarte && (QUANTIDADES as readonly number[]).includes(produtos.length)) {
+      const a = arranjoDoEncarte(encarte.layout, produtos.length, id);
+      setGrade(a.grade);
+      setCfg((c) => ({ ...c, destaques: a.destaques as ConfigCartaz['destaques'] }));
+    }
   };
 
   const trocarLista = (n: ProdutoTabloide[]) => { setProdutos(n); mudar({ texto: n.map(paraLinha).join('\n') }); };
@@ -643,7 +655,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
           <section className="min-w-0 space-y-3">
             <div className="flex items-end gap-3 overflow-x-auto rounded-xl border bg-card px-3 py-2" data-testid="cartaz-opcoes">
               <Opcao rotulo="Modelo">
-                <select aria-label="Modelo" className={CAIXA} value={formatoId} onChange={(e) => { setFormatoId(e.target.value); setPagina(0); }} data-testid="tabloide-modelo">
+                <select aria-label="Modelo" className={CAIXA} value={formatoId} onChange={(e) => trocarFormato(e.target.value)} data-testid="tabloide-modelo">
                   {USOS_DO_FORMATO.map((u) => (
                     <optgroup key={u.id} label={u.nome}>
                       {FORMATOS.filter((f) => f.uso === u.id).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
@@ -727,7 +739,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
                   {FORMATOS.filter((f) => f.uso === u.id).map((f) => {
                     const k = 44 / Math.max(f.largura, f.altura);
                     return (
-                      <button key={f.id} type="button" onClick={() => { setFormatoId(f.id); setPagina(0); }} aria-pressed={formatoId === f.id} title={f.detalhe} data-testid={`modelo-${f.id}`}
+                      <button key={f.id} type="button" onClick={() => trocarFormato(f.id)} aria-pressed={formatoId === f.id} title={f.detalhe} data-testid={`modelo-${f.id}`}
                         className={cn('flex w-[92px] flex-col items-center gap-1 rounded-lg border-2 p-1.5 text-center', formatoId === f.id ? 'border-primary bg-primary/10' : 'border-transparent hover:bg-muted')}>
                         <span className="flex h-12 items-center justify-center"><span className="rounded-sm border-2 border-current" style={{ width: f.largura * k, height: f.altura * k }} /></span>
                         <span className="text-[11px] font-semibold leading-tight">{f.nome}</span>

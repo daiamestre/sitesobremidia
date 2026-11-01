@@ -2955,3 +2955,23 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `camadasDoRodape`: ícone verde com o telefone e ícone de localização com o endereço, nos dois encartes; lado a lado em faixa baixa, empilhado em faixa alta; endereço em até 2 linhas.
 - **Limite:** a referência chegou só na conversa, pequena (cerca de 277 px): cores e forma foram lidas dessa imagem, não de um arquivo. Com o arquivo maior dá para acertar os detalhes.
 - **Prova:** `studioBaloes245.test.ts`; imagens conferidas no navegador.
+
+### F-246 — Encartes e artes em todos os tamanhos: telas, redes sociais e impressão — FEITO
+
+- **Pedido do dono (01/11/2026):** os encartes oficiais e as artes dos modelos adaptados para TV horizontal, Totem/TV vertical, Story, Feed quadrado, Feed retrato, A4 em pé, A4 deitado e A3, continuando o mesmo encarte, sem distorcer a arte nem a grade.
+- **Feito:**
+  - `documento.ts`: `FormatoArte` (16:9, 9:16, 1:1, 4:5, a4, a4-h, a3), com as medidas do Cartaz Digital; `OPCOES_DE_FORMATO` (8 opções; Totem e Story têm a mesma medida); `telaDoFormato`.
+  - Encartes oficiais: `scripts/studio/adaptar-encartes.mjs` gera os fundos. Título, logo e rodapé só mudam de escala por igual; apenas a faixa de fundo entre eles (onde entram os produtos) ajusta a altura. `ADAPTACOES` em `encartesOficiais.ts` usa as mesmas faixas para mover áreas, logo e rodapé. Fundo novo = uma entrada em `BASES`, outra em `ADAPTACOES` e rodar o script.
+  - Modelos comuns: `adaptarDocumento` reposiciona as camadas e escala tudo por igual pelo lado mais apertado; foto e fundo seguem cobrindo, com recorte.
+  - Encartes A4: `arranjoDoEncarte` usa a medida do tamanho escolhido; no editor, trocar o tamanho refaz a grade exata (`trocarFormato`).
+  - Editor: seletor de tamanho; o banco segue recebendo 16:9/9:16 (`telaDoFormato`); "Publicar" manda para as telas o formato delas, e os outros tamanhos saem no botão PNG; o vídeo sai no formato de tela mais próximo.
+- **Limites:**
+  - Os fundos do dono têm 941–1672 px de lado; o A3 fica em 1754 × 2480 (cerca de 150 dpi) e o título vem de ampliação. Para impressão mais nítida é preciso a arte original em resolução maior.
+  - O Palco de Ofertas segue só em 16:9 e 9:16.
+
+### F-247 — REGRA obrigatória: texto e valor centralizados em todo balão e botão — FEITO
+
+- **Pedido do dono (01/11/2026):** regra obrigatória em todo o sistema, para todo encarte atual, oficial enviado ou criado depois.
+- **Causas corrigidas:** (1) na placa com promoção, o "DE x,xx" ficava na coluna esquerda e empurrava o valor; (2) nos encartes A4 e no Cartaz Digital, a placa de preço era desenhada encostada à direita do seu espaço, fora do centro do cartão.
+- **Feito:** `balaoDePreco` é o único desenho de balão retangular e oval ("de" centralizado em cima; R$ + valor + centavos centralizados; bloco no meio da altura); `desenharPreco` centraliza a placa; `Preco` centraliza por padrão.
+- **Trava permanente:** `src/tests/unit/regraBaloesCentralizados.test.ts` percorre `ESTILOS_DE_BALAO`, `ENCARTES_OFICIAIS` e `FUNDOS_DO_PALCO` em todos os tamanhos e reprova o que nascer fora da regra; regra gravada no `CLAUDE.md` e na memória do projeto.

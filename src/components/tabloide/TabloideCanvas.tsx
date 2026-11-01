@@ -96,7 +96,7 @@ export function tamanhoDoPreco(produto: ProdutoTabloide, larguraMax: number, alt
 }
 
 /** Selo de preço desenhado no canvas (sai idêntico na tela e na imagem exportada). */
-function Preco({ produto, tema, grande, fonte, alinhar = 'flex-end' }: { produto: ProdutoTabloide; tema: Tema; grande: number; fonte: string; alinhar?: 'flex-end' | 'center' }) {
+function Preco({ produto, tema, grande, fonte, alinhar = 'center' }: { produto: ProdutoTabloide; tema: Tema; grande: number; fonte: string; alinhar?: 'flex-end' | 'center' }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const { inteiro, centavos, unidade } = textoDoPreco(produto);
   const largura = Math.round(larguraDoPreco({ inteiro, centavos, unidade }, grande));
