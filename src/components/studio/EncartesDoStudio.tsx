@@ -13,9 +13,11 @@ import { configPadrao, propsDasPaginas } from '@/lib/tabloide/cartaz';
 import { buscarNoCatalogo } from '@/lib/tabloide/imagens';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
-import { ENCARTES, ENCARTE_FORMATO, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
+import { CESTA_MERCADO, ENCARTES, ENCARTE_FORMATO, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
 import { formatoPorId } from '@/lib/tabloide/temas';
 import { logoSalvaDoStudio, seloDaLogo } from '@/lib/studio/logoDoStudio';
+import { ENCARTES_OFICIAIS, documentoDoEncarteOficial } from '@/lib/studio/encartesOficiais';
+import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 
 /** Uma consulta só ao catálogo para todos os produtos de todos os encartes. */
 export function useFotosDosEncartes() {
@@ -29,7 +31,12 @@ export const PASTA_ENCARTES = 'encartes-de-mercado';
 /** Capa da pasta: passa os encartes, 8 s cada, como todas as pastas do Studio (F-230). */
 export function CapaDaPastaDeEncartes({ atraso = 0 }: { atraso?: number }) {
   const fotos = useFotosDosEncartes();
-  const slides = useMemo(() => ENCARTES.map((e) => ({ chave: e.id, animada: () => <MiniaturaDoEncarte e={e} fotos={fotos.data} /> })), [fotos.data]);
+  const slides = useMemo(() => {
+    // F-240: os encartes OFICIAIS (fundos do dono) também passam na capa, com a cesta de exemplo
+    const cesta = lerLista(CESTA_MERCADO).slice(0, 8).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null }));
+    const oficiais = ENCARTES_OFICIAIS.map((o) => ({ chave: o.id, animada: () => <PreviaDocumento doc={documentoDoEncarteOficial(o, cesta)} sempre className="h-full" /> }));
+    return [...oficiais, ...ENCARTES.map((e) => ({ chave: e.id, animada: () => <MiniaturaDoEncarte e={e} fotos={fotos.data} /> }))];
+  }, [fotos.data]);
   return <CapaQueGira slides={slides} atraso={atraso} ajuste="contain" className="h-full" style={{ aspectRatio: '1240 / 1754' }} />;
 }
 

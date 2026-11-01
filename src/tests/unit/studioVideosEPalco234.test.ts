@@ -97,7 +97,16 @@ describe('F-237 — fundo OFICIAL do Palco de Ofertas (arte do dono)', () => {
       const balao = nome('Preço');
       expect(balao).toMatchObject({ tipo: 'selo', realista: true, cor: '#FFD21F', moeda: 'R$', valor: '25', sufixo: ',90', topo: 'POR APENAS' });
       expect(balao.animacao).toMatchObject({ tipo: 'zoom', depois: 'pulsar' });
-      expect(balao.x + balao.w / 2).toBeGreaterThan(W * 0.7); // na lateral direita
+      // F-240: tamanho normal (proporcional ao produto) e do outro lado do nome; deitado, o nome fica colado à esquerda do produto
+      expect(balao.w).toBeLessThanOrEqual(Math.min(pr.w, pr.h) * 1.05);
+      expect(balao.x + balao.w / 2).toBeGreaterThan(pr.x + pr.w / 2);
+      if (formato === '16:9') {
+        const n = nome('Nome do produto');
+        expect(n).toMatchObject({ alinhamento: 'right' });
+        expect(pr.x - (n.x + n.w)).toBeLessThan(W * 0.02);
+        expect(n.x + n.w).toBeLessThanOrEqual(pr.x);
+        expect(balao.x - (pr.x + pr.w)).toBeLessThan(W * 0.04);
+      }
       // nenhum texto (nome do produto, botão) passa por cima do balão
       for (const c of d.camadas.filter((x) => x.tipo === 'texto')) {
         const cruza = c.x < balao.x + balao.w && c.x + c.w > balao.x && c.y < balao.y + balao.h && c.y + c.h > balao.y;

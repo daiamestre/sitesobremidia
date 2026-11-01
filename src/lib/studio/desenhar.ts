@@ -68,11 +68,15 @@ function desenharForma(ctx: CanvasRenderingContext2D, c: CamadaForma) {
 }
 
 function desenharImagem(ctx: CanvasRenderingContext2D, c: CamadaImagem, img: HTMLImageElement | undefined, e: number) {
-  if (c.sombra) { ctx.fillStyle = '#000'; caminho(ctx, -c.w / 2, -c.h / 2, c.w, c.h, c.raio); ctx.fill(); }
-  ctx.shadowColor = 'transparent';
-  caminho(ctx, -c.w / 2, -c.h / 2, c.w, c.h, c.raio);
-  ctx.clip();
-  if (!img) { ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h); return; }
+  // F-240: imagem recortada (logo PNG sem fundo, produto) com sombra: a sombra segue o contorno, sem caixa atrás
+  const recorte = c.ajuste === 'conter' && !!c.sombra && c.zoom <= 1;
+  if (c.sombra && !recorte) { ctx.fillStyle = '#000'; caminho(ctx, -c.w / 2, -c.h / 2, c.w, c.h, c.raio); ctx.fill(); }
+  if (!recorte) {
+    ctx.shadowColor = 'transparent';
+    caminho(ctx, -c.w / 2, -c.h / 2, c.w, c.h, c.raio);
+    ctx.clip();
+  }
+  if (!img) { ctx.shadowColor = 'transparent'; ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h); return; }
   const s = (c.ajuste === 'conter' ? Math.min : Math.max)(c.w / img.naturalWidth, c.h / img.naturalHeight) * Math.max(1, c.zoom);
   const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
   const dx = -c.w / 2 + (c.w - dw) * (c.focoX / 100);
@@ -154,9 +158,17 @@ function desenharSeloRealista(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
   b.addColorStop(0, 'rgba(255,255,255,.55)'); b.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = b; ctx.beginPath(); ctx.ellipse(0, -r * 0.52, r * 0.78, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
+  textosDoSelo(ctx, c, r, true);
+}
+
+/**
+ * F-240: textos de TODO balão de preço, organizados e centralizados pela medida real da fonte — "de/por" em cima,
+ * R$ + valor + centavos no meio (o valor no centro do balão), unidade embaixo; o tamanho diminui até caber.
+ */
+function textosDoSelo(ctx: CanvasRenderingContext2D, c: CamadaSelo, r: number, relevo: boolean) {
   // textos: valor no CENTRO do balão; R$ pequeno à esquerda, centavos em cima à direita; "de/por" em cima, unidade embaixo
   ctx.fillStyle = c.corTexto; ctx.textBaseline = 'middle';
-  ctx.shadowColor = clarear(c.corTexto, -0.45); ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = r * 0.025;
+  if (relevo) { ctx.shadowColor = clarear(c.corTexto, -0.45); ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = r * 0.025; } else ctx.shadowColor = 'transparent';
   let tv = r * 0.95;
   const larguras = () => {
     ctx.font = fonteCanvas(c.fonte, tv * 0.32); const wm = c.moeda ? ctx.measureText(c.moeda).width + tv * 0.06 : 0;
@@ -171,7 +183,7 @@ function desenharSeloRealista(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
   ctx.font = fonteCanvas(c.fonte, tv);
   const mv = ctx.measureText(c.valor);
   const asc = mv.actualBoundingBoxAscent || tv * 0.75, desc = mv.actualBoundingBoxDescent || 0;
-  const tTopo = r * 0.17, tBase = r * 0.16, folga = r * 0.085;
+  const tTopo = r * (relevo ? 0.17 : 0.2), tBase = r * (relevo ? 0.16 : 0.2), folga = r * 0.085;
   // o conjunto (de/por + valor + unidade) fica centralizado na vertical
   const desloc = ((c.topo ? tTopo + folga : 0) - (c.base ? tBase + folga : 0)) / 2;
   const topoValor = -(asc + desc) / 2 + desloc;
@@ -195,22 +207,7 @@ function desenharSelo(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = c.cor; ctx.fill();
   ctx.shadowColor = 'transparent';
   ctx.lineWidth = r * 0.055; ctx.strokeStyle = c.borda; ctx.beginPath(); ctx.arc(0, 0, r - ctx.lineWidth / 2, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = c.corTexto; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const longo = c.valor.length > 3;
-  const tv = r * (longo ? 0.48 : 0.8);
-  const temTopo = !!c.topo, temBase = !!c.base;
-  const yValor = (temTopo ? r * 0.08 : 0) - (temBase ? r * 0.08 : 0);
-  if (temTopo) { ctx.font = fonteCanvas('poppins', r * 0.22, 800); ctx.fillText(c.topo, 0, yValor - tv * 0.62); }
-  ctx.font = fonteCanvas(c.fonte, tv);
-  const wv = ctx.measureText(c.valor).width;
-  ctx.font = fonteCanvas(c.fonte, tv * 0.5);
-  const ws = c.sufixo ? ctx.measureText(c.sufixo).width : 0;
-  ctx.textAlign = 'left';
-  ctx.font = fonteCanvas(c.fonte, tv);
-  ctx.fillText(c.valor, -(wv + ws) / 2, yValor);
-  if (c.sufixo) { ctx.font = fonteCanvas(c.fonte, tv * 0.5); ctx.fillText(c.sufixo, -(wv + ws) / 2 + wv, yValor - tv * 0.2); }
-  ctx.textAlign = 'center';
-  if (temBase) { ctx.font = fonteCanvas('poppins', r * 0.24, 900); ctx.fillText(c.base, 0, yValor + tv * 0.62); }
+  textosDoSelo(ctx, c, r * 0.96, false);
 }
 
 function desenharItens(ctx: CanvasRenderingContext2D, c: CamadaItens) {

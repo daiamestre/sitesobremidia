@@ -28,7 +28,7 @@ export interface FundoDoPalco {
   /** espaço do produto: o pé encosta no tampo do palco (y + h = tampo) */
   produto: Record<FormatoDoc, Caixa>;
   /** F-238: área do NOME do produto (branco; em pé fica em cima do produto, deitado fica à esquerda, em cima) */
-  nome_: Record<FormatoDoc, Caixa & { alinhamento: 'left' | 'center' }>;
+  nome_: Record<FormatoDoc, Caixa & { alinhamento: 'left' | 'center' | 'right' }>;
   /** F-239: balão AMARELO de preço na lateral (centro e diâmetro em frações; d = fração do lado menor), pulsando */
   preco: Record<FormatoDoc, { cx: number; cy: number; d: number }>;
   botao: Record<FormatoDoc, Caixa>;
@@ -40,10 +40,10 @@ export const srcDoFundo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/pal
 export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
   {
     id: 'alerta-de-oferta', nome: 'Alerta de Oferta (sirene)',
-    produto: { '9:16': { x: 0.22, y: 0.445, w: 0.56, h: 0.3 }, '16:9': { x: 0.37, y: 0.475, w: 0.26, h: 0.27 } },
-    nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.03, y: 0.5, w: 0.21, h: 0.2, alinhamento: 'left' } },
-    // balão amarelo na lateral (como o dono aprovou), encostado na beira do produto
-    preco: { '9:16': { cx: 0.8, cy: 0.56, d: 0.32 }, '16:9': { cx: 0.86, cy: 0.52, d: 0.3 } },
+    produto: { '9:16': { x: 0.22, y: 0.445, w: 0.56, h: 0.3 }, '16:9': { x: 0.415, y: 0.475, w: 0.17, h: 0.27 } },
+    nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.19, y: 0.5, w: 0.215, h: 0.2, alinhamento: 'right' } },
+    // F-240: balão amarelo de tamanho normal, proporcional ao produto; deitado: nome colado à esquerda do produto e balão à direita
+    preco: { '9:16': { cx: 0.8, cy: 0.585, d: 0.24 }, '16:9': { cx: 0.66, cy: 0.6, d: 0.2 } },
     botao: { '9:16': { x: 0.272, y: 0.872, w: 0.468, h: 0.072 }, '16:9': { x: 0.366, y: 0.877, w: 0.266, h: 0.1 } },
     corBotao: '#d90f1f', bordaBotao: '#ffd21f',
     botoes: ['OFERTAS', 'ALERTAS'],
@@ -52,7 +52,7 @@ export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
 export const fundoDoPalcoPorId = (id: string | null | undefined) => FUNDOS_DO_PALCO.find((f) => f.id === id) ?? null;
 
 /** Nome do produto em branco, no maior tamanho que cabe na área (até 3 linhas), com sombra para ler sobre o fundo. */
-function nomeDoProduto(nome: string, b: Caixa & { alinhamento: 'left' | 'center' }): Camada {
+export function nomeDoProduto(nome: string, b: Caixa & { alinhamento: 'left' | 'center' | 'right' }): Camada {
   let tam = Math.round(b.h * 0.5);
   let t = texto('Nome do produto', nome, b.x, b.y, b.w, { fonte: 'poppins', peso: 800, tamanho: tam, maiusculas: true, alinhamento: b.alinhamento, cor: '#ffffff', entrelinha: 1.05, sombra: { cor: 'rgba(60,0,8,.65)', desfoque: 14, dx: 0, dy: 5 } });
   while ((t.h > b.h || Math.max(...nome.toUpperCase().split(/\s+/).map((p) => larguraDoTexto(p, 'poppins', tam, 800)), 0) > b.w) && tam > 18) {

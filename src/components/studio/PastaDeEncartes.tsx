@@ -9,6 +9,8 @@ import { ArrowLeft, FileText, FolderOpen, PenLine } from 'lucide-react';
 import { ENCARTES } from '@/lib/tabloide/encartes';
 import { MiniaturaDoEncarte, useFotosDosEncartes } from './EncartesDoStudio';
 import { PainelDeProdutos, useProdutosComFotos } from './ProdutosComFotos';
+import { EncarteOficialCartao } from './EncarteOficial';
+import { ENCARTES_OFICIAIS } from '@/lib/studio/encartesOficiais';
 
 export { CHAVE_PRODUTOS_DO_ENCARTE } from './ProdutosComFotos';
 
@@ -31,6 +33,11 @@ export function PastaDeEncartes() {
 
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         <PainelDeProdutos s={s} />
+        <div className="min-w-0 space-y-4">
+        {/* F-240: encartes OFICIAIS (fundos prontos do dono): os produtos se organizam sozinhos, com a logo e os contatos */}
+        <section className="space-y-2" aria-label="Encartes oficiais">
+          {ENCARTES_OFICIAIS.map((o) => <EncarteOficialCartao key={o.id} e={o} produtos={s.produtos} aoGravar={() => s.gravar(s.produtos)} />)}
+        </section>
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4" aria-label="Encartes com os seus produtos" data-testid="studio-encartes">
           {ENCARTES.map((e) => (
             <article key={e.id} className="sm-cartao-luz flex flex-col overflow-hidden rounded-xl p-2.5" data-testid="studio-encarte-card">
@@ -45,6 +52,7 @@ export function PastaDeEncartes() {
             </article>
           ))}
         </section>
+        </div>
       </div>
     </div>
   );

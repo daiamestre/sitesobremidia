@@ -292,17 +292,24 @@ export function desenharPreco(ctx: CanvasRenderingContext2D, largura: number, al
   ctx.strokeStyle = '#ffffff';
   caminhoArredondado(ctx, x0 + ctx.lineWidth / 2, 1 + ctx.lineWidth / 2, caixaL - ctx.lineWidth, caixaA - ctx.lineWidth, caixaA * 0.24);
   ctx.stroke();
-  const base = 1 + caixaA * 0.5 + g * 0.36; // linha de base do número
+  // F-240: o número fica com o MEIO no centro da placa pela medida real da fonte (qualquer fonte escolhida);
+  // os centavos alinham pelo topo do número e o R$ fica na altura do meio dele
+  ctx.font = fonte(g);
+  const mi = ctx.measureText(p.inteiro);
+  const asc = mi.actualBoundingBoxAscent || g * 0.72, desc = mi.actualBoundingBoxDescent || 0;
+  const base = 1 + caixaA * 0.5 + (asc - desc) / 2; // linha de base do número
+  const topo = base - asc;
+  const subida = (t: number, txt: string) => { ctx.font = fonte(t); return ctx.measureText(txt).actualBoundingBoxAscent || t * 0.72; };
   let x = x0 + (caixaL - conteudo) / 2;
   ctx.fillStyle = corTexto;
-  ctx.font = fonte(g * 0.3);
-  ctx.fillText('R$', x, base - g * 0.42);
+  const aRs = subida(g * 0.3, 'R$');
+  ctx.fillText('R$', x, topo + asc * 0.22 + aRs);
   x += lRs + g * 0.06;
   ctx.font = fonte(g);
   ctx.fillText(p.inteiro, x, base);
   x += lInt + g * 0.04;
-  ctx.font = fonte(g * 0.42);
-  ctx.fillText(',' + p.centavos, x, base - g * 0.36);
+  const aCent = subida(g * 0.42, ',' + p.centavos);
+  ctx.fillText(',' + p.centavos, x, topo + aCent);
   if (p.unidade) {
     ctx.font = fonte(g * 0.2);
     ctx.fillText(p.unidade, x + g * 0.06, base - g * 0.06);

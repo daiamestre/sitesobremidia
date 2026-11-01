@@ -2865,3 +2865,35 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Os algarismos são centralizados pela medida real da fonte (`actualBoundingBox`). O grupo R$/valor/centavos fica no centro horizontal, e topo e unidade ficam equilibrados na vertical.
   - `etiquetaDePreco` foi exportada com cores (vermelha e amarela) para os encartes.
 - **Bug antigo corrigido (`fontes.ts`):** `carregarFonteStudio` pedia a fonte antes de a folha do Google Fonts chegar. Por isso a 1ª arte depois de abrir a página saía com outra letra no lugar da Anton e da Poppins (também no PNG publicado). Agora espera a folha carregar (até 5 s) e só então pede a fonte.
+
+### F-240 — Encarte OFICIAL "Mega Oferta" (vermelho e azul) na pasta Encartes de Mercado; balão do palco em tamanho normal e nome ao lado do produto; todo balão de preço organizado e centralizado — FEITO
+
+- **Pedidos do dono (01/11/2026):**
+  - Usar o fundo dele "Mega Oferta" (vermelho e azul) como encarte. Os produtos entram nos dois lados e o sistema organiza.
+  - No "SUA LOGO AQUI" vai a logo ou foto do cliente. PNG sem fundo, logo redonda ou vetor ficam como a logo MEGA OFERTA.
+  - O rodapé amarelo recebe telefone e endereço.
+  - No palco: balão de tamanho normal, proporcional ao produto. Deitado, o nome fica ao lado do produto e o balão do outro lado.
+  - Todos os balões de preço organizados e centralizados.
+- **Feito:**
+  - `src/lib/studio/encartesOficiais.ts`:
+    - `ENCARTES_OFICIAIS` é a lista de fundos oficiais. Para pôr um fundo novo do dono, basta uma entrada nova ali e as imagens em `public/studio/encartes-oficiais/`.
+    - Os produtos alternam entre o lado vermelho e o azul, até 8 por lado. Até 4 ficam um embaixo do outro; mais que isso, em 2 colunas.
+    - Cada produto tem placa translúcida, foto inteira, nome em branco e etiqueta (amarela no vermelho, vermelha no azul).
+    - Logo recortada fica solta, com sombra que segue o contorno. Logo com fundo vai num cartão branco com borda amarela.
+    - Telefone numa pílula vermelha e endereço embaixo.
+  - Fundo: versão ampliada para 1080×1920 e uma versão sem a caixa "SUA LOGO AQUI", preenchida pela interpolação das bordas em volta (sem marca de remendo). A versão sem a caixa é usada quando há logo.
+  - Cartão do encarte na pasta (`EncarteOficial.tsx`):
+    - prévia com "Seus produtos";
+    - campo de logo: arquivo PNG/JPG/WEBP/SVG ou a Logo 3D do Studio; descobre se a logo é recortada pela borda transparente;
+    - telefone e endereço;
+    - botões "Editar e publicar" e "Criar vídeo".
+  - O encarte também passa na capa da pasta.
+  - Editor (`artePronta.ts` + `EditorPage`): abre uma arte pronta só no formato dela. Grava `somente`, a pasta e a volta no projeto; "voltar ao original" volta à arte pronta.
+  - `desenhar.ts`: imagem 'conter' com sombra não desenha mais caixa preta atrás.
+  - `textosDoSelo`: todo balão do Studio (clássico e realista) usa o mesmo arranjo centralizado pela medida real da fonte.
+  - `selo3d.ts` (Cartaz Digital e encartes A4): o número fica no centro da placa pela medida real da fonte (antes era uma medida fixa e entortava com outras fontes).
+  - Palco: balão 9:16 com d 0,24 (antes 0,32). No 16:9, o produto fica com 0,17 de largura e centrado, o nome alinhado à direita e colado ao produto, e o balão (d 0,2) do outro lado.
+- **Prova:**
+  - `studioEncarteOficial240.test.ts` (6) confere: lados, sem sobreposição, rodapé, logo e editor.
+  - Palco: teste de tamanho do balão e de nome e balão ao lado do produto.
+  - Conferido no navegador com a conta de teste: pasta, logo PNG (solta), logo JPG (cartão), telefone, endereço e editor abrindo o encarte.
