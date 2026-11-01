@@ -11,6 +11,7 @@ import type { ConfigCartaz, CoresCartaz, EstiloBox } from './cartaz';
 import type { LayoutDoCartaz } from './grade';
 import type { SegmentoId } from './temas';
 import { ARTES_PRONTAS } from './encartes-artes';
+import { fatores, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
 
 export interface ModeloDeEncarte {
   id: string;
@@ -35,7 +36,7 @@ export interface ModeloDeEncarte {
   /** F-236: estrutura das referências de encarte de mercado */
   layout?: LayoutDoCartaz;
   grade?: string;
-  destaques?: 0 | 1 | 2 | 3;
+  destaques?: number;
   /** título como logo 3D (estilo do Criador de Logos) */
   estiloTitulo?: string;
   /** fundo moderno em CSS (diagonal, raios, retícula) e cor da coluna/metade */
@@ -77,6 +78,9 @@ export const CESTA_MERCADO = [
   'Açúcar Refinado União 1kg 4,79',
   'Biscoito Recheado Passatempo 130g 2,99',
 ].join('\n');
+
+/** F-244: a lista inicial do cliente, com os 16 produtos do padrão do encarte */
+export const CESTA_PADRAO = `${CESTA_MERCADO}\nRefrigerante Guaraná Antarctica 2L 8,99`;
 
 const CESTA_ACOUGUE = [
   'Picanha kg de 89,90 por 69,90',
@@ -187,6 +191,38 @@ export function arteDoEncarte(e: ModeloDeEncarte): ConfigCartaz['faixaArte'] {
   return a ? { url: `/studio/encartes/${e.id}.webp?v=${a.v}`, largura: a.largura, altura: a.altura } : null;
 }
 
+// área dos produtos numa folha A4 com o cabeçalho do título (em pixels do projeto)
+const CORPO_A4 = { w: 1170, h: 1290 };
+const distancia = (w: number, h: number) => Math.abs(Math.log(w / h));
+/**
+ * F-244 — grade inteligente dos encartes A4: para n produtos, a grade exata (toda fileira completa) no desenho do modelo.
+ * Grade comum: colunas × fileiras = n. Coluna lateral: um destaque em cada fileira. Tela dividida: as duas metades iguais.
+ * Os produtos preenchem a folha: poucos ficam grandes e muitos, menores.
+ */
+export function arranjoDoEncarte(layout: ModeloDeEncarte['layout'], n: number): { grade: string; destaques: number } {
+  const { w, h } = CORPO_A4;
+  const melhor = <T,>(ops: T[], nota: (o: T) => number) => ops.reduce((a, b) => (nota(b) < nota(a) - 1e-9 ? b : a));
+  if (n < 2) return { grade: '1x1', destaques: 0 };
+  if (layout === 'lateral') {
+    const ops = [1, 2, 3, 4].filter((r) => n % r === 0 && n / r >= 2).map((r) => ({ c: n / r - 1, r }));
+    const o = melhor(ops, (x) => distancia(((w * 0.7) / x.c) * 0.9, h / x.r));
+    return { grade: `${o.c}x${o.r}`, destaques: o.r };
+  }
+  if (layout === 'dividido' && n % 2 === 0) {
+    const o = melhor(fatores(n / 2, 3, 6), (x) => distancia(w / 2 / x.cols, h / x.rows));
+    return { grade: `${o.cols * 2}x${o.rows}`, destaques: 0 };
+  }
+  const o = melhor(fatores(n, 6, 6), (x) => distancia(w / x.cols, h / x.rows));
+  return { grade: `${o.cols}x${o.rows}`, destaques: 0 };
+}
+
+/** F-244: o modelo com a quantidade escolhida, a lista cortada e a grade exata (abre assim no editor do encarte). */
+export function encarteComQuantidade(e: ModeloDeEncarte, quantos: number): ModeloDeEncarte {
+  const linhasDaLista = e.produtos.split('\n').filter((l) => l.trim());
+  const n = quantidadeCompleta(quantos, linhasDaLista.length);
+  return { ...e, ...arranjoDoEncarte(e.layout, n), produtos: linhasDaLista.slice(0, n).join('\n') };
+}
+
 /** O que o modelo muda no Cartaz Digital: folha em pé, 3 destaques, grade 4 × 3, título 3D sobre a arte e a caixa da logo. */
 export const ENCARTE_FORMATO = 'a4';
 export const ENCARTE_GRADE = '4x3';
@@ -196,7 +232,7 @@ export function configDoEncarte(e: ModeloDeEncarte, c: ConfigCartaz): ConfigCart
     ...c,
     titulo: e.titulo,
     regras: { ...c.regras, frase: e.frase, mostrarFrase: true, imagensIlustrativas: true, enquantoDurarem: true },
-    destaques: e.destaques ?? 3,
+    destaques: (e.destaques ?? 3) as ConfigCartaz['destaques'],
     faixaArte: e.fundoCss ? null : arteDoEncarte(e),
     estiloTitulo: e.estiloTitulo ?? null,
     layout: e.layout ?? 'padrao',

@@ -4,7 +4,8 @@ import { ArrowLeft, FileText } from 'lucide-react';
 import { TabloideEditor } from '@/components/tabloide/TabloideEditor';
 import { useClienteModalidade } from '@/modules/crm/hooks/useClienteModalidade';
 import { meuSaldo } from '@/lib/studioai/api';
-import { encartePorId } from '@/lib/tabloide/encartes';
+import { encarteComQuantidade, encartePorId } from '@/lib/tabloide/encartes';
+import { lerQuantidade } from '@/lib/studio/gradeInteligente';
 import { CHAVE_PRODUTOS_DO_ENCARTE } from '@/components/studio/PastaDeEncartes';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 
@@ -18,7 +19,9 @@ export default function EncarteStudioPage() {
   const modelo = encartePorId(encarteId);
   // F-233: os produtos colocados na pasta (encartes de mercado) entram no editor
   const daPasta = (() => { try { return sessionStorage.getItem(CHAVE_PRODUTOS_DO_ENCARTE); } catch { return null; } })();
-  const comProdutos = modelo && daPasta && modelo.segmento === 'mercado' ? { ...modelo, produtos: daPasta } : modelo;
+  const naPasta = modelo && daPasta && modelo.segmento === 'mercado' ? { ...modelo, produtos: daPasta } : modelo;
+  // F-244: abre com a quantidade escolhida na pasta e a grade certa
+  const comProdutos = naPasta ? encarteComQuantidade(naPasta, lerQuantidade()) : naPasta;
   // F-235: a logo 3D criada no Studio vai para o cabeçalho
   const logo = logoSalvaDoStudio();
   const encarte = comProdutos && logo ? { ...comProdutos, logoCabecalhoId: logo.id } : comProdutos;

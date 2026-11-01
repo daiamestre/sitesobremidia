@@ -2933,3 +2933,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Até 5 colunas por área no deitado. Telefone e endereço ficam embaixo, à esquerda, porque este fundo não tem faixa de rodapé.
 - **Bug corrigido (fotos):** R2 não manda `Vary: Origin`. Uma foto exibida antes como `<img>` comum fica guardada pelo navegador sem CORS, e o canvas falhava: o produto saía sem foto na prévia, com 5 fotos do catálogo em branco nesta conferência (status 200 e `Access-Control-Allow-Origin: *` no curl). `carregarImagem` agora tenta de novo por outro endereço (`?arte=1`), e as miniaturas do Palco e do cartão de produtos usam `crossOrigin`.
 - **Prova:** `studioEncarteOficial240.test.ts` roda para os 2 encartes nos 2 formatos, mais os testes do frango; navegador: as 5 fotos carregam e os dois encartes aparecem na pasta.
+
+### F-244 — Grade inteligente: o cliente escolhe quantos produtos mostrar (padrão 16, até 20) e toda fileira fica completa — FEITO
+
+- **Pedido do dono (01/11/2026):** escolher quantos produtos mostrar nos encartes e no Palco; padrão 16, até 20; em 9:16, 4 na horizontal e 4 na vertical; nunca fileira incompleta nem produto sozinho; grade inteligente para todos os encartes, com produtos grandes quando são poucos e menores quando são muitos.
+- **Feito:**
+  - `src/lib/studio/gradeInteligente.ts`: `QUANTIDADES` (4, 6, 8, 10, 12, 16, 20), `quantidadeCompleta` (com 13 na lista, mostra 12), `planejarAreas` (cada área do fundo com grade exata, cartões no formato preferido e tamanhos parecidos entre áreas) e `dividirPorCotas`. Vale sozinha para todo fundo oficial novo. As quantidades são só as que formam grade completa; 18 ficou de fora porque daria cartões estreitos demais nos encartes de duas áreas.
+  - Encartes oficiais: a grade preenche a área inteira (saiu `peso`/`max`/`MAX_POR_COLUNA`). Com 16 em pé, os dois encartes ficam 4 × 4.
+  - Encartes A4: `arranjoDoEncarte` calcula a grade exata (comum, coluna lateral e tela dividida) e `encarteComQuantidade` abre o editor com a quantidade certa. Na grade comum, os destaques no topo saem, porque tornariam as fileiras desiguais. `paginaDividida` passou a aceitar mais de uma coluna por metade.
+  - `CESTA_PADRAO`: a lista inicial agora tem 16 produtos (mais o Guaraná).
+  - Painel "Seus produtos": seletor "Mostrar" sempre à vista, com aviso de quantos faltam. Guardado em `studio-quantidade-produtos`.
+  - Palco: passa só os N primeiros produtos com preço.
+- **Prova:** `studioGradeInteligente244.test.ts` (2 encartes oficiais, 2 formatos, 7 quantidades; todos os modelos A4 em todas as quantidades); navegador: 16 (4 × 4) e 4 produtos (grandes).

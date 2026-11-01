@@ -11,8 +11,9 @@ import { toast } from 'sonner';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { enderecoDaArtePronta } from '@/lib/studio/artePronta';
 import { animarTudo, temAnimacao } from '@/lib/studio/animacao';
-import { documentoDoEncarteOficial, formatosDoEncarte, maxDeProdutos, PASTA_ENCARTES_OFICIAIS, type DadosDoEncarte, type EncarteOficial as Encarte, type LogoDoCliente } from '@/lib/studio/encartesOficiais';
+import { documentoDoEncarteOficial, formatosDoEncarte, PASTA_ENCARTES_OFICIAIS, type DadosDoEncarte, type EncarteOficial as Encarte, type LogoDoCliente } from '@/lib/studio/encartesOficiais';
 import type { Documento, FormatoDoc } from '@/lib/studio/documento';
+import { quantidadeCompleta } from '@/lib/studio/gradeInteligente';
 import { cn } from '@/lib/utils';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
@@ -59,7 +60,7 @@ function bordaTransparente(ctx: CanvasRenderingContext2D, w: number, h: number) 
   return total > 0 && vazios / total >= 0.5;
 }
 
-export function EncarteOficialCartao({ e, produtos, aoGravar }: { e: Encarte; produtos: ProdutoTabloide[]; aoGravar: () => void }) {
+export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: Encarte; produtos: ProdutoTabloide[]; /** F-244: quantos produtos mostrar */ quantos: number; aoGravar: () => void }) {
   const navegar = useNavigate();
   const [dados, setDados] = useState<DadosDoEncarte>(lerDados);
   const arquivo = useRef<HTMLInputElement>(null);
@@ -67,10 +68,10 @@ export function EncarteOficialCartao({ e, produtos, aoGravar }: { e: Encarte; pr
   // F-240: o mesmo encarte em pé (9:16) e deitado (16:9); o editor recebe os dois
   const formatos = useMemo(() => formatosDoEncarte(e), [e]);
   const [formato, setFormato] = useState<FormatoDoc>(formatos[0]);
-  const docs = useMemo(() => Object.fromEntries(formatos.map((f) => [f, documentoDoEncarteOficial(e, produtos, dados, f)])) as Partial<Record<FormatoDoc, Documento>>, [e, formatos, produtos, dados]);
+  const docs = useMemo(() => Object.fromEntries(formatos.map((f) => [f, documentoDoEncarteOficial(e, produtos, { ...dados, quantos }, f)])) as Partial<Record<FormatoDoc, Documento>>, [e, formatos, produtos, dados, quantos]);
   const doc = docs[formato] ?? docs[formatos[0]]!;
   const deitado = doc.formato === '16:9';
-  const max = maxDeProdutos(e);
+  const naGrade = quantidadeCompleta(quantos, produtos.length);
   const logo3d = logoSalvaDoStudio();
 
   const escolher = async (f: File | undefined) => {
@@ -113,7 +114,7 @@ export function EncarteOficialCartao({ e, produtos, aoGravar }: { e: Encarte; pr
               ))}
             </div>
           )}
-          <p className="text-xs text-slate-400">Os seus produtos se organizam sozinhos nos dois lados ({Math.min(produtos.length, max)} de até {max}){produtos.length > max ? ` — os ${produtos.length - max} últimos ficam de fora` : ''}.</p>
+          <p className="text-xs text-slate-400">Grade com {naGrade} produtos, organizada sozinha nos dois lados. Escolha a quantidade em “Seus produtos”.</p>
         </div>
 
         <div className="space-y-1.5">

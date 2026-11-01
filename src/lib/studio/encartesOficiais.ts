@@ -5,16 +5,15 @@
 // Fundo novo do dono = uma entrada em ENCARTES_OFICIAIS + as imagens em public/studio/encartes-oficiais/.
 import { TAMANHO_DOC, forma, imagem, larguraDoTexto, texto, type Camada, type Documento, type FormatoDoc } from './documento';
 import { ETIQUETA_AMARELA, ETIQUETA_VERMELHA, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta } from './palco';
+import { QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta, type GradeDaArea } from './gradeInteligente';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
 /** Logo (ou foto) do cliente. `recortada` = PNG sem fundo, logo redonda ou vetor: fica solta, como a logo "MEGA OFERTA". */
 export interface LogoDoCliente { url: string; largura: number; altura: number; recortada: boolean }
-export interface DadosDoEncarte { logo?: LogoDoCliente | null; telefone?: string; endereco?: string }
+export interface DadosDoEncarte { logo?: LogoDoCliente | null; telefone?: string; endereco?: string; /** F-244: quantos produtos o cliente quer mostrar (padrão 16) */ quantos?: number }
 
 export interface ColunaDoEncarte extends Caixa {
   etiqueta: CoresDaEtiqueta; sombraNome: string;
-  /** F-243: área maior recebe mais produtos (padrão 1) e limite de produtos da área (padrão MAX_POR_COLUNA) */
-  peso?: number; max?: number;
   /** F-243: sobre fundo claro (cartão amarelo) o nome e a placa mudam de cor para continuar legíveis */
   corNome?: string; corPlaca?: string; bordaPlaca?: string;
 }
@@ -36,7 +35,6 @@ export interface EncarteOficial {
   corTelefone: string; corEndereco: string;
 }
 
-export const MAX_POR_COLUNA = 8;
 export const PASTA_ENCARTES_OFICIAIS = 'encartes-de-mercado';
 
 const VERMELHO = { etiqueta: ETIQUETA_AMARELA, sombraNome: 'rgba(70,0,6,.7)' };
@@ -59,7 +57,7 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = [
         ],
         logo: { x: 650, y: 66, w: 386, h: 290 },
         rodape: { x: 40, y: 1700, w: 1000, h: 210 },
-        cartao: 1.3,
+        cartao: 1,
       },
       // 1920×1080: a curva passa entre x 907 e 983; o rodapé amarelo começa em 954
       '16:9': {
@@ -85,12 +83,12 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = [
         fundo: '/studio/encartes-oficiais/semana-do-frango-v.webp',
         fundoLimpo: '/studio/encartes-oficiais/semana-do-frango-v-limpo.webp',
         colunas: [
-          { x: 24, y: 645, w: 552, h: 1140, peso: 5, max: 10, ...AZUL_CLARO },
-          { x: 745, y: 660, w: 319, h: 780, peso: 3, max: 6, ...CARTAO_AMARELO },
+          { x: 24, y: 645, w: 552, h: 1140, ...AZUL_CLARO },
+          { x: 745, y: 660, w: 319, h: 780, ...CARTAO_AMARELO },
         ],
         logo: { x: 804, y: 322, w: 156, h: 136 },
         rodape: { x: 24, y: 1798, w: 776, h: 104 },
-        cartao: 1.3,
+        cartao: 1,
       },
       // 1920×1080: o cartão amarelo começa em y 290, com a beira esquerda indo de x 1234 a 1083; moedas à direita até
       // y 367 e a partir de y 827
@@ -98,8 +96,8 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = [
         fundo: '/studio/encartes-oficiais/semana-do-frango-h.webp',
         fundoLimpo: '/studio/encartes-oficiais/semana-do-frango-h-limpo.webp',
         colunas: [
-          { x: 30, y: 545, w: 1035, h: 425, peso: 5, max: 10, ...AZUL_CLARO },
-          { x: 1245, y: 375, w: 655, h: 445, peso: 3, max: 6, ...CARTAO_AMARELO },
+          { x: 30, y: 545, w: 1035, h: 425, ...AZUL_CLARO },
+          { x: 1245, y: 375, w: 655, h: 445, ...CARTAO_AMARELO },
         ],
         logo: { x: 1366, y: 74, w: 214, h: 164 },
         rodape: { x: 30, y: 985, w: 1040, h: 86 },
@@ -112,31 +110,10 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = [
 export const encarteOficialPorId = (id: string | null | undefined) => ENCARTES_OFICIAIS.find((e) => e.id === id) ?? null;
 export const formatosDoEncarte = (e: EncarteOficial) => (['9:16', '16:9'] as FormatoDoc[]).filter((f) => e.formatos[f]);
 export const layoutDoEncarte = (e: EncarteOficial, formato?: FormatoDoc): LayoutDoEncarte => e.formatos[formato ?? formatosDoEncarte(e)[0]] ?? e.formatos[formatosDoEncarte(e)[0]]!;
-export const maxDeProdutos = (e: EncarteOficial) => Math.min(...formatosDoEncarte(e).map((f) => e.formatos[f]!.colunas.reduce((t, c) => t + (c.max ?? MAX_POR_COLUNA), 0)));
 
 type Ani = NonNullable<Camada['animacao']>;
 const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depois'] = null): Ani => ({ tipo, atraso, duracao, depois });
 type Produto = Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>;
-
-/**
- * Divide os produtos entre as colunas, até o máximo do fundo. Com pesos iguais alterna (1º vermelho, 2º azul, 3º vermelho…);
- * com pesos diferentes (F-243), a área maior recebe mais produtos, proporcionalmente.
- */
-export function dividirProdutos<T>(produtos: T[], colunas: number | Array<Pick<ColunaDoEncarte, 'peso' | 'max'>>): T[][] {
-  const cols = typeof colunas === 'number' ? Array.from({ length: colunas }, () => ({} as Pick<ColunaDoEncarte, 'peso' | 'max'>)) : colunas;
-  const out: T[][] = cols.map(() => []);
-  for (const p of produtos) {
-    let melhor = -1, nota = Infinity;
-    cols.forEach((c, k) => {
-      if (out[k].length >= (c.max ?? MAX_POR_COLUNA)) return;
-      const n = (out[k].length + 1) / (c.peso ?? 1);
-      if (n < nota - 1e-9) { nota = n; melhor = k; }
-    });
-    if (melhor < 0) break;
-    out[melhor].push(p);
-  }
-  return out;
-}
 
 /** Um produto na sua célula: placa translúcida, foto inteira, nome em branco e etiqueta de preço sem nada sobre o valor. */
 function celula(p: Produto, b: Caixa, col: ColunaDoEncarte, n: number, atraso: number): Camada[] {
@@ -167,35 +144,12 @@ function celula(p: Produto, b: Caixa, col: ColunaDoEncarte, n: number, atraso: n
   return out;
 }
 
-/**
- * Os produtos de UMA área: o sistema escolhe quantas colunas usar para cada cartão ficar mais perto do formato preferido
- * do layout (campo cartao) — na área alta do 9:16, 1 coluna até 6 produtos e depois 2; na área larga e baixa do 16:9, até 4.
- */
-function produtosDaColuna(ps: Produto[], col: ColunaDoEncarte, alvo: number, inicio: number, passo: number, atraso0: number): Camada[] {
-  if (!ps.length) return [];
+/** Os produtos de UMA área numa grade completa, preenchendo toda a área: poucos produtos ficam grandes; muitos, menores. */
+function produtosDaColuna(ps: Produto[], col: ColunaDoEncarte, g: GradeDaArea, numero: () => number, atraso0: number): Camada[] {
   const gap = 16;
-  let melhor = { cols: 1, nota: Infinity };
-  for (let c = 1; c <= Math.min(ps.length, 5); c++) {
-    const l = Math.ceil(ps.length / c);
-    const w = (col.w - gap * (c - 1)) / c, h = (col.h - gap * (l - 1)) / l;
-    const nota = Math.abs(Math.log(w / h / alvo));
-    if (nota < melhor.nota - 1e-9) melhor = { cols: c, nota };
-  }
-  const cols = melhor.cols;
-  const linhas = Math.ceil(ps.length / cols);
-  const cw = (col.w - gap * (cols - 1)) / cols;
-  // poucos produtos: células com altura proporcional (não esticam até o rodapé); a sobra vai para cima e para baixo
-  const chMax = (col.h - gap * (linhas - 1)) / linhas;
-  const ch = Math.min(chMax, cw * 1.35);
-  const usado = ch * linhas + gap * (linhas - 1);
-  const y0 = col.y + (col.h - usado) / 2;
-  return ps.flatMap((p, i) => {
-    const l = Math.floor(i / cols), k = i % cols;
-    // a última linha incompleta fica centralizada
-    const naLinha = l === linhas - 1 ? ps.length - l * cols : cols;
-    const x = col.x + ((cols - naLinha) * (cw + gap)) / 2 + k * (cw + gap);
-    return celula(p, { x, y: y0 + l * (ch + gap), w: cw, h: ch }, col, inicio + i * passo, atraso0 + i * 0.25);
-  });
+  const cw = (col.w - gap * (g.cols - 1)) / g.cols;
+  const ch = (col.h - gap * (g.rows - 1)) / g.rows;
+  return ps.flatMap((p, i) => celula(p, { x: col.x + (i % g.cols) * (cw + gap), y: col.y + Math.floor(i / g.cols) * (ch + gap), w: cw, h: ch }, col, numero(), atraso0 + i * 0.25));
 }
 
 /** A logo do cliente: recortada (PNG sem fundo, redonda, vetor) fica solta com sombra; com fundo, vai num cartão. */
@@ -262,8 +216,12 @@ export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[]
   const { w: W, h: H } = TAMANHO_DOC[f];
   const c: Camada[] = [{ ...imagem('Fundo oficial', d.logo ? lay.fundoLimpo : lay.fundo, 0, 0, W, H), bloqueada: true }];
   if (d.logo) c.push(...camadasDaLogo(d.logo, lay.logo));
-  const grupos = dividirProdutos(produtos, lay.colunas);
-  grupos.forEach((ps, k) => c.push(...produtosDaColuna(ps, lay.colunas[k], lay.cartao, k + 1, lay.colunas.length, 0.3 + k * 0.12)));
+  // F-244: grade completa e inteligente para a quantidade escolhida (vale para todo fundo oficial novo)
+  const lista = produtos.slice(0, quantidadeCompleta(d.quantos ?? QUANTIDADE_PADRAO, produtos.length));
+  const plano = planejarAreas(lay.colunas, lista.length, lay.cartao);
+  const grupos = dividirPorCotas(lista, plano.map((g) => g.n));
+  let n = 0;
+  grupos.forEach((ps, k) => c.push(...produtosDaColuna(ps, lay.colunas[k], plano[k], () => ++n, 0.3 + k * 0.12)));
   c.push(...camadasDoRodape(e, lay.rodape, d));
   return { versao: 2, formato: f, fundo: '#1e3fd0', camadas: c, video: { duracao: 8 } };
 }

@@ -6,6 +6,7 @@
  * F-242: o painel começa FECHADO (só o cartão com as fotos); NOME + MARCA + MEDIDA + PREÇO são obrigatórios, com
  * exemplos; cada produto pergunta "é promoção?" (abre o "de"); "Trocar foto" grava a escolha no catálogo — da próxima
  * vez que o produto entrar, a mesma foto volta sozinha.
+ * F-244: o cliente escolhe quantos produtos mostrar (padrão 16, até 20), sempre à vista, mesmo com a lista fechada.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ChevronDown, ImagePlus, Loader2, ShoppingBasket, Trash2, Wand2 } from 'lucide-react';
@@ -14,7 +15,8 @@ import { LeitorDeCodigo } from '@/components/tabloide/LeitorDeCodigo';
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { chaveDoCodigo, completarImagens, ehFresco, prepararImagem, salvarNoCatalogo } from '@/lib/tabloide/imagens';
 import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, precoParaTexto, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
-import { CESTA_MERCADO } from '@/lib/tabloide/encartes';
+import { CESTA_PADRAO } from '@/lib/tabloide/encartes';
+import { QUANTIDADES, gravarQuantidade, lerQuantidade, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
 import { cn } from '@/lib/utils';
 
 /** os produtos colocados na pasta seguem para o editor do encarte e para o palco (mesma aba do navegador) */
@@ -45,13 +47,17 @@ export interface ProdutosComFotos {
   gravar: (lista: ProdutoTabloide[]) => void;
   /** F-242: troca a foto e grava no catálogo (volta sozinha da próxima vez) */
   trocarFoto: (p: ProdutoTabloide, imagem: ImagemProduto) => Promise<void>;
+  /** F-244: quantos produtos mostrar nos encartes e no palco */
+  quantos: number; escolherQuantos: (n: number) => void;
 }
 
-export function useProdutosComFotos(inicial = CESTA_MERCADO): ProdutosComFotos {
+export function useProdutosComFotos(inicial = CESTA_PADRAO): ProdutosComFotos {
   const [texto, setTexto] = useState(() => { try { return sessionStorage.getItem(CHAVE_PRODUTOS_DO_ENCARTE) || inicial; } catch { return inicial; } });
   const [produtos, setProdutos] = useState<ProdutoTabloide[]>(() => lerLista(texto));
   const [buscando, setBuscando] = useState<string[]>([]);
   const [erros, setErros] = useState<ProdutosComFotos['erros']>([]);
+  const [quantos, setQuantos] = useState(lerQuantidade);
+  const escolherQuantos = useCallback((n: number) => { setQuantos(n); gravarQuantidade(n); }, []);
   const tentados = useRef(new Set<string>());
 
   // a lista vira o texto (e o texto fica guardado para o editor do encarte e para o palco)
@@ -111,7 +117,7 @@ export function useProdutosComFotos(inicial = CESTA_MERCADO): ProdutosComFotos {
       toast.success('Foto guardada: da próxima vez que este produto entrar, ela volta sozinha.');
     } catch { toast.error('A foto entrou, mas não foi possível guardá-la para a próxima vez.'); }
   };
-  return { texto, setTexto, produtos, buscando, erros, aplicar, mudar, remover, porCodigo, gravar, trocarFoto };
+  return { texto, setTexto, produtos, buscando, erros, aplicar, mudar, remover, porCodigo, gravar, trocarFoto, quantos, escolherQuantos };
 }
 
 const EXEMPLOS = ['Arroz Camil Tipo 1 5kg 24,90', 'Feijão Carioca Kicaldo 1kg de 8,99 por 6,49', 'Coca-Cola Original 2L 9,99', 'Picanha kg de 89,90 por 69,90'];
@@ -147,11 +153,13 @@ function LinhaDoProduto({ p, s, destaque, aoTrocarFoto }: { p: ProdutoTabloide; 
   );
 }
 
-export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encartes', aberto: abertoInicial = false }: { s: ProdutosComFotos; destaques?: number; botao?: string; /** F-242: começa fechado (só o cartão) */ aberto?: boolean }) {
+export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encartes', aberto: abertoInicial = false, emGrade = true }: { s: ProdutosComFotos; destaques?: number; botao?: string; /** F-242: começa fechado (só o cartão) */ aberto?: boolean; /** F-244: encarte = grade completa; palco = um produto por vez */ emGrade?: boolean }) {
   const [aberto, setAberto] = useState(abertoInicial);
   const [trocando, setTrocando] = useState<ProdutoTabloide | null>(null);
   const comFoto = s.produtos.filter((p) => p.imagem).length;
   const incompletos = s.produtos.filter((p) => faltasDoProduto(p).length).length;
+  const naGrade = quantidadeCompleta(s.quantos, s.produtos.length);
+  const faltam = s.quantos - s.produtos.length;
   return (
     <section className={cn('rounded-2xl border border-[#8A2EFF]/40 bg-[#14062f] p-3', aberto && 'space-y-3 lg:sticky lg:top-[84px] lg:max-h-[calc(100dvh-100px)] lg:overflow-y-auto')} data-testid="encartes-produtos">
       {/* o CARTÃO: contagem e as fotos; tocar abre a lista */}
@@ -166,6 +174,20 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
         </span>
         <span className="flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-xs font-semibold text-white">{aberto ? 'Fechar' : 'Editar'}<ChevronDown className={cn('h-4 w-4 transition', aberto && 'rotate-180')} /></span>
       </button>
+
+      {/* F-244: sempre à vista, mesmo com a lista fechada */}
+      <div className="mt-2 flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Quantos produtos mostrar" data-testid="produtos-quantidade">
+        <span className="mr-1 text-xs font-semibold text-slate-300">Mostrar</span>
+        {QUANTIDADES.map((q) => (
+          <button key={q} type="button" role="radio" aria-checked={s.quantos === q} onClick={() => s.escolherQuantos(q)} title={q === 16 ? 'Padrão: 16 produtos' : `${q} produtos`}
+            className={cn('h-8 min-w-8 rounded-lg px-1.5 text-xs font-bold', s.quantos === q ? 'bg-[#FFD400] text-[#22004A]' : 'bg-white/10 text-white hover:bg-white/20')}>{q}</button>
+        ))}
+      </div>
+      {faltam > 0 && (
+        <p className="mt-1.5 text-[11px] font-semibold text-amber-300" data-testid="produtos-aviso-quantidade">
+          {emGrade ? `A lista tem ${s.produtos.length} produtos: a grade mostra ${naGrade} para ficar completa. Coloque mais ${faltam} para chegar a ${s.quantos}.` : `A lista tem ${s.produtos.length} produtos. Coloque mais ${faltam} para chegar a ${s.quantos}.`}
+        </p>
+      )}
 
       {aberto && (
         <>

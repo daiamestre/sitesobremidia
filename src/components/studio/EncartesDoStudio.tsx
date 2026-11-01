@@ -13,7 +13,8 @@ import { configPadrao, propsDasPaginas } from '@/lib/tabloide/cartaz';
 import { buscarNoCatalogo } from '@/lib/tabloide/imagens';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
-import { CESTA_MERCADO, ENCARTES, ENCARTE_FORMATO, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
+import { CESTA_PADRAO, ENCARTES, ENCARTE_FORMATO, arranjoDoEncarte, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
+import { QUANTIDADE_PADRAO, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
 import { formatoPorId } from '@/lib/tabloide/temas';
 import { logoSalvaDoStudio, seloDaLogo } from '@/lib/studio/logoDoStudio';
 import { ENCARTES_OFICIAIS, documentoDoEncarteOficial } from '@/lib/studio/encartesOficiais';
@@ -21,7 +22,7 @@ import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 
 /** Uma consulta só ao catálogo para todos os produtos de todos os encartes. */
 export function useFotosDosEncartes() {
-  const nomes = useMemo(() => [...new Set(ENCARTES.flatMap((e) => lerLista(e.produtos).map((p) => p.nome)))], []);
+  const nomes = useMemo(() => [...new Set([...ENCARTES.map((e) => e.produtos), CESTA_PADRAO].flatMap((t) => lerLista(t).map((p) => p.nome)))], []);
   return useQuery({ queryKey: ['studio-encartes-fotos'], queryFn: () => buscarNoCatalogo(nomes), staleTime: 10 * 60_000 });
 }
 
@@ -33,24 +34,28 @@ export function CapaDaPastaDeEncartes({ atraso = 0 }: { atraso?: number }) {
   const fotos = useFotosDosEncartes();
   const slides = useMemo(() => {
     // F-240: os encartes OFICIAIS (fundos do dono) também passam na capa, com a cesta de exemplo
-    const cesta = lerLista(CESTA_MERCADO).slice(0, 8).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null }));
+    const cesta = lerLista(CESTA_PADRAO).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null }));
     const oficiais = ENCARTES_OFICIAIS.map((o) => ({ chave: o.id, animada: () => <PreviaDocumento doc={documentoDoEncarteOficial(o, cesta)} sempre className="h-full" /> }));
     return [...oficiais, ...ENCARTES.map((e) => ({ chave: e.id, animada: () => <MiniaturaDoEncarte e={e} fotos={fotos.data} /> }))];
   }, [fotos.data]);
   return <CapaQueGira slides={slides} atraso={atraso} ajuste="contain" className="h-full" style={{ aspectRatio: '1240 / 1754' }} />;
 }
 
-export function MiniaturaDoEncarte({ e, fotos, produtos: daPessoa }: { e: ModeloDeEncarte; fotos: Map<string, ImagemProduto> | undefined; /** F-233: os produtos que a pessoa colocou na pasta (já com as fotos) */ produtos?: ProdutoTabloide[] }) {
+export function MiniaturaDoEncarte({ e, fotos, produtos: daPessoa, quantos = QUANTIDADE_PADRAO }: { e: ModeloDeEncarte; fotos: Map<string, ImagemProduto> | undefined; /** F-233: os produtos que a pessoa colocou na pasta (já com as fotos) */ produtos?: ProdutoTabloide[]; /** F-244: quantos produtos mostrar */ quantos?: number }) {
   const caixa = useRef<HTMLDivElement>(null);
   const naTela = useNaTela(caixa, '400px');
   const formato = formatoPorId(ENCARTE_FORMATO);
   const pagina = useMemo(() => {
-    const produtos = daPessoa ?? lerLista(e.produtos).map((p) => ({ ...p, imagem: fotos?.get(chaveCanonica(p.nome)) ?? null }));
+    const todos = daPessoa ?? lerLista(e.produtos).map((p) => ({ ...p, imagem: fotos?.get(chaveCanonica(p.nome)) ?? null }));
+    // F-244: grade exata para a quantidade escolhida, sem fileira incompleta
+    const n = quantidadeCompleta(quantos, todos.length);
+    const produtos = todos.slice(0, n);
+    const comGrade = { ...e, ...arranjoDoEncarte(e.layout, n) };
     // F-235: com a logo 3D criada no Studio, o cabeçalho mostra a logo
     const logo = logoSalvaDoStudio();
-    const comLogo = logo ? { ...e, logoCabecalhoId: logo.id } : e;
-    return propsDasPaginas({ formatoId: ENCARTE_FORMATO, temaId: e.temaId, segmentoId: e.segmento, grade: gradeDoEncarte(e), produtos, config: configDoEncarte(comLogo, configPadrao()) }, logo ? [seloDaLogo(logo)] : [])[0];
-  }, [e, fotos, daPessoa]);
+    const comLogo = logo ? { ...comGrade, logoCabecalhoId: logo.id } : comGrade;
+    return propsDasPaginas({ formatoId: ENCARTE_FORMATO, temaId: e.temaId, segmentoId: e.segmento, grade: gradeDoEncarte(comGrade), produtos, config: configDoEncarte(comLogo, configPadrao()) }, logo ? [seloDaLogo(logo)] : [])[0];
+  }, [e, fotos, daPessoa, quantos]);
   const [largura, setLargura] = useState(0);
   useEffect(() => {
     const el = caixa.current;

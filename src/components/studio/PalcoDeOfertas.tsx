@@ -6,6 +6,7 @@
  *  - a tela no meio e, embaixo, a fila de produtos: tocar num produto para o carrossel e abre a edição dele; tocar no nome,
  *    no preço ou na foto, na própria tela, abre o campo certo (nome, promoção/de/por, trocar foto — a foto fica guardada);
  *  - "Seus produtos" fica fechado num cartão (abre a lista ao tocar);
+ *  - F-244: o cliente escolhe quantos produtos passam no palco (padrão 16, até 20);
  *  - fundo e botão OFERTAS/ALERTAS; MOVIMENTO: de que lado entram o produto, o nome e o balão, e para que lado o
  *    carrossel passa de um produto ao outro (vale na tela e no vídeo); cada produto fica 8 s.
  */
@@ -124,7 +125,8 @@ export function PalcoDeOfertas() {
   const [movimento, setMovimento] = useState<MovimentoDoPalco>(salvas.movimento ?? {});
   useEffect(() => { try { localStorage.setItem(CHAVE_OPCOES, JSON.stringify({ fundoId, textoBotao, movimento, formato })); } catch { /* sem armazenamento */ } }, [fundoId, textoBotao, movimento, formato]);
 
-  const comPreco = s.produtos.filter((p) => p.preco != null);
+  // F-244: só os produtos escolhidos passam no palco
+  const comPreco = s.produtos.filter((p) => p.preco != null).slice(0, s.quantos);
   // produto escolhido para editar (null = a tela toca o carrossel)
   const [selId, setSelId] = useState<string | null>(null);
   const sel = comPreco.find((p) => p.id === selId) ?? null;
@@ -203,7 +205,7 @@ export function PalcoDeOfertas() {
 
         {/* EDIÇÃO compacta */}
         <aside className="min-w-0 space-y-3">
-          <PainelDeProdutos s={s} destaques={0} botao="Colocar no palco" />
+          <PainelDeProdutos s={s} destaques={0} botao="Colocar no palco" emGrade={false} />
 
           <div ref={edicao}>
             <Cartao titulo={sel ? 'Editar produto' : 'Editar produto'} icone={PenLine}

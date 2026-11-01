@@ -71,7 +71,7 @@ export interface PaginaLayout {
 }
 
 export const GRADES_FIXAS = [
-  '1x1', '2x1', '1x2', '2x2', '3x1', '3x2', '2x3', '3x3', '4x2', '4x3', '3x4', '4x4', '5x3', '5x4', '4x5', '6x4', '5x5',
+  '1x1', '2x1', '1x2', '2x2', '3x1', '1x3', '3x2', '2x3', '3x3', '4x2', '2x4', '5x2', '2x5', '1x4', '4x3', '3x4', '4x4', '5x3', '5x4', '4x5', '6x4', '5x5',
 ] as const;
 
 export const rotuloGrade = (id: string): string => (id === 'auto' ? 'Automática' : id.replace('x', ' × '));
@@ -138,8 +138,12 @@ function paginaLateral(itens: ProdutoTabloide[], m: Medidas, gradeId: string, de
 }
 
 /** F-236: duas metades (cores diferentes), cada uma com a sua coluna de produtos. */
-function paginaDividida(itens: ProdutoTabloide[], m: Medidas): PaginaLayout {
+function paginaDividida(itens: ProdutoTabloide[], m: Medidas, gradeId: string): PaginaLayout {
   const metade = Math.ceil(itens.length / 2);
+  // F-244: grade fixa "CxL" = C colunas somando as duas metades (4x4 = 2 colunas em cada metade, 4 fileiras)
+  const fixa = parseGrade(gradeId);
+  const cols = fixa ? Math.max(1, Math.floor(fixa.cols / 2)) : 1;
+  const rows = Math.ceil(metade / cols);
   const lados = [itens.slice(0, metade), itens.slice(metade)];
   const meioX = m.largura / 2;
   const celulas: Celula[] = [];
@@ -147,14 +151,14 @@ function paginaDividida(itens: ProdutoTabloide[], m: Medidas): PaginaLayout {
     if (!lista.length) return;
     const x0 = k === 0 ? m.corpoX : meioX + m.gap;
     const l = (k === 0 ? meioX - m.gap - m.corpoX : m.corpoX + m.corpoL - meioX - m.gap);
-    celulas.push(...posicionarGrade(lista, 1, lista.length, x0, m.corpoY, l, m.corpoA, m.gap).map((c) => ({ ...c, destaque: k === 1 })));
+    celulas.push(...posicionarGrade(lista, cols, rows, x0, m.corpoY, l, m.corpoA, m.gap).map((c) => ({ ...c, destaque: k === 1 })));
   });
-  return { celulas, cols: 2, rows: metade, paineis: [{ x: meioX, y: 0, w: m.largura - meioX, h: m.altura, tipo: 'metade' }] };
+  return { celulas, cols: cols * 2, rows, paineis: [{ x: meioX, y: 0, w: m.largura - meioX, h: m.altura, tipo: 'metade' }] };
 }
 
 function montarPagina(itens: ProdutoTabloide[], m: Medidas, gradeId: string, destaques: number, ideal?: [number, number], layout: LayoutDoCartaz = 'padrao'): PaginaLayout {
   if (layout === 'lateral') return paginaLateral(itens, m, gradeId, destaques, ideal);
-  if (layout === 'dividido') return paginaDividida(itens, m);
+  if (layout === 'dividido') return paginaDividida(itens, m, gradeId);
   const d = Math.min(destaques, itens.length, 3);
   const top = itens.slice(0, d);
   const resto = itens.slice(d);

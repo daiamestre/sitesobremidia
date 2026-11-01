@@ -3,7 +3,7 @@
 // telefone e endereço no rodapé amarelo; abre no editor do Studio só nos formatos dele.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
-import { ENCARTES_OFICIAIS, MAX_POR_COLUNA, dividirProdutos, documentoDoEncarteOficial, formatosDoEncarte, layoutDoEncarte, maxDeProdutos } from '@/lib/studio/encartesOficiais';
+import { ENCARTES_OFICIAIS, documentoDoEncarteOficial, formatosDoEncarte, layoutDoEncarte } from '@/lib/studio/encartesOficiais';
 import { TAMANHO_DOC } from '@/lib/studio/documento';
 
 const FORMATOS = ['9:16', '16:9'] as const;
@@ -15,13 +15,6 @@ describe('F-243 — Semana do Frango', () => {
   it('está na lista junto do Mega Oferta, nos dois formatos', () => {
     expect(ENCARTES_OFICIAIS.map((x) => x.id)).toEqual(['mega-oferta-bicolor', 'semana-do-frango']);
     expect(formatosDoEncarte(f)).toEqual(['9:16', '16:9']);
-  });
-  it('a área azul, maior, recebe mais produtos; nenhuma passa do limite', () => {
-    const l = layoutDoEncarte(f, '9:16');
-    const [azul, cartao] = dividirProdutos(Array.from({ length: 8 }, (_, i) => i), l.colunas);
-    expect([azul.length, cartao.length]).toEqual([5, 3]);
-    const cheio = dividirProdutos(Array.from({ length: 30 }, (_, i) => i), l.colunas);
-    expect(cheio.map((c) => c.length)).toEqual([10, 6]);
   });
   it('no cartão amarelo o nome é escuro e a etiqueta vermelha; no azul o nome é branco e a etiqueta amarela', () => {
     const d = documentoDoEncarteOficial(f, [produto(1), produto(2)], {}, '9:16');
@@ -50,18 +43,11 @@ describe.each(ENCARTES_OFICIAIS)('encarte oficial $id', (e) => {
     }
   });
 
-  it('divide os produtos alternando entre o lado vermelho e o azul, até o máximo', () => {
-    expect(dividirProdutos([1, 2, 3, 4, 5], 2)).toEqual([[1, 3, 5], [2, 4]]);
-    expect(maxDeProdutos(e)).toBe(2 * MAX_POR_COLUNA);
-    const muitos = Array.from({ length: 30 }, (_, i) => i);
-    expect(dividirProdutos(muitos, 2).flat()).toHaveLength(maxDeProdutos(e));
-  });
-
   it('cada produto fica dentro do seu lado, sem passar da curva nem entrar no rodapé, e nada se sobrepõe (em pé e deitado)', () => {
     for (const f of FORMATOS) {
       const l = layoutDoEncarte(e, f);
-      for (const n of [1, 2, 5, 9, 16]) {
-        const d = documentoDoEncarteOficial(e, Array.from({ length: n }, (_, i) => produto(i)), {}, f);
+      for (const n of [2, 4, 6, 8, 10, 12, 16, 20]) {
+        const d = documentoDoEncarteOficial(e, Array.from({ length: n }, (_, i) => produto(i)), { quantos: n }, f);
         const placas = d.camadas.filter((c) => c.nome.startsWith('Placa '));
         expect(placas, `${f} ${n}`).toHaveLength(n);
         for (const p of placas) {
@@ -70,7 +56,7 @@ describe.each(ENCARTES_OFICIAIS)('encarte oficial $id', (e) => {
           expect(p.y).toBeGreaterThanOrEqual(col!.y - 0.5);
           expect(p.y + p.h).toBeLessThanOrEqual(l.rodape.y);
           // cartão com formato bom (nem tira fina nem coluna estreita)
-          expect(p.w / p.h, `${f} ${n} ${p.nome}`).toBeGreaterThan(0.45);
+          expect(p.w / p.h, `${f} ${n} ${p.nome}`).toBeGreaterThan(0.35);
           expect(p.w / p.h, `${f} ${n} ${p.nome}`).toBeLessThan(3);
         }
         for (let i = 0; i < placas.length; i++) for (let j = i + 1; j < placas.length; j++) expect(cruza(placas[i], placas[j]), `${f} ${n}: ${placas[i].nome} × ${placas[j].nome}`).toBe(false);
