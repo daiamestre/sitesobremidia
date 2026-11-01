@@ -96,7 +96,7 @@ describe('REGRA: ferramentas completas em toda tela de edição', () => {
     const e = fs.readFileSync('src/pages/studioai/EditorPage.tsx', 'utf8');
     expect(e).toContain("n: 'Trocar produto'");
     expect(e).toContain('<TrocarFoto');
-    expect(e).toMatch(/salvarNoCatalogo\(nome, pronta, 'ESCOLHA', true\)/);
+    expect(e).toMatch(/guardarFotoDoProduto\(nome, pronta\)/);
     const j = fs.readFileSync('src/components/tabloide/TrocarFoto.tsx', 'utf8');
     expect(j).toContain('Criar com IA'); expect(j).toContain('Enviar a minha'); expect(j).toMatch(/aoEscolher\(\{ url: publicUrl, fonte: 'UPLOAD' \}, termo\)/);
   });

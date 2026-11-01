@@ -81,6 +81,21 @@ export default {
         return Response.json({ erro: msg }, { status: /quota|limit|allocation|neurons/i.test(msg) ? 429 : 502 });
       }
     }
+    // F-252: tira o fundo da foto do produto, com o produto inteiro (Cloudflare Images, modelo BiRefNet). Devolve o PNG transparente.
+    if (corpo.acao === 'recortar') {
+      const url = String(corpo.url ?? '');
+      if (!/^https:\/\//.test(url)) return Response.json({ erro: 'endereço inválido' }, { status: 400 });
+      const origem = await fetch(url, { headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0 (contato@sobremidia.com.br)' } }).catch(() => null);
+      if (!origem?.ok || !/^image\//.test(origem.headers.get('content-type') ?? '')) return Response.json({ erro: 'a foto não carregou' }, { status: 422 });
+      if (Number(origem.headers.get('content-length') ?? 0) > 20 * 1024 * 1024) return Response.json({ erro: 'foto grande demais' }, { status: 413 });
+      try {
+        const r = await env.IMAGES.input(origem.body).transform({ segment: 'foreground', width: 1400, height: 1400, fit: 'scale-down' }).output({ format: 'image/png' });
+        return r.response();
+      } catch (e) {
+        const msg = String(e?.message ?? e).slice(0, 200);
+        return Response.json({ erro: msg }, { status: /9422|limit|quota/i.test(msg) ? 429 : 502 });
+      }
+    }
     let produto = String(corpo.produto ?? '');
     // só letras, números e espaço; sem medidas ("350ml", "5kg"), que o gerador tentaria escrever na imagem
     produto = produto.replace(/\b\d+([.,]\d+)?\s*(kg|g|gr|ml|l|lt|mg|un|und)\b/gi, ' ').replace(/[^\p{L}\p{N}\s-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);

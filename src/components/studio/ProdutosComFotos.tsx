@@ -13,7 +13,7 @@ import { AlertTriangle, ChevronDown, ImagePlus, Loader2, ShoppingBasket, Trash2,
 import { toast } from 'sonner';
 import { LeitorDeCodigo } from '@/components/tabloide/LeitorDeCodigo';
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
-import { chaveDoCodigo, completarImagens, ehFresco, prepararImagem, salvarNoCatalogo } from '@/lib/tabloide/imagens';
+import { completarImagens, ehFresco, guardarFotoDoProduto, prepararFotoDoProduto } from '@/lib/tabloide/imagens';
 import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, precoParaTexto, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { CESTA_PADRAO } from '@/lib/tabloide/encartes';
 import { QUANTIDADES, gravarQuantidade, lerQuantidade, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
@@ -109,12 +109,13 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO): ProdutosComFotos {
   const trocarFoto = async (produto: ProdutoTabloide, imagem: ImagemProduto) => {
     setProdutos((a) => a.map((p) => (p.id === produto.id ? { ...p, imagem } : p)));
     try {
-      // tira o fundo e corta as sobras; grava no catálogo pelo nome (e pelo código de barras): a foto volta sozinha
-      const pronta = await prepararImagem(imagem);
+      // F-252: identifica se tem fundo e tira; grava no catálogo pelo nome (e pelo código de barras): vira a foto do produto
+      const aviso = toast.loading('Tirando o fundo do produto…');
+      const pronta = await prepararFotoDoProduto(imagem);
+      toast.dismiss(aviso);
       if (pronta !== imagem) setProdutos((a) => a.map((p) => (p.id === produto.id ? { ...p, imagem: pronta } : p)));
-      await salvarNoCatalogo(produto.nome, pronta, 'ESCOLHA', true);
-      if (produto.codigo) await salvarNoCatalogo(produto.nome, pronta, 'ESCOLHA', true, chaveDoCodigo(produto.codigo));
-      toast.success('Foto guardada: da próxima vez que este produto entrar, ela volta sozinha.');
+      if (await guardarFotoDoProduto(produto.nome, pronta, produto.codigo)) toast.success(`Foto guardada como a foto de "${produto.nome}".`);
+      else toast.error('Não foi possível tirar o fundo desta foto: ela ficou só nesta arte. Tente uma foto com o produto mais à vista.');
     } catch { toast.error('A foto entrou, mas não foi possível guardá-la para a próxima vez.'); }
   };
   return { texto, setTexto, produtos, buscando, erros, aplicar, mudar, remover, porCodigo, gravar, trocarFoto, quantos, escolherQuantos };

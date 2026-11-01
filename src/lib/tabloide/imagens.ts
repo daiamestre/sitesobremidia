@@ -6,7 +6,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { rpcTabloide, tabelaTabloide } from './db';
 import { chaveCanonica } from './chave';
-import { cortarMargens, recortarImagem } from './recorte';
+import { cortarMargens, pngSemSobras, recortarImagem } from './recorte';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { chaveDoProduto, ehNomeDoCodigo, type FonteImagem, type ImagemProduto, type ProdutoTabloide } from './parseProdutos';
 
@@ -169,6 +169,56 @@ export async function prepararImagem(imagem: ImagemProduto): Promise<ImagemProdu
   } catch {
     return imagem;
   }
+}
+
+/** F-252: a foto sem fundo, feita na Cloudflare e cortada no produto; null se não saiu fundo nenhum ou o serviço não respondeu. */
+async function recortarNaNuvem(url: string): Promise<Blob | null> {
+  if (!/^https:\/\//.test(url)) return null;
+  const { data } = await supabase.functions.invoke('produto-imagem', { body: { acao: 'recortar', url } });
+  if (!data?.imagem) return null;
+  const local = URL.createObjectURL(new Blob([Uint8Array.from(atob(String(data.imagem)), (c) => c.charCodeAt(0))], { type: 'image/png' }));
+  try {
+    return await pngSemSobras(local, 1400, true);
+  } finally {
+    URL.revokeObjectURL(local);
+  }
+}
+
+/**
+ * F-252 — REGRA DO DONO: a foto que o cliente põe no produto entra sempre SEM FUNDO, com o produto inteiro. O sistema identifica:
+ * 1) já é PNG sem fundo: só corta as sobras; 2) tem fundo: recorte profissional na Cloudflare (produto inteiro, sem cortar);
+ * 3) se a nuvem não responder, recorte do fundo liso, aqui no navegador. Se nada der certo, devolve a foto como veio
+ * (recortada falso) e quem chamou não a torna a foto oficial do produto.
+ */
+export async function prepararFotoDoProduto(imagem: ImagemProduto): Promise<ImagemProduto> {
+  if (imagem.recortada) return imagem;
+  const guardar = async (png: Blob) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id;
+    if (!uid) return imagem;
+    const { publicUrl } = await uploadToR2(png, `${uid}/tabloide/recorte-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.png`, 'image/png', uid);
+    return { ...imagem, url: publicUrl, recortada: true };
+  };
+  try {
+    const semFundo = await pngSemSobras(imagem.url);
+    if (semFundo) return await guardar(semFundo);
+    const naNuvem = await recortarNaNuvem(imagem.url);
+    if (naNuvem) return await guardar(naNuvem);
+    return await prepararImagem(imagem);
+  } catch {
+    return imagem;
+  }
+}
+
+/**
+ * Grava a foto como a foto do produto, pelo nome que o cliente deu: enviada por alguém, vira a oficial se o produto ainda não
+ * tem foto (regra no banco: tabloide_catalogo_salvar). Foto enviada que ficou com fundo não vira oficial.
+ */
+export async function guardarFotoDoProduto(nome: string, pronta: ImagemProduto, codigo?: string | null): Promise<boolean> {
+  if (pronta.fonte === 'UPLOAD' && !pronta.recortada) return false;
+  await salvarNoCatalogo(nome, pronta, 'ESCOLHA', true);
+  if (codigo) await salvarNoCatalogo(nome, pronta, 'ESCOLHA', true, chaveDoCodigo(codigo));
+  return true;
 }
 
 /**

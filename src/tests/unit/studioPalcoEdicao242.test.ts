@@ -70,7 +70,7 @@ describe('as telas', () => {
   it('"Seus produtos" começa fechado, com exemplos, e a foto escolhida é gravada no catálogo', () => {
     expect(painel).toMatch(/aberto: abertoInicial = false/);
     expect(painel).toContain('NOME + MARCA + MEDIDA');
-    expect(painel).toMatch(/salvarNoCatalogo\(produto\.nome, pronta, 'ESCOLHA', true\)/);
+    expect(painel).toMatch(/guardarFotoDoProduto\(produto\.nome, pronta, produto\.codigo\)|salvarNoCatalogo\(produto\.nome, pronta, 'ESCOLHA', true\)/);
     expect(painel).toContain('produto-promocao');
   });
   it('a janela de foto é uma só no Cartaz Digital e no Studio', () => {

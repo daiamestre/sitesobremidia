@@ -248,6 +248,22 @@ async function gerarPorIA(req: Request, termo: string): Promise<{ imagem?: strin
   return { imagem: j.image, traduzido: j.nome } as { imagem: string };
 }
 
+/** F-252: pede ao Worker a foto sem fundo, com o produto inteiro. Sem resposta = sem recorte: o site cai no recorte de fundo liso. */
+async function recortar(foto: string): Promise<{ imagem?: string; motivo?: string }> {
+  const url = Deno.env.get('TABLOIDE_IA_URL');
+  const segredo = Deno.env.get('TABLOIDE_IA_SEGREDO');
+  if (!url || !segredo || !/^https:\/\//.test(foto)) return { motivo: 'Não foi possível tirar o fundo desta foto.' };
+  const r = await comTempo(fetch(url, { method: 'POST', headers: { 'x-segredo': segredo, 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'recortar', url: foto }) }), 40000).catch(() => null);
+  if (!r?.ok) {
+    console.error('[produto-imagem] recorte falhou:', r?.status ?? 'sem resposta', (await r?.text().catch(() => ''))?.slice(0, 200));
+    return { motivo: 'Não foi possível tirar o fundo desta foto.' };
+  }
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  let texto = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) texto += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return { imagem: btoa(texto) };
+}
+
 /** Produto achado pelo código de barras (EAN/GTIN): nome completo com marca e medida + foto da embalagem. */
 interface ProdutoPorCodigo { codigo: string; nome: string; marca: string; quantidade: string; imagem: string | null; miniatura: string | null; fonte: 'OPENFOODFACTS' | 'COSMOS'; credito: string }
 
@@ -285,7 +301,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   const json = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
   try {
-    const { termo, acao, codigo } = await req.json();
+    const { termo, acao, codigo, url } = await req.json();
+    if (acao === 'recortar') return json(await recortar(String(url ?? '')));
     if (acao === 'codigo') {
       const c = String(codigo ?? '').replace(/\D/g, '');
       if (!codigoValido(c)) return json({ produto: null, motivo: 'Código de barras inválido.' });

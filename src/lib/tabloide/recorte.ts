@@ -130,13 +130,17 @@ export function caixaDoConteudo(p: Pixels, tolerancia = 60): Caixa | null {
   return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
 }
 
-function carregar(url: string): Promise<HTMLImageElement> {
+export function carregar(url: string, repetiu = false): Promise<HTMLImageElement> {
   return new Promise((ok, erro) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.referrerPolicy = 'no-referrer';
     img.onload = () => ok(img);
-    img.onerror = () => erro(new Error('imagem não carregou'));
+    // o R2 não manda Vary: Origin: uma cópia sem CORS no cache do navegador recusa a imagem; a segunda tentativa busca outra
+    img.onerror = () => {
+      if (repetiu || !/^https?:/.test(url)) { erro(new Error('imagem não carregou')); return; }
+      carregar(`${url}${url.includes('?') ? '&' : '?'}arte=1`, true).then(ok, erro);
+    };
     img.src = url;
   });
 }
@@ -167,6 +171,54 @@ export async function recortarImagem(url: string, ladoMax = 900): Promise<Blob |
   } catch {
     return null;
   }
+}
+
+/**
+ * F-252: a imagem já vem sem fundo (PNG/WebP transparente)? Devolve o PNG cortado no produto, sem sobras; null se ela tem fundo.
+ * Vale quando mais da metade da borda é transparente (também pega produto redondo, que só toca a borda em alguns pontos).
+ */
+export async function pngSemSobras(url: string, ladoMax = 1200, recortada = false): Promise<Blob | null> {
+  try {
+    const img = await carregar(url);
+    const escala = Math.min(1, ladoMax / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * escala));
+    const h = Math.max(1, Math.round(img.naturalHeight * escala));
+    const tela = document.createElement('canvas');
+    tela.width = w;
+    tela.height = h;
+    const ctx = tela.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+    const caixa = caixaOpaca(data, w, h, recortada);
+    if (!caixa) return null;
+    const saida = document.createElement('canvas');
+    saida.width = caixa.w;
+    saida.height = caixa.h;
+    saida.getContext('2d')?.drawImage(tela, caixa.x, caixa.y, caixa.w, caixa.h, 0, 0, caixa.w, caixa.h);
+    return await new Promise<Blob | null>((ok) => saida.toBlob(ok, 'image/png'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Caixa do que não é transparente, ou null se a imagem tem fundo (borda opaca) ou está vazia.
+ * `recortada`: a imagem acabou de sair do recorte, então o produto pode encostar em toda a borda; só não vale se nada saiu.
+ */
+export function caixaOpaca(data: ArrayLike<number>, w: number, h: number, recortada = false): Caixa | null {
+  const alfa = (x: number, y: number) => data[(y * w + x) * 4 + 3];
+  let borda = 0, vazia = 0;
+  const passo = Math.max(1, Math.round(Math.max(w, h) / 200));
+  for (let x = 0; x < w; x += passo) for (const y of [0, h - 1]) { borda++; if (alfa(x, y) < 16) vazia++; }
+  for (let y = 0; y < h; y += passo) for (const x of [0, w - 1]) { borda++; if (alfa(x, y) < 16) vazia++; }
+  if (!recortada && (!borda || vazia / borda < 0.5)) return null;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1, cheios = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (alfa(x, y) >= 16) { cheios++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (recortada && (cheios / (w * h) > 0.995 || cheios / (w * h) < 0.02)) return null; // não tirou nada, ou apagou o produto
+  return x1 < x0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
 }
 
 /** Corta as margens vazias em volta do produto (mantém o fundo). Devolve null se não há o que cortar ou não deu. */

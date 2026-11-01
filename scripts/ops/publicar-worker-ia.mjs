@@ -48,7 +48,7 @@ const form = new FormData();
 form.append('metadata', new Blob([JSON.stringify({
   main_module: 'worker.js',
   compatibility_date: '2025-01-01',
-  bindings: [{ type: 'ai', name: 'AI' }, { type: 'secret_text', name: 'SEGREDO', text: segredo }],
+  bindings: [{ type: 'ai', name: 'AI' }, { type: 'images', name: 'IMAGES' }, { type: 'secret_text', name: 'SEGREDO', text: segredo }],
 })], { type: 'application/json' }));
 form.append('worker.js', new Blob([codigo], { type: 'application/javascript+module' }), 'worker.js');
 await cf(`/workers/scripts/${NOME}`, { method: 'PUT', body: form });

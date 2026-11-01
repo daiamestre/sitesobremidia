@@ -27,7 +27,7 @@ import {
 } from '@/lib/tabloide/parseProdutos';
 import { FORMATOS, USOS_DO_FORMATO, formatoPorId, segmentoPorId, temasDoSegmento, type SegmentoId } from '@/lib/tabloide/temas';
 import { GRADES_FIXAS, rotuloGrade } from '@/lib/tabloide/grade';
-import { buscarCandidatos, buscarNoCatalogo, completarImagens, gerarImagemIA, prepararImagem, salvarNoCatalogo, type CandidatoImagem } from '@/lib/tabloide/imagens';
+import { buscarNoCatalogo, completarImagens, guardarFotoDoProduto, prepararFotoDoProduto } from '@/lib/tabloide/imagens';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { baixarBlob, imprimirBlobs, nomeDeArquivo } from '@/lib/tabloide/exportar';
 import {
@@ -323,9 +323,10 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     setTrocando(null);
     try {
       // tira o fundo e corta as sobras; o cartaz troca para a versão recortada quando ficar pronta
-      const pronta = await prepararImagem(imagem);
+      // F-252: a foto escolhida sai sem fundo e fica como a foto do produto, pelo nome dele
+      const pronta = await prepararFotoDoProduto(imagem);
       if (pronta !== imagem) setProdutos((l) => l.map((p) => (p.id === produto.id ? { ...p, imagem: pronta } : p)));
-      await salvarNoCatalogo(produto.nome, pronta, 'ESCOLHA', true);
+      if (!await guardarFotoDoProduto(produto.nome, pronta, produto.codigo)) toast.error('Não foi possível tirar o fundo desta foto: ela ficou só neste cartaz.');
     } catch { /* o cartaz já foi atualizado */ }
   };
 

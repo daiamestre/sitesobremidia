@@ -24,7 +24,7 @@ import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
 import { lerArtePronta } from '@/lib/studio/artePronta';
 import { EscolherLogo } from '@/components/studio/PastaDeLogos';
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
-import { prepararImagem, salvarNoCatalogo } from '@/lib/tabloide/imagens';
+import { guardarFotoDoProduto, prepararFotoDoProduto } from '@/lib/tabloide/imagens';
 import type { ImagemProduto } from '@/lib/tabloide/parseProdutos';
 import { modeloPorId, type ModeloDeArte } from '@/lib/studio/modelos';
 import { acharModelo } from '@/lib/studio/pastas';
@@ -265,10 +265,13 @@ export default function EditorPage() {
     const nome = termo.trim() || nomeAtual?.texto || '';
     if (nomeAtual && nome !== nomeAtual.texto) mudarCamada(nomeAtual.id, { texto: nome } as Partial<Camada>);
     try {
-      // tira o fundo e guarda: da próxima vez que este produto entrar, a foto volta sozinha
-      const pronta = await prepararImagem(img);
+      // F-252: identifica se tem fundo, tira e grava como a foto do produto, pelo nome dele
+      const aviso = toast.loading('Tirando o fundo do produto…');
+      const pronta = await prepararFotoDoProduto(img);
+      toast.dismiss(aviso);
       if (pronta.url !== img.url) mudarCamada(c.id, { src: pronta.url } as Partial<Camada>);
-      if (nome) await salvarNoCatalogo(nome, pronta, 'ESCOLHA', true);
+      if (nome && await guardarFotoDoProduto(nome, pronta)) toast.success(`Foto guardada como a foto de "${nome}".`);
+      else if (!pronta.recortada) toast.error('Não foi possível tirar o fundo desta foto: ela ficou só nesta arte. Tente uma foto com o produto mais à vista.');
     } catch { /* a arte já foi atualizada */ }
   };
   const pastaGaleria: PastaDaGaleria = pronta?.pasta ?? {
@@ -294,6 +297,8 @@ export default function EditorPage() {
   const enviarFoto = (arq: File | undefined) => arq && user && agir('foto', async () => {
     if (!/^image\/(jpeg|png|webp)$/.test(arq.type) || arq.size > 12 * 1024 * 1024) throw new Error('Envie JPG, PNG ou WebP de até 12 MB.');
     const { publicUrl } = await uploadToR2(arq, `${user.id}/studio/foto-${Date.now()}.${arq.type.split('/')[1]}`, arq.type, user.id, { preventOverwrite: true });
+    // F-252: a foto da galeria no produto passa pelo mesmo caminho: sai sem fundo e fica como a foto do produto
+    if (destinoDaFoto.current === 'trocar' && camadaSel?.tipo === 'imagem' && /^Produto( \d+)?$/.test(camadaSel.nome)) { void trocarProduto(camadaSel, { url: publicUrl, fonte: 'UPLOAD' }, ''); return; }
     if (destinoDaFoto.current === 'trocar' && camadaSel?.tipo === 'imagem') { lembrar(); mudarCamada(camadaSel.id, { src: publicUrl, zoom: 1, focoX: 50, focoY: 50 } as Partial<Camada>); }
     else adicionar(imagem('Imagem', publicUrl, W / 2 - 300, H / 2 - 300, 600, 600, { raio: 12 }));
   });
