@@ -33,7 +33,20 @@ export function useNaTela(ref: RefObject<Element>, margem = '200px'): boolean {
     io.observe(el);
     // aparelho que não avisa (navegador antigo, aba em segundo plano): a capa não pode ficar parada — gira assim mesmo
     const reserva = setTimeout(() => { if (!respondeu) setNa(true); }, 1500);
-    return () => { io.disconnect(); clearTimeout(reserva); };
+    // e confere a posição de verdade ao rolar ou redimensionar (há navegadores que avisam uma vez e depois param)
+    const px = parseInt(margem, 10) || 0;
+    let quadro = 0;
+    const conferir = () => {
+      cancelAnimationFrame(quadro);
+      quadro = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect();
+        if (r.width || r.height) setNa(r.bottom > -px && r.top < window.innerHeight + px && r.right > -px && r.left < window.innerWidth + px);
+      });
+    };
+    window.addEventListener('scroll', conferir, { capture: true, passive: true });
+    window.addEventListener('resize', conferir);
+    const inicio = setTimeout(conferir, 300);
+    return () => { io.disconnect(); clearTimeout(reserva); clearTimeout(inicio); cancelAnimationFrame(quadro); window.removeEventListener('scroll', conferir, { capture: true }); window.removeEventListener('resize', conferir); };
   }, [ref, margem]);
   return na;
 }

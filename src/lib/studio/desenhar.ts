@@ -73,7 +73,7 @@ function desenharImagem(ctx: CanvasRenderingContext2D, c: CamadaImagem, img: HTM
   caminho(ctx, -c.w / 2, -c.h / 2, c.w, c.h, c.raio);
   ctx.clip();
   if (!img) { ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h); return; }
-  const s = Math.max(c.w / img.naturalWidth, c.h / img.naturalHeight) * Math.max(1, c.zoom);
+  const s = (c.ajuste === 'conter' ? Math.min : Math.max)(c.w / img.naturalWidth, c.h / img.naturalHeight) * Math.max(1, c.zoom);
   const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
   const dx = -c.w / 2 + (c.w - dw) * (c.focoX / 100);
   const dy = -c.h / 2 + (c.h - dh) * (c.focoY / 100);

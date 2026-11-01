@@ -38,6 +38,8 @@ export interface CamadaForma extends CamadaBase {
 export interface CamadaImagem extends CamadaBase {
   tipo: 'imagem'; src: string; zoom: number; focoX: number; focoY: number; espelhar: boolean;
   brilho: number; contraste: number; saturacao: number; desfoque: number; raio: number;
+  /** F-234: 'conter' mostra a foto INTEIRA (produto recortado no palco); padrão = cobrir a moldura */
+  ajuste?: 'cobrir' | 'conter';
 }
 export interface CamadaSelo extends CamadaBase {
   tipo: 'selo'; topo: string; valor: string; sufixo: string; base: string; fonte: string; cor: string; corTexto: string; borda: string;

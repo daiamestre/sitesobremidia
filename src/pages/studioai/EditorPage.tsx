@@ -17,7 +17,7 @@ import {
 } from '@/lib/studio/documento';
 import { documentoParaPng } from '@/lib/studio/desenhar';
 import { herdarEstilo, levarMudanca } from '@/lib/studio/sincronizar';
-import { DURACAO_PADRAO, animarTudo, duracaoDoVideo, temAnimacao, tirarAnimacoes } from '@/lib/studio/animacao';
+import { coreografia, DURACAO_PADRAO, animarTudo, duracaoDoVideo, temAnimacao, tirarAnimacoes } from '@/lib/studio/animacao';
 import { documentoParaVideo, formatoDeVideo, type VideoGravado } from '@/lib/studio/video';
 import type { PastaDaGaleria } from '@/lib/galeria';
 import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
@@ -92,7 +92,9 @@ export default function EditorPage() {
     } else {
       const m: ModeloDeArte = projeto.data ? { ...base, ...dados, textos: { ...base.textos, ...(dados.textos ?? {}) }, cores: { ...base.cores, ...(dados.cores ?? {}) } } : base;
       const f = pedido ?? (projeto.data?.formato as FormatoDoc | undefined) ?? (base.formato as FormatoDoc);
-      setDocs({ [f]: modeloParaDocumento(m, f) });
+      // F-234: vindo da pasta "Vídeos", o modelo já abre com a coreografia (todos os elementos em movimento)
+      const d = modeloParaDocumento(m, f);
+      setDocs({ [f]: params.get('video') && !temAnimacao(d) ? coreografia(d) : d });
       setFormato(f);
     }
     setNome(projeto.data?.nome ?? base.nome);

@@ -1,6 +1,11 @@
-import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FolderOpen, Monitor, PenLine, Smartphone } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Clapperboard, FolderOpen, Image as ImageIcon, Monitor, PenLine, Smartphone } from 'lucide-react';
+import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
+import { PalcoDeOfertas } from '@/components/studio/PalcoDeOfertas';
+import { PASTA_PALCO } from '@/lib/studio/palco';
+import { coreografia, temAnimacao } from '@/lib/studio/animacao';
+import { modeloParaDocumento } from '@/lib/studio/documento';
 import { MiniaturaDoModelo } from '@/components/studio/Vitrines';
 import type { FormatoDoc } from '@/lib/studio/documento';
 import { nomeDoSegmento } from '@/lib/studio/catalogo';
@@ -9,6 +14,22 @@ import { useCatalogo } from '@/lib/studioai/modelos';
 import { cn } from '@/lib/utils';
 import { PASTA_ENCARTES } from '@/components/studio/EncartesDoStudio';
 import { PastaDeEncartes } from '@/components/studio/PastaDeEncartes';
+
+/** F-234: a versão em VÍDEO do modelo — os mesmos elementos, em coreografia (a animação gravada no modelo vale mais). */
+function CartaoVideo({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
+  const doc = useMemo(() => { const d = modeloParaDocumento(m, formato); return temAnimacao(d) ? d : coreografia(d); }, [m, formato]);
+  const destino = `/studio/editar/${m.id}?formato=${encodeURIComponent(formato)}&video=1`;
+  return (
+    <article className="flex flex-col rounded-xl border border-white/10 bg-[#140632] p-3 transition hover:border-[#8A2EFF]/70 hover:shadow-[0_0_28px_rgba(93,27,255,0.35)]" data-testid="studio-video-da-pasta">
+      <Link to={destino} className={cn('relative mx-auto block w-full overflow-hidden rounded-lg bg-black', formato === '9:16' && 'max-w-[260px]')} aria-label={`Personalizar o vídeo ${m.nome}`}>
+        <PreviaDocumento doc={doc} animar />
+        <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white"><Clapperboard className="h-3 w-3 text-[#FFD400]" />vídeo</span>
+      </Link>
+      <h3 className="mt-2 truncate text-sm font-semibold text-white" title={m.nome}>{m.nome}</h3>
+      <Link to={destino} className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-[#25D366] py-2 text-sm font-bold text-[#0b2a17] transition hover:brightness-105"><Clapperboard className="h-4 w-4" />Personalizar vídeo</Link>
+    </article>
+  );
+}
 
 function Cartao({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
   const destino = `/studio/editar/${m.id}?formato=${encodeURIComponent(formato)}`;
@@ -26,6 +47,7 @@ function Cartao({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
 /** Pasta de um card do catálogo: o modelo de capa e as variações do mesmo segmento, em 16:9 ou 9:16. */
 export default function PastaPage() {
   const { pastaId } = useParams();
+  if (pastaId === PASTA_PALCO) return <PalcoDeOfertas />;
   return pastaId === PASTA_ENCARTES ? <PastaDeEncartes /> : <PastaDeModelos pastaId={pastaId} />;
 }
 
@@ -33,6 +55,9 @@ function PastaDeModelos({ pastaId }: { pastaId: string | undefined }) {
   const catalogo = useCatalogo();
   const pasta = catalogo.pastas.find((p) => p.capa.id === pastaId);
   const [formato, setFormato] = useState<FormatoDoc>(() => (pasta?.capa.formato as FormatoDoc) ?? '16:9');
+  // F-234: dentro da pasta, duas pastas — Imagens e Vídeos (a versão em vídeo de cada imagem)
+  const [params, setParams] = useSearchParams();
+  const tipo: 'imagens' | 'videos' = params.get('tipo') === 'videos' ? 'videos' : 'imagens';
 
   if (!pasta) return catalogo.carregando
     ? <p className="p-10 text-sm text-slate-400">Abrindo a pasta…</p>
@@ -55,10 +80,19 @@ function PastaDeModelos({ pastaId }: { pastaId: string | undefined }) {
           ))}
         </div>
       </div>
-      <div className={cn('grid gap-4', formato === '16:9' ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-6')}>
-        {pasta.modelos.map((m) => <Cartao key={m.id} m={m} formato={formato} />)}
+      <div className="grid grid-cols-2 gap-3 sm:max-w-xl" role="tablist" aria-label="Imagens ou vídeos">
+        {([['imagens', 'Imagens', ImageIcon], ['videos', 'Vídeos', Clapperboard]] as const).map(([id, nome, I]) => (
+          <button key={id} type="button" role="tab" aria-selected={tipo === id} onClick={() => setParams(id === 'videos' ? { tipo: 'videos' } : {})} data-testid={`subpasta-${id}`}
+            className={cn('flex items-center gap-3 rounded-xl border p-3 text-left transition', tipo === id ? 'border-[#FFD400] bg-[#FFD400]/10 shadow-[0_0_22px_rgba(255,212,0,0.25)]' : 'border-white/10 bg-[#140632] hover:border-[#8A2EFF]/60')}>
+            <span className={cn('flex h-11 w-11 items-center justify-center rounded-lg', tipo === id ? 'bg-[#FFD400] text-[#22004A]' : 'bg-[#5D1BFF] text-white')}><FolderOpen className="h-5 w-5" /></span>
+            <span><span className="flex items-center gap-1.5 text-sm font-bold text-white"><I className="h-4 w-4" />{nome}</span><span className="text-xs text-slate-400">{pasta.modelos.length} {id === 'videos' ? 'vídeos animados' : 'imagens'}</span></span>
+          </button>
+        ))}
       </div>
-      <p className="text-xs text-slate-500">Tudo dentro do modelo é editável: arraste, gire e redimensione textos, formas, selos e fotos, troque cores, fontes e a foto pela do seu produto.</p>
+      <div className={cn('grid gap-4', formato === '16:9' ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-6')}>
+        {pasta.modelos.map((m) => (tipo === 'videos' ? <CartaoVideo key={m.id} m={m} formato={formato} /> : <Cartao key={m.id} m={m} formato={formato} />))}
+      </div>
+      <p className="text-xs text-slate-500">{tipo === 'videos' ? 'Cada vídeo é a imagem com todos os elementos em movimento coerente (foto em panorâmica, títulos entrando na ordem de leitura, selo pulsando). Em "Personalizar vídeo" dá para trocar tudo e gravar o MP4.' : 'Tudo dentro do modelo é editável: arraste, gire e redimensione textos, formas, selos e fotos, troque cores, fontes e a foto pela do seu produto.'}</p>
     </div>
   );
 }

@@ -81,8 +81,9 @@ describe('ímã, timecode e onda', () => {
 
 describe('F-233 — pasta "Encartes de Mercado" aberta com os produtos da pessoa', () => {
   it('a pasta tem o painel "Seus produtos" (texto, leitor de código, nome/de/por, fotos reais) e leva os produtos ao editor', () => {
-    const pasta = fs.readFileSync('src/components/studio/PastaDeEncartes.tsx', 'utf8');
-    for (const t of ['encartes-texto', 'encartes-aplicar', '<LeitorDeCodigo aoLer={porCodigo} />', 'completarImagens(', 'aria-label="Preço antigo (de)"', 'aria-label="Preço (por)"', 'CHAVE_PRODUTOS_DO_ENCARTE']) expect(pasta).toContain(t);
+    // F-234: o painel 'Seus produtos' virou componente compartilhado (encartes e palco)
+    const pasta = fs.readFileSync('src/components/studio/PastaDeEncartes.tsx', 'utf8') + fs.readFileSync('src/components/studio/ProdutosComFotos.tsx', 'utf8');
+    for (const t of ['encartes-texto', 'encartes-aplicar', '<LeitorDeCodigo aoLer={s.porCodigo} />', 'completarImagens(', 'aria-label="Preço antigo (de)"', 'aria-label="Preço (por)"', 'CHAVE_PRODUTOS_DO_ENCARTE']) expect(pasta).toContain(t);
     expect(fs.readFileSync('src/pages/studioai/PastaPage.tsx', 'utf8')).toMatch(/pastaId === PASTA_ENCARTES \? <PastaDeEncartes \/>/);
     expect(fs.readFileSync('src/pages/studioai/EncartePage.tsx', 'utf8')).toMatch(/sessionStorage\.getItem\(CHAVE_PRODUTOS_DO_ENCARTE\)/);
     // a seção solta de encartes saiu do início: eles ficam só dentro da pasta, como as outras pastas de modelos

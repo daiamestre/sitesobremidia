@@ -7,6 +7,8 @@ import {
 import { Carrossel, TvEmLoop } from '@/components/studio/Vitrines';
 import { CapaDaPastaDeEncartes, PASTA_ENCARTES } from '@/components/studio/EncartesDoStudio';
 import { ENCARTES } from '@/lib/tabloide/encartes';
+import { CapaDaPastaPalco } from '@/components/studio/PalcoDeOfertas';
+import { PASTA_PALCO } from '@/lib/studio/palco';
 import '@/components/studio/studio-efeitos.css';
 import { intercalarPorSegmento } from '@/lib/studio/miniaturas';
 import type { FormatoDoc } from '@/lib/studio/documento';
@@ -153,7 +155,7 @@ export default function CatalogoPage() {
           <Selecao rotulo="Tipo de edição" valor={filtro.edicao ?? ''} opcoes={[{ id: '', nome: 'Todos' }, ...TIPOS_DE_EDICAO]} onChange={(v) => setFiltro((f) => ({ ...f, edicao: (v || null) as FiltroDoCatalogo['edicao'] }))} />
           <Selecao rotulo="Ordenar por" valor={filtro.ordem} opcoes={ORDENS} onChange={(v) => setFiltro((f) => ({ ...f, ordem: v as FiltroDoCatalogo['ordem'] }))} />
         </div>
-        <p className="truncate px-1 text-xs text-slate-400" aria-live="polite">{lista.length + (mostrarEncartes ? 1 : 0)} pastas · {total} modelos, todos em 16:9 e 9:16{mostrarEncartes ? ` · ${ENCARTES.length} encartes` : ''}</p>
+        <p className="truncate px-1 text-xs text-slate-400" aria-live="polite">{lista.length + (mostrarEncartes ? 2 : 0)} pastas · {total} modelos, todos em 16:9 e 9:16{mostrarEncartes ? ` · ${ENCARTES.length} encartes` : ''}</p>
       </div>
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
@@ -197,6 +199,22 @@ export default function CatalogoPage() {
                 <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
                   <Link to={`/studio/pasta/${PASTA_ENCARTES}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-encartes"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
                   <Link to={`/studio/encarte/${ENCARTES[0].id}`} title="Editar um encarte" aria-label="Editar um encarte" className="rounded-lg border border-white/15 px-3 py-2 text-sm text-white hover:bg-white/5"><PenLine className="h-4 w-4" /></Link>
+                </div>
+              </article>
+            )}
+            {/* F-234: PALCO DE OFERTAS — um produto de cada vez no pedestal, com nome e preço (carrossel em vídeo) */}
+            {mostrarEncartes && (
+              <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-palco">
+                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
+                  <Link to={`/studio/pasta/${PASTA_PALCO}`} aria-label="Abrir a pasta Palco de Ofertas" className="block h-full"><CapaDaPastaPalco /></Link>
+                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><Clapperboard className="h-3 w-3 text-[#FFD400]" />carrossel de produtos</span>
+                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
+                </div>
+                <span className="mt-2 flex gap-1">{(['16:9', '9:16'] as const).map((x) => <span key={x} className="inline-flex w-fit items-center gap-1 rounded bg-[#5D1BFF] px-1.5 py-0.5 text-[10px] font-bold text-white">{x === '16:9' ? <Monitor className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}{x}</span>)}</span>
+                <h3 className="mt-1 truncate text-sm font-semibold text-white">Palco de Ofertas – Mercado</h3>
+                <p className="text-xs text-slate-400">Supermercados · vídeo</p>
+                <div className="mt-3">
+                  <Link to={`/studio/pasta/${PASTA_PALCO}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-palco"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
                 </div>
               </article>
             )}

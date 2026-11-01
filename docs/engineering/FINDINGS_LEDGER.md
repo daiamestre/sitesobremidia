@@ -2786,3 +2786,27 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - a pasta abriu com 15 produtos (14 com foto);
   - trocada a lista por 5 produtos, os 5 entraram com foto e apareceram nos encartes;
   - "Editar encarte" abriu o editor com os mesmos 5.
+
+### F-234 — Versão em VÍDEO de cada modelo (subpastas Imagens/Vídeos) + PALCO DE OFERTAS de mercado (um produto de cada vez) — FEITO
+
+- **Pedido do dono (31/10/2026):**
+  - cada modelo de imagem ganha a versão em vídeo, feita com os comandos de animação que já existem, com todos os elementos se mexendo em coerência;
+  - dentro de cada pasta, uma pasta de Vídeos e outra de Imagens;
+  - um palco igual ao da Black Friday, mas de mercado, em que o vídeo passa um produto com nome e preço de cada vez.
+- **Coreografia** (`lib/studio/animacao.ts`: `coreografia`; "Animar tudo" usa a mesma):
+  - foto principal em panorâmica;
+  - faixas largas varrem pelo lado delas;
+  - textos entram um após o outro, na ordem de leitura, pelo lado em que estão (topo desce, embaixo sobe, esquerda/direita deslizam);
+  - selo entra com zoom e fica pulsando (`depois`, novo); botão sobe e pulsa; fotos pequenas entram com zoom e ficam flutuando (`flutuar`, novo).
+  - A imagem ganhou `ajuste: 'conter'` (produto inteiro).
+- **Subpastas:** dentro de cada pasta de modelos há os cartões "Imagens" e "Vídeos" (`?tipo=videos`).
+  - Os vídeos tocam a coreografia ao vivo.
+  - "Personalizar vídeo" abre o editor com `video=1`, já animado (exporta MP4 pelo botão Vídeo).
+- **Palco de Ofertas** (`lib/studio/palco.ts`, `components/studio/PalcoDeOfertas.tsx`, pasta `palco-de-ofertas` no catálogo):
+  - fundo vermelho, título "SUPER OFERTAS", "SUA LOGO AQUI", pedestal dourado/vermelho, produto inteiro com zoom + flutuar, nome e selo de preço (de/por) pulsando;
+  - um produto por vez, 4 s cada;
+  - usa o painel "Seus produtos" (`ProdutosComFotos.tsx`, compartilhado com os encartes: fotos reais e código de barras);
+  - "Criar vídeo do carrossel" abre o editor de vídeo com um clipe por produto e transição deslizando (música, tempo e MP4).
+- **Provas:**
+  - `src/tests/unit/studioVideosEPalco234.test.ts`: todos os modelos, nos 2 formatos, com movimento e sem dois textos entrando juntos;
+  - navegador: subpastas 6 imagens / 6 vídeos animados; o palco toca; o carrossel de 15 produtos abriu no editor com 15 clipes (53 s).
