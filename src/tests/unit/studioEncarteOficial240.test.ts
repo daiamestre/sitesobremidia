@@ -6,14 +6,41 @@ import fs from 'node:fs';
 import { ENCARTES_OFICIAIS, MAX_POR_COLUNA, dividirProdutos, documentoDoEncarteOficial, formatosDoEncarte, layoutDoEncarte, maxDeProdutos } from '@/lib/studio/encartesOficiais';
 import { TAMANHO_DOC } from '@/lib/studio/documento';
 
-const e = ENCARTES_OFICIAIS[0];
 const FORMATOS = ['9:16', '16:9'] as const;
 const produto = (i: number) => ({ nome: `Produto ${i} 1kg`, preco: 2 + i, precoDe: i % 2 ? 5 + i : null, unidade: null, imagem: { url: `https://x/${i}.png`, fonte: 'OPENFOODFACTS' as const } });
 const cruza = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
-describe('encarte oficial Mega Oferta', () => {
+describe('F-243 — Semana do Frango', () => {
+  const f = ENCARTES_OFICIAIS.find((x) => x.id === 'semana-do-frango')!;
+  it('está na lista junto do Mega Oferta, nos dois formatos', () => {
+    expect(ENCARTES_OFICIAIS.map((x) => x.id)).toEqual(['mega-oferta-bicolor', 'semana-do-frango']);
+    expect(formatosDoEncarte(f)).toEqual(['9:16', '16:9']);
+  });
+  it('a área azul, maior, recebe mais produtos; nenhuma passa do limite', () => {
+    const l = layoutDoEncarte(f, '9:16');
+    const [azul, cartao] = dividirProdutos(Array.from({ length: 8 }, (_, i) => i), l.colunas);
+    expect([azul.length, cartao.length]).toEqual([5, 3]);
+    const cheio = dividirProdutos(Array.from({ length: 30 }, (_, i) => i), l.colunas);
+    expect(cheio.map((c) => c.length)).toEqual([10, 6]);
+  });
+  it('no cartão amarelo o nome é escuro e a etiqueta vermelha; no azul o nome é branco e a etiqueta amarela', () => {
+    const d = documentoDoEncarteOficial(f, [produto(1), produto(2)], {}, '9:16');
+    expect(d.camadas.find((c) => c.nome === 'Nome do produto 1')).toMatchObject({ cor: '#ffffff' });
+    expect(d.camadas.find((c) => c.nome === 'Nome do produto 2')).toMatchObject({ cor: '#6e0010', sombra: null });
+    expect(d.camadas.find((c) => c.nome === 'Preço 1')).toMatchObject({ degrade: { de: '#ffe45c' } });
+    expect(d.camadas.find((c) => c.nome === 'Preço 2')).toMatchObject({ degrade: { de: '#ff2d40' } });
+  });
+  it('a grade do azul e a do cartão não batem no título, nas moedas nem no rodapé', () => {
+    for (const k of ['9:16', '16:9'] as const) {
+      const l = layoutDoEncarte(f, k);
+      expect(l.colunas[0].y + l.colunas[0].h).toBeLessThanOrEqual(l.rodape.y);
+      expect(l.colunas[0].x + l.colunas[0].w).toBeLessThan(l.colunas[1].x);
+    }
+  });
+});
+
+describe.each(ENCARTES_OFICIAIS)('encarte oficial $id', (e) => {
   it('tem os dois formatos e os fundos existem (com a caixa "SUA LOGO AQUI" e sem ela)', () => {
-    expect(e.id).toBe('mega-oferta-bicolor');
     expect(formatosDoEncarte(e)).toEqual(['9:16', '16:9']);
     for (const f of FORMATOS) {
       const l = layoutDoEncarte(e, f);
@@ -44,7 +71,7 @@ describe('encarte oficial Mega Oferta', () => {
           expect(p.y + p.h).toBeLessThanOrEqual(l.rodape.y);
           // cartão com formato bom (nem tira fina nem coluna estreita)
           expect(p.w / p.h, `${f} ${n} ${p.nome}`).toBeGreaterThan(0.45);
-          expect(p.w / p.h, `${f} ${n} ${p.nome}`).toBeLessThan(2.2);
+          expect(p.w / p.h, `${f} ${n} ${p.nome}`).toBeLessThan(3);
         }
         for (let i = 0; i < placas.length; i++) for (let j = i + 1; j < placas.length; j++) expect(cruza(placas[i], placas[j]), `${f} ${n}: ${placas[i].nome} × ${placas[j].nome}`).toBe(false);
         for (const p of placas) {

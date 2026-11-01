@@ -2923,3 +2923,13 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `PainelDeProdutos` (Palco e pasta de encartes): começa fechado num cartão; exemplos de escrita; `faltasDoProduto` exige preço, medida e marca (carnes, frutas e verduras sem marca; código de barras traz os dados); a lista só entra completa; "Promoção" por produto abre o "de".
   - `TrocarFoto.tsx`: a janela de foto saiu do `TabloideEditor` e é uma só no Cartaz Digital e no Studio. `trocarFoto` grava a escolha em `tabloide_catalogo` pelo nome e pelo código de barras (`ESCOLHA`/`UPLOAD`), e a foto volta sozinha quando o produto entra de novo.
 - **Prova:** `studioPalcoEdicao242.test.ts` (12 testes); navegador com a conta de teste: edição, tocar no nome, promoção, largura sem transbordar em 375 e 800 px. A largura de notebook (1280) não foi medida, porque a janela de teste limitou a 1008 px.
+
+### F-243 — Encarte oficial Semana do Frango (em pé e deitado) junto do Mega Oferta; produtos sem foto nas artes corrigido — FEITO
+
+- **Pedido do dono (01/11/2026):** adicionar o fundo Semana do Frango nos Encartes de Mercado, junto do outro, com a mesma edição e a grade de produtos, e centralizar textos e valores.
+- **Feito:**
+  - `ENCARTES_OFICIAIS` ganhou `semana-do-frango` (9:16 e 16:9, `public/studio/encartes-oficiais/semana-do-frango-*.webp`). A versão sem "SUA LOGO AQUI" copia o fundo vizinho espelhado, para manter a textura de bolinhas, e preserva a moeda.
+  - Grade em duas áreas: azul e cartão amarelo. `ColunaDoEncarte` ganhou `peso` e `max` (a área maior recebe mais: 5 a cada 3, até 10 + 6) e `corNome`/`corPlaca`/`bordaPlaca` (no cartão amarelo o nome é vermelho-escuro e a etiqueta vermelha; no azul o nome é branco e a etiqueta amarela). `dividirProdutos` aceita pesos; com pesos iguais continua alternando.
+  - Até 5 colunas por área no deitado. Telefone e endereço ficam embaixo, à esquerda, porque este fundo não tem faixa de rodapé.
+- **Bug corrigido (fotos):** R2 não manda `Vary: Origin`. Uma foto exibida antes como `<img>` comum fica guardada pelo navegador sem CORS, e o canvas falhava: o produto saía sem foto na prévia, com 5 fotos do catálogo em branco nesta conferência (status 200 e `Access-Control-Allow-Origin: *` no curl). `carregarImagem` agora tenta de novo por outro endereço (`?arte=1`), e as miniaturas do Palco e do cartão de produtos usam `crossOrigin`.
+- **Prova:** `studioEncarteOficial240.test.ts` roda para os 2 encartes nos 2 formatos, mais os testes do frango; navegador: as 5 fotos carregam e os dois encartes aparecem na pasta.

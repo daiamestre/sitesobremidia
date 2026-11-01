@@ -14,10 +14,17 @@ export function carregarImagem(src: string): Promise<HTMLImageElement | null> {
   let p = cache.get(src);
   if (!p) {
     p = new Promise((ok) => {
+      const externa = /^https?:/.test(src) && !src.startsWith(location.origin);
       const i = new Image();
-      if (/^https?:/.test(src) && !src.startsWith(location.origin)) i.crossOrigin = 'anonymous';
+      if (externa) i.crossOrigin = 'anonymous';
       i.onload = () => ok(i);
-      i.onerror = () => { cache.delete(src); ok(null); };
+      let tentou = false;
+      i.onerror = () => {
+        // F-243: se a foto já foi exibida como <img> comum, o navegador guarda a cópia sem a permissão (CORS) que a arte
+        // exige e o produto saía sem foto; pedir por outro endereço escapa dessa cópia guardada
+        if (externa && !tentou) { tentou = true; i.src = `${src}${src.includes('?') ? '&' : '?'}arte=1`; return; }
+        cache.delete(src); ok(null);
+      };
       i.src = src;
     });
     cache.set(src, p);

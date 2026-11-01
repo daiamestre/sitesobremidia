@@ -162,7 +162,7 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
           <span className="block truncate text-[11px] text-slate-400">{s.produtos.length} produtos · {comFoto} com foto{incompletos ? ` · ${incompletos} incompleto${incompletos > 1 ? 's' : ''}` : ''}</span>
         </span>
         <span className="hidden shrink-0 -space-x-2 sm:flex" aria-hidden>
-          {s.produtos.filter((p) => p.imagem).slice(0, 3).map((p) => <img key={p.id} src={p.imagem!.url} alt="" className="h-8 w-8 rounded-full border-2 border-[#14062f] bg-white object-contain" referrerPolicy="no-referrer" />)}
+          {s.produtos.filter((p) => p.imagem).slice(0, 3).map((p) => <img key={p.id} src={p.imagem!.url} alt="" className="h-8 w-8 rounded-full border-2 border-[#14062f] bg-white object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />)}
         </span>
         <span className="flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-xs font-semibold text-white">{aberto ? 'Fechar' : 'Editar'}<ChevronDown className={cn('h-4 w-4 transition', aberto && 'rotate-180')} /></span>
       </button>

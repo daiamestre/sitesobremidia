@@ -11,7 +11,13 @@ import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 export interface LogoDoCliente { url: string; largura: number; altura: number; recortada: boolean }
 export interface DadosDoEncarte { logo?: LogoDoCliente | null; telefone?: string; endereco?: string }
 
-export interface ColunaDoEncarte extends Caixa { etiqueta: CoresDaEtiqueta; sombraNome: string }
+export interface ColunaDoEncarte extends Caixa {
+  etiqueta: CoresDaEtiqueta; sombraNome: string;
+  /** F-243: área maior recebe mais produtos (padrão 1) e limite de produtos da área (padrão MAX_POR_COLUNA) */
+  peso?: number; max?: number;
+  /** F-243: sobre fundo claro (cartão amarelo) o nome e a placa mudam de cor para continuar legíveis */
+  corNome?: string; corPlaca?: string; bordaPlaca?: string;
+}
 /** O desenho de UM formato do encarte (em pé ou deitado), em pixels do documento. */
 export interface LayoutDoEncarte {
   /** fundo com a caixa "SUA LOGO AQUI" (sem logo) e sem ela (com a logo do cliente) */
@@ -35,6 +41,9 @@ export const PASTA_ENCARTES_OFICIAIS = 'encartes-de-mercado';
 
 const VERMELHO = { etiqueta: ETIQUETA_AMARELA, sombraNome: 'rgba(70,0,6,.7)' };
 const AZUL = { etiqueta: ETIQUETA_VERMELHA, sombraNome: 'rgba(0,10,70,.7)' };
+// F-243: fundo azul-claro (etiqueta amarela) e cartão amarelo (nome escuro e etiqueta vermelha) da Semana do Frango
+const AZUL_CLARO = { etiqueta: ETIQUETA_AMARELA, sombraNome: 'rgba(0,30,90,.75)', corPlaca: 'rgba(0,40,120,.22)', bordaPlaca: 'rgba(255,255,255,.4)' };
+const CARTAO_AMARELO = { etiqueta: ETIQUETA_VERMELHA, sombraNome: 'transparent', corNome: '#6e0010', corPlaca: 'rgba(255,255,255,.5)', bordaPlaca: 'rgba(255,255,255,.75)' };
 
 export const ENCARTES_OFICIAIS: EncarteOficial[] = [
   {
@@ -67,20 +76,65 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = [
     },
     corTelefone: '#d90f1f', corEndereco: '#0b2a8f',
   },
+  {
+    id: 'semana-do-frango', nome: 'Semana do Frango – azul e amarelo',
+    formatos: {
+      // 1080×1920: o cartão amarelo vai de y 606 a 1468, com a beira esquerda indo de x 726 (y 700) a 592 (y 1400);
+      // moedas: em cima à esquerda até y 635, à direita até y 643 e embaixo à direita a partir de y 1578
+      '9:16': {
+        fundo: '/studio/encartes-oficiais/semana-do-frango-v.webp',
+        fundoLimpo: '/studio/encartes-oficiais/semana-do-frango-v-limpo.webp',
+        colunas: [
+          { x: 24, y: 645, w: 552, h: 1140, peso: 5, max: 10, ...AZUL_CLARO },
+          { x: 745, y: 660, w: 319, h: 780, peso: 3, max: 6, ...CARTAO_AMARELO },
+        ],
+        logo: { x: 804, y: 322, w: 156, h: 136 },
+        rodape: { x: 24, y: 1798, w: 776, h: 104 },
+        cartao: 1.3,
+      },
+      // 1920×1080: o cartão amarelo começa em y 290, com a beira esquerda indo de x 1234 a 1083; moedas à direita até
+      // y 367 e a partir de y 827
+      '16:9': {
+        fundo: '/studio/encartes-oficiais/semana-do-frango-h.webp',
+        fundoLimpo: '/studio/encartes-oficiais/semana-do-frango-h-limpo.webp',
+        colunas: [
+          { x: 30, y: 545, w: 1035, h: 425, peso: 5, max: 10, ...AZUL_CLARO },
+          { x: 1245, y: 375, w: 655, h: 445, peso: 3, max: 6, ...CARTAO_AMARELO },
+        ],
+        logo: { x: 1366, y: 74, w: 214, h: 164 },
+        rodape: { x: 30, y: 985, w: 1040, h: 86 },
+        cartao: 0.8,
+      },
+    },
+    corTelefone: '#d90f1f', corEndereco: '#06306b',
+  },
 ];
 export const encarteOficialPorId = (id: string | null | undefined) => ENCARTES_OFICIAIS.find((e) => e.id === id) ?? null;
 export const formatosDoEncarte = (e: EncarteOficial) => (['9:16', '16:9'] as FormatoDoc[]).filter((f) => e.formatos[f]);
 export const layoutDoEncarte = (e: EncarteOficial, formato?: FormatoDoc): LayoutDoEncarte => e.formatos[formato ?? formatosDoEncarte(e)[0]] ?? e.formatos[formatosDoEncarte(e)[0]]!;
-export const maxDeProdutos = (e: EncarteOficial) => Math.min(...formatosDoEncarte(e).map((f) => e.formatos[f]!.colunas.length)) * MAX_POR_COLUNA;
+export const maxDeProdutos = (e: EncarteOficial) => Math.min(...formatosDoEncarte(e).map((f) => e.formatos[f]!.colunas.reduce((t, c) => t + (c.max ?? MAX_POR_COLUNA), 0)));
 
 type Ani = NonNullable<Camada['animacao']>;
 const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depois'] = null): Ani => ({ tipo, atraso, duracao, depois });
 type Produto = Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>;
 
-/** Divide os produtos entre as colunas alternando (1º vermelho, 2º azul, 3º vermelho…), até o máximo do fundo. */
-export function dividirProdutos<T>(produtos: T[], colunas: number): T[][] {
-  const out: T[][] = Array.from({ length: colunas }, () => []);
-  produtos.slice(0, colunas * MAX_POR_COLUNA).forEach((p, i) => out[i % colunas].push(p));
+/**
+ * Divide os produtos entre as colunas, até o máximo do fundo. Com pesos iguais alterna (1º vermelho, 2º azul, 3º vermelho…);
+ * com pesos diferentes (F-243), a área maior recebe mais produtos, proporcionalmente.
+ */
+export function dividirProdutos<T>(produtos: T[], colunas: number | Array<Pick<ColunaDoEncarte, 'peso' | 'max'>>): T[][] {
+  const cols = typeof colunas === 'number' ? Array.from({ length: colunas }, () => ({} as Pick<ColunaDoEncarte, 'peso' | 'max'>)) : colunas;
+  const out: T[][] = cols.map(() => []);
+  for (const p of produtos) {
+    let melhor = -1, nota = Infinity;
+    cols.forEach((c, k) => {
+      if (out[k].length >= (c.max ?? MAX_POR_COLUNA)) return;
+      const n = (out[k].length + 1) / (c.peso ?? 1);
+      if (n < nota - 1e-9) { nota = n; melhor = k; }
+    });
+    if (melhor < 0) break;
+    out[melhor].push(p);
+  }
   return out;
 }
 
@@ -89,7 +143,7 @@ function celula(p: Produto, b: Caixa, col: ColunaDoEncarte, n: number, atraso: n
   const out: Camada[] = [];
   const pad = Math.max(10, Math.round(Math.min(b.w, b.h) * 0.05));
   const nomear = (c: Camada) => ({ ...c, nome: `${c.nome} ${n}` });
-  out.push({ ...forma('Placa', b.x, b.y, b.w, b.h, { cor: 'rgba(255,255,255,.10)', raio: Math.round(Math.min(b.w, b.h) * 0.08), borda: { cor: 'rgba(255,255,255,.28)', largura: 2 } }), nome: `Placa ${n}`, animacao: ani('surgir', atraso, 0.5) });
+  out.push({ ...forma('Placa', b.x, b.y, b.w, b.h, { cor: col.corPlaca ?? 'rgba(255,255,255,.10)', raio: Math.round(Math.min(b.w, b.h) * 0.08), borda: { cor: col.bordaPlaca ?? 'rgba(255,255,255,.28)', largura: 2 } }), nome: `Placa ${n}`, animacao: ani('surgir', atraso, 0.5) });
   const vertical = b.h >= b.w * 0.8;
   let foto: Caixa, nomeB: Caixa, preco: Caixa;
   if (vertical) {
@@ -108,7 +162,7 @@ function celula(p: Produto, b: Caixa, col: ColunaDoEncarte, n: number, atraso: n
   }
   if (p.imagem?.url) out.push({ ...imagem(`Produto ${n}`, p.imagem.url, foto.x, foto.y, foto.w, foto.h, { ajuste: 'conter', focoX: 50, focoY: vertical ? 100 : 50, sombra: null }), animacao: ani('zoom', atraso + 0.15, 0.55) });
   const nome = nomeDoProduto(p.nome, { ...nomeB, alinhamento: vertical ? 'center' : 'left' });
-  out.push({ ...nome, nome: `Nome do produto ${n}`, sombra: { cor: col.sombraNome, desfoque: 10, dx: 0, dy: 4 }, animacao: ani('subir', atraso + 0.3, 0.5) });
+  out.push({ ...nome, nome: `Nome do produto ${n}`, ...(col.corNome ? { cor: col.corNome } : {}), sombra: col.corNome ? null : { cor: col.sombraNome, desfoque: 10, dx: 0, dy: 4 }, animacao: ani('subir', atraso + 0.3, 0.5) } as Camada);
   out.push(...etiquetaDePreco(preco, p, col.etiqueta).map((c) => ({ ...nomear(c), animacao: ani('zoom', atraso + 0.45, 0.5) })));
   return out;
 }
@@ -121,7 +175,7 @@ function produtosDaColuna(ps: Produto[], col: ColunaDoEncarte, alvo: number, ini
   if (!ps.length) return [];
   const gap = 16;
   let melhor = { cols: 1, nota: Infinity };
-  for (let c = 1; c <= Math.min(ps.length, 4); c++) {
+  for (let c = 1; c <= Math.min(ps.length, 5); c++) {
     const l = Math.ceil(ps.length / c);
     const w = (col.w - gap * (c - 1)) / c, h = (col.h - gap * (l - 1)) / l;
     const nota = Math.abs(Math.log(w / h / alvo));
@@ -208,7 +262,7 @@ export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[]
   const { w: W, h: H } = TAMANHO_DOC[f];
   const c: Camada[] = [{ ...imagem('Fundo oficial', d.logo ? lay.fundoLimpo : lay.fundo, 0, 0, W, H), bloqueada: true }];
   if (d.logo) c.push(...camadasDaLogo(d.logo, lay.logo));
-  const grupos = dividirProdutos(produtos, lay.colunas.length);
+  const grupos = dividirProdutos(produtos, lay.colunas);
   grupos.forEach((ps, k) => c.push(...produtosDaColuna(ps, lay.colunas[k], lay.cartao, k + 1, lay.colunas.length, 0.3 + k * 0.12)));
   c.push(...camadasDoRodape(e, lay.rodape, d));
   return { versao: 2, formato: f, fundo: '#1e3fd0', camadas: c, video: { duracao: 8 } };
