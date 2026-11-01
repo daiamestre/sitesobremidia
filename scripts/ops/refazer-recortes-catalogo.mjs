@@ -161,7 +161,9 @@ async function gravar() {
   let n = 0;
   for (const x of itens) {
     if (!enviados.has(x.arquivo)) { const chave = `catalogo/recortes/${x.arquivo}`; await enviar(chave, fs.readFileSync(`${pasta}/${x.arquivo}`)); enviados.set(x.arquivo, `${R2_PUBLICO}${chave}`); }
-    await sqlBruto(`update public.tabloide_catalogo set imagem_url = '${enviados.get(x.arquivo)}', recortada = true, recorte_tentado = true, updated_at = now() where id = '${x.id}'`);
+    // a foto pode ter vindo de outra fonte: o crédito acompanha a foto que entrou
+    const fonte = /openfoodfacts/.test(x.origem) ? ", fonte = 'OPENFOODFACTS', credito = 'Open Food Facts (CC BY-SA)'" : '';
+    await sqlBruto(`update public.tabloide_catalogo set imagem_url = '${enviados.get(x.arquivo)}', recortada = true, recorte_tentado = true${fonte}, updated_at = now() where id = '${x.id}'`);
     n++;
   }
   console.log('linhas trocadas', n, 'arquivos', enviados.size);
