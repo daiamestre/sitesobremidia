@@ -5,6 +5,7 @@ import { TabloideEditor } from '@/components/tabloide/TabloideEditor';
 import { useClienteModalidade } from '@/modules/crm/hooks/useClienteModalidade';
 import { meuSaldo } from '@/lib/studioai/api';
 import { encartePorId } from '@/lib/tabloide/encartes';
+import { CHAVE_PRODUTOS_DO_ENCARTE } from '@/components/studio/PastaDeEncartes';
 
 /**
  * F-231 — editar um ENCARTE DE MERCADO dentro do SOBRE MÍDIA Studio: é o editor do Cartaz Digital (mesmas opções:
@@ -13,7 +14,10 @@ import { encartePorId } from '@/lib/tabloide/encartes';
  */
 export default function EncarteStudioPage() {
   const { encarteId } = useParams();
-  const encarte = encartePorId(encarteId);
+  const modelo = encartePorId(encarteId);
+  // F-233: os produtos colocados na pasta (encartes de mercado) entram no editor
+  const daPasta = (() => { try { return sessionStorage.getItem(CHAVE_PRODUTOS_DO_ENCARTE); } catch { return null; } })();
+  const encarte = modelo && daPasta && modelo.segmento === 'mercado' ? { ...modelo, produtos: daPasta } : modelo;
   const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo, staleTime: 30_000 });
   const { cliente } = useClienteModalidade();
   if (!encarte) return <div className="p-10 text-sm text-slate-300">Encarte não encontrado. <Link to="/studio" className="text-[#FFD400] hover:underline">Voltar aos modelos</Link></div>;

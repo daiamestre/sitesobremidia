@@ -2749,3 +2749,40 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - função em produção: 4 códigos reais e 8 buscas por nome;
   - navegador: 12 encartes no Studio; "Promoção de Inverno" abriu com 14/15 fotos; o bipe de 7891000100103 trouxe "Leite Condensado Integral Moça Nestlé 395g" com foto, guardado no catálogo.
 - **Documento:** `docs/studio/ENCARTES_E_FOTOS_DE_PRODUTO.md`.
+
+### F-232 — Pasta "Encartes de Mercado" na grade do Studio + linha do tempo do editor de vídeo no estilo DaVinci Resolve — FEITO
+
+- **Pedido do dono (31/10/2026):** "os modelos de encartes não foram adicionados no Studio".
+  - Na verdade a publicação ainda não tinha terminado quando ele olhou, e os encartes eram uma seção acima dos filtros, fora da grade de pastas.
+  - Pediu também a pasta de encartes e uma linha do tempo como a do DaVinci Resolve: adicionar e cortar clipes e áudio.
+- **Pasta:** "Encartes de Mercado" é a 1ª pasta da grade.
+  - A capa passa os 12 encartes, 8 s cada (regra F-230).
+  - "Abrir pasta" → `/studio/pasta/encartes-de-mercado`, com os 12 encartes e "Editar encarte".
+  - Aparece em Todos/Supermercados, na busca por encarte/mercado/oferta e no formato 9:16.
+- **Linha do tempo** (`components/studio/video/LinhaDoTempo.tsx` + `lib/studio/video/edicao.ts`):
+  - cabeçalho das faixas V1 (vídeo), T1 (títulos) e A1/A2… (áudio);
+  - timecode 00:00:00:00 (30 qps);
+  - ferramentas Seleção (A), Lâmina (B), Ímã (N), Dividir no cursor (Ctrl+B), "ver tudo" e zoom (botões e Ctrl+roda);
+  - a lâmina corta clipe, texto ou áudio no ponto tocado, com linha vermelha de mira;
+  - arrastar o clipe de vídeo muda a posição dele (sem buracos);
+  - o ímã encaixa nas pontas e no cursor;
+  - scrub na régua;
+  - onda do som desenhada no áudio;
+  - setas = 1 quadro, J/K/L, Home/End.
+- **Provas:**
+  - `src/tests/unit/studioLinhaDavinci232.test.ts` (9);
+  - navegador: a pasta é a 1ª da grade e a capa gira; a lâmina dividiu um texto de 3 s em 1,5 s + 1,5 s.
+
+### F-233 — Pasta "Encartes de Mercado" aberta: adicionar produtos, nomes, preços e fotos reais na própria pasta — FEITO
+
+- **Pedido do dono (31/10/2026):** os encartes ficam DENTRO de uma pasta, igual às outras pastas de modelos. Ao abrir a pasta, aparecem as funções de adicionar produtos, nomes e preços e carregar as fotos.
+- **Feito** (`src/components/studio/PastaDeEncartes.tsx`):
+  - a pasta aberta tem o painel "Seus produtos": texto de um produto por linha, "Colocar nos encartes", leitor de código de barras (pistola/câmera) e a lista com foto, nome, "de" e "por" editáveis (os 3 primeiros em destaque);
+  - as fotos reais chegam sozinhas (`completarImagens`: catálogo → código de barras → bases abertas, com marca e medida);
+  - os 12 encartes à direita mostram os produtos da pessoa ao vivo;
+  - "Editar encarte" leva os produtos ao editor completo (`sessionStorage`).
+  - A seção solta de encartes saiu do início do Studio.
+- **Prova** (navegador, conta de teste):
+  - a pasta abriu com 15 produtos (14 com foto);
+  - trocada a lista por 5 produtos, os 5 entraram com foto e apareceram nos encartes;
+  - "Editar encarte" abriu o editor com os mesmos 5.

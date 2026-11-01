@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ArrowRight, BriefcaseMedical, Clapperboard, ChevronDown, Dumbbell, Filter, FolderOpen, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
+  ArrowRight, BriefcaseMedical, Clapperboard, ChevronDown, Dumbbell, FileText, Filter, FolderOpen, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
   Percent, Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
 import { Carrossel, TvEmLoop } from '@/components/studio/Vitrines';
-import { EncartesDoStudio } from '@/components/studio/EncartesDoStudio';
+import { CapaDaPastaDeEncartes, PASTA_ENCARTES } from '@/components/studio/EncartesDoStudio';
+import { ENCARTES } from '@/lib/tabloide/encartes';
 import '@/components/studio/studio-efeitos.css';
 import { intercalarPorSegmento } from '@/lib/studio/miniaturas';
 import type { FormatoDoc } from '@/lib/studio/documento';
@@ -64,6 +65,7 @@ export default function CatalogoPage() {
   const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo, staleTime: 30_000 });
   const admin = !!saldo.data?.admin;
   // F-221: cada card é uma PASTA; a busca acha a pasta por qualquer modelo dentro dela ("picanha" → Açougue)
+  const mostrarEncartes = (filtro.segmentos.length === 0 || filtro.segmentos.includes('supermercados')) && (!filtro.busca || /encarte|mercado|oferta|tabloide|cartaz/i.test(filtro.busca)) && (!filtro.formato || filtro.formato === '9:16');
   const pastaDe = useMemo(() => new Map(catalogo.pastas.map((p) => [p.capa.id, p])), [catalogo.pastas]);
   const casam = useMemo(() => {
     const ids = new Set(filtrarModelos(catalogo.todos, { ...filtro, formato: null, segmentos: [] }).map((m) => (m.pasta && pastaDe.has(m.pasta) ? m.pasta : m.id)));
@@ -142,9 +144,6 @@ export default function CatalogoPage() {
         </section>
       )}
 
-      {/* ── F-231: encartes de mercado (o editor do Cartaz Digital dentro do Studio) */}
-      {(filtro.segmentos.length === 0 || filtro.segmentos.includes('supermercados')) && !filtro.busca && <EncartesDoStudio />}
-
       {/* ── filtros: grade que se ajusta sozinha à largura (nunca quebra o texto) */}
       <div id="modelos" className="scroll-mt-24 space-y-2 rounded-xl border border-white/5 bg-[#12052b] p-2.5">
         <div className="grid grid-cols-[repeat(auto-fit,minmax(138px,1fr))] gap-2">
@@ -154,7 +153,7 @@ export default function CatalogoPage() {
           <Selecao rotulo="Tipo de edição" valor={filtro.edicao ?? ''} opcoes={[{ id: '', nome: 'Todos' }, ...TIPOS_DE_EDICAO]} onChange={(v) => setFiltro((f) => ({ ...f, edicao: (v || null) as FiltroDoCatalogo['edicao'] }))} />
           <Selecao rotulo="Ordenar por" valor={filtro.ordem} opcoes={ORDENS} onChange={(v) => setFiltro((f) => ({ ...f, ordem: v as FiltroDoCatalogo['ordem'] }))} />
         </div>
-        <p className="truncate px-1 text-xs text-slate-400" aria-live="polite">{lista.length} pastas · {total} modelos, todos em 16:9 e 9:16</p>
+        <p className="truncate px-1 text-xs text-slate-400" aria-live="polite">{lista.length + (mostrarEncartes ? 1 : 0)} pastas · {total} modelos, todos em 16:9 e 9:16{mostrarEncartes ? ` · ${ENCARTES.length} encartes` : ''}</p>
       </div>
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
@@ -184,6 +183,23 @@ export default function CatalogoPage() {
             </div>
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {/* F-232: pasta dos ENCARTES DE MERCADO (abre o editor do Cartaz Digital dentro do Studio) */}
+            {mostrarEncartes && (
+              <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-encartes">
+                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
+                  <Link to={`/studio/pasta/${PASTA_ENCARTES}`} aria-label="Abrir a pasta Encartes de Mercado" className="block h-full"><CapaDaPastaDeEncartes /></Link>
+                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><FolderOpen className="h-3 w-3 text-[#FFD400]" />{ENCARTES.length} encartes</span>
+                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
+                </div>
+                <span className="mt-2 flex gap-1"><span className="inline-flex w-fit items-center gap-1 rounded bg-[#5D1BFF] px-1.5 py-0.5 text-[10px] font-bold text-white"><FileText className="h-3 w-3" />A4 · encarte</span></span>
+                <h3 className="mt-1 truncate text-sm font-semibold text-white">Encartes de Mercado</h3>
+                <p className="text-xs text-slate-400">Supermercados</p>
+                <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                  <Link to={`/studio/pasta/${PASTA_ENCARTES}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-encartes"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
+                  <Link to={`/studio/encarte/${ENCARTES[0].id}`} title="Editar um encarte" aria-label="Editar um encarte" className="rounded-lg border border-white/15 px-3 py-2 text-sm text-white hover:bg-white/5"><PenLine className="h-4 w-4" /></Link>
+                </div>
+              </article>
+            )}
             {lista.map((m, n) => {
               const f: FormatoDoc = filtro.formato ?? (m.formato as FormatoDoc);
               const daPasta = pastaDe.get(m.id)?.modelos ?? [m];

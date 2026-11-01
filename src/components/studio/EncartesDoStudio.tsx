@@ -8,28 +8,38 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, PenLine } from 'lucide-react';
 import { TabloideCanvas } from '@/components/tabloide/TabloideCanvas';
-import { useNaTela } from '@/components/media/CapaQueGira';
+import { CapaQueGira, useNaTela } from '@/components/media/CapaQueGira';
 import { configPadrao, propsDasPaginas } from '@/lib/tabloide/cartaz';
 import { buscarNoCatalogo } from '@/lib/tabloide/imagens';
 import { chaveCanonica } from '@/lib/tabloide/chave';
-import { lerLista, type ImagemProduto } from '@/lib/tabloide/parseProdutos';
+import { lerLista, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { ENCARTES, ENCARTE_FORMATO, ENCARTE_GRADE, configDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
 import { formatoPorId } from '@/lib/tabloide/temas';
 
 /** Uma consulta só ao catálogo para todos os produtos de todos os encartes. */
-function useFotosDosEncartes() {
+export function useFotosDosEncartes() {
   const nomes = useMemo(() => [...new Set(ENCARTES.flatMap((e) => lerLista(e.produtos).map((p) => p.nome)))], []);
   return useQuery({ queryKey: ['studio-encartes-fotos'], queryFn: () => buscarNoCatalogo(nomes), staleTime: 10 * 60_000 });
 }
 
-function MiniaturaDoEncarte({ e, fotos }: { e: ModeloDeEncarte; fotos: Map<string, ImagemProduto> | undefined }) {
+/** F-232: a pasta "Encartes de Mercado" do catálogo do Studio (mesma grade das outras pastas). */
+export const PASTA_ENCARTES = 'encartes-de-mercado';
+
+/** Capa da pasta: passa os encartes, 8 s cada, como todas as pastas do Studio (F-230). */
+export function CapaDaPastaDeEncartes({ atraso = 0 }: { atraso?: number }) {
+  const fotos = useFotosDosEncartes();
+  const slides = useMemo(() => ENCARTES.map((e) => ({ chave: e.id, animada: () => <MiniaturaDoEncarte e={e} fotos={fotos.data} /> })), [fotos.data]);
+  return <CapaQueGira slides={slides} atraso={atraso} ajuste="contain" className="h-full" style={{ aspectRatio: '1240 / 1754' }} />;
+}
+
+export function MiniaturaDoEncarte({ e, fotos, produtos: daPessoa }: { e: ModeloDeEncarte; fotos: Map<string, ImagemProduto> | undefined; /** F-233: os produtos que a pessoa colocou na pasta (já com as fotos) */ produtos?: ProdutoTabloide[] }) {
   const caixa = useRef<HTMLDivElement>(null);
   const naTela = useNaTela(caixa, '400px');
   const formato = formatoPorId(ENCARTE_FORMATO);
   const pagina = useMemo(() => {
-    const produtos = lerLista(e.produtos).map((p) => ({ ...p, imagem: fotos?.get(chaveCanonica(p.nome)) ?? null }));
+    const produtos = daPessoa ?? lerLista(e.produtos).map((p) => ({ ...p, imagem: fotos?.get(chaveCanonica(p.nome)) ?? null }));
     return propsDasPaginas({ formatoId: ENCARTE_FORMATO, temaId: e.temaId, segmentoId: e.segmento, grade: ENCARTE_GRADE, produtos, config: configDoEncarte(e, configPadrao()) }, [])[0];
-  }, [e, fotos]);
+  }, [e, fotos, daPessoa]);
   const [largura, setLargura] = useState(0);
   useEffect(() => {
     const el = caixa.current;
@@ -50,16 +60,18 @@ function MiniaturaDoEncarte({ e, fotos }: { e: ModeloDeEncarte; fotos: Map<strin
   );
 }
 
-export function EncartesDoStudio() {
+export function EncartesDoStudio({ titulo = true }: { titulo?: boolean }) {
   const fotos = useFotosDosEncartes();
   return (
     <section aria-labelledby="titulo-encartes" className="space-y-3" data-testid="studio-encartes">
+      {titulo && (
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 id="titulo-encartes" className="flex items-center gap-2 text-base font-bold text-white"><span className="h-5 w-1 rounded bg-[#FFD400]" />Encartes de mercado</h2>
           <p className="text-xs text-slate-400">15 produtos com foto real, 3 em destaque com "de/por". Troque produtos, nomes e preços — a foto do produto vem sozinha.</p>
         </div>
       </div>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {ENCARTES.map((e) => (
           <article key={e.id} className="sm-cartao-luz flex flex-col overflow-hidden rounded-xl p-2.5" data-testid="studio-encarte-card">

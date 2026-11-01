@@ -30,6 +30,7 @@ import {
   CHAVE_ARTE_PARA_VIDEO, dividir, duracaoDoClipe, duracaoTotal, formatarTempo, idNovo, inicios, noTempo, novoClipe, projetoVazio,
   type Clipe, type FaixaDeAudio, type ProjetoDeVideo, type Sobreposicao,
 } from '@/lib/studio/video/linha';
+import { cortarEm, moverClipePara, umQuadro, type Alvo, type Ferramenta } from '@/lib/studio/video/edicao';
 import { listarProjetos, meuSaldo, obterProjeto, salvarNasMidias, salvarProjeto } from '@/lib/studioai/api';
 import { baixar, nomeDoArquivo } from '@/lib/studioai/exportar';
 import type { PastaDaGaleria } from '@/lib/galeria';
@@ -142,6 +143,17 @@ export default function VideoEditorPage() {
   const mudarSob = (id: string, x: Partial<Sobreposicao>, suave = true) => (suave ? mudarSuave : mudar)((q) => ({ ...q, sobreposicoes: q.sobreposicoes.map((s) => (s.id === id ? normalizar({ ...s, ...x } as Sobreposicao) : s)) }));
   const mudarAudio = (id: string, x: Partial<FaixaDeAudio>, suave = true) => (suave ? mudarSuave : mudar)((q) => ({ ...q, audios: q.audios.map((a) => (a.id === id ? { ...a, ...x } : a)) }));
 
+  // F-232: ferramentas da linha do tempo (estilo DaVinci Resolve)
+  const [ferramenta, setFerramenta] = useState<Ferramenta>('selecao');
+  const [ima, setIma] = useState(true);
+  const cortarComLamina = (alvo: Alvo, t: number) => {
+    const r = cortarEm(p, alvo, t);
+    if (!r) { toast.info('Corte muito perto da ponta: toque um pouco mais para dentro.'); return; }
+    mudar(() => r.projeto);
+    setSel({ tipo: alvo.tipo, id: r.novoId });
+  };
+  const moverClipeNaFaixa = (id: string, inicioNovo: number) => mudar((q) => moverClipePara(q, id, inicioNovo), false);
+
   const clipeSel = sel?.tipo === 'clipe' ? p.clipes.find((c) => c.id === sel.id) ?? null : null;
   const sobSel = sel?.tipo === 'sob' ? p.sobreposicoes.find((s) => s.id === sel.id) ?? null : null;
   const audioSel = sel?.tipo === 'audio' ? p.audios.find((a) => a.id === sel.id) ?? null : null;
@@ -169,6 +181,18 @@ export default function VideoEditorPage() {
       const ctrl = e.ctrlKey || e.metaKey;
       if (e.key === ' ') { e.preventDefault(); tocarPausar(); }
       else if (ctrl && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) refazer(); else desfazer(); }
+      // F-232: atalhos do DaVinci — B lâmina, A seleção, N ímã, Ctrl+B dividir no cursor, setas = 1 quadro, J/K/L
+      else if (ctrl && e.key.toLowerCase() === 'b') { e.preventDefault(); dividirNoCursor(); }
+      else if (!ctrl && e.key.toLowerCase() === 'b') setFerramenta('lamina');
+      else if (!ctrl && e.key.toLowerCase() === 'a') setFerramenta('selecao');
+      else if (!ctrl && e.key.toLowerCase() === 'n') setIma((v) => !v);
+      else if (e.key === 'ArrowRight') { e.preventDefault(); ir(umQuadro(tempo, 1)); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); ir(umQuadro(tempo, -1)); }
+      else if (e.key.toLowerCase() === 'k') { motor.current?.pausar(); setTocando(false); }
+      else if (e.key.toLowerCase() === 'l') { if (!motor.current?.tocando) tocarPausar(); }
+      else if (e.key.toLowerCase() === 'j') { motor.current?.pausar(); setTocando(false); ir(Math.max(0, tempo - 1)); }
+      else if (e.key === 'Home') ir(0);
+      else if (e.key === 'End') ir(total);
       else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); excluir(); }
     };
     window.addEventListener('keydown', tecla);
@@ -409,7 +433,8 @@ export default function VideoEditorPage() {
           </div>
 
           <LinhaDoTempo projeto={p} tempo={tempo} sel={sel} motor={motor.current} versaoMidia={versaoMidia} onSelecionar={(s) => { setSel(s); if (s?.tipo === 'clipe') { const i = p.clipes.findIndex((c) => c.id === s.id); const ini = inicios(p.clipes)[i]; if (tempo < ini || tempo > ini + duracaoDoClipe(p.clipes[i])) ir(ini + 0.05); } else if (s?.tipo === 'sob') { const x = p.sobreposicoes.find((o) => o.id === s.id); if (x && (tempo < x.de || tempo >= x.ate)) ir(x.de + 0.05); } }}
-            onIr={ir} onInicio={lembrar} onClipe={(id, x) => mudarClipe(id, x, false)} onSob={(id, x) => mudarSob(id, x, false)} onAudio={(id, x) => mudarAudio(id, x, false)} />
+            onIr={ir} onInicio={lembrar} onClipe={(id, x) => mudarClipe(id, x, false)} onSob={(id, x) => mudarSob(id, x, false)} onAudio={(id, x) => mudarAudio(id, x, false)}
+            ferramenta={ferramenta} ima={ima} onFerramenta={setFerramenta} onIma={setIma} onDividir={dividirNoCursor} onCortarEm={cortarComLamina} onMoverClipe={moverClipeNaFaixa} />
         </div>
 
         {/* ── ferramentas do escolhido */}

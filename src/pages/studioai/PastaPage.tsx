@@ -7,6 +7,8 @@ import { nomeDoSegmento } from '@/lib/studio/catalogo';
 import type { ModeloDeArte } from '@/lib/studio/modelos';
 import { useCatalogo } from '@/lib/studioai/modelos';
 import { cn } from '@/lib/utils';
+import { PASTA_ENCARTES } from '@/components/studio/EncartesDoStudio';
+import { PastaDeEncartes } from '@/components/studio/PastaDeEncartes';
 
 function Cartao({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
   const destino = `/studio/editar/${m.id}?formato=${encodeURIComponent(formato)}`;
@@ -24,6 +26,10 @@ function Cartao({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
 /** Pasta de um card do catálogo: o modelo de capa e as variações do mesmo segmento, em 16:9 ou 9:16. */
 export default function PastaPage() {
   const { pastaId } = useParams();
+  return pastaId === PASTA_ENCARTES ? <PastaDeEncartes /> : <PastaDeModelos pastaId={pastaId} />;
+}
+
+function PastaDeModelos({ pastaId }: { pastaId: string | undefined }) {
   const catalogo = useCatalogo();
   const pasta = catalogo.pastas.find((p) => p.capa.id === pastaId);
   const [formato, setFormato] = useState<FormatoDoc>(() => (pasta?.capa.formato as FormatoDoc) ?? '16:9');

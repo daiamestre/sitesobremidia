@@ -111,7 +111,9 @@ describe('encartes de mercado (Studio)', () => {
   it('o Studio mostra os encartes e abre o editor do Cartaz Digital já montado (mesmas opções)', () => {
     expect(fs.readFileSync('src/App.tsx', 'utf8')).toMatch(/path="encarte\/:encarteId" element=\{<StudioEncarte \/>\}/);
     expect(fs.readFileSync('src/pages/studioai/EncartePage.tsx', 'utf8')).toMatch(/<TabloideEditor[\s\S]*encarte=\{encarte\}/);
-    expect(fs.readFileSync('src/pages/studioai/CatalogoPage.tsx', 'utf8')).toMatch(/<EncartesDoStudio \/>/);
+    // F-232: os encartes são uma PASTA da grade do catálogo (capa que gira) e a página da pasta lista os 12
+    expect(fs.readFileSync('src/pages/studioai/CatalogoPage.tsx', 'utf8')).toMatch(/<CapaDaPastaDeEncartes \/>/);
+    expect(fs.readFileSync('src/pages/studioai/PastaPage.tsx', 'utf8')).toMatch(/pastaId === PASTA_ENCARTES \? <PastaDeEncartes \/>/);
     // a arte é planejada pelos agentes do Creative Core e criada na Cloudflare; o robô tenta de novo a cada 3 h
     const script = fs.readFileSync('scripts/studio/gerar-artes-encartes.mjs', 'utf8');
     expect(script).toMatch(/planejarComCore/);
