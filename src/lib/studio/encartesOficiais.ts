@@ -4,7 +4,7 @@
 // endereço. O resultado é uma arte de camadas do Studio (abre no editor, anima, vira vídeo e vai para as telas).
 // Fundo novo do dono = uma entrada em ENCARTES_OFICIAIS + as imagens em public/studio/encartes-oficiais/.
 import { TAMANHO_DOC, forma, imagem, larguraDoTexto, texto, type Camada, type Documento, type FormatoDoc } from './documento';
-import { ETIQUETA_AMARELA, ETIQUETA_VERMELHA, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta } from './palco';
+import { ESTILOS_DE_BALAO, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta } from './palco';
 import { QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta, type GradeDaArea } from './gradeInteligente';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
@@ -33,15 +33,17 @@ export interface EncarteOficial {
   /** F-240: o mesmo encarte em pé (9:16) e deitado (16:9), cada um com o fundo do dono */
   formatos: Partial<Record<FormatoDoc, LayoutDoEncarte>>;
   corTelefone: string; corEndereco: string;
+  /** F-245: sombra nos contatos quando eles ficam sobre o fundo azul */
+  sombraContato?: boolean;
 }
 
 export const PASTA_ENCARTES_OFICIAIS = 'encartes-de-mercado';
 
-const VERMELHO = { etiqueta: ETIQUETA_AMARELA, sombraNome: 'rgba(70,0,6,.7)' };
-const AZUL = { etiqueta: ETIQUETA_VERMELHA, sombraNome: 'rgba(0,10,70,.7)' };
-// F-243: fundo azul-claro (etiqueta amarela) e cartão amarelo (nome escuro e etiqueta vermelha) da Semana do Frango
-const AZUL_CLARO = { etiqueta: ETIQUETA_AMARELA, sombraNome: 'rgba(0,30,90,.75)', corPlaca: 'rgba(0,40,120,.22)', bordaPlaca: 'rgba(255,255,255,.4)' };
-const CARTAO_AMARELO = { etiqueta: ETIQUETA_VERMELHA, sombraNome: 'transparent', corNome: '#6e0010', corPlaca: 'rgba(255,255,255,.5)', bordaPlaca: 'rgba(255,255,255,.75)' };
+const VERMELHO = { etiqueta: ESTILOS_DE_BALAO['placa-amarela'], sombraNome: 'rgba(70,0,6,.7)' };
+const AZUL = { etiqueta: ESTILOS_DE_BALAO['placa-vermelha'], sombraNome: 'rgba(0,10,70,.7)' };
+// F-243: fundo azul-claro e cartão amarelo (nome escuro) da Semana do Frango; F-245: balão oval da referência do dono
+const AZUL_CLARO = { etiqueta: ESTILOS_DE_BALAO['oval-vermelho'], sombraNome: 'rgba(0,30,90,.75)', corPlaca: 'rgba(0,40,120,.22)', bordaPlaca: 'rgba(255,255,255,.4)' };
+const CARTAO_AMARELO = { etiqueta: ESTILOS_DE_BALAO['oval-vermelho'], sombraNome: 'transparent', corNome: '#6e0010', corPlaca: 'rgba(255,255,255,.5)', bordaPlaca: 'rgba(255,255,255,.75)' };
 
 export const ENCARTES_OFICIAIS: EncarteOficial[] = [
   {
@@ -72,7 +74,7 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = [
         cartao: 0.8,
       },
     },
-    corTelefone: '#d90f1f', corEndereco: '#0b2a8f',
+    corTelefone: '#c4001d', corEndereco: '#0b2a8f',
   },
   {
     id: 'semana-do-frango', nome: 'Semana do Frango – azul e amarelo',
@@ -104,7 +106,7 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = [
         cartao: 0.8,
       },
     },
-    corTelefone: '#d90f1f', corEndereco: '#06306b',
+    corTelefone: '#ffffff', corEndereco: '#ffffff', sombraContato: true,
   },
 ];
 export const encarteOficialPorId = (id: string | null | undefined) => ENCARTES_OFICIAIS.find((e) => e.id === id) ?? null;
@@ -122,20 +124,22 @@ function celula(p: Produto, b: Caixa, col: ColunaDoEncarte, n: number, atraso: n
   const nomear = (c: Camada) => ({ ...c, nome: `${c.nome} ${n}` });
   out.push({ ...forma('Placa', b.x, b.y, b.w, b.h, { cor: col.corPlaca ?? 'rgba(255,255,255,.10)', raio: Math.round(Math.min(b.w, b.h) * 0.08), borda: { cor: col.bordaPlaca ?? 'rgba(255,255,255,.28)', largura: 2 } }), nome: `Placa ${n}`, animacao: ani('surgir', atraso, 0.5) });
   const vertical = b.h >= b.w * 0.8;
+  const oval = col.etiqueta.formato === 'oval'; // o balão oval precisa de mais altura e não estica até a largura toda
   let foto: Caixa, nomeB: Caixa, preco: Caixa;
   if (vertical) {
-    const th = Math.min(b.h * 0.2, b.w * 0.3), nh = Math.min(b.h * 0.17, b.w * 0.3);
+    const th = oval ? Math.min(b.h * 0.25, b.w * 0.38) : Math.min(b.h * 0.2, b.w * 0.3), nh = Math.min(b.h * 0.17, b.w * 0.3);
     foto = { x: b.x + pad, y: b.y + pad, w: b.w - 2 * pad, h: b.h - 2 * pad - th - nh - pad * 0.6 };
     nomeB = { x: b.x + pad, y: foto.y + foto.h + pad * 0.3, w: b.w - 2 * pad, h: nh };
-    const tw = Math.min(b.w - 2 * pad, th * 3.2);
+    const tw = Math.min(b.w - 2 * pad, th * (oval ? 2.2 : 3.2));
     preco = { x: b.x + (b.w - tw) / 2, y: b.y + b.h - pad - th, w: tw, h: th };
   } else {
     const fw = Math.min(b.h - 2 * pad, b.w * 0.42);
     foto = { x: b.x + pad, y: b.y + pad, w: fw, h: b.h - 2 * pad };
     const rx = foto.x + fw + pad, rw = b.x + b.w - pad - rx;
     nomeB = { x: rx, y: b.y + pad, w: rw, h: (b.h - 2 * pad) * 0.48 };
-    const th = Math.min((b.h - 2 * pad) * 0.46, rw * 0.42);
-    preco = { x: rx, y: b.y + b.h - pad - th, w: rw, h: th };
+    const th = oval ? Math.min((b.h - 2 * pad) * 0.52, rw * 0.46) : Math.min((b.h - 2 * pad) * 0.46, rw * 0.42);
+    const tw = oval ? Math.min(rw, th * 2.2) : rw;
+    preco = { x: rx + (rw - tw) / 2, y: b.y + b.h - pad - th, w: tw, h: th };
   }
   if (p.imagem?.url) out.push({ ...imagem(`Produto ${n}`, p.imagem.url, foto.x, foto.y, foto.w, foto.h, { ajuste: 'conter', focoX: 50, focoY: vertical ? 100 : 50, sombra: null }), animacao: ani('zoom', atraso + 0.15, 0.55) });
   const nome = nomeDoProduto(p.nome, { ...nomeB, alinhamento: vertical ? 'center' : 'left' });
@@ -166,46 +170,49 @@ function camadasDaLogo(l: LogoDoCliente, b: Caixa): Camada[] {
   ];
 }
 
+const ICONE_FONE = '/studio/encartes-oficiais/icone-whatsapp.svg';
+const ICONE_LOCAL = '/studio/encartes-oficiais/icone-local.svg';
 /**
- * Telefone em pílula vermelha e endereço, centralizados na faixa amarela do rodapé: um embaixo do outro quando a faixa
- * é alta (em pé), lado a lado quando ela é baixa (deitado).
+ * F-245 — contatos como na referência do dono: ícone verde com o telefone e ícone de localização com o endereço, centralizados
+ * na faixa: lado a lado quando ela é baixa e um embaixo do outro quando é alta. O endereço usa até 2 linhas.
  */
 function camadasDoRodape(e: EncarteOficial, r: Caixa, d: DadosDoEncarte): Camada[] {
   const tel = d.telefone?.trim(), end = d.endereco?.trim();
   if (!tel && !end) return [];
+  const emLinha = r.h < 160;
+  const icone = Math.round(emLinha ? r.h * 0.62 : 64), vao = Math.round(icone * 0.22);
+  const tTel = Math.round(emLinha ? r.h * 0.5 : 62);
+  const sombra = e.sombraContato ? { cor: 'rgba(0,30,90,.7)', desfoque: 6, dx: 0, dy: 3 } : null;
+  const wTelTexto = tel ? larguraDoTexto(tel, 'anton', tTel) + 8 : 0;
+  const wTel = tel ? icone + vao + wTelTexto : 0;
+  const espaco = tel && end ? Math.round(r.w * 0.04) : 0;
+  // o endereço diminui até caber em 2 linhas no que sobra da faixa
+  const larguraEnd = Math.max(120, (emLinha ? r.w - wTel - espaco : r.w) - icone - vao);
+  let tEnd = Math.round(emLinha ? r.h * 0.3 : 38);
+  const textoEnd = (x: number) => texto('Endereço', end ?? '', x, 0, larguraEnd, { fonte: 'poppins', peso: 800, tamanho: tEnd, maiusculas: true, alinhamento: 'left', cor: e.corEndereco, entrelinha: 1.1, sombra });
+  const alturaEnd = emLinha ? r.h : r.h * 0.46;
+  while (end && textoEnd(0).h > alturaEnd && tEnd > 16) tEnd -= 2;
+  const wEndTexto = end ? Math.min(larguraEnd, larguraDoTexto(end.toUpperCase(), 'poppins', tEnd, 800) + 8) : 0;
+  const wEnd = end ? icone + vao + wEndTexto : 0;
   const out: Camada[] = [];
-  if (r.h < 160) {
-    const tTel = Math.round(r.h * 0.44), m = Math.round(tTel * 0.4);
-    let tEnd = Math.round(r.h * 0.3);
-    const wTel = tel ? larguraDoTexto(tel, 'anton', tTel) + 2 * m + 8 : 0;
-    const espaco = tel && end ? 44 : 0;
-    while (end && wTel + espaco + larguraDoTexto(end, 'poppins', tEnd, 700) > r.w && tEnd > 20) tEnd -= 2;
-    const wEnd = end ? Math.min(r.w - wTel - espaco, larguraDoTexto(end, 'poppins', tEnd, 700) + 8) : 0;
+  const telefone = (x: number, cy: number) => {
+    const t = texto('Telefone', tel!, x + icone + vao, 0, wTelTexto, { fonte: 'anton', tamanho: tTel, alinhamento: 'left', cor: e.corTelefone, entrelinha: 1.1, sombra });
+    out.push({ ...imagem('Ícone do telefone', ICONE_FONE, x, cy - icone / 2, icone, icone, { ajuste: 'conter' }), animacao: ani('zoom', 0.4, 0.5) }, { ...t, y: cy - t.h / 2, animacao: ani('subir', 0.4, 0.5) });
+  };
+  const endereco = (x: number, cy: number) => {
+    const t = { ...textoEnd(x + icone + vao), w: wEndTexto };
+    out.push({ ...imagem('Ícone do endereço', ICONE_LOCAL, x, cy - icone / 2, icone, icone, { ajuste: 'conter' }), animacao: ani('zoom', 0.55, 0.5) }, { ...t, y: cy - t.h / 2, animacao: ani('subir', 0.55, 0.5) });
+  };
+  if (emLinha) {
     let x = r.x + (r.w - (wTel + espaco + wEnd)) / 2;
-    if (tel) {
-      const t = texto('Telefone', tel, x, 0, wTel, { fonte: 'anton', tamanho: tTel, alinhamento: 'center', cor: '#ffffff', entrelinha: 1.1, fundo: { cor: e.corTelefone, raio: 50, margem: m } });
-      out.push({ ...t, y: r.y + (r.h - t.h) / 2, animacao: ani('subir', 0.4, 0.5) });
-      x += wTel + espaco;
-    }
-    if (end) {
-      const t = texto('Endereço', end, x, 0, wEnd, { fonte: 'poppins', peso: 700, tamanho: tEnd, alinhamento: tel ? 'left' : 'center', cor: e.corEndereco, entrelinha: 1.1 });
-      out.push({ ...t, y: r.y + (r.h - t.h) / 2, animacao: ani('subir', 0.55, 0.5) });
-    }
-    return out;
+    const cy = r.y + r.h / 2;
+    if (tel) { telefone(x, cy); x += wTel + espaco; }
+    if (end) endereco(x, cy);
+  } else {
+    const cx = r.x + r.w / 2;
+    if (tel) telefone(cx - wTel / 2, end ? r.y + r.h * 0.3 : r.y + r.h / 2);
+    if (end) endereco(cx - wEnd / 2, tel ? r.y + r.h * 0.74 : r.y + r.h / 2);
   }
-  const tTel = 64;
-  let tEnd = 40;
-  while (end && larguraDoTexto(end, 'poppins', tEnd, 700) > r.w * 1.9 && tEnd > 24) tEnd -= 2;
-  const telH = tel ? tTel * 1.1 + 2 * 18 : 0;
-  const endT = end ? texto('Endereço', end, r.x, 0, r.w, { fonte: 'poppins', peso: 700, tamanho: tEnd, alinhamento: 'center', cor: e.corEndereco, entrelinha: 1.1 }) : null;
-  const gap = tel && end ? 18 : 0;
-  let y = r.y + (r.h - (telH + gap + (endT?.h ?? 0))) / 2;
-  if (tel) {
-    const t = texto('Telefone', tel, r.x, y + 18, r.w, { fonte: 'anton', tamanho: tTel, alinhamento: 'center', cor: '#ffffff', entrelinha: 1.1, fundo: { cor: e.corTelefone, raio: 50, margem: 26 } });
-    out.push({ ...t, animacao: ani('subir', 0.4, 0.5) });
-    y += telH + gap;
-  }
-  if (endT) out.push({ ...endT, y, animacao: ani('subir', 0.55, 0.5) });
   return out;
 }
 

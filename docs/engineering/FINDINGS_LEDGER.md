@@ -2945,3 +2945,13 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Painel "Seus produtos": seletor "Mostrar" sempre à vista, com aviso de quantos faltam. Guardado em `studio-quantidade-produtos`.
   - Palco: passa só os N primeiros produtos com preço.
 - **Prova:** `studioGradeInteligente244.test.ts` (2 encartes oficiais, 2 formatos, 7 quantidades; todos os modelos A4 em todas as quantidades); navegador: 16 (4 × 4) e 4 produtos (grandes).
+
+### F-245 — Catálogo de balões de preço (cada encarte com o seu) e contatos com ícones — FEITO
+
+- **Pedido do dono (01/11/2026):** referência da Semana do Frango: balão de preço igual ao da imagem, gravar os estilos para cada encarte ter o seu, e telefone e endereço parecidos com a referência.
+- **Feito:**
+  - `palco.ts`: `ESTILOS_DE_BALAO` (`placa-vermelha`, `placa-amarela`, `oval-vermelho`); o balão redondo do palco é o `seloDoPreco`. Referência nova do dono = um estilo novo nessa lista. O oval (`baloesOvais`) tem aro branco, corpo vermelho com borda amarela, "de" em cima na promoção e R$ + valor + centavos centralizados.
+  - Semana do Frango usa o oval nas duas áreas; Mega Oferta segue com as placas.
+  - `camadasDoRodape`: ícone verde com o telefone e ícone de localização com o endereço, nos dois encartes; lado a lado em faixa baixa, empilhado em faixa alta; endereço em até 2 linhas.
+- **Limite:** a referência chegou só na conversa, pequena (cerca de 277 px): cores e forma foram lidas dessa imagem, não de um arquivo. Com o arquivo maior dá para acertar os detalhes.
+- **Prova:** `studioBaloes245.test.ts`; imagens conferidas no navegador.

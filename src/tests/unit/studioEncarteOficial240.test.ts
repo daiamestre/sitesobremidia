@@ -16,12 +16,11 @@ describe('F-243 — Semana do Frango', () => {
     expect(ENCARTES_OFICIAIS.map((x) => x.id)).toEqual(['mega-oferta-bicolor', 'semana-do-frango']);
     expect(formatosDoEncarte(f)).toEqual(['9:16', '16:9']);
   });
-  it('no cartão amarelo o nome é escuro e a etiqueta vermelha; no azul o nome é branco e a etiqueta amarela', () => {
+  it('no cartão amarelo o nome é escuro; no azul é branco; os dois com o balão oval do encarte', () => {
     const d = documentoDoEncarteOficial(f, [produto(1), produto(2)], {}, '9:16');
     expect(d.camadas.find((c) => c.nome === 'Nome do produto 1')).toMatchObject({ cor: '#ffffff' });
     expect(d.camadas.find((c) => c.nome === 'Nome do produto 2')).toMatchObject({ cor: '#6e0010', sombra: null });
-    expect(d.camadas.find((c) => c.nome === 'Preço 1')).toMatchObject({ degrade: { de: '#ffe45c' } });
-    expect(d.camadas.find((c) => c.nome === 'Preço 2')).toMatchObject({ degrade: { de: '#ff2d40' } });
+    for (const n of [1, 2]) expect(d.camadas.find((c) => c.nome === `Preço ${n}`)).toMatchObject({ forma: 'elipse', borda: { cor: '#ffd21f' } });
   });
   it('a grade do azul e a do cartão não batem no título, nas moedas nem no rodapé', () => {
     for (const k of ['9:16', '16:9'] as const) {

@@ -94,9 +94,20 @@ export function nomeDoProduto(nome: string, b: Caixa & { alinhamento: 'left' | '
   return t;
 }
 
-export interface CoresDaEtiqueta { de: string; para: string; borda: string; valor: string; moeda: string; detalhe: string }
+/** F-245: estilo de um balão de preço: forma, cores e aro externo. */
+export interface CoresDaEtiqueta { de: string; para: string; borda: string; valor: string; moeda: string; detalhe: string; formato?: 'placa' | 'oval'; aroFora?: string }
 export const ETIQUETA_VERMELHA: CoresDaEtiqueta = { de: '#ff2d40', para: '#a3001a', borda: '#ffd21f', valor: '#ffffff', moeda: '#ffd21f', detalhe: '#ffe9a8' };
 export const ETIQUETA_AMARELA: CoresDaEtiqueta = { de: '#ffe45c', para: '#f2a900', borda: '#ffffff', valor: '#c40f24', moeda: '#c40f24', detalhe: '#7a0010' };
+export const BALAO_OVAL_VERMELHO: CoresDaEtiqueta = { formato: 'oval', de: '#ff3a2e', para: '#c40015', borda: '#ffd21f', aroFora: '#ffffff', valor: '#ffffff', moeda: '#ffd21f', detalhe: '#ffe9a8' };
+/**
+ * F-245 — CATÁLOGO DE BALÕES DE PREÇO: cada encarte escolhe o seu aqui (o do palco é o `seloDoPreco`, redondo).
+ * Referência nova do dono = um estilo novo nesta lista.
+ */
+export const ESTILOS_DE_BALAO = {
+  'placa-vermelha': ETIQUETA_VERMELHA, // Mega Oferta, lado azul
+  'placa-amarela': ETIQUETA_AMARELA, // Mega Oferta, lado vermelho
+  'oval-vermelho': BALAO_OVAL_VERMELHO, // Semana do Frango
+} as const;
 
 /**
  * Etiqueta de preço profissional: placa vermelha com borda amarela; "R$" pequeno, o valor grande e os centavos em cima,
@@ -108,6 +119,8 @@ export function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'pr
   const de = p.precoDe != null && p.precoDe > p.preco ? formatarPreco(p.precoDe) : null;
   const un = p.unidade && p.unidade !== 'UN' ? p.unidade : '';
   const entrada = ani('zoom', 0.9, 0.5);
+  const oval = cores.formato === 'oval';
+  if (oval) return baloesOvais(b, v, de, un, cores, entrada);
   const out: Camada[] = [{ ...forma('Preço', b.x, b.y, b.w, b.h, { cor: cores.de, degrade: { de: cores.de, para: cores.para, angulo: 180 }, raio: Math.round(b.h * 0.22), borda: { cor: cores.borda, largura: Math.max(4, Math.round(b.h * 0.06)) }, sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 24, dx: 0, dy: 10 } }), animacao: entrada }];
   // tamanhos a partir da altura da placa; reduz junto se não couber na largura
   let k = 1;
@@ -133,6 +146,36 @@ export function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'pr
   x += m.wInt + b.h * 0.04 * k;
   out.push(t('Preço — centavos', `,${v.centavos}`, 'anton', m.tCent, x, yInt + m.tInt * 0.06, m.wCent, cores.valor));
   if (un) out.push(t('Preço — unidade', un, 'poppins', m.tDe, x, yInt + m.tInt * 0.52, m.wUn, cores.detalhe, 800));
+  return out;
+}
+
+/** F-245: balão oval: aro externo, corpo com degradê, "de" em cima (na promoção) e R$ + valor + centavos centralizados. */
+function baloesOvais(b: Caixa, v: { inteiro: string; centavos: string }, de: { inteiro: string; centavos: string } | null, un: string, cores: CoresDaEtiqueta, entrada: NonNullable<Camada['animacao']>): Camada[] {
+  const aro = Math.max(3, Math.round(b.h * 0.04));
+  const out: Camada[] = [];
+  if (cores.aroFora) out.push({ ...forma('Preço — aro', b.x, b.y, b.w, b.h, { forma: 'elipse', cor: cores.aroFora, sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 20, dx: 0, dy: 8 } }), animacao: entrada });
+  const c = { x: b.x + aro, y: b.y + aro, w: b.w - 2 * aro, h: b.h - 2 * aro };
+  out.push({ ...forma('Preço', c.x, c.y, c.w, c.h, { forma: 'elipse', cor: cores.de, degrade: { de: cores.de, para: cores.para, angulo: 180 }, borda: { cor: cores.borda, largura: Math.max(3, Math.round(b.h * 0.05)) } }), animacao: entrada });
+  // a parte central do oval é a que cabe texto; os tamanhos descem juntos até caber
+  let k = 1;
+  const medidas = () => {
+    const tInt = c.h * (de ? 0.54 : 0.64) * k, tRs = tInt * 0.34, tCent = tInt * 0.44;
+    const wInt = larguraDoTexto(v.inteiro, 'anton', tInt), wCent = larguraDoTexto(`,${v.centavos}`, 'anton', tCent), wRs = larguraDoTexto('R$', 'anton', tRs);
+    return { tInt, tRs, tCent, wInt, wCent, wRs, total: wRs + tInt * 0.08 + wInt + tInt * 0.03 + wCent };
+  };
+  let m = medidas();
+  while (m.total > c.w * 0.74 && k > 0.4) { k *= 0.93; m = medidas(); }
+  const t = (nome: string, txt: string, fonte: string, tam: number, xx: number, yy: number, w: number, cor: string, peso?: number, alinhamento: 'left' | 'center' = 'left') =>
+    ({ ...texto(nome, txt, xx, yy, w, { fonte, peso, tamanho: Math.round(tam), alinhamento, cor, entrelinha: 1 }), animacao: entrada });
+  const yInt = c.y + (c.h - m.tInt) / 2 + (de ? c.h * 0.1 : 0);
+  if (de) out.push(t('Preço — de', `DE ${de.inteiro},${de.centavos}`, 'poppins', Math.max(14, c.h * 0.15), c.x, c.y + c.h * 0.11, c.w, cores.detalhe, 800, 'center'));
+  let x = c.x + (c.w - m.total) / 2;
+  out.push(t('Preço — R$', 'R$', 'anton', m.tRs, x, yInt + m.tInt * 0.34, m.wRs + 4, cores.moeda));
+  x += m.wRs + m.tInt * 0.08;
+  out.push(t('Preço — valor', v.inteiro, 'anton', m.tInt, x, yInt, m.wInt + 4, cores.valor));
+  x += m.wInt + m.tInt * 0.03;
+  out.push(t('Preço — centavos', `,${v.centavos}`, 'anton', m.tCent, x, yInt + m.tInt * 0.02, m.wCent + 4, cores.valor));
+  if (un) out.push(t('Preço — unidade', un, 'poppins', Math.max(13, m.tInt * 0.24), x, yInt + m.tInt * 0.56, m.wCent + 4, cores.moeda, 800));
   return out;
 }
 
