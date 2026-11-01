@@ -6,7 +6,7 @@ import { TAMANHO_DOC, forma, imagem, selo, texto, type Camada, type Documento, t
 import { novoClipe, projetoVazio, type ProjetoDeVideo } from './video/linha';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
-export interface OpcoesDoPalco { titulo?: string; logoUrl?: string | null; segundos?: number }
+export interface OpcoesDoPalco { titulo?: string; logoUrl?: string | null; segundos?: number; /** F-235: logo 3D (PNG) no lugar do título escrito */ logoTitulo?: { url: string; largura: number; altura: number } | null }
 export const SEGUNDOS_POR_PRODUTO = 4;
 export const PASTA_PALCO = 'palco-de-ofertas';
 
@@ -33,7 +33,15 @@ export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'prec
     contorno: { cor: '#6d0012', largura: 10 }, sombra: { cor: 'rgba(0,0,0,.45)', desfoque: 22, dx: 0, dy: 10 },
   });
   Object.assign(tit, em ? { x: (W - tit.w) / 2, y: 90 } : { x: W * 0.62 - tit.w * 0.08, y: 70 });
-  c.push({ ...tit, animacao: ani('descer', 0.15, 0.7) });
+  if (o.logoTitulo) {
+    // a logo 3D ocupa a caixa do título, inteira e na proporção dela
+    const caixaW = em ? W * 0.9 : W * 0.56, caixaH = em ? H * 0.2 : H * 0.34;
+    const r = Math.min(caixaW / o.logoTitulo.largura, caixaH / o.logoTitulo.altura);
+    const lw = o.logoTitulo.largura * r, lh = o.logoTitulo.altura * r;
+    const lx = em ? (W - lw) / 2 : W * 0.6 + (W * 0.38 - lw) / 2;
+    c.push({ ...imagem('Título', o.logoTitulo.url, lx, em ? 60 : 50, lw, lh, { ajuste: 'conter' }), animacao: ani('zoom', 0.15, 0.7, 'flutuar') });
+    tit.y = (em ? 60 : 50) + lh - tit.h; // a logo do mercado fica logo abaixo
+  } else c.push({ ...tit, animacao: ani('descer', 0.15, 0.7) });
   const logoW = em ? W * 0.44 : W * 0.2, logoH = em ? 150 : 130;
   const logoX = em ? (W - logoW) / 2 : W - W * 0.04 - logoW, logoY = em ? tit.y + tit.h + 30 : H * 0.05;
   if (o.logoUrl) c.push({ ...imagem('Logo', o.logoUrl, logoX, logoY, logoW, logoH, { ajuste: 'conter' }), animacao: ani('zoom', 0.35, 0.5) });

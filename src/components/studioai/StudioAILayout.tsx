@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, ChevronDown, Clapperboard, Coins, FolderKanban, Home, ImagePlay, LogOut, Menu, Play, Search, Settings, Sparkles, X } from 'lucide-react';
+import { Bell, ChevronDown, Clapperboard, Coins, FolderKanban, Gem, Home, ImagePlay, LogOut, Menu, Play, Search, Settings, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { meuSaldo } from '@/lib/studioai/api';
@@ -77,6 +77,8 @@ function MenuLateral({ anunciante, carregado, onNavegar }: { anunciante: boolean
     { nome: 'Editor de vídeo', to: '/studio/video', icone: Clapperboard },
     { nome: 'Meus Projetos', to: '/studio/projetos', icone: FolderKanban },
     { nome: 'Criar com IA', to: '/studio/ia', icone: Sparkles },
+    // F-235: títulos 3D de encarte (volume, chanfro, brilho, enfeites) que vão para os encartes e o Palco
+    { nome: 'Logos 3D', to: '/studio/logos', icone: Gem },
     { nome: 'Configurações do Studio', to: '/studio/configuracoes', icone: Settings },
   ];
   return (

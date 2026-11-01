@@ -29,6 +29,8 @@ export interface ModeloDeEncarte {
   arte: string;
   /** produtos de exemplo, um por linha (o cliente troca tudo) */
   produtos: string;
+  /** F-235: logo 3D da galeria (criada no Studio) no lugar do título desenhado */
+  logoCabecalhoId?: string | null;
 }
 
 /** Cesta de mercado de exemplo: 3 destaques com "de/por" e 12 produtos na grade. */
@@ -114,8 +116,8 @@ export function configDoEncarte(e: ModeloDeEncarte, c: ConfigCartaz): ConfigCart
     destaques: 3,
     faixaArte: arteDoEncarte(e),
     temaModo: 'cabecalho',
-    cabecalhoEmTexto: true,
-    logoCabecalhoId: null,
+    cabecalhoEmTexto: !e.logoCabecalhoId,
+    logoCabecalhoId: e.logoCabecalhoId ?? null,
     logoAqui: true,
     boxes: e.boxes ?? 'coluna',
     cores: e.cores ?? 'inteligente',

@@ -18,12 +18,13 @@ import { SEGUNDOS_POR_PRODUTO, palcoDoProduto, projetoDoCarrossel } from '@/lib/
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
 import { useFotosDosEncartes } from './EncartesDoStudio';
+import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { PainelDeProdutos, useProdutosComFotos } from './ProdutosComFotos';
 
 /** A tela tocando o carrossel: um produto por vez, cada um com a sua animação no palco. */
 export function CarrosselNoPalco({ produtos, formato, titulo, className }: { produtos: Parameters<typeof palcoDoProduto>[0][]; formato: FormatoDoc; titulo?: string; className?: string }) {
   const slides = useMemo(() => produtos.map((p, i) => {
-    const doc = palcoDoProduto(p, formato, { titulo });
+    const doc = palcoDoProduto(p, formato, { titulo, logoTitulo: logoSalvaDoStudio() });
     return { chave: `${i}-${p.nome}-${p.preco}`, animada: () => <PreviaDocumento doc={doc} animar sempre /> };
   }), [produtos, formato, titulo]);
   return <CapaQueGira slides={slides} tempo={SEGUNDOS_POR_PRODUTO * 1000} ajuste="contain" className={cn('rounded-xl', className)} style={{ aspectRatio: formato === '9:16' ? '9 / 16' : '16 / 9' }} />;
@@ -45,7 +46,7 @@ export function PalcoDeOfertas() {
 
   const criarVideo = () => {
     if (!comPreco.length) { toast.error('Coloque pelo menos um produto com preço.'); return; }
-    const projeto = projetoDoCarrossel(comPreco, formato, { titulo });
+    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio() });
     try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ projeto, nome: `Palco de Ofertas – ${titulo}` })); } catch { toast.error('Não foi possível abrir o editor de vídeo.'); return; }
     navegar('/studio/video');
   };

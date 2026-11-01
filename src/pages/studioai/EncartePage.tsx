@@ -6,6 +6,7 @@ import { useClienteModalidade } from '@/modules/crm/hooks/useClienteModalidade';
 import { meuSaldo } from '@/lib/studioai/api';
 import { encartePorId } from '@/lib/tabloide/encartes';
 import { CHAVE_PRODUTOS_DO_ENCARTE } from '@/components/studio/PastaDeEncartes';
+import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 
 /**
  * F-231 — editar um ENCARTE DE MERCADO dentro do SOBRE MÍDIA Studio: é o editor do Cartaz Digital (mesmas opções:
@@ -17,7 +18,10 @@ export default function EncarteStudioPage() {
   const modelo = encartePorId(encarteId);
   // F-233: os produtos colocados na pasta (encartes de mercado) entram no editor
   const daPasta = (() => { try { return sessionStorage.getItem(CHAVE_PRODUTOS_DO_ENCARTE); } catch { return null; } })();
-  const encarte = modelo && daPasta && modelo.segmento === 'mercado' ? { ...modelo, produtos: daPasta } : modelo;
+  const comProdutos = modelo && daPasta && modelo.segmento === 'mercado' ? { ...modelo, produtos: daPasta } : modelo;
+  // F-235: a logo 3D criada no Studio vai para o cabeçalho
+  const logo = logoSalvaDoStudio();
+  const encarte = comProdutos && logo ? { ...comProdutos, logoCabecalhoId: logo.id } : comProdutos;
   const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo, staleTime: 30_000 });
   const { cliente } = useClienteModalidade();
   if (!encarte) return <div className="p-10 text-sm text-slate-300">Encarte não encontrado. <Link to="/studio" className="text-[#FFD400] hover:underline">Voltar aos modelos</Link></div>;
