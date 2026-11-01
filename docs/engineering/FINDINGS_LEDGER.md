@@ -2897,3 +2897,17 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `studioEncarteOficial240.test.ts` (6) confere: lados, sem sobreposição, rodapé, logo e editor.
   - Palco: teste de tamanho do balão e de nome e balão ao lado do produto.
   - Conferido no navegador com a conta de teste: pasta, logo PNG (solta), logo JPG (cartão), telefone, endereço e editor abrindo o encarte.
+
+### F-241 — Encarte oficial Mega Oferta também DEITADO (16:9), com o fundo do dono; editor recebe os dois formatos — FEITO
+
+- **Pedido do dono (01/11/2026):** mandou a versão 16:9 do fundo Mega Oferta, "Banner Promocional Mega Oferta.png" em Downloads.
+- **Feito:**
+  - Fundo 1920×1080 e a versão sem a caixa "SUA LOGO AQUI" (`mega-oferta-bicolor-h*.webp`), feita com a mesma interpolação das bordas.
+  - `EncarteOficial.formatos` guarda um layout por formato (fundo, colunas, logo, rodapé e `cartao`). No 16:9, a curva passa entre x 907 e 983 e o rodapé começa em 954.
+  - Organização: o sistema escolhe quantas colunas usar (1 a 4) para cada cartão ficar perto do formato preferido do layout. Em pé, cartões deitados, com 1 coluna até 6 produtos; deitado, cartões em pé, até 4 por linha. A última linha incompleta fica centralizada.
+  - Rodapé baixo (deitado): telefone e endereço lado a lado.
+  - Cartão da pasta com "TV em pé / TV deitada".
+  - `ArtePronta.docs` leva os dois formatos ao editor. `DadosV2.formatos` guarda quais formatos a arte tem (o outro nunca nasce do modelo-casca), e ao publicar cada TV recebe o seu.
+- **Prova:**
+  - `studioEncarteOficial240.test.ts` roda tudo nos 2 formatos: lados, formato dos cartões, rodapé lado a lado e editor.
+  - Conferido no navegador: pasta com 15 produtos reais nos dois formatos, editor com 16:9 e 9:16 do encarte.

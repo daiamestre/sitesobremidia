@@ -6,12 +6,14 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clapperboard, ImagePlus, MapPin, PenLine, Phone, Sparkles, Trash2 } from 'lucide-react';
+import { Clapperboard, ImagePlus, MapPin, Monitor, PenLine, Phone, Smartphone, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { enderecoDaArtePronta } from '@/lib/studio/artePronta';
 import { animarTudo, temAnimacao } from '@/lib/studio/animacao';
-import { documentoDoEncarteOficial, maxDeProdutos, PASTA_ENCARTES_OFICIAIS, type DadosDoEncarte, type EncarteOficial as Encarte, type LogoDoCliente } from '@/lib/studio/encartesOficiais';
+import { documentoDoEncarteOficial, formatosDoEncarte, maxDeProdutos, PASTA_ENCARTES_OFICIAIS, type DadosDoEncarte, type EncarteOficial as Encarte, type LogoDoCliente } from '@/lib/studio/encartesOficiais';
+import type { Documento, FormatoDoc } from '@/lib/studio/documento';
+import { cn } from '@/lib/utils';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
@@ -62,7 +64,12 @@ export function EncarteOficialCartao({ e, produtos, aoGravar }: { e: Encarte; pr
   const [dados, setDados] = useState<DadosDoEncarte>(lerDados);
   const arquivo = useRef<HTMLInputElement>(null);
   useEffect(() => { try { localStorage.setItem(CHAVE_DADOS, JSON.stringify(dados)); } catch { /* logo grande demais para guardar: segue sem lembrar */ } }, [dados]);
-  const doc = useMemo(() => documentoDoEncarteOficial(e, produtos, dados), [e, produtos, dados]);
+  // F-240: o mesmo encarte em pé (9:16) e deitado (16:9); o editor recebe os dois
+  const formatos = useMemo(() => formatosDoEncarte(e), [e]);
+  const [formato, setFormato] = useState<FormatoDoc>(formatos[0]);
+  const docs = useMemo(() => Object.fromEntries(formatos.map((f) => [f, documentoDoEncarteOficial(e, produtos, dados, f)])) as Partial<Record<FormatoDoc, Documento>>, [e, formatos, produtos, dados]);
+  const doc = docs[formato] ?? docs[formatos[0]]!;
+  const deitado = doc.formato === '16:9';
   const max = maxDeProdutos(e);
   const logo3d = logoSalvaDoStudio();
 
@@ -81,7 +88,7 @@ export function EncarteOficialCartao({ e, produtos, aoGravar }: { e: Encarte; pr
   const pasta = { chave: PASTA_ENCARTES_OFICIAIS, nome: 'Encartes de Mercado', segmento: 'supermercados' };
   const editar = () => {
     aoGravar();
-    try { navegar(enderecoDaArtePronta({ doc, nome, pasta, voltar: `/studio/pasta/${PASTA_ENCARTES_OFICIAIS}` })); }
+    try { navegar(enderecoDaArtePronta({ docs, formato: doc.formato, nome, pasta, voltar: `/studio/pasta/${PASTA_ENCARTES_OFICIAIS}` })); }
     catch { toast.error('Não foi possível abrir o editor (a imagem da logo é grande demais). Use uma logo menor.'); }
   };
   const video = () => {
@@ -91,11 +98,21 @@ export function EncarteOficialCartao({ e, produtos, aoGravar }: { e: Encarte; pr
   };
 
   return (
-    <article className="sm-cartao-luz grid gap-4 rounded-xl p-3 md:grid-cols-[minmax(0,300px)_1fr]" data-testid="studio-encarte-oficial">
-      <PreviaDocumento doc={doc} sempre className="w-full overflow-hidden rounded-lg" />
+    <article className={cn('sm-cartao-luz grid gap-4 rounded-xl p-3', deitado ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,300px)_1fr]')} data-testid="studio-encarte-oficial">
+      <PreviaDocumento key={doc.formato} doc={doc} sempre className={cn('w-full overflow-hidden rounded-lg', deitado && 'max-w-[720px]')} />
       <div className="flex min-w-0 flex-col gap-3">
         <div>
           <p className="flex items-center gap-1.5 text-sm font-bold text-white"><Sparkles className="h-4 w-4 text-[#FFD400]" />{e.nome} <span className="rounded bg-[#FFD400]/15 px-1.5 text-[10px] font-semibold text-[#FFD400]">OFICIAL</span></p>
+          {formatos.length > 1 && (
+            <div className="my-2 inline-grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1" role="radiogroup" aria-label="Formato do encarte">
+              {formatos.map((f) => (
+                <button key={f} type="button" role="radio" aria-checked={formato === f} onClick={() => setFormato(f)} data-testid="encarte-oficial-formato"
+                  className={cn('flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold', formato === f ? 'bg-[#5D1BFF] text-white' : 'text-slate-300 hover:bg-white/5')}>
+                  {f === '16:9' ? <Monitor className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}{f === '16:9' ? 'TV deitada' : 'TV em pé'}
+                </button>
+              ))}
+            </div>
+          )}
           <p className="text-xs text-slate-400">Os seus produtos se organizam sozinhos nos dois lados ({Math.min(produtos.length, max)} de até {max}){produtos.length > max ? ` — os ${produtos.length - max} últimos ficam de fora` : ''}.</p>
         </div>
 

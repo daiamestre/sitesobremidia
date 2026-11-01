@@ -31,8 +31,8 @@ import { baixar, nomeDoArquivo } from '@/lib/studioai/exportar';
 import { cn } from '@/lib/utils';
 
 type Docs = Partial<Record<FormatoDoc, Documento>>;
-/** F-240: `somente` = arte pronta (encarte oficial) que existe só nesse formato, com a pasta da galeria e a volta dela */
-interface DadosV2 { versao: 2; documentos: Docs; formato: FormatoDoc; somente?: FormatoDoc; pasta?: PastaDaGaleria; voltar?: string }
+/** F-240: arte pronta (encarte oficial): `formatos` = os formatos que ela tem (o outro não nasce de modelo), com a pasta da galeria e a volta */
+interface DadosV2 { versao: 2; documentos: Docs; formato: FormatoDoc; formatos?: FormatoDoc[]; pasta?: PastaDaGaleria; voltar?: string }
 
 function Bloco({ titulo, icone: Icone, children, acao }: { titulo: string; icone: typeof Type; children: ReactNode; acao?: ReactNode }) {
   return (
@@ -76,9 +76,9 @@ export default function EditorPage() {
   const [gravando, setGravando] = useState<number | null>(null);
   const [videoPronto, setVideoPronto] = useState<{ v: VideoGravado; url: string; formato: FormatoDoc } | null>(null);
   const [novoModelo, setNovoModelo] = useState<{ nome: string; segmento: SegmentoId; pasta: string } | null>(null);
-  // F-240: arte pronta (encarte oficial): só o formato dela, a pasta da galeria dela e a arte original para "voltar"
-  const [pronta, setPronta] = useState<{ somente: FormatoDoc; pasta?: PastaDaGaleria; voltar?: string; original?: Documento } | null>(null);
-  const somente = pronta?.somente ?? null;
+  // F-240: arte pronta (encarte oficial): só os formatos dela, a pasta da galeria dela e a arte original para "voltar"
+  const [pronta, setPronta] = useState<{ formatos: FormatoDoc[]; pasta?: PastaDaGaleria; voltar?: string; originais: Docs } | null>(null);
+  const formatosDaArte: FormatoDoc[] = pronta?.formatos ?? ['16:9', '9:16'];
   const passado = useRef<Docs[]>([]);
   const futuro = useRef<Docs[]>([]);
   const [, setVersao] = useState(0);
@@ -91,16 +91,16 @@ export default function EditorPage() {
     if (!base || docs) return;
     const arte = !projetoId && params.get('pronto') ? lerArtePronta() : null;
     if (arte) {
-      setDocs({ [arte.doc.formato]: arte.doc });
-      setFormato(arte.doc.formato);
-      setPronta({ somente: arte.doc.formato, pasta: arte.pasta, voltar: arte.voltar, original: arte.doc });
+      setDocs(arte.docs);
+      setFormato(arte.formato);
+      setPronta({ formatos: Object.keys(arte.docs) as FormatoDoc[], pasta: arte.pasta, voltar: arte.voltar, originais: arte.docs });
       setNome(arte.nome);
       return;
     }
     const dados = (projeto.data?.dados ?? {}) as Partial<DadosV2> & Partial<ModeloDeArte>;
     const pedido = (params.get('formato') as FormatoDoc | null) ?? null;
     if (dados.versao === 2 && dados.documentos) {
-      if (dados.somente) setPronta({ somente: dados.somente, pasta: dados.pasta, voltar: dados.voltar, original: dados.documentos[dados.somente] });
+      if (dados.formatos?.length) setPronta({ formatos: dados.formatos, pasta: dados.pasta, voltar: dados.voltar, originais: clonar(dados.documentos) });
       setDocs(clonar(dados.documentos));
       setFormato(pedido ?? dados.formato ?? (base.formato as FormatoDoc));
     } else {
@@ -116,13 +116,13 @@ export default function EditorPage() {
 
   // o outro formato nasce do modelo quando o usuário troca (cada formato guarda as suas edições)
   useEffect(() => {
-    if (!docs || !base || docs[formato] || somente) return;
+    if (!docs || !base || docs[formato] || pronta) return;
     const outro = docs[formato === '16:9' ? '9:16' : '16:9'];
     const novo = modeloParaDocumento(base, formato);
     // F-224: textos, cores, fontes e foto já editados no outro formato vêm junto
     const herdado = outro ? herdarEstilo(outro, novo) : null;
     setDocs({ ...docs, [formato]: herdado ? { ...herdado, camadas: herdado.camadas.map(normalizar) } : novo });
-  }, [docs, formato, base, somente]);
+  }, [docs, formato, base, pronta]);
 
   const doc = docs?.[formato] ?? null;
   useEffect(() => () => { if (videoPronto) URL.revokeObjectURL(videoPronto.url); }, [videoPronto]);
@@ -205,13 +205,13 @@ export default function EditorPage() {
   // F-229: cada tela recebe a arte no formato dela (o outro formato herda textos, cores e fotos já editados)
   const gerarArte = (f?: string) => {
     const alvo = (f ?? formato) as FormatoDoc;
-    if (alvo === formato || !TAMANHO_DOC[alvo] || somente) return documentoParaPng(doc);
+    if (alvo === formato || !TAMANHO_DOC[alvo] || (pronta && !docs[alvo])) return documentoParaPng(doc);
     const pronto = docs[alvo];
     if (pronto) return documentoParaPng(pronto);
     const h = herdarEstilo(doc, modeloParaDocumento(base, alvo));
     return documentoParaPng({ ...h, camadas: h.camadas.map(normalizar) });
   };
-  const dados = (): DadosV2 => ({ versao: 2, documentos: docs, formato, ...(pronta ? { somente: pronta.somente, pasta: pronta.pasta, voltar: pronta.voltar } : {}) });
+  const dados = (): DadosV2 => ({ versao: 2, documentos: docs, formato, ...(pronta ? { formatos: pronta.formatos, pasta: pronta.pasta, voltar: pronta.voltar } : {}) });
 
   const gravar = async () => {
     const id = await salvarProjeto({ id: idProjeto, modeloId: base.id, nome: nome.trim() || base.nome, formato, dados: dados() as unknown as Record<string, unknown>, miniatura: null });
@@ -264,7 +264,7 @@ export default function EditorPage() {
     window.open('https://www.canva.com/', '_blank', 'noopener');
     toast.info('A arte foi baixada. No Canva, use "Uploads" para abrir o arquivo e continuar a edição.', { duration: 8000 });
   });
-  const restaurar = () => { if (!window.confirm(`Voltar o formato ${formato} ao modelo original? As edições deste formato serão desfeitas (dá para desfazer com Ctrl+Z).`)) return; lembrar(); setDocs({ ...docs, [formato]: pronta?.original ?? modeloParaDocumento(base, formato) }); setSel(null); };
+  const restaurar = () => { if (!window.confirm(`Voltar o formato ${formato} ao modelo original? As edições deste formato serão desfeitas (dá para desfazer com Ctrl+Z).`)) return; lembrar(); setDocs({ ...docs, [formato]: pronta?.originais[formato] ?? modeloParaDocumento(base, formato) }); setSel(null); };
   // owner/ADM: a arte atual (os dois formatos) vira um modelo NOVO do catálogo, numa pasta existente ou numa nova
   const adicionarAoCatalogo = () => novoModelo && agir('modelo', async () => {
     const id = idDoModelo(novoModelo.nome);
@@ -382,8 +382,8 @@ export default function EditorPage() {
           <button type="button" onClick={refazer} disabled={!futuro.current.length} title="Refazer (Ctrl+Y)" aria-label="Refazer" className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 text-white hover:bg-white/5 disabled:opacity-30"><Redo2 className="h-5 w-5" /></button>
           <button type="button" onClick={restaurar} title="Voltar ao modelo original" aria-label="Voltar ao modelo original" className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 text-white hover:bg-white/5"><RotateCcw className="h-5 w-5" /></button>
         </div>
-        <div className={cn("grid gap-1 rounded-xl bg-black/30 p-1", somente ? "grid-cols-1" : "grid-cols-2")} role="radiogroup" aria-label="Formato">
-          {(somente ? [somente] : (['16:9', '9:16'] as const)).map((f) => (
+        <div className={cn("grid gap-1 rounded-xl bg-black/30 p-1", formatosDaArte.length === 1 ? "grid-cols-1" : "grid-cols-2")} role="radiogroup" aria-label="Formato">
+          {(['16:9', '9:16'] as const).filter((f) => formatosDaArte.includes(f)).map((f) => (
             <button key={f} type="button" role="radio" aria-checked={formato === f} onClick={() => { setFormato(f); setSel(null); }}
               className={cn('flex h-9 items-center gap-1 rounded-lg px-3 text-sm font-bold', formato === f ? 'bg-[#5D1BFF] text-white shadow-[0_0_16px_rgba(93,27,255,.6)]' : 'text-slate-300 hover:bg-white/5')}>
               {f === '16:9' ? <Monitor className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}{f}
@@ -485,7 +485,7 @@ export default function EditorPage() {
 
       <PublicarDialog aberto={!!publicando} onFechar={() => setPublicando(false)} pasta={pastaGaleria} video={publicando === 'video'}
         gerarPng={publicando === 'video' && videoPronto ? async () => ({ video: videoPronto.v, largura: videoPronto.v.largura, altura: videoPronto.v.altura }) : gerarArte}
-        formatos={publicando === 'video' ? undefined : somente ? [somente] : ['16:9', '9:16']}
+        formatos={publicando === 'video' ? undefined : formatosDaArte}
         nome={nome || base.nome} formato={publicando === 'video' && videoPronto ? videoPronto.formato : formato} clienteId={saldo.data?.cliente ?? null} />
     </div>
   );

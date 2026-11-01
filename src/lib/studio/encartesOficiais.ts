@@ -12,37 +12,66 @@ export interface LogoDoCliente { url: string; largura: number; altura: number; r
 export interface DadosDoEncarte { logo?: LogoDoCliente | null; telefone?: string; endereco?: string }
 
 export interface ColunaDoEncarte extends Caixa { etiqueta: CoresDaEtiqueta; sombraNome: string }
-export interface EncarteOficial {
-  id: string; nome: string; formato: FormatoDoc;
+/** O desenho de UM formato do encarte (em pé ou deitado), em pixels do documento. */
+export interface LayoutDoEncarte {
   /** fundo com a caixa "SUA LOGO AQUI" (sem logo) e sem ela (com a logo do cliente) */
   fundo: string; fundoLimpo: string;
-  /** colunas de produtos, em pixels do documento; os produtos alternam entre elas */
+  /** colunas de produtos; os produtos alternam entre elas */
   colunas: ColunaDoEncarte[];
   logo: Caixa;
   rodape: Caixa;
+  /** formato preferido de cada cartão de produto (largura ÷ altura): em pé, cartões deitados; deitado, cartões em pé */
+  cartao: number;
+}
+export interface EncarteOficial {
+  id: string; nome: string;
+  /** F-240: o mesmo encarte em pé (9:16) e deitado (16:9), cada um com o fundo do dono */
+  formatos: Partial<Record<FormatoDoc, LayoutDoEncarte>>;
   corTelefone: string; corEndereco: string;
 }
 
 export const MAX_POR_COLUNA = 8;
 export const PASTA_ENCARTES_OFICIAIS = 'encartes-de-mercado';
 
+const VERMELHO = { etiqueta: ETIQUETA_AMARELA, sombraNome: 'rgba(70,0,6,.7)' };
+const AZUL = { etiqueta: ETIQUETA_VERMELHA, sombraNome: 'rgba(0,10,70,.7)' };
+
 export const ENCARTES_OFICIAIS: EncarteOficial[] = [
   {
-    id: 'mega-oferta-bicolor', nome: 'Mega Oferta – vermelho e azul', formato: '9:16',
-    fundo: '/studio/encartes-oficiais/mega-oferta-bicolor-v.webp',
-    fundoLimpo: '/studio/encartes-oficiais/mega-oferta-bicolor-v-limpo.webp',
-    // medidas do fundo 1080×1920: a curva entre o vermelho e o azul passa entre x 513 e 581; o rodapé amarelo começa em 1693
-    colunas: [
-      { x: 26, y: 505, w: 468, h: 1160, etiqueta: ETIQUETA_AMARELA, sombraNome: 'rgba(70,0,6,.7)' }, // lado vermelho (abaixo da logo MEGA OFERTA)
-      { x: 602, y: 455, w: 454, h: 1210, etiqueta: ETIQUETA_VERMELHA, sombraNome: 'rgba(0,10,70,.7)' }, // lado azul (abaixo dos ícones)
-    ],
-    logo: { x: 650, y: 66, w: 386, h: 290 },
-    rodape: { x: 40, y: 1700, w: 1000, h: 210 },
+    id: 'mega-oferta-bicolor', nome: 'Mega Oferta – vermelho e azul',
+    formatos: {
+      // 1080×1920: a curva entre o vermelho e o azul passa entre x 513 e 581; o rodapé amarelo começa em 1693
+      '9:16': {
+        fundo: '/studio/encartes-oficiais/mega-oferta-bicolor-v.webp',
+        fundoLimpo: '/studio/encartes-oficiais/mega-oferta-bicolor-v-limpo.webp',
+        colunas: [
+          { x: 26, y: 505, w: 468, h: 1160, ...VERMELHO }, // lado vermelho (abaixo da logo MEGA OFERTA)
+          { x: 602, y: 455, w: 454, h: 1210, ...AZUL }, // lado azul (abaixo dos ícones)
+        ],
+        logo: { x: 650, y: 66, w: 386, h: 290 },
+        rodape: { x: 40, y: 1700, w: 1000, h: 210 },
+        cartao: 1.3,
+      },
+      // 1920×1080: a curva passa entre x 907 e 983; o rodapé amarelo começa em 954
+      '16:9': {
+        fundo: '/studio/encartes-oficiais/mega-oferta-bicolor-h.webp',
+        fundoLimpo: '/studio/encartes-oficiais/mega-oferta-bicolor-h-limpo.webp',
+        colunas: [
+          { x: 30, y: 468, w: 848, h: 474, ...VERMELHO },
+          { x: 1012, y: 380, w: 878, h: 562, ...AZUL },
+        ],
+        logo: { x: 1125, y: 40, w: 400, h: 252 },
+        rodape: { x: 40, y: 960, w: 1840, h: 112 },
+        cartao: 0.8,
+      },
+    },
     corTelefone: '#d90f1f', corEndereco: '#0b2a8f',
   },
 ];
 export const encarteOficialPorId = (id: string | null | undefined) => ENCARTES_OFICIAIS.find((e) => e.id === id) ?? null;
-export const maxDeProdutos = (e: EncarteOficial) => e.colunas.length * MAX_POR_COLUNA;
+export const formatosDoEncarte = (e: EncarteOficial) => (['9:16', '16:9'] as FormatoDoc[]).filter((f) => e.formatos[f]);
+export const layoutDoEncarte = (e: EncarteOficial, formato?: FormatoDoc): LayoutDoEncarte => e.formatos[formato ?? formatosDoEncarte(e)[0]] ?? e.formatos[formatosDoEncarte(e)[0]]!;
+export const maxDeProdutos = (e: EncarteOficial) => Math.min(...formatosDoEncarte(e).map((f) => e.formatos[f]!.colunas.length)) * MAX_POR_COLUNA;
 
 type Ani = NonNullable<Camada['animacao']>;
 const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depois'] = null): Ani => ({ tipo, atraso, duracao, depois });
@@ -84,11 +113,21 @@ function celula(p: Produto, b: Caixa, col: ColunaDoEncarte, n: number, atraso: n
   return out;
 }
 
-/** Os produtos de UMA coluna: até 4 um embaixo do outro; mais que isso, em 2 colunas. */
-function produtosDaColuna(ps: Produto[], col: ColunaDoEncarte, inicio: number, passo: number, atraso0: number): Camada[] {
+/**
+ * Os produtos de UMA área: o sistema escolhe quantas colunas usar para cada cartão ficar mais perto do formato preferido
+ * do layout (campo cartao) — na área alta do 9:16, 1 coluna até 6 produtos e depois 2; na área larga e baixa do 16:9, até 4.
+ */
+function produtosDaColuna(ps: Produto[], col: ColunaDoEncarte, alvo: number, inicio: number, passo: number, atraso0: number): Camada[] {
   if (!ps.length) return [];
   const gap = 16;
-  const cols = ps.length <= 4 ? 1 : 2;
+  let melhor = { cols: 1, nota: Infinity };
+  for (let c = 1; c <= Math.min(ps.length, 4); c++) {
+    const l = Math.ceil(ps.length / c);
+    const w = (col.w - gap * (c - 1)) / c, h = (col.h - gap * (l - 1)) / l;
+    const nota = Math.abs(Math.log(w / h / alvo));
+    if (nota < melhor.nota - 1e-9) melhor = { cols: c, nota };
+  }
+  const cols = melhor.cols;
   const linhas = Math.ceil(ps.length / cols);
   const cw = (col.w - gap * (cols - 1)) / cols;
   // poucos produtos: células com altura proporcional (não esticam até o rodapé); a sobra vai para cima e para baixo
@@ -98,9 +137,9 @@ function produtosDaColuna(ps: Produto[], col: ColunaDoEncarte, inicio: number, p
   const y0 = col.y + (col.h - usado) / 2;
   return ps.flatMap((p, i) => {
     const l = Math.floor(i / cols), k = i % cols;
-    // a última linha com 1 produto só fica centralizada
-    const sozinho = cols === 2 && k === 0 && i === ps.length - 1;
-    const x = sozinho ? col.x + (col.w - cw) / 2 : col.x + k * (cw + gap);
+    // a última linha incompleta fica centralizada
+    const naLinha = l === linhas - 1 ? ps.length - l * cols : cols;
+    const x = col.x + ((cols - naLinha) * (cw + gap)) / 2 + k * (cw + gap);
     return celula(p, { x, y: y0 + l * (ch + gap), w: cw, h: ch }, col, inicio + i * passo, atraso0 + i * 0.25);
   });
 }
@@ -119,12 +158,33 @@ function camadasDaLogo(l: LogoDoCliente, b: Caixa): Camada[] {
   ];
 }
 
-/** Telefone em pílula vermelha e endereço embaixo, centralizados na faixa amarela do rodapé. */
-function camadasDoRodape(e: EncarteOficial, d: DadosDoEncarte): Camada[] {
+/**
+ * Telefone em pílula vermelha e endereço, centralizados na faixa amarela do rodapé: um embaixo do outro quando a faixa
+ * é alta (em pé), lado a lado quando ela é baixa (deitado).
+ */
+function camadasDoRodape(e: EncarteOficial, r: Caixa, d: DadosDoEncarte): Camada[] {
   const tel = d.telefone?.trim(), end = d.endereco?.trim();
   if (!tel && !end) return [];
-  const r = e.rodape;
   const out: Camada[] = [];
+  if (r.h < 160) {
+    const tTel = Math.round(r.h * 0.44), m = Math.round(tTel * 0.4);
+    let tEnd = Math.round(r.h * 0.3);
+    const wTel = tel ? larguraDoTexto(tel, 'anton', tTel) + 2 * m + 8 : 0;
+    const espaco = tel && end ? 44 : 0;
+    while (end && wTel + espaco + larguraDoTexto(end, 'poppins', tEnd, 700) > r.w && tEnd > 20) tEnd -= 2;
+    const wEnd = end ? Math.min(r.w - wTel - espaco, larguraDoTexto(end, 'poppins', tEnd, 700) + 8) : 0;
+    let x = r.x + (r.w - (wTel + espaco + wEnd)) / 2;
+    if (tel) {
+      const t = texto('Telefone', tel, x, 0, wTel, { fonte: 'anton', tamanho: tTel, alinhamento: 'center', cor: '#ffffff', entrelinha: 1.1, fundo: { cor: e.corTelefone, raio: 50, margem: m } });
+      out.push({ ...t, y: r.y + (r.h - t.h) / 2, animacao: ani('subir', 0.4, 0.5) });
+      x += wTel + espaco;
+    }
+    if (end) {
+      const t = texto('Endereço', end, x, 0, wEnd, { fonte: 'poppins', peso: 700, tamanho: tEnd, alinhamento: tel ? 'left' : 'center', cor: e.corEndereco, entrelinha: 1.1 });
+      out.push({ ...t, y: r.y + (r.h - t.h) / 2, animacao: ani('subir', 0.55, 0.5) });
+    }
+    return out;
+  }
   const tTel = 64;
   let tEnd = 40;
   while (end && larguraDoTexto(end, 'poppins', tEnd, 700) > r.w * 1.9 && tEnd > 24) tEnd -= 2;
@@ -142,12 +202,14 @@ function camadasDoRodape(e: EncarteOficial, d: DadosDoEncarte): Camada[] {
 }
 
 /** A arte do encarte oficial com os produtos, a logo e os contatos do cliente. */
-export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[], d: DadosDoEncarte = {}): Documento {
-  const { w: W, h: H } = TAMANHO_DOC[e.formato];
-  const c: Camada[] = [{ ...imagem('Fundo oficial', d.logo ? e.fundoLimpo : e.fundo, 0, 0, W, H), bloqueada: true }];
-  if (d.logo) c.push(...camadasDaLogo(d.logo, e.logo));
-  const grupos = dividirProdutos(produtos, e.colunas.length);
-  grupos.forEach((ps, k) => c.push(...produtosDaColuna(ps, e.colunas[k], k + 1, e.colunas.length, 0.3 + k * 0.12)));
-  c.push(...camadasDoRodape(e, d));
-  return { versao: 2, formato: e.formato, fundo: '#1e3fd0', camadas: c, video: { duracao: 8 } };
+export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[], d: DadosDoEncarte = {}, formato?: FormatoDoc): Documento {
+  const f = formato && e.formatos[formato] ? formato : formatosDoEncarte(e)[0];
+  const lay = layoutDoEncarte(e, f);
+  const { w: W, h: H } = TAMANHO_DOC[f];
+  const c: Camada[] = [{ ...imagem('Fundo oficial', d.logo ? lay.fundoLimpo : lay.fundo, 0, 0, W, H), bloqueada: true }];
+  if (d.logo) c.push(...camadasDaLogo(d.logo, lay.logo));
+  const grupos = dividirProdutos(produtos, lay.colunas.length);
+  grupos.forEach((ps, k) => c.push(...produtosDaColuna(ps, lay.colunas[k], lay.cartao, k + 1, lay.colunas.length, 0.3 + k * 0.12)));
+  c.push(...camadasDoRodape(e, lay.rodape, d));
+  return { versao: 2, formato: f, fundo: '#1e3fd0', camadas: c, video: { duracao: 8 } };
 }
