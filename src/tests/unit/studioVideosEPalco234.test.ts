@@ -71,3 +71,26 @@ describe('palco de ofertas (mercado)', () => {
     expect(palco).toMatch(/<PainelDeProdutos /); // os mesmos produtos (com fotos reais) dos encartes
   });
 });
+
+describe('F-237 — fundo OFICIAL do Palco de Ofertas (arte do dono)', () => {
+  it('o produto entra no palco da arte: inteiro, pé no tampo, centrado; nome na faixa do palco; botão no lugar do "YOUR LOGO"', async () => {
+    const { FUNDOS_DO_PALCO, palcoDoProduto: palco, srcDoFundo } = await import('@/lib/studio/palco');
+    const f = FUNDOS_DO_PALCO[0];
+    expect(f.id).toBe('alerta-de-oferta');
+    for (const formato of ['9:16', '16:9'] as const) {
+      expect(fs.existsSync(`public${srcDoFundo(f, formato)}`), formato).toBe(true);
+      const d = palco({ nome: 'Arroz Camil 5kg', preco: 25.9, precoDe: null, unidade: null, imagem: { url: 'https://x/a.png', fonte: 'OPENFOODFACTS' } }, formato, { fundo: f, textoBotao: 'ALERTAS' });
+      const nome = (n: string) => d.camadas.find((c) => c.nome === n)!;
+      expect(nome('Fundo oficial')).toMatchObject({ tipo: 'imagem', src: srcDoFundo(f, formato), bloqueada: true });
+      const pr = nome('Produto');
+      expect(pr).toMatchObject({ ajuste: 'conter', focoY: 100, focoX: 50 });
+      // centrado no palco e com o pé encostando no tampo
+      const W = formato === '9:16' ? 1080 : 1920, H = formato === '9:16' ? 1920 : 1080;
+      expect(Math.abs(pr.x + pr.w / 2 - W / 2)).toBeLessThan(W * 0.02);
+      expect((pr.y + pr.h) / H).toBeCloseTo(f.produto[formato].y + f.produto[formato].h, 3);
+      expect(nome('Botão — texto')).toMatchObject({ texto: 'ALERTAS' });
+      expect(nome('Botão').animacao?.atraso).toBe(0); // cobre o "YOUR LOGO" desde o 1º quadro
+      expect(nome('Preço')).toMatchObject({ valor: '25', sufixo: ',90' });
+    }
+  });
+});

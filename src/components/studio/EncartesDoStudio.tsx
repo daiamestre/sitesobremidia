@@ -13,7 +13,7 @@ import { configPadrao, propsDasPaginas } from '@/lib/tabloide/cartaz';
 import { buscarNoCatalogo } from '@/lib/tabloide/imagens';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
-import { ENCARTES, ENCARTE_FORMATO, ENCARTE_GRADE, configDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
+import { ENCARTES, ENCARTE_FORMATO, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
 import { formatoPorId } from '@/lib/tabloide/temas';
 import { logoSalvaDoStudio, seloDaLogo } from '@/lib/studio/logoDoStudio';
 
@@ -42,7 +42,7 @@ export function MiniaturaDoEncarte({ e, fotos, produtos: daPessoa }: { e: Modelo
     // F-235: com a logo 3D criada no Studio, o cabeçalho mostra a logo
     const logo = logoSalvaDoStudio();
     const comLogo = logo ? { ...e, logoCabecalhoId: logo.id } : e;
-    return propsDasPaginas({ formatoId: ENCARTE_FORMATO, temaId: e.temaId, segmentoId: e.segmento, grade: ENCARTE_GRADE, produtos, config: configDoEncarte(comLogo, configPadrao()) }, logo ? [seloDaLogo(logo)] : [])[0];
+    return propsDasPaginas({ formatoId: ENCARTE_FORMATO, temaId: e.temaId, segmentoId: e.segmento, grade: gradeDoEncarte(e), produtos, config: configDoEncarte(comLogo, configPadrao()) }, logo ? [seloDaLogo(logo)] : [])[0];
   }, [e, fotos, daPessoa]);
   const [largura, setLargura] = useState(0);
   useEffect(() => {

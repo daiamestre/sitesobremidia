@@ -4,7 +4,7 @@
  * a partir daqui (`propsDasPaginas`), então a prévia e a imagem final nunca divergem.
  */
 import type { TabloideCanvasProps } from '@/components/tabloide/TabloideCanvas';
-import { montarPaginas, type AjusteDeMedidas } from './grade';
+import { montarPaginas, type AjusteDeMedidas, type LayoutDoCartaz } from './grade';
 import { formatarPreco, type ProdutoTabloide } from './parseProdutos';
 import { logosDoCabecalho, resolverImagem, type ElementoLivre, type Selo } from './selos';
 import { formatoPorId, segmentoPorId, temaPorId, type Tema } from './temas';
@@ -130,6 +130,14 @@ export interface ConfigCartaz {
   faixaArte: { url: string; largura: number; altura: number } | null;
   /** F-231: sem logo enviada, mostra a caixa "Sua logo aqui" (modelos de encarte) */
   logoAqui: boolean;
+  /** F-236: o título vira LOGO 3D no estilo escolhido (Criador de Logos do Studio); null = selo antigo */
+  estiloTitulo: string | null;
+  /** F-236: arranjo dos produtos */
+  layout: LayoutDoCartaz;
+  /** F-236: fundo moderno (diagonais, raios, retícula) em CSS; null = fundo do tema */
+  fundoCss: string | null;
+  /** F-236: cor da metade direita / da coluna de destaques */
+  corPainel: string | null;
   texto: string;
   elementos: ElementoLivre[];
   observacoes: string;
@@ -148,7 +156,7 @@ export function configPadrao(): ConfigCartaz {
     logoMarcaUrl: null, mostrarLogo: true, fundoLogo: 'branco',
     logoCabecalhoId: null, seloUrl: null, cabecalhoEmTexto: false, temaFotoId: null,
     temaModo: 'cabecalho', boxes: 'inteligente', tamanhoTexto: 'medio', cores: 'inteligente', rodapeEstilo: 'faixa', capa: false,
-    destaques: 0, faixaArte: null, logoAqui: false, texto: '', elementos: [], observacoes: '',
+    destaques: 0, faixaArte: null, logoAqui: false, estiloTitulo: null, layout: 'padrao', fundoCss: null, corPainel: null, texto: '', elementos: [], observacoes: '',
   };
 }
 
@@ -194,6 +202,11 @@ export function normalizarConfig(bruto: unknown): ConfigCartaz {
   p.faixaArte = fa && typeof fa.url === 'string' && /^(https:\/\/|\/)/.test(fa.url) && Number(fa.largura) > 0 && Number(fa.altura) > 0
     ? { url: fa.url, largura: Number(fa.largura), altura: Number(fa.altura) } : null;
   p.logoAqui = sim(b.logoAqui, false);
+  p.estiloTitulo = typeof b.estiloTitulo === 'string' ? b.estiloTitulo.slice(0, 40) : null;
+  p.layout = b.layout === 'lateral' || b.layout === 'dividido' ? b.layout : 'padrao';
+  // fundo em CSS só com gradientes (nada de url() de fora)
+  p.fundoCss = typeof b.fundoCss === 'string' && b.fundoCss.length < 1200 && !/url\s*\(|expression|javascript/i.test(b.fundoCss) ? b.fundoCss : null;
+  p.corPainel = typeof b.corPainel === 'string' && /^#[0-9a-f]{3,8}$/i.test(b.corPainel) ? b.corPainel : null;
   p.texto = texto(b.texto, 20000);
   p.elementos = Array.isArray(b.elementos) ? (b.elementos as ElementoLivre[]).filter((e) => e && typeof e.url === 'string') : [];
   p.observacoes = texto(b.observacoes, 2000) || (typeof b.validade === 'string' && b.validade ? `Validade anotada no rascunho antigo: ${texto(b.validade, 90)}` : '');
@@ -305,8 +318,9 @@ export function ajusteDoCartaz(c: CartazParaDesenhar, selos: Selo[] | null): Aju
   const formato = formatoPorId(c.formatoId);
   const foto = arteDoTema(cfg, selos);
   // a faixa do tema entra inteira na largura do cartaz; a altura acompanha a proporção da arte
-  const cabecalho = foto && cfg.temaModo === 'cabecalho' && foto.largura > 0 ? formato.largura * (foto.altura / foto.largura) : undefined;
-  return { cabecalho, rodape: cfg.rodapeEstilo, boxIdeal: boxIdeal(cfg.boxes) };
+  // F-236: com o título em logo 3D (encartes modernos), o topo é maior — o título domina, como nas referências
+  const cabecalho = foto && cfg.temaModo === 'cabecalho' && foto.largura > 0 ? formato.largura * (foto.altura / foto.largura) : cfg.estiloTitulo ? formato.altura * (formato.altura > formato.largura ? 0.21 : 0.26) : undefined;
+  return { cabecalho, rodape: cfg.rodapeEstilo, boxIdeal: boxIdeal(cfg.boxes), layout: cfg.layout };
 }
 
 /** As páginas do cartaz prontas para desenhar (mesmo resultado na prévia, no download, na impressão e no portal). */
@@ -330,6 +344,7 @@ export function propsDasPaginas(c: CartazParaDesenhar, selos: Selo[] | null): Ta
     fundoUrl: foto && !naFaixa ? foto.imagem_url : null, faixaUrl: naFaixa ? foto.imagem_url : null,
     ajuste, boxes: cfg.boxes, tamanhoTexto: cfg.tamanhoTexto, rodapeEstilo: cfg.rodapeEstilo,
     elementos: cfg.elementos,
+    estiloTitulo: cfg.estiloTitulo, fundoCss: cfg.fundoCss, corPainel: cfg.corPainel,
   };
   const capa = cfg.capa && c.produtos.length > 0 ? 1 : 0;
   const total = paginas.length + capa;

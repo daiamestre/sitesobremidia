@@ -2810,3 +2810,36 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Provas:**
   - `src/tests/unit/studioVideosEPalco234.test.ts`: todos os modelos, nos 2 formatos, com movimento e sem dois textos entrando juntos;
   - navegador: subpastas 6 imagens / 6 vídeos animados; o palco toca; o carrossel de 15 produtos abriu no editor com 15 clipes (53 s).
+
+### F-235/F-236 — Criador de Logos 3D + Encartes modernos nas estruturas das referências + regra de análise de referência — FEITO
+
+- **Pedido do dono (31/10–01/11/2026):** uma estrutura no Studio para CRIAR logos 3D com a qualidade e o estilo das referências (mesmos relevos, mesmo design), encartes iguais às composições que ele mandou (16 imagens), o site do Magnific como referência permanente de encarte de mercado, e os agentes analisando tudo de cada imagem/vídeo.
+- **Limite combinado:** cópia idêntica de arte de terceiros (logos 3D/PSDs do Freepik) não entra como modelo do Studio. Estrutura e estilo são recriados com arte própria; arte idêntica só a partir de arquivo enviado pelo dono.
+- **Criador de Logos 3D** (`/studio/logos`, `src/lib/studio/logo3d.ts`, `src/pages/studioai/LogosPage.tsx`, menu "Logos 3D"):
+  - 12 estilos (Aqui Tem Economia, Ofertas da Semana, Super Ofertas, Show de Ofertas, Mega Oferta, Alerta de Oferta, Hortifruti, Quinta da Carne, Semana do Frango, Dia de Economia, Explosão de Ofertas, Hora de Economizar);
+  - volume em camadas, contorno, borda escura, chanfro, brilho só na face, sombra, inclinação, arco, pílula (DA/DE), balão/selo/faixa, moedas/estrelas/sirene/raios/brilhos;
+  - PNG transparente recortado;
+  - "Salvar e usar nos encartes" grava em `tabloide_selos` (LOGO_CABECALHO): a logo vale no cabeçalho dos encartes e no título do Palco.
+- **Encartes modernos** (`ENCARTES_MODERNOS`, 12 na frente da pasta):
+  - título em logo 3D (`estiloTitulo` → `logoDoTitulo`);
+  - layouts novos em `grade.ts`: `lateral` (coluna de destaques à direita com painel) e `dividido` (duas metades);
+  - fundos modernos em CSS (diagonal, raios, retícula), sem `url()`, conferido em `normalizarConfig`;
+  - topo maior (21% em pé).
+- **Regra de análise:**
+  - `dna.v3` (`REFERENCIA_MERCADO`, `ANALISE_DE_REFERENCIA`) no sistema de todos os agentes;
+  - Agente Analista de Referências v2 no banco, com a mesma regra e a referência do Magnific.
+- **Provas:**
+  - `studioLogos3d235.test.ts`, `encartesModernos236.test.ts`, `creativeCore.test.ts`;
+  - navegador: logos com volume colorido; a logo salva "MEGA OFERTA" apareceu no topo dos 24 encartes; "Show de Ofertas" com grade 2 × 2 + coluna vermelha de 3 destaques.
+
+### F-237 — Fundo OFICIAL do Palco de Ofertas (arte do dono "Alerta de Oferta") — FEITO
+
+- **Pedido do dono (01/11/2026):** os modelos oficiais que ele criou entram como fundo oficial do "Palco de Ofertas – Mercado" no lugar do fundo desenhado. O produto do carrossel fica em cima do palco da arte, na proporção justa. No lugar do "YOUR LOGO" vai um botão "OFERTAS" ou "ALERTAS". Mais fundos virão.
+- **Feito** (`src/lib/studio/palco.ts`: `FUNDOS_DO_PALCO`, `palcoOficial`):
+  - imagens em `public/studio/palco/alerta-de-oferta-h.webp` (1920 × 1080) e `-v.webp` (1080 × 1920, sem a moldura branca do arquivo original);
+  - cada fundo guarda, em frações da tela, o espaço do produto (pé no tampo do palco), a faixa da frente do palco (nome), o selo do preço e o botão;
+  - o produto entra com `ajuste: 'conter'` + `focoY: 100`: inteiro, centrado no palco, encostado no tampo, no maior tamanho que cabe entre o título e o palco;
+  - o botão cobre o "YOUR LOGO" desde o 1º quadro.
+  - A tela do palco tem o seletor de fundos (o oficial é o padrão; o palco desenhado continua como opção) e o seletor do texto do botão.
+- **Fundo novo do dono:** os 2 arquivos (`<id>-h.webp`, `<id>-v.webp`) + uma entrada em `FUNDOS_DO_PALCO` com as caixas medidas na arte.
+- **Prova:** teste em `studioVideosEPalco234.test.ts`; navegador nos 2 formatos (Macarrão Renata e Extrato Elefante no palco, preço, nome na faixa, botão OFERTAS).

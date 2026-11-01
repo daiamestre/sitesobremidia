@@ -71,10 +71,13 @@ describe('código de barras (pistola, câmera ou digitado)', () => {
   });
 });
 
+// F-236: os 12 encartes modernos entram na frente da pasta; estes testes conferem os 12 clássicos
+const CLASSICOS = ENCARTES.filter((e) => !e.id.startsWith('moderno-'));
+
 describe('encartes de mercado (Studio)', () => {
   it('12 encartes, cada um com tema válido, 15 produtos e 3 destaques com "de/por"', () => {
-    expect(ENCARTES).toHaveLength(12);
-    for (const e of ENCARTES) {
+    expect(CLASSICOS).toHaveLength(12);
+    for (const e of CLASSICOS) {
       expect(TEMAS.some((t) => t.id === e.temaId), e.id).toBe(true);
       const ps = lerLista(e.produtos);
       expect(ps, e.id).toHaveLength(15);
@@ -84,7 +87,7 @@ describe('encartes de mercado (Studio)', () => {
     }
   });
   it('folha A4 em pé: 3 produtos grandes em cima e a grade 4 × 3 — tudo numa página', () => {
-    const e = ENCARTES[0];
+    const e = CLASSICOS[0];
     const ps = lerLista(e.produtos);
     const [pagina, ...resto] = montarPaginas(ps, formatoPorId(ENCARTE_FORMATO), ENCARTE_GRADE, 3);
     expect(resto).toHaveLength(0);
@@ -93,7 +96,7 @@ describe('encartes de mercado (Studio)', () => {
     expect([pagina.cols, pagina.rows]).toEqual([4, 3]);
   });
   it('o modelo liga título 3D, frase, 3 destaques e a caixa "Sua logo aqui" (some quando a loja envia a logo)', () => {
-    const e = ENCARTES[3];
+    const e = CLASSICOS[3];
     const cfg = configDoEncarte(e, configPadrao());
     expect(cfg).toMatchObject({ titulo: e.titulo, destaques: 3, logoAqui: true, cabecalhoEmTexto: true, texto: e.produtos });
     const props = propsDasPaginas({ formatoId: ENCARTE_FORMATO, temaId: e.temaId, segmentoId: e.segmento, grade: ENCARTE_GRADE, produtos: lerLista(e.produtos), config: cfg }, []);

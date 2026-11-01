@@ -75,8 +75,8 @@ export async function carregarFontesDoLogo(): Promise<void> {
 }
 
 // ───────────────────────────────────────── pinturas e estilos de fábrica
-const OURO: PinturaDeLetra = { face: ['#fff7c2', '#ffd84a', '#f2a900', '#c97800'], volume: ['#a8480a', '#4a1500'], contorno: '#ffffff', chanfro: '#fff1a8' };
-const OURO_VERMELHO: PinturaDeLetra = { face: ['#fff6b8', '#ffd21f', '#f5a300', '#d97a00'], volume: ['#b3101f', '#4d0008'], contorno: '#ffffff', chanfro: '#fff3b0' };
+const OURO: PinturaDeLetra = { face: ['#fff2a6', '#ffd21f', '#f5b000', '#d98200'], volume: ['#a8480a', '#4a1500'], contorno: '#ffffff', chanfro: '#fff1a8' };
+const OURO_VERMELHO: PinturaDeLetra = { face: ['#fff0a0', '#ffd000', '#ffb300', '#f08c00'], volume: ['#b3101f', '#4d0008'], contorno: '#ffffff', chanfro: '#fff3b0' };
 const VERMELHO: PinturaDeLetra = { face: ['#ff8a8a', '#ff3b3b', '#d90f1f', '#8f0a15'], volume: ['#5c0610', '#2a0206'], contorno: '#ffffff', chanfro: '#ffd0d0' };
 const VERMELHO_OURO: PinturaDeLetra = { face: ['#ff6b6b', '#e8122a', '#b30d20', '#7a0712'], volume: ['#f2a900', '#8a5200'], contorno: '#fff3c4', chanfro: '#ffe27a' };
 const PRATA: PinturaDeLetra = { face: ['#ffffff', '#eef1f6', '#b9c2d0', '#7b8798'], volume: ['#4a5568', '#1e2430'], contorno: '#7a0a14', chanfro: '#ffffff' };
@@ -103,6 +103,30 @@ export const ESTILOS_DE_LOGO: Array<{ id: string; nome: string; config: ConfigLo
 ];
 export const estiloPorId = (id: string) => ESTILOS_DE_LOGO.find((e) => e.id === id) ?? ESTILOS_DE_LOGO[0];
 export const clonarConfig = (c: ConfigLogo3D): ConfigLogo3D => JSON.parse(JSON.stringify(c));
+
+const PEQUENAS = new Set(['DA', 'DO', 'DE', 'DAS', 'DOS', 'E', 'NO', 'NA', 'EM', 'PARA']);
+/**
+ * F-236: o TÍTULO de um encarte/cartaz no estilo de logo escolhido ("SHOW DE OFERTAS" → "SHOW" + "DE"·"OFERTAS").
+ * Divide em até 2 linhas equilibradas; a palavra pequena do começo da linha vira a pílula ("DA", "DE").
+ */
+export function logoDoTitulo(titulo: string, estiloId: string): ConfigLogo3D {
+  const base = clonarConfig(estiloPorId(estiloId).config);
+  const palavras = titulo.toUpperCase().trim().split(/\s+/).filter(Boolean);
+  if (!palavras.length) return base;
+  let melhor = palavras.length, nota = Infinity;
+  for (let i = 1; i < palavras.length; i++) {
+    const a = palavras.slice(0, i).join(' ').length, b = palavras.slice(i).join(' ').length;
+    const n = Math.abs(a - b) + (PEQUENAS.has(palavras[i - 1]) ? 8 : 0);
+    if (n < nota) { nota = n; melhor = i; }
+  }
+  const partes = palavras.length === 1 ? [palavras] : [palavras.slice(0, melhor), palavras.slice(melhor)];
+  const linhas = partes.map((ws, i) => {
+    const modelo = base.linhas[Math.min(i, base.linhas.length - 1)];
+    const pequena = ws.length > 1 && PEQUENAS.has(ws[0]);
+    return { ...modelo, escala: partes.length === 1 ? 1 : modelo.escala, texto: (pequena ? ws.slice(1) : ws).join(' '), pilula: pequena ? { cor: modelo.pilula?.cor ?? '#d90f1f', texto: ws[0] } : null };
+  });
+  return { ...base, linhas };
+}
 
 // ───────────────────────────────────────── desenho
 interface Medida { linha: LinhaDoLogo; px: number; largura: number; larguraPilula: number }
@@ -141,8 +165,9 @@ function letras(ctx: CanvasRenderingContext2D, texto: string, cx: number, y: num
 }
 
 function degradeVertical(ctx: CanvasRenderingContext2D, y: number, px: number, cores: string[]) {
-  const g = ctx.createLinearGradient(0, y - px * 0.82, 0, y + px * 0.08);
-  cores.forEach((c, i) => g.addColorStop(i / Math.max(1, cores.length - 1), c));
+  const g = ctx.createLinearGradient(0, y - px * 0.78, 0, y);
+  const paradas = cores.length === 4 ? [0, 0.28, 0.62, 1] : cores.map((_, i) => i / Math.max(1, cores.length - 1));
+  cores.forEach((c, i) => g.addColorStop(paradas[i], c));
   return g;
 }
 
@@ -157,10 +182,11 @@ function linha3D(ctx: CanvasRenderingContext2D, cfg: ConfigLogo3D, m: Medida, cx
   const { linha, px } = m;
   const t = linha.texto.toUpperCase();
   const p = linha.pintura;
-  const prof = Math.round(cfg.profundidade * linha.escala * (px / 160));
+  // volume grosso como nas logos de varejo (16 = ~13% da altura da letra)
+  const prof = Math.max(2, Math.round((cfg.profundidade / 16) * px * 0.13));
   const dx = Math.cos((cfg.direcao * Math.PI) / 180), dy = Math.sin((cfg.direcao * Math.PI) / 180);
   const arco = cfg.arco * 0.6;
-  const contorno = Math.max(6, px * 0.13);
+  const contorno = Math.max(4, px * 0.065);
   ctx.font = fonteCss(cfg.fonte, px);
   ctx.textBaseline = 'alphabetic';
   ctx.lineJoin = 'round';
@@ -168,7 +194,7 @@ function linha3D(ctx: CanvasRenderingContext2D, cfg: ConfigLogo3D, m: Medida, cx
   // 1) contorno externo, envolvendo também o volume
   ctx.strokeStyle = p.contorno;
   ctx.lineWidth = contorno * 2;
-  for (let i = prof; i >= 0; i -= 2) letras(ctx, t, cx + dx * i, y + dy * i, px, arco, (s, x, yy) => ctx.strokeText(s, x, yy));
+  for (let i = prof; i >= 0; i -= 1) letras(ctx, t, cx + dx * i, y + dy * i, px, arco, (s, x, yy) => ctx.strokeText(s, x, yy));
   // sombra projetada suave do bloco inteiro
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = px * 0.25; ctx.shadowOffsetY = px * 0.08;
@@ -180,6 +206,10 @@ function linha3D(ctx: CanvasRenderingContext2D, cfg: ConfigLogo3D, m: Medida, cx
     ctx.fillStyle = misturar(p.volume[0], p.volume[1], i / Math.max(1, prof));
     letras(ctx, t, cx + dx * i, y + dy * i, px, arco, (s, x, yy) => ctx.fillText(s, x, yy));
   }
+  // borda escura entre a face e o contorno (dá o recorte nítido das letras)
+  ctx.strokeStyle = p.volume[1];
+  ctx.lineWidth = Math.max(3, px * 0.05);
+  letras(ctx, t, cx, y, px, arco, (s, x, yy) => ctx.strokeText(s, x, yy));
   // 3) face com degradê
   ctx.fillStyle = degradeVertical(ctx, y, px, p.face);
   letras(ctx, t, cx, y, px, arco, (s, x, yy) => ctx.fillText(s, x, yy));

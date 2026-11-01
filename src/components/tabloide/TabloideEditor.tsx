@@ -38,7 +38,7 @@ import { gerarPngsDoCartaz, listarCartazes, NOME_PADRAO, publicarNoPortal, salva
 import { carregarFonte } from '@/lib/tabloide/fontes';
 import { aplicarPerfil, carregarPerfil, perfilDoCartaz, salvarPerfil, salvarPortal, type PerfilDaLoja, type PortalDaLoja } from '@/lib/tabloide/perfil';
 import { ajustarElemento, duplicarElemento, ehCentral, listarSelos, novoElemento, type ElementoLivre, type Selo } from '@/lib/tabloide/selos';
-import { ENCARTE_FORMATO, ENCARTE_GRADE, configDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
+import { ENCARTE_FORMATO, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
 import { TabloideCanvas } from './TabloideCanvas';
 import { LeitorDeCodigo } from './LeitorDeCodigo';
 import { PainelTemas } from './PainelTemas';
@@ -124,7 +124,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const [segmentoId, setSegmentoId] = useState<SegmentoId>(segInicial);
   const [temaId, setTemaId] = useState<string>(() => encarte?.temaId ?? temasDoSegmento(segInicial)[0]?.id ?? 'ofertao');
   const [formatoId, setFormatoId] = useState<string>(encarte ? ENCARTE_FORMATO : 'tv-h');
-  const [grade, setGrade] = useState<string>(encarte ? ENCARTE_GRADE : 'auto');
+  const [grade, setGrade] = useState<string>(encarte ? gradeDoEncarte(encarte) : 'auto');
   // F-231: o encarte do Studio chega montado, com os produtos de exemplo já na lista (o cliente troca nomes e preços)
   const [produtos, setProdutos] = useState<ProdutoTabloide[]>(() => (encarte ? lerLista(encarte.produtos) : []));
   const [cfg, setCfg] = useState<ConfigCartaz>(() => (encarte ? configDoEncarte(encarte, cfgNovo(segInicial)) : cfgNovo(segInicial)));

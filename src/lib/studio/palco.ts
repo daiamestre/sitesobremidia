@@ -6,7 +6,83 @@ import { TAMANHO_DOC, forma, imagem, selo, texto, type Camada, type Documento, t
 import { novoClipe, projetoVazio, type ProjetoDeVideo } from './video/linha';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
-export interface OpcoesDoPalco { titulo?: string; logoUrl?: string | null; segundos?: number; /** F-235: logo 3D (PNG) no lugar do título escrito */ logoTitulo?: { url: string; largura: number; altura: number } | null }
+export interface OpcoesDoPalco {
+  titulo?: string; logoUrl?: string | null; segundos?: number;
+  /** F-235: logo 3D (PNG) no lugar do título escrito */ logoTitulo?: { url: string; largura: number; altura: number } | null;
+  /** F-237: fundo OFICIAL do dono (arte pronta com título 3D e palco): o produto entra em cima do palco dele */
+  fundo?: FundoDoPalco | null;
+  /** texto do botão no lugar do "YOUR LOGO" do fundo oficial */
+  textoBotao?: string;
+}
+
+/** Caixa em frações da largura/altura da tela (0 a 1). */
+export interface Caixa { x: number; y: number; w: number; h: number }
+/**
+ * F-237 — FUNDO OFICIAL do Palco de Ofertas (arte do dono, 16:9 e 9:16). Guarda, em frações da tela, onde fica o espaço do
+ * produto (o pé dele encosta no tampo do palco), a faixa da frente do palco (nome do produto), o selo do preço e o lugar do
+ * "YOUR LOGO" (vira o botão "OFERTAS"/"ALERTAS"). Fundo novo do dono = uma entrada nova aqui + as 2 imagens em
+ * public/studio/palco/<id>-h.webp e <id>-v.webp.
+ */
+export interface FundoDoPalco {
+  id: string; nome: string;
+  produto: Record<FormatoDoc, Caixa>;
+  nome_: Record<FormatoDoc, Caixa>;
+  preco: Record<FormatoDoc, { cx: number; cy: number; d: number }>;
+  botao: Record<FormatoDoc, Caixa>;
+  /** cores do nome do produto (sobre a faixa do palco) e do botão */
+  corNome: string; corBotao: string; bordaBotao: string;
+  botoes: string[];
+}
+export const srcDoFundo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/palco/${f.id}-${formato === '9:16' ? 'v' : 'h'}.webp`;
+
+export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
+  {
+    id: 'alerta-de-oferta', nome: 'Alerta de Oferta (sirene)',
+    // o pé do produto encosta no tampo do palco (y + h = tampo); a largura acompanha o palco
+    produto: { '9:16': { x: 0.16, y: 0.36, w: 0.68, h: 0.385 }, '16:9': { x: 0.34, y: 0.46, w: 0.32, h: 0.285 } },
+    nome_: { '9:16': { x: 0.12, y: 0.757, w: 0.76, h: 0.07 }, '16:9': { x: 0.22, y: 0.772, w: 0.56, h: 0.075 } },
+    preco: { '9:16': { cx: 0.8, cy: 0.5, d: 0.3 }, '16:9': { cx: 0.885, cy: 0.5, d: 0.3 } },
+    botao: { '9:16': { x: 0.272, y: 0.872, w: 0.468, h: 0.072 }, '16:9': { x: 0.366, y: 0.877, w: 0.266, h: 0.1 } },
+    corNome: '#7a0010', corBotao: '#d90f1f', bordaBotao: '#ffd21f',
+    botoes: ['OFERTAS', 'ALERTAS'],
+  },
+];
+export const fundoDoPalcoPorId = (id: string | null | undefined) => FUNDOS_DO_PALCO.find((f) => f.id === id) ?? null;
+
+/** O produto em cima do palco do fundo oficial: proporção justa (foto inteira, pé no tampo, centrado no palco). */
+function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, f: FundoDoPalco, o: OpcoesDoPalco): Documento {
+  const { w: W, h: H } = TAMANHO_DOC[formato];
+  const px = (b: Caixa) => ({ x: b.x * W, y: b.y * H, w: b.w * W, h: b.h * H });
+  const c: Camada[] = [];
+  c.push({ ...imagem('Fundo oficial', srcDoFundo(f, formato), 0, 0, W, H), bloqueada: true });
+  // produto: 'conter' (inteiro, sem cortar) e focoY 100 = o pé encosta no tampo do palco
+  const pr = px(f.produto[formato]);
+  c.push({ ...imagem('Produto', p.imagem?.url ?? '', pr.x, pr.y, pr.w, pr.h, { ajuste: 'conter', focoX: 50, focoY: 100, sombra: null }), animacao: ani('subir', 0.25, 0.7, 'flutuar') });
+  // nome do produto escrito na faixa da frente do palco
+  const nb = px(f.nome_[formato]);
+  const tam = Math.min(nb.h * 0.62, (nb.w * 1.9) / Math.max(10, p.nome.length));
+  const nome = texto('Nome do produto', p.nome, nb.x, nb.y, nb.w, { fonte: 'poppins', peso: 800, tamanho: Math.round(tam), maiusculas: true, alinhamento: 'center', cor: f.corNome, entrelinha: 1 });
+  nome.y = nb.y + (nb.h - nome.h) / 2;
+  c.push({ ...nome, animacao: ani('surgir', 0.7, 0.5) });
+  // preço: selo amarelo com o vermelho do fundo
+  const preco = p.preco != null ? formatarPreco(p.preco) : null;
+  if (preco) {
+    const s = f.preco[formato];
+    const d = s.d * Math.min(W, H);
+    c.push({
+      ...selo(s.cx * W - d / 2, s.cy * H - d / 2, d, { topo: p.precoDe != null && p.precoDe > p.preco! ? `DE ${formatarPreco(p.precoDe).inteiro},${formatarPreco(p.precoDe).centavos}` : 'POR', valor: preco.inteiro, sufixo: `,${preco.centavos}`, base: p.unidade && p.unidade !== 'UN' ? `R$ / ${p.unidade}` : 'R$', cor: '#FFD21F', corTexto: '#c40f24', borda: '#ffffff' }),
+      nome: 'Preço', animacao: ani('zoom', 0.95, 0.55, 'pulsar'),
+    });
+  }
+  // botão no lugar do "YOUR LOGO" do fundo
+  const bb = px(f.botao[formato]);
+  c.push({ ...forma('Botão', bb.x, bb.y, bb.w, bb.h, { cor: f.corBotao, raio: Math.round(bb.h * 0.32), borda: { cor: f.bordaBotao, largura: Math.max(6, Math.round(bb.h * 0.08)) } }), animacao: ani('pulsar', 0, 1) });
+  const tb = texto('Botão — texto', (o.textoBotao ?? f.botoes[0]).toUpperCase(), bb.x, bb.y, bb.w, { fonte: 'anton', tamanho: Math.round(bb.h * 0.62), maiusculas: true, alinhamento: 'center', cor: '#ffffff' });
+  tb.y = bb.y + (bb.h - tb.h) / 2;
+  // o botão cobre o "YOUR LOGO" desde o 1º quadro (sem entrada), e pulsa
+  c.push({ ...tb, animacao: ani('pulsar', 0, 1) });
+  return { versao: 2, formato, fundo: '#c40f24', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } };
+}
 export const SEGUNDOS_POR_PRODUTO = 4;
 export const PASTA_PALCO = 'palco-de-ofertas';
 
@@ -15,6 +91,7 @@ const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depo
 
 /** A arte de UM produto no palco (16:9 ou 9:16), com as animações da coreografia do palco. */
 export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, o: OpcoesDoPalco = {}): Documento {
+  if (o.fundo) return palcoOficial(p, formato, o.fundo, o);
   const { w: W, h: H } = TAMANHO_DOC[formato];
   const em = formato === '9:16';
   const titulo = (o.titulo ?? 'SUPER OFERTAS').toUpperCase();

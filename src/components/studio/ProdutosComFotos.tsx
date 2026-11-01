@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { LeitorDeCodigo } from '@/components/tabloide/LeitorDeCodigo';
 import { completarImagens } from '@/lib/tabloide/imagens';
 import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, precoParaTexto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
-import { ENCARTES } from '@/lib/tabloide/encartes';
+import { CESTA_MERCADO } from '@/lib/tabloide/encartes';
 
 /** os produtos colocados na pasta seguem para o editor do encarte e para o palco (mesma aba do navegador) */
 export const CHAVE_PRODUTOS_DO_ENCARTE = 'studio-encarte-produtos';
@@ -26,7 +26,7 @@ export interface ProdutosComFotos {
   gravar: (lista: ProdutoTabloide[]) => void;
 }
 
-export function useProdutosComFotos(inicial = ENCARTES[0].produtos): ProdutosComFotos {
+export function useProdutosComFotos(inicial = CESTA_MERCADO): ProdutosComFotos {
   const [texto, setTexto] = useState(() => { try { return sessionStorage.getItem(CHAVE_PRODUTOS_DO_ENCARTE) || inicial; } catch { return inicial; } });
   const [produtos, setProdutos] = useState<ProdutoTabloide[]>(() => lerLista(texto));
   const [buscando, setBuscando] = useState<string[]>([]);

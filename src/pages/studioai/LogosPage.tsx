@@ -41,11 +41,13 @@ export default function LogosPage() {
   const [paraTodos, setParaTodos] = useState(false);
   const [ocupado, setOcupado] = useState<null | 'baixar' | 'salvar'>(null);
   const mudar = (x: Partial<ConfigLogo3D>) => setCfg((c) => ({ ...c, ...x }));
-  const mudarLinha = (i: number, x: Partial<ConfigLogo3D['linhas'][number]>) => setCfg((c) => ({ ...c, linhas: c.linhas.map((l, k) => (k === i ? { ...l, ...x } : l)) }));
+  // o texto escrito pela pessoa continua quando ela troca de estilo; o texto de exemplo troca junto com o estilo
+  const [textoProprio, setTextoProprio] = useState(false);
+  const mudarLinha = (i: number, x: Partial<ConfigLogo3D['linhas'][number]>) => { if (x.texto !== undefined) setTextoProprio(true); setCfg((c) => ({ ...c, linhas: c.linhas.map((l, k) => (k === i ? { ...l, ...x } : l)) })); };
   const escolherEstilo = (id: string) => {
     const e = ESTILOS_DE_LOGO.find((x) => x.id === id)!;
     // troca o desenho e mantém o texto que a pessoa já escreveu (quando há o mesmo número de linhas)
-    setCfg((atual) => { const novo = clonarConfig(e.config); if (atual.linhas.length === novo.linhas.length) novo.linhas = novo.linhas.map((l, i) => ({ ...l, texto: atual.linhas[i].texto })); return novo; });
+    setCfg((atual) => { const novo = clonarConfig(e.config); if (textoProprio && atual.linhas.length === novo.linhas.length) novo.linhas = novo.linhas.map((l, i) => ({ ...l, texto: atual.linhas[i].texto })); return novo; });
   };
   const nomeDoArquivo = cfg.linhas.map((l) => `${l.pilula?.texto ?? ''} ${l.texto}`).join(' ').replace(/\s+/g, ' ').trim();
 

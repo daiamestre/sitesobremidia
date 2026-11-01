@@ -11,7 +11,7 @@ const SEM_IA = { disponiveis: new Set(['interno', 'cf-flux-schnell']) };
 
 describe('MG-STUDIO-02 — DNA visual e taxonomia', () => {
   it('DNA versionado com autoridade, proibições, regras de TODAS as modalidades e roteiros de 15/20 s', () => {
-    expect(VERSAO_DNA).toBe('dna.v2');
+    expect(VERSAO_DNA).toBe('dna.v3');
     expect(AUTORIDADE[0]).toMatch(/segurança/);
     expect(PROIBIDO.join(' ')).toMatch(/Inventar preço/);
     for (const m of ['imagem', 'fotografia_produto', 'arte_comercial', 'elemento_3d', 'redes_sociais', 'personagem', 'motion', 'video_ia'] as const) expect(REGRAS[m].length).toBeGreaterThan(1);
@@ -106,7 +106,9 @@ describe('agentes existentes recebem o contexto do Core', () => {
     const ctx = contextoParaAgente('diretor', pedido);
     expect(ctx).toContain('SOBRE MÍDIA CREATIVE CORE');
     expect(ctx).toContain(VERSAO_DNA);
-    expect(ctx).toMatch(/Segmento \(dna\.v2\): Saúde \/ Estética clínica/);
+    expect(ctx).toMatch(/Segmento \(dna\.v3\): Saúde \/ Estética clínica/);
+    // F-236: todo agente recebe a regra de análise completa das referências do dono (imagem e vídeo)
+    expect(ctx).toMatch(/Referências do dono \(imagem\/vídeo\): Mapa da composição/);
     expect(estiloDoPedido(pedido).ambientes_do_segmento[0]).toMatch(/clínica/);
   });
   it('diretorCriativo e roteirista mandam esse contexto ao modelo (executor espião)', async () => {
@@ -118,8 +120,8 @@ describe('agentes existentes recebem o contexto do Core', () => {
     const d = await diretorCriativo(espiao, pedido, {});
     await roteirista(espiao, pedido, d.saida);
     expect(sistemas).toHaveLength(2);
-    for (const s of sistemas) { expect(s).toContain('dna.v2'); expect(s).toContain('Saúde'); }
-    expect(d.versao).toBe('biblia.v1+dna.v2');
+    for (const s of sistemas) { expect(s).toContain('dna.v3'); expect(s).toContain('Saúde'); }
+    expect(d.versao).toBe('biblia.v1+dna.v3');
   });
 });
 

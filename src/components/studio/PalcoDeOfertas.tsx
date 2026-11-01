@@ -12,9 +12,9 @@ import { CapaQueGira } from '@/components/media/CapaQueGira';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista } from '@/lib/tabloide/parseProdutos';
-import { ENCARTES } from '@/lib/tabloide/encartes';
+import { CESTA_MERCADO } from '@/lib/tabloide/encartes';
 import type { FormatoDoc } from '@/lib/studio/documento';
-import { SEGUNDOS_POR_PRODUTO, palcoDoProduto, projetoDoCarrossel } from '@/lib/studio/palco';
+import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type FundoDoPalco } from '@/lib/studio/palco';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
 import { useFotosDosEncartes } from './EncartesDoStudio';
@@ -22,18 +22,18 @@ import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { PainelDeProdutos, useProdutosComFotos } from './ProdutosComFotos';
 
 /** A tela tocando o carrossel: um produto por vez, cada um com a sua animação no palco. */
-export function CarrosselNoPalco({ produtos, formato, titulo, className }: { produtos: Parameters<typeof palcoDoProduto>[0][]; formato: FormatoDoc; titulo?: string; className?: string }) {
+export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo = FUNDOS_DO_PALCO[0], textoBotao }: { produtos: Parameters<typeof palcoDoProduto>[0][]; formato: FormatoDoc; titulo?: string; className?: string; fundo?: FundoDoPalco | null; textoBotao?: string }) {
   const slides = useMemo(() => produtos.map((p, i) => {
-    const doc = palcoDoProduto(p, formato, { titulo, logoTitulo: logoSalvaDoStudio() });
+    const doc = palcoDoProduto(p, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao });
     return { chave: `${i}-${p.nome}-${p.preco}`, animada: () => <PreviaDocumento doc={doc} animar sempre /> };
-  }), [produtos, formato, titulo]);
+  }), [produtos, formato, titulo, fundo, textoBotao]);
   return <CapaQueGira slides={slides} tempo={SEGUNDOS_POR_PRODUTO * 1000} ajuste="contain" className={cn('rounded-xl', className)} style={{ aspectRatio: formato === '9:16' ? '9 / 16' : '16 / 9' }} />;
 }
 
 /** Capa da pasta no catálogo: o palco passando os produtos de exemplo (fotos do catálogo da empresa). */
 export function CapaDaPastaPalco() {
   const fotos = useFotosDosEncartes();
-  const produtos = useMemo(() => lerLista(ENCARTES[0].produtos).slice(0, 6).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null })), [fotos.data]);
+  const produtos = useMemo(() => lerLista(CESTA_MERCADO).slice(0, 6).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null })), [fotos.data]);
   return <CarrosselNoPalco produtos={produtos} formato="9:16" className="h-full" />;
 }
 
@@ -42,11 +42,15 @@ export function PalcoDeOfertas() {
   const s = useProdutosComFotos();
   const [formato, setFormato] = useState<FormatoDoc>('9:16');
   const [titulo, setTitulo] = useState('SUPER OFERTAS');
+  // F-237: fundo OFICIAL do dono (o padrão) e o texto do botão no lugar do "YOUR LOGO"
+  const [fundoId, setFundoId] = useState<string>(FUNDOS_DO_PALCO[0].id);
+  const fundo = FUNDOS_DO_PALCO.find((f) => f.id === fundoId) ?? null;
+  const [textoBotao, setTextoBotao] = useState(FUNDOS_DO_PALCO[0].botoes[0]);
   const comPreco = s.produtos.filter((p) => p.preco != null);
 
   const criarVideo = () => {
     if (!comPreco.length) { toast.error('Coloque pelo menos um produto com preço.'); return; }
-    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio() });
+    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao });
     try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ projeto, nome: `Palco de Ofertas – ${titulo}` })); } catch { toast.error('Não foi possível abrir o editor de vídeo.'); return; }
     navegar('/studio/video');
   };
@@ -72,12 +76,31 @@ export function PalcoDeOfertas() {
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         <PainelDeProdutos s={s} destaques={0} botao="Colocar no palco" />
         <section className="space-y-3">
-          <label className="flex max-w-md flex-col gap-1 text-xs text-slate-300">Título do palco
-            <input value={titulo} onChange={(e) => setTitulo(e.target.value.slice(0, 28))} className="h-9 rounded-lg border border-white/10 bg-black/30 px-2 text-sm font-bold text-white focus:border-[#B04DFF] focus:outline-none" data-testid="palco-titulo" />
-          </label>
+          <div className="space-y-1.5">
+            <p className="text-xs text-slate-300">Fundo do palco</p>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Fundo do palco">
+              {FUNDOS_DO_PALCO.map((f) => (
+                <button key={f.id} type="button" role="radio" aria-checked={fundoId === f.id} onClick={() => { setFundoId(f.id); setTextoBotao(f.botoes[0]); }} data-testid="palco-fundo"
+                  className={cn('w-28 overflow-hidden rounded-lg border-2 text-left', fundoId === f.id ? 'border-[#FFD400]' : 'border-white/10')}>
+                  <img src={srcDoFundo(f, '16:9')} alt="" className="aspect-video w-full object-cover" />
+                  <span className="block truncate px-1 py-0.5 text-[10px] text-slate-200">{f.nome}</span>
+                </button>
+              ))}
+              <button type="button" role="radio" aria-checked={!fundo} onClick={() => setFundoId('')} className={cn('flex w-28 items-center justify-center rounded-lg border-2 px-2 text-center text-[10px] text-slate-300', !fundo ? 'border-[#FFD400]' : 'border-white/10')}>Palco desenhado (com título)</button>
+            </div>
+            {fundo ? (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">Botão:
+                {fundo.botoes.map((b) => <button key={b} type="button" onClick={() => setTextoBotao(b)} className={cn('rounded-full border px-3 py-1 font-bold', textoBotao === b ? 'border-[#FFD400] text-[#FFD400]' : 'border-white/10')} data-testid="palco-botao">{b}</button>)}
+              </div>
+            ) : (
+              <label className="flex max-w-md flex-col gap-1 text-xs text-slate-300">Título do palco
+                <input value={titulo} onChange={(e) => setTitulo(e.target.value.slice(0, 28))} className="h-9 rounded-lg border border-white/10 bg-black/30 px-2 text-sm font-bold text-white focus:border-[#B04DFF] focus:outline-none" data-testid="palco-titulo" />
+              </label>
+            )}
+          </div>
           <div className={cn('mx-auto', formato === '9:16' ? 'max-w-[360px]' : 'max-w-[760px]')} data-testid="palco-tela">
             {comPreco.length
-              ? <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} />
+              ? <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} />
               : <p className="rounded-xl border border-dashed border-white/15 p-10 text-center text-sm text-slate-400">Coloque produtos com preço à esquerda.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">

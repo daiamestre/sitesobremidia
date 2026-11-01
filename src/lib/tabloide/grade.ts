@@ -27,7 +27,13 @@ export interface AjusteDeMedidas {
   rodape?: 'faixa' | 'redondo' | 'grande' | 'sem';
   /** proporção (largura ÷ altura) em que o box de produto fica bom: [mínimo, máximo] */
   boxIdeal?: [number, number];
+  /** F-236: 'lateral' = destaques numa coluna à direita; 'dividido' = duas metades com cores diferentes */
+  layout?: LayoutDoCartaz;
 }
+
+export type LayoutDoCartaz = 'padrao' | 'lateral' | 'dividido';
+/** Painel colorido atrás de uma área (coluna de destaques, metade da tela). */
+export interface Painel { x: number; y: number; w: number; h: number; tipo: 'coluna' | 'metade' }
 
 const ESCALA_RODAPE = { faixa: 1, redondo: 1.18, grande: 1.4, sem: 0 } as const;
 
@@ -61,6 +67,7 @@ export interface PaginaLayout {
   celulas: Celula[];
   cols: number;
   rows: number;
+  paineis?: Painel[];
 }
 
 export const GRADES_FIXAS = [
@@ -110,7 +117,44 @@ function posicionarGrade(itens: ProdutoTabloide[], cols: number, rows: number, x
   return out;
 }
 
-function montarPagina(itens: ProdutoTabloide[], m: Medidas, gradeId: string, destaques: number, ideal?: [number, number]): PaginaLayout {
+/** F-236: destaques empilhados numa coluna à direita (com painel próprio) e a grade à esquerda. */
+function paginaLateral(itens: ProdutoTabloide[], m: Medidas, gradeId: string, destaques: number, ideal?: [number, number]): PaginaLayout {
+  const d = Math.max(1, Math.min(destaques || 3, itens.length, 4));
+  const lat = itens.slice(0, d);
+  const resto = itens.slice(d);
+  const colW = resto.length ? Math.round(m.corpoL * 0.3) : m.corpoL;
+  const xCol = m.corpoX + m.corpoL - colW;
+  const hCol = (m.corpoA - m.gap * (d - 1)) / d;
+  const celulas: Celula[] = lat.map((produto, i) => ({ produto, x: xCol, y: m.corpoY + i * (hCol + m.gap), w: colW, h: hCol, destaque: true }));
+  let cols = 1, rows = 1;
+  if (resto.length) {
+    const l = m.corpoL - colW - m.gap * 1.5;
+    const fixa = parseGrade(gradeId);
+    if (fixa) { cols = fixa.cols; rows = Math.max(fixa.rows, Math.ceil(resto.length / fixa.cols)); }
+    else ({ cols, rows } = melhorGrade(resto.length, l, m.corpoA, ideal));
+    celulas.push(...posicionarGrade(resto, cols, rows, m.corpoX, m.corpoY, l, m.corpoA, m.gap));
+  }
+  return { celulas, cols, rows, paineis: [{ x: xCol - m.gap * 0.6, y: m.corpoY - m.gap * 0.6, w: colW + m.gap * 1.2, h: m.corpoA + m.gap * 1.2, tipo: 'coluna' }] };
+}
+
+/** F-236: duas metades (cores diferentes), cada uma com a sua coluna de produtos. */
+function paginaDividida(itens: ProdutoTabloide[], m: Medidas): PaginaLayout {
+  const metade = Math.ceil(itens.length / 2);
+  const lados = [itens.slice(0, metade), itens.slice(metade)];
+  const meioX = m.largura / 2;
+  const celulas: Celula[] = [];
+  lados.forEach((lista, k) => {
+    if (!lista.length) return;
+    const x0 = k === 0 ? m.corpoX : meioX + m.gap;
+    const l = (k === 0 ? meioX - m.gap - m.corpoX : m.corpoX + m.corpoL - meioX - m.gap);
+    celulas.push(...posicionarGrade(lista, 1, lista.length, x0, m.corpoY, l, m.corpoA, m.gap).map((c) => ({ ...c, destaque: k === 1 })));
+  });
+  return { celulas, cols: 2, rows: metade, paineis: [{ x: meioX, y: 0, w: m.largura - meioX, h: m.altura, tipo: 'metade' }] };
+}
+
+function montarPagina(itens: ProdutoTabloide[], m: Medidas, gradeId: string, destaques: number, ideal?: [number, number], layout: LayoutDoCartaz = 'padrao'): PaginaLayout {
+  if (layout === 'lateral') return paginaLateral(itens, m, gradeId, destaques, ideal);
+  if (layout === 'dividido') return paginaDividida(itens, m);
   const d = Math.min(destaques, itens.length, 3);
   const top = itens.slice(0, d);
   const resto = itens.slice(d);
@@ -142,10 +186,11 @@ export function montarPaginas(produtos: ProdutoTabloide[], formato: Pick<Formato
   const m = medidasDoFormato(formato, linhasRodape, ajuste);
   if (!produtos.length) return [{ celulas: [], cols: 1, rows: 1 }];
   const fixa = parseGrade(gradeId);
-  const porPagina = fixa ? Math.max(1, fixa.cols * fixa.rows + Math.min(destaques, 3)) : LIMITE_AUTO + Math.min(destaques, 3);
+  const extras = ajuste.layout === 'lateral' ? Math.max(1, Math.min(destaques || 3, 4)) : ajuste.layout === 'dividido' ? 0 : Math.min(destaques, 3);
+  const porPagina = ajuste.layout === 'dividido' ? (fixa ? fixa.cols * fixa.rows : 10) : fixa ? Math.max(1, fixa.cols * fixa.rows + extras) : LIMITE_AUTO + extras;
   const paginas = Math.ceil(produtos.length / porPagina);
   const tamanho = Math.ceil(produtos.length / paginas); // páginas equilibradas
   const out: PaginaLayout[] = [];
-  for (let i = 0; i < produtos.length; i += tamanho) out.push(montarPagina(produtos.slice(i, i + tamanho), m, gradeId, destaques, ajuste.boxIdeal));
+  for (let i = 0; i < produtos.length; i += tamanho) out.push(montarPagina(produtos.slice(i, i + tamanho), m, gradeId, destaques, ajuste.boxIdeal, ajuste.layout));
   return out;
 }

@@ -6,7 +6,7 @@
 // Para mudar: edite, suba VERSAO_DNA e registre o motivo em docs/studio/creative-core/CHANGELOG.md.
 import { PRINCIPIOS as PRINCIPIOS_BIBLIA, VERSAO_BIBLIA } from '../biblia.ts';
 
-export const VERSAO_DNA = 'dna.v2';
+export const VERSAO_DNA = 'dna.v3';
 export const BASE = VERSAO_BIBLIA;
 
 /** Identidade do SOFTWARE (a interface do Studio). As artes usam a paleta da campanha/segmento/cliente. */
@@ -147,6 +147,43 @@ export const PORTOES_DE_QUALIDADE = [
 
 export const PRINCIPIOS = [...PRINCIPIOS_BIBLIA];
 
+/**
+ * F-236 — REFERÊNCIA DE ENCARTE DE MERCADO (dna.v3): o vocabulário visual das referências que o dono mandou (16 encartes)
+ * e do catálogo de "ofertas supermercado" do Magnific/Freepik (https://www.magnific.com/br/psd/ofertas-supermercado),
+ * para TODO encarte novo de mercado. Recriar a ESTRUTURA e o ESTILO com arte própria (título pelo Criador de Logos 3D,
+ * fundos em gradiente, produtos reais do cliente); a logo 3D/arte de terceiros só entra a partir de arquivo enviado pelo dono.
+ */
+export const REFERENCIA_MERCADO = {
+  fonte: 'https://www.magnific.com/br/psd/ofertas-supermercado',
+  estruturas: [
+    'palco com 1 produto: título 3D no topo, logo da loja, produto em pedestal dourado/vermelho, preço grande à direita (Aqui Tem Economia, Ofertas da Semana, Alerta de Oferta, Quinta da Carne)',
+    'grade + coluna de destaques à direita em painel de outra cor (Show de Ofertas, Dia de Economia, Semana do Frango, Explosão de Ofertas)',
+    'tela dividida em duas cores, uma coluna de produtos em cada metade (Mega Oferta)',
+    'grade com destaques em cima (Hortifruti, Super Ofertas, Hora de Economizar, Aqui Tem Economia)',
+  ],
+  titulos3d: ['letras grossas e arredondadas/condensadas', 'face com degradê (ouro, vermelho, prata, verde)', 'volume grosso colorido (extrusão) e contorno branco', 'chanfro/brilho no topo', 'palavra pequena (DA, DE, DO) numa pílula', 'leve inclinação e arco', 'balão, selo redondo ou faixa atrás'],
+  elementos: ['moedas de $ douradas', 'carrinho e cesta de compras', 'sirene', 'holofotes e balões', 'raios de luz', 'estrelas e brilhos', 'fita de alerta', 'mascote do segmento (frango, fruta)', 'pedestal/palco'],
+  fundos: ['vermelho com retícula', 'amarelo com diagonal vermelha', 'verde com raios', 'azul com laranja/amarelo', 'vinho escuro', 'metades vermelho/azul'],
+  precos: ['etiqueta vermelha/amarela com "R$" pequeno, inteiro grande e centavos sobrescritos', '"de/por" com o "de" riscado', 'unidade (kg, un) embaixo'],
+  rodape: ['WhatsApp', 'endereço com ícone de mapa', '"aceitamos cartão"', 'validade das ofertas', '"imagens meramente ilustrativas"', 'redes sociais'],
+  titulosFrequentes: ['SUPER OFERTAS', 'OFERTAS DA SEMANA', 'AQUI TEM ECONOMIA', 'SEMPRE PREÇO BAIXO', 'É MUITO BARATO', 'COMPRE MAIS PAGUE MENOS', 'QUEIMA DE ESTOQUE', 'MEGA OFERTA', 'O MENOR PREÇO DA CIDADE', 'HORA CERTA HORA ECONOMIA', 'TODO DIA TEM OFERTA', 'QUINTA DA CARNE', 'SEMANA DO CLIENTE', 'FOLIA DE OFERTAS'],
+};
+
+/**
+ * F-236 — REGRA DE ANÁLISE DE REFERÊNCIA (para o Agente SOBRE MÍDIA e os agentes de visão das APIs grátis):
+ * toda imagem ou vídeo que o dono mandar é descrito por completo antes de criar qualquer modelo.
+ */
+export const ANALISE_DE_REFERENCIA = [
+  'Mapa da composição: grade (colunas × linhas), onde fica o título, a logo, os produtos, os destaques, o preço e o rodapé, em % da largura/altura.',
+  'Paleta: as cores principais em hex (fundo, título, volume do título, painéis, etiquetas de preço, rodapé).',
+  'Título: texto, linhas, palavra pequena, tipo de letra (condensada, arredondada, itálica), face, volume, contorno, brilho, inclinação, arco e o que vai atrás (balão, selo, faixa).',
+  'Elementos e objetos: cada um, com posição, tamanho aproximado e função (moedas, carrinho, sirene, pedestal, mascote, raios).',
+  'Texturas e fundos: diagonais, raios de luz, retícula, degradês, painéis.',
+  'Produtos: quantos, como aparecem (embalagem recortada, foto em caixa), como o nome e o preço são escritos.',
+  'Vídeo: a ordem em que cada elemento entra, o movimento (subir, zoom, girar, pulsar, flutuar), a duração de cada cena e as transições.',
+  'Resultado: recriar a MESMA estrutura e o mesmo estilo com a arte da SOBRE MÍDIA (Criador de Logos 3D, fundos em gradiente, produtos reais do cliente). Logo 3D ou arte de terceiros idêntica só a partir de arquivo enviado pelo dono.',
+];
+
 /** Texto curto do DNA para o SISTEMA de qualquer agente/provedor (o resto vai por modalidade e segmento). */
 export function textoDoDna(): string {
   return [
@@ -156,5 +193,6 @@ export function textoDoDna(): string {
     `Composição: ${MANUAL.composicao.join(' ')}`,
     `Hierarquia: ${MANUAL.hierarquia.join(' > ')}.`,
     `Acabamento: ${MANUAL.acabamento.join(' ')}`,
+    `Referências do dono (imagem/vídeo): ${ANALISE_DE_REFERENCIA.join(' ')}`,
   ].join('\n');
 }

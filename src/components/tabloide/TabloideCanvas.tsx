@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { medidasDoFormato, type AjusteDeMedidas, type Celula, type PaginaLayout } from '@/lib/tabloide/grade';
 import { coresDoSelo, desenharPreco, desenharSelo3D, larguraDoPreco, tom } from '@/lib/tabloide/selo3d';
+import { carregarFontesDoLogo, desenharLogo3D, logoDoTitulo } from '@/lib/studio/logo3d';
 import { cssDaFonte, fonteDeCanvas } from '@/lib/tabloide/fontes';
 import type { Formato, Segmento, Tema } from '@/lib/tabloide/temas';
 import type { ElementoLivre } from '@/lib/tabloide/selos';
@@ -17,16 +18,19 @@ const NOMES_FONTE: Record<string, string> = { OPENFOODFACTS: 'Open Food Facts', 
 const ESCALA_TEXTO: Record<TamanhoTexto, number> = { pequeno: 0.82, medio: 1, grande: 1.2 };
 
 /** Título em texto com volume (usado só quando não há logo 3D para o cabeçalho). */
-function Selo3D({ titulo, tema, largura, altura }: { titulo: string; tema: Tema; largura: number; altura: number }) {
+function Selo3D({ titulo, tema, largura, altura, estilo }: { titulo: string; tema: Tema; largura: number; altura: number; /** F-236: título como logo 3D no estilo do Criador de Logos */ estilo?: string | null }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const [fontes, setFontes] = useState(0);
+  useEffect(() => { if (estilo) void carregarFontesDoLogo().then(() => setFontes((v) => v + 1)); }, [estilo]);
   useEffect(() => {
     const tela = ref.current;
     if (!tela) return;
     let ctx: CanvasRenderingContext2D | null = null;
     try { ctx = tela.getContext('2d'); } catch { ctx = null; }
     if (!ctx) return;
-    desenharSelo3D(ctx, tela.width, tela.height, titulo, coresDoSelo(tema.preco, tema.precoCor));
-  }, [titulo, tema, largura, altura]);
+    if (estilo) desenharLogo3D(ctx, tela.width, tela.height, logoDoTitulo(titulo, estilo));
+    else desenharSelo3D(ctx, tela.width, tela.height, titulo, coresDoSelo(tema.preco, tema.precoCor));
+  }, [titulo, tema, largura, altura, estilo, fontes]);
   return <canvas ref={ref} role="img" aria-label={titulo} data-testid="tabloide-selo" width={Math.round(largura)} height={Math.round(altura)} style={{ width: largura, height: altura, display: 'block', flexShrink: 0 }} />;
 }
 
@@ -275,6 +279,10 @@ export interface TabloideCanvasProps {
   fundoLogo?: FundoLogo;
   /** F-231: sem logo, mostra a caixa "Sua logo aqui" no lugar dela */
   logoAqui?: boolean;
+  /** F-236: título como logo 3D (estilo do Criador de Logos), fundo moderno em CSS e cor dos painéis */
+  estiloTitulo?: string | null;
+  fundoCss?: string | null;
+  corPainel?: string | null;
   /** Logo 3D do cabeçalho (PNG transparente). */
   seloUrl?: string | null;
   /** Sem logo e sem título em texto (a foto do tema já traz a arte do cabeçalho). */
@@ -363,7 +371,18 @@ export function TabloideCanvas(p: TabloideCanvasProps) {
     </div>
   );
 
-  const raiz: React.CSSProperties = { position: 'relative', width: m.largura, height: m.altura, background: tema.fundo, fontFamily: cssDaFonte('padrao').fontFamily, overflow: 'hidden' };
+  const raiz: React.CSSProperties = { position: 'relative', width: m.largura, height: m.altura, background: p.fundoCss || tema.fundo, fontFamily: cssDaFonte('padrao').fontFamily, overflow: 'hidden' };
+  // F-236: painéis coloridos (coluna de destaques à direita; metade da tela) atrás dos produtos
+  const paineis = (pagina.paineis ?? []).map((pn, i) => (
+    <div key={`painel-${i}`} data-testid={`tabloide-painel-${pn.tipo}`} style={{
+      position: 'absolute', left: pn.x, top: pn.y, width: pn.w, height: pn.h,
+      background: pn.tipo === 'metade'
+        ? `radial-gradient(rgba(255,255,255,.10) 1.6px, transparent 1.8px) 0 0 / 18px 18px, linear-gradient(180deg, ${tom(p.corPainel ?? '#1e3fd0', 0.15)}, ${p.corPainel ?? '#1e3fd0'})`
+        : `linear-gradient(180deg, ${tom(p.corPainel ?? tema.preco, 0.12)}, ${tom(p.corPainel ?? tema.preco, -0.25)})`,
+      borderRadius: pn.tipo === 'coluna' ? m.gap * 1.2 : 0,
+      boxShadow: pn.tipo === 'coluna' ? '0 10px 30px rgba(0,0,0,.35)' : 'none',
+    }} />
+  ));
 
   if (p.capa) {
     // capa: a arte de cartaz inteiro cobre a página; a arte de faixa entra inteira, de ponta a ponta, sem cortar.
@@ -381,7 +400,7 @@ export function TabloideCanvas(p: TabloideCanvasProps) {
           {faixa && <img src={faixa} alt="" crossOrigin="anonymous" referrerPolicy="no-referrer" data-testid="tabloide-faixa-tema" style={{ width: m.largura, height: m.cabecalho, objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
           {seloUrl
             ? <LogoDoCabecalho url={seloUrl} titulo={texto} tema={tema} largura={m.largura * 0.86} altura={faixa ? logoA * 0.6 : logoA} />
-            : !(arte && p.semTitulo) ? <Selo3D titulo={texto} tema={tema} largura={Math.min(m.largura * 0.86, logoA * 2.4)} altura={logoA} /> : null}
+            : !(arte && p.semTitulo) ? <Selo3D titulo={texto} tema={tema} largura={Math.min(m.largura * 0.86, logoA * 2.4)} altura={logoA} estilo={p.estiloTitulo} /> : null}
           {subtitulo && (
             <div data-testid="tabloide-frase" style={{ background: tema.faixa, color: tema.tituloCor, borderRadius: fraseCapa * 0.5, padding: `${fraseCapa * 0.35}px ${fraseCapa * 0.9}px`, fontSize: fraseCapa, lineHeight: 1.1, textAlign: 'center', maxWidth: m.largura * 0.9, boxShadow: '0 6px 0 rgba(0,0,0,.2)', ...cssDaFonte(fontes.frase) }}>{subtitulo}</div>
           )}
@@ -410,12 +429,13 @@ export function TabloideCanvas(p: TabloideCanvasProps) {
         <div style={{ display: 'flex', flexDirection: horizontal ? 'row' : 'column', alignItems: 'center', justifyContent: 'center', gap: horizontal ? m.gap * 1.5 : m.gap * 0.2, minWidth: 0 }}>
           {seloUrl
             ? <LogoDoCabecalho url={seloUrl} titulo={texto} tema={tema} largura={seloL} altura={seloA} />
-            : temCabecalho ? <Selo3D titulo={texto} tema={tema} largura={seloL} altura={seloA} /> : null}
+            : temCabecalho ? <Selo3D titulo={texto} tema={tema} largura={p.estiloTitulo ? seloL * 1.15 : seloL} altura={p.estiloTitulo ? seloA * 1.1 : seloA} estilo={p.estiloTitulo} /> : null}
           {frase}
         </div>
         {logoDaLoja(logoLado)}
       </div>
 
+      {paineis}
       {pagina.celulas.map((c) => <Cartao key={c.produto.id} celula={c} tema={tema} fontes={fontes} boxes={boxes} escala={escalaTexto} />)}
 
       {rodapeNo}
