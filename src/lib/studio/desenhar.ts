@@ -122,7 +122,75 @@ function desenharTexto(ctx: CanvasRenderingContext2D, c: CamadaTexto) {
   comEspacamento(ctx, 0);
 }
 
+/** F-239: balão de preço realista — volume (degradê radial), aro dourado, brilho em cima; R$ + valor + centavos centralizados. */
+function clarear(hex: string, f: number) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const canal = (v: number) => Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f));
+  return `rgb(${canal(n >> 16)}, ${canal((n >> 8) & 255)}, ${canal(n & 255)})`;
+}
+/** borda do volume: escurece puxando para o laranja (amarelo não fica esverdeado) */
+function quente(hex: string) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  return `rgb(${Math.round((n >> 16) * 0.96)}, ${Math.round(((n >> 8) & 255) * 0.62)}, ${Math.round((n & 255) * 0.3)})`;
+}
+function desenharSeloRealista(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
+  const r = Math.min(c.w, c.h) / 2;
+  const g = ctx.createRadialGradient(-r * 0.32, -r * 0.38, r * 0.05, 0, 0, r);
+  g.addColorStop(0, clarear(c.cor, 0.6)); g.addColorStop(0.45, c.cor); g.addColorStop(1, quente(c.cor));
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+  ctx.shadowColor = 'transparent';
+  // aro: branco por fora, dourado escuro por dentro
+  const aro = r * 0.06;
+  ctx.lineWidth = aro; ctx.strokeStyle = c.borda; ctx.beginPath(); ctx.arc(0, 0, r - aro / 2, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = r * 0.018; ctx.strokeStyle = clarear(c.cor, -0.4); ctx.beginPath(); ctx.arc(0, 0, r - aro - r * 0.01, 0, Math.PI * 2); ctx.stroke();
+  // brilho em cima (reflexo)
+  ctx.save();
+  ctx.beginPath(); ctx.arc(0, 0, r - aro, 0, Math.PI * 2); ctx.clip();
+  const b = ctx.createLinearGradient(0, -r, 0, -r * 0.1);
+  b.addColorStop(0, 'rgba(255,255,255,.55)'); b.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = b; ctx.beginPath(); ctx.ellipse(0, -r * 0.52, r * 0.78, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // textos: valor no CENTRO do balão; R$ pequeno à esquerda, centavos em cima à direita; "de/por" em cima, unidade embaixo
+  ctx.fillStyle = c.corTexto; ctx.textBaseline = 'middle';
+  ctx.shadowColor = clarear(c.corTexto, -0.45); ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = r * 0.025;
+  let tv = r * 0.95;
+  const larguras = () => {
+    ctx.font = fonteCanvas(c.fonte, tv * 0.32); const wm = c.moeda ? ctx.measureText(c.moeda).width + tv * 0.06 : 0;
+    ctx.font = fonteCanvas(c.fonte, tv); const wv = ctx.measureText(c.valor).width;
+    ctx.font = fonteCanvas(c.fonte, tv * 0.44); const ws = c.sufixo ? ctx.measureText(c.sufixo).width + tv * 0.02 : 0;
+    return { wm, wv, ws, total: wm + wv + ws };
+  };
+  let w = larguras();
+  while (w.total > r * 1.62 && tv > r * 0.3) { tv *= 0.93; w = larguras(); }
+  // medidas reais da fonte: os algarismos do valor ficam com o MEIO exatamente no centro do balão
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = fonteCanvas(c.fonte, tv);
+  const mv = ctx.measureText(c.valor);
+  const asc = mv.actualBoundingBoxAscent || tv * 0.75, desc = mv.actualBoundingBoxDescent || 0;
+  const tTopo = r * 0.17, tBase = r * 0.16, folga = r * 0.085;
+  // o conjunto (de/por + valor + unidade) fica centralizado na vertical
+  const desloc = ((c.topo ? tTopo + folga : 0) - (c.base ? tBase + folga : 0)) / 2;
+  const topoValor = -(asc + desc) / 2 + desloc;
+  const linhaBase = topoValor + asc;
+  const alturaValor = asc + desc;
+  let x = -w.total / 2;
+  ctx.textAlign = 'left';
+  const peloTopo = (txt: string, tam: number, xx: number, topo: number) => { ctx.font = fonteCanvas(c.fonte, tam); const a = ctx.measureText(txt).actualBoundingBoxAscent || tam * 0.75; ctx.fillText(txt, xx, topo + a); };
+  // R$ pequeno à esquerda, na altura do meio do valor; centavos alinhados pelo topo do valor
+  if (c.moeda) { peloTopo(c.moeda, tv * 0.32, x, topoValor + alturaValor * 0.22); x += w.wm; }
+  ctx.font = fonteCanvas(c.fonte, tv); ctx.fillText(c.valor, x, linhaBase); x += w.wv + tv * 0.02;
+  if (c.sufixo) peloTopo(c.sufixo, tv * 0.44, x, topoValor);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (c.topo) { ctx.font = fonteCanvas('poppins', tTopo, 800); ctx.fillText(c.topo, 0, topoValor - folga - tTopo / 2); }
+  if (c.base) { ctx.font = fonteCanvas('poppins', tBase, 800); ctx.fillText(c.base, 0, topoValor + alturaValor + folga + tBase / 2); }
+}
+
 function desenharSelo(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
+  if (c.realista) { desenharSeloRealista(ctx, c); return; }
   const r = Math.min(c.w, c.h) / 2;
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = c.cor; ctx.fill();
   ctx.shadowColor = 'transparent';

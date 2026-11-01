@@ -29,8 +29,8 @@ export interface FundoDoPalco {
   produto: Record<FormatoDoc, Caixa>;
   /** F-238: área do NOME do produto (branco; em pé fica em cima do produto, deitado fica à esquerda, em cima) */
   nome_: Record<FormatoDoc, Caixa & { alinhamento: 'left' | 'center' }>;
-  /** F-238: etiqueta de preço (retângulo), sem nada escrito em cima do valor */
-  preco: Record<FormatoDoc, Caixa>;
+  /** F-239: balão AMARELO de preço na lateral (centro e diâmetro em frações; d = fração do lado menor), pulsando */
+  preco: Record<FormatoDoc, { cx: number; cy: number; d: number }>;
   botao: Record<FormatoDoc, Caixa>;
   corBotao: string; bordaBotao: string;
   botoes: string[];
@@ -42,8 +42,8 @@ export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
     id: 'alerta-de-oferta', nome: 'Alerta de Oferta (sirene)',
     produto: { '9:16': { x: 0.22, y: 0.445, w: 0.56, h: 0.3 }, '16:9': { x: 0.37, y: 0.475, w: 0.26, h: 0.27 } },
     nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.03, y: 0.5, w: 0.21, h: 0.2, alinhamento: 'left' } },
-    // em pé: a etiqueta fica na frente do palco; deitado: à direita do título
-    preco: { '9:16': { x: 0.24, y: 0.756, w: 0.52, h: 0.074 }, '16:9': { x: 0.775, y: 0.5, w: 0.2, h: 0.15 } },
+    // balão amarelo na lateral (como o dono aprovou), encostado na beira do produto
+    preco: { '9:16': { cx: 0.8, cy: 0.56, d: 0.32 }, '16:9': { cx: 0.86, cy: 0.52, d: 0.3 } },
     botao: { '9:16': { x: 0.272, y: 0.872, w: 0.468, h: 0.072 }, '16:9': { x: 0.366, y: 0.877, w: 0.266, h: 0.1 } },
     corBotao: '#d90f1f', bordaBotao: '#ffd21f',
     botoes: ['OFERTAS', 'ALERTAS'],
@@ -63,17 +63,21 @@ function nomeDoProduto(nome: string, b: Caixa & { alinhamento: 'left' | 'center'
   return t;
 }
 
+export interface CoresDaEtiqueta { de: string; para: string; borda: string; valor: string; moeda: string; detalhe: string }
+export const ETIQUETA_VERMELHA: CoresDaEtiqueta = { de: '#ff2d40', para: '#a3001a', borda: '#ffd21f', valor: '#ffffff', moeda: '#ffd21f', detalhe: '#ffe9a8' };
+export const ETIQUETA_AMARELA: CoresDaEtiqueta = { de: '#ffe45c', para: '#f2a900', borda: '#ffffff', valor: '#c40f24', moeda: '#c40f24', detalhe: '#7a0010' };
+
 /**
  * Etiqueta de preço profissional: placa vermelha com borda amarela; "R$" pequeno, o valor grande e os centavos em cima,
  * à direita (como nos encartes). O "de" (preço antigo) vai pequeno, ao lado do R$, nunca por cima do valor.
  */
-function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'precoDe' | 'unidade'>): Camada[] {
+export function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'precoDe' | 'unidade'>, cores: CoresDaEtiqueta = ETIQUETA_VERMELHA): Camada[] {
   if (p.preco == null) return [];
   const v = formatarPreco(p.preco);
   const de = p.precoDe != null && p.precoDe > p.preco ? formatarPreco(p.precoDe) : null;
   const un = p.unidade && p.unidade !== 'UN' ? p.unidade : '';
   const entrada = ani('zoom', 0.9, 0.5);
-  const out: Camada[] = [{ ...forma('Preço', b.x, b.y, b.w, b.h, { cor: '#d90f1f', degrade: { de: '#ff2d40', para: '#a3001a', angulo: 180 }, raio: Math.round(b.h * 0.22), borda: { cor: '#ffd21f', largura: Math.max(5, Math.round(b.h * 0.07)) }, sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 24, dx: 0, dy: 10 } }), animacao: entrada }];
+  const out: Camada[] = [{ ...forma('Preço', b.x, b.y, b.w, b.h, { cor: cores.de, degrade: { de: cores.de, para: cores.para, angulo: 180 }, raio: Math.round(b.h * 0.22), borda: { cor: cores.borda, largura: Math.max(4, Math.round(b.h * 0.06)) }, sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 24, dx: 0, dy: 10 } }), animacao: entrada }];
   // tamanhos a partir da altura da placa; reduz junto se não couber na largura
   let k = 1;
   const medidas = () => {
@@ -90,14 +94,14 @@ function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'precoDe' 
   const t = (nome: string, txt: string, fonte: string, tam: number, xx: number, yy: number, w: number, cor: string, peso?: number) =>
     ({ ...texto(nome, txt, xx, yy, w + 4, { fonte, peso, tamanho: Math.round(tam), alinhamento: 'left', cor, entrelinha: 1 }), animacao: entrada });
   if (de) {
-    out.push(t('Preço — de', `DE ${de.inteiro},${de.centavos}`, 'poppins', m.tDe, x, b.y + b.h * 0.18, m.wEsq, '#ffe9a8', 800));
-    out.push(t('Preço — R$', 'R$', 'anton', m.tRs, x, b.y + b.h * 0.46, m.wEsq, '#ffd21f'));
-  } else out.push(t('Preço — R$', 'R$', 'anton', m.tRs, x, yInt + m.tInt * 0.42, m.wEsq, '#ffd21f'));
+    out.push(t('Preço — de', `DE ${de.inteiro},${de.centavos}`, 'poppins', m.tDe, x, b.y + b.h * 0.18, m.wEsq, cores.detalhe, 800));
+    out.push(t('Preço — R$', 'R$', 'anton', m.tRs, x, b.y + b.h * 0.46, m.wEsq, cores.moeda));
+  } else out.push(t('Preço — R$', 'R$', 'anton', m.tRs, x, yInt + m.tInt * 0.42, m.wEsq, cores.moeda));
   x += m.wEsq + b.h * 0.1 * k;
-  out.push(t('Preço — valor', v.inteiro, 'anton', m.tInt, x, yInt, m.wInt, '#ffffff'));
+  out.push(t('Preço — valor', v.inteiro, 'anton', m.tInt, x, yInt, m.wInt, cores.valor));
   x += m.wInt + b.h * 0.04 * k;
-  out.push(t('Preço — centavos', `,${v.centavos}`, 'anton', m.tCent, x, yInt + m.tInt * 0.06, m.wCent, '#ffffff'));
-  if (un) out.push(t('Preço — unidade', un, 'poppins', m.tDe, x, yInt + m.tInt * 0.52, m.wUn, '#ffe9a8', 800));
+  out.push(t('Preço — centavos', `,${v.centavos}`, 'anton', m.tCent, x, yInt + m.tInt * 0.06, m.wCent, cores.valor));
+  if (un) out.push(t('Preço — unidade', un, 'poppins', m.tDe, x, yInt + m.tInt * 0.52, m.wUn, cores.detalhe, 800));
   return out;
 }
 
@@ -111,7 +115,17 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   const pr = px(f.produto[formato]);
   c.push({ ...imagem('Produto', p.imagem?.url ?? '', pr.x, pr.y, pr.w, pr.h, { ajuste: 'conter', focoX: 50, focoY: 100, sombra: null }), animacao: ani('subir', 0.25, 0.7, 'flutuar') });
   c.push({ ...nomeDoProduto(p.nome, px(f.nome_[formato])), animacao: ani(formato === '9:16' ? 'descer' : 'esquerda', 0.55, 0.55) });
-  c.push(...etiquetaDePreco(px(f.preco[formato]), p));
+  // F-239: balão AMARELO realista na lateral, pulsando — "POR"/"DE" em cima, R$ + valor + centavos no centro, unidade embaixo
+  if (p.preco != null) {
+    const v = formatarPreco(p.preco);
+    const s = f.preco[formato];
+    const d = s.d * Math.min(W, H);
+    const de = p.precoDe != null && p.precoDe > p.preco ? formatarPreco(p.precoDe) : null;
+    c.push({
+      ...selo(s.cx * W - d / 2, s.cy * H - d / 2, d, { topo: de ? `DE ${de.inteiro},${de.centavos} POR` : 'POR APENAS', moeda: 'R$', valor: v.inteiro, sufixo: `,${v.centavos}`, base: p.unidade && p.unidade !== 'UN' ? p.unidade : '', cor: '#FFD21F', corTexto: '#c40f24', borda: '#ffffff', realista: true, sombra: { cor: 'rgba(0,0,0,.45)', desfoque: 34, dx: 0, dy: 16 } }),
+      nome: 'Preço', animacao: ani('zoom', 0.9, 0.55, 'pulsar'),
+    });
+  }
   // botão no lugar do "YOUR LOGO" do fundo: cobre desde o 1º quadro (sem entrada) e pulsa
   const bb = px(f.botao[formato]);
   c.push({ ...forma('Botão', bb.x, bb.y, bb.w, bb.h, { cor: f.corBotao, raio: Math.round(bb.h * 0.32), borda: { cor: f.bordaBotao, largura: Math.max(6, Math.round(bb.h * 0.08)) } }), animacao: ani('pulsar', 0, 1) });

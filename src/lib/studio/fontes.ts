@@ -43,13 +43,21 @@ export function carregarFonteStudio(id: string): Promise<void> {
   let p = pedidas.get(f.id);
   if (!p) {
     const href = `https://fonts.googleapis.com/css2?family=${f.google}&display=swap`;
-    if (!document.querySelector(`link[href="${href}"]`)) {
-      const l = document.createElement('link');
-      l.rel = 'stylesheet';
-      l.href = href;
-      document.head.appendChild(l);
+    // F-239: espera a folha da fonte chegar ANTES de pedir a fonte (sem isso, a 1ª arte depois de abrir a página saía
+    // com outra letra no lugar da Anton/Poppins: document.fonts.load ainda não conhecia a família)
+    let l = document.querySelector<HTMLLinkElement>(`link[href="${href}"]`);
+    let folha: Promise<void> = Promise.resolve();
+    if (!l || !l.sheet) {
+      if (!l) {
+        l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = href;
+        document.head.appendChild(l);
+      }
+      const el = l;
+      folha = new Promise<void>((ok) => { el.addEventListener('load', () => ok()); el.addEventListener('error', () => ok()); setTimeout(ok, 5000); });
     }
-    p = Promise.all(f.pesos.map((w) => document.fonts?.load(`${w} 40px ${f.familia}`).catch(() => []) ?? Promise.resolve([]))).then(() => undefined);
+    p = folha.then(() => Promise.all(f.pesos.map((w) => document.fonts?.load(`${w} 40px ${f.familia}`).catch(() => []) ?? Promise.resolve([])))).then(() => undefined);
     pedidas.set(f.id, p);
   }
   return p;

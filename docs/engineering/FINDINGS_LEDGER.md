@@ -2854,3 +2854,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - etiqueta vermelha com borda amarela: "R$" pequeno, o valor grande e os centavos em cima, à direita; o "de" pequeno ao lado do R$ (nunca por cima do valor); a unidade embaixo dos centavos;
   - em pé, a etiqueta fica na frente do palco; deitado, à direita do título.
 - **Prova:** teste confere que nenhum texto cruza o valor; imagens finais conferidas nos 2 formatos.
+
+### F-239 — Palco: volta o BALÃO AMARELO na lateral, pulsando, realista e com o valor centralizado; fonte certa já na 1ª arte — FEITO
+
+- **Pedido do dono (01/11/2026):** o balão amarelo antigo, na lateral e pulsando, estava melhor que a etiqueta da F-238. Ele só queria o texto e o valor organizados, com o valor centralizado, num balão amarelo "ultra realista".
+- **Feito:**
+  - `palco.ts`: o preço volta a ser um selo amarelo na lateral, que entra com zoom e pulsa. Em cima, "POR APENAS" ou "DE x POR"; no centro, R$ + valor + centavos; embaixo, a unidade.
+  - Nome do produto (em branco, por cima) e produto menor ficam como na F-238.
+  - `desenhar.ts`: novo selo `realista`, com volume (degradê radial puxando para o laranja, sem esverdear), aro branco com filete dourado, reflexo em cima e relevo no texto.
+  - Os algarismos são centralizados pela medida real da fonte (`actualBoundingBox`). O grupo R$/valor/centavos fica no centro horizontal, e topo e unidade ficam equilibrados na vertical.
+  - `etiquetaDePreco` foi exportada com cores (vermelha e amarela) para os encartes.
+- **Bug antigo corrigido (`fontes.ts`):** `carregarFonteStudio` pedia a fonte antes de a folha do Google Fonts chegar. Por isso a 1ª arte depois de abrir a página saía com outra letra no lugar da Anton e da Poppins (também no PNG publicado). Agora espera a folha carregar (até 5 s) e só então pede a fonte.

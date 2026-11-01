@@ -43,6 +43,10 @@ export interface CamadaImagem extends CamadaBase {
 }
 export interface CamadaSelo extends CamadaBase {
   tipo: 'selo'; topo: string; valor: string; sufixo: string; base: string; fonte: string; cor: string; corTexto: string; borda: string;
+  /** F-239: moeda pequena à esquerda do valor ("R$"); o grupo R$ + valor + centavos fica centralizado no balão */
+  moeda?: string | null;
+  /** F-239: balão realista (degradê com volume, brilho em cima, aro dourado) */
+  realista?: boolean;
 }
 export interface CamadaItens extends CamadaBase {
   tipo: 'itens'; itens: string[]; fonte: string; cor: string; destaque: string; tamanho: number; vertical: boolean;

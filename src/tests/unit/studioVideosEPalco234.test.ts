@@ -93,17 +93,16 @@ describe('F-237 — fundo OFICIAL do Palco de Ofertas (arte do dono)', () => {
       // F-238: nome em branco por cima/à esquerda; etiqueta de preço sem nada escrito em cima do valor
       expect(nome('Nome do produto')).toMatchObject({ cor: '#ffffff', texto: 'Arroz Camil 5kg' });
       expect(nome('Nome do produto').y + nome('Nome do produto').h).toBeLessThanOrEqual(formato === '9:16' ? pr.y + 1 : H);
-      expect(nome('Preço')).toMatchObject({ tipo: 'forma' });
-      expect(nome('Preço — valor')).toMatchObject({ texto: '25' });
-      expect(nome('Preço — centavos')).toMatchObject({ texto: ',90' });
-      const etq = nome('Preço');
-      // nenhum texto de nome ou de "de/por" passa por cima do valor
-      const valor = nome('Preço — valor');
-      for (const c of d.camadas.filter((x) => x.tipo === 'texto' && x !== valor && x.nome !== 'Preço — centavos')) {
-        const cruza = c.x < valor.x + valor.w && c.x + c.w > valor.x && c.y < valor.y + valor.h && c.y + c.h > valor.y;
+      // F-239: balão AMARELO realista na lateral, pulsando; R$ + valor + centavos centralizados dentro dele
+      const balao = nome('Preço');
+      expect(balao).toMatchObject({ tipo: 'selo', realista: true, cor: '#FFD21F', moeda: 'R$', valor: '25', sufixo: ',90', topo: 'POR APENAS' });
+      expect(balao.animacao).toMatchObject({ tipo: 'zoom', depois: 'pulsar' });
+      expect(balao.x + balao.w / 2).toBeGreaterThan(W * 0.7); // na lateral direita
+      // nenhum texto (nome do produto, botão) passa por cima do balão
+      for (const c of d.camadas.filter((x) => x.tipo === 'texto')) {
+        const cruza = c.x < balao.x + balao.w && c.x + c.w > balao.x && c.y < balao.y + balao.h && c.y + c.h > balao.y;
         expect(cruza, c.nome).toBe(false);
       }
-      expect(valor.x).toBeGreaterThanOrEqual(etq.x);
     }
   });
 });
