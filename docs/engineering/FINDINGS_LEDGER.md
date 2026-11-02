@@ -3028,3 +3028,11 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Recusado nos testes:** super-resolução Swin2SR (apaga letra pequena e deforma rosto de embalagem); medir só a forma (reprova garrafa boa).
 - **Prova:** navegador com conta de teste: União aprovado; código de barras, xícara, picanha invertida e lata cortada recusados com o motivo; 317 testes passando; contrato do Player íntegro. As 110 imagens geradas foram conferidas a olho: 71 aprovadas (143 linhas), 39 recusadas.
 - **Aberto:** a gravação de `scripts/ops/refazer-recortes-catalogo.mjs` no catálogo foi barrada pela trava do Claude Code e aguarda o dono. Inspeção automática não é perfeita: a IA de visão deixou passar rasgos que só a medida `comido` ou o olho pegaram. Doly Limão segue com foto errada (limão no copo).
+
+### F-254 — Lote do Open Food Facts reprovado pelo dono: catálogo revertido e importação parada — FEITO
+
+- **Reclamação do dono:** recorte com falhas grotescas no primeiro lote e gasto à toa.
+- **Causa:** as fotos do Open Food Facts são de celular, com reflexo, etiqueta e amassados; a inspeção mede o contorno, não a qualidade da foto; e a conferência a olho foi feita em miniatura.
+- **Feito:** lote 2 interrompido; 38 produtos do lote 1 (152 linhas) removidos, com cópia em `recortes-F-253/lote-20261102-1/linhas-removidas.json`; 22 imagens (45 linhas) voltaram à versão anterior; restam 54 imagens em `catalogo/recortes` (103 linhas).
+- **Uso na Cloudflare:** 7.318 neurônios em 01 e 02/11, abaixo dos 10 mil por dia de cada um dos dias; assinatura listada só `r2_paid`, a preço 0. O uso de transformações de imagem não foi medido pela API.
+- **Aberto:** 3 produtos voltaram ao recorte antigo com defeito (Arroz Tipo 1 Camil 1kg, Manteiga Aviação, Guaraná 2L); Doly Limão e Biscoito Treloso seguem com foto errada.

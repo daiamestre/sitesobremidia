@@ -2,6 +2,16 @@
 
 Plano definido em 01/11/2026, a partir de três pesquisas e da medição do sistema. Os segmentos estão em `docs/catalogo/segmentos-de-produtos.md`.
 
+## Situação em 02/11/2026: lotes do Open Food Facts PARADOS
+
+O dono reprovou o primeiro lote. Os 38 produtos saíram do catálogo, o lote 2 foi interrompido e 22 das 71 fotos gravadas antes voltaram à versão anterior.
+
+- A causa principal é a origem: o Open Food Facts traz fotos de celular de colaboradores, com reflexo, etiqueta de preço, amassado e borda cortada. Nenhum recorte corrige isso.
+- A conferência em miniatura escondeu os defeitos. Lote só é conferido com cada produto em tamanho grande (mais de 450 px na tela), sobre magenta.
+- A base abriu números reais: 37.769 produtos do Brasil, 25.030 com foto. Dos 196 testados no lote 1, 38 passaram numa conferência que depois foi reprovada.
+- Não rodar novos lotes do Open Food Facts como fonte de imagem. O inventário continua útil para código, nome e marca.
+- A Fase 3 (foto oficial da marca, com autorização) passa a ser o caminho principal.
+
 ## Ponto de partida
 
 - Catálogo: 210 linhas e 128 imagens. Nenhuma por código de barras. 35 sem fundo.
