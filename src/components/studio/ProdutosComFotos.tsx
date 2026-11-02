@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { LeitorDeCodigo } from '@/components/tabloide/LeitorDeCodigo';
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { AvisoDeProdutos } from '@/components/tabloide/AvisoDeProdutos';
+import { NovoProduto } from '@/components/tabloide/NovoProduto';
 import { faltasDoProduto, revisarProdutos } from '@/lib/tabloide/produtoCompleto';
 import { completarImagens, guardarFotoDoProduto, prepararFotoDoProduto } from '@/lib/tabloide/imagens';
 import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, precoParaTexto, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
@@ -190,10 +191,10 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
 
       {aberto && (
         <>
-          <div className="rounded-lg border border-white/10 bg-black/20 p-2 text-[11px] leading-snug text-slate-300">
-            <p className="font-semibold text-white">Um produto por linha: <span className="text-[#FFD400]">NOME + MARCA + MEDIDA (kg, g, L, ml ou un) + PREÇO</span></p>
-            <p className="mt-0.5">É promoção? Escreva <b className="text-white">de</b> e <b className="text-white">por</b>: “de 49,90 por 39,90”.{destaques ? ` Os ${destaques} primeiros vão em destaque.` : ''}</p>
-            <ul className="mt-1 space-y-0.5 font-mono text-[10.5px] text-emerald-300">{EXEMPLOS.map((e) => <li key={e}>{e}</li>)}</ul>
+          <NovoProduto escuro aoAdicionar={(linha) => s.setTexto(s.texto.trim() ? `${s.texto.trim()}\n${linha}` : linha)} />
+          <div>
+            <label htmlFor="encartes-texto" className="text-xs font-semibold text-white">Produtos adicionados</label>
+            <p className="text-[11px] leading-snug text-slate-400">Pode editar aqui o sabor, o peso ou o preço. Um produto por linha.{destaques ? ` Os ${destaques} primeiros vão em destaque.` : ''}</p>
           </div>
           <textarea id="encartes-texto" aria-label="Produtos, um por linha" value={s.texto} onChange={(e) => s.setTexto(e.target.value)} rows={6} data-testid="encartes-texto"
             className="w-full rounded-lg border border-white/10 bg-black/30 p-2 font-mono text-xs text-white placeholder:text-slate-500 focus:border-[#B04DFF] focus:outline-none"

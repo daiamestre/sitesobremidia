@@ -3052,3 +3052,9 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Feito:** `buscaProduto.ts` compara palavras e medida (500 g = 0,5 kg); a imagem da marca vem antes das outras fontes em `completarImagens`, e só a escolha do anunciante vale mais. Peso diferente nunca entra. Em dúvida (dois sabores, duas marcas, produto sem peso no nome) nada é escolhido: não se busca foto em outra fonte e o aviso pede o sabor, o tipo e o peso. `TrocarFoto` mostra primeiro "Imagem oficial da marca". `AvisoDeProdutos` (Studio, Palco e Cartaz Digital) confere enquanto o cliente digita, com a lista aberta ou fechada. `marcasConhecidas.ts`, gerado da lista, evita pedir marca em "Coca-Cola 2L".
 - **Prova:** 338 testes; no navegador com a conta de teste, "Maizena Vitarella 350g" trouxe a imagem oficial e "Molho de Tomate Cepêra 300g" pediu o sabor (5 opções); o aviso sai em vermelho com a animação `pulse`.
 - **Limite:** nome de duas palavras sem marca ("Arroz Branco 5kg") ainda não é apontado como sem marca.
+
+### F-257 — Campo único com as perguntas do produto — FEITO
+
+- **Pedido do dono:** um campo que pergunta nome, medida, promoção, sabor e o que mais identifique o produto; o que for preenchido vai para a caixa de produtos, que continua editável.
+- **Feito:** `NovoProduto.tsx` no topo de Seus produtos (Studio e Palco) e do Cartaz Digital: nome, marca, sabor ou tipo, peso ou volume, medida (g, kg, ml, L, un, pct, cx, dz), promoção (De e Por) e preço. `errosDoCampo` diz em vermelho o que falta; `linhaDoCampo` monta a linha no formato que `lerLinha` já lê.
+- **Prova:** 348 testes; no navegador a 375 px, sem rolagem lateral, o campo vazio pediu nome, peso e preço, e o produto entrou como `Biscoito Maizena Tradicional Vitarella 350g de 7,99 por 5,99`. No Cartaz Digital só foi testado por código e testes, não na tela.

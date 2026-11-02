@@ -3,7 +3,7 @@
  * Frutas, verduras e carnes não têm marca. Serve às telas de produtos do Studio e do Cartaz Digital.
  */
 import { ehFresco } from './imagens';
-import { lerLinha, type ProdutoTabloide } from './parseProdutos';
+import { lerLinha, lerValor, precoParaTexto, type ProdutoTabloide } from './parseProdutos';
 import { MARCAS_CONHECIDAS } from './marcasConhecidas';
 
 const MEDIDA = /\d+(?:[.,]\d+)?\s*(?:kg|g|gr|grs|mg|l|lt|lts|litros?|ml|cl|un|und|unid|unidades?|pct|cx|dz|m|cm|rolos?|folhas?|caps?|c\/\d+)\b/i;
@@ -58,4 +58,40 @@ export function revisarProdutos(texto: string, produtos: Array<Pick<ProdutoTablo
   }
   for (const p of produtos) conferir(p.nome, faltasDoProduto(p));
   return { itens, total };
+}
+
+/** F-257: as perguntas do campo "Adicionar produto". */
+export interface CamposDoProduto { nome: string; marca: string; sabor: string; quantidade: string; unidade: string; promocao: boolean; de: string; preco: string }
+export const CAMPOS_VAZIOS: CamposDoProduto = { nome: '', marca: '', sabor: '', quantidade: '', unidade: 'g', promocao: false, de: '', preco: '' };
+export const UNIDADES_DO_CAMPO = [
+  { valor: 'g', nome: 'Gramas (g)' }, { valor: 'kg', nome: 'Quilo (kg)' }, { valor: 'ml', nome: 'Mililitros (ml)' }, { valor: 'L', nome: 'Litros (L)' },
+  { valor: 'un', nome: 'Unidade (un)' }, { valor: 'pct', nome: 'Pacote (pct)' }, { valor: 'cx', nome: 'Caixa (cx)' }, { valor: 'dz', nome: 'Dúzia (dz)' },
+];
+/** Vendido por quilo, unidade ou dúzia: a medida não precisa de número ("Picanha kg 49,90"). */
+const SEM_NUMERO = new Set(['kg', 'un', 'pct', 'cx', 'dz']);
+
+/** O que falta preencher, em frases prontas para o aviso vermelho. */
+export function errosDoCampo(c: CamposDoProduto): string[] {
+  const e: string[] = [];
+  const nome = c.nome.trim();
+  const preco = lerValor(c.preco.trim());
+  if (!nome) e.push('Escreva o nome do produto.');
+  if (nome && !c.marca.trim() && !ehFresco(nome)) e.push('Escreva a marca. Fruta, verdura e carne não precisam.');
+  if (!c.quantidade.trim() && !SEM_NUMERO.has(c.unidade)) e.push('Escreva o peso ou o volume. Exemplo: 350.');
+  if (c.quantidade.trim() && lerValor(c.quantidade.trim()) == null) e.push('O peso ou volume deve ser um número. Exemplo: 350.');
+  if (preco == null) e.push(c.promocao ? 'Escreva o preço da promoção no campo Por.' : 'Escreva o preço. Exemplo: 39,90.');
+  if (c.promocao) {
+    const de = lerValor(c.de.trim());
+    if (de == null) e.push('Escreva o preço antigo no campo De.');
+    else if (preco != null && de <= preco) e.push('O preço De precisa ser maior que o preço Por.');
+  }
+  return e;
+}
+
+/** A linha que vai para a caixa de produtos, no mesmo formato que o cliente já edita. */
+export function linhaDoCampo(c: CamposDoProduto): string {
+  const medida = c.quantidade.trim() ? `${c.quantidade.trim()}${c.unidade}` : c.unidade;
+  const preco = precoParaTexto(lerValor(c.preco.trim()));
+  const valor = c.promocao ? `de ${precoParaTexto(lerValor(c.de.trim()))} por ${preco}` : preco;
+  return [c.nome, c.sabor, c.marca, medida, valor].map((t) => t.trim().replace(/\s+/g, ' ')).filter(Boolean).join(' ');
 }

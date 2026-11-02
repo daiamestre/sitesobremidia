@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { AvisoDeProdutos } from './AvisoDeProdutos';
+import { NovoProduto } from './NovoProduto';
 import { revisarProdutos } from '@/lib/tabloide/produtoCompleto';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
@@ -601,7 +602,9 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
           <section className="min-w-0 space-y-3 rounded-xl border bg-card p-4 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-220px)] lg:overflow-y-auto" data-testid="tabloide-painel">
             {aba === 'produtos' && (
               <div className="space-y-3">
-                <label className="text-sm font-semibold" htmlFor="tabloide-texto">Digite um produto por linha, com o preço</label>
+                <NovoProduto aoAdicionar={(linha) => { mexeu.current = true; mudar({ texto: cfg.texto.trim() ? `${cfg.texto.trim()}\n${linha}` : linha }); }} />
+                <label className="text-sm font-semibold" htmlFor="tabloide-texto">Produtos adicionados</label>
+                <p className="text-xs text-muted-foreground">Pode editar aqui o sabor, o peso ou o preço. Um produto por linha.</p>
                 <Textarea id="tabloide-texto" data-testid="tabloide-texto" rows={7} value={cfg.texto} onChange={(e) => { mexeu.current = true; mudar({ texto: e.target.value }); }}
                   placeholder={segmento.exemplo} className="font-mono text-sm" />
                 <AvisoDeProdutos {...revisarProdutos(cfg.texto, produtos, buscandoFotos ? [] : produtos.filter((p) => !p.imagem).map((p) => p.nome), Object.fromEntries(Object.entries(duvidas).filter(([nome]) => produtos.some((p) => p.nome === nome && !p.imagem))))} />
