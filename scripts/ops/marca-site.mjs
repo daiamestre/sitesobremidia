@@ -1,7 +1,7 @@
 /**
  * Missão do catálogo: lê o site oficial de uma marca e baixa a imagem de cada produto, no tamanho original. Não mexe no catálogo.
  *   node scripts/ops/marca-site.mjs <dominio> <pasta> [caminho da lista]
- * Acha as páginas pelo sitemap e pelas listas de produtos. Em cada página, fica a maior imagem SEM FUNDO; logotipo, ícone e imagem
+ * Acha as páginas pelo sitemap e pelas listas de produtos. Em cada página, fica a imagem principal SEM FUNDO; logotipo, ícone e imagem
  * que se repete em várias páginas saem. Foto com fundo não entra: é o padrão do dono.
  * Respeita o robots.txt, faz uma página por vez e não contorna bloqueio: site que recusar fica de fora.
  * Depois: conferir as imagens e seguir com marca-oficial.mjs (preparar, gravar). Grava <pasta>/produtos.json.
@@ -69,6 +69,8 @@ if (!links.length) { console.log('RESULTADO nenhuma página de produto'); proces
 
 fs.mkdirSync(`${pasta}/oficial`, { recursive: true });
 const pesoDe = (t) => { const m = t.toLowerCase().replace(/(\d)-(\d)/g, '$1.$2').replace(/,/g, '.').match(/(\d+(?:\.\d+)?)\s*-?(kg|g)\b/); return m ? (m[2] === 'kg' ? Number(m[1]) * 1000 : Number(m[1])) : null; };
+const semAcento = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const RELACIONADOS = /produtos?\s+relacionados?|related[-_\s]?products?|class=["'][^"']*(?:related|upsell|cross-sell)|voc[eê]\s+tamb[eé]m|veja\s+tamb[eé]m|produtos?\s+similares|outros\s+produtos|confira\s+tamb[eé]m/i;
 const FORA = /logo|favicon|icon|icone|banner|header|footer|rodape|sprite|selo|background|\bbg\b|placeholder|avatar|whatsapp|facebook|instagram/i;
 const achados = [];
 let semFundo = 0, comFundo = 0;
@@ -78,8 +80,16 @@ for (const u of links) {
   if (!h) continue;
   const titulo = (h.match(/<h1[^>]*>\s*([^<]+)/)?.[1] ?? h.match(/<meta property="og:title" content="([^"]+)"/)?.[1] ?? '').replace(/\s+[-|–]\s+.*$/, '').replace(/&#x([0-9a-f]+);/gi, (_, c) => String.fromCodePoint(parseInt(c, 16))).replace(/&#(\d+);/g, (_, c) => String.fromCodePoint(Number(c))).replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
   if (!titulo) continue;
-  const brutas = [...h.matchAll(/(?:src|data-src|data-lazy-src|href|content)=["']([^"']+\.(?:png|webp)(?:\?[^"']*)?)["']/gi), ...h.matchAll(/([^\s"',]+\.(?:png|webp))(?:\s+\d+w)/gi)].map((m) => m[1]);
+  // F-258: a imagem do produto vem primeiro na página; o que vem depois de "produtos relacionados" é de outro produto
+  const corte = h.search(RELACIONADOS);
+  const corpo = corte > 2000 ? h.slice(0, corte) : h;
+  const og = h.match(/<meta property="og:image" content="([^"]+)"/)?.[1] ?? '';
+  const brutas = [og, ...[...corpo.matchAll(/(?:src|data-src|data-lazy-src|href|content)=["']([^"']+\.(?:png|webp)(?:\?[^"']*)?)["']/gi), ...corpo.matchAll(/([^\s"',]+\.(?:png|webp))(?:\s+\d+w)/gi)].map((m) => m[1])].filter(Boolean);
   const urls = [...new Set(brutas.map((x) => { try { return new URL(x.replace(/\.(png|jpe?g)\.webp$/i, '.$1').replace(/-\d+x\d+(\.\w+)(\?.*)?$/, '$1'), u).href; } catch { return null; } }).filter(Boolean))].filter((x) => !FORA.test(x.split('/').pop()));
+  // arquivo com o nome do produto na frente; depois, a ordem da página
+  const nomeDaPagina = semAcento(`${u.split('/').filter(Boolean).pop()} ${titulo}`).split(/[^a-z]+/).filter((p) => p.length >= 4);
+  const bate = (x) => (nomeDaPagina.some((p) => semAcento(x.split('/').pop()).includes(p)) ? 0 : 1);
+  urls.sort((x, y) => bate(x) - bate(y));
   let melhor = null;
   for (const url of urls.slice(0, IMAGENS_POR_PAGINA)) {
     const r = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) }).catch(() => null);
@@ -93,7 +103,8 @@ for (const u of links) {
     for (const v of a) if (v < 16) z++;
     const t = z / a.length;
     if (t < 0.05 || t > 0.97) { comFundo++; continue; }
-    if (!melhor || m.width * m.height > melhor.m.width * melhor.m.height) melhor = { b, m, url, t, hash: crypto.createHash('md5').update(b).digest('hex') };
+    melhor = { b, m, url, t, hash: crypto.createHash('md5').update(b).digest('hex') };
+    break;
   }
   if (!melhor) continue;
   semFundo++;

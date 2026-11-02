@@ -10,7 +10,7 @@ const [marcas, inicio = '0', quantos = '30'] = process.argv.slice(2);
 if (!marcas) { console.log('uso: <pasta marcas> <inicio> <quantos>'); process.exit(1); }
 // domínios errados ou com conteúdo estranho, vistos na pesquisa: não baixar
 const FORA = new Set(['arcor.com.br', 'cacique.com.br', 'queensberry.com.br']);
-const LIMITE_MS = 9 * 60 * 1000;
+const LIMITE_MS = 25 * 60 * 1000;
 const sites = JSON.parse(fs.readFileSync(`${marcas}/lista/sites.json`, 'utf8')).slice(Number(inicio), Number(inicio) + Number(quantos));
 const reg = `${marcas}/lista/lote.jsonl`;
 const feitos = new Set(fs.existsSync(reg) ? fs.readFileSync(reg, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l).dominio) : []);
