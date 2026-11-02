@@ -13,7 +13,8 @@ const grupos = { Alimentos: 'alimentos', Bebidas: 'bebidas', 'Perecíveis': 'per
 const pe = ler('pernambuco');
 const prioPE = new Map();
 for (const x of pe) { const k = norm(x.marca); if (!prioPE.has(k) || x.prioridade_pe < prioPE.get(k)) prioPE.set(k, x.prioridade_pe); }
-const usadas = await sqlBruto("select split_part(split_part(imagem_url,'catalogo/marcas/',2),'/',1) marca, count(distinct imagem_url)::int imagens, count(distinct codigo)::int codigos from public.tabloide_catalogo where fonte='MARCA' group by 1");
+// sem acesso ao banco, usa a última leitura guardada
+const usadas = await sqlBruto("select split_part(split_part(imagem_url,'catalogo/marcas/',2),'/',1) marca, count(distinct imagem_url)::int imagens, count(distinct codigo)::int codigos from public.tabloide_catalogo where fonte='MARCA' group by 1").then((u) => { fs.writeFileSync(`${pasta}/lista/ultima-foto.json`, JSON.stringify(u)); return u; }).catch(() => JSON.parse(fs.readFileSync(`${pasta}/lista/ultima-foto.json`, 'utf8')));
 const naBase = new Map(usadas.map((u) => [norm(u.marca), u]));
 // a marca entra como "feita" pelo próprio nome; Treloso e demais linhas da Vitarella contam dentro dela
 const LINHAS = { 'sao braz': 'braz sao', treloso: 'vitarella', chocoresco: 'vitarella', 'd tone': 'vitarella', delicita: 'vitarella', amori: 'richester', escureto: 'richester', 'animados zoo': 'richester' };
