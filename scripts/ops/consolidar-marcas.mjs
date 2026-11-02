@@ -23,12 +23,13 @@ for (const [grupo, arq] of Object.entries(grupos)) {
     const k = norm(x.marca);
     const semMarca = k === 'sem marca';
     const feita = naBase.get(k) ?? naBase.get(LINHAS[k]);
+    const propria = naBase.get(k) ?? (k === 'sao braz' ? naBase.get('braz sao') : null); // linha de outra marca não soma imagens de novo
     saida.push({
       grupo, segmento: x.segmento, subcategoria: x.subcategoria ?? '', marca: x.marca, fabricante: x.fabricante ?? '', site: x.site ?? '', abrangencia: x.abrangencia ?? '',
       notoriedade: x.notoriedade ?? '', variantes: x.variantes ?? [], lista_no_site: x.lista_no_site ?? 'nao_confirmado', confirmado: !!x.confirmado, anunciar: x.anunciar !== false,
       prioridade_pe: semMarca ? null : prioPE.get(k) ?? null,
       status: semMarca ? 'foto-propria' : x.anunciar === false ? 'nao-anunciar' : feita ? 'feita' : x.lista_no_site === 'sim' ? 'pronta-para-buscar' : 'pesquisar',
-      imagens: feita?.imagens ?? 0, codigos: feita?.codigos ?? 0,
+      imagens: propria?.imagens ?? 0, codigos: propria?.codigos ?? 0,
     });
   }
 }
@@ -38,7 +39,7 @@ for (const x of pe) {
   const k = norm(x.marca);
   if (conhecidas.has(k) || k.startsWith('sem marca')) continue;
   conhecidas.add(k);
-  saida.push({ grupo: 'Pernambuco', segmento: x.segmento, subcategoria: '', marca: x.marca, fabricante: x.fabricante ?? '', site: x.site ?? '', abrangencia: 'regional', notoriedade: 'regional', variantes: x.variantes ?? [], lista_no_site: x.lista_no_site ?? 'nao_confirmado', confirmado: !!x.confirmado, anunciar: true, prioridade_pe: x.prioridade_pe, status: x.lista_no_site === 'sim' ? 'pronta-para-buscar' : 'pesquisar', imagens: 0, codigos: 0 });
+  saida.push({ grupo: 'Pernambuco', segmento: x.segmento, subcategoria: '', marca: x.marca, fabricante: x.fabricante ?? '', site: x.site ?? '', abrangencia: 'regional', notoriedade: 'regional', variantes: x.variantes ?? [], lista_no_site: x.lista_no_site ?? 'nao_confirmado', confirmado: !!x.confirmado, anunciar: true, prioridade_pe: x.prioridade_pe, status: naBase.get(k) ? 'feita' : x.lista_no_site === 'sim' ? 'pronta-para-buscar' : 'pesquisar', imagens: naBase.get(k)?.imagens ?? 0, codigos: naBase.get(k)?.codigos ?? 0 });
 }
 fs.writeFileSync(`${pasta}/lista/consolidado.json`, JSON.stringify(saida));
 const marcas = new Set(saida.filter((x) => norm(x.marca) !== 'sem marca').map((x) => norm(x.marca)));
