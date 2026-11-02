@@ -14,7 +14,7 @@ import type { Formato, Segmento, Tema } from '@/lib/tabloide/temas';
 import type { ElementoLivre } from '@/lib/tabloide/selos';
 import type { EstiloBox, EstiloRodape, FontesCartaz, FundoLogo, LinhasDoRodape, TamanhoTexto } from '@/lib/tabloide/cartaz';
 
-const NOMES_FONTE: Record<string, string> = { OPENFOODFACTS: 'Open Food Facts', PEXELS: 'Pexels', PIXABAY: 'Pixabay', WIKIMEDIA: 'Wikimedia Commons', OPENVERSE: 'Openverse', IA: 'criadas por IA', COSMOS: 'Cosmos' };
+const NOMES_FONTE: Record<string, string> = { MARCA: 'Imagem oficial da marca', OPENFOODFACTS: 'Open Food Facts', PEXELS: 'Pexels', PIXABAY: 'Pixabay', WIKIMEDIA: 'Wikimedia Commons', OPENVERSE: 'Openverse', IA: 'criadas por IA', COSMOS: 'Cosmos' };
 const ESCALA_TEXTO: Record<TamanhoTexto, number> = { pequeno: 0.82, medio: 1, grande: 1.2 };
 
 /** Título em texto com volume (usado só quando não há logo 3D para o cabeçalho). */

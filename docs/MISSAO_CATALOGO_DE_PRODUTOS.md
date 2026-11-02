@@ -2,6 +2,30 @@
 
 Plano definido em 01/11/2026, a partir de três pesquisas e da medição do sistema. Os segmentos estão em `docs/catalogo/segmentos-de-produtos.md`.
 
+## Regra do dono: a imagem vem da marca (02/11/2026)
+
+Padrão: embalagem oficial publicada pela própria marca, em PNG sem fundo, sem recorte nosso, sem IA e sem filtro. Só se corta a sobra transparente.
+
+Método, marca por marca:
+
+1. `node scripts/ops/marca-site.mjs <dominio> ../marcas/<marca>`: lê a lista de produtos do site oficial e baixa cada imagem no tamanho original. Respeita o robots.txt e não contorna bloqueio.
+2. `node scripts/ops/marca-codigos.mjs ../marcas/<marca> <Marca>`: liga código de barras só com nome, sabor e peso exatos.
+3. `node scripts/ops/marca-oficial.mjs preparar ../marcas/<marca> <Marca>`, e conferir cada imagem sobre magenta. Logotipo e página que não é produto vão em `recusados.txt`.
+4. `node scripts/ops/marca-oficial.mjs gravar ../marcas/<marca> <Marca>`: a foto da marca substitui a anterior no catálogo.
+
+O código de barras fica no nome do arquivo, nos dados internos da imagem e no catálogo. Nunca é desenhado na embalagem.
+
+| Marca | Dono | Produtos no catálogo | Com código seguro |
+|---|---|---|---|
+| Vitarella | M. Dias Branco | 152 | 10 |
+| Piraquê | M. Dias Branco | 69 | 3 |
+| Isabela | M. Dias Branco | 93 | 7 |
+| Richester | M. Dias Branco | 68 | 1 |
+
+Próximas: Adria, Fortaleza e demais marcas do grupo; Bauducco, Camil e Yoki exigem outro caminho, porque a lista não veio do mesmo jeito. A base de produtos por marca e segmento está em `docs/catalogo/segmentos-de-produtos.md`.
+
+Falta: código de barras dos demais produtos (bases grátis não têm; caminho é GS1 Brasil ou Cosmos pago). Imagens têm lado entre 430 e 1.110 px; cartaz grande pede o arquivo em alta da marca. Direitos: imagem usada sem autorização formal, por decisão do dono; a coluna `licenca` registra isso.
+
 ## Situação em 02/11/2026: lotes do Open Food Facts PARADOS
 
 O dono reprovou o primeiro lote. Os 38 produtos saíram do catálogo, o lote 2 foi interrompido e 22 das 71 fotos gravadas antes voltaram à versão anterior.

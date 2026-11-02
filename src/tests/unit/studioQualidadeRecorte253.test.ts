@@ -166,7 +166,7 @@ describe('o caminho completo', () => {
     expect(f.indexOf('if (!inspecao.aprovado)')).toBeLessThan(f.indexOf('acabamento('));
   });
   it('o script do catálogo usa as mesmas contas do site', () => {
-    const s = fs.readFileSync('scripts/ops/refazer-recortes-catalogo.mjs', 'utf8');
+    const s = fs.readFileSync('scripts/ops/recorte-do-catalogo.mjs', 'utf8');
     expect(s).toContain("from '../../src/lib/tabloide/qualidadeRecorte.ts'");
     expect(s).toMatch(/!ins\.aprovado/);
   });

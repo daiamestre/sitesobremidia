@@ -3036,3 +3036,11 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Feito:** lote 2 interrompido; 38 produtos do lote 1 (152 linhas) removidos, com cópia em `recortes-F-253/lote-20261102-1/linhas-removidas.json`; 22 imagens (45 linhas) voltaram à versão anterior; restam 54 imagens em `catalogo/recortes` (103 linhas).
 - **Uso na Cloudflare:** 7.318 neurônios em 01 e 02/11, abaixo dos 10 mil por dia de cada um dos dias; assinatura listada só `r2_paid`, a preço 0. O uso de transformações de imagem não foi medido pela API.
 - **Aberto:** 3 produtos voltaram ao recorte antigo com defeito (Arroz Tipo 1 Camil 1kg, Manteiga Aviação, Guaraná 2L); Doly Limão e Biscoito Treloso seguem com foto errada.
+
+### F-255 — Catálogo com imagem oficial da marca — FEITO
+
+- **Pedido do dono:** imagem original vinda de cada marca, produto por produto, com o código de barras guardado.
+- **Feito:** fonte `MARCA` no catálogo (migração `20261360`), scripts `marca-site`, `marca-codigos` e `marca-oficial`. Vitarella, Piraquê, Isabela e Richester: 382 produtos em PNG oficial sem fundo, sem recorte e sem gasto de Cloudflare.
+- **Código de barras:** 21 produtos, só com nome, sabor e peso exatos, no nome do arquivo, nos dados internos da imagem e no catálogo. O site das marcas não informa o código.
+- **Prova:** todas as 388 imagens conferidas sobre magenta; 6 logotipos recusados. Títulos iguais de sabores diferentes corrigidos pelo endereço da página.
+- **Aberto:** códigos dos demais produtos; autorização formal das marcas, que o dono decidiu não aguardar.
