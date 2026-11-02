@@ -30,7 +30,7 @@ if (modo === 'preparar') {
   const semAcento = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const grupos = new Map();
   for (const p of itens) { const k = `${semAcento(p.titulo)}|${p.peso}`; grupos.set(k, [...(grupos.get(k) ?? []), p]); }
-  const titulo = (t) => t.split(' ').map((w) => (/^(de|com|e|sabor|da|do)$/.test(w) ? w : w[0].toUpperCase() + w.slice(1))).join(' ');
+  const titulo = (t) => t.split(' ').filter(Boolean).map((w) => (/^(de|com|e|sabor|da|do)$/.test(w) ? w : w[0].toUpperCase() + w.slice(1))).join(' ');
   for (const g of grupos.values()) if (g.length > 1) for (const p of g) p.titulo = titulo(p.slug.replace(/-?\d+(-\d+)?g$/, '').replace(/-/g, ' ').trim());
   fs.mkdirSync(`${pasta}/pronto`, { recursive: true });
   for (const p of itens) {
