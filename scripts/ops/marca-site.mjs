@@ -76,7 +76,7 @@ for (const u of links) {
   await espera(600);
   const h = (await ler(u))?.texto;
   if (!h) continue;
-  const titulo = (h.match(/<h1[^>]*>\s*([^<]+)/)?.[1] ?? h.match(/<meta property="og:title" content="([^"]+)"/)?.[1] ?? '').replace(/\s+[-|–]\s+.*$/, '').replace(/&#\d+;|&amp;/g, ' ').replace(/\s+/g, ' ').trim();
+  const titulo = (h.match(/<h1[^>]*>\s*([^<]+)/)?.[1] ?? h.match(/<meta property="og:title" content="([^"]+)"/)?.[1] ?? '').replace(/\s+[-|–]\s+.*$/, '').replace(/&#x([0-9a-f]+);/gi, (_, c) => String.fromCodePoint(parseInt(c, 16))).replace(/&#(\d+);/g, (_, c) => String.fromCodePoint(Number(c))).replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
   if (!titulo) continue;
   const brutas = [...h.matchAll(/(?:src|data-src|data-lazy-src|href|content)=["']([^"']+\.(?:png|webp)(?:\?[^"']*)?)["']/gi), ...h.matchAll(/([^\s"',]+\.(?:png|webp))(?:\s+\d+w)/gi)].map((m) => m[1]);
   const urls = [...new Set(brutas.map((x) => { try { return new URL(x.replace(/\.(png|jpe?g)\.webp$/i, '.$1').replace(/-\d+x\d+(\.\w+)(\?.*)?$/, '$1'), u).href; } catch { return null; } }).filter(Boolean))].filter((x) => !FORA.test(x.split('/').pop()));

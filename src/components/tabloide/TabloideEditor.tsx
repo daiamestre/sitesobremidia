@@ -19,6 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { AvisoDeProdutos } from './AvisoDeProdutos';
+import { revisarProdutos } from '@/lib/tabloide/produtoCompleto';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
@@ -129,6 +131,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
   const [grade, setGrade] = useState<string>(encarte ? gradeDoEncarte(encarte) : 'auto');
   // F-231: o encarte do Studio chega montado, com os produtos de exemplo já na lista (o cliente troca nomes e preços)
   const [produtos, setProdutos] = useState<ProdutoTabloide[]>(() => (encarte ? lerLista(encarte.produtos) : []));
+  const [duvidas, setDuvidas] = useState<Record<string, number>>({});
   const [cfg, setCfg] = useState<ConfigCartaz>(() => (encarte ? configDoEncarte(encarte, cfgNovo(segInicial)) : cfgNovo(segInicial)));
   const [nome, setNome] = useState(encarte ? encarte.nome.replace(/ – Encarte Grande$/, '') : NOME_PADRAO);
   const [cartazId, setCartazId] = useState<string | null>(null);
@@ -244,7 +247,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     novos.forEach((p) => tentados.current.add(p.id));
     try {
       // foto já guardada no catálogo da empresa chega na hora; "procurando" aparece só para produto que o sistema nunca viu
-      const semFoto = await completarImagens(
+      await completarImagens(
         novos,
         (id, imagem) => { if (imagem) setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, imagem } : p))); },
         (nomesNovos) => { setNovosBuscando(nomesNovos); },
@@ -253,8 +256,8 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
           setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, nome: nomeCerto } : p)));
           setCfg((c) => ({ ...c, texto: c.texto.split('\n').map((l) => (l.includes(codigo) ? l.replace(codigo, nomeCerto) : l)).join('\n') }));
         },
+        (nome, parecidos) => setDuvidas((d) => ({ ...d, [nome]: parecidos })),
       );
-      if (semFoto.length) toast.info(`Sem foto automática: ${semFoto.join(', ')}. Clique na foto do produto para escolher ou enviar a sua.`, { duration: 9000 });
     } finally {
       setNovosBuscando([]);
     }
@@ -601,6 +604,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
                 <label className="text-sm font-semibold" htmlFor="tabloide-texto">Digite um produto por linha, com o preço</label>
                 <Textarea id="tabloide-texto" data-testid="tabloide-texto" rows={7} value={cfg.texto} onChange={(e) => { mexeu.current = true; mudar({ texto: e.target.value }); }}
                   placeholder={segmento.exemplo} className="font-mono text-sm" />
+                <AvisoDeProdutos {...revisarProdutos(cfg.texto, produtos, buscandoFotos ? [] : produtos.filter((p) => !p.imagem).map((p) => p.nome), Object.fromEntries(Object.entries(duvidas).filter(([nome]) => produtos.some((p) => p.nome === nome && !p.imagem))))} />
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={montarCartaz} data-testid="tabloide-montar"><Wand2 className="mr-1 h-4 w-4" /> Montar cartaz</Button>
                   <Button variant="outline" onClick={() => mudar({ texto: segmento.exemplo })} type="button">Usar exemplo de {segmento.nome.toLowerCase()}</Button>

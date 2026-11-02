@@ -10,13 +10,15 @@ import { uploadToR2 } from '@/lib/r2Upload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { buscarCandidatos, gerarImagemIA, type CandidatoImagem } from '@/lib/tabloide/imagens';
+import { buscarCandidatos, buscarProdutosDaMarca, gerarImagemIA, imagemDaMarca, type CandidatoImagem } from '@/lib/tabloide/imagens';
+import type { ProdutoOficial } from '@/lib/tabloide/buscaProduto';
 import type { ImagemProduto, ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
 export function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: Pick<ProdutoTabloide, 'nome'>; aoFechar: () => void; /** `termo` é o produto buscado: diferente do atual, é a troca por outro produto */ aoEscolher: (img: ImagemProduto, termo: string) => void }) {
   const { user } = useAuth();
   const [termo, setTermo] = useState(produto.nome);
   const [cands, setCands] = useState<CandidatoImagem[] | null>(null);
+  const [oficiais, setOficiais] = useState<ProdutoOficial[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [criando, setCriando] = useState(false);
 
@@ -30,6 +32,9 @@ export function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: Pick<Pr
 
   const buscar = useCallback(async (t: string) => {
     setCands(null);
+    setOficiais([]);
+    // F-256: as imagens oficiais das marcas aparecem na hora; a busca nas outras fontes demora mais
+    void buscarProdutosDaMarca(t).then((l) => setOficiais(l.slice(0, 24)));
     setCands(await buscarCandidatos(t));
   }, []);
   useEffect(() => { void buscar(produto.nome); }, [buscar, produto.nome]);
@@ -63,6 +68,19 @@ export function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: Pick<Pr
             <input type="file" accept="image/*" className="hidden" onChange={(e) => enviar(e.target.files?.[0])} />
           </label>
         </div>
+        {oficiais.length > 0 && (
+          <section data-testid="tabloide-oficiais">
+            <h3 className="mb-1 text-sm font-medium">Imagem oficial da marca</h3>
+            <div className="grid max-h-[40vh] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
+              {oficiais.map((l) => (
+                <button key={l.imagem_url} type="button" onClick={() => aoEscolher(imagemDaMarca(l), l.nome)} className="overflow-hidden rounded-lg border bg-white text-left hover:ring-2 hover:ring-primary">
+                  <img src={l.imagem_url} alt={l.nome} loading="lazy" crossOrigin="anonymous" className="aspect-square w-full object-contain" />
+                  <span className="block truncate bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">{l.nome}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
         {cands === null ? (
           <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Procurando fotos…</p>
         ) : cands.length === 0 ? (

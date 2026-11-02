@@ -3044,3 +3044,11 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Código de barras:** 21 produtos, só com nome, sabor e peso exatos, no nome do arquivo, nos dados internos da imagem e no catálogo. O site das marcas não informa o código.
 - **Prova:** todas as 388 imagens conferidas sobre magenta; 6 logotipos recusados. Títulos iguais de sabores diferentes corrigidos pelo endereço da página.
 - **Aberto:** códigos dos demais produtos; autorização formal das marcas, que o dono decidiu não aguardar.
+
+### F-256 — O cliente descreve o produto e o sistema traz o produto exato, com aviso do que falta — FEITO
+
+- **Pedido do dono:** nome, peso e preço bastam para trazer exatamente o produto, das marcas novas, no mesmo caminho dos encartes; produto incompleto aparece em vermelho pulsando, dizendo o que falta.
+- **Causa:** a busca do catálogo só achava o nome escrito igual, então as imagens oficiais quase nunca apareciam.
+- **Feito:** `buscaProduto.ts` compara palavras e medida (500 g = 0,5 kg); a imagem da marca vem antes das outras fontes em `completarImagens`, e só a escolha do anunciante vale mais. Peso diferente nunca entra. Em dúvida (dois sabores, duas marcas, produto sem peso no nome) nada é escolhido: não se busca foto em outra fonte e o aviso pede o sabor, o tipo e o peso. `TrocarFoto` mostra primeiro "Imagem oficial da marca". `AvisoDeProdutos` (Studio, Palco e Cartaz Digital) confere enquanto o cliente digita, com a lista aberta ou fechada. `marcasConhecidas.ts`, gerado da lista, evita pedir marca em "Coca-Cola 2L".
+- **Prova:** 338 testes; no navegador com a conta de teste, "Maizena Vitarella 350g" trouxe a imagem oficial e "Molho de Tomate Cepêra 300g" pediu o sabor (5 opções); o aviso sai em vermelho com a animação `pulse`.
+- **Limite:** nome de duas palavras sem marca ("Arroz Branco 5kg") ainda não é apontado como sem marca.

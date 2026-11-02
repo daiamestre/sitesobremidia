@@ -43,6 +43,9 @@ for (const x of pe) {
   saida.push({ grupo: 'Pernambuco', segmento: x.segmento, subcategoria: '', marca: x.marca, fabricante: x.fabricante ?? '', site: x.site ?? '', abrangencia: 'regional', notoriedade: 'regional', variantes: x.variantes ?? [], lista_no_site: x.lista_no_site ?? 'nao_confirmado', confirmado: !!x.confirmado, anunciar: true, prioridade_pe: x.prioridade_pe, status: naBase.get(k) ? 'feita' : x.lista_no_site === 'sim' ? 'pronta-para-buscar' : 'pesquisar', imagens: naBase.get(k)?.imagens ?? 0, codigos: naBase.get(k)?.codigos ?? 0 });
 }
 fs.writeFileSync(`${pasta}/lista/consolidado.json`, JSON.stringify(saida));
+// o site reconhece estas marcas para não pedir "marca" em quem escreveu só "Coca-Cola 2L"
+const nomesDeMarca = [...new Set(saida.filter((x) => x.confirmado && norm(x.marca) !== 'sem marca' && !norm(x.marca).startsWith('sem marca')).map((x) => norm(x.marca)).filter((m) => m.length >= 3 && m.split(' ').length <= 3))].sort();
+fs.writeFileSync(new URL('../../src/lib/tabloide/marcasConhecidas.ts', import.meta.url), `/** Marcas da lista consolidada. Gerado por scripts/ops/consolidar-marcas.mjs: não editar à mão. */\nexport const MARCAS_CONHECIDAS = new Set('${nomesDeMarca.join('|').replace(/'/g, '')}'.split('|'));\n`);
 const marcas = new Set(saida.filter((x) => norm(x.marca) !== 'sem marca').map((x) => norm(x.marca)));
 const conta = (f) => new Set(saida.filter(f).map((x) => norm(x.marca))).size;
 console.log('linhas', saida.length, '| marcas distintas', marcas.size, '| feitas', conta((x) => x.status === 'feita'), '| prontas', conta((x) => x.status === 'pronta-para-buscar'), '| pesquisar', conta((x) => x.status === 'pesquisar'), '| não anunciar', conta((x) => x.status === 'nao-anunciar'), '| itens sem marca', saida.filter((x) => x.status === 'foto-propria').length);

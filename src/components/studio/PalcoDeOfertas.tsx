@@ -287,7 +287,7 @@ export function PalcoDeOfertas() {
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white">{sel.imagem ? <img src={sel.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="text-[8px] font-bold text-slate-500">sem foto</span>}</span>
                     <button type="button" onClick={() => setTrocando(sel)} className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/15 text-xs font-semibold text-white hover:bg-white/5" data-testid="palco-trocar-foto"><ImagePlus className="h-4 w-4" />Trocar ou enviar a foto</button>
                   </div>
-                  {faltasDoProduto(sel).length > 0 && <p className="text-[11px] font-semibold text-amber-300">Falta: {faltasDoProduto(sel).join(', ')}</p>}
+                  {faltasDoProduto(sel).length > 0 && <p className="text-[11px] font-semibold text-red-500 motion-safe:animate-pulse">Falta: {faltasDoProduto(sel).join(', ')}</p>}
                   <p className="text-[10px] text-slate-500">A foto escolhida fica guardada: quando este produto entrar de novo, ela volta sozinha.</p>
                 </div>
               )}

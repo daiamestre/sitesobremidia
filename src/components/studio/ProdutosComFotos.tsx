@@ -13,7 +13,9 @@ import { AlertTriangle, ChevronDown, ImagePlus, Loader2, ShoppingBasket, Trash2,
 import { toast } from 'sonner';
 import { LeitorDeCodigo } from '@/components/tabloide/LeitorDeCodigo';
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
-import { completarImagens, ehFresco, guardarFotoDoProduto, prepararFotoDoProduto } from '@/lib/tabloide/imagens';
+import { AvisoDeProdutos } from '@/components/tabloide/AvisoDeProdutos';
+import { faltasDoProduto, revisarProdutos } from '@/lib/tabloide/produtoCompleto';
+import { completarImagens, guardarFotoDoProduto, prepararFotoDoProduto } from '@/lib/tabloide/imagens';
 import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, precoParaTexto, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { CESTA_PADRAO } from '@/lib/tabloide/encartes';
 import { QUANTIDADES, gravarQuantidade, lerQuantidade, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
@@ -22,17 +24,7 @@ import { cn } from '@/lib/utils';
 /** os produtos colocados na pasta seguem para o editor do encarte e para o palco (mesma aba do navegador) */
 export const CHAVE_PRODUTOS_DO_ENCARTE = 'studio-encarte-produtos';
 
-const MEDIDA = /\d+(?:[.,]\d+)?\s*(?:kg|g|gr|grs|mg|l|lt|lts|litros?|ml|cl|un|und|unid|unidades?|pct|cx|dz|m|cm|rolos?|folhas?|caps?|c\/\d+)\b/i;
-/** F-242: o que falta para o produto entrar (nome + marca + medida + preço; frutas, verduras e carnes não têm marca) */
-export function faltasDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'unidade' | 'codigo'>): string[] {
-  const faltas: string[] = [];
-  const nome = p.nome.trim();
-  if (p.preco == null) faltas.push('preço');
-  if (!p.codigo && !p.unidade && !MEDIDA.test(nome)) faltas.push('medida (kg, g, L, ml ou un)');
-  const palavras = nome.replace(MEDIDA, ' ').split(/\s+/).filter((w) => w.length > 1);
-  if (!p.codigo && !ehFresco(nome) && palavras.length < 2) faltas.push('marca');
-  return faltas;
-}
+export { faltasDoProduto };
 
 export interface ProdutosComFotos {
   texto: string; setTexto: (t: string) => void;
@@ -40,6 +32,7 @@ export interface ProdutosComFotos {
   buscando: string[];
   /** F-242: linhas digitadas que ainda não podem entrar (o que falta em cada uma) */
   erros: Array<{ linha: string; faltas: string[] }>;
+  duvidas: Record<string, number>;
   aplicar: () => void;
   mudar: (id: string, x: Partial<ProdutoTabloide>) => void;
   remover: (id: string) => void;
@@ -56,6 +49,7 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO): ProdutosComFotos {
   const [produtos, setProdutos] = useState<ProdutoTabloide[]>(() => lerLista(texto));
   const [buscando, setBuscando] = useState<string[]>([]);
   const [erros, setErros] = useState<ProdutosComFotos['erros']>([]);
+  const [duvidas, setDuvidas] = useState<Record<string, number>>({});
   const [quantos, setQuantos] = useState(lerQuantidade);
   const escolherQuantos = useCallback((n: number) => { setQuantos(n); gravarQuantidade(n); }, []);
   const tentados = useRef(new Set<string>());
@@ -73,13 +67,13 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO): ProdutosComFotos {
     if (!novos.length) return;
     novos.forEach((p) => tentados.current.add(p.id));
     try {
-      const semFoto = await completarImagens(
+      await completarImagens(
         novos,
         (id, imagem) => { if (imagem) setProdutos((a) => a.map((p) => (p.id === id ? { ...p, imagem } : p))); },
         setBuscando,
         (id, nomeCerto) => setProdutos((a) => { const n = a.map((p) => (p.id === id ? { ...p, nome: nomeCerto } : p)); gravar(n); return n; }),
+        (nome, parecidos) => setDuvidas((d) => ({ ...d, [nome]: parecidos })),
       );
-      if (semFoto.length) toast.info(`Sem foto automática: ${semFoto.join(', ')}. Toque na foto do produto para escolher ou enviar.`, { duration: 8000 });
     } finally { setBuscando([]); }
   }, [gravar]);
   useEffect(() => { void procurarFotos(produtos); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -118,7 +112,7 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO): ProdutosComFotos {
       else toast.error(`Foto não aprovada${pronta.recusa ? `: ${pronta.recusa}` : ''}. Ela ficou só nesta arte; envie uma foto do produto inteiro.`);
     } catch { toast.error('A foto entrou, mas não foi possível guardá-la para a próxima vez.'); }
   };
-  return { texto, setTexto, produtos, buscando, erros, aplicar, mudar, remover, porCodigo, gravar, trocarFoto, quantos, escolherQuantos };
+  return { texto, setTexto, produtos, buscando, erros, duvidas, aplicar, mudar, remover, porCodigo, gravar, trocarFoto, quantos, escolherQuantos };
 }
 
 const EXEMPLOS = ['Arroz Camil Tipo 1 5kg 24,90', 'Feijão Carioca Kicaldo 1kg de 8,99 por 6,49', 'Coca-Cola Original 2L 9,99', 'Picanha kg de 89,90 por 69,90'];
@@ -147,7 +141,7 @@ function LinhaDoProduto({ p, s, destaque, aoTrocarFoto }: { p: ProdutoTabloide; 
           {promo ? 'por' : 'preço'}<input aria-label="Preço (por)" inputMode="decimal" value={precoParaTexto(p.preco)} onChange={(e) => s.mudar(p.id, { preco: lerValor(e.target.value) })} placeholder="0,00"
             className="h-6 w-16 rounded border border-white/10 bg-black/30 px-1 text-right text-xs font-bold text-white" />
         </div>
-        {faltas.length > 0 && <p className="flex items-center gap-1 text-[10px] font-semibold text-amber-300"><AlertTriangle className="h-3 w-3" />Falta: {faltas.join(', ')}</p>}
+        {faltas.length > 0 && <p className="flex items-center gap-1 text-[10px] font-semibold text-red-500 motion-safe:animate-pulse"><AlertTriangle className="h-3 w-3" />Falta: {faltas.join(', ')}</p>}
       </div>
       <button type="button" onClick={() => s.remover(p.id)} aria-label={`Tirar ${p.nome}`} className="rounded p-1.5 text-rose-300 hover:bg-rose-500/15"><Trash2 className="h-4 w-4" /></button>
     </li>
@@ -159,6 +153,8 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
   const [trocando, setTrocando] = useState<ProdutoTabloide | null>(null);
   const comFoto = s.produtos.filter((p) => p.imagem).length;
   const incompletos = s.produtos.filter((p) => faltasDoProduto(p).length).length;
+  // F-256: confere enquanto o cliente digita, com a lista aberta ou fechada
+  const revisao = revisarProdutos(s.texto, s.produtos, s.produtos.filter((p) => !p.imagem && !s.buscando.includes(p.nome)).map((p) => p.nome), Object.fromEntries(Object.entries(s.duvidas).filter(([nome]) => s.produtos.some((p) => p.nome === nome && !p.imagem))));
   const naGrade = quantidadeCompleta(s.quantos, s.produtos.length);
   const faltam = s.quantos - s.produtos.length;
   return (
@@ -175,6 +171,8 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
         </span>
         <span className="flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-xs font-semibold text-white">{aberto ? 'Fechar' : 'Editar'}<ChevronDown className={cn('h-4 w-4 transition', aberto && 'rotate-180')} /></span>
       </button>
+
+      <AvisoDeProdutos itens={revisao.itens} total={revisao.total} className="mt-2" />
 
       {/* F-244: sempre à vista, mesmo com a lista fechada */}
       <div className="mt-2 flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Quantos produtos mostrar" data-testid="produtos-quantidade">
@@ -200,11 +198,6 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
           <textarea id="encartes-texto" aria-label="Produtos, um por linha" value={s.texto} onChange={(e) => s.setTexto(e.target.value)} rows={6} data-testid="encartes-texto"
             className="w-full rounded-lg border border-white/10 bg-black/30 p-2 font-mono text-xs text-white placeholder:text-slate-500 focus:border-[#B04DFF] focus:outline-none"
             placeholder={EXEMPLOS.join('\n')} />
-          {s.erros.length > 0 && (
-            <ul className="space-y-0.5 rounded-lg border border-amber-400/50 bg-amber-400/10 p-2 text-[11px] text-amber-200" data-testid="produtos-erros">
-              {s.erros.slice(0, 6).map((e) => <li key={e.linha} className="flex gap-1"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /><span><b>{e.linha}</b> — falta {e.faltas.join(', ')}</span></li>)}
-            </ul>
-          )}
           <button type="button" onClick={s.aplicar} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] py-2 text-sm font-bold text-[#0b2a17] hover:brightness-105" data-testid="encartes-aplicar">
             <Wand2 className="h-4 w-4" />{botao}
           </button>

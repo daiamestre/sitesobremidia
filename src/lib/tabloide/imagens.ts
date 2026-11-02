@@ -6,6 +6,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { rpcTabloide, tabelaTabloide } from './db';
 import { chaveCanonica } from './chave';
+import { lerBusca, ordenarOficiais, palavrasFortes, produtoExato, type ProdutoOficial } from './buscaProduto';
 import { cortarMargens, finalizarRecorte, fotoParaInspecao, pngSemSobras } from './recorte';
 import { MENSAGEM_DO_DEFEITO } from './qualidadeRecorte';
 import { uploadToR2 } from '@/lib/r2Upload';
@@ -61,6 +62,8 @@ export interface ImagemCatalogada extends ImagemProduto {
   recorteTentado?: boolean;
   /** nome guardado (no código de barras é o nome certo do produto) */
   nome?: string;
+  /** escolha do próprio anunciante: vale mais que qualquer outra foto */
+  doCliente?: boolean;
 }
 
 /** F-231: chave do código de barras no catálogo da empresa (a linha guarda o nome certo e a foto do produto). */
@@ -85,9 +88,36 @@ export async function buscarNoCatalogo(nomes: string[]): Promise<Map<string, Ima
   if (error || !data) return mapa;
   const linhas = [...(data as any[])].sort((a, b) => (a.cliente_id ? 0 : 1) - (b.cliente_id ? 0 : 1));
   for (const l of linhas) {
-    if (!mapa.has(l.nome_norm)) mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada, recorteTentado: !!l.recorte_tentado, nome: l.nome ?? undefined });
+    if (!mapa.has(l.nome_norm)) mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada, recorteTentado: !!l.recorte_tentado, doCliente: !!l.cliente_id, nome: l.nome ?? undefined });
   }
   return mapa;
+}
+
+/** F-256: imagens oficiais das marcas que batem com o que o cliente escreveu, da mais exata à menos exata. */
+export async function buscarProdutosDaMarca(nome: string): Promise<ProdutoOficial[]> {
+  const fortes = palavrasFortes(lerBusca(nome));
+  if (!fortes.length) return [];
+  try {
+    const consulta = () => tabelaTabloide('tabloide_catalogo').select('nome, nome_norm, imagem_url, credito').eq('fonte', 'MARCA').is('cliente_id', null).limit(300);
+    // todas as palavras no nome; se nenhum produto tiver todas, volta a lista de quem tem alguma para o cliente escolher
+    let q = consulta();
+    for (const p of fortes) q = q.like('nome_norm', `%${p}%`);
+    const { data } = await q;
+    if (data?.length) return ordenarOficiais(nome, data as ProdutoOficial[]);
+    const { data: alguma } = await consulta().or(fortes.map((p) => `nome_norm.like.*${p}*`).join(','));
+    return ordenarOficiais(nome, (alguma ?? []) as ProdutoOficial[]);
+  } catch {
+    return [];
+  }
+}
+
+export const imagemDaMarca = (l: ProdutoOficial): ImagemProduto => ({ url: l.imagem_url, fonte: 'MARCA', credito: l.credito ?? undefined, recortada: true });
+
+/** F-256: a imagem oficial do produto descrito, só quando não há dúvida de qual é; `parecidos` conta as opções quando há. */
+export async function produtoDaMarca(nome: string): Promise<{ imagem: ImagemProduto | null; parecidos: number }> {
+  const lista = await buscarProdutosDaMarca(nome);
+  const l = produtoExato(nome, lista);
+  return { imagem: l ? imagemDaMarca(l) : null, parecidos: l ? 0 : lista.length };
 }
 
 /**
@@ -240,6 +270,8 @@ export async function completarImagens(
   aoSaberNovos?: (nomes: string[]) => void,
   /** F-231: o código de barras trouxe o nome certo do produto (marca e medida) */
   aoNomear?: (id: string, nome: string, codigo: string) => void,
+  /** F-256: há produtos oficiais parecidos e o que foi escrito não diz qual é: o cliente escolhe */
+  aoDuvidar?: (nome: string, parecidos: number) => void,
 ): Promise<string[]> {
   const pendentes = produtos.filter((p) => !p.imagem);
   if (!pendentes.length) { aoSaberNovos?.([]); return []; }
@@ -282,7 +314,21 @@ export async function completarImagens(
   const catalogo = await buscarNoCatalogo(faltam.map((p) => p.nome));
   const buscar: ProdutoTabloide[] = [];
   const melhorar: Array<{ p: ProdutoTabloide; achada: ImagemCatalogada }> = [];
+  // F-256: a imagem oficial da marca vem primeiro; só a escolha do próprio anunciante vale mais
+  const oficiais = new Map<string, ImagemProduto>();
+  const emDuvida = new Set<string>();
+  await Promise.all(faltam.map(async (p) => {
+    const achada = catalogo.get(chaveCanonica(p.nome));
+    if (achada?.doCliente || achada?.fonte === 'MARCA') return;
+    const { imagem, parecidos } = await produtoDaMarca(p.nome);
+    if (imagem) oficiais.set(p.id, imagem);
+    else if (parecidos) { emDuvida.add(p.id); aoDuvidar?.(p.nome, parecidos); }
+  }));
   for (const p of faltam) {
+    const oficial = oficiais.get(p.id);
+    if (oficial) { resolver(p.id, oficial); continue; }
+    // o aviso pede o sabor ou o peso: foto de outra fonte aqui poderia ser de outro produto
+    if (emDuvida.has(p.id)) { resolver(p.id, null); continue; }
     const achada = catalogo.get(chaveCanonica(p.nome));
     if (achada) {
       resolver(p.id, achada);
