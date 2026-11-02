@@ -21,6 +21,9 @@ O código de barras fica no nome do arquivo, nos dados internos da imagem e no c
 | Piraquê | M. Dias Branco | 69 | 3 |
 | Isabela | M. Dias Branco | 93 | 7 |
 | Richester | M. Dias Branco | 68 | 1 |
+| Turquesa | Pernambuco | 24 | 0 |
+| São Braz | Paraíba e Pernambuco | 15 (imagens pequenas, cerca de 440 px) | 0 |
+| Pitú | Pernambuco | 4 de 21 páginas | 0 |
 
 Próximas: Adria, Fortaleza e demais marcas do grupo; Bauducco, Camil e Yoki exigem outro caminho, porque a lista não veio do mesmo jeito. A base de produtos por marca e segmento está em `docs/catalogo/segmentos-de-produtos.md`.
 

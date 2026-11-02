@@ -15,6 +15,7 @@ const EMPRESAS = (process.env.TABLOIDE_EMPRESAS ?? '7d62aaec-e24d-4273-b257-8671
 const LICENCA = 'Imagem publicada pela marca; sem autorização formal registrada';
 const [modo, pasta, marca] = process.argv.slice(2);
 if (!['preparar', 'gravar'].includes(modo) || !pasta || !marca) { console.log('uso: preparar|gravar <pasta> <Marca>'); process.exit(1); }
+const pastaDaMarca = marca.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
 const esc = (s) => String(s ?? '').replace(/'/g, "''");
 const pesoTexto = (g) => (g == null ? '' : g >= 1000 ? `${String(g / 1000).replace('.', ',')}kg` : `${String(g).replace('.', ',')}g`);
 const nomeDe = (p) => {
@@ -48,7 +49,7 @@ if (modo === 'preparar') {
   const credito = `Imagem oficial ${marca}`;
   let n = 0;
   for (const p of prontos) {
-    const chave = `catalogo/marcas/${chaveCanonica(marca).replace(/\s+/g, '-')}/${p.final}`;
+    const chave = `catalogo/marcas/${pastaDaMarca}/${p.final}`;
     await enviar(chave, fs.readFileSync(`${pasta}/pronto/${p.final}`));
     const url = `${R2_PUBLICO}${chave}`, nome = nomeDe(p);
     const chaves = [chaveCanonica(nome), ...(p.codigo ? [chaveCanonica(`codigo ${p.codigo}`)] : [])];
