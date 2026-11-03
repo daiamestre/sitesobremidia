@@ -63,7 +63,14 @@ export async function recortar(url, bytes, nome) {
 }
 
 /** Assinatura do R2, igual à de cadastrar-logo-cabecalho.mjs. */
+/** O R2 às vezes recusa por um instante: tenta de novo antes de desistir. */
 export async function enviar(chave, corpo) {
+  for (let t = 1; ; t++) {
+    try { return await enviarUmaVez(chave, corpo); } catch (e) { if (t >= 4) throw e; await new Promise((o) => setTimeout(o, 3000 * t)); }
+  }
+}
+
+async function enviarUmaVez(chave, corpo) {
   exigir('CF_R2_ACCESS_KEY_ID', 'CF_R2_SECRET_ACCESS_KEY', 'CF_R2_S3_ENDPOINT');
   const BUCKET = process.env.TABLOIDE_R2_BUCKET ?? 'sobremidia-storage';
   const host = new URL(process.env.CF_R2_S3_ENDPOINT).host;
