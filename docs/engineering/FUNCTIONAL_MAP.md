@@ -89,7 +89,7 @@
 | Item | Tipo | Evidência | Recomendação (não executada) |
 |---|---|---|---|
 | Tabelas de mídia/tela/playlist/cobrança/RBAC | DUPLICATED | F-10 | Micro-Gate de ADR de fonte canônica por domínio |
-| `contract-signature-flow` vs `fn_assinar_contrato` | DUPLICATED + ORPHANED | F-02 | confirmar deploy; desativar o caminho sem consumidor |
+| `contract-signature-flow` vs `fn_assinar_contrato` | **REMOVIDA (F-263)** | F-02, F-263 | a função antiga (service role sem login) saiu do repositório; nunca foi publicada; o fluxo é `fn_assinar_contrato` |
 | `sync-network/PlayerRepositoryImpl.kt` | ORPHANED | 0 referências | remover em Micro-Gate de player |
 | 3 caches, 2 MaintenanceWorkers, 4 heartbeats no player | DUPLICATED | F-11 | mapear chamadores em runtime antes de mexer |
 | `supabase/migrations_archive/` ainda consumido pelo Android | LEGACY vivo | F-03 | promover para migrations ativas (aditivo) |

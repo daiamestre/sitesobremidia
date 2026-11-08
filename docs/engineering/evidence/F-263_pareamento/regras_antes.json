@@ -1,0 +1,34 @@
+[
+ {
+  "policyname": "dpc_all_auth",
+  "cmd": "ALL",
+  "roles": "{authenticated}",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": "true"
+ },
+ {
+  "policyname": "dpc_insert_anon",
+  "cmd": "INSERT",
+  "roles": "{anon}",
+  "permissive": "PERMISSIVE",
+  "qual": null,
+  "with_check": "true"
+ },
+ {
+  "policyname": "dpc_select_anon",
+  "cmd": "SELECT",
+  "roles": "{anon}",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": null
+ },
+ {
+  "policyname": "dpc_update_anon",
+  "cmd": "UPDATE",
+  "roles": "{anon}",
+  "permissive": "PERMISSIVE",
+  "qual": "true",
+  "with_check": "true"
+ }
+]
