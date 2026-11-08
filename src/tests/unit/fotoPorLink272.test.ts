@@ -19,7 +19,9 @@ describe('link da foto (F-272)', () => {
     expect(linkDaFoto(MARCA, null, true)).toContain('&s=1');
   });
   it('o script do catálogo e o site usam o MESMO passa-foto e o mesmo formato de link', () => {
-    const s = ler('scripts/ops/catalogo-por-link.mjs');
+    const s = ler('scripts/ops/passa-foto.mjs');
+    expect(ler('scripts/ops/catalogo-por-link.mjs')).toContain("from './passa-foto.mjs'");
+    expect(ler('scripts/ops/marca-oficial.mjs')).toContain("from './passa-foto.mjs'");
     expect(s).toContain(`PASSA_FOTO = '${PASSA_FOTO}'`);
     expect(s).toContain("`${PASSA_FOTO}?u=${encodeURIComponent(url)}${semFundo ? '&s=1' : ''}${caixa ? `&c=${caixa.left},${caixa.top},${caixa.width},${caixa.height}` : ''}`");
   });

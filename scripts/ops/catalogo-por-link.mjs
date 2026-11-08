@@ -17,8 +17,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { R2_PUBLICO } from './segredos.mjs';
 import { sharp, sqlBruto } from './recorte-do-catalogo.mjs';
+import { linkDaFoto } from './passa-foto.mjs';
 
-export const PASSA_FOTO = 'https://sobremidia-tabloide-ia.sobremidia.workers.dev/foto';
 const RAIZ = path.resolve(import.meta.dirname, '../..');
 const ACIMA = path.resolve(RAIZ, '..');
 const SAIDA = path.join(ACIMA, 'backup-pesquisa-marcas');
@@ -26,10 +26,6 @@ const DESFAZER = path.join(SAIDA, 'catalogo-por-link-desfazer.json');
 const RELATORIO = path.join(SAIDA, 'catalogo-por-link-relatorio.json');
 const WORKER = path.join(RAIZ, 'cloudflare/tabloide-ia/worker.js');
 const esc = (s) => String(s ?? '').replace(/'/g, "''");
-
-/** Link do passa-foto (o mesmo formato que o site monta em src/lib/tabloide/fotoPorLink.ts). */
-export const linkDaFoto = (url, caixa, semFundo = false) =>
-  `${PASSA_FOTO}?u=${encodeURIComponent(url)}${semFundo ? '&s=1' : ''}${caixa ? `&c=${caixa.left},${caixa.top},${caixa.width},${caixa.height}` : ''}`;
 
 /** Todas as marcas da pesquisa: { pasta, itens de prontos.json (sem recusados) }. */
 function marcasDaPesquisa() {

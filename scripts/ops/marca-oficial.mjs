@@ -1,7 +1,7 @@
 /**
  * Missão do catálogo: entra no catálogo a imagem oficial publicada pela própria marca, sem recorte nem IA.
  *   node scripts/ops/marca-oficial.mjs preparar <pasta da marca> <Marca>    corta a sobra transparente e grava em <pasta>/pronto
- *   node scripts/ops/marca-oficial.mjs gravar <pasta da marca> <Marca>      envia ao R2 e cadastra; a foto da marca substitui a anterior
+ *   node scripts/ops/marca-oficial.mjs gravar <pasta da marca> <Marca>      cadastra POR LINK (F-272: sem cópia no R2); --copia envia ao R2
  * <pasta>/produtos.json: [{ slug, titulo, pagina, url, arq, peso, codigo?, segmento? }]. Quem sai vai em <pasta>/recusados.txt (slugs).
  * O código de barras fica no nome do arquivo, nos dados internos da imagem e no catálogo; nunca é desenhado na embalagem.
  * Só usar código com casamento exato de produto e peso: código errado mostra o produto errado no leitor.
@@ -10,10 +10,12 @@ import fs from 'node:fs';
 import { R2_PUBLICO } from './segredos.mjs';
 import { chaveCanonica } from '../../src/lib/tabloide/chave.ts';
 import { enviar, sharp, sqlBruto } from './recorte-do-catalogo.mjs';
+import { linkDaFoto } from './passa-foto.mjs';
 
 const EMPRESAS = (process.env.TABLOIDE_EMPRESAS ?? '7d62aaec-e24d-4273-b257-867183cf658c,22345678-1234-1234-1234-123456789012').split(',');
 const LICENCA = 'Imagem publicada pela marca; sem autorização formal registrada';
-const [modo, pasta, marca] = process.argv.slice(2);
+const [modo, pasta, marca] = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const COPIA = process.argv.includes('--copia');
 if (!['preparar', 'gravar'].includes(modo) || !pasta || !marca) { console.log('uso: preparar|gravar <pasta> <Marca>'); process.exit(1); }
 const pastaDaMarca = marca.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
 const esc = (s) => String(s ?? '').replace(/'/g, "''");
@@ -49,9 +51,23 @@ if (modo === 'preparar') {
   const credito = `Imagem oficial ${marca}`;
   let n = 0;
   for (const p of prontos) {
-    const chave = `catalogo/marcas/${pastaDaMarca}/${p.final}`;
-    await enviar(chave, fs.readFileSync(`${pasta}/pronto/${p.final}`));
-    const url = `${R2_PUBLICO}${chave}`, nome = nomeDe(p);
+    // F-272 (dono, 08/11/2026): a foto entra POR LINK (passa-foto), sem cópia no R2; a foto baixada fica só no PC.
+    // --copia mantém o jeito antigo (envia ao R2). Site da marca fora da lista do passa-foto: rodar catalogo-por-link.mjs hosts e publicar o worker.
+    let url;
+    if (COPIA) {
+      const chave = `catalogo/marcas/${pastaDaMarca}/${p.final}`;
+      await enviar(chave, fs.readFileSync(`${pasta}/pronto/${p.final}`));
+      url = `${R2_PUBLICO}${chave}`;
+    } else {
+      const meta = await sharp(`${pasta}/oficial/${p.arq}`).metadata();
+      const t2 = await sharp(`${pasta}/oficial/${p.arq}`).trim({ threshold: 0, background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer({ resolveWithObject: true });
+      const caixa = { left: -(t2.info.trimOffsetLeft ?? 0), top: -(t2.info.trimOffsetTop ?? 0), width: t2.info.width, height: t2.info.height };
+      const inteira = caixa.left === 0 && caixa.top === 0 && caixa.width === meta.width && caixa.height === meta.height;
+      url = linkDaFoto(p.url, inteira ? null : caixa);
+      const r = await fetch(url, { signal: AbortSignal.timeout(30000) }).catch(() => null);
+      if (!r?.ok || !/^image\//.test(r.headers.get('content-type') ?? '')) { console.log('  link não abriu (fica de fora):', p.slug, r?.status ?? 'erro'); continue; }
+    }
+    const nome = nomeDe(p);
     const chaves = [chaveCanonica(nome), ...(p.codigo ? [chaveCanonica(`codigo ${p.codigo}`)] : [])];
     const seg = p.segmento ? `'${esc(p.segmento)}'` : 'NULL', cod = p.codigo ? `'${esc(p.codigo)}'` : 'NULL';
     const linhas = EMPRESAS.flatMap((e) => chaves.map((k) => `('${e}', NULL, '${esc(k)}', '${esc(nome)}', '${esc(url)}', 'MARCA', '${esc(credito)}', true, true, 'SEMENTE', '${esc(p.pagina)}', '${LICENCA}', ${cod}, ${seg})`));
