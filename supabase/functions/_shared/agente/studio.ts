@@ -145,3 +145,28 @@ export function linkArteParaVideo(midiaId: string, duracao: unknown): { link: st
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(midiaId)) return { link: null, erro: 'Escolha a arte (use listar_minhas_artes).', duracao_s: d };
   return { link: `/studio/video?midia=${midiaId}&duracao=${d}`, erro: null, duracao_s: d };
 }
+
+// ---------------------------------------------------------------- MG-AUT-12 (F-268): estilo guardado do cliente
+export interface EstiloDoCliente { tom?: string; estabelecimento?: string; publico?: string; formato?: string; paleta?: string[]; observacoes?: string }
+
+/**
+ * Aplica o estilo GUARDADO (com consentimento) do cliente ao pedido: só preenche o que a pessoa NÃO disse agora (o pedido
+ * atual sempre vale mais) e acrescenta cores e observações à ideia, para os agentes. Devolve o que foi usado — a Central
+ * conta isso à pessoa, que pode pedir para ignorar.
+ */
+export function aplicarEstilo(a: ArgsCriarProducao, estilo: EstiloDoCliente | null | undefined): { args: ArgsCriarProducao; usados: string[] } {
+  if (!estilo) return { args: a, usados: [] };
+  const usados: string[] = [];
+  const r: ArgsCriarProducao = { ...a };
+  if (!r.tom && estilo.tom && TONS.some((t) => igual(t, estilo.tom!))) { r.tom = estilo.tom; usados.push(`tom "${estilo.tom}"`); }
+  if (!r.estabelecimento && estilo.estabelecimento) { r.estabelecimento = estilo.estabelecimento; usados.push('nome da loja'); }
+  if (!r.publico && estilo.publico) { r.publico = estilo.publico; usados.push('público'); }
+  if (!r.formato && estilo.formato && FORMATOS.some((f) => f.id === estilo.formato)) { r.formato = estilo.formato; usados.push(`formato ${estilo.formato}`); }
+  const extras = [estilo.paleta?.length ? `cores da marca ${estilo.paleta.slice(0, 6).join(', ')}` : '', estilo.observacoes ? estilo.observacoes.slice(0, 300) : '']
+    .filter(Boolean).join('; ');
+  if (extras && r.ideia) {
+    const ideia = `${r.ideia}\nEstilo guardado do cliente: ${extras}`;
+    if (ideia.length <= LIMITES.ideia) { r.ideia = ideia; usados.push(estilo.paleta?.length ? 'cores da marca' : 'observações de estilo'); }
+  }
+  return { args: r, usados };
+}

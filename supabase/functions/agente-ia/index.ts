@@ -9,7 +9,7 @@ import {
   PROVEDORES, brl, dataBR, ferramentas, hojeSP, instrucoes, situacaoDaCobranca, situacaoDaTela, tempoDesde, validarCobranca,
 } from '../_shared/agente/ferramentas.ts';
 // F-266 (MG-AUT-07): Central de Comando → Studio (produção real pela mesma função do banco da tela /studio/agentes)
-import { encarteDaConversa, linkArteParaVideo, pedidoDaConversa, situacaoDaProducao, type ArgsCriarProducao, type ArgsEncarte } from '../_shared/agente/studio.ts';
+import { aplicarEstilo, encarteDaConversa, linkArteParaVideo, pedidoDaConversa, situacaoDaProducao, type ArgsCriarProducao, type ArgsEncarte, type EstiloDoCliente } from '../_shared/agente/studio.ts';
 import { chaveDoPedido } from '../_shared/studio/contrato.ts';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
@@ -147,7 +147,20 @@ async function proporCobranca(c: Ctx, a: { cliente_id?: string; valor?: number; 
 const COLUNAS_PRODUCAO = 'id, titulo, estado, erro, tipo, formato, resultado';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function criarProducao(c: Ctx, a: ArgsCriarProducao) {
+/** Estilo guardado do cliente (lido COM O LOGIN da pessoa: a regra studio_conhecimento_ver decide quem vê). */
+async function lerEstilo(c: Ctx, clienteId?: string | null): Promise<{ cliente: string | null; estilo: EstiloDoCliente | null; consentimento?: unknown }> {
+  let cliente = clienteId && UUID.test(clienteId) ? clienteId : null;
+  if (!cliente) { const { data } = await c.usuario.rpc('studio_ai_escopo'); cliente = (data as Array<{ cliente: string | null }> | null)?.[0]?.cliente ?? null; }
+  if (!cliente) return { cliente: null, estilo: null };
+  const { data } = await c.usuario.from('studio_conhecimento').select('conteudo').eq('escopo', 'cliente').eq('tipo', 'preferencia').eq('chave', 'estilo')
+    .eq('cliente_id', cliente).eq('ativo', true).maybeSingle();
+  const conteudo = data?.conteudo as { estilo?: EstiloDoCliente; consentimento?: unknown } | undefined;
+  return { cliente, estilo: conteudo?.estilo ?? null, consentimento: conteudo?.consentimento };
+}
+
+async function criarProducao(c: Ctx, entrada: ArgsCriarProducao & { cliente_id?: string; ignorar_estilo?: boolean }) {
+  const doCliente = entrada.ignorar_estilo ? { estilo: null } : await lerEstilo(c, entrada.cliente_id);
+  const { args: a, usados } = aplicarEstilo(entrada, doCliente.estilo);
   const r = pedidoDaConversa(a, c.falas);
   if (r.perguntar.length) return { precisa_perguntar: r.perguntar, nada_foi_criado: true };
   if (!r.pedido) return { erro: r.erros.join(' '), nada_foi_criado: true };
@@ -160,7 +173,7 @@ async function criarProducao(c: Ctx, a: ArgsCriarProducao) {
       headers: { Authorization: c.auth, apikey: env('SUPABASE_ANON_KEY'), 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'cutucar', producao_id: id }) });
   } catch { /* o cron continua */ }
   const { data: p } = await c.usuario.from('studio_producoes').select(COLUNAS_PRODUCAO).eq('id', id).maybeSingle();
-  return { criada: true, ...situacaoDaProducao((p ?? { id: String(id), estado: 'recebido' }) as Parameters<typeof situacaoDaProducao>[0]),
+  return { criada: true, estilo_guardado_usado: usados.length ? usados : (entrada.ignorar_estilo ? 'ignorado a pedido' : 'nenhum'), ...situacaoDaProducao((p ?? { id: String(id), estado: 'recebido' }) as Parameters<typeof situacaoDaProducao>[0]),
     produtos: r.pedido.produtos.map((x) => ({ nome: x.nome, preco_centavos: x.preco_centavos, preco_promo_centavos: x.preco_promo_centavos })) };
 }
 
@@ -209,10 +222,29 @@ async function animarArte(c: Ctx, a: { midia_id?: string; duracao_s?: number }) 
     o_que_fazer: 'abrir o link, conferir o movimento e clicar em Exportar vídeo (MP4); ao salvar, o sistema converte para o padrão do Player' };
 }
 
+async function estiloDoCliente(c: Ctx, a: { cliente_id?: string }) {
+  const r = await lerEstilo(c, a.cliente_id);
+  if (!r.cliente) return { erro: 'Informe o cliente (use buscar_cliente).' };
+  return r.estilo ? { estilo: r.estilo, consentimento: r.consentimento } : { estilo: null, aviso: 'Nenhum estilo guardado para este cliente (ou você não tem acesso).' };
+}
+async function guardarEstilo(c: Ctx, a: EstiloDoCliente & { cliente_id?: string; consentimento_explicito?: boolean }) {
+  if (a.consentimento_explicito !== true) return { erro: 'Preciso que a pessoa autorize guardar o estilo. Pergunte antes.', nada_foi_guardado: true };
+  const { cliente_id, consentimento_explicito, ...estilo } = a;
+  const { data, error } = await c.usuario.rpc('studio_preferencia_salvar', { p_estilo: estilo, p_consentimento: consentimento_explicito, p_cliente: cliente_id && UUID.test(cliente_id) ? cliente_id : null });
+  if (error) return { erro: error.message, nada_foi_guardado: true };
+  return { guardado: true, versao_id: data, aviso: 'Guardado com o seu consentimento. Pode apagar quando quiser.' };
+}
+async function apagarEstilo(c: Ctx, a: { cliente_id?: string; apagar_de_vez?: boolean }) {
+  const { data, error } = await c.usuario.rpc('studio_preferencia_revogar', { p_cliente: a.cliente_id && UUID.test(a.cliente_id) ? a.cliente_id : null, p_apagar: a.apagar_de_vez === true });
+  if (error) return { erro: error.message };
+  return { ok: true, versoes: data, efeito: a.apagar_de_vez ? 'apagado de vez' : 'revogado (não será mais usado)' };
+}
+
 const EXECUTAR: Record<string, (c: Ctx, a: Record<string, unknown>) => Promise<unknown>> = {
   relatorio_telas: relatorioTelas, resumo_financeiro: resumoFinanceiro, listar_cobrancas: listarCobrancas,
   buscar_cliente: buscarCliente, oportunidades: (c) => oportunidades(c), propor_cobranca: proporCobranca,
-  criar_producao: (c, a) => criarProducao(c, a as ArgsCriarProducao), listar_producoes: listarProducoes, situacao_da_producao: situacaoDeUma,
+  criar_producao: (c, a) => criarProducao(c, a as ArgsCriarProducao & { cliente_id?: string; ignorar_estilo?: boolean }),
+  estilo_do_cliente: estiloDoCliente, guardar_estilo: (c, a) => guardarEstilo(c, a as EstiloDoCliente & { cliente_id?: string; consentimento_explicito?: boolean }), apagar_estilo: apagarEstilo, listar_producoes: listarProducoes, situacao_da_producao: situacaoDeUma,
   montar_encarte: (c, a) => montarEncarte(c, a as ArgsEncarte), listar_minhas_artes: listarMinhasArtes, animar_arte: animarArte,
 };
 

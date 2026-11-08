@@ -69,7 +69,7 @@ export const AGENTES: Agente[] = [
     id: 'agente-ia', nome: 'Central de Comando ("Trabalhar com IA")', motor: 'agente-ia', versao: 'agente-ia.v2',
     finalidade: 'conversa em linguagem natural: consulta telas, cobranças e clientes; propõe cobrança; pede produções ao Studio; monta o encarte/palco oficial; transforma arte em vídeo',
     ferramentas: ['relatorio_telas', 'resumo_financeiro', 'listar_cobrancas', 'buscar_cliente', 'oportunidades', 'propor_cobranca',
-      'criar_producao', 'listar_producoes', 'situacao_da_producao', 'montar_encarte', 'listar_minhas_artes', 'animar_arte'],
+      'criar_producao', 'listar_producoes', 'situacao_da_producao', 'montar_encarte', 'listar_minhas_artes', 'animar_arte', 'estilo_do_cliente', 'guardar_estilo', 'apagar_estilo'],
     proibido: ['marcar pagamento como pago', 'assinar contrato', 'mudar permissão', 'publicar em tela', 'promover Player', 'usar chave mestra para ler dados'],
     escopo: 'login do usuário (RLS) + agente_ia_escopo(): cobrança só OWNER/ADMIN/FINANCEIRO; produção pela regra do Studio (studio_ai_escopo)',
     provedores: ['groq-texto', 'gemini-texto', 'openrouter-texto'], limites: 'até 6 rodadas de ferramenta por pergunta; 110 s; 14 kB por resposta de ferramenta',
