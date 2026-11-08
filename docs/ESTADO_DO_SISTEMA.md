@@ -17,6 +17,7 @@
 | 5 | `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md` | estilo e receitas de encartes, palcos e mídias |
 | 6 | `scripts/ops/README.md` | comandos prontos: banco, publicar, conferir, sessão de teste, Player |
 | 7 | `docs/engineering/FINDINGS_LEDGER.md` | histórico de cada correção F-NN (buscar com grep, não ler inteiro) |
+| 8 | `docs/autonomia/SOBRE_MIDIA_AUTONOMIA_RELATORIO_MESTRE.md` | Projeto Mestre "SOBRE MÍDIA Autônoma": auditoria com evidências, agentes (`REGISTRO_DE_AGENTES.md`), provedores (`PROVEDORES_DE_IA.md`), JARVIS (`JARVIS_INTEGRACAO.md`), decisões de arquitetura (`decisoes_de_arquitetura.jsonl`) e a sequência MG-AUT |
 
 Quem usa Claude Code tem as receitas prontas em `.claude/skills/` (deploy-producao, release-player, migracao-segura, conteudo-automatico, conferir-painel, encartes-e-palcos, retomar-trabalho).
 
@@ -31,6 +32,7 @@ Quem usa Claude Code tem as receitas prontas em `.claude/skills/` (deploy-produc
 - **Catálogo de produtos** (`tabloide_catalogo`): fotos oficiais das marcas, sem fundo e com código de barras. Em 08/11/2026 eram cerca de 3.264 imagens oficiais e 85 marcas no banco.
 - **Agentes de IA do produto:**
   - "Trabalhar com IA" (`/dashboard/ia`, função `agente-ia`: Groq → Gemini → OpenRouter grátis; ação só depois de "Confirmar");
+  - "Vídeo por agentes" (`/studio/agentes`, função `studio-orquestrador` + montagem no GitHub Actions);
   - Agente SOBRE MÍDIA do Studio (Cloudflare);
   - Creative Core com o DNA de estilo (`supabase/functions/_shared/studio/core/dna.ts`).
 
@@ -38,6 +40,7 @@ Quem usa Claude Code tem as receitas prontas em `.claude/skills/` (deploy-produc
 
 | F | Data | O que foi feito |
 |---|---|---|
+| F-262 | 08/11/2026 | **Projeto Mestre "SOBRE MÍDIA Autônoma" — auditoria (MG-AUT-01) e memória (MG-AUT-02)**: relatório mestre com evidências, registro de agentes, provedores, contrato do JARVIS, decisões de arquitetura, teste de isolamento (0 vazamentos em 8 perfis) e 2 riscos P0 achados (P-19, P-20) |
 | F-261 | 08/11/2026 | **Studio de vídeo por agentes no ar**: migrações aplicadas (Player 5.7.10 íntegro), memória criativa semeada, orquestrador publicado com tarefa de 1 minuto, rota `/studio/agentes` ("Vídeo por agentes"), segmento **Farmácia** próprio no Creative Core, prévia das cenas corrigida e segredo da montagem gravado: vídeo MP4 montado e aprovado de ponta a ponta (P-06 resolvida) |
 | F-260 | 08/11/2026 | **Memória do sistema no repositório**: este arquivo, as decisões do dono, o padrão de encartes e palcos, o comando `onde-paramos`, as skills `retomar-trabalho` e `encartes-e-palcos`, os atalhos para outras IAs e IDEs e o DNA dos agentes do Studio |
 | F-259 | 08/11/2026 | Encarte e Palco de Ofertas de **farmácia** (pastas `encartes-de-farmacia` e `palco-de-ofertas-farmacia`), logo "Ofertas de Farmácia", aviso legal dos remédios, cesta de 16 itens isentos de prescrição, fotos oficiais de Novalgina, Naldecon e Centrum |
@@ -97,6 +100,20 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
 ### Ideias aprovadas e ainda não feitas
 - **P-18 🟨** Vídeo-tabela de preços para TV; busca de lojas por CEP e segmento no portal de ofertas; foto pela câmera para produto sem cadastro.
 
+### SOBRE MÍDIA Autônoma (Projeto Mestre, F-262 — detalhes em `docs/autonomia/SOBRE_MIDIA_AUTONOMIA_RELATORIO_MESTRE.md`)
+- **P-19 🟧 P0 segurança — códigos de pareamento abertos:** qualquer usuário logado lê e altera `device_pairing_codes` (regra `dpc_all_auth` com `true`; teste desfeito: anunciante alterou 6 de 6). É estrutura protegida (Player). Passos:
+  1. ler a definição viva das regras `dpc_*` e das funções `fn_request_pairing_code`, `fn_check_pairing_status` e `fn_link_device_to_screen`;
+  2. trocar pela regra "só a equipe da empresa dona da tela" e manter o anônimo só pelas funções;
+  3. `comparar-telas.mjs` e `contrato-player.mjs` antes e depois;
+  4. parear de verdade no emulador `TVBox_API25`;
+  5. repetir o teste desfeito: anunciante vê 0.
+- **P-20 🟧 P0 dados — pesquisa de marcas sem cópia:** `../marcas` (282 sites, 9.587 imagens) e `../marcas-v2` (116 sites, 4.409 imagens), com 2.483 marcas em `../marcas/lista/consolidado.json`, existem só neste computador. Copiar para uma pasta privada do R2 com um índice e conferir a contagem.
+- **P-21 🟧 P1 — função de assinatura antiga insegura:** `supabase/functions/contract-signature-flow` usa a chave mestra sem conferir quem chama. Não está publicada; o fluxo atual é `fn_assinar_contrato`. Apagar do repositório (ou exigir login) e nunca publicar como está.
+- **P-22 🟨 MG-AUT-07 Central de Comando:** dar ao `agente-ia` ("Trabalhar com IA") as ferramentas do Studio (`criar_producao` com o login do usuário, `listar_producoes`, `situacao_da_producao`), conforme a ADR-AUT-001 em `docs/autonomia/decisoes_de_arquitetura.jsonl`. Sem orquestrador novo.
+- **P-23 🟨 MG-AUT-08 encarte e "esta arte → vídeo" pelo agente:** ferramenta no `studio-orquestrador` que monta encarte oficial (`ENCARTES_OFICIAIS`) com preço por código e anima uma arte existente.
+- **P-24 🟨 MG-AUT-12 preferências por cliente:** tela e consentimento sobre `studio_conhecimento` (escopo cliente, função `studio_conhecimento_publicar`) e uso no Core ("use o mesmo estilo").
+- **P-25 🟨 MG-AUT-05/09/10:** provedores num módulo único (`docs/autonomia/PROVEDORES_DE_IA.md`), testes de injeção e custo, e o JARVIS quando existir (`docs/autonomia/JARVIS_INTEGRACAO.md`).
+
 ## 5. Ritual de fim de sessão (obrigatório para qualquer IA)
 
 1. Registrar a entrega em `docs/engineering/FINDINGS_LEDGER.md` (novo F-NN: pedido, causa, feito, prova, limite).
@@ -106,4 +123,4 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
 3. Regra nova do dono → `docs/DECISOES_DO_DONO.md`. Padrão novo de arte → `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md` e, se for de estilo, `dna.ts`.
 4. Testes, commit em português e publicação com `node scripts/ops/publicar-main.mjs`.
 
-*Última atualização: 08/11/2026, depois da F-261.*
+*Última atualização: 08/11/2026, depois da F-262.*

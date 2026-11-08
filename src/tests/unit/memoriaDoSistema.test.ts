@@ -7,7 +7,10 @@ import { pendencias, ultimasEntregas } from '../../../scripts/ops/onde-paramos.m
 import { textoDoDna, PADRAO_DOS_OFICIAIS, REFERENCIA_FARMACIA } from '../../../supabase/functions/_shared/studio/core/dna';
 
 const ler = (f: string) => fs.readFileSync(f, 'utf8');
-const MEMORIA = ['docs/ESTADO_DO_SISTEMA.md', 'docs/DECISOES_DO_DONO.md', 'docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md'];
+// F-262: os documentos da SOBRE MÍDIA Autônoma também são memória (caminhos válidos, nada secreto)
+const MEMORIA = ['docs/ESTADO_DO_SISTEMA.md', 'docs/DECISOES_DO_DONO.md', 'docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md',
+  'docs/autonomia/SOBRE_MIDIA_AUTONOMIA_RELATORIO_MESTRE.md', 'docs/autonomia/REGISTRO_DE_AGENTES.md',
+  'docs/autonomia/PROVEDORES_DE_IA.md', 'docs/autonomia/JARVIS_INTEGRACAO.md'];
 const ATALHOS = ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.windsurfrules', '.github/copilot-instructions.md', '.cursor/rules/sobremidia.mdc'];
 
 describe('memória do sistema', () => {
@@ -54,6 +57,20 @@ describe('memória do sistema', () => {
       expect(t, f).not.toMatch(/gsk_|sk-or-v1|sk-proj-|sbp_[0-9a-f]|AQ\.Ab8|eyJhbGci/);
       expect(t, f).not.toMatch(/@gmail\.com/);
     }
+  });
+
+  it('decisões de arquitetura (F-262): uma por linha, JSON válido, com os campos que o dono exigiu', () => {
+    const linhas = ler('docs/autonomia/decisoes_de_arquitetura.jsonl').trim().split('\n');
+    expect(linhas.length).toBeGreaterThan(0);
+    const ids = new Set<string>();
+    for (const l of linhas) {
+      const d = JSON.parse(l);
+      for (const campo of ['id', 'data', 'estado', 'responsavel', 'contexto', 'problema', 'decisao', 'justificativa', 'impacto', 'arquivos', 'evidencia']) expect(d[campo], `${d.id}.${campo}`).toBeTruthy();
+      expect(ids.has(d.id), d.id).toBe(false);
+      ids.add(d.id);
+    }
+    expect(ler('docs/autonomia/decisoes_de_arquitetura.jsonl')).not.toMatch(/gsk_|sk-or-v1|sk-proj-|sbp_[0-9a-f]|eyJhbGci|@gmail\.com/);
+    expect(fs.existsSync('scripts/ops/teste-isolamento.sql')).toBe(true);
   });
 
   it('os agentes do Studio recebem o padrão dos encartes e palcos e a regra da farmácia', () => {

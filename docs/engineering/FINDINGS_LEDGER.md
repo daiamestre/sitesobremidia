@@ -3087,3 +3087,25 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Prova:** produção real com a conta de teste: pedido → plano em 3 s → ajuste → plano "farmácia em oferta" com a paleta da farmácia → 4 cenários de farmácia por 384 neurons (cota grátis) → prévias completas. `creativeCore.test.ts` com o caso da farmácia; 2.264 testes verdes; tipos na linha de base (176); build OK.
 - **Limite:** a MONTAGEM do vídeo (GitHub Actions) precisa do segredo `STUDIO_SEGREDO` no servidor e no GitHub. A trava de segurança da ferramenta de IA não deixou gravá-lo, e cabe ao dono (P-06, passo único). Até lá, plano, cenários e edição funcionam, e a montagem avisa "Montagem não configurada no servidor".
 - **Complemento (08/11/2026, autorização do dono):** `STUDIO_SEGREDO` criado aleatório e gravado no cofre, no Supabase e no GitHub, sem nunca aparecer na tela. A montagem passou a "disponível". Prova de ponta a ponta com a conta de teste: 4 cenas aprovadas → "Montar vídeo" → `studio-montar.yml` (run 42492043537, 1 min 51 s) → estado `pronto`, MP4 1920×1080, 15,00 s, H.264 High, yuv420p, 5,1 MB, controle de qualidade aprovado. A P-06 está resolvida.
+
+### F-262 — Projeto Mestre "SOBRE MÍDIA Autônoma": auditoria do estado real (MG-AUT-01) e memória de autonomia (MG-AUT-02) — FEITO (sem publicar)
+
+- **Pedido do dono:** auditar o projeto inteiro com evidências antes de implementar a SOBRE MÍDIA Autônoma (Creative Core + agentes + Central de Comando + JARVIS), organizar a memória para qualquer sessão e entregar o relatório mestre. Sem publicar durante a auditoria.
+- **Feito:**
+  - `docs/autonomia/SOBRE_MIDIA_AUTONOMIA_RELATORIO_MESTRE.md` (13 seções);
+  - `REGISTRO_DE_AGENTES.md`, `PROVEDORES_DE_IA.md`, `JARVIS_INTEGRACAO.md` (contrato proposto, nada implementado);
+  - `decisoes_de_arquitetura.jsonl` (ADR-AUT-001..004);
+  - `scripts/ops/teste-isolamento.sql`;
+  - pendências P-19..P-25 em `docs/ESTADO_DO_SISTEMA.md`.
+- **Provas (banco só leitura; testes de acesso em transação desfeita):**
+  - 238 de 238 tabelas com RLS; 373 funções privilegiadas com `search_path` fixo;
+  - isolamento com 8 perfis: 0 vazamentos de mídias, telas, contratos, produções e memória;
+  - 34 de 37 funções publicadas;
+  - pesquisa de marcas localizada (398 sites, 13.996 imagens, 2.483 marcas).
+- **Achados:**
+  - P0 `device_pairing_codes` aberto a qualquer logado (anunciante alterou 6 de 6, desfeito);
+  - P0 pesquisa sem cópia, fora do Git;
+  - P1 `contract-signature-flow` sem checagem de login (não publicada);
+  - `.agents/memory/master_ledger.md` e `architecture_decisions.jsonl` estão fora do Git e parados em 11/09/2026.
+- **Decisão proposta (ADR-AUT-001):** a Central de Comando é a evolução do "Trabalhar com IA" com as ferramentas do Studio, sem um 3º orquestrador.
+- **Limite:** nada implementado além de documentos e teste. JARVIS, preferências por cliente, encarte pelo agente e trilha/voz estão pendentes.

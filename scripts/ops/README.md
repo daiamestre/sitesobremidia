@@ -5,6 +5,7 @@ Todos os scripts leem as chaves de `~/.sobremidia-secrets/tokens.env`, que fica 
 | Tarefa | Comando |
 |---|---|
 | **Onde o trabalho parou e o que falta** (qualquer IA/IDE) | `node scripts/ops/onde-paramos.mjs` (resumo) ou `node scripts/ops/onde-paramos.mjs P-03` (uma pendência com os passos) |
+| Provar que um cliente não vê dados de outro (somente leitura, desfaz tudo) | `node scripts/ops/sql.mjs @scripts/ops/teste-isolamento.sql` (todo número antes da barra tem de ser 0) |
 | Consultar/alterar o banco de produção | `node scripts/ops/sql.mjs "select ..."` ou `node scripts/ops/sql.mjs @arquivo.sql` |
 | Provar que uma migração não muda as telas | `node scripts/ops/comparar-telas.mjs antes`, aplicar a migração, depois `node scripts/ops/comparar-telas.mjs depois` |
 | Publicar o site em produção (Vercel) | `node scripts/ops/deploy-vercel.mjs` (commit atual já enviado ao GitHub) |
