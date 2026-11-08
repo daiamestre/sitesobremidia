@@ -1,0 +1,9 @@
+== pareamento
+PLACAR: 22 OK · 0 FALHA
+== memória (ensaio)
+PLACAR: 14 OK · 0 FALHA
+== isolamento
+8 perfis testados, 0 com vazamento
+== Player
+CONTRATO DO PLAYER 5.7.10 ÍNTEGRO
+resposta de todas as telas idêntica

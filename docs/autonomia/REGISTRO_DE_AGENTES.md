@@ -7,7 +7,7 @@
 > - Nenhum agente cria outro agente nem muda as próprias regras.
 > - Melhoria proposta por agente só entra com revisão.
 >
-> Atualizado em 08/11/2026 (F-262). Evidências em `docs/autonomia/SOBRE_MIDIA_AUTONOMIA_RELATORIO_MESTRE.md`.
+> **Fonte de verdade em CÓDIGO desde a F-265:** `supabase/functions/_shared/agentes/registro.ts` (versão, ferramentas, escopo, limites e contrato de execução de cada agente), conferida contra o código por `src/tests/unit/registroDeAgentes265.test.ts`. Esta página é o resumo para leitura. A Central (agente-ia) ganhou: criar_producao, listar_producoes, situacao_da_producao, montar_encarte, listar_minhas_artes, animar_arte, estilo_do_cliente, guardar_estilo e apagar_estilo (F-266..F-268).
 
 ## 1. Motores (orquestradores)
 

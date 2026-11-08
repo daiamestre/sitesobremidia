@@ -1,6 +1,6 @@
 # Integração SOBRE MÍDIA ↔ JARVIS EMPRESARIAL — contrato proposto (MG-AUT-10)
 
-> **Estado (08/11/2026): PROPOSTA, NADA IMPLEMENTADO.** O JARVIS ainda não existe, e o dono pediu para não criar endpoints fictícios.
+> **Estado (08/11/2026): CONTRATO TÉCNICO COMPLETO (seção 6), INTEGRAÇÃO AGUARDANDO O JARVIS EXISTIR.** O JARVIS ainda não existe, e o dono pediu para não criar endpoints fictícios.
 >
 > Este documento fixa as regras para a implementação real, quando o JARVIS existir.
 
@@ -47,3 +47,25 @@
 3. Token revogado → 401.
 4. Webhook com assinatura errada → recusado.
 5. Pedido criado pelo JARVIS aparece em `/studio/agentes` aguardando aprovação humana.
+
+## 6. Detalhes técnicos da v1 (completados em 08/11/2026, F-270 — ainda SEM implementação, aguardando o JARVIS existir)
+
+| Requisito | Decisão |
+|---|---|
+| Versão | caminho `/v1/...`; mudança que quebra vira `/v2` e as duas convivem por 90 dias |
+| Token de serviço | 32 bytes aleatórios mostrados uma única vez; no banco só o SHA-256 (`integracao_tokens.hash`), o prefixo (8 caracteres, para reconhecer), a empresa, o usuário responsável, os escopos, `expira_em` (máximo 90 dias) e `revogado_em` |
+| Rotação | criar o token novo, trocar no JARVIS e revogar o antigo; os dois valem juntos por no máximo 24 h |
+| Escopos mínimos | `leitura:operacao`, `leitura:campanhas`, `criacao:solicitar`, `criacao:ler`, `arquivos:ler`; nada de financeiro, contratos, permissões, publicação nem Player |
+| Isolamento | o token vira a sessão do **usuário responsável**; toda leitura passa pela RLS e pelas funções do banco (`studio_criar_producao`, `studio_ai_escopo`, `agente_ia_escopo`) |
+| Idempotência | cabeçalho `Idempotency-Key` obrigatório em `POST`; a mesma chave em 24 h devolve a mesma resposta (para criação, reaproveita `studio_producoes.chave_idempotencia`) |
+| Limites | 60 requisições/min e 20 criações/dia por token, além das cotas do Studio (`studio_minha_cota`); excedeu → 429 com `Retry-After` |
+| Origem | todo registro grava `origem = 'jarvis'`, o prefixo do token e o IP; nunca o token |
+| Webhooks | `POST` para a URL cadastrada com `X-SobreMidia-Assinatura: t=<epoch>,v1=<HMAC-SHA256(segredo, t + "." + corpo)>`; o JARVIS recusa se `t` tiver mais de 5 min; até 5 tentativas com espera crescente; segredo do webhook diferente do token |
+| Auditoria | `integracao_registros` (token, escopo, operação, status, custo, ms); retenção de 1 ano |
+| Indisponibilidade | a SOBRE MÍDIA nunca espera o JARVIS: evento que não entregou fica na fila e é reenviado; o painel e o Player não dependem dele |
+| Onde fica | uma única Edge Function `sobremidia-api` (Supabase), sem função nova na Vercel (plano grátis) |
+
+**Estado dos testes de aceite (TESTE 10):** NÃO executados — dependem do JARVIS e da `sobremidia-api`. A camada que eles exercitarão já tem prova:
+- isolamento por empresa e cliente: `scripts/ops/teste-isolamento.sql`, 0 vazamentos;
+- criação real com o login de quem pede: F-266, produção 96f99a50;
+- recusa de instruções maliciosas: `scripts/ops/testar-injecao.mjs`, 7/7.

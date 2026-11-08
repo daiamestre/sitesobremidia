@@ -17,7 +17,7 @@
 | 5 | `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md` | estilo e receitas de encartes, palcos e mídias |
 | 6 | `scripts/ops/README.md` | comandos prontos: banco, publicar, conferir, sessão de teste, Player |
 | 7 | `docs/engineering/FINDINGS_LEDGER.md` | histórico de cada correção F-NN (buscar com grep, não ler inteiro) |
-| 8 | `docs/autonomia/SOBRE_MIDIA_AUTONOMIA_RELATORIO_MESTRE.md` | Projeto Mestre "SOBRE MÍDIA Autônoma": auditoria com evidências, agentes (`REGISTRO_DE_AGENTES.md`), provedores (`PROVEDORES_DE_IA.md`), JARVIS (`JARVIS_INTEGRACAO.md`), decisões de arquitetura (`decisoes_de_arquitetura.jsonl`) e a sequência MG-AUT |
+| 8 | `docs/autonomia/RELATORIO_FINAL_AUTONOMIA.md` (situação final da missão) e `docs/autonomia/SOBRE_MIDIA_AUTONOMIA_RELATORIO_MESTRE.md` | Projeto Mestre "SOBRE MÍDIA Autônoma": auditoria com evidências, agentes (`REGISTRO_DE_AGENTES.md`), provedores (`PROVEDORES_DE_IA.md`), JARVIS (`JARVIS_INTEGRACAO.md`), decisões de arquitetura (`decisoes_de_arquitetura.jsonl`) e a sequência MG-AUT |
 
 Quem usa Claude Code tem as receitas prontas em `.claude/skills/` (deploy-producao, release-player, migracao-segura, conteudo-automatico, conferir-painel, encartes-e-palcos, retomar-trabalho).
 
@@ -40,6 +40,17 @@ Quem usa Claude Code tem as receitas prontas em `.claude/skills/` (deploy-produc
 
 | F | Data | O que foi feito |
 |---|---|---|
+| F-263..F-270 | 08/11/2026 | **Missão SOBRE MÍDIA Autônoma (execução)** — relatório final em `docs/autonomia/RELATORIO_FINAL_AUTONOMIA.md`:
+- pareamento fechado e funcionando (aplicado);
+- assinatura antiga removida;
+- dados da pesquisa copiados para o R2 privado;
+- registro de agentes e provedores em fonte única;
+- **Central de Comando** que cria produções, monta encarte oficial e transforma arte em vídeo;
+- memória de estilo com consentimento (ensaiada, não aplicada);
+- 7/7 ataques rejeitados;
+- contrato do JARVIS.
+
+As funções agente-ia e studio-orquestrador e o site com essas mudanças **ainda não foram publicados** (P-26) |
 | F-262 | 08/11/2026 | **Projeto Mestre "SOBRE MÍDIA Autônoma" — auditoria (MG-AUT-01) e memória (MG-AUT-02)**: relatório mestre com evidências, registro de agentes, provedores, contrato do JARVIS, decisões de arquitetura, teste de isolamento (0 vazamentos em 8 perfis) e 2 riscos P0 achados (P-19, P-20) |
 | F-261 | 08/11/2026 | **Studio de vídeo por agentes no ar**: migrações aplicadas (Player 5.7.10 íntegro), memória criativa semeada, orquestrador publicado com tarefa de 1 minuto, rota `/studio/agentes` ("Vídeo por agentes"), segmento **Farmácia** próprio no Creative Core, prévia das cenas corrigida e segredo da montagem gravado: vídeo MP4 montado e aprovado de ponta a ponta (P-06 resolvida) |
 | F-260 | 08/11/2026 | **Memória do sistema no repositório**: este arquivo, as decisões do dono, o padrão de encartes e palcos, o comando `onde-paramos`, as skills `retomar-trabalho` e `encartes-e-palcos`, os atalhos para outras IAs e IDEs e o DNA dos agentes do Studio |
@@ -110,10 +121,24 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
   - 🟥 Faltam as 13.996 imagens (8,49 GB): passariam da cota grátis do R2 (já usa 5,40 GB de 10 GB), cerca de US$ 0,06/mês; depende do orçamento do dono.
   - Com o orçamento liberado: `node scripts/ops/backup-pesquisa-marcas.mjs enviar` e depois `… verificar`.
 - **P-21 ✅ resolvida em 08/11/2026 (F-263):** a função antiga de assinatura (chave mestra sem login, nunca publicada) foi removida do repositório; o fluxo é `fn_assinar_contrato`.
-- **P-22 🟨 MG-AUT-07 Central de Comando:** dar ao `agente-ia` ("Trabalhar com IA") as ferramentas do Studio (`criar_producao` com o login do usuário, `listar_producoes`, `situacao_da_producao`), conforme a ADR-AUT-001 em `docs/autonomia/decisoes_de_arquitetura.jsonl`. Sem orquestrador novo.
-- **P-23 🟨 MG-AUT-08 encarte e "esta arte → vídeo" pelo agente:** ferramenta no `studio-orquestrador` que monta encarte oficial (`ENCARTES_OFICIAIS`) com preço por código e anima uma arte existente.
-- **P-24 🟨 MG-AUT-12 preferências por cliente:** tela e consentimento sobre `studio_conhecimento` (escopo cliente, função `studio_conhecimento_publicar`) e uso no Core ("use o mesmo estilo").
-- **P-25 🟨 MG-AUT-05/09/10:** provedores num módulo único (`docs/autonomia/PROVEDORES_DE_IA.md`), testes de injeção e custo, e o JARVIS quando existir (`docs/autonomia/JARVIS_INTEGRACAO.md`).
+- **P-22 ✅ no código (F-266):** a Central de Comando cria, lista e acompanha produções reais do Studio. Foi provada com a função local, ligada ao banco real. Para entrar no ar: P-26.
+- **P-23 ✅ no código (F-267):** `montar_encarte` monta o encarte ou palco oficial com os preços escritos pela pessoa, e `animar_arte` transforma uma arte em vídeo (MP4 1920×1080 provado). Para entrar no ar: P-26. Não há renderização do encarte no servidor; a composição é no navegador.
+- **P-24 🟥 PARCIAL (F-268): memória de estilo com consentimento.**
+  - Código e Central prontos; ensaio 14/14.
+  - Falta APLICAR a migração `supabase/migrations/20261362_preferencias_do_cliente.sql`: a trava da ferramenta exige a autorização do dono.
+  - Depois, `node scripts/ops/sql.mjs @scripts/ops/teste-preferencias.sql | node scripts/ops/resultado-sql.mjs` tem de dar 14 OK.
+  - Tela própria no Studio para o anunciante: pendente.
+- **P-25 🟨 PARCIAL:**
+  - provedores unificados (F-265) e ataques 7/7 (F-269) feitos;
+  - injeção por imagem ou anexo não testada;
+  - JARVIS: contrato completo, integração aguardando o JARVIS existir (F-270).
+- **P-26 🟥 PUBLICAR o que foi feito em F-265..F-270** (a missão não autorizou publicar). Na ordem:
+  1. `npx supabase functions deploy agente-ia --project-ref bhwsybgsyvvhqtkdqozb --no-verify-jwt`;
+  2. `npx supabase functions deploy studio-orquestrador --project-ref bhwsybgsyvvhqtkdqozb --no-verify-jwt` (leva a correção do `validarPlano`; sem ela, campanha com nome em maiúscula cai em erro);
+  3. `node scripts/ops/publicar-main.mjs` (site: Central de Comando, link do encarte, arte → vídeo);
+  4. conferir com `node scripts/ops/testar-injecao.mjs` apontando para a função no ar (`CENTRAL_URL`).
+  Antes disso, os commits locais precisam ser enviados ao GitHub.
+- **P-27 🟥 Cópia das IMAGENS da pesquisa (F-264):** 13.996 imagens (8,49 GB) passariam da cota grátis do R2 (≈ US$ 0,06/mês). Com o orçamento liberado: `node scripts/ops/backup-pesquisa-marcas.mjs enviar` e depois `… verificar`.
 
 ## 5. Ritual de fim de sessão (obrigatório para qualquer IA)
 
@@ -124,4 +149,4 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
 3. Regra nova do dono → `docs/DECISOES_DO_DONO.md`. Padrão novo de arte → `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md` e, se for de estilo, `dna.ts`.
 4. Testes, commit em português e publicação com `node scripts/ops/publicar-main.mjs`.
 
-*Última atualização: 08/11/2026, depois da F-262.*
+*Última atualização: 08/11/2026, depois da F-270.*

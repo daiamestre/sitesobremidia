@@ -27,8 +27,8 @@
 
 Os provedores do Projeto Mestre (Qwen, Alibaba Wan, Higgsfield, Runway) ainda **não foram avaliados com documentação oficial**. Nada foi integrado: preço, API e licença comercial precisam ser conferidos na fonte antes (MG-AUT-05).
 
-## Onde está o código (hoje em dois lugares)
-- `supabase/functions/_shared/studio/provedores.ts`: lista completa, situação, executores Cloudflare e compatível com OpenAI, `textoGratis`, `MODELOS_PERMITIDOS`.
-- `supabase/functions/_shared/agente/ferramentas.ts` (`PROVEDORES`): a ordem Groq → Gemini → OpenRouter do `agente-ia`.
+## Onde está o código (até a F-264 eram dois lugares; hoje é um só)
+- `supabase/functions/_shared/ia/provedores.ts`: FONTE ÚNICA. Tem a lista completa, a situação de cada provedor, os executores Cloudflare e compatível com OpenAI, `textoGratis`, `MODELOS_PERMITIDOS`, `estimarCusto` e `exigeConfirmacao`. O arquivo `supabase/functions/_shared/studio/provedores.ts` só repassa.
+- `supabase/functions/_shared/agente/ferramentas.ts` (`PROVEDORES`): derivado da fonte única, na ordem Groq → Gemini → OpenRouter do `agente-ia`.
 
-**MG-AUT-05:** juntar os dois num módulo único (`_shared/ia/`), com custo estimado, cota por empresa e a regra "pago só com confirmação" testada.
+**✅ MG-AUT-05 feito (F-265):** fonte única em `supabase/functions/_shared/ia/provedores.ts` (o arquivo do Studio só repassa; a lista do agente-ia é derivada), com `estimarCusto`, `exigeConfirmacao` e texto automático só grátis — testado em `src/tests/unit/provedoresUnicos265.test.ts`.

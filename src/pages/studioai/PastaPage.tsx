@@ -68,15 +68,14 @@ export default function PastaPage() {
   const { pastaId } = useParams();
   const [params, setParams] = useSearchParams();
   // grava a lista vinda da Central ANTES de PastaDeEncartes/PalcoDeOfertas lerem a sessão (initializer do 1º render)
-  const [veioDaCentral] = useState(() => produtosDoLink(pastaId, params.get('produtos')));
+  useState(() => produtosDoLink(pastaId, params.get('produtos')));
   useEffect(() => { if (params.has('produtos')) setParams((p) => { p.delete('produtos'); return p; }, { replace: true }); }, [params, setParams]);
-  const chaveDaLista = veioDaCentral ? 'central' : 'pasta';
-  if (pastaId === PASTA_PALCO) return <PalcoDeOfertas key={chaveDaLista} />;
+  if (pastaId === PASTA_PALCO) return <PalcoDeOfertas />;
   // F-259: as pastas da farmácia (mesmas telas do mercado)
-  if (pastaId === PASTA_PALCO_FARMACIA) return <PalcoDeOfertas key={`farmacia-${chaveDaLista}`} segmento="farmacia" />;
-  if (pastaId === PASTA_ENCARTES_FARMACIA) return <PastaDeEncartes key={`farmacia-${chaveDaLista}`} segmento="farmacia" />;
+  if (pastaId === PASTA_PALCO_FARMACIA) return <PalcoDeOfertas key="farmacia" segmento="farmacia" />;
+  if (pastaId === PASTA_ENCARTES_FARMACIA) return <PastaDeEncartes key="farmacia" segmento="farmacia" />;
   if (pastaId === PASTA_LOGOS) return <PastaDeLogos />;
-  return pastaId === PASTA_ENCARTES ? <PastaDeEncartes key={chaveDaLista} /> : <PastaDeModelos pastaId={pastaId} />;
+  return pastaId === PASTA_ENCARTES ? <PastaDeEncartes /> : <PastaDeModelos pastaId={pastaId} />;
 }
 
 function PastaDeModelos({ pastaId }: { pastaId: string | undefined }) {

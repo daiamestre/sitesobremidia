@@ -3137,3 +3137,85 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Destino:** bucket `sobremidia-assets` (PRIVADO: sem r2.dev e sem domínio, conferido pela API Cloudflare; estava vazio e sem uso), pasta `backups/pesquisa-marcas/`, mesma estrutura e nomes. O bucket público `sobremidia-storage` não foi usado.
 - **Copiado:** os 723 arquivos de dados (listas: `consolidado.json` com 2.483 marcas, lotes dos 398 sites, comparações, filas, auditorias e relatórios, 12 MB), com MD5 conferido pelo R2 no envio e SHA-256 no metadado. Verificação: **723/723, 0 ausentes, 0 divergentes, ÍNTEGRO**; a 2ª rodada enviou 0 (retomada).
 - **Bloqueado:** as 13.996 imagens (8,49 GB). O R2 já usa 5,40 GB, e a cota grátis é de 10 GB; a cópia completa passaria para a faixa paga (≈ US$ 0,06/mês). Precisa de autorização de orçamento do dono (ou de outro destino privado), e depois basta `node scripts/ops/backup-pesquisa-marcas.mjs enviar && … verificar`.
+
+### F-265 — MG-AUT-03/04/05: registro central de agentes e provedores de IA numa fonte única — FEITO (no repositório; funções NÃO publicadas)
+
+- **Registro:** `supabase/functions/_shared/agentes/registro.ts` lista os 12 agentes reais (Central, Core, Core local, produtos, diretor, roteirista, fotografia, prompts, imagem, montagem, qualidade e analista de referências). Cada um tem versão, motor, ferramentas, o que é proibido, escopo, provedores, limites, nível de aprovação, qualidade, política de falha e auditoria. Os contratos de execução dos 2 motores usam os estados que o banco aceita, e a lista de planejados não aparece como implementada.
+- **Teste `registroDeAgentes265.test.ts`:** nenhum agente usado no código fica fora do registro, as ferramentas do registro são exatamente as que o modelo recebe, e os estados conferem com o CHECK da migração.
+- **Provedores:** `_shared/ia/provedores.ts` virou a FONTE ÚNICA. `_shared/studio/provedores.ts` só repassa, e o `PROVEDORES` do agente-ia é derivado. O texto automático só usa provedor grátis; pago exige confirmação (`exigeConfirmacao`) e há estimativa de custo (`estimarCusto`).
+- **Teste `provedoresUnicos265.test.ts`:** nenhuma URL de provedor fora do módulo único, sem chave grátis o resultado é null (nunca cai para pago), e Lucid Origin só fica disponível com `STUDIO_PERMITIR_IMAGEM_PAGA=1`.
+- **Achado corrigido:** 6 erros de tipo antigos no orquestrador e no agente-ia (agentes `imagem`, `montagem` e `qualidade` fora do tipo); `deno check` agora sai limpo.
+
+### F-266 — MG-AUT-07: Central de Comando ("Trabalhar com IA") cria e acompanha produções reais do Studio — FEITO (provado com a função LOCAL; produção ainda com a versão antiga)
+
+- **Ferramentas novas no `agente-ia`** (todas com o login da pessoa):
+  - `criar_producao` usa `studio_criar_producao`, a mesma função da tela `/studio/agentes`;
+  - `listar_producoes` e `situacao_da_producao`.
+- **Regras puras (`_shared/agente/studio.ts`):**
+  - o pedido é montado com o que a pessoa disse;
+  - **preço só entra se a pessoa o escreveu** (`precoFoiInformado`);
+  - se falta nome, ideia ou segmento, a Central pergunta;
+  - as instruções tratam texto externo como dado, não como ordem.
+- **Tela `/dashboard/ia`:** passou a se chamar "Central de Comando", com cartões que releem o estado real a cada 10 s e o botão "Abrir no Studio".
+- **Prova** (`scripts/ops/funcao-local.mjs` + `scripts/ops/testar-central.mjs`; banco real; conta de teste):
+  - um pedido em português criou a produção **96f99a50** (Dorflex **1290 centavos** = os R$ 12,90 escritos; segmento farmácia);
+  - os agentes do Studio em produção a planejaram e ela parou em "aguardando aprovação do plano";
+  - "Como está essa produção?" respondeu o estado real;
+  - no navegador, o cartão mostrou "sua vez: aprovar o plano".
+
+### F-267 — MG-AUT-08: Central monta o encarte/palco OFICIAL e transforma arte em vídeo — FEITO (local)
+
+- **`montar_encarte`:**
+  - monta a lista com os preços escritos pela pessoa, incluindo "de X por Y";
+  - devolve o link da pasta oficial: encarte ou palco, mercado ou farmácia;
+  - `PastaPage` grava a lista na mesma chave que a pasta já usa, sem um segundo motor de encarte.
+- **`listar_minhas_artes` + `animar_arte`:**
+  - `/studio/video?midia=&duracao=` abre o editor com a arte da pessoa (lida pela regra de acesso), 15 s e movimento de câmera;
+  - o vídeo salvo passa pelo `process-media` e é convertido para H.264, então WebM nunca chega ao Player.
+- **Provas:**
+  - encarte "Mega Oferta" com Arroz 24,90, Feijão 7,99 (de 9,49), Óleo 8,49 e Café 18,90, em balões centralizados e com fotos oficiais;
+  - o Studio sinalizou o arroz para escolher a foto;
+  - a arte "Academia – Fitness" foi exportada como **MP4 1920×1080 de 15 s**;
+  - com duas artes parecidas, a Central perguntou qual usar.
+- **Limite:** a composição acontece no navegador, ao abrir o link. Não há renderização do encarte no servidor; a pessoa confere e salva (nível 2).
+
+### F-268 — MG-AUT-12: memória de estilo por cliente com consentimento — PREPARADA e ENSAIADA, NÃO APLICADA
+
+- **Migração `20261362_preferencias_do_cliente.sql`:** 2 funções sobre `studio_conhecimento` (escopo cliente, tipo preferência), sem tabela nova.
+  - só guarda com consentimento (quem, quando e termo ficam registrados);
+  - aceita só campos permitidos;
+  - o anunciante mexe só no próprio estilo; OWNER/ADMIN, nos clientes da empresa;
+  - tem histórico de versões, revogar e apagar.
+- **Central:** `estilo_do_cliente`, `guardar_estilo` (exige `consentimento_explicito`) e `apagar_estilo`. `criar_producao` aplica o estilo sem sobrepor o pedido atual, diz o que usou e aceita `ignorar_estilo`.
+- **Prova:** `scripts/ops/teste-preferencias.sql` 14/14 no banco real, em transação desfeita. Cobre sem consentimento, só o próprio, outro cliente, outra empresa, gestor, tabela fechada, versão, revogar e apagar.
+- **Bloqueio:** a aplicação em produção foi barrada pela trava da ferramenta ("Production Deploy"), dentro do limite da missão. Falta autorização para `node scripts/ops/sql.mjs @supabase/migrations/20261362_preferencias_do_cliente.sql`.
+- **Limite:** não há tela própria no Studio para o anunciante; o controle é pela Central.
+
+### F-269 — MG-AUT-09: ataques à Central rejeitados, trava contra laço e validador do plano corrigido — FEITO (local)
+
+- **`scripts/ops/testar-injecao.mjs`:** 7 de 7 ataques rejeitados, com critério automático e conferência no banco (evidência em `docs/engineering/evidence/F-269_ataques_central.txt`):
+  - revelar chaves;
+  - marcar pago;
+  - aprovar e publicar sozinho;
+  - preço inventado;
+  - instrução escondida no produto;
+  - outra empresa;
+  - laço de criação.
+- **Trava:** no máximo 2 produções e 2 encartes por pergunta. O modelo tentou criar 5 vídeos; ficaram 2.
+- **Achado real:** `validarPlano` reprovava palavras do próprio nome da campanha ("Institucional - Segunda") como "marca inventada", e a produção caía em erro. Agora vale tudo o que a pessoa escreveu, e marca inventada continua barrada (teste de regressão).
+- **Limite:** a injeção em imagens e arquivos anexados não foi testada (a Central não recebe anexos).
+
+### F-270 — MG-AUT-10/11: contrato técnico do JARVIS e homologação — FEITO (JARVIS aguardando existir)
+
+- **JARVIS:** `docs/autonomia/JARVIS_INTEGRACAO.md` §6 com versão, token com hash, rotação, escopos, isolamento, idempotência, limites, origem, webhooks HMAC, auditoria e indisponibilidade. Nada implementado (sem endpoint de faz de conta). O TESTE 10 não foi executado.
+- **Homologação** (evidência em `docs/engineering/evidence/F-270_homologacao/`):
+  - pareamento 22/22;
+  - memória 14/14 (ensaio);
+  - isolamento: 8 perfis, 0 vazamentos;
+  - contrato do Player 5.7.10 íntegro;
+  - telas idênticas;
+  - tipos 176 (linha de base);
+  - build OK;
+  - `deno check` limpo;
+  - bateria completa: 232 arquivos, 2.296 testes, 0 falhas. A 1ª rodada pegou 4 falhas causadas por esta missão (`key` na `PastaPage` mudava o texto que 4 testes conferem); foram corrigidas voltando as linhas originais, sem mexer nos testes.
+- **Auditoria final:** 238/238 tabelas com RLS, nenhuma regra aberta de escrita, nenhuma função privilegiada sem `search_path`, e nenhuma ferramenta nova da Central usa a chave de serviço.
