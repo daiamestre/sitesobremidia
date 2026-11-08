@@ -113,6 +113,21 @@ export default function VideoEditorPage() {
       });
       return;
     }
+    // F-267 (MG-AUT-08): "transforme esta arte em vídeo" vindo da Central de Comando — a arte é uma mídia da PRÓPRIA pessoa
+    // (lida com o login dela: a regra de acesso do banco decide). Vira um clipe com movimento de câmera na duração pedida.
+    const busca = new URLSearchParams(window.location.search);
+    const midiaId = busca.get('midia');
+    if (midiaId && /^[0-9a-f-]{36}$/i.test(midiaId)) {
+      const duracao = Math.min(60, Math.max(5, Number(busca.get('duracao')) || 15));
+      void supabase.from('media').select('id, name, file_url, mime_type, file_type, aspect_ratio').eq('id', midiaId).maybeSingle().then(({ data: m }) => {
+        if (!m?.file_url || !/^image/i.test(String(m.mime_type ?? m.file_type ?? ''))) { toast.error('A arte pedida não foi encontrada na sua biblioteca.'); return; }
+        const emPe = /9\s*[:/x]\s*16/.test(String(m.aspect_ratio ?? ''));
+        setP((x) => ({ ...x, formato: emPe ? '9:16' : '16:9', clipes: [novoClipe('imagem', m.file_url as string, m.name as string, { duracao, zoomDe: 1, zoomPara: 1.12 })] }));
+        setNome(`${m.name} (vídeo)`);
+        toast.success(`"${m.name}" virou um vídeo de ${duracao} s. Confira e clique em Exportar vídeo.`);
+      });
+      return;
+    }
     try {
       // MG-STUDIO-03: projeto montado pelo Creative Core a partir do plano de uma produção
       const doCore = sessionStorage.getItem(CHAVE_PROJETO_DO_CORE);

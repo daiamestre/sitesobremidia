@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Clapperboard, FolderOpen, Image as ImageIcon, Monitor, PenLine, Smartphone } from 'lucide-react';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
@@ -16,6 +16,7 @@ import { useCatalogo } from '@/lib/studioai/modelos';
 import { cn } from '@/lib/utils';
 import { PASTA_ENCARTES } from '@/components/studio/EncartesDoStudio';
 import { PastaDeEncartes } from '@/components/studio/PastaDeEncartes';
+import { CHAVE_PRODUTOS_DA_FARMACIA, CHAVE_PRODUTOS_DO_ENCARTE } from '@/components/studio/ProdutosComFotos';
 
 /** F-234: a versão em VÍDEO do modelo — os mesmos elementos, em coreografia (a animação gravada no modelo vale mais). */
 function CartaoVideo({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
@@ -46,15 +47,36 @@ function Cartao({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
   );
 }
 
+/**
+ * F-267 (MG-AUT-08): a Central de Comando abre o encarte/palco OFICIAL já com os produtos e preços que a pessoa escreveu
+ * (`?produtos=` com uma linha por produto, no formato do lerLinha). A lista é gravada na MESMA chave que a pasta já usa,
+ * antes dos componentes montarem; depois o parâmetro sai do endereço. Nada é publicado: a pessoa confere e salva.
+ */
+export const CHAVE_DA_PASTA: Record<string, string> = {
+  [PASTA_ENCARTES]: CHAVE_PRODUTOS_DO_ENCARTE, [PASTA_PALCO]: CHAVE_PRODUTOS_DO_ENCARTE,
+  [PASTA_ENCARTES_FARMACIA]: CHAVE_PRODUTOS_DA_FARMACIA, [PASTA_PALCO_FARMACIA]: CHAVE_PRODUTOS_DA_FARMACIA,
+};
+export function produtosDoLink(pastaId: string | undefined, valor: string | null): boolean {
+  const chave = pastaId ? CHAVE_DA_PASTA[pastaId] : undefined;
+  const linhas = (valor ?? '').split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 20);
+  if (!chave || !linhas.length) return false;
+  try { sessionStorage.setItem(chave, linhas.join('\n')); return true; } catch { return false; }
+}
+
 /** Pasta de um card do catálogo: o modelo de capa e as variações do mesmo segmento, em 16:9 ou 9:16. */
 export default function PastaPage() {
   const { pastaId } = useParams();
-  if (pastaId === PASTA_PALCO) return <PalcoDeOfertas />;
+  const [params, setParams] = useSearchParams();
+  // grava a lista vinda da Central ANTES de PastaDeEncartes/PalcoDeOfertas lerem a sessão (initializer do 1º render)
+  const [veioDaCentral] = useState(() => produtosDoLink(pastaId, params.get('produtos')));
+  useEffect(() => { if (params.has('produtos')) setParams((p) => { p.delete('produtos'); return p; }, { replace: true }); }, [params, setParams]);
+  const chaveDaLista = veioDaCentral ? 'central' : 'pasta';
+  if (pastaId === PASTA_PALCO) return <PalcoDeOfertas key={chaveDaLista} />;
   // F-259: as pastas da farmácia (mesmas telas do mercado)
-  if (pastaId === PASTA_PALCO_FARMACIA) return <PalcoDeOfertas key="farmacia" segmento="farmacia" />;
-  if (pastaId === PASTA_ENCARTES_FARMACIA) return <PastaDeEncartes key="farmacia" segmento="farmacia" />;
+  if (pastaId === PASTA_PALCO_FARMACIA) return <PalcoDeOfertas key={`farmacia-${chaveDaLista}`} segmento="farmacia" />;
+  if (pastaId === PASTA_ENCARTES_FARMACIA) return <PastaDeEncartes key={`farmacia-${chaveDaLista}`} segmento="farmacia" />;
   if (pastaId === PASTA_LOGOS) return <PastaDeLogos />;
-  return pastaId === PASTA_ENCARTES ? <PastaDeEncartes /> : <PastaDeModelos pastaId={pastaId} />;
+  return pastaId === PASTA_ENCARTES ? <PastaDeEncartes key={chaveDaLista} /> : <PastaDeModelos pastaId={pastaId} />;
 }
 
 function PastaDeModelos({ pastaId }: { pastaId: string | undefined }) {

@@ -18,7 +18,7 @@ import { situacaoDaProducao } from '../../../supabase/functions/_shared/agente/s
 
 type ProducaoResumo = ReturnType<typeof situacaoDaProducao>;
 
-interface Mensagem { role: 'user' | 'assistant'; content: string; provedor?: string; ferramentas?: string[]; producoes?: ProducaoResumo[] }
+interface Mensagem { role: 'user' | 'assistant'; content: string; provedor?: string; ferramentas?: string[]; producoes?: ProducaoResumo[]; links?: Array<{ rotulo: string; url: string }> }
 interface Acao { id: string; tipo: string; resumo: string; status: string; criado_em: string }
 
 const SUGESTOES = [
@@ -28,12 +28,15 @@ const SUGESTOES = [
   'Analise os dados e me mostre novas oportunidades de venda',
   'Crie um vídeo de 15 segundos para a farmácia … divulgando …',
   'Como estão as minhas produções do Studio?',
+  'Monte um encarte de supermercado com: Arroz Tio João 5kg 24,90; Feijão Kicaldo 1kg 7,99 …',
+  'Transforme a minha última arte em um vídeo de 15 segundos',
   'Crie uma cobrança de R$ 150,00 para a empresa … com vencimento dia …',
 ];
 const CHAVE = 'trabalhar-com-ia-conversa';
 const NOME_DA_FERRAMENTA: Record<string, string> = {
   relatorio_telas: 'telas', resumo_financeiro: 'financeiro', listar_cobrancas: 'cobranças', buscar_cliente: 'clientes', oportunidades: 'oportunidades', propor_cobranca: 'nova cobrança',
   criar_producao: 'Studio (nova produção)', listar_producoes: 'Studio', situacao_da_producao: 'Studio',
+  montar_encarte: 'encarte oficial', listar_minhas_artes: 'biblioteca', animar_arte: 'editor de vídeo',
 };
 const FINAIS = ['pronto', 'entregue', 'reprovado', 'erro', 'cancelado'];
 
@@ -106,8 +109,8 @@ export default function TrabalharComIA() {
     setTexto('');
     setPensando(true);
     try {
-      const r = await chamar<{ resposta: string; provedor: string; ferramentas: string[]; acoes: Acao[]; producoes?: ProducaoResumo[] }>({ acao: 'perguntar', pergunta: p, historico });
-      setConversa((c) => [...c, { role: 'assistant', content: r.resposta || 'Sem resposta.', provedor: r.provedor, ferramentas: r.ferramentas, producoes: r.producoes ?? [] }]);
+      const r = await chamar<{ resposta: string; provedor: string; ferramentas: string[]; acoes: Acao[]; producoes?: ProducaoResumo[]; links?: Array<{ rotulo: string; url: string }> }>({ acao: 'perguntar', pergunta: p, historico });
+      setConversa((c) => [...c, { role: 'assistant', content: r.resposta || 'Sem resposta.', provedor: r.provedor, ferramentas: r.ferramentas, producoes: r.producoes ?? [], links: r.links ?? [] }]);
       if (r.acoes?.length) void qc.invalidateQueries({ queryKey: ['agente-ia-pendentes'] });
     } catch (e) {
       setConversa((c) => [...c, { role: 'assistant', content: `⚠️ ${(e as Error).message}` }]);
@@ -159,6 +162,11 @@ export default function TrabalharComIA() {
                 <p className="mt-1.5 text-[10px] text-muted-foreground">via {m.provedor} (grátis){m.ferramentas?.length ? ` · consultou: ${[...new Set(m.ferramentas.map((f) => NOME_DA_FERRAMENTA[f] ?? f))].join(', ')}` : ''}</p>
               )}
               {m.producoes?.map((p) => <CartaoProducao key={p.id} inicial={p} />)}
+              {m.links?.map((l) => (
+                <Link key={l.url} to={l.url} className="mt-2 flex items-center gap-2 rounded-xl border border-[#FFD400]/50 bg-[#FFD400]/10 px-3 py-2 text-sm font-semibold text-[#FFD400] hover:bg-[#FFD400]/20" data-testid="central-link">
+                  <ExternalLink className="h-4 w-4 shrink-0" /><span className="min-w-0 truncate">{l.rotulo}</span>
+                </Link>
+              ))}
             </div>
           </div>
         ))}

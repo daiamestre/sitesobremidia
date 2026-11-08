@@ -95,3 +95,53 @@ export function situacaoDaProducao(p: { id: string; titulo?: string | null; esta
     video: (p.resultado?.video_url as string | undefined) ?? null,
   };
 }
+
+// ---------------------------------------------------------------- MG-AUT-08 (F-267): encarte oficial e "arte → vídeo"
+// O encarte e o palco OFICIAIS são compostos pelo próprio Studio (balões de ESTILOS_DE_BALAO, fotos oficiais do catálogo,
+// edição completa). A Central não desenha um segundo encarte: ela entrega o link da pasta oficial com a lista de produtos
+// e preços ESCRITOS pela pessoa; a pasta abre já montada e a pessoa confere, ajusta e exporta/salva (nível 2).
+export const PASTAS_DO_STUDIO = {
+  encarte: { mercado: 'encartes-de-mercado', farmacia: 'encartes-de-farmacia' },
+  palco: { mercado: 'palco-de-ofertas', farmacia: 'palco-de-ofertas-farmacia' },
+} as const;
+export const LIMITE_PRODUTOS_ENCARTE = 20;
+
+const reais = (c: number) => `${Math.floor(c / 100)},${String(c % 100).padStart(2, '0')}`;
+
+export interface ArgsEncarte {
+  tipo?: string; segmento?: string;
+  produtos?: Array<{ nome?: string; preco?: string | number; preco_promocional?: string | number }>;
+}
+
+/** Linhas no formato que o Studio já lê (lerLinha): "Nome 12,90" ou "Nome de 29,90 por 24,90". */
+export function encarteDaConversa(a: ArgsEncarte, falasDaPessoa: string): { link: string | null; linhas: string[]; erros: string[]; perguntar: string[] } {
+  const erros: string[] = [], perguntar: string[] = [], linhas: string[] = [];
+  const tipo = a.tipo === 'palco' ? 'palco' : 'encarte';
+  const segmento = /farm/i.test(String(a.segmento ?? '')) ? 'farmacia' : 'mercado';
+  const lista = (a.produtos ?? []).filter((p) => texto(p?.nome, 60));
+  if (!lista.length) perguntar.push('os produtos e os preços (ex.: "Arroz Tio João 5kg 24,90")');
+  for (const p of lista.slice(0, LIMITE_PRODUTOS_ENCARTE)) {
+    const nome = texto(p.nome, 60).replace(/\s*\d+[.,]\d{2}\s*$/, '');
+    const preco = p.preco != null && p.preco !== '' ? precoEmCentavos(String(p.preco)) : null;
+    const promo = p.preco_promocional != null && p.preco_promocional !== '' ? precoEmCentavos(String(p.preco_promocional)) : null;
+    if (preco == null && promo == null) { perguntar.push(`o preço de "${nome}"`); continue; }
+    for (const [v, rotulo] of [[preco, 'preço'], [promo, 'preço promocional']] as const) {
+      if (v != null && !precoFoiInformado(v, falasDaPessoa)) erros.push(`O ${rotulo} de "${nome}" não foi escrito por você — informe o valor exato.`);
+    }
+    if (preco != null && promo != null) {
+      if (promo >= preco) erros.push(`"${nome}": o preço promocional precisa ser menor que o normal.`);
+      linhas.push(`${nome} de ${reais(preco)} por ${reais(promo)}`);
+    } else linhas.push(`${nome} ${reais((preco ?? promo)!)}`);
+  }
+  if (lista.length > LIMITE_PRODUTOS_ENCARTE) erros.push(`O encarte comporta até ${LIMITE_PRODUTOS_ENCARTE} produtos.`);
+  const ok = !erros.length && !perguntar.length && linhas.length > 0;
+  const pasta = PASTAS_DO_STUDIO[tipo][segmento];
+  return { link: ok ? `/studio/pasta/${pasta}?produtos=${encodeURIComponent(linhas.join('\n'))}` : null, linhas, erros, perguntar };
+}
+
+/** "Transforme esta arte em vídeo": abre o editor de vídeo do Studio com a arte (mídia da própria pessoa) e o movimento. */
+export function linkArteParaVideo(midiaId: string, duracao: unknown): { link: string | null; erro: string | null; duracao_s: number } {
+  const d = Math.min(LIMITES.duracaoMax, Math.max(LIMITES.duracaoMin, Math.round(Number(duracao) || 15)));
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(midiaId)) return { link: null, erro: 'Escolha a arte (use listar_minhas_artes).', duracao_s: d };
+  return { link: `/studio/video?midia=${midiaId}&duracao=${d}`, erro: null, duracao_s: d };
+}

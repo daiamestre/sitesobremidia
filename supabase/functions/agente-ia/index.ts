@@ -9,7 +9,7 @@ import {
   PROVEDORES, brl, dataBR, ferramentas, hojeSP, instrucoes, situacaoDaCobranca, situacaoDaTela, tempoDesde, validarCobranca,
 } from '../_shared/agente/ferramentas.ts';
 // F-266 (MG-AUT-07): Central de Comando → Studio (produção real pela mesma função do banco da tela /studio/agentes)
-import { pedidoDaConversa, situacaoDaProducao, type ArgsCriarProducao } from '../_shared/agente/studio.ts';
+import { encarteDaConversa, linkArteParaVideo, pedidoDaConversa, situacaoDaProducao, type ArgsCriarProducao, type ArgsEncarte } from '../_shared/agente/studio.ts';
 import { chaveDoPedido } from '../_shared/studio/contrato.ts';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
@@ -19,7 +19,8 @@ const env = (k: string) => Deno.env.get(k) ?? '';
 interface Escopo { empresa: string; papel: string; admin: boolean; pode_cobrar: boolean }
 type Msg = { role: string; content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>; tool_call_id?: string };
 // falas = tudo o que a PESSOA escreveu (trava de preço inventado); auth = o login dela (repassado ao orquestrador)
-interface Ctx { usuario: SupabaseClient; srv: SupabaseClient; uid: string; e: Escopo; hoje: string; acoes: string[]; producoes: string[]; falas: string; auth: string }
+interface Link { rotulo: string; url: string }
+interface Ctx { usuario: SupabaseClient; srv: SupabaseClient; uid: string; e: Escopo; hoje: string; acoes: string[]; producoes: string[]; falas: string; auth: string; links: Link[] }
 
 // ───────────────────────────────────────────── ferramentas (consultas com o login do usuário)
 async function nomesDosClientes(usuario: SupabaseClient, ids: string[]) {
@@ -179,10 +180,40 @@ async function situacaoDeUma(c: Ctx, a: { id?: string }) {
   return situacaoDaProducao(p as Parameters<typeof situacaoDaProducao>[0]);
 }
 
+// F-267 (MG-AUT-08): encarte/palco oficial e arte → vídeo (links para as telas do Studio; preço só o escrito pela pessoa)
+async function montarEncarte(c: Ctx, a: ArgsEncarte) {
+  const r = encarteDaConversa(a, c.falas);
+  if (r.perguntar.length) return { precisa_perguntar: r.perguntar, nada_foi_criado: true };
+  if (!r.link) return { erro: r.erros.join(' '), nada_foi_criado: true };
+  const tipo = a.tipo === 'palco' ? 'Palco de ofertas (vídeo carrossel)' : 'Encarte oficial';
+  c.links.push({ rotulo: `Abrir ${tipo.toLowerCase()}`, url: r.link });
+  return { pronto_para_conferir: true, tipo, produtos: r.linhas, link: r.link,
+    o_que_fazer: 'abrir o link, conferir fotos e preços, ajustar se quiser e salvar/exportar (a arte só existe depois disso)' };
+}
+
+async function listarMinhasArtes(c: Ctx, a: { limite?: number }) {
+  const { data, error } = await c.usuario.from('media').select('id, name, file_type, mime_type, created_at')
+    .or('file_type.ilike.image%,mime_type.ilike.image%').order('created_at', { ascending: false }).limit(Math.min(20, Math.max(1, Number(a.limite) || 10)));
+  if (error) return { erro: error.message };
+  return { artes: (data ?? []).map((m) => ({ id: m.id, nome: m.name, criada_em: dataBR(String(m.created_at).slice(0, 10)) })) };
+}
+
+async function animarArte(c: Ctx, a: { midia_id?: string; duracao_s?: number }) {
+  const r = linkArteParaVideo(String(a.midia_id ?? ''), a.duracao_s);
+  if (!r.link) return { erro: r.erro };
+  const { data: m } = await c.usuario.from('media').select('id, name, file_type, mime_type').eq('id', String(a.midia_id)).maybeSingle();
+  if (!m) return { erro: 'Arte não encontrada (ou você não tem acesso a ela).' };
+  if (!/^image/i.test(String(m.mime_type ?? m.file_type ?? ''))) return { erro: 'Essa mídia não é uma imagem.' };
+  c.links.push({ rotulo: `Abrir "${m.name}" no editor de vídeo`, url: r.link });
+  return { pronto_para_conferir: true, arte: m.name, duracao_s: r.duracao_s, link: r.link,
+    o_que_fazer: 'abrir o link, conferir o movimento e clicar em Exportar vídeo (MP4); ao salvar, o sistema converte para o padrão do Player' };
+}
+
 const EXECUTAR: Record<string, (c: Ctx, a: Record<string, unknown>) => Promise<unknown>> = {
   relatorio_telas: relatorioTelas, resumo_financeiro: resumoFinanceiro, listar_cobrancas: listarCobrancas,
   buscar_cliente: buscarCliente, oportunidades: (c) => oportunidades(c), propor_cobranca: proporCobranca,
   criar_producao: (c, a) => criarProducao(c, a as ArgsCriarProducao), listar_producoes: listarProducoes, situacao_da_producao: situacaoDeUma,
+  montar_encarte: (c, a) => montarEncarte(c, a as ArgsEncarte), listar_minhas_artes: listarMinhasArtes, animar_arte: animarArte,
 };
 
 // ───────────────────────────────────────────── modelo (com reservas)
@@ -275,7 +306,7 @@ serve(async (req) => {
   try { body = await req.json(); } catch { /* vazio */ }
   const historicoBruto = Array.isArray(body.historico) ? body.historico as Array<{ role: string; content: string }> : [];
   const falas = [...historicoBruto.filter((m) => m?.role === 'user').map((m) => String(m.content ?? '')), String(body.pergunta ?? '')].join('\n').slice(-12000);
-  const c: Ctx = { usuario, srv, uid: u.user.id, e, hoje: hojeSP(), acoes: [], producoes: [], falas, auth: req.headers.get('authorization') ?? '' };
+  const c: Ctx = { usuario, srv, uid: u.user.id, e, hoje: hojeSP(), acoes: [], producoes: [], falas, auth: req.headers.get('authorization') ?? '', links: [] };
   const acao = String(body.acao ?? '');
 
   if (acao === 'confirmar') return executarAcao(c, String(body.id ?? ''));
@@ -301,7 +332,7 @@ serve(async (req) => {
     // produções citadas na resposta: lidas de novo COM O LOGIN da pessoa (cartões de acompanhamento na Central)
     const { data: prods } = c.producoes.length ? await usuario.from('studio_producoes').select(COLUNAS_PRODUCAO).in('id', c.producoes.slice(0, 10)) : { data: [] };
     return json(200, { resposta: r.resposta, provedor: r.provedor, ferramentas: r.usadas, acoes: acoes ?? [],
-      producoes: (prods ?? []).map((p) => situacaoDaProducao(p as Parameters<typeof situacaoDaProducao>[0])) });
+      producoes: (prods ?? []).map((p) => situacaoDaProducao(p as Parameters<typeof situacaoDaProducao>[0])), links: c.links });
   } catch (err) {
     const msg = String((err as Error)?.message ?? err).slice(0, 400);
     await srv.from('agente_ia_registros').insert({ empresa_operadora_id: e.empresa, usuario_id: c.uid, pergunta, erro: msg, ms: Date.now() - inicio });
