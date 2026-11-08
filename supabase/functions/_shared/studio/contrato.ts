@@ -257,7 +257,11 @@ export function validarPlano(plano: PlanoCriativo, pedido: PedidoStudio): string
   const soma = plano.cenas.reduce((s, c) => s + (Number(c.duracao_s) || 0), 0);
   if (Math.abs(soma - pedido.duracao_s) > 1) erros.push(`As cenas somam ${soma} s; o pedido tem ${pedido.duracao_s} s.`);
   const ids = new Set(pedido.produtos.map((p) => p.id));
-  const permitidos = [pedido.briefing.estabelecimento, pedido.briefing.marca, ...pedido.produtos.map((p) => p.marca), ...pedido.produtos.map((p) => p.nome)]
+  // F-269: tudo o que a PESSOA escreveu também vale (nome da campanha, ideia, público…). Antes, "Institucional - Segunda"
+  // reprovava o próprio plano ("Segunda" parecia marca inventada) e a produção caía em erro.
+  const b = pedido.briefing;
+  const permitidos = [b.estabelecimento, b.marca, b.titulo, b.ideia, b.publico, b.texto_publicitario, b.condicoes, b.periodo, b.segmento, b.categoria,
+    ...pedido.produtos.map((p) => p.marca), ...pedido.produtos.map((p) => p.nome)]
     .filter((x): x is string => !!x && x.trim().length > 1).map((x) => x.toLowerCase());
   for (const c of plano.cenas) {
     const n = c.numero;

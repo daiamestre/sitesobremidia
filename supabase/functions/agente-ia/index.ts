@@ -20,7 +20,9 @@ interface Escopo { empresa: string; papel: string; admin: boolean; pode_cobrar: 
 type Msg = { role: string; content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>; tool_call_id?: string };
 // falas = tudo o que a PESSOA escreveu (trava de preço inventado); auth = o login dela (repassado ao orquestrador)
 interface Link { rotulo: string; url: string }
-interface Ctx { usuario: SupabaseClient; srv: SupabaseClient; uid: string; e: Escopo; hoje: string; acoes: string[]; producoes: string[]; falas: string; auth: string; links: Link[] }
+interface Ctx { usuario: SupabaseClient; srv: SupabaseClient; uid: string; e: Escopo; hoje: string; acoes: string[]; producoes: string[]; falas: string; auth: string; links: Link[]; criadas: number }
+// MG-AUT-09 (F-269): trava contra laço/abuso — por PERGUNTA no máximo 2 produções e 2 encartes (além das 6 rodadas e 60 perguntas/hora)
+const MAX_CRIACOES_POR_PERGUNTA = 2;
 
 // ───────────────────────────────────────────── ferramentas (consultas com o login do usuário)
 async function nomesDosClientes(usuario: SupabaseClient, ids: string[]) {
@@ -159,6 +161,7 @@ async function lerEstilo(c: Ctx, clienteId?: string | null): Promise<{ cliente: 
 }
 
 async function criarProducao(c: Ctx, entrada: ArgsCriarProducao & { cliente_id?: string; ignorar_estilo?: boolean }) {
+  if (c.criadas >= MAX_CRIACOES_POR_PERGUNTA) return { erro: 'Limite de criações por pedido atingido. Peça a próxima em outra mensagem.', nada_foi_criado: true };
   const doCliente = entrada.ignorar_estilo ? { estilo: null } : await lerEstilo(c, entrada.cliente_id);
   const { args: a, usados } = aplicarEstilo(entrada, doCliente.estilo);
   const r = pedidoDaConversa(a, c.falas);
@@ -166,6 +169,7 @@ async function criarProducao(c: Ctx, entrada: ArgsCriarProducao & { cliente_id?:
   if (!r.pedido) return { erro: r.erros.join(' '), nada_foi_criado: true };
   const { data: id, error } = await c.usuario.rpc('studio_criar_producao', { p_pedido: r.pedido, p_chave: await chaveDoPedido(c.uid, r.pedido) });
   if (error || !id) return { erro: `O Studio recusou: ${error?.message ?? 'sem retorno'}`, nada_foi_criado: true };
+  c.criadas++;
   c.producoes.push(String(id));
   // avisa o orquestrador agora (com o login da pessoa); se falhar, o cron de 1 minuto pega a produção
   try {
@@ -195,6 +199,7 @@ async function situacaoDeUma(c: Ctx, a: { id?: string }) {
 
 // F-267 (MG-AUT-08): encarte/palco oficial e arte → vídeo (links para as telas do Studio; preço só o escrito pela pessoa)
 async function montarEncarte(c: Ctx, a: ArgsEncarte) {
+  if (c.links.length >= MAX_CRIACOES_POR_PERGUNTA) return { erro: 'Limite de encartes por pedido atingido.', nada_foi_criado: true };
   const r = encarteDaConversa(a, c.falas);
   if (r.perguntar.length) return { precisa_perguntar: r.perguntar, nada_foi_criado: true };
   if (!r.link) return { erro: r.erros.join(' '), nada_foi_criado: true };
@@ -338,7 +343,7 @@ serve(async (req) => {
   try { body = await req.json(); } catch { /* vazio */ }
   const historicoBruto = Array.isArray(body.historico) ? body.historico as Array<{ role: string; content: string }> : [];
   const falas = [...historicoBruto.filter((m) => m?.role === 'user').map((m) => String(m.content ?? '')), String(body.pergunta ?? '')].join('\n').slice(-12000);
-  const c: Ctx = { usuario, srv, uid: u.user.id, e, hoje: hojeSP(), acoes: [], producoes: [], falas, auth: req.headers.get('authorization') ?? '', links: [] };
+  const c: Ctx = { usuario, srv, uid: u.user.id, e, hoje: hojeSP(), acoes: [], producoes: [], falas, auth: req.headers.get('authorization') ?? '', links: [], criadas: 0 };
   const acao = String(body.acao ?? '');
 
   if (acao === 'confirmar') return executarAcao(c, String(body.id ?? ''));

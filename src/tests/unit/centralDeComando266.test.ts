@@ -60,3 +60,16 @@ describe('Central de Comando — estado real e regras do agente', () => {
     expect(regras).toMatch(/nunca diga que já está pronto/);
   });
 });
+
+// F-269: o validador do plano não pode reprovar palavras que a PRÓPRIA pessoa escreveu (achado no teste de laço da Central)
+import { validarPlano, type PlanoCriativo } from '../../../supabase/functions/_shared/studio/contrato';
+describe('validarPlano — palavras da própria pessoa', () => {
+  const pedido = pedidoDaConversa({ titulo: 'Institucional - Segunda', ideia: 'Atendimento farmacêutico de confiança toda Segunda', categoria: 'Farmácia e saúde' }, '').pedido!;
+  const cena = (titulo: string) => ({ numero: 1, duracao_s: 15, produto_id: null, camera: 'aproximar', titulo, subtitulo: '', prompt_cenario: 'clean bright modern pharmacy interior, no text, no logos' });
+  const plano = (titulo: string) => ({ cenas: [cena(titulo)] } as unknown as PlanoCriativo);
+  it('aceita o nome da campanha e a ideia; continua barrando marca inventada', () => {
+    const ajustado = { ...pedido, cenas: 1 };
+    expect(validarPlano(plano('Institucional - Segunda'), ajustado).filter((e) => e.includes('inventado'))).toEqual([]);
+    expect(validarPlano(plano('Ofertas da Drogasil'), ajustado).join(' ')).toMatch(/inventado \("Drogasil"\)/);
+  });
+});
