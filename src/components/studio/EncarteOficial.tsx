@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { enderecoDaArtePronta } from '@/lib/studio/artePronta';
 import { animarTudo, temAnimacao } from '@/lib/studio/animacao';
-import { documentoDoEncarteOficial, formatosDoEncarte, PASTA_ENCARTES_OFICIAIS, type DadosDoEncarte, type EncarteOficial as Encarte, type LogoDoCliente } from '@/lib/studio/encartesOficiais';
+import { documentoDoEncarteOficial, formatosDoEncarte, PASTAS_DE_ENCARTE, type DadosDoEncarte, type EncarteOficial as Encarte, type LogoDoCliente } from '@/lib/studio/encartesOficiais';
 import { OPCOES_DE_FORMATO, TAMANHO_DOC, telaDoFormato, type Documento, type FormatoArte } from '@/lib/studio/documento';
 import { quantidadeCompleta } from '@/lib/studio/gradeInteligente';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
@@ -97,10 +97,10 @@ export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: En
     catch { toast.error('Não foi possível usar a logo 3D.'); }
   };
   const nome = `${e.nome.split(' – ')[0]} – encarte`;
-  const pasta = { chave: PASTA_ENCARTES_OFICIAIS, nome: 'Encartes de Mercado', segmento: 'supermercados' };
+  const pasta = PASTAS_DE_ENCARTE[e.segmento ?? 'mercado'];
   const editar = () => {
     aoGravar();
-    try { navegar(enderecoDaArtePronta({ docs, formato: doc.formato, nome, pasta, voltar: `/studio/pasta/${PASTA_ENCARTES_OFICIAIS}` })); }
+    try { navegar(enderecoDaArtePronta({ docs, formato: doc.formato, nome, pasta, voltar: `/studio/pasta/${pasta.chave}` })); }
     catch { toast.error('Não foi possível abrir o editor (a imagem da logo é grande demais). Use uma logo menor.'); }
   };
   const video = () => {

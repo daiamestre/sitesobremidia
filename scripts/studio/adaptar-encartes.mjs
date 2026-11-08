@@ -10,6 +10,7 @@ const SOURCES = { v: { w: 1080, h: 1920 }, h: { w: 1920, h: 1080 } };
 const ADAPTACOES = {
   'mega-oferta-bicolor': { a4: ['v', 500, 1690], a3: ['v', 500, 1690], '4x5': ['v', 500, 1690], 'a4-h': ['h', 470, 945], '1x1': ['h', 470, 945] },
   'semana-do-frango': { a4: ['v', 650, 1570], a3: ['v', 650, 1570], '4x5': ['h', 540, 820], 'a4-h': ['h', 540, 820], '1x1': ['h', 540, 820] },
+  'saude-em-oferta': { a4: ['v', 500, 1690], a3: ['v', 500, 1690], '4x5': ['v', 500, 1690], 'a4-h': ['h', 470, 945], '1x1': ['h', 470, 945] },
 };
 
 async function adaptar(entrada, saida, base, y1, y2, W, H) {

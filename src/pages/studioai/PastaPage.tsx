@@ -3,7 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Clapperboard, FolderOpen, Image as ImageIcon, Monitor, PenLine, Smartphone } from 'lucide-react';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { PalcoDeOfertas } from '@/components/studio/PalcoDeOfertas';
-import { PASTA_PALCO } from '@/lib/studio/palco';
+import { PASTA_PALCO, PASTA_PALCO_FARMACIA } from '@/lib/studio/palco';
+import { PASTA_ENCARTES_FARMACIA } from '@/lib/studio/encartesOficiais';
 import { PASTA_LOGOS, PastaDeLogos } from '@/components/studio/PastaDeLogos';
 import { coreografia, temAnimacao } from '@/lib/studio/animacao';
 import { modeloParaDocumento } from '@/lib/studio/documento';
@@ -49,6 +50,9 @@ function Cartao({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
 export default function PastaPage() {
   const { pastaId } = useParams();
   if (pastaId === PASTA_PALCO) return <PalcoDeOfertas />;
+  // F-259: as pastas da farmácia (mesmas telas do mercado)
+  if (pastaId === PASTA_PALCO_FARMACIA) return <PalcoDeOfertas key="farmacia" segmento="farmacia" />;
+  if (pastaId === PASTA_ENCARTES_FARMACIA) return <PastaDeEncartes key="farmacia" segmento="farmacia" />;
   if (pastaId === PASTA_LOGOS) return <PastaDeLogos />;
   return pastaId === PASTA_ENCARTES ? <PastaDeEncartes /> : <PastaDeModelos pastaId={pastaId} />;
 }

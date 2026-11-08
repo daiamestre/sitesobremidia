@@ -13,22 +13,32 @@ import { configPadrao, propsDasPaginas } from '@/lib/tabloide/cartaz';
 import { buscarNoCatalogo } from '@/lib/tabloide/imagens';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
-import { CESTA_PADRAO, ENCARTES, ENCARTE_FORMATO, arranjoDoEncarte, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
+import { CESTA_FARMACIA, CESTA_PADRAO, ENCARTES, ENCARTE_FORMATO, arranjoDoEncarte, configDoEncarte, gradeDoEncarte, type ModeloDeEncarte } from '@/lib/tabloide/encartes';
 import { QUANTIDADE_PADRAO, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
 import { formatoPorId } from '@/lib/tabloide/temas';
 import { logoSalvaDoStudio, seloDaLogo } from '@/lib/studio/logoDoStudio';
 import { urlCompleta, type LogoDaPasta } from '@/lib/studio/logos';
-import { ENCARTES_OFICIAIS, documentoDoEncarteOficial } from '@/lib/studio/encartesOficiais';
+import { documentoDoEncarteOficial, encartesDoSegmento } from '@/lib/studio/encartesOficiais';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 
 /** Uma consulta só ao catálogo para todos os produtos de todos os encartes. */
 export function useFotosDosEncartes() {
-  const nomes = useMemo(() => [...new Set([...ENCARTES.map((e) => e.produtos), CESTA_PADRAO].flatMap((t) => lerLista(t).map((p) => p.nome)))], []);
+  const nomes = useMemo(() => [...new Set([...ENCARTES.map((e) => e.produtos), CESTA_PADRAO, CESTA_FARMACIA].flatMap((t) => lerLista(t).map((p) => p.nome)))], []);
   return useQuery({ queryKey: ['studio-encartes-fotos'], queryFn: () => buscarNoCatalogo(nomes), staleTime: 10 * 60_000 });
 }
 
 /** F-232: a pasta "Encartes de Mercado" do catálogo do Studio (mesma grade das outras pastas). */
 export const PASTA_ENCARTES = 'encartes-de-mercado';
+
+/** F-259: capa da pasta Encartes de Farmácia: o encarte de farmácia com a cesta de exemplo da farmácia. */
+export function CapaDaPastaDeFarmacia({ atraso = 0 }: { atraso?: number }) {
+  const fotos = useFotosDosEncartes();
+  const slides = useMemo(() => {
+    const cesta = lerLista(CESTA_FARMACIA).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null }));
+    return encartesDoSegmento('farmacia').flatMap((o) => (['9:16', '16:9'] as const).map((f) => ({ chave: `${o.id}-${f}`, animada: () => <PreviaDocumento doc={documentoDoEncarteOficial(o, cesta, {}, f)} sempre className="h-full" /> })));
+  }, [fotos.data]);
+  return <CapaQueGira slides={slides} atraso={atraso} ajuste="contain" className="h-full" style={{ aspectRatio: '9 / 16' }} />;
+}
 
 /** Capa da pasta: passa os encartes, 8 s cada, como todas as pastas do Studio (F-230). */
 export function CapaDaPastaDeEncartes({ atraso = 0 }: { atraso?: number }) {
@@ -36,7 +46,7 @@ export function CapaDaPastaDeEncartes({ atraso = 0 }: { atraso?: number }) {
   const slides = useMemo(() => {
     // F-240: os encartes OFICIAIS (fundos do dono) também passam na capa, com a cesta de exemplo
     const cesta = lerLista(CESTA_PADRAO).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null }));
-    const oficiais = ENCARTES_OFICIAIS.map((o) => ({ chave: o.id, animada: () => <PreviaDocumento doc={documentoDoEncarteOficial(o, cesta)} sempre className="h-full" /> }));
+    const oficiais = encartesDoSegmento('mercado').map((o) => ({ chave: o.id, animada: () => <PreviaDocumento doc={documentoDoEncarteOficial(o, cesta)} sempre className="h-full" /> }));
     return [...oficiais, ...ENCARTES.map((e) => ({ chave: e.id, animada: () => <MiniaturaDoEncarte e={e} fotos={fotos.data} /> }))];
   }, [fotos.data]);
   return <CapaQueGira slides={slides} atraso={atraso} ajuste="contain" className="h-full" style={{ aspectRatio: '1240 / 1754' }} />;

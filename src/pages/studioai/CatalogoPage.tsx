@@ -5,10 +5,11 @@ import {
   Percent, Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
 import { Carrossel, TvEmLoop } from '@/components/studio/Vitrines';
-import { CapaDaPastaDeEncartes, PASTA_ENCARTES } from '@/components/studio/EncartesDoStudio';
+import { CapaDaPastaDeEncartes, CapaDaPastaDeFarmacia, PASTA_ENCARTES } from '@/components/studio/EncartesDoStudio';
+import { PASTA_ENCARTES_FARMACIA } from '@/lib/studio/encartesOficiais';
 import { ENCARTES } from '@/lib/tabloide/encartes';
 import { CapaDaPastaPalco } from '@/components/studio/PalcoDeOfertas';
-import { PASTA_PALCO } from '@/lib/studio/palco';
+import { PASTA_PALCO, PASTA_PALCO_FARMACIA } from '@/lib/studio/palco';
 import { CapaDaPastaDeLogos, PASTA_LOGOS } from '@/components/studio/PastaDeLogos';
 import '@/components/studio/studio-efeitos.css';
 import { intercalarPorSegmento } from '@/lib/studio/miniaturas';
@@ -216,6 +217,38 @@ export default function CatalogoPage() {
                 <p className="text-xs text-slate-400">Supermercados · vídeo</p>
                 <div className="mt-3">
                   <Link to={`/studio/pasta/${PASTA_PALCO}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-palco"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
+                </div>
+              </article>
+            )}
+            {/* F-259: ENCARTES DE FARMÁCIA — o mesmo encarte do mercado, com a arte e a cesta da farmácia */}
+            {mostrarEncartes && (
+              <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-encartes-farmacia">
+                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
+                  <Link to={`/studio/pasta/${PASTA_ENCARTES_FARMACIA}`} aria-label="Abrir a pasta Encartes de Farmácia" className="block h-full"><CapaDaPastaDeFarmacia /></Link>
+                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><FolderOpen className="h-3 w-3 text-[#FFD400]" />7 tamanhos</span>
+                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
+                </div>
+                <span className="mt-2 flex gap-1"><span className="inline-flex w-fit items-center gap-1 rounded bg-[#0a9a50] px-1.5 py-0.5 text-[10px] font-bold text-white"><FileText className="h-3 w-3" />encarte · farmácia</span></span>
+                <h3 className="mt-1 truncate text-sm font-semibold text-white">Encartes de Farmácia</h3>
+                <p className="text-xs text-slate-400">Farmácias e drogarias</p>
+                <div className="mt-3">
+                  <Link to={`/studio/pasta/${PASTA_ENCARTES_FARMACIA}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-encartes-farmacia"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
+                </div>
+              </article>
+            )}
+            {/* F-259: PALCO DE OFERTAS – FARMÁCIA — o carrossel do mercado com o palco da farmácia */}
+            {mostrarEncartes && (
+              <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-palco-farmacia">
+                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
+                  <Link to={`/studio/pasta/${PASTA_PALCO_FARMACIA}`} aria-label="Abrir a pasta Palco de Ofertas – Farmácia" className="block h-full"><CapaDaPastaPalco segmento="farmacia" /></Link>
+                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><Clapperboard className="h-3 w-3 text-[#FFD400]" />carrossel de produtos</span>
+                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
+                </div>
+                <span className="mt-2 flex gap-1">{(['16:9', '9:16'] as const).map((x) => <span key={x} className="inline-flex w-fit items-center gap-1 rounded bg-[#5D1BFF] px-1.5 py-0.5 text-[10px] font-bold text-white">{x === '16:9' ? <Monitor className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}{x}</span>)}</span>
+                <h3 className="mt-1 truncate text-sm font-semibold text-white">Palco de Ofertas – Farmácia</h3>
+                <p className="text-xs text-slate-400">Farmácias e drogarias · vídeo</p>
+                <div className="mt-3">
+                  <Link to={`/studio/pasta/${PASTA_PALCO_FARMACIA}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-palco-farmacia"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
                 </div>
               </article>
             )}

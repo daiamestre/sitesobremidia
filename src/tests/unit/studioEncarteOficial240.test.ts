@@ -13,7 +13,7 @@ const cruza = (a: { x: number; y: number; w: number; h: number }, b: { x: number
 describe('F-243 — Semana do Frango', () => {
   const f = ENCARTES_OFICIAIS.find((x) => x.id === 'semana-do-frango')!;
   it('está na lista junto do Mega Oferta, nos dois formatos', () => {
-    expect(ENCARTES_OFICIAIS.map((x) => x.id)).toEqual(['mega-oferta-bicolor', 'semana-do-frango']);
+    expect(ENCARTES_OFICIAIS.map((x) => x.id)).toEqual(['mega-oferta-bicolor', 'semana-do-frango', 'saude-em-oferta']);
     expect(formatosDoEncarte(f)).toEqual(expect.arrayContaining(['9:16', '16:9']));
   });
   it('no cartão amarelo o nome é escuro; no azul é branco; os dois com o balão oval do encarte', () => {

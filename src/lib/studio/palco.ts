@@ -5,7 +5,7 @@
 import { TAMANHO_DOC, forma, imagem, larguraDoTexto, selo, texto, type Camada, type Documento, type FormatoDoc } from './documento';
 import { novoClipe, projetoVazio, type ProjetoDeVideo, type TipoDeTransicao } from './video/linha';
 import type { TipoDeAnimacao } from './animacao';
-import { LOGO_ALERTA_DE_OFERTA, type LogoDaPasta } from './logos';
+import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, type LogoDaPasta } from './logos';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
 export interface OpcoesDoPalco {
@@ -75,7 +75,15 @@ export interface FundoDoPalco {
   faixas?: { texto: string; cor: string; corTexto: string; linhas: Record<FormatoDoc, Array<{ de: [number, number]; ate: [number, number]; esp: number }>> };
   corBotao: string; bordaBotao: string;
   botoes: string[];
+  /** F-259: de que pasta é o fundo (padrão: mercado) */
+  segmento?: SegmentoDoStudio;
+  /** F-259: aviso obrigatório no rodapé (remédios: Lei 9.294/1996, art. 7º) */
+  aviso?: { texto: string; caixa: Record<FormatoDoc, Caixa> };
 }
+/** F-259: as pastas de encarte e palco do Studio */
+export type SegmentoDoStudio = 'mercado' | 'farmacia';
+/** F-259: frase obrigatória em toda propaganda de remédio isento de prescrição (Lei 9.294/1996, art. 7º, § 5º) */
+export const AVISO_DE_REMEDIO = 'A PERSISTIREM OS SINTOMAS, O MÉDICO DEVERÁ SER CONSULTADO. Imagens ilustrativas · Ofertas válidas enquanto durarem os estoques.';
 export const srcDoFundo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/palco/${f.id}-${formato === '9:16' ? 'v' : 'h'}.webp`;
 
 /** O fundo sem a logo gravada: só entra quando o cliente troca ou mexe na logo (por padrão fica a arte original do dono). */
@@ -101,7 +109,30 @@ export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
     corBotao: '#d90f1f', bordaBotao: '#ffd21f',
     botoes: ['OFERTAS', 'ALERTAS'],
   },
+  {
+    // F-259: palco da FARMÁCIA — produto e balão nos mesmos lugares do Alerta de Oferta, pedestal branco e verde
+    id: 'saude-em-oferta', nome: 'Ofertas de Farmácia (verde)', segmento: 'farmacia',
+    titulo: { '9:16': { x: 0.05, y: 0.012, w: 0.9, h: 0.325 }, '16:9': { x: 0.235, y: 0.012, w: 0.53, h: 0.49 } }, logoPadrao: LOGO_OFERTAS_DE_FARMACIA,
+    produto: { '9:16': { x: 0.22, y: 0.445, w: 0.56, h: 0.3 }, '16:9': { x: 0.415, y: 0.475, w: 0.17, h: 0.27 } },
+    nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.19, y: 0.5, w: 0.215, h: 0.2, alinhamento: 'right' } },
+    preco: { '9:16': { cx: 0.8, cy: 0.585, d: 0.24 }, '16:9': { cx: 0.66, cy: 0.6, d: 0.2 } },
+    botao: { '9:16': { x: 0.272, y: 0.862, w: 0.456, h: 0.068 }, '16:9': { x: 0.366, y: 0.84, w: 0.268, h: 0.09 } },
+    corBotao: '#0a9a50', bordaBotao: '#ffd21f',
+    botoes: ['FARMÁCIA', 'OFERTAS', 'SAÚDE'],
+    aviso: { texto: AVISO_DE_REMEDIO, caixa: { '9:16': { x: 0.04, y: 0.95, w: 0.92, h: 0.04 }, '16:9': { x: 0.04, y: 0.945, w: 0.92, h: 0.045 } } },
+  },
 ];
+/** F-259: os fundos de uma pasta (mercado ou farmácia) */
+export const fundosDoSegmento = (s: SegmentoDoStudio) => FUNDOS_DO_PALCO.filter((f) => (f.segmento ?? 'mercado') === s);
+
+/** F-259: o aviso obrigatório numa linha (ou duas), no maior tamanho que cabe na caixa, em branco com sombra. */
+export function avisoLegal(t: string, b: Caixa): Camada {
+  const linhas = b.h > 60 ? 2 : 1;
+  let tam = Math.round(b.h / (linhas * 1.25));
+  while (larguraDoTexto(t.toUpperCase(), 'poppins', tam, 800) > b.w * linhas * 0.96 && tam > 10) tam -= 1;
+  const c = texto('Aviso de remédio', t, b.x, b.y, b.w, { fonte: 'poppins', peso: 800, tamanho: tam, maiusculas: true, alinhamento: 'center', cor: '#ffffff', entrelinha: 1.1, sombra: { cor: 'rgba(0,30,10,.8)', desfoque: 6, dx: 0, dy: 2 } });
+  return { ...c, y: b.y + (b.h - c.h) / 2 };
+}
 export const fundoDoPalcoPorId = (id: string | null | undefined) => FUNDOS_DO_PALCO.find((f) => f.id === id) ?? null;
 
 /** Nome do produto em branco, no maior tamanho que cabe na área (até 3 linhas), com sombra para ler sobre o fundo. */
@@ -183,11 +214,14 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   const bb = px(f.botao[formato]);
   const tamanhoBotao = Math.round(bb.h * 0.62);
   c.push({ ...texto('Botão', (o.textoBotao ?? f.botoes[0]).toUpperCase(), bb.x, bb.y, bb.w, { fonte: 'anton', tamanho: tamanhoBotao, maiusculas: true, alinhamento: 'center', cor: '#ffffff', entrelinha: 1, fundo: { cor: f.corBotao, raio: Math.round(bb.h * 0.32), margem: (bb.h - tamanhoBotao) / 1.1, cheio: true, borda: { cor: f.bordaBotao, largura: Math.max(6, Math.round(bb.h * 0.08)) } } }), animacao: ani('pulsar', 0, 1) });
+  if (f.aviso) c.push({ ...avisoLegal(f.aviso.texto, px(f.aviso.caixa[formato])), animacao: ani('surgir', 0.2, 0.5) });
   return { versao: 2, formato, fundo: '#c40f24', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } };
 }
 /** F-242: regra do dono — cada produto fica 8 s no palco */
 export const SEGUNDOS_POR_PRODUTO = 8;
 export const PASTA_PALCO = 'palco-de-ofertas';
+/** F-259: o mesmo palco, só para farmácia */
+export const PASTA_PALCO_FARMACIA = 'palco-de-ofertas-farmacia';
 
 type Ani = NonNullable<Camada['animacao']>;
 const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depois'] = null): Ani => ({ tipo, atraso, duracao, depois });

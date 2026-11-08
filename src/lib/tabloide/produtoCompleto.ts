@@ -6,7 +6,7 @@ import { ehFresco } from './imagens';
 import { lerLinha, lerValor, precoParaTexto, type ProdutoTabloide } from './parseProdutos';
 import { MARCAS_CONHECIDAS } from './marcasConhecidas';
 
-const MEDIDA = /\d+(?:[.,]\d+)?\s*(?:kg|g|gr|grs|mg|l|lt|lts|litros?|ml|cl|un|und|unid|unidades?|pct|cx|dz|m|cm|rolos?|folhas?|caps?|c\/\d+)\b/i;
+const MEDIDA = /\d+(?:[.,]\d+)?\s*(?:kg|g|gr|grs|mg|l|lt|lts|litros?|ml|cl|un|und|unid|unidades?|pct|cx|dz|m|cm|rolos?|folhas?|caps?|comp|comprimidos?|c[aá]psulas?|pastilhas?|dr[aá]geas?|sach[eê]s?|envelopes?|gotas|c\/\d+)(?![a-zà-ú])/i;
 
 export const FALTA_MEDIDA = 'medida (kg, g, L, ml ou un)';
 
@@ -66,6 +66,8 @@ export const CAMPOS_VAZIOS: CamposDoProduto = { nome: '', marca: '', sabor: '', 
 export const UNIDADES_DO_CAMPO = [
   { valor: 'g', nome: 'Gramas (g)' }, { valor: 'kg', nome: 'Quilo (kg)' }, { valor: 'ml', nome: 'Mililitros (ml)' }, { valor: 'L', nome: 'Litros (L)' },
   { valor: 'un', nome: 'Unidade (un)' }, { valor: 'pct', nome: 'Pacote (pct)' }, { valor: 'cx', nome: 'Caixa (cx)' }, { valor: 'dz', nome: 'Dúzia (dz)' },
+  // F-259: farmácia
+  { valor: 'mg', nome: 'Miligramas (mg)' }, { valor: 'comprimidos', nome: 'Comprimidos' }, { valor: 'cápsulas', nome: 'Cápsulas' }, { valor: 'pastilhas', nome: 'Pastilhas' },
 ];
 /** Vendido por quilo, unidade ou dúzia: a medida não precisa de número ("Picanha kg 49,90"). */
 const SEM_NUMERO = new Set(['kg', 'un', 'pct', 'cx', 'dz']);
@@ -90,7 +92,8 @@ export function errosDoCampo(c: CamposDoProduto): string[] {
 
 /** A linha que vai para a caixa de produtos, no mesmo formato que o cliente já edita. */
 export function linhaDoCampo(c: CamposDoProduto): string {
-  const medida = c.quantidade.trim() ? `${c.quantidade.trim()}${c.unidade}` : c.unidade;
+  // F-259: unidade por extenso (comprimidos, cápsulas) vai separada do número
+  const medida = c.quantidade.trim() ? `${c.quantidade.trim()}${c.unidade.length > 3 ? ' ' : ''}${c.unidade}` : c.unidade;
   const preco = precoParaTexto(lerValor(c.preco.trim()));
   const valor = c.promocao ? `de ${precoParaTexto(lerValor(c.de.trim()))} por ${preco}` : preco;
   return [c.nome, c.sabor, c.marca, medida, valor].map((t) => t.trim().replace(/\s+/g, ' ')).filter(Boolean).join(' ');

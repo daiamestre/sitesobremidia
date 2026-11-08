@@ -45,8 +45,11 @@ export interface ProdutosComFotos {
   quantos: number; escolherQuantos: (n: number) => void;
 }
 
-export function useProdutosComFotos(inicial = CESTA_PADRAO): ProdutosComFotos {
-  const [texto, setTexto] = useState(() => { try { return sessionStorage.getItem(CHAVE_PRODUTOS_DO_ENCARTE) || inicial; } catch { return inicial; } });
+/** F-259: a lista da farmácia fica guardada à parte (não mistura com a do mercado) */
+export const CHAVE_PRODUTOS_DA_FARMACIA = 'studio-encarte-produtos-farmacia';
+
+export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUTOS_DO_ENCARTE): ProdutosComFotos {
+  const [texto, setTexto] = useState(() => { try { return sessionStorage.getItem(chave) || inicial; } catch { return inicial; } });
   const [produtos, setProdutos] = useState<ProdutoTabloide[]>(() => lerLista(texto));
   const [buscando, setBuscando] = useState<string[]>([]);
   const [erros, setErros] = useState<ProdutosComFotos['erros']>([]);
@@ -59,8 +62,8 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO): ProdutosComFotos {
   const gravar = useCallback((lista: ProdutoTabloide[]) => {
     const t = lista.map(paraLinha).join('\n');
     setTexto(t);
-    try { sessionStorage.setItem(CHAVE_PRODUTOS_DO_ENCARTE, t); } catch { /* sem armazenamento: segue sem lembrar */ }
-  }, []);
+    try { sessionStorage.setItem(chave, t); } catch { /* sem armazenamento: segue sem lembrar */ }
+  }, [chave]);
 
   /** fotos reais para quem ainda não tem (uma vez por produto) */
   const procurarFotos = useCallback(async (lista: ProdutoTabloide[]) => {

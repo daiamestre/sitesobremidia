@@ -7,19 +7,24 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, FolderOpen, PenLine } from 'lucide-react';
-import { ENCARTES } from '@/lib/tabloide/encartes';
+import { CESTA_FARMACIA, ENCARTES } from '@/lib/tabloide/encartes';
 import { MiniaturaDoEncarte, useFotosDosEncartes } from './EncartesDoStudio';
 import { PainelDeProdutos, useProdutosComFotos } from './ProdutosComFotos';
 import { EncarteOficialCartao } from './EncarteOficial';
-import { ENCARTES_OFICIAIS } from '@/lib/studio/encartesOficiais';
+import { encartesDoSegmento } from '@/lib/studio/encartesOficiais';
+import type { SegmentoDoStudio } from '@/lib/studio/palco';
+import { CHAVE_PRODUTOS_DA_FARMACIA } from './ProdutosComFotos';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
 import { EscolherLogo } from './PastaDeLogos';
 
 export { CHAVE_PRODUTOS_DO_ENCARTE } from './ProdutosComFotos';
 
-export function PastaDeEncartes() {
+/** F-259: a mesma pasta serve ao mercado e à farmácia (encartes, lista de produtos e cesta de exemplo de cada um) */
+export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoDoStudio }) {
   const navegar = useNavigate();
-  const s = useProdutosComFotos();
+  const farmacia = segmento === 'farmacia';
+  const s = useProdutosComFotos(farmacia ? CESTA_FARMACIA : undefined, farmacia ? CHAVE_PRODUTOS_DA_FARMACIA : undefined);
+  const oficiais = encartesDoSegmento(segmento);
   const editar = (id: string) => { s.gravar(s.produtos); navegar(`/studio/encarte/${id}`); };
   // os encartes de mercado mostram os produtos da pessoa; açougue e hortifruti mantêm os exemplos deles (fotos do catálogo)
   const fotosDoCatalogo = useFotosDosEncartes();
@@ -33,8 +38,8 @@ export function PastaDeEncartes() {
       <div className="flex flex-wrap items-center gap-3">
         <Link to="/studio" className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-4 w-4" />Modelos</Link>
         <div className="mr-auto min-w-0">
-          <h1 className="flex items-center gap-2 truncate text-xl font-black text-white"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />Encartes de Mercado</h1>
-          <p className="text-xs text-slate-400">Supermercados · {ENCARTES.length} encartes A4 · coloque os seus produtos e escolha quantos mostrar: a grade se organiza sozinha</p>
+          <h1 className="flex items-center gap-2 truncate text-xl font-black text-white"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />{farmacia ? 'Encartes de Farmácia' : 'Encartes de Mercado'}</h1>
+          <p className="text-xs text-slate-400">{farmacia ? 'Farmácias e drogarias · remédios isentos de prescrição, vitaminas, higiene e beleza · o aviso “a persistirem os sintomas” já vem no encarte' : `Supermercados · ${ENCARTES.length} encartes A4 · coloque os seus produtos e escolha quantos mostrar: a grade se organiza sozinha`}</p>
         </div>
       </div>
 
@@ -43,9 +48,9 @@ export function PastaDeEncartes() {
         <div className="min-w-0 space-y-4">
         {/* F-240: encartes OFICIAIS (fundos prontos do dono): os produtos se organizam sozinhos, com a logo e os contatos */}
         <section className="space-y-2" aria-label="Encartes oficiais">
-          {ENCARTES_OFICIAIS.map((o) => <EncarteOficialCartao key={o.id} e={o} produtos={s.produtos} quantos={s.quantos} aoGravar={() => s.gravar(s.produtos)} />)}
+          {oficiais.map((o) => <EncarteOficialCartao key={o.id} e={o} produtos={s.produtos} quantos={s.quantos} aoGravar={() => s.gravar(s.produtos)} />)}
         </section>
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4" aria-label="Encartes com os seus produtos" data-testid="studio-encartes">
+        {!farmacia && <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4" aria-label="Encartes com os seus produtos" data-testid="studio-encartes">
           {ENCARTES.map((e) => (
             <article key={e.id} className="sm-cartao-luz flex flex-col overflow-hidden rounded-xl p-2.5" data-testid="studio-encarte-card">
               <button type="button" onClick={() => editar(e.id)} aria-label={`Editar o encarte ${e.nome}`} className="block w-full text-left">
@@ -59,7 +64,7 @@ export function PastaDeEncartes() {
               <button type="button" onClick={() => setTrocandoLogo(e.id)} className="mt-1 rounded-lg border border-white/15 py-1.5 text-xs font-semibold text-white hover:bg-white/5" data-testid="studio-trocar-logo">Trocar logo</button>
             </article>
           ))}
-        </section>
+        </section>}
         </div>
       </div>
       {trocandoLogo && <EscolherLogo titulo="Logo do encarte" aoEscolher={(l) => escolherLogo(trocandoLogo, l)} aoRestaurar={() => escolherLogo(trocandoLogo, null)} aoFechar={() => setTrocandoLogo(null)} />}

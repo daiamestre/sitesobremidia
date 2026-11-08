@@ -21,15 +21,15 @@ import { CartaoDaAba, abasDe, type Aba } from '@/components/studio/editor/Painei
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, lerValor, precoParaTexto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
-import { CESTA_MERCADO } from '@/lib/tabloide/encartes';
+import { CESTA_FARMACIA, CESTA_MERCADO } from '@/lib/tabloide/encartes';
 import { TAMANHO_DOC, camadaNoPonto, type Camada, type Documento, type FormatoDoc } from '@/lib/studio/documento';
-import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
+import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
 import { useFotosDosEncartes } from './EncartesDoStudio';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
-import { PainelDeProdutos, faltasDoProduto, useProdutosComFotos } from './ProdutosComFotos';
+import { CHAVE_PRODUTOS_DA_FARMACIA, PainelDeProdutos, faltasDoProduto, useProdutosComFotos } from './ProdutosComFotos';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
 import { EscolherLogo } from './PastaDeLogos';
 
@@ -84,10 +84,11 @@ export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo =
 }
 
 /** Capa da pasta no catálogo: o palco passando os produtos de exemplo (fotos do catálogo da empresa). */
-export function CapaDaPastaPalco() {
+export function CapaDaPastaPalco({ segmento = 'mercado' }: { segmento?: SegmentoDoStudio }) {
   const fotos = useFotosDosEncartes();
-  const produtos = useMemo(() => lerLista(CESTA_MERCADO).slice(0, 6).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null })), [fotos.data]);
-  return <CarrosselNoPalco produtos={produtos} formato="9:16" className="h-full" />;
+  const cesta = segmento === 'farmacia' ? CESTA_FARMACIA : CESTA_MERCADO;
+  const produtos = useMemo(() => lerLista(cesta).slice(0, 6).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null })), [fotos.data, cesta]);
+  return <CarrosselNoPalco produtos={produtos} formato="9:16" className="h-full" fundo={fundosDoSegmento(segmento)[0]} />;
 }
 
 const ROTULOS: Record<string, string> = { Produto: 'Foto do produto', 'Nome do produto': 'Nome do produto', 'Preço': 'Balão de preço', 'Botão': 'Botão', 'Logo do palco': 'Logo' };
@@ -103,24 +104,28 @@ function Cartao({ titulo, icone: Icone, children, acao }: { titulo: string; icon
 }
 const campoCss = 'h-10 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-sm text-white focus:border-[#B04DFF] focus:outline-none';
 
-function lerOpcoes(): { fundoId?: string; textoBotao?: string; movimento?: MovimentoDoPalco; formato?: FormatoDoc; ajustes?: AjustesDoPalco } {
-  try { return JSON.parse(localStorage.getItem(CHAVE_OPCOES) ?? '{}'); } catch { return {}; }
+function lerOpcoes(chave: string): { fundoId?: string; textoBotao?: string; movimento?: MovimentoDoPalco; formato?: FormatoDoc; ajustes?: AjustesDoPalco } {
+  try { return JSON.parse(localStorage.getItem(chave) ?? '{}'); } catch { return {}; }
 }
 
-export function PalcoDeOfertas() {
+/** F-259: o mesmo palco para mercado e farmácia: cada pasta com os seus fundos, produtos e opções guardadas */
+export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDoStudio }) {
   const navegar = useNavigate();
-  const s = useProdutosComFotos();
-  const salvas = useMemo(lerOpcoes, []);
+  const farmacia = segmento === 'farmacia';
+  const fundos = fundosDoSegmento(segmento);
+  const chaveOpcoes = farmacia ? `${CHAVE_OPCOES}-farmacia` : CHAVE_OPCOES;
+  const s = useProdutosComFotos(farmacia ? CESTA_FARMACIA : undefined, farmacia ? CHAVE_PRODUTOS_DA_FARMACIA : undefined);
+  const salvas = useMemo(() => lerOpcoes(chaveOpcoes), [chaveOpcoes]);
   const [formato, setFormato] = useState<FormatoDoc>(salvas.formato ?? '9:16');
   const [titulo, setTitulo] = useState('SUPER OFERTAS');
   // F-237: fundo OFICIAL do dono (o padrão) e o texto do botão no lugar do "YOUR LOGO"
-  const [fundoId, setFundoId] = useState<string>(salvas.fundoId ?? FUNDOS_DO_PALCO[0].id);
-  const fundo = FUNDOS_DO_PALCO.find((f) => f.id === fundoId) ?? null;
-  const [textoBotao, setTextoBotao] = useState(salvas.textoBotao ?? FUNDOS_DO_PALCO[0].botoes[0]);
+  const [fundoId, setFundoId] = useState<string>(salvas.fundoId ?? fundos[0].id);
+  const fundo = fundos.find((f) => f.id === fundoId) ?? null;
+  const [textoBotao, setTextoBotao] = useState(salvas.textoBotao ?? fundos[0].botoes[0]);
   const [movimento, setMovimento] = useState<MovimentoDoPalco>(salvas.movimento ?? {});
   // F-249: o que o cliente editou nos elementos fica guardado e vale para todos os produtos
   const [ajustes, setAjustes] = useState<AjustesDoPalco>(salvas.ajustes ?? {});
-  useEffect(() => { try { localStorage.setItem(CHAVE_OPCOES, JSON.stringify({ fundoId, textoBotao, movimento, formato, ajustes })); } catch { /* sem armazenamento */ } }, [fundoId, textoBotao, movimento, formato, ajustes]);
+  useEffect(() => { try { localStorage.setItem(chaveOpcoes, JSON.stringify({ fundoId, textoBotao, movimento, formato, ajustes })); } catch { /* sem armazenamento */ } }, [chaveOpcoes, fundoId, textoBotao, movimento, formato, ajustes]);
 
   // F-244: só os produtos escolhidos passam no palco
   const comPreco = s.produtos.filter((p) => p.preco != null).slice(0, s.quantos);
@@ -188,7 +193,7 @@ export function PalcoDeOfertas() {
     const incompletos = comPreco.filter((p) => faltasDoProduto(p).length);
     if (incompletos.length) { toast.error(`Complete antes: falta ${faltasDoProduto(incompletos[0]).join(', ')} em “${incompletos[0].nome}”.`); setSelId(incompletos[0].id); return; }
     const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes });
-    try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ projeto, nome: `Palco de Ofertas – ${fundo ? textoBotao : titulo}` })); } catch { toast.error('Não foi possível abrir o editor de vídeo.'); return; }
+    try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ projeto, nome: `Palco de Ofertas${farmacia ? ' – Farmácia' : ''} – ${fundo ? textoBotao : titulo}` })); } catch { toast.error('Não foi possível abrir o editor de vídeo.'); return; }
     navegar('/studio/video');
   };
   const mover = (k: keyof MovimentoDoPalco, v: string) => setMovimento((m) => ({ ...m, [k]: v }));
@@ -198,7 +203,7 @@ export function PalcoDeOfertas() {
       <div className="flex flex-wrap items-center gap-2">
         <Link to="/studio" className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">Modelos</span></Link>
         <div className="mr-auto min-w-0">
-          <h1 className="flex items-center gap-2 truncate text-lg font-black text-white sm:text-xl"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />Palco de Ofertas – Mercado</h1>
+          <h1 className="flex items-center gap-2 truncate text-lg font-black text-white sm:text-xl"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />{farmacia ? 'Palco de Ofertas – Farmácia' : 'Palco de Ofertas – Mercado'}</h1>
           <p className="hidden text-xs text-slate-400 sm:block">Um produto de cada vez no palco, com nome e preço ({SEGUNDOS_POR_PRODUTO} s cada) · toque em qualquer elemento da tela para editar</p>
         </div>
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1" role="radiogroup" aria-label="Formato">
@@ -296,14 +301,14 @@ export function PalcoDeOfertas() {
 
           <Cartao titulo="Fundo e botão" icone={Palette}>
             <div className="flex gap-2 overflow-x-auto" role="radiogroup" aria-label="Fundo do palco">
-              {FUNDOS_DO_PALCO.map((f) => (
+              {fundos.map((f) => (
                 <button key={f.id} type="button" role="radio" aria-checked={fundoId === f.id} onClick={() => { setFundoId(f.id); setTextoBotao(f.botoes[0]); }} data-testid="palco-fundo"
                   className={cn('w-24 shrink-0 overflow-hidden rounded-lg border-2 text-left', fundoId === f.id ? 'border-[#FFD400]' : 'border-white/10')}>
                   <img src={srcDoFundo(f, '16:9')} alt="" className="aspect-video w-full object-cover" />
                   <span className="block truncate px-1 py-0.5 text-[10px] text-slate-200">{f.nome}</span>
                 </button>
               ))}
-              <button type="button" role="radio" aria-checked={!fundo} onClick={() => setFundoId('')} className={cn('flex w-24 shrink-0 items-center justify-center rounded-lg border-2 px-1 text-center text-[10px] text-slate-300', !fundo ? 'border-[#FFD400]' : 'border-white/10')}>Palco desenhado (com título)</button>
+              {!farmacia && <button type="button" role="radio" aria-checked={!fundo} onClick={() => setFundoId('')} className={cn('flex w-24 shrink-0 items-center justify-center rounded-lg border-2 px-1 text-center text-[10px] text-slate-300', !fundo ? 'border-[#FFD400]' : 'border-white/10')}>Palco desenhado (com título)</button>}
             </div>
             {fundo && (
               <div className="flex items-center gap-2">

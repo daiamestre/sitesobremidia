@@ -83,6 +83,29 @@ export const CESTA_MERCADO = [
   'Biscoito Recheado Passatempo 130g 2,99',
 ].join('\n');
 
+/**
+ * F-259: cesta de exemplo da FARMÁCIA — remédios isentos de prescrição, vitaminas e pastilhas com a foto oficial da marca
+ * no catálogo (os nomes batem com o catálogo). Remédio de receita, cigarro e fórmula infantil nunca entram em encarte.
+ */
+export const CESTA_FARMACIA = [
+  'Novalgina 1 g 2 Comprimidos de 9,99 por 7,49',
+  'Naldecon Multi 16 Comprimidos de 24,90 por 19,90',
+  'Centrum Adulto 30 Comprimidos de 69,90 por 54,90',
+  'Luftal Gotas 15ml 24,90',
+  'Strepsils Sabor Mel e Limão 8 Unidades 14,90',
+  'Novalgina Gotas 500 mg/ml 20 ml 16,90',
+  'Centrum Energia Corpo e Mente 60 Cápsulas 89,90',
+  'Naldecon Pack Dia e Noite 24 Comprimidos 32,90',
+  'Luftal Max Gel 250mg 29,90',
+  'Novalgina 500 mg 10 Comprimidos 8,99',
+  'Strepsils Sabor Laranja 16 Unidades 24,90',
+  'Novalgina Infantil Gotas 500 mg/ml 10 ml 12,90',
+  'Luftal Infantil Gotas 15ml 22,90',
+  'Luftal Gel 20 Caps 27,90',
+  'Novalgina 1 g Efervescente 4,99',
+  'Strepsils Sabor Mel e Limão 16 Unidades 24,90',
+].join('\n');
+
 /** F-244: a lista inicial do cliente, com os 16 produtos do padrão do encarte */
 export const CESTA_PADRAO = `${CESTA_MERCADO}\nRefrigerante Guaraná Antarctica 2L 8,99`;
 

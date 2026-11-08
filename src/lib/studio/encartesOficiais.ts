@@ -4,8 +4,8 @@
 // endereço. O resultado é uma arte de camadas do Studio (abre no editor, anima, vira vídeo e vai para as telas).
 // Fundo novo do dono = uma entrada em ENCARTES_OFICIAIS + as imagens em public/studio/encartes-oficiais/.
 import { TAMANHO_DOC, forma, imagem, larguraDoTexto, texto, type Camada, type Documento, type FormatoArte, type FormatoDoc } from './documento';
-import { ESTILOS_DE_BALAO, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta } from './palco';
-import { LOGO_MEGA_OFERTA, LOGO_SEMANA_DO_FRANGO, type LogoDaPasta } from './logos';
+import { AVISO_DE_REMEDIO, ESTILOS_DE_BALAO, avisoLegal, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta, type SegmentoDoStudio } from './palco';
+import { LOGO_MEGA_OFERTA, LOGO_OFERTAS_DE_FARMACIA, LOGO_SEMANA_DO_FRANGO, type LogoDaPasta } from './logos';
 import { QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta, type GradeDaArea } from './gradeInteligente';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
@@ -30,6 +30,8 @@ export interface LayoutDoEncarte {
   rodape: Caixa;
   /** formato preferido de cada cartão de produto (largura ÷ altura): em pé, cartões deitados; deitado, cartões em pé */
   cartao: number;
+  /** F-259: faixa do aviso obrigatório (remédios) */
+  aviso?: Caixa;
 }
 export interface EncarteOficial {
   id: string; nome: string;
@@ -40,14 +42,27 @@ export interface EncarteOficial {
   corTelefone: string; corEndereco: string;
   /** F-245: sombra nos contatos quando eles ficam sobre o fundo azul */
   sombraContato?: boolean;
+  /** F-259: de que pasta é o encarte (padrão: mercado) */
+  segmento?: SegmentoDoStudio;
+  /** F-259: aviso obrigatório (farmácia: "a persistirem os sintomas…"), escrito na faixa `aviso` do layout */
+  aviso?: string;
 }
 
 export const PASTA_ENCARTES_OFICIAIS = 'encartes-de-mercado';
+/** F-259: a pasta dos encartes de farmácia */
+export const PASTA_ENCARTES_FARMACIA = 'encartes-de-farmacia';
+/** F-259: pasta, nome e segmento de cada tipo de encarte */
+export const PASTAS_DE_ENCARTE: Record<SegmentoDoStudio, { chave: string; nome: string; segmento: string }> = {
+  mercado: { chave: PASTA_ENCARTES_OFICIAIS, nome: 'Encartes de Mercado', segmento: 'supermercados' },
+  farmacia: { chave: PASTA_ENCARTES_FARMACIA, nome: 'Encartes de Farmácia', segmento: 'farmacias' },
+};
 
 const VERMELHO = { etiqueta: ESTILOS_DE_BALAO['placa-amarela'], sombraNome: 'rgba(70,0,6,.7)' };
 const AZUL = { etiqueta: ESTILOS_DE_BALAO['placa-vermelha'], sombraNome: 'rgba(0,10,70,.7)' };
 // F-243: fundo azul-claro e cartão amarelo (nome escuro) da Semana do Frango; F-245: balão oval da referência do dono
 const AZUL_CLARO = { etiqueta: ESTILOS_DE_BALAO['oval-vermelho'], sombraNome: 'rgba(0,30,90,.75)', corPlaca: 'rgba(0,40,120,.22)', bordaPlaca: 'rgba(255,255,255,.4)' };
+// F-259: farmácia — lado verde com placa amarela e lado azul com placa vermelha (os mesmos balões do Mega Oferta)
+const VERDE = { etiqueta: ESTILOS_DE_BALAO['placa-amarela'], sombraNome: 'rgba(0,50,20,.75)' };
 const CARTAO_AMARELO = { etiqueta: ESTILOS_DE_BALAO['oval-vermelho'], sombraNome: 'transparent', corNome: '#6e0010', corPlaca: 'rgba(255,255,255,.5)', bordaPlaca: 'rgba(255,255,255,.75)' };
 
 const BASES: EncarteOficial[] = [
@@ -119,6 +134,43 @@ const BASES: EncarteOficial[] = [
     logoPadrao: LOGO_SEMANA_DO_FRANGO,
     corTelefone: '#ffffff', corEndereco: '#ffffff', sombraContato: true,
   },
+  {
+    // F-259: o encarte de FARMÁCIA, com a mesma divisão do Mega Oferta (arte em scripts/studio/gerar-farmacia.mjs): lado
+    // verde e lado azul, rodapé branco para os contatos e a faixa verde do aviso obrigatório dos remédios embaixo
+    id: 'saude-em-oferta', nome: 'Ofertas de Farmácia – verde e azul', segmento: 'farmacia', aviso: AVISO_DE_REMEDIO,
+    formatos: {
+      // 1080×1920: a curva passa entre x 520 e 590; o rodapé branco vai de 1700 a 1860 e a faixa do aviso de 1860 a 1920
+      '9:16': {
+        fundo: '/studio/encartes-oficiais/saude-em-oferta-v-st.webp',
+        fundoLimpo: '/studio/encartes-oficiais/saude-em-oferta-v-st-limpo.webp',
+        titulo: { x: 14, y: 20, w: 640, h: 476 },
+        colunas: [
+          { x: 26, y: 505, w: 468, h: 1160, ...VERDE },
+          { x: 610, y: 455, w: 446, h: 1210, ...AZUL },
+        ],
+        logo: { x: 650, y: 66, w: 386, h: 290 },
+        rodape: { x: 40, y: 1712, w: 1000, h: 140 },
+        aviso: { x: 30, y: 1866, w: 1020, h: 48 },
+        cartao: 1,
+      },
+      // 1920×1080: a curva passa entre x 935 e 1000; o rodapé branco vai de 966 a 1040 e a faixa do aviso de 1040 a 1080
+      '16:9': {
+        fundo: '/studio/encartes-oficiais/saude-em-oferta-h-st.webp',
+        fundoLimpo: '/studio/encartes-oficiais/saude-em-oferta-h-st-limpo.webp',
+        titulo: { x: 150, y: 10, w: 730, h: 456 },
+        colunas: [
+          { x: 30, y: 468, w: 848, h: 474, ...VERDE },
+          { x: 1022, y: 380, w: 868, h: 562, ...AZUL },
+        ],
+        logo: { x: 1125, y: 40, w: 400, h: 252 },
+        rodape: { x: 40, y: 970, w: 1840, h: 66 },
+        aviso: { x: 30, y: 1044, w: 1860, h: 34 },
+        cartao: 0.8,
+      },
+    },
+    logoPadrao: LOGO_OFERTAS_DE_FARMACIA,
+    corTelefone: '#078a46', corEndereco: '#0b2a8f',
+  },
 ];
 /**
  * F-246 — o MESMO encarte nos outros tamanhos: título, logo e rodapé só mudam de escala (por igual); apenas a faixa de fundo
@@ -127,6 +179,7 @@ const BASES: EncarteOficial[] = [
 const ADAPTACOES: Record<string, Partial<Record<FormatoArte, [FormatoDoc, number, number]>>> = {
   'mega-oferta-bicolor': { a4: ['9:16', 500, 1690], a3: ['9:16', 500, 1690], '4:5': ['9:16', 500, 1690], 'a4-h': ['16:9', 470, 945], '1:1': ['16:9', 470, 945] },
   'semana-do-frango': { a4: ['9:16', 650, 1570], a3: ['9:16', 650, 1570], '4:5': ['16:9', 540, 820], 'a4-h': ['16:9', 540, 820], '1:1': ['16:9', 540, 820] },
+  'saude-em-oferta': { a4: ['9:16', 500, 1690], a3: ['9:16', 500, 1690], '4:5': ['9:16', 500, 1690], 'a4-h': ['16:9', 470, 945], '1:1': ['16:9', 470, 945] },
 };
 const SUFIXO: Partial<Record<FormatoArte, string>> = { '1:1': '1x1', '4:5': '4x5', a4: 'a4', 'a4-h': 'a4-h', a3: 'a3' };
 function adaptarLayout(id: string, base: LayoutDoEncarte, de: FormatoDoc, y1: number, y2: number, alvo: FormatoArte): LayoutDoEncarte {
@@ -139,6 +192,7 @@ function adaptarLayout(id: string, base: LayoutDoEncarte, de: FormatoDoc, y1: nu
   return {
     fundo: `/studio/encartes-oficiais/${id}-${SUFIXO[alvo]}.webp`, fundoLimpo: `/studio/encartes-oficiais/${id}-${SUFIXO[alvo]}-limpo.webp`,
     titulo: caixa(base.titulo), colunas: base.colunas.map(caixa), logo: caixa(base.logo), rodape: caixa(base.rodape), cartao: base.cartao,
+    ...(base.aviso ? { aviso: caixa(base.aviso) } : {}),
   };
 }
 /** Todo fundo oficial sai nos 7 tamanhos: fundo novo do dono = uma entrada em BASES e outra em ADAPTACOES. */
@@ -149,6 +203,8 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = BASES.map((e) => ({
     ...Object.fromEntries(Object.entries(ADAPTACOES[e.id] ?? {}).map(([alvo, [de, y1, y2]]) => [alvo, adaptarLayout(e.id, e.formatos[de]!, de, y1, y2, alvo as FormatoArte)])),
   },
 }));
+/** F-259: os encartes de uma pasta (mercado ou farmácia) */
+export const encartesDoSegmento = (s: SegmentoDoStudio) => ENCARTES_OFICIAIS.filter((e) => (e.segmento ?? 'mercado') === s);
 export const encarteOficialPorId = (id: string | null | undefined) => ENCARTES_OFICIAIS.find((e) => e.id === id) ?? null;
 export const formatosDoEncarte = (e: EncarteOficial) => (['9:16', '16:9', '1:1', '4:5', 'a4', 'a4-h', 'a3'] as FormatoArte[]).filter((f) => e.formatos[f]);
 export const layoutDoEncarte = (e: EncarteOficial, formato?: FormatoArte): LayoutDoEncarte => e.formatos[formato ?? formatosDoEncarte(e)[0]] ?? e.formatos[formatosDoEncarte(e)[0]]!;
@@ -273,5 +329,6 @@ export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[]
   let n = 0;
   grupos.forEach((ps, k) => c.push(...produtosDaColuna(ps, lay.colunas[k], plano[k], () => ++n, 0.3 + k * 0.12)));
   c.push(...camadasDoRodape(e, lay.rodape, d));
+  if (e.aviso && lay.aviso) c.push({ ...avisoLegal(e.aviso, lay.aviso), animacao: ani('surgir', 0.5, 0.5) });
   return { versao: 2, formato: f, fundo: '#1e3fd0', camadas: c, video: { duracao: 8 } };
 }
