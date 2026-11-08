@@ -62,6 +62,25 @@ export const SEGMENTOS_DE_FABRICA: Segmento[] = [
     palavras: ['academia', 'fitness', 'musculacao', 'treino', 'matricula', 'pilates', 'yoga', 'crossfit', 'personal', 'suplemento'],
     estilosBiblia: ['Academia e fitness'], catalogo: ['fitness'],
   }),
+  // F-261: farmácia é prioridade do dono (08/11/2026) e tinha cenário de supermercado por estar dentro do Varejo.
+  // Mesmo padrão do Encarte e do Palco de farmácia (dna.ts REFERENCIA_FARMACIA): verde e azul, cruz, cápsulas, aviso legal.
+  S({
+    id: 'farmacia', nome: 'Farmácia e Drogaria', descricao: 'Farmácias, drogarias, perfumaria de farmácia, vitaminas, higiene e remédios isentos de prescrição.',
+    categorias: [
+      { id: 'drogaria', nome: 'Farmácias e drogarias', subcategorias: ['Farmácia', 'Drogaria', 'Farmácia de manipulação'], palavras: ['farmacia', 'drogaria', 'farmaceutico', 'manipulacao', 'remedio', 'medicamento', 'analgesico', 'antigripal'] },
+      { id: 'higiene-vitaminas', nome: 'Higiene, vitaminas e dermocosméticos', subcategorias: ['Vitaminas', 'Higiene', 'Dermocosméticos', 'Fraldas'], palavras: ['vitamina', 'polivitaminico', 'protetor solar', 'dermocosmetico', 'fralda', 'higiene', 'creme dental', 'pastilha'] },
+    ],
+    publico: ['famílias', 'idosos', 'mães e pais'], objetivos: ['ofertas da semana', 'atendimento farmacêutico', 'entrega em casa', 'datas de saúde'],
+    estilos: ['farmácia em oferta', 'saúde com desconto', 'cuidado com a família', 'produto em destaque'],
+    paletas: [['#0A9A50', '#2E7BFF', '#FFFFFF', '#FFD21F'], ['#04693A', '#0A2F8F', '#E0F2F1', '#FFFFFF']],
+    ambientes: ['farmácia moderna clara com prateleiras desfocadas', 'balcão de atendimento de farmácia limpo e iluminado', 'pedestal branco e verde com cruzes e cápsulas suaves'],
+    promptsBase: { imagem: 'clean bright modern pharmacy interior, white and green shelves softly blurred, soft daylight, empty space for products', video: 'products gliding in, soft green glow, floating capsules, gentle light rays' },
+    regrasQualidade: ['ambiente de farmácia reconhecível, claro e limpo', 'preço e produto iguais aos dados', 'aviso "A PERSISTIREM OS SINTOMAS, O MÉDICO DEVERÁ SER CONSULTADO" quando houver remédio'],
+    regrasSeguranca: ['só remédio isento de prescrição; nunca remédio de receita, cigarro ou fórmula infantil', 'nunca prometer cura nem usar pessoa de jaleco recomendando remédio', 'nenhum preço, desconto ou validade inventado'],
+    provedores: { imagem: ['composicao', 'cf-flux-schnell'], video: ['motion'] },
+    palavras: ['farmacia', 'drogaria', 'farmaceutico', 'remedio', 'medicamento', 'vitamina', 'manipulacao', 'saude da familia'],
+    estilosBiblia: ['Farmácia e saúde'], catalogo: ['farmacia'],
+  }),
   S({
     id: 'saude', nome: 'Saúde', descricao: 'Clínicas, odontologia, dermatologia, fisioterapia, estética, laboratórios.',
     categorias: [
@@ -133,11 +152,11 @@ export const SEGMENTOS_DE_FABRICA: Segmento[] = [
     estilosBiblia: ['Beleza e estética'], catalogo: ['beleza'],
   }),
   S({
-    id: 'varejo', nome: 'Mercado e Varejo', descricao: 'Supermercados, mercadinhos, atacarejos, hortifrúti, conveniência, distribuidoras, farmácias, lojas.',
+    id: 'varejo', nome: 'Mercado e Varejo', descricao: 'Supermercados, mercadinhos, atacarejos, hortifrúti, conveniência, distribuidoras, lojas (farmácia tem segmento próprio).',
     categorias: [
       { id: 'supermercado', nome: 'Supermercados e atacarejos', subcategorias: ['Supermercado', 'Mercadinho', 'Atacarejo', 'Açougue', 'Hortifrúti'], palavras: ['supermercado', 'mercado', 'mercadinho', 'atacarejo', 'acougue', 'hortifruti', 'oferta', 'tabloide', 'encarte'] },
       { id: 'conveniencia', nome: 'Conveniência e bebidas', subcategorias: ['Conveniência', 'Distribuidora', 'Adega'], palavras: ['conveniencia', 'distribuidora', 'adega', 'cerveja', 'bebida'] },
-      { id: 'lojas', nome: 'Lojas e farmácias', subcategorias: ['Farmácia', 'Moda', 'Calçados', 'Utilidades'], palavras: ['farmacia', 'loja', 'roupa', 'calcado', 'liquidacao', 'moda'] },
+      { id: 'lojas', nome: 'Lojas', subcategorias: ['Moda', 'Calçados', 'Utilidades'], palavras: ['loja', 'roupa', 'calcado', 'liquidacao', 'moda'] },
     ],
     publico: ['famílias', 'donas e donos de casa'], objetivos: ['ofertas do dia', 'ofertas da semana', 'liquidação', 'datas comemorativas'],
     estilos: ['oferta comercial', 'liquidação', 'tabloide', 'produto em destaque', 'preço em destaque', 'selos promocionais'],
@@ -147,8 +166,8 @@ export const SEGMENTOS_DE_FABRICA: Segmento[] = [
     regrasQualidade: ['preço e produto iguais aos dados', 'hierarquia promocional clara'],
     regrasSeguranca: ['nenhum preço, desconto ou validade inventado', 'bebida alcoólica: sem apelo a menores'],
     provedores: { imagem: ['composicao', 'cf-flux-schnell'], video: ['motion'] },
-    palavras: ['supermercado', 'mercado', 'oferta', 'ofertas', 'promocao', 'tabloide', 'encarte', 'liquidacao', 'acougue', 'hortifruti', 'atacarejo', 'farmacia', 'preco'],
-    estilosBiblia: ['Supermercado', 'Açougue', 'Hortifrúti', 'Bebidas e adega', 'Farmácia e saúde', 'Moda e calçados'], catalogo: ['supermercados', 'moda'],
+    palavras: ['supermercado', 'mercado', 'oferta', 'ofertas', 'promocao', 'tabloide', 'encarte', 'liquidacao', 'acougue', 'hortifruti', 'atacarejo', 'preco'],
+    estilosBiblia: ['Supermercado', 'Açougue', 'Hortifrúti', 'Bebidas e adega', 'Moda e calçados'], catalogo: ['supermercados', 'moda'],
   }),
   S({
     id: 'automotivo', nome: 'Automotivo', descricao: 'Concessionárias, oficinas, lava-jatos, autopeças, pneus, estética automotiva.',

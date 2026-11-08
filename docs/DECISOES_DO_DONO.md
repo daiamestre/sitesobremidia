@@ -57,7 +57,7 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **Capas das pastas** passam todas as mídias, 8 s cada. Se a pasta tem vídeo, a capa é animada.
 - **Fundo novo enviado pelo dono** é para ADICIONAR como oficial, não para criar outro palco ou encarte do zero.
 - **Logos oficiais do dono:** nunca redesenhar nem trocar o botão ou o fundo; só deixar nítidas e idênticas às originais.
-- **Farmácia (08/11/2026):** saúde e remédios são prioridade, junto com Pernambuco. O aviso legal é obrigatório. Só remédio isento de prescrição.
+- **Farmácia (08/11/2026):** saúde e remédios são prioridade, junto com Pernambuco. O aviso legal é obrigatório. Só remédio isento de prescrição. No Creative Core (vídeo por agentes) a farmácia é segmento PRÓPRIO, com ambiente de farmácia e nunca cenário de supermercado (F-261).
 - **Cartaz Digital** (nome para o usuário; o código usa `tabloide`): funciona como a QR Ofertas, mas sem copiar arte, tema ou texto deles. Tudo o que o usuário envia é aceito na hora.
 
 ## 6. Catálogo de produtos (fotos)

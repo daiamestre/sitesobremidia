@@ -168,6 +168,9 @@ const StudioPasta = lazyWithRetry(() => import("./pages/studioai/PastaPage"));
 const StudioVideo = lazyWithRetry(() => import("./pages/studioai/VideoEditorPage"));
 const StudioEncarte = lazyWithRetry(() => import("./pages/studioai/EncartePage"));
 const StudioLogos = lazyWithRetry(() => import("./pages/studioai/LogosPage"));
+const StudioAgentesInicio = lazyWithRetry(() => import("./pages/studio/StudioPaginas").then((m) => ({ default: m.StudioAgentesInicio })));
+const StudioAgentesNovo = lazyWithRetry(() => import("./pages/studio/StudioPaginas").then((m) => ({ default: m.StudioAgentesNovo })));
+const StudioAgentesProducao = lazyWithRetry(() => import("./pages/studio/StudioPaginas").then((m) => ({ default: m.StudioAgentesProducao })));
 const TrabalharComIA = lazyWithRetry(() => import("./pages/dashboard/TrabalharComIA"));
 const StudioProjetos = lazyWithRetry(() => import("./pages/studioai/ProjetosPage"));
 const StudioConfiguracoes = lazyWithRetry(() => import("./pages/studioai/ConfiguracoesPage"));
@@ -369,6 +372,9 @@ const App = () => {
                     <Route path="ia" element={<StudioIA />} />
                     <Route path="encarte/:encarteId" element={<StudioEncarte />} />
                     <Route path="logos" element={<StudioLogos />} />
+                    <Route path="agentes" element={<StudioAgentesInicio />} />
+                    <Route path="agentes/novo" element={<StudioAgentesNovo />} />
+                    <Route path="agentes/:id" element={<StudioAgentesProducao />} />
                     <Route path="video" element={<StudioVideo />} />
                     <Route path="video/:projetoId" element={<StudioVideo />} />
                     <Route path="projetos" element={<StudioProjetos />} />

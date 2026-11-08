@@ -38,6 +38,7 @@ Quem usa Claude Code tem as receitas prontas em `.claude/skills/` (deploy-produc
 
 | F | Data | O que foi feito |
 |---|---|---|
+| F-261 | 08/11/2026 | **Studio de vídeo por agentes no ar**: migrações aplicadas (Player 5.7.10 íntegro), memória criativa semeada, orquestrador publicado com tarefa de 1 minuto, rota `/studio/agentes` ("Vídeo por agentes"), segmento **Farmácia** próprio no Creative Core e prévia das cenas corrigida. Falta só o segredo da montagem (P-06) |
 | F-260 | 08/11/2026 | **Memória do sistema no repositório**: este arquivo, as decisões do dono, o padrão de encartes e palcos, o comando `onde-paramos`, as skills `retomar-trabalho` e `encartes-e-palcos`, os atalhos para outras IAs e IDEs e o DNA dos agentes do Studio |
 | F-259 | 08/11/2026 | Encarte e Palco de Ofertas de **farmácia** (pastas `encartes-de-farmacia` e `palco-de-ofertas-farmacia`), logo "Ofertas de Farmácia", aviso legal dos remédios, cesta de 16 itens isentos de prescrição, fotos oficiais de Novalgina, Naldecon e Centrum |
 | F-258 | 02/11/2026 | O robô de marcas pega a imagem principal da página; auditoria de imagem contra o produto |
@@ -70,10 +71,11 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
 - **P-05 🟥 Domínio próprio para o R2** (`r2.dev` não serve para produção). Decisões sobre Google Drive como entrada, contato com a GS1 Brasil e advogado ficam com o dono.
 
 ### Studio
-- **P-06 🟥 Studio de vídeo por agentes:** as migrações `20261349`, `20261350` e `20261357` (`studio_conhecimento`) e a função `studio-orquestrador` estão no repositório, mas NÃO foram aplicadas nem publicadas. O dono pediu para ver o esquema antes. Depois da aprovação:
-  1. aplicar as migrações;
-  2. `node scripts/studio/semear-conhecimento.mjs` (já inclui o padrão de encartes e palcos);
-  3. publicar o orquestrador.
+- **P-06 🟥 Studio de vídeo por agentes: falta só o segredo da montagem.** Em 08/11/2026 (F-261) foram aplicadas as migrações `20261349`, `20261350` e `20261357`, a memória foi semeada com `node scripts/studio/semear-conhecimento.mjs` (que já inclui o padrão de encartes e palcos e o segmento farmácia), o orquestrador foi publicado e a rota `/studio/agentes` foi ligada. Para o vídeo final sair, o DONO grava o segredo (a trava da ferramenta de IA não deixa a IA gravar):
+  1. gerar um valor aleatório longo e guardar como `STUDIO_SEGREDO` no cofre `~/.sobremidia-secrets/tokens.env`;
+  2. `npx supabase secrets set STUDIO_SEGREDO=<valor> --project-ref bhwsybgsyvvhqtkdqozb`;
+  3. `gh secret set STUDIO_SEGREDO -R daiamestre/sitesobremidia` (colar o mesmo valor);
+  4. conferir: `node scripts/ops/chamar-funcao.mjs studio-orquestrador '{"acao":"provedores"}'` → "GitHub Actions · FFmpeg" com `disponivel: true`.
 - **P-07 🟥 "Editar com ChatGPT"** só funciona com saldo na conta OpenAI. A cota grátis de imagem da Cloudflare dá cerca de 2 imagens por dia; acima disso é preciso o plano pago (Workers Paid).
 - **P-08 🟨 Encartes A4** (12 modelos) usam o editor do Cartaz Digital, que não gira nem arrasta produto a produto. Falta levar para o editor do Studio (`components/studio/editor`) para cumprir a regra de edição completa.
 - **P-09 🟨 Mais fundos oficiais:** o dono enviará mais artes de encarte e de palco; cada uma é ADICIONADA seguindo `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Próximos segmentos naturais: açougue, hortifruti, padaria e pet.
@@ -102,4 +104,4 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
 3. Regra nova do dono → `docs/DECISOES_DO_DONO.md`. Padrão novo de arte → `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md` e, se for de estilo, `dna.ts`.
 4. Testes, commit em português e publicação com `node scripts/ops/publicar-main.mjs`.
 
-*Última atualização: 08/11/2026, depois da F-260.*
+*Última atualização: 08/11/2026, depois da F-261.*

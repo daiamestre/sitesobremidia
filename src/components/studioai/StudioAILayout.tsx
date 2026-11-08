@@ -77,6 +77,8 @@ function MenuLateral({ anunciante, carregado, onNavegar }: { anunciante: boolean
     { nome: 'Editor de vídeo', to: '/studio/video', icone: Clapperboard },
     { nome: 'Meus Projetos', to: '/studio/projetos', icone: FolderKanban },
     { nome: 'Criar com IA', to: '/studio/ia', icone: Sparkles },
+    // P-06: produção de vídeo e artes pelos agentes do Creative Core (orquestrador no ar desde 08/11/2026)
+    { nome: 'Vídeo por agentes', to: '/studio/agentes', icone: ImagePlay },
     // F-235: títulos 3D de encarte (volume, chanfro, brilho, enfeites) que vão para os encartes e o Palco
     { nome: 'Logos 3D', to: '/studio/logos', icone: Gem },
     // F-248: a pasta com todas as logos, de onde os encartes e o Palco escolhem

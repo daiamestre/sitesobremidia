@@ -1,4 +1,6 @@
 import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { meuSaldo } from '@/lib/studioai/api';
 import { StudioCentral } from '@/components/studio/StudioCentral';
 import { BriefingWizard } from '@/components/studio/BriefingWizard';
 import { ProducaoView } from '@/components/studio/ProducaoView';
@@ -19,3 +21,16 @@ export function StudioProducaoPortal() { const { id = '' } = useParams(); return
 export function StudioInicioEquipe() { return <StudioCentral base={EQUIPE} />; }
 export function StudioNovoEquipe() { return <BriefingWizard base={EQUIPE} />; }
 export function StudioProducaoEquipe() { const { id = '' } = useParams(); return <ProducaoView id={id} base={EQUIPE} areaEquipe />; }
+
+/**
+ * P-06 (08/11/2026): a mesma central dentro do /studio (menu "Vídeo por agentes"), para todos que usam o Studio.
+ * Anunciante entrega em Minhas Mídias (passa pela análise); equipe entrega nas mídias da empresa.
+ */
+const AGENTES = '/studio/agentes';
+function useAreaEquipe() {
+  const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo, staleTime: 30_000 });
+  return !saldo.data?.cliente;
+}
+export function StudioAgentesInicio() { return <StudioCentral base={AGENTES} />; }
+export function StudioAgentesNovo() { return <BriefingWizard base={AGENTES} />; }
+export function StudioAgentesProducao() { const { id = '' } = useParams(); const equipe = useAreaEquipe(); return <ProducaoView id={id} base={AGENTES} areaEquipe={equipe} />; }

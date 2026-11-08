@@ -31,13 +31,13 @@ export function sqlDaSemente() {
   return linhas.map(({ tipo, chave, conteudo }) => {
     const json = q(JSON.stringify(conteudo));
     const imp = md5(conteudo);
-    return `with atual as (select versao, impressao from public.studio_conhecimento where escopo = 'global' and tipo = ${q(tipo)} and chave = ${q(chave)} and ativo),
-  desliga as (update public.studio_conhecimento set ativo = false where escopo = 'global' and tipo = ${q(tipo)} and chave = ${q(chave)} and ativo
-                and not exists (select 1 from atual where impressao = ${q(imp)}) returning 1)
+    // F-261: dois comandos. Desligar e gravar no MESMO comando (CTE) batia na trava "uma versão ativa" ao trocar de versão.
+    const onde = `escopo = 'global' and tipo = ${q(tipo)} and chave = ${q(chave)}`;
+    return `update public.studio_conhecimento set ativo = false where ${onde} and ativo and impressao <> ${q(imp)};
 insert into public.studio_conhecimento (escopo, tipo, chave, versao, conteudo, impressao, ativo, motivo)
-select 'global', ${q(tipo)}, ${q(chave)}, coalesce((select max(versao) from public.studio_conhecimento where escopo = 'global' and tipo = ${q(tipo)} and chave = ${q(chave)}), 0) + 1,
+select 'global', ${q(tipo)}, ${q(chave)}, coalesce((select max(versao) from public.studio_conhecimento where ${onde}), 0) + 1,
        ${json}::jsonb, ${q(imp)}, true, ${q(motivo)}
- where not exists (select 1 from atual where impressao = ${q(imp)});`;
+ where not exists (select 1 from public.studio_conhecimento where ${onde} and ativo and impressao = ${q(imp)});`;
   }).join('\n');
 }
 

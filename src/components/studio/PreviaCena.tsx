@@ -29,8 +29,9 @@ export function PreviaCena({ dados, className }: { dados: DadosCena; className?:
         title="Prévia da cena"
         srcDoc={html}
         sandbox="allow-scripts"
-        className="pointer-events-none absolute left-0 top-0 origin-top-left border-0"
-        style={{ width: w, height: h, transform: `scale(${escala})` }}
+        className="pointer-events-none absolute left-0 top-0 max-w-none origin-top-left border-0"
+        // F-261: maxWidth 'none' — o estilo base do Tailwind (iframe { max-width: 100% }) cortava a cena em ~478 px
+        style={{ width: w, height: h, maxWidth: 'none', transform: `scale(${escala})` }}
       />
     </div>
   );

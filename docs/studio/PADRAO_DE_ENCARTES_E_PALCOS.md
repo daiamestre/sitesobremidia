@@ -84,6 +84,7 @@ Depois:
 2. Crie as pastas `encartes-de-<seg>` e `palco-de-ofertas-<seg>` em `PastaPage.tsx` e os cartões em `CatalogoPage.tsx`.
 3. Crie a cesta de exemplo `CESTA_<SEG>` em `src/lib/tabloide/encartes.ts`, com nomes que batem com o catálogo. O teste confere com `chaveCanonica`.
 4. A lista de produtos fica guardada à parte (`chave` em `useProdutosComFotos`) e as opções do palco também (`chaveOpcoes`).
+5. **Vídeo por agentes (`/studio/agentes`):** se o segmento novo precisa de ambiente próprio, crie-o em `supabase/functions/_shared/studio/core/segmentos.ts` (ambientes, paleta do encarte, regras e termos proibidos em `FORA_DO_SEGMENTO` no `core.ts`). Siga o modelo de `farmacia` (F-261). Depois rode `node scripts/studio/semear-conhecimento.mjs`, publique o `studio-orquestrador` e faça o teste em `src/tests/unit/creativeCore.test.ts`.
 
 ### Balão novo
 Crie um estilo novo em `ESTILOS_DE_BALAO` e use-o na coluna. Nunca posicione texto de preço à mão.

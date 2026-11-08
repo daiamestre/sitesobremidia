@@ -129,7 +129,7 @@ function direcaoLocal(b: BriefingCore, seg: Segmento, cat: Categoria | null): Di
     composicao: [...MANUAL.composicao],
     paleta,
     hierarquia: [...MANUAL.hierarquia],
-    tipografia: seg.id === 'beleza' ? 'serifada elegante + sem serifa leve' : seg.id === 'varejo' ? 'condensada, caixa alta, preço gigante' : 'sem serifa forte, títulos curtos',
+    tipografia: seg.id === 'beleza' ? 'serifada elegante + sem serifa leve' : (seg.id === 'varejo' || seg.id === 'farmacia') ? 'condensada, caixa alta, preço gigante' : 'sem serifa forte, títulos curtos',
     acabamento: MANUAL.acabamento[0],
     deterministico: ['preço', 'desconto', 'nome do produto', 'marca/loja', 'validade', 'telefone/endereço', 'logotipo'],
     fonte: 'local',
@@ -196,6 +196,7 @@ const FORA_DO_SEGMENTO: Record<string, string[]> = {
   alimentacao: ['gym', 'dumbbell', 'clinic', 'lipstick', 'car '],
   educacao: ['beer', 'alcohol', 'lingerie', 'cigarette'],
   varejo: ['clinic', 'surgery'],
+  farmacia: ['supermarket', 'butcher', 'beer', 'alcohol', 'cigarette', 'baby formula', 'lab coat', 'doctor'],
   beleza: ['burger', 'pizza', 'engine', 'tire'],
 };
 const PRECO = /r\$|\$\s*\d|\d+[.,]\d{2}\b|\d+\s*%/i;
@@ -222,6 +223,7 @@ export function conferir(p: PedidoCore, b: BriefingCore, seg: Segmento, d: Direc
   }
   if (seg.id === 'saude' && PRECO.test(d.conceito)) problemas.push('saúde: conceito com número/percentual (risco de alegação)');
   if (seg.id === 'saude') evidencias.push('saúde: regras de segurança aplicadas (sem promessa de cura/resultado)');
+  if (seg.id === 'farmacia') evidencias.push('farmácia: só isento de prescrição, sem promessa de cura e com o aviso legal dos remédios');
   if (b.faltando.some((f) => f.startsWith('preço'))) evidencias.push('pendência: oferta sem preço — a arte sai sem preço até o cliente informar');
   return { aprovado: problemas.length === 0, problemas, evidencias };
 }

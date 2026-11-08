@@ -18,15 +18,15 @@ describe('MG-STUDIO-02 — DNA visual e taxonomia', () => {
     expect(ROTEIROS[15].at(-1)!.ate).toBe(15);
     expect(ROTEIROS[20].at(-1)!.ate).toBe(20);
   });
-  it('10 segmentos do pedido, cada um com todos os campos; extensível sem mexer no núcleo', () => {
-    expect(SEGMENTOS_DE_FABRICA.map((s) => s.id)).toEqual(['esportes', 'fitness', 'saude', 'educacao', 'alimentacao', 'beleza', 'varejo', 'automotivo', 'tecnologia', 'servicos']);
+  it('11 segmentos do pedido (farmácia própria desde a F-261), cada um com todos os campos; extensível sem mexer no núcleo', () => {
+    expect(SEGMENTOS_DE_FABRICA.map((s) => s.id)).toEqual(['esportes', 'fitness', 'farmacia', 'saude', 'educacao', 'alimentacao', 'beleza', 'varejo', 'automotivo', 'tecnologia', 'servicos']);
     for (const s of SEGMENTOS_DE_FABRICA) {
       expect(s.categorias.length).toBeGreaterThan(0);
       expect(s.paletas[0].every((c) => /^#[0-9A-F]{6}$/i.test(c))).toBe(true);
       expect(s.ambientes.length && s.estilos.length && s.regrasSeguranca.length && s.provedores.imagem.length).toBeTruthy();
     }
     const novo = { ...SEGMENTOS_DE_FABRICA[0], id: 'pet', nome: 'Pet', palavras: ['pet shop', 'banho e tosa', 'racao'], categorias: [] };
-    expect(taxonomia([novo]).length).toBe(11);
+    expect(taxonomia([novo]).length).toBe(12);
     expect(reconhecerSegmento('promoção de banho e tosa no pet shop', taxonomia([novo])).segmento.id).toBe('pet');
   });
 });
@@ -55,6 +55,18 @@ describe('MG-STUDIO-03 — Creative Core (testes A–G do pedido, planejamento)'
     expect(`${r.direcao.conceito} ${Object.values(r.prompts).join(' ')}`).not.toMatch(/clothing|fashion|lipstick|makeup|perfume|roupa|batom/i);
     expect(r.qualidade.aprovado).toBe(true);
     expect(r.qualidade.evidencias.join(' ')).toMatch(/sem promessa de cura/);
+  });
+  it('F-261 — farmácia tem segmento próprio: ambiente de farmácia (nunca supermercado), regras dos remédios; clínica segue em Saúde', async () => {
+    const r = await planejarComCore({ texto: 'Vídeo institucional para a TV da farmácia: atendimento atencioso e cuidado com a saúde da família' }, SEM_IA);
+    expect(r.segmento.id).toBe('farmacia');
+    expect(r.direcao.ambiente).toMatch(/farmácia/);
+    expect(Object.values(r.prompts).join(' ')).not.toMatch(/supermarket/i);
+    expect(r.qualidade.aprovado).toBe(true);
+    expect(r.qualidade.evidencias.join(' ')).toMatch(/isento de prescrição/);
+    // só a categoria "Farmácia e saúde" do formulário, sem outras palavras → farmácia; clínica com a mesma categoria → saúde
+    expect(reconhecerSegmento('anúncio da loja', SEGMENTOS_DE_FABRICA, 'Farmácia e saúde').segmento.id).toBe('farmacia');
+    expect(reconhecerSegmento('campanha da clínica odontológica, agende sua consulta', SEGMENTOS_DE_FABRICA, 'Farmácia e saúde').segmento.id).toBe('saude');
+    expect(reconhecerSegmento('ofertas do supermercado no tabloide').segmento.id).toBe('varejo');
   });
   it('D — restaurante animado → MOTION (sem IA de vídeo), roteiro de 15 s exato com animações', async () => {
     const r = await planejarComCore({ texto: 'Vídeo animado de 15 segundos do restaurante com o prato do dia' }, SEM_IA);
