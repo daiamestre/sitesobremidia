@@ -57,8 +57,62 @@ async function conferirFoto(env, nome, url) {
   }
 }
 
+/**
+ * F-272 — PASSA-FOTO: a foto do produto vem do site da própria marca NA HORA, sem ser guardada (nem no R2, nem no SSD).
+ *   GET /foto?u=<endereço da foto>[&s=1][&c=esquerda,topo,largura,altura]
+ *   s=1 tira o fundo (mesmo recorte da ação 'recortar'); c corta a sobra transparente (caixa medida antes).
+ * Só repassa imagem, só de sites da lista (marcas da pesquisa e bancos de imagem que o sistema já usa): não é um repasse aberto.
+ * Devolve com permissão de uso (CORS) para o encarte poder ser exportado, e com cache longo no navegador.
+ * Se a transformação falhar (ex.: cota de transformações grátis do mês), devolve a foto original: o encarte nunca fica sem foto.
+ */
+// <<HOSTS (gerado por scripts/ops/catalogo-por-link.mjs hosts — não editar à mão)
+const HOSTS = ["agenciacariocadagema.com.br", "anaconda.com.br", "blueray.com.br", "brilux.com.br", "cafebrasileiro.com", "cajuinasaogeraldo.com.br", "camponesa.com.br", "capricche.com.br", "casadosaborcamil.com.br", "casaperini.com.br", "cdn-images-site-girandosol.bravo.st", "cdn.dooca.store", "cdn.vnda.com.br", "ceratti.com.br", "cini.com.br", "costasul.com.br", "cristalalimentos.com.br", "dori.com.br", "energizer.com", "eno.com.br", "eu-images.contentstack.com", "euvendo.frimesa.com.br", "excelsior.com.br", "frinense.com.br", "greenpeople.com.br", "harald.com.br", "i-cf65.ch-static.com", "i.imgur.com", "images-1.eucerin.com", "images.prismic.io", "irp.cdn-website.com", "isabela.com.br", "jasminealimentos.com", "jundia.com.br", "mahogany.vtexassets.com", "mantiqueirabrasil.com.br", "matecouro.com.br", "mauricea.com.br", "mccain.com.br", "mezzani.com.br", "nobre.coop.br", "noronhaalimentos.com.br", "oetker.widen.net", "ovomaltine.com.br", "peperi.coop.br", "piraque.com.br", "pitu.com.br", "prodcontent.kitano.com.br", "prodcontent.yoki.com.br", "richester.com.br", "riclan.com.br", "salcisne.com.br", "sallebre.com.br", "static.wixstatic.com", "strawplast.com.br", "teixeira.com.br", "tiojoao.com.br", "uniao.com.br", "vidaveg.com.br", "vinicolagaribaldi.com.br", "vitarella.com.br", "wickbold.com.br", "www.adria.com.br", "www.alibem.com.br", "www.auroraalimentos.com.br", "www.becel.com.br", "www.bigfral.com.br", "www.bozzano.com.br", "www.cafepele.com.br", "www.cepera.com.br", "www.chamyto.com.br", "www.cotidian.com.br", "www.cuidadodacasa.com.br", "www.dolly.com.br", "www.dorflex.com.br", "www.fiatlux.com.br", "www.fiquediva.com.br", "www.fornodeminas.com.br", "www.foxlux.com.br", "www.friboi.com.br", "www.galbani.com.br", "www.grupocopobras.com.br", "www.guabinatural.com.br", "www.harpic.com.br", "www.kisabor.com.br", "www.loreal-paris.com.br", "www.luftal.com.br", "www.lysol.com.br", "www.naldecon.com.br", "www.nativealimentos.com.br", "www.novalgina.com.br", "www.nutrella.com.br", "www.ourofinopet.com", "www.perdigao.com.br", "www.pifpaf.com.br", "www.plasutil.com.br", "www.pratofino.com.br", "www.produtosbonare.com.br", "www.protex-soap.com.br", "www.qboa.com.br", "www.refrigerantesconvencao.com.br", "www.risque.com.br", "www.salada.com.br", "www.salton.com.br", "www.saobraz.com.br", "www.seara.com.br", "www.sensodyne.com", "www.startquimica.com.br", "www.strepsils.com.br", "www.tirol.com.br", "www.turquesa.com.br", "www.vanish.com.br", "www.verdecampo.com.br", "www.vilma.com.br", "www.wyda.com.br", "www.yakult.com.br"];
+// HOSTS>>
+const HOSTS_FIXOS = ['images.openfoodfacts.org', 'static.openfoodfacts.org', 'upload.wikimedia.org', 'images.pexels.com', 'cdn.pixabay.com', 'pixabay.com'];
+const PERMITIDOS_FOTO = new Set([...HOSTS, ...HOSTS_FIXOS]);
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Timing-Allow-Origin': '*' };
+
+function lerPedidoDeFoto(endereco) {
+  const q = new URL(endereco).searchParams;
+  let u;
+  try { u = new URL(q.get('u') ?? ''); } catch { return { erro: 'endereço inválido' }; }
+  if (u.protocol !== 'https:' || !PERMITIDOS_FOTO.has(u.hostname)) return { erro: 'site não permitido' };
+  const c = (q.get('c') ?? '').split(',').map(Number);
+  const caixa = c.length === 4 && c.every((n) => Number.isInteger(n) && n >= 0 && n <= 20000) && c[2] > 0 && c[3] > 0
+    ? { left: c[0], top: c[1], width: c[2], height: c[3] } : null;
+  return { url: u.href, semFundo: q.get('s') === '1', caixa };
+}
+
+async function passaFoto(req, env) {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+  const pedido = lerPedidoDeFoto(req.url);
+  if (pedido.erro) return new Response(pedido.erro, { status: 400, headers: CORS });
+  const buscar = () => fetch(pedido.url, { headers: { 'User-Agent': 'SobreMidia-Tabloide/1.0 (contato@sobremidia.com.br)', Accept: 'image/*' }, signal: AbortSignal.timeout(15000) }).catch(() => null);
+  const origem = await buscar();
+  const tipo = origem?.headers.get('content-type') ?? '';
+  if (!origem?.ok || !/^image\//.test(tipo)) return new Response('a foto não carregou', { status: 502, headers: CORS });
+  if (Number(origem.headers.get('content-length') ?? 0) > 20 * 1024 * 1024) return new Response('foto grande demais', { status: 413, headers: CORS });
+  const cabecalhos = { ...CORS, 'Cache-Control': 'public, max-age=2592000, immutable', 'X-Passa-Foto': '1' };
+  if ((pedido.semFundo || pedido.caixa) && env.IMAGES) {
+    try {
+      let t = env.IMAGES.input(origem.body);
+      if (pedido.semFundo) t = t.transform({ segment: 'foreground', width: 1400, height: 1400, fit: 'scale-down' });
+      if (pedido.caixa) t = t.transform({ trim: pedido.caixa });
+      const r = (await t.output({ format: 'image/webp', quality: 90 })).response();
+      return new Response(r.body, { status: 200, headers: { ...cabecalhos, 'Content-Type': 'image/webp' } });
+    } catch {
+      // cota ou falha da transformação: entrega a original (o corpo já foi lido, então busca de novo)
+      const de = await buscar();
+      if (!de?.ok) return new Response('a foto não carregou', { status: 502, headers: CORS });
+      return new Response(de.body, { status: 200, headers: { ...cabecalhos, 'Content-Type': tipo, 'X-Passa-Foto': 'original' } });
+    }
+  }
+  return new Response(origem.body, { status: 200, headers: { ...cabecalhos, 'Content-Type': tipo } });
+}
+
 export default {
   async fetch(req, env) {
+    if (new URL(req.url).pathname === '/foto') return passaFoto(req, env);
     if (req.method !== 'POST') return new Response('método não permitido', { status: 405 });
     if (!env.SEGREDO || req.headers.get('x-segredo') !== env.SEGREDO) return new Response('negado', { status: 401 });
     let corpo = {};

@@ -142,15 +142,8 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
   - `CENTRAL_URL=…/functions/v1/agente-ia node scripts/ops/testar-injecao.mjs` deu 7/7 rejeitados;
   - campanhas "Segunda-feira" e "Terça-feira", que antes caíam em erro, foram planejadas;
   - `conferir-site.mjs` encontrou "Central de Comando" no ar.
-- **P-27 🟥 Cópia das IMAGENS da pesquisa (F-264):** 13.996 imagens (8,49 GB) passariam da cota grátis do R2 (≈ US$ 0,06/mês). Com o orçamento liberado: `node scripts/ops/backup-pesquisa-marcas.mjs enviar` e depois `… verificar`.
-
-## 5. Ritual de fim de sessão (obrigatório para qualquer IA)
-
-1. Registrar a entrega em `docs/engineering/FINDINGS_LEDGER.md` (novo F-NN: pedido, causa, feito, prova, limite).
-2. Atualizar **este arquivo**:
-   - acrescentar a linha na tabela da seção 3;
-   - riscar, criar ou ajustar pendências na seção 4, mantendo a numeração (pendência resolvida vira "✅ resolvida em DD/MM (F-NN)").
-3. Regra nova do dono → `docs/DECISOES_DO_DONO.md`. Padrão novo de arte → `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md` e, se for de estilo, `dna.ts`.
-4. Testes, commit em português e publicação com `node scripts/ops/publicar-main.mjs`.
-
-*Última atualização: 08/11/2026, depois da F-270.*
+- **P-27 ⏸️ cópia das IMAGENS da pesquisa PAUSADA (F-264/F-271):** 12 mil de 13.996 enviadas (sobremidia-assets 7,84 GB), pausada a pedido do dono para não ocupar o R2 (total 13,24 GB, 3,24 GB acima do grátis, ≈ US$ 0,05/mês). Os originais seguem no SSD. Apagar a cópia (devolve o R2 ao grátis) depende da confirmação do dono.
+- **P-28 🟨 FOTO DO PRODUTO POR LINK (F-272), pronta no código:** o catálogo guarda só texto e o endereço da foto no site da marca; o passa-foto (Worker `sobremidia-tabloide-ia`, rota `/foto`) busca na hora, corta a sobra e entrega com CORS, sem guardar nada. O site só usa o link se o passa-foto responder; senão segue como antes.
+  - Falta publicar o Worker: `node scripts/ops/publicar-worker-ia.mjs` (barrado pela trava do Claude Code em 08/11/2026; o dono roda no próprio terminal).
+  - Depois: `node scripts/ops/catalogo-por-link.mjs converter --max=20` (ensaio), depois `converter --aplicar` (troca as 3.268 cópias de marca por link, conferindo cada uma; desfazer: `voltar`). As cópias do R2 (`catalogo/marcas`, 2,82 GB) só podem ser apagadas depois, com o dono, porque projetos antigos ainda apontam para elas.
+  - Limites: depende do site da marca no ar; 5.000 cortes diferentes por mês grátis (acima disso, a foto vem sem o corte); foto com fundo, enviada pelo cliente ou criada por IA continua guardada.

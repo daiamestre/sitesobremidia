@@ -10,6 +10,7 @@ import { lerBusca, ordenarOficiais, palavrasFortes, produtoExato, type ProdutoOf
 import { cortarMargens, finalizarRecorte, fotoParaInspecao, pngSemSobras } from './recorte';
 import { MENSAGEM_DO_DEFEITO } from './qualidadeRecorte';
 import { uploadToR2 } from '@/lib/r2Upload';
+import { fotoSemFundoPorLink } from './fotoPorLink';
 import { chaveDoProduto, ehNomeDoCodigo, type FonteImagem, type ImagemProduto, type ProdutoTabloide } from './parseProdutos';
 
 export interface CandidatoImagem extends ImagemProduto {
@@ -234,6 +235,11 @@ export async function prepararImagem(imagem: ImagemProduto, nome?: string): Prom
     return { ...imagem, url: publicUrl, recortada: true };
   };
   try {
+    // F-272: foto de fora (site da marca, banco de imagens) que já vem sem fundo: entra só o LINK, nada é guardado
+    if (imagem.fonte !== 'UPLOAD' && imagem.fonte !== 'IA') {
+      const link = await fotoSemFundoPorLink(imagem.url, (u) => fotoCarrega(u));
+      if (link) return { ...imagem, url: link, recortada: true };
+    }
     const semFundo = await pngSemSobras(imagem.url);
     if (semFundo) return await guardar(semFundo);
     const { png, motivo } = await recortarNaNuvem(imagem, nome);

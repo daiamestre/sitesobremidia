@@ -3230,3 +3230,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Tela:** `src/components/studioai/MeuEstilo.tsx` em `/studio/configuracoes`. O anunciante guarda o próprio estilo; o owner/ADM escolhe o cliente. Usa só `studio_preferencia_salvar` / `studio_preferencia_revogar`, e o botão fica travado sem o consentimento marcado. Se a função do banco não existir, mostra um aviso, não um erro. Teste: `src/tests/unit/meuEstilo271.test.ts`; no navegador, conta de teste, o aviso apareceu.
 - **Migração `20261362`:** a aplicação foi barrada de novo pela trava automática do Claude Code ("Production Deploy"). Ela não foi contornada, e liberar depende do dono (ver P-24).
 - **P-27:** `backup-pesquisa-marcas.mjs enviar` com as 13.996 imagens, autorizado pelo dono em 08/11/2026 ("fazer o que for preciso"). Resultado da verificação no ESTADO_DO_SISTEMA.
+
+### F-272 — Foto do produto POR LINK, sem guardar cópia (passa-foto) — PRONTO NO CÓDIGO, Worker aguardando publicação
+- **Pedido do dono:** o sistema deve achar a imagem exata do produto (nome, marca, peso) sem guardar as imagens no R2 nem no SSD.
+- **Medição:** R2 com 13,24 GB (storage 5,40, dos quais o catálogo ocupa 3,03 GB; assets 7,84 GB da cópia pausada da pesquisa). Das 40 fotos de marca testadas, 40 abriram e só 12 permitem uso direto (CORS); daí o passa-foto.
+- **Feito:**
+  - rota pública `GET /foto?u=&c=&s=1` no Worker: só sites da lista, só imagem, corte por Cloudflare Images, WebP, cache de 30 dias e a original se a transformação falhar;
+  - `fotoPorLink.ts`: `prepararImagem` tenta o link antes de guardar, só se o passa-foto responder;
+  - `catalogo-por-link.mjs` (hosts, converter com conferência de cada link e tamanho, voltar).
+- **Testes:** `src/tests/unit/fotoPorLink272.test.ts` (10) e os testes de encarte, Cartaz e fotos (2.309) passam.
+- **Ensaio:** foi achada a foto oficial de origem de 3.268 das 3.278 cópias de marca do catálogo.
+- **Pendente:** publicar o Worker (barrado pela trava do Claude Code) e depois `converter --aplicar`.
