@@ -184,6 +184,34 @@ export const ANALISE_DE_REFERENCIA = [
   'Resultado: recriar a MESMA estrutura e o mesmo estilo com a arte da SOBRE MÍDIA (Criador de Logos 3D, fundos em gradiente, produtos reais do cliente). Logo 3D ou arte de terceiros idêntica só a partir de arquivo enviado pelo dono.',
 ];
 
+/**
+ * F-259 — REFERÊNCIA DE FARMÁCIA: o mesmo vocabulário do mercado, com a paleta e as regras legais da farmácia.
+ * Base pronta no sistema: encarte "Ofertas de Farmácia – verde e azul" e palco "Ofertas de Farmácia (verde)".
+ */
+export const REFERENCIA_FARMACIA = {
+  paleta: ['verde farmácia #0a9a50 a #04693a', 'azul #2e7bff a #0a2f8f', 'branco limpo nos rodapés', 'amarelo #ffd21f só em detalhes e balões'],
+  elementos: ['cruz verde em 3D dentro de selo dourado', 'cápsulas bicolores flutuando (vermelha, verde, azul, amarela)', 'cruzes e cápsulas leves como textura', 'raios de luz suaves', 'pedestal branco e verde com friso dourado'],
+  titulos: ['OFERTAS DE FARMÁCIA', 'SAÚDE COM DESCONTO', 'FARMÁCIA EM OFERTA', 'CUIDE DA SUA SAÚDE'],
+  regras: [
+    'todo encarte, palco ou vídeo de farmácia mostra "A PERSISTIREM OS SINTOMAS, O MÉDICO DEVERÁ SER CONSULTADO" (Lei 9.294/1996, art. 7º, § 5º)',
+    'só remédio isento de prescrição; nunca remédio de receita, cigarro ou fórmula infantil',
+    'nunca prometer cura nem usar pessoa de jaleco recomendando remédio',
+    'embalagem só a vendida no Brasil, foto oficial da marca',
+  ],
+};
+
+/**
+ * F-240..F-259 — PADRÃO DOS ENCARTES E PALCOS OFICIAIS que já estão no sistema e são o MODELO para todo novo
+ * (detalhes e receitas: docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md).
+ */
+export const PADRAO_DOS_OFICIAIS = [
+  'Encarte oficial: fundo com a arte pronta, logo do encarte como camada trocável no topo, caixa "SUA LOGO AQUI" para a logo do cliente, duas áreas de produtos (lado de cada cor) com grade completa e inteligente (padrão 16, até 20; poucos produtos ficam grandes), rodapé com telefone e endereço em ícones; sai em 9:16, 16:9, 1:1, 4:5, A4 em pé, A4 deitado e A3 sem deformar a arte.',
+  'Cada produto: placa translúcida, foto inteira e sem fundo, nome em maiúsculas centralizado, balão de preço de UM objeto com R$, valor e centavos centralizados e o "DE" pequeno em cima; cada encarte tem o seu estilo de balão.',
+  'Palco (carrossel): um produto por vez, 8 s cada, produto com o pé no tampo do pedestal, nome em branco por cima (em pé) ou ao lado (deitado), balão amarelo redondo pulsando na lateral, botão pulsando no rodapé, transição deslizando; vira vídeo MP4.',
+  'Tudo editável ao toque: mover, girar, aumentar, trocar texto, fonte, cor, movimento, logo e produto.',
+  'Mercado: vermelho/azul/amarelo (Mega Oferta, Semana do Frango, Alerta de Oferta). Farmácia: verde/azul/branco (Ofertas de Farmácia), com o aviso legal dos remédios.',
+];
+
 /** Texto curto do DNA para o SISTEMA de qualquer agente/provedor (o resto vai por modalidade e segmento). */
 export function textoDoDna(): string {
   return [
@@ -194,5 +222,7 @@ export function textoDoDna(): string {
     `Hierarquia: ${MANUAL.hierarquia.join(' > ')}.`,
     `Acabamento: ${MANUAL.acabamento.join(' ')}`,
     `Referências do dono (imagem/vídeo): ${ANALISE_DE_REFERENCIA.join(' ')}`,
+    `Padrão dos encartes e palcos oficiais: ${PADRAO_DOS_OFICIAIS.join(' ')}`,
+    `Farmácia: ${REFERENCIA_FARMACIA.regras.join('; ')}.`,
   ].join('\n');
 }

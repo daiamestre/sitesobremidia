@@ -2,6 +2,20 @@
 
 > **Este arquivo é a fonte canônica de governança operacional do agente para o projeto SOBRE MÍDIA.** Toda alteração deve respeitar as regras abaixo. Em caso de conflito com instruções pontuais, prevalece a preservação de estrutura funcionando e o ciclo obrigatório.
 
+## 0. COMECE AQUI — MEMÓRIA DO SISTEMA (qualquer IA, IDE ou janela nova)
+
+O SOBRE MÍDIA guarda a própria memória no repositório, para que qualquer ferramenta saiba onde o trabalho parou:
+
+1. `node scripts/ops/onde-paramos.mjs`: ramo, commits, últimas entregas e pendências abertas (P-NN).
+2. `docs/ESTADO_DO_SISTEMA.md`: o que o sistema é, o que foi entregue, o que falta e como retomar cada pendência.
+3. `docs/DECISOES_DO_DONO.md`: regras já decididas pelo dono (não perguntar de novo; sempre em português do Brasil).
+4. `docs/MAPA_DO_PROJETO.md` (onde mexer) e `scripts/ops/README.md` (comandos).
+5. `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`: o padrão de encartes, palcos, logos e mídias (mercado e farmácia).
+
+**Ritual de fim de sessão:** registrar o F-NN em `docs/engineering/FINDINGS_LEDGER.md` e atualizar `docs/ESTADO_DO_SISTEMA.md` (entregas e pendências).
+
+Os atalhos para Cursor (`.cursor/rules/`), Copilot (`.github/copilot-instructions.md`), Gemini (`GEMINI.md`), Windsurf (`.windsurfrules`) e Claude (`CLAUDE.md`) apontam para cá.
+
 ## 1. PRESERVAÇÃO POR PADRÃO
 
 Tudo que já funciona é considerado **PROTEGIDO**. `src/contexts/AuthContext.tsx`, `RouteGuards.tsx`, `useRbac.ts`, `portalAccess.ts`, `App.tsx`, `CrmLayout.tsx`, `CustomerPortalLayout.tsx`, `DashboardSidebar`, `PlayerEngine.tsx`, `DevicePairing`, `Player Android`, `RLS`, `Supabase migrations`, `banco`, `perfil/role`, `Pontos de Exibição`, `Prospecção`, `Meu Perfil`, `Portal do Anunciante`, `painel Representante/Gestor`, `Owner/Workspace`, `Services/APIs/RPCs`, `Device Token`, `Pairing`, `Playlist`, `sincronização` — e qualquer módulo com comportamento validado — NÃO pode ser alterado por conveniência.

@@ -18,6 +18,8 @@ const linhas = [
   { tipo: 'dna', chave: 'dna', conteudo: { versao: dna.VERSAO_DNA, base: dna.BASE, identidade: dna.IDENTIDADE_DO_STUDIO, autoridade: dna.AUTORIDADE, proibido: dna.PROIBIDO, principios: dna.PRINCIPIOS } },
   { tipo: 'manual', chave: 'direcao-de-arte', conteudo: { versao: dna.VERSAO_DNA, ...dna.MANUAL, portoes_de_qualidade: dna.PORTOES_DE_QUALIDADE } },
   { tipo: 'regra', chave: 'modalidades', conteudo: { versao: dna.VERSAO_DNA, regras: dna.REGRAS, roteiros: dna.ROTEIROS, formatos: dna.FORMATOS_IMAGEM } },
+  // F-259: o padrão dos encartes e palcos oficiais (mercado e farmácia) entra na memória dos agentes
+  { tipo: 'manual', chave: 'padrao-encartes-e-palcos', conteudo: { versao: dna.VERSAO_DNA, oficiais: dna.PADRAO_DOS_OFICIAIS, mercado: dna.REFERENCIA_MERCADO, farmacia: dna.REFERENCIA_FARMACIA } },
   ...SEGMENTOS_DE_FABRICA.map((s) => ({ tipo: 'segmento', chave: s.id, conteudo: s })),
 ];
 
