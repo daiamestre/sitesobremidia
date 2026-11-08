@@ -8,6 +8,9 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import {
   PROVEDORES, brl, dataBR, ferramentas, hojeSP, instrucoes, situacaoDaCobranca, situacaoDaTela, tempoDesde, validarCobranca,
 } from '../_shared/agente/ferramentas.ts';
+// F-266 (MG-AUT-07): Central de Comando → Studio (produção real pela mesma função do banco da tela /studio/agentes)
+import { pedidoDaConversa, situacaoDaProducao, type ArgsCriarProducao } from '../_shared/agente/studio.ts';
+import { chaveDoPedido } from '../_shared/studio/contrato.ts';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 const json = (status: number, corpo: unknown) => new Response(JSON.stringify(corpo), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -15,7 +18,8 @@ const env = (k: string) => Deno.env.get(k) ?? '';
 
 interface Escopo { empresa: string; papel: string; admin: boolean; pode_cobrar: boolean }
 type Msg = { role: string; content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>; tool_call_id?: string };
-interface Ctx { usuario: SupabaseClient; srv: SupabaseClient; uid: string; e: Escopo; hoje: string; acoes: string[] }
+// falas = tudo o que a PESSOA escreveu (trava de preço inventado); auth = o login dela (repassado ao orquestrador)
+interface Ctx { usuario: SupabaseClient; srv: SupabaseClient; uid: string; e: Escopo; hoje: string; acoes: string[]; producoes: string[]; falas: string; auth: string }
 
 // ───────────────────────────────────────────── ferramentas (consultas com o login do usuário)
 async function nomesDosClientes(usuario: SupabaseClient, ids: string[]) {
@@ -138,9 +142,47 @@ async function proporCobranca(c: Ctx, a: { cliente_id?: string; valor?: number; 
   return { status: 'AGUARDANDO_CONFIRMACAO_DO_USUARIO', resumo };
 }
 
+// ───────────────────────────────────────────── Studio (MG-AUT-07): tudo com o LOGIN da pessoa; o banco decide o acesso
+const COLUNAS_PRODUCAO = 'id, titulo, estado, erro, tipo, formato, resultado';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function criarProducao(c: Ctx, a: ArgsCriarProducao) {
+  const r = pedidoDaConversa(a, c.falas);
+  if (r.perguntar.length) return { precisa_perguntar: r.perguntar, nada_foi_criado: true };
+  if (!r.pedido) return { erro: r.erros.join(' '), nada_foi_criado: true };
+  const { data: id, error } = await c.usuario.rpc('studio_criar_producao', { p_pedido: r.pedido, p_chave: await chaveDoPedido(c.uid, r.pedido) });
+  if (error || !id) return { erro: `O Studio recusou: ${error?.message ?? 'sem retorno'}`, nada_foi_criado: true };
+  c.producoes.push(String(id));
+  // avisa o orquestrador agora (com o login da pessoa); se falhar, o cron de 1 minuto pega a produção
+  try {
+    await fetch(`${env('SUPABASE_URL')}/functions/v1/studio-orquestrador`, { method: 'POST', signal: AbortSignal.timeout(8_000),
+      headers: { Authorization: c.auth, apikey: env('SUPABASE_ANON_KEY'), 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'cutucar', producao_id: id }) });
+  } catch { /* o cron continua */ }
+  const { data: p } = await c.usuario.from('studio_producoes').select(COLUNAS_PRODUCAO).eq('id', id).maybeSingle();
+  return { criada: true, ...situacaoDaProducao((p ?? { id: String(id), estado: 'recebido' }) as Parameters<typeof situacaoDaProducao>[0]),
+    produtos: r.pedido.produtos.map((x) => ({ nome: x.nome, preco_centavos: x.preco_centavos, preco_promo_centavos: x.preco_promo_centavos })) };
+}
+
+async function listarProducoes(c: Ctx, a: { limite?: number }) {
+  const { data, error } = await c.usuario.from('studio_producoes').select(COLUNAS_PRODUCAO).order('criado_em', { ascending: false })
+    .limit(Math.min(20, Math.max(1, Number(a.limite) || 10)));
+  if (error) return { erro: error.message };
+  for (const p of data ?? []) if (!c.producoes.includes(p.id as string)) c.producoes.push(p.id as string);
+  return { producoes: (data ?? []).map((p) => situacaoDaProducao(p as Parameters<typeof situacaoDaProducao>[0])) };
+}
+
+async function situacaoDeUma(c: Ctx, a: { id?: string }) {
+  if (!UUID.test(String(a.id ?? ''))) return { erro: 'Informe o id da produção (use listar_producoes).' };
+  const { data: p } = await c.usuario.from('studio_producoes').select(COLUNAS_PRODUCAO).eq('id', String(a.id)).maybeSingle();
+  if (!p) return { erro: 'Produção não encontrada (ou você não tem acesso a ela).' };
+  if (!c.producoes.includes(p.id as string)) c.producoes.push(p.id as string);
+  return situacaoDaProducao(p as Parameters<typeof situacaoDaProducao>[0]);
+}
+
 const EXECUTAR: Record<string, (c: Ctx, a: Record<string, unknown>) => Promise<unknown>> = {
   relatorio_telas: relatorioTelas, resumo_financeiro: resumoFinanceiro, listar_cobrancas: listarCobrancas,
   buscar_cliente: buscarCliente, oportunidades: (c) => oportunidades(c), propor_cobranca: proporCobranca,
+  criar_producao: (c, a) => criarProducao(c, a as ArgsCriarProducao), listar_producoes: listarProducoes, situacao_da_producao: situacaoDeUma,
 };
 
 // ───────────────────────────────────────────── modelo (com reservas)
@@ -231,7 +273,9 @@ serve(async (req) => {
   const srv = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'));
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* vazio */ }
-  const c: Ctx = { usuario, srv, uid: u.user.id, e, hoje: hojeSP(), acoes: [] };
+  const historicoBruto = Array.isArray(body.historico) ? body.historico as Array<{ role: string; content: string }> : [];
+  const falas = [...historicoBruto.filter((m) => m?.role === 'user').map((m) => String(m.content ?? '')), String(body.pergunta ?? '')].join('\n').slice(-12000);
+  const c: Ctx = { usuario, srv, uid: u.user.id, e, hoje: hojeSP(), acoes: [], producoes: [], falas, auth: req.headers.get('authorization') ?? '' };
   const acao = String(body.acao ?? '');
 
   if (acao === 'confirmar') return executarAcao(c, String(body.id ?? ''));
@@ -251,10 +295,13 @@ serve(async (req) => {
   const inicio = Date.now();
   const { data: perfil } = await usuario.from('usuarios').select('nome').eq('id', c.uid).maybeSingle();
   try {
-    const r = await perguntar(c, pergunta, Array.isArray(body.historico) ? body.historico as Array<{ role: string; content: string }> : [], String(perfil?.nome ?? ''));
+    const r = await perguntar(c, pergunta, historicoBruto, String(perfil?.nome ?? ''));
     await srv.from('agente_ia_registros').insert({ empresa_operadora_id: e.empresa, usuario_id: c.uid, pergunta, provedor: r.provedor, modelo: r.modelo, ferramentas: r.usadas, ms: Date.now() - inicio });
     const { data: acoes } = c.acoes.length ? await srv.from('agente_ia_acoes').select('id, tipo, resumo, status, criado_em').in('id', c.acoes) : { data: [] };
-    return json(200, { resposta: r.resposta, provedor: r.provedor, ferramentas: r.usadas, acoes: acoes ?? [] });
+    // produções citadas na resposta: lidas de novo COM O LOGIN da pessoa (cartões de acompanhamento na Central)
+    const { data: prods } = c.producoes.length ? await usuario.from('studio_producoes').select(COLUNAS_PRODUCAO).in('id', c.producoes.slice(0, 10)) : { data: [] };
+    return json(200, { resposta: r.resposta, provedor: r.provedor, ferramentas: r.usadas, acoes: acoes ?? [],
+      producoes: (prods ?? []).map((p) => situacaoDaProducao(p as Parameters<typeof situacaoDaProducao>[0])) });
   } catch (err) {
     const msg = String((err as Error)?.message ?? err).slice(0, 400);
     await srv.from('agente_ia_registros').insert({ empresa_operadora_id: e.empresa, usuario_id: c.uid, pergunta, erro: msg, ms: Date.now() - inicio });

@@ -53,7 +53,7 @@ async function segmentosDoBanco(srv: SupabaseClient, empresa: string): Promise<S
   return (data ?? []).sort((a, b) => (a.escopo === 'global' ? -1 : 1) - (b.escopo === 'global' ? -1 : 1)).map((x) => x.conteudo as Segmento);
 }
 
-async function registrar(srv: SupabaseClient, p: Producao, chave: string, r: Partial<RegistroAgente<unknown>> & { agente: string }, extra: Record<string, unknown> = {}) {
+async function registrar(srv: SupabaseClient, p: Producao, chave: string, r: Omit<Partial<RegistroAgente<unknown>>, 'agente'> & { agente: string }, extra: Record<string, unknown> = {}) {
   await srv.from('studio_etapas').upsert({
     producao_id: p.id, empresa_operadora_id: p.empresa_operadora_id, agente: r.agente, chave, plano_versao: p.plano_versao,
     provedor: (extra.provedor as string | undefined) ?? 'cloudflare-workers-ai', modelo: r.modelo ?? null, versao_diretriz: r.versao ?? null, entrada: r.entrada ?? null, saida: r.saida ?? null,

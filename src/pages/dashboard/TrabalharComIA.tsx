@@ -2,17 +2,23 @@
  * F-223 — "Trabalhar com IA": a pessoa pede em português (relatório de telas, cobranças, oportunidades…) e o agente da
  * SOBRE MÍDIA responde usando as ferramentas do sistema, com os modelos GRÁTIS (Groq → Google AI Studio → OpenRouter).
  * Ações como "criar cobrança" aparecem num cartão e só acontecem depois do "Confirmar".
+ * F-266 (MG-AUT-07): virou a CENTRAL DE COMANDO — também pede produções reais ao Studio (arte, vídeo, campanha) e mostra
+ * cada produção num cartão com a situação REAL lida do banco (com o login da pessoa), o que falta ela fazer e o link do Studio.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Check, Loader2, RotateCcw, Send, Sparkles, X } from 'lucide-react';
+import { Bot, Check, Clapperboard, ExternalLink, Loader2, RotateCcw, Send, Sparkles, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { Markdown } from '@/lib/markdownSimples';
 import { cn } from '@/lib/utils';
+import { situacaoDaProducao } from '../../../supabase/functions/_shared/agente/studio.ts';
 
-interface Mensagem { role: 'user' | 'assistant'; content: string; provedor?: string; ferramentas?: string[] }
+type ProducaoResumo = ReturnType<typeof situacaoDaProducao>;
+
+interface Mensagem { role: 'user' | 'assistant'; content: string; provedor?: string; ferramentas?: string[]; producoes?: ProducaoResumo[] }
 interface Acao { id: string; tipo: string; resumo: string; status: string; criado_em: string }
 
 const SUGESTOES = [
@@ -20,12 +26,46 @@ const SUGESTOES = [
   'Resumo financeiro deste mês',
   'Quais cobranças estão vencidas?',
   'Analise os dados e me mostre novas oportunidades de venda',
+  'Crie um vídeo de 15 segundos para a farmácia … divulgando …',
+  'Como estão as minhas produções do Studio?',
   'Crie uma cobrança de R$ 150,00 para a empresa … com vencimento dia …',
 ];
 const CHAVE = 'trabalhar-com-ia-conversa';
 const NOME_DA_FERRAMENTA: Record<string, string> = {
   relatorio_telas: 'telas', resumo_financeiro: 'financeiro', listar_cobrancas: 'cobranças', buscar_cliente: 'clientes', oportunidades: 'oportunidades', propor_cobranca: 'nova cobrança',
+  criar_producao: 'Studio (nova produção)', listar_producoes: 'Studio', situacao_da_producao: 'Studio',
 };
+const FINAIS = ['pronto', 'entregue', 'reprovado', 'erro', 'cancelado'];
+
+/** Cartão de uma produção do Studio: estado REAL, relido a cada 10 s enquanto não termina (nunca "pronto" antes da hora). */
+function CartaoProducao({ inicial }: { inicial: ProducaoResumo }) {
+  const q = useQuery({
+    queryKey: ['central-producao', inicial.id],
+    queryFn: async () => {
+      const { data } = await (supabase as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: Parameters<typeof situacaoDaProducao>[0] | null }> } } } })
+        .from('studio_producoes').select('id, titulo, estado, erro, tipo, formato, resultado').eq('id', inicial.id).maybeSingle();
+      return data ? situacaoDaProducao(data) : inicial;
+    },
+    initialData: inicial,
+    refetchInterval: (r) => (FINAIS.includes(r.state.data?.estado ?? '') ? false : 10_000),
+  });
+  const p = q.data ?? inicial;
+  const fim = FINAIS.includes(p.estado);
+  return (
+    <div className="mt-2 flex flex-col gap-2 rounded-xl border border-[#8A2EFF]/40 bg-[#22004A]/50 p-3 sm:flex-row sm:items-center" data-testid="central-producao">
+      <Clapperboard className="hidden h-5 w-5 shrink-0 text-[#B04DFF] sm:block" />
+      <div className="min-w-0 flex-1 text-sm">
+        <p className="truncate font-bold">{p.titulo || 'Produção do Studio'}</p>
+        <p className="text-xs text-slate-300">
+          <span className={cn('mr-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold', p.estado === 'pronto' || p.estado === 'entregue' ? 'bg-[#25D366]/20 text-[#25D366]' : p.estado === 'erro' || p.estado === 'reprovado' ? 'bg-rose-500/20 text-rose-300' : 'bg-[#FFD400]/15 text-[#FFD400]')}>
+            {!fim && <Loader2 className="h-3 w-3 animate-spin" />}agentes do Studio</span>
+          {p.situacao}{p.o_que_fazer ? <> · <b className="text-white">sua vez: {p.o_que_fazer}</b></> : null}{p.erro ? <> · {p.erro}</> : null}
+        </p>
+      </div>
+      <Button asChild size="sm" className="bg-[#5D1BFF] hover:bg-[#8A2EFF]"><Link to={p.abrir_no_studio} data-testid="central-abrir-studio"><ExternalLink className="mr-1.5 h-4 w-4" />Abrir no Studio</Link></Button>
+    </div>
+  );
+}
 
 async function chamar<T>(corpo: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('agente-ia', { body: corpo });
@@ -66,8 +106,8 @@ export default function TrabalharComIA() {
     setTexto('');
     setPensando(true);
     try {
-      const r = await chamar<{ resposta: string; provedor: string; ferramentas: string[]; acoes: Acao[] }>({ acao: 'perguntar', pergunta: p, historico });
-      setConversa((c) => [...c, { role: 'assistant', content: r.resposta || 'Sem resposta.', provedor: r.provedor, ferramentas: r.ferramentas }]);
+      const r = await chamar<{ resposta: string; provedor: string; ferramentas: string[]; acoes: Acao[]; producoes?: ProducaoResumo[] }>({ acao: 'perguntar', pergunta: p, historico });
+      setConversa((c) => [...c, { role: 'assistant', content: r.resposta || 'Sem resposta.', provedor: r.provedor, ferramentas: r.ferramentas, producoes: r.producoes ?? [] }]);
       if (r.acoes?.length) void qc.invalidateQueries({ queryKey: ['agente-ia-pendentes'] });
     } catch (e) {
       setConversa((c) => [...c, { role: 'assistant', content: `⚠️ ${(e as Error).message}` }]);
@@ -93,8 +133,8 @@ export default function TrabalharComIA() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl gradient-primary"><Bot className="h-6 w-6 text-white" /></div>
         <div className="mr-auto min-w-0">
-          <h1 className="text-xl font-black">Trabalhar com IA</h1>
-          <p className="text-xs text-muted-foreground">Peça relatórios, cobranças e análises. O agente usa os dados do sistema com o seu acesso; cobranças só são criadas depois do seu "Confirmar".</p>
+          <h1 className="text-xl font-black">Central de Comando <span className="text-sm font-semibold text-muted-foreground">· Trabalhar com IA</span></h1>
+          <p className="text-xs text-muted-foreground">Peça relatórios, cobranças, análises, artes e vídeos. O agente usa os dados do sistema com o seu acesso; cobranças só são criadas depois do seu "Confirmar" e as produções do Studio esperam a sua aprovação.</p>
         </div>
         {conversa.length > 0 && <Button variant="outline" size="sm" onClick={() => setConversa([])}><RotateCcw className="mr-1.5 h-4 w-4" />Nova conversa</Button>}
       </div>
@@ -118,6 +158,7 @@ export default function TrabalharComIA() {
               {m.provedor && (
                 <p className="mt-1.5 text-[10px] text-muted-foreground">via {m.provedor} (grátis){m.ferramentas?.length ? ` · consultou: ${[...new Set(m.ferramentas.map((f) => NOME_DA_FERRAMENTA[f] ?? f))].join(', ')}` : ''}</p>
               )}
+              {m.producoes?.map((p) => <CartaoProducao key={p.id} inicial={p} />)}
             </div>
           </div>
         ))}
