@@ -101,14 +101,15 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
 - **P-18 🟨** Vídeo-tabela de preços para TV; busca de lojas por CEP e segmento no portal de ofertas; foto pela câmera para produto sem cadastro.
 
 ### SOBRE MÍDIA Autônoma (Projeto Mestre, F-262 — detalhes em `docs/autonomia/SOBRE_MIDIA_AUTONOMIA_RELATORIO_MESTRE.md`)
-- **P-19 🟧 P0 segurança — códigos de pareamento abertos:** qualquer usuário logado lê e altera `device_pairing_codes` (regra `dpc_all_auth` com `true`; teste desfeito: anunciante alterou 6 de 6). É estrutura protegida (Player). Passos:
-  1. ler a definição viva das regras `dpc_*` e das funções `fn_request_pairing_code`, `fn_check_pairing_status` e `fn_link_device_to_screen`;
-  2. trocar pela regra "só a equipe da empresa dona da tela" e manter o anônimo só pelas funções;
-  3. `comparar-telas.mjs` e `contrato-player.mjs` antes e depois;
-  4. parear de verdade no emulador `TVBox_API25`;
-  5. repetir o teste desfeito: anunciante vê 0.
-- **P-20 🟧 P0 dados — pesquisa de marcas sem cópia:** `../marcas` (282 sites, 9.587 imagens) e `../marcas-v2` (116 sites, 4.409 imagens), com 2.483 marcas em `../marcas/lista/consolidado.json`, existem só neste computador. Copiar para uma pasta privada do R2 com um índice e conferir a contagem.
-- **P-21 🟧 P1 — função de assinatura antiga insegura:** `supabase/functions/contract-signature-flow` usa a chave mestra sem conferir quem chama. Não está publicada; o fluxo atual é `fn_assinar_contrato`. Apagar do repositório (ou exigir login) e nunca publicar como está.
+- **P-19 ✅ resolvida em 08/11/2026 (F-263): códigos de pareamento fechados.**
+  - A tabela não tem acesso direto; o vínculo exige a regra de "alterar tela" e registra recusa e vínculo em `security_logs`.
+  - O pareamento por código, que nunca completava, passou a funcionar (provado no navegador).
+  - Prova repetível: `node scripts/ops/sql.mjs @scripts/ops/teste-pareamento.sql | node scripts/ops/resultado-sql.mjs` (22 OK).
+- **P-20 🟨 PARCIAL (F-264): cópia da pesquisa de marcas.**
+  - Os 723 arquivos de dados (2.483 marcas, lotes dos 398 sites, comparações) estão ÍNTEGROS no R2 privado `sobremidia-assets/backups/pesquisa-marcas/`.
+  - 🟥 Faltam as 13.996 imagens (8,49 GB): passariam da cota grátis do R2 (já usa 5,40 GB de 10 GB), cerca de US$ 0,06/mês; depende do orçamento do dono.
+  - Com o orçamento liberado: `node scripts/ops/backup-pesquisa-marcas.mjs enviar` e depois `… verificar`.
+- **P-21 ✅ resolvida em 08/11/2026 (F-263):** a função antiga de assinatura (chave mestra sem login, nunca publicada) foi removida do repositório; o fluxo é `fn_assinar_contrato`.
 - **P-22 🟨 MG-AUT-07 Central de Comando:** dar ao `agente-ia` ("Trabalhar com IA") as ferramentas do Studio (`criar_producao` com o login do usuário, `listar_producoes`, `situacao_da_producao`), conforme a ADR-AUT-001 em `docs/autonomia/decisoes_de_arquitetura.jsonl`. Sem orquestrador novo.
 - **P-23 🟨 MG-AUT-08 encarte e "esta arte → vídeo" pelo agente:** ferramenta no `studio-orquestrador` que monta encarte oficial (`ENCARTES_OFICIAIS`) com preço por código e anima uma arte existente.
 - **P-24 🟨 MG-AUT-12 preferências por cliente:** tela e consentimento sobre `studio_conhecimento` (escopo cliente, função `studio_conhecimento_publicar`) e uso no Core ("use o mesmo estilo").

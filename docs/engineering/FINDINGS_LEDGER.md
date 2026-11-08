@@ -3109,3 +3109,31 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `.agents/memory/master_ledger.md` e `architecture_decisions.jsonl` estão fora do Git e parados em 11/09/2026.
 - **Decisão proposta (ADR-AUT-001):** a Central de Comando é a evolução do "Trabalhar com IA" com as ferramentas do Studio, sem um 3º orquestrador.
 - **Limite:** nada implementado além de documentos e teste. JARVIS, preferências por cliente, encarte pelo agente e trilha/voz estão pendentes.
+
+### F-263 — MG-AUT-09a: pareamento por código fechado + assinatura antiga removida (R-1, R-3) — FEITO e APLICADO no banco
+
+- **Situação anterior (provada):**
+  - `device_pairing_codes` tinha 4 regras abertas (`dpc_all_auth` para logado e `dpc_*_anon` para anônimo). Teste desfeito: o anunciante leu, alterou e **apagou** todos os códigos.
+  - `fn_link_device_to_screen` só exigia login, sem conferir a tela; qualquer logado ligava um aparelho a uma tela de outra empresa e recebia o token.
+  - A função também gravava a coluna `status`, que não existe em `devices`, e usava `ON CONFLICT (identity_hash)` sem chave única. O pareamento por código **nunca completava** (37 aparelhos, 0 com `screen_token`).
+- **Feito (migração `20261361_pareamento_seguro.sql`, receita `migracao-segura`):**
+  - tabela sem acesso direto (regras e permissões retiradas); o aparelho segue só pelas funções;
+  - o vínculo exige a mesma regra de "alterar tela" (`fn_player_can_access_screen` + `fn_perfil_sem_gestao_de_telas`);
+  - recusa grava `ACCESS_DENIED` (acao=pareamento) e vínculo grava `DEVICE_PAIRED` (valor novo e aditivo na lista de `security_logs`);
+  - a gravação em `devices` foi corrigida (atualiza ou cria).
+  - `supabase/functions/contract-signature-flow` (chave mestra sem login, nunca publicada, órfã desde a F-02) foi removida; o fluxo continua em `fn_assinar_contrato` (18 assinaturas).
+- **Provas:**
+  - `scripts/ops/teste-pareamento.sql`: antes 12 falhas; ensaio com migração 22/22; depois de aplicar 22/22 em produção (anônimo, anunciante, cliente, gestor, dono de outra empresa, dono, ADMIN não dono, gestor na própria tela, código inválido, usado e expirado, outro aparelho, auditoria);
+  - telas idênticas (`comparar-telas`) e CONTRATO DO PLAYER 5.7.10 ÍNTEGRO antes e depois;
+  - Player Android: 364 testes unitários, 0 falhas;
+  - **no navegador**: o aparelho pediu código 370817, o dono (conta de teste) vinculou na "Tela Homolog B", o aparelho recebeu tela + token de 64 caracteres e abriu o player (aparelho de teste apagado depois);
+  - isolamento entre clientes refeito: 0 vazamentos;
+  - teste `src/tests/unit/segurancaPareamento263.test.ts` + 57 testes de assinatura e contratos.
+- **Limite:** o Player Android pareia por login (`fn_device_bind`) e não usa código, por isso o emulador não foi necessário (contrato do Player e 364 testes cobrem). Evidências em `docs/engineering/evidence/F-263_pareamento/`.
+
+### F-264 — MG-AUT-09a: cópia da pesquisa de marcas no R2 PRIVADO (R-2) — PARCIAL (dados íntegros; imagens bloqueadas por orçamento)
+
+- **Inventário (`scripts/ops/backup-pesquisa-marcas.mjs inventario`):** 14.719 arquivos (13.996 imagens), 8,49 GB (`marcas` 10.188 e `marcas-v2` 4.531); conteúdos únicos 10.234 (6,49 GB); SHA-256 e MD5 de cada arquivo em `../backup-pesquisa-marcas/inventario.jsonl`.
+- **Destino:** bucket `sobremidia-assets` (PRIVADO: sem r2.dev e sem domínio, conferido pela API Cloudflare; estava vazio e sem uso), pasta `backups/pesquisa-marcas/`, mesma estrutura e nomes. O bucket público `sobremidia-storage` não foi usado.
+- **Copiado:** os 723 arquivos de dados (listas: `consolidado.json` com 2.483 marcas, lotes dos 398 sites, comparações, filas, auditorias e relatórios, 12 MB), com MD5 conferido pelo R2 no envio e SHA-256 no metadado. Verificação: **723/723, 0 ausentes, 0 divergentes, ÍNTEGRO**; a 2ª rodada enviou 0 (retomada).
+- **Bloqueado:** as 13.996 imagens (8,49 GB). O R2 já usa 5,40 GB, e a cota grátis é de 10 GB; a cópia completa passaria para a faixa paga (≈ US$ 0,06/mês). Precisa de autorização de orçamento do dono (ou de outro destino privado), e depois basta `node scripts/ops/backup-pesquisa-marcas.mjs enviar && … verificar`.
