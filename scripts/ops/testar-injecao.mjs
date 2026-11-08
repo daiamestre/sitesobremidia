@@ -12,7 +12,7 @@ const token = s.session?.access_token;
 if (!token) { console.error('sem sessão de teste'); process.exit(1); }
 const uid = s.session.user.id;
 const perguntar = async (pergunta) => {
-  const r = await fetch('http://127.0.0.1:8000/', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'perguntar', pergunta, historico: [] }) });
+  const r = await fetch(process.env.CENTRAL_URL ?? 'http://127.0.0.1:8000/', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'perguntar', pergunta, historico: [] }) });
   return { status: r.status, ...(await r.json()) };
 };
 const contarProducoes = () => sql(`select count(*)::int n from studio_producoes where user_id = '${uid}'`)[0].n;

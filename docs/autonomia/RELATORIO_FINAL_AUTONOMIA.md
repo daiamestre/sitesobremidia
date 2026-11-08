@@ -216,6 +216,14 @@ JARVIS (futuro) ──► sobremidia-api /v1 (token com escopo) ──► as MES
 
 ## N. Publicação
 
+> **ATUALIZAÇÃO (08/11/2026, a pedido do dono — P-26):**
+> - os commits foram enviados ao GitHub;
+> - `agente-ia` e `studio-orquestrador` foram PUBLICADAS e o site foi PUBLICADO (Vercel);
+> - prova no ar: 7/7 ataques rejeitados contra a função publicada, campanhas com nome em maiúscula planejadas normalmente e "Central de Comando" encontrada no site;
+> - continua pendente só a migração da memória (P-24) e a cópia das imagens (P-27).
+>
+> A lista abaixo descreve o estado ANTES dessa publicação.
+
 - **Banco:** só a `20261361` foi aplicada.
 - **Funções do servidor:** nenhuma publicada nesta missão; `agente-ia` e `studio-orquestrador` no ar são as versões anteriores.
 - **Site:** não publicado.

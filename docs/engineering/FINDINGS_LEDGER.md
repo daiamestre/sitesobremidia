@@ -3219,3 +3219,9 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `deno check` limpo;
   - bateria completa: 232 arquivos, 2.296 testes, 0 falhas. A 1ª rodada pegou 4 falhas causadas por esta missão (`key` na `PastaPage` mudava o texto que 4 testes conferem); foram corrigidas voltando as linhas originais, sem mexer nos testes.
 - **Auditoria final:** 238/238 tabelas com RLS, nenhuma regra aberta de escrita, nenhuma função privilegiada sem `search_path`, e nenhuma ferramenta nova da Central usa a chave de serviço.
+- **Publicação (08/11/2026, a pedido do dono, P-26):**
+  - 8 commits enviados (`publicar-main.mjs`, publicação 4/12 do dia);
+  - `agente-ia` e `studio-orquestrador` publicadas no Supabase;
+  - site publicado na Vercel; `conferir-site` encontrou "Central de Comando" no ar.
+  - **Prova contra a função PUBLICADA:** `testar-injecao.mjs` 7/7 rejeitados (evidência em `docs/engineering/evidence/F-269_ataques_central_NO_AR.txt`). As produções de teste "Farmácia Teste Laço - Segunda-feira/Terça-feira" foram planejadas (antes da correção do `validarPlano` caíam em erro), e o caso "preço inventado" foi criado SEM preço.
+  - Pendentes: P-24 (aplicar a migração da memória) e P-27 (imagens da pesquisa).

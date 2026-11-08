@@ -50,7 +50,7 @@ Quem usa Claude Code tem as receitas prontas em `.claude/skills/` (deploy-produc
 - 7/7 ataques rejeitados;
 - contrato do JARVIS.
 
-As funções agente-ia e studio-orquestrador e o site com essas mudanças **ainda não foram publicados** (P-26) |
+Publicado no ar em 08/11/2026 (P-26); falta só aplicar a memória de estilo (P-24) |
 | F-262 | 08/11/2026 | **Projeto Mestre "SOBRE MÍDIA Autônoma" — auditoria (MG-AUT-01) e memória (MG-AUT-02)**: relatório mestre com evidências, registro de agentes, provedores, contrato do JARVIS, decisões de arquitetura, teste de isolamento (0 vazamentos em 8 perfis) e 2 riscos P0 achados (P-19, P-20) |
 | F-261 | 08/11/2026 | **Studio de vídeo por agentes no ar**: migrações aplicadas (Player 5.7.10 íntegro), memória criativa semeada, orquestrador publicado com tarefa de 1 minuto, rota `/studio/agentes` ("Vídeo por agentes"), segmento **Farmácia** próprio no Creative Core, prévia das cenas corrigida e segredo da montagem gravado: vídeo MP4 montado e aprovado de ponta a ponta (P-06 resolvida) |
 | F-260 | 08/11/2026 | **Memória do sistema no repositório**: este arquivo, as decisões do dono, o padrão de encartes e palcos, o comando `onde-paramos`, as skills `retomar-trabalho` e `encartes-e-palcos`, os atalhos para outras IAs e IDEs e o DNA dos agentes do Studio |
@@ -121,8 +121,8 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
   - 🟥 Faltam as 13.996 imagens (8,49 GB): passariam da cota grátis do R2 (já usa 5,40 GB de 10 GB), cerca de US$ 0,06/mês; depende do orçamento do dono.
   - Com o orçamento liberado: `node scripts/ops/backup-pesquisa-marcas.mjs enviar` e depois `… verificar`.
 - **P-21 ✅ resolvida em 08/11/2026 (F-263):** a função antiga de assinatura (chave mestra sem login, nunca publicada) foi removida do repositório; o fluxo é `fn_assinar_contrato`.
-- **P-22 ✅ no código (F-266):** a Central de Comando cria, lista e acompanha produções reais do Studio. Foi provada com a função local, ligada ao banco real. Para entrar no ar: P-26.
-- **P-23 ✅ no código (F-267):** `montar_encarte` monta o encarte ou palco oficial com os preços escritos pela pessoa, e `animar_arte` transforma uma arte em vídeo (MP4 1920×1080 provado). Para entrar no ar: P-26. Não há renderização do encarte no servidor; a composição é no navegador.
+- **P-22 ✅ no código (F-266):** a Central de Comando cria, lista e acompanha produções reais do Studio. No ar desde 08/11/2026 (P-26).
+- **P-23 ✅ no código (F-267):** `montar_encarte` monta o encarte ou palco oficial com os preços escritos pela pessoa, e `animar_arte` transforma uma arte em vídeo (MP4 1920×1080 provado). No ar desde 08/11/2026. Não há renderização do encarte no servidor; a composição é no navegador.
 - **P-24 🟥 PARCIAL (F-268): memória de estilo com consentimento.**
   - Código e Central prontos; ensaio 14/14.
   - Falta APLICAR a migração `supabase/migrations/20261362_preferencias_do_cliente.sql`: a trava da ferramenta exige a autorização do dono.
@@ -132,12 +132,15 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
   - provedores unificados (F-265) e ataques 7/7 (F-269) feitos;
   - injeção por imagem ou anexo não testada;
   - JARVIS: contrato completo, integração aguardando o JARVIS existir (F-270).
-- **P-26 🟥 PUBLICAR o que foi feito em F-265..F-270** (a missão não autorizou publicar). Na ordem:
-  1. `npx supabase functions deploy agente-ia --project-ref bhwsybgsyvvhqtkdqozb --no-verify-jwt`;
-  2. `npx supabase functions deploy studio-orquestrador --project-ref bhwsybgsyvvhqtkdqozb --no-verify-jwt` (leva a correção do `validarPlano`; sem ela, campanha com nome em maiúscula cai em erro);
-  3. `node scripts/ops/publicar-main.mjs` (site: Central de Comando, link do encarte, arte → vídeo);
-  4. conferir com `node scripts/ops/testar-injecao.mjs` apontando para a função no ar (`CENTRAL_URL`).
-  Antes disso, os commits locais precisam ser enviados ao GitHub.
+- **P-26 ✅ publicada em 08/11/2026, a pedido do dono:**
+  - commits enviados (release e main);
+  - `agente-ia` e `studio-orquestrador` publicadas;
+  - site no ar com a Central de Comando, o encarte pelo link e a arte em vídeo.
+
+  Prova no ar:
+  - `CENTRAL_URL=…/functions/v1/agente-ia node scripts/ops/testar-injecao.mjs` deu 7/7 rejeitados;
+  - campanhas "Segunda-feira" e "Terça-feira", que antes caíam em erro, foram planejadas;
+  - `conferir-site.mjs` encontrou "Central de Comando" no ar.
 - **P-27 🟥 Cópia das IMAGENS da pesquisa (F-264):** 13.996 imagens (8,49 GB) passariam da cota grátis do R2 (≈ US$ 0,06/mês). Com o orçamento liberado: `node scripts/ops/backup-pesquisa-marcas.mjs enviar` e depois `… verificar`.
 
 ## 5. Ritual de fim de sessão (obrigatório para qualquer IA)
