@@ -54,7 +54,10 @@ if (modo === 'preparar') {
     // F-272 (dono, 08/11/2026): a foto entra POR LINK (passa-foto), sem cópia no R2; a foto baixada fica só no PC.
     // --copia mantém o jeito antigo (envia ao R2). Site da marca fora da lista do passa-foto: rodar catalogo-por-link.mjs hosts e publicar o worker.
     let url;
-    if (COPIA) {
+    if (p.link) {
+      // F-274: foto que tinha fundo, recortada pelo passa-foto e aprovada na inspeção (marca-recortar-link.mjs)
+      url = p.link;
+    } else if (COPIA) {
       const chave = `catalogo/marcas/${pastaDaMarca}/${p.final}`;
       await enviar(chave, fs.readFileSync(`${pasta}/pronto/${p.final}`));
       url = `${R2_PUBLICO}${chave}`;

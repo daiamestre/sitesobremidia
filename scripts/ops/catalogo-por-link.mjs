@@ -53,6 +53,8 @@ const MAX = Number((process.argv.find((a) => a.startsWith('--max=')) ?? '').slic
 if (modo === 'hosts') {
   const hosts = new Set();
   for (const m of marcasDaPesquisa()) for (const p of m.produtos) { try { hosts.add(new URL(p.url).hostname); } catch { /* sem foto */ } }
+  // F-274: fotos com fundo das lojas oficiais (recorte pelo passa-foto)
+  for (const m of marcasDaPesquisa()) { const cf = path.join(m.pasta, 'com-fundo.json'); if (fs.existsSync(cf)) for (const p of JSON.parse(fs.readFileSync(cf, 'utf8'))) { try { hosts.add(new URL(p.url).hostname); } catch { /* sem foto */ } } }
   const lista = [...hosts].sort();
   const t = fs.readFileSync(WORKER, 'utf8');
   const novo = t.replace(/(\/\/ <<HOSTS[^\n]*\n)[\s\S]*?(\/\/ HOSTS>>)/, `$1const HOSTS = ${JSON.stringify(lista, null, 0).replace(/","/g, '", "')};\n$2`);

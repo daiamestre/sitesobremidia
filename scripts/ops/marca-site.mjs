@@ -25,18 +25,26 @@ if (!raiz) { console.log('RESULTADO site não abriu'); process.exit(0); }
 const host = new URL(raiz).hostname;
 
 const robots = (await ler(`${raiz}/robots.txt`))?.texto ?? '';
+// F-274: regras do grupo "User-agent: *" com * e $ como no padrão do robots.txt. Antes, "Disallow: /*.atom" virava "/"
+// e o site inteiro era tratado como proibido.
 const proibidos = [];
 {
-  let vale = false;
+  let vale = false, emGrupo = false;
   for (const l of robots.split(/\r?\n/)) {
-    const m = l.match(/^\s*(user-agent|disallow)\s*:\s*(.*?)\s*$/i);
+    const m = l.replace(/#.*/, '').match(/^\s*(user-agent|disallow|allow)\s*:\s*(.*?)\s*$/i);
     if (!m) continue;
-    if (m[1].toLowerCase() === 'user-agent') vale = m[2] === '*';
-    else if (vale && m[2]) proibidos.push(m[2].replace(/\*.*$/, ''));
+    const k = m[1].toLowerCase();
+    if (k === 'user-agent') { if (!emGrupo) vale = false; emGrupo = true; if (m[2] === '*') vale = true; continue; }
+    emGrupo = false;
+    if (vale && k === 'disallow' && m[2]) {
+      const fim = m[2].endsWith('$');
+      const corpo = (fim ? m[2].slice(0, -1) : m[2]).replace(/[.+?^{}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+      proibidos.push(new RegExp(`^${corpo}${fim ? '$' : ''}`));
+    }
   }
 }
-if (proibidos.includes('/')) { console.log('RESULTADO robots.txt proíbe a leitura'); process.exit(0); }
-const liberado = (u) => { const p = new URL(u).pathname; return !proibidos.some((d) => d && p.startsWith(d)); };
+const liberado = (u) => { const x = new URL(u); const p = x.pathname + x.search; return !proibidos.some((re) => re.test(p)); };
+if (!liberado(`${raiz}/`)) { console.log('RESULTADO robots.txt proíbe a leitura'); process.exit(0); }
 
 const NAO_PRODUTO = /\/(categoria|category|tag|author|receitas?|promocoes?|blog|noticias?|fale-conosco|contato|sobre|institucional|a-marca|quem-somos|historia|politica|privacidade|termos|trabalhe|sac|wp-|feed|page\/|carrinho|cart|checkout|minha-conta|login)/i;
 const paginas = new Set();
