@@ -19,6 +19,7 @@ export const FOTOS_PRONTAS = new Set<string>([
   'horti-feira',
   'acougue-picanha',
   'acougue-costela',
+  'acougue-frango',
   'acougue-kit',
   'acougue-linguica',
   'burger-duplo',

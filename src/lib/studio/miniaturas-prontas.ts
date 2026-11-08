@@ -8,6 +8,7 @@ export const MINIATURAS_PRONTAS: Record<string, { h: string; v: string }> = {
   'academia-personal': { h: 'd554728d', v: 'fba95d35' },
   'academia-plano': { h: '6ed76627', v: 'dac7bd3b' },
   'acougue-costela': { h: '5519d6d9', v: '1883be6a' },
+  'acougue-frango': { h: '8d71049f', v: 'd9a7ea79' },
   'acougue-kit-churrasco': { h: 'e715b5c6', v: '2e041771' },
   'acougue-linguica': { h: '387d22a3', v: 'adf6d513' },
   'acougue-picanha': { h: '071e3926', v: 'a8054453' },
