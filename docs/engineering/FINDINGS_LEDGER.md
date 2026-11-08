@@ -3225,3 +3225,8 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - site publicado na Vercel; `conferir-site` encontrou "Central de Comando" no ar.
   - **Prova contra a função PUBLICADA:** `testar-injecao.mjs` 7/7 rejeitados (evidência em `docs/engineering/evidence/F-269_ataques_central_NO_AR.txt`). As produções de teste "Farmácia Teste Laço - Segunda-feira/Terça-feira" foram planejadas (antes da correção do `validarPlano` caíam em erro), e o caso "preço inventado" foi criado SEM preço.
   - Pendentes: P-24 (aplicar a migração da memória) e P-27 (imagens da pesquisa).
+
+### F-271 — P-24 tela "Meu estilo" no Studio e P-27 cópia das imagens da pesquisa — FEITO (migração da memória ainda barrada pela trava)
+- **Tela:** `src/components/studioai/MeuEstilo.tsx` em `/studio/configuracoes`. O anunciante guarda o próprio estilo; o owner/ADM escolhe o cliente. Usa só `studio_preferencia_salvar` / `studio_preferencia_revogar`, e o botão fica travado sem o consentimento marcado. Se a função do banco não existir, mostra um aviso, não um erro. Teste: `src/tests/unit/meuEstilo271.test.ts`; no navegador, conta de teste, o aviso apareceu.
+- **Migração `20261362`:** a aplicação foi barrada de novo pela trava automática do Claude Code ("Production Deploy"). Ela não foi contornada, e liberar depende do dono (ver P-24).
+- **P-27:** `backup-pesquisa-marcas.mjs enviar` com as 13.996 imagens, autorizado pelo dono em 08/11/2026 ("fazer o que for preciso"). Resultado da verificação no ESTADO_DO_SISTEMA.

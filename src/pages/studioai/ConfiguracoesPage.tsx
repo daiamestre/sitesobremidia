@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bot, Coins, Gift, Loader2, PlayCircle, Receipt, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { PagamentoCreditos } from '@/components/studioai/PagamentoCreditos';
+import { MeuEstilo } from '@/components/studioai/MeuEstilo';
 import { playlistClienteService } from '@/modules/crm/services/playlistCliente.service';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -48,6 +49,9 @@ export default function ConfiguracoesPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6" data-testid="studio-configuracoes">
       <h1 className="flex items-center gap-2 text-2xl font-black text-white"><Settings className="h-6 w-6 text-[#B04DFF]" />Créditos e configurações</h1>
+
+      {/* P-24 (F-271): estilo guardado com consentimento — o próprio anunciante ou owner/ADM escolhendo o cliente */}
+      {(admin || !!saldo.data?.cliente) && <MeuEstilo admin={admin} clienteProprio={saldo.data?.cliente ?? null} />}
 
       {anunciante && (
         <section className={caixa}>

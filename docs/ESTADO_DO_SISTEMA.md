@@ -127,7 +127,8 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
   - Código e Central prontos; ensaio 14/14.
   - Falta APLICAR a migração `supabase/migrations/20261362_preferencias_do_cliente.sql`: a trava da ferramenta exige a autorização do dono.
   - Depois, `node scripts/ops/sql.mjs @scripts/ops/teste-preferencias.sql | node scripts/ops/resultado-sql.mjs` tem de dar 14 OK.
-  - Tela própria no Studio para o anunciante: pendente.
+  - ✅ Tela "Meu estilo" / "Estilo do cliente" pronta (F-271) em /studio/configuracoes: guarda só com consentimento, desliga e apaga. Enquanto a migração não estiver aplicada, mostra "A memória de estilo está sendo liberada" em vez de erro (provado no navegador).
+  - A aplicação da migração foi barrada DE NOVO pela trava automática do Claude Code ("Production Deploy") em 08/11/2026, mesmo com a autorização total do dono. Para liberar: o dono roda o comando acima no próprio terminal ou libera a regra de permissão do Bash para `node scripts/ops/sql.mjs` nas configurações do Claude Code.
 - **P-25 🟨 PARCIAL:**
   - provedores unificados (F-265) e ataques 7/7 (F-269) feitos;
   - injeção por imagem ou anexo não testada;
