@@ -3241,3 +3241,11 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Testes:** `src/tests/unit/fotoPorLink272.test.ts` (10) e os testes de encarte, Cartaz e fotos (2.309) passam.
 - **Ensaio:** foi achada a foto oficial de origem de 3.268 das 3.278 cópias de marca do catálogo.
 - **Pendente:** publicar o Worker (barrado pela trava do Claude Code) e depois `converter --aplicar`.
+
+### F-273 — Catálogo por link no ar e missão de Pernambuco (08/11/2026)
+- **Passa-foto publicado:** 3.180 das 3.268 cópias de marca agora vêm por link, com média de 116 a 264 KB por foto, contra cerca de 830 KB da cópia. As 268 falhas da 1ª rodada foram 503 dos sites (166), arquivo local ausente (40) e casos isolados; na 2ª rodada passaram 180.
+- **Cópia de segurança da pesquisa:** apagada do R2 (12.194 fotos, 7,82 GB), a pedido do dono; R2 em cerca de 5,4 GB.
+- **Gravação:** `marca-oficial.mjs gravar` passou a ser por link por padrão (`--copia` mantém o envio ao R2); o novo `marca-gravar-grupo.mjs` grava um site com várias marcas, cada item com a sua.
+- **Defeito achado:** slugs repetidos (uva, tangerina, tradicional, 51-ouro) faziam a recusa de um item derrubar outro; os slugs passaram a ser únicos (`-n<i>`).
+- **Conferência:** a olho, nas folhas, com nome corrigido pela embalagem.
+- **Novos produtos por link:** Masterboi, Natto, Polilac, cafés 3corações, Ajinomoto (Sazón, MID, Vono e outras), 51, Camil e Minu, cerca de 300 nomes.

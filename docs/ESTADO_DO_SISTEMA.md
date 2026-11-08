@@ -142,8 +142,13 @@ Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria pla
   - `CENTRAL_URL=…/functions/v1/agente-ia node scripts/ops/testar-injecao.mjs` deu 7/7 rejeitados;
   - campanhas "Segunda-feira" e "Terça-feira", que antes caíam em erro, foram planejadas;
   - `conferir-site.mjs` encontrou "Central de Comando" no ar.
-- **P-27 ⏸️ cópia das IMAGENS da pesquisa PAUSADA (F-264/F-271):** 12 mil de 13.996 enviadas (sobremidia-assets 7,84 GB), pausada a pedido do dono para não ocupar o R2 (total 13,24 GB, 3,24 GB acima do grátis, ≈ US$ 0,05/mês). Os originais seguem no SSD. Apagar a cópia (devolve o R2 ao grátis) depende da confirmação do dono.
-- **P-28 🟨 FOTO DO PRODUTO POR LINK (F-272), pronta no código:** o catálogo guarda só texto e o endereço da foto no site da marca; o passa-foto (Worker `sobremidia-tabloide-ia`, rota `/foto`) busca na hora, corta a sobra e entrega com CORS, sem guardar nada. O site só usa o link se o passa-foto responder; senão segue como antes.
-  - Falta publicar o Worker: `node scripts/ops/publicar-worker-ia.mjs` (barrado pela trava do Claude Code em 08/11/2026; o dono roda no próprio terminal).
-  - Depois: `node scripts/ops/catalogo-por-link.mjs converter --max=20` (ensaio), depois `converter --aplicar` (troca as 3.268 cópias de marca por link, conferindo cada uma; desfazer: `voltar`). As cópias do R2 (`catalogo/marcas`, 2,82 GB) só podem ser apagadas depois, com o dono, porque projetos antigos ainda apontam para elas.
-  - Limites: depende do site da marca no ar; 5.000 cortes diferentes por mês grátis (acima disso, a foto vem sem o corte); foto com fundo, enviada pelo cliente ou criada por IA continua guardada.
+- **P-27 ✅ resolvida em 08/11/2026 (pedido do dono):** as 12.194 fotos da cópia de segurança da pesquisa foram APAGADAS do R2 (7,82 GB); ficam só os 725 arquivos de dados. As fotos originais estão no PC (../marcas e ../marcas-v2). O R2 voltou a cerca de 5,4 GB, dentro dos 10 GB grátis.
+- **P-28 ✅ FOTO DO PRODUTO POR LINK no ar (F-272/F-273):**
+  - o passa-foto foi publicado (Worker `sobremidia-tabloide-ia`, rota `/foto`, 127 sites permitidos);
+  - `catalogo-por-link.mjs converter --aplicar`: 3.180 das 3.268 cópias de marca do catálogo agora vêm por link (as 88 restantes ficam com a cópia; desfazer: `voltar`). As cópias do R2 (`catalogo/marcas`, 2,82 GB) NÃO foram apagadas: projetos antigos ainda apontam para elas;
+  - marca nova entra SEMPRE por link: `marca-oficial.mjs gravar` (padrão link; `--copia` envia ao R2) e `marca-gravar-grupo.mjs` (site com várias marcas). Marca nova fora da lista: `catalogo-por-link.mjs hosts` + `publicar-worker-ia.mjs`.
+- **P-29 🟨 MISSÃO CATÁLOGO — Pernambuco primeiro (F-273), em andamento:**
+  - em 08/11/2026 entraram por link: Masterboi 74, Natto 88, Polilac 1, cafés do grupo 3corações (Santa Clara, Divinópolis, Bandeira, Amigo, Manaus, Gerônymo, Bangu, Betania, Cuca, Toko), Ajinomoto (Sazón 26, MID 16, Vono 16, Sabor a Mi, Aji-Sal, Satis, Hondashi), 51 (7), Camil 13 e Minu 12;
+  - sites confirmados ficam em `../marcas/lista/sites.json` (origem "F-273"); leitura: `marca-lote.mjs ../marcas 0 400`, depois `marca-preparar-lote.mjs ../marcas`; a conferência é sempre feita olhando as folhas `rev*.png`, e o NOME é corrigido pela embalagem (páginas de linha, de outra marca ou repetidas são recusadas);
+  - sem foto aproveitável: Betânia (robots.txt proíbe), Indaiá, Matuta, Emoções, Raymundo da Fonte, Maratá, Petribu (só foto com fundo ou sem página de produto); próximo passo: tirar fundo pelo passa-foto (s=1) com a inspeção de qualidade;
+  - o painel "Marcas do Catálogo Sobre Mídia" (artifact) mostra a situação de cada marca.
