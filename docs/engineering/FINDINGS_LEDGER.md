@@ -3333,3 +3333,7 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `EditorPage.tsx`: ferramentas na lateral direita a partir de 540 px (em pé) e 700 px (deitado) e o mesmo painel da logo.
   - Imagens ganham "Cor (tom)" (`matiz`), balão de preço ganha "Borda nos números" (`contornoValor`).
 - **Prova:** navegador 800×1280 (tablet em pé): tocar em OFERTAS abre o painel; OFERTAS → PROMOÇÃO e "DE FARMÁCIA" separado em dois textos na hora; botão abre o editor do botão; teste `studioLogoEditavel288.test.ts`.
+
+### F-289 — Foto com fundo branco no palco (cota da Cloudflare esgotada) (09/11/2026)
+- **Defeito (dono, print do Palco – Padaria):** o Bolo de Coco Seven Boys aparecia num quadrado branco. O link pede a foto sem fundo (s=1), mas a cota da Cloudflare Images acabou (volta 01/12) e o passa-foto devolve a original; o recorte no navegador só rodava para foto marcada como "recortada" no catálogo.
+- **Correção (`imagens.ts`):** toda foto que pede "sem fundo" é conferida e, se chegou com fundo, recortada no navegador (fundo liso ou o Removedor SOBRE MÍDIA, com a mesma inspeção); o recorte fica lembrado no aparelho (`sm-recortes-v1`) para não refazer a cada abertura. Prova: palco da padaria com o bolo recortado sobre o pedestal.

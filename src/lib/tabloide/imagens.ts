@@ -250,6 +250,21 @@ async function recortarNoNavegador(url: string, imagem: ImagemProduto, nome?: st
  * identifica: 1) já é PNG sem fundo: só corta as sobras; 2) tem fundo: recorte na Cloudflare, que só é entregue se passar na inspeção.
  * Recorte reprovado NUNCA é entregue: volta a foto como veio, com `recusa` dizendo o motivo, e ela não vira a foto do produto.
  */
+/** F-289: o recorte feito no navegador fica lembrado neste aparelho (a mesma foto não é recortada de novo a cada abertura) */
+const CHAVE_RECORTES = 'sm-recortes-v1';
+function recorteLembrado(url: string): string | null {
+  try { return (JSON.parse(localStorage.getItem(CHAVE_RECORTES) ?? '{}') as Record<string, string>)[url] ?? null; } catch { return null; }
+}
+function lembrarRecorte(url: string, pronta: string) {
+  try {
+    const m = JSON.parse(localStorage.getItem(CHAVE_RECORTES) ?? '{}') as Record<string, string>;
+    m[url] = pronta;
+    const chaves = Object.keys(m);
+    for (const k of chaves.slice(0, Math.max(0, chaves.length - 400))) delete m[k];
+    localStorage.setItem(CHAVE_RECORTES, JSON.stringify(m));
+  } catch { /* sem armazenamento */ }
+}
+
 export async function prepararImagem(imagem: ImagemProduto, nome?: string): Promise<ImagemProduto> {
   const guardar = async (png: Blob) => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -259,11 +274,18 @@ export async function prepararImagem(imagem: ImagemProduto, nome?: string): Prom
     return { ...imagem, url: publicUrl, recortada: true };
   };
   try {
-    if (imagem.recortada) {
+    // F-289: vale para TODA foto que pede "sem fundo" (s=1), marcada como recortada ou não (ex.: Bolo Seven Boys com fundo branco no palco)
+    if (imagem.recortada || pedeSemFundo(imagem.url)) {
       // F-275: link que pede a foto sem fundo (s=1) e chegou COM fundo (cota da Cloudflare acabou): o navegador tira o fundo
-      if (!pedeSemFundo(imagem.url) || (await chegouSemFundo(imagem.url).catch(() => true))) return imagem;
+      if (!pedeSemFundo(imagem.url)) return imagem;
+      const lembrado = recorteLembrado(imagem.url);
+      if (lembrado) return { ...imagem, url: lembrado, recortada: true };
+      if (await chegouSemFundo(imagem.url).catch(() => true)) return imagem;
       const png = await recortarNoNavegador(linkSemTransformacao(imagem.url), imagem, nome);
-      return png ? await guardar(png) : { ...imagem, recortada: false };
+      if (!png) return { ...imagem, recortada: false };
+      const pronta = await guardar(png);
+      if (pronta.url !== imagem.url) lembrarRecorte(imagem.url, pronta.url);
+      return pronta;
     }
     // F-272: foto de fora (site da marca, banco de imagens) que já vem sem fundo: entra só o LINK, nada é guardado
     if (imagem.fonte !== 'UPLOAD' && imagem.fonte !== 'IA') {
@@ -349,7 +371,7 @@ export async function completarImagens(
     if (guardado) {
       if (ehNomeDoCodigo(p) && guardado.nome) aoNomear?.(p.id, guardado.nome, codigo);
       resolver(p.id, guardado.imagem);
-      if (guardado.imagem.recortada) conferirFundo(p, guardado.imagem);
+      conferirFundo(p, guardado.imagem); // F-289: toda foto que pede "sem fundo" é conferida (a marca de recortada não basta)
       return;
     }
     const achado = await buscarPorCodigo(codigo).catch(() => null);
@@ -389,7 +411,7 @@ export async function completarImagens(
     const achada = catalogo.get(chaveCanonica(p.nome));
     if (achada) {
       resolver(p.id, achada);
-      if (achada.recortada) conferirFundo(p, achada);
+      conferirFundo(p, achada);
       if (!achada.recortada && !achada.recorteTentado) melhorar.push({ p, achada });
     } else buscar.push(p);
   }
