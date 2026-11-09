@@ -5,6 +5,8 @@ import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { PalcoDeOfertas } from '@/components/studio/PalcoDeOfertas';
 import { PASTA_PALCO, PASTA_PALCO_FARMACIA } from '@/lib/studio/palco';
 import { PASTA_ENCARTES_FARMACIA } from '@/lib/studio/encartesOficiais';
+import { SEGMENTO_DA_PASTA } from '@/lib/studio/pastasDoSegmento';
+import { chaveDosProdutosDe } from '@/lib/studio/segmentosDeOferta';
 import { PASTA_LOGOS, PastaDeLogos } from '@/components/studio/PastaDeLogos';
 import { coreografia, temAnimacao } from '@/lib/studio/animacao';
 import { modeloParaDocumento } from '@/lib/studio/documento';
@@ -55,6 +57,8 @@ function Cartao({ m, formato }: { m: ModeloDeArte; formato: FormatoDoc }) {
 export const CHAVE_DA_PASTA: Record<string, string> = {
   [PASTA_ENCARTES]: CHAVE_PRODUTOS_DO_ENCARTE, [PASTA_PALCO]: CHAVE_PRODUTOS_DO_ENCARTE,
   [PASTA_ENCARTES_FARMACIA]: CHAVE_PRODUTOS_DA_FARMACIA, [PASTA_PALCO_FARMACIA]: CHAVE_PRODUTOS_DA_FARMACIA,
+  // F-277: cada segmento guarda a sua lista (a mesma para o encarte e o palco dele)
+  ...Object.fromEntries(Object.entries(SEGMENTO_DA_PASTA).map(([pasta, { segmento }]) => [pasta, chaveDosProdutosDe(segmento)])),
 };
 export function produtosDoLink(pastaId: string | undefined, valor: string | null): boolean {
   const chave = pastaId ? CHAVE_DA_PASTA[pastaId] : undefined;
@@ -74,6 +78,9 @@ export default function PastaPage() {
   // F-259: as pastas da farmácia (mesmas telas do mercado)
   if (pastaId === PASTA_PALCO_FARMACIA) return <PalcoDeOfertas key="farmacia" segmento="farmacia" />;
   if (pastaId === PASTA_ENCARTES_FARMACIA) return <PastaDeEncartes key="farmacia" segmento="farmacia" />;
+  // F-277: as pastas de encarte e palco de cada segmento (mesmas telas do mercado)
+  const doSegmento = pastaId ? SEGMENTO_DA_PASTA[pastaId] : undefined;
+  if (doSegmento) return doSegmento.tipo === 'palco' ? <PalcoDeOfertas key={pastaId} segmento={doSegmento.segmento} /> : <PastaDeEncartes key={pastaId} segmento={doSegmento.segmento} />;
   if (pastaId === PASTA_LOGOS) return <PastaDeLogos />;
   return pastaId === PASTA_ENCARTES ? <PastaDeEncartes /> : <PastaDeModelos pastaId={pastaId} />;
 }

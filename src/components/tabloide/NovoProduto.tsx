@@ -4,7 +4,7 @@
  */
 import { useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { CAMPOS_VAZIOS, UNIDADES_DO_CAMPO, errosDoCampo, linhaDoCampo, type CamposDoProduto } from '@/lib/tabloide/produtoCompleto';
+import { CAMPOS_VAZIOS, UNIDADES_DO_CAMPO, linhaDoCampo, type CamposDoProduto } from '@/lib/tabloide/produtoCompleto';
 import { cn } from '@/lib/utils';
 
 export function NovoProduto({ aoAdicionar, escuro = false }: { aoAdicionar: (linha: string) => void; /** painel de fundo escuro do Studio */ escuro?: boolean }) {
@@ -12,10 +12,10 @@ export function NovoProduto({ aoAdicionar, escuro = false }: { aoAdicionar: (lin
   const [erros, setErros] = useState<string[]>([]);
   const primeiro = useRef<HTMLInputElement>(null);
   const mudar = (x: Partial<CamposDoProduto>) => { setC((a) => ({ ...a, ...x })); setErros([]); };
+  // F-279 (regra do dono): o produto SEMPRE entra; só o nome é preciso. O que faltar aparece depois, no aviso vermelho da lista
   const adicionar = () => {
-    const e = errosDoCampo(c);
-    setErros(e);
-    if (e.length) return;
+    if (!c.nome.trim()) { setErros(['Escreva o nome do produto.']); primeiro.current?.focus(); return; }
+    setErros([]);
     aoAdicionar(linhaDoCampo(c));
     setC({ ...CAMPOS_VAZIOS, unidade: c.unidade });
     primeiro.current?.focus();
@@ -33,7 +33,7 @@ export function NovoProduto({ aoAdicionar, escuro = false }: { aoAdicionar: (lin
         <label className={rotulo}>Marca
           <input className={campo} value={c.marca} onChange={(e) => mudar({ marca: e.target.value })} placeholder="Ex.: Vitarella" data-testid="novo-marca" maxLength={40} />
         </label>
-        <label className={rotulo}>Sabor ou tipo
+        <label className={rotulo}>Sabor ou tipo <span className="font-normal opacity-70">(opcional)</span>
           <input className={campo} value={c.sabor} onChange={(e) => mudar({ sabor: e.target.value })} placeholder="Ex.: Tradicional" data-testid="novo-sabor" maxLength={40} />
         </label>
         <label className={rotulo}>Peso ou volume
@@ -46,6 +46,7 @@ export function NovoProduto({ aoAdicionar, escuro = false }: { aoAdicionar: (lin
         </label>
         <label className={cn(rotulo, 'col-span-2 flex items-center gap-2')}>
           <input type="checkbox" className="h-4 w-4" checked={c.promocao} onChange={(e) => mudar({ promocao: e.target.checked })} data-testid="novo-promocao" /> É promoção?
+          <span className="ml-3 flex items-center gap-2"><input type="checkbox" className="h-4 w-4" checked={!!c.integral} onChange={(e) => mudar({ integral: e.target.checked })} data-testid="novo-integral" /> É integral? <span className="font-normal opacity-70">(leite, pão, iogurte, fitness)</span></span>
         </label>
         {c.promocao && (
           <label className={rotulo}>De (R$)

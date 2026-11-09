@@ -7,10 +7,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { rpcTabloide, tabelaTabloide } from './db';
 import { chaveCanonica } from './chave';
 import { lerBusca, ordenarOficiais, palavrasFortes, produtoExato, type ProdutoOficial } from './buscaProduto';
-import { cortarMargens, finalizarRecorte, fotoParaInspecao, pngSemSobras } from './recorte';
+import { chegouSemFundo, cortarMargens, finalizarRecorte, fotoParaInspecao, pngSemSobras, semFundoNoNavegador } from './recorte';
 import { MENSAGEM_DO_DEFEITO } from './qualidadeRecorte';
 import { uploadToR2 } from '@/lib/r2Upload';
-import { fotoSemFundoPorLink } from './fotoPorLink';
+import { removerFundoProfissional } from './removedorDeFundo';
+import { caixaDoLink, fotoSemFundoPorLink, linkSemTransformacao, pedeSemFundo } from './fotoPorLink';
 import { chaveDoProduto, ehNomeDoCodigo, type FonteImagem, type ImagemProduto, type ProdutoTabloide } from './parseProdutos';
 
 export interface CandidatoImagem extends ImagemProduto {
@@ -118,7 +119,9 @@ export const imagemDaMarca = (l: ProdutoOficial): ImagemProduto => ({ url: l.ima
 export async function produtoDaMarca(nome: string): Promise<{ imagem: ImagemProduto | null; parecidos: number }> {
   const lista = await buscarProdutosDaMarca(nome);
   const l = produtoExato(nome, lista);
-  return { imagem: l ? imagemDaMarca(l) : null, parecidos: l ? 0 : lista.length };
+  // F-279: o sabor é opcional — com vários parecidos vale o MAIS PROVÁVEL (o cliente troca tocando na foto)
+  const melhor = l ?? lista[0] ?? null;
+  return { imagem: melhor ? imagemDaMarca(melhor) : null, parecidos: l ? 0 : lista.length };
 }
 
 /**
@@ -221,12 +224,27 @@ async function recortarNaNuvem(imagem: ImagemProduto, nome?: string): Promise<{ 
 }
 
 /**
+ * F-275/F-276: tira o fundo no próprio navegador, sem a cota da Cloudflare (fundo liso na hora; outro fundo pela IA da SOBRE MÍDIA), com a MESMA inspeção do recorte da nuvem
+ * (finalizarRecorte + IA de visão). Vale quando a nuvem não respondeu ou a cota do mês acabou. null = não deu.
+ */
+async function recortarNoNavegador(url: string, imagem: ImagemProduto, nome?: string): Promise<Blob | null> {
+  // 1) fundo liso (foto de loja/embalagem): instantâneo; 2) qualquer outro fundo: o Removedor de Fundo SOBRE MÍDIA (IA, F-276)
+  const tentativas = [() => semFundoNoNavegador(url, 1400, caixaDoLink(imagem.url)), () => removerFundoProfissional(url, 1400, caixaDoLink(imagem.url))];
+  for (const tentar of tentativas) {
+    const bruto = await tentar();
+    if (!bruto) continue;
+    const { png } = await finalizarRecorte(url, bruto);
+    if (png && !(await reprovadoPelaIA(png, imagem, nome))) return png;
+  }
+  return null;
+}
+
+/**
  * F-252/F-253 — REGRA DO DONO: a foto de produto entra sempre SEM FUNDO, com o produto inteiro, no padrão profissional. O sistema
  * identifica: 1) já é PNG sem fundo: só corta as sobras; 2) tem fundo: recorte na Cloudflare, que só é entregue se passar na inspeção.
  * Recorte reprovado NUNCA é entregue: volta a foto como veio, com `recusa` dizendo o motivo, e ela não vira a foto do produto.
  */
 export async function prepararImagem(imagem: ImagemProduto, nome?: string): Promise<ImagemProduto> {
-  if (imagem.recortada) return imagem;
   const guardar = async (png: Blob) => {
     const { data: { session } } = await supabase.auth.getSession();
     const uid = session?.user?.id;
@@ -235,6 +253,12 @@ export async function prepararImagem(imagem: ImagemProduto, nome?: string): Prom
     return { ...imagem, url: publicUrl, recortada: true };
   };
   try {
+    if (imagem.recortada) {
+      // F-275: link que pede a foto sem fundo (s=1) e chegou COM fundo (cota da Cloudflare acabou): o navegador tira o fundo
+      if (!pedeSemFundo(imagem.url) || (await chegouSemFundo(imagem.url).catch(() => true))) return imagem;
+      const png = await recortarNoNavegador(linkSemTransformacao(imagem.url), imagem, nome);
+      return png ? await guardar(png) : { ...imagem, recortada: false };
+    }
     // F-272: foto de fora (site da marca, banco de imagens) que já vem sem fundo: entra só o LINK, nada é guardado
     if (imagem.fonte !== 'UPLOAD' && imagem.fonte !== 'IA') {
       const link = await fotoSemFundoPorLink(imagem.url, (u) => fotoCarrega(u));
@@ -244,6 +268,9 @@ export async function prepararImagem(imagem: ImagemProduto, nome?: string): Prom
     if (semFundo) return await guardar(semFundo);
     const { png, motivo } = await recortarNaNuvem(imagem, nome);
     if (png) return await guardar(png);
+    // F-275: a nuvem não deu (cota do mês ou reprovado): o fundo liso sai no navegador, com a mesma inspeção
+    const local = await recortarNoNavegador(imagem.url, imagem, nome);
+    if (local) return await guardar(local);
     return motivo ? { ...imagem, recusa: motivo } : imagem;
   } catch {
     return imagem;
@@ -283,6 +310,11 @@ export async function completarImagens(
   if (!pendentes.length) { aoSaberNovos?.([]); return []; }
   const semFoto = new Set<string>();
   const resolver = (id: string, imagem: ImagemProduto | null) => { if (imagem) semFoto.delete(id); else semFoto.add(id); aoAchar(id, imagem); };
+  // F-275: foto por link que pede o fundo tirado na hora: se chegou com fundo (cota da Cloudflare), o navegador tira
+  const conferirFundo = (p: ProdutoTabloide, imagem: ImagemProduto) => {
+    if (!pedeSemFundo(imagem.url)) return;
+    void prepararImagem(imagem, p.nome).then((pronta) => { if (pronta.url !== imagem.url) resolver(p.id, pronta); }).catch(() => undefined);
+  };
 
   // F-231: código de barras primeiro — o produto EXATO (nome, marca, medida e foto da embalagem).
   // 1) catálogo da empresa (código já bipado por alguém: instantâneo); 2) base aberta / Cosmos; a foto é recortada e guardada
@@ -300,6 +332,7 @@ export async function completarImagens(
     if (guardado) {
       if (ehNomeDoCodigo(p) && guardado.nome) aoNomear?.(p.id, guardado.nome, codigo);
       resolver(p.id, guardado.imagem);
+      if (guardado.imagem.recortada) conferirFundo(p, guardado.imagem);
       return;
     }
     const achado = await buscarPorCodigo(codigo).catch(() => null);
@@ -327,17 +360,19 @@ export async function completarImagens(
     const achada = catalogo.get(chaveCanonica(p.nome));
     if (achada?.doCliente || achada?.fonte === 'MARCA') return;
     const { imagem, parecidos } = await produtoDaMarca(p.nome);
-    if (imagem) oficiais.set(p.id, imagem);
-    else if (parecidos) { emDuvida.add(p.id); aoDuvidar?.(p.nome, parecidos); }
+    // F-280: com vários parecidos a foto MAIS PROVÁVEL entra, e o produto vai para o aviso vermelho ("confira a foto")
+    if (imagem) { oficiais.set(p.id, imagem); if (parecidos) aoDuvidar?.(p.nome, parecidos); }
+    else if (parecidos) emDuvida.add(p.id);
   }));
   for (const p of faltam) {
     const oficial = oficiais.get(p.id);
-    if (oficial) { resolver(p.id, oficial); continue; }
+    if (oficial) { resolver(p.id, oficial); conferirFundo(p, oficial); continue; }
     // o aviso pede o sabor ou o peso: foto de outra fonte aqui poderia ser de outro produto
     if (emDuvida.has(p.id)) { resolver(p.id, null); continue; }
     const achada = catalogo.get(chaveCanonica(p.nome));
     if (achada) {
       resolver(p.id, achada);
+      if (achada.recortada) conferirFundo(p, achada);
       if (!achada.recortada && !achada.recorteTentado) melhorar.push({ p, achada });
     } else buscar.push(p);
   }

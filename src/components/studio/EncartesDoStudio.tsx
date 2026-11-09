@@ -20,10 +20,18 @@ import { logoSalvaDoStudio, seloDaLogo } from '@/lib/studio/logoDoStudio';
 import { urlCompleta, type LogoDaPasta } from '@/lib/studio/logos';
 import { documentoDoEncarteOficial, encartesDoSegmento } from '@/lib/studio/encartesOficiais';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
+import { SEGMENTOS_DE_OFERTA } from '@/lib/studio/segmentosDeOferta';
+import { infoDaPasta } from '@/lib/studio/pastasDoSegmento';
+import type { SegmentoDoStudio } from '@/lib/studio/palco';
+
+/** F-279: o nome do exemplo sem o peso ("Pão de Forma Wickbold 500g" → "Pão de Forma Wickbold"), como está no catálogo das marcas */
+export const nomeSemMedida = (nome: string) => nome.replace(/\s+\d+(?:[.,]\d+)?\s*(?:kg|g|ml|l|cápsulas|comprimidos)\b|\s+(?:kg|un)\b/gi, '').trim();
+/** F-279: foto do exemplo pelo nome e, se não houver, pelo nome sem o peso */
+export const fotoDoExemplo = (fotos: Map<string, ImagemProduto> | undefined, nome: string) => fotos?.get(chaveCanonica(nome)) ?? fotos?.get(chaveCanonica(nomeSemMedida(nome))) ?? null;
 
 /** Uma consulta só ao catálogo para todos os produtos de todos os encartes. */
 export function useFotosDosEncartes() {
-  const nomes = useMemo(() => [...new Set([...ENCARTES.map((e) => e.produtos), CESTA_PADRAO, CESTA_FARMACIA].flatMap((t) => lerLista(t).map((p) => p.nome)))], []);
+  const nomes = useMemo(() => [...new Set([...ENCARTES.map((e) => e.produtos), CESTA_PADRAO, CESTA_FARMACIA, ...SEGMENTOS_DE_OFERTA.map((s) => s.cesta)].flatMap((t) => lerLista(t).flatMap((p) => [p.nome, nomeSemMedida(p.nome)])))], []);
   return useQuery({ queryKey: ['studio-encartes-fotos'], queryFn: () => buscarNoCatalogo(nomes), staleTime: 10 * 60_000 });
 }
 
@@ -31,12 +39,14 @@ export function useFotosDosEncartes() {
 export const PASTA_ENCARTES = 'encartes-de-mercado';
 
 /** F-259: capa da pasta Encartes de Farmácia: o encarte de farmácia com a cesta de exemplo da farmácia. */
-export function CapaDaPastaDeFarmacia({ atraso = 0 }: { atraso?: number }) {
+export const CapaDaPastaDeFarmacia = ({ atraso = 0 }: { atraso?: number }) => <CapaDaPastaDoSegmento segmento="farmacia" atraso={atraso} />;
+/** F-277: capa da pasta de encartes de qualquer segmento: o encarte dele com a cesta de exemplo dele. */
+export function CapaDaPastaDoSegmento({ segmento, atraso = 0 }: { segmento: SegmentoDoStudio; atraso?: number }) {
   const fotos = useFotosDosEncartes();
   const slides = useMemo(() => {
-    const cesta = lerLista(CESTA_FARMACIA).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null }));
-    return encartesDoSegmento('farmacia').flatMap((o) => (['9:16', '16:9'] as const).map((f) => ({ chave: `${o.id}-${f}`, animada: () => <PreviaDocumento doc={documentoDoEncarteOficial(o, cesta, {}, f)} sempre className="h-full" /> })));
-  }, [fotos.data]);
+    const cesta = lerLista(infoDaPasta(segmento).cestaDaCapa).map((p) => ({ ...p, imagem: fotoDoExemplo(fotos.data, p.nome) }));
+    return encartesDoSegmento(segmento).flatMap((o) => (['9:16', '16:9'] as const).map((f) => ({ chave: `${o.id}-${f}`, animada: () => <PreviaDocumento doc={documentoDoEncarteOficial(o, cesta, {}, f)} sempre className="h-full" /> })));
+  }, [fotos.data, segmento]);
   return <CapaQueGira slides={slides} atraso={atraso} ajuste="contain" className="h-full" style={{ aspectRatio: '9 / 16' }} />;
 }
 
@@ -45,7 +55,7 @@ export function CapaDaPastaDeEncartes({ atraso = 0 }: { atraso?: number }) {
   const fotos = useFotosDosEncartes();
   const slides = useMemo(() => {
     // F-240: os encartes OFICIAIS (fundos do dono) também passam na capa, com a cesta de exemplo
-    const cesta = lerLista(CESTA_PADRAO).map((p) => ({ ...p, imagem: fotos.data?.get(chaveCanonica(p.nome)) ?? null }));
+    const cesta = lerLista(CESTA_PADRAO).map((p) => ({ ...p, imagem: fotoDoExemplo(fotos.data, p.nome) }));
     const oficiais = encartesDoSegmento('mercado').map((o) => ({ chave: o.id, animada: () => <PreviaDocumento doc={documentoDoEncarteOficial(o, cesta)} sempre className="h-full" /> }));
     return [...oficiais, ...ENCARTES.map((e) => ({ chave: e.id, animada: () => <MiniaturaDoEncarte e={e} fotos={fotos.data} /> }))];
   }, [fotos.data]);

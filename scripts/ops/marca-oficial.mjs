@@ -11,6 +11,7 @@ import { R2_PUBLICO } from './segredos.mjs';
 import { chaveCanonica } from '../../src/lib/tabloide/chave.ts';
 import { enviar, sharp, sqlBruto } from './recorte-do-catalogo.mjs';
 import { linkDaFoto } from './passa-foto.mjs';
+import { naoEProduto } from './nao-e-produto.mjs';
 
 const EMPRESAS = (process.env.TABLOIDE_EMPRESAS ?? '7d62aaec-e24d-4273-b257-867183cf658c,22345678-1234-1234-1234-123456789012').split(',');
 const LICENCA = 'Imagem publicada pela marca; sem autorização formal registrada';
@@ -25,7 +26,7 @@ const nomeDe = (p) => {
   return `${t} ${marca}${p.peso != null && !/\d\s*(g|kg)\b/i.test(t) ? ` ${pesoTexto(p.peso)}` : ''}`.replace(/\s+/g, ' ').trim();
 };
 const fora = new Set(fs.existsSync(`${pasta}/recusados.txt`) ? fs.readFileSync(`${pasta}/recusados.txt`, 'utf8').split(/\s+/).filter(Boolean) : []);
-const itens = JSON.parse(fs.readFileSync(`${pasta}/produtos.json`, 'utf8')).filter((p) => !fora.has(p.slug));
+const itens = fs.existsSync(`${pasta}/produtos.json`) ? JSON.parse(fs.readFileSync(`${pasta}/produtos.json`, 'utf8')).filter((p) => !fora.has(p.slug)) : [];
 
 if (modo === 'preparar') {
   // título igual no site para sabores diferentes: o nome vem do endereço da página, senão uma imagem apagaria a outra
@@ -47,7 +48,8 @@ if (modo === 'preparar') {
   const L = itens.map((p) => Math.max(p.W, p.H)).sort((a, b) => a - b);
   console.log('prontos', itens.length, 'lado menor', L[0], 'mediana', L[L.length >> 1], 'maior', L[L.length - 1]);
 } else {
-  const prontos = JSON.parse(fs.readFileSync(`${pasta}/prontos.json`, 'utf8')).filter((p) => !fora.has(p.slug));
+  // F-276: roupa, brinde, sacola, kit e afins nunca entram (não é produto de encarte)
+  const prontos = JSON.parse(fs.readFileSync(`${pasta}/prontos.json`, 'utf8')).filter((p) => !fora.has(p.slug) && !naoEProduto(p.titulo));
   const credito = `Imagem oficial ${marca}`;
   let n = 0;
   for (const p of prontos) {
@@ -74,7 +76,9 @@ if (modo === 'preparar') {
     const nome = nomeDe(p);
     const chaves = [chaveCanonica(nome), ...(p.codigo ? [chaveCanonica(`codigo ${p.codigo}`)] : [])];
     const seg = p.segmento ? `'${esc(p.segmento)}'` : 'NULL', cod = p.codigo ? `'${esc(p.codigo)}'` : 'NULL';
-    const linhas = EMPRESAS.flatMap((e) => chaves.map((k) => `('${e}', NULL, '${esc(k)}', '${esc(nome)}', '${esc(url)}', 'MARCA', '${esc(credito)}', true, true, 'SEMENTE', '${esc(p.pagina)}', '${LICENCA}', ${cod}, ${seg})`));
+    // F-275: foto da 2ª fonte (loja que vende o produto) leva o crédito e a licença do próprio item
+    const cred = p.credito || credito, lic = p.licenca || LICENCA;
+    const linhas = EMPRESAS.flatMap((e) => chaves.map((k) => `('${e}', NULL, '${esc(k)}', '${esc(nome)}', '${esc(url)}', 'MARCA', '${esc(cred)}', true, true, 'SEMENTE', '${esc(p.pagina)}', '${esc(lic)}', ${cod}, ${seg})`));
     await sqlBruto(`INSERT INTO public.tabloide_catalogo (empresa_operadora_id, cliente_id, nome_norm, nome, imagem_url, fonte, credito, recortada, recorte_tentado, origem, origem_url, licenca, codigo, segmento) VALUES ${linhas.join(',')} ON CONFLICT (empresa_operadora_id, COALESCE(cliente_id, '00000000-0000-0000-0000-000000000000'::uuid), nome_norm) DO UPDATE SET imagem_url = EXCLUDED.imagem_url, fonte = EXCLUDED.fonte, credito = EXCLUDED.credito, recortada = true, recorte_tentado = true, origem_url = EXCLUDED.origem_url, licenca = EXCLUDED.licenca, codigo = EXCLUDED.codigo, segmento = EXCLUDED.segmento, updated_at = now()`);
     n++;
   }

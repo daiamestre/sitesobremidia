@@ -29,7 +29,7 @@ export function coresDoDocumento(d: Documento): string[] {
     if (c.tipo === 'texto') { add(c.cor); add(c.corUltimaLinha); add(c.fundo?.cor); }
     else if (c.tipo === 'forma') { add(c.cor); add(c.borda?.cor); }
     else if (c.tipo === 'selo') { add(c.cor); add(c.corTexto); }
-    else if (c.tipo === 'itens') { add(c.cor); add(c.destaque); }
+    else if (c.tipo === 'itens' || c.tipo === 'redes') { add(c.cor); add(c.destaque); }
   }
   return [...s].slice(0, 14);
 }

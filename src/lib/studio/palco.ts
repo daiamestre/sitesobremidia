@@ -5,7 +5,8 @@
 import { TAMANHO_DOC, forma, imagem, larguraDoTexto, selo, texto, type Camada, type Documento, type FormatoDoc } from './documento';
 import { novoClipe, projetoVazio, type ProjetoDeVideo, type TipoDeTransicao } from './video/linha';
 import type { TipoDeAnimacao } from './animacao';
-import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, type LogoDaPasta } from './logos';
+import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, logoOficialDoSegmento, type LogoDaPasta } from './logos';
+import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDoPalcoDe, type SegmentoNovo } from './segmentosDeOferta';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
 export interface OpcoesDoPalco {
@@ -81,7 +82,7 @@ export interface FundoDoPalco {
   aviso?: { texto: string; caixa: Record<FormatoDoc, Caixa> };
 }
 /** F-259: as pastas de encarte e palco do Studio */
-export type SegmentoDoStudio = 'mercado' | 'farmacia';
+export type SegmentoDoStudio = 'mercado' | 'farmacia' | SegmentoNovo;
 /** F-259: frase obrigatória em toda propaganda de remédio isento de prescrição (Lei 9.294/1996, art. 7º, § 5º) */
 export const AVISO_DE_REMEDIO = 'A PERSISTIREM OS SINTOMAS, O MÉDICO DEVERÁ SER CONSULTADO. Imagens ilustrativas · Ofertas válidas enquanto durarem os estoques.';
 export const srcDoFundo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/palco/${f.id}-${formato === '9:16' ? 'v' : 'h'}.webp`;
@@ -121,6 +122,18 @@ export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
     botoes: ['FARMÁCIA', 'OFERTAS', 'SAÚDE'],
     aviso: { texto: AVISO_DE_REMEDIO, caixa: { '9:16': { x: 0.04, y: 0.95, w: 0.92, h: 0.04 }, '16:9': { x: 0.04, y: 0.945, w: 0.92, h: 0.045 } } },
   },
+  // F-277: um palco por segmento (padaria, adega, açougue...), com o pedestal e o balão nos mesmos lugares da farmácia
+  ...SEGMENTOS_DE_OFERTA.map((sg): FundoDoPalco => ({
+    id: idDaArte(sg.id), nome: `Ofertas – ${sg.nome}`, segmento: sg.id,
+    titulo: { '9:16': { x: 0.05, y: 0.012, w: 0.9, h: 0.325 }, '16:9': { x: 0.235, y: 0.012, w: 0.53, h: 0.49 } }, logoPadrao: logoOficialDoSegmento(sg.id),
+    produto: { '9:16': { x: 0.22, y: 0.445, w: 0.56, h: 0.3 }, '16:9': { x: 0.415, y: 0.475, w: 0.17, h: 0.27 } },
+    nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.19, y: 0.5, w: 0.215, h: 0.2, alinhamento: 'right' } },
+    preco: { '9:16': { cx: 0.8, cy: 0.585, d: 0.24 }, '16:9': { cx: 0.66, cy: 0.6, d: 0.2 } },
+    botao: { '9:16': { x: 0.272, y: 0.862, w: 0.456, h: 0.068 }, '16:9': { x: 0.366, y: 0.84, w: 0.268, h: 0.09 } },
+    corBotao: sg.corBotao, bordaBotao: '#ffd21f',
+    botoes: sg.botoes,
+    ...(sg.aviso ? { aviso: { texto: sg.aviso, caixa: { '9:16': { x: 0.04, y: 0.95, w: 0.92, h: 0.04 }, '16:9': { x: 0.04, y: 0.945, w: 0.92, h: 0.045 } } } } : {}),
+  })),
 ];
 /** F-259: os fundos de uma pasta (mercado ou farmácia) */
 export const fundosDoSegmento = (s: SegmentoDoStudio) => FUNDOS_DO_PALCO.filter((f) => (f.segmento ?? 'mercado') === s);
@@ -222,6 +235,8 @@ export const SEGUNDOS_POR_PRODUTO = 8;
 export const PASTA_PALCO = 'palco-de-ofertas';
 /** F-259: o mesmo palco, só para farmácia */
 export const PASTA_PALCO_FARMACIA = 'palco-de-ofertas-farmacia';
+/** F-277: a pasta do palco de cada segmento novo */
+export const PASTAS_PALCO_DOS_SEGMENTOS: Record<string, SegmentoNovo> = Object.fromEntries(SEGMENTOS_DE_OFERTA.map((s) => [pastaDoPalcoDe(s.id), s.id]));
 
 type Ani = NonNullable<Camada['animacao']>;
 const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depois'] = null): Ani => ({ tipo, atraso, duracao, depois });

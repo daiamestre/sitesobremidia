@@ -13,7 +13,8 @@ const cruza = (a: { x: number; y: number; w: number; h: number }, b: { x: number
 describe('F-243 — Semana do Frango', () => {
   const f = ENCARTES_OFICIAIS.find((x) => x.id === 'semana-do-frango')!;
   it('está na lista junto do Mega Oferta, nos dois formatos', () => {
-    expect(ENCARTES_OFICIAIS.map((x) => x.id)).toEqual(['mega-oferta-bicolor', 'semana-do-frango', 'saude-em-oferta']);
+    // F-277: depois dos três primeiros vêm os encartes dos segmentos
+    expect(ENCARTES_OFICIAIS.map((x) => x.id).slice(0, 3)).toEqual(['mega-oferta-bicolor', 'semana-do-frango', 'saude-em-oferta']);
     expect(formatosDoEncarte(f)).toEqual(expect.arrayContaining(['9:16', '16:9']));
   });
   it('no cartão amarelo o nome é escuro; no azul é branco; os dois com o balão oval do encarte', () => {
@@ -68,12 +69,13 @@ describe.each(ENCARTES_OFICIAIS)('encarte oficial $id', (e) => {
     }
   });
 
-  it('logo: sem logo mostra o fundo com "SUA LOGO AQUI"; recortada fica solta; com fundo vai num cartão', () => {
+  it('logo: sem logo nasce a VAGA "SUA LOGO AQUI" (F-278, elemento que se arrasta); recortada fica solta; com fundo vai num cartão', () => {
     for (const f of FORMATOS) {
       const l = layoutDoEncarte(e, f);
       const sem = documentoDoEncarteOficial(e, [produto(1)], {}, f);
-      expect(sem.camadas[0]).toMatchObject({ src: l.fundo, bloqueada: true });
-      expect(sem.camadas.some((c) => c.nome.startsWith('Sua logo'))).toBe(false);
+      expect(sem.camadas[0]).toMatchObject({ src: l.fundoLimpo, bloqueada: true });
+      expect(sem.camadas.find((c) => c.tipo === 'vaga')).toMatchObject({ x: l.logo.x, y: l.logo.y, w: l.logo.w, h: l.logo.h });
+      expect(sem.camadas.some((c) => c.tipo === 'imagem' && c.nome.startsWith('Sua logo'))).toBe(false);
       const solta = documentoDoEncarteOficial(e, [produto(1)], { logo: { url: 'data:image/png;base64,x', largura: 400, altura: 400, recortada: true } }, f);
       expect(solta.camadas[0]).toMatchObject({ src: l.fundoLimpo });
       expect(solta.camadas.find((c) => c.nome === 'Sua logo')).toMatchObject({ tipo: 'imagem', ajuste: 'conter' });

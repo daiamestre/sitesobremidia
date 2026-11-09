@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process';
 
 const RAIZ = resolve(import.meta.dirname, '../..');
 const dna = await import(pathToFileURL(join(RAIZ, 'supabase/functions/_shared/studio/core/dna.ts')).href);
+const livro = await import(pathToFileURL(join(RAIZ, 'supabase/functions/_shared/studio/core/solucoes.ts')).href);
 const { SEGMENTOS_DE_FABRICA } = await import(pathToFileURL(join(RAIZ, 'supabase/functions/_shared/studio/core/segmentos.ts')).href);
 
 const linhas = [
@@ -20,6 +21,8 @@ const linhas = [
   { tipo: 'regra', chave: 'modalidades', conteudo: { versao: dna.VERSAO_DNA, regras: dna.REGRAS, roteiros: dna.ROTEIROS, formatos: dna.FORMATOS_IMAGEM } },
   // F-259: o padrão dos encartes e palcos oficiais (mercado e farmácia) entra na memória dos agentes
   { tipo: 'manual', chave: 'padrao-encartes-e-palcos', conteudo: { versao: dna.VERSAO_DNA, oficiais: dna.PADRAO_DOS_OFICIAIS, mercado: dna.REFERENCIA_MERCADO, farmacia: dna.REFERENCIA_FARMACIA } },
+  // F-276: livro de soluções — o que já foi resolvido e a ordem das alternativas (aprendizado dos agentes)
+  { tipo: 'referencia', chave: 'livro-de-solucoes', conteudo: { versao: livro.VERSAO_LIVRO, solucoes: livro.LIVRO_DE_SOLUCOES } },
   ...SEGMENTOS_DE_FABRICA.map((s) => ({ tipo: 'segmento', chave: s.id, conteudo: s })),
 ];
 

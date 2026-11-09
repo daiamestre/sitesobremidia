@@ -9,6 +9,7 @@ import { DIRETRIZ, estiloDa, VERSAO_BIBLIA } from '../biblia.ts';
 import { CAMERAS, type PedidoStudio } from '../contrato.ts';
 import type { Direcao, Fotografia, Prompts, Roteiro } from '../agentes.ts';
 import { MANUAL, PROIBIDO, REGRAS, ROTEIROS, VERSAO_DNA, textoDoDna, type Modalidade } from './dna.ts';
+import { resumoDoLivro } from './solucoes.ts';
 import { reconhecerSegmento, taxonomia, type Categoria, type Segmento } from './segmentos.ts';
 
 /** Executor de modelo (mesmo contrato do agentes.ts: devolve a resposta bruta do provedor). */
@@ -328,6 +329,8 @@ export function contextoParaAgente(agente: AgenteExistente, p: PedidoStudio, seg
     `Segmento (${VERSAO_DNA}): ${segmento.nome}${categoria ? ` / ${categoria.nome}` : ''}. Estilos: ${segmento.estilos.join(', ')}. Ambientes: ${segmento.ambientes.join(' | ')}. Qualidade: ${segmento.regrasQualidade.join(' ')} Segurança: ${segmento.regrasSeguranca.join(' ')}`,
     `Regras da modalidade: ${regras.join(' ')}`,
     `Nunca: ${PROIBIDO[0]} ${PROIBIDO[1]}`,
+    // F-276: o que o sistema já aprendeu e a ordem das alternativas para sempre dar certo
+    resumoDoLivro(),
   ].join('\n\n');
 }
 

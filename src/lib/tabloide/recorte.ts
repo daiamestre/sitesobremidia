@@ -324,3 +324,82 @@ export async function cortarMargens(url: string, ladoMax = 900): Promise<Blob | 
     return null;
   }
 }
+
+/**
+ * F-275: tira o fundo liso NO NAVEGADOR (sem cota da Cloudflare) e devolve o PNG no tamanho da foto, sem cortar: é o formato
+ * que finalizarRecorte inspeciona contra a original. null quando o fundo não é liso (aí só a nuvem resolve).
+ */
+export async function semFundoNoNavegador(url: string, ladoMax = 1400, caixa?: { left: number; top: number; width: number; height: number } | null): Promise<Blob | null> {
+  try {
+    const img = await carregar(url);
+    const escala = Math.min(1, ladoMax / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * escala));
+    const h = Math.max(1, Math.round(img.naturalHeight * escala));
+    const tela = document.createElement('canvas');
+    tela.width = w;
+    tela.height = h;
+    const ctx = tela.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, w, h);
+    const pixels = ctx.getImageData(0, 0, w, h);
+    if (!recortarFundo(pixels)) return null;
+    apagarSelosSoltos(pixels.data, w, h);
+    // a caixa do link (c=, medida na mesma escala de até 1400 px) deixa de fora selo de propaganda solto
+    if (caixa) {
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (x < caixa.left || y < caixa.top || x >= caixa.left + caixa.width || y >= caixa.top + caixa.height) pixels.data[(y * w + x) * 4 + 3] = 0;
+      }
+    }
+    ctx.putImageData(pixels, 0, 0);
+    return await new Promise<Blob | null>((ok) => tela.toBlob(ok, 'image/png'));
+  } catch {
+    return null;
+  }
+}
+
+/** F-275: a imagem chegou mesmo sem fundo (borda transparente)? Olha uma versão pequena, que basta para isso. */
+export async function chegouSemFundo(url: string): Promise<boolean> {
+  const img = await carregar(url);
+  const escala = Math.min(1, 240 / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * escala));
+  const h = Math.max(1, Math.round(img.naturalHeight * escala));
+  const tela = document.createElement('canvas');
+  tela.width = w;
+  tela.height = h;
+  const ctx = tela.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return true;
+  ctx.drawImage(img, 0, 0, w, h);
+  return caixaOpaca(ctx.getImageData(0, 0, w, h).data, w, h) !== null;
+}
+
+/**
+ * F-275: selo de propaganda SOLTO acima ou abaixo da embalagem (ex.: "Alívio das dores de cabeça" das fotos de farmácia).
+ * Partes do recorte que não dividem nenhuma faixa de altura com a maior parte (o produto) são apagadas (alfa 0); itens lado a
+ * lado (garrafa + caixa) ficam. Devolve quantas partes saíram.
+ */
+export function apagarSelosSoltos(rgba: Uint8ClampedArray, w: number, h: number): number {
+  const rot = new Int32Array(w * h).fill(-1);
+  const fila = new Int32Array(w * h);
+  const partes: Array<{ area: number; y0: number; y1: number }> = [];
+  for (let p0 = 0; p0 < w * h; p0++) {
+    if (rot[p0] >= 0 || rgba[p0 * 4 + 3] < 16) continue;
+    const id = partes.length;
+    let ini = 0, fim = 0, area = 0, y0 = h, y1 = -1;
+    rot[p0] = id; fila[fim++] = p0;
+    while (ini < fim) {
+      const p = fila[ini++];
+      const x = p % w, y = (p - x) / w;
+      area++; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      const viz = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1];
+      for (const q of viz) if (q >= 0 && rot[q] < 0 && rgba[q * 4 + 3] >= 16) { rot[q] = id; fila[fim++] = q; }
+    }
+    partes.push({ area, y0, y1 });
+  }
+  if (partes.length < 2) return 0;
+  const principal = partes.reduce((a, b) => (b.area > a.area ? b : a));
+  const sai = partes.map((pt) => pt !== principal && (pt.y1 < principal.y0 || pt.y0 > principal.y1));
+  if (!sai.some(Boolean)) return 0;
+  for (let p = 0; p < w * h; p++) if (rot[p] >= 0 && sai[rot[p]]) rgba[p * 4 + 3] = 0;
+  return sai.filter(Boolean).length;
+}

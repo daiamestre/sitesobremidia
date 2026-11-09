@@ -58,6 +58,8 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **Fundo novo enviado pelo dono** é para ADICIONAR como oficial, não para criar outro palco ou encarte do zero.
 - **Logos oficiais do dono:** nunca redesenhar nem trocar o botão ou o fundo; só deixar nítidas e idênticas às originais.
 - **Farmácia (08/11/2026):** saúde e remédios são prioridade, junto com Pernambuco. O aviso legal é obrigatório. Só remédio isento de prescrição. No Creative Core (vídeo por agentes) a farmácia é segmento PRÓPRIO, com ambiente de farmácia e nunca cenário de supermercado (F-261).
+- **Segmentos (09/11/2026, F-277):** todo segmento que expõe produto tem ENCARTE e PALCO DE OFERTAS próprios, no padrão do mercado e da farmácia: padaria, adega, açougue, suplementos, quitanda e hortifrúti, pet shop, beleza e perfumaria, eletrônicos e moda. Ficam SEPARADOS das pastas de modelos de arte (anúncio/chamada para ação). Adega leva "BEBA COM MODERAÇÃO. VENDA PROIBIDA PARA MENORES DE 18 ANOS".
+- **Logo e redes no encarte (F-278):** "SUA LOGO AQUI" é um botão que se arrasta; ao tocar abre a pasta Logos e o envio do aparelho; com a logo escolhida o quadrado some e fica só a logo (que também se move). As redes sociais (Instagram, Facebook, YouTube, loja, TikTok, WhatsApp) são UMA linha separada que se arrasta junta; ao tocar, escolhe quais aparecem e escreve o nome de cada uma embaixo do ícone. Nada disso fica gravado no fundo.
 - **Cartaz Digital** (nome para o usuário; o código usa `tabloide`): funciona como a QR Ofertas, mas sem copiar arte, tema ou texto deles. Tudo o que o usuário envia é aceito na hora.
 
 ## 6. Catálogo de produtos (fotos)
@@ -69,6 +71,10 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **Embalagem vendida no Brasil:** site estrangeiro é recusado.
 - **Lotes do Open Food Facts estão PARADOS:** o dono reprovou ("falhas grotescas"). Não retome sem pedido dele.
 - Foto escolhida ou enviada pelo cliente: sai sem fundo, inspecionada, e vira a oficial do produto pelo nome. Reprovada nunca é entregue.
+- **Recorte sem defeito (09/11/2026, F-276):** só entra foto em que o recorte e a IA (BiRefNet) CONCORDAM: parte do produto comida, sombra, reflexo ou sobra = recusada. Nunca trazer foto que precise "consertar".
+- **Ordem das fontes da foto (F-275):** 1) site oficial da marca → 2) a mesma foto do fabricante nas grandes lojas que permitem leitura → 3) busca aberta no encarte → 4) imagem criada por IA. Bloqueio de site (robots.txt, CAPTCHA) NUNCA é contornado: passa para a próxima fonte.
+- **Busca contínua (F-277):** a busca de fotos roda em ciclo no PC (`scripts/ops/catalogo-ciclo.mjs`), enquanto o resto do trabalho segue.
+- **Removedor de fundo próprio (F-276):** quando a cota da Cloudflare acaba, o navegador tira o fundo (liso na hora; outro fundo pela IA da SOBRE MÍDIA, BiRefNet MIT).
 - Método e comandos em `docs/MISSAO_CATALOGO_DE_PRODUTOS.md` (scripts `scripts/ops/marca-*`).
 
 ## 7. Conteúdo automático das pastas

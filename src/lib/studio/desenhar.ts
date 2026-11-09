@@ -4,7 +4,7 @@ import { carregarFonteStudio, fonteCanvas } from './fontes';
 import { arranjoDoBalao, type Medir } from './balao';
 import {
   TAMANHO_DOC, fontesDo, imagensDo, linhasDoTexto,
-  type Camada, type CamadaForma, type CamadaImagem, type CamadaItens, type CamadaSelo, type CamadaTexto, type Degrade, type Documento,
+  type Camada, type CamadaForma, type CamadaImagem, type CamadaItens, type CamadaRedes, type CamadaSelo, type CamadaTexto, type CamadaVaga, type Degrade, type Documento, type RedeSocial,
 } from './documento';
 import { duracaoDoVideo, estadoNoTempo } from './animacao';
 
@@ -264,6 +264,70 @@ function desenharItens(ctx: CanvasRenderingContext2D, c: CamadaItens) {
   }
 }
 
+/** F-278: "SUA LOGO AQUI": quadrado pontilhado com o texto em 3 linhas, centralizado */
+function desenharVaga(ctx: CanvasRenderingContext2D, c: CamadaVaga) {
+  const r = Math.min(c.w, c.h) * 0.08, lw = Math.max(2, Math.min(c.w, c.h) * 0.014);
+  ctx.save();
+  caminho(ctx, -c.w / 2 + lw / 2, -c.h / 2 + lw / 2, c.w - lw, c.h - lw, r);
+  ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fill();
+  ctx.setLineDash([lw * 4, lw * 3]); ctx.lineWidth = lw; ctx.strokeStyle = c.cor; ctx.stroke();
+  ctx.restore();
+  const linhas = c.texto.split(/s+/).filter(Boolean);
+  const t = Math.min(c.h * 0.78 / Math.max(1, linhas.length), c.w * 0.8 / Math.max(...linhas.map((l) => l.length * 0.5), 1));
+  ctx.font = fonteCanvas('anton', t, 400); ctx.fillStyle = c.cor; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  linhas.forEach((l, i) => ctx.fillText(l, 0, (i - (linhas.length - 1) / 2) * t * 1.02));
+}
+
+/** F-278: um ícone de rede social (branco, com o detalhe na cor de destaque), centro (0,0) e lado t */
+function iconeDaRede(ctx: CanvasRenderingContext2D, rede: RedeSocial, t: number, cor: string, destaque: string) {
+  const h = t / 2;
+  ctx.lineWidth = t * 0.1; ctx.strokeStyle = cor; ctx.fillStyle = cor; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (rede === 'instagram') {
+    caminho(ctx, -h, -h, t, t, t * 0.28); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, t * 0.22, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(t * 0.27, -t * 0.27, t * 0.05, 0, Math.PI * 2); ctx.fill();
+  } else if (rede === 'facebook') {
+    caminho(ctx, -h, -h, t, t, t * 0.18); ctx.fill();
+    ctx.fillStyle = destaque; ctx.font = fonteCanvas('poppins', t * 0.85, 900); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('f', t * 0.08, t * 0.08);
+  } else if (rede === 'youtube') {
+    caminho(ctx, -t * 0.65, -t * 0.4, t * 1.3, t * 0.8, t * 0.22); ctx.fill();
+    ctx.fillStyle = destaque; ctx.beginPath(); ctx.moveTo(-t * 0.14, -t * 0.2); ctx.lineTo(t * 0.22, 0); ctx.lineTo(-t * 0.14, t * 0.2); ctx.closePath(); ctx.fill();
+  } else if (rede === 'loja') {
+    ctx.beginPath(); ctx.moveTo(-h, -h * 0.8); ctx.lineTo(-h * 0.62, -h * 0.8); ctx.lineTo(-h * 0.3, h * 0.35); ctx.lineTo(h * 0.75, h * 0.35); ctx.lineTo(h, -h * 0.45); ctx.lineTo(-h * 0.5, -h * 0.45); ctx.stroke();
+    for (const x of [-h * 0.2, h * 0.6]) { ctx.beginPath(); ctx.arc(x, h * 0.75, t * 0.08, 0, Math.PI * 2); ctx.fill(); }
+  } else if (rede === 'tiktok') {
+    ctx.lineWidth = t * 0.16;
+    ctx.beginPath(); ctx.moveTo(t * 0.05, -h); ctx.lineTo(t * 0.05, h * 0.45); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-t * 0.13, h * 0.45, t * 0.18, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(t * 0.05, -h); ctx.quadraticCurveTo(t * 0.12, -h * 0.4, h, -h * 0.35); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.arc(0, -t * 0.04, h * 0.88, Math.PI * 0.72, Math.PI * 2.62); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-h * 0.62, h * 0.55); ctx.lineTo(-h * 0.9, h * 0.95); ctx.lineTo(-h * 0.35, h * 0.8); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, -t * 0.04, h * 0.38, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+/** F-278: a linha das redes sociais: ícones lado a lado, centralizados, e o nome de cada rede embaixo do ícone */
+function desenharRedes(ctx: CanvasRenderingContext2D, c: CamadaRedes) {
+  const n = c.redes.length;
+  if (!n) return;
+  const comNome = c.redes.some((r) => r.nome.trim());
+  const casa = c.w / n;
+  const t = Math.min(comNome ? c.h * 0.58 : c.h * 0.9, casa * 0.62);
+  const tNome = Math.min(c.h * 0.24, casa * 0.17);
+  const yIcone = comNome ? -c.h / 2 + t / 2 + c.h * 0.03 : 0;
+  c.redes.forEach((r, i) => {
+    const x = -c.w / 2 + casa * (i + 0.5);
+    ctx.save(); ctx.translate(x, yIcone); iconeDaRede(ctx, r.rede, t, c.cor, c.destaque); ctx.restore();
+    if (r.nome.trim()) {
+      ctx.font = fonteCanvas(c.fonte, tNome, 800); ctx.fillStyle = c.cor; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      let nome = r.nome.trim();
+      while (nome.length > 3 && ctx.measureText(nome).width > casa * 0.96) nome = `${nome.slice(0, -2)}…`;
+      ctx.fillText(nome, x, yIcone + t / 2 + c.h * 0.06);
+    }
+  });
+}
+
 /** Pinta uma camada (com a animação no instante `tempo`, se houver). Usado pela arte e pelo editor de vídeo (F-227). */
 export function desenharCamada(ctx: CanvasRenderingContext2D, c: Camada, imgs: Imagens, escala: number, tempo?: number, total = 8) {
   if (!c.visivel || c.opacidade <= 0) return;
@@ -281,6 +345,8 @@ export function desenharCamada(ctx: CanvasRenderingContext2D, c: Camada, imgs: I
   else if (c.tipo === 'texto' && c.letreiro) desenharLetreiro(ctx, c, tempo ?? 0);
   else if (c.tipo === 'texto') desenharTexto(ctx, a?.letras != null ? { ...c, texto: c.texto.slice(0, a.letras) } : c);
   else if (c.tipo === 'selo') desenharSelo(ctx, c);
+  else if (c.tipo === 'vaga') desenharVaga(ctx, c);
+  else if (c.tipo === 'redes') desenharRedes(ctx, c);
   else desenharItens(ctx, c);
   ctx.restore();
 }

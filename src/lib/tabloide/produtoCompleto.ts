@@ -8,6 +8,10 @@ import { MARCAS_CONHECIDAS } from './marcasConhecidas';
 
 const MEDIDA = /\d+(?:[.,]\d+)?\s*(?:kg|g|gr|grs|mg|l|lt|lts|litros?|ml|cl|un|und|unid|unidades?|pct|cx|dz|m|cm|rolos?|folhas?|caps?|comp|comprimidos?|c[aá]psulas?|pastilhas?|dr[aá]geas?|sach[eê]s?|envelopes?|gotas|c\/\d+)(?![a-zà-ú])/i;
 
+/** F-279: cortes de carne, frutas, legumes e verduras não têm marca (além dos de ehFresco) */
+const SEM_MARCA = /\b(acem|musculo|cupim|maminha|fraldinha|lagarto|coxao|paleta|peito|chuchu|abobrinha|abobora|berinjela|quiabo|jilo|maxixe|couve|repolho|brocolis|rucula|agriao|mandioca|macaxeira|inhame|cara|beterraba|alho|gengibre|abacate|kiwi|goiaba|maracuja|morango|melao|pera|ameixa|caqui|pessego|coco|pinha|atemoia|acerola|caju|pitaya|graviola|figo|mirtilo|framboesa|lichia|roma|jabuticaba|tangerina|mexerica|vagem|milho|rabanete|nabo|espinafre|acelga|salsa|cebolinha|coentro|hortela|manjericao|alho-poro|salsao|cheiro-verde|ovos?|cogumelo|champignon|shimeji)\b/;
+const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 export const FALTA_MEDIDA = 'medida (kg, g, L, ml ou un)';
 
 /** O nome cita uma marca da lista? ("Coca-Cola 2L" já diz a marca; "Café" não.) */
@@ -22,7 +26,7 @@ export function faltasDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'uni
   if (p.preco == null) faltas.push('preço');
   if (!p.codigo && !p.unidade && !MEDIDA.test(nome)) faltas.push(FALTA_MEDIDA);
   const palavras = nome.replace(MEDIDA, ' ').split(/\s+/).filter((w) => w.length > 1);
-  if (!p.codigo && !ehFresco(nome) && palavras.length < 2 && !citaMarca(nome)) faltas.push('marca');
+  if (!p.codigo && !ehFresco(nome) && !SEM_MARCA.test(semAcento(nome)) && palavras.length < 2 && !citaMarca(nome)) faltas.push('marca');
   return faltas;
 }
 
@@ -49,7 +53,7 @@ export function revisarProdutos(texto: string, produtos: Array<Pick<ProdutoTablo
     vistos.add(k);
     total++;
     if (faltas.length) itens.push({ nome: nome.trim(), motivo: explicarFaltas(faltas) });
-    else if (duvidas[nome]) itens.push({ nome: nome.trim(), motivo: `achamos ${duvidas[nome]} produtos parecidos: escreva o sabor, o tipo e o peso, ou toque na foto para escolher` });
+    else if (duvidas[nome]) itens.push({ nome: nome.trim(), motivo: `confira a foto: pode não ser exatamente este produto (achamos ${duvidas[nome]} parecidos). Toque na foto para escolher o certo` });
     else if (semFoto.includes(nome)) itens.push({ nome: nome.trim(), motivo: 'não achamos a imagem deste produto: confira o nome, a marca e a medida, ou toque na foto para escolher' });
   };
   for (const linha of texto.split('\n').map((l) => l.trim()).filter(Boolean)) {
@@ -61,8 +65,8 @@ export function revisarProdutos(texto: string, produtos: Array<Pick<ProdutoTablo
 }
 
 /** F-257: as perguntas do campo "Adicionar produto". */
-export interface CamposDoProduto { nome: string; marca: string; sabor: string; quantidade: string; unidade: string; promocao: boolean; de: string; preco: string }
-export const CAMPOS_VAZIOS: CamposDoProduto = { nome: '', marca: '', sabor: '', quantidade: '', unidade: 'g', promocao: false, de: '', preco: '' };
+export interface CamposDoProduto { nome: string; marca: string; sabor: string; quantidade: string; unidade: string; promocao: boolean; de: string; preco: string; /** F-279: leite, pão, iogurte e comida fitness integrais (opcional) */ integral?: boolean }
+export const CAMPOS_VAZIOS: CamposDoProduto = { nome: '', marca: '', sabor: '', quantidade: '', unidade: 'g', promocao: false, de: '', preco: '', integral: false };
 export const UNIDADES_DO_CAMPO = [
   { valor: 'g', nome: 'Gramas (g)' }, { valor: 'kg', nome: 'Quilo (kg)' }, { valor: 'ml', nome: 'Mililitros (ml)' }, { valor: 'L', nome: 'Litros (L)' },
   { valor: 'un', nome: 'Unidade (un)' }, { valor: 'pct', nome: 'Pacote (pct)' }, { valor: 'cx', nome: 'Caixa (cx)' }, { valor: 'dz', nome: 'Dúzia (dz)' },
@@ -96,5 +100,7 @@ export function linhaDoCampo(c: CamposDoProduto): string {
   const medida = c.quantidade.trim() ? `${c.quantidade.trim()}${c.unidade.length > 3 ? ' ' : ''}${c.unidade}` : c.unidade;
   const preco = precoParaTexto(lerValor(c.preco.trim()));
   const valor = c.promocao ? `de ${precoParaTexto(lerValor(c.de.trim()))} por ${preco}` : preco;
-  return [c.nome, c.sabor, c.marca, medida, valor].map((t) => t.trim().replace(/\s+/g, ' ')).filter(Boolean).join(' ');
+  // F-279: "É integral?" marcado entra no nome (leite, pão, iogurte, fitness), sem repetir se já está escrito
+  const integral = c.integral && !/\bintegra(l|is)\b/i.test(`${c.nome} ${c.sabor}`) ? 'Integral' : '';
+  return [c.nome, integral, c.sabor, c.marca, medida, valor].map((t) => (t ?? '').trim().replace(/\s+/g, ' ')).filter(Boolean).join(' ');
 }

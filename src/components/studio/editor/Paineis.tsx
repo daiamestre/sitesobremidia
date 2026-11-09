@@ -7,12 +7,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Circle, Copy, Crop, Eye, EyeOff, Image as ImageIcon, Layers,
-  Clapperboard, Film, List, Lock, LockOpen, Minus, Move, Palette, PaintBucket, Plus, Shapes, Sparkles, Square, SunMedium, Ticket, Trash2, Type, Pilcrow,
+  Clapperboard, Film, ImagePlus, List, Lock, Share2, LockOpen, Minus, Move, Palette, PaintBucket, Plus, Shapes, Sparkles, Square, SunMedium, Ticket, Trash2, Type, Pilcrow,
 } from 'lucide-react';
 import { FONTES_STUDIO, fonteDoStudio } from '@/lib/studio/fontes';
 import { PALETA, corHex, coresDoDocumento, coresRecentes, lembrarCor } from '@/lib/studio/cores';
 import { ANIMACOES, duracaoDoVideo, type TipoDeAnimacao } from '@/lib/studio/animacao';
-import type { Camada, CamadaForma, CamadaImagem, CamadaItens, CamadaSelo, CamadaTexto, Degrade, Documento, Sombra } from '@/lib/studio/documento';
+import { REDES_SOCIAIS, type Camada, type CamadaForma, type CamadaImagem, type CamadaItens, type CamadaRedes, type CamadaSelo, type CamadaTexto, type Degrade, type Documento, type Sombra } from '@/lib/studio/documento';
 import { cn } from '@/lib/utils';
 
 export const campo = 'w-full rounded-lg border border-white/10 bg-[#0f0428] px-2.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-[#8A2EFF] focus:outline-none';
@@ -127,7 +127,7 @@ function EditorSombra({ s, onChange }: { s: Sombra | null | undefined; onChange:
 }
 
 // ───────────────────────────────────────────────────────────── botões de cada tipo de elemento
-export type Aba = 'texto' | 'cor' | 'formatar' | 'efeitos' | 'ajustes' | 'enquadrar' | 'forma' | 'posicao' | 'camadas' | 'fundo' | 'animar' | 'video';
+export type Aba = 'logo' | 'redes' | 'texto' | 'cor' | 'formatar' | 'efeitos' | 'ajustes' | 'enquadrar' | 'forma' | 'posicao' | 'camadas' | 'fundo' | 'animar' | 'video';
 export interface DefAba { id: Aba; nome: string; I: typeof Type }
 const A = (id: Aba, nome: string, I: typeof Type): DefAba => ({ id, nome, I });
 
@@ -141,6 +141,9 @@ export function abasDe(c: Camada | null): DefAba[] {
     case 'forma': return [A('cor', 'Cor', Palette), A('forma', 'Formato', Shapes), ...fim];
     case 'selo': return [A('texto', 'Texto', Type), A('cor', 'Cor', Palette), ...fim];
     case 'itens': return [A('texto', 'Itens', List), A('cor', 'Cor', Palette), ...fim];
+    // F-278: a vaga da logo abre o cartão para pôr a logo; a linha das redes abre o cartão das redes e nomes
+    case 'vaga': return [A('logo', 'Sua logo', ImagePlus), A('posicao', 'Posição', Move), A('camadas', 'Camadas', Layers)];
+    case 'redes': return [A('redes', 'Redes sociais', Share2), A('cor', 'Cor', Palette), ...fim];
   }
 }
 
@@ -155,16 +158,31 @@ interface CartaoProps {
   /** cartão do vídeo (ver animação, criar, salvar e publicar) — montado pelo editor */
   video?: ReactNode;
   textoRef?: React.Ref<HTMLTextAreaElement>;
+  /** F-278: abre a pasta Logos / envio do aparelho para colocar a logo no lugar da vaga */
+  adicionarLogo?: () => void;
 }
 
 /** O cartão do botão escolhido. */
-export function CartaoDaAba({ aba, c, doc, mudar, mudarFundo, mover, camadas, video, textoRef }: CartaoProps) {
+export function CartaoDaAba({ aba, c, doc, mudar, mudarFundo, mover, camadas, video, textoRef, adicionarLogo }: CartaoProps) {
   if (aba === 'camadas') return <>{camadas}</>;
   if (aba === 'video') return <>{video}</>;
   if (aba === 'animar' && c) return <AnimarCamada c={c} doc={doc} mudar={mudar} />;
   if (aba === 'fundo' || !c) return <Cor t="Cor de fundo da arte" valor={doc.fundo} onChange={mudarFundo} doc={doc} />;
   const m = <T extends Camada>(p: Partial<T>) => mudar(p as Partial<Camada>);
   if (aba === 'posicao') return <PropsPosicao c={c} doc={doc} mudar={mudar} mover={mover} />;
+  if (c.tipo === 'vaga') return (
+    <div className="space-y-2" data-testid="cartao-vaga-logo">
+      <button type="button" onClick={adicionarLogo} className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#5D1BFF] text-sm font-bold text-white hover:bg-[#8A2EFF]" data-testid="vaga-adicionar-logo"><ImagePlus className="h-5 w-5" />Adicionar logo</button>
+      <p className="text-[11px] text-slate-400">Escolha uma logo da pasta Logos ou envie do aparelho (galeria ou arquivos). O quadrado pontilhado some e fica só a sua logo. Antes disso, você pode arrastar o quadrado para onde quiser.</p>
+    </div>
+  );
+  if (c.tipo === 'redes' && aba === 'redes') return <PropsRedes c={c} m={m} />;
+  if (c.tipo === 'redes') return (
+    <div className="space-y-3">
+      <Cor t="Cor dos ícones e dos nomes" valor={c.cor} onChange={(v) => m<CamadaRedes>({ cor: v })} doc={doc} />
+      <Cor t="Cor do detalhe (f do Facebook, play do YouTube)" valor={c.destaque} onChange={(v) => m<CamadaRedes>({ destaque: v })} doc={doc} />
+    </div>
+  );
   if (aba === 'efeitos') {
     return (
       <div className="space-y-3">
@@ -191,7 +209,39 @@ export function CartaoDaAba({ aba, c, doc, mudar, mudarFundo, mover, camadas, vi
     case 'forma': return aba === 'forma' ? <FormatoForma c={c} m={m} /> : <CorForma c={c} m={m} doc={doc} />;
     case 'selo': return aba === 'cor' ? <CorSelo c={c} m={m} doc={doc} /> : <PropsSelo c={c} m={m} />;
     case 'itens': return aba === 'cor' ? <CorItens c={c} m={m} doc={doc} /> : <PropsItens c={c} m={m} />;
+    default: return null;
   }
+}
+
+/**
+ * F-278: escolher quais redes aparecem (todas, algumas ou só uma) e o nome de cada uma, que aparece embaixo do ícone.
+ * A ordem é a da lista; desmarcar tira a rede da linha.
+ */
+function PropsRedes({ c, m }: { c: CamadaRedes; m: (p: Partial<CamadaRedes>) => void }) {
+  const ativa = new Map(c.redes.map((r) => [r.rede, r.nome]));
+  const trocar = (rede: CamadaRedes['redes'][number]['rede'], ligar: boolean) => {
+    const lista = REDES_SOCIAIS.filter((r) => (r.rede === rede ? ligar : ativa.has(r.rede))).map((r) => ({ rede: r.rede, nome: ativa.get(r.rede) ?? '' }));
+    m({ redes: lista });
+  };
+  const nomear = (rede: CamadaRedes['redes'][number]['rede'], nome: string) => m({ redes: c.redes.map((r) => (r.rede === rede ? { ...r, nome: nome.slice(0, 40) } : r)) });
+  return (
+    <div className="space-y-2" data-testid="cartao-redes">
+      <p className="text-[11px] text-slate-400">Marque as redes que aparecem e escreva o nome de cada uma (ex.: @minhaloja). O nome fica embaixo do ícone.</p>
+      {REDES_SOCIAIS.map((r) => {
+        const ligada = ativa.has(r.rede);
+        return (
+          <div key={r.rede} className="flex items-center gap-2">
+            <label className="flex w-32 shrink-0 items-center gap-2 text-sm text-white"><input type="checkbox" checked={ligada} onChange={(e) => trocar(r.rede, e.target.checked)} className="h-4 w-4 accent-[#8A2EFF]" data-testid={`rede-${r.rede}`} />{r.nome}</label>
+            <input value={ativa.get(r.rede) ?? ''} disabled={!ligada} onChange={(e) => nomear(r.rede, e.target.value)} placeholder={ligada ? 'nome (opcional)' : ''} className={cn(campo, 'py-1.5 disabled:opacity-40')} data-testid={`rede-nome-${r.rede}`} />
+          </div>
+        );
+      })}
+      <div className="flex gap-2 pt-1">
+        <button type="button" onClick={() => m({ redes: REDES_SOCIAIS.slice(0, 4).map((r) => ({ rede: r.rede, nome: ativa.get(r.rede) ?? '' })) })} className="flex-1 rounded-lg border border-white/15 py-1.5 text-xs text-white hover:bg-white/5">Padrão (4 redes)</button>
+        <button type="button" onClick={() => m({ redes: [] })} className="flex-1 rounded-lg border border-rose-400/40 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10">Tirar todas</button>
+      </div>
+    </div>
+  );
 }
 
 /** F-225: movimento do elemento no vídeo (como as animações do Canva). */
@@ -416,7 +466,7 @@ function CorItens({ c, m, doc }: { c: CamadaItens; m: (p: Partial<CamadaItens>) 
   );
 }
 
-const ICONE: Record<Camada['tipo'], typeof Type> = { texto: Type, forma: Square, imagem: ImageIcon, selo: Ticket, itens: List };
+const ICONE: Record<Camada['tipo'], typeof Type> = { texto: Type, forma: Square, imagem: ImageIcon, selo: Ticket, itens: List, vaga: ImagePlus, redes: Share2 };
 
 interface CamadasProps {
   doc: Documento; sel: string | null; onSelecionar: (id: string) => void;

@@ -6,7 +6,7 @@ import type { Camada, Documento } from './documento';
 const CHAVES = new Set([
   'texto', 'fonte', 'peso', 'italico', 'cor', 'degrade', 'corUltimaLinha', 'maiusculas', 'espacamento', 'entrelinha',
   'src', 'espelhar', 'brilho', 'contraste', 'saturacao', 'desfoque',
-  'topo', 'valor', 'sufixo', 'base', 'corTexto', 'borda', 'itens', 'destaque', 'forma',
+  'topo', 'valor', 'sufixo', 'base', 'corTexto', 'borda', 'itens', 'destaque', 'forma', 'redes',
   'visivel', 'opacidade', 'animacao',
 ]);
 

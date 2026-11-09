@@ -3260,3 +3260,35 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Limite:** a API do Supabase devolve 429 com gravações paralelas; gravar em sequência.
 - **Cota esgotada:** as 5.000 transformações grátis do mês da Cloudflare Images acabaram; as transformações já feitas continuam servindo. Pendentes listadas no ESTADO (P-29).
 - **Resultado:** o catálogo chegou a 6.758 produtos de 221 marcas (6.661 por link e 1.011 com EAN); kits e combos das lojas foram apagados (638 linhas).
+
+
+### F-275 — 2ª fonte da foto oficial (lojas), recorte sem cota e o fundo tirado no navegador (09/11/2026)
+- **Causa:** a cota grátis da Cloudflare Images (5.000/mês) acabou com a varredura; o recorte da nuvem também servia aos usuários (foto enviada ou da busca), que ficaram sem tirar fundo. Marcas sem página de produto (Ambev, Unilever, P&G, Ypê) e laboratórios que recusam robôs ficavam sem foto.
+- **Correção:** `marca-varejo.mjs` lê o catálogo aberto (VTEX) de 10 lojas que permitem leitura (5 farmácias, 4 supermercados, 1 adega), por marca, na ordem dos mais vendidos, com EAN; remédio que pede receita fica de fora. `marca-recortar-local.mjs` recorta no PC com o MESMO código do site (sem gastar cota) e grava o link s=1. Selos de propaganda soltos saem (`apagarSelosSoltos`). No site, `prepararImagem`: nuvem → fundo liso no navegador; link s=1 que chega com fundo é recortado no navegador. Passa-foto aceita as lojas (`HOSTS_LOJAS`).
+- **Nunca:** contornar robots.txt/CAPTCHA (pedido do dono recusado com explicação; usada a próxima fonte).
+- **Auditoria:** 6.631 links do catálogo, 0 quebrados, 2.360 sem transformação no momento (cota) — cobertos pelo recorte no navegador.
+
+### F-276 — Removedor de Fundo SOBRE MÍDIA, conferência dupla e Livro de soluções (09/11/2026)
+- **Removedor:** BiRefNet_lite (MIT) no navegador (`removedorDeFundo.ts`, studioludens/birefnet-lite-512 — as versões 1024 estouram a memória do navegador). Entra quando a nuvem e o fundo liso não resolvem; sempre com finalizarRecorte + IA de visão.
+- **Conferência dupla (ordem do dono):** `marca-conferir-ia.mjs` recorta de novo com a IA e compara: parte comida > 0,2% ou sobra/sombra/reflexo > 0,8% = recusada. Gravação só depois da conferência (`marca-varejo-lote` exige `conferencia-ia.json`). Ex.: Johnnie Walker 22/28 aprovadas (Blue Label com vidro comido recusado).
+- **Livro de soluções:** `supabase/functions/_shared/studio/core/solucoes.ts` → memória global dos agentes (studio_conhecimento 'livro-de-solucoes', semeado) e no contexto do agente-ia e do Creative Core.
+- **Catálogo:** filtro de não-produto na entrada (`nao-e-produto.mjs`); limpeza das linhas antigas em `scripts/ops/limpeza-catalogo-276.sql` (aguarda o dono).
+
+### F-277 — Encartes e palcos por segmento, hortifrúti e busca contínua (09/11/2026)
+- 9 segmentos (padaria, adega, açougue, suplementos, quitanda e hortifrúti, pet, beleza, eletrônicos, moda): arte própria (`scripts/studio/gerar-segmentos.mjs`), logo 3D, encarte em 7 tamanhos, palco, pastas `encartes-de-<seg>` e `palco-de-ofertas-<seg>`, cesta e lista de produtos próprias. Adega com a advertência de bebida. Tabela única: `src/lib/studio/segmentosDeOferta.ts`.
+- Hortifrúti: `hortifruti-fotos.mjs` (110 produtos; só in natura, lado ≥ 800 px, recorte + conferência dupla; sem aprovada = sem foto). Fontes: rede Hortifruti, Giassi, Super Nosso, Super Pague Menos e os supermercados.
+- Ciclo contínuo: `catalogo-ciclo.mjs`.
+- **Incidente:** disco C cheio (prévias PNG grandes, 4,1 GB) — prévias passaram a 360 px; com 3 filas de IA (1,9 GB cada) a paginação do Windows cresce: usar 1–2 filas.
+
+### F-278 — "SUA LOGO AQUI" e redes sociais como elementos editáveis (09/11/2026)
+- Camadas novas `vaga` (botão "Adicionar logo": pasta Logos ou envio do aparelho; a logo entra no lugar e o quadrado some) e `redes` (linha que se arrasta junta; cartão escolhe as redes e o nome embaixo de cada ícone). Desenho em `desenhar.ts`, cartões em `Paineis.tsx`, troca em `EditorPage.tsx`.
+- Todo encarte oficial usa o fundo limpo; os ícones gravados no fundo do Mega Oferta foram tirados (`scripts/studio/tirar-redes-do-fundo.mjs`, original em `../backup-pesquisa-marcas/fundos-originais`).
+
+### F-279 — Produto entra sem bloqueio, sabor opcional, "É integral?" e exemplos completos (09/11/2026)
+- **Pedido do dono:** sabor nunca obrigatório; o produto sempre vai para o encarte ao "Colocar nos encartes"; o aviso vermelho só depois, para o que faltar; marcar se é integral (leite, pão, iogurte, fitness); exemplos sem acender o aviso.
+- **Correção:** `NovoProduto` só exige o nome; "Sabor ou tipo (opcional)"; caixa "É integral?" (entra "Integral" no nome). `ProdutosComFotos.aplicar` não bloqueia mais. Com vários produtos parecidos, `produtoDaMarca` usa o mais provável (o cliente troca tocando na foto) e o aviso "achamos N parecidos" não aparece mais. Cortes de carne e hortifrúti não pedem marca (`SEM_MARCA`). Cestas de exemplo com peso/medida; capas acham a foto pelo nome sem o peso (`fotoDoExemplo`). Teste: `produtoSemBloqueio279.test.ts`.
+- Cada segmento guarda a sua lista de produtos (`studio-encarte-produtos-<seg>`): o que o cliente põe numa pasta não aparece nas outras.
+
+### F-280 — Aviso vermelho leva aos produtos que precisam de atenção (09/11/2026)
+- **Pedido do dono:** o produto sempre entra (sem sabor, mesmo faltando algo); se a foto puder não corresponder, ele aparece no aviso vermelho; tocar no aviso abre a lista e os produtos com problema ficam com borda vermelha neon pulsando. O encarte pode ser usado, salvo e publicado mesmo com avisos.
+- **Correção:** com vários parecidos, a foto mais provável entra e o produto vai para o aviso ("confira a foto…"); trocar a foto tira o aviso. `AvisoDeProdutos` ganhou `aoTocar` (abre a lista e rola até o 1º com problema); `LinhaDoProduto` com `atencao` = borda vermelha neon pulsando e o motivo embaixo. Teste em `produtoSemBloqueio279.test.ts`.

@@ -86,10 +86,9 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
     const linhas = texto.split('\n').map((l) => l.trim()).filter(Boolean);
     const lidos = lerLista(texto);
     if (!lidos.length) { toast.error('Digite pelo menos um produto, um por linha. Exemplo: Arroz Camil 5kg 24,90'); return; }
-    // F-242: nome + marca + medida + preço são obrigatórios — a lista só entra quando todas as linhas estão completas
+    // F-279 (regra do dono): a lista SEMPRE entra no encarte, sem bloqueio; o que faltar aparece depois no aviso vermelho
     const ruins = linhas.map((linha) => { const p = lerLinha(linha); return { linha, faltas: p ? faltasDoProduto(p) : ['nome e preço'] }; }).filter((e) => e.faltas.length);
     setErros(ruins);
-    if (ruins.length) { toast.error(`Complete ${ruins.length === 1 ? '1 produto' : `${ruins.length} produtos`}: falta ${ruins[0].faltas.join(', ')} em “${ruins[0].linha}”.`); return; }
     const n = mesclarListas(produtos, lidos);
     setProdutos(n); gravar(n);
     void procurarFotos(n);
@@ -105,6 +104,8 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
     void procurarFotos([p]);
   };
   const trocarFoto = async (produto: ProdutoTabloide, imagem: ImagemProduto) => {
+    // F-280: o cliente escolheu a foto: o produto sai do aviso "confira a foto"
+    setDuvidas((d) => { const { [produto.nome]: _, ...resto } = d; return resto; });
     setProdutos((a) => a.map((p) => (p.id === produto.id ? { ...p, imagem } : p)));
     try {
       // F-252: identifica se tem fundo e tira; grava no catálogo pelo nome (e pelo código de barras): vira a foto do produto
@@ -122,11 +123,11 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
 const EXEMPLOS = ['Arroz Camil Tipo 1 5kg 24,90', 'Feijão Carioca Kicaldo 1kg de 8,99 por 6,49', 'Coca-Cola Original 2L 9,99', 'Picanha kg de 89,90 por 69,90'];
 
 /** Um produto da lista: foto (toque para trocar), nome, "é promoção?" (abre o "de") e o preço. */
-function LinhaDoProduto({ p, s, destaque, aoTrocarFoto }: { p: ProdutoTabloide; s: ProdutosComFotos; destaque: boolean; aoTrocarFoto: () => void }) {
+function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, atencao }: { p: ProdutoTabloide; s: ProdutosComFotos; destaque: boolean; aoTrocarFoto: () => void; /** F-280: precisa de atenção (falta informação ou a foto pode não ser o produto) */ atencao?: string | null }) {
   const [promo, setPromo] = useState(p.precoDe != null);
   const faltas = faltasDoProduto(p);
   return (
-    <li className={cn('flex items-center gap-2 rounded-lg border bg-black/20 p-1.5', faltas.length ? 'border-amber-400/60' : 'border-white/10')} data-testid="produto-linha">
+    <li className={cn('flex items-center gap-2 rounded-lg border bg-black/20 p-1.5', atencao ? 'border-2 border-red-500 shadow-[0_0_14px_rgba(239,68,68,.9)] motion-safe:animate-pulse' : 'border-white/10')} data-testid="produto-linha" data-atencao={atencao ? 'sim' : undefined}>
       <button type="button" onClick={aoTrocarFoto} title="Trocar a foto" aria-label={`Trocar a foto de ${p.nome}`} className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white">
         {p.imagem ? <img src={p.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
           : <span className="px-0.5 text-center text-[8px] font-bold leading-tight text-slate-500">{s.buscando.includes(p.nome) ? 'buscando…' : 'pôr foto'}</span>}
@@ -145,7 +146,7 @@ function LinhaDoProduto({ p, s, destaque, aoTrocarFoto }: { p: ProdutoTabloide; 
           {promo ? 'por' : 'preço'}<input aria-label="Preço (por)" inputMode="decimal" value={precoParaTexto(p.preco)} onChange={(e) => s.mudar(p.id, { preco: lerValor(e.target.value) })} placeholder="0,00"
             className="h-6 w-16 rounded border border-white/10 bg-black/30 px-1 text-right text-xs font-bold text-white" />
         </div>
-        {faltas.length > 0 && <p className="flex items-center gap-1 text-[10px] font-semibold text-red-500 motion-safe:animate-pulse"><AlertTriangle className="h-3 w-3" />Falta: {faltas.join(', ')}</p>}
+        {atencao && <p className="flex items-center gap-1 text-[10px] font-semibold text-red-500"><AlertTriangle className="h-3 w-3 shrink-0" />{faltas.length ? `Falta: ${faltas.join(', ')}` : atencao}</p>}
       </div>
       <button type="button" onClick={() => s.remover(p.id)} aria-label={`Tirar ${p.nome}`} className="rounded p-1.5 text-rose-300 hover:bg-rose-500/15"><Trash2 className="h-4 w-4" /></button>
     </li>
@@ -155,10 +156,14 @@ function LinhaDoProduto({ p, s, destaque, aoTrocarFoto }: { p: ProdutoTabloide; 
 export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encartes', aberto: abertoInicial = false, emGrade = true }: { s: ProdutosComFotos; destaques?: number; botao?: string; /** F-242: começa fechado (só o cartão) */ aberto?: boolean; /** F-244: encarte = grade completa; palco = um produto por vez */ emGrade?: boolean }) {
   const [aberto, setAberto] = useState(abertoInicial);
   const [trocando, setTrocando] = useState<ProdutoTabloide | null>(null);
+  const lista = useRef<HTMLUListElement>(null);
   const comFoto = s.produtos.filter((p) => p.imagem).length;
   const incompletos = s.produtos.filter((p) => faltasDoProduto(p).length).length;
   // F-256: confere enquanto o cliente digita, com a lista aberta ou fechada
-  const revisao = revisarProdutos(s.texto, s.produtos, s.produtos.filter((p) => !p.imagem && !s.buscando.includes(p.nome)).map((p) => p.nome), Object.fromEntries(Object.entries(s.duvidas).filter(([nome]) => s.produtos.some((p) => p.nome === nome && !p.imagem))));
+  const revisao = revisarProdutos(s.texto, s.produtos, s.produtos.filter((p) => !p.imagem && !s.buscando.includes(p.nome)).map((p) => p.nome), s.duvidas);
+  // F-280: o motivo de cada produto que precisa de atenção (o mesmo do aviso vermelho)
+  const motivoDe = (p: ProdutoTabloide) => revisao.itens.find((i) => i.nome === p.nome.trim())?.motivo ?? null;
+  const irParaCorrigir = () => { setAberto(true); setTimeout(() => (lista.current?.querySelector('[data-atencao="sim"]') ?? lista.current)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80); };
   const naGrade = quantidadeCompleta(s.quantos, s.produtos.length);
   const faltam = s.quantos - s.produtos.length;
   return (
@@ -176,7 +181,7 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
         <span className="flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-xs font-semibold text-white">{aberto ? 'Fechar' : 'Editar'}<ChevronDown className={cn('h-4 w-4 transition', aberto && 'rotate-180')} /></span>
       </button>
 
-      <AvisoDeProdutos itens={revisao.itens} total={revisao.total} className="mt-2" />
+      <AvisoDeProdutos itens={revisao.itens} total={revisao.total} className="mt-2" aoTocar={irParaCorrigir} />
 
       {/* F-244: sempre à vista, mesmo com a lista fechada */}
       <div className="mt-2 flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Quantos produtos mostrar" data-testid="produtos-quantidade">
@@ -207,8 +212,8 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
           </button>
           <div className="rounded-lg bg-white text-slate-900"><LeitorDeCodigo aoLer={s.porCodigo} /></div>
           {s.buscando.length > 0 && <p className="flex items-center gap-2 text-xs text-[#FFD400]"><Loader2 className="h-3.5 w-3.5 animate-spin" />Buscando a foto real de {s.buscando.length === 1 ? s.buscando[0] : `${s.buscando.length} produtos`}…</p>}
-          <ul className="space-y-1.5" data-testid="encartes-lista">
-            {s.produtos.map((p, i) => <LinhaDoProduto key={p.id} p={p} s={s} destaque={i < destaques} aoTrocarFoto={() => setTrocando(p)} />)}
+          <ul ref={lista} className="space-y-1.5" data-testid="encartes-lista">
+            {s.produtos.map((p, i) => <LinhaDoProduto key={p.id} p={p} s={s} destaque={i < destaques} aoTrocarFoto={() => setTrocando(p)} atencao={motivoDe(p)} />)}
           </ul>
         </>
       )}

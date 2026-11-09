@@ -7,13 +7,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, FolderOpen, PenLine } from 'lucide-react';
-import { CESTA_FARMACIA, ENCARTES } from '@/lib/tabloide/encartes';
+import { ENCARTES } from '@/lib/tabloide/encartes';
+import { infoDaPasta } from '@/lib/studio/pastasDoSegmento';
 import { MiniaturaDoEncarte, useFotosDosEncartes } from './EncartesDoStudio';
 import { PainelDeProdutos, useProdutosComFotos } from './ProdutosComFotos';
 import { EncarteOficialCartao } from './EncarteOficial';
 import { encartesDoSegmento } from '@/lib/studio/encartesOficiais';
 import type { SegmentoDoStudio } from '@/lib/studio/palco';
-import { CHAVE_PRODUTOS_DA_FARMACIA } from './ProdutosComFotos';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
 import { EscolherLogo } from './PastaDeLogos';
 
@@ -22,8 +22,10 @@ export { CHAVE_PRODUTOS_DO_ENCARTE } from './ProdutosComFotos';
 /** F-259: a mesma pasta serve ao mercado e à farmácia (encartes, lista de produtos e cesta de exemplo de cada um) */
 export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoDoStudio }) {
   const navegar = useNavigate();
-  const farmacia = segmento === 'farmacia';
-  const s = useProdutosComFotos(farmacia ? CESTA_FARMACIA : undefined, farmacia ? CHAVE_PRODUTOS_DA_FARMACIA : undefined);
+  const mercado = segmento === 'mercado';
+  // F-277: cada segmento com a sua lista de produtos e a sua cesta de exemplo
+  const info = infoDaPasta(segmento);
+  const s = useProdutosComFotos(info.cesta, info.chave);
   const oficiais = encartesDoSegmento(segmento);
   const editar = (id: string) => { s.gravar(s.produtos); navegar(`/studio/encarte/${id}`); };
   // os encartes de mercado mostram os produtos da pessoa; açougue e hortifruti mantêm os exemplos deles (fotos do catálogo)
@@ -38,8 +40,8 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
       <div className="flex flex-wrap items-center gap-3">
         <Link to="/studio" className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-4 w-4" />Modelos</Link>
         <div className="mr-auto min-w-0">
-          <h1 className="flex items-center gap-2 truncate text-xl font-black text-white"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />{farmacia ? 'Encartes de Farmácia' : 'Encartes de Mercado'}</h1>
-          <p className="text-xs text-slate-400">{farmacia ? 'Farmácias e drogarias · remédios isentos de prescrição, vitaminas, higiene e beleza · o aviso “a persistirem os sintomas” já vem no encarte' : `Supermercados · ${ENCARTES.length} encartes A4 · coloque os seus produtos e escolha quantos mostrar: a grade se organiza sozinha`}</p>
+          <h1 className="flex items-center gap-2 truncate text-xl font-black text-white"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />{info.tituloEncartes}</h1>
+          <p className="text-xs text-slate-400">{!mercado ? info.descricao : `Supermercados · ${ENCARTES.length} encartes A4 · coloque os seus produtos e escolha quantos mostrar: a grade se organiza sozinha`}</p>
         </div>
       </div>
 
@@ -50,7 +52,7 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
         <section className="space-y-2" aria-label="Encartes oficiais">
           {oficiais.map((o) => <EncarteOficialCartao key={o.id} e={o} produtos={s.produtos} quantos={s.quantos} aoGravar={() => s.gravar(s.produtos)} />)}
         </section>
-        {!farmacia && <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4" aria-label="Encartes com os seus produtos" data-testid="studio-encartes">
+        {mercado && <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4" aria-label="Encartes com os seus produtos" data-testid="studio-encartes">
           {ENCARTES.map((e) => (
             <article key={e.id} className="sm-cartao-luz flex flex-col overflow-hidden rounded-xl p-2.5" data-testid="studio-encarte-card">
               <button type="button" onClick={() => editar(e.id)} aria-label={`Editar o encarte ${e.nome}`} className="block w-full text-left">

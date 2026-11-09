@@ -2,6 +2,7 @@
 // da biblioteca (criadas no Criador de Logos ou enviadas; cada conta vê as suas e as da empresa). Cada encarte tem a sua logo
 // padrão e o cliente pode trocar por qualquer logo da pasta: a escolha fica guardada por encarte, neste navegador.
 import { logosDoCabecalho, type Selo } from '@/lib/tabloide/selos';
+import { SEGMENTOS_DE_OFERTA, logoDoSegmento, type SegmentoNovo } from './segmentosDeOferta';
 
 export interface LogoDaPasta { id: string; nome: string; url: string; largura: number; altura: number; oficial?: boolean; /** dono na biblioteca (a própria pessoa pode tirar) */ dono?: string | null; miniatura?: string | null }
 
@@ -11,7 +12,9 @@ export const LOGO_ALERTA_DE_OFERTA: LogoDaPasta = { id: 'oficial-alerta-de-ofert
 /** F-259: a logo da farmácia (encarte e palco de farmácia) */
 export const LOGO_OFERTAS_DE_FARMACIA: LogoDaPasta = { id: 'oficial-ofertas-de-farmacia', nome: 'Ofertas de Farmácia', url: '/studio/logos/ofertas-de-farmacia.webp', largura: 1500, altura: 1050, oficial: true };
 /** Logo oficial nova do dono = o arquivo em scripts/studio/preparar-logos.mjs e uma entrada aqui. */
-export const LOGOS_OFICIAIS: LogoDaPasta[] = [LOGO_MEGA_OFERTA, LOGO_SEMANA_DO_FRANGO, LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA];
+/** F-277: a logo de cada segmento (padaria, adega, açougue...), gerada em scripts/studio/gerar-segmentos.mjs */
+export const logoOficialDoSegmento = (s: SegmentoNovo): LogoDaPasta => ({ id: `oficial-ofertas-${s}`, nome: `Ofertas – ${SEGMENTOS_DE_OFERTA.find((x) => x.id === s)?.nome ?? s}`, url: logoDoSegmento(s), largura: 1500, altura: 1050, oficial: true });
+export const LOGOS_OFICIAIS: LogoDaPasta[] = [LOGO_MEGA_OFERTA, LOGO_SEMANA_DO_FRANGO, LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, ...SEGMENTOS_DE_OFERTA.map((x) => logoOficialDoSegmento(x.id))];
 
 export const logosDaPasta = (selos: Selo[] | null): LogoDaPasta[] => [
   ...LOGOS_OFICIAIS,

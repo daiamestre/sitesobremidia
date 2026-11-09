@@ -13,8 +13,11 @@ const FALA = 'Monte um encarte de supermercado com Arroz Tio João 5kg 24,90, Fe
 describe('Central → encarte oficial', () => {
   it('as pastas da Central são as pastas reais do Studio', () => {
     expect(PASTAS_DO_STUDIO).toEqual({ encarte: { mercado: PASTA_ENCARTES, farmacia: PASTA_ENCARTES_FARMACIA }, palco: { mercado: PASTA_PALCO, farmacia: PASTA_PALCO_FARMACIA } });
-    expect(CHAVE_DA_PASTA).toEqual({ [PASTA_ENCARTES]: CHAVE_PRODUTOS_DO_ENCARTE, [PASTA_PALCO]: CHAVE_PRODUTOS_DO_ENCARTE,
+    expect(CHAVE_DA_PASTA).toMatchObject({ [PASTA_ENCARTES]: CHAVE_PRODUTOS_DO_ENCARTE, [PASTA_PALCO]: CHAVE_PRODUTOS_DO_ENCARTE,
       [PASTA_ENCARTES_FARMACIA]: CHAVE_PRODUTOS_DA_FARMACIA, [PASTA_PALCO_FARMACIA]: CHAVE_PRODUTOS_DA_FARMACIA });
+    // F-277: cada segmento novo guarda a sua lista (a mesma no encarte e no palco dele)
+    expect(CHAVE_DA_PASTA['encartes-de-adega']).toBe('studio-encarte-produtos-adega');
+    expect(CHAVE_DA_PASTA['palco-de-ofertas-adega']).toBe('studio-encarte-produtos-adega');
   });
 
   it('as linhas geradas são lidas pelo Studio com o preço EXATO (normal e "de/por")', () => {

@@ -73,3 +73,19 @@ export async function fotoSemFundoPorLink(url: string, carrega: (u: string) => P
     return null;
   }
 }
+
+/** F-275: link do passa-foto que pede a foto SEM FUNDO (s=1, feito pela Cloudflare Images na hora). */
+export function pedeSemFundo(url: string): boolean {
+  if (!ehFotoPorLink(url)) return false;
+  try { return new URL(url).searchParams.get('s') === '1'; } catch { return false; }
+}
+/** F-275: o mesmo link, sem nenhuma transformação (a foto como está no site, com permissão de uso para o navegador). */
+export const linkSemTransformacao = (url: string) => linkDaFoto(origemDaFoto(url));
+/** F-275: a caixa de corte (c=left,top,width,height) do link, na escala de até 1400 px; null se não tem. */
+export function caixaDoLink(url: string): CaixaDaFoto | null {
+  if (!ehFotoPorLink(url)) return null;
+  try {
+    const n = (new URL(url).searchParams.get('c') ?? '').split(',').map(Number);
+    return n.length === 4 && n.every((v) => Number.isFinite(v) && v >= 0) && n[2] > 0 && n[3] > 0 ? { left: n[0], top: n[1], width: n[2], height: n[3] } : null;
+  } catch { return null; }
+}

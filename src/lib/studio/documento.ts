@@ -71,7 +71,19 @@ export interface CamadaSelo extends CamadaBase {
 export interface CamadaItens extends CamadaBase {
   tipo: 'itens'; itens: string[]; fonte: string; cor: string; destaque: string; tamanho: number; vertical: boolean;
 }
-export type Camada = CamadaTexto | CamadaForma | CamadaImagem | CamadaSelo | CamadaItens;
+/**
+ * F-278: o lugar da logo do cliente ("SUA LOGO AQUI"): quadrado pontilhado que se arrasta para onde quiser. É um BOTÃO: ao tocar,
+ * abre a pasta Logos e o envio do aparelho; com a logo escolhida, a vaga vira a camada da logo (o quadrado some).
+ */
+export interface CamadaVaga extends CamadaBase { tipo: 'vaga'; texto: string; cor: string }
+export type RedeSocial = 'instagram' | 'facebook' | 'youtube' | 'loja' | 'tiktok' | 'whatsapp';
+/** F-278: a linha das redes sociais (um objeto só: arrasta tudo junto); cada rede pode ter o nome escrito embaixo do ícone */
+export interface CamadaRedes extends CamadaBase { tipo: 'redes'; redes: { rede: RedeSocial; nome: string }[]; cor: string; destaque: string; fonte: string }
+export const REDES_SOCIAIS: { rede: RedeSocial; nome: string }[] = [
+  { rede: 'instagram', nome: 'Instagram' }, { rede: 'facebook', nome: 'Facebook' }, { rede: 'youtube', nome: 'YouTube' },
+  { rede: 'loja', nome: 'Loja online' }, { rede: 'tiktok', nome: 'TikTok' }, { rede: 'whatsapp', nome: 'WhatsApp' },
+];
+export type Camada = CamadaTexto | CamadaForma | CamadaImagem | CamadaSelo | CamadaItens | CamadaVaga | CamadaRedes;
 export type TipoDeCamada = Camada['tipo'];
 
 export interface Documento { versao: 2; formato: FormatoArte; fundo: string; camadas: Camada[]; /** F-225: duração do vídeo (s) quando há animação */ video?: { duracao: number } | null }
@@ -152,6 +164,12 @@ export function itens(lista: string[], x: number, y: number, w: number, o: Parti
   c.h = Math.round(alturaDosItens(c));
   return c;
 }
+
+/** F-278: a vaga da logo do cliente ("SUA LOGO AQUI") */
+export const vagaDaLogo = (x: number, y: number, w: number, h: number): CamadaVaga => ({ ...base('Sua logo aqui', x, y, w, h), tipo: 'vaga', texto: 'SUA LOGO AQUI', cor: '#ffffff' });
+/** F-278: a linha das redes sociais; nasce com Instagram, Facebook, YouTube e loja, sem nomes */
+export const redesSociais = (x: number, y: number, w: number, h: number, destaque = '#1046c8'): CamadaRedes =>
+  ({ ...base('Redes sociais', x, y, w, h), tipo: 'redes', redes: ['instagram', 'facebook', 'youtube', 'loja'].map((rede) => ({ rede: rede as RedeSocial, nome: '' })), cor: '#ffffff', destaque, fonte: 'poppins' });
 
 const transparente = (cor: string) => (/^#[0-9a-f]{6}$/i.test(cor) ? `${cor}00` : 'rgba(0,0,0,0)');
 const comAlfa = (cor: string, a: number) => (/^#[0-9a-f]{6}$/i.test(cor) ? `${cor}${Math.round(a * 255).toString(16).padStart(2, '0')}` : cor);

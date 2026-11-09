@@ -40,6 +40,7 @@ Quem usa Claude Code tem as receitas prontas em `.claude/skills/` (deploy-produc
 
 | F | Data | O que foi feito |
 |---|---|---|
+| F-275..F-280 | 09/11/2026 | **Fotos sem cota, removedor de fundo, aprendizado dos agentes, segmentos, produto sem bloqueio e aviso que leva aos produtos (F-279/F-280); 878 bebidas gravadas com conferência dupla** — (F-275) 2ª fonte da foto oficial: lojas que vendem o produto (`marca-varejo.mjs`, 10 lojas, mais vendidos, remédio com receita fora), recorte no PC sem gastar cota (`marca-recortar-local.mjs`), selos de propaganda tirados; o site tira o fundo no navegador quando a Cloudflare não recorta; (F-276) Removedor de Fundo SOBRE MÍDIA (BiRefNet MIT no navegador, `removedorDeFundo.ts`), conferência dupla com IA (`marca-conferir-ia.mjs`), Livro de soluções na memória dos agentes (`_shared/studio/core/solucoes.ts`, semeado), filtro de não-produto (`nao-e-produto.mjs`), auditoria dos 6.631 links (0 quebrados); (F-277) encartes e palcos de 9 segmentos (`gerar-segmentos.mjs`, `segmentosDeOferta.ts`), fotos de hortifrúti (`hortifruti-fotos.mjs`), ciclo contínuo da busca (`catalogo-ciclo.mjs`); (F-278) "SUA LOGO AQUI" e redes sociais como elementos editáveis (camadas `vaga` e `redes`), ícones tirados do fundo do Mega Oferta. |
 | F-263..F-270 | 08/11/2026 | **Missão SOBRE MÍDIA Autônoma (execução)** — relatório final em `docs/autonomia/RELATORIO_FINAL_AUTONOMIA.md`:
 - pareamento fechado e funcionando (aplicado);
 - assinatura antiga removida;
@@ -69,6 +70,10 @@ Publicado no ar em 08/11/2026 (P-26); falta só aplicar a memória de estilo (P-
 O histórico completo de F-01 a F-259 está em `docs/engineering/FINDINGS_LEDGER.md`.
 
 ## 4. Pendências numeradas (o que falta para ficar 100% comercializável)
+
+> **P-31 (09/11/2026, PRÓXIMO PROJETO):** SOBRE MÍDIA em **computadores e telões de LED** (indoor/outdoor, qualquer processador de vídeo, várias telas sincronizadas). Plano em `docs/PROJETO_TELOES_LED.md` (Fase 1: Player para PC com Modo LED; Fase 2: sincronismo e videowall; Fase 3: controladoras assíncronas).
+>
+> **P-30 (09/11/2026, dono):** (a) rodar `node scripts/ops/sql.mjs @scripts/ops/limpeza-catalogo-276.sql` — tira ~140 itens que não são produto (roupas, sacolas, chaveiros, "Your browser is disabled"); a trava automática do Claude recusou apagar em massa no banco. (b) DISCO DO PC CHEIO (C: 223 GB, ~0,4 GB livres em 09/11): liberar espaço fora do projeto; a busca contínua só volta com folga (≥ 10 GB). (c) Iniciar o ciclo: `node scripts/ops/catalogo-ciclo.mjs` (roda sem parar). (d) Bebidas: 1.460 produtos em conferência dupla; gravar com `node scripts/ops/marca-varejo-lote.mjs ../marcas --fase=filtrar` e `--fase=gravar` (só grava o que a IA aprovou).
 
 Situação: 🟥 depende do dono · 🟧 dá para fazer já · 🟨 melhoria planejada.
 

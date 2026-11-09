@@ -3,9 +3,10 @@
 // vermelho e lado azul, alternando), a logo do cliente vai no lugar do "SUA LOGO AQUI" e o rodapé recebe telefone e
 // endereço. O resultado é uma arte de camadas do Studio (abre no editor, anima, vira vídeo e vai para as telas).
 // Fundo novo do dono = uma entrada em ENCARTES_OFICIAIS + as imagens em public/studio/encartes-oficiais/.
-import { TAMANHO_DOC, forma, imagem, larguraDoTexto, texto, type Camada, type Documento, type FormatoArte, type FormatoDoc } from './documento';
+import { TAMANHO_DOC, forma, imagem, larguraDoTexto, redesSociais, texto, vagaDaLogo, type Camada, type Documento, type FormatoArte, type FormatoDoc } from './documento';
 import { AVISO_DE_REMEDIO, ESTILOS_DE_BALAO, avisoLegal, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta, type SegmentoDoStudio } from './palco';
-import { LOGO_MEGA_OFERTA, LOGO_OFERTAS_DE_FARMACIA, LOGO_SEMANA_DO_FRANGO, type LogoDaPasta } from './logos';
+import { LOGO_MEGA_OFERTA, LOGO_OFERTAS_DE_FARMACIA, LOGO_SEMANA_DO_FRANGO, logoOficialDoSegmento, type LogoDaPasta } from './logos';
+import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDeEncartesDe } from './segmentosDeOferta';
 import { QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta, type GradeDaArea } from './gradeInteligente';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
@@ -32,6 +33,8 @@ export interface LayoutDoEncarte {
   cartao: number;
   /** F-259: faixa do aviso obrigatório (remédios) */
   aviso?: Caixa;
+  /** F-278: onde nasce a linha das redes sociais (elemento próprio; o fundo não tem mais os ícones) */
+  redes?: Caixa;
 }
 export interface EncarteOficial {
   id: string; nome: string;
@@ -46,6 +49,8 @@ export interface EncarteOficial {
   segmento?: SegmentoDoStudio;
   /** F-259: aviso obrigatório (farmácia: "a persistirem os sintomas…"), escrito na faixa `aviso` do layout */
   aviso?: string;
+  /** F-278: cor do detalhe dos ícones de redes (f do Facebook, play do YouTube) */
+  corRedes?: string;
 }
 
 export const PASTA_ENCARTES_OFICIAIS = 'encartes-de-mercado';
@@ -55,7 +60,9 @@ export const PASTA_ENCARTES_FARMACIA = 'encartes-de-farmacia';
 export const PASTAS_DE_ENCARTE: Record<SegmentoDoStudio, { chave: string; nome: string; segmento: string }> = {
   mercado: { chave: PASTA_ENCARTES_OFICIAIS, nome: 'Encartes de Mercado', segmento: 'supermercados' },
   farmacia: { chave: PASTA_ENCARTES_FARMACIA, nome: 'Encartes de Farmácia', segmento: 'farmacias' },
-};
+  // F-277: um tipo de encarte por segmento
+  ...Object.fromEntries(SEGMENTOS_DE_OFERTA.map((sg) => [sg.id, { chave: pastaDeEncartesDe(sg.id), nome: `Encartes de ${sg.nome}`, segmento: sg.segmentoDoCatalogo }])),
+} as Record<SegmentoDoStudio, { chave: string; nome: string; segmento: string }>;
 
 const VERMELHO = { etiqueta: ESTILOS_DE_BALAO['placa-amarela'], sombraNome: 'rgba(70,0,6,.7)' };
 const AZUL = { etiqueta: ESTILOS_DE_BALAO['placa-vermelha'], sombraNome: 'rgba(0,10,70,.7)' };
@@ -79,6 +86,7 @@ const BASES: EncarteOficial[] = [
           { x: 602, y: 455, w: 454, h: 1210, ...AZUL }, // lado azul (abaixo dos ícones)
         ],
         logo: { x: 650, y: 66, w: 386, h: 290 },
+        redes: { x: 660, y: 368, w: 376, h: 84 },
         rodape: { x: 40, y: 1700, w: 1000, h: 210 },
         cartao: 1,
       },
@@ -92,6 +100,7 @@ const BASES: EncarteOficial[] = [
           { x: 1012, y: 380, w: 878, h: 562, ...AZUL },
         ],
         logo: { x: 1125, y: 40, w: 400, h: 252 },
+        redes: { x: 1140, y: 302, w: 370, h: 76 },
         rodape: { x: 40, y: 960, w: 1840, h: 112 },
         cartao: 0.8,
       },
@@ -113,6 +122,7 @@ const BASES: EncarteOficial[] = [
           { x: 745, y: 660, w: 319, h: 780, ...CARTAO_AMARELO },
         ],
         logo: { x: 804, y: 322, w: 156, h: 136 },
+        redes: { x: 762, y: 468, w: 240, h: 60 },
         rodape: { x: 24, y: 1798, w: 776, h: 104 },
         cartao: 1,
       },
@@ -127,6 +137,7 @@ const BASES: EncarteOficial[] = [
           { x: 1245, y: 375, w: 655, h: 445, ...CARTAO_AMARELO },
         ],
         logo: { x: 1366, y: 74, w: 214, h: 164 },
+        redes: { x: 1336, y: 248, w: 274, h: 62 },
         rodape: { x: 30, y: 985, w: 1040, h: 86 },
         cartao: 0.8,
       },
@@ -149,6 +160,7 @@ const BASES: EncarteOficial[] = [
           { x: 610, y: 455, w: 446, h: 1210, ...AZUL },
         ],
         logo: { x: 650, y: 66, w: 386, h: 290 },
+        redes: { x: 660, y: 368, w: 376, h: 84 },
         rodape: { x: 40, y: 1712, w: 1000, h: 140 },
         aviso: { x: 30, y: 1866, w: 1020, h: 48 },
         cartao: 1,
@@ -163,6 +175,7 @@ const BASES: EncarteOficial[] = [
           { x: 1022, y: 380, w: 868, h: 562, ...AZUL },
         ],
         logo: { x: 1125, y: 40, w: 400, h: 252 },
+        redes: { x: 1140, y: 302, w: 370, h: 76 },
         rodape: { x: 40, y: 970, w: 1840, h: 66 },
         aviso: { x: 30, y: 1044, w: 1860, h: 34 },
         cartao: 0.8,
@@ -171,6 +184,36 @@ const BASES: EncarteOficial[] = [
     logoPadrao: LOGO_OFERTAS_DE_FARMACIA,
     corTelefone: '#078a46', corEndereco: '#0b2a8f',
   },
+  // F-277: um encarte por segmento (arte em scripts/studio/gerar-segmentos.mjs), com a mesma divisão do Mega Oferta e da farmácia:
+  // área A (esquerda, placa amarela) e área B (direita, placa vermelha), rodapé branco dos contatos e, na adega, a faixa do aviso
+  ...SEGMENTOS_DE_OFERTA.map((sg): EncarteOficial => {
+    const id = idDaArte(sg.id), A = { etiqueta: ESTILOS_DE_BALAO['placa-amarela'], sombraNome: 'rgba(0,0,0,.6)' };
+    return {
+      id, nome: `Ofertas – ${sg.nome}`, segmento: sg.id, ...(sg.aviso ? { aviso: sg.aviso } : {}),
+      formatos: {
+        '9:16': {
+          fundo: `/studio/encartes-oficiais/${id}-v-st-limpo.webp`, fundoLimpo: `/studio/encartes-oficiais/${id}-v-st-limpo.webp`,
+          titulo: { x: 14, y: 20, w: 640, h: 476 },
+          colunas: [{ x: 26, y: 505, w: 468, h: 1160, ...A }, { x: 610, y: 455, w: 446, h: 1210, ...AZUL }],
+          logo: { x: 650, y: 66, w: 386, h: 290 }, redes: { x: 660, y: 368, w: 376, h: 84 },
+          rodape: sg.aviso ? { x: 40, y: 1712, w: 1000, h: 140 } : { x: 40, y: 1712, w: 1000, h: 190 },
+          ...(sg.aviso ? { aviso: { x: 30, y: 1866, w: 1020, h: 48 } } : {}),
+          cartao: 1,
+        },
+        '16:9': {
+          fundo: `/studio/encartes-oficiais/${id}-h-st-limpo.webp`, fundoLimpo: `/studio/encartes-oficiais/${id}-h-st-limpo.webp`,
+          titulo: { x: 150, y: 10, w: 730, h: 456 },
+          colunas: [{ x: 30, y: 468, w: 848, h: 474, ...A }, { x: 1022, y: 380, w: 868, h: 562, ...AZUL }],
+          logo: { x: 1125, y: 40, w: 400, h: 252 }, redes: { x: 1140, y: 302, w: 370, h: 76 },
+          rodape: sg.aviso ? { x: 40, y: 970, w: 1840, h: 66 } : { x: 40, y: 968, w: 1840, h: 104 },
+          ...(sg.aviso ? { aviso: { x: 30, y: 1044, w: 1860, h: 34 } } : {}),
+          cartao: 0.8,
+        },
+      },
+      logoPadrao: logoOficialDoSegmento(sg.id),
+      corTelefone: sg.corTelefone, corEndereco: sg.corEndereco, corRedes: sg.corRedes,
+    };
+  }),
 ];
 /**
  * F-246 — o MESMO encarte nos outros tamanhos: título, logo e rodapé só mudam de escala (por igual); apenas a faixa de fundo
@@ -180,6 +223,7 @@ const ADAPTACOES: Record<string, Partial<Record<FormatoArte, [FormatoDoc, number
   'mega-oferta-bicolor': { a4: ['9:16', 500, 1690], a3: ['9:16', 500, 1690], '4:5': ['9:16', 500, 1690], 'a4-h': ['16:9', 470, 945], '1:1': ['16:9', 470, 945] },
   'semana-do-frango': { a4: ['9:16', 650, 1570], a3: ['9:16', 650, 1570], '4:5': ['16:9', 540, 820], 'a4-h': ['16:9', 540, 820], '1:1': ['16:9', 540, 820] },
   'saude-em-oferta': { a4: ['9:16', 500, 1690], a3: ['9:16', 500, 1690], '4:5': ['9:16', 500, 1690], 'a4-h': ['16:9', 470, 945], '1:1': ['16:9', 470, 945] },
+  ...Object.fromEntries(SEGMENTOS_DE_OFERTA.map((sg) => [idDaArte(sg.id), { a4: ['9:16', 500, 1690], a3: ['9:16', 500, 1690], '4:5': ['9:16', 500, 1690], 'a4-h': ['16:9', 470, 945], '1:1': ['16:9', 470, 945] }])),
 };
 const SUFIXO: Partial<Record<FormatoArte, string>> = { '1:1': '1x1', '4:5': '4x5', a4: 'a4', 'a4-h': 'a4-h', a3: 'a3' };
 function adaptarLayout(id: string, base: LayoutDoEncarte, de: FormatoDoc, y1: number, y2: number, alvo: FormatoArte): LayoutDoEncarte {
@@ -193,6 +237,7 @@ function adaptarLayout(id: string, base: LayoutDoEncarte, de: FormatoDoc, y1: nu
     fundo: `/studio/encartes-oficiais/${id}-${SUFIXO[alvo]}.webp`, fundoLimpo: `/studio/encartes-oficiais/${id}-${SUFIXO[alvo]}-limpo.webp`,
     titulo: caixa(base.titulo), colunas: base.colunas.map(caixa), logo: caixa(base.logo), rodape: caixa(base.rodape), cartao: base.cartao,
     ...(base.aviso ? { aviso: caixa(base.aviso) } : {}),
+    ...(base.redes ? { redes: caixa(base.redes) } : {}),
   };
 }
 /** Todo fundo oficial sai nos 7 tamanhos: fundo novo do dono = uma entrada em BASES e outra em ADAPTACOES. */
@@ -317,11 +362,14 @@ export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[]
   const f = formato && e.formatos[formato] ? formato : formatosDoEncarte(e)[0];
   const lay = layoutDoEncarte(e, f);
   const { w: W, h: H } = TAMANHO_DOC[f];
-  const c: Camada[] = [{ ...imagem('Fundo oficial', d.logo ? lay.fundoLimpo : lay.fundo, 0, 0, W, H), bloqueada: true }];
+  // F-278: o fundo não traz mais a caixa "SUA LOGO AQUI" nem os ícones: os dois são elementos que se arrastam e se editam
+  const c: Camada[] = [{ ...imagem('Fundo oficial', lay.fundoLimpo, 0, 0, W, H), bloqueada: true }];
   // F-248: a logo do encarte é uma camada (troca pela pasta Logos e fica nítida em qualquer tamanho)
   const logoTitulo = d.logoDoEncarte ?? e.logoPadrao;
   c.push({ ...imagem('Logo do encarte', logoTitulo.url, lay.titulo.x, lay.titulo.y, lay.titulo.w, lay.titulo.h, { ajuste: 'conter' }), animacao: ani('zoom', 0, 0.6) });
   if (d.logo) c.push(...camadasDaLogo(d.logo, lay.logo));
+  else c.push({ ...vagaDaLogo(lay.logo.x, lay.logo.y, lay.logo.w, lay.logo.h), animacao: ani('zoom', 0.1, 0.6) });
+  if (lay.redes) c.push({ ...redesSociais(lay.redes.x, lay.redes.y, lay.redes.w, lay.redes.h, e.corRedes ?? '#1046c8'), animacao: ani('subir', 0.2, 0.5) });
   // F-244: grade completa e inteligente para a quantidade escolhida (vale para todo fundo oficial novo)
   const lista = produtos.slice(0, quantidadeCompleta(d.quantos ?? QUANTIDADE_PADRAO, produtos.length));
   const plano = planejarAreas(lay.colunas, lista.length, lay.cartao);

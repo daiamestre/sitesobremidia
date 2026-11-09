@@ -185,6 +185,13 @@ export default function EditorPage() {
   const desfazer = useCallback(() => { const a = passado.current.pop(); if (!a || !docs) return; futuro.current.push(clonar(docs)); setDocs(a); setVersao((v) => v + 1); }, [docs]);
   const refazer = useCallback(() => { const a = futuro.current.pop(); if (!a || !docs) return; passado.current.push(clonar(docs)); setDocs(a); setVersao((v) => v + 1); }, [docs]);
 
+  // F-278: a logo escolhida entra NO LUGAR da vaga "SUA LOGO AQUI" (nos dois formatos): o quadrado some e fica só a logo
+  const colocarLogoNaVaga = (url: string) => {
+    lembrar();
+    setDocs((ds) => ds && (Object.fromEntries(Object.entries(ds).map(([k, d]) => [k, d && { ...d, camadas: d.camadas.map((c) => (c.tipo === 'vaga'
+      ? normalizar({ ...imagem('Sua logo', url, c.x, c.y, c.w, c.h, { ajuste: 'conter', sombra: { cor: 'rgba(0,0,0,.45)', desfoque: 26, dx: 0, dy: 12 } }), id: c.id, rot: c.rot, animacao: c.animacao ?? null })
+      : c)) }])) as Docs));
+  };
   const adicionar = (c: Camada) => { lembrar(); trocarDoc((d) => ({ ...d, camadas: [...d.camadas, normalizar(c)] })); setSel(c.id); };
   const apagar = useCallback((id: string) => { lembrar(); trocarDoc((d) => ({ ...d, camadas: d.camadas.filter((c) => c.id !== id) })); setSel(null); }, [lembrar, trocarDoc]);
   const duplicar = useCallback((id: string) => {
@@ -402,6 +409,7 @@ export default function EditorPage() {
       { id: 'trocar', n: 'Trocar foto', I: ImagePlus, f: () => pedirFoto('trocar') },
       { id: 'espelhar', n: 'Espelhar', I: FlipHorizontal, ativo: camadaSel.espelhar, f: () => mudarPeloPainel(camadaSel.id, { espelhar: !camadaSel.espelhar } as Partial<Camada>) },
     ] : []),
+    ...(camadaSel.tipo === 'vaga' ? [{ id: 'logo', n: 'Adicionar logo', I: ImagePlus, f: () => setTrocandoLogo(true) }] : []),
     { id: 'duplicar', n: 'Duplicar', I: Copy, f: () => duplicar(camadaSel.id) },
     { id: 'travar', n: camadaSel.bloqueada ? 'Destravar' : 'Travar', I: camadaSel.bloqueada ? Lock : LockOpen, ativo: camadaSel.bloqueada, f: () => { lembrar(); mudarCamada(camadaSel.id, { bloqueada: !camadaSel.bloqueada }); } },
     ...(!camadaSel.bloqueada ? [{ id: 'excluir', n: 'Excluir', I: Trash2, perigo: true, f: () => apagar(camadaSel.id) }] : []),
@@ -486,7 +494,7 @@ export default function EditorPage() {
           <div className="rounded-xl border border-[#8A2EFF]/30 bg-[#140632] p-3 shadow-[0_0_24px_rgba(93,27,255,.18)]">
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#B04DFF]">{abas.find((a) => a.id === aba)?.nome ?? 'Editar'}</p>
             <CartaoDaAba aba={abas.some((a) => a.id === aba) ? aba : abas[0].id} c={camadaSel} doc={doc} mudar={(p) => { if (camadaSel) mudarPeloPainel(camadaSel.id, p); }} mudarFundo={mudarFundo}
-              mover={(para) => { if (camadaSel) mover(camadaSel.id, para); }} textoRef={textoRef}
+              mover={(para) => { if (camadaSel) mover(camadaSel.id, para); }} textoRef={textoRef} adicionarLogo={() => setTrocandoLogo(true)}
               video={cartaoVideo}
               camadas={<PainelCamadas doc={doc} sel={sel} onSelecionar={setSel} mudar={(id, p) => { lembrar(); mudarCamada(id, p); }} mover={mover} duplicar={duplicar} apagar={apagar} />} />
             <p className="mt-3 border-t border-white/5 pt-2 text-[10px] text-slate-500">Textos, cores, fontes e fotos valem também no {outroFormato}. Posição e tamanho são de cada formato.</p>
@@ -531,7 +539,7 @@ export default function EditorPage() {
           )}
       </div>
 
-      {trocandoLogo && camadaSel && <EscolherLogo titulo="Trocar logo" aoEscolher={(l) => { mudarPeloPainel(camadaSel.id, { src: l.url, ajuste: 'conter' } as Partial<Camada>); setTrocandoLogo(false); }} aoFechar={() => setTrocandoLogo(false)} />}
+      {trocandoLogo && camadaSel && <EscolherLogo titulo={camadaSel.tipo === 'vaga' ? 'Adicionar sua logo' : 'Trocar logo'} aoEscolher={(l) => { if (camadaSel.tipo === 'vaga') colocarLogoNaVaga(l.url); else mudarPeloPainel(camadaSel.id, { src: l.url, ajuste: 'conter' } as Partial<Camada>); setTrocandoLogo(false); }} aoFechar={() => setTrocandoLogo(false)} />}
       {trocandoProduto && produtoEmTroca && <TrocarFoto produto={{ nome: nomeDoProduto(produtoEmTroca)?.texto ?? '' }} aoFechar={() => setTrocandoProduto(null)} aoEscolher={(img, termo) => void trocarProduto(produtoEmTroca, img, termo)} />}
       <PublicarDialog aberto={!!publicando} onFechar={() => setPublicando(false)} pasta={pastaGaleria} video={publicando === 'video'}
         gerarPng={publicando === 'video' && videoPronto ? async () => ({ video: videoPronto.v, largura: videoPronto.v.largura, altura: videoPronto.v.altura }) : gerarArte}
