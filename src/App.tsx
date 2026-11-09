@@ -213,6 +213,8 @@ const Player = lazyWithRetry(() => import("./pages/Player"));
 const WidgetPlayer = lazyWithRetry(() => import("./pages/WidgetPlayer"));
 const LinkPlayer = lazyWithRetry(() => import("./pages/LinkPlayer"));
 const WebPlayerDemo = lazyWithRetry(() => import("./components/player/WebPlayerDemo"));
+// P-31 / F-281: SOBRE MÍDIA num computador ligado ao processador de vídeo de um telão de LED
+const LedPage = lazyWithRetry(() => import("./pages/LedPage"));
 const AdminSolicitacaoAprovacao = lazyWithRetry(() => import("./pages/admin/AdminSolicitacaoAprovacao"));
 const CentralDashboard = lazyWithRetry(() => import("./pages/Central/CentralDashboard"));
 
@@ -388,6 +390,7 @@ const App = () => {
                   <Route path="/player/link/:id" element={<LinkPlayer />} />
                   <Route path="/player/*" element={<Player />} />
                   <Route path="/player-demo" element={<WebPlayerDemo />} />
+                  <Route path="/led" element={<LedPage />} />
                   <Route path="/admin/solicitacoes/:id" element={<RequireApproval><AdminSolicitacaoAprovacao /></RequireApproval>} />
 
                   {/* FINANCEIRO STANDALONE (deep-linkable: /financeiro/cobrancas) */}

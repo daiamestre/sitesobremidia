@@ -3292,3 +3292,8 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 ### F-280 — Aviso vermelho leva aos produtos que precisam de atenção (09/11/2026)
 - **Pedido do dono:** o produto sempre entra (sem sabor, mesmo faltando algo); se a foto puder não corresponder, ele aparece no aviso vermelho; tocar no aviso abre a lista e os produtos com problema ficam com borda vermelha neon pulsando. O encarte pode ser usado, salvo e publicado mesmo com avisos.
 - **Correção:** com vários parecidos, a foto mais provável entra e o produto vai para o aviso ("confira a foto…"); trocar a foto tira o aviso. `AvisoDeProdutos` ganhou `aoTocar` (abre a lista e rola até o 1º com problema); `LinhaDoProduto` com `atencao` = borda vermelha neon pulsando e o motivo embaixo. Teste em `produtoSemBloqueio279.test.ts`.
+
+### F-281 — Modo LED, Fase 1 do projeto de telões (09/11/2026)
+- **Pedido do dono (P-31):** o SOBRE MÍDIA também em computadores ligados a processadores de vídeo de telões de LED (indoor/outdoor), com a mesma mídia em vários telões.
+- **Entrega:** página `/led` (`src/pages/LedPage.tsx`): cada painel = o player web da tela (`/player/<código>`) desenhado no tamanho e na posição EXATOS, em pixels, que a placa de envio (Novastar, Colorlight, Linsn, Huidu) lê da saída HDMI do PC; resto preto, sem cursor, tela cheia; vários painéis numa página; atalho `/led?paineis=COD@x,y,w,h;…` para o Chrome em modo quiosque. Não muda o Player Android (5.7.10). Teste `modoLed281.test.ts`.
+- **Próximo:** Fase 2 (sincronismo por relógio do servidor e videowall) e aplicativo de PC com início automático — plano em `docs/PROJETO_TELOES_LED.md`.

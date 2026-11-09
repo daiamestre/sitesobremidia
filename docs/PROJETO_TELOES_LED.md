@@ -47,7 +47,10 @@ A grande maioria dos painéis de loja e outdoor no Brasil usa controladora **sí
 - Mídia própria passa pela mesma moderação.
 - Sem custo novo de servidor: o PC baixa as mídias do mesmo R2 e guarda em cache.
 
-## 5. Próximo passo concreto
+## 5. Andamento
+- **09/11/2026 — Fase 1 começou (F-281):** página `/led` no ar: painéis no tamanho/posição exatos, vários painéis, tela cheia, link para o modo quiosque do Chrome.
+
+## 6. Próximo passo concreto
 1. Protótipo do **Modo LED** no player web: rota `/player/led?w=448&h=256&x=0&y=0` desenhando a playlist no tamanho exato, com fundo preto.
 2. Empacotar como aplicativo de PC com início automático e tela cheia.
 3. Teste com um processador Novastar/Colorlight real (ou só com a área recortada da tela do PC, que é o que a sending card lê).
