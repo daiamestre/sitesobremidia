@@ -71,7 +71,7 @@ O histórico completo de F-01 a F-259 está em `docs/engineering/FINDINGS_LEDGER
 
 ## 4. Pendências numeradas (o que falta para ficar 100% comercializável)
 
-> **P-32 (09/11/2026, F-288 — PUBLICAR):** commit 534d23a pronto (logo criada por nós 100% editável, galeria de 57 ícones em 13 segmentos, edição na LATERAL DIREITA também no tablet em pé, editor do botão, tom do fundo, borda dos números). O teto diário da Vercel (12) estava atingido e a trava do Claude recusou o `--forcar`: o dono roda `node scripts/ops/publicar-main.mjs --forcar` ou espera o teto liberar. Hortifrúti: 91 gravados; 16 sem foto aguardam escolha humana com `node scripts/ops/hortifruti-candidatos.mjs` (folha em ../hortifruti/_folha-candidatas.jpg) e `--escolher=produto:N`, depois `hortifruti-fotos.mjs gravar`.
+> **P-32 (09/11/2026):** ✅ F-288 e F-289 PUBLICADOS e conferidos no ar (logo 100% editável, galeria de ícones, lateral direita; foto com fundo branco recortada no navegador). Hortifrúti: 95 gravados; faltam 12 sem foto boa nos bancos (uva niágara, caju, batata-doce, maxixe, agrião, coentro, salsão, jabuticaba, mandioca, jiló, salsa, cheiro-verde): procurar em lojas de hortifrúti com foto de produto (`hortifruti-fotos.mjs`) ou novas buscas em `hortifruti-candidatos.mjs` (escolha humana: a IA aprova o recorte mas não reconhece a fruta).
 
 > **P-31 (09/11/2026, PRÓXIMO PROJETO):** SOBRE MÍDIA em **computadores e telões de LED** (indoor/outdoor, qualquer processador de vídeo, várias telas sincronizadas). Fase 1 começou: página `/led` no ar (F-281). Plano em `docs/PROJETO_TELOES_LED.md` (Fase 1: Player para PC com Modo LED; Fase 2: sincronismo e videowall; Fase 3: controladoras assíncronas).
 >
