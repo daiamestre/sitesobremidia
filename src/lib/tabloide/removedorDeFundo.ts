@@ -11,6 +11,8 @@
 import { apagarSelosSoltos } from './recorte';
 
 const MODELO = 'studioludens/birefnet-lite-512';
+/** Transformers.js (Apache-2.0), versão fixa, carregada da CDN só quando o removedor é usado */
+const TRANSFORMERS_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
 
 type Pronto = { modelo: (e: Record<string, unknown>) => Promise<Record<string, any>>; processador: (img: unknown) => Promise<{ pixel_values: unknown }>; RawImage: any };
 let carregando: Promise<Pronto> | null = null;
@@ -27,7 +29,8 @@ async function placaDeVideo(): Promise<boolean> {
 /** Carrega a IA uma vez por sessão (o arquivo do modelo fica no cache do navegador entre sessões). */
 export function carregarRemovedor(): Promise<Pronto> {
   carregando ??= (async () => {
-    const { AutoModel, AutoProcessor, RawImage, env } = await import('@huggingface/transformers');
+    // a biblioteca vem da CDN só quando o removedor é usado (não entra no pacote do site; o build da Vercel não monta o onnxruntime-web)
+    const { AutoModel, AutoProcessor, RawImage, env } = await import(/* @vite-ignore */ TRANSFORMERS_CDN) as typeof import('@huggingface/transformers');
     env.allowLocalModels = false;
     env.useBrowserCache = true;
     const gpu = await placaDeVideo();

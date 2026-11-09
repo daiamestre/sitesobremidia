@@ -83,7 +83,7 @@ describe('F-276 removedor de fundo SOBRE MÍDIA e livro de soluções', () => {
     expect(imagens).toMatch(/recortarNaNuvem[\s\S]*recortarNoNavegador\(imagem\.url/);
     const removedor = fs.readFileSync('src/lib/tabloide/removedorDeFundo.ts', 'utf8');
     expect(removedor).toContain("studioludens/birefnet-lite-512"); // MIT, roda no navegador
-    expect(removedor).toContain("import('@huggingface/transformers')"); // carregado só quando precisa
+    expect(removedor).toContain('TRANSFORMERS_CDN'); // carregado da CDN só quando precisa (fora do pacote do site)
   });
   it('o livro de soluções chega aos agentes', async () => {
     const { LIVRO_DE_SOLUCOES, resumoDoLivro } = await import('../../../supabase/functions/_shared/studio/core/solucoes.ts');
