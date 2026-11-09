@@ -16,7 +16,7 @@ import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { AvisoDeProdutos } from '@/components/tabloide/AvisoDeProdutos';
 import { NovoProduto } from '@/components/tabloide/NovoProduto';
 import { faltasDoProduto, revisarProdutos } from '@/lib/tabloide/produtoCompleto';
-import { completarImagens, guardarFotoDoProduto, prepararFotoDoProduto } from '@/lib/tabloide/imagens';
+import { completarImagens, guardarFotoDoProduto, prepararFotoDoProduto, pedirFotos } from '@/lib/tabloide/imagens';
 import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, precoParaTexto, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { CESTA_PADRAO } from '@/lib/tabloide/encartes';
 import { QUANTIDADES, gravarQuantidade, lerQuantidade, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
@@ -71,13 +71,15 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
     if (!novos.length) return;
     novos.forEach((p) => tentados.current.add(p.id));
     try {
-      await completarImagens(
+      // F-284: o que ficou sem foto vira pedido para os agentes procurarem na hora
+
+      void pedirFotos(await completarImagens(
         novos,
         (id, imagem) => { if (imagem) setProdutos((a) => a.map((p) => (p.id === id ? { ...p, imagem } : p))); },
         setBuscando,
         (id, nomeCerto) => setProdutos((a) => { const n = a.map((p) => (p.id === id ? { ...p, nome: nomeCerto } : p)); gravar(n); return n; }),
         (nome, parecidos) => setDuvidas((d) => ({ ...d, [nome]: parecidos })),
-      );
+      ));
     } finally { setBuscando([]); }
   }, [gravar]);
   useEffect(() => { void procurarFotos(produtos); }, []); // eslint-disable-line react-hooks/exhaustive-deps

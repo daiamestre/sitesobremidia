@@ -4,7 +4,7 @@
 // chave 'livro-de-solucoes') pela semente: node scripts/studio/semear-conhecimento.mjs. Ao resolver algo novo: acrescente aqui,
 // suba VERSAO_LIVRO e rode a semente. Detalhes técnicos de cada caso: docs/engineering/FINDINGS_LEDGER.md (F-NN).
 
-export const VERSAO_LIVRO = 'LS-1 (09/11/2026)';
+export const VERSAO_LIVRO = 'LS-3 (09/11/2026)';
 
 export interface Solucao {
   id: string;
@@ -31,10 +31,26 @@ export const LIVRO_DE_SOLUCOES: Solucao[] = [
       '3) 2ª fonte oficial: a mesma foto do fabricante publicada pelas grandes lojas (farmácias, supermercados, adegas) — marca-varejo.mjs',
       '4) busca aberta: Open Food Facts e família pelo código, Wikimedia, Openverse, bancos de imagens (conferidos pela IA de visão)',
       '5) imagem criada pela IA (o cliente sempre pode trocar a foto)',
-      'Há várias opções parecidas e o texto não diz qual: perguntar sabor/peso (nunca chutar)',
+      'Sabor é opcional: sem variante escrita vale o TRADICIONAL da marca, do mesmo tipo e da mesma medida; sem um confiável, NUNCA um aleatório da marca (vai para a próxima fonte e o aviso vermelho pede para conferir)',
+      'Produto embalado nunca recebe foto de banco de imagens (estátua, campo, prato); fruta/verdura/carne só com a IA confirmando',
     ],
     nunca: ['contornar robots.txt ou bloqueio de site', 'usar foto de remédio que pede receita no encarte de farmácia'],
     referencia: 'src/lib/tabloide/imagens.ts (completarImagens); F-231, F-256, F-272, F-274, F-275',
+  },
+  {
+    id: 'pedido-de-foto',
+    objetivo: 'ORDEM DO DONO: produto que entrou no encarte sem foto (ou sem foto confiável) é procurado NA HORA pelos agentes, sem o dono pedir de novo.',
+    sinais: ['produto sem foto no encarte', 'aviso vermelho "confira a foto"', 'nome que o catálogo não conhece'],
+    alternativas: [
+      '1) o site registra o pedido (tabloide_pedir_fotos → tabela tabloide_pedidos_de_foto)',
+      '2) os agentes (pedidos-de-foto.mjs, a cada 10 min e no 1º passo do ciclo) procuram a foto OFICIAL da marca',
+      '3) sem a oficial: a mesma foto do fabricante nas lojas que vendem a marca, com a mesma qualidade (produto exato: mesmo tipo, mesma medida, tradicional)',
+      '4) recorte no PC + conferência dupla com IA; aprovada = gravada por link com o nome que o cliente escreveu',
+      'carne, fruta e legume só da seção de açougue/hortifrúti da loja (nunca Pringles para "batata" nem petisco de cachorro para "picanha")',
+      'sem foto aprovada: o pedido fica aberto e volta a ser procurado; nunca entra foto aleatória',
+    ],
+    nunca: ['foto de outro tipo de produto da marca', 'foto de banco de imagens em produto embalado', 'contornar bloqueio de site'],
+    referencia: 'scripts/ops/pedidos-de-foto.mjs, catalogo-ciclo.mjs, src/lib/tabloide/imagens.ts (pedirFotos), supabase/migrations/20261363_pedidos_de_foto.sql; F-282..F-284',
   },
   {
     id: 'tirar-o-fundo',

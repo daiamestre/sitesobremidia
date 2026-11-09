@@ -80,7 +80,7 @@ async function ia() {
 }
 
 /** recorte + inspeção + conferência dupla com a IA; devolve a avaliação ou o motivo da recusa */
-async function avaliar(buf) {
+export async function avaliar(buf) {
   const meta = await sharp(buf).metadata();
   if (!meta.width || Math.min(meta.width, meta.height) < 800) return { motivo: 'baixa resolução' };
   const { data, info } = await sharp(buf).rotate().resize(1400, 1400, { fit: 'inside', withoutEnlargement: true }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -114,7 +114,8 @@ async function avaliar(buf) {
   return { ok: true, area: c.w * c.h, caixa: (c.w * c.h) / (w * h) >= 0.6 && !selos ? null : caixa, previa };
 }
 
-const [modo] = process.argv.slice(2);
+const direto = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename);
+const [modo] = direto ? process.argv.slice(2) : ['importado'];
 const so = (process.argv.find((a) => a.startsWith('--so=')) ?? '').slice(5).split(',').filter(Boolean);
 if (modo === 'buscar') {
   fs.mkdirSync(SAIDA, { recursive: true });
@@ -170,4 +171,4 @@ if (modo === 'buscar') {
     n++;
   }
   console.log('produtos de hortifrúti gravados', n);
-} else console.log('uso: buscar [--so=...] | gravar');
+} else if (modo !== 'importado') console.log('uso: buscar [--so=...] | gravar');

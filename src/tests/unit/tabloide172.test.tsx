@@ -146,9 +146,11 @@ describe('F-172 · foto do produto', () => {
   const cand = (fonteImg: CandidatoImagem['fonte'], url: string): CandidatoImagem => ({ url, miniatura: url, fonte: fonteImg, credito: 'x', legenda: 'x' });
 
   it('produto de embalagem prefere a foto da embalagem; fresco prefere foto de banco de imagens', () => {
-    const todos = [cand('PEXELS', 'p'), cand('OPENFOODFACTS', 'o'), cand('PIXABAY', 'x')];
+    // F-283: banco de imagens só para fresco E com a IA confirmando
+    const todos = [{ ...cand('PEXELS', 'p'), conferido: true }, cand('OPENFOODFACTS', 'o'), cand('PIXABAY', 'x')];
     expect(escolherMelhor('Coca-Cola 2L', todos)?.fonte).toBe('OPENFOODFACTS');
     expect(escolherMelhor('Picanha kg', todos)?.fonte).toBe('PEXELS');
+    expect(escolherMelhor('Coca-Cola 2L', [{ ...cand('PEXELS', 'p'), conferido: true }])).toBeNull();
     expect(escolherMelhor('Qualquer', [])).toBeNull();
     expect(ehFresco('Tomate kg')).toBe(true);
     expect(ehFresco('Arroz 5kg')).toBe(false);
@@ -160,14 +162,15 @@ describe('F-172 · foto do produto', () => {
     expect(fonte('src/components/tabloide/TabloideCanvas.tsx')).toContain('tabloide-sem-foto');
   });
 
-  it('a IA de visão confirma ou reprova; embalagem de catálogo e Wikimedia passam pelo filtro de nome', () => {
+  it('F-283: embalado só recebe foto de embalagem; banco de imagens só para fresco com a IA confirmando', () => {
     const c = (f: CandidatoImagem['fonte'], u: string, conferido?: boolean): CandidatoImagem => ({ ...cand(f, u), conferido });
-    const lista = [c('OPENFOODFACTS', 'a', false), c('PEXELS', 'c', true), c('WIKIMEDIA', 'b', true), c('OPENVERSE', 'o', true), c('WIKIMEDIA', 'w')];
-    expect(fotosAceitas('Vassoura', lista).map((x) => x.url)).toEqual(['b', 'w', 'o', 'c']);
+    const lista = [c('OPENFOODFACTS', 'a', false), c('PEXELS', 'c', true), c('WIKIMEDIA', 'b', true), c('OPENVERSE', 'o', true), c('WIKIMEDIA', 'w'), c('OPENFOODFACTS', 'f')];
+    expect(fotosAceitas('Vassoura', lista).map((x) => x.url)).toEqual(['f']);
     expect(fotosAceitas('Vassoura', [c('OPENFOODFACTS', 'a', false), c('PEXELS', 'c', false)])).toEqual([]);
     const semConferencia = [c('OPENVERSE', 'o'), c('PEXELS', 'p'), c('WIKIMEDIA', 'w'), c('OPENFOODFACTS', 'f')];
-    expect(fotosAceitas('Coca-Cola 2L', semConferencia).map((x) => x.url)).toEqual(['f', 'w']);
-    expect(fotosAceitas('Tomate kg', semConferencia).map((x) => x.url)).toEqual(['w', 'p', 'f']);
+    expect(fotosAceitas('Coca-Cola 2L', semConferencia).map((x) => x.url)).toEqual(['f']);
+    expect(fotosAceitas('Tomate kg', semConferencia).map((x) => x.url)).toEqual(['f']);
+    expect(fotosAceitas('Tomate kg', [c('PEXELS', 'p', true), c('WIKIMEDIA', 'w')]).map((x) => x.url)).toEqual(['p']);
   });
 
   it('só vale foto que carrega de verdade; senão tenta a próxima e por fim a IA', () => {

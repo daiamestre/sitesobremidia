@@ -6,7 +6,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { rpcTabloide, tabelaTabloide } from './db';
 import { chaveCanonica } from './chave';
-import { lerBusca, ordenarOficiais, palavrasFortes, produtoExato, type ProdutoOficial } from './buscaProduto';
+import { lerBusca, melhorOficial, palavrasFortes, produtoExato, relacionadosDaMarca, type ProdutoOficial } from './buscaProduto';
 import { chegouSemFundo, cortarMargens, finalizarRecorte, fotoParaInspecao, pngSemSobras, semFundoNoNavegador } from './recorte';
 import { MENSAGEM_DO_DEFEITO } from './qualidadeRecorte';
 import { uploadToR2 } from '@/lib/r2Upload';
@@ -43,10 +43,14 @@ export function ordemDeFontes(nome: string): FonteImagem[] {
  */
 export function fotosAceitas(nome: string, cands: CandidatoImagem[]): CandidatoImagem[] {
   const ordem = ordemDeFontes(nome);
-  const passaNoFiltro = (c: CandidatoImagem) => c.fonte === 'OPENFOODFACTS' || c.fonte === 'WIKIMEDIA' || (ehFresco(nome) && (c.fonte === 'PEXELS' || c.fonte === 'PIXABAY'));
+  // F-283 (regra do dono: nada de foto aleatória — estátua, campo, prato de restaurante): produto EMBALADO só recebe foto de embalagem
+  // (base aberta de produtos pelo código/nome); banco de imagens (Wikimedia, Openverse, Pexels, Pixabay) só para fruta, verdura e
+  // carne, e SÓ quando a IA de visão confirmou que a foto é o produto.
+  const fresco = ehFresco(nome);
+  const aceita = (c: CandidatoImagem) => c.conferido !== false && (c.fonte === 'OPENFOODFACTS' || c.fonte === 'COSMOS' || (fresco && c.conferido === true));
   const peso = (c: CandidatoImagem) => ordem.indexOf(c.fonte) * 2 + (c.conferido === true ? 0 : 1);
   return cands
-    .filter((c) => c.conferido !== false && (c.conferido === true || passaNoFiltro(c)))
+    .filter(aceita)
     .sort((x, y) => peso(x) - peso(y));
 }
 /** Escolhe a melhor entre as fotos encontradas (null = nenhuma serve). */
@@ -100,14 +104,11 @@ export async function buscarProdutosDaMarca(nome: string): Promise<ProdutoOficia
   const fortes = palavrasFortes(lerBusca(nome));
   if (!fortes.length) return [];
   try {
-    const consulta = () => tabelaTabloide('tabloide_catalogo').select('nome, nome_norm, imagem_url, credito').eq('fonte', 'MARCA').is('cliente_id', null).limit(300);
-    // todas as palavras no nome; se nenhum produto tiver todas, volta a lista de quem tem alguma para o cliente escolher
-    let q = consulta();
-    for (const p of fortes) q = q.like('nome_norm', `%${p}%`);
-    const { data } = await q;
-    if (data?.length) return ordenarOficiais(nome, data as ProdutoOficial[]);
-    const { data: alguma } = await consulta().or(fortes.map((p) => `nome_norm.like.*${p}*`).join(','));
-    return ordenarOficiais(nome, (alguma ?? []) as ProdutoOficial[]);
+    const consulta = () => tabelaTabloide('tabloide_catalogo').select('nome, nome_norm, imagem_url, credito').eq('fonte', 'MARCA').is('cliente_id', null).limit(400);
+    // F-283: traz o que tem alguma das palavras (a marca entra aqui) e devolve os exatos e, depois, só os RELACIONADOS: a mesma marca e
+    // o mesmo tipo de produto (outro peso ou sabor). Feijão nunca aparece para quem pediu arroz.
+    const { data } = await consulta().or(fortes.map((p) => `nome_norm.like.*${p}*`).join(','));
+    return relacionadosDaMarca(nome, (data ?? []) as ProdutoOficial[]);
   } catch {
     return [];
   }
@@ -119,8 +120,8 @@ export const imagemDaMarca = (l: ProdutoOficial): ImagemProduto => ({ url: l.ima
 export async function produtoDaMarca(nome: string): Promise<{ imagem: ImagemProduto | null; parecidos: number }> {
   const lista = await buscarProdutosDaMarca(nome);
   const l = produtoExato(nome, lista);
-  // F-279: o sabor é opcional — com vários parecidos vale o MAIS PROVÁVEL (o cliente troca tocando na foto)
-  const melhor = l ?? lista[0] ?? null;
+  // F-279/F-282: o sabor é opcional — com vários parecidos vale o mais provável SÓ se for confiável (mesmo tipo, mesma medida, tradicional)
+  const melhor = l ?? melhorOficial(nome, lista);
   return { imagem: melhor ? imagemDaMarca(melhor) : null, parecidos: l ? 0 : lista.length };
 }
 
@@ -280,6 +281,17 @@ export async function prepararImagem(imagem: ImagemProduto, nome?: string): Prom
 export const prepararFotoDoProduto = prepararImagem;
 
 /**
+ * F-284 (ordem do dono): produto que ficou SEM foto no encarte vira um PEDIDO para os agentes da SOBRE MÍDIA, que procuram na hora a
+ * foto oficial da marca e, sem ela, a mesma foto nas lojas que vendem a marca (scripts/ops/pedidos-de-foto.mjs, no ciclo contínuo).
+ * Nunca atrapalha o encarte: erro aqui é ignorado.
+ */
+export async function pedirFotos(nomes: string[]): Promise<void> {
+  const lista = [...new Set(nomes.map((n) => n.trim()).filter((n) => n.length >= 2))].slice(0, 40);
+  if (!lista.length) return;
+  try { await rpcTabloide('tabloide_pedir_fotos', { p_nomes: lista, p_normas: lista.map(chaveCanonica) }); } catch { /* sem a fila: os agentes também varrem os encartes salvos */ }
+}
+
+/**
  * Grava a foto como a foto do produto, pelo nome que o cliente deu: enviada por alguém, vira a oficial se o produto ainda não
  * tem foto (regra no banco: tabloide_catalogo_salvar). Foto que ficou com fundo ou foi reprovada na inspeção não vira a do produto.
  */
@@ -367,8 +379,7 @@ export async function completarImagens(
   for (const p of faltam) {
     const oficial = oficiais.get(p.id);
     if (oficial) { resolver(p.id, oficial); conferirFundo(p, oficial); continue; }
-    // o aviso pede o sabor ou o peso: foto de outra fonte aqui poderia ser de outro produto
-    if (emDuvida.has(p.id)) { resolver(p.id, null); continue; }
+    // F-282: sem um oficial confiável o produto NÃO fica sem foto nem recebe um aleatório da marca: segue para o catálogo e a busca
     const achada = catalogo.get(chaveCanonica(p.nome));
     if (achada) {
       resolver(p.id, achada);

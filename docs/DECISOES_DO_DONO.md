@@ -73,6 +73,8 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - Foto escolhida ou enviada pelo cliente: sai sem fundo, inspecionada, e vira a oficial do produto pelo nome. Reprovada nunca é entregue.
 - **Recorte sem defeito (09/11/2026, F-276):** só entra foto em que o recorte e a IA (BiRefNet) CONCORDAM: parte do produto comida, sombra, reflexo ou sobra = recusada. Nunca trazer foto que precise "consertar".
 - **Ordem das fontes da foto (F-275):** 1) site oficial da marca → 2) a mesma foto do fabricante nas grandes lojas que permitem leitura → 3) busca aberta no encarte → 4) imagem criada por IA. Bloqueio de site (robots.txt, CAPTCHA) NUNCA é contornado: passa para a próxima fonte.
+- **Pedido de foto (F-284, ORDEM):** produto sem foto no encarte = os agentes procuram na hora (oficial → lojas que vendem a marca, mesma qualidade); o dono não precisa pedir de novo.
+- **Produto certo (F-282/F-283):** sem variante escrita vale o TRADICIONAL da marca, do mesmo tipo e da mesma medida; nunca outro tipo da marca (arroz ≠ feijão), nunca foto de banco de imagens em produto embalado (estátua, campo, prato).
 - **Busca contínua (F-277):** a busca de fotos roda em ciclo no PC (`scripts/ops/catalogo-ciclo.mjs`), enquanto o resto do trabalho segue.
 - **Removedor de fundo próprio (F-276):** quando a cota da Cloudflare acaba, o navegador tira o fundo (liso na hora; outro fundo pela IA da SOBRE MÍDIA, BiRefNet MIT).
 - Método e comandos em `docs/MISSAO_CATALOGO_DE_PRODUTOS.md` (scripts `scripts/ops/marca-*`).

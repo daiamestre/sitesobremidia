@@ -10,7 +10,7 @@ import { uploadToR2 } from '@/lib/r2Upload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { buscarCandidatos, buscarProdutosDaMarca, gerarImagemIA, imagemDaMarca, type CandidatoImagem } from '@/lib/tabloide/imagens';
+import { buscarCandidatos, buscarProdutosDaMarca, fotosAceitas, gerarImagemIA, imagemDaMarca, type CandidatoImagem } from '@/lib/tabloide/imagens';
 import type { ProdutoOficial } from '@/lib/tabloide/buscaProduto';
 import type { ImagemProduto, ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
@@ -35,7 +35,8 @@ export function TrocarFoto({ produto, aoFechar, aoEscolher }: { produto: Pick<Pr
     setOficiais([]);
     // F-256: as imagens oficiais das marcas aparecem na hora; a busca nas outras fontes demora mais
     void buscarProdutosDaMarca(t).then((l) => setOficiais(l.slice(0, 24)));
-    setCands(await buscarCandidatos(t));
+    // F-283: só foto de embalagem do produto (e, para fresco, só a que a IA confirmou): nada de estátua, campo ou prato de restaurante
+    setCands(fotosAceitas(t, await buscarCandidatos(t)));
   }, []);
   useEffect(() => { void buscar(produto.nome); }, [buscar, produto.nome]);
 

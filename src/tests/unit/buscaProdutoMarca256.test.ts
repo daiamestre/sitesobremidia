@@ -93,11 +93,14 @@ describe('aviso de produto incompleto', () => {
   it('nome que já é a marca não pede marca', () => {
     expect(revisarProdutos('Coca-Cola 2L 9,99\nNescau 400g 7,99', []).itens).toEqual([]);
   });
-  it('produto que bate com vários pede o sabor ou o peso', () => {
-    expect(revisarProdutos('Molho de Tomate Cepêra 300g 4,99', [], [], { 'Molho de Tomate Cepêra 300g': 5 }).itens[0].motivo).toMatch(/achamos 5 produtos parecidos: escreva o sabor/);
+  // F-279/F-282: sabor é opcional — com vários parecidos entra o tradicional confiável e o aviso pede para conferir a foto
+  it('produto que bate com vários pede para conferir a foto', () => {
+    expect(revisarProdutos('Molho de Tomate Cepêra 300g 4,99', [], [], { 'Molho de Tomate Cepêra 300g': 5 }).itens[0].motivo).toMatch(/confira a foto: .*achamos 5 parecidos/);
   });
-  it('em dúvida não puxa foto de outra fonte', () => {
-    expect(fs.readFileSync('src/lib/tabloide/imagens.ts', 'utf8')).toContain('if (emDuvida.has(p.id)) { resolver(p.id, null); continue; }');
+  it('em dúvida, sem um oficial confiável, segue para as outras fontes (nunca um aleatório da marca)', () => {
+    const img = fs.readFileSync('src/lib/tabloide/imagens.ts', 'utf8');
+    expect(img).toContain('const melhor = l ?? melhorOficial(nome, lista);');
+    expect(img).not.toContain('if (emDuvida.has(p.id)) { resolver(p.id, null); continue; }');
   });
   it('a frase junta as faltas', () => {
     expect(explicarFaltas(['preço', 'marca'])).toBe('falta o preço e a marca');

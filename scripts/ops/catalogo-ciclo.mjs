@@ -1,6 +1,7 @@
 /**
  * F-277 — CICLO CONTÍNUO DA BUSCA DE FOTOS (ordem do dono: "os agentes sempre trabalhando para encontrar as imagens").
  * Roda sem parar no PC, um passo de cada vez (a API do Supabase recusa gravações em paralelo):
+ *   0) PEDIDOS DE FOTO dos encartes (pedidos-de-foto.mjs): produto sem foto é procurado primeiro
  *   1) recorta no PC as fotos novas das lojas (marca-varejo-lote recortar)
  *   2) CONFERÊNCIA DUPLA com a IA nas marcas ainda não conferidas (marca-conferir-ia) — parte comida, sombra ou reflexo = fora
  *   3) tira as fotos genéricas das lojas (marca-varejo-lote filtrar)
@@ -38,6 +39,8 @@ const ULTIMA_VARREDURA = path.join(MARCAS, 'lista', 'ciclo-ultima-varredura.txt'
 
 for (let volta = 1; ; volta++) {
   log(`volta ${volta}: começo`);
+  // F-284 (ordem do dono): PRIMEIRO os pedidos de foto dos encartes (produto sem foto = varredura na hora)
+  log(`pedidos de foto: ${rodar(['scripts/ops/pedidos-de-foto.mjs', '--max=60'])}`);
   log(`recorte: ${rodar(['scripts/ops/marca-varejo-lote.mjs', MARCAS, '--fase=recortar'])}`);
   const reg = fs.readFileSync(path.join(MARCAS, 'lista', 'varejo.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
   const fora = ocupadas();

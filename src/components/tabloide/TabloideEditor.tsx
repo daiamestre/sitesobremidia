@@ -30,7 +30,7 @@ import {
 } from '@/lib/tabloide/parseProdutos';
 import { FORMATOS, USOS_DO_FORMATO, formatoPorId, segmentoPorId, temasDoSegmento, type SegmentoId } from '@/lib/tabloide/temas';
 import { GRADES_FIXAS, rotuloGrade } from '@/lib/tabloide/grade';
-import { buscarNoCatalogo, completarImagens, guardarFotoDoProduto, prepararFotoDoProduto } from '@/lib/tabloide/imagens';
+import { buscarNoCatalogo, completarImagens, guardarFotoDoProduto, prepararFotoDoProduto, pedirFotos } from '@/lib/tabloide/imagens';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { baixarBlob, imprimirBlobs, nomeDeArquivo } from '@/lib/tabloide/exportar';
 import {
@@ -248,7 +248,9 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
     novos.forEach((p) => tentados.current.add(p.id));
     try {
       // foto já guardada no catálogo da empresa chega na hora; "procurando" aparece só para produto que o sistema nunca viu
-      await completarImagens(
+      // F-284: o que ficou sem foto vira pedido para os agentes procurarem na hora
+
+      void pedirFotos(await completarImagens(
         novos,
         (id, imagem) => { if (imagem) setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, imagem } : p))); },
         (nomesNovos) => { setNovosBuscando(nomesNovos); },
@@ -258,7 +260,7 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
           setCfg((c) => ({ ...c, texto: c.texto.split('\n').map((l) => (l.includes(codigo) ? l.replace(codigo, nomeCerto) : l)).join('\n') }));
         },
         (nome, parecidos) => setDuvidas((d) => ({ ...d, [nome]: parecidos })),
-      );
+      ));
     } finally {
       setNovosBuscando([]);
     }
