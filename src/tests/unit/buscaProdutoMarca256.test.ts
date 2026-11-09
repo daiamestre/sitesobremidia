@@ -100,7 +100,7 @@ describe('aviso de produto incompleto', () => {
   });
   it('em dúvida, sem um oficial confiável, segue para as outras fontes (nunca um aleatório da marca)', () => {
     const img = fs.readFileSync('src/lib/tabloide/imagens.ts', 'utf8');
-    expect(img).toContain('const melhor = l ?? melhorOficial(nome, lista);');
+    expect(img).toContain('const melhor = l ?? melhorOficial(alvo, lista);');
     expect(img).not.toContain('if (emDuvida.has(p.id)) { resolver(p.id, null); continue; }');
   });
   it('a frase junta as faltas', () => {

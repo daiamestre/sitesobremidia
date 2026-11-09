@@ -27,8 +27,8 @@ const { chaveCanonica } = jiti('../../src/lib/tabloide/chave.ts');
 
 export const LISTA = {
   Frutas: ['Banana Prata', 'Banana Nanica', 'Banana da Terra', 'Maçã Gala', 'Maçã Fuji', 'Maçã Verde', 'Pera Williams', 'Laranja Pera', 'Laranja Lima', 'Laranja Bahia', 'Tangerina Ponkan', 'Mexerica Murcote', 'Limão Taiti', 'Limão Siciliano', 'Mamão Formosa', 'Mamão Papaya', 'Melancia', 'Melão Amarelo', 'Abacaxi Pérola', 'Manga Palmer', 'Manga Tommy', 'Manga Espada', 'Uva Thompson', 'Uva Vitória', 'Uva Niágara', 'Uva Crimson', 'Morango', 'Kiwi', 'Abacate', 'Goiaba Vermelha', 'Maracujá Azedo', 'Coco Verde', 'Coco Seco', 'Caqui', 'Ameixa', 'Pêssego', 'Nectarina', 'Acerola', 'Caju', 'Pitaya', 'Graviola', 'Carambola', 'Figo', 'Mirtilo', 'Framboesa', 'Lichia', 'Romã', 'Cereja', 'Jabuticaba', 'Atemoia', 'Pinha'],
-  Legumes: ['Tomate', 'Tomate Italiano', 'Tomate Cereja', 'Batata', 'Batata Doce', 'Batata Baroa', 'Mandioca', 'Cebola', 'Cebola Roxa', 'Alho', 'Cenoura', 'Beterraba', 'Abóbora Cabotiá', 'Abóbora Moranga', 'Abobrinha', 'Berinjela', 'Chuchu', 'Pepino', 'Pepino Japonês', 'Pimentão Verde', 'Pimentão Vermelho', 'Pimentão Amarelo', 'Quiabo', 'Maxixe', 'Jiló', 'Vagem', 'Milho Verde', 'Inhame', 'Gengibre', 'Cará', 'Rabanete', 'Nabo'],
-  Verduras: ['Alface Crespa', 'Alface Americana', 'Alface Roxa', 'Rúcula', 'Agrião', 'Couve Manteiga', 'Couve-flor', 'Brócolis', 'Repolho Verde', 'Repolho Roxo', 'Espinafre', 'Acelga', 'Salsa', 'Cebolinha', 'Coentro', 'Hortelã', 'Manjericão', 'Alho-poró', 'Salsão', 'Cheiro-verde'],
+  Legumes: ['Tomate', 'Tomate Italiano', 'Tomate Cereja', 'Batata', 'Batata Doce', 'Batata Doce Roxa', 'Batata Doce Branca', 'Batata Baroa', 'Mandioca', 'Cebola', 'Cebola Roxa', 'Alho', 'Cenoura', 'Beterraba', 'Abóbora Cabotiá', 'Abóbora Moranga', 'Abobrinha', 'Berinjela', 'Chuchu', 'Pepino', 'Pepino Japonês', 'Pimentão Verde', 'Pimentão Vermelho', 'Pimentão Amarelo', 'Quiabo', 'Maxixe', 'Jiló', 'Vagem', 'Milho Verde', 'Inhame', 'Gengibre', 'Cará', 'Rabanete', 'Nabo'],
+  Verduras: ['Alface Crespa', 'Alface Americana', 'Alface Roxa', 'Rúcula', 'Agrião', 'Couve Manteiga', 'Couve-flor', 'Brócolis', 'Repolho Verde', 'Repolho Roxo', 'Espinafre', 'Acelga', 'Salsa', 'Cebolinha', 'Coentro', 'Cheiro-verde', 'Hortelã', 'Manjericão', 'Alho-poró', 'Salsão', 'Cheiro-verde'],
   Outros: ['Ovos Brancos', 'Ovos Vermelhos', 'Cogumelo Champignon', 'Cogumelo Shimeji'],
 };
 /** mercados com seção de hortifrúti aberta (robots.txt conferido em 09/11/2026); a rede Hortifruti primeiro */
@@ -52,7 +52,20 @@ export function inNatura(n, palavras) {
   return t.filter((w) => !palavras.includes(w) && !palavras.includes(w.replace(/s$/, '')) && !PERMITIDAS.test(w)).length === 0;
 }
 
+/** F-291: como as lojas chamam o mesmo produto (batata-doce roxa = rosada; salsão = aipo; salsa = salsinha; cheiro-verde = tempero verde) */
+const NOMES_NAS_LOJAS = { 'Batata Doce Roxa': ['Batata Doce Roxa', 'Batata Doce Rosada'], 'Batata Doce Branca': ['Batata Doce Branca'], 'Batata Doce': ['Batata Doce', 'Batata Doce Rosada'], 'Salsão': ['Salsão', 'Aipo'], 'Salsa': ['Salsa', 'Salsinha'], 'Cheiro-verde': ['Cheiro Verde', 'Tempero Verde'], 'Coentro': ['Coentro'], 'Agrião': ['Agrião'], 'Uva Niágara': ['Uva Niágara', 'Uva Niagara Rosada'] };
+/** F-291: folhas e temperos têm contorno irregular por natureza (não é recorte falho) */
+export const FOLHAS = /\b(coentro|salsa|salsinha|cebolinha|cheiro|agriao|salsao|aipo|rucula|hortela|manjericao|alface|couve|espinafre|acelga|alho poro|alho-poro)\b/;
+
 async function buscarCandidatas(nome) {
+  const nomes = NOMES_NAS_LOJAS[nome] ?? [nome];
+  const todas = [];
+  for (const n of nomes) todas.push(...await buscarCandidatasDe(n));
+  const vistas = new Set();
+  return todas.filter((c) => !vistas.has(c.url) && vistas.add(c.url)).slice(0, 16);
+}
+
+async function buscarCandidatasDe(nome) {
   const palavras = semAcento(nome).replace(/-/g, ' ').split(/\s+/).filter((p) => p.length > 1);
   const out = [];
   for (const loja of LOJAS_HORTI) {
@@ -61,7 +74,9 @@ async function buscarCandidatas(nome) {
     const j = await r.json().catch(() => []);
     for (const p of Array.isArray(j) ? j : []) {
       const n = semAcento(p.productName).replace(/-/g, ' ');
-      if (!SECAO.test(semAcento((p.categories ?? []).join(' '))) || FORA.test(n) || !inNatura(n, palavras)) continue;
+      // F-291: a palavra pedida não conta como industrializado ("Batata DOCE" não é doce de leite)
+      const resto = n.split(/\s+/).filter((w) => !palavras.includes(w)).join(' ');
+      if (!SECAO.test(semAcento((p.categories ?? []).join(' '))) || FORA.test(resto) || !inNatura(n, palavras)) continue;
       for (const img of (p.items?.[0]?.images ?? []).slice(0, 2)) out.push({ titulo: p.productName, pagina: p.link, url: String(img.imageUrl).replace(/^http:/, 'https:').replace(/\?.*$/, ''), loja: loja.nome });
     }
   }
@@ -105,7 +120,9 @@ async function aprovado(recorte, w, h, selos, via) {
  * fotos com sombra/fundo não liso): o recorte da PRÓPRIA IA — o mesmo tipo de recorte que a Cloudflare e o Removedor da SOBRE MÍDIA
  * fazem — aprovado só se a máscara é firme (contorno nítido), o produto ocupa uma área razoável e passa na inspeção de qualidade.
  */
-export async function avaliar(buf) {
+export async function avaliar(buf, { folhas = false } = {}) {
+  // F-291: em folhas/temperos o contorno irregular é natural (a conferência humana decide)
+  const semFolha = (d) => (folhas ? d.filter((x) => x !== 'contorno-irregular') : d);
   const meta = await sharp(buf).metadata();
   if (!meta.width || Math.min(meta.width, meta.height) < 800) return { motivo: 'baixa resolução' };
   const { data, info } = await sharp(buf).rotate().resize(1400, 1400, { fit: 'inside', withoutEnlargement: true }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -118,7 +135,7 @@ export async function avaliar(buf) {
     const selos = apagarSelosSoltos(recorte, w, h);
     repararMordidas(foto, recorte, w, h);
     const ins = inspecionar(recorte, w, h, foto);
-    if (ins.aprovado) {
+    if (ins.aprovado || semFolha(ins.defeitos).length === 0) {
       let produto = 0, comido = 0, sobra = 0;
       for (let i = 0; i < w * h; i++) {
         const mi = antes[i * 4 + 3] >= 16 && recorte[i * 4 + 3] < 16 ? 0 : m[i], a = recorte[i * 4 + 3];
@@ -139,7 +156,7 @@ export async function avaliar(buf) {
   if (meio / Math.max(1, firme) > 0.12) return { motivo: `${motivo1}; IA: contorno incerto` };
   const selos2 = apagarSelosSoltos(ia2, w, h);
   const ins2 = inspecionar(ia2, w, h, foto);
-  if (!ins2.aprovado) return { motivo: `${motivo1}; IA: ${ins2.defeitos.join('+')}` };
+  if (!ins2.aprovado && semFolha(ins2.defeitos).length) return { motivo: `${motivo1}; IA: ${ins2.defeitos.join('+')}` };
   return aprovado(ia2, w, h, selos2, 'IA');
 }
 
@@ -163,7 +180,7 @@ if (modo === 'buscar') {
       if (!r?.ok) { motivos.push('não abriu'); continue; }
       const buf = Buffer.from(await r.arrayBuffer());
       fs.writeFileSync(path.join(pasta, `c${k}${path.extname(new URL(c.url).pathname) || '.jpg'}`), buf);
-      const a = await avaliar(buf).catch((e) => ({ motivo: `erro ${String(e?.message ?? e).slice(0, 30)}` }));
+      const a = await avaliar(buf, { folhas: FOLHAS.test(semAcento(nome)) }).catch((e) => ({ motivo: `erro ${String(e?.message ?? e).slice(0, 30)}` }));
       if (!a.ok) { motivos.push(a.motivo); continue; }
       if (!melhor || a.area > melhor.area) melhor = { ...c, ...a, k };
     }

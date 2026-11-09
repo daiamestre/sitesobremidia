@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { rpcTabloide, tabelaTabloide } from './db';
 import { chaveCanonica } from './chave';
 import { lerBusca, melhorOficial, palavrasFortes, produtoExato, relacionadosDaMarca, type ProdutoOficial } from './buscaProduto';
+import { ehPedidoDeHortifruti, nomeTradicionalDoHortifruti } from './hortifruti';
 import { chegouSemFundo, cortarMargens, finalizarRecorte, fotoParaInspecao, pngSemSobras, semFundoNoNavegador } from './recorte';
 import { MENSAGEM_DO_DEFEITO } from './qualidadeRecorte';
 import { uploadToR2 } from '@/lib/r2Upload';
@@ -85,16 +86,37 @@ export async function buscarPorCodigo(codigo: string): Promise<ProdutoPorCodigo 
 
 /** Uma consulta só ao catálogo da empresa: devolve, por chave canônica, a foto já guardada (a preferência do anunciante vale mais). */
 export async function buscarNoCatalogo(nomes: string[]): Promise<Map<string, ImagemCatalogada>> {
-  const chaves = [...new Set(nomes.map(chaveCanonica).filter(Boolean))];
+  // F-291: fruta/legume/verdura/ovos sem marca: o nome curto também procura a variedade tradicional ("Uva" → Uva Vitória)
+  const tradicional = new Map<string, string>();
+  const horti = new Set<string>();
+  for (const n of nomes) {
+    if (!ehPedidoDeHortifruti(n)) continue;
+    horti.add(chaveCanonica(n));
+    const t = nomeTradicionalDoHortifruti(n);
+    if (t) tradicional.set(chaveCanonica(n), chaveCanonica(t));
+  }
+  const chaves = [...new Set([...nomes.map(chaveCanonica), ...tradicional.values()].filter(Boolean))];
   const mapa = new Map<string, ImagemCatalogada>();
   if (!chaves.length) return mapa;
   const { data, error } = await tabelaTabloide('tabloide_catalogo')
-    .select('nome_norm, nome, imagem_url, fonte, credito, cliente_id, recortada, recorte_tentado')
+    .select('nome_norm, nome, imagem_url, fonte, credito, cliente_id, recortada, recorte_tentado, segmento')
     .in('nome_norm', chaves);
   if (error || !data) return mapa;
   const linhas = [...(data as any[])].sort((a, b) => (a.cliente_id ? 0 : 1) - (b.cliente_id ? 0 : 1));
+  const segmento = new Map<string, string | null>();
   for (const l of linhas) {
-    if (!mapa.has(l.nome_norm)) mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada, recorteTentado: !!l.recorte_tentado, doCliente: !!l.cliente_id, nome: l.nome ?? undefined });
+    if (!mapa.has(l.nome_norm)) {
+      mapa.set(l.nome_norm, { url: l.imagem_url, fonte: l.fonte, credito: l.credito ?? undefined, recortada: !!l.recortada, recorteTentado: !!l.recorte_tentado, doCliente: !!l.cliente_id, nome: l.nome ?? undefined });
+      segmento.set(l.nome_norm, l.cliente_id ? 'cliente' : l.segmento ?? null);
+    }
+  }
+  // F-291: pedido de hortifrúti só fica com foto do HORTIFRÚTI (ou a que o próprio cliente escolheu); nunca a de um industrializado
+  for (const k of horti) {
+    const seg = segmento.get(k);
+    if (seg === 'cliente' || seg === 'hortifruti') continue;
+    const t = tradicional.get(k);
+    if (t && segmento.get(t) === 'hortifruti') mapa.set(k, mapa.get(t)!);
+    else mapa.delete(k);
   }
   return mapa;
 }
@@ -104,7 +126,7 @@ export async function buscarProdutosDaMarca(nome: string): Promise<ProdutoOficia
   const fortes = palavrasFortes(lerBusca(nome));
   if (!fortes.length) return [];
   try {
-    const consulta = () => tabelaTabloide('tabloide_catalogo').select('nome, nome_norm, imagem_url, credito').eq('fonte', 'MARCA').is('cliente_id', null).limit(400);
+    const consulta = () => tabelaTabloide('tabloide_catalogo').select('nome, nome_norm, imagem_url, credito, segmento').eq('fonte', 'MARCA').is('cliente_id', null).limit(400);
     // F-283: traz o que tem alguma das palavras (a marca entra aqui) e devolve os exatos e, depois, só os RELACIONADOS: a mesma marca e
     // o mesmo tipo de produto (outro peso ou sabor). Feijão nunca aparece para quem pediu arroz.
     // F-287: primeiro os que têm TODAS as palavras (o exato nunca fica de fora do limite), junto com os que têm alguma (relacionados)
@@ -123,10 +145,13 @@ export const imagemDaMarca = (l: ProdutoOficial): ImagemProduto => ({ url: l.ima
 
 /** F-256: a imagem oficial do produto descrito, só quando não há dúvida de qual é; `parecidos` conta as opções quando há. */
 export async function produtoDaMarca(nome: string): Promise<{ imagem: ImagemProduto | null; parecidos: number }> {
-  const lista = await buscarProdutosDaMarca(nome);
-  const l = produtoExato(nome, lista);
+  // F-291: fruta/legume/verdura/ovos sem marca: só produtos do HORTIFRÚTI (nunca refrigerante de uva, cachaça de caju, farinha de mandioca)
+  const horti = ehPedidoDeHortifruti(nome);
+  const alvo = horti ? nomeTradicionalDoHortifruti(nome) ?? nome : nome;
+  const lista = (await buscarProdutosDaMarca(alvo)).filter((l) => !horti || (l as ProdutoOficial & { segmento?: string | null }).segmento === 'hortifruti');
+  const l = produtoExato(alvo, lista);
   // F-279/F-282: o sabor é opcional — com vários parecidos vale o mais provável SÓ se for confiável (mesmo tipo, mesma medida, tradicional)
-  const melhor = l ?? melhorOficial(nome, lista);
+  const melhor = l ?? melhorOficial(alvo, lista);
   return { imagem: melhor ? imagemDaMarca(melhor) : null, parecidos: l ? 0 : lista.length };
 }
 
