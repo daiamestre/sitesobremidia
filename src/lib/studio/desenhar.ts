@@ -105,7 +105,9 @@ function desenharTexto(ctx: CanvasRenderingContext2D, c: CamadaTexto) {
   if (c.caber && c.w > 0) {
     ctx.font = fonteCanvas(c.fonte, c.tamanho, c.peso, c.italico);
     comEspacamento(ctx, c.espacamento * c.tamanho);
-    const maior = Math.max(1, ...linhasDoTexto(c).map((l) => ctx.measureText(l).width));
+    // F-290: mede a linha INTEIRA (sem deixar quebrar): "DA PADARIA" encolhe e fica numa linha só, nunca vira "DA / PADARIA"
+    const inteiras = (c.maiusculas ? c.texto.toLocaleUpperCase('pt-BR') : c.texto).split('\n');
+    const maior = Math.max(1, ...inteiras.map((l) => ctx.measureText(l).width));
     if (maior > c.w * 0.98) c = { ...c, tamanho: Math.max(6, (c.tamanho * c.w * 0.98) / maior) };
   }
   const linhas = linhasDoTexto(c);
@@ -336,16 +338,8 @@ function desenharRedes(ctx: CanvasRenderingContext2D, c: CamadaRedes) {
 }
 
 /** Pinta uma camada (com a animação no instante `tempo`, se houver). Usado pela arte e pelo editor de vídeo (F-227). */
-export function desenharCamada(ctx: CanvasRenderingContext2D, c: Camada, imgs: Imagens, escala: number, tempo?: number, total = 8) {
-  if (!c.visivel || c.opacidade <= 0) return;
-  const a = tempo === undefined ? null : estadoNoTempo(c, tempo, total);
-  if (a && a.alfa <= 0) return;
-  ctx.save();
-  ctx.globalAlpha *= c.opacidade * (a?.alfa ?? 1);
-  ctx.translate(c.x + c.w / 2 + (a?.dx ?? 0), c.y + c.h / 2 + (a?.dy ?? 0));
-  const giro = c.rot + (a?.rot ?? 0);
-  if (giro) ctx.rotate((giro * Math.PI) / 180);
-  if (a && a.escala !== 1) ctx.scale(a.escala, a.escala);
+/** o desenho do elemento em si, já com a origem no centro dele (sem posição, giro nem animação de movimento) */
+function desenharConteudo(ctx: CanvasRenderingContext2D, c: Camada, imgs: Imagens, escala: number, a: ReturnType<typeof estadoNoTempo> | null, tempo?: number) {
   sombra(ctx, c, escala);
   if (c.tipo === 'forma') desenharForma(ctx, c);
   else if (c.tipo === 'imagem') desenharImagem(ctx, a && a.zoom !== 1 ? { ...c, zoom: Math.max(1, c.zoom) * a.zoom } : c, imgs.get(c.src), escala);
@@ -355,18 +349,67 @@ export function desenharCamada(ctx: CanvasRenderingContext2D, c: Camada, imgs: I
   else if (c.tipo === 'vaga') desenharVaga(ctx, c);
   else if (c.tipo === 'redes') desenharRedes(ctx, c);
   else desenharItens(ctx, c);
+}
+
+/**
+ * F-290 — MOVIMENTO LISO (regra do dono: nada de pular quadro): na prévia animada cada elemento é desenhado UMA vez numa
+ * imagem guardada (com sombra, contorno e filtros) e, a cada quadro, só essa imagem é movida, aumentada, girada e esmaecida.
+ * Antes a tela inteira era redesenhada 60 vezes por segundo (textos 3D, sombras, fotos com filtro) e o tablet pulava quadros:
+ * o balão "pulsando" saltava. Fica de fora só o que muda por dentro (letreiro, máquina de escrever, panorâmica na foto).
+ */
+const SPRITES = new Map<string, { tela: HTMLCanvasElement; m: number }>();
+function spriteDaCamada(c: Camada, imgs: Imagens, escala: number): { tela: HTMLCanvasElement; m: number } | null {
+  const { animacao: _a, x: _x, y: _y, rot: _r, opacidade: _o, id: _i, ...forma } = c as Camada & Record<string, unknown>;
+  const src = (c as { src?: string }).src;
+  const chave = `${escala.toFixed(4)}|${src && imgs.get(src) ? 1 : 0}|${JSON.stringify(forma)}`;
+  const achado = SPRITES.get(chave);
+  if (achado) { SPRITES.delete(chave); SPRITES.set(chave, achado); return achado; }
+  const extraSombra = c.sombra ? c.sombra.desfoque * 2 + Math.abs(c.sombra.dx) + Math.abs(c.sombra.dy) : 0;
+  const m = Math.ceil((c.tipo === 'imagem' || c.tipo === 'forma' ? 6 : Math.min(500, Math.max(c.w, c.h) * 0.45)) + extraSombra);
+  const W = c.w + 2 * m, H = c.h + 2 * m;
+  const lw = Math.ceil(W * escala), lh = Math.ceil(H * escala);
+  if (lw < 1 || lh < 1 || lw * lh > 9e6) return null;
+  const tela = document.createElement('canvas');
+  tela.width = lw; tela.height = lh;
+  const g = tela.getContext('2d');
+  if (!g) return null;
+  g.setTransform(escala, 0, 0, escala, 0, 0);
+  g.translate(W / 2, H / 2);
+  desenharConteudo(g, c, imgs, escala, null);
+  const s = { tela, m };
+  SPRITES.set(chave, s);
+  if (SPRITES.size > 160) SPRITES.delete(SPRITES.keys().next().value as string);
+  return s;
+}
+
+export function desenharCamada(ctx: CanvasRenderingContext2D, c: Camada, imgs: Imagens, escala: number, tempo?: number, total = 8, rapido = false) {
+  if (!c.visivel || c.opacidade <= 0) return;
+  const a = tempo === undefined ? null : estadoNoTempo(c, tempo, total);
+  if (a && a.alfa <= 0) return;
+  ctx.save();
+  ctx.globalAlpha *= c.opacidade * (a?.alfa ?? 1);
+  ctx.translate(c.x + c.w / 2 + (a?.dx ?? 0), c.y + c.h / 2 + (a?.dy ?? 0));
+  const giro = c.rot + (a?.rot ?? 0);
+  if (giro) ctx.rotate((giro * Math.PI) / 180);
+  if (a && (a.escala !== 1 || a.ex !== 1)) ctx.scale(a.escala * a.ex, a.escala);
+  const vivo = (c.tipo === 'texto' && (c.letreiro || a?.letras != null)) || (a != null && a.zoom !== 1);
+  const sp = rapido && !vivo ? spriteDaCamada(c, imgs, escala) : null;
+  if (sp) {
+    ctx.shadowColor = 'transparent';
+    ctx.drawImage(sp.tela, -c.w / 2 - sp.m, -c.h / 2 - sp.m, c.w + 2 * sp.m, c.h + 2 * sp.m);
+  } else desenharConteudo(ctx, c, imgs, escala, a, tempo);
   ctx.restore();
 }
 
 /** Pinta o documento inteiro; `escala` = pixels do canvas por pixel do documento. Com `tempo` (segundos), aplica as animações (F-225). */
-export function desenharDocumento(ctx: CanvasRenderingContext2D, d: Documento, imgs: Imagens, escala = 1, ocultar?: string | null, tempo?: number) {
+export function desenharDocumento(ctx: CanvasRenderingContext2D, d: Documento, imgs: Imagens, escala = 1, ocultar?: string | null, tempo?: number, rapido = false) {
   const total = duracaoDoVideo(d);
   const { w, h } = TAMANHO_DOC[d.formato];
   ctx.save();
   ctx.setTransform(escala, 0, 0, escala, 0, 0);
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = d.fundo; ctx.fillRect(0, 0, w, h);
-  for (const c of d.camadas) if (c.id !== ocultar) desenharCamada(ctx, c, imgs, escala, tempo, total);
+  for (const c of d.camadas) if (c.id !== ocultar) desenharCamada(ctx, c, imgs, escala, tempo, total, rapido);
   ctx.restore();
 }
 

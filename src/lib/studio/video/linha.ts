@@ -5,7 +5,7 @@
 import type { Camada, Documento, FormatoDoc } from '../documento';
 
 export type TipoDeClipe = 'video' | 'imagem' | 'arte';
-export type TipoDeTransicao = 'corte' | 'dissolver' | 'preto' | 'branco' | 'deslizar-esquerda' | 'deslizar-direita' | 'deslizar-cima' | 'zoom' | 'cortina' | 'circulo' | 'girar';
+export type TipoDeTransicao = 'corte' | 'dissolver' | 'preto' | 'branco' | 'deslizar-esquerda' | 'deslizar-direita' | 'deslizar-cima' | 'zoom' | 'cortina' | 'circulo' | 'girar' | 'flash' | 'luz' | 'brilho' | 'girar-tudo' | 'desfocar';
 export type TipoDeFiltro = 'nenhum' | 'pb' | 'sepia' | 'vintage' | 'quente' | 'frio' | 'vivido' | 'drama' | 'desbotado' | 'noite' | 'neon' | 'pastel';
 
 export interface Ajustes { brilho: number; contraste: number; saturacao: number; matiz: number; desfoque: number; vinheta: number }

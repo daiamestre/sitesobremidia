@@ -155,7 +155,7 @@ function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, atencao, aoTocar }: { p:
   );
 }
 
-export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encartes', aberto: abertoInicial = false, emGrade = true }: { s: ProdutosComFotos; destaques?: number; botao?: string; /** F-242: começa fechado (só o cartão) */ aberto?: boolean; /** F-244: encarte = grade completa; palco = um produto por vez */ emGrade?: boolean }) {
+export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encartes', aberto: abertoInicial = false, emGrade = true, fixar = true }: { s: ProdutosComFotos; /** F-290: dentro de uma lateral que já rola sozinha (palco), não se prende: senão a rolagem trava nele */ fixar?: boolean; destaques?: number; botao?: string; /** F-242: começa fechado (só o cartão) */ aberto?: boolean; /** F-244: encarte = grade completa; palco = um produto por vez */ emGrade?: boolean }) {
   const [aberto, setAberto] = useState(abertoInicial);
   const [trocando, setTrocando] = useState<ProdutoTabloide | null>(null);
   const lista = useRef<HTMLUListElement>(null);
@@ -173,7 +173,7 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
   const naGrade = quantidadeCompleta(s.quantos, s.produtos.length);
   const faltam = s.quantos - s.produtos.length;
   return (
-    <section className={cn('rounded-2xl border border-[#8A2EFF]/40 bg-[#14062f] p-3', aberto && 'space-y-3 lg:sticky lg:top-[84px] lg:max-h-[calc(100dvh-100px)] lg:overflow-y-auto')} data-testid="encartes-produtos">
+    <section className={cn('rounded-2xl border border-[#8A2EFF]/40 bg-[#14062f] p-3', aberto && 'space-y-3', aberto && fixar && 'lg:sticky lg:top-[84px] lg:max-h-[calc(100dvh-100px)] lg:overflow-y-auto')} data-testid="encartes-produtos">
       {/* o CARTÃO: contagem e as fotos; tocar abre a lista */}
       <button type="button" onClick={() => setAberto((a) => !a)} aria-expanded={aberto} className="flex w-full items-center gap-2 text-left" data-testid="produtos-cartao">
         <ShoppingBasket className="h-5 w-5 shrink-0 text-[#FFD400]" />

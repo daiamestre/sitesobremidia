@@ -7,6 +7,7 @@ import { novoClipe, projetoVazio, type ProjetoDeVideo, type TipoDeTransicao } fr
 import type { TipoDeAnimacao } from './animacao';
 import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, logoOficialDoSegmento, type LogoDaPasta } from './logos';
 import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDoPalcoDe, type SegmentoNovo } from './segmentosDeOferta';
+import { chaveCanonica } from '@/lib/tabloide/chave';
 import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel, type SegmentoComLogo } from './logoEditavel';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
@@ -26,13 +27,19 @@ export interface OpcoesDoPalco {
 }
 
 export type AjustesDoPalco = Partial<Record<FormatoDoc, Record<string, Partial<Camada>>>>;
-export interface MovimentoDoPalco { produto?: TipoDeAnimacao; nome?: TipoDeAnimacao; preco?: TipoDeAnimacao; transicao?: TipoDeTransicao }
+export interface MovimentoDoPalco { produto?: TipoDeAnimacao; nome?: TipoDeAnimacao; preco?: TipoDeAnimacao; transicao?: TipoDeTransicao; /** F-290: a troca de CADA produto para o próximo (pelo nome do produto); sem ela vale a padrão */ transicoes?: Record<string, TipoDeTransicao> }
+/** F-290: a transição de um produto para o próximo: a dele, ou a padrão do palco */
+export const transicaoDoProduto = (m: MovimentoDoPalco | undefined, nome: string): TipoDeTransicao => m?.transicoes?.[chaveCanonica(nome)] ?? m?.transicao ?? 'deslizar-esquerda';
+/** F-290: chave do tamanho/posição próprio de um produto (o resto do palco vale para todos) */
+export const chaveDoProdutoNoPalco = (nome: string) => `Produto|${chaveCanonica(nome)}`;
 /** opções que o cliente escolhe na tela do palco */
 export const ENTRADAS: Array<{ id: TipoDeAnimacao; nome: string }> = [
   { id: 'subir', nome: 'De baixo' }, { id: 'descer', nome: 'De cima' }, { id: 'esquerda', nome: 'Da esquerda' }, { id: 'direita', nome: 'Da direita' }, { id: 'zoom', nome: 'Zoom' }, { id: 'surgir', nome: 'Aparecer' },
 ];
 export const TRANSICOES_DO_CARROSSEL: Array<{ id: TipoDeTransicao; nome: string }> = [
-  { id: 'deslizar-esquerda', nome: 'Sai pela esquerda' }, { id: 'deslizar-direita', nome: 'Sai pela direita' }, { id: 'deslizar-cima', nome: 'Sai por cima' }, { id: 'zoom', nome: 'Zoom' }, { id: 'dissolver', nome: 'Dissolver' },
+  { id: 'deslizar-esquerda', nome: 'Sai pela esquerda' }, { id: 'deslizar-direita', nome: 'Sai pela direita' }, { id: 'deslizar-cima', nome: 'Sai por cima' }, { id: 'zoom', nome: 'Zoom' }, { id: 'dissolver', nome: 'Fade (dissolver)' },
+  // F-290: efeitos de troca de cena (como no CapCut)
+  { id: 'flash', nome: 'Flash' }, { id: 'luz', nome: 'Luz' }, { id: 'brilho', nome: 'Brilho' }, { id: 'girar-tudo', nome: 'Girar a cena' }, { id: 'desfocar', nome: 'Desfocar' }, { id: 'preto', nome: 'Escurecer' }, { id: 'circulo', nome: 'Círculo' }, { id: 'cortina', nome: 'Cortina' },
 ];
 
 /**
@@ -249,13 +256,15 @@ const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depo
  * F-249: cada elemento tem o nome como identidade (a seleção não se perde entre um produto e outro) e recebe o que o cliente
  * editou; o texto "DE x POR" da promoção é de cada produto, então não é trocado.
  */
-function comAjustes(d: Documento, formato: FormatoDoc, o: OpcoesDoPalco): Documento {
+function comAjustes(d: Documento, formato: FormatoDoc, o: OpcoesDoPalco, nomeDoProduto?: string): Documento {
   const a = o.ajustes?.[formato] ?? {};
+  // F-290 (pedido do dono): o TAMANHO e a posição do produto são de CADA produto (um grande, outro pequeno, cada um no seu)
+  const doProduto = nomeDoProduto ? a[chaveDoProdutoNoPalco(nomeDoProduto)] : undefined;
   const nomes = new Set(d.camadas.map((c) => c.nome));
   // F-288: textos que o cliente criou (na logo ou soltos) ficam guardados inteiros nos ajustes e entram por cima da arte
   const novas = Object.entries(a).filter(([n, v]) => !nomes.has(n) && v && typeof (v as Partial<Camada>).tipo === 'string').map(([n, v]) => ({ ...v, nome: n, id: n }) as Camada);
   return { ...d, camadas: [...d.camadas.map((c) => {
-    const { topo, ...resto } = (a[c.nome] ?? {}) as Partial<Camada> & { topo?: string };
+    const { topo, ...resto } = { ...(a[c.nome] ?? {}), ...(c.nome === 'Produto' && doProduto ? doProduto : {}) } as Partial<Camada> & { topo?: string };
     const promo = c.tipo === 'selo' && c.topo.startsWith('DE ');
     return { ...c, ...resto, ...(topo != null && !promo ? { topo } : {}), id: c.nome } as Camada;
   }), ...novas] };
@@ -263,7 +272,7 @@ function comAjustes(d: Documento, formato: FormatoDoc, o: OpcoesDoPalco): Docume
 
 /** A arte de UM produto no palco (16:9 ou 9:16), com as animações da coreografia do palco. */
 export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, o: OpcoesDoPalco = {}): Documento {
-  if (o.fundo) return comAjustes(palcoOficial(p, formato, o.fundo, o), formato, o);
+  if (o.fundo) return comAjustes(palcoOficial(p, formato, o.fundo, o), formato, o, p.nome);
   const { w: W, h: H } = TAMANHO_DOC[formato];
   const em = formato === '9:16';
   const titulo = (o.titulo ?? 'SUPER OFERTAS').toUpperCase();
@@ -341,7 +350,7 @@ export function projetoDoCarrossel(produtos: Array<Pick<ProdutoTabloide, 'nome' 
     fundo: '#3a0209',
     clipes: produtos.map((p) => novoClipe('arte', '', p.nome, {
       documento: palcoDoProduto(p, formato, { ...o, segundos: seg }), duracao: seg, zoomDe: 1, zoomPara: 1,
-      transicao: { tipo: o.movimento?.transicao ?? 'deslizar-esquerda', duracao: 0.5 },
+      transicao: { tipo: transicaoDoProduto(o.movimento, p.nome), duracao: 0.5 },
     })),
   };
 }

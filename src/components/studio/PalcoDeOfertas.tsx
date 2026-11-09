@@ -23,7 +23,7 @@ import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, lerValor, precoParaTexto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { infoDaPasta } from '@/lib/studio/pastasDoSegmento';
 import { TAMANHO_DOC, camadaNoPonto, type Camada, type CamadaTexto, type Documento, type FormatoDoc } from '@/lib/studio/documento';
-import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
+import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
@@ -33,28 +33,38 @@ import { PainelDeProdutos, faltasDoProduto, useProdutosComFotos } from './Produt
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
 import { EscolherLogo } from './PastaDeLogos';
 import { PainelDaLogo } from '@/components/studio/editor/PainelDaLogo';
-import { Cor, Faixa } from '@/components/studio/editor/Paineis';
+import { Cor, Faixa, MovimentoDoElemento } from '@/components/studio/editor/Paineis';
 import { ehCamadaDaLogo } from '@/lib/studio/logoEditavel';
 
 type ProdutoDoPalco = Parameters<typeof palcoDoProduto>[0];
 const CHAVE_OPCOES = 'studio-palco-opcoes';
 
-// a troca de um produto para o outro na tela, igual à transição do vídeo
-const TROCA: Record<string, { entra: string; sai: string }> = {
-  'deslizar-esquerda': { entra: 'translateX(100%)', sai: 'translateX(-100%)' },
-  'deslizar-direita': { entra: 'translateX(-100%)', sai: 'translateX(100%)' },
-  'deslizar-cima': { entra: 'translateY(100%)', sai: 'translateY(-100%)' },
-  zoom: { entra: 'scale(.6)', sai: 'scale(1.4)' },
-  dissolver: { entra: 'none', sai: 'none' },
+// a troca de um produto para o outro na tela, igual à transição do vídeo. F-290: efeitos de troca de cena (flash, luz, brilho,
+// girar a cena, desfocar…) — só transform, opacity e filter, que o navegador anima liso, sem pular quadro
+const TROCA: Record<string, { entra: [string, string]; sai: [string, string]; luz?: string }> = {
+  'deslizar-esquerda': { entra: ['transform:translateX(100%)', 'transform:none'], sai: ['transform:none', 'transform:translateX(-100%)'] },
+  'deslizar-direita': { entra: ['transform:translateX(-100%)', 'transform:none'], sai: ['transform:none', 'transform:translateX(100%)'] },
+  'deslizar-cima': { entra: ['transform:translateY(100%)', 'transform:none'], sai: ['transform:none', 'transform:translateY(-100%)'] },
+  zoom: { entra: ['transform:scale(.6);opacity:0', 'transform:none;opacity:1'], sai: ['transform:none;opacity:1', 'transform:scale(1.4);opacity:0'] },
+  dissolver: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'] },
+  preto: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'], luz: '#000' },
+  flash: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'], luz: '#fff' },
+  luz: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'], luz: 'linear-gradient(115deg,rgba(255,214,140,0) 20%,rgba(255,240,200,.95) 50%,rgba(255,214,140,0) 80%)' },
+  brilho: { entra: ['opacity:0;filter:brightness(3)', 'opacity:1;filter:brightness(1)'], sai: ['opacity:1;filter:brightness(1)', 'opacity:0;filter:brightness(3)'] },
+  'girar-tudo': { entra: ['transform:rotate(-180deg) scale(.4);opacity:0', 'transform:none;opacity:1'], sai: ['transform:none;opacity:1', 'transform:rotate(180deg) scale(.4);opacity:0'] },
+  desfocar: { entra: ['opacity:0;filter:blur(18px)', 'opacity:1;filter:blur(0)'], sai: ['opacity:1;filter:blur(0)', 'opacity:0;filter:blur(18px)'] },
+  circulo: { entra: ['clip-path:circle(0% at 50% 50%)', 'clip-path:circle(75% at 50% 50%)'], sai: ['opacity:1', 'opacity:1'] },
+  cortina: { entra: ['clip-path:inset(0 100% 0 0)', 'clip-path:inset(0 0 0 0)'], sai: ['opacity:1', 'opacity:1'] },
 };
+const nomeDaTroca = (t: string) => t.replace(/[^a-z]/g, '');
 function estiloDaTroca(t: TipoDeTransicao | undefined, lado: 'entra' | 'sai'): React.CSSProperties {
   const tipo = TROCA[t ?? ''] ? t! : 'deslizar-esquerda';
-  return { animation: `palco-${lado}-${tipo.replace(/[^a-z]/g, '')} .55s cubic-bezier(.2,.7,.2,1) both` };
+  return { animation: `palco-${lado}-${nomeDaTroca(tipo)} .6s cubic-bezier(.25,.8,.25,1) both`, willChange: 'transform, opacity, filter' };
 }
 const ESTILO_DAS_TROCAS = Object.keys(TROCA).map((t) => {
-  const n = t.replace(/[^a-z]/g, '');
-  return `@keyframes palco-entra-${n}{from{transform:${TROCA[t].entra};opacity:${t === 'dissolver' ? 0 : 1}}to{transform:none;opacity:1}}@keyframes palco-sai-${n}{from{transform:none;opacity:1}to{transform:${TROCA[t].sai};opacity:${t === 'dissolver' ? 0 : 1}}}`;
-}).join('');
+  const n = nomeDaTroca(t);
+  return `@keyframes palco-entra-${n}{from{${TROCA[t].entra[0]}}to{${TROCA[t].entra[1]}}}@keyframes palco-sai-${n}{from{${TROCA[t].sai[0]}}to{${TROCA[t].sai[1]}}}`;
+}).join('') + '@keyframes palco-luz{0%{opacity:0}45%{opacity:1}100%{opacity:0}}@keyframes palco-luz-passa{0%{opacity:0;transform:translateX(-60%)}50%{opacity:1}100%{opacity:0;transform:translateX(60%)}}';
 
 /** F-249: qual elemento está no ponto tocado da tela. */
 function elementoTocado(ev: MouseEvent<HTMLElement>, d: Documento): string | null {
@@ -74,14 +84,18 @@ export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo =
   }, [vez, docs.length]);
   useEffect(() => { if (vez.anterior == null) return; const t = setTimeout(() => setVez((v) => ({ ...v, anterior: null })), 600); return () => clearTimeout(t); }, [vez.anterior]);
   const i = docs.length ? vez.i % docs.length : 0;
+  // F-290: a troca é a do produto que SAI (cada produto pode ter a sua; sem ela, a padrão do palco)
+  const troca = transicaoDoProduto(movimento, produtos[vez.anterior ?? i]?.nome ?? '');
   return (
     <div className={cn('relative overflow-hidden rounded-xl bg-black', aoTocar && 'cursor-pointer', className)} style={{ aspectRatio: formato === '9:16' ? '9 / 16' : '16 / 9' }} data-testid="palco-carrossel"
       onClick={aoTocar && docs[i] ? (ev) => aoTocar(i, elementoTocado(ev, docs[i])) : undefined}>
       <style>{ESTILO_DAS_TROCAS}</style>
       {vez.anterior != null && docs[vez.anterior] && (
-        <div key={`sai-${vez.n}`} className="absolute inset-0" style={estiloDaTroca(movimento?.transicao, 'sai')}><PreviaDocumento doc={docs[vez.anterior]} sempre className="h-full w-full" /></div>
+        <div key={`sai-${vez.n}`} className="absolute inset-0" style={estiloDaTroca(troca, 'sai')}><PreviaDocumento doc={docs[vez.anterior]} sempre className="h-full w-full" /></div>
       )}
-      {docs[i] && <div key={`entra-${vez.n}`} className="absolute inset-0" style={vez.n ? estiloDaTroca(movimento?.transicao, 'entra') : undefined}><PreviaDocumento doc={docs[i]} animar sempre className="h-full w-full" /></div>}
+      {docs[i] && <div key={`entra-${vez.n}`} className="absolute inset-0" style={vez.n ? estiloDaTroca(troca, 'entra') : undefined}><PreviaDocumento doc={docs[i]} animar sempre className="h-full w-full" /></div>}
+      {/* F-290: flash, luz e escurecer passam por cima da troca */}
+      {vez.anterior != null && TROCA[troca]?.luz && <div key={`luz-${vez.n}`} className="pointer-events-none absolute inset-0" style={{ background: TROCA[troca].luz, animation: `${troca === 'luz' ? 'palco-luz-passa' : 'palco-luz'} .6s ease-out both` }} />}
     </div>
   );
 }
@@ -226,6 +240,15 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       delete resto.valor; delete resto.sufixo;
     }
     if (nome === 'Produto') delete resto.src;
+    // F-290 (pedido do dono): aumentar/diminuir/mover/girar o PRODUTO vale só para ESTE produto (cada um no seu tamanho)
+    if (nome === 'Produto') {
+      const geo = Object.fromEntries(Object.entries(resto).filter(([k]) => ['x', 'y', 'w', 'h', 'rot'].includes(k)));
+      if (Object.keys(geo).length) {
+        const k = chaveDoProdutoNoPalco(alvo.nome);
+        setAjustes((a) => ({ ...a, [formato]: { ...a[formato], [k]: { ...a[formato]?.[k], ...geo } } }));
+        for (const g of Object.keys(geo)) delete resto[g];
+      }
+    }
     // F-288: texto, cor, fonte, ícone e movimento valem nos dois formatos; posição e tamanho são de cada um
     if (Object.keys(resto).length) {
       const outro: FormatoDoc = formato === '9:16' ? '16:9' : '9:16';
@@ -245,7 +268,29 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       fimDoDemo.current = setTimeout(() => { setDemo(null); setTocando(true); }, 2 * (ciclo + 0.35) * 1000);
     }
   };
-  const voltarAoPadrao = (nome: string) => setAjustes((a) => { const f = { ...a[formato] }; delete f[nome]; return { ...a, [formato]: f }; });
+  const voltarAoPadrao = (nome: string) => setAjustes((a) => { const f = { ...a[formato] }; delete f[nome]; if (nome === 'Produto' && alvo) delete f[chaveDoProdutoNoPalco(alvo.nome)]; return { ...a, [formato]: f }; });
+  /** F-290: "Movimento padrão": o elemento volta ao movimento com que a arte nasceu (nos dois formatos) */
+  const movimentoPadrao = (nome: string | null) => {
+    setAjustes((a) => {
+      const n = { ...a };
+      for (const f of ['9:16', '16:9'] as FormatoDoc[]) {
+        const x = { ...n[f] };
+        for (const k of Object.keys(x)) if ((nome == null || k === nome) && x[k] && 'animacao' in (x[k] as object)) { const { animacao: _a, ...r } = x[k] as Partial<Camada>; x[k] = r; }
+        n[f] = x;
+      }
+      return n;
+    });
+    if (nome == null) setMovimento((m) => ({ ...m, transicoes: {} }));
+    setDemo(null); setTocando(true);
+  };
+  /** F-290: a troca de cena DESTE produto para o próximo (null = a padrão) */
+  const trocaDoProduto = (tipo: TipoDeTransicao | null, todos = false) => setMovimento((m) => {
+    if (todos) return { ...m, transicao: tipo ?? 'deslizar-esquerda', transicoes: {} };
+    if (!alvo) return m;
+    const t = { ...(m.transicoes ?? {}) };
+    if (tipo) t[chaveCanonica(alvo.nome)] = tipo; else delete t[chaveCanonica(alvo.nome)];
+    return { ...m, transicoes: t };
+  });
   /** F-288: texto novo na logo: entra nos dois formatos, no mesmo lugar em relação à logo */
   const adicionarCamada = (c: Camada) => {
     if (!alvo || !docEd) return;
@@ -296,7 +341,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       {/* F-286: a tela à esquerda (fixa à vista) e os botões de edição na LATERAL DIREITA, também no tablet em pé */}
       <div className="grid gap-3 min-[540px]:grid-cols-[minmax(0,1fr)_minmax(250px,330px)] lg:grid-cols-[minmax(0,1fr)_380px]" data-testid="palco-layout">
         {/* A TELA + a fila de produtos */}
-        <section className="min-w-0 space-y-2 min-[540px]:sticky min-[540px]:top-[84px] min-[540px]:self-start">
+        <section className="min-w-0 space-y-2">
           <div className={cn('mx-auto w-full', formato === '9:16' ? 'max-w-[min(340px,calc(56dvh*0.5625))] lg:max-w-[340px]' : 'max-w-[760px]')} data-testid="palco-tela">
             {!comPreco.length ? <p className="rounded-xl border border-dashed border-white/15 p-10 text-center text-sm text-slate-400">Coloque produtos com preço em “Seus produtos”.</p>
               : docNaTela && docSel ? (
@@ -319,6 +364,28 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                   <span className="w-full truncate bg-[#c40f24] px-0.5 text-center text-[10px] font-black text-white">{precoParaTexto(p.preco)}</span>
                 </button>
               ))}
+            </div>
+          )}
+          {/* F-290: MOVIMENTO embaixo da arte: do elemento tocado (entrada, 2 movimentos, saída, padrão) e a troca de cena deste produto */}
+          {comPreco.length > 0 && docEd && (
+            <div className="space-y-2 rounded-2xl border border-[#8A2EFF]/40 bg-[#14062f] p-3" data-testid="palco-barra-movimento">
+              {camadaSel ? (
+                <>
+                  <p className="flex items-center gap-2 text-xs font-bold text-white"><Move className="h-4 w-4 text-[#B04DFF]" />Movimento: {rotulo(camadaSel.nome)}</p>
+                  <MovimentoDoElemento c={camadaSel} doc={docEd} mudar={(p) => mudarElemento(camadaSel.nome, p)} aoPadrao={() => movimentoPadrao(camadaSel.nome)} />
+                </>
+              ) : <p className="text-[11px] text-slate-400">Toque num elemento da arte (produto, nome, balão, botão, logo) para escolher o movimento dele.</p>}
+              <div className="space-y-1 border-t border-white/10 pt-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Troca de cena{alvo ? `: ${alvo.nome}` : ''} → próximo</p>
+                <div className="flex gap-1.5 overflow-x-auto pb-1" role="radiogroup" aria-label="Troca de cena deste produto" data-testid="palco-troca-produto">
+                  <button type="button" role="radio" aria-checked={!movimento.transicoes?.[chaveCanonica(alvo?.nome ?? '')]} onClick={() => trocaDoProduto(null)} className={cn('h-8 shrink-0 rounded-full border px-3 text-[11px] font-semibold', !movimento.transicoes?.[chaveCanonica(alvo?.nome ?? '')] ? 'border-[#25D366] bg-[#25D366]/15 text-[#7dffb0]' : 'border-white/10 text-slate-200')}>Padrão</button>
+                  {TRANSICOES_DO_CARROSSEL.map((o) => {
+                    const ativo = movimento.transicoes?.[chaveCanonica(alvo?.nome ?? '')] === o.id;
+                    return <button key={o.id} type="button" role="radio" aria-checked={ativo} onClick={() => trocaDoProduto(o.id)} className={cn('h-8 shrink-0 rounded-full border px-3 text-[11px] font-semibold', ativo ? 'border-[#FFD400] bg-[#FFD400]/15 text-[#FFD400]' : 'border-white/10 text-slate-200 hover:bg-white/5')} data-testid={`palco-troca-${o.id}`}>{o.nome}</button>;
+                  })}
+                </div>
+                <button type="button" onClick={() => movimentoPadrao(null)} className="h-8 w-full rounded-lg border border-white/10 text-[11px] font-semibold text-slate-200 hover:bg-white/5" data-testid="palco-movimento-padrao-todos">Voltar TODOS os elementos e trocas ao movimento padrão</button>
+              </div>
             </div>
           )}
           {sel && (
@@ -424,7 +491,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
             )}
           </Cartao>
 
-          <PainelDeProdutos s={s} destaques={0} botao="Colocar no palco" emGrade={false} />
+          <PainelDeProdutos s={s} destaques={0} botao="Colocar no palco" emGrade={false} fixar={false} />
 
           <Cartao titulo="Movimento" icone={Move}>
             <label className="block text-xs text-slate-300">Troca de um produto para o outro

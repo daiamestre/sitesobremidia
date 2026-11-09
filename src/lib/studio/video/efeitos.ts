@@ -20,6 +20,7 @@ export const TRANSICOES: { id: TipoDeTransicao; nome: string }[] = [
   { id: 'corte', nome: 'Corte seco' }, { id: 'dissolver', nome: 'Dissolver' }, { id: 'preto', nome: 'Escurecer' }, { id: 'branco', nome: 'Clarão' },
   { id: 'deslizar-esquerda', nome: 'Deslizar ←' }, { id: 'deslizar-direita', nome: 'Deslizar →' }, { id: 'deslizar-cima', nome: 'Subir' },
   { id: 'zoom', nome: 'Zoom' }, { id: 'cortina', nome: 'Cortina' }, { id: 'circulo', nome: 'Círculo' }, { id: 'girar', nome: 'Girar' },
+  { id: 'flash', nome: 'Flash' }, { id: 'luz', nome: 'Luz' }, { id: 'brilho', nome: 'Brilho' }, { id: 'girar-tudo', nome: 'Girar a cena' }, { id: 'desfocar', nome: 'Desfocar' },
 ];
 
 /** Texto do `ctx.filter` para o clipe: filtro escolhido + ajustes finos. */
@@ -72,6 +73,32 @@ export function desenharTransicao(ctx: CanvasRenderingContext2D, tipo: TipoDeTra
       return;
     case 'cortina': a(); camada(b, () => { ctx.beginPath(); ctx.rect(0, 0, w * e, h); ctx.clip(); }); return;
     case 'circulo': a(); camada(b, () => { ctx.beginPath(); ctx.arc(w / 2, h / 2, (Math.hypot(w, h) / 2) * e, 0, Math.PI * 2); ctx.clip(); }); return;
+    // F-290: efeitos de troca de cena (estilo CapCut)
+    case 'flash': {
+      if (p < 0.5) a(); else b();
+      ctx.save(); ctx.globalAlpha = Math.pow(1 - Math.abs(1 - 2 * p), 0.6); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.restore();
+      return;
+    }
+    case 'luz': {
+      a(); camada(b, () => { ctx.globalAlpha = e; });
+      const x = -w * 0.6 + e * w * 2.2;
+      const g = ctx.createLinearGradient(x - w * 0.5, 0, x + w * 0.5, h * 0.3);
+      g.addColorStop(0, 'rgba(255,214,140,0)'); g.addColorStop(0.5, 'rgba(255,236,190,0.85)'); g.addColorStop(1, 'rgba(255,214,140,0)');
+      ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 1 - Math.abs(1 - 2 * p) * 0.4; ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); ctx.restore();
+      return;
+    }
+    case 'brilho':
+      camada(a, () => { ctx.globalAlpha = 1 - e; ctx.filter = `brightness(${1 + 2 * e})`; });
+      camada(b, () => { ctx.globalAlpha = e; ctx.filter = `brightness(${3 - 2 * e})`; });
+      return;
+    case 'girar-tudo':
+      if (p < 0.5) camada(a, () => { const q = p * 2; ctx.globalAlpha = 1 - q; ctx.translate(w / 2, h / 2); ctx.rotate(q * Math.PI); ctx.scale(1 - 0.6 * q, 1 - 0.6 * q); ctx.translate(-w / 2, -h / 2); });
+      else camada(b, () => { const q = (p - 0.5) * 2; ctx.globalAlpha = q; ctx.translate(w / 2, h / 2); ctx.rotate((q - 1) * Math.PI); ctx.scale(0.4 + 0.6 * q, 0.4 + 0.6 * q); ctx.translate(-w / 2, -h / 2); });
+      return;
+    case 'desfocar':
+      camada(a, () => { ctx.globalAlpha = 1 - e; ctx.filter = `blur(${(e * 18).toFixed(1)}px)`; });
+      camada(b, () => { ctx.globalAlpha = e; ctx.filter = `blur(${((1 - e) * 18).toFixed(1)}px)`; });
+      return;
     case 'girar':
       a();
       camada(b, () => { ctx.globalAlpha = e; ctx.translate(w / 2, h / 2); ctx.rotate((1 - e) * -0.5); ctx.scale(0.6 + 0.4 * e, 0.6 + 0.4 * e); ctx.translate(-w / 2, -h / 2); });

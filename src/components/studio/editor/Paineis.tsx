@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { FONTES_STUDIO, fonteDoStudio } from '@/lib/studio/fontes';
 import { PALETA, corHex, coresDoDocumento, coresRecentes, lembrarCor } from '@/lib/studio/cores';
-import { ANIMACOES, duracaoDoVideo, type TipoDeAnimacao } from '@/lib/studio/animacao';
+import { ANIMACOES, CONTINUAS, SAIDAS, duracaoDoVideo, type Animacao, type TipoDeAnimacao } from '@/lib/studio/animacao';
 import { REDES_SOCIAIS, type Camada, type CamadaForma, type CamadaImagem, type CamadaItens, type CamadaRedes, type CamadaSelo, type CamadaTexto, type Degrade, type Documento, type Sombra } from '@/lib/studio/documento';
 import { cn } from '@/lib/utils';
 
@@ -68,13 +68,54 @@ function Tamanho({ valor, onChange, min = 8, max = 600 }: { valor: number; onCha
     </div>
   );
 }
-/** Régua com o nome à esquerda e o valor (em %, °, px…) à direita. */
+/**
+ * Régua com o nome à esquerda e o valor (em %, °, px…) à direita.
+ * F-290 (pedido do dono): ROLAR a lateral com o dedo NÃO mexe na régua. Ela só muda quando o dedo anda para o LADO (arrastar)
+ * ou num toque parado; se o dedo começa a andar para cima/baixo, é rolagem e a régua fica como estava. Teclado: setas, Home, End.
+ */
 export function Faixa({ t, valor, onChange, min, max, passo = 1, sufixo = '', mostrar }: { t: string; valor: number; onChange: (v: number) => void; min: number; max: number; passo?: number; sufixo?: string; mostrar?: string }) {
+  const trilho = useRef<HTMLDivElement>(null);
+  const gesto = useRef<{ x: number; y: number; id: number; modo: 'espera' | 'arrasta' | 'rola' } | null>(null);
+  const limitar = (v: number) => Math.min(max, Math.max(min, Math.round(v / passo) * passo));
+  const noPonto = (clientX: number) => {
+    const r = trilho.current?.getBoundingClientRect();
+    if (!r || r.width <= 0) return;
+    onChange(limitar(min + ((clientX - r.left) / r.width) * (max - min)));
+  };
+  const p = max > min ? Math.min(1, Math.max(0, (valor - min) / (max - min))) : 0;
   return (
-    <label className="block">
+    <div className="block">
       <span className="flex items-center justify-between text-[11px] font-semibold text-slate-300">{t}<span className="rounded-md bg-[#5D1BFF]/30 px-1.5 py-0.5 font-mono text-[11px] text-white">{mostrar ?? `${Math.round(valor * 100) / 100}${sufixo}`}</span></span>
-      <input type="range" min={min} max={max} step={passo} value={valor} onChange={(e) => onChange(Number(e.target.value))} className="h-7 w-full cursor-pointer accent-[#8A2EFF]" aria-label={t} />
-    </label>
+      <div ref={trilho} role="slider" tabIndex={0} aria-label={t} aria-valuemin={min} aria-valuemax={max} aria-valuenow={valor}
+        className="relative h-7 w-full cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-[#8A2EFF] rounded-full" style={{ touchAction: 'pan-y' }}
+        onPointerDown={(e) => {
+          gesto.current = { x: e.clientX, y: e.clientY, id: e.pointerId, modo: e.pointerType === 'mouse' ? 'arrasta' : 'espera' };
+          if (e.pointerType === 'mouse') { e.currentTarget.setPointerCapture(e.pointerId); noPonto(e.clientX); }
+        }}
+        onPointerMove={(e) => {
+          const g = gesto.current;
+          if (!g || g.id !== e.pointerId || g.modo === 'rola') return;
+          if (g.modo === 'espera') {
+            const dx = Math.abs(e.clientX - g.x), dy = Math.abs(e.clientY - g.y);
+            if (dy > 6 && dy >= dx) { g.modo = 'rola'; return; }
+            if (dx > 6 && dx > dy) { g.modo = 'arrasta'; e.currentTarget.setPointerCapture(e.pointerId); } else return;
+          }
+          noPonto(e.clientX);
+        }}
+        onPointerUp={(e) => { const g = gesto.current; if (g && g.id === e.pointerId && g.modo === 'espera') noPonto(e.clientX); gesto.current = null; }}
+        onPointerCancel={() => { gesto.current = null; }}
+        onKeyDown={(e) => {
+          const k = e.key;
+          if (k === 'ArrowRight' || k === 'ArrowUp') { e.preventDefault(); onChange(limitar(valor + passo)); }
+          else if (k === 'ArrowLeft' || k === 'ArrowDown') { e.preventDefault(); onChange(limitar(valor - passo)); }
+          else if (k === 'Home') { e.preventDefault(); onChange(min); }
+          else if (k === 'End') { e.preventDefault(); onChange(max); }
+        }}>
+        <span className="absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-white/80" />
+        <span className="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-[#8A2EFF]" style={{ width: `${p * 100}%` }} />
+        <span className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[#8A2EFF] shadow" style={{ left: `${p * 100}%` }} />
+      </div>
+    </div>
   );
 }
 export function Chave({ t, ligado, onChange }: { t: string; ligado: boolean; onChange: (v: boolean) => void }) {
@@ -246,25 +287,80 @@ function PropsRedes({ c, m }: { c: CamadaRedes; m: (p: Partial<CamadaRedes>) => 
 
 /** F-225: movimento do elemento no vídeo (como as animações do Canva). */
 function AnimarCamada({ c, doc, mudar }: { c: Camada; doc: Documento; mudar: (p: Partial<Camada>) => void }) {
-  const a = c.animacao ?? null;
-  const total = duracaoDoVideo(doc);
-  const escolher = (tipo: TipoDeAnimacao | null) => mudar({ animacao: tipo ? { tipo, atraso: a?.atraso ?? 0.3, duracao: a?.duracao ?? 0.8 } : null });
-  const opcoes = ANIMACOES.filter((x) => !x.so || x.so.includes(c.tipo));
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-1.5" role="radiogroup" aria-label="Animação">
-        <Segmento ativo={!a} onClick={() => escolher(null)} rotulo="Sem animação">Nenhuma</Segmento>
-        {opcoes.map((x) => (
-          <Segmento key={x.id} ativo={a?.tipo === x.id} onClick={() => escolher(x.id)} rotulo={x.nome}><span className="truncate">{x.nome}</span></Segmento>
-        ))}
-      </div>
-      {a && (
-        <>
-          <Faixa t="Começa em" valor={a.atraso} min={0} max={Math.max(0, total - 0.5)} passo={0.1} mostrar={`${a.atraso.toFixed(1)} s`} onChange={(v) => mudar({ animacao: { ...a, atraso: v } })} />
-          {!ANIMACOES.find((x) => x.id === a.tipo)?.continua && <Faixa t="Velocidade da entrada" valor={a.duracao} min={0.2} max={3} passo={0.1} mostrar={`${a.duracao.toFixed(1)} s`} onChange={(v) => mudar({ animacao: { ...a, duracao: v } })} />}
-        </>
-      )}
+      <MovimentoDoElemento c={c} doc={doc} mudar={mudar} />
       <p className="text-[11px] text-slate-400">A arte continua sendo uma imagem. Com animação, use o botão <b>Vídeo</b> (toque fora dos elementos) para ver o movimento e criar o vídeo.</p>
+    </div>
+  );
+}
+
+/** linha de opções que rola para o lado (não ocupa a tela) */
+function LinhaDeOpcoes({ t, children }: { t: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{t}</p>
+      <div className="flex gap-1.5 overflow-x-auto pb-1" role="radiogroup" aria-label={t}>{children}</div>
+    </div>
+  );
+}
+const Chip = ({ ativo, onClick, children, testid }: { ativo: boolean; onClick: () => void; children: ReactNode; testid?: string }) => (
+  <button type="button" role="radio" aria-checked={ativo} onClick={onClick} data-testid={testid}
+    className={cn('h-8 shrink-0 rounded-full border px-3 text-[11px] font-semibold', ativo ? 'border-[#FFD400] bg-[#FFD400]/15 text-[#FFD400]' : 'border-white/10 text-slate-200 hover:bg-white/5')}>{children}</button>
+);
+
+/**
+ * F-290 — MOVIMENTO DO ELEMENTO (pedido do dono): entrada, ATÉ DOIS movimentos contínuos juntos (ex.: pulsar e balançar), saída
+ * no fim do tempo e, quando passado `aoPadrao`, o botão "Movimento padrão" (volta ao movimento com que a arte nasceu).
+ */
+export function MovimentoDoElemento({ c, doc, mudar, aoPadrao }: { c: Camada; doc: Documento; mudar: (p: Partial<Camada>) => void; aoPadrao?: () => void }) {
+  const a = c.animacao ?? null;
+  const total = duracaoDoVideo(doc);
+  const cont = (t: TipoDeAnimacao | null | undefined) => !!t && CONTINUAS.includes(t);
+  const entrada = a && !cont(a.tipo) ? a.tipo : null;
+  const mov1 = a ? (cont(a.tipo) ? a.tipo : a.depois ?? null) : null;
+  const mov2 = a?.depois2 ?? null;
+  const saida = a?.saida ?? null;
+  const montar = (e: TipoDeAnimacao | null, m1: TipoDeAnimacao | null, m2: TipoDeAnimacao | null, s: Animacao['saida']) => {
+    if (!e && !m1 && !m2 && !s) return mudar({ animacao: null });
+    const atraso = a?.atraso ?? 0.3, duracao = a?.duracao ?? 0.8;
+    if (e) return mudar({ animacao: { tipo: e, atraso, duracao, depois: m1, depois2: m2, saida: s } });
+    if (m1) return mudar({ animacao: { tipo: m1, atraso, duracao, depois: null, depois2: m2, saida: s } });
+    if (m2) return mudar({ animacao: { tipo: m2, atraso, duracao, depois: null, depois2: null, saida: s } });
+    return mudar({ animacao: { tipo: 'surgir', atraso: 0, duracao: 0.1, depois: null, depois2: null, saida: s } });
+  };
+  const entradas = ANIMACOES.filter((x) => !x.continua && (!x.so || x.so.includes(c.tipo)));
+  const continuas = ANIMACOES.filter((x) => x.continua && (!x.so || x.so.includes(c.tipo)));
+  return (
+    <div className="space-y-2" data-testid="movimento-do-elemento">
+      {aoPadrao && (
+        <button type="button" onClick={aoPadrao} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-[#25D366]/50 bg-[#25D366]/10 text-xs font-bold text-[#7dffb0] hover:bg-[#25D366]/20" data-testid="movimento-padrao">
+          Movimento padrão
+        </button>
+      )}
+      <LinhaDeOpcoes t="Entrada">
+        <Chip ativo={!entrada} onClick={() => montar(null, mov1, mov2, saida)}>Nenhuma</Chip>
+        {entradas.map((x) => <Chip key={x.id} ativo={entrada === x.id} onClick={() => montar(x.id, mov1, mov2, saida)} testid={`mov-entrada-${x.id}`}>{x.nome}</Chip>)}
+      </LinhaDeOpcoes>
+      <LinhaDeOpcoes t="Movimento 1 (fica se mexendo)">
+        <Chip ativo={!mov1} onClick={() => montar(entrada, null, mov2, saida)}>Nenhum</Chip>
+        {continuas.map((x) => <Chip key={x.id} ativo={mov1 === x.id} onClick={() => montar(entrada, x.id, mov2 === x.id ? null : mov2, saida)} testid={`mov-1-${x.id}`}>{x.nome}</Chip>)}
+      </LinhaDeOpcoes>
+      <LinhaDeOpcoes t="Movimento 2 (junto com o 1)">
+        <Chip ativo={!mov2} onClick={() => montar(entrada, mov1, null, saida)}>Nenhum</Chip>
+        {continuas.filter((x) => x.id !== mov1).map((x) => <Chip key={x.id} ativo={mov2 === x.id} onClick={() => montar(entrada, mov1, x.id, saida)} testid={`mov-2-${x.id}`}>{x.nome}</Chip>)}
+      </LinhaDeOpcoes>
+      <LinhaDeOpcoes t="Saída (no fim)">
+        <Chip ativo={!saida} onClick={() => montar(entrada, mov1, mov2, null)}>Nenhuma</Chip>
+        {SAIDAS.map((x) => <Chip key={x.id} ativo={saida?.tipo === x.id} onClick={() => montar(entrada, mov1, mov2, { tipo: x.id, duracao: saida?.duracao ?? 0.6 })} testid={`mov-saida-${x.id}`}>{x.nome}</Chip>)}
+      </LinhaDeOpcoes>
+      {a && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Faixa t="Começa em" valor={a.atraso} min={0} max={Math.max(0, total - 0.5)} passo={0.1} mostrar={`${a.atraso.toFixed(1)} s`} onChange={(v) => mudar({ animacao: { ...a, atraso: v } })} />
+          {entrada && <Faixa t="Velocidade da entrada" valor={a.duracao} min={0.2} max={3} passo={0.1} mostrar={`${a.duracao.toFixed(1)} s`} onChange={(v) => mudar({ animacao: { ...a, duracao: v } })} />}
+          {saida && <Faixa t="Velocidade da saída" valor={saida.duracao} min={0.2} max={2} passo={0.1} mostrar={`${saida.duracao.toFixed(1)} s`} onChange={(v) => mudar({ animacao: { ...a, saida: { ...saida, duracao: v } } })} />}
+        </div>
+      )}
     </div>
   );
 }

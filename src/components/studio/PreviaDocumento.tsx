@@ -60,7 +60,7 @@ export function PreviaDocumento({ doc, className, style, ocultar, sempre = false
     let raf = 0;
     const quadro = () => {
       const t = ((performance.now() - inicio) / 1000) % (total + pausa); // repete, com uma pausa no fim
-      desenharDocumento(ctx, doc, imgs, escala, ocultar, Math.min(t, total));
+      desenharDocumento(ctx, doc, imgs, escala, ocultar, Math.min(t, total), true); // F-290: movimento liso
       raf = requestAnimationFrame(quadro);
     };
     raf = requestAnimationFrame(quadro);

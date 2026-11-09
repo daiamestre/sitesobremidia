@@ -66,9 +66,9 @@ describe('linha do tempo', () => {
 });
 
 describe('efeitos', () => {
-  it('12 filtros e 11 transições, como nos apps de edição', () => {
+  it('12 filtros e 16 transições (F-290: flash, luz, brilho, girar a cena, desfocar)', () => {
     expect(FILTROS).toHaveLength(12);
-    expect(TRANSICOES).toHaveLength(11);
+    expect(TRANSICOES).toHaveLength(16);
     expect(filtroDoClipe('nenhum', AJUSTES_NEUTROS)).toBe('none');
     expect(filtroDoClipe('pb', { ...AJUSTES_NEUTROS, brilho: 120, desfoque: 4 }, 0.5)).toBe('grayscale(1) contrast(1.12) brightness(120%) blur(2.0px)');
   });

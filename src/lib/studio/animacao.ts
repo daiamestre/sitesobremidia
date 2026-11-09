@@ -6,11 +6,19 @@ import type { Camada, Documento } from './documento';
 
 export type TipoDeAnimacao =
   | 'surgir' | 'subir' | 'descer' | 'esquerda' | 'direita' | 'zoom' | 'girar' | 'digitar'
-  | 'pulsar' | 'balancar' | 'piscar' | 'panoramica' | 'flutuar';
+  /* F-290: entradas novas */ | 'quicar' | 'zoom-de-longe' | 'virar' | 'surgir-lento'
+  | 'pulsar' | 'balancar' | 'piscar' | 'panoramica' | 'flutuar'
+  /* F-290: movimentos contínuos novos */ | 'oscilar' | 'tremer' | 'respirar' | 'girar-sempre' | 'quicar-sempre' | 'brilhar';
+/** F-290: como o elemento SAI no fim do tempo dele (antes da troca de produto/cena) */
+export type TipoDeSaida = 'sumir' | 'subir' | 'descer' | 'esquerda' | 'direita' | 'diminuir' | 'aumentar' | 'girar';
 export interface Animacao {
   tipo: TipoDeAnimacao; /** segundos até começar */ atraso: number; /** segundos da entrada */ duracao: number;
   /** F-234: efeito contínuo DEPOIS da entrada (ex.: o selo entra com zoom e fica pulsando; o produto sobe e fica flutuando) */
   depois?: TipoDeAnimacao | null;
+  /** F-290: um SEGUNDO movimento contínuo junto com o primeiro (ex.: pulsar e balançar ao mesmo tempo) */
+  depois2?: TipoDeAnimacao | null;
+  /** F-290: efeito de SAÍDA no fim do tempo do elemento */
+  saida?: { tipo: TipoDeSaida; duracao: number } | null;
 }
 
 export const ANIMACOES: { id: TipoDeAnimacao; nome: string; continua?: boolean; so?: Camada['tipo'][] }[] = [
@@ -21,37 +29,76 @@ export const ANIMACOES: { id: TipoDeAnimacao; nome: string; continua?: boolean; 
   { id: 'direita', nome: 'Entrar da direita' },
   { id: 'zoom', nome: 'Zoom' },
   { id: 'girar', nome: 'Girar' },
+  { id: 'quicar', nome: 'Quicar' },
+  { id: 'zoom-de-longe', nome: 'Zoom de longe' },
+  { id: 'virar', nome: 'Virar' },
+  { id: 'surgir-lento', nome: 'Aparecer devagar (fade)' },
   { id: 'digitar', nome: 'Máquina de escrever', so: ['texto'] },
   { id: 'pulsar', nome: 'Pulsar', continua: true },
   { id: 'balancar', nome: 'Balançar', continua: true },
   { id: 'piscar', nome: 'Piscar', continua: true },
   { id: 'panoramica', nome: 'Panorâmica lenta', continua: true, so: ['imagem'] },
   { id: 'flutuar', nome: 'Flutuar', continua: true },
+  { id: 'oscilar', nome: 'Ir e voltar (lados)', continua: true },
+  { id: 'tremer', nome: 'Tremer', continua: true },
+  { id: 'respirar', nome: 'Respirar', continua: true },
+  { id: 'girar-sempre', nome: 'Girar sem parar', continua: true },
+  { id: 'quicar-sempre', nome: 'Quicar sem parar', continua: true },
+  { id: 'brilhar', nome: 'Brilhar', continua: true },
+];
+
+/** F-290: as saídas (no fim do tempo do elemento) */
+export const SAIDAS: { id: TipoDeSaida; nome: string }[] = [
+  { id: 'sumir', nome: 'Sumir (fade)' }, { id: 'subir', nome: 'Sair por cima' }, { id: 'descer', nome: 'Sair por baixo' },
+  { id: 'esquerda', nome: 'Sair pela esquerda' }, { id: 'direita', nome: 'Sair pela direita' }, { id: 'diminuir', nome: 'Diminuir' },
+  { id: 'aumentar', nome: 'Aumentar e sumir' }, { id: 'girar', nome: 'Girar e sumir' },
 ];
 
 /** Efeitos que repetem durante o vídeo (servem como "depois" de uma entrada). */
-export const CONTINUAS: TipoDeAnimacao[] = ['pulsar', 'balancar', 'piscar', 'panoramica', 'flutuar'];
+export const CONTINUAS: TipoDeAnimacao[] = ['pulsar', 'balancar', 'piscar', 'panoramica', 'flutuar', 'oscilar', 'tremer', 'respirar', 'girar-sempre', 'quicar-sempre', 'brilhar'];
 
 export const DURACAO_PADRAO = 8;
 export const duracaoDoVideo = (d: Documento) => Math.min(30, Math.max(3, d.video?.duracao ?? DURACAO_PADRAO));
 export const temAnimacao = (d: Documento) => d.camadas.some((c) => c.visivel && c.animacao);
 
 /** `zoom`: aproximação DENTRO da moldura da foto (panorâmica), sem a foto crescer por cima do resto */
-export interface EstadoAnimado { alfa: number; dx: number; dy: number; escala: number; rot: number; letras: number | null; zoom: number }
-const PARADO: EstadoAnimado = { alfa: 1, dx: 0, dy: 0, escala: 1, rot: 0, letras: null, zoom: 1 };
+export interface EstadoAnimado { alfa: number; dx: number; dy: number; escala: number; rot: number; letras: number | null; zoom: number; /** F-290: largura (virar) */ ex: number }
+const PARADO: EstadoAnimado = { alfa: 1, dx: 0, dy: 0, escala: 1, rot: 0, letras: null, zoom: 1, ex: 1 };
+/** soma dois estados (os movimentos se somam sem salto) */
+const somar = (a: EstadoAnimado, b: EstadoAnimado): EstadoAnimado => ({ alfa: a.alfa * b.alfa, dx: a.dx + b.dx, dy: a.dy + b.dy, escala: a.escala * b.escala, rot: a.rot + b.rot, letras: a.letras ?? b.letras, zoom: a.zoom * b.zoom, ex: a.ex * b.ex });
 const suave = (p: number) => 1 - Math.pow(1 - p, 3);
 
 /** Como a camada aparece no instante `t` (segundos). Sem animação: parada. */
 export function estadoNoTempo(c: Camada, t: number, total = DURACAO_PADRAO): EstadoAnimado {
   const a = c.animacao;
   if (!a) return PARADO;
-  const entrada = estadoDe(c, a, t, total);
-  if (!a.depois || CONTINUAS.includes(a.tipo)) return entrada;
-  // F-234: terminou de entrar → passa a se mexer com o efeito contínuo (os dois se somam sem salto)
-  const inicioDepois = a.atraso + a.duracao;
-  if (t < inicioDepois) return entrada;
-  const d = estadoDe(c, { tipo: a.depois, atraso: inicioDepois, duracao: 1 }, t, total);
-  return { alfa: entrada.alfa * d.alfa, dx: entrada.dx + d.dx, dy: entrada.dy + d.dy, escala: entrada.escala * d.escala, rot: entrada.rot + d.rot, letras: entrada.letras, zoom: entrada.zoom * d.zoom };
+  let e = estadoDe(c, a, t, total);
+  // F-234: terminou de entrar → passa a se mexer com o efeito contínuo; F-290: até DOIS movimentos juntos (somados, sem salto)
+  const inicioDepois = CONTINUAS.includes(a.tipo) ? a.atraso : a.atraso + a.duracao;
+  for (const dep of [CONTINUAS.includes(a.tipo) ? null : a.depois, a.depois2]) {
+    if (dep && t >= inicioDepois) e = somar(e, estadoDe(c, { tipo: dep, atraso: inicioDepois, duracao: 1 }, t, total));
+  }
+  // F-290: saída no fim do tempo do elemento
+  if (a.saida) {
+    const ini = total - a.saida.duracao;
+    if (t > ini) e = somar(e, saidaDe(c, a.saida.tipo, Math.min(1, (t - ini) / Math.max(0.1, a.saida.duracao))));
+  }
+  return e;
+}
+
+/** F-290: o estado da saída (p de 0 a 1), suave no começo */
+function saidaDe(c: Camada, tipo: TipoDeSaida, p: number): EstadoAnimado {
+  const e = p * p * (3 - 2 * p);
+  switch (tipo) {
+    case 'sumir': return { ...PARADO, alfa: 1 - e };
+    case 'subir': return { ...PARADO, alfa: 1 - e, dy: -e * Math.max(160, c.h * 0.8) };
+    case 'descer': return { ...PARADO, alfa: 1 - e, dy: e * Math.max(160, c.h * 0.8) };
+    case 'esquerda': return { ...PARADO, alfa: 1 - e, dx: -e * Math.max(300, c.w) };
+    case 'direita': return { ...PARADO, alfa: 1 - e, dx: e * Math.max(300, c.w) };
+    case 'diminuir': return { ...PARADO, alfa: 1 - e, escala: 1 - 0.7 * e };
+    case 'aumentar': return { ...PARADO, alfa: 1 - e, escala: 1 + 0.6 * e };
+    case 'girar': return { ...PARADO, alfa: 1 - e, rot: 200 * e, escala: 1 - 0.5 * e };
+  }
 }
 
 function estadoDe(c: Camada, a: Animacao, t: number, total: number): EstadoAnimado {
@@ -66,6 +113,16 @@ function estadoDe(c: Camada, a: Animacao, t: number, total: number): EstadoAnima
     case 'direita': return { ...PARADO, alfa: e, dx: (1 - e) * Math.max(240, c.w * 0.8) };
     case 'zoom': return { ...PARADO, alfa: e, escala: 0.4 + 0.6 * e };
     case 'girar': return { ...PARADO, alfa: e, rot: (1 - e) * -180, escala: 0.6 + 0.4 * e };
+    // F-290: entradas novas
+    case 'quicar': {
+      // cai de cima e quica 2 vezes, cada vez mais baixo (curva lisa)
+      const altura = Math.max(200, c.h * 0.9);
+      const q = p < 0.55 ? 1 - Math.pow(p / 0.55, 2) : p < 0.8 ? 0.22 * Math.sin(((p - 0.55) / 0.25) * Math.PI) : 0.07 * Math.sin(((p - 0.8) / 0.2) * Math.PI);
+      return { ...PARADO, alfa: Math.min(1, p * 4), dy: -q * altura };
+    }
+    case 'zoom-de-longe': return { ...PARADO, alfa: e, escala: 2.2 - 1.2 * e };
+    case 'virar': return { ...PARADO, alfa: local < 0 ? 0 : 1, ex: Math.max(0.02, Math.abs(Math.cos((1 - e) * Math.PI / 2 * 1)) ) };
+    case 'surgir-lento': { const q = Math.min(1, Math.max(0, local / Math.max(0.1, a.duracao * 2))); return { ...PARADO, alfa: q * q * (3 - 2 * q) }; }
     case 'digitar': {
       const n = c.tipo === 'texto' ? c.texto.length : 0;
       return { ...PARADO, alfa: local < 0 ? 0 : 1, letras: Math.floor(n * p) };
@@ -74,6 +131,13 @@ function estadoDe(c: Camada, a: Animacao, t: number, total: number): EstadoAnima
     case 'balancar': return local < 0 ? PARADO : { ...PARADO, rot: 4 * Math.sin((local * 2 * Math.PI) / 1.6) };
     case 'piscar': return local < 0 ? PARADO : { ...PARADO, alfa: 0.55 + 0.45 * Math.cos((local * 2 * Math.PI) / 1.1) };
     case 'flutuar': return local < 0 ? PARADO : { ...PARADO, dy: -10 * Math.sin((local * 2 * Math.PI) / 2.4) };
+    // F-290: movimentos contínuos novos (todos por seno: lisos, sem salto)
+    case 'oscilar': return local < 0 ? PARADO : { ...PARADO, dx: Math.max(10, c.w * 0.04) * Math.sin((local * 2 * Math.PI) / 2) };
+    case 'tremer': return local < 0 ? PARADO : { ...PARADO, rot: 2.2 * Math.sin(local * 2 * Math.PI * 4) * (0.5 + 0.5 * Math.sin(local * 2 * Math.PI * 0.5)) };
+    case 'respirar': return local < 0 ? PARADO : { ...PARADO, escala: 1 + 0.035 * Math.sin((local * 2 * Math.PI) / 3) };
+    case 'girar-sempre': return local < 0 ? PARADO : { ...PARADO, rot: (local * 360) / 6 };
+    case 'quicar-sempre': return local < 0 ? PARADO : { ...PARADO, dy: -Math.abs(Math.sin((local * Math.PI) / 0.9)) * Math.max(12, c.h * 0.06) };
+    case 'brilhar': return local < 0 ? PARADO : { ...PARADO, alfa: 0.82 + 0.18 * (0.5 + 0.5 * Math.cos((local * 2 * Math.PI) / 1.4)), escala: 1 + 0.02 * Math.sin((local * 2 * Math.PI) / 1.4) };
     case 'panoramica': {
       const q = Math.min(1, Math.max(0, local / Math.max(1, total - a.atraso)));
       return { ...PARADO, zoom: 1 + 0.15 * suave(q) };

@@ -3337,3 +3337,13 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 ### F-289 — Foto com fundo branco no palco (cota da Cloudflare esgotada) (09/11/2026)
 - **Defeito (dono, print do Palco – Padaria):** o Bolo de Coco Seven Boys aparecia num quadrado branco. O link pede a foto sem fundo (s=1), mas a cota da Cloudflare Images acabou (volta 01/12) e o passa-foto devolve a original; o recorte no navegador só rodava para foto marcada como "recortada" no catálogo.
 - **Correção (`imagens.ts`):** toda foto que pede "sem fundo" é conferida e, se chegou com fundo, recortada no navegador (fundo liso ou o Removedor SOBRE MÍDIA, com a mesma inspeção); o recorte fica lembrado no aparelho (`sm-recortes-v1`) para não refazer a cada abertura. Prova: palco da padaria com o bolo recortado sobre o pedestal.
+
+### F-290 — Movimento liso, dois movimentos, saídas, tamanho por produto, troca de cena por produto e lateral sem travar (09/11/2026)
+- **Defeitos (dono, prints do tablet):** o pulsar do balão pulava quadros; aumentar um produto aumentava todos; ao abrir "Editar" em Seus produtos a lateral travava; rolar a lateral mexia nas réguas sem querer; "DA PADARIA" quebrava em duas linhas.
+- **Causas e correções:**
+  - prévia redesenhava a arte inteira a cada quadro → cada elemento desenhado uma vez e guardado (`desenhar.ts`, sprites), só movido a cada quadro;
+  - tamanho/posição/giro do Produto agora por produto (`chaveDoProdutoNoPalco`);
+  - cartão de produtos virava bloco preso com rolagem própria dentro da lateral (`PainelDeProdutos fixar={false}`);
+  - régua nova (`Faixa`): só muda arrastando para o lado ou num toque parado; rolar não mexe;
+  - "caber" mede a linha inteira, sem deixar quebrar.
+- **Novidades:** entradas quicar, zoom de longe, virar, aparecer devagar; movimentos oscilar, tremer, respirar, girar sem parar, quicar sem parar, brilhar; DOIS movimentos juntos (`depois2`); SAÍDAS (sumir, sair por cima/baixo/lados, diminuir, aumentar, girar); barra de movimento embaixo da arte com "Movimento padrão" (elemento e todos); troca de cena por produto com flash, luz, brilho, girar a cena, desfocar, escurecer, círculo e cortina (palco e vídeo). Teste `studioMovimento290.test.tsx`.
