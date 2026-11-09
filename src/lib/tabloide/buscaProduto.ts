@@ -100,7 +100,8 @@ export function produtoExato(nome: string, linhas: ProdutoOficial[]): ProdutoOfi
   const b = lerBusca(nome);
   const achados = ordenarOficiais(nome, linhas);
   if (!achados.length) return null;
-  if (b.medida !== null && lerBusca(achados[0].nome_norm).medida === null) return null;
+  // F-285: o nome oficial sem o peso vale quando TODAS as palavras batem e nada sobra (o peso do cliente completa o nome)
+  if (b.medida !== null && lerBusca(achados[0].nome_norm).medida === null && (diferenca(b, achados[0].nome_norm) ?? 99) > 0.5) return null;
   if (achados.length === 1) return achados[0];
   const notas = achados.slice(0, 2).map((l) => diferenca(b, l.nome_norm) ?? 99);
   return notas[0] < notas[1] ? achados[0] : null;

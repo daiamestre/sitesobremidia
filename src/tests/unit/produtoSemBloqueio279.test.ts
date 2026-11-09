@@ -33,8 +33,11 @@ describe('F-279 produtos sem bloqueio', () => {
 });
 
 describe('F-280 alerta vermelho leva aos produtos', () => {
-  it('foto escolhida entre parecidos entra e vai para o aviso; tocar no aviso abre a lista com os produtos pulsando', () => {
-    expect(fs.readFileSync('src/lib/tabloide/imagens.ts', 'utf8')).toContain('if (imagem) { oficiais.set(p.id, imagem); if (parecidos) aoDuvidar?.(p.nome, parecidos); }');
+  it('F-285: quem decide a foto é o sistema (sem "confira a foto"); tocar no aviso abre a lista; tocar no produto tira o aviso dele', () => {
+    const img = fs.readFileSync('src/lib/tabloide/imagens.ts', 'utf8');
+    expect(img).toContain('    if (imagem) oficiais.set(p.id, imagem);');
+    expect(img).not.toContain('aoDuvidar?.(p.nome, parecidos)');
+    expect(fs.readFileSync('src/components/studio/ProdutosComFotos.tsx', 'utf8')).toContain('marcarVisto(p)');
     const aviso = fs.readFileSync('src/components/tabloide/AvisoDeProdutos.tsx', 'utf8');
     expect(aviso).toContain('aoTocar');
     const lista = fs.readFileSync('src/components/studio/ProdutosComFotos.tsx', 'utf8');

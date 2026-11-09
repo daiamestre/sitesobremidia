@@ -44,8 +44,9 @@ describe('traz exatamente o produto descrito', () => {
     expect(produtoExato('Maizena', base)).toBeNull();
     expect(ordenarOficiais('Maizena', base).map((l) => l.nome)).toEqual(expect.arrayContaining(['Maizena Isabela 400g', 'Maizena Tradicional Vitarella 350g']));
   });
-  it('quem pediu um peso só recebe quem confirma esse peso; sem pedir, serve', () => {
-    expect(produtoExato('Guaraná Dolly 2L', base)).toBeNull();
+  // F-285: o nome oficial sem o peso vale quando TODAS as palavras batem (o peso do cliente completa o nome)
+  it('o nome oficial sem peso vale para quem pediu o peso, se todas as palavras batem', () => {
+    expect(produtoExato('Guaraná Dolly 2L', base)?.nome).toBe('Guaraná Dolly');
     expect(ordenarOficiais('Guaraná Dolly 2L', base).map((l) => l.nome)).toEqual(['Guaraná Dolly']);
     expect(produtoExato('Guaraná Dolly', base)?.nome).toBe('Guaraná Dolly');
   });

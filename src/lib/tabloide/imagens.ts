@@ -372,8 +372,9 @@ export async function completarImagens(
     const achada = catalogo.get(chaveCanonica(p.nome));
     if (achada?.doCliente || achada?.fonte === 'MARCA') return;
     const { imagem, parecidos } = await produtoDaMarca(p.nome);
-    // F-280: com vários parecidos a foto MAIS PROVÁVEL entra, e o produto vai para o aviso vermelho ("confira a foto")
-    if (imagem) { oficiais.set(p.id, imagem); if (parecidos) aoDuvidar?.(p.nome, parecidos); }
+    // F-285 (regra do dono): quem decide se a foto é a certa é o SISTEMA — com foto confiável ela entra sem aviso; sem confiável, segue
+    // para as outras fontes e, sem foto, vira pedido para os agentes (o aviso só aparece para o que falta de verdade)
+    if (imagem) oficiais.set(p.id, imagem);
     else if (parecidos) emDuvida.add(p.id);
   }));
   for (const p of faltam) {

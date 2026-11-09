@@ -125,11 +125,11 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
 const EXEMPLOS = ['Arroz Camil Tipo 1 5kg 24,90', 'Feijão Carioca Kicaldo 1kg de 8,99 por 6,49', 'Coca-Cola Original 2L 9,99', 'Picanha kg de 89,90 por 69,90'];
 
 /** Um produto da lista: foto (toque para trocar), nome, "é promoção?" (abre o "de") e o preço. */
-function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, atencao }: { p: ProdutoTabloide; s: ProdutosComFotos; destaque: boolean; aoTrocarFoto: () => void; /** F-280: precisa de atenção (falta informação ou a foto pode não ser o produto) */ atencao?: string | null }) {
+function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, atencao, aoTocar }: { p: ProdutoTabloide; s: ProdutosComFotos; destaque: boolean; aoTrocarFoto: () => void; /** F-280: precisa de atenção (falta informação ou não achamos a foto) */ atencao?: string | null; /** F-285: o cliente tocou no produto para corrigir */ aoTocar?: () => void }) {
   const [promo, setPromo] = useState(p.precoDe != null);
   const faltas = faltasDoProduto(p);
   return (
-    <li className={cn('flex items-center gap-2 rounded-lg border bg-black/20 p-1.5', atencao ? 'border-2 border-red-500 shadow-[0_0_14px_rgba(239,68,68,.9)] motion-safe:animate-pulse' : 'border-white/10')} data-testid="produto-linha" data-atencao={atencao ? 'sim' : undefined}>
+    <li className={cn('flex items-center gap-2 rounded-lg border bg-black/20 p-1.5', atencao ? 'border-2 border-red-500 shadow-[0_0_14px_rgba(239,68,68,.9)] motion-safe:animate-pulse' : 'border-white/10')} data-testid="produto-linha" data-atencao={atencao ? 'sim' : undefined} onPointerDown={atencao ? aoTocar : undefined} onFocusCapture={atencao ? aoTocar : undefined}>
       <button type="button" onClick={aoTrocarFoto} title="Trocar a foto" aria-label={`Trocar a foto de ${p.nome}`} className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white">
         {p.imagem ? <img src={p.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
           : <span className="px-0.5 text-center text-[8px] font-bold leading-tight text-slate-500">{s.buscando.includes(p.nome) ? 'buscando…' : 'pôr foto'}</span>}
@@ -159,12 +159,16 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
   const [aberto, setAberto] = useState(abertoInicial);
   const [trocando, setTrocando] = useState<ProdutoTabloide | null>(null);
   const lista = useRef<HTMLUListElement>(null);
+  // F-285: produtos que o cliente já tocou para corrigir: param de piscar e saem do aviso
+  const [vistos, setVistos] = useState<Set<string>>(() => new Set());
+  const marcarVisto = (p: ProdutoTabloide) => setVistos((v) => (v.has(p.nome.trim()) ? v : new Set(v).add(p.nome.trim())));
   const comFoto = s.produtos.filter((p) => p.imagem).length;
   const incompletos = s.produtos.filter((p) => faltasDoProduto(p).length).length;
   // F-256: confere enquanto o cliente digita, com a lista aberta ou fechada
   const revisao = revisarProdutos(s.texto, s.produtos, s.produtos.filter((p) => !p.imagem && !s.buscando.includes(p.nome)).map((p) => p.nome), s.duvidas);
   // F-280: o motivo de cada produto que precisa de atenção (o mesmo do aviso vermelho)
-  const motivoDe = (p: ProdutoTabloide) => revisao.itens.find((i) => i.nome === p.nome.trim())?.motivo ?? null;
+  const avisos = revisao.itens.filter((i) => !vistos.has(i.nome));
+  const motivoDe = (p: ProdutoTabloide) => (vistos.has(p.nome.trim()) ? null : revisao.itens.find((i) => i.nome === p.nome.trim())?.motivo ?? null);
   const irParaCorrigir = () => { setAberto(true); setTimeout(() => (lista.current?.querySelector('[data-atencao="sim"]') ?? lista.current)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80); };
   const naGrade = quantidadeCompleta(s.quantos, s.produtos.length);
   const faltam = s.quantos - s.produtos.length;
@@ -183,7 +187,7 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
         <span className="flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-xs font-semibold text-white">{aberto ? 'Fechar' : 'Editar'}<ChevronDown className={cn('h-4 w-4 transition', aberto && 'rotate-180')} /></span>
       </button>
 
-      <AvisoDeProdutos itens={revisao.itens} total={revisao.total} className="mt-2" aoTocar={irParaCorrigir} />
+      <AvisoDeProdutos itens={avisos} total={revisao.total} className="mt-2" aoTocar={irParaCorrigir} />
 
       {/* F-244: sempre à vista, mesmo com a lista fechada */}
       <div className="mt-2 flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Quantos produtos mostrar" data-testid="produtos-quantidade">
@@ -215,7 +219,7 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
           <div className="rounded-lg bg-white text-slate-900"><LeitorDeCodigo aoLer={s.porCodigo} /></div>
           {s.buscando.length > 0 && <p className="flex items-center gap-2 text-xs text-[#FFD400]"><Loader2 className="h-3.5 w-3.5 animate-spin" />Buscando a foto real de {s.buscando.length === 1 ? s.buscando[0] : `${s.buscando.length} produtos`}…</p>}
           <ul ref={lista} className="space-y-1.5" data-testid="encartes-lista">
-            {s.produtos.map((p, i) => <LinhaDoProduto key={p.id} p={p} s={s} destaque={i < destaques} aoTrocarFoto={() => setTrocando(p)} atencao={motivoDe(p)} />)}
+            {s.produtos.map((p, i) => <LinhaDoProduto key={p.id} p={p} s={s} destaque={i < destaques} aoTrocarFoto={() => { marcarVisto(p); setTrocando(p); }} atencao={motivoDe(p)} aoTocar={() => marcarVisto(p)} />)}
           </ul>
         </>
       )}
