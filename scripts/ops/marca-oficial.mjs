@@ -65,8 +65,9 @@ if (modo === 'preparar') {
       const meta = await sharp(`${pasta}/oficial/${p.arq}`).metadata();
       const t2 = await sharp(`${pasta}/oficial/${p.arq}`).trim({ threshold: 0, background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer({ resolveWithObject: true });
       const caixa = { left: -(t2.info.trimOffsetLeft ?? 0), top: -(t2.info.trimOffsetTop ?? 0), width: t2.info.width, height: t2.info.height };
-      const inteira = caixa.left === 0 && caixa.top === 0 && caixa.width === meta.width && caixa.height === meta.height;
-      url = linkDaFoto(p.url, inteira ? null : caixa);
+      // F-274: corte só quando a sobra é grande (cada corte gasta 1 das 5.000 transformações grátis do mês da Cloudflare)
+      const util = (caixa.width * caixa.height) / (meta.width * meta.height);
+      url = linkDaFoto(p.url, util >= 0.6 ? null : caixa);
       const r = await fetch(url, { signal: AbortSignal.timeout(30000) }).catch(() => null);
       if (!r?.ok || !/^image\//.test(r.headers.get('content-type') ?? '')) { console.log('  link não abriu (fica de fora):', p.slug, r?.status ?? 'erro'); continue; }
     }

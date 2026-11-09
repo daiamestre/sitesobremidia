@@ -81,6 +81,7 @@ const semAcento = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, 
 const RELACIONADOS = /produtos?\s+relacionados?|related[-_\s]?products?|class=["'][^"']*(?:related|upsell|cross-sell)|voc[eê]\s+tamb[eé]m|veja\s+tamb[eé]m|produtos?\s+similares|outros\s+produtos|confira\s+tamb[eé]m/i;
 const FORA = /logo|favicon|icon|icone|banner|header|footer|rodape|sprite|selo|background|\bbg\b|placeholder|avatar|whatsapp|facebook|instagram/i;
 const achados = [];
+const achadosComFundo = [];
 let semFundo = 0, comFundo = 0;
 for (const u of links) {
   await espera(600);
@@ -98,29 +99,31 @@ for (const u of links) {
   const nomeDaPagina = semAcento(`${u.split('/').filter(Boolean).pop()} ${titulo}`).split(/[^a-z]+/).filter((p) => p.length >= 4);
   const bate = (x) => (nomeDaPagina.some((p) => semAcento(x.split('/').pop()).includes(p)) ? 0 : 1);
   urls.sort((x, y) => bate(x) - bate(y));
-  let melhor = null;
+  let melhor = null, primeiraComFundo = null;
   for (const url of urls.slice(0, IMAGENS_POR_PAGINA)) {
     const r = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) }).catch(() => null);
     if (!r?.ok) continue;
     const b = Buffer.from(await r.arrayBuffer());
     const m = await sharp(b).metadata().catch(() => null);
     if (!m?.width || Math.max(m.width, m.height) < 300) continue;
-    if (!m.hasAlpha) { comFundo++; continue; }
+    // F-274: a 1ª foto com fundo (de bom tamanho) da página fica guardada para o recorte com inspeção (marca-recortar-link)
+    const guardarComFundo = () => { if (!primeiraComFundo && Math.max(m.width, m.height) >= 500) primeiraComFundo = { b, m, url, t: 0, hash: crypto.createHash('md5').update(b).digest('hex') }; };
+    if (!m.hasAlpha) { comFundo++; guardarComFundo(); continue; }
     const a = await sharp(b).ensureAlpha().extractChannel(3).raw().toBuffer();
     let z = 0;
     for (const v of a) if (v < 16) z++;
     const t = z / a.length;
-    if (t < 0.05 || t > 0.97) { comFundo++; continue; }
+    if (t < 0.05 || t > 0.97) { comFundo++; if (t < 0.05) guardarComFundo(); continue; }
     melhor = { b, m, url, t, hash: crypto.createHash('md5').update(b).digest('hex') };
     break;
   }
-  if (!melhor) continue;
+  if (!melhor) { if (primeiraComFundo) achadosComFundo.push({ u, titulo, ...primeiraComFundo }); continue; }
   semFundo++;
   achados.push({ u, titulo, ...melhor });
 }
 // imagem que se repete em várias páginas é logotipo ou peça do site
 const vezes = new Map();
-for (const a of achados) vezes.set(a.hash, (vezes.get(a.hash) ?? 0) + 1);
+for (const a of [...achados, ...achadosComFundo]) vezes.set(a.hash, (vezes.get(a.hash) ?? 0) + 1);
 const unicos = new Set();
 const saida = [];
 for (const a of achados) {
@@ -132,4 +135,15 @@ for (const a of achados) {
   saida.push({ slug, titulo: a.titulo, pagina: a.u, url: a.url, arq, w: a.m.width, h: a.m.height, formato: a.m.format, transparente: +a.t.toFixed(3), peso: pesoDe(slug) ?? pesoDe(a.titulo) });
 }
 fs.writeFileSync(`${pasta}/produtos.json`, JSON.stringify(saida, null, 1));
-console.log('RESULTADO imagens sem fundo', saida.length, '| lado >= 700', saida.filter((x) => Math.max(x.w, x.h) >= 700).length, '| fotos com fundo ignoradas', comFundo);
+// F-274: fotos com fundo (uma por página, sem repetir) para o recorte pelo passa-foto com inspeção
+const comFundoSaida = [];
+for (const a of achadosComFundo) {
+  if (vezes.get(a.hash) >= 3 || unicos.has(a.hash)) continue;
+  unicos.add(a.hash);
+  const slug = `${decodeURIComponent(a.u.split('/').filter(Boolean).pop()).replace(/[^a-z0-9-]+/gi, '-').toLowerCase().slice(0, 70)}-f${comFundoSaida.length}`;
+  const arq = `${slug}.${a.m.format === 'jpeg' ? 'jpg' : a.m.format}`;
+  fs.writeFileSync(`${pasta}/oficial/${arq}`, a.b);
+  comFundoSaida.push({ slug, titulo: a.titulo, pagina: a.u, url: a.url, arq, w: a.m.width, h: a.m.height, formato: a.m.format, transparente: 0, peso: pesoDe(slug) ?? pesoDe(a.titulo) });
+}
+fs.writeFileSync(`${pasta}/com-fundo.json`, JSON.stringify(comFundoSaida, null, 1));
+console.log('RESULTADO imagens sem fundo', saida.length, '| lado >= 700', saida.filter((x) => Math.max(x.w, x.h) >= 700).length, '| fotos com fundo ignoradas', comFundo, '| com fundo guardadas', comFundoSaida.length);

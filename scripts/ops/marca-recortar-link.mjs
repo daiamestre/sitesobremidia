@@ -30,6 +30,8 @@ let i = 0, aprovados = 0, semCota = 0;
 
 const trabalhar = async () => {
   while (i < itens.length) {
+    // cota do mês acabou (5 seguidas sem transformação e nenhuma aprovada): para e deixa o resto para depois
+    if (semCota >= 5 && aprovados === 0) { i = itens.length; break; }
     const x = itens[i++];
     if (ja.has(x.slug)) continue;
     const motivo = (m) => { motivos[m] = (motivos[m] ?? 0) + 1; };

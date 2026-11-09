@@ -3249,3 +3249,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Defeito achado:** slugs repetidos (uva, tangerina, tradicional, 51-ouro) faziam a recusa de um item derrubar outro; os slugs passaram a ser únicos (`-n<i>`).
 - **Conferência:** a olho, nas folhas, com nome corrigido pela embalagem.
 - **Novos produtos por link:** Masterboi, Natto, Polilac, cafés 3corações, Ajinomoto (Sazón, MID, Vono e outras), 51, Camil e Minu, cerca de 300 nomes.
+
+### F-274 — Varredura rápida de marcas: lojas oficiais, recorte por link com inspeção e robots.txt com curingas (09/11/2026)
+- **Pedido do dono:** trazer as marcas mais vendidas e conhecidas (mercado, remédios sem receita, suplementos de academia), mais rápido e mais certeiro.
+- **Leitor de lojas oficiais:** `marca-loja.mjs` lê o catálogo estruturado da loja da marca (Shopify, VTEX, WooCommerce), com nome exato, peso e EAN.
+- **Foto com fundo:** `marca-recortar-link.mjs` usa o passa-foto (s=1) e a inspeção do site; corta a sobra só quando a área útil é menor que 60%.
+- **Recusas pelo nome:** kits, combos, roupas e acessórios.
+- **Defeito corrigido:** o robots.txt com curinga era lido como "proíbe tudo" (`marca-site` e `marca-loja`). Corrigido; a releitura dos 49 sites trouxe Hinode, Lola, Cacau Show, Purina, Piracanjuba e outras.
+- **Defeito evitado:** republicar o Worker durante a gravação derrubou os links (Vitafor, Bold e Lavitan com 0); a gravação foi repetida.
+- **Limite:** a API do Supabase devolve 429 com gravações paralelas; gravar em sequência.
+- **Cota esgotada:** as 5.000 transformações grátis do mês da Cloudflare Images acabaram; as transformações já feitas continuam servindo. Pendentes listadas no ESTADO (P-29).
+- **Resultado:** o catálogo chegou a 6.758 produtos de 221 marcas (6.661 por link e 1.011 com EAN); kits e combos das lojas foram apagados (638 linhas).
