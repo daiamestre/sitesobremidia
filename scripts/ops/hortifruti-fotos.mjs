@@ -206,7 +206,7 @@ if (modo === 'buscar') {
   let n = 0;
   for (const d of fs.readdirSync(SAIDA)) {
     const arq = path.join(SAIDA, d, 'escolhida.json');
-    if (!fs.existsSync(arq) || recusados.has(d)) continue;
+    if (!fs.existsSync(arq) || recusados.has(d) || (so.length && !so.includes(d))) continue;
     const e = JSON.parse(fs.readFileSync(arq, 'utf8'));
     const r = await fetch(e.link, { signal: AbortSignal.timeout(40000) }).catch(() => null);
     if (!r?.ok || !/^image\//.test(r.headers.get('content-type') ?? '')) { console.log('link não abriu:', e.nome); continue; }
