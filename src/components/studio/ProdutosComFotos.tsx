@@ -15,6 +15,7 @@ import { LeitorDeCodigo } from '@/components/tabloide/LeitorDeCodigo';
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { AvisoDeProdutos } from '@/components/tabloide/AvisoDeProdutos';
 import { NovoProduto } from '@/components/tabloide/NovoProduto';
+import { GaleriaDeProdutos } from './GaleriaDeProdutos';
 import { faltasDoProduto, revisarProdutos } from '@/lib/tabloide/produtoCompleto';
 import { completarImagens, guardarFotoDoProduto, prepararFotoDoProduto, pedirFotos } from '@/lib/tabloide/imagens';
 import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, precoParaTexto, type ImagemProduto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
@@ -43,6 +44,8 @@ export interface ProdutosComFotos {
   trocarFoto: (p: ProdutoTabloide, imagem: ImagemProduto) => Promise<void>;
   /** F-244: quantos produtos mostrar nos encartes e no palco */
   quantos: number; escolherQuantos: (n: number) => void;
+  /** F-292: produto escolhido na galeria por segmento: entra na hora, com a foto certa (e quantos aumenta para ele aparecer) */
+  adicionarPronto: (p: { nome: string; preco: number; precoDe: number | null; imagem: ImagemProduto }) => void;
 }
 
 /** F-259: a lista da farmácia fica guardada à parte (não mistura com a do mercado) */
@@ -119,7 +122,21 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
       else toast.error(`Foto não aprovada${pronta.recusa ? `: ${pronta.recusa}` : ''}. Ela ficou só nesta arte; envie uma foto do produto inteiro.`);
     } catch { toast.error('A foto entrou, mas não foi possível guardá-la para a próxima vez.'); }
   };
-  return { texto, setTexto, produtos, buscando, erros, duvidas, aplicar, mudar, remover, porCodigo, gravar, trocarFoto, quantos, escolherQuantos };
+  const adicionarPronto: ProdutosComFotos['adicionarPronto'] = (x) => {
+    const linha = `${x.nome} ${x.precoDe != null ? `de ${precoParaTexto(x.precoDe)} por ` : ''}${precoParaTexto(x.preco)}`;
+    const lido = lerLinha(linha);
+    if (!lido) return;
+    const novo: ProdutoTabloide = { ...lido, nome: x.nome, preco: x.preco, precoDe: x.precoDe, imagem: x.imagem };
+    setProdutos((a) => {
+      const n = [...a, novo];
+      gravar(n);
+      if (n.length > quantos) escolherQuantos(QUANTIDADES.find((q) => q >= n.length) ?? QUANTIDADES[QUANTIDADES.length - 1]);
+      return n;
+    });
+    // foto que pede "sem fundo" e chegou com fundo: o navegador recorta (F-289)
+    void prepararFotoDoProduto(x.imagem, x.nome).then((pr) => { if (pr.url !== x.imagem.url) setProdutos((a) => a.map((q) => (q.id === novo.id ? { ...q, imagem: pr } : q))); }).catch(() => undefined);
+  };
+  return { texto, setTexto, produtos, buscando, erros, duvidas, aplicar, mudar, remover, porCodigo, gravar, trocarFoto, quantos, escolherQuantos, adicionarPronto };
 }
 
 const EXEMPLOS = ['Arroz Camil Tipo 1 5kg 24,90', 'Feijão Carioca Kicaldo 1kg de 8,99 por 6,49', 'Coca-Cola Original 2L 9,99', 'Picanha kg de 89,90 por 69,90'];
@@ -157,6 +174,7 @@ function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, atencao, aoTocar }: { p:
 
 export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encartes', aberto: abertoInicial = false, emGrade = true, fixar = true }: { s: ProdutosComFotos; /** F-290: dentro de uma lateral que já rola sozinha (palco), não se prende: senão a rolagem trava nele */ fixar?: boolean; destaques?: number; botao?: string; /** F-242: começa fechado (só o cartão) */ aberto?: boolean; /** F-244: encarte = grade completa; palco = um produto por vez */ emGrade?: boolean }) {
   const [aberto, setAberto] = useState(abertoInicial);
+  const [galeria, setGaleria] = useState(false);
   const [trocando, setTrocando] = useState<ProdutoTabloide | null>(null);
   const lista = useRef<HTMLUListElement>(null);
   // F-285: produtos que o cliente já tocou para corrigir: param de piscar e saem do aviso
@@ -205,6 +223,8 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
 
       {aberto && (
         <>
+          {/* F-292: a galeria de produtos por segmento também no cartão de adicionar */}
+          <button type="button" onClick={() => setGaleria(true)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[#FFD400]/50 bg-[#FFD400]/10 text-xs font-bold text-[#FFD400] hover:bg-[#FFD400]/20" data-testid="produtos-abrir-galeria"><ImagePlus className="h-4 w-4" />Escolher na galeria de produtos (por segmento)</button>
           <NovoProduto escuro aoAdicionar={(linha) => s.setTexto(s.texto.trim() ? `${s.texto.trim()}\n${linha}` : linha)} />
           <div>
             <label htmlFor="encartes-texto" className="text-xs font-semibold text-white">Produtos adicionados</label>
@@ -224,6 +244,7 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
         </>
       )}
       {trocando && <TrocarFoto produto={trocando} aoFechar={() => setTrocando(null)} aoEscolher={(img) => { const p = trocando; setTrocando(null); void s.trocarFoto(p, img); }} />}
+      <GaleriaDeProdutos aberto={galeria} aoFechar={() => setGaleria(false)} aoAdicionar={s.adicionarPronto} />
     </section>
   );
 }

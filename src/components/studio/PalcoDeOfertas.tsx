@@ -13,7 +13,9 @@
  */
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Clapperboard, FolderOpen, ImagePlus, Monitor, Move, MousePointerClick, Palette, Pause, PenLine, Play, RotateCcw, Smartphone } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Clapperboard, FolderOpen, ImagePlus, Monitor, Move, MousePointerClick, Palette, Pause, PenLine, Play, Plus, RotateCcw, Smartphone } from 'lucide-react';
+import { GaleriaDeProdutos } from './GaleriaDeProdutos';
+import { EditorDeVideo } from '@/pages/studioai/VideoEditorPage';
 import { toast } from 'sonner';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { Palco as PalcoDoEditor } from '@/components/studio/editor/Palco';
@@ -171,6 +173,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const [ajustes, setAjustes] = useState<AjustesDoPalco>(salvas.ajustes ?? {});
   // F-286: a logo do cliente no círculo da logo 3D do segmento (vale em pé e deitado)
   const [trocandoCirculo, setTrocandoCirculo] = useState(false);
+  const [galeriaAberta, setGaleriaAberta] = useState(false);
   const porLogoNoCirculo = (url: string | null) => {
     setAjustes((a) => {
       const novo = { ...a };
@@ -186,7 +189,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   useEffect(() => { try { localStorage.setItem(chaveOpcoes, JSON.stringify({ fundoId, textoBotao, movimento, formato, ajustes })); } catch { /* sem armazenamento */ } }, [chaveOpcoes, fundoId, textoBotao, movimento, formato, ajustes]);
 
   // F-244: só os produtos escolhidos passam no palco
-  const comPreco = s.produtos.filter((p) => p.preco != null).slice(0, s.quantos);
+  const comPreco = useMemo(() => s.produtos.filter((p) => p.preco != null).slice(0, s.quantos), [s.produtos, s.quantos]);
   // F-248: a logo do palco vem da pasta Logos
   const chaveLogo = `palco-${fundoId}`;
   const [logoDoPalco, setLogoDoPalco] = useState<LogoDaPasta | null>(() => lerLogoDoEncarte(chaveLogo));
@@ -319,6 +322,11 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     navegar('/studio/video');
   };
   const mover = (k: keyof MovimentoDoPalco, v: string) => setMovimento((m) => ({ ...m, [k]: v }));
+  // F-292: o EDITOR DE VÍDEO fica embaixo da arte, já com um clipe por produto, acompanhando o palco (meio segundo depois de cada mudança)
+  const projetoDoPalco = useMemo(() => (comPreco.length ? projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes }) : null), [comPreco, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes]);
+  const [projetoNoEditor, setProjetoNoEditor] = useState(projetoDoPalco);
+  useEffect(() => { const t = setTimeout(() => setProjetoNoEditor(projetoDoPalco), 500); return () => clearTimeout(t); }, [projetoDoPalco]);
+  const transicaoPeloEditor = (nome: string, tipo: TipoDeTransicao) => setMovimento((m) => ({ ...m, transicoes: { ...(m.transicoes ?? {}), [chaveCanonica(nome)]: tipo } }));
 
   return (
     <div className="space-y-3" data-testid="studio-palco">
@@ -357,6 +365,11 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                 className={cn('flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border text-[10px] font-bold', !sel ? 'border-[#FFD400] bg-[#FFD400]/10 text-[#FFD400]' : 'border-white/10 text-slate-300')}>
                 <Play className="h-5 w-5" />Tocar
               </button>
+              {/* F-292: ao lado do Tocar, a galeria de produtos por segmento */}
+              <button type="button" onClick={() => setGaleriaAberta(true)} title="Adicionar produtos da galeria" aria-label="Adicionar produtos da galeria por segmento"
+                className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#25D366]/60 bg-[#25D366]/10 text-[10px] font-bold text-[#7dffb0] hover:bg-[#25D366]/20" data-testid="palco-abrir-galeria">
+                <Plus className="h-5 w-5" />Produtos
+              </button>
               {comPreco.map((p) => (
                 <button key={p.id} type="button" role="option" aria-selected={sel?.id === p.id} onClick={() => { setSelId(p.id); escolherElemento(null); setTocando(true); }} title={p.nome}
                   className={cn('relative flex h-16 w-16 shrink-0 flex-col items-center overflow-hidden rounded-xl border bg-white', sel?.id === p.id ? 'border-[3px] border-[#FFD400]' : 'border-white/10', faltasDoProduto(p).length && 'ring-2 ring-amber-400')} data-testid="palco-fila-produto">
@@ -393,9 +406,14 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
               {tocando ? <><Pause className="h-4 w-4" />Parar para editar</> : <><Play className="h-4 w-4" />Ver todo o movimento</>}
             </button>
           )}
-          <button type="button" onClick={criarVideo} className="mx-auto flex h-11 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-bold text-[#0b2a17] hover:brightness-105" data-testid="palco-criar-video">
-            <Clapperboard className="h-5 w-5" />Criar vídeo ({comPreco.length} produtos · {comPreco.length * SEGUNDOS_POR_PRODUTO} s)
-          </button>
+          {/* F-292 (pedido do dono): a EDIÇÃO DE VÍDEO fica aqui, embaixo da arte (sem ir para outra tela): linha do tempo com um clipe por
+              produto, "+" em cada troca para o efeito de saída/entrada, música, textos, filtros, cortes e exportar MP4 */}
+          {projetoNoEditor && (
+            <section className="space-y-2 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-2" data-testid="palco-editor-video">
+              <h2 className="flex items-center gap-2 px-1 text-sm font-bold text-white"><Clapperboard className="h-5 w-5 text-[#25D366]" />Vídeo do palco ({comPreco.length} produtos · {comPreco.length * SEGUNDOS_POR_PRODUTO} s)</h2>
+              <EditorDeVideo embutido projetoInicial={projetoNoEditor} nomeInicial={`${info.tituloPalco} – ${fundo ? textoBotao : titulo}`} aoTransicao={transicaoPeloEditor} />
+            </section>
+          )}
         </section>
 
         {/* EDIÇÃO compacta */}
@@ -504,6 +522,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
           </Cartao>
         </aside>
       </div>
+      <GaleriaDeProdutos aberto={galeriaAberta} aoFechar={() => setGaleriaAberta(false)} aoAdicionar={s.adicionarPronto} segmentoInicial={segmento === 'mercado' ? 'mercearia' : segmento} />
       {trocandoCirculo && <EscolherLogo titulo="Sua logo no círculo" aoEscolher={(l) => porLogoNoCirculo(l.url)} aoRestaurar={() => porLogoNoCirculo(null)} aoFechar={() => setTrocandoCirculo(false)} />}
       {trocandoLogo && <EscolherLogo titulo="Logo do palco" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
       {trocando && <TrocarFoto produto={trocando} aoFechar={() => setTrocando(null)} aoEscolher={(img, termo) => { const nome = termo.trim() || trocando.nome; const p = { ...trocando, nome }; setTrocando(null); if (nome !== trocando.nome) s.mudar(p.id, { nome }); void s.trocarFoto(p, img); }} />}

@@ -38,6 +38,8 @@ interface Props {
   onCortarEm: (alvo: Alvo, t: number) => void;
   /** arrastar o clipe de vídeo para outra posição (onde o começo dele foi solto) */
   onMoverClipe: (id: string, inicioNovo: number) => void;
+  /** F-292: o "+" entre dois clipes: abre o efeito de saída/entrada daquela troca */
+  onTransicao?: (clipeId: string) => void;
 }
 
 const MARGEM = 16;
@@ -261,6 +263,12 @@ export function LinhaDoTempo(props: Props) {
                   </div>
                 );
               })}
+              {/* F-292: "+" em cada troca de clipe = efeito de saída e entrada (flash, fade, luz, brilho, girar…) */}
+              {props.onTransicao && projeto.clipes.slice(0, -1).map((c, i) => (
+                <button key={`t-${c.id}`} type="button" onClick={(e) => { e.stopPropagation(); props.onTransicao!(c.id); }} title={`Efeito na troca: ${c.transicao.tipo === 'corte' ? 'nenhum' : c.transicao.tipo}`} aria-label={`Efeito de saída e entrada depois de ${c.nome}`}
+                  className={cn('absolute top-1/2 z-20 flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-[13px] font-black shadow', c.transicao.tipo === 'corte' ? 'border-white bg-[#5D1BFF] text-white' : 'border-[#FFD400] bg-[#FFD400] text-[#22004A]')}
+                  style={{ left: x(ini[i + 1]) }} data-testid="linha-transicao">{c.transicao.tipo === 'corte' ? '+' : '✦'}</button>
+              ))}
             </div>
 
             {/* T1 — títulos, textos e elementos */}

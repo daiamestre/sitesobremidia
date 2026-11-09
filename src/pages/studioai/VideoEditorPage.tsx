@@ -28,7 +28,7 @@ import { duracaoDoVideo } from '@/lib/studio/animacao';
 import { MotorDeVideo, type VideoExportado } from '@/lib/studio/video/motor';
 import {
   CHAVE_ARTE_PARA_VIDEO, dividir, duracaoDoClipe, duracaoTotal, formatarTempo, idNovo, inicios, noTempo, novoClipe, projetoVazio,
-  type Clipe, type FaixaDeAudio, type ProjetoDeVideo, type Sobreposicao,
+  type Clipe, type FaixaDeAudio, type ProjetoDeVideo, type Sobreposicao, type TipoDeTransicao,
 } from '@/lib/studio/video/linha';
 import { cortarEm, moverClipePara, umQuadro, type Alvo, type Ferramenta } from '@/lib/studio/video/edicao';
 import { listarProjetos, meuSaldo, obterProjeto, salvarNasMidias, salvarProjeto } from '@/lib/studioai/api';
@@ -54,7 +54,26 @@ function normalizar<T extends Camada>(c: T): T {
 }
 
 export default function VideoEditorPage() {
-  const { projetoId } = useParams();
+  return <EditorDeVideo />;
+}
+
+/** F-292: o projeto que vem do palco entra no editor sem perder o que a pessoa fez na linha do tempo (música, textos, filtros, tempos) */
+function mesclarDoPalco(novo: ProjetoDeVideo, q: ProjetoDeVideo): ProjetoDeVideo {
+  const clipes = novo.clipes.map((c) => {
+    const o = q.clipes.find((k) => k.tipo === 'arte' && k.nome === c.nome);
+    return o ? { ...c, id: o.id, duracao: o.duracao, velocidade: o.velocidade, filtro: o.filtro, ajustes: o.ajustes, zoomDe: o.zoomDe, zoomPara: o.zoomPara, transicao: { ...c.transicao, duracao: o.transicao.duracao || c.transicao.duracao } } : c;
+  });
+  return { ...novo, clipes: [...clipes, ...q.clipes.filter((k) => k.tipo !== 'arte')], sobreposicoes: q.sobreposicoes, audios: q.audios };
+}
+
+/**
+ * F-292 (pedido do dono): o EDITOR DE VÍDEO inteiro (linha do tempo como no CapCut). `embutido` = embaixo da arte do palco de ofertas,
+ * já preenchido com os produtos do palco (um clipe por produto) e acompanhando cada mudança feita no palco; a transição escolhida
+ * num corte volta para o palco (`aoTransicao`).
+ */
+export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeInicial, aoTransicao }: { embutido?: boolean; projetoInicial?: ProjetoDeVideo | null; nomeInicial?: string; aoTransicao?: (nomeDoClipe: string, tipo: TipoDeTransicao) => void }) {
+  const params = useParams();
+  const projetoId = embutido ? undefined : params.projetoId;
   const navegar = useNavigate();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -62,8 +81,8 @@ export default function VideoEditorPage() {
   const clienteId = saldo.data?.cliente ?? null;
   const maxGaleria = clienteId ? 20 : 180; // anunciante: até 20 s (regra das mídias dele)
 
-  const [p, setP] = useState<ProjetoDeVideo>(() => projetoVazio('16:9'));
-  const [nome, setNome] = useState('Meu vídeo');
+  const [p, setP] = useState<ProjetoDeVideo>(() => projetoInicial ?? projetoVazio('16:9'));
+  const [nome, setNome] = useState(nomeInicial ?? 'Meu vídeo');
   const [idProjeto, setIdProjeto] = useState<string | null>(projetoId ?? null);
   const [sel, setSel] = useState<Selecao>(null);
   const [aba, setAba] = useState<string>('projeto');
@@ -103,8 +122,11 @@ export default function VideoEditorPage() {
   }, []);
   useEffect(() => { void motor.current?.definir(p); }, [p]);
 
+  // F-292: embutido no palco: acompanha o palco
+  useEffect(() => { if (embutido && projetoInicial) setP((q) => mesclarDoPalco(projetoInicial, q)); }, [embutido, projetoInicial]);
   // ── abre projeto salvo, ou uma arte vinda do editor de imagens
   useEffect(() => {
+    if (embutido) return;
     if (projetoId) {
       void obterProjeto(projetoId).then((pr) => {
         const d = pr?.dados as unknown as ProjetoDeVideo | undefined;
@@ -154,7 +176,11 @@ export default function VideoEditorPage() {
   const desfazer = () => { const a = passado.current.pop(); if (!a) return; futuro.current.push(p); setP(a); setVersao((v) => v + 1); };
   const refazer = () => { const a = futuro.current.pop(); if (!a) return; passado.current.push(p); setP(a); setVersao((v) => v + 1); };
 
-  const mudarClipe = (id: string, x: Partial<Clipe>, suave = true) => (suave ? mudarSuave : mudar)((q) => ({ ...q, clipes: q.clipes.map((c) => (c.id === id ? { ...c, ...x } : c)) }));
+  const mudarClipe = (id: string, x: Partial<Clipe>, suave = true) => {
+    // F-292: a transição de um produto do palco volta para o palco (cada produto com a sua)
+    if (embutido && x.transicao && aoTransicao) { const c = p.clipes.find((k) => k.id === id); if (c?.tipo === 'arte') aoTransicao(c.nome, x.transicao.tipo); }
+    (suave ? mudarSuave : mudar)((q) => ({ ...q, clipes: q.clipes.map((c) => (c.id === id ? { ...c, ...x } : c)) }));
+  };
   const mudarSob = (id: string, x: Partial<Sobreposicao>, suave = true) => (suave ? mudarSuave : mudar)((q) => ({ ...q, sobreposicoes: q.sobreposicoes.map((s) => (s.id === id ? normalizar({ ...s, ...x } as Sobreposicao) : s)) }));
   const mudarAudio = (id: string, x: Partial<FaixaDeAudio>, suave = true) => (suave ? mudarSuave : mudar)((q) => ({ ...q, audios: q.audios.map((a) => (a.id === id ? { ...a, ...x } : a)) }));
 
@@ -389,14 +415,14 @@ export default function VideoEditorPage() {
 
       {/* ── topo */}
       <div className="flex flex-wrap items-center gap-2">
-        <Link to="/studio" aria-label="Voltar ao Studio" className="flex h-11 items-center gap-1 rounded-xl border border-white/10 px-3 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-5 w-5" /><span className="hidden sm:inline">Studio</span></Link>
+        {!embutido && <Link to="/studio" aria-label="Voltar ao Studio" className="flex h-11 items-center gap-1 rounded-xl border border-white/10 px-3 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-5 w-5" /><span className="hidden sm:inline">Studio</span></Link>}
         <label className="flex h-11 min-w-[160px] flex-1 items-center gap-2 rounded-xl border border-white/15 bg-[#0f0428] px-3 focus-within:border-[#8A2EFF]">
           <Film className="h-4 w-4 shrink-0 text-[#B04DFF]" /><span className="sr-only">Nome do vídeo</span>
           <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} placeholder="Nome do vídeo" className="min-w-0 flex-1 bg-transparent text-base font-bold text-white focus:outline-none" data-testid="video-nome" />
         </label>
         <button type="button" onClick={desfazer} disabled={!passado.current.length} aria-label="Desfazer" className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 disabled:opacity-30"><Undo2 className="h-5 w-5" /></button>
         <button type="button" onClick={refazer} disabled={!futuro.current.length} aria-label="Refazer" className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 disabled:opacity-30"><Redo2 className="h-5 w-5" /></button>
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1" role="radiogroup" aria-label="Formato">
+        <div className={cn('grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1', embutido && 'hidden')} role="radiogroup" aria-label="Formato">
           {(['16:9', '9:16'] as FormatoDoc[]).map((f) => (
             <button key={f} type="button" role="radio" aria-checked={p.formato === f} onClick={() => mudar((q) => ({ ...q, formato: f }))}
               className={cn('flex h-9 items-center gap-1 rounded-lg px-3 text-sm font-bold', p.formato === f ? 'bg-[#5D1BFF] text-white' : 'text-slate-300')}>{f === '16:9' ? <Monitor className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}{f}</button>
@@ -409,7 +435,7 @@ export default function VideoEditorPage() {
       </div>
       {enviando > 0 && <p className="flex items-center gap-2 text-xs text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Guardando {enviando} mídia(s) na nuvem… (pode continuar editando)</p>}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+      <div className={cn('grid gap-3', !embutido && 'lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start')}>
         <div className="min-w-0 space-y-2">
           {/* ── prévia */}
           <div className="rounded-2xl border border-[#8A2EFF]/30 bg-[#0a031c] px-4 py-4 sm:px-8">
@@ -449,11 +475,12 @@ export default function VideoEditorPage() {
 
           <LinhaDoTempo projeto={p} tempo={tempo} sel={sel} motor={motor.current} versaoMidia={versaoMidia} onSelecionar={(s) => { setSel(s); if (s?.tipo === 'clipe') { const i = p.clipes.findIndex((c) => c.id === s.id); const ini = inicios(p.clipes)[i]; if (tempo < ini || tempo > ini + duracaoDoClipe(p.clipes[i])) ir(ini + 0.05); } else if (s?.tipo === 'sob') { const x = p.sobreposicoes.find((o) => o.id === s.id); if (x && (tempo < x.de || tempo >= x.ate)) ir(x.de + 0.05); } }}
             onIr={ir} onInicio={lembrar} onClipe={(id, x) => mudarClipe(id, x, false)} onSob={(id, x) => mudarSob(id, x, false)} onAudio={(id, x) => mudarAudio(id, x, false)}
-            ferramenta={ferramenta} ima={ima} onFerramenta={setFerramenta} onIma={setIma} onDividir={dividirNoCursor} onCortarEm={cortarComLamina} onMoverClipe={moverClipeNaFaixa} />
+            ferramenta={ferramenta} ima={ima} onFerramenta={setFerramenta} onIma={setIma} onDividir={dividirNoCursor} onCortarEm={cortarComLamina} onMoverClipe={moverClipeNaFaixa}
+            onTransicao={(id) => { setSel({ tipo: 'clipe', id }); setTimeout(() => setAba('transicao'), 0); }} />
         </div>
 
         {/* ── ferramentas do escolhido */}
-        <div className="min-w-0 space-y-2 lg:sticky lg:top-[84px]">
+        <div className={cn('min-w-0 space-y-2', !embutido && 'lg:sticky lg:top-[84px]')}>
           <div className="rounded-xl border border-white/10 bg-[#140632] p-2">
             <p className="mb-1.5 flex items-center gap-1.5 px-1 text-xs font-bold text-white">
               <Palette className="h-4 w-4 shrink-0 text-[#B04DFF]" />
