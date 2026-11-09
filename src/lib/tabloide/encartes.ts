@@ -78,7 +78,7 @@ export const CESTA_MERCADO = [
   'Ketchup Heinz 397g 9,99',
   'Maionese Hellmann\'s 500g 9,49',
   'Extrato de Tomate Elefante 340g 5,99',
-  'Molho de Tomate Fugini 340g 2,49',
+  'Molho de Tomate Pomarola 340g 2,49',
   'Açúcar Refinado União 1kg 4,79',
   'Biscoito Recheado Passatempo 130g 2,99',
 ].join('\n');
@@ -114,8 +114,8 @@ const CESTA_ACOUGUE = [
   'Contrafilé kg de 49,90 por 39,90',
   'Costela Bovina kg de 32,90 por 26,90',
   'Alcatra kg 42,90', 'Patinho kg 38,90', 'Acém kg 29,90', 'Músculo kg 27,90',
-  'Linguiça Toscana Sadia kg 21,90', 'Frango Inteiro kg 12,90', 'Coxa e Sobrecoxa kg 13,90', 'Filé de Peito de Frango kg 22,90',
-  'Bisteca Suína kg 19,90', 'Pernil Suíno kg 18,90', 'Carvão Vegetal 3kg 19,90', 'Sal Grosso Cisne 1kg 4,49',
+  'Linguiça Calabresa Seara 400g 14,90', 'Frango Inteiro kg 12,90', 'Coxa e Sobrecoxa kg 13,90', 'Filé de Peito de Frango kg 22,90',
+  'Bisteca Suína kg 19,90', 'Pernil Suíno kg 18,90', 'Fraldinha Masterboi kg 44,90', 'Maminha Masterboi kg 46,90',
 ].join('\n');
 
 const CESTA_HORTIFRUTI = [

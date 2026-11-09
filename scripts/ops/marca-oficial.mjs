@@ -49,7 +49,7 @@ if (modo === 'preparar') {
   console.log('prontos', itens.length, 'lado menor', L[0], 'mediana', L[L.length >> 1], 'maior', L[L.length - 1]);
 } else {
   // F-276: roupa, brinde, sacola, kit e afins nunca entram (não é produto de encarte)
-  const prontos = JSON.parse(fs.readFileSync(`${pasta}/prontos.json`, 'utf8')).filter((p) => !fora.has(p.slug) && !naoEProduto(p.titulo));
+  const prontos = JSON.parse(fs.readFileSync(`${pasta}/prontos.json`, 'utf8')).filter((p) => !fora.has(p.slug) && (p.segmento === 'moda' || !naoEProduto(p.titulo)));
   const credito = `Imagem oficial ${marca}`;
   let n = 0;
   for (const p of prontos) {

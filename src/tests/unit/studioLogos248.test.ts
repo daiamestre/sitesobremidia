@@ -1,4 +1,5 @@
 // F-248 — pasta Logos do Studio: a logo do encarte é uma camada que o cliente troca; o fundo não tem mais título gravado.
+import { ehSegmentoComLogoEditavel } from '@/lib/studio/logoEditavel';
 import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import sharp from 'sharp';
@@ -40,8 +41,10 @@ describe.each(ENCARTES_OFICIAIS)('logo do encarte $id', (e) => {
   it('sai em todos os tamanhos como camada, dentro da arte, sobre o fundo sem título', () => {
     for (const f of formatosDoEncarte(e)) {
       const d = documentoDoEncarteOficial(e, [produto, produto], {}, f);
-      const l = d.camadas.find((c) => c.nome === 'Logo do encarte')!;
-      expect(l, f).toMatchObject({ tipo: 'imagem', src: e.logoPadrao.url, ajuste: 'conter' });
+      // F-286/F-288: a logo criada por nós (farmácia e segmentos) vem em camadas editáveis; a base fica no lugar da logo
+      const emCamadas = ehSegmentoComLogoEditavel(e.segmento);
+      const l = d.camadas.find((c) => c.nome === (emCamadas ? 'Logo – base' : 'Logo do encarte'))!;
+      expect(l, f).toMatchObject({ tipo: 'imagem', src: emCamadas ? `/studio/logos/ofertas-${e.segmento}-base.webp` : e.logoPadrao.url, ajuste: 'conter' });
       expect(l.x >= -1 && l.y >= -1 && l.x + l.w <= TAMANHO_DOC[f].w + 1 && l.y + l.h <= TAMANHO_DOC[f].h + 1, f).toBe(true);
       expect(l.w / l.h, f).toBeGreaterThan(1); // a caixa não deforma: 'conter' mantém a logo inteira
       expect(fs.existsSync(`public${layoutDoEncarte(e, f).fundo}`), f).toBe(true);

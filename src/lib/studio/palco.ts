@@ -7,7 +7,7 @@ import { novoClipe, projetoVazio, type ProjetoDeVideo, type TipoDeTransicao } fr
 import type { TipoDeAnimacao } from './animacao';
 import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, logoOficialDoSegmento, type LogoDaPasta } from './logos';
 import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDoPalcoDe, type SegmentoNovo } from './segmentosDeOferta';
-import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel } from './logoEditavel';
+import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel, type SegmentoComLogo } from './logoEditavel';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
 export interface OpcoesDoPalco {
@@ -215,7 +215,7 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
     c.push({ ...texto(`Faixa ${i + 1}`, f.faixas!.texto, cx - comp / 2, cy - l.esp / 2, comp, { fonte: 'poppins', peso: 800, tamanho: Math.round(l.esp * 0.56), cor: f.faixas!.corTexto, alinhamento: 'left' }), h: l.esp, rot, letreiro: { velocidade: 110, fundo: f.faixas!.cor } });
   });
   const ti = px(f.titulo[formato]);
-  if (logoEmCamadas) c.push(...camadasDaLogoDoSegmento(f.segmento as SegmentoNovo, ti));
+  if (logoEmCamadas) c.push(...camadasDaLogoDoSegmento(f.segmento as SegmentoComLogo, ti));
   else c.push({ ...imagem('Logo do palco', (o.logoDoPalco ?? f.logoPadrao).url, ti.x, ti.y, ti.w, ti.h, { ajuste: 'conter', opacidade: logoDaArte ? 0 : 1 }), animacao: ani('surgir', 0, 0.4) });
   // produto: 'conter' (inteiro, sem cortar) e focoY 100 = o pé encosta no tampo do palco
   const pr = px(f.produto[formato]);
@@ -251,11 +251,14 @@ const ani = (tipo: Ani['tipo'], atraso: number, duracao = 0.6, depois: Ani['depo
  */
 function comAjustes(d: Documento, formato: FormatoDoc, o: OpcoesDoPalco): Documento {
   const a = o.ajustes?.[formato] ?? {};
-  return { ...d, camadas: d.camadas.map((c) => {
+  const nomes = new Set(d.camadas.map((c) => c.nome));
+  // F-288: textos que o cliente criou (na logo ou soltos) ficam guardados inteiros nos ajustes e entram por cima da arte
+  const novas = Object.entries(a).filter(([n, v]) => !nomes.has(n) && v && typeof (v as Partial<Camada>).tipo === 'string').map(([n, v]) => ({ ...v, nome: n, id: n }) as Camada);
+  return { ...d, camadas: [...d.camadas.map((c) => {
     const { topo, ...resto } = (a[c.nome] ?? {}) as Partial<Camada> & { topo?: string };
     const promo = c.tipo === 'selo' && c.topo.startsWith('DE ');
     return { ...c, ...resto, ...(topo != null && !promo ? { topo } : {}), id: c.nome } as Camada;
-  }) };
+  }), ...novas] };
 }
 
 /** A arte de UM produto no palco (16:9 ou 9:16), com as animações da coreografia do palco. */

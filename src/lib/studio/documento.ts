@@ -45,6 +45,8 @@ export interface CamadaTexto extends CamadaBase {
   fundo?: { cor: string; raio: number; margem: number; cheio?: boolean; borda?: { cor: string; largura: number } | null } | null;
   /** F-249: faixa com o texto passando em loop infinito (a caixa é a faixa; velocidade em px/s) */
   letreiro?: { velocidade: number; fundo: string } | null;
+  /** F-288: o texto ENCOLHE sozinho para caber na largura (textos da logo: trocar OFERTAS por PROMOÇÃO não estoura) */
+  caber?: boolean;
 }
 export interface CamadaForma extends CamadaBase {
   tipo: 'forma'; forma: 'retangulo' | 'elipse'; cor: string; degrade?: Degrade | null; raio: number;
@@ -56,6 +58,8 @@ export interface CamadaImagem extends CamadaBase {
   brilho: number; contraste: number; saturacao: number; desfoque: number; raio: number;
   /** F-234: 'conter' mostra a foto INTEIRA (produto recortado no palco); padrão = cobrir a moldura */
   ajuste?: 'cobrir' | 'conter';
+  /** F-288: troca a COR da imagem girando o tom (graus, -180 a 180): cor do fundo do palco/encarte e da fita da logo */
+  matiz?: number;
 }
 export interface CamadaSelo extends CamadaBase {
   tipo: 'selo'; topo: string; valor: string; sufixo: string; base: string; fonte: string; cor: string; corTexto: string; borda: string;

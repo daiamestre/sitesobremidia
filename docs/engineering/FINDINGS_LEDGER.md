@@ -3311,3 +3311,25 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Entrega:** tabela `tabloide_pedidos_de_foto` + função `tabloide_pedir_fotos` (migração 20261363, aplicada com autorização explícita do dono); o site pede (`pedirFotos`, no Studio e no Cartaz Digital); `scripts/ops/pedidos-de-foto.mjs` (fila + encartes salvos + listas de exemplo → produto exato nas lojas → recorte + conferência dupla → grava pelo nome do cliente), a cada 10 min e no 1º passo do `catalogo-ciclo`. Livro de soluções LS-3 com a regra.
 - **Incidente corrigido na hora:** a 1ª rodada aceitou nomes genéricos errados (Pringles para "Batata", petisco de cachorro para "Picanha", Mr Músculo para "Músculo", refrigerante para "Abacaxi"); as 12 linhas foram apagadas e carne/fruta/legume passou a exigir a seção de açougue/hortifrúti da loja.
 - **Também aplicados com autorização do dono:** P-24 (memória de estilo, 20261362) e a limpeza do catálogo (limpeza-catalogo-276.sql). Contrato do Player 5.7.10 íntegro.
+
+### F-285 — O sistema decide a foto, sem "confira a foto" (09/11/2026)
+- **Ordem do dono:** não mostrar aviso pedindo para o cliente conferir a foto; tocar no produto que pisca tira o aviso dele e o cartão vermelho some quando todos forem vistos.
+- **Entrega:** `completarImagens` só aceita a oficial confiável (sem "em dúvida"); `ProdutosComFotos` marca como visto ao tocar; exemplos completos e exatos.
+
+### F-286 — Logo 3D dos segmentos em camadas e botões do palco na lateral (09/11/2026)
+- **Entrega:** `logoEditavel.ts` (base + textos OFERTAS/faixa/frase + círculo para a logo do cliente), `gerar-segmentos.mjs` gera base e emblema; palco sem rolar a tela ao tocar num elemento.
+
+### F-287 — Exemplos de moda e eletrônicos com produtos reais e hortifrúti por banco de imagens (09/11/2026)
+- **Entrega:** Malwee, Olympikus e Multilaser gravados (15) e usados nas cestas de moda/eletrônicos (`exemplos-moda-eletro.mjs`); `hortifruti-banco.mjs` busca nos bancos de uso livre (Pexels/Pixabay) a foto isolada em fundo branco e passa na mesma conferência (recorte + IA); busca da marca com E e OU (`buscarProdutosDaMarca`).
+
+### F-288 — Logo criada por nós 100% editável, galeria de ícones e edição na LATERAL DIREITA (09/11/2026)
+- **Defeito (dono, com prints do tablet em pé):** no Palco de Ofertas – Farmácia os botões de edição ficavam embaixo da arte; ao tocar na logo só havia ajustes de imagem (brilho, contraste), sem trocar OFERTAS / DE FARMÁCIA / SAÚDE COM DESCONTO, sem cores de texto, fundo e botão.
+- **Regra do dono:** toda logo CRIADA POR NÓS (farmácia e os 9 segmentos) é 100% editável — cada texto (trocar, separar palavras, cor, borda, tamanho, esconder), textos novos, os ícones soltos dos lados (comprimidos, trigo, taças…), o círculo (ícone da galeria ou logo do cliente pela pasta Logos/galeria/arquivos) e a cor da fita. Logo enviada pelo cliente continua imagem única.
+- **Entrega:**
+  - `gerar-farmacia.mjs`/`gerar-segmentos.mjs`: base SEM textos, cruz/emblema e ícones laterais (`-base`, `-emblema`, `-lado-a`, `-lado-b`); `logoEditavel.ts` aceita farmácia e põe os ícones laterais como camadas; textos com `caber` (encolhem para caber: OFERTAS → PROMOÇÃO não estoura).
+  - `gerar-icones.mjs` → `public/studio/icones/` + `galeriaDeIcones.ts`: 57 ícones 3D em 13 segmentos (farmácia, saúde, hortifrúti, academia, mercado, Black Friday, padaria, adega, açougue, pet, beleza, eletrônicos, moda).
+  - `PainelDaLogo.tsx` (palco e editor de encartes): círculo com galeria, ícones da logo (trocar, mover, tamanho, girar, tom, adicionar), textos da logo (trocar, separar, cor, borda, tamanho, esconder, adicionar) e tom da fita.
+  - `PalcoDeOfertas.tsx`: tela à esquerda e edição na lateral direita a partir de 540 px (tablet em pé), a lateral rola sozinha e volta ao topo ao tocar num elemento; botão de baixo com editor próprio (texto, textos prontos, cor do botão, das letras, da borda); "Fundo e botão" com tom do fundo e as seções completas da logo e do botão; textos/cores valem nos dois formatos.
+  - `EditorPage.tsx`: ferramentas na lateral direita a partir de 540 px (em pé) e 700 px (deitado) e o mesmo painel da logo.
+  - Imagens ganham "Cor (tom)" (`matiz`), balão de preço ganha "Borda nos números" (`contornoValor`).
+- **Prova:** navegador 800×1280 (tablet em pé): tocar em OFERTAS abre o painel; OFERTAS → PROMOÇÃO e "DE FARMÁCIA" separado em dois textos na hora; botão abre o editor do botão; teste `studioLogoEditavel288.test.ts`.

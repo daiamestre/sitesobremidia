@@ -397,7 +397,9 @@ function AjustesImagem({ c, m }: { c: CamadaImagem; m: (p: Partial<CamadaImagem>
       <Faixa t="Contraste" valor={c.contraste} min={30} max={200} sufixo="%" onChange={(v) => m({ contraste: v })} />
       <Faixa t="Saturação" valor={c.saturacao} min={0} max={250} sufixo="%" onChange={(v) => m({ saturacao: v })} />
       <Faixa t="Desfoque" valor={c.desfoque} min={0} max={30} sufixo="px" onChange={(v) => m({ desfoque: v })} />
-      <button type="button" onClick={() => m({ brilho: 100, contraste: 100, saturacao: 100, desfoque: 0 })} className="h-10 w-full rounded-lg border border-white/10 text-xs hover:bg-white/5">Restaurar ajustes</button>
+      {/* F-288: trocar a cor da imagem (fundo, fita da logo) */}
+      <Faixa t="Cor (tom)" valor={c.matiz ?? 0} min={-180} max={180} sufixo="°" onChange={(v) => m({ matiz: v })} />
+      <button type="button" onClick={() => m({ brilho: 100, contraste: 100, saturacao: 100, desfoque: 0, matiz: 0 })} className="h-10 w-full rounded-lg border border-white/10 text-xs hover:bg-white/5">Restaurar ajustes</button>
     </div>
   );
 }
@@ -443,6 +445,10 @@ function CorSelo({ c, m, doc }: { c: CamadaSelo; m: (p: Partial<CamadaSelo>) => 
       <Cor t="Cor do texto de cima" valor={c.corTopo ?? c.corTexto} onChange={(v) => m({ corTopo: v })} doc={doc} />
       <Cor t="Cor do texto de baixo" valor={c.corTexto} onChange={(v) => m({ corTexto: v })} doc={doc} />
       <Cor t="Aro" valor={c.borda} onChange={(v) => m({ borda: v })} doc={doc} />
+      {/* F-288: borda dos números do preço */}
+      <Chave t="Borda nos números" ligado={!!c.contornoValor} onChange={(v) => m({ contornoValor: v ? { cor: '#7a0010', largura: Math.max(3, Math.round(c.h * 0.012)) } : null })} />
+      {c.contornoValor && <Cor t="Cor da borda dos números" valor={c.contornoValor.cor} onChange={(v) => m({ contornoValor: { ...c.contornoValor!, cor: v } })} doc={doc} />}
+      {c.contornoValor && <Faixa t="Espessura da borda" valor={c.contornoValor.largura} min={1} max={Math.max(12, Math.round(c.h * 0.05))} sufixo="px" onChange={(v) => m({ contornoValor: { ...c.contornoValor!, largura: v } })} />}
     </div>
   );
 }

@@ -22,6 +22,8 @@ import { documentoParaVideo, formatoDeVideo, type VideoGravado } from '@/lib/stu
 import type { PastaDaGaleria } from '@/lib/galeria';
 import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
 import { lerArtePronta } from '@/lib/studio/artePronta';
+import { PainelDaLogo } from '@/components/studio/editor/PainelDaLogo';
+import { ehCamadaDaLogo } from '@/lib/studio/logoEditavel';
 import { EscolherLogo } from '@/components/studio/PastaDeLogos';
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { guardarFotoDoProduto, prepararFotoDoProduto } from '@/lib/tabloide/imagens';
@@ -83,6 +85,7 @@ export default function EditorPage() {
   const [demo, setDemo] = useState<{ id: string; ciclo: number } | null>(null);
   const fimDoDemo = useRef<ReturnType<typeof setTimeout>>();
   const [trocandoLogo, setTrocandoLogo] = useState(false);
+  const [trocandoCirculo, setTrocandoCirculo] = useState(false);
   // F-250: trocar o produto do encarte: lista de produtos, foto da galeria ou criar com IA, no tamanho do produto trocado
   const [trocandoProduto, setTrocandoProduto] = useState<string | null>(null);
   const [gravando, setGravando] = useState<number | null>(null);
@@ -458,7 +461,7 @@ export default function EditorPage() {
       {!vertical && barraAdicionar}
 
       {/* ── palco com margens dos lados (o dedo rola a página por elas) + ferramentas ao lado/abaixo */}
-      <div className={cn('grid gap-3', vertical ? 'sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start' : 'lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start')}>
+      <div className={cn('grid gap-3', vertical ? 'min-[540px]:grid-cols-[auto_minmax(0,1fr)] min-[540px]:items-start' : 'min-[700px]:grid-cols-[minmax(0,1fr)_300px] min-[700px]:items-start lg:grid-cols-[minmax(0,1fr)_360px]')}>
         <div className={cn('min-w-0 rounded-2xl border border-[#8A2EFF]/30 bg-[#0a031c] px-6 pb-14 pt-12 shadow-[0_0_40px_rgba(93,27,255,0.25)]', vertical ? 'sm:px-8' : 'sm:px-10')}>
           <div className="mx-auto [--lv:62vw] sm:[--lv:40vw] lg:[--lv:30vw]"
             style={vertical ? { width: 'min(var(--lv), calc((100dvh - 260px) * 0.5625), 400px)' } : { maxWidth: 'calc((100dvh - 330px) * 1.7778)', minWidth: 240 }}>
@@ -468,8 +471,17 @@ export default function EditorPage() {
           {!vertical && <p className="mt-10 hidden text-center text-[11px] text-slate-500 md:block">Toque para escolher · arraste o escolhido para mover · alças redimensionam · bolinha de cima gira · Delete apaga · Ctrl+Z desfaz</p>}
         </div>
 
-        <div className="min-w-0 space-y-2 lg:sticky lg:top-[84px]">
+        <div className="min-w-0 space-y-2 min-[540px]:sticky min-[540px]:top-[84px] min-[540px]:max-h-[calc(100dvh-96px)] min-[540px]:overflow-y-auto min-[540px]:pr-1" data-testid="studio-lateral">
           {vertical && barraAdicionar}
+          {/* F-288: tocou na logo criada por nós: textos, ícones, círculo e cores, tudo editável */}
+          {camadaSel && ehCamadaDaLogo(camadaSel.nome) && doc && (
+            <div className="rounded-xl border border-[#FFD400]/40 bg-[#140632] p-3" data-testid="studio-painel-logo">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#FFD400]">Editar a logo</p>
+              <PainelDaLogo doc={doc} mudar={(nome, p) => { const c = doc.camadas.find((x) => x.nome === nome); if (c) mudarPeloPainel(c.id, p); }}
+                adicionar={adicionar} tirar={(nome) => { const c = doc.camadas.find((x) => x.nome === nome); if (c) apagar(c.id); }}
+                porLogoNoCirculo={() => setTrocandoCirculo(true)} selecionar={(nome) => { const c = doc.camadas.find((x) => x.nome === nome); if (c) { setTocando(false); setSel(c.id); } }} />
+            </div>
+          )}
           <div className="rounded-xl border border-white/10 bg-[#140632] p-2" data-testid="studio-ferramentas">
             <p className="mb-1.5 flex items-center gap-1.5 px-1 text-xs font-bold text-white">
               <MousePointerClick className="h-4 w-4 shrink-0 text-[#B04DFF]" />
@@ -539,6 +551,7 @@ export default function EditorPage() {
           )}
       </div>
 
+      {trocandoCirculo && doc && <EscolherLogo titulo="Sua logo no círculo" aoEscolher={(l) => { const c = doc.camadas.find((x) => x.nome === 'Logo no círculo'); if (c) mudarPeloPainel(c.id, { src: l.url, ajuste: 'conter', visivel: true } as Partial<Camada>); setTrocandoCirculo(false); }} aoFechar={() => setTrocandoCirculo(false)} />}
       {trocandoLogo && camadaSel && <EscolherLogo titulo={camadaSel.tipo === 'vaga' ? 'Adicionar sua logo' : 'Trocar logo'} aoEscolher={(l) => { if (camadaSel.tipo === 'vaga') colocarLogoNaVaga(l.url); else mudarPeloPainel(camadaSel.id, { src: l.url, ajuste: 'conter' } as Partial<Camada>); setTrocandoLogo(false); }} aoFechar={() => setTrocandoLogo(false)} />}
       {trocandoProduto && produtoEmTroca && <TrocarFoto produto={{ nome: nomeDoProduto(produtoEmTroca)?.texto ?? '' }} aoFechar={() => setTrocandoProduto(null)} aoEscolher={(img, termo) => void trocarProduto(produtoEmTroca, img, termo)} />}
       <PublicarDialog aberto={!!publicando} onFechar={() => setPublicando(false)} pasta={pastaGaleria} video={publicando === 'video'}

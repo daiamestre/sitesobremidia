@@ -107,8 +107,13 @@ export async function buscarProdutosDaMarca(nome: string): Promise<ProdutoOficia
     const consulta = () => tabelaTabloide('tabloide_catalogo').select('nome, nome_norm, imagem_url, credito').eq('fonte', 'MARCA').is('cliente_id', null).limit(400);
     // F-283: traz o que tem alguma das palavras (a marca entra aqui) e devolve os exatos e, depois, só os RELACIONADOS: a mesma marca e
     // o mesmo tipo de produto (outro peso ou sabor). Feijão nunca aparece para quem pediu arroz.
-    const { data } = await consulta().or(fortes.map((p) => `nome_norm.like.*${p}*`).join(','));
-    return relacionadosDaMarca(nome, (data ?? []) as ProdutoOficial[]);
+    // F-287: primeiro os que têm TODAS as palavras (o exato nunca fica de fora do limite), junto com os que têm alguma (relacionados)
+    let todas = consulta();
+    for (const p of fortes) todas = todas.like('nome_norm', `%${p}%`);
+    const [{ data: exatos }, { data: alguma }] = await Promise.all([todas, consulta().or(fortes.map((p) => `nome_norm.like.*${p}*`).join(','))]);
+    const vistos = new Set<string>();
+    const linhas = [...(exatos ?? []), ...(alguma ?? [])].filter((l) => !vistos.has((l as ProdutoOficial).imagem_url + (l as ProdutoOficial).nome_norm) && vistos.add((l as ProdutoOficial).imagem_url + (l as ProdutoOficial).nome_norm));
+    return relacionadosDaMarca(nome, linhas as ProdutoOficial[]);
   } catch {
     return [];
   }

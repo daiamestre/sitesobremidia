@@ -89,7 +89,7 @@ function desenharImagem(ctx: CanvasRenderingContext2D, c: CamadaImagem, img: HTM
   const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
   const dx = -c.w / 2 + (c.w - dw) * (c.focoX / 100);
   const dy = -c.h / 2 + (c.h - dh) * (c.focoY / 100);
-  const filtros = [c.brilho !== 100 && `brightness(${c.brilho}%)`, c.contraste !== 100 && `contrast(${c.contraste}%)`, c.saturacao !== 100 && `saturate(${c.saturacao}%)`, c.desfoque > 0 && `blur(${c.desfoque * e}px)`].filter(Boolean).join(' ');
+  const filtros = [c.brilho !== 100 && `brightness(${c.brilho}%)`, c.contraste !== 100 && `contrast(${c.contraste}%)`, c.saturacao !== 100 && `saturate(${c.saturacao}%)`, !!c.matiz && `hue-rotate(${c.matiz}deg)`, c.desfoque > 0 && `blur(${c.desfoque * e}px)`].filter(Boolean).join(' ');
   if (filtros) ctx.filter = filtros;
   if (c.espelhar) { ctx.scale(-1, 1); ctx.drawImage(img, -dx - dw, dy, dw, dh); } else ctx.drawImage(img, dx, dy, dw, dh);
   ctx.filter = 'none';
@@ -101,6 +101,13 @@ function comEspacamento(ctx: CanvasRenderingContext2D, px: number) {
 }
 
 function desenharTexto(ctx: CanvasRenderingContext2D, c: CamadaTexto) {
+  // F-288: texto que encolhe para caber na largura da caixa
+  if (c.caber && c.w > 0) {
+    ctx.font = fonteCanvas(c.fonte, c.tamanho, c.peso, c.italico);
+    comEspacamento(ctx, c.espacamento * c.tamanho);
+    const maior = Math.max(1, ...linhasDoTexto(c).map((l) => ctx.measureText(l).width));
+    if (maior > c.w * 0.98) c = { ...c, tamanho: Math.max(6, (c.tamanho * c.w * 0.98) / maior) };
+  }
   const linhas = linhasDoTexto(c);
   const lh = c.tamanho * c.entrelinha;
   ctx.font = fonteCanvas(c.fonte, c.tamanho, c.peso, c.italico);

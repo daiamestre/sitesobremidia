@@ -7,7 +7,7 @@ import { TAMANHO_DOC, forma, imagem, larguraDoTexto, redesSociais, texto, vagaDa
 import { AVISO_DE_REMEDIO, ESTILOS_DE_BALAO, avisoLegal, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta, type SegmentoDoStudio } from './palco';
 import { LOGO_MEGA_OFERTA, LOGO_OFERTAS_DE_FARMACIA, LOGO_SEMANA_DO_FRANGO, logoOficialDoSegmento, type LogoDaPasta } from './logos';
 import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDeEncartesDe } from './segmentosDeOferta';
-import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel } from './logoEditavel';
+import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel, type SegmentoComLogo } from './logoEditavel';
 import { QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta, type GradeDaArea } from './gradeInteligente';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 

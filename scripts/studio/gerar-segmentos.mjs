@@ -27,7 +27,7 @@ const pagina = (w, h, corpo, fundo = 'transparent') => `<!doctype html><html><he
 html,body{margin:0;width:${w}px;height:${h}px;overflow:hidden;background:${fundo}}*{box-sizing:border-box}svg{display:block}</style></head><body>${corpo}</body></html>`;
 
 // ---------- ícones dos segmentos (caixa 100×100) ----------
-const ICONES = {
+export const ICONES = {
   trigo: (c) => `<path d="M50 96 L50 18" stroke="${c}" stroke-width="5" stroke-linecap="round"/>${[26, 40, 54, 68].map((y) => `<ellipse cx="40" cy="${y}" rx="7" ry="13" fill="${c}" transform="rotate(-32 40 ${y})"/><ellipse cx="60" cy="${y}" rx="7" ry="13" fill="${c}" transform="rotate(32 60 ${y})"/>`).join('')}<ellipse cx="50" cy="12" rx="6" ry="12" fill="${c}"/>`,
   taca: (c) => `<path d="M24 6 H76 C76 44 63 58 54 61 V84 H70 V93 H30 V84 H46 V61 C37 58 24 44 24 6 Z" fill="${c}"/><path d="M28 24 H72 C70 44 60 53 50 53 C40 53 30 44 28 24 Z" fill="#fff" opacity=".35"/>`,
   chama: (c) => `<path d="M50 3 C60 24 81 35 79 62 C77 85 63 97 50 97 C35 97 21 86 21 65 C21 49 31 41 36 28 C40 41 44 45 48 45 C46 29 44 17 50 3 Z" fill="${c}"/><path d="M50 50 C56 60 66 66 64 80 C62 90 56 94 50 94 C42 94 35 88 36 78 C37 69 44 64 50 50 Z" fill="#fff" opacity=".4"/>`,
@@ -78,8 +78,8 @@ function logo(t, partes = { textos: true, icone: true }) {
   <linearGradient id="ouro" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3a6"/><stop offset=".45" stop-color="#ffd21f"/><stop offset="1" stop-color="#c98a00"/></linearGradient>
   <linearGradient id="fita" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${t.B[0]}"/><stop offset=".55" stop-color="${t.B[1]}"/><stop offset="1" stop-color="${t.B[2]}"/></linearGradient>
   <linearGradient id="emb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${t.A[0]}"/><stop offset=".55" stop-color="${t.A[1]}"/><stop offset="1" stop-color="${t.A[2]}"/></linearGradient></defs>
-  ${icone3d(t, t.icone, 250, 250, 230, -24, t.B, 'a')}
-  ${icone3d(t, t.icone, 1255, 240, 220, 22, t.A, 'b')}
+  ${partes.lados === false ? '' : icone3d(t, t.icone, 250, 250, 230, -24, t.B, 'a')}
+  ${partes.lados === false ? '' : icone3d(t, t.icone, 1255, 240, 220, 22, t.A, 'b')}
   <circle cx="750" cy="205" r="178" fill="#000" opacity=".3" transform="translate(0 16)" filter="url(#borrao)"/>
   <circle cx="750" cy="200" r="176" fill="url(#ouro)"/>
   <circle cx="750" cy="200" r="150" fill="url(#sel)"/>
@@ -213,7 +213,10 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/studio/gerar-segmento
   for (const seg of lista) {
     const t = TEMAS[seg], id = `${seg}-em-oferta`;
     const logoPng = await foto(logo(t), 1500, 1050, `public/studio/logos/ofertas-${seg}.webp`, { transparente: true });
-    await foto(logo(t, { textos: false, icone: false }), 1500, 1050, `public/studio/logos/ofertas-${seg}-base.webp`, { transparente: true });
+    // F-288: a base fica sem os ícones dos lados: cada um vira camada própria (mover, girar, trocar pela galeria)
+    await foto(logo(t, { textos: false, icone: false, lados: false }), 1500, 1050, `public/studio/logos/ofertas-${seg}-base.webp`, { transparente: true });
+    await foto(pagina(360, 360, `<svg width="360" height="360" viewBox="0 0 360 360"><defs>${SOMBRA}</defs>${icone3d(t, t.icone, 180, 180, 230, -24, t.B, 'a')}</svg>`), 360, 360, `public/studio/logos/ofertas-${seg}-lado-a.webp`, { transparente: true });
+    await foto(pagina(360, 360, `<svg width="360" height="360" viewBox="0 0 360 360"><defs>${SOMBRA}</defs>${icone3d(t, t.icone, 180, 180, 220, 22, t.A, 'b')}</svg>`), 360, 360, `public/studio/logos/ofertas-${seg}-lado-b.webp`, { transparente: true });
     await foto(emblema(t), 400, 400, `public/studio/logos/ofertas-${seg}-emblema.webp`, { transparente: true });
     if (process.argv.includes('--so-logos')) { console.log('logo pronta:', seg); continue; }
     const logoUrl = `data:image/png;base64,${logoPng.toString('base64')}`;

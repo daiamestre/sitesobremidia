@@ -43,25 +43,26 @@ function texto3d(t, x, y, tam, { fill, extrusao, contorno, prof = 18, id, espaco
 const BORRAO = '<filter id="borrao"><feGaussianBlur stdDeviation="10"/></filter>';
 
 // ---------- logo ----------
-function logo() {
+/** F-288: partes — sem os textos e sem a cruz vira a BASE da logo em camadas (textos e círculo editáveis pelo cliente) */
+function logo(partes = { textos: true, icone: true }) {
   const W = 1500, H = 1050;
   const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs>${SOMBRA}${BORRAO}
   <radialGradient id="sel" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="#ffffff"/><stop offset=".7" stop-color="#e9f8ef"/><stop offset="1" stop-color="#bfe6cf"/></radialGradient>
   <linearGradient id="ouro" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3a6"/><stop offset=".45" stop-color="#ffd21f"/><stop offset="1" stop-color="#c98a00"/></linearGradient>
   <linearGradient id="fita" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f7cff"/><stop offset=".55" stop-color="#1046c8"/><stop offset="1" stop-color="#0a2a85"/></linearGradient></defs>
-  ${capsula(250, 250, 250, 96, -32, ['#ff6b6b', '#e01b2f', '#8f0717'], 'a')}
-  ${capsula(1255, 240, 240, 92, 28, ['#62f0a4', '#14b863', '#077a3d'], 'b')}
+  ${partes.lados === false ? '' : capsula(250, 250, 250, 96, -32, ['#ff6b6b', '#e01b2f', '#8f0717'], 'a')}
+  ${partes.lados === false ? '' : capsula(1255, 240, 240, 92, 28, ['#62f0a4', '#14b863', '#077a3d'], 'b')}
   <circle cx="750" cy="205" r="178" fill="#04522a" opacity=".35" transform="translate(0 16)" filter="url(#borrao)"/>
   <circle cx="750" cy="200" r="176" fill="url(#ouro)"/>
   <circle cx="750" cy="200" r="150" fill="url(#sel)"/>
-  ${cruz(750, 200, 200, 'l')}
-  ${texto3d('OFERTAS', 750, 690, 390, { fill: ['#ffffff', '#f2fff7', '#bff0d4'], extrusao: '#055a2c', contorno: '#0a7a3d', prof: 26, id: 'of', espaco: 6 })}
+  ${partes.icone ? cruz(750, 200, 200, 'l') : ''}
+  ${!partes.textos ? '' : texto3d('OFERTAS', 750, 690, 390, { fill: ['#ffffff', '#f2fff7', '#bff0d4'], extrusao: '#055a2c', contorno: '#0a7a3d', prof: 26, id: 'of', espaco: 6 })}
   <g filter="url(#somb)">
     <path d="M250,742 L1250,742 L1290,812 L1250,882 L250,882 L210,812 Z" fill="url(#ouro)"/>
     <path d="M262,754 L1238,754 L1272,812 L1238,870 L262,870 L228,812 Z" fill="url(#fita)"/>
   </g>
-  ${texto3d('DE FARMÁCIA', 750, 853, 116, { fill: ['#ffffff', '#ffffff', '#d7e6ff'], extrusao: '#061c5e', contorno: '#061c5e', prof: 6, id: 'df', espaco: 8 })}
-  <text x="750" y="975" font-family="Poppins" font-weight="800" font-size="66" text-anchor="middle" fill="#ffd21f" stroke="#04522a" stroke-width="16" stroke-linejoin="round" paint-order="stroke fill" letter-spacing="10">SAÚDE COM DESCONTO</text>
+  ${!partes.textos ? '' : texto3d('DE FARMÁCIA', 750, 853, 116, { fill: ['#ffffff', '#ffffff', '#d7e6ff'], extrusao: '#061c5e', contorno: '#061c5e', prof: 6, id: 'df', espaco: 8 })}
+  ${!partes.textos ? '' : `<text x="750" y="975" font-family="Poppins" font-weight="800" font-size="66" text-anchor="middle" fill="#ffd21f" stroke="#04522a" stroke-width="16" stroke-linejoin="round" paint-order="stroke fill" letter-spacing="10">SAÚDE COM DESCONTO</text>`}
   </svg>`;
   return pagina(W, H, svg);
 }
@@ -202,6 +203,12 @@ async function foto(html, w, h, saida, { transparente = false } = {}) {
   return png;
 }
 const LOGO = 'public/studio/logos/ofertas-de-farmacia.webp';
+// F-288: a base (sem textos e sem cruz) e o ícone do círculo, para a logo em camadas editável
+await foto(logo({ textos: false, icone: false, lados: false }), 1500, 1050, 'public/studio/logos/ofertas-farmacia-base.webp', { transparente: true });
+await foto(pagina(360, 360, `<svg width="360" height="360" viewBox="0 0 360 360"><defs>${SOMBRA}</defs>${capsula(180, 180, 250, 96, -32, ['#ff6b6b', '#e01b2f', '#8f0717'], 'a')}</svg>`), 360, 360, 'public/studio/logos/ofertas-farmacia-lado-a.webp', { transparente: true });
+await foto(pagina(360, 360, `<svg width="360" height="360" viewBox="0 0 360 360"><defs>${SOMBRA}</defs>${capsula(180, 180, 240, 92, 28, ['#62f0a4', '#14b863', '#077a3d'], 'b')}</svg>`), 360, 360, 'public/studio/logos/ofertas-farmacia-lado-b.webp', { transparente: true });
+await foto(pagina(400, 400, `<svg width="400" height="400" viewBox="0 0 400 400">${cruz(200, 190, 330, 'e')}</svg>`), 400, 400, 'public/studio/logos/ofertas-farmacia-emblema.webp', { transparente: true });
+if (process.argv.includes('--so-logos')) { await navegador.close(); console.log('logos da farmácia prontas'); process.exit(0); }
 const logoPng = await foto(logo(), 1500, 1050, LOGO, { transparente: true });
 const logoUrl = `data:image/png;base64,${logoPng.toString('base64')}`;
 const E = 'public/studio/encartes-oficiais', P = 'public/studio/palco';

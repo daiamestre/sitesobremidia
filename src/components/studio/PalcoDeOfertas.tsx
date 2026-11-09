@@ -22,7 +22,7 @@ import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, lerValor, precoParaTexto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { infoDaPasta } from '@/lib/studio/pastasDoSegmento';
-import { TAMANHO_DOC, camadaNoPonto, type Camada, type Documento, type FormatoDoc } from '@/lib/studio/documento';
+import { TAMANHO_DOC, camadaNoPonto, type Camada, type CamadaTexto, type Documento, type FormatoDoc } from '@/lib/studio/documento';
 import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
@@ -32,6 +32,9 @@ import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { PainelDeProdutos, faltasDoProduto, useProdutosComFotos } from './ProdutosComFotos';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
 import { EscolherLogo } from './PastaDeLogos';
+import { PainelDaLogo } from '@/components/studio/editor/PainelDaLogo';
+import { Cor, Faixa } from '@/components/studio/editor/Paineis';
+import { ehCamadaDaLogo } from '@/lib/studio/logoEditavel';
 
 type ProdutoDoPalco = Parameters<typeof palcoDoProduto>[0];
 const CHAVE_OPCOES = 'studio-palco-opcoes';
@@ -91,7 +94,7 @@ export function CapaDaPastaPalco({ segmento = 'mercado' }: { segmento?: Segmento
   return <CarrosselNoPalco produtos={produtos} formato="9:16" className="h-full" fundo={fundosDoSegmento(segmento)[0]} />;
 }
 
-const ROTULOS: Record<string, string> = { Produto: 'Foto do produto', 'Nome do produto': 'Nome do produto', 'Preço': 'Balão de preço', 'Botão': 'Botão', 'Logo do palco': 'Logo' };
+const ROTULOS: Record<string, string> = { Produto: 'Foto do produto', 'Nome do produto': 'Nome do produto', 'Preço': 'Balão de preço', 'Botão': 'Botão', 'Logo do palco': 'Logo', 'Logo – OFERTAS': 'Logo · texto grande', 'Logo – faixa': 'Logo · texto da fita', 'Logo – frase': 'Logo · frase', 'Logo – base': 'Logo', 'Logo no círculo': 'Logo · círculo', 'Logo – ícone esquerdo': 'Logo · ícone da esquerda', 'Logo – ícone direito': 'Logo · ícone da direita' };
 const rotulo = (nome: string) => ROTULOS[nome] ?? nome;
 
 function Cartao({ titulo, icone: Icone, children, acao }: { titulo: string; icone: typeof Move; children: ReactNode; acao?: ReactNode }) {
@@ -106,6 +109,32 @@ const campoCss = 'h-10 w-full rounded-lg border border-white/10 bg-black/30 px-2
 
 function lerOpcoes(chave: string): { fundoId?: string; textoBotao?: string; movimento?: MovimentoDoPalco; formato?: FormatoDoc; ajustes?: AjustesDoPalco } {
   try { return JSON.parse(localStorage.getItem(chave) ?? '{}'); } catch { return {}; }
+}
+
+/**
+ * F-288 — EDITAR O BOTÃO de baixo (FARMÁCIA, OFERTAS…): texto livre, textos prontos, cor do botão, da borda e das letras.
+ * Ao tocar no botão na tela, isto abre na lateral na hora.
+ */
+function EditarBotao({ c, botoes, mudar, doc }: { c: CamadaTexto; botoes: string[]; mudar: (p: Partial<Camada>) => void; doc: Documento }) {
+  const fundoDoBotao = c.fundo ?? { cor: '#c40f24', raio: 20, margem: 10, cheio: true, borda: null };
+  return (
+    <div className="space-y-2" data-testid="palco-editar-botao">
+      <label className="block text-xs text-slate-300">Texto do botão
+        <input value={c.texto} onChange={(e) => mudar({ texto: e.target.value.toUpperCase().slice(0, 24) } as Partial<Camada>)} className={cn(campoCss, 'font-black uppercase')} data-testid="palco-botao-texto" />
+      </label>
+      {botoes.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {botoes.map((b) => <button key={b} type="button" onClick={() => mudar({ texto: b } as Partial<Camada>)} className={cn('h-8 rounded-full border px-3 text-xs font-bold', c.texto === b ? 'border-[#FFD400] text-[#FFD400]' : 'border-white/10 text-slate-300')} data-testid="palco-botao">{b}</button>)}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        <Cor t="Cor do botão" valor={fundoDoBotao.cor} onChange={(v) => mudar({ fundo: { ...fundoDoBotao, cor: v } } as Partial<Camada>)} doc={doc} />
+        <Cor t="Cor das letras" valor={c.cor} onChange={(v) => mudar({ cor: v, degrade: null } as Partial<Camada>)} doc={doc} />
+        <Cor t="Cor da borda" valor={fundoDoBotao.borda?.cor ?? '#ffd21f'} onChange={(v) => mudar({ fundo: { ...fundoDoBotao, borda: { cor: v, largura: fundoDoBotao.borda?.largura ?? 8 } } } as Partial<Camada>)} doc={doc} />
+        <Cor t="Borda das letras" valor={c.contorno?.cor ?? '#000000'} onChange={(v) => mudar({ contorno: { cor: v, largura: c.contorno?.largura || Math.max(2, Math.round(c.tamanho * 0.05)) } } as Partial<Camada>)} doc={doc} />
+      </div>
+    </div>
+  );
 }
 
 /** F-259: o mesmo palco para mercado e farmácia: cada pasta com os seus fundos, produtos e opções guardadas */
@@ -164,8 +193,15 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const fimDoDemo = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(fimDoDemo.current), []);
   const edicao = useRef<HTMLDivElement>(null);
-  const docSel = useMemo(() => (sel ? palcoDoProduto(sel, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes }) : null), [sel, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes]);
-  const camadaSel = docSel?.camadas.find((c) => c.id === nomeSel) ?? null;
+  const lateral = useRef<HTMLElement>(null);
+  // F-288: fundo, logo e botão se editam mesmo com o carrossel tocando (vale para todos os produtos): usa o 1º produto como base
+  const alvo = sel ?? comPreco[0] ?? null;
+  const opcoesDoDoc = { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes };
+  const docEd = useMemo(() => (alvo ? palcoDoProduto(alvo, formato, opcoesDoDoc) : null), [alvo, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const docSel = sel ? docEd : null;
+  const camadaSel = docEd?.camadas.find((c) => c.id === nomeSel) ?? null;
+  const ehDaLogo = ehCamadaDaLogo(camadaSel?.nome);
+  const ehDoProduto = !!camadaSel && ['Produto', 'Nome do produto', 'Preço'].includes(camadaSel.nome);
   const abas = abasDe(camadaSel).filter((a) => a.id !== 'camadas' && a.id !== 'video' && a.id !== 'fundo');
   const andar = (d: number) => { if (!comPreco.length) return; const i = Math.max(0, comPreco.findIndex((p) => p.id === selId)); setSelId(comPreco[(i + d + comPreco.length) % comPreco.length].id); };
   const escolherElemento = (nome: string | null) => {
@@ -173,22 +209,34 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     if (!nome) return;
     setTocando(false);
     // F-286 (pedido do dono): NÃO rola a tela — a pessoa continua vendo o produto para mover e girar; os botões ficam ao lado
+    // F-288: só a LATERAL volta ao topo, onde abre a edição do elemento tocado (a tela da arte não se mexe)
+    lateral.current?.scrollTo?.({ top: 0, behavior: "smooth" });
   };
   useEffect(() => { if (camadaSel) setAba(abasDe(camadaSel)[0].id); }, [nomeSel]); // eslint-disable-line react-hooks/exhaustive-deps
   /** o nome e o preço são de cada produto; todo o resto vale para todos */
   const mudarElemento = (nome: string, patch: Partial<Camada>) => {
-    if (!sel || !docSel) return;
-    const c = docSel.camadas.find((x) => x.id === nome);
+    if (!alvo || !docEd) return;
+    const c = docEd.camadas.find((x) => x.id === nome);
     if (!c) return;
     const resto = { ...patch } as Partial<Camada> & Record<string, unknown>;
-    if (nome === 'Nome do produto' && typeof resto.texto === 'string') { s.mudar(sel.id, { nome: resto.texto }); delete resto.texto; }
+    if (nome === 'Nome do produto' && typeof resto.texto === 'string') { s.mudar(alvo.id, { nome: resto.texto }); delete resto.texto; }
     if (c.tipo === 'selo' && nome === 'Preço' && ('valor' in resto || 'sufixo' in resto)) {
       const inteiro = String(resto.valor ?? c.valor), cent = String(resto.sufixo ?? c.sufixo).replace(/\D/g, '');
-      s.mudar(sel.id, { preco: lerValor(`${inteiro},${cent || '00'}`) });
+      s.mudar(alvo.id, { preco: lerValor(`${inteiro},${cent || '00'}`) });
       delete resto.valor; delete resto.sufixo;
     }
     if (nome === 'Produto') delete resto.src;
-    if (Object.keys(resto).length) setAjustes((a) => ({ ...a, [formato]: { ...a[formato], [nome]: { ...a[formato]?.[nome], ...resto } } }));
+    // F-288: texto, cor, fonte, ícone e movimento valem nos dois formatos; posição e tamanho são de cada um
+    if (Object.keys(resto).length) {
+      const outro: FormatoDoc = formato === '9:16' ? '16:9' : '9:16';
+      const estilo = Object.fromEntries(Object.entries(resto).filter(([k]) => !['x', 'y', 'w', 'h', 'rot', 'tamanho'].includes(k)));
+      setAjustes((a) => {
+        const novo = { ...a, [formato]: { ...a[formato], [nome]: { ...a[formato]?.[nome], ...resto } } };
+        const existeNoOutro = !nome.startsWith('Logo – texto ') || !!a[outro]?.[nome];
+        if (Object.keys(estilo).length && existeNoOutro) novo[outro] = { ...a[outro], [nome]: { ...a[outro]?.[nome], ...estilo } };
+        return novo;
+      });
+    }
     // escolheu um movimento: o elemento repete 2 vezes e depois a arte inteira toca
     if (patch.animacao) {
       const ciclo = Math.max(1.4, 0.2 + patch.animacao.duracao + 0.5);
@@ -198,6 +246,20 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     }
   };
   const voltarAoPadrao = (nome: string) => setAjustes((a) => { const f = { ...a[formato] }; delete f[nome]; return { ...a, [formato]: f }; });
+  /** F-288: texto novo na logo: entra nos dois formatos, no mesmo lugar em relação à logo */
+  const adicionarCamada = (c: Camada) => {
+    if (!alvo || !docEd) return;
+    const outro: FormatoDoc = formato === '9:16' ? '16:9' : '9:16';
+    const docOutro = palcoDoProduto(alvo, outro, opcoesDoDoc);
+    const b1 = docEd.camadas.find((x) => x.nome === 'Logo – base'), b2 = docOutro.camadas.find((x) => x.nome === 'Logo – base');
+    const k = b1 && b2 ? b2.w / b1.w : 1;
+    const noOutro = b1 && b2 ? { ...c, x: b2.x + (c.x - b1.x) * k, y: b2.y + (c.y - b1.y) * k, w: c.w * k, h: c.h * k, ...(c.tipo === 'texto' ? { tamanho: Math.round(c.tamanho * k) } : {}) } : c;
+    setAjustes((a) => ({ ...a, [formato]: { ...a[formato], [c.nome]: c }, [outro]: { ...a[outro], [c.nome]: noOutro } }));
+  };
+  const tirarCamada = (nome: string) => { setAjustes((a) => { const n = { ...a }; for (const f of ['9:16', '16:9'] as FormatoDoc[]) { const x = { ...n[f] }; delete x[nome]; n[f] = x; } return n; }); if (nomeSel === nome) setNomeSel(null); };
+  /** tocar num texto da lista da logo seleciona ele na tela (para mover e girar) */
+  const selecionarNaTela = (nome: string) => { if (!sel && alvo) setSelId(alvo.id); escolherElemento(nome); };
+  const botaoCamada = docEd?.camadas.find((c) => c.nome === 'Botão');
   const docNaTela = useMemo(() => {
     if (!docSel || !demo) return docSel;
     return { ...docSel, camadas: docSel.camadas.map((c) => (c.id === demo.nome ? { ...c, animacao: c.animacao ? { ...c.animacao, atraso: 0.2 } : null } : { ...c, animacao: null })) };
@@ -232,9 +294,9 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       </div>
 
       {/* F-286: a tela à esquerda (fixa à vista) e os botões de edição na LATERAL DIREITA, também no tablet em pé */}
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+      <div className="grid gap-3 min-[540px]:grid-cols-[minmax(0,1fr)_minmax(250px,330px)] lg:grid-cols-[minmax(0,1fr)_380px]" data-testid="palco-layout">
         {/* A TELA + a fila de produtos */}
-        <section className="min-w-0 space-y-2 md:sticky md:top-[84px] md:self-start">
+        <section className="min-w-0 space-y-2 min-[540px]:sticky min-[540px]:top-[84px] min-[540px]:self-start">
           <div className={cn('mx-auto w-full', formato === '9:16' ? 'max-w-[min(340px,calc(56dvh*0.5625))] lg:max-w-[340px]' : 'max-w-[760px]')} data-testid="palco-tela">
             {!comPreco.length ? <p className="rounded-xl border border-dashed border-white/15 p-10 text-center text-sm text-slate-400">Coloque produtos com preço em “Seus produtos”.</p>
               : docNaTela && docSel ? (
@@ -270,8 +332,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
         </section>
 
         {/* EDIÇÃO compacta */}
-        <aside className="min-w-0 space-y-3">
-          <PainelDeProdutos s={s} destaques={0} botao="Colocar no palco" emGrade={false} />
+        {/* F-288: a LATERAL DIREITA rola sozinha (a tela fica parada à vista); o elemento tocado abre em cima */}
+        <aside ref={lateral} className="min-w-0 space-y-3 min-[540px]:sticky min-[540px]:top-[84px] min-[540px]:max-h-[calc(100dvh-96px)] min-[540px]:self-start min-[540px]:overflow-y-auto min-[540px]:pr-1" data-testid="palco-lateral">
 
           <div ref={edicao}>
             <Cartao titulo={camadaSel ? rotulo(camadaSel.nome) : 'Editar elemento'} icone={MousePointerClick}
@@ -281,11 +343,13 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                   <div className="flex flex-wrap gap-1" role="tablist" aria-label="Ferramentas do elemento">
                     {abas.map((a) => <button key={a.id} type="button" role="tab" aria-selected={aba === a.id} onClick={() => setAba(a.id)} className={cn('flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold', aba === a.id ? 'bg-[#5D1BFF] text-white' : 'bg-white/5 text-slate-200 hover:bg-white/10')} data-testid={`palco-aba-${a.id}`}><a.I className="h-3.5 w-3.5" />{a.nome}</button>)}
                   </div>
-                  {/* F-286: a logo 3D do segmento é editável: o círculo recebe a logo do cliente (pasta Logos, galeria ou arquivos) */}
-                  {camadaSel.nome === 'Logo no círculo' && <button type="button" onClick={() => setTrocandoCirculo(true)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]" data-testid="palco-logo-circulo"><ImagePlus className="h-4 w-4" />Pôr sua logo no círculo</button>}
+                  {/* F-288: tocou na logo: textos, cores, ícone do círculo e textos novos, tudo aqui */}
+                  {ehDaLogo && docEd && <PainelDaLogo doc={docEd} mudar={mudarElemento} adicionar={adicionarCamada} tirar={tirarCamada} porLogoNoCirculo={() => setTrocandoCirculo(true)} selecionar={selecionarNaTela} />}
+                  {camadaSel.nome === 'Botão' && camadaSel.tipo === 'texto' && docEd && <EditarBotao c={camadaSel} botoes={fundo?.botoes ?? []} mudar={(p) => mudarElemento('Botão', p)} doc={docEd} />}
                   {camadaSel.nome === 'Logo do palco' && <button type="button" onClick={() => setTrocandoLogo(true)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar logo</button>}
                   {camadaSel.nome === 'Produto' && sel && <button type="button" onClick={() => setTrocando(sel)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar produto, foto ou criar com IA</button>}
-                  <CartaoDaAba aba={abas.some((a) => a.id === aba) ? aba : abas[0].id} c={camadaSel} doc={docSel!} mudar={(p) => mudarElemento(camadaSel.nome, p)} mudarFundo={() => undefined} mover={() => undefined} camadas={null} />
+                  {(ehDaLogo || camadaSel.nome === 'Botão') && <p className="pt-1 text-[11px] font-bold uppercase tracking-wider text-[#B04DFF]">Mais ferramentas deste elemento</p>}
+                  <CartaoDaAba aba={abas.some((a) => a.id === aba) ? aba : abas[0].id} c={camadaSel} doc={docEd!} mudar={(p) => mudarElemento(camadaSel.nome, p)} mudarFundo={() => undefined} mover={() => undefined} camadas={null} />
                 </div>
               )}
             </Cartao>
@@ -328,6 +392,10 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
               ))}
               {segmento === 'mercado' && <button type="button" role="radio" aria-checked={!fundo} onClick={() => setFundoId('')} className={cn('flex w-24 shrink-0 items-center justify-center rounded-lg border-2 px-1 text-center text-[10px] text-slate-300', !fundo ? 'border-[#FFD400]' : 'border-white/10')}>Palco desenhado (com título)</button>}
             </div>
+            {/* F-288: cor do fundo do palco (gira o tom da arte) */}
+            {fundo && docEd?.camadas.some((c) => c.nome === 'Fundo oficial') && (
+              <Faixa t="Cor do fundo (tom)" valor={(docEd.camadas.find((c) => c.nome === 'Fundo oficial') as { matiz?: number }).matiz ?? 0} min={-180} max={180} sufixo="°" onChange={(v) => mudarElemento('Fundo oficial', { matiz: v } as Partial<Camada>)} />
+            )}
             {fundo && (
               <div className="flex items-center gap-2">
                 <img src={(logoDoPalco ?? fundo.logoPadrao).url} alt="" crossOrigin="anonymous" className="h-10 w-14 rounded-md bg-black/30 object-contain" />
@@ -335,16 +403,28 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                 <button type="button" onClick={() => setTrocandoLogo(true)} className="h-9 shrink-0 rounded-lg border border-white/15 px-3 text-xs font-semibold text-white hover:bg-white/5" data-testid="palco-trocar-logo">Trocar logo</button>
               </div>
             )}
+            {/* F-288: a seção COMPLETA da logo criada por nós (textos, ícones, círculo, cores) */}
+            {fundo && docEd && docEd.camadas.some((c) => c.nome === 'Logo – base') && (
+              <details className="rounded-xl border border-white/10 bg-black/20 p-2" open={!ehDaLogo} data-testid="palco-secao-logo">
+                <summary className="cursor-pointer text-xs font-bold text-white">Editar a logo (textos, ícones e cores)</summary>
+                <div className="pt-2"><PainelDaLogo doc={docEd} mudar={mudarElemento} adicionar={adicionarCamada} tirar={tirarCamada} porLogoNoCirculo={() => setTrocandoCirculo(true)} selecionar={selecionarNaTela} /></div>
+              </details>
+            )}
             {fundo ? (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">Botão:
-                {fundo.botoes.map((b) => <button key={b} type="button" onClick={() => { setTextoBotao(b); setAjustes((a) => { const atual = a[formato]?.['Botão'] as Partial<Camada> & { texto?: string } | undefined; if (!atual?.texto) return a; const { texto: _t, ...resto } = atual; return { ...a, [formato]: { ...a[formato], 'Botão': resto } }; }); }} className={cn('h-8 rounded-full border px-3 font-bold', textoBotao === b ? 'border-[#FFD400] text-[#FFD400]' : 'border-white/10')} data-testid="palco-botao">{b}</button>)}
-              </div>
+              botaoCamada && botaoCamada.tipo === 'texto' && docEd ? (
+                <details className="rounded-xl border border-white/10 bg-black/20 p-2" open={camadaSel?.nome !== 'Botão'} data-testid="palco-secao-botao">
+                  <summary className="cursor-pointer text-xs font-bold text-white">Editar o botão de baixo</summary>
+                  <div className="pt-2"><EditarBotao c={botaoCamada} botoes={fundo.botoes} mudar={(p) => mudarElemento('Botão', p)} doc={docEd} /></div>
+                </details>
+              ) : null
             ) : (
               <label className="flex flex-col gap-1 text-xs text-slate-300">Título do palco
                 <input value={titulo} onChange={(e) => setTitulo(e.target.value.slice(0, 28))} className={cn(campoCss, 'font-bold')} data-testid="palco-titulo" />
               </label>
             )}
           </Cartao>
+
+          <PainelDeProdutos s={s} destaques={0} botao="Colocar no palco" emGrade={false} />
 
           <Cartao titulo="Movimento" icone={Move}>
             <label className="block text-xs text-slate-300">Troca de um produto para o outro

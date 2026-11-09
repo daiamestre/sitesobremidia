@@ -32,7 +32,8 @@ for (const [nomeCesta, cesta] of cestas) {
     const fortes = palavrasFortes(lerBusca(p.nome));
     let oficial = null;
     if (fortes.length) {
-      const linhas = await sqlBruto(`select nome, nome_norm, imagem_url, credito from public.tabloide_catalogo where fonte = 'MARCA' and cliente_id is null and (${fortes.map((f) => `nome_norm like '%${esc(f)}%'`).join(' or ')}) limit 400`);
+      const sel = (cond) => sqlBruto(`select nome, nome_norm, imagem_url, credito from public.tabloide_catalogo where fonte = 'MARCA' and cliente_id is null and (${cond}) limit 400`);
+      const linhas = [...await sel(fortes.map((f) => `nome_norm like '%${esc(f)}%'`).join(' and ')), ...await sel(fortes.map((f) => `nome_norm like '%${esc(f)}%'`).join(' or '))];
       oficial = produtoExato(p.nome, linhas) ?? melhorOficial(p.nome, linhas);
     }
     if (oficial) veio = `oficial: ${oficial.nome}`;
