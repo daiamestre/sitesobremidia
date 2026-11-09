@@ -40,12 +40,12 @@ const LOJAS_HORTI = [
 const UA = { 'User-Agent': 'SobreMidia-Catalogo/1.0 (contato@sobremidia.com.br)', Accept: 'application/json' };
 const semAcento = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const slugDe = (t) => semAcento(t).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-const SECAO = /horti|frut|legum|verdur|hortal|tempero|ovos|cogumel|folhos/;
-/** foto que não é o produto in natura (doce, suco, polpa, congelado, bandeja com filme que reflete, embalagem de marca) */
-const FORA = /\b(polpa|suco|doce|geleia|desidratad|congelad|chips|farinha|bandeja|organic|organico|org\b|turma da|picad|ralad|cozid|em conserva|conserva|cristaliz|seca\b|passa|xarope|mix|salada|higienizad|fatiad|cubos|baby|mini|kit)/;
+const SECAO = /horti|frut|legum|verdur|hortal|tempero|ovo|granja|cogumel|folhos|mercearia|frios/;
+/** foto que não é o produto in natura (doce, suco, polpa, congelado, embalagem de marca); bandeja vale (morango, tomate-cereja) */
+const FORA = /\b(polpa|suco|doce|geleia|desidratad|congelad|chips|farinha|organic|organico|org\b|turma da|picad|ralad|cozid|em conserva|conserva|cristaliz|seca\b|passa|xarope|mix|salada|higienizad|fatiad|cubos|baby|mini|kit)/;
 
 /** o nome da loja é SÓ o produto in natura: tirando as palavras do produto, sobra só peso, unidade e afins */
-const PERMITIDAS = /^(d+([.,]d+)?|d+(kg|g|gr|un|und)|kg|g|gr|grs|un|und|unid|unidade|unidades|granel|aprox|aproximadamente|peso|por|ate|de|da|do|a|o|e|com|nacional|importad[oa]s?|selecionad[oa]s?|especial|extra|tipo|fresc[oa]s?|in|natura|graud[oa]s?|miud[oa]s?|madur[oa]s?|premium|grandes?|medi[oa]s?|pequen[oa]s?|duzia|dz|c|cx|bandeja|maço|maco|pe|cabeca|cacho|mao|molho)$/;
+const PERMITIDAS = /^(\d+([.,]\d+)?|\d+(kg|g|gr|un|und)|inglesa|lavada|asterix|monalisa|comum|classe|escovada|vermelha|vermelhos?|branca|brancos?|caipira|unid|cartela|bdj|pct|pacote|kg|g|gr|grs|un|und|unid|unidade|unidades|granel|aprox|aproximadamente|peso|por|ate|de|da|do|a|o|e|com|nacional|importad[oa]s?|selecionad[oa]s?|especial|extra|tipo|fresc[oa]s?|in|natura|graud[oa]s?|miud[oa]s?|madur[oa]s?|premium|grandes?|medi[oa]s?|pequen[oa]s?|duzia|dz|c|cx|bandeja|maço|maco|pe|cabeca|cacho|mao|molho)$/;
 export function inNatura(n, palavras) {
   const t = n.split(/[^a-z0-9.,]+/).filter(Boolean);
   if (!palavras.every((w) => t.includes(w) || t.includes(`${w}s`))) return false;
@@ -80,38 +80,67 @@ async function ia() {
 }
 
 /** recorte + inspeção + conferência dupla com a IA; devolve a avaliação ou o motivo da recusa */
+/** máscara da IA (BiRefNet) no tamanho da foto, 0–255 */
+async function mascaraDaIA(data, w, h) {
+  await ia();
+  const rgb = await sharp(data, { raw: { width: w, height: h, channels: 4 } }).removeAlpha().raw().toBuffer();
+  const { pixel_values } = await processador(new RawImage(new Uint8ClampedArray(rgb), w, h, 3));
+  const saida = await modelo({ input_image: pixel_values });
+  return (await RawImage.fromTensor((saida.logits ?? saida.output_image)[0].sigmoid().mul(255).to('uint8')).resize(w, h)).data;
+}
+
+/** o resultado aprovado: caixa de corte do link e a prévia (só no PC) */
+async function aprovado(recorte, w, h, selos, via) {
+  const c = caixaOpaca(recorte, w, h, true);
+  if (!c) return { motivo: 'vazio' };
+  const folga = Math.round(Math.max(c.w, c.h) * (selos ? 0.01 : 0.03));
+  const caixa = { left: Math.max(0, c.x - folga), top: Math.max(0, c.y - folga), width: 0, height: 0 };
+  caixa.width = Math.min(w - caixa.left, c.w + folga * 2); caixa.height = Math.min(h - caixa.top, c.h + folga * 2);
+  const previa = await sharp(Buffer.from(recorte.buffer), { raw: { width: w, height: h, channels: 4 } }).extract({ left: c.x, top: c.y, width: c.w, height: c.h }).resize(600, 600, { fit: 'inside' }).png({ compressionLevel: 9 }).toBuffer();
+  return { ok: true, via, area: c.w * c.h, caixa: (c.w * c.h) / (w * h) >= 0.6 && !selos ? null : caixa, previa };
+}
+
+/**
+ * Recorte + inspeção + conferência dupla. Caminho 1: fundo liso (recorte do site) que a IA confirma. Caminho 2 (F-286, frescos e
+ * fotos com sombra/fundo não liso): o recorte da PRÓPRIA IA — o mesmo tipo de recorte que a Cloudflare e o Removedor da SOBRE MÍDIA
+ * fazem — aprovado só se a máscara é firme (contorno nítido), o produto ocupa uma área razoável e passa na inspeção de qualidade.
+ */
 export async function avaliar(buf) {
   const meta = await sharp(buf).metadata();
   if (!meta.width || Math.min(meta.width, meta.height) < 800) return { motivo: 'baixa resolução' };
   const { data, info } = await sharp(buf).rotate().resize(1400, 1400, { fit: 'inside', withoutEnlargement: true }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const w = info.width, h = info.height;
   const foto = new Uint8ClampedArray(data), recorte = new Uint8ClampedArray(data);
-  if (!recortarFundo({ data: recorte, width: w, height: h })) return { motivo: 'fundo não é liso' };
-  const antes = new Uint8ClampedArray(recorte);
-  const selos = apagarSelosSoltos(recorte, w, h);
-  repararMordidas(foto, recorte, w, h);
-  const ins = inspecionar(recorte, w, h, foto);
-  if (!ins.aprovado) return { motivo: ins.defeitos.join('+') };
-  await ia();
-  const rgb = await sharp(data, { raw: { width: w, height: h, channels: 4 } }).removeAlpha().raw().toBuffer();
-  const { pixel_values } = await processador(new RawImage(new Uint8ClampedArray(rgb), w, h, 3));
-  const saida = await modelo({ input_image: pixel_values });
-  const m = (await RawImage.fromTensor((saida.logits ?? saida.output_image)[0].sigmoid().mul(255).to('uint8')).resize(w, h)).data;
-  let produto = 0, comido = 0, sobra = 0;
-  for (let i = 0; i < w * h; i++) {
-    const mi = antes[i * 4 + 3] >= 16 && recorte[i * 4 + 3] < 16 ? 0 : m[i], a = recorte[i * 4 + 3];
-    if (mi >= 128) produto++;
-    if (mi >= 230 && a < 16) comido++; else if (mi <= 25 && a >= 128) sobra++;
-  }
-  produto = Math.max(1, produto);
-  if (comido / produto > 0.002) return { motivo: `parte comida ${(comido / produto * 100).toFixed(1)}%` };
-  if (sobra / produto > 0.008) return { motivo: `sombra/reflexo ${(sobra / produto * 100).toFixed(1)}%` };
-  const c = caixaOpaca(recorte, w, h, true);
-  const folga = Math.round(Math.max(c.w, c.h) * (selos ? 0.01 : 0.03));
-  const caixa = { left: Math.max(0, c.x - folga), top: Math.max(0, c.y - folga), width: 0, height: 0 };
-  caixa.width = Math.min(w - caixa.left, c.w + folga * 2); caixa.height = Math.min(h - caixa.top, c.h + folga * 2);
-  const previa = await sharp(Buffer.from(recorte.buffer), { raw: { width: w, height: h, channels: 4 } }).extract({ left: c.x, top: c.y, width: c.w, height: c.h }).resize(600, 600, { fit: 'inside' }).png({ compressionLevel: 9 }).toBuffer();
-  return { ok: true, area: c.w * c.h, caixa: (c.w * c.h) / (w * h) >= 0.6 && !selos ? null : caixa, previa };
+  const m = await mascaraDaIA(data, w, h);
+  let motivo1 = '';
+  if (recortarFundo({ data: recorte, width: w, height: h })) {
+    const antes = new Uint8ClampedArray(recorte);
+    const selos = apagarSelosSoltos(recorte, w, h);
+    repararMordidas(foto, recorte, w, h);
+    const ins = inspecionar(recorte, w, h, foto);
+    if (ins.aprovado) {
+      let produto = 0, comido = 0, sobra = 0;
+      for (let i = 0; i < w * h; i++) {
+        const mi = antes[i * 4 + 3] >= 16 && recorte[i * 4 + 3] < 16 ? 0 : m[i], a = recorte[i * 4 + 3];
+        if (mi >= 128) produto++;
+        if (mi >= 230 && a < 16) comido++; else if (mi <= 25 && a >= 128) sobra++;
+      }
+      produto = Math.max(1, produto);
+      if (comido / produto <= 0.002 && sobra / produto <= 0.008) return aprovado(recorte, w, h, selos, 'recorte+IA');
+      motivo1 = comido / produto > 0.002 ? `parte comida ${(comido / produto * 100).toFixed(1)}%` : `sombra/reflexo ${(sobra / produto * 100).toFixed(1)}%`;
+    } else motivo1 = ins.defeitos.join('+');
+  } else motivo1 = 'fundo não é liso';
+  // caminho 2: o recorte da IA
+  const ia2 = new Uint8ClampedArray(data);
+  let firme = 0, meio = 0;
+  for (let i = 0; i < w * h; i++) { const v = m[i]; ia2[i * 4 + 3] = v < 12 ? 0 : v > 243 ? 255 : v; if (v >= 128) firme++; else if (v > 30) meio++; }
+  const fracao = firme / (w * h);
+  if (fracao < 0.06 || fracao > 0.92) return { motivo: `${motivo1}; IA: área ${(fracao * 100).toFixed(0)}%` };
+  if (meio / Math.max(1, firme) > 0.12) return { motivo: `${motivo1}; IA: contorno incerto` };
+  const selos2 = apagarSelosSoltos(ia2, w, h);
+  const ins2 = inspecionar(ia2, w, h, foto);
+  if (!ins2.aprovado) return { motivo: `${motivo1}; IA: ${ins2.defeitos.join('+')}` };
+  return aprovado(ia2, w, h, selos2, 'IA');
 }
 
 const direto = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename);

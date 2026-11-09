@@ -126,6 +126,20 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const [movimento, setMovimento] = useState<MovimentoDoPalco>(salvas.movimento ?? {});
   // F-249: o que o cliente editou nos elementos fica guardado e vale para todos os produtos
   const [ajustes, setAjustes] = useState<AjustesDoPalco>(salvas.ajustes ?? {});
+  // F-286: a logo do cliente no círculo da logo 3D do segmento (vale em pé e deitado)
+  const [trocandoCirculo, setTrocandoCirculo] = useState(false);
+  const porLogoNoCirculo = (url: string | null) => {
+    setAjustes((a) => {
+      const novo = { ...a };
+      for (const f of ['9:16', '16:9'] as FormatoDoc[]) {
+        const atual = { ...(a[f]?.['Logo no círculo'] ?? {}) } as Record<string, unknown>;
+        if (url) atual.src = url; else delete atual.src;
+        novo[f] = { ...a[f], 'Logo no círculo': atual as never };
+      }
+      return novo;
+    });
+    setTrocandoCirculo(false);
+  };
   useEffect(() => { try { localStorage.setItem(chaveOpcoes, JSON.stringify({ fundoId, textoBotao, movimento, formato, ajustes })); } catch { /* sem armazenamento */ } }, [chaveOpcoes, fundoId, textoBotao, movimento, formato, ajustes]);
 
   // F-244: só os produtos escolhidos passam no palco
@@ -158,7 +172,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     clearTimeout(fimDoDemo.current); setDemo(null); setNomeSel(nome);
     if (!nome) return;
     setTocando(false);
-    edicao.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // F-286 (pedido do dono): NÃO rola a tela — a pessoa continua vendo o produto para mover e girar; os botões ficam ao lado
   };
   useEffect(() => { if (camadaSel) setAba(abasDe(camadaSel)[0].id); }, [nomeSel]); // eslint-disable-line react-hooks/exhaustive-deps
   /** o nome e o preço são de cada produto; todo o resto vale para todos */
@@ -217,9 +231,10 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
         </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
+      {/* F-286: a tela à esquerda (fixa à vista) e os botões de edição na LATERAL DIREITA, também no tablet em pé */}
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
         {/* A TELA + a fila de produtos */}
-        <section className="min-w-0 space-y-2">
+        <section className="min-w-0 space-y-2 md:sticky md:top-[84px] md:self-start">
           <div className={cn('mx-auto w-full', formato === '9:16' ? 'max-w-[min(340px,calc(56dvh*0.5625))] lg:max-w-[340px]' : 'max-w-[760px]')} data-testid="palco-tela">
             {!comPreco.length ? <p className="rounded-xl border border-dashed border-white/15 p-10 text-center text-sm text-slate-400">Coloque produtos com preço em “Seus produtos”.</p>
               : docNaTela && docSel ? (
@@ -266,6 +281,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                   <div className="flex flex-wrap gap-1" role="tablist" aria-label="Ferramentas do elemento">
                     {abas.map((a) => <button key={a.id} type="button" role="tab" aria-selected={aba === a.id} onClick={() => setAba(a.id)} className={cn('flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold', aba === a.id ? 'bg-[#5D1BFF] text-white' : 'bg-white/5 text-slate-200 hover:bg-white/10')} data-testid={`palco-aba-${a.id}`}><a.I className="h-3.5 w-3.5" />{a.nome}</button>)}
                   </div>
+                  {/* F-286: a logo 3D do segmento é editável: o círculo recebe a logo do cliente (pasta Logos, galeria ou arquivos) */}
+                  {camadaSel.nome === 'Logo no círculo' && <button type="button" onClick={() => setTrocandoCirculo(true)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]" data-testid="palco-logo-circulo"><ImagePlus className="h-4 w-4" />Pôr sua logo no círculo</button>}
                   {camadaSel.nome === 'Logo do palco' && <button type="button" onClick={() => setTrocandoLogo(true)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar logo</button>}
                   {camadaSel.nome === 'Produto' && sel && <button type="button" onClick={() => setTrocando(sel)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar produto, foto ou criar com IA</button>}
                   <CartaoDaAba aba={abas.some((a) => a.id === aba) ? aba : abas[0].id} c={camadaSel} doc={docSel!} mudar={(p) => mudarElemento(camadaSel.nome, p)} mudarFundo={() => undefined} mover={() => undefined} camadas={null} />
@@ -340,6 +357,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
           </Cartao>
         </aside>
       </div>
+      {trocandoCirculo && <EscolherLogo titulo="Sua logo no círculo" aoEscolher={(l) => porLogoNoCirculo(l.url)} aoRestaurar={() => porLogoNoCirculo(null)} aoFechar={() => setTrocandoCirculo(false)} />}
       {trocandoLogo && <EscolherLogo titulo="Logo do palco" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
       {trocando && <TrocarFoto produto={trocando} aoFechar={() => setTrocando(null)} aoEscolher={(img, termo) => { const nome = termo.trim() || trocando.nome; const p = { ...trocando, nome }; setTrocando(null); if (nome !== trocando.nome) s.mudar(p.id, { nome }); void s.trocarFoto(p, img); }} />}
     </div>

@@ -7,6 +7,7 @@ import { TAMANHO_DOC, forma, imagem, larguraDoTexto, redesSociais, texto, vagaDa
 import { AVISO_DE_REMEDIO, ESTILOS_DE_BALAO, avisoLegal, etiquetaDePreco, nomeDoProduto, type Caixa, type CoresDaEtiqueta, type SegmentoDoStudio } from './palco';
 import { LOGO_MEGA_OFERTA, LOGO_OFERTAS_DE_FARMACIA, LOGO_SEMANA_DO_FRANGO, logoOficialDoSegmento, type LogoDaPasta } from './logos';
 import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDeEncartesDe } from './segmentosDeOferta';
+import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel } from './logoEditavel';
 import { QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta, type GradeDaArea } from './gradeInteligente';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
@@ -366,7 +367,9 @@ export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[]
   const c: Camada[] = [{ ...imagem('Fundo oficial', lay.fundoLimpo, 0, 0, W, H), bloqueada: true }];
   // F-248: a logo do encarte é uma camada (troca pela pasta Logos e fica nítida em qualquer tamanho)
   const logoTitulo = d.logoDoEncarte ?? e.logoPadrao;
-  c.push({ ...imagem('Logo do encarte', logoTitulo.url, lay.titulo.x, lay.titulo.y, lay.titulo.w, lay.titulo.h, { ajuste: 'conter' }), animacao: ani('zoom', 0, 0.6) });
+  // F-286: nos segmentos a logo é EDITÁVEL (textos e o círculo para a logo do cliente); a logo escolhida na pasta Logos vale inteira
+  if (!d.logoDoEncarte && ehSegmentoComLogoEditavel(e.segmento)) c.push(...camadasDaLogoDoSegmento(e.segmento, lay.titulo));
+  else c.push({ ...imagem('Logo do encarte', logoTitulo.url, lay.titulo.x, lay.titulo.y, lay.titulo.w, lay.titulo.h, { ajuste: 'conter' }), animacao: ani('zoom', 0, 0.6) });
   if (d.logo) c.push(...camadasDaLogo(d.logo, lay.logo));
   else c.push({ ...vagaDaLogo(lay.logo.x, lay.logo.y, lay.logo.w, lay.logo.h), animacao: ani('zoom', 0.1, 0.6) });
   if (lay.redes) c.push({ ...redesSociais(lay.redes.x, lay.redes.y, lay.redes.w, lay.redes.h, e.corRedes ?? '#1046c8'), animacao: ani('subir', 0.2, 0.5) });

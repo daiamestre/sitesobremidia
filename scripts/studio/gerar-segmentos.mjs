@@ -69,7 +69,8 @@ function textura(t, W, H, n, semente) {
 }
 
 // ---------- logo ----------
-function logo(t) {
+/** partes: textos (OFERTAS, faixa, frase) e o ícone do círculo; F-286: a base sem eles vira camada e os textos ficam editáveis */
+function logo(t, partes = { textos: true, icone: true }) {
   const W = 1500, H = 1050;
   const tamFita = Math.min(116, Math.round(900 / (t.fita.length * 0.5 + 0.6)));
   const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs>${SOMBRA}${BORRAO}
@@ -82,16 +83,22 @@ function logo(t) {
   <circle cx="750" cy="205" r="178" fill="#000" opacity=".3" transform="translate(0 16)" filter="url(#borrao)"/>
   <circle cx="750" cy="200" r="176" fill="url(#ouro)"/>
   <circle cx="750" cy="200" r="150" fill="url(#sel)"/>
-  ${icone(t.icone, 750, 200, 190, 'url(#emb)')}
-  ${texto3d('OFERTAS', 750, 690, 390, { fill: ['#ffffff', '#fffdf5', '#f1e6c8'], extrusao: t.extrusao, contorno: t.A[2], prof: 26, id: 'of', espaco: 6 })}
+  ${partes.icone ? icone(t.icone, 750, 200, 190, 'url(#emb)') : ''}
+  ${!partes.textos ? '' : texto3d('OFERTAS', 750, 690, 390, { fill: ['#ffffff', '#fffdf5', '#f1e6c8'], extrusao: t.extrusao, contorno: t.A[2], prof: 26, id: 'of', espaco: 6 })}
   <g filter="url(#somb)">
     <path d="M250,742 L1250,742 L1290,812 L1250,882 L250,882 L210,812 Z" fill="url(#ouro)"/>
     <path d="M262,754 L1238,754 L1272,812 L1238,870 L262,870 L228,812 Z" fill="url(#fita)"/>
   </g>
-  ${texto3d(t.fita, 750, 812 + tamFita * 0.36, tamFita, { fill: ['#ffffff', '#ffffff', '#ececec'], extrusao: '#00000088', contorno: t.B[2], prof: 6, id: 'df', espaco: 8 })}
-  <text x="750" y="975" font-family="Poppins" font-weight="800" font-size="62" text-anchor="middle" fill="#ffd21f" stroke="${t.extrusao}" stroke-width="16" stroke-linejoin="round" paint-order="stroke fill" letter-spacing="8">${t.frase}</text>
+  ${!partes.textos ? '' : texto3d(t.fita, 750, 812 + tamFita * 0.36, tamFita, { fill: ['#ffffff', '#ffffff', '#ececec'], extrusao: '#00000088', contorno: t.B[2], prof: 6, id: 'df', espaco: 8 })}
+  ${!partes.textos ? '' : `<text x="750" y="975" font-family="Poppins" font-weight="800" font-size="62" text-anchor="middle" fill="#ffd21f" stroke="${t.extrusao}" stroke-width="16" stroke-linejoin="round" paint-order="stroke fill" letter-spacing="8">${t.frase}</text>`}
   </svg>`;
   return pagina(W, H, svg);
+}
+
+/** F-286: só o ícone do círculo (vira a camada "Logo no círculo", trocável pela logo do cliente) */
+function emblema(t) {
+  const svg = `<svg width="400" height="400" viewBox="0 0 400 400"><defs><linearGradient id="emb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${t.A[0]}"/><stop offset=".55" stop-color="${t.A[1]}"/><stop offset="1" stop-color="${t.A[2]}"/></linearGradient></defs>${icone(t.icone, 200, 200, 380, 'url(#emb)')}</svg>`;
+  return pagina(400, 400, svg);
 }
 
 // ---------- encarte (a mesma divisão do Mega Oferta e da farmácia) ----------
@@ -206,6 +213,9 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/studio/gerar-segmento
   for (const seg of lista) {
     const t = TEMAS[seg], id = `${seg}-em-oferta`;
     const logoPng = await foto(logo(t), 1500, 1050, `public/studio/logos/ofertas-${seg}.webp`, { transparente: true });
+    await foto(logo(t, { textos: false, icone: false }), 1500, 1050, `public/studio/logos/ofertas-${seg}-base.webp`, { transparente: true });
+    await foto(emblema(t), 400, 400, `public/studio/logos/ofertas-${seg}-emblema.webp`, { transparente: true });
+    if (process.argv.includes('--so-logos')) { console.log('logo pronta:', seg); continue; }
     const logoUrl = `data:image/png;base64,${logoPng.toString('base64')}`;
     for (const f of ['v', 'h']) {
       const [w, h] = f === 'v' ? [1080, 1920] : [1920, 1080];

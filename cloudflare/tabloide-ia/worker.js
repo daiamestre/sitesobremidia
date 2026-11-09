@@ -71,7 +71,8 @@ const HOSTS = ["acdn-us.mitiendanube.com", "agenciacariocadagema.com.br", "aguas
 const HOSTS_FIXOS = ['images.openfoodfacts.org', 'static.openfoodfacts.org', 'upload.wikimedia.org', 'images.pexels.com', 'cdn.pixabay.com', 'pixabay.com'];
 // F-275: 2ª fonte da foto oficial — lojas que vendem o produto (mesma lista de scripts/ops/marca-varejo.mjs)
 const HOSTS_LOJAS = ['paguemenos.vteximg.com.br', 'drogariaspacheco.vteximg.com.br', 'drogariavenancio.vteximg.com.br', 'drogal.vteximg.com.br', 'drogariasp.vteximg.com.br', 'savegnagoio.vteximg.com.br', 'muffatosupermercados.vteximg.com.br', 'covabra.vteximg.com.br', 'mambodelivery.vteximg.com.br', 'divvino.vteximg.com.br',
-  'hortifrutibr.vteximg.com.br', 'giassi.vteximg.com.br', 'supernossoio.vteximg.com.br', 'superpaguemenos.vteximg.com.br'];
+  'hortifrutibr.vteximg.com.br', 'giassi.vteximg.com.br', 'supernossoio.vteximg.com.br', 'superpaguemenos.vteximg.com.br',
+  'malwee.vteximg.com.br', 'vulcabras.vteximg.com.br', 'lojamultilaser.vteximg.com.br'];
 const PERMITIDOS_FOTO = new Set([...HOSTS, ...HOSTS_FIXOS, ...HOSTS_LOJAS]);
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Timing-Allow-Origin': '*' };
 

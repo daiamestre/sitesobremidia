@@ -7,6 +7,7 @@ import { novoClipe, projetoVazio, type ProjetoDeVideo, type TipoDeTransicao } fr
 import type { TipoDeAnimacao } from './animacao';
 import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, logoOficialDoSegmento, type LogoDaPasta } from './logos';
 import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDoPalcoDe, type SegmentoNovo } from './segmentosDeOferta';
+import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel } from './logoEditavel';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
 export interface OpcoesDoPalco {
@@ -202,7 +203,9 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   const c: Camada[] = [];
   // F-251: regra do dono: o fundo é a arte dele, com a logo e a iluminação dela. A logo só vira camada visível sobre o fundo sem
   // logo quando o cliente troca ou mexe nela; até lá a camada fica invisível, só para o toque abrir as opções
-  const logoDaArte = !o.logoDoPalco && !o.ajustes?.[formato]?.['Logo do palco'];
+  // F-286: nos segmentos (padaria, adega…) a logo é EDITÁVEL: fundo sem logo + a logo em camadas (textos e o círculo da logo do cliente)
+  const logoEmCamadas = !o.logoDoPalco && ehSegmentoComLogoEditavel(f.segmento);
+  const logoDaArte = !logoEmCamadas && !o.logoDoPalco && !o.ajustes?.[formato]?.['Logo do palco'];
   c.push({ ...imagem('Fundo oficial', logoDaArte ? srcDoFundo(f, formato) : srcSemLogo(f, formato), 0, 0, W, H), bloqueada: true });
   (f.faixas?.linhas[formato] ?? []).forEach((l, i) => {
     const comp = Math.hypot(l.ate[0] - l.de[0], l.ate[1] - l.de[1]);
@@ -212,7 +215,8 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
     c.push({ ...texto(`Faixa ${i + 1}`, f.faixas!.texto, cx - comp / 2, cy - l.esp / 2, comp, { fonte: 'poppins', peso: 800, tamanho: Math.round(l.esp * 0.56), cor: f.faixas!.corTexto, alinhamento: 'left' }), h: l.esp, rot, letreiro: { velocidade: 110, fundo: f.faixas!.cor } });
   });
   const ti = px(f.titulo[formato]);
-  c.push({ ...imagem('Logo do palco', (o.logoDoPalco ?? f.logoPadrao).url, ti.x, ti.y, ti.w, ti.h, { ajuste: 'conter', opacidade: logoDaArte ? 0 : 1 }), animacao: ani('surgir', 0, 0.4) });
+  if (logoEmCamadas) c.push(...camadasDaLogoDoSegmento(f.segmento as SegmentoNovo, ti));
+  else c.push({ ...imagem('Logo do palco', (o.logoDoPalco ?? f.logoPadrao).url, ti.x, ti.y, ti.w, ti.h, { ajuste: 'conter', opacidade: logoDaArte ? 0 : 1 }), animacao: ani('surgir', 0, 0.4) });
   // produto: 'conter' (inteiro, sem cortar) e focoY 100 = o pé encosta no tampo do palco
   const pr = px(f.produto[formato]);
   const mov = o.movimento ?? {};

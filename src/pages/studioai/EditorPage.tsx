@@ -463,7 +463,7 @@ export default function EditorPage() {
           <div className="mx-auto [--lv:62vw] sm:[--lv:40vw] lg:[--lv:30vw]"
             style={vertical ? { width: 'min(var(--lv), calc((100dvh - 260px) * 0.5625), 400px)' } : { maxWidth: 'calc((100dvh - 330px) * 1.7778)', minWidth: 240 }}>
             <Palco doc={demo ? { ...doc, camadas: doc.camadas.map((c) => (c.id === demo.id ? { ...c, animacao: c.animacao ? { ...c.animacao, atraso: 0.2 } : null } : { ...c, animacao: null })) } : doc} animar={tocando || !!demo} ciclo={demo?.ciclo} sel={sel} onSelecionar={(id) => { if (id) setTocando(false); setSel(id); }} onInicio={lembrar} onMudar={mudarCamada} onApagar={apagar} onDuplicar={duplicar}
-              onEditarTexto={() => { setAba('texto'); setTimeout(() => textoRef.current?.focus(), 30); }} />
+              onEditarTexto={() => { setAba('texto'); setTimeout(() => textoRef.current?.focus({ preventScroll: true }), 30);}} />
           </div>
           {!vertical && <p className="mt-10 hidden text-center text-[11px] text-slate-500 md:block">Toque para escolher · arraste o escolhido para mover · alças redimensionam · bolinha de cima gira · Delete apaga · Ctrl+Z desfaz</p>}
         </div>
