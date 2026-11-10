@@ -16,13 +16,14 @@ import { linkDaFoto } from './passa-foto.mjs';
 import { LOJAS } from './marca-varejo.mjs';
 import { avaliar } from './hortifruti-fotos.mjs';
 import { naoEProduto } from './nao-e-produto.mjs';
-import { sqlBruto } from './recorte-do-catalogo.mjs';
+import { NA_NUVEM, comFotoNoCatalogo, empresasDoCatalogo, gravarFotos, lerFila, lerProjetos, marcarPedido } from './banco-agentes.mjs';
 
 const require = createRequire(import.meta.url);
 const RAIZ = path.resolve(import.meta.dirname, '../..');
 const jiti = require('jiti')(import.meta.filename, { alias: { '@': path.join(RAIZ, 'src') } });
 const { chaveCanonica } = jiti('../../src/lib/tabloide/chave.ts');
 const { lerBusca, diferenca, naoEhProduto } = jiti('../../src/lib/tabloide/buscaProduto.ts');
+const { PROCURAR, termoDaLoja, itensDaResposta, opcoesDaLoja } = jiti('../../src/lib/tabloide/buscaNasLojas.ts');
 const { lerLista } = jiti('../../src/lib/tabloide/parseProdutos.ts');
 const { CESTA_PADRAO, CESTA_FARMACIA, ENCARTES } = jiti('../../src/lib/tabloide/encartes.ts');
 const { SEGMENTOS_DE_OFERTA } = jiti('../../src/lib/studio/segmentosDeOferta.ts');
@@ -41,12 +42,12 @@ const pedidos = new Map(); // chave → nome
 const pedir = (nome) => { const n = String(nome ?? '').trim(); const k = chaveCanonica(n); if (k.length >= 3 && n.length <= 160 && !naoEProduto(n)) pedidos.set(k, pedidos.get(k) ?? n); };
 let temFila = false;
 try {
-  const fila = await sqlBruto(`select nome from public.tabloide_pedidos_de_foto where status in ('pendente','procurando') order by pedidos desc, atualizado_em desc limit 200`);
+  const fila = await lerFila();
   temFila = true;
-  fila.forEach((l) => pedir(l.nome));
-} catch { /* a fila ainda não foi aplicada: segue com as outras fontes */ }
+  fila.forEach((n) => pedir(n));
+} catch (e) { log(`fila não lida: ${String(e?.message ?? e).slice(0, 120)}`); }
 try {
-  const projetos = await sqlBruto(`select dados from public.studio_projetos where atualizado_em > now() - interval '30 days' order by atualizado_em desc limit 300`);
+  const projetos = await lerProjetos();
   for (const p of projetos) {
     const camadas = p.dados?.camadas ?? p.dados?.docs?.['9:16']?.camadas ?? [];
     const fotos = new Map(camadas.filter((c) => /^Produto \d+$/.test(c.nome ?? '')).map((c) => [c.nome.split(' ')[1], c.src]));
@@ -57,13 +58,10 @@ for (const cesta of [CESTA_PADRAO, CESTA_FARMACIA, ...ENCARTES.map((e) => e.prod
 
 // só o que ainda NÃO tem foto no catálogo (pelo nome exato) — o resto já resolve no site
 const chaves = [...pedidos.keys()];
-const comFoto = new Set();
-for (let i = 0; i < chaves.length; i += 200) {
-  const r = await sqlBruto(`select distinct nome_norm from public.tabloide_catalogo where cliente_id is null and fonte <> 'IA' and nome_norm in (${chaves.slice(i, i + 200).map((k) => `'${esc(k)}'`).join(',')})`);
-  r.forEach((l) => comFoto.add(l.nome_norm));
-}
+const comFoto = await comFotoNoCatalogo(chaves);
+// a fila do site vem primeiro (é o que um cliente está esperando agora)
 const faltam = chaves.filter((k) => !comFoto.has(k)).slice(0, MAX);
-log(`pedidos: ${pedidos.size} | sem foto no catálogo: ${chaves.length - comFoto.size} | nesta volta: ${faltam.length}${temFila ? '' : ' (fila do site ainda não aplicada)'}`);
+log(`${NA_NUVEM ? '[nuvem] ' : ''}pedidos: ${pedidos.size} | sem foto no catálogo: ${chaves.length - comFoto.size} | nesta volta: ${faltam.length}${temFila ? '' : ' (fila do site não lida)'}`);
 
 // ---------- 2) procurar cada um nas lojas (produto exato pelas regras do F-282) ----------
 /** carne, fruta, legume, verdura, ovo: só vale item da seção de açougue/hortifrúti da loja (nada de Pringles para "batata", petisco
@@ -73,7 +71,20 @@ const SECAO_FRESCA = /horti|frut|legum|verdur|acougue|carne|aves|frango|bovin|su
 const SECAO_ERRADA = /pet|limpez|bebida|refriger|snack|salgad|biscoit|doce|higien|perfum|farmac|medicament/;
 const semAc = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+/**
+ * F-295: a MESMA busca e a MESMA escolha do site (Worker /procurar nas 16 lojas + opcoesDaLoja): "pacote com 10", quantidade de
+ * unidades, sabor misturado, fragrância e kit valem igual no site e nos agentes. Sem o Worker, a busca direta nas lojas (antiga).
+ */
 async function candidatos(nome) {
+  const termo = termoDaLoja(nome);
+  if (termo.replace(/\s/g, '').length < 3) return [];
+  const r = await fetch(`${PROCURAR}?q=${encodeURIComponent(termo)}`, { signal: AbortSignal.timeout(30000) }).catch(() => null);
+  if (!r?.ok) return candidatosDiretos(nome);
+  const itens = itensDaResposta(await r.json().catch(() => []));
+  return opcoesDaLoja(nome, itens).slice(0, 6).map((it) => ({ titulo: it.titulo, loja: it.loja, marca: it.marca, pagina: it.pagina, url: it.foto, codigo: it.codigo }));
+}
+
+async function candidatosDiretos(nome) {
   const b = lerBusca(nome);
   const fresco = FRESCO.test(semAc(nome));
   const out = [];
@@ -102,7 +113,7 @@ async function candidatos(nome) {
 }
 
 fs.mkdirSync(PASTA, { recursive: true });
-const EMPRESAS = (await sqlBruto(`select distinct empresa_operadora_id id from public.tabloide_catalogo where fonte = 'MARCA' and cliente_id is null`)).map((l) => l.id);
+const EMPRESAS = await empresasDoCatalogo();
 let achadas = 0;
 for (const k of faltam) {
   const nome = pedidos.get(k);
@@ -124,11 +135,11 @@ for (const k of faltam) {
     const marca = String(ok.marca ?? '').trim();
     const credito = `Imagem oficial${marca ? ` ${marca}` : ''} (via ${ok.loja})`;
     const chavesDoItem = [...new Set([k, chaveCanonica(ok.titulo), ...(ok.codigo ? [chaveCanonica(`codigo ${ok.codigo}`)] : [])])];
-    const linhas = EMPRESAS.flatMap((e) => chavesDoItem.map((ch) => `('${e}', NULL, '${esc(ch)}', '${esc(ch === k ? nome : ok.titulo)}', '${esc(link)}', 'MARCA', '${esc(credito)}', true, true, 'SEMENTE', '${esc(ok.pagina)}', 'Imagem do fabricante publicada pela loja; sem autorização formal registrada', ${ok.codigo ? `'${esc(ok.codigo)}'` : 'NULL'}, NULL)`));
-    await sqlBruto(`INSERT INTO public.tabloide_catalogo (empresa_operadora_id, cliente_id, nome_norm, nome, imagem_url, fonte, credito, recortada, recorte_tentado, origem, origem_url, licenca, codigo, segmento) VALUES ${linhas.join(',')} ON CONFLICT (empresa_operadora_id, COALESCE(cliente_id, '00000000-0000-0000-0000-000000000000'::uuid), nome_norm) DO UPDATE SET imagem_url = excluded.imagem_url, fonte = excluded.fonte, credito = excluded.credito, recortada = excluded.recortada, recorte_tentado = true, origem = excluded.origem, origem_url = excluded.origem_url, licenca = excluded.licenca, codigo = coalesce(excluded.codigo, tabloide_catalogo.codigo) WHERE tabloide_catalogo.fonte = 'IA'`); // F-295: a foto oficial substitui a imagem criada por IA
+    // F-295: a foto oficial substitui a imagem criada por IA; foto de verdade que já existe não é mexida
+    await gravarFotos(EMPRESAS, chavesDoItem.map((ch) => ({ nome_norm: ch, nome: ch === k ? nome : ok.titulo, imagem_url: link, credito, origem_url: ok.pagina, licenca: 'Imagem do fabricante publicada pela loja; sem autorização formal registrada', codigo: ok.codigo })));
     achadas++;
   }
-  if (temFila) await sqlBruto(`update public.tabloide_pedidos_de_foto set status = '${ok ? 'achada' : 'sem_foto'}', observacao = '${esc(ok ? `${ok.titulo} (${ok.loja})` : motivos.slice(0, 3).join(', ') || 'nenhuma loja com o produto exato')}', atualizado_em = now() where nome_norm = '${esc(k)}'`).catch(() => undefined);
+  if (temFila) await marcarPedido(k, ok ? 'achada' : 'sem_foto', ok ? `${ok.titulo} (${ok.loja})` : motivos.slice(0, 3).join(', ') || 'nenhuma loja com o produto exato').catch(() => undefined);
   log(`${nome.slice(0, 40).padEnd(41)} ${ok ? `ACHADA: ${ok.titulo} (${ok.loja})` : `sem foto aprovada (${cands.length} candidatas${motivos.length ? `: ${motivos.slice(0, 3).join(', ')}` : ''})`}`);
 }
 log(`RESULTADO pedidos ${faltam.length} | fotos achadas e gravadas ${achadas}`);

@@ -40,23 +40,14 @@ jobs:
         with:
           path: ${{ github.workspace }}/../modelos-ia
           key: birefnet-lite-512-v1
-      - name: Segredos só nesta máquina temporária (nunca no repositório)
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          TABLOIDE_IA_URL: ${{ secrets.TABLOIDE_IA_URL }}
-          TABLOIDE_IA_SEGREDO: ${{ secrets.TABLOIDE_IA_SEGREDO }}
-        run: |
-          mkdir -p ~/.sobremidia-secrets
-          umask 077
-          {
-            echo "SUPABASE_ACCESS_TOKEN=$SUPABASE_ACCESS_TOKEN"
-            echo "TABLOIDE_IA_URL=$TABLOIDE_IA_URL"
-            echo "TABLOIDE_IA_SEGREDO=$TABLOIDE_IA_SEGREDO"
-          } > ~/.sobremidia-secrets/tokens.env
       - name: Atender os pedidos de foto
+        # na nuvem o banco é lido pela API com a chave de serviço (segredo do repositório); a chave-mestra da conta não vem para cá
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: node scripts/ops/pedidos-de-foto.mjs --max=${{ github.event.inputs.max || '40' }} | tee pedidos.log
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -o pipefail
+          node scripts/ops/pedidos-de-foto.mjs --max=${{ github.event.inputs.max || '40' }} | tee pedidos.log
       - name: Resumo
         if: always()
-        run: grep -E "^pedidos:|RESULTADO|ACHADA" pedidos.log | tail -40 || true
+        run: grep -E "pedidos:|RESULTADO|ACHADA|fila não lida" pedidos.log | tail -40 || true

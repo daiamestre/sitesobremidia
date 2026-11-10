@@ -79,8 +79,10 @@ describe('F-295: só imagem oficial e de qualidade', () => {
     expect(fs.readFileSync('supabase/functions/produto-imagem/index.ts', 'utf8')).toMatch(/nitida=false/);
   });
   it('os agentes trocam a imagem de IA pela oficial e continuam procurando quem só tem IA', () => {
-    const s = fs.readFileSync('scripts/ops/pedidos-de-foto.mjs', 'utf8');
+    const s = fs.readFileSync('scripts/ops/banco-agentes.mjs', 'utf8');
     expect(s).toMatch(/fonte <> 'IA'/);
+    expect(s).toContain('fonte=neq.IA');
+    expect(fs.readFileSync('scripts/ops/pedidos-de-foto.mjs', 'utf8')).toContain('opcoesDaLoja(nome, itens)');
     expect(s).toMatch(/WHERE tabloide_catalogo\.fonte = 'IA'/);
   });
 });
@@ -101,5 +103,8 @@ describe('F-295: estrutura no ar', () => {
     const y = fs.readFileSync('.github/workflows/pedidos-de-foto.yml', 'utf8');
     expect(y).toMatch(/cron:/);
     expect(y).toContain('scripts/ops/pedidos-de-foto.mjs');
+    expect(y).toContain('secrets.SUPABASE_SERVICE_KEY');
+    expect(y).not.toContain('SUPABASE_ACCESS_TOKEN');
+    expect(y).toContain('set -o pipefail');
   });
 });
