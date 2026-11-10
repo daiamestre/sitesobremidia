@@ -20,12 +20,13 @@ const chave = (n) => (cofre.match(new RegExp(`^${n}=(.*)$`, 'm'))?.[1] ?? '').tr
 const PEXELS = chave('PEXELS_API_KEY'), PIXABAY = chave('PIXABAY_API_KEY');
 
 export const BUSCAS = {
-  'Uva Niágara': ['pink grapes bunch', 'red grapes bunch isolated', 'niagara grapes'],
+  'Uva Niágara': ['pink grapes bunch', 'red grapes bunch isolated', 'niagara grapes', 'rose grapes white background'],
+  'Banana da Terra': ['plantain', 'plantain bananas isolated', 'ripe plantain', 'green plantain'],
   'Uva Crimson': ['red seedless grapes isolated', 'red grapes on white background'],
-  Caju: ['cashew fruit', 'cashew apple', 'caju fruta'],
+  Caju: ['cashew fruit', 'cashew apple', 'caju fruta', 'cashew apple isolated', 'anacardium occidentale fruit'],
   Graviola: ['soursop', 'guanabana fruit', 'graviola'],
   'Batata Doce': ['sweet potatoes isolated', 'raw sweet potato white background'],
-  Maxixe: ['maxixe', 'cucumis anguria', 'west indian gherkin'],
+  Maxixe: ['maxixe', 'cucumis anguria', 'west indian gherkin', 'maxixe vegetable', 'bur gherkin'],
   'Agrião': ['watercress isolated', 'fresh watercress bunch'],
   Coentro: ['coriander bunch isolated', 'fresh cilantro isolated', 'coriander leaves'],
   'Salsão': ['celery bunch isolated', 'celery stalks white background'],

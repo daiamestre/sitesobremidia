@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Palco } from '@/components/studio/editor/Palco';
-import { CartaoDaAba, PainelCamadas, abasDe, campo, type Aba } from '@/components/studio/editor/Paineis';
+import { CartaoDaAba, MovimentoDoElemento, PainelCamadas, abasDe, campo, type Aba } from '@/components/studio/editor/Paineis';
 import { PublicarDialog } from '@/components/studioai/PublicarDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { uploadToR2 } from '@/lib/r2Upload';
@@ -20,7 +20,8 @@ import { herdarEstilo, levarMudanca } from '@/lib/studio/sincronizar';
 import { coreografia, DURACAO_PADRAO, animarTudo, duracaoDoVideo, temAnimacao, tirarAnimacoes } from '@/lib/studio/animacao';
 import { documentoParaVideo, formatoDeVideo, type VideoGravado } from '@/lib/studio/video';
 import type { PastaDaGaleria } from '@/lib/galeria';
-import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
+import { CHAVE_ARTE_PARA_VIDEO, novoClipe, projetoVazio } from '@/lib/studio/video/linha';
+import { EditorDeVideo } from './VideoEditorPage';
 import { lerArtePronta } from '@/lib/studio/artePronta';
 import { PainelDaLogo } from '@/components/studio/editor/PainelDaLogo';
 import { ehCamadaDaLogo } from '@/lib/studio/logoEditavel';
@@ -150,6 +151,11 @@ export default function EditorPage() {
   const doc = docs?.[formato] ?? null;
   useEffect(() => () => { if (videoPronto) URL.revokeObjectURL(videoPronto.url); }, [videoPronto]);
   const camadaSel = doc?.camadas.find((c) => c.id === sel) ?? null;
+  // F-293 (pedido do dono): a EDIÇÃO DE VÍDEO fica embaixo da arte, como no palco: a arte vira um clipe na linha do tempo e acompanha
+  // cada mudança (meio segundo depois); música, textos, cortes e efeitos ficam no editor
+  const projetoDaArte = useMemo(() => (doc && ehFormatoDeTela(formato) ? { ...projetoVazio(telaDoFormato(formato)), clipes: [novoClipe('arte', '', 'Arte', { documento: doc, duracao: duracaoDoVideo(doc), zoomPara: 1 })] } : null), [doc, formato]);
+  const [projetoNoEditor, setProjetoNoEditor] = useState(projetoDaArte);
+  useEffect(() => { const t = setTimeout(() => setProjetoNoEditor(projetoDaArte), 600); return () => clearTimeout(t); }, [projetoDaArte]);
   const abas = abasDe(camadaSel);
   // ao escolher outro elemento, abre o primeiro cartão dele (Texto, Ajustes, Cor…)
   const tipoSel = camadaSel?.tipo ?? null;
@@ -462,6 +468,7 @@ export default function EditorPage() {
 
       {/* ── palco com margens dos lados (o dedo rola a página por elas) + ferramentas ao lado/abaixo */}
       <div className={cn('grid gap-3', vertical ? 'min-[540px]:grid-cols-[auto_minmax(0,1fr)] min-[540px]:items-start' : 'min-[700px]:grid-cols-[minmax(0,1fr)_300px] min-[700px]:items-start lg:grid-cols-[minmax(0,1fr)_360px]')}>
+        <div className="min-w-0 space-y-2">
         <div className={cn('min-w-0 rounded-2xl border border-[#8A2EFF]/30 bg-[#0a031c] px-6 pb-14 pt-12 shadow-[0_0_40px_rgba(93,27,255,0.25)]', vertical ? 'sm:px-8' : 'sm:px-10')}>
           <div className="mx-auto [--lv:62vw] sm:[--lv:40vw] lg:[--lv:30vw]"
             style={vertical ? { width: 'min(var(--lv), calc((100dvh - 260px) * 0.5625), 400px)' } : { maxWidth: 'calc((100dvh - 330px) * 1.7778)', minWidth: 240 }}>
@@ -469,6 +476,27 @@ export default function EditorPage() {
               onEditarTexto={() => { setAba('texto'); setTimeout(() => textoRef.current?.focus({ preventScroll: true }), 30);}} />
           </div>
           {!vertical && <p className="mt-10 hidden text-center text-[11px] text-slate-500 md:block">Toque para escolher · arraste o escolhido para mover · alças redimensionam · bolinha de cima gira · Delete apaga · Ctrl+Z desfaz</p>}
+        </div>
+          {/* F-293: MOVIMENTO embaixo da arte (igual ao palco): entrada, 2 movimentos juntos, saída e o movimento padrão */}
+          <div className="space-y-2 rounded-2xl border border-[#8A2EFF]/40 bg-[#14062f] p-3" data-testid="studio-barra-movimento">
+            {camadaSel ? (
+              <>
+                <p className="text-xs font-bold text-white">Movimento: {camadaSel.tipo === 'texto' ? (camadaSel.texto.split('\n')[0] || camadaSel.nome) : camadaSel.nome}</p>
+                <MovimentoDoElemento c={camadaSel} doc={doc} mudar={(p) => mudarPeloPainel(camadaSel.id, p)}
+                  aoPadrao={() => { const padrao = coreografia(doc).camadas.find((c) => c.id === camadaSel.id)?.animacao ?? null; mudarPeloPainel(camadaSel.id, { animacao: padrao }); }} />
+              </>
+            ) : <p className="text-[11px] text-slate-400">Toque num elemento da arte para escolher o movimento dele (entrada, dois movimentos juntos e saída).</p>}
+            <div className="grid grid-cols-2 gap-1.5 border-t border-white/10 pt-2">
+              <button type="button" onClick={() => mudarTodos(animarTudo)} className="h-9 rounded-lg border border-[#25D366]/50 bg-[#25D366]/10 text-[11px] font-bold text-[#7dffb0]" data-testid="studio-movimento-padrao-todos">Movimento padrão em tudo</button>
+              <button type="button" onClick={() => { setSel(null); setTocando((t) => !t); }} className="h-9 rounded-lg border border-white/15 text-[11px] font-semibold text-white">{tocando ? 'Parar o movimento' : 'Ver todo o movimento'}</button>
+            </div>
+          </div>
+          {projetoNoEditor && (
+            <section className="space-y-2 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-2" data-testid="studio-editor-video">
+              <h2 className="px-1 text-sm font-bold text-white">Vídeo desta arte (linha do tempo)</h2>
+              <EditorDeVideo embutido projetoInicial={projetoNoEditor} nomeInicial={nome || base.nome} />
+            </section>
+          )}
         </div>
 
         <div className="min-w-0 space-y-2 min-[540px]:sticky min-[540px]:top-[84px] min-[540px]:max-h-[calc(100dvh-96px)] min-[540px]:overflow-y-auto min-[540px]:pr-1" data-testid="studio-lateral">
