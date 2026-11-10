@@ -59,7 +59,7 @@ for (const cesta of [CESTA_PADRAO, CESTA_FARMACIA, ...ENCARTES.map((e) => e.prod
 const chaves = [...pedidos.keys()];
 const comFoto = new Set();
 for (let i = 0; i < chaves.length; i += 200) {
-  const r = await sqlBruto(`select distinct nome_norm from public.tabloide_catalogo where cliente_id is null and nome_norm in (${chaves.slice(i, i + 200).map((k) => `'${esc(k)}'`).join(',')})`);
+  const r = await sqlBruto(`select distinct nome_norm from public.tabloide_catalogo where cliente_id is null and fonte <> 'IA' and nome_norm in (${chaves.slice(i, i + 200).map((k) => `'${esc(k)}'`).join(',')})`);
   r.forEach((l) => comFoto.add(l.nome_norm));
 }
 const faltam = chaves.filter((k) => !comFoto.has(k)).slice(0, MAX);
@@ -125,7 +125,7 @@ for (const k of faltam) {
     const credito = `Imagem oficial${marca ? ` ${marca}` : ''} (via ${ok.loja})`;
     const chavesDoItem = [...new Set([k, chaveCanonica(ok.titulo), ...(ok.codigo ? [chaveCanonica(`codigo ${ok.codigo}`)] : [])])];
     const linhas = EMPRESAS.flatMap((e) => chavesDoItem.map((ch) => `('${e}', NULL, '${esc(ch)}', '${esc(ch === k ? nome : ok.titulo)}', '${esc(link)}', 'MARCA', '${esc(credito)}', true, true, 'SEMENTE', '${esc(ok.pagina)}', 'Imagem do fabricante publicada pela loja; sem autorização formal registrada', ${ok.codigo ? `'${esc(ok.codigo)}'` : 'NULL'}, NULL)`));
-    await sqlBruto(`INSERT INTO public.tabloide_catalogo (empresa_operadora_id, cliente_id, nome_norm, nome, imagem_url, fonte, credito, recortada, recorte_tentado, origem, origem_url, licenca, codigo, segmento) VALUES ${linhas.join(',')} ON CONFLICT (empresa_operadora_id, COALESCE(cliente_id, '00000000-0000-0000-0000-000000000000'::uuid), nome_norm) DO NOTHING`);
+    await sqlBruto(`INSERT INTO public.tabloide_catalogo (empresa_operadora_id, cliente_id, nome_norm, nome, imagem_url, fonte, credito, recortada, recorte_tentado, origem, origem_url, licenca, codigo, segmento) VALUES ${linhas.join(',')} ON CONFLICT (empresa_operadora_id, COALESCE(cliente_id, '00000000-0000-0000-0000-000000000000'::uuid), nome_norm) DO UPDATE SET imagem_url = excluded.imagem_url, fonte = excluded.fonte, credito = excluded.credito, recortada = excluded.recortada, recorte_tentado = true, origem = excluded.origem, origem_url = excluded.origem_url, licenca = excluded.licenca, codigo = coalesce(excluded.codigo, tabloide_catalogo.codigo) WHERE tabloide_catalogo.fonte = 'IA'`); // F-295: a foto oficial substitui a imagem criada por IA
     achadas++;
   }
   if (temFila) await sqlBruto(`update public.tabloide_pedidos_de_foto set status = '${ok ? 'achada' : 'sem_foto'}', observacao = '${esc(ok ? `${ok.titulo} (${ok.loja})` : motivos.slice(0, 3).join(', ') || 'nenhuma loja com o produto exato')}', atualizado_em = now() where nome_norm = '${esc(k)}'`).catch(() => undefined);

@@ -72,7 +72,8 @@ const HOSTS_FIXOS = ['images.openfoodfacts.org', 'static.openfoodfacts.org', 'up
 // F-275: 2ª fonte da foto oficial — lojas que vendem o produto (mesma lista de scripts/ops/marca-varejo.mjs)
 const HOSTS_LOJAS = ['paguemenos.vteximg.com.br', 'drogariaspacheco.vteximg.com.br', 'drogariavenancio.vteximg.com.br', 'drogal.vteximg.com.br', 'drogariasp.vteximg.com.br', 'savegnagoio.vteximg.com.br', 'muffatosupermercados.vteximg.com.br', 'covabra.vteximg.com.br', 'mambodelivery.vteximg.com.br', 'divvino.vteximg.com.br',
   'hortifrutibr.vteximg.com.br', 'giassi.vteximg.com.br', 'supernossoio.vteximg.com.br', 'superpaguemenos.vteximg.com.br',
-  'malwee.vteximg.com.br', 'vulcabras.vteximg.com.br', 'lojamultilaser.vteximg.com.br'];
+  'malwee.vteximg.com.br', 'vulcabras.vteximg.com.br', 'lojamultilaser.vteximg.com.br',
+  'atacadaobr.vteximg.com.br', 'gbarbosa.vteximg.com.br', 'prezunic.vteximg.com.br'];
 const PERMITIDOS_FOTO = new Set([...HOSTS, ...HOSTS_FIXOS, ...HOSTS_LOJAS]);
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Timing-Allow-Origin': '*' };
 
@@ -114,9 +115,45 @@ async function passaFoto(req, env) {
   return new Response(origem.body, { status: 200, headers: { ...cabecalhos, 'Content-Type': tipo } });
 }
 
+/**
+ * F-295 — O SISTEMA PROCURA O PRODUTO (sem PC e sem Claude): GET /procurar?q=<produto>
+ * Consulta, em paralelo, o catálogo aberto (VTEX) das lojas da lista — robots.txt conferido em 10/11/2026, a mesma lista de
+ * scripts/ops/marca-varejo.mjs — pelos MAIS VENDIDOS, e devolve as respostas como vieram ([{ l: loja, d: [produtos] }]).
+ * A escolha do produto exato (regras do F-282) é feita no site (src/lib/tabloide/buscaNasLojas.ts). Só essas lojas e só a rota de
+ * busca do catálogo: não é um repasse aberto. Resposta guardada 1 dia no cache da Cloudflare (a mesma busca não sai de novo).
+ */
+const LOJAS_BUSCA = [
+  ['Pague Menos', 'www.paguemenos.com.br'], ['Drogarias Pacheco', 'www.drogariaspacheco.com.br'], ['Drogaria Venancio', 'www.drogariavenancio.com.br'],
+  ['Drogal', 'www.drogal.com.br'], ['Drogaria São Paulo', 'www.drogariasaopaulo.com.br'], ['Savegnago', 'www.savegnago.com.br'],
+  ['Super Muffato', 'www.supermuffato.com.br'], ['Covabra', 'www.covabra.com.br'], ['Mambo', 'www.mambo.com.br'], ['Divvino', 'www.divvino.com.br'],
+  ['Atacadão', 'www.atacadao.com.br'], ['GBarbosa', 'www.gbarbosa.com.br'], ['Prezunic', 'www.prezunic.com.br'],
+  ['Super Nosso', 'www.supernosso.com'], ['Giassi', 'www.giassi.com.br'], ['Super Pague Menos', 'www.superpaguemenos.com.br'],
+];
+
+async function procurar(req, ctx) {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+  const q = String(new URL(req.url).searchParams.get('q') ?? '').normalize('NFC').replace(/[^\p{L}\p{N}\s.,-]/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 80);
+  if (q.replace(/\s/g, '').length < 3) return new Response('busca inválida', { status: 400, headers: CORS });
+  const chave = new Request(`https://procurar.sobremidia.cache/v1?q=${encodeURIComponent(q)}`);
+  const guardada = await caches.default.match(chave).catch(() => null);
+  if (guardada) return guardada;
+  const partes = await Promise.all(LOJAS_BUSCA.map(async ([nome, dominio]) => {
+    const r = await fetch(`https://${dominio}/api/catalog_system/pub/products/search?ft=${encodeURIComponent(q)}&O=OrderByTopSaleDESC&_from=0&_to=7`, {
+      headers: { 'User-Agent': 'SobreMidia-Catalogo/1.0 (contato@sobremidia.com.br)', Accept: 'application/json' }, signal: AbortSignal.timeout(9000),
+    }).catch(() => null);
+    if (!r?.ok) return null;
+    const t = await r.text().catch(() => '');
+    return t.startsWith('[') && t.length > 2 ? `{"l":${JSON.stringify(nome)},"d":${t}}` : null;
+  }));
+  const resposta = new Response(`[${partes.filter(Boolean).join(',')}]`, { status: 200, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=86400' } });
+  ctx?.waitUntil?.(caches.default.put(chave, resposta.clone()).catch(() => undefined));
+  return resposta;
+}
+
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     if (new URL(req.url).pathname === '/foto') return passaFoto(req, env);
+    if (new URL(req.url).pathname === '/procurar') return procurar(req, ctx);
     if (req.method !== 'POST') return new Response('método não permitido', { status: 405 });
     if (!env.SEGREDO || req.headers.get('x-segredo') !== env.SEGREDO) return new Response('negado', { status: 401 });
     let corpo = {};

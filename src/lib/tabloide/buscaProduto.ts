@@ -35,7 +35,9 @@ const VARIANTES = new Set(['po', 'condensado', 'evaporado', 'soluvel', 'capsula'
   'desnatado', 'semidesnatado', 'zero', 'lactose', 'light', 'diet', 'integral', 'integrais', 'parboilizado', 'graos', 'organico', 'organica',
   'intenso', 'extra', 'forte', 'extraforte', 'fortissimo', 'gourmet', 'espresso', 'expresso', 'italiano', 'italiana', 'culinaria', 'fradinho',
   'jalo', 'rosinha', 'preto', 'branco', 'vermelho', 'arboreo', 'japones', 'cateto', 'basmati', 'a2', 'kids', 'infantil', 'proteico', 'proteina',
-  'fermentado', 'chocolate', 'morango', 'baunilha', 'coco', 'mini', 'refil']);
+  'fermentado', 'chocolate', 'morango', 'baunilha', 'coco', 'mini', 'refil',
+  // F-295: fragrâncias (Omo LAVANDA não é o Omo que o cliente pediu sem dizer a fragrância)
+  'lavanda', 'floral', 'primavera', 'jasmim', 'eucalipto', 'alecrim', 'talco', 'brisa', 'citrus', 'tutti']);
 /** Título de artigo ou de página lido por engano ("Como é feito o leite em pó?", "Leite UHT: segurança…"): nunca é foto de produto. */
 export const naoEhProduto = (nome: string) => /[?:!]/.test(nome) || nome.trim().split(/\s+/).length > 14;
 
@@ -71,7 +73,9 @@ export function diferenca(b: Busca, chave: string): number | null {
   const catOficial = new Set(c.palavras.map((p) => CATEGORIA[p]).filter(Boolean));
   if (catPedida.size && catOficial.size && ![...catPedida].some((k) => catOficial.has(k))) return null;
   // F-282: variante que o cliente não escreveu pesa muito (o tradicional vem primeiro)
-  const variantes = c.palavras.filter((t) => VARIANTES.has(t) && !b.palavras.includes(t)).length;
+  // F-295: "Arroz BRANCO" é o arroz tradicional (as lojas escrevem assim); "branco" só é variante no feijão, no chocolate etc.
+  const tradicionalDoTipo = (t: string) => t === 'branco' && b.palavras.includes('arroz');
+  const variantes = c.palavras.filter((t) => VARIANTES.has(t) && !b.palavras.includes(t) && !tradicionalDoTipo(t)).length;
   const sobra = c.palavras.filter((t) => !b.palavras.some((p) => t === p || (p.length >= 4 && t.startsWith(p))) && !PADRAO.has(t) && !NEUTRAS.has(t)).length
     - b.palavras.filter((p) => TIPO.has(p) && !NEUTRAS.has(p) && temPalavra(c.palavras, p)).length * 0.25; // a palavra escrita aparece no nome
   // produto sem medida no nome, quando o cliente pediu uma, vem depois do que confirma a medida

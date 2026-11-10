@@ -54,7 +54,7 @@ export function revisarProdutos(texto: string, produtos: Array<Pick<ProdutoTablo
     total++;
     if (faltas.length) itens.push({ nome: nome.trim(), motivo: explicarFaltas(faltas) });
     else if (duvidas[nome]) itens.push({ nome: nome.trim(), motivo: `confira a foto: pode não ser exatamente este produto (achamos ${duvidas[nome]} parecidos). Toque na foto para escolher o certo` });
-    else if (semFoto.includes(nome)) itens.push({ nome: nome.trim(), motivo: 'não achamos a imagem deste produto: confira o nome, a marca e a medida, ou toque na foto para escolher' });
+    else if (semFoto.includes(nome)) itens.push({ nome: nome.trim(), motivo: 'os agentes da SOBRE MÍDIA estão procurando a foto oficial deste produto (depois de aprovada, ela entra ao montar o cartaz de novo). Confira o nome, a marca e a medida, ou toque na foto para escolher' });
   };
   for (const linha of texto.split('\n').map((l) => l.trim()).filter(Boolean)) {
     const p = lerLinha(linha);

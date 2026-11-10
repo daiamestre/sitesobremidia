@@ -28,7 +28,7 @@ describe('F-279 produtos sem bloqueio', () => {
     expect(novo).toContain('data-testid="novo-integral"');
     expect(novo).toContain('(opcional)');
     expect(fs.readFileSync('src/components/studio/ProdutosComFotos.tsx', 'utf8')).not.toMatch(/if \(ruins\.length\) \{ toast\.error/);
-    expect(fs.readFileSync('src/lib/tabloide/imagens.ts', 'utf8')).toContain('const melhor = l ?? melhorOficial(nome, lista);'); // F-282: só o confiável
+    expect(fs.readFileSync('src/lib/tabloide/imagens.ts', 'utf8')).toContain('const melhor = l ?? melhorOficial(alvo, lista);'); // F-282: só o confiável
   });
 });
 

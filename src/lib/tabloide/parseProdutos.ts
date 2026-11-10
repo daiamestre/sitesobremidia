@@ -81,6 +81,17 @@ const RE_RS = new RegExp(String.raw`r\$\s*(${NUM})`, 'gi');
 // número "solto": não faz parte de "5kg", "2L", "500ml" nem de palavra
 const RE_SOLTO = new RegExp(String.raw`(?<![\w,.])(${NUM})(?![\w,.])(?!\s*(?:kg|g|gr|ml|l|lt|un|und|mg)\b)`, 'gi');
 
+/**
+ * F-295: número que DESCREVE o produto não é preço: "tipo 1", "pacote com 10", "c/ 12", "nº 2", "kit 3", "6 unidades", "10 de 400g",
+ * "3 x 90g" (o cliente descreve o produto do jeito que fala: "polpa de acerola marca Caruaru pacote com 10 de 400g")
+ */
+function descreveOProduto(texto: string, inicio: number, fim: number): boolean {
+  const antes = texto.slice(Math.max(0, inicio - 14), inicio).toLowerCase();
+  const depois = texto.slice(fim, fim + 16).toLowerCase();
+  if (/(?:\btipo|\bcom|\bc\/|\bn[ºo°.]|\bnumero|\bnúmero|\bkit|\bleve|\bpague|\bcontendo|\bx)\s*$/.test(antes)) return true;
+  return /^\s*(?:x\s*\d|de\s+\d|unidades?\b|unid\b|pacotes?\b|sach[eê]s?\b|c[aá]psulas?\b|comprimidos?\b|rolos?\b|latas?\b|garrafas?\b|fatias?\b|pares\b|folhas\b|metros\b|potes?\b|saquinhos?\b|tabletes?\b|barras?\b|doses?\b)/.test(depois);
+}
+
 function criarId(): string {
   return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -109,7 +120,7 @@ export function lerLinha(linha: string): ProdutoTabloide | null {
     posFim = dp.index + 1;
   } else {
     const comRs = [...resto.matchAll(RE_RS)];
-    const solto = [...resto.matchAll(RE_SOLTO)];
+    const solto = [...resto.matchAll(RE_SOLTO)].filter((m) => !descreveOProduto(resto, m.index ?? 0, (m.index ?? 0) + m[0].length));
     const escolhido = comRs.length ? comRs[comRs.length - 1] : solto.length ? solto[solto.length - 1] : null;
     if (escolhido && escolhido.index !== undefined) {
       preco = lerValor(escolhido[1]);
@@ -139,7 +150,8 @@ export function lerLinha(linha: string): ProdutoTabloide | null {
     }
   }
 
-  const nome = limparBordas(resto) || (codigo ? nomeDoCodigo(codigo) : '');
+  // F-295: "polpa de acerola marca Caruaru" → "polpa de acerola Caruaru" (a palavra "marca" só explica, não é o nome)
+  const nome = limparBordas(resto.replace(/\bmarca\s*:?\s+(?=\S)/gi, '')) || (codigo ? nomeDoCodigo(codigo) : '');
   if (nome.length < 2) return null;
   return { id: criarId(), nome, preco, precoDe, unidade, obs: null, imagem: null, ...(codigo ? { codigo } : {}) };
 }

@@ -32,6 +32,13 @@ export const LOJAS = [
   { nome: 'Covabra', dominio: 'www.covabra.com.br' },
   { nome: 'Mambo', dominio: 'www.mambo.com.br' },
   { nome: 'Divvino', dominio: 'www.divvino.com.br' },
+  // F-295 (robots.txt conferido em 10/11/2026: a busca do catálogo é permitida); GBarbosa é rede do Nordeste
+  { nome: 'Atacadão', dominio: 'www.atacadao.com.br' },
+  { nome: 'GBarbosa', dominio: 'www.gbarbosa.com.br' },
+  { nome: 'Prezunic', dominio: 'www.prezunic.com.br' },
+  { nome: 'Super Nosso', dominio: 'www.supernosso.com' },
+  { nome: 'Giassi', dominio: 'www.giassi.com.br' },
+  { nome: 'Super Pague Menos', dominio: 'www.superpaguemenos.com.br' },
 ];
 const BUSCA = '/api/catalog_system/pub/products/search';
 

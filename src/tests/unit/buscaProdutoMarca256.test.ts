@@ -86,7 +86,7 @@ describe('aviso de produto incompleto', () => {
     expect(r.total).toBe(1);
   });
   it('produto completo que o sistema não achou também avisa', () => {
-    expect(revisarProdutos('Arroz Camil 5kg 24,90', [], ['Arroz Camil 5kg']).itens[0].motivo).toMatch(/não achamos a imagem/);
+    expect(revisarProdutos('Arroz Camil 5kg 24,90', [], ['Arroz Camil 5kg']).itens[0].motivo).toMatch(/agentes da SOBRE MÍDIA estão procurando a foto oficial/);
   });
   it('fruta não precisa de marca; código de barras não precisa de nome', () => {
     expect(revisarProdutos('Banana kg 5,99\n7891000100103 9,99', []).itens).toEqual([]);

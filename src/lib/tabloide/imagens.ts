@@ -8,6 +8,7 @@ import { rpcTabloide, tabelaTabloide } from './db';
 import { chaveCanonica } from './chave';
 import { lerBusca, melhorOficial, palavrasFortes, produtoExato, relacionadosDaMarca, type ProdutoOficial } from './buscaProduto';
 import { ehPedidoDeHortifruti, nomeTradicionalDoHortifruti } from './hortifruti';
+import { procurarNasLojas } from './buscaNasLojas';
 import { chegouSemFundo, cortarMargens, finalizarRecorte, fotoParaInspecao, pngSemSobras, semFundoNoNavegador } from './recorte';
 import { MENSAGEM_DO_DEFEITO } from './qualidadeRecorte';
 import { uploadToR2 } from '@/lib/r2Upload';
@@ -233,7 +234,63 @@ async function reprovadoPelaIA(png: Blob, imagemDe: ImagemProduto, nome?: string
   if (imagemDe.fonte === 'UPLOAD') return '';
   if (data?.eh_o_produto === false) return 'esta foto não mostra a embalagem do produto';
   if (data?.em_pe === false) return 'o produto está deitado ou de cabeça para baixo na foto';
+  // F-295: foto borrada, pixelada ou com sombra/reflexo forte que esconde o rótulo não entra (brilho pequeno e natural passa)
+  if (data?.nitida === false) return 'a foto tem sombra, reflexo forte ou baixa qualidade';
   return '';
+}
+
+/**
+ * F-295: diário dos agentes no navegador (o que cada um fez com cada produto). Fica em window.__agentesSobreMidia e no console
+ * ("[agentes SOBRE MÍDIA]"): serve para conferir e explicar o trabalho, nunca atrapalha o encarte.
+ */
+export interface EventoDoAgente { nome: string; etapa: string; loja?: string; titulo?: string; motivo?: string }
+export function registrarAgente(e: EventoDoAgente): void {
+  try {
+    const w = window as unknown as { __agentesSobreMidia?: Array<EventoDoAgente & { em: string }> };
+    (w.__agentesSobreMidia ??= []).push({ ...e, em: new Date().toISOString() });
+    if (w.__agentesSobreMidia.length > 300) w.__agentesSobreMidia.splice(0, 100);
+    console.info('[agentes SOBRE MÍDIA]', e.nome, '→', e.etapa, e.loja ? `(${e.loja}: ${e.titulo})` : '', e.motivo ?? '');
+  } catch { /* sem janela (testes) */ }
+}
+
+/** F-295: o menor lado da foto em pixels (0 = não carregou) */
+export function menorLadoDaFoto(url: string, limiteMs = 15000): Promise<number> {
+  return new Promise((ok) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const t = setTimeout(() => ok(0), limiteMs);
+    img.onload = () => { clearTimeout(t); ok(Math.min(img.naturalWidth, img.naturalHeight)); };
+    img.onerror = () => { clearTimeout(t); ok(0); };
+    img.src = url;
+  });
+}
+/** F-295: abaixo disso a foto fica ruim no encarte (o produto ocupa até ~600 px numa TV Full HD) */
+export const LADO_MINIMO_DA_FOTO = 600;
+
+/**
+ * F-295 — a foto achada nas lojas só entra APROVADA (regra do dono: nada de foto ruim):
+ *   1) resolução mínima; 2) fundo tirado (Cloudflare ou o navegador); 3) inspeção dos pixels (produto inteiro, sem mordida, sem
+ *   sobra de fundo, contorno limpo); 4) inspeção da IA de visão (é o produto, em pé, sem sombra/reflexo forte, nítida).
+ * Reprovada = null (o sistema tenta a próxima loja; sem nenhuma, o produto vira pedido para os agentes).
+ */
+export async function prepararFotoDaLoja(imagem: ImagemProduto, nome: string): Promise<{ pronta: ImagemProduto | null; motivo?: string }> {
+  const original = linkSemTransformacao(imagem.url);
+  const lado = await menorLadoDaFoto(original);
+  if (!lado) return { pronta: null, motivo: 'a foto não abriu' };
+  if (lado < LADO_MINIMO_DA_FOTO) return { pronta: null, motivo: `baixa resolução (${lado} px)` };
+  const pronta = await prepararImagem(imagem, nome);
+  if (pronta.recusa) return { pronta: null, motivo: pronta.recusa };
+  if (!pronta.recortada) return { pronta: null, motivo: 'não foi possível tirar o fundo com qualidade' };
+  // a Cloudflare tirou o fundo (o link ficou igual): a mesma inspeção que o recorte do navegador já passou
+  if (pronta.url === imagem.url) {
+    const blob = await fetch(pronta.url).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
+    if (!blob) return { pronta: null, motivo: 'a foto não abriu' };
+    const { png, inspecao } = await finalizarRecorte(original, blob);
+    if (!png) return { pronta: null, motivo: MENSAGEM_DO_DEFEITO[inspecao?.defeitos[0] ?? 'nao-tirou-fundo'] };
+    const reprovado = await reprovadoPelaIA(png, imagem, nome);
+    if (reprovado) return { pronta: null, motivo: reprovado };
+  }
+  return { pronta };
 }
 
 /**
@@ -431,14 +488,15 @@ export async function completarImagens(
   }));
   for (const p of faltam) {
     const oficial = oficiais.get(p.id);
-    if (oficial) { resolver(p.id, oficial); conferirFundo(p, oficial); continue; }
+    if (oficial) { registrarAgente({ nome: p.nome, etapa: 'foto oficial do catálogo SOBRE MÍDIA (entregue na hora)' }); resolver(p.id, oficial); conferirFundo(p, oficial); continue; }
     // F-282: sem um oficial confiável o produto NÃO fica sem foto nem recebe um aleatório da marca: segue para o catálogo e a busca
     const achada = catalogo.get(chaveCanonica(p.nome));
     if (achada) {
+      registrarAgente({ nome: p.nome, etapa: 'foto já conhecida do catálogo SOBRE MÍDIA (entregue na hora)' });
       resolver(p.id, achada);
       conferirFundo(p, achada);
       if (!achada.recortada && !achada.recorteTentado) melhorar.push({ p, achada });
-    } else buscar.push(p);
+    } else { registrarAgente({ nome: p.nome, etapa: 'não está no catálogo: o agente procura nas lojas que vendem a marca' }); buscar.push(p); }
   }
   aoSaberNovos?.(buscar.map((p) => p.nome));
   let i = 0;
@@ -446,6 +504,23 @@ export async function completarImagens(
     while (i < buscar.length) {
       const p = buscar[i++];
       try {
+        // F-295: o próprio sistema procura o produto EXATO nas lojas que vendem a marca (Worker da SOBRE MÍDIA, sem PC e sem Claude);
+        // a foto achada vira a do produto no catálogo e o próximo cliente recebe na hora
+        // cada opção passa pela inspeção completa; a primeira APROVADA entra e vira a foto do produto para todos
+        let aprovada = false;
+        for (const daLoja of await procurarNasLojas(p.nome)) {
+          const { pronta, motivo } = await prepararFotoDaLoja(daLoja.imagem, p.nome);
+          registrarAgente({ nome: p.nome, etapa: pronta ? 'aprovada' : 'recusada', loja: daLoja.loja, titulo: daLoja.titulo, motivo });
+          if (!pronta) continue;
+          resolver(p.id, pronta);
+          void salvarNoCatalogo(p.nome, pronta, 'AUTO', true);
+          if (chaveCanonica(daLoja.titulo) !== chaveCanonica(p.nome)) void salvarNoCatalogo(daLoja.titulo, pronta, 'AUTO', true);
+          if (daLoja.codigo) void salvarNoCatalogo(daLoja.titulo, pronta, 'AUTO', true, chaveDoCodigo(daLoja.codigo));
+          aprovada = true;
+          break;
+        }
+        if (aprovada) continue;
+        registrarAgente({ nome: p.nome, etapa: 'sem foto aprovada nas lojas: segue para as bases abertas' });
         const cands = await buscarCandidatos(p.nome);
         // só entra foto real que a IA de visão confirmou ser o produto; embalagem de marca vem do catálogo de produtos
         const lista = fotosAceitas(p.nome, cands).slice(0, 4);
@@ -453,19 +528,36 @@ export async function completarImagens(
         // só vale foto que carrega de verdade; a que falha cai fora e vale a próxima
         const vivas: CandidatoImagem[] = [];
         for (const c of lista) { if (await fotoCarrega(c.miniatura || c.url)) vivas.push(c); }
+        // F-295 (regra do dono: produto EMBALADO só com imagem oficial ou da loja que vende a marca, e de boa qualidade): sem foto
+        // aprovada ele NÃO recebe imagem inventada pela IA nem foto com fundo; fica "procurando" e vira pedido para os agentes, que
+        // continuam na nuvem. (Gravar uma imagem inventada no catálogo também fazia os agentes acharem que o produto já tinha foto.)
+        const embalado = !ehFresco(p.nome);
+        if (!vivas.length && embalado) {
+          registrarAgente({ nome: p.nome, etapa: 'sem foto oficial aprovada: fica procurando e vira pedido para os agentes (sem imagem inventada)' });
+          resolver(p.id, null);
+          continue;
+        }
         if (!vivas.length) {
           resolver(p.id, null); // sem foto real confirmada: a IA cria a imagem do produto
+          registrarAgente({ nome: p.nome, etapa: 'item fresco/preparado sem foto real aprovada: imagem criada por IA (último recurso) e pedido para os agentes' });
           const criada = await gerarImagemIA(p.nome);
           if (criada.imagem) { resolver(p.id, criada.imagem); void salvarNoCatalogo(p.nome, criada.imagem, 'AUTO', true); }
           continue;
         }
-        resolver(p.id, paraImagem(vivas[0])); // aparece na hora; o recorte troca em seguida
+        if (!embalado) resolver(p.id, paraImagem(vivas[0])); // fresco: aparece na hora; o recorte troca em seguida
         let final = paraImagem(vivas[0]);
         // entre as fotos reais, fica a primeira que dá para recortar (fundo liso = foto de embalagem bem feita)
         for (const c of vivas) {
           const pronta = await prepararImagem(paraImagem(c), p.nome);
-          if (pronta.recortada) { final = pronta; break; }
+          if (pronta.recortada && !pronta.recusa) { final = pronta; break; }
         }
+        // F-295: embalagem da base aberta só entra com o recorte APROVADO (foto de celular com fundo, sombra ou reflexo não entra)
+        if (embalado && !final.recortada) {
+          registrarAgente({ nome: p.nome, etapa: 'foto da base aberta reprovada (fundo/sombra/qualidade): fica procurando e vira pedido para os agentes' });
+          resolver(p.id, null);
+          continue;
+        }
+        registrarAgente({ nome: p.nome, etapa: final.recortada ? 'foto da base aberta de produtos (Open Food Facts), recortada' : 'foto da base aberta, sem recorte aprovado' });
         resolver(p.id, final);
         void salvarNoCatalogo(p.nome, final, 'AUTO', true);
       } catch {

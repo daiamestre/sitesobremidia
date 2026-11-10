@@ -1,0 +1,62 @@
+name: Pedidos de foto (agentes na nuvem)
+
+# F-295 (pedido do dono, 10/11/2026): os PEDIDOS DE FOTO dos encartes (produto que o cliente escreveu e o sistema ainda não tinha)
+# são atendidos na NUVEM, sem o PC do escritório ligado e sem o Claude. A cada 2 horas roda scripts/ops/pedidos-de-foto.mjs:
+# fila do site + encartes salvos → produto EXATO nas lojas que vendem a marca (robots.txt respeitado) → recorte + conferência dupla
+# com a IA → grava POR LINK no catálogo (nenhuma foto é guardada). O mesmo script continua rodando no PC quando ele está ligado.
+on:
+  schedule:
+    - cron: '23 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      max:
+        description: 'quantos pedidos nesta volta'
+        required: false
+        default: '40'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pedidos-de-foto
+  cancel-in-progress: false
+
+jobs:
+  pedidos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Dependências
+        run: npm ci --no-audit --no-fund
+      - name: Modelo de recorte (BiRefNet) guardado entre as voltas
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/../modelos-ia
+          key: birefnet-lite-512-v1
+      - name: Segredos só nesta máquina temporária (nunca no repositório)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          TABLOIDE_IA_URL: ${{ secrets.TABLOIDE_IA_URL }}
+          TABLOIDE_IA_SEGREDO: ${{ secrets.TABLOIDE_IA_SEGREDO }}
+        run: |
+          mkdir -p ~/.sobremidia-secrets
+          umask 077
+          {
+            echo "SUPABASE_ACCESS_TOKEN=$SUPABASE_ACCESS_TOKEN"
+            echo "TABLOIDE_IA_URL=$TABLOIDE_IA_URL"
+            echo "TABLOIDE_IA_SEGREDO=$TABLOIDE_IA_SEGREDO"
+          } > ~/.sobremidia-secrets/tokens.env
+      - name: Atender os pedidos de foto
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/ops/pedidos-de-foto.mjs --max=${{ github.event.inputs.max || '40' }} | tee pedidos.log
+      - name: Resumo
+        if: always()
+        run: grep -E "^pedidos:|RESULTADO|ACHADA" pedidos.log | tail -40 || true
