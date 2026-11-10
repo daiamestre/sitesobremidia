@@ -1,5 +1,6 @@
 // SOBRE MÍDIA STUDIO — EDITOR DE VÍDEO (F-227): filtros, ajustes, vinheta e transições, desenhados no canvas.
 import type { Ajustes, Clipe, TipoDeFiltro, TipoDeTransicao } from './linha';
+import { coresDosEfeitos } from '../corDaArte';
 
 export const FILTROS: { id: TipoDeFiltro; nome: string; css: string }[] = [
   { id: 'nenhum', nome: 'Original', css: '' },
@@ -52,8 +53,13 @@ export function caixaDaMidia(mw: number, mh: number, w: number, h: number, c: Pi
   return { dx, dy, dw, dh };
 }
 
-/** Mistura dois quadros durante a transição (p de 0 a 1). `a` e `b` desenham cada clipe por inteiro. */
-export function desenharTransicao(ctx: CanvasRenderingContext2D, tipo: TipoDeTransicao, p: number, w: number, h: number, a: () => void, b: () => void) {
+/**
+ * Mistura dois quadros durante a transição (p de 0 a 1). `a` e `b` desenham cada clipe por inteiro.
+ * F-296: `cor` = a cor da arte que está na tela (encarte/palco, já girada pelo tom escolhido): flash, clarão, luz e brilho
+ * saem NELA (vídeo comum, sem arte: branco, como antes).
+ */
+export function desenharTransicao(ctx: CanvasRenderingContext2D, tipo: TipoDeTransicao, p: number, w: number, h: number, a: () => void, b: () => void, cor = '#ffffff') {
+  const fx = coresDosEfeitos(cor);
   const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // suave nas pontas
   const camada = (f: () => void, prep: () => void) => { ctx.save(); prep(); f(); ctx.restore(); };
   switch (tipo) {
@@ -61,7 +67,7 @@ export function desenharTransicao(ctx: CanvasRenderingContext2D, tipo: TipoDeTra
     case 'dissolver': a(); camada(b, () => { ctx.globalAlpha = e; }); return;
     case 'preto': case 'branco': {
       if (p < 0.5) a(); else b();
-      ctx.save(); ctx.globalAlpha = 1 - Math.abs(1 - 2 * p); ctx.fillStyle = tipo === 'preto' ? '#000' : '#fff'; ctx.fillRect(0, 0, w, h); ctx.restore();
+      ctx.save(); ctx.globalAlpha = 1 - Math.abs(1 - 2 * p); ctx.fillStyle = tipo === 'preto' ? '#000' : fx.clarao; ctx.fillRect(0, 0, w, h); ctx.restore();
       return;
     }
     case 'deslizar-esquerda': camada(a, () => ctx.translate(-e * w, 0)); camada(b, () => ctx.translate((1 - e) * w, 0)); return;
@@ -76,20 +82,22 @@ export function desenharTransicao(ctx: CanvasRenderingContext2D, tipo: TipoDeTra
     // F-290: efeitos de troca de cena (estilo CapCut)
     case 'flash': {
       if (p < 0.5) a(); else b();
-      ctx.save(); ctx.globalAlpha = Math.pow(1 - Math.abs(1 - 2 * p), 0.6); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.restore();
+      ctx.save(); ctx.globalAlpha = Math.pow(1 - Math.abs(1 - 2 * p), 0.6); ctx.fillStyle = fx.clarao; ctx.fillRect(0, 0, w, h); ctx.restore();
       return;
     }
     case 'luz': {
       a(); camada(b, () => { ctx.globalAlpha = e; });
       const x = -w * 0.6 + e * w * 2.2;
       const g = ctx.createLinearGradient(x - w * 0.5, 0, x + w * 0.5, h * 0.3);
-      g.addColorStop(0, 'rgba(255,214,140,0)'); g.addColorStop(0.5, 'rgba(255,236,190,0.85)'); g.addColorStop(1, 'rgba(255,214,140,0)');
+      g.addColorStop(0, `${fx.luz}00`); g.addColorStop(0.5, `${fx.luz}d9`); g.addColorStop(1, `${fx.luz}00`);
       ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 1 - Math.abs(1 - 2 * p) * 0.4; ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); ctx.restore();
       return;
     }
     case 'brilho':
       camada(a, () => { ctx.globalAlpha = 1 - e; ctx.filter = `brightness(${1 + 2 * e})`; });
       camada(b, () => { ctx.globalAlpha = e; ctx.filter = `brightness(${3 - 2 * e})`; });
+      // o brilho ganha a cor da arte no meio da troca
+      ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.55 * (1 - Math.abs(1 - 2 * p)); ctx.fillStyle = fx.forte; ctx.fillRect(0, 0, w, h); ctx.restore();
       return;
     case 'girar-tudo':
       if (p < 0.5) camada(a, () => { const q = p * 2; ctx.globalAlpha = 1 - q; ctx.translate(w / 2, h / 2); ctx.rotate(q * Math.PI); ctx.scale(1 - 0.6 * q, 1 - 0.6 * q); ctx.translate(-w / 2, -h / 2); });

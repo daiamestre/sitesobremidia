@@ -22,7 +22,7 @@ import { documentoParaVideo, formatoDeVideo, type VideoGravado } from '@/lib/stu
 import type { PastaDaGaleria } from '@/lib/galeria';
 import { CHAVE_ARTE_PARA_VIDEO, novoClipe, projetoVazio } from '@/lib/studio/video/linha';
 import { EditorDeVideo } from './VideoEditorPage';
-import { lerArtePronta } from '@/lib/studio/artePronta';
+import { BASE_DA_ARTE_PRONTA, ehArtePronta, idDaArtePronta, lerArtePronta } from '@/lib/studio/artePronta';
 import { PainelDaLogo } from '@/components/studio/editor/PainelDaLogo';
 import { ehCamadaDaLogo } from '@/lib/studio/logoEditavel';
 import { EscolherLogo } from '@/components/studio/PastaDeLogos';
@@ -70,7 +70,8 @@ export default function EditorPage() {
   const projeto = useQuery({ queryKey: ['studio-projeto', projetoId], queryFn: () => obterProjeto(projetoId!), enabled: !!projetoId });
   const catalogo = useCatalogo();
   const idBase = projeto.data?.modelo_id ?? modeloId ?? '';
-  const base = useMemo<ModeloDeArte | null>(() => catalogo.todos.find((m) => m.id === idBase) ?? acharModelo(idBase) ?? modeloPorId(idBase), [idBase, catalogo.todos]);
+  // F-296: projeto de arte pronta (encarte oficial) abre na casca do editor, mas a identidade dele é a do encarte
+  const base = useMemo<ModeloDeArte | null>(() => catalogo.todos.find((m) => m.id === idBase) ?? acharModelo(idBase) ?? modeloPorId(idBase) ?? (ehArtePronta(idBase) ? modeloPorId(BASE_DA_ARTE_PRONTA) ?? null : null), [idBase, catalogo.todos]);
 
   const [docs, setDocs] = useState<Docs | null>(null);
   const [formato, setFormato] = useState<FormatoArte>('16:9');
@@ -93,7 +94,7 @@ export default function EditorPage() {
   const [videoPronto, setVideoPronto] = useState<{ v: VideoGravado; url: string; formato: FormatoDoc } | null>(null);
   const [novoModelo, setNovoModelo] = useState<{ nome: string; segmento: SegmentoId; pasta: string } | null>(null);
   // F-240: arte pronta (encarte oficial): só os formatos dela, a pasta da galeria dela e a arte original para "voltar"
-  const [pronta, setPronta] = useState<{ formatos: FormatoArte[]; pasta?: PastaDaGaleria; voltar?: string; originais: Docs } | null>(null);
+  const [pronta, setPronta] = useState<{ id?: string; formatos: FormatoArte[]; pasta?: PastaDaGaleria; voltar?: string; originais: Docs } | null>(null);
   const formatosDaArte: FormatoArte[] = pronta?.formatos ?? TODOS_OS_FORMATOS;
   // F-246: ao publicar, cada tela recebe a arte dela; os outros tamanhos saem no botão PNG
   const formatosDeTela = formatosDaArte.filter(ehFormatoDeTela);
@@ -111,14 +112,14 @@ export default function EditorPage() {
     if (arte) {
       setDocs(arte.docs);
       setFormato(arte.formato);
-      setPronta({ formatos: Object.keys(arte.docs) as FormatoArte[], pasta: arte.pasta, voltar: arte.voltar, originais: arte.docs });
+      setPronta({ id: arte.id, formatos: Object.keys(arte.docs) as FormatoArte[], pasta: arte.pasta, voltar: arte.voltar, originais: arte.docs });
       setNome(arte.nome);
       return;
     }
     const dados = (projeto.data?.dados ?? {}) as Partial<DadosV2> & Partial<ModeloDeArte>;
     const pedido = (params.get('formato') as FormatoArte | null) ?? null;
     if (dados.versao === 2 && dados.documentos) {
-      if (dados.formatos?.length) setPronta({ formatos: dados.formatos, pasta: dados.pasta, voltar: dados.voltar, originais: clonar(dados.documentos) });
+      if (dados.formatos?.length) setPronta({ id: projeto.data?.modelo_id?.replace(/^arte:/, ''), formatos: dados.formatos, pasta: dados.pasta, voltar: dados.voltar, originais: clonar(dados.documentos) });
       setDocs(clonar(dados.documentos));
       setFormato(pedido ?? dados.formato ?? (base.formato as FormatoDoc));
     } else {
@@ -258,7 +259,7 @@ export default function EditorPage() {
   const dados = (): DadosV2 => ({ versao: 2, documentos: docs, formato, ...(pronta ? { formatos: pronta.formatos, pasta: pronta.pasta, voltar: pronta.voltar } : {}) });
 
   const gravar = async () => {
-    const id = await salvarProjeto({ id: idProjeto, modeloId: base.id, nome: nome.trim() || base.nome, formato: telaDoFormato(formato), dados: dados() as unknown as Record<string, unknown>, miniatura: null });
+    const id = await salvarProjeto({ id: idProjeto, modeloId: pronta ? idDaArtePronta(pronta.id) : base.id, nome: nome.trim() || base.nome, formato: telaDoFormato(formato), dados: dados() as unknown as Record<string, unknown>, miniatura: null });
     setIdProjeto(id);
     void qc.invalidateQueries({ queryKey: ['studio-projetos'] });
     return id;
@@ -338,7 +339,8 @@ export default function EditorPage() {
     const foto = doc.camadas.find((c) => c.tipo === 'imagem');
     await salvarModelo(id, {
       ...base, id, nome: novoModelo.nome.trim(), segmento: novoModelo.segmento, formato: telaDoFormato(formato), edicao: ['rapida'], criadoEm: new Date().toISOString().slice(0, 10),
-      etiquetas: [...new Set([...(base.etiquetas ?? []), 'novo'])], foto: foto?.tipo === 'imagem' ? foto.src : base.foto, documentos: ambos,
+      // F-296: modelo criado de uma arte pronta não herda etiquetas nem foto da casca (o modelo "Ofertas da Semana")
+      etiquetas: pronta ? ['novo'] : [...new Set([...(base.etiquetas ?? []), 'novo'])], foto: foto?.tipo === 'imagem' ? foto.src : base.foto, documentos: ambos,
       pasta: novoModelo.pasta || undefined,
     });
     void qc.invalidateQueries({ queryKey: ['studio-modelos'] });

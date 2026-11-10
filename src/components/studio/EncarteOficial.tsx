@@ -21,11 +21,13 @@ import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { CHAVE_ARTE_PARA_VIDEO } from '@/lib/studio/video/linha';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
+// F-296 (pedido do dono): cada encarte é dono de si — a logo, o telefone e o endereço ficam guardados POR ENCARTE
 const CHAVE_DADOS = 'studio-encarte-oficial-dados';
+const chaveDosDados = (id: string) => `${CHAVE_DADOS}-${id}`;
 const campo = 'h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-sm text-white placeholder:text-slate-500 focus:border-[#B04DFF] focus:outline-none';
 
-function lerDados(): DadosDoEncarte {
-  try { return JSON.parse(localStorage.getItem(CHAVE_DADOS) ?? '{}') as DadosDoEncarte; } catch { return {}; }
+function lerDados(id: string): DadosDoEncarte {
+  try { return JSON.parse(localStorage.getItem(chaveDosDados(id)) ?? '{}') as DadosDoEncarte; } catch { return {}; }
 }
 
 function carregar(src: string) {
@@ -67,13 +69,13 @@ const animarSeFaltar = (d: Documento) => (temAnimacao(d) ? d : animarTudo(d));
 
 export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: Encarte; produtos: ProdutoTabloide[]; /** F-244: quantos produtos mostrar */ quantos: number; aoGravar: () => void }) {
   const navegar = useNavigate();
-  const [dados, setDados] = useState<DadosDoEncarte>(lerDados);
+  const [dados, setDados] = useState<DadosDoEncarte>(() => lerDados(e.id));
   const arquivo = useRef<HTMLInputElement>(null);
   // F-248: a logo do encarte vem da pasta Logos
   const [logoDoEncarte, setLogoDoEncarte] = useState<LogoDaPasta | null>(() => lerLogoDoEncarte(e.id));
   const [trocandoLogo, setTrocandoLogo] = useState(false);
   const escolherLogo = (l: LogoDaPasta | null) => { gravarLogoDoEncarte(e.id, l); setLogoDoEncarte(l); setTrocandoLogo(false); };
-  useEffect(() => { try { localStorage.setItem(CHAVE_DADOS, JSON.stringify(dados)); } catch { /* logo grande demais para guardar: segue sem lembrar */ } }, [dados]);
+  useEffect(() => { try { localStorage.setItem(chaveDosDados(e.id), JSON.stringify(dados)); } catch { /* logo grande demais para guardar: segue sem lembrar */ } }, [dados, e.id]);
   // F-240: o mesmo encarte em pé (9:16) e deitado (16:9); o editor recebe os dois
   const formatos = useMemo(() => formatosDoEncarte(e), [e]);
   // F-246: a escolha é por opção (Totem e Story têm a mesma medida)
@@ -100,7 +102,7 @@ export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: En
   const pasta = PASTAS_DE_ENCARTE[e.segmento ?? 'mercado'];
   const editar = () => {
     aoGravar();
-    try { navegar(enderecoDaArtePronta({ docs, formato: doc.formato, nome, pasta, voltar: `/studio/pasta/${pasta.chave}` })); }
+    try { navegar(enderecoDaArtePronta({ id: e.id, docs, formato: doc.formato, nome, pasta, voltar: `/studio/pasta/${pasta.chave}` })); }
     catch { toast.error('Não foi possível abrir o editor (a imagem da logo é grande demais). Use uma logo menor.'); }
   };
   const video = () => {

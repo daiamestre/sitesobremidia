@@ -26,6 +26,8 @@ import { lerLista, lerValor, precoParaTexto, type ProdutoTabloide } from '@/lib/
 import { infoDaPasta } from '@/lib/studio/pastasDoSegmento';
 import { TAMANHO_DOC, camadaNoPonto, type Camada, type CamadaTexto, type Documento, type FormatoDoc } from '@/lib/studio/documento';
 import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
+import { comAlfa, corDoDocumento, coresDosEfeitos } from '@/lib/studio/corDaArte';
+import { GaleriaDeModelos } from './GaleriaDeModelos';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
@@ -49,16 +51,25 @@ const TROCA: Record<string, { entra: [string, string]; sai: [string, string]; lu
   'deslizar-cima': { entra: ['transform:translateY(100%)', 'transform:none'], sai: ['transform:none', 'transform:translateY(-100%)'] },
   zoom: { entra: ['transform:scale(.6);opacity:0', 'transform:none;opacity:1'], sai: ['transform:none;opacity:1', 'transform:scale(1.4);opacity:0'] },
   dissolver: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'] },
+  // F-296: o flash, a luz e o brilho saem na COR DA ARTE (`luzDaTroca`), nunca branco fixo
   preto: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'], luz: '#000' },
-  flash: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'], luz: '#fff' },
-  luz: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'], luz: 'linear-gradient(115deg,rgba(255,214,140,0) 20%,rgba(255,240,200,.95) 50%,rgba(255,214,140,0) 80%)' },
-  brilho: { entra: ['opacity:0;filter:brightness(3)', 'opacity:1;filter:brightness(1)'], sai: ['opacity:1;filter:brightness(1)', 'opacity:0;filter:brightness(3)'] },
+  flash: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'], luz: 'cor' },
+  luz: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'], luz: 'faixa' },
+  brilho: { entra: ['opacity:0;filter:brightness(3)', 'opacity:1;filter:brightness(1)'], sai: ['opacity:1;filter:brightness(1)', 'opacity:0;filter:brightness(3)'], luz: 'brilho' },
   'girar-tudo': { entra: ['transform:rotate(-180deg) scale(.4);opacity:0', 'transform:none;opacity:1'], sai: ['transform:none;opacity:1', 'transform:rotate(180deg) scale(.4);opacity:0'] },
   desfocar: { entra: ['opacity:0;filter:blur(18px)', 'opacity:1;filter:blur(0)'], sai: ['opacity:1;filter:blur(0)', 'opacity:0;filter:blur(18px)'] },
   circulo: { entra: ['clip-path:circle(0% at 50% 50%)', 'clip-path:circle(75% at 50% 50%)'], sai: ['opacity:1', 'opacity:1'] },
   cortina: { entra: ['clip-path:inset(0 100% 0 0)', 'clip-path:inset(0 0 0 0)'], sai: ['opacity:1', 'opacity:1'] },
 };
 const nomeDaTroca = (t: string) => t.replace(/[^a-z]/g, '');
+/** F-296: a luz da troca na cor da arte (clarão tingido, faixa de luz e brilho colorido) */
+function luzDaTroca(tipo: string, cor: string): string {
+  const fx = coresDosEfeitos(cor);
+  if (tipo === 'cor') return fx.clarao;
+  if (tipo === 'faixa') return `linear-gradient(115deg,${comAlfa(fx.luz, 0)} 20%,${comAlfa(fx.luz, 0.95)} 50%,${comAlfa(fx.luz, 0)} 80%)`;
+  if (tipo === 'brilho') return comAlfa(fx.forte, 0.55);
+  return tipo;
+}
 function estiloDaTroca(t: TipoDeTransicao | undefined, lado: 'entra' | 'sai'): React.CSSProperties {
   const tipo = TROCA[t ?? ''] ? t! : 'deslizar-esquerda';
   return { animation: `palco-${lado}-${nomeDaTroca(tipo)} .6s cubic-bezier(.25,.8,.25,1) both`, willChange: 'transform, opacity, filter' };
@@ -97,7 +108,7 @@ export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo =
       )}
       {docs[i] && <div key={`entra-${vez.n}`} className="absolute inset-0" style={vez.n ? estiloDaTroca(troca, 'entra') : undefined}><PreviaDocumento doc={docs[i]} animar sempre className="h-full w-full" /></div>}
       {/* F-290: flash, luz e escurecer passam por cima da troca */}
-      {vez.anterior != null && TROCA[troca]?.luz && <div key={`luz-${vez.n}`} className="pointer-events-none absolute inset-0" style={{ background: TROCA[troca].luz, animation: `${troca === 'luz' ? 'palco-luz-passa' : 'palco-luz'} .6s ease-out both` }} />}
+      {vez.anterior != null && TROCA[troca]?.luz && <div key={`luz-${vez.n}`} className="pointer-events-none absolute inset-0" style={{ background: luzDaTroca(TROCA[troca].luz!, corDoDocumento(docs[vez.anterior] ?? docs[i])), mixBlendMode: troca === 'brilho' ? 'screen' : undefined, animation: `${troca === 'luz' ? 'palco-luz-passa' : 'palco-luz'} .6s ease-out both` }} />}
     </div>
   );
 }
@@ -123,7 +134,9 @@ function Cartao({ titulo, icone: Icone, children, acao }: { titulo: string; icon
 }
 const campoCss = 'h-10 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-sm text-white focus:border-[#B04DFF] focus:outline-none';
 
-function lerOpcoes(chave: string): { fundoId?: string; textoBotao?: string; movimento?: MovimentoDoPalco; formato?: FormatoDoc; ajustes?: AjustesDoPalco } {
+/** F-296: o que o cliente editou em UM palco (botão, movimento, elementos): fica só nele */
+interface OpcoesDoFundo { textoBotao?: string; movimento?: MovimentoDoPalco; ajustes?: AjustesDoPalco }
+function lerOpcoes(chave: string): { fundoId?: string; formato?: FormatoDoc; porFundo?: Record<string, OpcoesDoFundo> } & OpcoesDoFundo {
   try { return JSON.parse(localStorage.getItem(chave) ?? '{}'); } catch { return {}; }
 }
 
@@ -165,12 +178,22 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const [formato, setFormato] = useState<FormatoDoc>(salvas.formato ?? '9:16');
   const [titulo, setTitulo] = useState('SUPER OFERTAS');
   // F-237: fundo OFICIAL do dono (o padrão) e o texto do botão no lugar do "YOUR LOGO"
-  const [fundoId, setFundoId] = useState<string>(salvas.fundoId ?? fundos[0].id);
+  const [fundoId, setFundoId] = useState<string>(() => (salvas.fundoId != null && (salvas.fundoId === '' || fundos.some((f) => f.id === salvas.fundoId)) ? salvas.fundoId : fundos[0].id));
   const fundo = fundos.find((f) => f.id === fundoId) ?? null;
-  const [textoBotao, setTextoBotao] = useState(salvas.textoBotao ?? fundos[0].botoes[0]);
-  const [movimento, setMovimento] = useState<MovimentoDoPalco>(salvas.movimento ?? {});
-  // F-249: o que o cliente editou nos elementos fica guardado e vale para todos os produtos
-  const [ajustes, setAjustes] = useState<AjustesDoPalco>(salvas.ajustes ?? {});
+  // F-296 (pedido do dono): cada palco é ÚNICO — o botão, os movimentos e os ajustes ficam guardados POR FUNDO; trocar de
+  // fundo nunca leva junto o que foi feito em outro (os salvos antigos, de um fundo só, continuam valendo para aquele fundo)
+  const porFundo = useRef<Record<string, OpcoesDoFundo>>(salvas.porFundo ?? (salvas.fundoId != null ? { [salvas.fundoId]: { textoBotao: salvas.textoBotao, movimento: salvas.movimento, ajustes: salvas.ajustes } } : {}));
+  const doFundo = (id: string): OpcoesDoFundo => porFundo.current[id] ?? {};
+  const botaoPadrao = (id: string) => fundos.find((f) => f.id === id)?.botoes[0] ?? fundos[0].botoes[0];
+  const [textoBotao, setTextoBotao] = useState(() => doFundo(fundoId).textoBotao ?? botaoPadrao(fundoId));
+  const [movimento, setMovimento] = useState<MovimentoDoPalco>(() => doFundo(fundoId).movimento ?? {});
+  // F-249: o que o cliente editou nos elementos fica guardado e vale para todos os produtos (deste palco)
+  const [ajustes, setAjustes] = useState<AjustesDoPalco>(() => doFundo(fundoId).ajustes ?? {});
+  const trocarFundo = (id: string) => {
+    porFundo.current[fundoId] = { textoBotao, movimento, ajustes };
+    const o = doFundo(id);
+    setFundoId(id); setTextoBotao(o.textoBotao ?? botaoPadrao(id)); setMovimento(o.movimento ?? {}); setAjustes(o.ajustes ?? {});
+  };
   // F-286: a logo do cliente no círculo da logo 3D do segmento (vale em pé e deitado)
   const [trocandoCirculo, setTrocandoCirculo] = useState(false);
   const [galeriaAberta, setGaleriaAberta] = useState(false);
@@ -186,7 +209,10 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     });
     setTrocandoCirculo(false);
   };
-  useEffect(() => { try { localStorage.setItem(chaveOpcoes, JSON.stringify({ fundoId, textoBotao, movimento, formato, ajustes })); } catch { /* sem armazenamento */ } }, [chaveOpcoes, fundoId, textoBotao, movimento, formato, ajustes]);
+  useEffect(() => {
+    porFundo.current[fundoId] = { textoBotao, movimento, ajustes };
+    try { localStorage.setItem(chaveOpcoes, JSON.stringify({ fundoId, formato, porFundo: porFundo.current })); } catch { /* sem armazenamento */ }
+  }, [chaveOpcoes, fundoId, textoBotao, movimento, formato, ajustes]);
 
   // F-244: só os produtos escolhidos passam no palco
   const comPreco = useMemo(() => s.produtos.filter((p) => p.preco != null).slice(0, s.quantos), [s.produtos, s.quantos]);
@@ -346,6 +372,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
         </div>
       </div>
 
+      {/* F-296 (pedido do dono): GALERIA DE MODELOS de palco do segmento — cada modelo guarda o que foi editado nele */}
+      {fundos.length > 1 && <GaleriaDeModelos titulo="Modelos de palco" itens={fundos.map((f) => ({ id: f.id, nome: f.nome.replace(/^Ofertas – /, ''), capa: srcDoFundo(f, formato) }))} selecionado={fundoId} aoEscolher={trocarFundo} deitado={formato === '16:9'} />}
       {/* F-286: a tela à esquerda (fixa à vista) e os botões de edição na LATERAL DIREITA, também no tablet em pé */}
       <div className="grid gap-3 min-[540px]:grid-cols-[minmax(0,1fr)_minmax(250px,330px)] lg:grid-cols-[minmax(0,1fr)_380px]" data-testid="palco-layout">
         {/* A TELA + a fila de produtos */}
@@ -469,13 +497,13 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
           <Cartao titulo="Fundo e botão" icone={Palette}>
             <div className="flex gap-2 overflow-x-auto" role="radiogroup" aria-label="Fundo do palco">
               {fundos.map((f) => (
-                <button key={f.id} type="button" role="radio" aria-checked={fundoId === f.id} onClick={() => { setFundoId(f.id); setTextoBotao(f.botoes[0]); }} data-testid="palco-fundo"
+                <button key={f.id} type="button" role="radio" aria-checked={fundoId === f.id} onClick={() => trocarFundo(f.id)} data-testid="palco-fundo"
                   className={cn('w-24 shrink-0 overflow-hidden rounded-lg border-2 text-left', fundoId === f.id ? 'border-[#FFD400]' : 'border-white/10')}>
                   <img src={srcDoFundo(f, '16:9')} alt="" className="aspect-video w-full object-cover" />
                   <span className="block truncate px-1 py-0.5 text-[10px] text-slate-200">{f.nome}</span>
                 </button>
               ))}
-              {segmento === 'mercado' && <button type="button" role="radio" aria-checked={!fundo} onClick={() => setFundoId('')} className={cn('flex w-24 shrink-0 items-center justify-center rounded-lg border-2 px-1 text-center text-[10px] text-slate-300', !fundo ? 'border-[#FFD400]' : 'border-white/10')}>Palco desenhado (com título)</button>}
+              {segmento === 'mercado' && <button type="button" role="radio" aria-checked={!fundo} onClick={() => trocarFundo('')} className={cn('flex w-24 shrink-0 items-center justify-center rounded-lg border-2 px-1 text-center text-[10px] text-slate-300', !fundo ? 'border-[#FFD400]' : 'border-white/10')}>Palco desenhado (com título)</button>}
             </div>
             {/* F-288: cor do fundo do palco (gira o tom da arte) */}
             {fundo && docEd?.camadas.some((c) => c.nome === 'Fundo oficial') && (

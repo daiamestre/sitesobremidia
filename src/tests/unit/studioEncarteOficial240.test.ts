@@ -51,10 +51,12 @@ describe.each(ENCARTES_OFICIAIS)('encarte oficial $id', (e) => {
         const placas = d.camadas.filter((c) => c.nome.startsWith('Placa '));
         expect(placas, `${f} ${n}`).toHaveLength(n);
         for (const p of placas) {
-          const col = l.colunas.find((c) => p.x >= c.x - 0.5 && p.x + p.w <= c.x + c.w + 0.5);
+          // F-296: a área é achada pela posição inteira (os modelos complementares têm áreas empilhadas ou em três partes)
+          const col = l.colunas.find((c) => p.x >= c.x - 0.5 && p.x + p.w <= c.x + c.w + 0.5 && p.y >= c.y - 0.5 && p.y + p.h <= c.y + c.h + 0.5);
           expect(col, `${f} ${n} ${p.nome}`).toBeTruthy();
-          expect(p.y).toBeGreaterThanOrEqual(col!.y - 0.5);
-          expect(p.y + p.h).toBeLessThanOrEqual(l.rodape.y);
+          // nunca entra no rodapé (embaixo ou ao lado, como no deitado da vitrine da farmácia)
+          const r = l.rodape;
+          expect(p.x + p.w <= r.x || p.x >= r.x + r.w || p.y + p.h <= r.y || p.y >= r.y + r.h, `${f} ${n} ${p.nome} no rodapé`).toBe(true);
           // cartão com formato bom (nem tira fina nem coluna estreita)
           expect(p.w / p.h, `${f} ${n} ${p.nome}`).toBeGreaterThan(0.35);
           expect(p.w / p.h, `${f} ${n} ${p.nome}`).toBeLessThan(3);
@@ -107,7 +109,7 @@ describe.each(ENCARTES_OFICIAIS)('encarte oficial $id', (e) => {
 
   it('as telas: cartão na pasta com TV em pé/deitada e o editor abrindo a arte pronta só nos formatos dela', () => {
     expect(fs.readFileSync('src/components/studio/PastaDeEncartes.tsx', 'utf8')).toMatch(/<EncarteOficialCartao /);
-    expect(fs.readFileSync('src/components/studio/EncarteOficial.tsx', 'utf8')).toMatch(/enderecoDaArtePronta\(\{ docs,/);
+    expect(fs.readFileSync('src/components/studio/EncarteOficial.tsx', 'utf8')).toMatch(/enderecoDaArtePronta\(\{ id: e\.id, docs,/);
     const editor = fs.readFileSync('src/pages/studioai/EditorPage.tsx', 'utf8');
     expect(editor).toMatch(/lerArtePronta\(\)/);
     expect(editor).toMatch(/formatos=\{publicando === 'video' \? undefined : formatosDeTela\}/);

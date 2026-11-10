@@ -3,6 +3,7 @@
 // As faixas usadas aqui são as mesmas de ADAPTACOES em src/lib/studio/encartesOficiais.ts.
 // Uso: node scripts/studio/adaptar-encartes.mjs
 import sharp from 'sharp';
+import { COMPOSICOES_DOS_ENCARTES } from '../../src/lib/studio/composicoesDosSegmentos.ts';
 
 const PASTA = 'public/studio/encartes-oficiais';
 const TAMANHOS = { '1x1': [1080, 1080], '4x5': [1080, 1350], a4: [1240, 1754], 'a4-h': [1754, 1240], a3: [1754, 2480] };
@@ -10,9 +11,8 @@ const SOURCES = { v: { w: 1080, h: 1920 }, h: { w: 1920, h: 1080 } };
 const ADAPTACOES = {
   'mega-oferta-bicolor': { a4: ['v', 500, 1690], a3: ['v', 500, 1690], '4x5': ['v', 500, 1690], 'a4-h': ['h', 470, 945], '1x1': ['h', 470, 945] },
   'semana-do-frango': { a4: ['v', 650, 1570], a3: ['v', 650, 1570], '4x5': ['h', 540, 820], 'a4-h': ['h', 540, 820], '1x1': ['h', 540, 820] },
-  'saude-em-oferta': { a4: ['v', 500, 1690], a3: ['v', 500, 1690], '4x5': ['v', 500, 1690], 'a4-h': ['h', 470, 945], '1x1': ['h', 470, 945] },
-  // F-277: os segmentos (scripts/studio/gerar-segmentos.mjs), com as faixas da farmácia
-  ...Object.fromEntries(['padaria', 'adega', 'acougue', 'suplementos', 'hortifruti', 'pet', 'beleza', 'eletronicos', 'moda'].map((s) => [`${s}-em-oferta`, { a4: ['v', 500, 1690], a3: ['v', 500, 1690], '4x5': ['v', 500, 1690], 'a4-h': ['h', 470, 945], '1x1': ['h', 470, 945] }])),
+  // F-296: farmácia e segmentos com a faixa da COMPOSIÇÃO PRÓPRIA de cada um (src/lib/studio/composicoesDosSegmentos.ts)
+  ...Object.fromEntries(Object.values(COMPOSICOES_DOS_ENCARTES).map((c) => [c.id, { a4: ['v', ...c.v.faixa], a3: ['v', ...c.v.faixa], '4x5': ['v', ...c.v.faixa], 'a4-h': ['h', ...c.h.faixa], '1x1': ['h', ...c.h.faixa] }])),
 };
 
 async function adaptar(entrada, saida, base, y1, y2, W, H) {
@@ -27,7 +27,9 @@ async function adaptar(entrada, saida, base, y1, y2, W, H) {
     .webp({ quality: 90 }).toFile(saida);
 }
 
+const so = process.argv.slice(2);
 for (const [id, formatos] of Object.entries(ADAPTACOES)) {
+  if (so.length && !so.includes(id)) continue;
   for (const [f, [fonte, y1, y2]] of Object.entries(formatos)) {
     const [W, H] = TAMANHOS[f];
     for (const fim of ['', '-limpo']) await adaptar(`${PASTA}/${id}-${fonte}-st${fim}.webp`, `${PASTA}/${id}-${f}${fim}.webp`, SOURCES[fonte], y1, y2, W, H);

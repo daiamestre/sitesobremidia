@@ -7,6 +7,7 @@ import { TAMANHO_DOC, type Documento } from '../documento';
 import { desenharCamada, desenharDocumento, prepararDocumento, type Imagens } from '../desenhar';
 import { formatoDeVideo } from '../video';
 import { caixaDaMidia, desenharTransicao, desenharVinheta, filtroDoClipe } from './efeitos';
+import { corDoDocumento } from '../corDaArte';
 import { duracaoDoClipe, duracaoTotal, noTempo, tempoNoArquivo, volumeNoTempo, type Clipe, type ProjetoDeVideo, type Quadro } from './linha';
 
 export interface VideoExportado { video: Blob; mime: string; ext: 'mp4' | 'webm'; largura: number; altura: number; duracaoMs: number; capa: Blob | null; quadros: Blob[] }
@@ -261,7 +262,8 @@ export class MotorDeVideo {
     const q = noTempo(p.clipes, t);
     if (q.atual && q.proximo) {
       const a = q.atual, b = q.proximo;
-      desenharTransicao(ctx, a.clipe.transicao.tipo, q.transicao, W, H, () => this.desenharClipe(a), () => this.desenharClipe(b));
+      // F-296: flash/luz/brilho na cor da arte que está saindo (a do encarte/palco, girada pelo tom); vídeo comum: branco
+      desenharTransicao(ctx, a.clipe.transicao.tipo, q.transicao, W, H, () => this.desenharClipe(a), () => this.desenharClipe(b), a.clipe.documento ? corDoDocumento(a.clipe.documento) : '#ffffff');
     } else if (q.atual) this.desenharClipe(q.atual);
     for (const s of p.sobreposicoes) {
       if (t < s.de || t >= s.ate) continue;

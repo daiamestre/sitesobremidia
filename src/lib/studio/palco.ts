@@ -7,6 +7,8 @@ import { novoClipe, projetoVazio, type ProjetoDeVideo, type TipoDeTransicao } fr
 import type { TipoDeAnimacao } from './animacao';
 import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, logoOficialDoSegmento, type LogoDaPasta } from './logos';
 import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDoPalcoDe, type SegmentoNovo } from './segmentosDeOferta';
+import { COMPOSICOES_DOS_PALCOS, type SeloDoPalco } from './composicoesDosSegmentos';
+import { corDoDocumento, escurecer } from './corDaArte';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel, type SegmentoComLogo } from './logoEditavel';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
@@ -46,7 +48,7 @@ export const TRANSICOES_DO_CARROSSEL: Array<{ id: TipoDeTransicao; nome: string 
  * F-242: o balão de preço de TODO palco — amarelo forte, R$ e valor em BRANCO com contorno vermelho (lê bem no amarelo),
  * "DE x POR" em vermelho na promoção e "POR APENAS" em verde fora dela; tudo centralizado no balão.
  */
-export function seloDoPreco(p: Pick<ProdutoTabloide, 'preco' | 'precoDe' | 'unidade'>, x: number, y: number, d: number): Camada | null {
+export function seloDoPreco(p: Pick<ProdutoTabloide, 'preco' | 'precoDe' | 'unidade'>, x: number, y: number, d: number, /** F-296: cores do balão de CADA palco */ estilo?: SeloDoPalco): Camada | null {
   if (p.preco == null) return null;
   const v = formatarPreco(p.preco);
   const de = p.precoDe != null && p.precoDe > p.preco ? formatarPreco(p.precoDe) : null;
@@ -54,7 +56,7 @@ export function seloDoPreco(p: Pick<ProdutoTabloide, 'preco' | 'precoDe' | 'unid
     ...selo(x, y, d, {
       topo: de ? `DE ${de.inteiro},${de.centavos} POR` : 'POR APENAS', corTopo: de ? '#d90f1f' : '#0a8a3a',
       moeda: 'R$', valor: v.inteiro, sufixo: `,${v.centavos}`, base: p.unidade && p.unidade !== 'UN' ? p.unidade : '',
-      cor: '#FFC400', corTexto: '#b3001b', corValor: '#ffffff', contornoValor: { cor: '#c4001d', largura: 9 }, borda: '#ffffff', realista: true,
+      cor: estilo?.cor ?? '#FFC400', corTexto: estilo?.corTexto ?? '#b3001b', corValor: estilo?.corValor ?? '#ffffff', contornoValor: { cor: estilo?.contorno ?? '#c4001d', largura: 9 }, borda: estilo?.borda ?? '#ffffff', realista: true,
       sombra: { cor: 'rgba(0,0,0,.45)', desfoque: 34, dx: 0, dy: 16 },
     }),
     nome: 'Preço',
@@ -88,6 +90,10 @@ export interface FundoDoPalco {
   segmento?: SegmentoDoStudio;
   /** F-259: aviso obrigatório no rodapé (remédios: Lei 9.294/1996, art. 7º) */
   aviso?: { texto: string; caixa: Record<FormatoDoc, Caixa> };
+  /** F-296: cores do balão de preço DESTE palco (sem elas, o amarelo do Alerta de Oferta) */
+  selo?: SeloDoPalco;
+  /** F-296: a cor do palco (fundo do vídeo e cor do flash/luz/brilho nas trocas) */
+  corTema: string;
 }
 /** F-259: as pastas de encarte e palco do Studio */
 export type SegmentoDoStudio = 'mercado' | 'farmacia' | SegmentoNovo;
@@ -97,6 +103,20 @@ export const srcDoFundo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/pal
 
 /** O fundo sem a logo gravada: só entra quando o cliente troca ou mexe na logo (por padrão fica a arte original do dono). */
 export const srcSemLogo = (f: FundoDoPalco, formato: FormatoDoc) => `/studio/palco/${f.id}-${formato === '9:16' ? 'v' : 'h'}-st.webp`;
+
+/** F-296: o palco COMPLEMENTAR de um segmento, montado da composição dele */
+function palcoDaComposicao(seg: SegmentoComLogo, nome: string, logoPadrao: LogoDaPasta, corBotao: string, botoes: string[], aviso?: string): FundoDoPalco {
+  const c = COMPOSICOES_DOS_PALCOS[seg];
+  return {
+    id: c.id, nome, segmento: seg, logoPadrao, corBotao, bordaBotao: '#ffd21f', botoes, selo: c.selo, corTema: c.corTema,
+    titulo: { '9:16': c.v.titulo, '16:9': c.h.titulo },
+    produto: { '9:16': c.v.produto, '16:9': c.h.produto },
+    nome_: { '9:16': c.v.nome, '16:9': c.h.nome },
+    preco: { '9:16': c.v.preco, '16:9': c.h.preco },
+    botao: { '9:16': c.v.botao, '16:9': c.h.botao },
+    ...(aviso ? { aviso: { texto: aviso, caixa: { '9:16': c.v.aviso ?? { x: 0.04, y: 0.95, w: 0.92, h: 0.04 }, '16:9': c.h.aviso ?? { x: 0.04, y: 0.945, w: 0.92, h: 0.045 } } } } : {}),
+  };
+}
 
 export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
   {
@@ -115,7 +135,7 @@ export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
     // F-240: balão amarelo de tamanho normal, proporcional ao produto; deitado: nome colado à esquerda do produto e balão à direita
     preco: { '9:16': { cx: 0.8, cy: 0.585, d: 0.24 }, '16:9': { cx: 0.66, cy: 0.6, d: 0.2 } },
     botao: { '9:16': { x: 0.272, y: 0.872, w: 0.468, h: 0.072 }, '16:9': { x: 0.366, y: 0.877, w: 0.266, h: 0.1 } },
-    corBotao: '#d90f1f', bordaBotao: '#ffd21f',
+    corBotao: '#d90f1f', bordaBotao: '#ffd21f', corTema: '#c40f24',
     botoes: ['OFERTAS', 'ALERTAS'],
   },
   {
@@ -126,7 +146,7 @@ export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
     nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.19, y: 0.5, w: 0.215, h: 0.2, alinhamento: 'right' } },
     preco: { '9:16': { cx: 0.8, cy: 0.585, d: 0.24 }, '16:9': { cx: 0.66, cy: 0.6, d: 0.2 } },
     botao: { '9:16': { x: 0.272, y: 0.862, w: 0.456, h: 0.068 }, '16:9': { x: 0.366, y: 0.84, w: 0.268, h: 0.09 } },
-    corBotao: '#0a9a50', bordaBotao: '#ffd21f',
+    corBotao: '#0a9a50', bordaBotao: '#ffd21f', corTema: '#0a9a50',
     botoes: ['FARMÁCIA', 'OFERTAS', 'SAÚDE'],
     aviso: { texto: AVISO_DE_REMEDIO, caixa: { '9:16': { x: 0.04, y: 0.95, w: 0.92, h: 0.04 }, '16:9': { x: 0.04, y: 0.945, w: 0.92, h: 0.045 } } },
   },
@@ -138,10 +158,13 @@ export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
     nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.19, y: 0.5, w: 0.215, h: 0.2, alinhamento: 'right' } },
     preco: { '9:16': { cx: 0.8, cy: 0.585, d: 0.24 }, '16:9': { cx: 0.66, cy: 0.6, d: 0.2 } },
     botao: { '9:16': { x: 0.272, y: 0.862, w: 0.456, h: 0.068 }, '16:9': { x: 0.366, y: 0.84, w: 0.268, h: 0.09 } },
-    corBotao: sg.corBotao, bordaBotao: '#ffd21f',
+    corBotao: sg.corBotao, bordaBotao: '#ffd21f', corTema: sg.corBotao,
     botoes: sg.botoes,
     ...(sg.aviso ? { aviso: { texto: sg.aviso, caixa: { '9:16': { x: 0.04, y: 0.95, w: 0.92, h: 0.04 }, '16:9': { x: 0.04, y: 0.945, w: 0.92, h: 0.045 } } } } : {}),
   })),
+  // F-296 (pedido do dono): PALCOS COMPLEMENTARES — mais um palco por segmento, com cenário e pedestal próprios (os de cima ficam como eram)
+  palcoDaComposicao('farmacia', 'Ofertas de Farmácia (vitrine)', LOGO_OFERTAS_DE_FARMACIA, '#0a9a50', ['FARMÁCIA', 'OFERTAS', 'SAÚDE'], AVISO_DE_REMEDIO),
+  ...SEGMENTOS_DE_OFERTA.map((sg) => palcoDaComposicao(sg.id, `Ofertas – ${sg.nome} (modelo 2)`, logoOficialDoSegmento(sg.id), sg.corBotao, sg.botoes, sg.aviso)),
 ];
 /** F-259: os fundos de uma pasta (mercado ou farmácia) */
 export const fundosDoSegmento = (s: SegmentoDoStudio) => FUNDOS_DO_PALCO.filter((f) => (f.segmento ?? 'mercado') === s);
@@ -181,7 +204,17 @@ export const ESTILOS_DE_BALAO = {
   'placa-vermelha': ETIQUETA_VERMELHA, // Mega Oferta, lado azul
   'placa-amarela': ETIQUETA_AMARELA, // Mega Oferta, lado vermelho
   'oval-vermelho': BALAO_OVAL_VERMELHO, // Semana do Frango
-} as const;
+  // F-296: cada encarte de segmento com o SEU balão (composicoesDosSegmentos.ts)
+  'placa-verde': { de: '#2fd17f', para: '#0a7a3e', borda: '#ffffff', valor: '#ffffff', moeda: '#ffe45c', detalhe: '#d9ffe9' }, // farmácia
+  'placa-caramelo': { de: '#f6c56a', para: '#c97a1e', borda: '#fff3d6', valor: '#5a2c06', moeda: '#7a3e0b', detalhe: '#5a2c06' }, // padaria
+  'placa-dourada': { de: '#fff0b0', para: '#c9962e', borda: '#5a0820', valor: '#5a0820', moeda: '#7a0a2a', detalhe: '#3a0414' }, // adega
+  'oval-laranja': { formato: 'oval', de: '#ff9233', para: '#d14a00', borda: '#111111', aroFora: '#ffffff', valor: '#ffffff', moeda: '#111111', detalhe: '#fff1e0' }, // suplementos
+  'oval-verde': { formato: 'oval', de: '#55c94a', para: '#1f7a1b', borda: '#ffd21f', aroFora: '#ffffff', valor: '#ffffff', moeda: '#ffd21f', detalhe: '#eaffd9' }, // hortifrúti
+  'oval-roxo': { formato: 'oval', de: '#9255f2', para: '#4a17a8', borda: '#2cc6e6', aroFora: '#ffffff', valor: '#ffffff', moeda: '#7fe6f8', detalhe: '#efe6ff' }, // pet
+  'placa-rosa': { de: '#ff63a6', para: '#c0155f', borda: '#e8c068', valor: '#ffffff', moeda: '#ffe1ef', detalhe: '#fff0f6' }, // beleza
+  'placa-neon': { de: '#36c8ff', para: '#1450d4', borda: '#9ae6ff', valor: '#ffffff', moeda: '#e6fbff', detalhe: '#cdf3ff' }, // eletrônicos
+  'oval-preto': { formato: 'oval', de: '#2a2a2a', para: '#000000', borda: '#e3245a', aroFora: '#ffffff', valor: '#ffffff', moeda: '#ff5a82', detalhe: '#ffd1de' }, // moda
+} as const satisfies Record<string, CoresDaEtiqueta>;
 
 /**
  * Balão de preço retangular ou oval (estilos em ESTILOS_DE_BALAO): placa vermelha com borda amarela; "R$" pequeno, o valor grande e os centavos em cima,
@@ -232,14 +265,15 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   // F-239: balão AMARELO realista na lateral, pulsando — "POR"/"DE" em cima, R$ + valor + centavos no centro, unidade embaixo
   const s = f.preco[formato];
   const d = s.d * Math.min(W, H);
-  const balao = seloDoPreco(p, s.cx * W - d / 2, s.cy * H - d / 2, d);
+  const balao = seloDoPreco(p, s.cx * W - d / 2, s.cy * H - d / 2, d, f.selo);
   if (balao) c.push({ ...balao, animacao: ani(mov.preco ?? 'zoom', 0.9, 0.55, 'pulsar') });
   // F-249: botão de um objeto só no lugar do "YOUR LOGO": cobre desde o 1º quadro (sem entrada), pulsa e o texto é centralizado
   const bb = px(f.botao[formato]);
   const tamanhoBotao = Math.round(bb.h * 0.62);
   c.push({ ...texto('Botão', (o.textoBotao ?? f.botoes[0]).toUpperCase(), bb.x, bb.y, bb.w, { fonte: 'anton', tamanho: tamanhoBotao, maiusculas: true, alinhamento: 'center', cor: '#ffffff', entrelinha: 1, fundo: { cor: f.corBotao, raio: Math.round(bb.h * 0.32), margem: (bb.h - tamanhoBotao) / 1.1, cheio: true, borda: { cor: f.bordaBotao, largura: Math.max(6, Math.round(bb.h * 0.08)) } } }), animacao: ani('pulsar', 0, 1) });
   if (f.aviso) c.push({ ...avisoLegal(f.aviso.texto, px(f.aviso.caixa[formato])), animacao: ani('surgir', 0.2, 0.5) });
-  return { versao: 2, formato, fundo: '#c40f24', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } };
+  // F-296: o fundo do documento é a cor DESTE palco (antes, o vermelho do Alerta de Oferta em todos)
+  return { versao: 2, formato, fundo: f.corTema, corTema: f.corTema, camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } };
 }
 /** F-242: regra do dono — cada produto fica 8 s no palco */
 export const SEGUNDOS_POR_PRODUTO = 8;
@@ -347,7 +381,8 @@ export function projetoDoCarrossel(produtos: Array<Pick<ProdutoTabloide, 'nome' 
   const seg = o.segundos ?? SEGUNDOS_POR_PRODUTO;
   return {
     ...projetoVazio(formato),
-    fundo: '#3a0209',
+    // F-296: o fundo do vídeo (o que aparece por trás das trocas) é a cor DESTE palco, girada pelo tom escolhido — nunca o do mercado
+    fundo: produtos[0] ? escurecer(corDoDocumento(palcoDoProduto(produtos[0], formato, o)), 0.45) : '#000000',
     clipes: produtos.map((p) => novoClipe('arte', '', p.nome, {
       documento: palcoDoProduto(p, formato, { ...o, segundos: seg }), duracao: seg, zoomDe: 1, zoomPara: 1,
       transicao: { tipo: transicaoDoProduto(o.movimento, p.nome), duracao: 0.5 },

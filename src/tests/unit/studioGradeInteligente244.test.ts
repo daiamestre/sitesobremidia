@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import { MAX_DE_PRODUTOS, QUANTIDADES, QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
-import { ENCARTES_OFICIAIS, documentoDoEncarteOficial, layoutDoEncarte } from '@/lib/studio/encartesOficiais';
+import { ENCARTES_OFICIAIS, documentoDoEncarteOficial, ehModeloComplementar, layoutDoEncarte } from '@/lib/studio/encartesOficiais';
 import { CESTA_PADRAO, ENCARTES, ENCARTE_FORMATO, arranjoDoEncarte, encarteComQuantidade } from '@/lib/tabloide/encartes';
 import { montarPaginas } from '@/lib/tabloide/grade';
 import { formatoPorId } from '@/lib/tabloide/temas';
@@ -53,7 +53,7 @@ describe.each(ENCARTES_OFICIAIS)('grade do encarte oficial $id', (e) => {
         const placas = d.camadas.filter((c) => c.nome.startsWith('Placa '));
         expect(placas, `${f} ${q}`).toHaveLength(q);
         l.colunas.forEach((col, k) => {
-          const daArea = placas.filter((p) => p.x >= col.x - 1 && p.x + p.w <= col.x + col.w + 1);
+          const daArea = placas.filter((p) => p.x >= col.x - 1 && p.x + p.w <= col.x + col.w + 1 && p.y >= col.y - 1 && p.y + p.h <= col.y + col.h + 1);
           expect(new Set(fileiras(daArea)).size, `${f} ${q} área ${k}`).toBeLessThanOrEqual(1);
           if (daArea.length) {
             // a grade preenche a área inteira, de cima a baixo
@@ -64,7 +64,8 @@ describe.each(ENCARTES_OFICIAIS)('grade do encarte oficial $id', (e) => {
       }
     }
   });
-  it('16 produtos em pé: 4 na horizontal e 4 na vertical', () => {
+  // os dois lados lado a lado dos modelos de antes (os complementares do F-296 têm a sua própria divisão)
+  it.skipIf(ehModeloComplementar(e))('16 produtos em pé: 4 na horizontal e 4 na vertical', () => {
     const l = layoutDoEncarte(e, '9:16');
     const plano = planejarAreas(l.colunas, 16, l.cartao);
     expect(plano.reduce((t, g) => t + g.cols, 0)).toBe(4);

@@ -7,7 +7,10 @@ import type { PastaDaGaleria } from '@/lib/galeria';
 export const CHAVE_ARTE_PRONTA = 'studio-arte-pronta';
 /** modelo de supermercado usado só como "casca" do editor (a arte pronta substitui o desenho dele) */
 export const BASE_DA_ARTE_PRONTA = 'ofertas-da-semana';
-export interface ArtePronta { docs: Partial<Record<FormatoArte, Documento>>; formato: FormatoArte; nome: string; pasta: PastaDaGaleria; voltar: string }
+export interface ArtePronta { /** F-296: o encarte de onde a arte saiu (o projeto salvo fica com a identidade dele) */ id?: string; docs: Partial<Record<FormatoArte, Documento>>; formato: FormatoArte; nome: string; pasta: PastaDaGaleria; voltar: string }
+/** F-296: id gravado no projeto de uma arte pronta (`arte:<id do encarte>`); a casca do editor nunca vira a identidade dele */
+export const idDaArtePronta = (id?: string | null) => `arte:${id || 'encarte'}`;
+export const ehArtePronta = (modeloId?: string | null) => !!modeloId && modeloId.startsWith('arte:');
 
 /** Guarda a arte e devolve o endereço do editor. */
 export function enderecoDaArtePronta(a: ArtePronta): string {

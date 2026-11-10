@@ -90,7 +90,7 @@ export const REDES_SOCIAIS: { rede: RedeSocial; nome: string }[] = [
 export type Camada = CamadaTexto | CamadaForma | CamadaImagem | CamadaSelo | CamadaItens | CamadaVaga | CamadaRedes;
 export type TipoDeCamada = Camada['tipo'];
 
-export interface Documento { versao: 2; formato: FormatoArte; fundo: string; camadas: Camada[]; /** F-225: duração do vídeo (s) quando há animação */ video?: { duracao: number } | null }
+export interface Documento { versao: 2; formato: FormatoArte; fundo: string; /** F-296: a cor da arte (encarte/palco): flash, luz e brilho das trocas saem nela, girada pelo tom escolhido */ corTema?: string; camadas: Camada[]; /** F-225: duração do vídeo (s) quando há animação */ video?: { duracao: number } | null }
 
 // ───────────────────────────────────────────────────────────── medida de texto (canvas; reserva por estimativa)
 let ctxMedida: CanvasRenderingContext2D | null | undefined;

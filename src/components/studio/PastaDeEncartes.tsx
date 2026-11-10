@@ -4,7 +4,7 @@
  * automáticas. À direita, os 12 encartes já mostram os produtos da pessoa, ao vivo. "Editar encarte" abre o editor
  * completo do Cartaz Digital com esses produtos.
  */
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, FolderOpen, PenLine } from 'lucide-react';
 import { ENCARTES } from '@/lib/tabloide/encartes';
@@ -12,7 +12,9 @@ import { infoDaPasta } from '@/lib/studio/pastasDoSegmento';
 import { MiniaturaDoEncarte, useFotosDosEncartes } from './EncartesDoStudio';
 import { PainelDeProdutos, useProdutosComFotos } from './ProdutosComFotos';
 import { EncarteOficialCartao } from './EncarteOficial';
-import { encartesDoSegmento } from '@/lib/studio/encartesOficiais';
+import { documentoDoEncarteOficial, encartesDoSegmento } from '@/lib/studio/encartesOficiais';
+import { PreviaDocumento } from './PreviaDocumento';
+import { GaleriaDeModelos } from './GaleriaDeModelos';
 import type { SegmentoDoStudio } from '@/lib/studio/palco';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
 import { EscolherLogo } from './PastaDeLogos';
@@ -27,6 +29,12 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
   const info = infoDaPasta(segmento);
   const s = useProdutosComFotos(info.cesta, info.chave);
   const oficiais = encartesDoSegmento(segmento);
+  // F-296 (pedido do dono): GALERIA DE MODELOS — o cliente escolhe qual modelo do segmento quer editar (cada um dono de si)
+  const chaveModelo = `studio-encarte-modelo-${segmento}`;
+  const [modeloId, setModeloId] = useState<string>(() => { try { const id = localStorage.getItem(chaveModelo); return oficiais.some((o) => o.id === id) ? id! : oficiais[0]?.id ?? ''; } catch { return oficiais[0]?.id ?? ''; } });
+  useEffect(() => { try { localStorage.setItem(chaveModelo, modeloId); } catch { /* sem armazenamento */ } }, [chaveModelo, modeloId]);
+  const modelo = oficiais.find((o) => o.id === modeloId) ?? oficiais[0];
+  const capas = useMemo(() => oficiais.map((o) => ({ id: o.id, nome: o.nome.replace(/^Ofertas – /, ''), previa: <PreviaDocumento doc={documentoDoEncarteOficial(o, s.produtos.slice(0, 8), { quantos: 8 }, '9:16')} sempre className="h-full w-full" /> })), [oficiais, s.produtos]);
   const editar = (id: string) => { s.gravar(s.produtos); navegar(`/studio/encarte/${id}`); };
   // os encartes de mercado mostram os produtos da pessoa; açougue e hortifruti mantêm os exemplos deles (fotos do catálogo)
   const fotosDoCatalogo = useFotosDosEncartes();
@@ -50,7 +58,8 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
         <div className="min-w-0 space-y-4">
         {/* F-240: encartes OFICIAIS (fundos prontos do dono): os produtos se organizam sozinhos, com a logo e os contatos */}
         <section className="space-y-2" aria-label="Encartes oficiais">
-          {oficiais.map((o) => <EncarteOficialCartao key={o.id} e={o} produtos={s.produtos} quantos={s.quantos} aoGravar={() => s.gravar(s.produtos)} />)}
+          {oficiais.length > 1 && <GaleriaDeModelos titulo="Modelos de encarte" itens={capas} selecionado={modelo?.id ?? ''} aoEscolher={setModeloId} />}
+          {modelo && <EncarteOficialCartao key={modelo.id} e={modelo} produtos={s.produtos} quantos={s.quantos} aoGravar={() => s.gravar(s.produtos)} />}
         </section>
         {mercado && <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4" aria-label="Encartes com os seus produtos" data-testid="studio-encartes">
           {ENCARTES.map((e) => (

@@ -8,6 +8,7 @@ import { AVISO_DE_REMEDIO, ESTILOS_DE_BALAO, avisoLegal, etiquetaDePreco, nomeDo
 import { LOGO_MEGA_OFERTA, LOGO_OFERTAS_DE_FARMACIA, LOGO_SEMANA_DO_FRANGO, logoOficialDoSegmento, type LogoDaPasta } from './logos';
 import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDeEncartesDe } from './segmentosDeOferta';
 import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel, type SegmentoComLogo } from './logoEditavel';
+import { COMPOSICOES_DOS_ENCARTES, type AreaDaComposicao, type FormatoDaComposicao } from './composicoesDosSegmentos';
 import { QUANTIDADE_PADRAO, dividirPorCotas, planejarAreas, quantidadeCompleta, type GradeDaArea } from './gradeInteligente';
 import type { ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 
@@ -52,6 +53,8 @@ export interface EncarteOficial {
   aviso?: string;
   /** F-278: cor do detalhe dos ícones de redes (f do Facebook, play do YouTube) */
   corRedes?: string;
+  /** F-296: a cor do encarte (fundo do documento e do vídeo, e a cor do flash/luz/brilho nas trocas) */
+  corTema?: string;
 }
 
 export const PASTA_ENCARTES_OFICIAIS = 'encartes-de-mercado';
@@ -72,6 +75,31 @@ const AZUL_CLARO = { etiqueta: ESTILOS_DE_BALAO['oval-vermelho'], sombraNome: 'r
 // F-259: farmácia — lado verde com placa amarela e lado azul com placa vermelha (os mesmos balões do Mega Oferta)
 const VERDE = { etiqueta: ESTILOS_DE_BALAO['placa-amarela'], sombraNome: 'rgba(0,50,20,.75)' };
 const CARTAO_AMARELO = { etiqueta: ESTILOS_DE_BALAO['oval-vermelho'], sombraNome: 'transparent', corNome: '#6e0010', corPlaca: 'rgba(255,255,255,.5)', bordaPlaca: 'rgba(255,255,255,.75)' };
+
+/** F-296: estilo da área de produtos: fundo claro = nome escuro sem sombra; fundo escuro = nome branco com sombra */
+function colunaDaArea(a: AreaDaComposicao): ColunaDoEncarte {
+  const etiqueta = ESTILOS_DE_BALAO[a.balao as keyof typeof ESTILOS_DE_BALAO] ?? ESTILOS_DE_BALAO['placa-vermelha'];
+  const caixa = { x: a.x, y: a.y, w: a.w, h: a.h };
+  return a.tom === 'claro'
+    ? { ...caixa, etiqueta, sombraNome: 'transparent', corNome: a.corNome ?? '#1a1a1a', corPlaca: 'rgba(255,255,255,.55)', bordaPlaca: 'rgba(0,0,0,.12)' }
+    : { ...caixa, etiqueta, sombraNome: 'rgba(0,0,0,.7)', ...(a.corNome ? { corNome: a.corNome } : {}) };
+}
+function layoutDaComposicao(id: string, f: 'v' | 'h', L: FormatoDaComposicao): LayoutDoEncarte {
+  return {
+    fundo: `/studio/encartes-oficiais/${id}-${f}-st-limpo.webp`, fundoLimpo: `/studio/encartes-oficiais/${id}-${f}-st-limpo.webp`,
+    titulo: L.titulo, colunas: L.areas.map(colunaDaArea), logo: L.logo, redes: L.redes, rodape: L.rodape, cartao: L.cartao, ...(L.aviso ? { aviso: L.aviso } : {}),
+  };
+}
+/** F-296: o modelo COMPLEMENTAR de um segmento, montado da composição dele */
+function encarteDaComposicao(seg: SegmentoComLogo, nome: string, logoPadrao: LogoDaPasta, aviso?: string): EncarteOficial {
+  const c = COMPOSICOES_DOS_ENCARTES[seg];
+  return {
+    id: c.id, nome, segmento: seg, ...(aviso ? { aviso } : {}),
+    formatos: { '9:16': layoutDaComposicao(c.id, 'v', c.v), '16:9': layoutDaComposicao(c.id, 'h', c.h) },
+    logoPadrao, corTelefone: c.corTelefone, corEndereco: c.corEndereco, corRedes: c.corRedes, corTema: c.corTema,
+    ...(c.sombraContato ? { sombraContato: true } : {}),
+  };
+}
 
 const BASES: EncarteOficial[] = [
   {
@@ -107,7 +135,7 @@ const BASES: EncarteOficial[] = [
       },
     },
     logoPadrao: LOGO_MEGA_OFERTA,
-    corTelefone: '#c4001d', corEndereco: '#0b2a8f',
+    corTelefone: '#c4001d', corEndereco: '#0b2a8f', corTema: '#1e3fd0',
   },
   {
     id: 'semana-do-frango', nome: 'Semana do Frango – azul e amarelo',
@@ -144,7 +172,7 @@ const BASES: EncarteOficial[] = [
       },
     },
     logoPadrao: LOGO_SEMANA_DO_FRANGO,
-    corTelefone: '#ffffff', corEndereco: '#ffffff', sombraContato: true,
+    corTelefone: '#ffffff', corEndereco: '#ffffff', sombraContato: true, corTema: '#1e88e5',
   },
   {
     // F-259: o encarte de FARMÁCIA, com a mesma divisão do Mega Oferta (arte em scripts/studio/gerar-farmacia.mjs): lado
@@ -183,7 +211,7 @@ const BASES: EncarteOficial[] = [
       },
     },
     logoPadrao: LOGO_OFERTAS_DE_FARMACIA,
-    corTelefone: '#078a46', corEndereco: '#0b2a8f',
+    corTelefone: '#078a46', corEndereco: '#0b2a8f', corTema: '#0a9a50',
   },
   // F-277: um encarte por segmento (arte em scripts/studio/gerar-segmentos.mjs), com a mesma divisão do Mega Oferta e da farmácia:
   // área A (esquerda, placa amarela) e área B (direita, placa vermelha), rodapé branco dos contatos e, na adega, a faixa do aviso
@@ -212,9 +240,12 @@ const BASES: EncarteOficial[] = [
         },
       },
       logoPadrao: logoOficialDoSegmento(sg.id),
-      corTelefone: sg.corTelefone, corEndereco: sg.corEndereco, corRedes: sg.corRedes,
+      corTelefone: sg.corTelefone, corEndereco: sg.corEndereco, corRedes: sg.corRedes, corTema: sg.corBotao,
     };
   }),
+  // F-296 (pedido do dono): MODELOS COMPLEMENTARES — mais um modelo por segmento, com composição própria (os de cima ficam como eram)
+  encarteDaComposicao('farmacia', 'Ofertas de Farmácia – vitrine clínica', LOGO_OFERTAS_DE_FARMACIA, AVISO_DE_REMEDIO),
+  ...SEGMENTOS_DE_OFERTA.map((sg) => encarteDaComposicao(sg.id, `Ofertas – ${sg.nome} (modelo 2)`, logoOficialDoSegmento(sg.id), sg.aviso)),
 ];
 /**
  * F-246 — o MESMO encarte nos outros tamanhos: título, logo e rodapé só mudam de escala (por igual); apenas a faixa de fundo
@@ -225,6 +256,8 @@ const ADAPTACOES: Record<string, Partial<Record<FormatoArte, [FormatoDoc, number
   'semana-do-frango': { a4: ['9:16', 650, 1570], a3: ['9:16', 650, 1570], '4:5': ['16:9', 540, 820], 'a4-h': ['16:9', 540, 820], '1:1': ['16:9', 540, 820] },
   'saude-em-oferta': { a4: ['9:16', 500, 1690], a3: ['9:16', 500, 1690], '4:5': ['9:16', 500, 1690], 'a4-h': ['16:9', 470, 945], '1:1': ['16:9', 470, 945] },
   ...Object.fromEntries(SEGMENTOS_DE_OFERTA.map((sg) => [idDaArte(sg.id), { a4: ['9:16', 500, 1690], a3: ['9:16', 500, 1690], '4:5': ['9:16', 500, 1690], 'a4-h': ['16:9', 470, 945], '1:1': ['16:9', 470, 945] }])),
+  // F-296: cada modelo complementar estica a faixa da composição dele
+  ...Object.fromEntries(Object.values(COMPOSICOES_DOS_ENCARTES).map((c) => [c.id, { a4: ['9:16', ...c.v.faixa], a3: ['9:16', ...c.v.faixa], '4:5': ['9:16', ...c.v.faixa], 'a4-h': ['16:9', ...c.h.faixa], '1:1': ['16:9', ...c.h.faixa] }])),
 };
 const SUFIXO: Partial<Record<FormatoArte, string>> = { '1:1': '1x1', '4:5': '4x5', a4: 'a4', 'a4-h': 'a4-h', a3: 'a3' };
 function adaptarLayout(id: string, base: LayoutDoEncarte, de: FormatoDoc, y1: number, y2: number, alvo: FormatoArte): LayoutDoEncarte {
@@ -249,6 +282,8 @@ export const ENCARTES_OFICIAIS: EncarteOficial[] = BASES.map((e) => ({
     ...Object.fromEntries(Object.entries(ADAPTACOES[e.id] ?? {}).map(([alvo, [de, y1, y2]]) => [alvo, adaptarLayout(e.id, e.formatos[de]!, de, y1, y2, alvo as FormatoArte)])),
   },
 }));
+/** F-296: os modelos complementares (galeria de modelos de cada segmento) */
+export const ehModeloComplementar = (e: Pick<EncarteOficial, 'id'>) => Object.values(COMPOSICOES_DOS_ENCARTES).some((c) => c.id === e.id);
 /** F-259: os encartes de uma pasta (mercado ou farmácia) */
 export const encartesDoSegmento = (s: SegmentoDoStudio) => ENCARTES_OFICIAIS.filter((e) => (e.segmento ?? 'mercado') === s);
 export const encarteOficialPorId = (id: string | null | undefined) => ENCARTES_OFICIAIS.find((e) => e.id === id) ?? null;
@@ -381,5 +416,6 @@ export function documentoDoEncarteOficial(e: EncarteOficial, produtos: Produto[]
   grupos.forEach((ps, k) => c.push(...produtosDaColuna(ps, lay.colunas[k], plano[k], () => ++n, 0.3 + k * 0.12)));
   c.push(...camadasDoRodape(e, lay.rodape, d));
   if (e.aviso && lay.aviso) c.push({ ...avisoLegal(e.aviso, lay.aviso), animacao: ani('surgir', 0.5, 0.5) });
-  return { versao: 2, formato: f, fundo: '#1e3fd0', camadas: c, video: { duracao: 8 } };
+  // F-296: o fundo do documento é a cor DESTE encarte (antes era o azul do Mega Oferta em todos)
+  return { versao: 2, formato: f, fundo: e.corTema ?? '#1e3fd0', corTema: e.corTema ?? '#1e3fd0', camadas: c, video: { duracao: 8 } };
 }
