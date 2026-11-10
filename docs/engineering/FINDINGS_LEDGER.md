@@ -3360,3 +3360,6 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 ### F-293 — Editor de encartes com a barra de movimento e a edição de vídeo embaixo da arte (10/11/2026)
 - **Pedido do dono (mesmo do palco, F-290/F-292):** movimento de cada elemento embaixo da arte e a linha do tempo de vídeo na mesma tela.
 - **Entrega (`EditorPage.tsx`):** embaixo da arte, `MovimentoDoElemento` (entrada, 2 movimentos, saída, "Movimento padrão" do elemento pela coreografia) + "Movimento padrão em tudo" + "Ver todo o movimento"; `EditorDeVideo embutido` com a arte como clipe, acompanhando cada mudança (0,6 s depois). Só em formatos de tela (16:9 e 9:16).
+
+### F-294 — Mais hortifrúti essencial (10/11/2026)
+- **Entrega:** banana maçã, banana ouro, lima da pérsia, maçã argentina, pera portuguesa, maracujá doce, jaca e abóbora paulista gravados após conferência humana (113 no total). Limão cravo recusado (foto de limão amarelo comum). O vocabulário do pedido de hortifrúti (`hortifruti.ts`) aceita pimentas, alho roxo, ervilha torta e variedades (dedo-de-moça, biquinho, cravo, pérsia, paulista, ouro, portuguesa, argentina); "Pimenta" = Pimenta Dedo-de-moça.
