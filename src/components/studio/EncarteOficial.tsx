@@ -67,6 +67,21 @@ function bordaTransparente(ctx: CanvasRenderingContext2D, w: number, h: number) 
 // o vídeo sai sempre no formato de tela mais próximo
 const animarSeFaltar = (d: Documento) => (temAnimacao(d) ? d : animarTudo(d));
 
+/**
+ * F-299 (pedido do dono): "Editar este modelo" abre DIRETO a tela de edição do encarte, com os produtos, a logo e os
+ * contatos já guardados neste modelo. O "voltar" do editor leva à página do modelo (lista de produtos, tamanho e logo).
+ */
+export function enderecoDoEditorDoEncarte(e: Encarte, produtos: ProdutoTabloide[], quantos: number): string {
+  const dados = lerDados(e.id);
+  const logoDoEncarte = lerLogoDoEncarte(e.id);
+  const formatos = formatosDoEncarte(e);
+  const docs = Object.fromEntries(formatos.map((f) => [f, documentoDoEncarteOficial(e, produtos, { ...dados, quantos, logoDoEncarte }, f)])) as Partial<Record<FormatoArte, Documento>>;
+  const preferido = OPCOES_DE_FORMATO.flatMap((g) => g.itens).find((o) => o.id === 'totem')?.formato;
+  const formato = preferido && docs[preferido] ? preferido : formatos[0];
+  const pasta = PASTAS_DE_ENCARTE[e.segmento ?? 'mercado'];
+  return enderecoDaArtePronta({ id: e.id, docs, formato: docs[formato]!.formato, nome: `${e.nome.split(' – ')[0]} – encarte`, pasta, voltar: `/studio/pasta/${pasta.chave}?modelo=${encodeURIComponent(e.id)}` });
+}
+
 export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: Encarte; produtos: ProdutoTabloide[]; /** F-244: quantos produtos mostrar */ quantos: number; aoGravar: () => void }) {
   const navegar = useNavigate();
   const [dados, setDados] = useState<DadosDoEncarte>(() => lerDados(e.id));

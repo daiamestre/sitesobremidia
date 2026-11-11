@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ArrowRight, BriefcaseMedical, Clapperboard, ChevronDown, Dumbbell, FileText, Filter, FolderOpen, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
+  ArrowRight, BriefcaseMedical, Clapperboard, ChevronDown, Dumbbell, Filter, FolderOpen, GraduationCap, Heart, House, LayoutGrid, Layers, Monitor, PawPrint, PenLine,
   Percent, Settings2, Shirt, ShoppingCart, Sparkles, Utensils, Flower2, Wand2, Smartphone,
 } from 'lucide-react';
 import { Carrossel, TvEmLoop } from '@/components/studio/Vitrines';
-import { CapaDaPastaDeEncartes, CapaDaPastaDeFarmacia, CapaDaPastaDoSegmento, PASTA_ENCARTES } from '@/components/studio/EncartesDoStudio';
-import { SEGMENTOS_DE_OFERTA, pastaDeEncartesDe, pastaDoPalcoDe } from '@/lib/studio/segmentosDeOferta';
-import { PASTA_ENCARTES_FARMACIA } from '@/lib/studio/encartesOficiais';
+import { SEGMENTOS_DE_OFERTA } from '@/lib/studio/segmentosDeOferta';
 import { ENCARTES } from '@/lib/tabloide/encartes';
-import { CapaDaPastaPalco } from '@/components/studio/PalcoDeOfertas';
-import { PASTA_PALCO, PASTA_PALCO_FARMACIA } from '@/lib/studio/palco';
+import { CartaoDaPastaDeOfertas } from '@/components/studio/PastaDeOfertas';
 import { CapaDaPastaDeLogos, PASTA_LOGOS } from '@/components/studio/PastaDeLogos';
 import '@/components/studio/studio-efeitos.css';
 import { intercalarPorSegmento } from '@/lib/studio/miniaturas';
@@ -188,102 +185,12 @@ export default function CatalogoPage() {
             </div>
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {/* F-232: pasta dos ENCARTES DE MERCADO (abre o editor do Cartaz Digital dentro do Studio) */}
-            {mostrarEncartes && (
-              <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-encartes">
-                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  <Link to={`/studio/pasta/${PASTA_ENCARTES}`} aria-label="Abrir a pasta Encartes de Mercado" className="block h-full"><CapaDaPastaDeEncartes /></Link>
-                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><FolderOpen className="h-3 w-3 text-[#FFD400]" />{ENCARTES.length} encartes</span>
-                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
-                </div>
-                <span className="mt-2 flex gap-1"><span className="inline-flex w-fit items-center gap-1 rounded bg-[#5D1BFF] px-1.5 py-0.5 text-[10px] font-bold text-white"><FileText className="h-3 w-3" />A4 · encarte</span></span>
-                <h3 className="mt-1 truncate text-sm font-semibold text-white">Encartes de Mercado</h3>
-                <p className="text-xs text-slate-400">Supermercados</p>
-                <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-                  <Link to={`/studio/pasta/${PASTA_ENCARTES}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-encartes"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
-                  <Link to={`/studio/encarte/${ENCARTES[0].id}`} title="Editar um encarte" aria-label="Editar um encarte" className="rounded-lg border border-white/15 px-3 py-2 text-sm text-white hover:bg-white/5"><PenLine className="h-4 w-4" /></Link>
-                </div>
-              </article>
-            )}
-            {/* F-234: PALCO DE OFERTAS — um produto de cada vez no pedestal, com nome e preço (carrossel em vídeo) */}
-            {mostrarEncartes && (
-              <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-palco">
-                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  <Link to={`/studio/pasta/${PASTA_PALCO}`} aria-label="Abrir a pasta Palco de Ofertas" className="block h-full"><CapaDaPastaPalco /></Link>
-                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><Clapperboard className="h-3 w-3 text-[#FFD400]" />carrossel de produtos</span>
-                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
-                </div>
-                <span className="mt-2 flex gap-1">{(['16:9', '9:16'] as const).map((x) => <span key={x} className="inline-flex w-fit items-center gap-1 rounded bg-[#5D1BFF] px-1.5 py-0.5 text-[10px] font-bold text-white">{x === '16:9' ? <Monitor className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}{x}</span>)}</span>
-                <h3 className="mt-1 truncate text-sm font-semibold text-white">Palco de Ofertas – Mercado</h3>
-                <p className="text-xs text-slate-400">Supermercados · vídeo</p>
-                <div className="mt-3">
-                  <Link to={`/studio/pasta/${PASTA_PALCO}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-palco"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
-                </div>
-              </article>
-            )}
-            {/* F-259: ENCARTES DE FARMÁCIA — o mesmo encarte do mercado, com a arte e a cesta da farmácia */}
-            {mostrarEncartes && (
-              <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-encartes-farmacia">
-                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  <Link to={`/studio/pasta/${PASTA_ENCARTES_FARMACIA}`} aria-label="Abrir a pasta Encartes de Farmácia" className="block h-full"><CapaDaPastaDeFarmacia /></Link>
-                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><FolderOpen className="h-3 w-3 text-[#FFD400]" />7 tamanhos</span>
-                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
-                </div>
-                <span className="mt-2 flex gap-1"><span className="inline-flex w-fit items-center gap-1 rounded bg-[#0a9a50] px-1.5 py-0.5 text-[10px] font-bold text-white"><FileText className="h-3 w-3" />encarte · farmácia</span></span>
-                <h3 className="mt-1 truncate text-sm font-semibold text-white">Encartes de Farmácia</h3>
-                <p className="text-xs text-slate-400">Farmácias e drogarias</p>
-                <div className="mt-3">
-                  <Link to={`/studio/pasta/${PASTA_ENCARTES_FARMACIA}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-encartes-farmacia"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
-                </div>
-              </article>
-            )}
-            {/* F-259: PALCO DE OFERTAS – FARMÁCIA — o carrossel do mercado com o palco da farmácia */}
-            {mostrarEncartes && (
-              <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-palco-farmacia">
-                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  <Link to={`/studio/pasta/${PASTA_PALCO_FARMACIA}`} aria-label="Abrir a pasta Palco de Ofertas – Farmácia" className="block h-full"><CapaDaPastaPalco segmento="farmacia" /></Link>
-                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><Clapperboard className="h-3 w-3 text-[#FFD400]" />carrossel de produtos</span>
-                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
-                </div>
-                <span className="mt-2 flex gap-1">{(['16:9', '9:16'] as const).map((x) => <span key={x} className="inline-flex w-fit items-center gap-1 rounded bg-[#5D1BFF] px-1.5 py-0.5 text-[10px] font-bold text-white">{x === '16:9' ? <Monitor className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}{x}</span>)}</span>
-                <h3 className="mt-1 truncate text-sm font-semibold text-white">Palco de Ofertas – Farmácia</h3>
-                <p className="text-xs text-slate-400">Farmácias e drogarias · vídeo</p>
-                <div className="mt-3">
-                  <Link to={`/studio/pasta/${PASTA_PALCO_FARMACIA}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="abrir-pasta-palco-farmacia"><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
-                </div>
-              </article>
-            )}
-            {/* F-277: ENCARTES e PALCOS DE OFERTAS de cada segmento (padaria, adega, açougue, suplementos, hortifrúti...) */}
+            {/* F-299 (pedido do dono): UMA pasta por segmento (Mercado, Farmácia, Padaria…), com Encartes e Palco de Ofertas dentro */}
+            {mostrarEncartes && <CartaoDaPastaDeOfertas segmento="mercado" />}
+            {mostrarEncartes && <CartaoDaPastaDeOfertas segmento="farmacia" atraso={1} />}
             {SEGMENTOS_DE_OFERTA.filter((sg) => (filtro.segmentos.length === 0 || filtro.segmentos.includes(sg.segmentoDoCatalogo as SegmentoId)) && (!filtro.formato || filtro.formato === '9:16')
               && (!filtro.busca || new RegExp(`encarte|oferta|palco|${sg.nome.normalize('NFD').replace(/[̀-ͯ]/g, '').split(/s+/)[0]}`, 'i').test(filtro.busca.normalize('NFD').replace(/[̀-ͯ]/g, ''))))
-              .flatMap((sg) => [
-              <article key={`e-${sg.id}`} className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid={`studio-pasta-encartes-${sg.id}`}>
-                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  <Link to={`/studio/pasta/${pastaDeEncartesDe(sg.id)}`} aria-label={`Abrir a pasta Encartes de ${sg.nome}`} className="block h-full"><CapaDaPastaDoSegmento segmento={sg.id} /></Link>
-                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><FolderOpen className="h-3 w-3 text-[#FFD400]" />7 tamanhos</span>
-                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
-                </div>
-                <span className="mt-2 flex gap-1"><span className="inline-flex w-fit items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ background: sg.corBotao }}><FileText className="h-3 w-3" />encarte · {sg.nome.toLowerCase()}</span></span>
-                <h3 className="mt-1 truncate text-sm font-semibold text-white">Encartes de {sg.nome}</h3>
-                <p className="truncate text-xs text-slate-400">{sg.descricao.split(' · ')[0]}</p>
-                <div className="mt-3">
-                  <Link to={`/studio/pasta/${pastaDeEncartesDe(sg.id)}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid={`abrir-pasta-encartes-${sg.id}`}><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
-                </div>
-              </article>,
-              <article key={`p-${sg.id}`} className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid={`studio-pasta-palco-${sg.id}`}>
-                <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  <Link to={`/studio/pasta/${pastaDoPalcoDe(sg.id)}`} aria-label={`Abrir a pasta Palco de Ofertas – ${sg.nome}`} className="block h-full"><CapaDaPastaPalco segmento={sg.id} /></Link>
-                  <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur"><Clapperboard className="h-3 w-3 text-[#FFD400]" />carrossel de produtos</span>
-                  <span className="absolute right-2 top-2 rounded-full bg-[#FFD400] px-2 py-0.5 text-[10px] font-black text-[#22004A]">NOVO</span>
-                </div>
-                <span className="mt-2 flex gap-1">{(['16:9', '9:16'] as const).map((x) => <span key={x} className="inline-flex w-fit items-center gap-1 rounded bg-[#5D1BFF] px-1.5 py-0.5 text-[10px] font-bold text-white">{x === '16:9' ? <Monitor className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}{x}</span>)}</span>
-                <h3 className="mt-1 truncate text-sm font-semibold text-white">Palco de Ofertas – {sg.nome}</h3>
-                <p className="truncate text-xs text-slate-400">{sg.descricao.split(' · ')[0]} · vídeo</p>
-                <div className="mt-3">
-                  <Link to={`/studio/pasta/${pastaDoPalcoDe(sg.id)}`} className="flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid={`abrir-pasta-palco-${sg.id}`}><FolderOpen className="h-4 w-4" />Abrir pasta</Link>
-                </div>
-              </article>,
-            ])}
+              .map((sg, i) => <CartaoDaPastaDeOfertas key={sg.id} segmento={sg.id} atraso={i + 2} />)}
             {/* F-248: pasta LOGOS — todas as logos; os encartes e o Palco escolhem daqui */}
             {mostrarEncartes && (
               <article className="sm-cartao-luz group flex flex-col overflow-hidden rounded-xl p-3" data-testid="studio-pasta-logos-capa">

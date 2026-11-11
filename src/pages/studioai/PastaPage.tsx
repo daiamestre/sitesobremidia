@@ -5,7 +5,8 @@ import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { PalcoDeOfertas } from '@/components/studio/PalcoDeOfertas';
 import { PASTA_PALCO, PASTA_PALCO_FARMACIA } from '@/lib/studio/palco';
 import { PASTA_ENCARTES_FARMACIA } from '@/lib/studio/encartesOficiais';
-import { SEGMENTO_DA_PASTA } from '@/lib/studio/pastasDoSegmento';
+import { SEGMENTO_DA_PASTA, SEGMENTO_DA_PASTA_DE_OFERTAS } from '@/lib/studio/pastasDoSegmento';
+import { PastaDeOfertas } from '@/components/studio/PastaDeOfertas';
 import { chaveDosProdutosDe } from '@/lib/studio/segmentosDeOferta';
 import { PASTA_LOGOS, PastaDeLogos } from '@/components/studio/PastaDeLogos';
 import { coreografia, temAnimacao } from '@/lib/studio/animacao';
@@ -74,6 +75,8 @@ export default function PastaPage() {
   // grava a lista vinda da Central ANTES de PastaDeEncartes/PalcoDeOfertas lerem a sessão (initializer do 1º render)
   useState(() => produtosDoLink(pastaId, params.get('produtos')));
   useEffect(() => { if (params.has('produtos')) setParams((p) => { p.delete('produtos'); return p; }, { replace: true }); }, [params, setParams]);
+  // F-299: a pasta do segmento com Encartes e Palco de Ofertas dentro
+  if (pastaId && SEGMENTO_DA_PASTA_DE_OFERTAS[pastaId]) return <PastaDeOfertas key={pastaId} segmento={SEGMENTO_DA_PASTA_DE_OFERTAS[pastaId]} />;
   if (pastaId === PASTA_PALCO) return <PalcoDeOfertas />;
   // F-259: as pastas da farmácia (mesmas telas do mercado)
   if (pastaId === PASTA_PALCO_FARMACIA) return <PalcoDeOfertas key="farmacia" segmento="farmacia" />;

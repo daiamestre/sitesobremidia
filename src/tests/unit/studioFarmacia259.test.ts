@@ -91,6 +91,7 @@ describe('telas', () => {
     expect(pasta).toContain('<PalcoDeOfertas key="farmacia" segmento="farmacia" />');
     expect(pasta).toContain('<PastaDeEncartes key="farmacia" segmento="farmacia" />');
     const cat = fs.readFileSync('src/pages/studioai/CatalogoPage.tsx', 'utf8');
-    for (const t of ['Encartes de Farmácia', 'Palco de Ofertas – Farmácia', '<CapaDaPastaPalco segmento="farmacia" />']) expect(cat).toContain(t);
+    // F-299: a farmácia é UMA pasta no Studio, com Encartes e Palco de Ofertas dentro
+    expect(cat).toContain('<CartaoDaPastaDeOfertas segmento="farmacia"');
   });
 });

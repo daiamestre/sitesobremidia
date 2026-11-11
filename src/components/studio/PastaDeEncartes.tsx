@@ -8,10 +8,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, FileText, FolderOpen, PenLine } from 'lucide-react';
 import { ENCARTES } from '@/lib/tabloide/encartes';
-import { infoDaPasta } from '@/lib/studio/pastasDoSegmento';
-import { MiniaturaDoEncarte, useFotosDosEncartes } from './EncartesDoStudio';
+import { infoDaPasta, pastaDeOfertasDe } from '@/lib/studio/pastasDoSegmento';
+import { MiniaturaDoEncarte, encarteEmMovimento, useFotosDosEncartes } from './EncartesDoStudio';
 import { PainelDeProdutos, useProdutosComFotos } from './ProdutosComFotos';
-import { EncarteOficialCartao } from './EncarteOficial';
+import { EncarteOficialCartao, enderecoDoEditorDoEncarte } from './EncarteOficial';
+import { toast } from 'sonner';
 import { documentoDoEncarteOficial, encartesDoSegmento } from '@/lib/studio/encartesOficiais';
 import { PreviaDocumento } from './PreviaDocumento';
 import { EscolhaDeModelo } from './GaleriaDeModelos';
@@ -40,9 +41,19 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
   const [ultimo] = useState<string | undefined>(() => { try { return localStorage.getItem(chaveModelo) ?? undefined; } catch { return undefined; } });
   const modeloId = oficiais.some((o) => o.id === doLink) ? doLink! : (ultimo && oficiais.some((o) => o.id === ultimo) ? ultimo : oficiais[0]?.id ?? '');
   useEffect(() => { if (!escolhendoModelo) try { localStorage.setItem(chaveModelo, modeloId); } catch { /* sem armazenamento */ } }, [chaveModelo, modeloId, escolhendoModelo]);
-  const escolherModelo = (id: string) => setParams((p) => { p.set('modelo', id); return p; });
+  // F-299 (pedido do dono): "Editar este modelo" vai DIRETO para a tela de edição do encarte (o voltar do editor traz para a
+  // página do modelo, com a lista de produtos); se a arte não couber na sessão, abre a página do modelo
+  const escolherModelo = (id: string) => {
+    const o = oficiais.find((x) => x.id === id);
+    if (!o) return;
+    try { localStorage.setItem(chaveModelo, id); } catch { /* sem armazenamento */ }
+    s.gravar(s.produtos);
+    setParams((p) => { p.set('modelo', id); return p; });
+    try { navegar(enderecoDoEditorDoEncarte(o, s.produtos, s.quantos)); }
+    catch { toast.error('Não foi possível abrir o editor (a imagem da logo é grande demais). Ajuste aqui e toque em Editar.'); }
+  };
   const modelo = oficiais.find((o) => o.id === modeloId) ?? oficiais[0];
-  const capas = useMemo(() => oficiais.map((o) => ({ id: o.id, nome: o.nome.replace(/^Ofertas – /, ''), previa: <PreviaDocumento doc={documentoDoEncarteOficial(o, s.produtos.slice(0, 8), { quantos: 8 }, '9:16')} sempre className="h-full w-full" /> })), [oficiais, s.produtos]);
+  const capas = useMemo(() => oficiais.map((o) => ({ id: o.id, nome: o.nome.replace(/^Ofertas – /, ''), previa: <PreviaDocumento doc={encarteEmMovimento(documentoDoEncarteOficial(o, s.produtos.slice(0, 8), { quantos: 8 }, '9:16'))} animar sempre className="h-full w-full" /> })), [oficiais, s.produtos]);
   const editar = (id: string) => { s.gravar(s.produtos); navegar(`/studio/encarte/${id}`); };
   // os encartes de mercado mostram os produtos da pessoa; açougue e hortifruti mantêm os exemplos deles (fotos do catálogo)
   const fotosDoCatalogo = useFotosDosEncartes();
@@ -56,7 +67,7 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
   // F-298: ao abrir a pasta, primeiro os MODELOS (com a amostra já com os produtos); tocou num, abre a edição
   if (escolhendoModelo) return (
     <>
-      <EscolhaDeModelo titulo={info.tituloEncartes} descricao="Escolha o modelo de encarte para editar · cada modelo guarda o que foi feito nele" itens={capas} ultimo={ultimo} aoEscolher={escolherModelo}>
+      <EscolhaDeModelo titulo={info.tituloEncartes} voltar={`/studio/pasta/${pastaDeOfertasDe(segmento)}`} descricao="Escolha o modelo de encarte para editar · cada modelo guarda o que foi feito nele" itens={capas} ultimo={ultimo} aoEscolher={escolherModelo}>
         {mercado && ENCARTES.map((e) => (
           <article key={e.id} role="listitem" className="flex min-w-0 flex-col rounded-2xl border-2 border-white/10 bg-[#140632] p-2 transition hover:border-[#8A2EFF]/70 sm:p-2.5" data-testid="studio-encarte-card">
             <button type="button" onClick={() => editar(e.id)} aria-label={`Editar o encarte ${e.nome}`} className="block w-full overflow-hidden rounded-xl text-left">
@@ -80,7 +91,7 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
   return (
     <div className="space-y-4" data-testid="studio-pasta-encartes-aberta">
       <div className="flex flex-wrap items-center gap-3">
-        <Link to={temEscolha ? local.pathname : '/studio'} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5" data-testid="encarte-voltar-aos-modelos"><ArrowLeft className="h-4 w-4" />Modelos</Link>
+        <Link to={temEscolha ? local.pathname : `/studio/pasta/${pastaDeOfertasDe(segmento)}`} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5" data-testid="encarte-voltar-aos-modelos"><ArrowLeft className="h-4 w-4" />Modelos</Link>
         <div className="mr-auto min-w-0">
           <h1 className="flex items-center gap-2 truncate text-xl font-black text-white"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />{info.tituloEncartes}</h1>
           <p className="text-xs text-slate-400">{!mercado ? info.descricao : `Supermercados · ${ENCARTES.length} encartes A4 · coloque os seus produtos e escolha quantos mostrar: a grade se organiza sozinha`}</p>

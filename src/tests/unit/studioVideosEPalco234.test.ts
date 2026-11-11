@@ -64,7 +64,7 @@ describe('palco de ofertas (mercado)', () => {
     expect(pasta).toContain('subpasta-${id}');
     expect(pasta).toMatch(/<CartaoVideo /);
     expect(pasta).toMatch(/pastaId === PASTA_PALCO\) return <PalcoDeOfertas \/>/);
-    expect(fs.readFileSync('src/pages/studioai/CatalogoPage.tsx', 'utf8')).toMatch(/<CapaDaPastaPalco \/>/);
+    expect(fs.readFileSync('src/pages/studioai/CatalogoPage.tsx', 'utf8')).toContain('<CartaoDaPastaDeOfertas segmento="mercado" />'); // F-299: palco dentro da pasta Mercado
     expect(fs.readFileSync('src/pages/studioai/EditorPage.tsx', 'utf8')).toMatch(/params\.get\('video'\) && !temAnimacao\(d\) \? coreografia\(d\) : d/);
     const palco = fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8');
     expect(palco).toMatch(/CHAVE_PROJETO_DO_CORE/); // "Criar vídeo do carrossel" abre o editor de vídeo com os clipes

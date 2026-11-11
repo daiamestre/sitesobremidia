@@ -3,12 +3,14 @@
  * desenho do Cartaz Digital, em miniatura), com as fotos dos produtos do catálogo compartilhado; "Editar encarte" abre
  * o editor do Cartaz Digital já montado com o modelo (trocar produtos, nomes e preços).
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, PenLine } from 'lucide-react';
 import { TabloideCanvas } from '@/components/tabloide/TabloideCanvas';
-import { CapaQueGira, useNaTela } from '@/components/media/CapaQueGira';
+import { CapaQueGira, useNaTela, type Slide } from '@/components/media/CapaQueGira';
+import { coreografia, temAnimacao } from '@/lib/studio/animacao';
+import type { Documento } from '@/lib/studio/documento';
 import { configPadrao, propsDasPaginas } from '@/lib/tabloide/cartaz';
 import { buscarNoCatalogo } from '@/lib/tabloide/imagens';
 import { chaveCanonica } from '@/lib/tabloide/chave';
@@ -40,6 +42,34 @@ export const PASTA_ENCARTES = 'encartes-de-mercado';
 
 /** F-259: capa da pasta Encartes de Farmácia: o encarte de farmácia com a cesta de exemplo da farmácia. */
 export const CapaDaPastaDeFarmacia = ({ atraso = 0 }: { atraso?: number }) => <CapaDaPastaDoSegmento segmento="farmacia" atraso={atraso} />;
+/** F-299 (pedido do dono): o encarte EM MOVIMENTO (a animação dele; sem ela, os elementos entram na ordem de leitura) */
+export const encarteEmMovimento = (d: Documento): Documento => (temAnimacao(d) ? d : coreografia(d));
+/** um slide de capa centrado na proporção dele (para capas que misturam encarte e palco) */
+export const noCentro = (proporcao: string, conteudo: ReactNode) => (
+  <div className="flex h-full w-full items-center justify-center"><div className="relative h-full max-w-full overflow-hidden" style={{ aspectRatio: proporcao }}>{conteudo}</div></div>
+);
+/**
+ * F-299: os MODELOS DE ENCARTE do segmento, um por slide e em movimento, com a cesta de exemplo (capas que passam em loop).
+ * `soEmPe`: só a versão em pé (para a capa que mistura com o palco).
+ */
+export function useSlidesDosEncartes(segmento: SegmentoDoStudio, soEmPe = false): Slide[] {
+  const fotos = useFotosDosEncartes();
+  return useMemo(() => {
+    const cesta = lerLista(segmento === 'mercado' ? CESTA_PADRAO : infoDaPasta(segmento).cestaDaCapa).map((p) => ({ ...p, imagem: fotoDoExemplo(fotos.data, p.nome) }));
+    const formatos = segmento === 'mercado' ? [undefined] : soEmPe ? (['9:16'] as const) : (['9:16', '16:9'] as const);
+    const oficiais: Slide[] = encartesDoSegmento(segmento).flatMap((o) => formatos.map((f) => ({
+      chave: `${o.id}-${f ?? 'a4'}`,
+      animada: () => noCentro(f === '16:9' ? '16 / 9' : f === '9:16' ? '9 / 16' : '1240 / 1754', <PreviaDocumento doc={encarteEmMovimento(documentoDoEncarteOficial(o, cesta, {}, f))} animar sempre className="h-full w-full" />),
+    })));
+    const doMercado: Slide[] = segmento === 'mercado' && !soEmPe ? ENCARTES.map((e) => ({ chave: e.id, animada: () => noCentro('1240 / 1754', <MiniaturaDoEncarte e={e} fotos={fotos.data} />) })) : [];
+    return [...oficiais, ...doMercado];
+  }, [fotos.data, segmento, soEmPe]);
+}
+/** F-299: capa da pasta Encartes de qualquer segmento: os modelos dele passando em loop, em movimento */
+export function CapaDosEncartes({ segmento, atraso = 0 }: { segmento: SegmentoDoStudio; atraso?: number }) {
+  return <CapaQueGira slides={useSlidesDosEncartes(segmento)} atraso={atraso} ajuste="contain" className="h-full w-full" />;
+}
+
 /** F-277: capa da pasta de encartes de qualquer segmento: o encarte dele com a cesta de exemplo dele. */
 export function CapaDaPastaDoSegmento({ segmento, atraso = 0 }: { segmento: SegmentoDoStudio; atraso?: number }) {
   const fotos = useFotosDosEncartes();

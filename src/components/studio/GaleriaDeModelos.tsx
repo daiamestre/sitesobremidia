@@ -20,7 +20,7 @@ export function EscolhaDeModelo({ titulo, descricao, itens, ultimo, aoEscolher, 
   return (
     <div className="space-y-4" data-testid="escolha-de-modelo">
       <div className="flex flex-wrap items-center gap-2">
-        <Link to={voltar} className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">Studio</span></Link>
+        <Link to={voltar} className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">{voltar === '/studio' ? 'Studio' : 'Voltar'}</span></Link>
         <div className="mr-auto min-w-0">
           <h1 className="flex items-center gap-2 truncate text-lg font-black text-white sm:text-xl"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />{titulo}</h1>
           <p className="text-xs text-slate-400 sm:text-sm">{descricao ?? 'Escolha o modelo para editar'}</p>

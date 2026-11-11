@@ -23,7 +23,7 @@ import { CartaoDaAba, abasDe, type Aba } from '@/components/studio/editor/Painei
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, lerValor, precoParaTexto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
-import { infoDaPasta } from '@/lib/studio/pastasDoSegmento';
+import { infoDaPasta, pastaDeOfertasDe } from '@/lib/studio/pastasDoSegmento';
 import { TAMANHO_DOC, camadaNoPonto, type Camada, type CamadaTexto, type Documento, type FormatoDoc } from '@/lib/studio/documento';
 import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
 import { comAlfa, corDoDocumento, coresDosEfeitos } from '@/lib/studio/corDaArte';
@@ -31,7 +31,8 @@ import { EscolhaDeModelo } from './GaleriaDeModelos';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
-import { useFotosDosEncartes, fotoDoExemplo } from './EncartesDoStudio';
+import { useFotosDosEncartes, fotoDoExemplo, noCentro } from './EncartesDoStudio';
+import { CapaQueGira, type Slide } from '@/components/media/CapaQueGira';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { PainelDeProdutos, faltasDoProduto, useProdutosComFotos } from './ProdutosComFotos';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
@@ -113,12 +114,25 @@ export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo =
   );
 }
 
-/** Capa da pasta no catálogo: o palco passando os produtos de exemplo (fotos do catálogo da empresa). */
-export function CapaDaPastaPalco({ segmento = 'mercado' }: { segmento?: SegmentoDoStudio }) {
+/**
+ * F-299 (pedido do dono): os MODELOS DE PALCO do segmento, um por slide, cada um tocando o carrossel com os produtos de
+ * exemplo e com o que já foi editado nele (botão, movimento, ajustes) — capas que passam em loop.
+ */
+export function useSlidesDosPalcos(segmento: SegmentoDoStudio): Slide[] {
   const fotos = useFotosDosEncartes();
   const cesta = infoDaPasta(segmento).cestaDaCapa;
-  const produtos = useMemo(() => lerLista(cesta).slice(0, 6).map((p) => ({ ...p, imagem: fotoDoExemplo(fotos.data, p.nome) })), [fotos.data, cesta]);
-  return <CarrosselNoPalco produtos={produtos} formato="9:16" className="h-full" fundo={fundosDoSegmento(segmento)[0]} />;
+  return useMemo(() => {
+    const produtos = lerLista(cesta).slice(0, 6).map((p) => ({ ...p, imagem: fotoDoExemplo(fotos.data, p.nome) }));
+    const salvas = lerOpcoes(segmento === 'mercado' ? CHAVE_OPCOES : `${CHAVE_OPCOES}-${segmento}`).porFundo ?? {};
+    return fundosDoSegmento(segmento).map((f) => {
+      const o = salvas[f.id] ?? {};
+      return { chave: `palco-${f.id}`, animada: () => noCentro('9 / 16', <CarrosselNoPalco produtos={produtos} formato="9:16" className="h-full w-full rounded-none" fundo={f} textoBotao={o.textoBotao ?? f.botoes[0]} movimento={o.movimento} ajustes={o.ajustes} logoDoPalco={lerLogoDoEncarte(`palco-${f.id}`)} />) };
+    });
+  }, [fotos.data, cesta, segmento]);
+}
+/** Capa da pasta Palco de Ofertas: os modelos de palco do segmento passando em loop (cada um em movimento). */
+export function CapaDaPastaPalco({ segmento = 'mercado', atraso = 0 }: { segmento?: SegmentoDoStudio; atraso?: number }) {
+  return <CapaQueGira slides={useSlidesDosPalcos(segmento)} atraso={atraso} ajuste="contain" className="h-full w-full" />;
 }
 
 const ROTULOS: Record<string, string> = { Produto: 'Foto do produto', 'Nome do produto': 'Nome do produto', 'Preço': 'Balão de preço', 'Botão': 'Botão', 'Logo do palco': 'Logo', 'Logo – OFERTAS': 'Logo · texto grande', 'Logo – faixa': 'Logo · texto da fita', 'Logo – frase': 'Logo · frase', 'Logo – base': 'Logo', 'Logo no círculo': 'Logo · círculo', 'Logo – ícone esquerdo': 'Logo · ícone da esquerda', 'Logo – ícone direito': 'Logo · ícone da direita' };
@@ -377,6 +391,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     if (n) escolherElemento(n);
   };
 
+  const fotosDeExemplo = useFotosDosEncartes();
+  const exemplos = useMemo(() => lerLista(info.cestaDaCapa).slice(0, 3).map((p) => ({ ...p, imagem: fotoDoExemplo(fotosDeExemplo.data, p.nome) })), [fotosDeExemplo.data, info.cestaDaCapa]);
   const seletorDeFormato = (
     <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1" role="radiogroup" aria-label="Formato">
       {(['9:16', '16:9'] as const).map((f) => (
@@ -391,9 +407,10 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   // F-298 (pedido do dono): ao abrir a pasta, primeiro os MODELOS (cada um com a amostra ao vivo, já com o que foi editado
   // nele); tocou num, abre a edição — que não mostra mais a galeria
   if (escolhendoModelo) {
-    const amostra = comPreco.slice(0, 3);
+    // F-299: os modelos ficam EM MOVIMENTO; sem produtos com preço, passam os de exemplo do segmento
+    const amostra = comPreco.length ? comPreco.slice(0, 3) : exemplos;
     return (
-      <EscolhaDeModelo titulo={info.tituloPalco} descricao="Escolha o modelo de palco para editar · cada modelo guarda o que foi feito nele" deitado={formato === '16:9'} topo={seletorDeFormato}
+      <EscolhaDeModelo titulo={info.tituloPalco} voltar={`/studio/pasta/${pastaDeOfertasDe(segmento)}`} descricao="Escolha o modelo de palco para editar · cada modelo guarda o que foi feito nele" deitado={formato === '16:9'} topo={seletorDeFormato}
         ultimo={salvas.fundoId != null ? fundoId : undefined} aoEscolher={escolherModelo}
         itens={idsDosModelos.map((id) => {
           const f = fundos.find((x) => x.id === id) ?? null;
@@ -411,7 +428,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     <div className="space-y-3" data-testid="studio-palco">
       <div className="flex flex-wrap items-center gap-2">
         {/* F-298: "Modelos" volta para a escolha do modelo (a edição não mostra a galeria) */}
-        <Link to={idsDosModelos.length > 1 ? local.pathname : '/studio'} className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-slate-300 hover:bg-white/5" data-testid="palco-voltar-aos-modelos"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">Modelos</span></Link>
+        <Link to={idsDosModelos.length > 1 ? local.pathname : `/studio/pasta/${pastaDeOfertasDe(segmento)}`} className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-slate-300 hover:bg-white/5" data-testid="palco-voltar-aos-modelos"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">Modelos</span></Link>
         <div className="mr-auto min-w-0">
           <h1 className="flex items-center gap-2 truncate text-lg font-black text-white sm:text-xl"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />{info.tituloPalco}{fundo && <span className="hidden truncate text-sm font-semibold text-slate-400 md:inline">· {fundo.nome.replace(/^Ofertas – /, '')}</span>}</h1>
           <p className="hidden text-xs text-slate-400 sm:block">Um produto de cada vez no palco, com nome e preço ({SEGUNDOS_POR_PRODUTO} s cada) · toque em qualquer elemento da tela para editar</p>
