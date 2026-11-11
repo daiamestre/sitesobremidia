@@ -5,7 +5,7 @@
  * completo do Cartaz Digital com esses produtos.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, FileText, FolderOpen, PenLine } from 'lucide-react';
 import { ENCARTES } from '@/lib/tabloide/encartes';
 import { infoDaPasta } from '@/lib/studio/pastasDoSegmento';
@@ -14,7 +14,7 @@ import { PainelDeProdutos, useProdutosComFotos } from './ProdutosComFotos';
 import { EncarteOficialCartao } from './EncarteOficial';
 import { documentoDoEncarteOficial, encartesDoSegmento } from '@/lib/studio/encartesOficiais';
 import { PreviaDocumento } from './PreviaDocumento';
-import { GaleriaDeModelos } from './GaleriaDeModelos';
+import { EscolhaDeModelo } from './GaleriaDeModelos';
 import type { SegmentoDoStudio } from '@/lib/studio/palco';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
 import { EscolherLogo } from './PastaDeLogos';
@@ -30,9 +30,17 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
   const s = useProdutosComFotos(info.cesta, info.chave);
   const oficiais = encartesDoSegmento(segmento);
   // F-296 (pedido do dono): GALERIA DE MODELOS — o cliente escolhe qual modelo do segmento quer editar (cada um dono de si)
+  // F-298 (pedido do dono): o modelo se escolhe ANTES da edição; o escolhido vai no endereço (?modelo=) e a edição não mostra a galeria
   const chaveModelo = `studio-encarte-modelo-${segmento}`;
-  const [modeloId, setModeloId] = useState<string>(() => { try { const id = localStorage.getItem(chaveModelo); return oficiais.some((o) => o.id === id) ? id! : oficiais[0]?.id ?? ''; } catch { return oficiais[0]?.id ?? ''; } });
-  useEffect(() => { try { localStorage.setItem(chaveModelo, modeloId); } catch { /* sem armazenamento */ } }, [chaveModelo, modeloId]);
+  const [params, setParams] = useSearchParams();
+  const local = useLocation();
+  const doLink = params.get('modelo');
+  const temEscolha = oficiais.length + (mercado ? ENCARTES.length : 0) > 1;
+  const escolhendoModelo = temEscolha && !oficiais.some((o) => o.id === doLink);
+  const [ultimo] = useState<string | undefined>(() => { try { return localStorage.getItem(chaveModelo) ?? undefined; } catch { return undefined; } });
+  const modeloId = oficiais.some((o) => o.id === doLink) ? doLink! : (ultimo && oficiais.some((o) => o.id === ultimo) ? ultimo : oficiais[0]?.id ?? '');
+  useEffect(() => { if (!escolhendoModelo) try { localStorage.setItem(chaveModelo, modeloId); } catch { /* sem armazenamento */ } }, [chaveModelo, modeloId, escolhendoModelo]);
+  const escolherModelo = (id: string) => setParams((p) => { p.set('modelo', id); return p; });
   const modelo = oficiais.find((o) => o.id === modeloId) ?? oficiais[0];
   const capas = useMemo(() => oficiais.map((o) => ({ id: o.id, nome: o.nome.replace(/^Ofertas – /, ''), previa: <PreviaDocumento doc={documentoDoEncarteOficial(o, s.produtos.slice(0, 8), { quantos: 8 }, '9:16')} sempre className="h-full w-full" /> })), [oficiais, s.produtos]);
   const editar = (id: string) => { s.gravar(s.produtos); navegar(`/studio/encarte/${id}`); };
@@ -43,10 +51,36 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
   const [trocandoLogo, setTrocandoLogo] = useState<string | null>(null);
   const escolherLogo = (id: string, l: LogoDaPasta | null) => { gravarLogoDoEncarte(id, l); setLogos((a) => ({ ...a, [id]: l })); setTrocandoLogo(null); };
 
+  const trocaDeLogo = trocandoLogo && <EscolherLogo titulo="Logo do encarte" aoEscolher={(l) => escolherLogo(trocandoLogo, l)} aoRestaurar={() => escolherLogo(trocandoLogo, null)} aoFechar={() => setTrocandoLogo(null)} />;
+
+  // F-298: ao abrir a pasta, primeiro os MODELOS (com a amostra já com os produtos); tocou num, abre a edição
+  if (escolhendoModelo) return (
+    <>
+      <EscolhaDeModelo titulo={info.tituloEncartes} descricao="Escolha o modelo de encarte para editar · cada modelo guarda o que foi feito nele" itens={capas} ultimo={ultimo} aoEscolher={escolherModelo}>
+        {mercado && ENCARTES.map((e) => (
+          <article key={e.id} role="listitem" className="flex min-w-0 flex-col rounded-2xl border-2 border-white/10 bg-[#140632] p-2 transition hover:border-[#8A2EFF]/70 sm:p-2.5" data-testid="studio-encarte-card">
+            <button type="button" onClick={() => editar(e.id)} aria-label={`Editar o encarte ${e.nome}`} className="block w-full overflow-hidden rounded-xl text-left">
+              <MiniaturaDoEncarte e={e} fotos={fotosDoCatalogo.data} produtos={e.segmento === 'mercado' ? s.produtos : undefined} quantos={s.quantos} logoEscolhida={logos[e.id]} />
+            </button>
+            <div className="flex-1 pt-2">
+              <h2 className="line-clamp-2 text-sm font-bold leading-tight text-white">{e.nome.replace(/ – Encarte Grande$/, '')}</h2>
+              <p className="flex items-center gap-1 text-[11px] text-slate-400"><FileText className="h-3 w-3 shrink-0" />{e.segmento === 'mercado' ? 'com os seus produtos' : e.segmento === 'acougue' ? 'açougue (cortes de exemplo)' : 'hortifruti (exemplo)'}</p>
+            </div>
+            <button type="button" onClick={() => editar(e.id)} className="mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-[#5D1BFF] px-2 text-sm font-bold text-white transition hover:bg-[#8A2EFF]" data-testid="studio-editar-encarte">
+              <PenLine className="h-4 w-4 shrink-0" /><span className="truncate">Editar este modelo</span>
+            </button>
+            <button type="button" onClick={() => setTrocandoLogo(e.id)} className="mt-1.5 h-9 w-full rounded-xl border border-white/15 text-xs font-semibold text-white hover:bg-white/5" data-testid="studio-trocar-logo">Trocar logo</button>
+          </article>
+        ))}
+      </EscolhaDeModelo>
+      {trocaDeLogo}
+    </>
+  );
+
   return (
     <div className="space-y-4" data-testid="studio-pasta-encartes-aberta">
       <div className="flex flex-wrap items-center gap-3">
-        <Link to="/studio" className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-4 w-4" />Modelos</Link>
+        <Link to={temEscolha ? local.pathname : '/studio'} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/5" data-testid="encarte-voltar-aos-modelos"><ArrowLeft className="h-4 w-4" />Modelos</Link>
         <div className="mr-auto min-w-0">
           <h1 className="flex items-center gap-2 truncate text-xl font-black text-white"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />{info.tituloEncartes}</h1>
           <p className="text-xs text-slate-400">{!mercado ? info.descricao : `Supermercados · ${ENCARTES.length} encartes A4 · coloque os seus produtos e escolha quantos mostrar: a grade se organiza sozinha`}</p>
@@ -58,27 +92,11 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
         <div className="min-w-0 space-y-4">
         {/* F-240: encartes OFICIAIS (fundos prontos do dono): os produtos se organizam sozinhos, com a logo e os contatos */}
         <section className="space-y-2" aria-label="Encartes oficiais">
-          {oficiais.length > 1 && <GaleriaDeModelos titulo="Modelos de encarte" itens={capas} selecionado={modelo?.id ?? ''} aoEscolher={setModeloId} />}
           {modelo && <EncarteOficialCartao key={modelo.id} e={modelo} produtos={s.produtos} quantos={s.quantos} aoGravar={() => s.gravar(s.produtos)} />}
         </section>
-        {mercado && <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4" aria-label="Encartes com os seus produtos" data-testid="studio-encartes">
-          {ENCARTES.map((e) => (
-            <article key={e.id} className="sm-cartao-luz flex flex-col overflow-hidden rounded-xl p-2.5" data-testid="studio-encarte-card">
-              <button type="button" onClick={() => editar(e.id)} aria-label={`Editar o encarte ${e.nome}`} className="block w-full text-left">
-                <MiniaturaDoEncarte e={e} fotos={fotosDoCatalogo.data} produtos={e.segmento === 'mercado' ? s.produtos : undefined} quantos={s.quantos} logoEscolhida={logos[e.id]} />
-              </button>
-              <p className="mt-2 line-clamp-2 text-xs font-semibold leading-tight text-white">{e.nome.replace(/ – Encarte Grande$/, '')}</p>
-              <p className="flex items-center gap-1 text-[10px] text-slate-400"><FileText className="h-3 w-3" />{e.segmento === 'mercado' ? 'com os seus produtos' : e.segmento === 'acougue' ? 'açougue (cortes de exemplo)' : 'hortifruti (exemplo)'}</p>
-              <button type="button" onClick={() => editar(e.id)} className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] py-1.5 text-xs font-semibold text-white transition hover:bg-[#8A2EFF]" data-testid="studio-editar-encarte">
-                <PenLine className="h-3.5 w-3.5" />Editar encarte
-              </button>
-              <button type="button" onClick={() => setTrocandoLogo(e.id)} className="mt-1 rounded-lg border border-white/15 py-1.5 text-xs font-semibold text-white hover:bg-white/5" data-testid="studio-trocar-logo">Trocar logo</button>
-            </article>
-          ))}
-        </section>}
         </div>
       </div>
-      {trocandoLogo && <EscolherLogo titulo="Logo do encarte" aoEscolher={(l) => escolherLogo(trocandoLogo, l)} aoRestaurar={() => escolherLogo(trocandoLogo, null)} aoFechar={() => setTrocandoLogo(null)} />}
+      {trocaDeLogo}
     </div>
   );
 }

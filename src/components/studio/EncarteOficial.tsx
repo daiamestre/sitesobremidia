@@ -102,7 +102,7 @@ export function EncarteOficialCartao({ e, produtos, quantos, aoGravar }: { e: En
   const pasta = PASTAS_DE_ENCARTE[e.segmento ?? 'mercado'];
   const editar = () => {
     aoGravar();
-    try { navegar(enderecoDaArtePronta({ id: e.id, docs, formato: doc.formato, nome, pasta, voltar: `/studio/pasta/${pasta.chave}` })); }
+    try { navegar(enderecoDaArtePronta({ id: e.id, docs, formato: doc.formato, nome, pasta, voltar: `/studio/pasta/${pasta.chave}?modelo=${encodeURIComponent(e.id)}` })); }
     catch { toast.error('Não foi possível abrir o editor (a imagem da logo é grande demais). Use uma logo menor.'); }
   };
   const video = () => {

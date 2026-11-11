@@ -196,7 +196,7 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
       <button type="button" onClick={() => setAberto((a) => !a)} aria-expanded={aberto} className="flex w-full items-center gap-2 text-left" data-testid="produtos-cartao">
         <ShoppingBasket className="h-5 w-5 shrink-0 text-[#FFD400]" />
         <span className="min-w-0 flex-1">
-          <span className="block whitespace-nowrap text-sm font-bold text-white">Seus produtos</span>
+          <span className="block truncate text-sm font-bold text-white">Seus produtos</span>
           <span className="block truncate text-[11px] text-slate-400">{s.produtos.length} produtos · {comFoto} com foto{incompletos ? ` · ${incompletos} incompleto${incompletos > 1 ? 's' : ''}` : ''}</span>
         </span>
         <span className="hidden shrink-0 -space-x-2 sm:flex" aria-hidden>

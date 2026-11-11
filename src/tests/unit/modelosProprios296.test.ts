@@ -40,9 +40,9 @@ describe('F-296: galeria de modelos de cada segmento', () => {
     for (const c of Object.values(COMPOSICOES_DOS_ENCARTES)) expect(c.id).toMatch(/-em-oferta-[a-z]+$/);
     for (const c of Object.values(COMPOSICOES_DOS_PALCOS)) expect(c.id).toMatch(/-em-oferta-[a-z]+$/);
   });
-  it('as pastas mostram a galeria (encartes e palco)', () => {
-    expect(fs.readFileSync('src/components/studio/PastaDeEncartes.tsx', 'utf8')).toContain('<GaleriaDeModelos titulo="Modelos de encarte"');
-    expect(fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8')).toContain('<GaleriaDeModelos titulo="Modelos de palco"');
+  it('as pastas mostram os modelos para escolher (encartes e palco) — F-298: antes da edição', () => {
+    expect(fs.readFileSync('src/components/studio/PastaDeEncartes.tsx', 'utf8')).toContain('<EscolhaDeModelo titulo={info.tituloEncartes}');
+    expect(fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8')).toContain('<EscolhaDeModelo titulo={info.tituloPalco}');
   });
 });
 
@@ -96,7 +96,7 @@ describe('F-296: cada modelo é dono de si', () => {
     expect(enc).toContain('localStorage.setItem(chaveDosDados(e.id)');
     const pal = fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8');
     expect(pal).toContain('porFundo.current[fundoId] = { textoBotao, movimento, ajustes };');
-    expect(pal).toContain('onClick={() => trocarFundo(f.id)}');
+    expect(pal).toContain('trocarFundo(modeloDoLink)');
   });
   it('o projeto salvo de um encarte leva a identidade dele (não a do modelo "Ofertas da Semana")', () => {
     const ed = fs.readFileSync('src/pages/studioai/EditorPage.tsx', 'utf8');

@@ -23,7 +23,7 @@ describe('F-297: mesa de edição do palco', () => {
   it('a lateral rola só na altura da arte e a linha do tempo fica embaixo, de largura inteira', () => {
     expect(palco).toContain('data-testid="palco-mesa"');
     expect(palco).toContain("h-[calc(100dvh-96px)]");
-    expect(palco).toMatch(/<aside ref=\{lateral\} className="min-h-0 min-w-0 space-y-3 overflow-y-auto/);
+    expect(palco).toMatch(/<aside ref=\{lateral\} className="min-h-0 min-w-0 space-y-2 overflow-y-auto/);
     const fimDaLateral = palco.indexOf('</aside>');
     const linha = palco.indexOf('data-testid="palco-editor-video"');
     expect(fimDaLateral).toBeGreaterThan(0);

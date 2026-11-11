@@ -40,9 +40,9 @@ export function Cor({ t, valor, onChange, doc }: { t: string; valor: string; onC
       <div className="flex items-center gap-2">
         <input type="color" value={hex(valor)} aria-label={t}
           onChange={(e) => { const v = e.target.value; onChange(v); clearTimeout(espera.current); espera.current = setTimeout(() => guardar(v), 700); }}
-          className="h-10 w-12 shrink-0 cursor-pointer rounded-lg border border-white/15 bg-transparent" />
+          className="h-10 w-10 shrink-0 cursor-pointer rounded-lg border border-white/15 bg-transparent" />
         <input value={atual ?? valor} onChange={(e) => { const v = e.target.value.trim(); if (/^#[0-9a-f]{6}$/i.test(v)) escolher(v.toLowerCase()); }}
-          maxLength={7} aria-label={`${t} (código)`} className={cn(campo, 'w-24 font-mono uppercase')} />
+          maxLength={7} aria-label={`${t} (código)`} className={cn(campo, 'min-w-0 max-w-[6.75rem] flex-1 px-2 font-mono uppercase')} />
       </div>
       {recentes.length > 0 && <div className="flex flex-wrap gap-1.5" aria-label="Últimas cores usadas">{recentes.map((c) => <Bolinha key={`r${c}`} c={c} />)}</div>}
       {daArte.length > 0 && <div className="flex flex-wrap gap-1.5" aria-label="Cores da arte">{daArte.map((c) => <Bolinha key={`a${c}`} c={c} />)}</div>}
