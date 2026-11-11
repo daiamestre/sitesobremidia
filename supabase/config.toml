@@ -17,3 +17,7 @@ verify_jwt = false
 [functions.agente-ia]
 # F-223 "Trabalhar com IA": confere o JWT com auth.getUser() e o acesso com agente_ia_escopo().
 verify_jwt = false
+
+[functions.studio-locucao]
+# F-300 LOCUTOR: confere o JWT com auth.getUser() e o acesso com studio_ai_escopo(); a chave da ElevenLabs só existe aqui.
+verify_jwt = false

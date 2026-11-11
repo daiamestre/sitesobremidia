@@ -3,7 +3,7 @@
 // o pedestal sobe, o produto entra com zoom e fica flutuando, o nome sobe e o selo do preço entra com zoom e pulsa.
 // O CARROSSEL vira um projeto do editor de vídeo: um clipe por produto, com transição deslizando — exporta MP4.
 import { TAMANHO_DOC, forma, imagem, larguraDoTexto, selo, texto, type Camada, type Documento, type FormatoDoc } from './documento';
-import { novoClipe, projetoVazio, type ProjetoDeVideo, type TipoDeTransicao } from './video/linha';
+import { idNovo, inicios, novoClipe, projetoVazio, type FaixaDeAudio, type ProjetoDeVideo, type TipoDeTransicao } from './video/linha';
 import type { TipoDeAnimacao } from './animacao';
 import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, logoOficialDoSegmento, type LogoDaPasta } from './logos';
 import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDoPalcoDe, type SegmentoNovo } from './segmentosDeOferta';
@@ -26,7 +26,18 @@ export interface OpcoesDoPalco {
   ajustes?: AjustesDoPalco;
   /** F-242: de que lado cada elemento entra (escolha do cliente) e para que lado o carrossel passa de um produto ao outro */
   movimento?: MovimentoDoPalco;
+  /** F-300: a LOCUÇÃO (voz do locutor): abertura, uma fala por produto (pelo nome) e fechamento, já gravadas */
+  locucao?: LocucaoDoVideo | null;
 }
+
+/** F-300: uma fala gravada (mp3 no R2) e quanto ela dura */
+export interface FalaGravada { url: string; dur: number }
+export interface LocucaoDoVideo { abertura?: FalaGravada | null; fechamento?: FalaGravada | null; ofertas: Record<string, FalaGravada> }
+export const chaveDaFala = (nomeDoProduto: string) => `oferta:${nomeDoProduto.trim().toLowerCase()}`;
+const faixaDaFala = (nome: string, f: FalaGravada, em: number): FaixaDeAudio => ({
+  // id fixo por frase (o arquivo): o motor reaproveita o áudio já carregado a cada atualização do palco
+  id: `loc-${f.url.split('/').pop()?.replace(/\W/g, '') ?? idNovo('loc')}`, nome, src: f.url, duracaoArquivo: f.dur, em: Math.max(0, em), inicio: 0, fim: f.dur, volume: 1, somEntra: 0, somSai: 0.05, repetir: false,
+});
 
 export type AjustesDoPalco = Partial<Record<FormatoDoc, Record<string, Partial<Camada>>>>;
 export interface MovimentoDoPalco { produto?: TipoDeAnimacao; nome?: TipoDeAnimacao; preco?: TipoDeAnimacao; transicao?: TipoDeTransicao; /** F-290: a troca de CADA produto para o próximo (pelo nome do produto); sem ela vale a padrão */ transicoes?: Record<string, TipoDeTransicao> }
@@ -383,9 +394,36 @@ export function projetoDoCarrossel(produtos: Array<Pick<ProdutoTabloide, 'nome' 
     ...projetoVazio(formato),
     // F-296: o fundo do vídeo (o que aparece por trás das trocas) é a cor DESTE palco, girada pelo tom escolhido — nunca o do mercado
     fundo: produtos[0] ? escurecer(corDoDocumento(palcoDoProduto(produtos[0], formato, o)), 0.45) : '#000000',
-    clipes: produtos.map((p) => novoClipe('arte', '', p.nome, {
-      documento: palcoDoProduto(p, formato, { ...o, segundos: seg }), duracao: seg, zoomDe: 1, zoomPara: 1,
-      transicao: { tipo: transicaoDoProduto(o.movimento, p.nome), duracao: 0.5 },
-    })),
+    ...comLocucao(produtos, formato, o, seg),
   };
+}
+
+/**
+ * F-300: os clipes do carrossel e, com LOCUÇÃO, as falas na linha do tempo: o 1º produto começa com a abertura, cada
+ * produto fica no ar o tempo da fala dele (nunca menos que `seg`) e o último termina com o fechamento.
+ */
+function comLocucao(produtos: Array<Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>>, formato: FormatoDoc, o: OpcoesDoPalco, seg: number): Pick<ProjetoDeVideo, 'clipes' | 'audios'> {
+  const l = o.locucao;
+  const PAUSA = 0.35, FOLGA = 1.2;
+  const falas = produtos.map((p) => l?.ofertas[chaveDaFala(p.nome)] ?? null);
+  const duracoes = produtos.map((_, i) => {
+    if (!l) return seg;
+    const antes = i === 0 && l.abertura ? l.abertura.dur + PAUSA : 0;
+    const depois = i === produtos.length - 1 && l.fechamento ? PAUSA + l.fechamento.dur : 0;
+    return Math.max(seg, antes + (falas[i]?.dur ?? 0) + depois + FOLGA);
+  });
+  const clipes = produtos.map((p, i) => novoClipe('arte', '', p.nome, {
+    documento: palcoDoProduto(p, formato, { ...o, segundos: duracoes[i] }), duracao: duracoes[i], zoomDe: 1, zoomPara: 1,
+    transicao: { tipo: transicaoDoProduto(o.movimento, p.nome), duracao: 0.5 },
+  }));
+  if (!l) return { clipes, audios: [] };
+  const ini = inicios(clipes);
+  const audios: FaixaDeAudio[] = [];
+  produtos.forEach((p, i) => {
+    let t = ini[i] + 0.3;
+    if (i === 0 && l.abertura) { audios.push(faixaDaFala('Locução · abertura', l.abertura, t)); t += l.abertura.dur + PAUSA; }
+    if (falas[i]) { audios.push(faixaDaFala(`Locução · ${p.nome}`, falas[i]!, t)); t += falas[i]!.dur; }
+    if (i === produtos.length - 1 && l.fechamento) audios.push(faixaDaFala('Locução · fechamento', l.fechamento, t + PAUSA));
+  });
+  return { clipes, audios };
 }

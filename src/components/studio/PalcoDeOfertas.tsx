@@ -25,9 +25,10 @@ import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, lerValor, precoParaTexto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { infoDaPasta, pastaDeOfertasDe } from '@/lib/studio/pastasDoSegmento';
 import { TAMANHO_DOC, camadaNoPonto, type Camada, type CamadaTexto, type Documento, type FormatoDoc } from '@/lib/studio/documento';
-import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type MovimentoDoPalco } from '@/lib/studio/palco';
+import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type LocucaoDoVideo, type MovimentoDoPalco } from '@/lib/studio/palco';
 import { comAlfa, corDoDocumento, coresDosEfeitos } from '@/lib/studio/corDaArte';
 import { EscolhaDeModelo } from './GaleriaDeModelos';
+import { PainelDeLocucao } from './PainelDeLocucao';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
@@ -241,6 +242,9 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
 
   // F-244: só os produtos escolhidos passam no palco
   const comPreco = useMemo(() => s.produtos.filter((p) => p.preco != null).slice(0, s.quantos), [s.produtos, s.quantos]);
+  // F-300: a LOCUÇÃO (opcional): o agente locutor fala a loja, os produtos e os preços; as falas entram no vídeo
+  const [locucao, setLocucao] = useState<LocucaoDoVideo | null>(null);
+  const produtosDaLocucao = useMemo(() => comPreco.map((p) => ({ nome: p.nome, preco: p.preco, precoDe: p.precoDe, unidade: p.unidade })), [comPreco]);
   // F-248: a logo do palco vem da pasta Logos
   const chaveLogo = `palco-${fundoId}`;
   const [logoDoPalco, setLogoDoPalco] = useState<LogoDaPasta | null>(() => lerLogoDoEncarte(chaveLogo));
@@ -368,13 +372,13 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     if (!comPreco.length) { toast.error('Coloque pelo menos um produto com preço.'); return; }
     const incompletos = comPreco.filter((p) => faltasDoProduto(p).length);
     if (incompletos.length) { toast.error(`Complete antes: falta ${faltasDoProduto(incompletos[0]).join(', ')} em “${incompletos[0].nome}”.`); setSelId(incompletos[0].id); return; }
-    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes });
+    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao });
     try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ projeto, nome: `${info.tituloPalco} – ${fundo ? textoBotao : titulo}` })); } catch { toast.error('Não foi possível abrir o editor de vídeo.'); return; }
     navegar('/studio/video');
   };
   const mover = (k: keyof MovimentoDoPalco, v: string) => setMovimento((m) => ({ ...m, [k]: v }));
   // F-292: o EDITOR DE VÍDEO fica embaixo da arte, já com um clipe por produto, acompanhando o palco (meio segundo depois de cada mudança)
-  const projetoDoPalco = useMemo(() => (comPreco.length ? projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes }) : null), [comPreco, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes]);
+  const projetoDoPalco = useMemo(() => (comPreco.length ? projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao }) : null), [comPreco, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao]);
   const [projetoNoEditor, setProjetoNoEditor] = useState(projetoDoPalco);
   useEffect(() => { const t = setTimeout(() => setProjetoNoEditor(projetoDoPalco), 500); return () => clearTimeout(t); }, [projetoDoPalco]);
   const transicaoPeloEditor = (nome: string, tipo: TipoDeTransicao) => setMovimento((m) => ({ ...m, transicoes: { ...(m.transicoes ?? {}), [chaveCanonica(nome)]: tipo } }));
@@ -565,6 +569,9 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
               )}
             </Cartao>
           </div>}
+
+          {/* F-300: LOCUÇÃO — nome da loja, 5 vozes e o agente locutor (opcional) */}
+          {comPreco.length > 0 && <PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} />}
 
           <Cartao titulo={fundo ? 'Fundo, logo e botão' : 'Título do palco'} icone={Palette}>
             {/* F-288: cor do fundo do palco (gira o tom da arte) */}

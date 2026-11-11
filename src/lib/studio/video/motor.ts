@@ -8,7 +8,13 @@ import { desenharCamada, desenharDocumento, prepararDocumento, type Imagens } fr
 import { formatoDeVideo } from '../video';
 import { caixaDaMidia, desenharTransicao, desenharVinheta, filtroDoClipe } from './efeitos';
 import { corDoDocumento } from '../corDaArte';
-import { duracaoDoClipe, duracaoTotal, noTempo, tempoNoArquivo, volumeNoTempo, type Clipe, type ProjetoDeVideo, type Quadro } from './linha';
+import { duracaoDoClipe, duracaoTotal, inicios, noTempo, tempoNoArquivo, volumeNoTempo, type Clipe, type ProjetoDeVideo, type Quadro } from './linha';
+import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
+
+/** F-301: exportação QUADRO A QUADRO (TV e painel de LED): tamanho, quadros por segundo e taxa de bits */
+export interface OpcoesDeQualidade { fps?: 30 | 60; /** 1 = tamanho do projeto (1920×1080 / 1080×1920); 2 = 4K */ escala?: 1 | 2; bitsPorSegundo?: number }
+/** o navegador monta MP4 quadro a quadro? (WebCodecs: Chrome/Edge no computador e no Android) */
+export const podeExportarQuadroAQuadro = () => typeof window !== 'undefined' && 'VideoEncoder' in window && 'VideoFrame' in window;
 
 export interface VideoExportado { video: Blob; mime: string; ext: 'mp4' | 'webm'; largura: number; altura: number; duracaoMs: number; capa: Blob | null; quadros: Blob[] }
 
@@ -366,6 +372,151 @@ export class MotorDeVideo {
     const video = new Blob(pedacos, { type: tipo });
     if (!video.size) throw new Error('A gravação saiu vazia. Mantenha a tela do Studio aberta enquanto o vídeo é criado.');
     return { video, mime: tipo, ext: fmt.ext, largura: w, altura: h, duracaoMs: Math.round(total * 1000), capa: quadros[quadros.length - 1] ?? null, quadros };
+  }
+
+  /** F-301: põe cada vídeo do instante t no quadro exato (espera o navegador terminar de buscar). */
+  private async posicionarVideos(t: number) {
+    const q = noTempo(this.p!.clipes, t);
+    await Promise.all([q.atual, q.proximo].map((qa) => {
+      if (!qa || qa.clipe.tipo !== 'video') return undefined;
+      const v = this.videos.get(qa.clipe.id);
+      if (!v) return undefined;
+      const alvo = tempoNoArquivo(qa.clipe, qa.local);
+      if (!v.paused) v.pause();
+      if (Math.abs(v.currentTime - alvo) < 0.004 && v.readyState >= 2) return undefined;
+      return new Promise<void>((ok) => {
+        const fim = () => { v.removeEventListener('seeked', fim); clearTimeout(limite); ok(); };
+        const limite = setTimeout(fim, 4000);
+        v.addEventListener('seeked', fim);
+        v.currentTime = alvo;
+      });
+    }));
+  }
+
+  /** F-301: a MISTURA do som inteiro, exata ao milissegundo (locução, músicas e o som dos vídeos), fora do tempo real. */
+  private async mixarOffline(total: number): Promise<AudioBuffer | null> {
+    const p = this.p!;
+    const sr = 48000;
+    const ini = inicios(p.clipes);
+    const fontes: Array<{ src: string; em: number; inicio: number; fim: number; dur: number; volume: number; entra: number; sai: number; repetir: boolean; ritmo: number }> = [];
+    for (const a of p.audios) {
+      const trecho = Math.max(0.05, a.fim - a.inicio);
+      fontes.push({ src: a.src, em: a.em, inicio: a.inicio, fim: a.fim, dur: a.repetir ? Math.max(0, total - a.em) : trecho, volume: a.volume, entra: a.somEntra, sai: a.somSai, repetir: a.repetir, ritmo: 1 });
+    }
+    p.clipes.forEach((c, i) => {
+      if (c.tipo === 'video' && !c.mudo && c.volume > 0) fontes.push({ src: c.src, em: ini[i], inicio: c.inicio, fim: c.fim, dur: duracaoDoClipe(c), volume: c.volume, entra: c.somEntra, sai: c.somSai, repetir: false, ritmo: c.velocidade });
+    });
+    if (!fontes.length) return null;
+    const ctx = new OfflineAudioContext(2, Math.max(1, Math.ceil(total * sr)), sr);
+    const cache = new Map<string, Promise<AudioBuffer | null>>();
+    const decodificar = (src: string) => {
+      const real = this.resolver(src);
+      if (!cache.has(real)) cache.set(real, fetch(real).then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)).catch(() => null));
+      return cache.get(real)!;
+    };
+    for (const f of fontes) {
+      const buf = await decodificar(f.src);
+      if (!buf || f.dur <= 0 || f.em >= total) continue;
+      const fonte = ctx.createBufferSource();
+      fonte.buffer = buf;
+      fonte.playbackRate.value = Math.min(4, Math.max(0.25, f.ritmo));
+      const g = ctx.createGain();
+      const fim = Math.min(total, f.em + f.dur);
+      g.gain.setValueAtTime(f.entra > 0 ? 0 : f.volume, f.em);
+      if (f.entra > 0) g.gain.linearRampToValueAtTime(f.volume, Math.min(fim, f.em + f.entra));
+      if (f.sai > 0 && fim - f.sai > f.em) { g.gain.setValueAtTime(f.volume, fim - f.sai); g.gain.linearRampToValueAtTime(0, fim); }
+      fonte.connect(g).connect(ctx.destination);
+      if (f.repetir) {
+        fonte.loop = true; fonte.loopStart = f.inicio; fonte.loopEnd = Math.min(buf.duration, f.fim || buf.duration);
+        fonte.start(f.em, f.inicio); fonte.stop(fim);
+      } else fonte.start(f.em, f.inicio, Math.max(0.01, f.dur * fonte.playbackRate.value));
+    }
+    return ctx.startRendering();
+  }
+
+  /**
+   * F-301 (pedido do dono): exporta QUADRO A QUADRO em qualidade máxima — para TV e painel de LED.
+   * Cada quadro é desenhado no instante exato (nenhum quadro perdido, mesmo em aparelho lento) e comprimido em H.264 de alta
+   * taxa (WebCodecs); o som é misturado fora do tempo real e comprimido em AAC; tudo vira um MP4 (H.264 + AAC), que toca em
+   * qualquer TV, TV Box, player de LED e no nosso Player.
+   */
+  async exportarQuadroAQuadro(o: OpcoesDeQualidade = {}, aoProgredir?: (f: number) => void): Promise<VideoExportado> {
+    if (!this.p) throw new Error('Projeto vazio.');
+    if (!podeExportarQuadroAQuadro()) throw new Error('Este navegador não monta vídeo quadro a quadro. Use o Chrome ou o Edge atualizado.');
+    this.pausar();
+    const fps = o.fps ?? 30, k = o.escala ?? 1;
+    const total = this.total;
+    const { w, h } = TAMANHO_DOC[this.p.formato];
+    const W = Math.round((w * k) / 2) * 2, H = Math.round((h * k) / 2) * 2;
+    const bits = o.bitsPorSegundo ?? (k === 2 ? 40_000_000 : fps === 60 ? 24_000_000 : 16_000_000);
+    let codec = '';
+    for (const c of ['avc1.640034', 'avc1.640033', 'avc1.640032', 'avc1.640028', 'avc1.4d0028']) {
+      const sup = await VideoEncoder.isConfigSupported({ codec: c, width: W, height: H, bitrate: bits, framerate: fps }).catch(() => null);
+      if (sup?.supported) { codec = c; break; }
+    }
+    if (!codec) throw new Error(`Este aparelho não grava vídeo H.264 em ${W}×${H}. Tente o tamanho normal ou o Chrome no computador.`);
+
+    aoProgredir?.(0.01);
+    const som = await this.mixarOffline(total);
+    const aacOk = som ? (await AudioEncoder.isConfigSupported({ codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 192_000 }).catch(() => null))?.supported : false;
+    if (som && !aacOk) throw new Error('Este navegador não grava o som em AAC. Use o Chrome ou o Edge atualizado (ou a exportação rápida).');
+
+    const alvo = new ArrayBufferTarget();
+    const muxer = new Muxer({
+      target: alvo, fastStart: 'in-memory', firstTimestampBehavior: 'offset',
+      video: { codec: 'avc', width: W, height: H, frameRate: fps },
+      ...(som ? { audio: { codec: 'aac' as const, numberOfChannels: 2, sampleRate: 48000 } } : {}),
+    });
+    let falha: Error | null = null;
+    const enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: (e) => { falha = e as Error; } });
+    enc.configure({ codec, width: W, height: H, bitrate: bits, framerate: fps, bitrateMode: 'variable', latencyMode: 'quality' });
+
+    const quadros: Blob[] = [];
+    const n = Math.max(1, Math.ceil(total * fps));
+    const capas = new Set([Math.floor(n * 0.2), Math.floor(n * 0.55), n - 1]);
+    this.exportando = true;
+    this.escala = k; this.ajustarTela();
+    try {
+      for (let i = 0; i < n; i++) {
+        if (falha) throw falha;
+        const t = Math.min(total - 0.0005, i / fps);
+        this.tempo = t;
+        await this.posicionarVideos(t);
+        this.desenhar(t);
+        const quadro = new VideoFrame(this.canvas, { timestamp: Math.round((i * 1_000_000) / fps), duration: Math.round(1_000_000 / fps) });
+        enc.encode(quadro, { keyFrame: i % (fps * 2) === 0 });
+        quadro.close();
+        if (capas.has(i)) { const b = await new Promise<Blob | null>((ok) => this.canvas.toBlob(ok, 'image/jpeg', 0.85)); if (b) quadros.push(b); }
+        while (enc.encodeQueueSize > 6) await new Promise((ok) => setTimeout(ok, 2));
+        if (i % 5 === 0) { aoProgredir?.(0.02 + 0.9 * (i / n)); await new Promise((ok) => setTimeout(ok, 0)); }
+      }
+      await enc.flush();
+      if (falha) throw falha;
+      if (som) {
+        const aenc = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: (e) => { falha = e as Error; } });
+        aenc.configure({ codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 192_000 });
+        const L = som.getChannelData(0), R = som.numberOfChannels > 1 ? som.getChannelData(1) : som.getChannelData(0);
+        const PEDACO = 4096;
+        for (let off = 0; off < som.length; off += PEDACO) {
+          const m = Math.min(PEDACO, som.length - off);
+          const dados = new Float32Array(m * 2);
+          dados.set(L.subarray(off, off + m), 0); dados.set(R.subarray(off, off + m), m);
+          aenc.encode(new AudioData({ format: 'f32-planar', sampleRate: 48000, numberOfFrames: m, numberOfChannels: 2, timestamp: Math.round((off / 48000) * 1_000_000), data: dados }));
+        }
+        await aenc.flush();
+        aenc.close();
+        if (falha) throw falha;
+      }
+      muxer.finalize();
+      aoProgredir?.(1);
+    } finally {
+      if (enc.state !== 'closed') enc.close();
+      this.exportando = false;
+      this.escala = PREVIA; this.ajustarTela();
+      this.tempo = 0; this.sincronizar(0); this.desenhar(0);
+    }
+    const video = new Blob([alvo.buffer], { type: 'video/mp4' });
+    return { video, mime: 'video/mp4', ext: 'mp4', largura: W, altura: H, duracaoMs: Math.round(total * 1000), capa: quadros[quadros.length - 1] ?? null, quadros };
   }
 
   /** Miniatura de um clipe para a linha do tempo. */

@@ -26,7 +26,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { uploadToR2 } from '@/lib/r2Upload';
 import { TAMANHO_DOC, alturaDoTexto, alturaDosItens, forma, imagem, itens, selo, texto, type Camada, type Documento, type FormatoDoc, telaDoFormato } from '@/lib/studio/documento';
 import { duracaoDoVideo } from '@/lib/studio/animacao';
-import { MotorDeVideo, type VideoExportado } from '@/lib/studio/video/motor';
+import { MotorDeVideo, podeExportarQuadroAQuadro, type OpcoesDeQualidade, type VideoExportado } from '@/lib/studio/video/motor';
+
+/**
+ * F-301 (pedido do dono): QUALIDADE da exportação. "Máxima" monta o MP4 QUADRO A QUADRO (nenhum quadro perdido, H.264 de
+ * alta taxa + AAC) — para TV e painel de LED; 60 quadros/s e 4K para painel grande. "Rápida" grava tocando (como antes).
+ */
+type Qualidade = 'maxima' | 'maxima60' | '4k' | 'rapida';
+const QUALIDADES: Array<{ id: Qualidade; nome: string; o?: OpcoesDeQualidade }> = [
+  { id: 'maxima', nome: 'Máxima · TV e LED (Full HD)', o: { fps: 30, escala: 1 } },
+  { id: 'maxima60', nome: 'Máxima · 60 quadros/s', o: { fps: 60, escala: 1 } },
+  { id: '4k', nome: 'Máxima · 4K (painel grande)', o: { fps: 30, escala: 2 } },
+  { id: 'rapida', nome: 'Rápida (grava tocando)' },
+];
+const CHAVE_QUALIDADE = 'studio-video-qualidade';
 import {
   CHAVE_ARTE_PARA_VIDEO, dividir, duracaoDoClipe, duracaoTotal, formatarTempo, idNovo, inicios, noTempo, novoClipe, projetoVazio,
   type Clipe, type FaixaDeAudio, type ProjetoDeVideo, type Sobreposicao, type TipoDeTransicao,
@@ -59,12 +72,16 @@ export default function VideoEditorPage() {
 }
 
 /** F-292: o projeto que vem do palco entra no editor sem perder o que a pessoa fez na linha do tempo (música, textos, filtros, tempos) */
+/** F-300: faixas de LOCUÇÃO vêm do palco (id "loc-…"); as outras faixas são da pessoa e ficam */
+const ehLocucao = (a: { id: string }) => a.id.startsWith('loc-');
 function mesclarDoPalco(novo: ProjetoDeVideo, q: ProjetoDeVideo): ProjetoDeVideo {
+  // com locução, o tempo de cada produto é o da fala (vem do palco); sem ela, fica o tempo que a pessoa ajustou
+  const comLocucao = novo.audios.some(ehLocucao);
   const clipes = novo.clipes.map((c) => {
     const o = q.clipes.find((k) => k.tipo === 'arte' && k.nome === c.nome);
-    return o ? { ...c, id: o.id, duracao: o.duracao, velocidade: o.velocidade, filtro: o.filtro, ajustes: o.ajustes, zoomDe: o.zoomDe, zoomPara: o.zoomPara, transicao: { ...c.transicao, duracao: o.transicao.duracao || c.transicao.duracao } } : c;
+    return o ? { ...c, id: o.id, duracao: comLocucao ? c.duracao : o.duracao, velocidade: o.velocidade, filtro: o.filtro, ajustes: o.ajustes, zoomDe: o.zoomDe, zoomPara: o.zoomPara, transicao: { ...c.transicao, duracao: o.transicao.duracao || c.transicao.duracao } } : c;
   });
-  return { ...novo, clipes: [...clipes, ...q.clipes.filter((k) => k.tipo !== 'arte')], sobreposicoes: q.sobreposicoes, audios: q.audios };
+  return { ...novo, clipes: [...clipes, ...q.clipes.filter((k) => k.tipo !== 'arte')], sobreposicoes: q.sobreposicoes, audios: [...novo.audios.filter(ehLocucao), ...q.audios.filter((a) => !ehLocucao(a))] };
 }
 
 /**
@@ -113,6 +130,8 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [exportando, setExportando] = useState<number | null>(null);
   const [exportado, setExportado] = useState<{ v: VideoExportado; url: string } | null>(null);
+  const [qualidade, setQualidade] = useState<Qualidade>(() => { try { const q = localStorage.getItem(CHAVE_QUALIDADE) as Qualidade | null; return q && QUALIDADES.some((x) => x.id === q) ? q : 'maxima'; } catch { return 'maxima'; } });
+  useEffect(() => { try { localStorage.setItem(CHAVE_QUALIDADE, qualidade); } catch { /* sem armazenamento */ } }, [qualidade]);
   const [publicando, setPublicando] = useState(false);
   const [escolher, setEscolher] = useState<null | 'galeria' | 'arte' | 'elementos'>(null);
   const [carregado, setCarregado] = useState(!projetoId);
@@ -432,7 +451,10 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
     if (!p.clipes.length && !p.sobreposicoes.length) throw new Error('Adicione um vídeo, foto ou arte antes de exportar.');
     setTocando(false); setSel(null); setExportando(0);
     try {
-      const v = await motor.current!.exportar((f) => setExportando(f));
+      const q = QUALIDADES.find((x) => x.id === qualidade);
+      const v = q?.o && podeExportarQuadroAQuadro()
+        ? await motor.current!.exportarQuadroAQuadro(q.o, (f) => setExportando(f))
+        : await motor.current!.exportar((f) => setExportando(f));
       setExportado({ v, url: URL.createObjectURL(v.video) });
       toast.success('Vídeo pronto! Salve na galeria, publique ou baixe.');
     } finally { setExportando(null); setTempo(motor.current?.tempo ?? 0); }
@@ -477,7 +499,7 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-black/70 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-[#FFD400]" />
           <p className="text-sm font-bold text-[#FFD400]">Criando o vídeo… {Math.round(exportando * 100)}%</p>
-          <p className="px-4 text-[11px] text-slate-300">Deixe esta tela aberta até terminar ({total.toFixed(0)} s).</p>
+          <p className="px-4 text-[11px] text-slate-300">{qualidade === 'rapida' ? `Deixe esta tela aberta até terminar (${total.toFixed(0)} s).` : 'Montando quadro a quadro em qualidade máxima. Deixe esta tela aberta até terminar.'}</p>
         </div>
       )}
     </div>
@@ -601,6 +623,10 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
           </label>
           <div className="flex items-center gap-1">
             <button type="button" onClick={salvar} disabled={!!ocupado} aria-label="Salvar o vídeo em Meus Projetos" className="flex h-9 items-center justify-center gap-1 rounded-lg bg-[#5D1BFF] px-2.5 text-xs font-semibold text-white">{ocupado === 'salvar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}<span className="hidden sm:inline">Salvar</span></button>
+<select value={qualidade} onChange={(e) => setQualidade(e.target.value as Qualidade)} aria-label="Qualidade do vídeo" title="Qualidade do vídeo" data-testid="video-qualidade"
+              className="h-9 w-[7.5rem] sm:w-auto rounded-lg border border-white/15 bg-[#0f0428] px-1.5 text-xs font-semibold text-white focus:border-[#8A2EFF] focus:outline-none [&_option]:bg-[#14062f]">
+              {QUALIDADES.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+            </select>
             <button type="button" onClick={exportar} disabled={!!ocupado} className="sm-reflexo flex h-9 items-center justify-center gap-1 rounded-lg bg-[#FFD400] px-2.5 text-xs font-bold text-[#22004A]" data-testid="video-exportar">{ocupado === 'exportar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Exportar<span className="hidden sm:inline">&nbsp;vídeo</span></button>
           </div>
         </div>
@@ -635,7 +661,11 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
         </div>
         <div className="flex w-full gap-1.5 sm:w-auto">
           <button type="button" onClick={salvar} disabled={!!ocupado} className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#5D1BFF] px-3 text-sm font-semibold text-white sm:flex-none">{ocupado === 'salvar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Salvar</button>
-          <button type="button" onClick={exportar} disabled={!!ocupado} className="sm-reflexo flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#FFD400] px-4 text-sm font-bold text-[#22004A] sm:flex-none" data-testid="video-exportar">{ocupado === 'exportar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Exportar vídeo</button>
+<select value={qualidade} onChange={(e) => setQualidade(e.target.value as Qualidade)} aria-label="Qualidade do vídeo" title="Qualidade do vídeo" data-testid="video-qualidade"
+              className="h-11 max-w-[11rem] rounded-lg border border-white/15 bg-[#0f0428] px-1.5 text-xs font-semibold text-white focus:border-[#8A2EFF] focus:outline-none [&_option]:bg-[#14062f]">
+              {QUALIDADES.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+            </select>
+            <button type="button" onClick={exportar} disabled={!!ocupado} className="sm-reflexo flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#FFD400] px-4 text-sm font-bold text-[#22004A] sm:flex-none" data-testid="video-exportar">{ocupado === 'exportar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Exportar vídeo</button>
         </div>
       </div>
       {enviando > 0 && <p className="flex items-center gap-2 text-xs text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Guardando {enviando} mídia(s) na nuvem… (pode continuar editando)</p>}
