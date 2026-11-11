@@ -196,7 +196,7 @@ export function LinhaDoTempo(props: Props) {
   return (
     <div className="overflow-hidden rounded-xl border border-white/10 bg-[#161418]" data-testid="linha-do-tempo">
       {/* barra de ferramentas */}
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-[#1e1b22] px-2 py-1.5 text-xs text-slate-300">
+      <div className="flex items-center gap-1.5 overflow-x-auto border-b border-white/10 bg-[#1e1b22] px-2 py-1.5 text-xs text-slate-300 [&>*]:shrink-0">
         <span className="rounded bg-black/50 px-2 py-1 font-mono text-[13px] text-[#ff9a3c]" data-testid="timecode">{timecode(tempo)}</span>
         <span className="hidden font-mono text-[11px] text-slate-500 sm:inline">/ {timecode(total)}</span>
         <span className="mx-1 hidden h-5 w-px bg-white/10 sm:block" />

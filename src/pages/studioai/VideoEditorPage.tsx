@@ -5,7 +5,8 @@
  * textos/legendas/figurinhas/formas/selos/logo com tempo e animação, música com corte e repetição, e exportação em
  * MP4 1080p com som — direto para a galeria (pasta "Vídeos do Studio"), para uma tela/playlist ou para baixar.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as EventoDoMouse } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -71,7 +72,26 @@ function mesclarDoPalco(novo: ProjetoDeVideo, q: ProjetoDeVideo): ProjetoDeVideo
  * já preenchido com os produtos do palco (um clipe por produto) e acompanhando cada mudança feita no palco; a transição escolhida
  * num corte volta para o palco (`aoTransicao`).
  */
-export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeInicial, aoTransicao }: { embutido?: boolean; projetoInicial?: ProjetoDeVideo | null; nomeInicial?: string; aoTransicao?: (nomeDoClipe: string, tipo: TipoDeTransicao) => void }) {
+/**
+ * F-297 (pedido do dono): o editor de vídeo como MESA DE EDIÇÃO de outra tela (o palco de ofertas), como nos aplicativos de
+ * edição: UMA visualização só — a prévia do vídeo vai para `previa` (o mesmo lugar da arte animada) e as ferramentas do
+ * clipe/texto/música escolhido vão para `ferramentas` (a lateral direita); aqui fica só a mesa: controles, adicionar e a
+ * linha do tempo, sempre à vista junto com a arte.
+ */
+export interface MesaDoVideo {
+  previa: HTMLElement | null;
+  ferramentas: HTMLElement | null;
+  /** a prévia do vídeo está à vista (quando a arte do palco volta, o vídeo pausa) */
+  visivel: boolean;
+  /** a pessoa mexeu na mesa (tocar, linha do tempo, adicionar): a visualização passa a mostrar o vídeo */
+  aoUsar: () => void;
+  /** tocou num ponto da prévia parada: o clipe (produto) daquele instante e o documento dele */
+  aoTocarNaTela?: (nomeDoClipe: string, ev: EventoDoMouse<HTMLElement>, doc: Documento) => void;
+  /** o produto em edição no palco: o cursor da linha do tempo vai para o clipe dele */
+  clipeEmFoco?: string | null;
+}
+
+export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeInicial, aoTransicao, mesa }: { embutido?: boolean; projetoInicial?: ProjetoDeVideo | null; nomeInicial?: string; aoTransicao?: (nomeDoClipe: string, tipo: TipoDeTransicao) => void; mesa?: MesaDoVideo }) {
   const params = useParams();
   const projetoId = embutido ? undefined : params.projetoId;
   const navegar = useNavigate();
@@ -96,7 +116,7 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
   const [publicando, setPublicando] = useState(false);
   const [escolher, setEscolher] = useState<null | 'galeria' | 'arte' | 'elementos'>(null);
   const [carregado, setCarregado] = useState(!projetoId);
-  const tela = useRef<HTMLCanvasElement>(null);
+  const tela = useRef<HTMLCanvasElement | null>(null);
   const motor = useRef<MotorDeVideo | null>(null);
   const locais = useRef(new Map<string, string>());
   const passado = useRef<ProjetoDeVideo[]>([]);
@@ -108,18 +128,23 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
   const textoRef = useRef<HTMLTextAreaElement>(null);
   const total = duracaoTotal(p);
 
-  // ── motor: cria uma vez; recebe o projeto a cada mudança
+  // ── motor: cria quando a tela (canvas) aparece — na mesa ela vive dentro da visualização da outra tela; recebe o projeto a cada mudança
+  const [telaEl, setTelaEl] = useState<HTMLCanvasElement | null>(null);
+  const refTela = useCallback((el: HTMLCanvasElement | null) => { tela.current = el; setTelaEl(el); }, []);
+  const pAtual = useRef(p);
+  pAtual.current = p;
   useEffect(() => {
-    if (!tela.current) return;
-    const m = new MotorDeVideo(tela.current);
+    if (!telaEl) return;
+    const m = new MotorDeVideo(telaEl);
     m.resolver = (src) => locais.current.get(src) ?? src;
     let ultimo = 0;
     m.onTempo = (t) => { const agora = performance.now(); if (agora - ultimo > 90 || !m.tocando) { ultimo = agora; setTempo(t); } };
     m.onFim = () => { setTocando(false); setTempo(m.tempo); };
     m.onMudouMidia = () => setVersaoMidia((v) => v + 1);
     motor.current = m;
+    void m.definir(pAtual.current);
     return () => { m.destruir(); motor.current = null; };
-  }, []);
+  }, [telaEl]);
   useEffect(() => { void motor.current?.definir(p); }, [p]);
 
   // F-292: embutido no palco: acompanha o palco
@@ -214,6 +239,29 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
   // ── tocar / parar / ir
   const tocarPausar = () => { const m = motor.current; if (!m) return; if (m.tocando) { m.pausar(); setTocando(false); } else { m.tocar(); setTocando(true); } };
   const ir = (t: number) => { motor.current?.ir(t); setTempo(Math.max(0, Math.min(total, t))); };
+
+  /** F-297: na mesa, escolher um clipe mostra a arte já montada (os elementos entram nos primeiros segundos) */
+  const noMeioDoClipe = (c: Clipe) => Math.min(2.5, duracaoDoClipe(c) * 0.4);
+  // F-297: na mesa do palco — a arte voltou para a visualização: o vídeo pausa
+  useEffect(() => { if (mesa && !mesa.visivel && motor.current?.tocando) { motor.current.pausar(); setTocando(false); } }, [mesa?.visivel]); // eslint-disable-line react-hooks/exhaustive-deps
+  // F-297: o produto em edição no palco leva o cursor da linha do tempo para o clipe dele
+  useEffect(() => {
+    const n = mesa?.clipeEmFoco;
+    if (!n) return;
+    const i = p.clipes.findIndex((c) => c.nome === n);
+    if (i < 0) return;
+    const ini = inicios(p.clipes)[i];
+    if (tempo < ini || tempo >= ini + duracaoDoClipe(p.clipes[i])) ir(ini + noMeioDoClipe(p.clipes[i]));
+  }, [mesa?.clipeEmFoco]); // eslint-disable-line react-hooks/exhaustive-deps
+  // F-297: escolheu um clipe/texto/música na linha do tempo: a lateral volta ao topo, onde abrem as ferramentas dele
+  useEffect(() => { if (mesa?.ferramentas && sel) mesa.ferramentas.parentElement?.scrollTo?.({ top: 0, behavior: 'smooth' }); }, [sel?.tipo, sel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** F-297: tocar na prévia — tocando: pausa; parada: abre a edição do elemento tocado no produto daquele instante */
+  const tocarNaTela = (ev: EventoDoMouse<HTMLCanvasElement>) => {
+    if (!mesa) return;
+    if (motor.current?.tocando) { tocarPausar(); return; }
+    const q = noTempo(p.clipes, tempo).atual;
+    if (q?.clipe.tipo === 'arte' && q.clipe.documento && mesa.aoTocarNaTela) mesa.aoTocarNaTela(q.clipe.nome, ev, q.clipe.documento);
+  };
 
   // ── atalhos de teclado
   useEffect(() => {
@@ -407,11 +455,168 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
 
   if (!carregado) return <p className="p-10 text-sm text-slate-400">Abrindo o editor de vídeo…</p>;
 
-  return (
-    <div className="space-y-3" data-testid="studio-video">
+  const entradas = (
+    <>
       <input ref={arqMidia} type="file" multiple accept="video/*,image/*" className="sr-only" onChange={(e) => { void adicionarArquivos(e.target.files); e.target.value = ''; }} />
       <input ref={arqAudio} type="file" accept="audio/*,video/mp4" className="sr-only" onChange={(e) => { void adicionarAudio(e.target.files); e.target.value = ''; }} />
       <input ref={arqLogo} type="file" accept="image/*" className="sr-only" onChange={(e) => { adicionarLogo(e.target.files); e.target.value = ''; }} />
+    </>
+  );
+  // ── a prévia (no editor sozinho fica aqui; na mesa vai para a visualização da outra tela)
+  const previa = (
+    <div className={cn('relative', mesa ? 'w-full' : 'mx-auto')} style={mesa ? undefined : vertical ? { width: 'min(62vw, calc((100dvh - 330px) * 0.5625), 380px)' } : { maxWidth: 'calc((100dvh - 360px) * 1.7778)', minWidth: 240 }}>
+      <canvas ref={refTela} onClick={mesa ? tocarNaTela : undefined} className={cn('block w-full rounded-lg bg-black shadow-2xl', mesa && 'cursor-pointer rounded-xl')} style={{ aspectRatio: vertical ? '9 / 16' : '16 / 9' }} data-testid="video-tela" />
+      {!tocando && ativas.length > 0 && (
+        <div className="absolute inset-0">
+          <Palco doc={docPalco} semPrevia sel={sobSel?.id ?? null} onSelecionar={(id) => setSel(id ? { tipo: 'sob', id } : null)} onInicio={lembrar}
+            onMudar={(id, x) => mudarSob(id, x as Partial<Sobreposicao>, false)} onApagar={() => excluir()} onDuplicar={() => duplicar()}
+            onEditarTexto={() => { setAba('texto'); setTimeout(() => textoRef.current?.focus(), 30); }} />
+        </div>
+      )}
+      {exportando !== null && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-black/70 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[#FFD400]" />
+          <p className="text-sm font-bold text-[#FFD400]">Criando o vídeo… {Math.round(exportando * 100)}%</p>
+          <p className="px-4 text-[11px] text-slate-300">Deixe esta tela aberta até terminar ({total.toFixed(0)} s).</p>
+        </div>
+      )}
+    </div>
+  );
+  const transporte = (pequeno: boolean) => (
+    <>
+      <button type="button" onClick={() => ir(0)} aria-label="Voltar ao começo" className={cn('items-center justify-center rounded-full border border-white/15', pequeno ? 'hidden h-9 w-9 sm:flex' : 'flex h-11 w-11')}><SkipBack className={pequeno ? 'h-4 w-4' : 'h-5 w-5'} /></button>
+      <button type="button" onClick={() => ir(tempo - 1)} aria-label="Voltar 1 segundo" className={cn('items-center justify-center rounded-full border border-white/15 text-xs', pequeno ? 'hidden h-9 px-2 sm:flex' : 'flex h-11 px-3')}>−1s</button>
+      <button type="button" onClick={tocarPausar} aria-label={tocando ? 'Pausar' : 'Tocar'} className={cn('flex items-center justify-center rounded-full bg-[#FFD400] text-[#22004A] shadow-[0_0_20px_rgba(255,212,0,.5)]', pequeno ? 'h-11 w-11' : 'h-14 w-14')} data-testid="video-play">{tocando ? <Pause className={pequeno ? 'h-6 w-6' : 'h-7 w-7'} /> : <Play className={cn('ml-1', pequeno ? 'h-6 w-6' : 'h-7 w-7')} />}</button>
+      <button type="button" onClick={() => ir(tempo + 1)} aria-label="Avançar 1 segundo" className={cn('items-center justify-center rounded-full border border-white/15 text-xs', pequeno ? 'hidden h-9 px-2 sm:flex' : 'flex h-11 px-3')}>+1s</button>
+      <button type="button" onClick={dividirNoCursor} aria-label="Dividir no cursor" className={cn('flex items-center gap-1 rounded-full border border-[#FFD400]/50 text-xs font-semibold text-[#FFD400]', pequeno ? 'h-9 px-2.5' : 'h-11 px-3')}><Scissors className="h-4 w-4" /><span className={pequeno ? 'hidden sm:inline' : undefined}>Dividir</span></button>
+      <button type="button" onClick={() => ir(total)} aria-label="Ir ao fim" className={cn('hidden items-center justify-center rounded-full border border-white/15 sm:flex', pequeno ? 'h-9 w-9' : 'h-11 w-11')}><SkipForward className={pequeno ? 'h-4 w-4' : 'h-5 w-5'} /></button>
+    </>
+  );
+  const adicionar = (
+    <div className={cn('flex gap-1.5 overflow-x-auto rounded-xl border border-white/10 bg-[#140632] p-1.5', mesa && 'p-1')} aria-label="Adicionar">
+      {ferramentasAdd.map(({ id, n, I, f }) => (
+        mesa
+          ? <button key={id} type="button" onClick={f} className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-2.5 text-[11px] font-semibold text-slate-200 hover:border-[#8A2EFF]/50 hover:bg-white/5" data-testid={`video-add-${id}`}><I className="h-4 w-4 text-[#B04DFF]" />{n}</button>
+          : <button key={id} type="button" onClick={f} className={cn(botao, 'border-transparent text-slate-200 hover:border-[#8A2EFF]/50 hover:bg-white/5')} data-testid={`video-add-${id}`}><I className="h-5 w-5 text-[#B04DFF]" />{n}</button>
+      ))}
+    </div>
+  );
+  const linhaDoTempo = (
+    <LinhaDoTempo projeto={p} tempo={tempo} sel={sel} motor={motor.current} versaoMidia={versaoMidia} onSelecionar={(s) => { setSel(s); if (s?.tipo === 'clipe') { const i = p.clipes.findIndex((c) => c.id === s.id); const ini = inicios(p.clipes)[i]; if (tempo < ini || tempo > ini + duracaoDoClipe(p.clipes[i])) ir(ini + (mesa ? noMeioDoClipe(p.clipes[i]) : 0.05)); } else if (s?.tipo === 'sob') { const x = p.sobreposicoes.find((o) => o.id === s.id); if (x && (tempo < x.de || tempo >= x.ate)) ir(x.de + 0.05); } }}
+      onIr={ir} onInicio={lembrar} onClipe={(id, x) => mudarClipe(id, x, false)} onSob={(id, x) => mudarSob(id, x, false)} onAudio={(id, x) => mudarAudio(id, x, false)}
+      ferramenta={ferramenta} ima={ima} onFerramenta={setFerramenta} onIma={setIma} onDividir={dividirNoCursor} onCortarEm={cortarComLamina} onMoverClipe={moverClipeNaFaixa}
+      onTransicao={(id) => { setSel({ tipo: 'clipe', id }); setTimeout(() => setAba('transicao'), 0); }} />
+  );
+  // ── ferramentas do escolhido (no editor sozinho: ao lado; na mesa: no topo da lateral da outra tela)
+  const ferramentasDoEscolhido = (
+    <>
+      <div className="rounded-xl border border-white/10 bg-[#140632] p-2">
+        <p className="mb-1.5 flex items-center gap-1.5 px-1 text-xs font-bold text-white">
+          <Palette className="h-4 w-4 shrink-0 text-[#B04DFF]" />
+          <span className="truncate">{clipeSel ? `Clipe: ${clipeSel.nome}` : sobSel ? `Elemento: ${sobSel.tipo === 'texto' ? sobSel.texto.split('\n')[0] : sobSel.nome}` : audioSel ? `Música: ${audioSel.nome}` : 'Toque num clipe, texto ou música na linha do tempo'}</span>
+          {sel && <button type="button" onClick={() => setSel(null)} className="ml-auto shrink-0 rounded-md px-2 py-1 text-[11px] font-normal text-slate-400 hover:bg-white/5">soltar</button>}
+        </p>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5" role="toolbar" aria-label="Ferramentas">
+          {abas.map(({ id, nome: n, I }) => (
+            <button key={id} type="button" onClick={() => setAba(id)} aria-pressed={aba === id} data-testid={`video-aba-${id}`}
+              className={cn(botao, aba === id ? 'border-[#B04DFF] bg-gradient-to-b from-[#8A2EFF]/70 to-[#5D1BFF]/60 text-white' : 'border-white/10 text-slate-200 hover:bg-white/5')}><I className="h-5 w-5" />{n}</button>
+          ))}
+          {(clipeSel || sobSel) && <button type="button" onClick={duplicar} className={cn(botao, 'border-white/10 text-slate-200 hover:bg-white/5')}><Copy className="h-5 w-5" />Duplicar</button>}
+          {sel && <button type="button" onClick={excluir} className={cn(botao, 'border-rose-400/40 text-rose-300 hover:bg-rose-500/15')} data-testid="video-excluir"><Trash2 className="h-5 w-5" />Excluir</button>}
+        </div>
+      </div>
+      {(sel || !mesa) && (
+        <div className="rounded-xl border border-[#8A2EFF]/30 bg-[#140632] p-3" data-testid="video-cartao">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#B04DFF]">{abas.find((a) => a.id === aba)?.nome ?? 'Editar'}</p>
+          {clipeSel ? (
+            <CartaoDoClipe aba={(ABAS_CLIPE.some((x) => x.id === aba) ? aba : 'cortar') as AbaDoClipe} c={clipeSel} mudar={(x) => mudarClipe(clipeSel.id, x)}
+              onDividir={dividirNoCursor} onCongelar={congelar} onMover={moverClipe} temProximo={p.clipes.findIndex((c) => c.id === clipeSel.id) < p.clipes.length - 1} />
+          ) : sobSel ? (
+            aba === 'tempo' ? (
+              <div className="space-y-2">
+                <Faixa t="Aparece em" valor={sobSel.de} min={0} max={Math.max(0.5, total)} passo={0.1} mostrar={formatarTempo(sobSel.de)} onChange={(v) => mudarSob(sobSel.id, { de: Math.min(v, sobSel.ate - 0.3) })} />
+                <Faixa t="Some em" valor={sobSel.ate} min={sobSel.de + 0.3} max={Math.max(sobSel.de + 0.3, total + 10)} passo={0.1} mostrar={formatarTempo(sobSel.ate)} onChange={(v) => mudarSob(sobSel.id, { ate: v })} />
+                <button type="button" onClick={() => mudarSob(sobSel.id, { de: 0, ate: Math.max(1, total) }, false)} className="h-10 w-full rounded-lg border border-white/10 text-xs hover:bg-white/5">Mostrar no vídeo inteiro</button>
+              </div>
+            ) : (
+              <CartaoDaAba aba={abasSob.some((a) => a.id === aba) ? (aba as Aba) : abasSob[0].id} c={sobSel} doc={docSob} textoRef={textoRef}
+                mudar={(x) => mudarSob(sobSel.id, x as Partial<Sobreposicao>)} mudarFundo={(cor) => mudar((q) => ({ ...q, fundo: cor }))} mover={moverSob} camadas={null} />
+            )
+          ) : audioSel ? (
+            <CartaoDoAudio a={audioSel} total={total} mudar={(x) => mudarAudio(audioSel.id, x)} />
+          ) : (
+            <CartaoDoProjeto p={p} total={total} mudar={(x) => mudar((q) => ({ ...q, ...x }))} />
+          )}
+        </div>
+      )}
+
+      {exportado && (
+        <div className="space-y-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/5 p-3" data-testid="video-pronto">
+          <p className="text-sm font-bold text-[#7dffb0]">Vídeo pronto</p>
+          <video src={exportado.url} controls playsInline className={cn('mx-auto rounded-md bg-black', vertical ? 'max-h-80' : 'w-full')} />
+          <p className="text-[11px] text-slate-400">{exportado.v.ext.toUpperCase()} · {exportado.v.largura}×{exportado.v.altura} · {(exportado.v.duracaoMs / 1000).toFixed(1)} s · {(exportado.v.video.size / 1024 / 1024).toFixed(1)} MB</p>
+          <div className={cn('grid grid-cols-1 gap-1.5', !mesa && 'sm:grid-cols-3 lg:grid-cols-1')}>
+            <button type="button" onClick={salvarNaGaleria} disabled={!!ocupado} className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-sm font-semibold text-white" data-testid="video-salvar-galeria">{ocupado === 'galeria' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}Salvar na galeria</button>
+            <button type="button" onClick={() => { if (total > maxGaleria) { toast.error(`Para as telas, o vídeo pode ter até ${maxGaleria} s.`); return; } setPublicando(true); }} className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#25D366] text-sm font-bold text-[#0b2a17]"><Send className="h-4 w-4" />Publicar em tela/playlist</button>
+            <button type="button" onClick={() => baixar(exportado.v.video, nomeDoArquivo(nome).replace(/\.png$/i, '') + '.' + exportado.v.ext)} className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-white/15 text-sm text-white"><Download className="h-4 w-4" />Baixar</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+  const janelas = (
+    <>
+      <EscolherDialog aberto={escolher} onFechar={() => setEscolher(null)} clienteId={clienteId} userId={user?.id ?? null} formato={p.formato}
+        onMidias={async (lista) => {
+          const novos: Clipe[] = [];
+          for (const m of lista) {
+            if (m.tipo === 'video') { const d = await MotorDeVideo.lerDuracao(m.url, 'video'); if (d) novos.push(novoClipe('video', m.url, m.nome, { duracaoArquivo: d, fim: d })); else toast.error(`Não foi possível abrir "${m.nome}".`); }
+            else novos.push(novoClipe('imagem', m.url, m.nome));
+          }
+          if (novos.length) inserirClipes(novos);
+        }}
+        onArte={(doc, n) => inserirClipes([novoClipe('arte', '', n, { documento: doc, duracao: duracaoDoVideo(doc), zoomPara: 1 })])}
+        onElemento={(c, dur) => adicionarSob(c.x || c.y ? c : noMeio(c), dur)} W={W} H={H} figurinhas={FIGURINHAS} />
+
+      <PublicarDialog aberto={publicando && !!exportado} onFechar={() => setPublicando(false)} pasta={PASTA_VIDEOS} video
+        gerarPng={async () => ({ video: exportado!.v, largura: exportado!.v.largura, altura: exportado!.v.altura })} nome={nome || 'Meu vídeo'} formato={p.formato} clienteId={clienteId} />
+    </>
+  );
+
+  // F-297: MESA DE EDIÇÃO do palco — uma visualização só (a prévia vai para a tela da arte) e, aqui embaixo, os controles,
+  // o adicionar e a linha do tempo de largura inteira, sempre à vista junto com a arte.
+  if (mesa) {
+    return (
+      <div className="flex min-w-0 flex-col gap-1.5" data-testid="studio-video" onPointerDownCapture={mesa.aoUsar}>
+        {entradas}
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="video-mesa-controles">
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={desfazer} disabled={!passado.current.length} aria-label="Desfazer" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 disabled:opacity-30"><Undo2 className="h-4 w-4" /></button>
+            <button type="button" onClick={refazer} disabled={!futuro.current.length} aria-label="Refazer" className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 disabled:opacity-30"><Redo2 className="h-4 w-4" /></button>
+          </div>
+          <div className="flex flex-1 items-center justify-center gap-1.5">{transporte(true)}</div>
+          <label className="hidden h-9 w-44 items-center gap-1.5 rounded-lg border border-white/15 bg-[#0f0428] px-2 focus-within:border-[#8A2EFF] xl:flex">
+            <Film className="h-4 w-4 shrink-0 text-[#B04DFF]" /><span className="sr-only">Nome do vídeo</span>
+            <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} placeholder="Nome do vídeo" className="min-w-0 flex-1 bg-transparent text-xs font-bold text-white focus:outline-none" data-testid="video-nome" />
+          </label>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={salvar} disabled={!!ocupado} aria-label="Salvar o vídeo em Meus Projetos" className="flex h-9 items-center justify-center gap-1 rounded-lg bg-[#5D1BFF] px-2.5 text-xs font-semibold text-white">{ocupado === 'salvar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}<span className="hidden sm:inline">Salvar</span></button>
+            <button type="button" onClick={exportar} disabled={!!ocupado} className="sm-reflexo flex h-9 items-center justify-center gap-1 rounded-lg bg-[#FFD400] px-2.5 text-xs font-bold text-[#22004A]" data-testid="video-exportar">{ocupado === 'exportar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Exportar<span className="hidden sm:inline">&nbsp;vídeo</span></button>
+          </div>
+        </div>
+        {enviando > 0 && <p className="flex items-center gap-2 text-[11px] text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Guardando {enviando} mídia(s) na nuvem… (pode continuar editando)</p>}
+        {adicionar}
+        {linhaDoTempo}
+        {mesa.previa && createPortal(previa, mesa.previa)}
+        {mesa.ferramentas && ((sel && mesa.visivel) || exportado) && createPortal(<div className="space-y-2" data-testid="video-ferramentas-na-lateral">{ferramentasDoEscolhido}</div>, mesa.ferramentas)}
+        {janelas}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3" data-testid="studio-video">
+      {entradas}
 
       {/* ── topo */}
       <div className="flex flex-wrap items-center gap-2">
@@ -439,115 +644,23 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
         <div className="min-w-0 space-y-2">
           {/* ── prévia */}
           <div className="rounded-2xl border border-[#8A2EFF]/30 bg-[#0a031c] px-4 py-4 sm:px-8">
-            <div className="relative mx-auto" style={vertical ? { width: 'min(62vw, calc((100dvh - 330px) * 0.5625), 380px)' } : { maxWidth: 'calc((100dvh - 360px) * 1.7778)', minWidth: 240 }}>
-              <canvas ref={tela} className="block w-full rounded-lg bg-black shadow-2xl" style={{ aspectRatio: vertical ? '9 / 16' : '16 / 9' }} data-testid="video-tela" />
-              {!tocando && ativas.length > 0 && (
-                <div className="absolute inset-0">
-                  <Palco doc={docPalco} semPrevia sel={sobSel?.id ?? null} onSelecionar={(id) => setSel(id ? { tipo: 'sob', id } : null)} onInicio={lembrar}
-                    onMudar={(id, x) => mudarSob(id, x as Partial<Sobreposicao>, false)} onApagar={() => excluir()} onDuplicar={() => duplicar()}
-                    onEditarTexto={() => { setAba('texto'); setTimeout(() => textoRef.current?.focus(), 30); }} />
-                </div>
-              )}
-              {exportando !== null && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-black/70 text-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-[#FFD400]" />
-                  <p className="text-sm font-bold text-[#FFD400]">Criando o vídeo… {Math.round(exportando * 100)}%</p>
-                  <p className="px-4 text-[11px] text-slate-300">Deixe esta tela aberta até terminar ({total.toFixed(0)} s).</p>
-                </div>
-              )}
-            </div>
-            <div className="mt-3 flex items-center justify-center gap-2">
-              <button type="button" onClick={() => ir(0)} aria-label="Voltar ao começo" className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15"><SkipBack className="h-5 w-5" /></button>
-              <button type="button" onClick={() => ir(tempo - 1)} aria-label="Voltar 1 segundo" className="flex h-11 items-center justify-center rounded-full border border-white/15 px-3 text-xs">−1s</button>
-              <button type="button" onClick={tocarPausar} aria-label={tocando ? 'Pausar' : 'Tocar'} className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FFD400] text-[#22004A] shadow-[0_0_20px_rgba(255,212,0,.5)]" data-testid="video-play">{tocando ? <Pause className="h-7 w-7" /> : <Play className="ml-1 h-7 w-7" />}</button>
-              <button type="button" onClick={() => ir(tempo + 1)} aria-label="Avançar 1 segundo" className="flex h-11 items-center justify-center rounded-full border border-white/15 px-3 text-xs">+1s</button>
-              <button type="button" onClick={dividirNoCursor} aria-label="Dividir no cursor" className="flex h-11 items-center gap-1 rounded-full border border-[#FFD400]/50 px-3 text-xs font-semibold text-[#FFD400]"><Scissors className="h-4 w-4" />Dividir</button>
-              <button type="button" onClick={() => ir(total)} aria-label="Ir ao fim" className="hidden h-11 w-11 items-center justify-center rounded-full border border-white/15 sm:flex"><SkipForward className="h-5 w-5" /></button>
-            </div>
+            {previa}
+            <div className="mt-3 flex items-center justify-center gap-2">{transporte(false)}</div>
           </div>
 
           {/* ── adicionar */}
-          <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-white/10 bg-[#140632] p-1.5" aria-label="Adicionar">
-            {ferramentasAdd.map(({ id, n, I, f }) => (
-              <button key={id} type="button" onClick={f} className={cn(botao, 'border-transparent text-slate-200 hover:border-[#8A2EFF]/50 hover:bg-white/5')} data-testid={`video-add-${id}`}><I className="h-5 w-5 text-[#B04DFF]" />{n}</button>
-            ))}
-          </div>
+          {adicionar}
 
-          <LinhaDoTempo projeto={p} tempo={tempo} sel={sel} motor={motor.current} versaoMidia={versaoMidia} onSelecionar={(s) => { setSel(s); if (s?.tipo === 'clipe') { const i = p.clipes.findIndex((c) => c.id === s.id); const ini = inicios(p.clipes)[i]; if (tempo < ini || tempo > ini + duracaoDoClipe(p.clipes[i])) ir(ini + 0.05); } else if (s?.tipo === 'sob') { const x = p.sobreposicoes.find((o) => o.id === s.id); if (x && (tempo < x.de || tempo >= x.ate)) ir(x.de + 0.05); } }}
-            onIr={ir} onInicio={lembrar} onClipe={(id, x) => mudarClipe(id, x, false)} onSob={(id, x) => mudarSob(id, x, false)} onAudio={(id, x) => mudarAudio(id, x, false)}
-            ferramenta={ferramenta} ima={ima} onFerramenta={setFerramenta} onIma={setIma} onDividir={dividirNoCursor} onCortarEm={cortarComLamina} onMoverClipe={moverClipeNaFaixa}
-            onTransicao={(id) => { setSel({ tipo: 'clipe', id }); setTimeout(() => setAba('transicao'), 0); }} />
+          {linhaDoTempo}
         </div>
 
         {/* ── ferramentas do escolhido */}
         <div className={cn('min-w-0 space-y-2', !embutido && 'lg:sticky lg:top-[84px]')}>
-          <div className="rounded-xl border border-white/10 bg-[#140632] p-2">
-            <p className="mb-1.5 flex items-center gap-1.5 px-1 text-xs font-bold text-white">
-              <Palette className="h-4 w-4 shrink-0 text-[#B04DFF]" />
-              <span className="truncate">{clipeSel ? `Clipe: ${clipeSel.nome}` : sobSel ? `Elemento: ${sobSel.tipo === 'texto' ? sobSel.texto.split('\n')[0] : sobSel.nome}` : audioSel ? `Música: ${audioSel.nome}` : 'Toque num clipe, texto ou música na linha do tempo'}</span>
-              {sel && <button type="button" onClick={() => setSel(null)} className="ml-auto shrink-0 rounded-md px-2 py-1 text-[11px] font-normal text-slate-400 hover:bg-white/5">soltar</button>}
-            </p>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5" role="toolbar" aria-label="Ferramentas">
-              {abas.map(({ id, nome: n, I }) => (
-                <button key={id} type="button" onClick={() => setAba(id)} aria-pressed={aba === id} data-testid={`video-aba-${id}`}
-                  className={cn(botao, aba === id ? 'border-[#B04DFF] bg-gradient-to-b from-[#8A2EFF]/70 to-[#5D1BFF]/60 text-white' : 'border-white/10 text-slate-200 hover:bg-white/5')}><I className="h-5 w-5" />{n}</button>
-              ))}
-              {(clipeSel || sobSel) && <button type="button" onClick={duplicar} className={cn(botao, 'border-white/10 text-slate-200 hover:bg-white/5')}><Copy className="h-5 w-5" />Duplicar</button>}
-              {sel && <button type="button" onClick={excluir} className={cn(botao, 'border-rose-400/40 text-rose-300 hover:bg-rose-500/15')} data-testid="video-excluir"><Trash2 className="h-5 w-5" />Excluir</button>}
-            </div>
-          </div>
-          <div className="rounded-xl border border-[#8A2EFF]/30 bg-[#140632] p-3" data-testid="video-cartao">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#B04DFF]">{abas.find((a) => a.id === aba)?.nome ?? 'Editar'}</p>
-            {clipeSel ? (
-              <CartaoDoClipe aba={(ABAS_CLIPE.some((x) => x.id === aba) ? aba : 'cortar') as AbaDoClipe} c={clipeSel} mudar={(x) => mudarClipe(clipeSel.id, x)}
-                onDividir={dividirNoCursor} onCongelar={congelar} onMover={moverClipe} temProximo={p.clipes.findIndex((c) => c.id === clipeSel.id) < p.clipes.length - 1} />
-            ) : sobSel ? (
-              aba === 'tempo' ? (
-                <div className="space-y-2">
-                  <Faixa t="Aparece em" valor={sobSel.de} min={0} max={Math.max(0.5, total)} passo={0.1} mostrar={formatarTempo(sobSel.de)} onChange={(v) => mudarSob(sobSel.id, { de: Math.min(v, sobSel.ate - 0.3) })} />
-                  <Faixa t="Some em" valor={sobSel.ate} min={sobSel.de + 0.3} max={Math.max(sobSel.de + 0.3, total + 10)} passo={0.1} mostrar={formatarTempo(sobSel.ate)} onChange={(v) => mudarSob(sobSel.id, { ate: v })} />
-                  <button type="button" onClick={() => mudarSob(sobSel.id, { de: 0, ate: Math.max(1, total) }, false)} className="h-10 w-full rounded-lg border border-white/10 text-xs hover:bg-white/5">Mostrar no vídeo inteiro</button>
-                </div>
-              ) : (
-                <CartaoDaAba aba={abasSob.some((a) => a.id === aba) ? (aba as Aba) : abasSob[0].id} c={sobSel} doc={docSob} textoRef={textoRef}
-                  mudar={(x) => mudarSob(sobSel.id, x as Partial<Sobreposicao>)} mudarFundo={(cor) => mudar((q) => ({ ...q, fundo: cor }))} mover={moverSob} camadas={null} />
-              )
-            ) : audioSel ? (
-              <CartaoDoAudio a={audioSel} total={total} mudar={(x) => mudarAudio(audioSel.id, x)} />
-            ) : (
-              <CartaoDoProjeto p={p} total={total} mudar={(x) => mudar((q) => ({ ...q, ...x }))} />
-            )}
-          </div>
-
-          {exportado && (
-            <div className="space-y-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/5 p-3" data-testid="video-pronto">
-              <p className="text-sm font-bold text-[#7dffb0]">Vídeo pronto</p>
-              <video src={exportado.url} controls playsInline className={cn('mx-auto rounded-md bg-black', vertical ? 'max-h-80' : 'w-full')} />
-              <p className="text-[11px] text-slate-400">{exportado.v.ext.toUpperCase()} · {exportado.v.largura}×{exportado.v.altura} · {(exportado.v.duracaoMs / 1000).toFixed(1)} s · {(exportado.v.video.size / 1024 / 1024).toFixed(1)} MB</p>
-              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
-                <button type="button" onClick={salvarNaGaleria} disabled={!!ocupado} className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-sm font-semibold text-white" data-testid="video-salvar-galeria">{ocupado === 'galeria' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}Salvar na galeria</button>
-                <button type="button" onClick={() => { if (total > maxGaleria) { toast.error(`Para as telas, o vídeo pode ter até ${maxGaleria} s.`); return; } setPublicando(true); }} className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#25D366] text-sm font-bold text-[#0b2a17]"><Send className="h-4 w-4" />Publicar em tela/playlist</button>
-                <button type="button" onClick={() => baixar(exportado.v.video, nomeDoArquivo(nome).replace(/\.png$/i, '') + '.' + exportado.v.ext)} className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-white/15 text-sm text-white"><Download className="h-4 w-4" />Baixar</button>
-              </div>
-            </div>
-          )}
+          {ferramentasDoEscolhido}
         </div>
       </div>
 
-      <EscolherDialog aberto={escolher} onFechar={() => setEscolher(null)} clienteId={clienteId} userId={user?.id ?? null} formato={p.formato}
-        onMidias={async (lista) => {
-          const novos: Clipe[] = [];
-          for (const m of lista) {
-            if (m.tipo === 'video') { const d = await MotorDeVideo.lerDuracao(m.url, 'video'); if (d) novos.push(novoClipe('video', m.url, m.nome, { duracaoArquivo: d, fim: d })); else toast.error(`Não foi possível abrir "${m.nome}".`); }
-            else novos.push(novoClipe('imagem', m.url, m.nome));
-          }
-          if (novos.length) inserirClipes(novos);
-        }}
-        onArte={(doc, n) => inserirClipes([novoClipe('arte', '', n, { documento: doc, duracao: duracaoDoVideo(doc), zoomPara: 1 })])}
-        onElemento={(c, dur) => adicionarSob(c.x || c.y ? c : noMeio(c), dur)} W={W} H={H} figurinhas={FIGURINHAS} />
-
-      <PublicarDialog aberto={publicando && !!exportado} onFechar={() => setPublicando(false)} pasta={PASTA_VIDEOS} video
-        gerarPng={async () => ({ video: exportado!.v, largura: exportado!.v.largura, altura: exportado!.v.altura })} nome={nome || 'Meu vídeo'} formato={p.formato} clienteId={clienteId} />
+      {janelas}
     </div>
   );
 }

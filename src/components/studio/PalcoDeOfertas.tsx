@@ -353,6 +353,18 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const [projetoNoEditor, setProjetoNoEditor] = useState(projetoDoPalco);
   useEffect(() => { const t = setTimeout(() => setProjetoNoEditor(projetoDoPalco), 500); return () => clearTimeout(t); }, [projetoDoPalco]);
   const transicaoPeloEditor = (nome: string, tipo: TipoDeTransicao) => setMovimento((m) => ({ ...m, transicoes: { ...(m.transicoes ?? {}), [chaveCanonica(nome)]: tipo } }));
+  // F-297: UMA visualização só — a arte animada ('palco') ou, ao mexer na linha do tempo, o vídeo naquele instante ('video')
+  const [vista, setVista] = useState<'palco' | 'video'>('palco');
+  const [slotPrevia, setSlotPrevia] = useState<HTMLDivElement | null>(null);
+  const [slotFerramentas, setSlotFerramentas] = useState<HTMLDivElement | null>(null);
+  /** tocou no vídeo parado: abre a edição daquele produto e do elemento tocado, na arte */
+  const tocouNoVideo = (nome: string, ev: MouseEvent<HTMLElement>, doc: Documento) => {
+    const p = comPreco.find((x) => x.nome === nome);
+    if (!p) return;
+    const n = elementoTocado(ev, doc);
+    setVista('palco'); setSelId(p.id); setTocando(true);
+    if (n) escolherElemento(n);
+  };
 
   return (
     <div className="space-y-3" data-testid="studio-palco">
@@ -374,40 +386,86 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
 
       {/* F-296 (pedido do dono): GALERIA DE MODELOS de palco do segmento — cada modelo guarda o que foi editado nele */}
       {fundos.length > 1 && <GaleriaDeModelos titulo="Modelos de palco" itens={fundos.map((f) => ({ id: f.id, nome: f.nome.replace(/^Ofertas – /, ''), capa: srcDoFundo(f, formato) }))} selecionado={fundoId} aoEscolher={trocarFundo} deitado={formato === '16:9'} />}
-      {/* F-286: a tela à esquerda (fixa à vista) e os botões de edição na LATERAL DIREITA, também no tablet em pé */}
-      <div className="grid gap-3 min-[540px]:grid-cols-[minmax(0,1fr)_minmax(250px,330px)] lg:grid-cols-[minmax(0,1fr)_380px]" data-testid="palco-layout">
-        {/* A TELA + a fila de produtos */}
-        <section className="min-w-0 space-y-2">
-          <div className={cn('mx-auto w-full', formato === '9:16' ? 'max-w-[min(340px,calc(56dvh*0.5625))] lg:max-w-[340px]' : 'max-w-[760px]')} data-testid="palco-tela">
-            {!comPreco.length ? <p className="rounded-xl border border-dashed border-white/15 p-10 text-center text-sm text-slate-400">Coloque produtos com preço em “Seus produtos”.</p>
-              : docNaTela && docSel ? (
-                <div className="relative" data-testid="palco-editavel">
-                  <PalcoDoEditor doc={docNaTela} animar={tocando || !!demo} ciclo={demo?.ciclo} sel={tocando || demo ? null : nomeSel} onSelecionar={escolherElemento} onInicio={() => undefined} onMudar={mudarElemento} />
-                  {tocando && <button type="button" aria-label="Tocar num elemento para editar" className="absolute inset-0 cursor-pointer" onClick={(ev) => { const n = elementoTocado(ev, docSel); if (n) escolherElemento(n); }} data-testid="palco-toque" />}
-                </div>
-              ) : <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} ajustes={ajustes} aoTocar={(i, nome) => { setSelId(comPreco[i]?.id ?? null); setTocando(true); if (nome) escolherElemento(nome); }} />}
-          </div>
+      {/* F-297 (pedido do dono): MESA DE EDIÇÃO como nos aplicativos de vídeo — UMA visualização só (a arte animada; ao mexer na
+          linha do tempo ela mostra o vídeo naquele instante), a LATERAL DIREITA rolando só na altura da arte e a LINHA DO TEMPO
+          embaixo, de largura inteira (também por baixo da lateral). Tudo cabe na tela: a arte diminui para a linha do tempo
+          ficar à vista enquanto se edita. */}
+      <div className={cn('flex flex-col gap-2', comPreco.length > 0 && 'h-[calc(100dvh-96px)] min-h-[560px]')} data-testid="palco-mesa">
+      <div className={cn('grid min-h-0 flex-1 gap-2 sm:gap-3', formato === '9:16'
+        ? 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] min-[540px]:grid-cols-[minmax(0,1fr)_minmax(250px,330px)] lg:grid-cols-[minmax(0,1fr)_380px]'
+        : 'grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] md:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_380px]')} data-testid="palco-layout">
+        {/* A TELA (uma só) + a fila de produtos */}
+        <section className={cn('flex min-h-0 min-w-0 flex-col gap-1.5', formato === '9:16' && comPreco.length > 0 && 'lg:flex-row-reverse')}>
+          {!comPreco.length && <p className="rounded-xl border border-dashed border-white/15 p-10 text-center text-sm text-slate-400">Coloque produtos com preço em “Seus produtos”.</p>}
+          {comPreco.length > 0 && <div className={cn('relative min-h-0', formato === '9:16' ? 'flex-1' : 'h-[52vw] shrink-0 md:h-auto md:flex-1')} style={{ containerType: 'size' }}>
+            <div className="relative mx-auto" style={{ width: formato === '9:16' ? 'min(100cqw, calc(100cqh * 0.5625))' : 'min(100cqw, calc(100cqh * 1.7778))' }} data-testid="palco-tela">
+              {vista === 'palco' && (docNaTela && docSel ? (
+                  <div className="relative" data-testid="palco-editavel">
+                    <PalcoDoEditor doc={docNaTela} animar={tocando || !!demo} ciclo={demo?.ciclo} sel={tocando || demo ? null : nomeSel} onSelecionar={escolherElemento} onInicio={() => undefined} onMudar={mudarElemento} />
+                    {tocando && <button type="button" aria-label="Tocar num elemento para editar" className="absolute inset-0 cursor-pointer" onClick={(ev) => { const n = elementoTocado(ev, docSel); if (n) escolherElemento(n); }} data-testid="palco-toque" />}
+                  </div>
+                ) : <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} ajustes={ajustes} aoTocar={(i, nome) => { setSelId(comPreco[i]?.id ?? null); setTocando(true); if (nome) escolherElemento(nome); }} />)}
+              {/* a prévia do VÍDEO (linha do tempo) entra aqui, no mesmo lugar da arte */}
+              <div ref={setSlotPrevia} className={cn('relative', vista !== 'video' && 'hidden')} data-testid="palco-previa-video">
+                <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-[#7dffb0]"><Clapperboard className="h-3 w-3" />Vídeo</span>
+              </div>
+            </div>
+          </div>}
           {comPreco.length > 0 && (
-            <div className="flex gap-1.5 overflow-x-auto pb-1" role="listbox" aria-label="Produtos do palco" data-testid="palco-fila">
-              <button type="button" onClick={() => { setSelId(null); escolherElemento(null); setTocando(true); }} aria-selected={!sel} role="option"
-                className={cn('flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border text-[10px] font-bold', !sel ? 'border-[#FFD400] bg-[#FFD400]/10 text-[#FFD400]' : 'border-white/10 text-slate-300')}>
+            <div className={cn('flex shrink-0 gap-1.5 overflow-x-auto pb-1', formato === '9:16' && 'lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:pb-0 lg:pr-1')} role="listbox" aria-label="Produtos do palco" data-testid="palco-fila">
+              <button type="button" onClick={() => { setVista('palco'); setSelId(null); escolherElemento(null); setTocando(true); }} aria-selected={vista === 'palco' && !sel} role="option"
+                className={cn('flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border text-[10px] font-bold', vista === 'palco' && !sel ? 'border-[#FFD400] bg-[#FFD400]/10 text-[#FFD400]' : 'border-white/10 text-slate-300')}>
                 <Play className="h-5 w-5" />Tocar
               </button>
               {/* F-292: ao lado do Tocar, a galeria de produtos por segmento */}
               <button type="button" onClick={() => setGaleriaAberta(true)} title="Adicionar produtos da galeria" aria-label="Adicionar produtos da galeria por segmento"
-                className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#25D366]/60 bg-[#25D366]/10 text-[10px] font-bold text-[#7dffb0] hover:bg-[#25D366]/20" data-testid="palco-abrir-galeria">
+                className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#25D366]/60 bg-[#25D366]/10 text-[10px] font-bold text-[#7dffb0] hover:bg-[#25D366]/20" data-testid="palco-abrir-galeria">
                 <Plus className="h-5 w-5" />Produtos
               </button>
+              {sel && vista === 'palco' && (
+                <button type="button" onClick={() => { setDemo(null); clearTimeout(fimDoDemo.current); setTocando((t) => !t); }} title={tocando ? 'Parar para editar' : 'Ver todo o movimento'} aria-label={tocando ? 'Parar para editar' : 'Ver todo o movimento'}
+                  className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/15 text-[10px] font-bold leading-tight text-white hover:bg-white/5" data-testid="palco-ver-movimento">
+                  {tocando ? <><Pause className="h-5 w-5" />Parar</> : <><Play className="h-5 w-5" />Mover</>}
+                </button>
+              )}
               {comPreco.map((p) => (
-                <button key={p.id} type="button" role="option" aria-selected={sel?.id === p.id} onClick={() => { setSelId(p.id); escolherElemento(null); setTocando(true); }} title={p.nome}
-                  className={cn('relative flex h-16 w-16 shrink-0 flex-col items-center overflow-hidden rounded-xl border bg-white', sel?.id === p.id ? 'border-[3px] border-[#FFD400]' : 'border-white/10', faltasDoProduto(p).length && 'ring-2 ring-amber-400')} data-testid="palco-fila-produto">
-                  {p.imagem ? <img src={p.imagem.url} alt="" className="h-11 w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="flex h-11 items-center px-1 text-center text-[8px] font-bold text-slate-500">sem foto</span>}
+                <button key={p.id} type="button" role="option" aria-selected={sel?.id === p.id} onClick={() => { setVista('palco'); setSelId(p.id); escolherElemento(null); setTocando(true); }} title={p.nome}
+                  className={cn('relative flex h-14 w-14 shrink-0 flex-col items-center overflow-hidden rounded-xl border bg-white', sel?.id === p.id ? 'border-[3px] border-[#FFD400]' : 'border-white/10', faltasDoProduto(p).length && 'ring-2 ring-amber-400')} data-testid="palco-fila-produto">
+                  {p.imagem ? <img src={p.imagem.url} alt="" className="h-9 w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="flex h-9 items-center px-1 text-center text-[8px] font-bold text-slate-500">sem foto</span>}
                   <span className="w-full truncate bg-[#c40f24] px-0.5 text-center text-[10px] font-black text-white">{precoParaTexto(p.preco)}</span>
                 </button>
               ))}
             </div>
           )}
-          {/* F-290: MOVIMENTO embaixo da arte: do elemento tocado (entrada, 2 movimentos, saída, padrão) e a troca de cena deste produto */}
+        </section>
+
+        {/* EDIÇÃO compacta */}
+        {/* F-288/F-297: a LATERAL DIREITA rola sozinha, só na altura da arte; o elemento tocado (ou o clipe da linha do tempo) abre em cima */}
+        <aside ref={lateral} className="min-h-0 min-w-0 space-y-3 overflow-y-auto overscroll-contain pr-1" data-testid="palco-lateral">
+          {/* F-297: o clipe, texto ou música escolhido na linha do tempo abre as ferramentas dele aqui */}
+          <div ref={setSlotFerramentas} className="empty:hidden" data-testid="palco-ferramentas-do-video" />
+
+          <div ref={edicao}>
+            <Cartao titulo={camadaSel ? rotulo(camadaSel.nome) : 'Editar elemento'} icone={MousePointerClick}
+              acao={camadaSel && <button type="button" onClick={() => voltarAoPadrao(camadaSel.nome)} title="Voltar este elemento ao padrão" aria-label="Voltar este elemento ao padrão" className="rounded-lg p-1.5 text-white hover:bg-white/10" data-testid="palco-elemento-padrao"><RotateCcw className="h-4 w-4" /></button>}>
+              {!camadaSel ? <p className="text-xs text-slate-400">Toque em qualquer elemento da tela: <b className="text-white">produto, nome, balão de preço, botão, logo ou faixa</b>. Dá para arrastar, aumentar, girar e mudar texto, fonte, cor e movimento. Vale para todos os produtos.</p> : (
+                <div className="space-y-2" data-testid="palco-elemento">
+                  <div className="flex flex-wrap gap-1" role="tablist" aria-label="Ferramentas do elemento">
+                    {abas.map((a) => <button key={a.id} type="button" role="tab" aria-selected={aba === a.id} onClick={() => setAba(a.id)} className={cn('flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold', aba === a.id ? 'bg-[#5D1BFF] text-white' : 'bg-white/5 text-slate-200 hover:bg-white/10')} data-testid={`palco-aba-${a.id}`}><a.I className="h-3.5 w-3.5" />{a.nome}</button>)}
+                  </div>
+                  {/* F-288: tocou na logo: textos, cores, ícone do círculo e textos novos, tudo aqui */}
+                  {ehDaLogo && docEd && <PainelDaLogo doc={docEd} mudar={mudarElemento} adicionar={adicionarCamada} tirar={tirarCamada} porLogoNoCirculo={() => setTrocandoCirculo(true)} selecionar={selecionarNaTela} />}
+                  {camadaSel.nome === 'Botão' && camadaSel.tipo === 'texto' && docEd && <EditarBotao c={camadaSel} botoes={fundo?.botoes ?? []} mudar={(p) => mudarElemento('Botão', p)} doc={docEd} />}
+                  {camadaSel.nome === 'Logo do palco' && <button type="button" onClick={() => setTrocandoLogo(true)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar logo</button>}
+                  {camadaSel.nome === 'Produto' && sel && <button type="button" onClick={() => setTrocando(sel)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar produto, foto ou criar com IA</button>}
+                  {(ehDaLogo || camadaSel.nome === 'Botão') && <p className="pt-1 text-[11px] font-bold uppercase tracking-wider text-[#B04DFF]">Mais ferramentas deste elemento</p>}
+                  <CartaoDaAba aba={abas.some((a) => a.id === aba) ? aba : abas[0].id} c={camadaSel} doc={docEd!} mudar={(p) => mudarElemento(camadaSel.nome, p)} mudarFundo={() => undefined} mover={() => undefined} camadas={null} />
+                </div>
+              )}
+            </Cartao>
+          </div>
+
+          {/* F-290/F-297: MOVIMENTO (agora na lateral, logo abaixo do elemento tocado): do elemento tocado (entrada, 2 movimentos, saída, padrão) e a troca de cena deste produto */}
           {comPreco.length > 0 && docEd && (
             <div className="space-y-2 rounded-2xl border border-[#8A2EFF]/40 bg-[#14062f] p-3" data-testid="palco-barra-movimento">
               {camadaSel ? (
@@ -429,44 +487,6 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
               </div>
             </div>
           )}
-          {sel && (
-            <button type="button" onClick={() => { setDemo(null); clearTimeout(fimDoDemo.current); setTocando((t) => !t); }} className="mx-auto flex h-10 w-full max-w-md items-center justify-center gap-2 rounded-xl border border-white/15 text-sm font-semibold text-white hover:bg-white/5" data-testid="palco-ver-movimento">
-              {tocando ? <><Pause className="h-4 w-4" />Parar para editar</> : <><Play className="h-4 w-4" />Ver todo o movimento</>}
-            </button>
-          )}
-          {/* F-292 (pedido do dono): a EDIÇÃO DE VÍDEO fica aqui, embaixo da arte (sem ir para outra tela): linha do tempo com um clipe por
-              produto, "+" em cada troca para o efeito de saída/entrada, música, textos, filtros, cortes e exportar MP4 */}
-          {projetoNoEditor && (
-            <section className="space-y-2 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-2" data-testid="palco-editor-video">
-              <h2 className="flex items-center gap-2 px-1 text-sm font-bold text-white"><Clapperboard className="h-5 w-5 text-[#25D366]" />Vídeo do palco ({comPreco.length} produtos · {comPreco.length * SEGUNDOS_POR_PRODUTO} s)</h2>
-              <EditorDeVideo embutido projetoInicial={projetoNoEditor} nomeInicial={`${info.tituloPalco} – ${fundo ? textoBotao : titulo}`} aoTransicao={transicaoPeloEditor} />
-            </section>
-          )}
-        </section>
-
-        {/* EDIÇÃO compacta */}
-        {/* F-288: a LATERAL DIREITA rola sozinha (a tela fica parada à vista); o elemento tocado abre em cima */}
-        <aside ref={lateral} className="min-w-0 space-y-3 min-[540px]:sticky min-[540px]:top-[84px] min-[540px]:max-h-[calc(100dvh-96px)] min-[540px]:self-start min-[540px]:overflow-y-auto min-[540px]:pr-1" data-testid="palco-lateral">
-
-          <div ref={edicao}>
-            <Cartao titulo={camadaSel ? rotulo(camadaSel.nome) : 'Editar elemento'} icone={MousePointerClick}
-              acao={camadaSel && <button type="button" onClick={() => voltarAoPadrao(camadaSel.nome)} title="Voltar este elemento ao padrão" aria-label="Voltar este elemento ao padrão" className="rounded-lg p-1.5 text-white hover:bg-white/10" data-testid="palco-elemento-padrao"><RotateCcw className="h-4 w-4" /></button>}>
-              {!camadaSel ? <p className="text-xs text-slate-400">Toque em qualquer elemento da tela: <b className="text-white">produto, nome, balão de preço, botão, logo ou faixa</b>. Dá para arrastar, aumentar, girar e mudar texto, fonte, cor e movimento. Vale para todos os produtos.</p> : (
-                <div className="space-y-2" data-testid="palco-elemento">
-                  <div className="flex flex-wrap gap-1" role="tablist" aria-label="Ferramentas do elemento">
-                    {abas.map((a) => <button key={a.id} type="button" role="tab" aria-selected={aba === a.id} onClick={() => setAba(a.id)} className={cn('flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold', aba === a.id ? 'bg-[#5D1BFF] text-white' : 'bg-white/5 text-slate-200 hover:bg-white/10')} data-testid={`palco-aba-${a.id}`}><a.I className="h-3.5 w-3.5" />{a.nome}</button>)}
-                  </div>
-                  {/* F-288: tocou na logo: textos, cores, ícone do círculo e textos novos, tudo aqui */}
-                  {ehDaLogo && docEd && <PainelDaLogo doc={docEd} mudar={mudarElemento} adicionar={adicionarCamada} tirar={tirarCamada} porLogoNoCirculo={() => setTrocandoCirculo(true)} selecionar={selecionarNaTela} />}
-                  {camadaSel.nome === 'Botão' && camadaSel.tipo === 'texto' && docEd && <EditarBotao c={camadaSel} botoes={fundo?.botoes ?? []} mudar={(p) => mudarElemento('Botão', p)} doc={docEd} />}
-                  {camadaSel.nome === 'Logo do palco' && <button type="button" onClick={() => setTrocandoLogo(true)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar logo</button>}
-                  {camadaSel.nome === 'Produto' && sel && <button type="button" onClick={() => setTrocando(sel)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]"><ImagePlus className="h-4 w-4" />Trocar produto, foto ou criar com IA</button>}
-                  {(ehDaLogo || camadaSel.nome === 'Botão') && <p className="pt-1 text-[11px] font-bold uppercase tracking-wider text-[#B04DFF]">Mais ferramentas deste elemento</p>}
-                  <CartaoDaAba aba={abas.some((a) => a.id === aba) ? aba : abas[0].id} c={camadaSel} doc={docEd!} mudar={(p) => mudarElemento(camadaSel.nome, p)} mudarFundo={() => undefined} mover={() => undefined} camadas={null} />
-                </div>
-              )}
-            </Cartao>
-          </div>
 
           <div>
             <Cartao titulo={sel ? 'Editar produto' : 'Editar produto'} icone={PenLine}
@@ -549,6 +569,15 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
             <p className="text-[10px] text-slate-500">Vale na tela e no vídeo. Cada produto fica {SEGUNDOS_POR_PRODUTO} s.</p>
           </Cartao>
         </aside>
+      </div>
+      {/* F-292/F-297: a LINHA DO TEMPO de edição de vídeo, de largura inteira embaixo da arte e da lateral: um clipe por produto,
+          "+" em cada troca, música, textos, filtros, cortes e exportar MP4 — sem rolar a tela, vendo a arte em cima */}
+      {projetoNoEditor && (
+        <section className="shrink-0 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-1.5" data-testid="palco-editor-video" aria-label={`Vídeo do palco (${comPreco.length} produtos · ${comPreco.length * SEGUNDOS_POR_PRODUTO} s)`}>
+          <EditorDeVideo embutido projetoInicial={projetoNoEditor} nomeInicial={`${info.tituloPalco} – ${fundo ? textoBotao : titulo}`} aoTransicao={transicaoPeloEditor}
+            mesa={{ previa: slotPrevia, ferramentas: slotFerramentas, visivel: vista === 'video', aoUsar: () => setVista('video'), aoTocarNaTela: tocouNoVideo, clipeEmFoco: sel?.nome ?? null }} />
+        </section>
+      )}
       </div>
       <GaleriaDeProdutos aberto={galeriaAberta} aoFechar={() => setGaleriaAberta(false)} aoAdicionar={s.adicionarPronto} segmentoInicial={segmento === 'mercado' ? 'mercearia' : segmento} />
       {trocandoCirculo && <EscolherLogo titulo="Sua logo no círculo" aoEscolher={(l) => porLogoNoCirculo(l.url)} aoRestaurar={() => porLogoNoCirculo(null)} aoFechar={() => setTrocandoCirculo(false)} />}
