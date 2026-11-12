@@ -25,6 +25,7 @@ import { EditorDeVideo } from './VideoEditorPage';
 import { BASE_DA_ARTE_PRONTA, ehArtePronta, idDaArtePronta, lerArtePronta } from '@/lib/studio/artePronta';
 import { PainelDaLogo } from '@/components/studio/editor/PainelDaLogo';
 import { PainelDoFundo } from '@/components/studio/editor/PainelDoFundo';
+import { guardarNoAcervo } from '@/lib/studio/acervo';
 import { MOVIMENTOS_DO_FUNDO, movimentoDoFundo } from '@/lib/studio/animacao';
 import { ENCARTES_OFICIAIS, PASTAS_DE_ENCARTE } from '@/lib/studio/encartesOficiais';
 import { ehCamadaDaLogo } from '@/lib/studio/logoEditavel';
@@ -214,6 +215,7 @@ export default function EditorPage() {
       return [fo, { ...d, camadas: [{ ...imagem('Fundo da arte', String((p as { src: string }).src), 0, 0, W, H), bloqueada: true, ...p } as Camada, ...d.camadas] }];
     })) as Docs));
   };
+  const segmentoDaArte = (pronta?.id ? ENCARTES_OFICIAIS.find((e) => e.id === pronta.id)?.segmento : null) ?? base?.segmento ?? null;
   const fundoAtual = doc ? fundoDe(doc) : undefined;
   // os fundos do segmento da arte aberta vêm primeiro (o segmento é o do fundo com que a arte abriu)
   const fundoInicial = useRef<string | null>(null);
@@ -227,7 +229,7 @@ export default function EditorPage() {
   }, [formato, fundoInicial.current]); // eslint-disable-line react-hooks/exhaustive-deps
   const painelDoFundo = doc ? (
     <div className="space-y-3">
-      <PainelDoFundo atual={fundoAtual && fundoAtual.tipo === 'imagem' ? fundoAtual.src : null} semImagem={!fundoAtual || fundoAtual.visivel === false} animacao={fundoAtual?.animacao}
+      <PainelDoFundo segmento={segmentoDaArte} atual={fundoAtual && fundoAtual.tipo === 'imagem' ? fundoAtual.src : null} semImagem={!fundoAtual || fundoAtual.visivel === false} animacao={fundoAtual?.animacao}
         opcoes={opcoesDeFundo} deitado={TAMANHO_DOC[formato].w > TAMANHO_DOC[formato].h} cor={{ valor: doc.fundo, mudar: mudarFundo }}
         aoTrocar={({ id, src }) => { const e = ENCARTES_OFICIAIS.find((x) => x.id === id); trocarFundoDaArte((fo) => ({ src: e?.formatos[fo]?.fundoLimpo ?? src, visivel: true } as Partial<Camada>)); }}
         aoSoCor={() => trocarFundoDaArte((_, c) => (c ? { visivel: false } : null))}
@@ -312,10 +314,16 @@ export default function EditorPage() {
   };
   const dados = (): DadosV2 => ({ versao: 2, documentos: docs, formato, ...(pronta ? { formatos: pronta.formatos, pasta: pronta.pasta, voltar: pronta.voltar } : {}) });
 
+  // F-310: o segmento da arte (encarte oficial → o segmento dele; modelo do catálogo → o dele) para o acervo do SOBRE MÍDIA
+  const guardarArteNoAcervo = (chave: string, video?: string | null) => guardarNoAcervo({
+    tipo: pronta ? 'encarte' : 'arte', segmento: segmentoDaArte, nome: nome.trim() || base.nome, video,
+    dados: { chave, modeloId: pronta ? idDaArtePronta(pronta.id) : base.id, documentos: docs, formato },
+  });
   const gravar = async () => {
     const id = await salvarProjeto({ id: idProjeto, modeloId: pronta ? idDaArtePronta(pronta.id) : base.id, nome: nome.trim() || base.nome, formato: telaDoFormato(formato), dados: dados() as unknown as Record<string, unknown>, miniatura: null });
     setIdProjeto(id);
     void qc.invalidateQueries({ queryKey: ['studio-projetos'] });
+    guardarArteNoAcervo(`projeto:${id}`);
     return id;
   };
   // F-229: Salvar = projeto (Meus Projetos) + a imagem na GALERIA (sem cópia repetida), com o cartão para mandar às telas
@@ -362,12 +370,14 @@ export default function EditorPage() {
   });
   const salvarVideoNaGaleria = () => videoPronto && user && agir('salvar-video', async () => {
     await gravar();
-    await salvarNasMidias({ userId: user.id, clienteId: saldo.data?.cliente ?? null, video: videoPronto.v, nome: nome.trim() || base.nome, largura: videoPronto.v.largura, altura: videoPronto.v.altura, formato: videoPronto.formato, pasta: pastaGaleria });
+    const salvo = await salvarNasMidias({ userId: user.id, clienteId: saldo.data?.cliente ?? null, video: videoPronto.v, nome: nome.trim() || base.nome, largura: videoPronto.v.largura, altura: videoPronto.v.altura, formato: videoPronto.formato, pasta: pastaGaleria });
+    guardarArteNoAcervo(`galeria:${salvo.id}`, salvo.url);
     toast.success(`Vídeo salvo na sua galeria, na pasta "${pastaGaleria.nome}".`);
   });
   const enviarFoto = (arq: File | undefined) => arq && user && agir('foto', async () => {
     if (!/^image\/(jpeg|png|webp)$/.test(arq.type) || arq.size > 12 * 1024 * 1024) throw new Error('Envie JPG, PNG ou WebP de até 12 MB.');
     const { publicUrl } = await uploadToR2(arq, `${user.id}/studio/foto-${Date.now()}.${arq.type.split('/')[1]}`, arq.type, user.id, { preventOverwrite: true });
+    guardarNoAcervo({ tipo: 'imagem', segmento: segmentoDaArte, nome: arq.name.replace(/[.][^.]+$/, ''), url: publicUrl }); // F-310
     // F-252: a foto da galeria no produto passa pelo mesmo caminho: sai sem fundo e fica como a foto do produto
     if (destinoDaFoto.current === 'trocar' && camadaSel?.tipo === 'imagem' && /^Produto( \d+)?$/.test(camadaSel.nome)) { void trocarProduto(camadaSel, { url: publicUrl, fonte: 'UPLOAD' }, ''); return; }
     if (destinoDaFoto.current === 'trocar' && camadaSel?.tipo === 'imagem') { lembrar(); mudarCamada(camadaSel.id, { src: publicUrl, zoom: 1, focoX: 50, focoY: 50 } as Partial<Camada>); }

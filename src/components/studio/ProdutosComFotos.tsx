@@ -38,7 +38,7 @@ export interface ProdutosComFotos {
   aplicar: () => void;
   mudar: (id: string, x: Partial<ProdutoTabloide>) => void;
   remover: (id: string) => void;
-  porCodigo: (codigo: string) => void;
+  porCodigo: (codigo: string) => boolean;
   gravar: (lista: ProdutoTabloide[]) => void;
   /** F-242: troca a foto e grava no catálogo (volta sozinha da próxima vez) */
   trocarFoto: (p: ProdutoTabloide, imagem: ImagemProduto) => Promise<void>;
@@ -103,11 +103,12 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
   const mudar = (id: string, x: Partial<ProdutoTabloide>) => setProdutos((a) => { const n = a.map((p) => (p.id === id ? { ...p, ...x } : p)); gravar(n); return n; });
   const remover = (id: string) => setProdutos((a) => { const n = a.filter((p) => p.id !== id); gravar(n); return n; });
   const porCodigo = (codigo: string) => {
-    if (produtos.some((p) => p.codigo === codigo)) { toast.info('Este produto já está na lista.'); return; }
+    if (produtos.some((p) => p.codigo === codigo)) { toast.info('Este produto já está na lista.'); return false; }
     const p = lerLinha(codigo);
-    if (!p) return;
+    if (!p) return false;
     setProdutos((a) => { const n = [...a, p]; gravar(n); return n; });
     void procurarFotos([p]);
+    return true; // F-311: entrou → bipe de leitura certa
   };
   const trocarFoto = async (produto: ProdutoTabloide, imagem: ImagemProduto) => {
     // F-280: o cliente escolheu a foto: o produto sai do aviso "confira a foto"

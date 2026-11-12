@@ -8,6 +8,7 @@ import { ImageOff, ImagePlus, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { uploadToR2 } from '@/lib/r2Upload';
+import { guardarNoAcervo } from '@/lib/studio/acervo';
 import { MOVIMENTOS_DO_FUNDO, type Animacao, type TipoDeAnimacao } from '@/lib/studio/animacao';
 import { cn } from '@/lib/utils';
 
@@ -25,7 +26,8 @@ async function fotoLeve(arquivo: File): Promise<Blob> {
   return webp ?? (await new Promise<Blob>((ok, erro) => tela.toBlob((b) => (b ? ok(b) : erro(new Error('foto'))), 'image/jpeg', 0.88)));
 }
 
-export function PainelDoFundo({ atual, semImagem, animacao, opcoes, deitado, aoTrocar, aoSoCor, aoMover, aoRestaurar, cor }: {
+export function PainelDoFundo({ segmento, atual, semImagem, animacao, opcoes, deitado, aoTrocar, aoSoCor, aoMover, aoRestaurar, cor }: {
+  /** F-310: o segmento da arte (o fundo enviado vai para o acervo dele) */ segmento?: string | null;
   /** a imagem de fundo de agora (neste formato) */ atual: string | null; semImagem?: boolean;
   animacao?: Animacao | null; opcoes: OpcaoDeFundo[]; deitado: boolean;
   /** trocou de fundo: `id` do fundo da galeria (ou null = imagem enviada) e a imagem deste formato */
@@ -46,6 +48,7 @@ export function PainelDoFundo({ atual, semImagem, animacao, opcoes, deitado, aoT
       const ext = leve.type === 'image/webp' ? 'webp' : 'jpg';
       const { publicUrl } = await uploadToR2(leve, `${user.id}/studio/fundos/${Date.now()}.${ext}`, leve.type, user.id, { preventOverwrite: true });
       aoTrocar({ id: null, src: publicUrl });
+      guardarNoAcervo({ tipo: 'fundo', segmento, nome: f.name.replace(/\.[^.]+$/, ''), url: publicUrl });
       toast.success('Fundo trocado. Ele fica guardado nesta arte.');
     } catch { toast.error('Não foi possível enviar a imagem. Tente de novo.'); }
     finally { setEnviando(false); }

@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { meuSaldo } from '@/lib/studioai/api';
 import { LOGOS_OFICIAIS, logosDaPasta, type LogoDaPasta } from '@/lib/studio/logos';
 import { arquivarSelo, ehCentral, enviarParaBiblioteca, listarSelos } from '@/lib/tabloide/selos';
+import { guardarNoAcervo } from '@/lib/studio/acervo';
 
 export const PASTA_LOGOS = 'logos';
 const XADREZ = { backgroundImage: 'repeating-conic-gradient(#2a2340 0 25%, #1c1630 0 50%)', backgroundSize: '18px 18px' };
@@ -35,6 +36,7 @@ function useEnviarLogo() {
       const nome = arquivo.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Minha logo';
       const s = await enviarParaBiblioteca({ arquivo, nome, tipo: 'LOGO_CABECALHO', categoria: 'Enviadas no Studio', usuarioId: user.id, clienteId: saldo.data?.cliente ?? null, daEmpresa: paraTodos && !!central.data });
       await qc.invalidateQueries({ queryKey: ['studio-logos-pasta'] });
+      guardarNoAcervo({ tipo: 'logo', nome, url: s.imagem_url }); // F-310: acervo do SOBRE MÍDIA
       if (!s.transparente) toast.info('A logo tem fundo. Para ficar solta no encarte, envie um PNG sem fundo.');
       else toast.success('Logo guardada na pasta.');
       return { id: s.id, nome: s.nome, url: s.imagem_url, largura: s.largura, altura: s.altura, dono: s.dono_id, miniatura: s.miniatura_url };

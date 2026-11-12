@@ -13,7 +13,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Clapperboard, FolderOpen, ImagePlus, Monitor, Move, MousePointerClick, Palette, Pause, PenLine, Play, Plus, RotateCcw, Smartphone } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Clapperboard, FolderOpen, ImagePlus, Loader2, Monitor, Move, MousePointerClick, Palette, Pause, PenLine, Play, Plus, RotateCcw, Smartphone } from 'lucide-react';
 import { GaleriaDeProdutos } from './GaleriaDeProdutos';
 import { EditorDeVideo } from '@/pages/studioai/VideoEditorPage';
 import { toast } from 'sonner';
@@ -24,7 +24,10 @@ import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, lerValor, precoParaTexto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { infoDaPasta, pastaDeOfertasDe } from '@/lib/studio/pastasDoSegmento';
-import { TAMANHO_DOC, camadaNoPonto, type Camada, type CamadaTexto, type Documento, type FormatoDoc } from '@/lib/studio/documento';
+import { useAuth } from '@/contexts/AuthContext';
+import { uploadToR2 } from '@/lib/r2Upload';
+import { guardarNoAcervo } from '@/lib/studio/acervo';
+import { TAMANHO_DOC, camadaNoPonto, imagem, type Camada, type CamadaTexto, type Documento, type FormatoDoc } from '@/lib/studio/documento';
 import { PainelDoFundo } from './editor/PainelDoFundo';
 import { movimentoDoFundo } from '@/lib/studio/animacao';
 import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, srcSemLogo, type AjustesDoPalco, type FundoDoPalco, type LocucaoDoVideo, type MovimentoDoPalco } from '@/lib/studio/palco';
@@ -358,12 +361,38 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const opcoesDeFundo = useMemo(() => [...FUNDOS_DO_PALCO].sort((x, y) => Number(y.segmento === segmento) - Number(x.segmento === segmento))
     .map((f) => ({ id: f.id, nome: f.nome, src: srcSemLogo(f, formato), grupo: f.segmento === segmento ? 'Fundos deste segmento' : 'Fundos de outros segmentos' })), [formato, segmento]);
   const painelDoFundo = fundo && camadaDoFundo ? (
-    <PainelDoFundo atual={camadaDoFundo.src ?? null} semImagem={camadaDoFundo.visivel === false} animacao={camadaDoFundo.animacao} opcoes={opcoesDeFundo} deitado={formato === '16:9'}
+    <PainelDoFundo segmento={segmento} atual={camadaDoFundo.src ?? null} semImagem={camadaDoFundo.visivel === false} animacao={camadaDoFundo.animacao} opcoes={opcoesDeFundo} deitado={formato === '16:9'}
       aoTrocar={({ id, src }) => { const f = FUNDOS_DO_PALCO.find((x) => x.id === id); mudarFundoDaArte((fo) => ({ src: f ? srcSemLogo(f, fo) : src, visivel: true } as Partial<Camada>)); }}
       aoSoCor={() => mudarFundoDaArte(() => ({ visivel: false }))}
       aoMover={(id) => { if (alvo) mudarElemento('Fundo oficial', { animacao: movimentoDoFundo(id) } as Partial<Camada>); else mudarFundoDaArte(() => ({ animacao: movimentoDoFundo(id) } as Partial<Camada>)); }}
       aoRestaurar={() => mudarFundoDaArte(() => null)} />
   ) : null;
+  // F-310 (pedido do dono): QUALQUER imagem do aparelho entra no palco como elemento (mover, girar, animar, apagar) e vai
+  // para o acervo do SOBRE MÍDIA no segmento
+  const { user } = useAuth();
+  const arquivoDeImagem = useRef<HTMLInputElement>(null);
+  const [enviandoImagem, setEnviandoImagem] = useState(false);
+  const adicionarImagem = async (f: File | undefined) => {
+    if (!f || !docEd) return;
+    if (!user) { toast.error('Entre na sua conta para enviar imagens.'); return; }
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(f.type) || f.size > 12 * 1024 * 1024) { toast.error('Envie uma imagem JPG, PNG ou WebP de até 12 MB.'); return; }
+    setEnviandoImagem(true);
+    try {
+      const { publicUrl } = await uploadToR2(f, `${user.id}/studio/imagens/${Date.now()}.${f.type.split('/')[1]}`, f.type, user.id, { preventOverwrite: true });
+      const { w: W, h: H } = TAMANHO_DOC[formato];
+      const lado = Math.round(Math.min(W, H) * 0.4);
+      const nomeDaImagem = `Imagem ${Date.now().toString(36).slice(-4)}`;
+      adicionarCamada({ ...imagem(nomeDaImagem, publicUrl, Math.round((W - lado) / 2), Math.round((H - lado) / 2), lado, lado, { ajuste: 'conter' }), id: nomeDaImagem } as Camada);
+      setTimeout(() => escolherElemento(nomeDaImagem), 50);
+      guardarNoAcervo({ tipo: 'imagem', segmento, nome: f.name.replace(/\.[^.]+$/, ''), url: publicUrl });
+      toast.success('Imagem colocada. Toque nela para mover, aumentar, girar ou animar.');
+    } catch { toast.error('Não foi possível enviar a imagem. Tente de novo.'); }
+    finally { setEnviandoImagem(false); }
+  };
+  const modeloDoVideo = useMemo(() => ({
+    tipo: 'palco' as const, segmento, nome: `${info.tituloPalco} – ${fundo ? fundo.nome.replace(/^Ofertas – /, '') : 'Palco desenhado'}`,
+    dados: { fundoId, formato, titulo, textoBotao, movimento, ajustes, logoDoPalco: logoDoPalco ? { nome: logoDoPalco.nome, url: logoDoPalco.url } : null },
+  }), [segmento, info.tituloPalco, fundo, fundoId, formato, titulo, textoBotao, movimento, ajustes, logoDoPalco]);
   const voltarAoPadrao = (nome: string) => setAjustes((a) => { const f = { ...a[formato] }; delete f[nome]; if (nome === 'Produto' && alvo) delete f[chaveDoProdutoNoPalco(alvo.nome)]; return { ...a, [formato]: f }; });
   /** F-290: "Movimento padrão": o elemento volta ao movimento com que a arte nasceu (nos dois formatos) */
   const movimentoPadrao = (nome: string | null) => {
@@ -717,6 +746,15 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                 <button type="button" onClick={() => setTrocandoLogo(true)} className="h-9 shrink-0 rounded-lg border border-white/15 px-3 text-xs font-semibold text-white hover:bg-white/5" data-testid="palco-trocar-logo">Trocar logo</button>
               </div>
             )}
+            {/* F-310: qualquer imagem do aparelho vira um elemento do palco */}
+            {docEd && (
+              <>
+                <button type="button" onClick={() => arquivoDeImagem.current?.click()} disabled={enviandoImagem} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-white/15 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60" data-testid="palco-adicionar-imagem">
+                  {enviandoImagem ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}Adicionar imagem (logo, selo, foto…)
+                </button>
+                <input ref={arquivoDeImagem} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void adicionarImagem(f); }} data-testid="palco-arquivo-imagem" />
+              </>
+            )}
             {/* F-288: a seção COMPLETA da logo criada por nós (textos, ícones, círculo, cores) */}
             {fundo && docEd && docEd.camadas.some((c) => c.nome === 'Logo – base') && (
               <details className="rounded-xl border border-white/10 bg-black/20 p-2" open={!ehDaLogo} data-testid="palco-secao-logo">
@@ -756,7 +794,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       {projetoNoEditor && (
         <section className="shrink-0 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-1.5" data-testid="palco-editor-video" aria-label={`Vídeo do palco (${comPreco.length} produtos · ${comPreco.length * SEGUNDOS_POR_PRODUTO} s)`}>
           <EditorDeVideo embutido projetoInicial={projetoNoEditor} nomeInicial={`${info.tituloPalco} – ${fundo ? textoBotao : titulo}`} aoTransicao={transicaoPeloEditor}
-            mesa={{ previa: slotPrevia, ferramentas: slotFerramentas, visivel: vista === 'video', aoUsar: () => setVista('video'), aoTocarNaTela: tocouNoVideo, clipeEmFoco: sel?.nome ?? null, exportarAgora: pedidoDeVideo }} />
+            mesa={{ previa: slotPrevia, ferramentas: slotFerramentas, visivel: vista === 'video', aoUsar: () => setVista('video'), aoTocarNaTela: tocouNoVideo, clipeEmFoco: sel?.nome ?? null, exportarAgora: pedidoDeVideo, modeloDoVideo }} />
         </section>
       )}
       </div>

@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { uploadToR2 } from '@/lib/r2Upload';
+import { guardarNoAcervo, type TipoNoAcervo } from '@/lib/studio/acervo';
 import { TAMANHO_DOC, alturaDoTexto, alturaDosItens, forma, imagem, itens, selo, texto, type Camada, type Documento, type FormatoDoc, telaDoFormato } from '@/lib/studio/documento';
 import { duracaoDoVideo } from '@/lib/studio/animacao';
 import { MotorDeVideo, podeExportarQuadroAQuadro, type OpcoesDeQualidade, type VideoExportado } from '@/lib/studio/video/motor';
@@ -108,6 +109,8 @@ export interface MesaDoVideo {
   clipeEmFoco?: string | null;
   /** F-306: "Visualizar vídeo e salvar" da tela de fora — cada aumento monta o MP4 (e mostra Salvar/Publicar/Baixar) */
   exportarAgora?: number;
+  /** F-310: o MODELO deste vídeo (composição do palco/encarte): ao salvar, vai para o acervo do SOBRE MÍDIA no segmento dele */
+  modeloDoVideo?: { tipo: TipoNoAcervo; segmento?: string | null; nome: string; dados: Record<string, unknown> } | null;
 }
 
 export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeInicial, aoTransicao, mesa }: { embutido?: boolean; projetoInicial?: ProjetoDeVideo | null; nomeInicial?: string; aoTransicao?: (nomeDoClipe: string, tipo: TipoDeTransicao) => void; mesa?: MesaDoVideo }) {
@@ -478,6 +481,8 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
     const pronto = { url: enviado.video, capa: enviado.capa, largura: exportado.v.largura, altura: exportado.v.altura, duracaoMs: exportado.v.duracaoMs, mime: exportado.v.mime, criadoEm: new Date().toISOString() };
     const id = await salvarProjeto({ id: idProjeto, modeloId: 'video', nome: nome.trim() || 'Meu vídeo', formato: p.formato, dados: { ...(p as unknown as Record<string, unknown>), videoPronto: pronto }, miniatura: enviado.capa });
     setIdProjeto(id);
+    // F-310: o modelo do vídeo salvo vai para o acervo do SOBRE MÍDIA, no segmento em que foi criado (silencioso)
+    guardarNoAcervo({ tipo: mesa?.modeloDoVideo?.tipo ?? 'arte', segmento: mesa?.modeloDoVideo?.segmento, nome: mesa?.modeloDoVideo?.nome ?? (nome.trim() || 'Meu vídeo'), url: enviado.capa, video: enviado.video, dados: { ...(mesa?.modeloDoVideo?.dados ?? { videoDoEditor: true }), chave: `projeto:${id}` } });
     if (!projetoId && !embutido) navegar(`/studio/video/${id}`, { replace: true });
     void qc.invalidateQueries({ queryKey: ['studio-projetos'] });
     if (publicar) {
@@ -494,7 +499,8 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
   }, [mesa?.exportarAgora]); // eslint-disable-line react-hooks/exhaustive-deps
   const salvarNaGaleria = () => exportado && user && agir('galeria', async () => {
     if (total > maxGaleria) throw new Error(`Para as telas, o vídeo pode ter até ${maxGaleria} s (este tem ${Math.round(total)} s). Corte ou baixe o arquivo.`);
-    await salvarNasMidias({ userId: user.id, clienteId, video: exportado.v, nome: nome.trim() || 'Meu vídeo', largura: exportado.v.largura, altura: exportado.v.altura, formato: p.formato, pasta: PASTA_VIDEOS });
+    const salvo = await salvarNasMidias({ userId: user.id, clienteId, video: exportado.v, nome: nome.trim() || 'Meu vídeo', largura: exportado.v.largura, altura: exportado.v.altura, formato: p.formato, pasta: PASTA_VIDEOS });
+    guardarNoAcervo({ tipo: mesa?.modeloDoVideo?.tipo ?? 'arte', segmento: mesa?.modeloDoVideo?.segmento, nome: mesa?.modeloDoVideo?.nome ?? (nome.trim() || 'Meu vídeo'), video: salvo.url, dados: { ...(mesa?.modeloDoVideo?.dados ?? { videoDoEditor: true }), chave: `galeria:${salvo.id}` } });
     toast.success(`Vídeo salvo na sua galeria, na pasta "${PASTA_VIDEOS.nome}".`);
   });
 

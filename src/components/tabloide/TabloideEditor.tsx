@@ -276,13 +276,14 @@ export function TabloideEditor({ contexto, clienteId = null, empresaPadrao = '',
 
   /** F-231: produto lido pela pistola/câmera entra na lista na hora (o preço o cliente digita depois). */
   const adicionarCodigo = (codigo: string) => {
-    if (produtos.some((p) => p.codigo === codigo)) { toast.info('Este produto já está no cartaz.'); return; }
+    if (produtos.some((p) => p.codigo === codigo)) { toast.info('Este produto já está no cartaz.'); return false; }
     const p = lerLinha(codigo);
-    if (!p) return;
+    if (!p) return false;
     mexeu.current = true;
     setCfg((c) => ({ ...c, texto: `${c.texto.trimEnd()}${c.texto.trim() ? '\n' : ''}${codigo}` }));
     setProdutos((atual) => [...atual, p]);
     void procurarFotos([p]);
+    return true;
   };
 
   const montarCartaz = () => {
