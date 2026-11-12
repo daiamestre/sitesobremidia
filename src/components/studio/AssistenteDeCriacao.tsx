@@ -5,7 +5,8 @@
  * quando a etapa tem o obrigatório; voltar nunca perde o que foi feito (tudo fica guardado no aparelho e a etapa fica no
  * endereço — recarregar a página continua de onde parou). No fim, abre a tela de edição já preenchida.
  */
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +33,8 @@ export function AssistenteDeCriacao({ titulo, etapas, passo, irPara, aoConcluir,
   const ultima = i === etapas.length - 1;
   // só dá para pular para uma etapa à frente se as anteriores estiverem prontas
   const podeIr = (n: number) => etapas.slice(0, n).every((x) => x.pronta);
+  // F-309: com a barra fixa embaixo, os avisos (toasts) sobem para cima dela e nunca cobrem o Avançar
+  useEffect(() => { document.body.classList.add('com-barra-fixa'); return () => document.body.classList.remove('com-barra-fixa'); }, []);
   return (
     <div className="mx-auto max-w-3xl space-y-4 pb-28" data-testid="assistente-de-criacao">
       <div className="flex items-center gap-2">
@@ -68,8 +71,9 @@ export function AssistenteDeCriacao({ titulo, etapas, passo, irPara, aoConcluir,
         {e.conteudo}
       </section>
 
-      {/* barra fixa embaixo: Voltar · Avançar (ou Criar) — sempre à mão no celular */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#0b0420]/95 px-3 py-2.5 sm:px-6" style={{ paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom))' }}>
+      {/* barra fixa embaixo: Voltar · Avançar (ou Criar) — sempre à mão no celular. F-309: vai direto no <body> (portal): a
+          animação de entrada da página deixa um transform no pai, e com ele a barra ia para o FIM do conteúdo, não da tela */}
+      {createPortal(<div className="fixed inset-x-0 bottom-0 z-30 lg:left-[230px] border-t border-white/10 bg-[#0b0420]/95 px-3 py-2.5 sm:px-6" style={{ paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom))' }}>
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           <button type="button" onClick={() => irPara(i)} disabled={i === 0} className="flex h-12 items-center gap-1.5 rounded-xl border border-white/15 px-4 text-sm font-semibold text-white disabled:opacity-30" data-testid="assistente-voltar">
             <ArrowLeft className="h-4 w-4" />Voltar
@@ -85,7 +89,7 @@ export function AssistenteDeCriacao({ titulo, etapas, passo, irPara, aoConcluir,
             </button>
           )}
         </div>
-      </div>
+      </div>, document.body)}
     </div>
   );
 }

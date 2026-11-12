@@ -921,3 +921,7 @@ video.video-inteiro,
 video.video-inteiro[poster] {
   object-fit: contain !important;
 }
+
+/* F-309: no passo a passo, os avisos ficam ACIMA da barra fixa de Voltar/Avançar (nunca por cima do botão) */
+body.com-barra-fixa [data-sonner-toaster][data-y-position="bottom"] { margin-bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+/* (a barra do passo a passo começa depois do menu lateral do Studio, 230 px, em telas grandes) */

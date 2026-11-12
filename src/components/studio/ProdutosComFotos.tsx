@@ -97,7 +97,8 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
     const n = mesclarListas(produtos, lidos);
     setProdutos(n); gravar(n);
     void procurarFotos(n);
-    if (n.some((p) => p.precoDe == null)) toast.info('É promoção? Ligue "Promoção" no produto e coloque o preço DE (ex.: de 49,90 por 39,90).', { duration: 7000 });
+    // F-309 (pedido do dono): lista com produtos em promoção ("de … por …") e produtos com preço normal é CERTA e entra como
+    // está — sem aviso pedindo para marcar promoção (ele aparecia sempre que havia um produto sem preço DE e cobria o Avançar)
   };
   const mudar = (id: string, x: Partial<ProdutoTabloide>) => setProdutos((a) => { const n = a.map((p) => (p.id === id ? { ...p, ...x } : p)); gravar(n); return n; });
   const remover = (id: string) => setProdutos((a) => { const n = a.filter((p) => p.id !== id); gravar(n); return n; });

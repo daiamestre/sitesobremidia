@@ -34,6 +34,15 @@ describe('F-306: assistente de criação', () => {
     expect(palco).toContain('exportarAgora: pedidoDeVideo');
     expect(fs.readFileSync('src/pages/studioai/VideoEditorPage.tsx', 'utf8')).toContain('if (n > ultimoPedido.current) { ultimoPedido.current = n; exportar(); }');
   });
+  it('F-309: lista com promoção e preço normal entra sem aviso pedindo promoção; avisos nunca cobrem o Avançar', () => {
+    const lista = fs.readFileSync('src/components/studio/ProdutosComFotos.tsx', 'utf8');
+    expect(lista).not.toContain('Ligue "Promoção"');
+    expect(lista).not.toMatch(/precoDe == null\)\) toast/);
+    expect(assistente).toContain("document.body.classList.add('com-barra-fixa')");
+    // a barra vai direto no <body>: fica no rodapé da TELA (a animação da página não a empurra para o fim do conteúdo)
+    expect(assistente).toContain('{createPortal(<div className="fixed inset-x-0 bottom-0');
+    expect(fs.readFileSync('src/index.css', 'utf8')).toContain('body.com-barra-fixa [data-sonner-toaster][data-y-position="bottom"]');
+  });
   it('F-307: "Editar direto" pula o passo a passo e vai para a edição de sempre (palco e encarte)', () => {
     const galeria = fs.readFileSync('src/components/studio/GaleriaDeModelos.tsx', 'utf8');
     expect(galeria).toContain('data-testid="modelo-editar-direto"');
