@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, ChevronDown, Clapperboard, Coins, FolderKanban, Gem, Home, ImagePlay, LogOut, Menu, Play, Search, Settings, Sparkles, X } from 'lucide-react';
+import { Bell, ChevronDown, Clapperboard, Coins, FolderKanban, Gem, Home, ImagePlay, LogOut, Menu, Play, Repeat, Search, Settings, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { meuSaldo } from '@/lib/studioai/api';
@@ -83,6 +83,8 @@ function MenuLateral({ anunciante, carregado, onNavegar }: { anunciante: boolean
     { nome: 'Logos 3D', to: '/studio/logos', icone: Gem },
     // F-248: a pasta com todas as logos, de onde os encartes e o Palco escolhem
     { nome: 'Pasta de Logos', to: '/studio/pasta/logos', icone: FolderKanban },
+    // F-303: os vídeos leves que passam em loop como capa das pastas (um por modelo de encarte e de palco)
+    { nome: 'Biblioteca de Loop', to: '/studio/biblioteca-de-loop', icone: Repeat },
     { nome: 'Configurações do Studio', to: '/studio/configuracoes', icone: Settings },
   ];
   return (

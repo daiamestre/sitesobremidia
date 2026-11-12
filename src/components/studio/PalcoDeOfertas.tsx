@@ -34,6 +34,8 @@ import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
 import { useFotosDosEncartes, fotoDoExemplo, noCentro } from './EncartesDoStudio';
 import { CapaQueGira, type Slide } from '@/components/media/CapaQueGira';
+import { capaDoPalco } from '@/lib/studio/capasEmVideo';
+import { VideoDaCapa } from './VideoDaCapa';
 import { logoSalvaDoStudio } from '@/lib/studio/logoDoStudio';
 import { PainelDeProdutos, faltasDoProduto, useProdutosComFotos } from './ProdutosComFotos';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
@@ -125,6 +127,8 @@ export function useSlidesDosPalcos(segmento: SegmentoDoStudio): Slide[] {
   return useMemo(() => {
     const produtos = lerLista(cesta).slice(0, 6).map((p) => ({ ...p, imagem: fotoDoExemplo(fotos.data, p.nome) }));
     const salvas = lerOpcoes(segmento === 'mercado' ? CHAVE_OPCOES : `${CHAVE_OPCOES}-${segmento}`).porFundo ?? {};
+    // F-303 (pedido do dono): capa = o VÍDEO gravado do modelo (leve); sem vídeo, o carrossel desenhado ao vivo
+    if (fundosDoSegmento(segmento).some((f) => capaDoPalco(f.id))) return fundosDoSegmento(segmento).flatMap((f) => { const v = capaDoPalco(f.id); return v ? [{ chave: `v-${f.id}`, video: v.video, imagem: v.poster }] : []; });
     return fundosDoSegmento(segmento).map((f) => {
       const o = salvas[f.id] ?? {};
       return { chave: `palco-${f.id}`, animada: () => noCentro('9 / 16', <CarrosselNoPalco produtos={produtos} formato="9:16" className="h-full w-full rounded-none" fundo={f} textoBotao={o.textoBotao ?? f.botoes[0]} movimento={o.movimento} ajustes={o.ajustes} logoDoPalco={lerLogoDoEncarte(`palco-${f.id}`)} />) };
@@ -422,7 +426,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
           return {
             id, nome: f ? f.nome.replace(/^Ofertas – /, '') : 'Palco desenhado (com título)',
             capa: f ? srcDoFundo(f, formato) : undefined,
-            previa: amostra.length || !f ? <CarrosselNoPalco produtos={amostra} formato={formato} titulo={titulo} fundo={f} textoBotao={o.textoBotao ?? (f ? botaoPadrao(id) : undefined)} movimento={o.movimento} logoDoPalco={lerLogoDoEncarte(`palco-${id}`)} ajustes={o.ajustes} className="h-full w-full rounded-none" /> : undefined,
+            previa: f && capaDoPalco(f.id) ? <VideoDaCapa capa={capaDoPalco(f.id)!} /> : amostra.length || !f ? <CarrosselNoPalco produtos={amostra} formato={formato} titulo={titulo} fundo={f} textoBotao={o.textoBotao ?? (f ? botaoPadrao(id) : undefined)} movimento={o.movimento} logoDoPalco={lerLogoDoEncarte(`palco-${id}`)} ajustes={o.ajustes} className="h-full w-full rounded-none" /> : undefined,
           };
         })} />
     );

@@ -173,6 +173,7 @@ const StudioAgentesNovo = lazyWithRetry(() => import("./pages/studio/StudioPagin
 const StudioAgentesProducao = lazyWithRetry(() => import("./pages/studio/StudioPaginas").then((m) => ({ default: m.StudioAgentesProducao })));
 const TrabalharComIA = lazyWithRetry(() => import("./pages/dashboard/TrabalharComIA"));
 const StudioProjetos = lazyWithRetry(() => import("./pages/studioai/ProjetosPage"));
+const StudioBibliotecaDeLoop = lazyWithRetry(() => import("./pages/studioai/BibliotecaDeLoopPage"));
 const StudioConfiguracoes = lazyWithRetry(() => import("./pages/studioai/ConfiguracoesPage"));
 const ExpansaoPage = lazyWithRetry(() => import("./modules/crm/pages/portal/ExpansaoPage"));
 const BrandKitPage = lazyWithRetry(() => import("./modules/crm/pages/portal/BrandKitPage"));
@@ -380,6 +381,7 @@ const App = () => {
                     <Route path="video" element={<StudioVideo />} />
                     <Route path="video/:projetoId" element={<StudioVideo />} />
                     <Route path="projetos" element={<StudioProjetos />} />
+                    <Route path="biblioteca-de-loop" element={<StudioBibliotecaDeLoop />} />
                     <Route path="configuracoes" element={<StudioConfiguracoes />} />
                   </Route>
 

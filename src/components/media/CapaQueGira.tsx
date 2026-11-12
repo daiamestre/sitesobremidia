@@ -79,9 +79,10 @@ export function CapaQueGira({ slides, atraso = 0, tempo = TEMPO_DE_CADA_MIDIA, a
         if (!(vez || k === anterior || (k === proxima && !s.video && !s.animada))) return null;
         const camada = cn('absolute inset-0 h-full w-full transition-opacity duration-700', objeto);
         const op = { opacity: vez ? 1 : 0 };
-        if (s.video) return vez || k === anterior
-          ? <video key={s.chave} src={s.video} poster={s.imagem ?? undefined} muted playsInline autoPlay loop preload="auto" className={camada} style={op} />
-          : null;
+        // F-303: só o vídeo da vez toca; o que está saindo aparece como a imagem fixa (um decodificador por capa — leve no tablet)
+        if (s.video) return vez
+          ? <video key={s.chave} src={s.video} poster={s.imagem ?? undefined} muted playsInline autoPlay loop preload="auto" disablePictureInPicture className={camada} style={op} />
+          : k === anterior && s.imagem ? <img key={s.chave} src={s.imagem} alt="" draggable={false} decoding="async" className={camada} style={op} /> : null;
         if (s.animada) return <div key={s.chave} className="absolute inset-0 transition-opacity duration-700" style={op}>{vez || k === anterior ? s.animada() : null}</div>;
         return s.imagem ? <img key={s.chave} src={s.imagem} alt="" draggable={false} decoding="async" className={camada} style={op} /> : null;
       })}

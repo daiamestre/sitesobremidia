@@ -10,6 +10,7 @@ import { FileText, PenLine } from 'lucide-react';
 import { TabloideCanvas } from '@/components/tabloide/TabloideCanvas';
 import { CapaQueGira, useNaTela, type Slide } from '@/components/media/CapaQueGira';
 import { coreografia, temAnimacao } from '@/lib/studio/animacao';
+import { capaDoEncarte } from '@/lib/studio/capasEmVideo';
 import type { Documento } from '@/lib/studio/documento';
 import { configPadrao, propsDasPaginas } from '@/lib/tabloide/cartaz';
 import { buscarNoCatalogo } from '@/lib/tabloide/imagens';
@@ -57,6 +58,9 @@ export function useSlidesDosEncartes(segmento: SegmentoDoStudio, soEmPe = false)
   return useMemo(() => {
     const cesta = lerLista(segmento === 'mercado' ? CESTA_PADRAO : infoDaPasta(segmento).cestaDaCapa).map((p) => ({ ...p, imagem: fotoDoExemplo(fotos.data, p.nome) }));
     const formatos = segmento === 'mercado' ? [undefined] : soEmPe ? (['9:16'] as const) : (['9:16', '16:9'] as const);
+    // F-303 (pedido do dono): capa = o VÍDEO gravado do modelo (leve, toca no chip de vídeo); sem vídeo, o desenho ao vivo
+    const gravadas = encartesDoSegmento(segmento).map((o) => ({ o, v: capaDoEncarte(o.id) }));
+    if (gravadas.some((g) => g.v)) return gravadas.flatMap(({ o, v }) => (v ? [{ chave: `v-${o.id}`, video: v.video, imagem: v.poster }] : []));
     const oficiais: Slide[] = encartesDoSegmento(segmento).flatMap((o) => formatos.map((f) => ({
       chave: `${o.id}-${f ?? 'a4'}`,
       animada: () => noCentro(f === '16:9' ? '16 / 9' : f === '9:16' ? '9 / 16' : '1240 / 1754', <PreviaDocumento doc={encarteEmMovimento(documentoDoEncarteOficial(o, cesta, {}, f))} animar sempre className="h-full w-full" />),

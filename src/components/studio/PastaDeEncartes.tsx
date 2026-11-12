@@ -16,6 +16,8 @@ import { toast } from 'sonner';
 import { documentoDoEncarteOficial, encartesDoSegmento } from '@/lib/studio/encartesOficiais';
 import { PreviaDocumento } from './PreviaDocumento';
 import { EscolhaDeModelo } from './GaleriaDeModelos';
+import { capaDoEncarte } from '@/lib/studio/capasEmVideo';
+import { VideoDaCapa } from './VideoDaCapa';
 import type { SegmentoDoStudio } from '@/lib/studio/palco';
 import { gravarLogoDoEncarte, lerLogoDoEncarte, type LogoDaPasta } from '@/lib/studio/logos';
 import { EscolherLogo } from './PastaDeLogos';
@@ -53,7 +55,8 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
     catch { toast.error('Não foi possível abrir o editor (a imagem da logo é grande demais). Ajuste aqui e toque em Editar.'); }
   };
   const modelo = oficiais.find((o) => o.id === modeloId) ?? oficiais[0];
-  const capas = useMemo(() => oficiais.map((o) => ({ id: o.id, nome: o.nome.replace(/^Ofertas – /, ''), previa: <PreviaDocumento doc={encarteEmMovimento(documentoDoEncarteOficial(o, s.produtos.slice(0, 8), { quantos: 8 }, '9:16'))} animar sempre className="h-full w-full" /> })), [oficiais, s.produtos]);
+  // F-303: na escolha, cada modelo passa o VÍDEO gravado (leve); sem vídeo, o desenho ao vivo com os produtos da pessoa
+  const capas = useMemo(() => oficiais.map((o) => ({ id: o.id, nome: o.nome.replace(/^Ofertas – /, ''), previa: capaDoEncarte(o.id) ? <VideoDaCapa capa={capaDoEncarte(o.id)!} /> : <PreviaDocumento doc={encarteEmMovimento(documentoDoEncarteOficial(o, s.produtos.slice(0, 8), { quantos: 8 }, '9:16'))} animar sempre className="h-full w-full" /> })), [oficiais, s.produtos]);
   const editar = (id: string) => { s.gravar(s.produtos); navegar(`/studio/encarte/${id}`); };
   // os encartes de mercado mostram os produtos da pessoa; açougue e hortifruti mantêm os exemplos deles (fotos do catálogo)
   const fotosDoCatalogo = useFotosDosEncartes();
