@@ -10,6 +10,7 @@ import { caixaDaMidia, desenharTransicao, desenharVinheta, filtroDoClipe } from 
 import { corDoDocumento } from '../corDaArte';
 import { duracaoDoClipe, duracaoTotal, inicios, noTempo, tempoNoArquivo, volumeNoTempo, type Clipe, type ProjetoDeVideo, type Quadro } from './linha';
 import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
+import { aparelhoFraco } from '../regente';
 
 /** F-301: exportação QUADRO A QUADRO (TV e painel de LED): tamanho, quadros por segundo e taxa de bits */
 export interface OpcoesDeQualidade { fps?: 30 | 60; /** 1 = tamanho do projeto (1920×1080 / 1080×1920); 2 = 4K */ escala?: 1 | 2; bitsPorSegundo?: number }
@@ -18,7 +19,10 @@ export const podeExportarQuadroAQuadro = () => typeof window !== 'undefined' && 
 
 export interface VideoExportado { video: Blob; mime: string; ext: 'mp4' | 'webm'; largura: number; altura: number; duracaoMs: number; capa: Blob | null; quadros: Blob[] }
 
-const PREVIA = 0.5;
+// F-302: em aparelho fraco a prévia do editor desenha em resolução menor (o MP4 final sai sempre no tamanho cheio)
+const PREVIA = aparelhoFraco() ? 0.34 : 0.5;
+/** F-302: intervalo mínimo entre dois desenhos da prévia tocando (aparelho fraco ≈ 30 qps; o som segue sincronizado) */
+const INTERVALO_PREVIA = aparelhoFraco() ? 32 : 0;
 /** mesma mídia com outro endereço: escapa da cópia guardada sem permissão (CORS) quando a galeria mostrou antes */
 const semCache = (u: string) => (/^https?:/.test(u) ? `${u}${u.includes('?') ? '&' : '?'}sm=cors` : u); // a prévia desenha em meia resolução (leve no tablet); a exportação, em tamanho real
 
@@ -38,6 +42,7 @@ export class MotorDeVideo {
   private raf = 0;
   private t0 = 0;
   private exportando = false;
+  private ultimoDesenho = 0;
   tempo = 0;
   tocando = false;
   /** texto/elemento escolhido: parado, aparece inteiro para editar (sem a animação de entrada) */
@@ -291,7 +296,8 @@ export class MotorDeVideo {
       const total = this.total;
       this.tempo = Math.min(total, (performance.now() - this.t0) / 1000);
       this.sincronizar(this.tempo);
-      this.desenhar(this.tempo);
+      const agora = performance.now();
+      if (this.exportando || agora - this.ultimoDesenho >= INTERVALO_PREVIA) { this.ultimoDesenho = agora; this.desenhar(this.tempo); }
       this.onTempo?.(this.tempo);
       if (this.tempo >= total) { this.pausar(); this.onFim?.(); return; }
       // exportando: relógio próprio (não para se o navegador economizar animação); prévia: no ritmo da tela

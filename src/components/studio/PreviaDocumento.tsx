@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { TAMANHO_DOC, fontesDo, imagensDo, type Documento } from '@/lib/studio/documento';
 import { desenharDocumento, prepararDocumento, type Imagens } from '@/lib/studio/desenhar';
 import { duracaoDoVideo } from '@/lib/studio/animacao';
+import { densidadeDasPrevias, registrarAnimacao } from '@/lib/studio/regente';
 
 /** `animar`: toca as animações sem parar (F-225), como o vídeo vai ficar */
 interface Props { doc: Documento; className?: string; style?: CSSProperties; ocultar?: string | null; sempre?: boolean; animar?: boolean; /** F-249: repete só este trecho (segundos): ver o movimento de um elemento */ ciclo?: number | null }
@@ -46,7 +47,7 @@ export function PreviaDocumento({ doc, className, style, ocultar, sempre = false
   useEffect(() => {
     const c = tela.current;
     if (!c || !imgs || !largura) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = densidadeDasPrevias(); // F-302: 1 em aparelho fraco (metade do trabalho a cada quadro)
     const escala = (largura * dpr) / w;
     const cw = Math.round(w * escala), ch = Math.round(h * escala);
     if (c.width !== cw) c.width = cw;
@@ -57,14 +58,17 @@ export function PreviaDocumento({ doc, className, style, ocultar, sempre = false
     const total = ciclo ?? duracaoDoVideo(doc);
     const pausa = ciclo ? 0.35 : 1.2;
     const inicio = performance.now();
-    let raf = 0;
-    const quadro = () => {
-      const t = ((performance.now() - inicio) / 1000) % (total + pausa); // repete, com uma pausa no fim
-      desenharDocumento(ctx, doc, imgs, escala, ocultar, Math.min(t, total), true); // F-290: movimento liso
-      raf = requestAnimationFrame(quadro);
-    };
-    raf = requestAnimationFrame(quadro);
-    return () => cancelAnimationFrame(raf);
+    let parado = false;
+    // F-302: o REGENTE desenha (um relógio só para o sistema, com orçamento por quadro, parado fora da tela);
+    // na pausa do fim a arte fica parada: desenha o último quadro uma vez e não gasta mais nada até recomeçar
+    desenharDocumento(ctx, doc, imgs, escala, ocultar, 0, true);
+    return registrarAnimacao(caixa.current, (agora) => {
+      const t = ((agora - inicio) / 1000) % (total + pausa); // repete, com uma pausa no fim
+      if (t > total) { if (parado) return false; parado = true; desenharDocumento(ctx, doc, imgs, escala, ocultar, total, true); return true; }
+      parado = false;
+      desenharDocumento(ctx, doc, imgs, escala, ocultar, t, true); // F-290: movimento liso
+      return true;
+    });
   }, [doc, imgs, largura, w, h, ocultar, animar, ciclo]);
 
   return (

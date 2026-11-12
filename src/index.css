@@ -887,3 +887,27 @@ input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; mi
   .grid.grid-cols-3:has(input, select, textarea, [role="combobox"]) > [class*="col-span-"],
   .grid.grid-cols-4:has(input, select, textarea, [role="combobox"]) > [class*="col-span-"] { grid-column: 1 / -1; }
 }
+
+/*
+ * F-302 (pedido do dono: o tablet M10 tem que rodar liso) — MODO LEVE, ligado sozinho em aparelho fraco
+ * (até 3 GB de memória, até 4 núcleos, economia de dados ou "reduzir movimento"). Nada some da tela:
+ *  - desfoque de fundo (vidro) vira fundo semitransparente comum — o desfoque é refeito a cada quadro quando há arte
+ *    animada por baixo e derruba a fluidez na placa de vídeo simples;
+ *  - brilhos e animações decorativas que rodam sem parar ficam parados (as artes continuam animadas pelo regente).
+ */
+.modo-leve *,
+.modo-leve *::before,
+.modo-leve *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.modo-leve .sm-reflexo::after,
+.modo-leve .animate-ken-burns,
+.modo-leve .animate-pulse-glow {
+  animation: none !important;
+}
+.modo-leve .sm-cartao-luz,
+.modo-leve .sm-cartao-luz:hover {
+  transition: none;
+  transform: none;
+}
