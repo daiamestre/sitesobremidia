@@ -13,6 +13,7 @@ import { MiniaturaDoEncarte, encarteEmMovimento, useFotosDosEncartes } from './E
 import { PainelDeProdutos, useProdutosComFotos } from './ProdutosComFotos';
 import { EncarteOficialCartao, enderecoDoEditorDoEncarte } from './EncarteOficial';
 import { toast } from 'sonner';
+import { AssistenteDeCriacao, type EtapaDoAssistente } from './AssistenteDeCriacao';
 import { documentoDoEncarteOficial, encartesDoSegmento } from '@/lib/studio/encartesOficiais';
 import { PreviaDocumento } from './PreviaDocumento';
 import { EscolhaDeModelo } from './GaleriaDeModelos';
@@ -50,9 +51,17 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
     if (!o) return;
     try { localStorage.setItem(chaveModelo, id); } catch { /* sem armazenamento */ }
     s.gravar(s.produtos);
-    setParams((p) => { p.set('modelo', id); return p; });
+    // F-306 (pedido do dono): escolher o modelo abre o ASSISTENTE passo a passo; no fim, o editor de sempre
+    setParams((p) => { p.set('modelo', id); p.set('assistente', '1'); p.set('passo', '1'); return p; });
+  };
+  const noAssistente = params.get('assistente') === '1';
+  const passoDoAssistente = Number(params.get('passo')) || 1;
+  const irParaPasso = (n: number) => { setParams((p) => { p.set('passo', String(n)); return p; }); window.scrollTo?.({ top: 0 }); };
+  const sairDoAssistente = () => setParams((p) => { p.delete('assistente'); p.delete('passo'); return p; });
+  const abrirEditor = (o: (typeof oficiais)[number]) => {
+    s.gravar(s.produtos);
     try { navegar(enderecoDoEditorDoEncarte(o, s.produtos, s.quantos)); }
-    catch { toast.error('Não foi possível abrir o editor (a imagem da logo é grande demais). Ajuste aqui e toque em Editar.'); }
+    catch { toast.error('Não foi possível abrir o editor (a imagem da logo é grande demais). Use uma logo menor.'); }
   };
   const modelo = oficiais.find((o) => o.id === modeloId) ?? oficiais[0];
   // F-303: na escolha, cada modelo passa o VÍDEO gravado (leve); sem vídeo, o desenho ao vivo com os produtos da pessoa
@@ -70,7 +79,8 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
   // F-298: ao abrir a pasta, primeiro os MODELOS (com a amostra já com os produtos); tocou num, abre a edição
   if (escolhendoModelo) return (
     <>
-      <EscolhaDeModelo titulo={info.tituloEncartes} voltar={`/studio/pasta/${pastaDeOfertasDe(segmento)}`} descricao="Escolha o modelo de encarte para editar · cada modelo guarda o que foi feito nele" itens={capas} ultimo={ultimo} aoEscolher={escolherModelo}>
+      <EscolhaDeModelo titulo={info.tituloEncartes} voltar={`/studio/pasta/${pastaDeOfertasDe(segmento)}`} descricao="Escolha o modelo de encarte para editar · cada modelo guarda o que foi feito nele" itens={capas} ultimo={ultimo} aoEscolher={escolherModelo}
+        aoEditarDireto={(id) => { const o = oficiais.find((x) => x.id === id); if (!o) return; try { localStorage.setItem(chaveModelo, id); } catch { /* sem armazenamento */ } setParams((p) => { p.set('modelo', id); p.delete('assistente'); p.delete('passo'); return p; }); abrirEditor(o); }}>
         {mercado && ENCARTES.map((e) => (
           <article key={e.id} role="listitem" className="flex min-w-0 flex-col rounded-2xl border-2 border-white/10 bg-[#140632] p-2 transition hover:border-[#8A2EFF]/70 sm:p-2.5" data-testid="studio-encarte-card">
             <button type="button" onClick={() => editar(e.id)} aria-label={`Editar o encarte ${e.nome}`} className="block w-full overflow-hidden rounded-xl text-left">
@@ -90,6 +100,30 @@ export function PastaDeEncartes({ segmento = 'mercado' }: { segmento?: SegmentoD
       {trocaDeLogo}
     </>
   );
+
+  // F-306: o PASSO A PASSO do encarte (produtos → sua loja e prévia → criar) e, no fim, o editor de sempre
+  if (noAssistente && !escolhendoModelo && modelo) {
+    const comPreco = s.produtos.filter((p) => p.preco != null).length;
+    const etapas: EtapaDoAssistente[] = [
+      {
+        id: 'produtos', titulo: 'Produtos', pronta: comPreco > 0, falta: 'Coloque pelo menos 1 produto com preço',
+        instrucao: 'Coloque os produtos e os preços do encarte. Pode colar a lista inteira (um produto por linha), digitar um por um ou pegar da galeria — a foto entra sozinha. Escolha também quantos produtos mostrar.',
+        conteudo: <PainelDeProdutos s={s} destaques={0} fixar={false} aberto />,
+      },
+      {
+        id: 'loja', titulo: 'Sua loja', pronta: true,
+        instrucao: 'Coloque a sua logo, o telefone e o endereço, e escolha o tamanho (TV, totem, story, feed, folha A4…). A prévia já mostra o encarte com os seus produtos.',
+        conteudo: <EncarteOficialCartao key={modelo.id} e={modelo} produtos={s.produtos} quantos={s.quantos} aoGravar={() => s.gravar(s.produtos)} />,
+      },
+    ];
+    return (
+      <>
+        <AssistenteDeCriacao titulo={`${info.tituloEncartes} · ${modelo.nome.replace(/^Ofertas – /, '')}`} etapas={etapas} passo={passoDoAssistente} irPara={irParaPasso}
+          textoConcluir="Criar meu encarte" aoSair={sairDoAssistente} aoConcluir={() => abrirEditor(modelo)} />
+        {trocaDeLogo}
+      </>
+    );
+  }
 
   return (
     <div className="space-y-4" data-testid="studio-pasta-encartes-aberta">

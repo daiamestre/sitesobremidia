@@ -112,7 +112,7 @@ describe('as telas', () => {
     expect(painel).toContain('produtos-aviso-quantidade');
     expect(fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8')).toMatch(/\.slice\(0, s\.quantos\)/);
     const pasta = fs.readFileSync('src/components/studio/PastaDeEncartes.tsx', 'utf8');
-    expect(pasta.match(/quantos=\{s\.quantos\}/g)).toHaveLength(2);
+    expect(pasta.match(/quantos=\{s\.quantos\}/g)?.length).toBeGreaterThanOrEqual(2); // F-306: o passo a passo usa o mesmo cartão
     expect(fs.readFileSync('src/pages/studioai/EncartePage.tsx', 'utf8')).toMatch(/encarteComQuantidade\(naPasta, lerQuantidade\(\)\)/);
   });
 });

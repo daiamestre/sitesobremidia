@@ -106,6 +106,8 @@ export interface MesaDoVideo {
   aoTocarNaTela?: (nomeDoClipe: string, ev: EventoDoMouse<HTMLElement>, doc: Documento) => void;
   /** o produto em edição no palco: o cursor da linha do tempo vai para o clipe dele */
   clipeEmFoco?: string | null;
+  /** F-306: "Visualizar vídeo e salvar" da tela de fora — cada aumento monta o MP4 (e mostra Salvar/Publicar/Baixar) */
+  exportarAgora?: number;
 }
 
 export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeInicial, aoTransicao, mesa }: { embutido?: boolean; projetoInicial?: ProjetoDeVideo | null; nomeInicial?: string; aoTransicao?: (nomeDoClipe: string, tipo: TipoDeTransicao) => void; mesa?: MesaDoVideo }) {
@@ -484,6 +486,12 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
       setPublicando(true);
     } else toast.success('Vídeo salvo em Meus Projetos.');
   });
+  // F-306: o botão "Visualizar vídeo e salvar" da tela do palco pede o vídeo pronto
+  const ultimoPedido = useRef(mesa?.exportarAgora ?? 0);
+  useEffect(() => {
+    const n = mesa?.exportarAgora ?? 0;
+    if (n > ultimoPedido.current) { ultimoPedido.current = n; exportar(); }
+  }, [mesa?.exportarAgora]); // eslint-disable-line react-hooks/exhaustive-deps
   const salvarNaGaleria = () => exportado && user && agir('galeria', async () => {
     if (total > maxGaleria) throw new Error(`Para as telas, o vídeo pode ter até ${maxGaleria} s (este tem ${Math.round(total)} s). Corte ou baixe o arquivo.`);
     await salvarNasMidias({ userId: user.id, clienteId, video: exportado.v, nome: nome.trim() || 'Meu vídeo', largura: exportado.v.largura, altura: exportado.v.altura, formato: p.formato, pasta: PASTA_VIDEOS });

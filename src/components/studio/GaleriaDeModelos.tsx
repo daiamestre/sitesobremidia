@@ -7,14 +7,15 @@
  */
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, FolderOpen, PenLine } from 'lucide-react';
+import { ArrowLeft, FolderOpen, PenLine, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface ModeloDaGaleria { id: string; nome: string; capa?: string; /** capa ao vivo (a arte com os produtos) */ previa?: ReactNode; selo?: string; /** texto do botão (padrão "Editar este modelo") */ botao?: string; /** ação a mais embaixo do cartão */ extra?: ReactNode }
 
 /** F-298: a tela que abre ao entrar na pasta — os modelos para escolher; a edição vem depois. */
-export function EscolhaDeModelo({ titulo, descricao, itens, ultimo, aoEscolher, deitado = false, topo, voltar = '/studio', children }: {
+export function EscolhaDeModelo({ titulo, descricao, itens, ultimo, aoEscolher, aoEditarDireto, deitado = false, topo, voltar = '/studio', children }: {
   titulo: string; descricao?: string; itens: ModeloDaGaleria[]; /** o último modelo editado (ganha o selo) */ ultimo?: string; aoEscolher: (id: string) => void; deitado?: boolean;
+  /** F-307 (dono): "Editar direto" — vai para a tela de edição de sempre, sem o passo a passo (quem já sabe usar) */ aoEditarDireto?: (id: string) => void;
   /** botões do topo (formato) */ topo?: ReactNode; voltar?: string; /** cartões a mais no fim da grade */ children?: ReactNode;
 }) {
   return (
@@ -42,8 +43,13 @@ export function EscolhaDeModelo({ titulo, descricao, itens, ultimo, aoEscolher, 
                 {m.selo && <p className="text-[11px] text-slate-400">{m.selo}</p>}
               </div>
               <button type="button" onClick={() => aoEscolher(m.id)} className="mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-[#5D1BFF] px-2 text-sm font-bold text-white transition hover:bg-[#8A2EFF]" data-testid="modelo-escolher">
-                <PenLine className="h-4 w-4 shrink-0" /><span className="truncate">{m.botao ?? 'Editar este modelo'}</span>
+                {aoEditarDireto ? <Sparkles className="h-4 w-4 shrink-0 text-[#FFD400]" /> : <PenLine className="h-4 w-4 shrink-0" />}<span className="truncate">{m.botao ?? (aoEditarDireto ? 'Passo a passo' : 'Editar este modelo')}</span>
               </button>
+              {aoEditarDireto && (
+                <button type="button" onClick={() => aoEditarDireto(m.id)} className="mt-1.5 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-white/20 px-2 text-xs font-semibold text-white transition hover:bg-white/5" data-testid="modelo-editar-direto">
+                  <PenLine className="h-3.5 w-3.5 shrink-0" /><span className="truncate">Editar direto</span>
+                </button>
+              )}
               {m.extra}
             </article>
           );

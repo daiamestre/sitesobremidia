@@ -3430,3 +3430,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Causa:** a regra global `video { object-fit: cover !important }` do `src/index.css` (feita para o Player das TVs encher a tela) passava por cima do `object-contain` das capas.
 - **Correção:** classe `video-inteiro` (`video.video-inteiro { object-fit: contain !important }`, seletor mais específico) nos vídeos da `CapaQueGira` (modo contain) e do `VideoDaCapa`. O Player não muda.
 - **Conferido:** 800×1280: object-fit = contain; encartes e palcos 9:16 inteiros e centralizados nas capas. Teste em `capasEmVideo303.test.ts`.
+
+### F-306 — Passo a passo de criação (fácil no celular) antes da edição de sempre (12/11/2026)
+- **Pedido do dono:** quem não sabe editar precisa de um caminho guiado: Studio → pasta do segmento → Encartes ou Palco → modelo → etapas → cai na tela de edição que já existe, preenchida. A estrutura atual fica intacta; na edição, botão "Visualizar vídeo e salvar".
+- **Feito:** `src/components/studio/AssistenteDeCriacao.tsx` (etapas com chips, barra fixa Voltar/Avançar/concluir, "Pular para a edição"; a etapa fica no endereço `?assistente=1&passo=N`). Palco: Produtos → Sua loja (nome, logo, formato) → Locução (opcional) → Revisar → "Criar meu vídeo". Encarte: Produtos → Sua loja (logo, contatos, tamanho, prévia) → "Criar meu encarte" (abre o editor de sempre).
+- **Na edição do palco:** "Visualizar vídeo e salvar" (`palco-visualizar-salvar`) monta o MP4 na mesa (`exportarAgora`) e mostra Salvar em Meus Projetos / Salvar e publicar / Baixar (F-304); "Passo a passo" reabre o assistente.
+- **Conferido:** 390×844 — palco 4 etapas, nome da loja vai para a locução, MP4 1080×1920 exportado; encarte 2 etapas e editor aberto. Teste `assistenteDeCriacao306.test.ts`.
+
+### F-307 — "Editar direto": pular o passo a passo para quem já sabe (12/11/2026)
+- **Pedido do dono:** um botão que leva direto à tela de edição que já existe, sem passar etapa por etapa.
+- **Feito:** `EscolhaDeModelo` (`GaleriaDeModelos.tsx`) ganhou `aoEditarDireto`: cada modelo mostra "Passo a passo" (principal, abre o assistente) e "Editar direto" (`modelo-editar-direto`). Palco: escolhe o modelo sem `assistente`/`passo` → edição de sempre. Encarte: grava o modelo e abre o editor de sempre na hora.
+- **Conferido:** 390×844 — palco farmácia: "Editar direto" abre a edição (sem assistente, com "Visualizar vídeo e salvar"); "Passo a passo" abre a etapa 1; encarte farmácia: "Editar direto" abre `/studio/editar/...`. Textos cabem nos botões. Teste em `assistenteDeCriacao306.test.ts`.

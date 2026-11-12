@@ -29,6 +29,7 @@ import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicao
 import { comAlfa, corDoDocumento, coresDosEfeitos } from '@/lib/studio/corDaArte';
 import { EscolhaDeModelo } from './GaleriaDeModelos';
 import { PainelDeLocucao } from './PainelDeLocucao';
+import { AssistenteDeCriacao, type EtapaDoAssistente } from './AssistenteDeCriacao';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
 import { cn } from '@/lib/utils';
@@ -203,7 +204,13 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const brutoDoLink = params.get('modelo');
   const modeloDoLink = brutoDoLink == null ? null : brutoDoLink === 'desenhado' ? '' : brutoDoLink;
   const escolhendoModelo = idsDosModelos.length > 1 && (modeloDoLink == null || !idsDosModelos.includes(modeloDoLink));
-  const escolherModelo = (id: string) => setParams((p) => { p.set('modelo', id || 'desenhado'); return p; });
+  // F-306 (pedido do dono): escolher o modelo abre o ASSISTENTE passo a passo; no fim, a tela de edição de sempre
+  const escolherModelo = (id: string) => setParams((p) => { p.set('modelo', id || 'desenhado'); p.set('assistente', '1'); p.set('passo', '1'); return p; });
+  const editarDireto = (id: string) => setParams((p) => { p.set('modelo', id || 'desenhado'); p.delete('assistente'); p.delete('passo'); return p; });
+  const noAssistente = params.get('assistente') === '1';
+  const passoDoAssistente = Number(params.get('passo')) || 1;
+  const irParaPasso = (n: number) => { setParams((p) => { p.set('passo', String(n)); return p; }); window.scrollTo?.({ top: 0 }); };
+  const sairDoAssistente = () => setParams((p) => { p.delete('assistente'); p.delete('passo'); return p; });
   const [formato, setFormato] = useState<FormatoDoc>(salvas.formato ?? '9:16');
   const [titulo, setTitulo] = useState('SUPER OFERTAS');
   // F-237: fundo OFICIAL do dono (o padrão) e o texto do botão no lugar do "YOUR LOGO"
@@ -248,6 +255,10 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const comPreco = useMemo(() => s.produtos.filter((p) => p.preco != null).slice(0, s.quantos), [s.produtos, s.quantos]);
   // F-300: a LOCUÇÃO (opcional): o agente locutor fala a loja, os produtos e os preços; as falas entram no vídeo
   const [locucao, setLocucao] = useState<LocucaoDoVideo | null>(null);
+  const [nomeDaLoja, setNomeDaLoja] = useState(() => { try { return localStorage.getItem('studio-locucao-loja') ?? ''; } catch { return ''; } });
+  const mudarNomeDaLoja = (v: string) => { setNomeDaLoja(v); try { localStorage.setItem('studio-locucao-loja', v); } catch { /* sem armazenamento */ } };
+  // F-306: "Visualizar vídeo e salvar" (pede ao editor de vídeo para montar o MP4 e mostrar com Salvar/Publicar/Baixar)
+  const [pedidoDeVideo, setPedidoDeVideo] = useState(0);
   const produtosDaLocucao = useMemo(() => comPreco.map((p) => ({ nome: p.nome, preco: p.preco, precoDe: p.precoDe, unidade: p.unidade })), [comPreco]);
   // F-248: a logo do palco vem da pasta Logos
   const chaveLogo = `palco-${fundoId}`;
@@ -419,7 +430,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     const amostra = comPreco.length ? comPreco.slice(0, 3) : exemplos;
     return (
       <EscolhaDeModelo titulo={info.tituloPalco} voltar={`/studio/pasta/${pastaDeOfertasDe(segmento)}`} descricao="Escolha o modelo de palco para editar · cada modelo guarda o que foi feito nele" deitado={formato === '16:9'} topo={seletorDeFormato}
-        ultimo={salvas.fundoId != null ? fundoId : undefined} aoEscolher={escolherModelo}
+        ultimo={salvas.fundoId != null ? fundoId : undefined} aoEscolher={escolherModelo} aoEditarDireto={editarDireto}
         itens={idsDosModelos.map((id) => {
           const f = fundos.find((x) => x.id === id) ?? null;
           const o = id === fundoId ? { textoBotao, movimento, ajustes } : doFundo(id);
@@ -429,6 +440,79 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
             previa: f && capaDoPalco(f.id) ? <VideoDaCapa capa={capaDoPalco(f.id)!} /> : amostra.length || !f ? <CarrosselNoPalco produtos={amostra} formato={formato} titulo={titulo} fundo={f} textoBotao={o.textoBotao ?? (f ? botaoPadrao(id) : undefined)} movimento={o.movimento} logoDoPalco={lerLogoDoEncarte(`palco-${id}`)} ajustes={o.ajustes} className="h-full w-full rounded-none" /> : undefined,
           };
         })} />
+    );
+  }
+
+  if (noAssistente) {
+    const incompletos = comPreco.filter((p) => faltasDoProduto(p).length).length;
+    const logoAtual = fundo ? (logoDoPalco ?? fundo.logoPadrao) : null;
+    const etapas: EtapaDoAssistente[] = [
+      {
+        id: 'produtos', titulo: 'Produtos', pronta: comPreco.length > 0, falta: 'Coloque pelo menos 1 produto com preço',
+        instrucao: 'Coloque os produtos e os preços que vão aparecer no vídeo. Pode colar a lista inteira (um produto por linha), digitar um por um ou pegar da galeria — a foto entra sozinha.',
+        aviso: incompletos ? `${incompletos} produto(s) sem foto ou com algum dado faltando. Dá para completar agora ou depois, na edição.` : null,
+        conteudo: (
+          <div className="space-y-2">
+            <PainelDeProdutos s={s} destaques={0} botao="Colocar no vídeo" emGrade={false} fixar={false} aberto />
+            <p className="text-xs text-slate-400">{comPreco.length} produto(s) com preço vão passar no vídeo, um de cada vez.</p>
+          </div>
+        ),
+      },
+      {
+        id: 'loja', titulo: 'Sua loja', pronta: true,
+        instrucao: 'Escreva o nome da sua loja e escolha a sua logo. Escolha também se a tela é em pé (TV vertical, celular) ou deitada (TV horizontal).',
+        conteudo: (
+          <div className="space-y-3">
+            <label className="block text-sm text-slate-200">Nome da loja
+              <input value={nomeDaLoja} onChange={(e) => mudarNomeDaLoja(e.target.value.slice(0, 60))} placeholder="Ex.: Mercadinho Economia" data-testid="assistente-loja"
+                className="mt-1 h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-base text-white focus:border-[#B04DFF] focus:outline-none" />
+            </label>
+            {logoAtual && (
+              <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5">
+                <img src={logoAtual.url} alt="" crossOrigin="anonymous" className="h-14 w-20 shrink-0 rounded-lg bg-black/30 object-contain" />
+                <div className="min-w-0 flex-1"><p className="text-xs text-slate-400">Logo do vídeo</p><p className="truncate text-sm font-semibold text-white">{logoAtual.nome}</p></div>
+                <button type="button" onClick={() => setTrocandoLogo(true)} className="h-11 shrink-0 rounded-xl bg-[#5D1BFF] px-3 text-sm font-semibold text-white" data-testid="assistente-logo">Escolher ou enviar</button>
+              </div>
+            )}
+            <div className="space-y-1"><p className="text-sm text-slate-200">Formato da tela</p>{seletorDeFormato}</div>
+          </div>
+        ),
+      },
+      {
+        id: 'locucao', titulo: 'Locução', pronta: true,
+        instrucao: 'Quer um locutor falando as ofertas? Ligue a locução, escolha a voz (toque no ▶ para ouvir) e toque em Gerar áudio. Se não quiser, é só avançar.',
+        conteudo: <PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} />,
+      },
+      {
+        id: 'revisar', titulo: 'Revisar', pronta: comPreco.length > 0, falta: 'Faltam produtos',
+        instrucao: 'Confira se está tudo certo. Ao criar, abre a tela de edição com tudo pronto: lá você ainda pode mexer em qualquer coisa ou só tocar em "Visualizar vídeo e salvar".',
+        conteudo: (
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+            <ul className="space-y-1.5 text-sm" data-testid="assistente-resumo">
+              {[
+                ['Modelo', fundo ? fundo.nome.replace(/^Ofertas – /, '') : 'Palco desenhado'],
+                ['Tela', formato === '9:16' ? 'Em pé (9:16)' : 'Deitada (16:9)'],
+                ['Produtos', `${comPreco.length} produto(s)`],
+                ['Loja', nomeDaLoja.trim() || '— (sem nome)'],
+                ['Logo', logoAtual?.nome ?? '—'],
+                ['Locução', locucao ? `Sim · ${Object.keys(locucao.ofertas).length + (locucao.abertura ? 1 : 0) + (locucao.fechamento ? 1 : 0)} fala(s) gravada(s)` : 'Sem locução'],
+              ].map(([k, v]) => (
+                <li key={k} className="flex items-center justify-between gap-3 rounded-lg bg-black/20 px-3 py-2"><span className="text-slate-400">{k}</span><span className="min-w-0 truncate text-right font-semibold text-white">{v}</span></li>
+              ))}
+            </ul>
+            {comPreco.length > 0 && <div className="mx-auto w-full max-w-[200px]"><CarrosselNoPalco produtos={comPreco.slice(0, 4)} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} ajustes={ajustes} /></div>}
+          </div>
+        ),
+      },
+    ];
+    return (
+      <>
+        <AssistenteDeCriacao titulo={`${info.tituloPalco}${fundo ? ` · ${fundo.nome.replace(/^Ofertas – /, '')}` : ''}`} etapas={etapas} passo={passoDoAssistente} irPara={irParaPasso}
+          textoConcluir="Criar meu vídeo" aoSair={sairDoAssistente}
+          aoConcluir={() => { sairDoAssistente(); setVista('palco'); toast.success('Seu vídeo está pronto para editar. Quando quiser ver como ficou, toque em "Visualizar vídeo e salvar".'); }} />
+        <GaleriaDeProdutos aberto={galeriaAberta} aoFechar={() => setGaleriaAberta(false)} aoAdicionar={s.adicionarPronto} segmentoInicial={segmento === 'mercado' ? 'mercearia' : segmento} />
+        {trocandoLogo && <EscolherLogo titulo="Logo do vídeo" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
+      </>
     );
   }
 
@@ -442,6 +526,13 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
           <p className="hidden text-xs text-slate-400 sm:block">Um produto de cada vez no palco, com nome e preço ({SEGUNDOS_POR_PRODUTO} s cada) · toque em qualquer elemento da tela para editar</p>
         </div>
         {seletorDeFormato}
+        {comPreco.length > 0 && (
+          <button type="button" onClick={() => { setVista('video'); setPedidoDeVideo((n) => n + 1); lateral.current?.scrollTo?.({ top: 0, behavior: 'smooth' }); }}
+            className="flex h-10 items-center gap-1.5 rounded-xl bg-[#FFD400] px-3 text-sm font-black text-[#22004A] hover:brightness-105" data-testid="palco-visualizar-salvar">
+            <Play className="h-4 w-4" />Visualizar vídeo e salvar
+          </button>
+        )}
+        <button type="button" onClick={() => setParams((p) => { p.set('assistente', '1'); p.set('passo', '1'); return p; })} className="h-10 rounded-xl border border-white/15 px-3 text-xs font-semibold text-slate-200 hover:bg-white/5" data-testid="palco-abrir-assistente">Passo a passo</button>
       </div>
 
       {/* F-297 (pedido do dono): MESA DE EDIÇÃO como nos aplicativos de vídeo — UMA visualização só (a arte animada; ao mexer na
@@ -628,7 +719,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       {projetoNoEditor && (
         <section className="shrink-0 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-1.5" data-testid="palco-editor-video" aria-label={`Vídeo do palco (${comPreco.length} produtos · ${comPreco.length * SEGUNDOS_POR_PRODUTO} s)`}>
           <EditorDeVideo embutido projetoInicial={projetoNoEditor} nomeInicial={`${info.tituloPalco} – ${fundo ? textoBotao : titulo}`} aoTransicao={transicaoPeloEditor}
-            mesa={{ previa: slotPrevia, ferramentas: slotFerramentas, visivel: vista === 'video', aoUsar: () => setVista('video'), aoTocarNaTela: tocouNoVideo, clipeEmFoco: sel?.nome ?? null }} />
+            mesa={{ previa: slotPrevia, ferramentas: slotFerramentas, visivel: vista === 'video', aoUsar: () => setVista('video'), aoTocarNaTela: tocouNoVideo, clipeEmFoco: sel?.nome ?? null, exportarAgora: pedidoDeVideo }} />
         </section>
       )}
       </div>
