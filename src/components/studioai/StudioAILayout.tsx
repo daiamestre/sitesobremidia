@@ -70,7 +70,7 @@ function PainelDoPortal({ onNavegar }: { onNavegar?: () => void }) {
 }
 
 /** Menu lateral do Studio: entradas do Studio, o cartão "Sua marca em todos os lugares" e o menu completo do painel. */
-function MenuLateral({ anunciante, carregado, onNavegar }: { anunciante: boolean; carregado: boolean; onNavegar?: () => void }) {
+function MenuLateral({ anunciante, carregado, interno = false, onNavegar }: { anunciante: boolean; carregado: boolean; /** owner/ADM (uso interno) */ interno?: boolean; onNavegar?: () => void }) {
   const { signOut } = useAuth();
   const itens = [
     { nome: 'Início', to: '/studio', icone: Home, fim: true },
@@ -83,8 +83,8 @@ function MenuLateral({ anunciante, carregado, onNavegar }: { anunciante: boolean
     { nome: 'Logos 3D', to: '/studio/logos', icone: Gem },
     // F-248: a pasta com todas as logos, de onde os encartes e o Palco escolhem
     { nome: 'Pasta de Logos', to: '/studio/pasta/logos', icone: FolderKanban },
-    // F-303: os vídeos leves que passam em loop como capa das pastas (um por modelo de encarte e de palco)
-    { nome: 'Biblioteca de Loop', to: '/studio/biblioteca-de-loop', icone: Repeat },
+    // F-303: os vídeos leves que passam em loop como capa das pastas — SÓ owner/ADM (os outros gravam os próprios vídeos)
+    ...(interno ? [{ nome: 'Biblioteca de Loop', to: '/studio/biblioteca-de-loop', icone: Repeat }] : []),
     { nome: 'Configurações do Studio', to: '/studio/configuracoes', icone: Settings },
   ];
   return (
@@ -168,7 +168,7 @@ export function StudioAILayout() {
 
       <div className="flex">
         <aside className="sticky top-[72px] hidden h-[calc(100vh-72px)] w-[230px] shrink-0 overflow-y-auto border-r border-white/5 lg:block">
-          <MenuLateral anunciante={anunciante} carregado={!!saldo.data} />
+          <MenuLateral anunciante={anunciante} carregado={!!saldo.data} interno={saldo.data?.paga === false} />
         </aside>
         {menuAberto && (
           <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
@@ -178,7 +178,7 @@ export function StudioAILayout() {
               <form onSubmit={(e) => { buscar(e); setMenuAberto(false); }} className="p-4 pb-0" role="search">
                 <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar modelos..." aria-label="Buscar modelos" className="w-full rounded-full border border-[#8A2EFF]/50 bg-[#22004A]/60 px-4 py-2 text-sm text-white placeholder:text-slate-400" />
               </form>
-              <MenuLateral anunciante={anunciante} carregado={!!saldo.data} onNavegar={() => setMenuAberto(false)} />
+              <MenuLateral anunciante={anunciante} carregado={!!saldo.data} interno={saldo.data?.paga === false} onNavegar={() => setMenuAberto(false)} />
             </div>
           </div>
         )}

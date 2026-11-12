@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clapperboard, FolderKanban, Sparkles, Trash2 } from 'lucide-react';
+import { Clapperboard, Download, FolderKanban, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { baixar } from '@/lib/studioai/exportar';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { modeloParaDocumento, type Documento, type FormatoDoc } from '@/lib/studio/documento';
 import { modeloPorId, type ModeloDeArte } from '@/lib/studio/modelos';
@@ -19,10 +20,33 @@ function documentoDoProjeto(p: Projeto): Documento | null {
 }
 // F-227: projeto do editor de vídeo abre no editor de vídeo
 const ehVideo = (p: Projeto) => (p.dados as { tipo?: string }).tipo === 'video';
+/** F-304: o vídeo PRONTO salvo junto do projeto (MP4 + capa, na nuvem) */
+interface VideoPronto { url: string; capa: string | null; largura: number; altura: number; duracaoMs: number }
+const videoPronto = (p: Projeto) => ((p.dados as { videoPronto?: VideoPronto }).videoPronto ?? null);
+
+/** F-304: "Baixar no aparelho" o vídeo pronto (vai para a galeria do celular/tablet ou para os Downloads do computador) */
+function BaixarVideo({ p }: { p: Projeto }) {
+  const v = videoPronto(p);
+  const [baixando, setBaixando] = useState(false);
+  if (!v) return null;
+  const ir = async () => {
+    setBaixando(true);
+    try { const b = await (await fetch(v.url)).blob(); baixar(b, `${(p.nome || 'meu-video').replace(/[^\w\-À-ú ]+/g, '').trim() || 'meu-video'}.mp4`); }
+    catch { window.open(v.url, '_blank', 'noopener'); }
+    finally { setBaixando(false); }
+  };
+  return (
+    <button type="button" onClick={() => void ir()} disabled={baixando} className="mt-1.5 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-white/15 text-xs font-semibold text-white hover:bg-white/5" data-testid="projeto-baixar">
+      {baixando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Baixar no aparelho
+    </button>
+  );
+}
 const destino = (p: Projeto) => (ehVideo(p) ? `/studio/video/${p.id}` : `/studio/projeto/${p.id}`);
 
 function Miniatura({ p }: { p: Projeto }) {
   const doc = useMemo(() => (ehVideo(p) ? null : documentoDoProjeto(p)), [p]);
+  const v = videoPronto(p);
+  if (v?.capa) return <span className="relative h-full"><img src={v.capa} alt="" loading="lazy" decoding="async" className="h-full w-auto object-contain" /><span className="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-bold text-[#7dffb0]"><Clapperboard className="h-3 w-3" />vídeo pronto · {(v.duracaoMs / 1000).toFixed(0)} s</span></span>;
   if (ehVideo(p)) return <span className="flex flex-col items-center gap-1 text-xs text-slate-300"><Clapperboard className="h-10 w-10 text-[#FFD400]" />Projeto de vídeo</span>;
   return doc ? <div className={p.formato === '16:9' ? 'w-full' : 'h-full aspect-[9/16]'}><PreviaDocumento doc={doc} /></div> : null;
 }
@@ -53,6 +77,7 @@ export default function ProjetosPage() {
                   <button type="button" aria-label={`Apagar ${p.nome}`} onClick={() => void apagar(p)} className="rounded p-1 text-slate-500 hover:text-rose-300"><Trash2 className="h-4 w-4" /></button>
                 </div>
                 <Link to={destino(p)} className="mt-2 block rounded-lg bg-[#5D1BFF] py-2 text-center text-sm font-semibold text-white hover:bg-[#8A2EFF]">Continuar editando</Link>
+                <BaixarVideo p={p} />
               </article>
             );
           })}

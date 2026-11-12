@@ -5,6 +5,9 @@
  * enquanto aparece na tela.
  */
 import { useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { meuSaldo } from '@/lib/studioai/api';
 import { Download, Repeat } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { todasAsCapas } from '@/lib/studio/capasEmVideo';
@@ -14,12 +17,16 @@ import { VideoDaCapa } from '@/components/studio/VideoDaCapa';
 type Tipo = 'todos' | 'encarte' | 'palco';
 
 export default function BibliotecaDeLoopPage() {
+  // F-303 (dono): só owner/ADM ("uso interno"); os outros usuários gravam os próprios vídeos (Meus Projetos)
+  const saldo = useQuery({ queryKey: ['studio-ai-saldo'], queryFn: meuSaldo, staleTime: 30_000 });
   const [tipo, setTipo] = useState<Tipo>('todos');
   const [segmento, setSegmento] = useState<string>('todos');
   const capas = useMemo(() => todasAsCapas(), []);
   const totalKb = capas.reduce((s, c) => s + (c.kb ?? 0), 0);
   const filtradas = capas.filter((c) => (tipo === 'todos' || c.tipo === tipo) && (segmento === 'todos' || c.segmento === segmento));
   const grupos = SEGMENTOS_COM_OFERTAS.map((s) => ({ s, itens: filtradas.filter((c) => c.segmento === s) })).filter((g) => g.itens.length);
+  if (saldo.isLoading) return <p className="p-10 text-sm text-slate-400">Abrindo…</p>;
+  if (saldo.data?.paga !== false) return <Navigate to="/studio" replace />;
   const chip = (ativo: boolean) => cn('h-9 shrink-0 rounded-full border px-3 text-xs font-bold transition', ativo ? 'border-[#FFD400] bg-[#FFD400]/15 text-[#FFD400]' : 'border-white/10 text-slate-300 hover:bg-white/5');
 
   return (

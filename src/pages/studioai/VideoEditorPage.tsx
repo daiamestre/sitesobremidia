@@ -459,6 +459,31 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
       toast.success('Vídeo pronto! Salve na galeria, publique ou baixe.');
     } finally { setExportando(null); setTempo(motor.current?.tempo ?? 0); }
   });
+  /**
+   * F-304 (pedido do dono, 12/11/2026): o vídeo criado vai para MEUS PROJETOS — o projeto (para continuar editando) e o
+   * vídeo pronto (MP4 + capa, na nuvem, na pasta da pessoa). `publicar`: depois de salvar, escolhe a tela (como já é).
+   */
+  const enviadoDoExportado = useRef<{ v: VideoExportado; video: string; capa: string | null } | null>(null);
+  const salvarEmMeusProjetos = (publicar: boolean) => exportado && user && agir(publicar ? 'salvar-publicar' : 'salvar-projeto', async () => {
+    let enviado = enviadoDoExportado.current?.v === exportado.v ? enviadoDoExportado.current : null;
+    if (!enviado) {
+      const base = `${user.id}/studio/projetos/${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const video = (await uploadToR2(exportado.v.video, `${base}.${exportado.v.ext}`, exportado.v.mime, user.id, { preventOverwrite: true })).publicUrl;
+      const capa = exportado.v.capa ? (await uploadToR2(exportado.v.capa, `${base}-capa.jpg`, 'image/jpeg', user.id, { preventOverwrite: true })).publicUrl : null;
+      enviado = { v: exportado.v, video, capa };
+      enviadoDoExportado.current = enviado;
+    }
+    const pronto = { url: enviado.video, capa: enviado.capa, largura: exportado.v.largura, altura: exportado.v.altura, duracaoMs: exportado.v.duracaoMs, mime: exportado.v.mime, criadoEm: new Date().toISOString() };
+    const id = await salvarProjeto({ id: idProjeto, modeloId: 'video', nome: nome.trim() || 'Meu vídeo', formato: p.formato, dados: { ...(p as unknown as Record<string, unknown>), videoPronto: pronto }, miniatura: enviado.capa });
+    setIdProjeto(id);
+    if (!projetoId && !embutido) navegar(`/studio/video/${id}`, { replace: true });
+    void qc.invalidateQueries({ queryKey: ['studio-projetos'] });
+    if (publicar) {
+      if (total > maxGaleria) { toast.success('Vídeo salvo em Meus Projetos.'); toast.error(`Para as telas, o vídeo pode ter até ${maxGaleria} s (este tem ${Math.round(total)} s). Corte para publicar.`); return; }
+      toast.success('Vídeo salvo em Meus Projetos. Agora escolha a tela para publicar.');
+      setPublicando(true);
+    } else toast.success('Vídeo salvo em Meus Projetos.');
+  });
   const salvarNaGaleria = () => exportado && user && agir('galeria', async () => {
     if (total > maxGaleria) throw new Error(`Para as telas, o vídeo pode ter até ${maxGaleria} s (este tem ${Math.round(total)} s). Corte ou baixe o arquivo.`);
     await salvarNasMidias({ userId: user.id, clienteId, video: exportado.v, nome: nome.trim() || 'Meu vídeo', largura: exportado.v.largura, altura: exportado.v.altura, formato: p.formato, pasta: PASTA_VIDEOS });
@@ -578,9 +603,10 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
           <video src={exportado.url} controls playsInline className={cn('mx-auto rounded-md bg-black', vertical ? 'max-h-80' : 'w-full')} />
           <p className="text-[11px] text-slate-400">{exportado.v.ext.toUpperCase()} · {exportado.v.largura}×{exportado.v.altura} · {(exportado.v.duracaoMs / 1000).toFixed(1)} s · {(exportado.v.video.size / 1024 / 1024).toFixed(1)} MB</p>
           <div className={cn('grid grid-cols-1 gap-1.5', !mesa && 'sm:grid-cols-3 lg:grid-cols-1')}>
-            <button type="button" onClick={salvarNaGaleria} disabled={!!ocupado} className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-sm font-semibold text-white" data-testid="video-salvar-galeria">{ocupado === 'galeria' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}Salvar na galeria</button>
-            <button type="button" onClick={() => { if (total > maxGaleria) { toast.error(`Para as telas, o vídeo pode ter até ${maxGaleria} s.`); return; } setPublicando(true); }} className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#25D366] text-sm font-bold text-[#0b2a17]"><Send className="h-4 w-4" />Publicar em tela/playlist</button>
-            <button type="button" onClick={() => baixar(exportado.v.video, nomeDoArquivo(nome).replace(/\.png$/i, '') + '.' + exportado.v.ext)} className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-white/15 text-sm text-white"><Download className="h-4 w-4" />Baixar</button>
+            {/* F-304 (dono): o usuário decide — só Meus Projetos, Meus Projetos + publicar numa tela, ou baixar no aparelho */}
+            <button type="button" onClick={() => salvarEmMeusProjetos(false)} disabled={!!ocupado} className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-sm font-semibold text-white" data-testid="video-salvar-projetos">{ocupado === 'salvar-projeto' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}Salvar em Meus Projetos</button>
+            <button type="button" onClick={() => salvarEmMeusProjetos(true)} disabled={!!ocupado} className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#25D366] text-sm font-bold text-[#0b2a17]" data-testid="video-salvar-publicar">{ocupado === 'salvar-publicar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}Salvar e publicar numa tela</button>
+            <button type="button" onClick={() => baixar(exportado.v.video, nomeDoArquivo(nome).replace(/\.png$/i, '') + '.' + exportado.v.ext)} className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-white/15 text-sm text-white" data-testid="video-baixar"><Download className="h-4 w-4" />Baixar no aparelho</button>
           </div>
         </div>
       )}

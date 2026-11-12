@@ -36,7 +36,7 @@ describe('F-303: capas em vídeo', () => {
     expect(video).toContain('if (naTela) void v.play()');
   });
   it('a Biblioteca de Loop está no menu do Studio e lista todos os vídeos de capa', () => {
-    expect(fs.readFileSync('src/components/studioai/StudioAILayout.tsx', 'utf8')).toContain("{ nome: 'Biblioteca de Loop', to: '/studio/biblioteca-de-loop', icone: Repeat }");
+    expect(fs.readFileSync('src/components/studioai/StudioAILayout.tsx', 'utf8')).toContain("{ nome: 'Biblioteca de Loop', to: '/studio/biblioteca-de-loop', icone: Repeat }"); // F-304: só owner/ADM
     expect(fs.readFileSync('src/App.tsx', 'utf8')).toContain('<Route path="biblioteca-de-loop" element={<StudioBibliotecaDeLoop />} />');
     expect(fs.readFileSync('src/pages/studioai/BibliotecaDeLoopPage.tsx', 'utf8')).toContain('todasAsCapas()');
     for (const c of Object.values(capas)) expect((c as { kb?: number }).kb, 'tamanho registrado').toBeGreaterThan(0);
