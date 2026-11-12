@@ -24,6 +24,9 @@ import { CHAVE_ARTE_PARA_VIDEO, novoClipe, projetoVazio } from '@/lib/studio/vid
 import { EditorDeVideo } from './VideoEditorPage';
 import { BASE_DA_ARTE_PRONTA, ehArtePronta, idDaArtePronta, lerArtePronta } from '@/lib/studio/artePronta';
 import { PainelDaLogo } from '@/components/studio/editor/PainelDaLogo';
+import { PainelDoFundo } from '@/components/studio/editor/PainelDoFundo';
+import { MOVIMENTOS_DO_FUNDO, movimentoDoFundo } from '@/lib/studio/animacao';
+import { ENCARTES_OFICIAIS, PASTAS_DE_ENCARTE } from '@/lib/studio/encartesOficiais';
 import { ehCamadaDaLogo } from '@/lib/studio/logoEditavel';
 import { EscolherLogo } from '@/components/studio/PastaDeLogos';
 import { TrocarFoto } from '@/components/tabloide/TrocarFoto';
@@ -191,6 +194,57 @@ export default function EditorPage() {
       fimDoDemo.current = setTimeout(() => { setDemo(null); setTocando(true); }, 2 * (ciclo + 0.35) * 1000);
     }
   };
+
+  // F-308 (pedido do dono): o FUNDO da arte também se troca e se mexe. O fundo é a imagem que cobre a arte inteira (a de
+  // baixo); sem imagem de fundo, a escolhida entra por baixo de tudo. Vale em todos os formatos da arte.
+  const fundoDe = (d: Documento): Camada | undefined => {
+    const { w: W, h: H } = TAMANHO_DOC[d.formato as FormatoArte];
+    return d.camadas.find((c) => c.tipo === 'imagem' && c.x <= 2 && c.y <= 2 && c.w >= W - 4 && c.h >= H - 4 && (c.bloqueada || c.nome.startsWith('Fundo')));
+  };
+  const trocarFundoDaArte = (porFormato: (fo: FormatoArte, c: Camada | undefined) => Partial<Camada> | null) => {
+    lembrar();
+    setDocs((ds) => ds && (Object.fromEntries(Object.entries(ds).map(([fo, d]) => {
+      if (!d) return [fo, d];
+      const c = fundoDe(d);
+      const p = porFormato(fo as FormatoArte, c);
+      if (!p) return [fo, d];
+      if (c) return [fo, { ...d, camadas: d.camadas.map((x) => (x.id === c.id ? normalizar({ ...x, ...p } as Camada) : x)) }];
+      if (!('src' in p)) return [fo, d];
+      const { w: W, h: H } = TAMANHO_DOC[fo as FormatoArte];
+      return [fo, { ...d, camadas: [{ ...imagem('Fundo da arte', String((p as { src: string }).src), 0, 0, W, H), bloqueada: true, ...p } as Camada, ...d.camadas] }];
+    })) as Docs));
+  };
+  const fundoAtual = doc ? fundoDe(doc) : undefined;
+  // os fundos do segmento da arte aberta vêm primeiro (o segmento é o do fundo com que a arte abriu)
+  const fundoInicial = useRef<string | null>(null);
+  if (!fundoInicial.current && fundoAtual?.tipo === 'imagem') fundoInicial.current = fundoAtual.src;
+  const opcoesDeFundo = useMemo(() => {
+    const daArte = ENCARTES_OFICIAIS.find((e) => Object.values(e.formatos).some((l) => l?.fundoLimpo === fundoInicial.current))?.segmento ?? null;
+    return ENCARTES_OFICIAIS.flatMap((e) => {
+      const l = e.formatos[formato];
+      return l ? [{ id: e.id, nome: e.nome, src: l.fundoLimpo, grupo: PASTAS_DE_ENCARTE[e.segmento ?? 'mercado']?.nome ?? 'Fundos dos encartes', primeiro: daArte != null && (e.segmento ?? 'mercado') === daArte }] : [];
+    }).sort((a, b) => Number(b.primeiro) - Number(a.primeiro));
+  }, [formato, fundoInicial.current]); // eslint-disable-line react-hooks/exhaustive-deps
+  const painelDoFundo = doc ? (
+    <div className="space-y-3">
+      <PainelDoFundo atual={fundoAtual && fundoAtual.tipo === 'imagem' ? fundoAtual.src : null} semImagem={!fundoAtual || fundoAtual.visivel === false} animacao={fundoAtual?.animacao}
+        opcoes={opcoesDeFundo} deitado={TAMANHO_DOC[formato].w > TAMANHO_DOC[formato].h} cor={{ valor: doc.fundo, mudar: mudarFundo }}
+        aoTrocar={({ id, src }) => { const e = ENCARTES_OFICIAIS.find((x) => x.id === id); trocarFundoDaArte((fo) => ({ src: e?.formatos[fo]?.fundoLimpo ?? src, visivel: true } as Partial<Camada>)); }}
+        aoSoCor={() => trocarFundoDaArte((_, c) => (c ? { visivel: false } : null))}
+        aoMover={(id) => {
+          if (!fundoAtual) { toast.info('Escolha primeiro uma imagem de fundo para ela se mexer.'); return; }
+          trocarFundoDaArte((_, c) => (c ? { animacao: movimentoDoFundo(id) } as Partial<Camada> : null));
+          // o movimento escolhido repete 2 vezes na tela e depois a arte inteira toca (regra do dono)
+          if (id) {
+            const ciclo = 2.4;
+            setDemo({ id: fundoAtual.id, ciclo }); setTocando(false);
+            clearTimeout(fimDoDemo.current);
+            fimDoDemo.current = setTimeout(() => { setDemo(null); setTocando(true); }, 2 * (ciclo + 0.35) * 1000);
+            toast.success(`Fundo: ${MOVIMENTOS_DO_FUNDO.find((m) => m.id === id)?.nome}.`);
+          }
+        }} />
+    </div>
+  ) : null;
 
   const desfazer = useCallback(() => { const a = passado.current.pop(); if (!a || !docs) return; futuro.current.push(clonar(docs)); setDocs(a); setVersao((v) => v + 1); }, [docs]);
   const refazer = useCallback(() => { const a = futuro.current.pop(); if (!a || !docs) return; passado.current.push(clonar(docs)); setDocs(a); setVersao((v) => v + 1); }, [docs]);
@@ -537,7 +591,7 @@ export default function EditorPage() {
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#B04DFF]">{abas.find((a) => a.id === aba)?.nome ?? 'Editar'}</p>
             <CartaoDaAba aba={abas.some((a) => a.id === aba) ? aba : abas[0].id} c={camadaSel} doc={doc} mudar={(p) => { if (camadaSel) mudarPeloPainel(camadaSel.id, p); }} mudarFundo={mudarFundo}
               mover={(para) => { if (camadaSel) mover(camadaSel.id, para); }} textoRef={textoRef} adicionarLogo={() => setTrocandoLogo(true)}
-              video={cartaoVideo}
+              video={cartaoVideo} fundoDaArte={painelDoFundo}
               camadas={<PainelCamadas doc={doc} sel={sel} onSelecionar={setSel} mudar={(id, p) => { lembrar(); mudarCamada(id, p); }} mover={mover} duplicar={duplicar} apagar={apagar} />} />
             <p className="mt-3 border-t border-white/5 pt-2 text-[10px] text-slate-500">Textos, cores, fontes e fotos valem também no {outroFormato}. Posição e tamanho são de cada formato.</p>
           </div>

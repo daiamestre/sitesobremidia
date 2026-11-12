@@ -201,14 +201,16 @@ interface CartaoProps {
   textoRef?: React.Ref<HTMLTextAreaElement>;
   /** F-278: abre a pasta Logos / envio do aparelho para colocar a logo no lugar da vaga */
   adicionarLogo?: () => void;
+  /** F-308: trocar o fundo da arte (galeria, imagem própria, só cor) e o movimento dele — aparece no cartão "Fundo" */
+  fundoDaArte?: ReactNode;
 }
 
 /** O cartão do botão escolhido. */
-export function CartaoDaAba({ aba, c, doc, mudar, mudarFundo, mover, camadas, video, textoRef, adicionarLogo }: CartaoProps) {
+export function CartaoDaAba({ aba, c, doc, mudar, mudarFundo, mover, camadas, video, textoRef, adicionarLogo, fundoDaArte }: CartaoProps) {
   if (aba === 'camadas') return <>{camadas}</>;
   if (aba === 'video') return <>{video}</>;
   if (aba === 'animar' && c) return <AnimarCamada c={c} doc={doc} mudar={mudar} />;
-  if (aba === 'fundo' || !c) return <Cor t="Cor de fundo da arte" valor={doc.fundo} onChange={mudarFundo} doc={doc} />;
+  if (aba === 'fundo' || !c) return fundoDaArte ? <>{fundoDaArte}</> : <Cor t="Cor de fundo da arte" valor={doc.fundo} onChange={mudarFundo} doc={doc} />;
   const m = <T extends Camada>(p: Partial<T>) => mudar(p as Partial<Camada>);
   if (aba === 'posicao') return <PropsPosicao c={c} doc={doc} mudar={mudar} mover={mover} />;
   if (c.tipo === 'vaga') return (

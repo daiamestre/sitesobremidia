@@ -25,7 +25,9 @@ import { chaveCanonica } from '@/lib/tabloide/chave';
 import { lerLista, lerValor, precoParaTexto, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { infoDaPasta, pastaDeOfertasDe } from '@/lib/studio/pastasDoSegmento';
 import { TAMANHO_DOC, camadaNoPonto, type Camada, type CamadaTexto, type Documento, type FormatoDoc } from '@/lib/studio/documento';
-import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, type AjustesDoPalco, type FundoDoPalco, type LocucaoDoVideo, type MovimentoDoPalco } from '@/lib/studio/palco';
+import { PainelDoFundo } from './editor/PainelDoFundo';
+import { movimentoDoFundo } from '@/lib/studio/animacao';
+import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, srcSemLogo, type AjustesDoPalco, type FundoDoPalco, type LocucaoDoVideo, type MovimentoDoPalco } from '@/lib/studio/palco';
 import { comAlfa, corDoDocumento, coresDosEfeitos } from '@/lib/studio/corDaArte';
 import { EscolhaDeModelo } from './GaleriaDeModelos';
 import { PainelDeLocucao } from './PainelDeLocucao';
@@ -341,6 +343,27 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       fimDoDemo.current = setTimeout(() => { setDemo(null); setTocando(true); }, 2 * (ciclo + 0.35) * 1000);
     }
   };
+  // F-308 (pedido do dono): o FUNDO da arte se troca (outro fundo, imagem da pessoa, só cor) e se mexe — nos dois formatos
+  const camadaDoFundo = docEd?.camadas.find((c) => c.nome === 'Fundo oficial') as (Camada & { src?: string }) | undefined;
+  const mudarFundoDaArte = (porFormato: (f: FormatoDoc) => Partial<Camada> | null) => setAjustes((a) => {
+    const novo = { ...a };
+    for (const f of ['9:16', '16:9'] as const) {
+      const p = porFormato(f);
+      const atual = { ...(a[f]?.['Fundo oficial'] ?? {}) } as Record<string, unknown>;
+      if (p === null) { delete atual.src; delete atual.visivel; } else Object.assign(atual, p);
+      novo[f] = { ...a[f], 'Fundo oficial': atual as Partial<Camada> };
+    }
+    return novo;
+  });
+  const opcoesDeFundo = useMemo(() => [...FUNDOS_DO_PALCO].sort((x, y) => Number(y.segmento === segmento) - Number(x.segmento === segmento))
+    .map((f) => ({ id: f.id, nome: f.nome, src: srcSemLogo(f, formato), grupo: f.segmento === segmento ? 'Fundos deste segmento' : 'Fundos de outros segmentos' })), [formato, segmento]);
+  const painelDoFundo = fundo && camadaDoFundo ? (
+    <PainelDoFundo atual={camadaDoFundo.src ?? null} semImagem={camadaDoFundo.visivel === false} animacao={camadaDoFundo.animacao} opcoes={opcoesDeFundo} deitado={formato === '16:9'}
+      aoTrocar={({ id, src }) => { const f = FUNDOS_DO_PALCO.find((x) => x.id === id); mudarFundoDaArte((fo) => ({ src: f ? srcSemLogo(f, fo) : src, visivel: true } as Partial<Camada>)); }}
+      aoSoCor={() => mudarFundoDaArte(() => ({ visivel: false }))}
+      aoMover={(id) => { if (alvo) mudarElemento('Fundo oficial', { animacao: movimentoDoFundo(id) } as Partial<Camada>); else mudarFundoDaArte(() => ({ animacao: movimentoDoFundo(id) } as Partial<Camada>)); }}
+      aoRestaurar={() => mudarFundoDaArte(() => null)} />
+  ) : null;
   const voltarAoPadrao = (nome: string) => setAjustes((a) => { const f = { ...a[formato] }; delete f[nome]; if (nome === 'Produto' && alvo) delete f[chaveDoProdutoNoPalco(alvo.nome)]; return { ...a, [formato]: f }; });
   /** F-290: "Movimento padrão": o elemento volta ao movimento com que a arte nasceu (nos dois formatos) */
   const movimentoPadrao = (nome: string | null) => {
@@ -475,6 +498,13 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
               </div>
             )}
             <div className="space-y-1"><p className="text-sm text-slate-200">Formato da tela</p>{seletorDeFormato}</div>
+            {painelDoFundo && (
+              <details className="rounded-xl border border-white/10 bg-black/20 p-2.5" data-testid="assistente-fundo">
+                <summary className="cursor-pointer text-sm font-semibold text-white">Trocar o fundo e o movimento dele (opcional)</summary>
+                <p className="pt-1 text-xs text-slate-400">O modelo é só o começo: troque o fundo por outro, por uma imagem sua ou só cor, e escolha como ele se mexe. Na edição você troca também qualquer outro elemento.</p>
+                <div className="pt-2">{painelDoFundo}</div>
+              </details>
+            )}
           </div>
         ),
       },
@@ -669,6 +699,13 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
           {comPreco.length > 0 && <PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} />}
 
           <Cartao titulo={fundo ? 'Fundo, logo e botão' : 'Título do palco'} icone={Palette}>
+            {/* F-308: trocar o FUNDO da arte (galeria, imagem própria, só cor) e o movimento dele */}
+            {painelDoFundo && (
+              <details className="rounded-xl border border-white/10 bg-black/20 p-2" open={!camadaSel} data-testid="palco-secao-fundo">
+                <summary className="cursor-pointer text-xs font-bold text-white">Trocar o fundo e o movimento dele</summary>
+                <div className="pt-2">{painelDoFundo}</div>
+              </details>
+            )}
             {/* F-288: cor do fundo do palco (gira o tom da arte) */}
             {fundo && docEd?.camadas.some((c) => c.nome === 'Fundo oficial') && (
               <Faixa t="Cor do fundo (tom)" valor={(docEd.camadas.find((c) => c.nome === 'Fundo oficial') as { matiz?: number }).matiz ?? 0} min={-180} max={180} sufixo="°" onChange={(v) => mudarElemento('Fundo oficial', { matiz: v } as Partial<Camada>)} />

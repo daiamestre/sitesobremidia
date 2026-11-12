@@ -256,7 +256,9 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   // logo quando o cliente troca ou mexe nela; até lá a camada fica invisível, só para o toque abrir as opções
   // F-286: nos segmentos (padaria, adega…) a logo é EDITÁVEL: fundo sem logo + a logo em camadas (textos e o círculo da logo do cliente)
   const logoEmCamadas = !o.logoDoPalco && ehSegmentoComLogoEditavel(f.segmento);
-  const logoDaArte = !logoEmCamadas && !o.logoDoPalco && !o.ajustes?.[formato]?.['Logo do palco'];
+  // F-308: trocou o FUNDO (outra imagem ou só cor): a logo gravada no fundo antigo sai junto, então a logo vira camada visível
+  const fundoTrocado = !!(o.ajustes?.[formato]?.['Fundo oficial'] as { src?: string; visivel?: boolean } | undefined)?.src || o.ajustes?.[formato]?.['Fundo oficial']?.visivel === false;
+  const logoDaArte = !logoEmCamadas && !o.logoDoPalco && !o.ajustes?.[formato]?.['Logo do palco'] && !fundoTrocado;
   c.push({ ...imagem('Fundo oficial', logoDaArte ? srcDoFundo(f, formato) : srcSemLogo(f, formato), 0, 0, W, H), bloqueada: true });
   (f.faixas?.linhas[formato] ?? []).forEach((l, i) => {
     const comp = Math.hypot(l.ate[0] - l.de[0], l.ate[1] - l.de[1]);

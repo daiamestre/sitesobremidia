@@ -8,7 +8,8 @@ export type TipoDeAnimacao =
   | 'surgir' | 'subir' | 'descer' | 'esquerda' | 'direita' | 'zoom' | 'girar' | 'digitar'
   /* F-290: entradas novas */ | 'quicar' | 'zoom-de-longe' | 'virar' | 'surgir-lento'
   | 'pulsar' | 'balancar' | 'piscar' | 'panoramica' | 'flutuar'
-  /* F-290: movimentos contínuos novos */ | 'oscilar' | 'tremer' | 'respirar' | 'girar-sempre' | 'quicar-sempre' | 'brilhar';
+  /* F-290: movimentos contínuos novos */ | 'oscilar' | 'tremer' | 'respirar' | 'girar-sempre' | 'quicar-sempre' | 'brilhar'
+  /* F-308: movimentos do FUNDO da arte (sempre cobrindo a tela inteira, sem aparecer borda) */ | 'fundo-respirar' | 'fundo-deslizar' | 'fundo-subir' | 'fundo-luz';
 /** F-290: como o elemento SAI no fim do tempo dele (antes da troca de produto/cena) */
 export type TipoDeSaida = 'sumir' | 'subir' | 'descer' | 'esquerda' | 'direita' | 'diminuir' | 'aumentar' | 'girar';
 export interface Animacao {
@@ -55,7 +56,22 @@ export const SAIDAS: { id: TipoDeSaida; nome: string }[] = [
 ];
 
 /** Efeitos que repetem durante o vídeo (servem como "depois" de uma entrada). */
-export const CONTINUAS: TipoDeAnimacao[] = ['pulsar', 'balancar', 'piscar', 'panoramica', 'flutuar', 'oscilar', 'tremer', 'respirar', 'girar-sempre', 'quicar-sempre', 'brilhar'];
+export const CONTINUAS: TipoDeAnimacao[] = ['pulsar', 'balancar', 'piscar', 'panoramica', 'flutuar', 'oscilar', 'tremer', 'respirar', 'girar-sempre', 'quicar-sempre', 'brilhar', 'fundo-respirar', 'fundo-deslizar', 'fundo-subir', 'fundo-luz'];
+
+/**
+ * F-308 (pedido do dono): o FUNDO da arte também se mexe. Movimentos próprios do fundo: a imagem fica um pouco maior que a
+ * tela, então ao se mexer nunca aparece borda. Valem na tela, na prévia e no vídeo exportado.
+ */
+export const MOVIMENTOS_DO_FUNDO: { id: TipoDeAnimacao | null; nome: string }[] = [
+  { id: null, nome: 'Parado' },
+  { id: 'panoramica', nome: 'Aproximar devagar' },
+  { id: 'fundo-respirar', nome: 'Respirar (vai e volta)' },
+  { id: 'fundo-deslizar', nome: 'Deslizar para os lados' },
+  { id: 'fundo-subir', nome: 'Subir e descer' },
+  { id: 'fundo-luz', nome: 'Luz pulsando' },
+];
+/** o movimento do fundo: contínuo desde o começo, o vídeo inteiro */
+export const movimentoDoFundo = (id: TipoDeAnimacao | null): Animacao | null => (id ? { tipo: id, atraso: 0, duracao: 1, depois: null } : null);
 
 export const DURACAO_PADRAO = 8;
 export const duracaoDoVideo = (d: Documento) => Math.min(30, Math.max(3, d.video?.duracao ?? DURACAO_PADRAO));
@@ -138,6 +154,11 @@ function estadoDe(c: Camada, a: Animacao, t: number, total: number): EstadoAnima
     case 'girar-sempre': return local < 0 ? PARADO : { ...PARADO, rot: (local * 360) / 6 };
     case 'quicar-sempre': return local < 0 ? PARADO : { ...PARADO, dy: -Math.abs(Math.sin((local * Math.PI) / 0.9)) * Math.max(12, c.h * 0.06) };
     case 'brilhar': return local < 0 ? PARADO : { ...PARADO, alfa: 0.82 + 0.18 * (0.5 + 0.5 * Math.cos((local * 2 * Math.PI) / 1.4)), escala: 1 + 0.02 * Math.sin((local * 2 * Math.PI) / 1.4) };
+    // F-308: movimentos do fundo (sempre maior que a tela: nunca mostra borda)
+    case 'fundo-respirar': return { ...PARADO, escala: 1.07 + 0.05 * Math.sin((Math.max(0, local) * 2 * Math.PI) / 6) };
+    case 'fundo-deslizar': return { ...PARADO, escala: 1.12, dx: c.w * 0.045 * Math.sin((Math.max(0, local) * 2 * Math.PI) / 8) };
+    case 'fundo-subir': return { ...PARADO, escala: 1.12, dy: c.h * 0.04 * Math.sin((Math.max(0, local) * 2 * Math.PI) / 8) };
+    case 'fundo-luz': return { ...PARADO, escala: 1.03, alfa: 0.86 + 0.14 * (0.5 + 0.5 * Math.cos((Math.max(0, local) * 2 * Math.PI) / 2.2)) };
     case 'panoramica': {
       const q = Math.min(1, Math.max(0, local / Math.max(1, total - a.atraso)));
       return { ...PARADO, zoom: 1 + 0.15 * suave(q) };
