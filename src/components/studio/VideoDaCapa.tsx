@@ -25,7 +25,7 @@ export function VideoDaCapa({ capa, className }: { capa: CapaEmVideo; className?
   return (
     <div ref={caixa} className={cn('relative h-full w-full overflow-hidden bg-black', className)} data-testid="video-da-capa">
       <img src={capa.poster} alt="" draggable={false} decoding="async" className="absolute inset-0 h-full w-full object-contain" />
-      {naTela && <video ref={video} src={capa.video} poster={capa.poster} muted playsInline autoPlay loop preload="auto" disablePictureInPicture className="absolute inset-0 h-full w-full object-contain" />}
+      {naTela && <video ref={video} src={capa.video} poster={capa.poster} muted playsInline autoPlay loop preload="auto" disablePictureInPicture className="video-inteiro absolute inset-0 h-full w-full object-contain" />}
     </div>
   );
 }

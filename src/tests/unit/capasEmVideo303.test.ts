@@ -42,3 +42,13 @@ describe('F-303: capas em vídeo', () => {
     for (const c of Object.values(capas)) expect((c as { kb?: number }).kb, 'tamanho registrado').toBeGreaterThan(0);
   });
 });
+
+describe('F-305: capa no formato original', () => {
+  it('o vídeo da capa aparece inteiro (a regra global do Player, que corta, não vale nas capas)', () => {
+    const css = fs.readFileSync('src/index.css', 'utf8');
+    expect(css).toContain('video.video-inteiro');
+    expect(css).toMatch(/video\.video-inteiro[\s\S]*object-fit: contain !important/);
+    expect(fs.readFileSync('src/components/media/CapaQueGira.tsx', 'utf8')).toContain("'object-contain video-inteiro'");
+    expect(fs.readFileSync('src/components/studio/VideoDaCapa.tsx', 'utf8')).toContain('className="video-inteiro');
+  });
+});

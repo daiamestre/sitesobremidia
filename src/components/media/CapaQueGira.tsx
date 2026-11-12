@@ -70,7 +70,7 @@ export function CapaQueGira({ slides, atraso = 0, tempo = TEMPO_DE_CADA_MIDIA, a
 
   const anterior = total ? (atual + total - 1) % total : -1;
   const proxima = total ? (atual + 1) % total : -1;
-  const objeto = ajuste === 'cover' ? 'object-cover' : 'object-contain';
+  const objeto = ajuste === 'cover' ? 'object-cover' : 'object-contain video-inteiro'; // F-305: vídeo inteiro no formato original
   return (
     <div ref={caixa} className={cn('relative overflow-hidden bg-black', className)} style={style} data-testid="capa-que-gira">
       {naTela && slides.map((s, k) => {

@@ -911,3 +911,13 @@ input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; mi
   transition: none;
   transform: none;
 }
+
+/*
+ * F-305 (pedido do dono, 12/11/2026): nas CAPAS do Studio cada vídeo aparece INTEIRO, no formato original (9:16 em pé,
+ * A4, 16:9 deitado), centralizado. A regra global "video { object-fit: cover !important }" acima é do Player das TVs
+ * (encher a tela); aqui ela não vale. Seletor mais específico vence o !important global.
+ */
+video.video-inteiro,
+video.video-inteiro[poster] {
+  object-fit: contain !important;
+}
