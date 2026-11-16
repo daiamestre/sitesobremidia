@@ -62,3 +62,119 @@ Fontes: as páginas públicas em lp.qrofertas.com.
 | 6 | **Trilhas e vinhetas de oferta** prontas no editor (Eleven Music / efeitos), com a música abaixando quando o locutor fala | Do concorrente de vídeo |
 | 7 | **Cartazes de gôndola A4** (um produto por folha, impressão em lote) | "Cartazeamento" deles |
 | 8 | **Selos de campanha por data** no palco ("Quinta do Hortifrúti", "Fecha Mês"…), desenhados por nós | Do concorrente de vídeo |
+
+
+---
+
+# Como o concorrente cria os vídeos (16/11/2026)
+
+Pedido do dono: entender como os vídeos do concorrente são criados, com quais ferramentas, e como trazer isso para o SOBRE MÍDIA.
+
+**Fonte:** os arquivos públicos do app "Vídeo de Ofertas IA" (64 arquivos JavaScript da página, sem login). O app mudou desde 11/11: saiu de Lovable para TanStack Start e trocou a gravação pelo Remotion por um motor próprio.
+
+**Regra:** usar só a ideia e a técnica. As artes, os selos, os textos e as músicas deles nunca são copiados.
+
+## 1. As ferramentas que eles usam
+
+| Parte | Ferramenta | Para quê |
+|---|---|---|
+| Desenho das cenas | **Konva** (canvas 2D) | Cada cena é um "palco" com camadas: fundo, produto, nome, etiqueta, preço, logo, selo, rodapé |
+| Prévia no editor | **Remotion Player** (só a prévia) | Mostra o vídeo tocando; tocar no vídeo pausa para editar |
+| Montar o MP4 | **Mediabunny** + WebCodecs | Grava quadro a quadro em H.264 + AAC dentro do navegador |
+| Som em AAC em qualquer aparelho | **Codificador AAC em WebAssembly** (do Mediabunny) | Aparelho sem AAC continua gerando MP4; sem ele, usa Opus |
+| Voz | **ElevenLabs** (`eleven_v4_turbo` e `eleven_multilingual_v2`) | Locutor masculino e feminino brasileiros + "locutor convidado" |
+| Tirar o fundo de selos e fotos | **@imgly/background-removal** (modelo ISNet em ONNX, roda no aparelho) | "Remover fundo com IA" sem servidor |
+| Áudio para carro de som | **lamejs** (MP3 no navegador) | Exporta só a locução + música em MP3 ("Locução para carro de som e porta de loja") |
+| Fotos e conferência | Serper, Brave e Gemini | Busca de foto e conferência com IA (já visto em 11/11) |
+| Biblioteca | Supabase Storage (`promotional-seals`, `video-backgrounds`) | Selos 3D e fundos, com busca por sinônimos e erros de digitação |
+
+## 2. Como um vídeo é montado (a receita)
+
+**Roteiro em cenas** (`buildTimeline`): abertura → até 8 ofertas → fechamento.
+- Sem voz, cada oferta dura 3,2 s, e a abertura e o fechamento 2,8 s.
+- Com voz, cada oferta dura 0,55 s + a fala + 0,7 s. O silêncio do começo e do fim do áudio é cortado antes (`voiceTrim`).
+
+**Animações de cada oferta** (todas calculadas por fórmula, quadro a quadro):
+1. **Produto:** entra de lado com **mola** (amortecimento 0,6), alternando esquerda e direita a cada oferta, e cresce de 72% para 100%. Sai deslizando nos últimos 0,4 s.
+2. **Nome do produto:** desce 40 px e aparece entre 0,15 s e 0,55 s.
+3. **Etiqueta, preço, unidade e "R$":** "estouram" com **passar do ponto e voltar** (curva *back*) entre 0,35 s e 0,8 s. O preço ganha um **soco extra de 18%** em 0,62 s e depois fica "respirando" (±2,5%).
+4. **Estrela atrás do preço:** estrela amarela de 16 pontas com borda vermelha, que gira e estoura junto com o preço.
+5. **Faíscas:** 16 partículas amarelas e brancas saem do preço em 0,55 s e somem em 0,85 s.
+6. **Brilho que passa no preço:** uma faixa de luz atravessa a etiqueta entre 0,85 s e 1,6 s.
+7. **Logo e selo** (na 1ª oferta): a logo entra da direita e o selo cresce de 30% com passar do ponto. Depois o selo pulsa (±3%).
+8. **Selo da abertura:** começa em 220% e assenta com mola.
+9. **Frases da abertura e do fechamento:** letra Impact/Anton branca com borda vermelha, em maiúsculas, que estoura.
+
+**Efeitos do vídeo inteiro** (o cliente liga e desliga):
+- **Troca de cena em faixa diagonal:** uma faixa vermelha com bordas amarelas, inclinada 14°, varre a tela no começo de cada cena.
+- **"Câmera na mão":** o fundo balança de leve (±22 px, 0,55°, zoom de 1,2%) enquanto produto e preço ficam firmes.
+- **Brasas:** 22 a 34 pontinhos laranja e amarelos sobem pelo fundo.
+- **Sombra do produto:** desfoque 34, deslocamento 22 px e 50% de opacidade, guardada pronta para não pesar.
+
+**Som** (`mixAudio`, mistura fora do tempo real, 44,1 kHz):
+- **A música abaixa sozinha para 30%** quando há locução; sem locução fica em 90%. Some devagar no último 1,2 s.
+- **"Whoosh"** sintetizado (ruído filtrado de 0,5 s) 0,12 s antes de cada troca de cena.
+- **Limitador** no fim (compressor: −2 dB, razão 20) para o som nunca estourar.
+- **Falas com entrada e saída de 6 ms**, para não estalar.
+
+**Gravação** (`exportMp4`):
+- **720p por padrão.** O Full HD só existe com uma chave escondida (`vo-render-fullhd`). Taxa de 3 Mbps (5,6 Mbps no Full HD), quadro-chave a cada 2 s.
+- **No computador**, divide o vídeo em 2 partes e grava as duas ao mesmo tempo, com 2 codificadores (GPU ou CPU). Antes testa o chip com um quadro de prova. Se der erro, usa o motor simples.
+- **No celular e tablet**, usa sempre o motor simples, com "prefer-hardware" quando o aparelho aceita.
+- **O vídeo pronto fica disponível para baixar por 48 h.** O limite é de 8 produtos por vídeo, com cota diária de vídeos.
+
+**O fluxo do cliente** (5 etapas):
+1. Tema/modelo: selo 3D da abertura + fundo.
+2. Loja: logo PNG, com "remover fundo".
+3. Ofertas: até 8, com foto, nome, preço e unidade.
+4. Locução e música: voz, roteiro editável e volume da música.
+5. Exportar: MP4, ou MP3 para carro de som.
+
+Há também um **editor de posição**: arrastar e redimensionar cada elemento, alinhar e centralizar.
+
+## 3. O 2º concorrente de vídeo: "Adega Vídeo Promo"
+
+Ele não tem gerador. Vende **mais de 150 vídeos prontos para editar no Canva** (adega, tabacaria, Black Friday): a pessoa troca texto, preço e logo no Canva, baixa e coloca no pendrive ou na Smart TV. O argumento é "sem precisar saber editar vídeo". Nós já fazemos tudo dentro do sistema e publicamos direto na TV.
+
+## 4. Onde estamos à frente e o que falta
+
+**Já temos e eles não:**
+- Editor com linha do tempo.
+- Movimento por elemento (entrada, 2 movimentos e saída).
+- Troca de fundo.
+- Full HD, 60 quadros/s e 4K.
+- Publicação direta nas TVs do Player.
+- Passo a passo em 4 etapas.
+- Código de barras.
+- Acervo.
+- 9 segmentos.
+- Exportação que se adapta ao aparelho (F-315).
+
+**Falta, comparando efeito por efeito:**
+
+| # | Recurso deles | Nós hoje | Como trazer (onde mexer) | Custo |
+|---|---|---|---|---|
+| 1 | Música abaixa sozinha com a locução + limitador | Não abaixa | `mixarOffline` em `video/motor.ts` e a prévia: ganho da música a 30% enquanto há fala, `DynamicsCompressor` no fim | Grátis |
+| 2 | "Whoosh" em cada troca de produto | Não tem | Ruído filtrado sintetizado (sem arquivo e sem licença), no `mixarOffline` e na prévia, com liga/desliga | Grátis |
+| 3 | Preço que "estoura" (passar do ponto + soco + respirar) | Temos `quicar`/`pulsar`, sem o soco | Entrada nova `estourar` em `animacao.ts` (curva *back* + pico) como padrão do preço no palco | Grátis |
+| 4 | Estrela + faíscas + brilho atrás do preço | Não tem | Camadas de efeito do palco (`palco.ts`) desenhadas pelo regente, na cor do encarte (regra F-296) | Grátis |
+| 5 | Produto entra com mola, alternando lados | Entradas fixas | Movimento `mola-alternada` para o Produto (um objeto só, regra F-249) | Grátis |
+| 6 | Troca de cena em faixa diagonal | Temos flash, luz, brilho, girar, desfocar… | Transição nova `faixa` em `TRANSICOES_DO_CARROSSEL`, nas cores do modelo | Grátis |
+| 7 | "Câmera na mão" + brasas no fundo | Fundo com 4 movimentos (F-308) | `fundo-camera` e partículas `brasas` em `MOVIMENTOS_DO_FUNDO`, liga/desliga | Grátis |
+| 8 | Cortar o silêncio da fala | Não corta | Aparar o começo e o fim do áudio em `locucao.ts` antes de medir a duração (o vídeo fica mais ágil) | Grátis |
+| 9 | AAC em qualquer aparelho (WebAssembly) | Sem AAC, cai para WebM (F-315) | Adotar o **Mediabunny** com o codificador AAC em WebAssembly no lugar do `mp4-muxer`; o tablet sem AAC continua em MP4 | Grátis (licença MPL-2.0) |
+| 10 | Gravação 2× mais rápida no PC (2 partes em paralelo) | Uma parte só | Duas telas e dois codificadores, juntando as partes (como o deles, com o teste de quadro de prova) | Grátis |
+| 11 | MP3 da locução para carro de som | Não tem | Exportar só o áudio (locução + música) com **lamejs**; é um produto novo para vender | Grátis |
+| 12 | Remover fundo no próprio aparelho (ISNet) | Já tiramos fundo (Cloudflare/navegador, F-252) | Só se o custo da Cloudflare subir | — |
+| 13 | Selos 3D de campanha com busca por sinônimo | Selos por data ainda pendentes (item 8 da lista de 11/11) | Selos **desenhados por nós** + busca por sinônimo e erro de digitação (`açougue` → carne, churrasco…) | Grátis |
+
+**O que NÃO copiar:**
+- 720p como padrão: nossas telas são TV e painel de LED, e o F-315 já adapta ao aparelho.
+- Limite de 8 produtos.
+- Vídeo que some em 48 h: o nosso fica em Meus Projetos.
+
+## 5. Ordem sugerida
+
+1. **"Pacote impacto" no palco** (itens 1 a 8): som profissional e animação de preço. É o que mais aparece na TV, e tudo é grátis, sem API nova. Cada efeito nasce **com liga/desliga** e editável ao toque (regras F-249 e F-308). Nenhum modelo existente muda sozinho (regra F-296): os efeitos entram como opção e como padrão só nos modelos novos.
+2. **Mediabunny + AAC em WebAssembly + gravação em 2 partes no PC** (itens 9 e 10).
+3. **MP3 para carro de som** (item 11) e **selos de campanha nossos com busca** (item 13).
