@@ -475,6 +475,8 @@ export default function EditorPage() {
   );
 
   const vertical = formato === '9:16';
+  // F-314: o que fica embaixo da arte em pé não pode alargar a coluna dela (senão a lateral some no tablet)
+  const larguraDaArte = vertical ? 'min-[540px]:w-0 min-[540px]:min-w-full' : undefined;
   const outroFormato: FormatoDoc = vertical ? '16:9' : '9:16';
   // ações diretas do elemento escolhido (sem cartão): trocar/espelhar foto, duplicar, travar e LIXEIRA
   const acoes: { n: string; I: typeof Type; f: () => void; perigo?: boolean; ativo?: boolean; id: string }[] = camadaSel ? [
@@ -532,7 +534,10 @@ export default function EditorPage() {
 
       {!vertical && barraAdicionar}
 
-      {/* ── palco com margens dos lados (o dedo rola a página por elas) + ferramentas ao lado/abaixo */}
+      {/* F-314 (regressão no tablet): na arte em pé, a coluna da arte tem a largura da ARTE. A barra de movimento e a linha do
+          tempo embaixo dela seguem essa largura (w-0 + min-w-full) e não empurram mais a lateral (botões de criação e
+          ferramentas) para fora da tela. */}
+            {/* ── palco com margens dos lados (o dedo rola a página por elas) + ferramentas ao lado/abaixo */}
       <div className={cn('grid gap-3', vertical ? 'min-[540px]:grid-cols-[auto_minmax(0,1fr)] min-[540px]:items-start' : 'min-[700px]:grid-cols-[minmax(0,1fr)_300px] min-[700px]:items-start lg:grid-cols-[minmax(0,1fr)_360px]')}>
         <div className="min-w-0 space-y-2">
         <div className={cn('min-w-0 rounded-2xl border border-[#8A2EFF]/30 bg-[#0a031c] px-6 pb-14 pt-12 shadow-[0_0_40px_rgba(93,27,255,0.25)]', vertical ? 'sm:px-8' : 'sm:px-10')}>
@@ -544,7 +549,7 @@ export default function EditorPage() {
           {!vertical && <p className="mt-10 hidden text-center text-[11px] text-slate-500 md:block">Toque para escolher · arraste o escolhido para mover · alças redimensionam · bolinha de cima gira · Delete apaga · Ctrl+Z desfaz</p>}
         </div>
           {/* F-293: MOVIMENTO embaixo da arte (igual ao palco): entrada, 2 movimentos juntos, saída e o movimento padrão */}
-          <div className="space-y-2 rounded-2xl border border-[#8A2EFF]/40 bg-[#14062f] p-3" data-testid="studio-barra-movimento">
+          <div className={cn("space-y-2 rounded-2xl border border-[#8A2EFF]/40 bg-[#14062f] p-3", larguraDaArte)} data-testid="studio-barra-movimento">
             {camadaSel ? (
               <>
                 <p className="text-xs font-bold text-white">Movimento: {camadaSel.tipo === 'texto' ? (camadaSel.texto.split('\n')[0] || camadaSel.nome) : camadaSel.nome}</p>
@@ -558,7 +563,7 @@ export default function EditorPage() {
             </div>
           </div>
           {projetoNoEditor && (
-            <section className="space-y-2 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-2" data-testid="studio-editor-video">
+            <section className={cn("space-y-2 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-2", larguraDaArte)} data-testid="studio-editor-video">
               <h2 className="px-1 text-sm font-bold text-white">Vídeo desta arte (linha do tempo)</h2>
               <EditorDeVideo embutido projetoInicial={projetoNoEditor} nomeInicial={nome || base.nome} />
             </section>
