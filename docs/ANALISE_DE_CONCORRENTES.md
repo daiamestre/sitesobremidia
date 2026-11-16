@@ -178,3 +178,56 @@ Ele não tem gerador. Vende **mais de 150 vídeos prontos para editar no Canva**
 1. **"Pacote impacto" no palco** (itens 1 a 8): som profissional e animação de preço. É o que mais aparece na TV, e tudo é grátis, sem API nova. Cada efeito nasce **com liga/desliga** e editável ao toque (regras F-249 e F-308). Nenhum modelo existente muda sozinho (regra F-296): os efeitos entram como opção e como padrão só nos modelos novos.
 2. **Mediabunny + AAC em WebAssembly + gravação em 2 partes no PC** (itens 9 e 10).
 3. **MP3 para carro de som** (item 11) e **selos de campanha nossos com busca** (item 13).
+
+
+---
+
+# Os "vídeos de impacto" do Instagram do concorrente (16/11/2026)
+
+**Fonte:** os 16 vídeos públicos de @propaganda_de_supermercados, vistos sem login, quadro a quadro.
+**Regra:** usar só a estrutura e a técnica. Nada de copiar arte, frase exata, selo ou áudio deles.
+
+## O que são
+- **Nenhum dos 16 mostra produto.** São CHAMADAS DE CAMPANHA, todas em pé (9:16), de 26 a 37 s: Fecha Mês, Black Friday ("Antecipa", "Esquenta"), Fim de Semana da Economia, Mega Saldão.
+- O texto que aparece na tela é o mesmo que o locutor fala: as frases entram no ritmo da voz.
+- Em 3 vídeos aparece o próprio locutor deles, com microfone na mão. É o locutor da produtora, e não um locutor de TV. O estilo é o de "locutor de varejo/carro de som": grave, rápido, com ênfase no fim das frases.
+- Eles fazem o vídeo "com sua logo, com seu tema e com o locutor falando o nome da sua loja", ou seja, um modelo pronto em que só trocam a loja.
+
+## A estrutura (a mesma em todos)
+| Tempo | Bloco | Como aparece |
+|---|---|---|
+| 0–3 s | **Gancho** | "ATENÇÃO!", "SE PREPARE!", "O DIA MAIS BARATO DO MÊS ESTÁ CHEGANDO": cena de impacto (multidão, explosão, apresentadora de telejornal, helicóptero) |
+| 3–9 s | **Promessa** | 2–3 frases curtas, uma por vez: a última palavra GRANDE, amarela/dourada, em selo 3D |
+| ~9 s | **Selo da campanha** | o selo 3D ("FECHA MÊS DE OUTUBRO", "BLACK FRIDAY") chega com clarão e a logo da loja entra embaixo |
+| 9–20 s | **Urgência e data** | "SOMENTE NESTE SÁBADO, DIA 31!", "ANOTE NA SUA AGENDA", contagem "3" |
+| 20–28 s | **Argumentos** | "PODE RODAR A CIDADE INTEIRA… MAS PREÇO BAIXO É AQUI!", "SE QUISER PAGAR CARO, VAI NA CONCORRÊNCIA", "AQUI NÃO TEM MIMIMI", "É PREÇO NO CHÃO!" |
+| últimos 3–4 s | **Assinatura** | o selo da campanha e a logo da loja, parados e brilhando |
+
+## A linguagem visual
+- **Cenários escuros:** portas de aço, parede de tijolo, arena com luzes, cidade em chamas, com moldura de fita zebrada amarela e preta.
+- **Partículas:** faíscas e brasas subindo, fumaça embaixo, estilhaços e vidro quebrando nas explosões.
+- **Letras:** fonte condensada e grossa (tipo Anton/Bebas), branca. A palavra-chave vai em amarelo/dourado com relevo 3D, e as frases quebram em 2 a 4 linhas.
+- **Trocas de cena:**
+  - palavra GIGANTE atravessando a tela (as letras enchem o quadro e passam);
+  - clarão branco ou amarelo;
+  - nuvem de fumaça;
+  - faixa vermelha ou amarela.
+- **Ritmo:** uma frase a cada 1,5–2,5 s, e uma troca forte a cada 2 ou 3 frases.
+
+## Como fica no SOBRE MÍDIA (proposta: "Chamada de Impacto", P-35)
+1. **A pessoa escolhe** a campanha (Fecha Mês, Black Friday, Fim de Semana, Saldão, Aniversário, Inauguração ou outra), a data ("somente sábado, dia 31") e a loja (nome e logo).
+2. **O sistema monta sozinho** o roteiro de 8 a 12 frases nos 6 blocos acima, a partir de um banco de frases NOSSO por campanha, e cada frase vira uma cena com:
+   - letra condensada;
+   - palavra-chave dourada;
+   - entrada que estoura;
+   - troca forte a cada 2 frases (palavra gigante, clarão, fumaça).
+3. **Cenários nossos** (portas, arena, tijolo, cidade), com as partículas que já temos (F-316: brasas, estrelas, câmera na mão) e a trilha gratuita.
+4. **Locutor:** cada frase vira uma fala no estilo varejo, e a cena dura o tempo da fala (como no F-300). Mesma voz em todo o vídeo.
+5. **Opcional:** de 1 a 8 produtos com preço depois dos argumentos, usando o palco de ofertas que já existe.
+6. **Tudo editável depois de criado:** cada frase, a ordem, a cor, a fonte, os movimentos, o cenário, a trilha e os efeitos.
+
+**O locutor:** não dá para usar a voz de um locutor conhecido sem a autorização dele. O estilo se consegue com:
+- uma voz de varejo da biblioteca da ElevenLabs, liberada pelo dono da voz; ou
+- um locutor contratado que autorize a clonagem.
+
+Além disso, o roteiro no estilo deles ("SÓ ESSA SEMANA!", "PREÇO BAIXO É AQUI!") entra no agente locutor, sem custo.
