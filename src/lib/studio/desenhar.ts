@@ -260,7 +260,9 @@ function desenharLetreiro(ctx: CanvasRenderingContext2D, c: CamadaTexto, tempo: 
   const alto = ctx.measureText('H').actualBoundingBoxAscent || c.tamanho * 0.7;
   ctx.fillStyle = c.cor; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   const passo = ((tempo * l.velocidade) % periodo + periodo) % periodo;
-  for (let x = -c.w / 2 - passo; x < c.w / 2; x += periodo) ctx.fillText(txt, x, alto / 2);
+  // pedido do dono: o texto pode passar para a DIREITA (o olho lê melhor a faixa do Alerta de Oferta)
+  const inicio = l.sentido === 'direita' ? -c.w / 2 - periodo + passo : -c.w / 2 - passo;
+  for (let x = inicio; x < c.w / 2; x += periodo) ctx.fillText(txt, x, alto / 2);
   ctx.restore();
 }
 

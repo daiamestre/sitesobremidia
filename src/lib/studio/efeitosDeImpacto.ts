@@ -225,27 +225,30 @@ export function tremorDoImpacto(t: number, ti: number, W: number, H: number): { 
   const k = (Math.min(W, H) / 1080) * 34 * Math.pow(1 - s / 0.55, 2);
   return { dx: k * Math.sin(s * 95), dy: k * Math.cos(s * 77) };
 }
-/** rachaduras que saem do ponto da batida (fixas: o mesmo desenho em todo quadro), crescem em 0,2 s e ficam */
+/** rachaduras que saem do ponto da batida (fixas: o mesmo desenho em todo quadro): curtas, recortadas, com ramos; crescem em 0,2 s */
 function rachaduras(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, cresce: number) {
-  const galhos = 11;
-  for (let g = 0; g < galhos; g++) {
-    let ang = (g / galhos) * Math.PI * 2 + (sorte(g, 21) - 0.5) * 0.5;
-    let x = cx, y = cy;
-    const pontos: Array<[number, number]> = [[x, y]];
-    const passos = 5 + Math.floor(sorte(g, 22) * 4);
-    const alcance = R * (0.55 + sorte(g, 23) * 0.6) * cresce;
+  const galho = (x: number, y: number, ang: number, compr: number, larg: number, semente: number, nivel: number) => {
+    const passos = 6;
+    const pts: Array<[number, number]> = [[x, y]];
     for (let i = 0; i < passos; i++) {
-      ang += (sorte(g, 30 + i) - 0.5) * 0.9;
-      const passo = alcance / passos;
-      x += Math.cos(ang) * passo; y += Math.sin(ang) * passo;
-      pontos.push([x, y]);
+      ang += (sorte(semente, i) - 0.5) * 1.3; // zigue-zague
+      x += Math.cos(ang) * (compr / passos); y += Math.sin(ang) * (compr / passos);
+      pts.push([x, y]);
     }
-    const tracar = () => { ctx.beginPath(); pontos.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.stroke(); };
-    // brilho de lava por dentro, a fenda escura e a borda clara
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,110,20,0.55)'; ctx.lineWidth = R * 0.045; ctx.shadowColor = '#ff6a00'; ctx.shadowBlur = R * 0.07; tracar(); ctx.restore();
-    ctx.strokeStyle = 'rgba(18,8,4,0.92)'; ctx.lineWidth = R * 0.018; tracar();
-    ctx.save(); ctx.translate(-R * 0.004, -R * 0.004); ctx.strokeStyle = 'rgba(255,220,180,0.35)'; ctx.lineWidth = R * 0.004; tracar(); ctx.restore();
+    const tracar = () => { ctx.beginPath(); pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.stroke(); };
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,110,20,0.6)'; ctx.lineWidth = larg * 2.6; ctx.shadowColor = '#ff6a00'; ctx.shadowBlur = larg * 4; tracar(); ctx.restore();
+    ctx.strokeStyle = 'rgba(15,6,3,0.95)'; ctx.lineWidth = larg; tracar();
+    if (nivel < 1) for (let r = 0; r < 2; r++) {
+      const k = 2 + r * 2; const [bx, by] = pts[k];
+      galho(bx, by, ang + (r ? 0.9 : -0.9) * (0.6 + sorte(semente, 40 + r)), compr * 0.42, larg * 0.6, semente * 7 + r + 3, nivel + 1);
+    }
+  };
+  ctx.save(); ctx.lineJoin = 'miter'; ctx.lineCap = 'round';
+  for (let g = 0; g < 14; g++) {
+    const ang = (g / 14) * Math.PI * 2 + (sorte(g, 21) - 0.5) * 0.4;
+    galho(cx + Math.cos(ang) * R * 0.08, cy + Math.sin(ang) * R * 0.05, ang, R * (0.45 + 0.4 * sorte(g, 23)) * cresce, Math.max(2, R * 0.014), g + 1, 0);
   }
+  ctx.restore();
 }
 /** ATRÁS da logo: a cratera e as rachaduras na parede e o fogo pegando nela */
 export function desenharQuebraAtras(ctx: CanvasRenderingContext2D, c: Camada, t: number, W: number, H: number, fogo: boolean) {
@@ -253,7 +256,7 @@ export function desenharQuebraAtras(ctx: CanvasRenderingContext2D, c: Camada, t:
   if (ti == null || t < ti || !c.visivel) return;
   const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
   // as rachaduras ficam em volta da batida (não cruzam o topo nem o rodapé da arte)
-  const R = Math.max(c.w, c.h) * 0.95;
+  const R = Math.max(c.w, c.h) * 0.62;
   const s = t - ti;
   ctx.save();
   const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(c.w, c.h) * 0.75);
@@ -262,6 +265,7 @@ export function desenharQuebraAtras(ctx: CanvasRenderingContext2D, c: Camada, t:
   rachaduras(ctx, cx, cy, R, Math.min(1, s / 0.2));
   ctx.restore();
   if (fogo) desenharFogoNaLogo(ctx, c, t, Math.min(1, s / 0.35));
+  blocos(ctx, c, s, W, H);
 }
 /** NA FRENTE: blocos de concreto voando, a poeira e o clarão da batida */
 export function desenharQuebraFrente(ctx: CanvasRenderingContext2D, c: Camada, t: number, W: number, H: number) {
@@ -282,28 +286,6 @@ export function desenharQuebraFrente(ctx: CanvasRenderingContext2D, c: Camada, t
     const p = ctx.createRadialGradient(x, y, 0, x, y, r);
     p.addColorStop(0, `rgba(170,160,150,${a.toFixed(3)})`); p.addColorStop(1, 'rgba(170,160,150,0)');
     ctx.fillStyle = p; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
-  }
-  // os blocos saem da BORDA de baixo da logo (nunca por cima das letras)
-  for (let i = 0; i < 26; i++) {
-    const lado = i % 2 ? 1 : -1; // para a direita ou para a esquerda, um pouco para cima
-    const ang = lado > 0 ? -0.15 - 0.75 * sorte(i, 51) : Math.PI + 0.15 + 0.75 * sorte(i, 51);
-    const vel = (700 + 1100 * sorte(i, 52)) * k;
-    const x0 = c.x + c.w * (0.08 + 0.84 * sorte(i, 56)), y0 = c.y + c.h * 0.96;
-    const x = x0 + Math.cos(ang) * vel * s;
-    const y = y0 + Math.sin(ang) * vel * s + 0.5 * 2600 * k * s * s;
-    const tam = (16 + 38 * sorte(i, 53)) * k;
-    const vida = s > 1.2 ? Math.max(0, 1 - (s - 1.2) / 0.4) : 1;
-    ctx.save();
-    ctx.globalAlpha = vida;
-    ctx.translate(x, y); ctx.rotate(s * (4 + 8 * sorte(i, 54)) * (i % 2 ? 1 : -1));
-    ctx.beginPath();
-    const lados = 5 + (i % 3);
-    for (let v = 0; v < lados; v++) { const a2 = (v / lados) * Math.PI * 2; const rr = tam * (0.6 + 0.5 * sorte(i, 60 + v)); ctx.lineTo(Math.cos(a2) * rr, Math.sin(a2) * rr * 0.8); }
-    ctx.closePath();
-    const cinza = 120 + Math.floor(70 * sorte(i, 55));
-    ctx.fillStyle = `rgb(${cinza},${cinza - 8},${cinza - 18})`; ctx.fill();
-    ctx.lineWidth = 2 * k; ctx.strokeStyle = 'rgba(40,30,25,0.7)'; ctx.stroke();
-    ctx.restore();
   }
   ctx.restore();
 }
@@ -338,6 +320,36 @@ export function desenharFogoNaLogo(ctx: CanvasRenderingContext2D, c: Camada, t: 
     const img = luz(i % 2 ? '#ffb703' : '#ff6b00');
     const r = 10 + 10 * sorte(i, 84);
     if (img) { ctx.globalAlpha = forca * Math.min(1, (1 - q) * 1.5); ctx.drawImage(img, x - r, y - r, 2 * r, 2 * r); }
+  }
+  ctx.restore();
+}
+
+/** os blocos de concreto saindo da batida para os lados, girando e caindo (desenhados ATRÁS da logo) */
+function blocos(ctx: CanvasRenderingContext2D, c: Camada, s: number, W: number, H: number) {
+  if (s < 0 || s > 1.6) return;
+  const k = Math.min(W, H) / 1080;
+  ctx.save();
+  // os blocos saem da BORDA de baixo da logo (nunca por cima das letras)
+  for (let i = 0; i < 26; i++) {
+    const lado = i % 2 ? 1 : -1; // para a direita ou para a esquerda, um pouco para cima
+    const ang = lado > 0 ? -0.15 - 0.75 * sorte(i, 51) : Math.PI + 0.15 + 0.75 * sorte(i, 51);
+    const vel = (700 + 1100 * sorte(i, 52)) * k;
+    const x0 = c.x + c.w * (0.08 + 0.84 * sorte(i, 56)), y0 = c.y + c.h * 0.96;
+    const x = x0 + Math.cos(ang) * vel * s;
+    const y = y0 + Math.sin(ang) * vel * s + 0.5 * 2600 * k * s * s;
+    const tam = (16 + 38 * sorte(i, 53)) * k;
+    const vida = s > 1.2 ? Math.max(0, 1 - (s - 1.2) / 0.4) : 1;
+    ctx.save();
+    ctx.globalAlpha = vida;
+    ctx.translate(x, y); ctx.rotate(s * (4 + 8 * sorte(i, 54)) * (i % 2 ? 1 : -1));
+    ctx.beginPath();
+    const lados = 5 + (i % 3);
+    for (let v = 0; v < lados; v++) { const a2 = (v / lados) * Math.PI * 2; const rr = tam * (0.6 + 0.5 * sorte(i, 60 + v)); ctx.lineTo(Math.cos(a2) * rr, Math.sin(a2) * rr * 0.8); }
+    ctx.closePath();
+    const cinza = 120 + Math.floor(70 * sorte(i, 55));
+    ctx.fillStyle = `rgb(${cinza},${cinza - 8},${cinza - 18})`; ctx.fill();
+    ctx.lineWidth = 2 * k; ctx.strokeStyle = 'rgba(40,30,25,0.7)'; ctx.stroke();
+    ctx.restore();
   }
   ctx.restore();
 }

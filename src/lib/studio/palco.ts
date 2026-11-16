@@ -277,7 +277,7 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
     const cx = (l.de[0] + l.ate[0]) / 2, cy = (l.de[1] + l.ate[1]) / 2;
     const giro = (Math.atan2(l.ate[1] - l.de[1], l.ate[0] - l.de[0]) * 180) / Math.PI;
     const rot = giro > 90 ? giro - 180 : giro < -90 ? giro + 180 : giro; // o texto nunca fica de cabeça para baixo
-    c.push({ ...texto(`Faixa ${i + 1}`, f.faixas!.texto, cx - comp / 2, cy - l.esp / 2, comp, { fonte: 'poppins', peso: 800, tamanho: Math.round(l.esp * 0.56), cor: f.faixas!.corTexto, alinhamento: 'left' }), h: l.esp, rot, letreiro: { velocidade: 110, fundo: f.faixas!.cor } });
+    c.push({ ...texto(`Faixa ${i + 1}`, f.faixas!.texto, cx - comp / 2, cy - l.esp / 2, comp, { fonte: 'poppins', peso: 800, tamanho: Math.round(l.esp * 0.56), cor: f.faixas!.corTexto, alinhamento: 'left' }), h: l.esp, rot, letreiro: { velocidade: 110, fundo: f.faixas!.cor, sentido: 'direita' } });
   });
   const ti = px(f.titulo[formato]);
   if (logoEmCamadas) c.push(...camadasDaLogoDoSegmento(f.segmento as SegmentoComLogo, ti));

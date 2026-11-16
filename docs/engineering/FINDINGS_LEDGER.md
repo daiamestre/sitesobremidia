@@ -3534,3 +3534,20 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - quadros da abertura (frase e logo), do preço (estrela, faíscas e brilho), das chamas e estrelas, e da faixa diagonal no meio da troca;
   - MP4 real de 12,7 s (abertura, 2 produtos e fechamento), com a trilha e 10 efeitos sonoros nos instantes certos, lidos de dentro do arquivo.
   - Teste: `videoComImpacto34.test.ts`. Os testes antigos do palco passaram a conferir o palco com o impacto desligado, que continua existindo.
+
+### F-317 — Logos 3D de campanha caindo do céu, quebrando a parede e pegando fogo + faixa para a direita + sem "YOUR LOGO" (16/11/2026)
+- **Pedido do dono:** logos 3D gigantes como as dos vídeos de impacto do concorrente: caem de cima, batem no centro quebrando a parede, com som de impacto, e ficam pegando fogo (Fecha Mês, Queima de Estoque…). Gravar e anotar tudo do concorrente. Tirar o "YOUR LOGO" da placa vermelha (fica só "OFERTAS"). A faixa "ALERTA DE OFERTA" deve passar para a direita.
+- **Catálogo:** `docs/CATALOGO_IMPACTO_CONCORRENTE.md`, com os 16 vídeos, logos, entradas, efeitos, cenários, segmentos, o anúncio de produto e o locutor.
+- **Logos de campanha (nossas):** 10 campanhas em `logo3d.ts` (`CAMPANHAS_DE_IMPACTO`): Fecha Mês com o mês, Queima de Estoque, Black Friday, Esquenta, Fim de Semana, Mega Saldão, Dia de Economizar, Aniversário, Inauguração e Só Hoje. Todas aceitam complemento e usam dourado e vermelho FORTES. A arte guarda a "receita" (`logo3d:` + config) e desenha na hora: sem arquivo e editável.
+- **Entrada `cair-do-ceu`:** a logo vem gigante e inclinada, acelerando, bate, achata e assenta. Na batida (`efeitosDeImpacto.ts`):
+  - câmera tremendo;
+  - clarão e poeira;
+  - rachaduras curtas e recortadas com lava, em volta da batida;
+  - blocos de concreto voando por trás da logo;
+  - fogo atrás da logo, com brasas.
+  Sons: whoosh na queda e impacto na batida.
+- **Na abertura:** a logo da campanha fica na parte de cima e a frase embaixo. No fechamento ela entra com zoom.
+- **Painel de impacto:** escolha da campanha (padrão: Fecha Mês), mês ou complemento, e os botões "Logo caindo e quebrando" e "Fogo na logo".
+- **Faixa do Alerta de Oferta:** `letreiro.sentido = 'direita'`.
+- **"YOUR LOGO":** apagado das 4 imagens `alerta-de-oferta-*.webp`, pintado com o vermelho da própria placa. A borda amarela e o botão OFERTAS ficam.
+- **Teste:** `videoComImpacto34.test.ts` (11 casos).

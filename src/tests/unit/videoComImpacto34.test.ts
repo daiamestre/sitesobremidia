@@ -71,8 +71,8 @@ describe('P-34: vídeo com impacto', () => {
     const sons = p.sons ?? [];
     const ini = inicios(p.clipes);
     expect(sons[0]).toMatchObject({ som: 'sirene' });
-    expect(sons.filter((s) => s.som === 'whoosh')).toHaveLength(p.clipes.length - 1);
-    expect(sons.filter((s) => s.som === 'impacto').length).toBe(1 + produtos.length); // a frase da abertura + cada preço
+    expect(sons.filter((s) => s.som === 'whoosh')).toHaveLength(p.clipes.length - 1 + 1); // + a logo da campanha caindo (F-317)
+    expect(sons.filter((s) => s.som === 'impacto').length).toBe(1 + produtos.length + 1); // a frase da abertura + cada preço + a batida da logo (F-317)
     expect(sons.some((s) => s.som === 'caixa' && s.em > ini[ini.length - 1])).toBe(true);
     // sem efeitos sonoros / sem trilha
     const quieto = projetoDoCarrossel(produtos, '9:16', { ...o, movimento: { impacto: { sons: false, trilha: null } } });
@@ -127,5 +127,25 @@ describe('P-34: vídeo com impacto', () => {
     const palco = fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8');
     expect(palco).toContain('palco-cena-');
     expect(palco).toContain("if (nome === 'Abertura' || nome === 'Fechamento')");
+  });
+  it('F-317: a logo 3D da CAMPANHA cai do céu na abertura, quebra a parede e pega fogo (whoosh + impacto)', () => {
+    const ab = vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { campanha: 'queima-de-estoque', complemento: 'só sábado' } } }, 2.8);
+    const logo = ab.camadas.find((c) => c.nome === 'Logo da campanha') as { src: string; animacao: { tipo: string } };
+    expect(logo.src.startsWith('logo3d:')).toBe(true);
+    expect(decodeURIComponent(logo.src)).toContain('QUEIMA');
+    expect(decodeURIComponent(logo.src)).toContain('SÓ SÁBADO');
+    expect(logo.animacao.tipo).toBe('cair-do-ceu');
+    expect(ab.efeitos).toMatchObject({ quebra: true, fogo: true });
+    // o padrão é o FECHA MÊS; sem campanha, não tem logo
+    expect(decodeURIComponent((vinhetaDoPalco('abertura', produtos[0], '9:16', o, 2.8).camadas.find((c) => c.nome === 'Logo da campanha') as { src: string }).src)).toContain('FECHA');
+    expect(vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { campanha: null } } }, 2.8).camadas.some((c) => c.nome === 'Logo da campanha')).toBe(false);
+    const p = projetoDoCarrossel(produtos, '9:16', o);
+    const s0 = (p.sons ?? []).filter((x) => x.em < 1.2).map((x) => x.som);
+    expect(s0).toEqual(expect.arrayContaining(['sirene', 'whoosh', 'impacto']));
+  });
+  it('pedido do dono: a faixa ALERTA DE OFERTA passa para a DIREITA e a placa do fundo não tem mais "YOUR LOGO"', () => {
+    const d = palcoDoProduto(produtos[0], '9:16', o);
+    expect(d.camadas.find((c) => c.nome === 'Faixa 1')).toMatchObject({ letreiro: { sentido: 'direita' } });
+    expect(fs.readFileSync('src/lib/studio/desenhar.ts', 'utf8')).toContain("l.sentido === 'direita'");
   });
 });

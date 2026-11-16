@@ -44,7 +44,7 @@ export interface CamadaTexto extends CamadaBase {
   /** caixa/pílula atrás do texto; F-249: `cheio` = o botão ocupa a caixa toda, com o texto centralizado, e pode ter borda */
   fundo?: { cor: string; raio: number; margem: number; cheio?: boolean; borda?: { cor: string; largura: number } | null } | null;
   /** F-249: faixa com o texto passando em loop infinito (a caixa é a faixa; velocidade em px/s) */
-  letreiro?: { velocidade: number; fundo: string } | null;
+  letreiro?: { velocidade: number; fundo: string; /** pedido do dono (16/11/2026): para que lado o texto passa (padrão: esquerda) */ sentido?: 'esquerda' | 'direita' } | null;
   /** F-288: o texto ENCOLHE sozinho para caber na largura (textos da logo: trocar OFERTAS por PROMOÇÃO não estoura) */
   caber?: boolean;
 }
