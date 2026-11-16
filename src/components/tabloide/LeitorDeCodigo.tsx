@@ -39,6 +39,40 @@ async function criarDetector(): Promise<Detector> {
   return new BarcodeDetector({ formats: FORMATOS as never });
 }
 
+/**
+ * F-313 (pedido do dono): a CÂMERA DO APARELHO — o app de câmera do celular/tablet abre (input com capture), a pessoa tira a
+ * foto do código e o sistema lê da foto. Tenta a foto inteira e, se não achar, versões menores e o meio ampliado.
+ */
+export async function lerCodigoDaFoto(arquivo: Blob): Promise<string | null> {
+  const detector = await criarDetector();
+  const bmp = await createImageBitmap(arquivo);
+  const tentativas: Array<() => CanvasImageSource> = [
+    () => bmp,
+    ...[1600, 1100, 800].map((lado) => () => {
+      const k = Math.min(1, lado / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+      return c;
+    }),
+    () => { // o meio da foto, ampliado (código pequeno no centro)
+      const c = document.createElement('canvas');
+      const w = bmp.width * 0.6, h = bmp.height * 0.6;
+      c.width = Math.min(1600, Math.round(w)); c.height = Math.round(c.width * (h / w));
+      c.getContext('2d')!.drawImage(bmp, bmp.width * 0.2, bmp.height * 0.2, w, h, 0, 0, c.width, c.height);
+      return c;
+    },
+  ];
+  try {
+    for (const t of tentativas) {
+      const achados = await detector.detect(t()).catch(() => [] as Achado[]);
+      const c = achados.map((a) => a.rawValue.replace(/\D/g, '')).find((x) => codigoValido(x));
+      if (c) return c;
+    }
+    return null;
+  } finally { bmp.close?.(); }
+}
+
 /** quem está escrevendo em outro campo não tem a digitação "roubada" pela leitura da pistola */
 const escrevendo = (alvo: EventTarget | null) => {
   const el = alvo as HTMLElement | null;
@@ -52,6 +86,20 @@ export function LeitorDeCodigo({ aoLer }: { aoLer: (codigo: string) => boolean |
   const [valor, setValor] = useState('');
   const [camera, setCamera] = useState(false);
   const campo = useRef<HTMLInputElement>(null);
+  // F-313: a câmera do APARELHO (o app de câmera do celular/tablet) — tira a foto do código e o sistema lê
+  const fotoDoAparelho = useRef<HTMLInputElement>(null);
+  const [lendoFoto, setLendoFoto] = useState(false);
+  const lerFoto = async (arq: File | undefined) => {
+    if (!arq) return;
+    setLendoFoto(true);
+    try {
+      const c = await lerCodigoDaFoto(arq);
+      if (c) lerRef.current(c);
+      else { bipeDeErro(); toast.error('Não consegui ler o código nesta foto. Tire de novo, mais perto, com o código reto e bem iluminado.'); }
+    } catch { bipeDeErro(); toast.error('Não foi possível ler a foto. Tente de novo ou digite o código.'); }
+    finally { setLendoFoto(false); }
+  };
+  const abrirCameraDoAparelho = () => { prepararBipe(); fotoDoAparelho.current?.click(); };
 
   const ler = (bruto: string): boolean => {
     const c = bruto.replace(/\D/g, '');
@@ -101,20 +149,19 @@ export function LeitorDeCodigo({ aoLer }: { aoLer: (codigo: string) => boolean |
           className="flex h-10 shrink-0 items-center gap-1 rounded-md bg-[#5D1BFF] px-3 text-sm font-semibold text-white disabled:opacity-40" data-testid="tabloide-codigo-adicionar">
           <Plus className="h-4 w-4" />Adicionar
         </button>
-        {typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && (
-          <button type="button" onClick={() => { prepararBipe(); setCamera(true); }}
-            className="flex h-10 shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 hover:bg-slate-100" data-testid="tabloide-camera">
-            <Camera className="h-4 w-4" />Câmera
-          </button>
-        )}
+        <button type="button" disabled={lendoFoto} onClick={() => { prepararBipe(); if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia && window.isSecureContext) setCamera(true); else abrirCameraDoAparelho(); }}
+          className="flex h-10 shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-60" data-testid="tabloide-camera">
+          {lendoFoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}Câmera
+        </button>
+        <input ref={fotoDoAparelho} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void lerFoto(f); }} data-testid="tabloide-foto-aparelho" />
       </div>
       <p className="text-[11px] text-slate-500">Pistola de código de barras (USB ou Bluetooth), câmera do aparelho ou digitando. O produto entra com o nome, a marca, a medida e a foto certos; cada leitura faz um bipe. Depois é só digitar o preço na lista.</p>
-      {camera && <CameraDoCodigo aoLer={(c) => lerRef.current(c)} aoFechar={() => setCamera(false)} />}
+      {camera && <CameraDoCodigo aoLer={(c) => lerRef.current(c)} aoFechar={() => setCamera(false)} aoUsarCameraDoAparelho={() => { setCamera(false); abrirCameraDoAparelho(); }} />}
     </div>
   );
 }
 
-function CameraDoCodigo({ aoLer, aoFechar }: { aoLer: (c: string) => boolean; aoFechar: () => void }) {
+function CameraDoCodigo({ aoLer, aoFechar, aoUsarCameraDoAparelho }: { aoLer: (c: string) => boolean; aoFechar: () => void; aoUsarCameraDoAparelho: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [pronto, setPronto] = useState(false);
@@ -160,9 +207,9 @@ function CameraDoCodigo({ aoLer, aoFechar }: { aoLer: (c: string) => boolean; ao
       } catch (e) {
         const nome = (e as { name?: string }).name;
         setErro(nome === 'NotAllowedError' || nome === 'SecurityError'
-          ? 'A câmera foi bloqueada. Toque no cadeado ao lado do endereço do site, permita a Câmera e abra de novo.'
-          : nome === 'NotFoundError' ? 'Este aparelho não tem câmera disponível. Use a pistola ou digite o código.'
-          : 'Não foi possível abrir a câmera. Use a pistola ou digite o código.');
+          ? 'A câmera não foi autorizada. Toque no botão abaixo para abrir a câmera do aparelho e tirar a foto do código — ou toque no cadeado ao lado do endereço do site e permita a Câmera.'
+          : nome === 'NotFoundError' ? 'A câmera ao vivo não abriu neste aparelho. Toque no botão abaixo para usar a câmera do aparelho, a pistola ou digite o código.'
+          : 'A câmera ao vivo não abriu. Toque no botão abaixo para usar a câmera do aparelho e tirar a foto do código.');
       }
     })();
     return () => { vivo = false; clearTimeout(relogio); fluxo?.getTracks().forEach((t) => t.stop()); };
@@ -175,8 +222,13 @@ function CameraDoCodigo({ aoLer, aoFechar }: { aoLer: (c: string) => boolean; ao
         {flash && <div aria-hidden className="pointer-events-none absolute inset-0 bg-[#25D366]/25" />}
       </div>
       <p className="flex max-w-md items-center gap-2 text-center text-sm text-white" role="status">
-        {erro ?? (pronto ? 'Aponte para o código de barras · cada produto lido faz um bipe e entra na lista' : <><Loader2 className="h-4 w-4 animate-spin" />Abrindo a câmera…</>)}
+        {erro ?? (pronto ? 'Aponte para o código de barras · cada produto lido faz um bipe e entra na lista' : <><Loader2 className="h-4 w-4 animate-spin" />Abrindo a câmera do aparelho… se aparecer o pedido, toque em Permitir</>)}
       </p>
+      {/* F-313: se a câmera ao vivo não abrir (ou a pessoa preferir), o app de câmera do aparelho tira a foto do código */}
+      <button type="button" onClick={aoUsarCameraDoAparelho}
+        className={`flex h-11 items-center gap-1.5 rounded-xl px-5 text-sm font-bold ${erro ? 'bg-[#FFD400] text-[#22004A]' : 'border border-white/30 text-white'}`} data-testid="leitor-camera-do-aparelho">
+        <Camera className="h-4 w-4" />{erro ? 'Abrir a câmera do aparelho e tirar a foto do código' : 'Usar a câmera do aparelho (tirar foto)'}
+      </button>
       {lidos.length > 0 && (
         <ul className="flex max-w-md flex-wrap justify-center gap-1.5" aria-label="Códigos lidos" data-testid="leitor-lidos">
           {lidos.map((c, i) => <li key={c + i} className="flex items-center gap-1 rounded-full bg-[#25D366]/20 px-2 py-0.5 font-mono text-xs text-[#7dffb0]"><Check className="h-3 w-3" />{c}</li>)}

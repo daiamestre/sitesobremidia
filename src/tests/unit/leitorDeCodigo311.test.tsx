@@ -63,6 +63,15 @@ describe('F-311: leitor de código de barras', () => {
     expect(bipe).toMatch(/tom\(c, 2730/);
   });
 
+  it('F-313: a CÂMERA DO APARELHO (app de câmera) tira a foto do código e o sistema lê da foto', () => {
+    const leitor = fs.readFileSync('src/components/tabloide/LeitorDeCodigo.tsx', 'utf8');
+    expect(leitor).toContain('capture="environment"');
+    expect(leitor).toContain('export async function lerCodigoDaFoto(');
+    expect(leitor).toContain('data-testid="leitor-camera-do-aparelho"');
+    render(<LeitorDeCodigo aoLer={() => true} />);
+    expect(screen.getByTestId('tabloide-foto-aparelho').getAttribute('capture')).toBe('environment');
+  });
+
   it('produto repetido devolve false (bipe de erro) no Studio e no Cartaz Digital', () => {
     expect(fs.readFileSync('src/components/studio/ProdutosComFotos.tsx', 'utf8')).toContain("toast.info('Este produto já está na lista.'); return false; }");
     expect(fs.readFileSync('src/components/tabloide/TabloideEditor.tsx', 'utf8')).toContain("toast.info('Este produto já está no cartaz.'); return false; }");
