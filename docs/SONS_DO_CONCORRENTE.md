@@ -35,3 +35,20 @@ Nenhum dos 68 efeitos gratuitos testados é o mesmo arquivo deles. O mais pareci
   - o estilo **impacto** gera a voz mais solta e expressiva, um pouco mais rápida (`AJUSTE_IMPACTO` em `studio-locucao`);
   - o motor passa toda locução pela **voz de rádio** (`vozDeRadio`): corte de grave, presença em 3 kHz, brilho e compressão 4:1;
   - a música desce para 30% sob a voz.
+
+## Locutor e origem dos sons (pesquisa de 16/11/2026, noite)
+
+Fonte: os arquivos JavaScript públicos do app "Vídeo de Ofertas IA" do concorrente (sem login).
+
+- **Vozes:** o app oferece 8 vozes da ElevenLabs: Diego, Pingão, Letícia, Maurinho, Brunão, Peet, Ivan e Luan ("locutor convidado").
+  - Foram varridas 14.240 vozes da biblioteca pública da ElevenLabs. **Só o Diego é público**, e ele já é uma das vozes da SOBRE MÍDIA.
+  - As outras 7 são vozes **privadas da conta deles**, clones ou vozes criadas. Nenhuma outra conta consegue usá-las.
+  - Clonar a voz de uma pessoa (o "Luan" é um locutor real) só com a autorização escrita dela.
+- **Efeitos:** o app deles só tem um "whoosh" sintetizado.
+  - Os vídeos "Fecha Mês" usam **trilhas completas feitas sob encomenda**, com os efeitos já misturados: `FECHA_MES_DE_JULHO.mp3`, `FECHA_MES_DE_AGOSTO.mp3`, `SUSPENSE_FECHA_MES_DE_JULHO_2026.mp3` e `fundo_fecha_mes_de_outubro.mp3`.
+  - Por isso nenhum efeito avulso de biblioteca bate 100%: o arquivo exato não está à venda nem é gratuito.
+  - Essas trilhas são material deles e **não entram** no sistema.
+- **Caminhos legítimos para ficar igual:**
+  - encomendar a um produtor de áudio as vinhetas e batidas no mesmo estilo;
+  - contratar um locutor de varejo, com autorização escrita para o clone;
+  - imitar a cadência pelo roteiro (pausas, gritos, frases curtas).
