@@ -126,21 +126,48 @@ export function fechamentoPadrao(segmento: SegmentoDoStudio, loja: string): stri
   return base;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// F-318 (pedido do dono): o ESTILO "IMPACTO" — o jeito do locutor de varejo dos comerciais de TV aberta e dos vídeos de impacto
+// (frases curtas, ênfase no fim, urgência e o nome da loja: "Só essa semana!", "Preço baixo é aqui!"). Texto nosso.
+// ---------------------------------------------------------------------------------------------------------------------
+const CHAMADAS = ['Olha só!', 'E tem mais!', 'Corre que é pouco!', 'Preço no chão!', 'Aproveita!', 'Atenção!', 'Só aqui!', 'Pode conferir!'];
+/** Abertura de impacto: "Atenção, atenção! Só essa semana, no Mercado X: preço baixo é aqui!" */
+export function aberturaDeImpacto(segmento: SegmentoDoStudio, loja: string): string {
+  const l = loja.trim();
+  const onde = l ? `${doDa(l) === 'da' ? 'na' : 'no'} ${l}` : (LOJA_DO_SEGMENTO[segmento]?.startsWith('sua') ? 'na ' : 'no ') + (LOJA_DO_SEGMENTO[segmento] ?? 'sua loja');
+  return `Atenção, atenção! Só essa semana, ${onde}: preço baixo é aqui!`;
+}
+/** Oferta de impacto: uma chamada que muda a cada produto + o nome + "por apenas" o preço */
+export function ofertaDeImpacto(p: ProdutoDaLocucao, i: number): string {
+  if (p.preco == null) return `${CHAMADAS[i % CHAMADAS.length]} ${nomeFalado(p.nome)}!`;
+  const de = p.precoDe != null && p.precoDe > p.preco ? `, de ${precoFalado(p.precoDe)}` : '';
+  return `${CHAMADAS[i % CHAMADAS.length]} ${nomeFalado(p.nome)}${de}, por apenas ${precoFalado(p.preco)}${unidadeFalada(p.unidade)}!`;
+}
+/** Fechamento de impacto (farmácia e adega levam o aviso obrigatório) */
+export function fechamentoDeImpacto(segmento: SegmentoDoStudio, loja: string): string {
+  const l = loja.trim();
+  const base = `Pode rodar a cidade inteira: preço baixo é aqui${l ? `, ${doDa(l) === 'da' ? 'na' : 'no'} ${l}` : ''}! Só essa semana!`;
+  if (segmento === 'farmacia') return `${base} A persistirem os sintomas, o médico deverá ser consultado.`;
+  if (segmento === 'adega') return `${base} Beba com moderação. Venda proibida para menores de dezoito anos.`;
+  return base;
+}
+
 export interface FraseDoRoteiro { chave: string; tipo: 'abertura' | 'oferta' | 'fechamento'; texto: string; produto?: string }
 
 /**
  * O ROTEIRO completo: abertura, uma frase por produto (na ordem do palco) e fechamento.
  * `textos` guarda o que a pessoa reescreveu (pela chave): o agente nunca troca em silêncio o que ela escreveu.
  */
-export function roteiroDaLocucao(o: { segmento: SegmentoDoStudio; loja: string; produtos: ProdutoDaLocucao[]; textos?: Record<string, string>; abertura?: boolean; fechamento?: boolean }): FraseDoRoteiro[] {
+export function roteiroDaLocucao(o: { segmento: SegmentoDoStudio; loja: string; produtos: ProdutoDaLocucao[]; textos?: Record<string, string>; abertura?: boolean; fechamento?: boolean; /** F-318: 'impacto' = o jeito do locutor de varejo de TV */ estilo?: 'simples' | 'impacto' }): FraseDoRoteiro[] {
   const t = o.textos ?? {};
   const r: FraseDoRoteiro[] = [];
-  if (o.abertura !== false) r.push({ chave: 'abertura', tipo: 'abertura', texto: t.abertura?.trim() || aberturaPadrao(o.segmento, o.loja) });
-  for (const p of o.produtos) {
+  const impacto = o.estilo === 'impacto';
+  if (o.abertura !== false) r.push({ chave: 'abertura', tipo: 'abertura', texto: t.abertura?.trim() || (impacto ? aberturaDeImpacto(o.segmento, o.loja) : aberturaPadrao(o.segmento, o.loja)) });
+  o.produtos.forEach((p, i) => {
     const chave = `oferta:${p.nome.trim().toLowerCase()}`;
-    r.push({ chave, tipo: 'oferta', produto: p.nome, texto: t[chave]?.trim() || fraseDaOferta(p) });
-  }
-  if (o.fechamento !== false) r.push({ chave: 'fechamento', tipo: 'fechamento', texto: t.fechamento?.trim() || fechamentoPadrao(o.segmento, o.loja) });
+    r.push({ chave, tipo: 'oferta', produto: p.nome, texto: t[chave]?.trim() || (impacto ? ofertaDeImpacto(p, i) : fraseDaOferta(p)) });
+  });
+  if (o.fechamento !== false) r.push({ chave: 'fechamento', tipo: 'fechamento', texto: t.fechamento?.trim() || (impacto ? fechamentoDeImpacto(o.segmento, o.loja) : fechamentoPadrao(o.segmento, o.loja)) });
   return r;
 }
 

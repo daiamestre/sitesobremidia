@@ -44,7 +44,8 @@ export function PainelDeLocucao({ segmento, produtos, aoMudar, automatica = fals
   useEffect(() => { try { localStorage.setItem(CHAVE_LOJA, loja); } catch { /* sem armazenamento */ } }, [loja]);
   useEffect(() => () => player.current?.pause(), []);
 
-  const roteiro = useMemo(() => roteiroDaLocucao({ segmento, loja, produtos, textos: e.textos }), [segmento, loja, produtos, e.textos]);
+  // F-318: o roteiro sai no ESTILO IMPACTO (locutor de varejo de TV: "Só essa semana!", "Preço baixo é aqui!")
+  const roteiro = useMemo(() => roteiroDaLocucao({ segmento, loja, produtos, textos: e.textos, estilo: 'impacto' }), [segmento, loja, produtos, e.textos]);
   const pronta = (k: string, texto: string) => { const f = e.falas[k]; return f && f.voz === e.voz && f.texto === texto ? f : null; };
   const faltam = roteiro.filter((f) => !pronta(f.chave, f.texto));
   const letras = letrasDoRoteiro(faltam);

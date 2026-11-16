@@ -3551,3 +3551,12 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Faixa do Alerta de Oferta:** `letreiro.sentido = 'direita'`.
 - **"YOUR LOGO":** apagado das 4 imagens `alerta-de-oferta-*.webp`, pintado com o vermelho da própria placa. A borda amarela e o botão OFERTAS ficam.
 - **Teste:** `videoComImpacto34.test.ts` (11 casos).
+
+### F-318 — Locutor no ESTILO IMPACTO, o varejo de TV aberta (16/11/2026)
+- **Pedido do dono:** o anúncio no estilo do locutor dos vídeos de impacto: "só essa semana", "preço baixo é aqui".
+- **Feito (`locucao.ts`):** o roteiro tem `estilo: 'impacto'` e o painel da locução usa esse estilo.
+  - Abertura: "Atenção, atenção! Só essa semana, no {LOJA}: preço baixo é aqui!"
+  - Cada produto abre com uma chamada que muda ("Olha só!", "E tem mais!", "Corre que é pouco!", "Preço no chão!"…) + o nome + "por apenas" + o preço.
+  - Fechamento: "Pode rodar a cidade inteira: preço baixo é aqui, no {LOJA}! Só essa semana!" (farmácia e adega mantêm o aviso).
+  - O que a pessoa reescreve continua valendo. O servidor só fala o texto recebido e não muda nada.
+- **A voz:** identificar uma pessoa pela voz e copiar a voz de um locutor real sem autorização dele está fora do que fazemos (direito de personalidade e risco jurídico). A biblioteca da ElevenLabs foi consultada sem gastar crédito: das vozes brasileiras de propaganda, **Leonardo** (varejo) e **Diego** (comercial) já estão no sistema. Victor Pinho e Weverton (enérgicos) ficam para o dono ouvir e aprovar.

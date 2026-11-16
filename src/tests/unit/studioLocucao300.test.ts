@@ -95,3 +95,16 @@ describe('F-301: exportação quadro a quadro (TV e painel de LED)', () => {
     expect(editor).toContain('motor.current!.exportarQuadroAQuadro(q.o');
   });
 });
+
+import { aberturaDeImpacto, fechamentoDeImpacto, ofertaDeImpacto } from '@/lib/studio/locucao';
+describe('F-318: o roteiro no ESTILO IMPACTO (locutor de varejo de TV)', () => {
+  it('abertura com urgência e a loja, chamada que muda a cada produto, fechamento "preço baixo é aqui"', () => {
+    expect(aberturaDeImpacto('mercado', 'Mercadinho Economia')).toBe('Atenção, atenção! Só essa semana, no Mercadinho Economia: preço baixo é aqui!');
+    expect(aberturaDeImpacto('farmacia', 'Farmácia São João')).toContain('na Farmácia São João');
+    expect(ofertaDeImpacto({ nome: 'Arroz Tio João 5kg', preco: 24.99 }, 0)).toBe('Olha só! Arroz Tio João, cinco quilos, por apenas vinte e quatro e noventa e nove!');
+    expect(ofertaDeImpacto({ nome: 'Feijão', preco: 6.99 }, 1).startsWith('E tem mais!')).toBe(true);
+    expect(fechamentoDeImpacto('mercado', 'Mercadinho Economia')).toBe('Pode rodar a cidade inteira: preço baixo é aqui, no Mercadinho Economia! Só essa semana!');
+    expect(fechamentoDeImpacto('farmacia', '')).toContain('A persistirem os sintomas');
+    expect(fs.readFileSync('src/components/studio/PainelDeLocucao.tsx', 'utf8')).toContain("estilo: 'impacto'");
+  });
+});
