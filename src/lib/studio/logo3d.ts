@@ -412,3 +412,45 @@ export async function logoParaPng(cfg: ConfigLogo3D, largura = 1800, altura = 10
   corte.getContext('2d')!.drawImage(tela, x0, y0, corte.width, corte.height, 0, 0, corte.width, corte.height);
   return await new Promise<Blob>((ok, falha) => corte.toBlob((b) => (b ? ok(b) : falha(new Error('Não foi possível gerar o PNG do logo.'))), 'image/png'));
 }
+
+// ───────────────────────────────────────── F-317: LOGOS 3D DE CAMPANHA (vídeos de impacto)
+/**
+ * F-317 (pedido do dono, 16/11/2026): as logos 3D de CAMPANHA dos vídeos de impacto — "FECHA MÊS", "QUEIMA DE ESTOQUE",
+ * "BLACK FRIDAY"… — no padrão de varejo (face dourada, chanfro, volume vermelho, contorno), desenhadas por nós com o mesmo
+ * criador dos logos 3D. Entram na abertura do vídeo caindo do céu, quebrando a parede e pegando fogo.
+ */
+/** dourado e vermelho FORTES (o dourado de fábrica começa claro e as letras grandes ficavam cor de creme) */
+const OURO_FORTE: PinturaDeLetra = { face: ['#ffe45c', '#ffc400', '#f29900', '#b85c00'], volume: ['#b3101f', '#3d0006'], contorno: '#ffffff', chanfro: '#fff3b0' };
+const VERMELHO_FORTE: PinturaDeLetra = { face: ['#ff5a5a', '#e8122a', '#b30d20', '#6e0510'], volume: ['#f2a900', '#7a4600'], contorno: '#ffffff', chanfro: '#ffd0a0' };
+const PRETO_OURO: PinturaDeLetra = { face: ['#6b6b6b', '#2e2e2e', '#151515', '#000000'], volume: ['#f2a900', '#7a4600'], contorno: '#ffd21f', chanfro: '#d9d9d9' };
+const FOGO: PinturaDeLetra = { face: ['#ffe45c', '#ffb000', '#ff6a00', '#c41f00'], volume: ['#7a0d00', '#2e0400'], contorno: '#ffffff', chanfro: '#fff1a8' };
+const MESES = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+/** o mês de agora, por extenso (o "FECHA MÊS DE NOVEMBRO") */
+export const mesAtual = (d = new Date()) => MESES[d.getMonth()];
+
+export interface CampanhaDeImpacto { id: string; nome: string; /** monta o logo (o complemento é o mês, a data ou o texto que o cliente escreveu) */ logo: (complemento: string) => ConfigLogo3D }
+const C = (estilo: string, linhas: LinhaDoLogo[], extra: Partial<ConfigLogo3D> = {}): ConfigLogo3D => ({ estilo, fonte: 'archivo', profundidade: 20, direcao: 95, inclinacao: -5, arco: 0.06, fundo: 'nenhum', corFundo: ['#d90f1f', '#7a0712'], enfeites: ['moedas', 'brilhos'], linhas, ...extra });
+export const CAMPANHAS_DE_IMPACTO: CampanhaDeImpacto[] = [
+  { id: 'fecha-mes', nome: 'Fecha Mês', logo: (m) => C('fecha-mes', [L('FECHA', 0.82, OURO_FORTE), L('MÊS', 1.25, OURO_FORTE), L(m || mesAtual(), 0.42, VERMELHO_FORTE, { cor: '#d90f1f', texto: 'DE' })]) },
+  { id: 'queima-de-estoque', nome: 'Queima de Estoque', logo: (m) => C('queima-de-estoque', [L('QUEIMA', 1.1, FOGO), L('ESTOQUE', 0.82, VERMELHO_FORTE, { cor: '#ff7a00', texto: 'DE' }), ...(m ? [L(m, 0.38, OURO)] : [])], { enfeites: ['brilhos'], fonte: 'anton', inclinacao: -6 }) },
+  { id: 'black-friday', nome: 'Black Friday', logo: (m) => C('black-friday', [L('BLACK', 1.1, PRETO_OURO), L('FRIDAY', 0.95, OURO_FORTE), ...(m ? [L(m, 0.38, OURO)] : [])], { enfeites: ['brilhos'] }) },
+  { id: 'esquenta-black', nome: 'Esquenta Black Friday', logo: () => C('esquenta-black', [L('ESQUENTA', 0.5, FOGO), L('BLACK', 1.05, PRETO_OURO), L('FRIDAY', 0.9, OURO_FORTE)], { enfeites: ['brilhos'] }) },
+  { id: 'fim-de-semana', nome: 'Fim de Semana da Economia', logo: () => C('fim-de-semana', [L('FIM DE SEMANA', 0.62, OURO), L('ECONOMIA', 1, OURO_FORTE, { cor: '#d90f1f', texto: 'DA' })], { enfeites: ['moedas', 'brilhos'] }) },
+  { id: 'mega-saldao', nome: 'Mega Saldão', logo: (m) => C('mega-saldao', [L('MEGA', 0.75, VERMELHO_FORTE), L('SALDÃO', 1.15, OURO_FORTE), ...(m ? [L(m, 0.38, OURO)] : [])]) },
+  { id: 'dia-de-economizar', nome: 'O Dia de Economizar Chegou', logo: () => C('dia-de-economizar', [L('O DIA DE', 0.45, PRATA), L('ECONOMIZAR', 1, OURO_FORTE), L('CHEGOU!', 0.55, VERMELHO_FORTE)], { inclinacao: -8 }) },
+  { id: 'aniversario', nome: 'Aniversário', logo: (m) => C('aniversario', [L('ANIVERSÁRIO', 1, OURO_FORTE), L(m || 'OFERTAS', 0.6, VERMELHO_FORTE, m ? null : { cor: '#d90f1f', texto: 'DE' })], { enfeites: ['estrelas', 'brilhos'] }) },
+  { id: 'inauguracao', nome: 'Inauguração', logo: (m) => C('inauguracao', [L('INAUGURAÇÃO', 1, OURO_FORTE), ...(m ? [L(m, 0.45, VERMELHO_FORTE)] : [])], { enfeites: ['estrelas', 'brilhos'] }) },
+  { id: 'so-hoje', nome: 'Só Hoje', logo: (m) => C('so-hoje', [L('SÓ', 0.7, OURO), L('HOJE!', 1.2, VERMELHO_FORTE), ...(m ? [L(m, 0.38, OURO)] : [])], { enfeites: ['sirene', 'brilhos'], fonte: 'anton' }) },
+];
+export const campanhaPorId = (id: string | null | undefined) => CAMPANHAS_DE_IMPACTO.find((c) => c.id === id) ?? null;
+
+/** F-317: endereço que a arte entende como "desenhe este logo 3D" (fica no documento, sem arquivo: editável e sem envio) */
+export const enderecoDoLogo3D = (cfg: ConfigLogo3D) => `logo3d:${encodeURIComponent(JSON.stringify(cfg))}`;
+/** F-317: o logo 3D como imagem (recortada, fundo transparente) para a arte desenhar */
+export async function logoParaImagem(cfg: ConfigLogo3D, largura = 1600, altura = 1000): Promise<HTMLImageElement | null> {
+  try {
+    const png = await logoParaPng(cfg, largura, altura);
+    const url = URL.createObjectURL(png);
+    return await new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = url; });
+  } catch { return null; }
+}

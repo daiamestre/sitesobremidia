@@ -12,6 +12,7 @@ import { corDoDocumento, escurecer } from './corDaArte';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel, type SegmentoComLogo } from './logoEditavel';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
+import { enderecoDoLogo3D } from './logo3d';
 import { SONS, impactoResolvido, type ImpactoDoPalco, type ImpactoResolvido, type SomNoVideo } from './impacto';
 
 export interface OpcoesDoPalco {
@@ -446,7 +447,12 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
   const area: Caixa = f
     ? (() => { const a = f.produto[formato], n = f.nome_[formato]; const x = Math.min(a.x, n.x), y = Math.min(a.y, n.y); return { x: x * W, y: y * H, w: (Math.max(a.x + a.w, n.x + n.w) - x) * W, h: (Math.max(a.y + a.h, n.y + n.h) - y) * H }; })()
     : { x: W * 0.06, y: H * 0.3, w: W * 0.88, h: H * 0.42 };
-  const frase = fraseDeImpacto(tipo === 'abertura' ? 'Frase da abertura' : 'Frase do fechamento', tipo === 'abertura' ? i.textoAbertura : i.textoFechamento, area, cor);
+  // F-317: com a logo de CAMPANHA, ela fica com a parte de cima da área (cai do céu e bate ali) e a frase vai para baixo
+  const camp = i.campanha;
+  const largo = Math.min(W * 0.98, area.w * 1.22);
+  const caixaLogo: Caixa = { x: area.x + (area.w - largo) / 2, y: area.y - area.h * 0.06, w: largo, h: area.h * 0.7 };
+  const caixaFrase: Caixa = camp ? { x: area.x, y: area.y + area.h * 0.66, w: area.w, h: area.h * 0.34 } : area;
+  const frase = fraseDeImpacto(tipo === 'abertura' ? 'Frase da abertura' : 'Frase do fechamento', tipo === 'abertura' ? i.textoAbertura : i.textoFechamento, caixaFrase, cor);
   const fora = new Set(['Produto', 'Nome do produto', 'Preço']);
   const camadas: Camada[] = d.camadas.filter((c) => !fora.has(c.nome)).map((c) => {
     // a logo gravada no fundo vira camada (para chegar gigante): o fundo passa a ser o sem logo
@@ -454,11 +460,15 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
     if (c.nome === 'Logo do palco') return { ...c, opacidade: 1, animacao: ani('chegar-gigante', 0.05, 0.8, 'respirar') };
     return c;
   });
-  camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? 0.55 : 0.35, 0.5, 'pulsar') });
+  if (camp) {
+    const logo = imagem('Logo da campanha', enderecoDoLogo3D(camp.logo(i.complemento)), caixaLogo.x, caixaLogo.y, caixaLogo.w, caixaLogo.h, { ajuste: 'conter' });
+    camadas.push({ ...logo, id: logo.nome, animacao: tipo === 'abertura' ? ani('cair-do-ceu', 0.25, 0.7, 'respirar') : ani('zoom', 0.1, 0.5, 'respirar') });
+  }
+  camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? (camp ? 1.35 : 0.55) : (camp ? 0.7 : 0.35), 0.5, 'pulsar') });
   // P-34 (pedido do dono): tudo da abertura/fechamento se edita — o que o cliente mudou NESTA cena vale só nela
   const a = o.ajustes?.[formato] ?? {};
   const editadas = camadas.map((c) => { const p = a[chaveDaCena(c.nome, tipo)]; return p ? ({ ...c, ...p, id: c.nome } as Camada) : c; });
-  return { ...d, camadas: editadas, video: { duracao: segundos } };
+  return { ...d, camadas: editadas, efeitos: { ...(d.efeitos ?? {}), quebra: i.queda, fogo: i.fogoNaLogo }, video: { duracao: segundos } };
 }
 
 /** O CARROSSEL: um clipe por produto (nome e preço de cada vez), deslizando de um para o outro. */
@@ -487,6 +497,12 @@ function sonsDoVideo(p: ProjetoDeVideo, i: ImpactoResolvido): SomNoVideo[] {
     if (k === 0 && i.sirene) sons.push({ som: 'sirene', em: t0 + 0.05 });
     if (k > 0 && c.transicao) sons.push({ som: 'whoosh', em: Math.max(0, t0 - 0.12) });
     const camadas = c.documento?.camadas ?? [];
+    // F-317: a logo de campanha cai (whoosh) e bate (impacto)
+    const cai = camadas.find((x) => x.animacao?.tipo === 'cair-do-ceu' && x.visivel);
+    if (cai?.animacao) {
+      sons.push({ som: 'whoosh', em: t0 + cai.animacao.atraso });
+      sons.push({ som: 'impacto', em: Math.max(0, t0 + cai.animacao.atraso + cai.animacao.duracao - 0.05), volume: SONS.impacto.volume * 1.2 });
+    }
     const estoura = camadas.find((x) => (x.nome === 'Preço' || x.nome.startsWith('Frase d')) && x.animacao?.tipo === 'estourar' && x.visivel);
     if (estoura?.animacao) {
       const pico = t0 + estoura.animacao.atraso + estoura.animacao.duracao * 0.55;

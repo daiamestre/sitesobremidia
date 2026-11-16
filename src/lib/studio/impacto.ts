@@ -3,6 +3,7 @@
 // em cada troca, impacto quando o preço estoura), efeitos visuais (chamas, estrelas, câmera na mão, explosão no preço),
 // abertura e fechamento com a logo. Trilhas GRATUITAS do Pixabay; os efeitos sonoros já existentes ficam (sem gasto novo).
 import type { SegmentoDoStudio } from './palco';
+import { campanhaPorId, type CampanhaDeImpacto } from './logo3d';
 
 /**
  * As trilhas são GRATUITAS, do Pixabay (Licença de Conteúdo do Pixabay: uso comercial em vídeo, sem pagar e sem crédito; não
@@ -54,11 +55,18 @@ export interface ImpactoDoPalco {
   /** abertura (logo gigante + frase) e fechamento */
   vinhetas?: boolean;
   textoAbertura?: string; textoFechamento?: string;
+  /** F-317: a logo 3D da CAMPANHA (fecha-mes, queima-de-estoque, black-friday…); null = sem logo de campanha */
+  campanha?: string | null;
+  /** F-317: o complemento da logo (o mês, "DIA 31", o texto do cliente) */
+  complemento?: string;
+  /** F-317: a logo cai quebrando a parede e fica pegando fogo */
+  queda?: boolean; fogoNaLogo?: boolean;
 }
 export interface ImpactoResolvido {
   ligado: boolean; chamas: boolean; estrelas: boolean; camera: boolean; explosao: boolean;
   sons: boolean; sirene: boolean; trilha: Trilha | null; volumeTrilha: number; vinhetas: boolean;
   textoAbertura: string; textoFechamento: string;
+  campanha: CampanhaDeImpacto | null; complemento: string; queda: boolean; fogoNaLogo: boolean;
 }
 export function impactoResolvido(i: ImpactoDoPalco | undefined, segmento: SegmentoDoStudio | undefined, loja = ''): ImpactoResolvido {
   const ligado = !i?.desligado;
@@ -72,5 +80,8 @@ export function impactoResolvido(i: ImpactoDoPalco | undefined, segmento: Segmen
     vinhetas: ligado && i?.vinhetas !== false,
     textoAbertura: (i?.textoAbertura ?? '').trim() || (l ? `${l}\nOFERTAS IMPERDÍVEIS` : 'OFERTAS\nIMPERDÍVEIS'),
     textoFechamento: (i?.textoFechamento ?? '').trim() || (l ? `APROVEITE!\n${l}` : 'APROVEITE!\nVENHA CONFERIR'),
+    campanha: ligado && i?.vinhetas !== false && i?.campanha !== null ? campanhaPorId(i?.campanha ?? 'fecha-mes') : null,
+    complemento: (i?.complemento ?? '').trim().toUpperCase(),
+    queda: ligado && i?.queda !== false, fogoNaLogo: ligado && i?.fogoNaLogo !== false,
   };
 }

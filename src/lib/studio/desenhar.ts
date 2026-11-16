@@ -7,13 +7,20 @@ import {
   type Camada, type CamadaForma, type CamadaImagem, type CamadaItens, type CamadaRedes, type CamadaSelo, type CamadaTexto, type CamadaVaga, type Degrade, type Documento, type RedeSocial,
 } from './documento';
 import { duracaoDoVideo, estadoNoTempo } from './animacao';
-import { aplicarCamera, desenharChamas, desenharEstrelas, desenharExplosaoAtras, desenharExplosaoFrente, indiceDoFundo } from './efeitosDeImpacto';
+import { logoParaImagem } from './logo3d';
+import { aplicarCamera, desenharChamas, desenharEstrelas, desenharExplosaoAtras, desenharExplosaoFrente, desenharFogoNaLogo, desenharQuebraAtras, desenharQuebraFrente, indiceDoFundo, instanteDoImpacto, tremorDoImpacto } from './efeitosDeImpacto';
 
 export type Imagens = Map<string, HTMLImageElement>;
 
 const cache = new Map<string, Promise<HTMLImageElement | null>>();
 export function carregarImagem(src: string): Promise<HTMLImageElement | null> {
   let p = cache.get(src);
+  // F-317: logo 3D de campanha desenhado na hora (o documento guarda a receita, não um arquivo)
+  if (!p && src.startsWith('logo3d:')) {
+    p = (async () => { try { const cfg = JSON.parse(decodeURIComponent(src.slice(7))); return await logoParaImagem(cfg); } catch { return null; } })();
+    cache.set(src, p);
+    return p;
+  }
   if (!p) {
     p = new Promise((ok) => {
       const externa = /^https?:/.test(src) && !src.startsWith(location.origin);
@@ -416,8 +423,20 @@ export function desenharDocumento(ctx: CanvasRenderingContext2D, d: Documento, i
   const iFundo = fx ? indiceDoFundo(d) : -1;
   const particulas = () => { if (fx?.chamas) desenharChamas(ctx, tempo!, w, h); if (fx?.estrelas) desenharEstrelas(ctx, tempo!, w, h); };
   if (fx && iFundo < 0) particulas();
+  // F-317: a câmera treme quando a logo de campanha bate no centro
+  if (fx?.quebra) for (const c of d.camadas) { const ti = instanteDoImpacto(c); const tr = ti != null ? tremorDoImpacto(tempo!, ti, w, h) : null; if (tr) { ctx.translate(tr.dx, tr.dy); break; } }
   d.camadas.forEach((c, i) => {
     if (c.id === ocultar) return;
+    // F-317: a logo que cai do céu — atrás dela as rachaduras e o fogo; na frente os blocos, a poeira e o clarão
+    if (fx && (fx.quebra || fx.fogo) && instanteDoImpacto(c) != null) {
+      const ti = instanteDoImpacto(c)!;
+      if (fx.quebra) desenharQuebraAtras(ctx, c, tempo!, w, h, !!fx.fogo);
+      else if (tempo! >= ti) desenharFogoNaLogo(ctx, c, tempo!, Math.min(1, (tempo! - ti) / 0.35));
+      desenharCamada(ctx, c, imgs, escala, tempo, total, rapido);
+      if (fx.quebra) desenharQuebraFrente(ctx, c, tempo!, w, h);
+      if (i === iFundo) particulas();
+      return;
+    }
     if (fx?.camera && i === iFundo) { ctx.save(); aplicarCamera(ctx, tempo!, w, h); desenharCamada(ctx, c, imgs, escala, tempo, total, rapido); ctx.restore(); }
     else if (fx?.explosao && c.nome === 'Preço') {
       desenharExplosaoAtras(ctx, c, tempo!, total, d.corTema ?? '#d40c0c');

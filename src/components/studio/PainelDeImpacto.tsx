@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Flame, Music2, Pause, Play, Sparkles, Volume2, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SONS, TRILHAS, impactoResolvido, type ImpactoDoPalco, type SomDeImpacto } from '@/lib/studio/impacto';
+import { CAMPANHAS_DE_IMPACTO, mesAtual } from '@/lib/studio/logo3d';
 import type { SegmentoDoStudio } from '@/lib/studio/palco';
 
 const VISUAIS: Array<{ k: 'chamas' | 'estrelas' | 'camera' | 'explosao'; nome: string }> = [
@@ -122,6 +123,32 @@ export function PainelDeImpacto({ impacto, segmento, loja, aoMudar, compacto = f
               <p className="flex flex-1 items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#B04DFF]"><Sparkles className="h-3.5 w-3.5" />Abertura e fechamento</p>
               <Chave ligado={i.vinhetas} aoMudar={(v) => mudar({ vinhetas: v })} rotulo="Abertura e fechamento" testid="impacto-vinhetas" />
             </div>
+            {/* F-317: a LOGO 3D DA CAMPANHA — cai do céu, bate no centro quebrando a parede e fica pegando fogo */}
+            {i.vinhetas && (
+              <div className="space-y-2 rounded-lg border border-[#FFD400]/30 bg-[#FFD400]/5 p-2" data-testid="impacto-campanha">
+                <label className="block text-[11px] text-slate-300">Logo 3D da campanha
+                  <select value={impacto?.campanha === null ? '' : (impacto?.campanha ?? 'fecha-mes')} onChange={(e) => mudar({ campanha: e.target.value || null })} data-testid="impacto-campanha-escolha"
+                    className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-[#0f0428] px-2 text-sm font-semibold text-white focus:border-[#B04DFF] focus:outline-none">
+                    {CAMPANHAS_DE_IMPACTO.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    <option value="">Sem logo de campanha</option>
+                  </select>
+                </label>
+                {i.campanha && (
+                  <>
+                    <label className="block text-[11px] text-slate-300">{i.campanha.id === 'fecha-mes' ? 'Mês (vazio = o mês de agora)' : 'Complemento (opcional: data, "SÓ SÁBADO", "DIA 31")'}
+                      <input value={impacto?.complemento ?? ''} maxLength={22} placeholder={i.campanha.id === 'fecha-mes' ? mesAtual() : 'SÓ NESTE SÁBADO'} onChange={(e) => mudar({ complemento: e.target.value })} data-testid="impacto-complemento"
+                        className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-sm font-bold uppercase text-white placeholder:text-slate-500 focus:border-[#B04DFF] focus:outline-none" />
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {([['queda', 'Logo caindo e quebrando'], ['fogoNaLogo', 'Fogo na logo']] as const).map(([k, nome]) => (
+                        <button key={k} type="button" aria-pressed={i[k]} onClick={() => mudar({ [k]: !i[k] })} data-testid={`impacto-${k}`}
+                          className={cn('min-h-8 rounded-lg border px-2.5 py-1 text-xs font-semibold', i[k] ? 'border-[#FFD400] bg-[#FFD400]/15 text-[#FFD400]' : 'border-white/10 text-slate-300')}>{nome}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             {i.vinhetas && (
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="block text-[11px] text-slate-300">Frase da abertura

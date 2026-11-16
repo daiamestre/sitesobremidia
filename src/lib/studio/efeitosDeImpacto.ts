@@ -211,3 +211,133 @@ export function desenharExplosaoFrente(ctx: CanvasRenderingContext2D, c: Camada,
 export function indiceDoFundo(d: Documento): number {
   return d.camadas.findIndex((c) => c.nome === 'Fundo oficial' || c.nome === 'Fundo');
 }
+
+// ───────────────────────────── F-317: a LOGO CAI, QUEBRA A PAREDE E PEGA FOGO
+/** o instante em que a logo bate (fim da queda); null = a camada não cai */
+export function instanteDoImpacto(c: Camada): number | null {
+  const a = c.animacao;
+  return a && a.tipo === 'cair-do-ceu' ? a.atraso + a.duracao : null;
+}
+/** o tremor da câmera logo depois do impacto (forte e some em ~0,5 s) */
+export function tremorDoImpacto(t: number, ti: number, W: number, H: number): { dx: number; dy: number } | null {
+  const s = t - ti;
+  if (s < 0 || s > 0.55) return null;
+  const k = (Math.min(W, H) / 1080) * 34 * Math.pow(1 - s / 0.55, 2);
+  return { dx: k * Math.sin(s * 95), dy: k * Math.cos(s * 77) };
+}
+/** rachaduras que saem do ponto da batida (fixas: o mesmo desenho em todo quadro), crescem em 0,2 s e ficam */
+function rachaduras(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, cresce: number) {
+  const galhos = 11;
+  for (let g = 0; g < galhos; g++) {
+    let ang = (g / galhos) * Math.PI * 2 + (sorte(g, 21) - 0.5) * 0.5;
+    let x = cx, y = cy;
+    const pontos: Array<[number, number]> = [[x, y]];
+    const passos = 5 + Math.floor(sorte(g, 22) * 4);
+    const alcance = R * (0.55 + sorte(g, 23) * 0.6) * cresce;
+    for (let i = 0; i < passos; i++) {
+      ang += (sorte(g, 30 + i) - 0.5) * 0.9;
+      const passo = alcance / passos;
+      x += Math.cos(ang) * passo; y += Math.sin(ang) * passo;
+      pontos.push([x, y]);
+    }
+    const tracar = () => { ctx.beginPath(); pontos.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.stroke(); };
+    // brilho de lava por dentro, a fenda escura e a borda clara
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,110,20,0.55)'; ctx.lineWidth = R * 0.045; ctx.shadowColor = '#ff6a00'; ctx.shadowBlur = R * 0.07; tracar(); ctx.restore();
+    ctx.strokeStyle = 'rgba(18,8,4,0.92)'; ctx.lineWidth = R * 0.018; tracar();
+    ctx.save(); ctx.translate(-R * 0.004, -R * 0.004); ctx.strokeStyle = 'rgba(255,220,180,0.35)'; ctx.lineWidth = R * 0.004; tracar(); ctx.restore();
+  }
+}
+/** ATRÁS da logo: a cratera e as rachaduras na parede e o fogo pegando nela */
+export function desenharQuebraAtras(ctx: CanvasRenderingContext2D, c: Camada, t: number, W: number, H: number, fogo: boolean) {
+  const ti = instanteDoImpacto(c);
+  if (ti == null || t < ti || !c.visivel) return;
+  const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
+  // as rachaduras ficam em volta da batida (não cruzam o topo nem o rodapé da arte)
+  const R = Math.max(c.w, c.h) * 0.95;
+  const s = t - ti;
+  ctx.save();
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(c.w, c.h) * 0.75);
+  g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+  rachaduras(ctx, cx, cy, R, Math.min(1, s / 0.2));
+  ctx.restore();
+  if (fogo) desenharFogoNaLogo(ctx, c, t, Math.min(1, s / 0.35));
+}
+/** NA FRENTE: blocos de concreto voando, a poeira e o clarão da batida */
+export function desenharQuebraFrente(ctx: CanvasRenderingContext2D, c: Camada, t: number, W: number, H: number) {
+  const ti = instanteDoImpacto(c);
+  if (ti == null || !c.visivel) return;
+  const s = t - ti;
+  if (s < 0 || s > 1.6) return;
+  const k = Math.min(W, H) / 1080;
+  const cx = c.x + c.w / 2, cy = c.y + c.h * 0.6;
+  ctx.save();
+  if (s < 0.2) { ctx.fillStyle = `rgba(255,245,220,${(0.7 * (1 - s / 0.2)).toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+  for (let i = 0; i < 7; i++) {
+    const ang = (i / 7) * Math.PI * 2 + sorte(i, 41);
+    const d = (120 + 260 * sorte(i, 42)) * k * saida(Math.min(1, s / 1.1));
+    const r = (120 + 140 * sorte(i, 43)) * k * (0.6 + s);
+    const x = cx + Math.cos(ang) * d * 1.4, y = cy + Math.sin(ang) * d * 0.6;
+    const a = Math.max(0, 0.55 * (1 - s / 1.3));
+    const p = ctx.createRadialGradient(x, y, 0, x, y, r);
+    p.addColorStop(0, `rgba(170,160,150,${a.toFixed(3)})`); p.addColorStop(1, 'rgba(170,160,150,0)');
+    ctx.fillStyle = p; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  // os blocos saem da BORDA de baixo da logo (nunca por cima das letras)
+  for (let i = 0; i < 26; i++) {
+    const lado = i % 2 ? 1 : -1; // para a direita ou para a esquerda, um pouco para cima
+    const ang = lado > 0 ? -0.15 - 0.75 * sorte(i, 51) : Math.PI + 0.15 + 0.75 * sorte(i, 51);
+    const vel = (700 + 1100 * sorte(i, 52)) * k;
+    const x0 = c.x + c.w * (0.08 + 0.84 * sorte(i, 56)), y0 = c.y + c.h * 0.96;
+    const x = x0 + Math.cos(ang) * vel * s;
+    const y = y0 + Math.sin(ang) * vel * s + 0.5 * 2600 * k * s * s;
+    const tam = (16 + 38 * sorte(i, 53)) * k;
+    const vida = s > 1.2 ? Math.max(0, 1 - (s - 1.2) / 0.4) : 1;
+    ctx.save();
+    ctx.globalAlpha = vida;
+    ctx.translate(x, y); ctx.rotate(s * (4 + 8 * sorte(i, 54)) * (i % 2 ? 1 : -1));
+    ctx.beginPath();
+    const lados = 5 + (i % 3);
+    for (let v = 0; v < lados; v++) { const a2 = (v / lados) * Math.PI * 2; const rr = tam * (0.6 + 0.5 * sorte(i, 60 + v)); ctx.lineTo(Math.cos(a2) * rr, Math.sin(a2) * rr * 0.8); }
+    ctx.closePath();
+    const cinza = 120 + Math.floor(70 * sorte(i, 55));
+    ctx.fillStyle = `rgb(${cinza},${cinza - 8},${cinza - 18})`; ctx.fill();
+    ctx.lineWidth = 2 * k; ctx.strokeStyle = 'rgba(40,30,25,0.7)'; ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+/** a logo PEGANDO FOGO: línguas de fogo atrás dela, subindo e tremulando (desenhadas antes da logo, as letras ficam legíveis) */
+export function desenharFogoNaLogo(ctx: CanvasRenderingContext2D, c: Camada, t: number, forca = 1) {
+  if (forca <= 0) return;
+  const n = 16;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < n; i++) {
+    const base = c.x + c.w * (0.04 + 0.92 * (i / (n - 1)));
+    const yb = c.y + c.h * (0.62 + 0.12 * Math.sin(i * 1.7));
+    const tremula = 0.75 + 0.25 * Math.sin(t * (7 + sorte(i, 71) * 5) + i * 2.1) + 0.12 * Math.sin(t * 17 + i);
+    const alto = c.h * (0.55 + 0.6 * sorte(i, 72)) * tremula * forca;
+    const largo = c.w * (0.07 + 0.05 * sorte(i, 73));
+    const balanco = Math.sin(t * 3.1 + i) * largo * 0.6;
+    const g = ctx.createLinearGradient(base, yb, base, yb - alto);
+    g.addColorStop(0, 'rgba(255,240,170,0.9)'); g.addColorStop(0.25, 'rgba(255,170,30,0.8)'); g.addColorStop(0.6, 'rgba(255,70,0,0.55)'); g.addColorStop(1, 'rgba(180,10,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(base - largo, yb);
+    ctx.quadraticCurveTo(base - largo * 0.9 + balanco * 0.3, yb - alto * 0.55, base + balanco, yb - alto);
+    ctx.quadraticCurveTo(base + largo * 0.9 + balanco * 0.3, yb - alto * 0.55, base + largo, yb);
+    ctx.closePath();
+    ctx.fill();
+  }
+  for (let i = 0; i < 14; i++) {
+    const ciclo = 1.2 + sorte(i, 81);
+    const q = ((t + sorte(i, 82) * ciclo) % ciclo) / ciclo;
+    const x = c.x + c.w * sorte(i, 83) + Math.sin(t * 2 + i) * 14;
+    const y = c.y + c.h * 0.5 - q * c.h * 1.1;
+    const img = luz(i % 2 ? '#ffb703' : '#ff6b00');
+    const r = 10 + 10 * sorte(i, 84);
+    if (img) { ctx.globalAlpha = forca * Math.min(1, (1 - q) * 1.5); ctx.drawImage(img, x - r, y - r, 2 * r, 2 * r); }
+  }
+  ctx.restore();
+}

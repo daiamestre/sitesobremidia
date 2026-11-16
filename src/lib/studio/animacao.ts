@@ -8,6 +8,7 @@ export type TipoDeAnimacao =
   | 'surgir' | 'subir' | 'descer' | 'esquerda' | 'direita' | 'zoom' | 'girar' | 'digitar'
   /* F-290: entradas novas */ | 'quicar' | 'zoom-de-longe' | 'virar' | 'surgir-lento'
   /* P-34: entradas de impacto (padrão do concorrente de vídeo com IA) */ | 'estourar' | 'mola-esquerda' | 'mola-direita' | 'chegar-gigante'
+  /* F-317: a logo de campanha CAI DO CÉU e bate no centro (com a parede quebrando e o fogo, em efeitosDeImpacto) */ | 'cair-do-ceu'
   | 'pulsar' | 'balancar' | 'piscar' | 'panoramica' | 'flutuar'
   /* F-290: movimentos contínuos novos */ | 'oscilar' | 'tremer' | 'respirar' | 'girar-sempre' | 'quicar-sempre' | 'brilhar'
   /* F-308: movimentos do FUNDO da arte (sempre cobrindo a tela inteira, sem aparecer borda) */ | 'fundo-respirar' | 'fundo-deslizar' | 'fundo-subir' | 'fundo-luz';
@@ -40,6 +41,7 @@ export const ANIMACOES: { id: TipoDeAnimacao; nome: string; continua?: boolean; 
   { id: 'mola-esquerda', nome: 'Mola da esquerda' },
   { id: 'mola-direita', nome: 'Mola da direita' },
   { id: 'chegar-gigante', nome: 'Chegar gigante' },
+  { id: 'cair-do-ceu', nome: 'Cair do céu e quebrar' },
   { id: 'digitar', nome: 'Máquina de escrever', so: ['texto'] },
   { id: 'pulsar', nome: 'Pulsar', continua: true },
   { id: 'balancar', nome: 'Balançar', continua: true },
@@ -171,6 +173,15 @@ function estadoDe(c: Camada, a: Animacao, t: number, total: number): EstadoAnima
       if (local < 0) return { ...PARADO, alfa: 0 };
       const m = mola(local * (0.8 / Math.max(0.1, a.duracao)), 11, 0.5);
       return { ...PARADO, alfa: Math.min(1, local / 0.18), escala: 2.2 - 1.2 * m };
+    }
+    // F-317: cai do alto, gigante e inclinada, acelerando (gravidade); bate, achata e assenta com mola
+    case 'cair-do-ceu': {
+      if (local < 0) return { ...PARADO, alfa: 0 };
+      if (p < 1) { const q = p * p; return { ...PARADO, alfa: Math.min(1, p * 6), dy: -(1 - q) * Math.max(1600, c.h * 3.2), escala: 1.75 - 0.75 * q, rot: -11 * (1 - q) }; }
+      const s = local - a.duracao;
+      const amassa = Math.exp(-s * 8) * Math.cos(s * 26);
+      const k = 1 - 0.09 * amassa;
+      return { ...PARADO, escala: k, ex: (1 + 0.09 * amassa) / k };
     }
     case 'surgir-lento': { const q = Math.min(1, Math.max(0, local / Math.max(0.1, a.duracao * 2))); return { ...PARADO, alfa: q * q * (3 - 2 * q) }; }
     case 'digitar': {
