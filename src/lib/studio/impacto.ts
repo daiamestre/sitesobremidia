@@ -61,12 +61,14 @@ export interface ImpactoDoPalco {
   complemento?: string;
   /** F-317: a logo cai quebrando a parede e fica pegando fogo */
   queda?: boolean; fogoNaLogo?: boolean;
+  /** F-319: efeitos REAIS (filmagens de fogo, explosão, fumaça e brasas) no lugar dos desenhados — padrão ligado */
+  reais?: boolean;
 }
 export interface ImpactoResolvido {
   ligado: boolean; chamas: boolean; estrelas: boolean; camera: boolean; explosao: boolean;
   sons: boolean; sirene: boolean; trilha: Trilha | null; volumeTrilha: number; vinhetas: boolean;
   textoAbertura: string; textoFechamento: string;
-  campanha: CampanhaDeImpacto | null; complemento: string; queda: boolean; fogoNaLogo: boolean;
+  campanha: CampanhaDeImpacto | null; complemento: string; queda: boolean; fogoNaLogo: boolean; reais: boolean;
 }
 export function impactoResolvido(i: ImpactoDoPalco | undefined, segmento: SegmentoDoStudio | undefined, loja = ''): ImpactoResolvido {
   const ligado = !i?.desligado;
@@ -83,5 +85,6 @@ export function impactoResolvido(i: ImpactoDoPalco | undefined, segmento: Segmen
     campanha: ligado && i?.vinhetas !== false && i?.campanha !== null ? campanhaPorId(i?.campanha ?? 'fecha-mes') : null,
     complemento: (i?.complemento ?? '').trim().toUpperCase(),
     queda: ligado && i?.queda !== false, fogoNaLogo: ligado && i?.fogoNaLogo !== false,
+    reais: ligado && i?.reais !== false,
   };
 }

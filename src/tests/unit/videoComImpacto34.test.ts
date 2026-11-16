@@ -32,7 +32,10 @@ describe('P-34: vídeo com impacto', () => {
   it('a arte do produto: chamas, estrelas, câmera e explosão; produto com MOLA alternando os lados; preço ESTOURA', () => {
     const d0 = palcoDoProduto(produtos[0], '9:16', { ...o, indice: 0 });
     const d1 = palcoDoProduto(produtos[1], '9:16', { ...o, indice: 1 });
-    expect(d0.efeitos).toEqual({ chamas: true, estrelas: true, camera: true, explosao: true });
+    // F-319: com os efeitos REAIS (padrão), as chamas e a explosão desenhadas dão lugar às filmagens
+    expect(d0.efeitos).toEqual({ chamas: false, estrelas: true, camera: true, explosao: false });
+    expect(d0.camadas.filter((c) => c.tipo === 'efeito').map((c) => c.nome)).toEqual(expect.arrayContaining(['Brasas (efeito)', 'Fogo no chão (efeito)', 'Explosão do preço (efeito)']));
+    expect(palcoDoProduto(produtos[0], '9:16', { ...o, movimento: { impacto: { reais: false } } }).efeitos).toEqual({ chamas: true, estrelas: true, camera: true, explosao: true });
     expect(d0.camadas.find((c) => c.nome === 'Produto')?.animacao?.tipo).toBe('mola-esquerda');
     expect(d1.camadas.find((c) => c.nome === 'Produto')?.animacao?.tipo).toBe('mola-direita');
     expect(d0.camadas.find((c) => c.nome === 'Preço')?.animacao?.tipo).toBe('estourar');
@@ -135,7 +138,16 @@ describe('P-34: vídeo com impacto', () => {
     expect(decodeURIComponent(logo.src)).toContain('QUEIMA');
     expect(decodeURIComponent(logo.src)).toContain('SÓ SÁBADO');
     expect(logo.animacao.tipo).toBe('cair-do-ceu');
-    expect(ab.efeitos).toMatchObject({ quebra: true, fogo: true });
+    expect(ab.efeitos).toMatchObject({ quebra: true, fogo: false });
+    // F-319: explosão, fogo e fumaça REAIS na batida
+    const nomes = ab.camadas.map((c) => c.nome);
+    expect(nomes.indexOf('Explosão da logo (efeito)')).toBeLessThan(nomes.indexOf('Logo da campanha'));
+    expect(nomes.indexOf('Fogo na logo (efeito)')).toBeLessThan(nomes.indexOf('Logo da campanha'));
+    // a poeira sobe POR TRÁS (na frente desbotava as letras); as chamas da parte de baixo ficam NA FRENTE
+    expect(nomes.indexOf('Fumaça da batida (efeito)')).toBeLessThan(nomes.indexOf('Logo da campanha'));
+    expect(nomes.indexOf('Chamas na frente da logo (efeito)')).toBeGreaterThan(nomes.indexOf('Logo da campanha'));
+    expect(nomes).not.toContain('Explosão do preço (efeito)');
+    expect(vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { reais: false } } }, 2.8).efeitos).toMatchObject({ quebra: true, fogo: true });
     // o padrão é o FECHA MÊS; sem campanha, não tem logo
     expect(decodeURIComponent((vinhetaDoPalco('abertura', produtos[0], '9:16', o, 2.8).camadas.find((c) => c.nome === 'Logo da campanha') as { src: string }).src)).toContain('FECHA');
     expect(vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { campanha: null } } }, 2.8).camadas.some((c) => c.nome === 'Logo da campanha')).toBe(false);

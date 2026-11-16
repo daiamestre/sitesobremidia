@@ -5,6 +5,8 @@
 //   navegador sabe; senão WebM), em tamanho real (1920×1080 ou 1080×1920), 30 quadros por segundo.
 import { TAMANHO_DOC, type Documento } from '../documento';
 import { desenharCamada, desenharDocumento, prepararDocumento, type Imagens } from '../desenhar';
+import { aoEfeitoPronto, modoExatoDosEfeitos, posicionarEfeitos } from '../efeitosReais';
+import { duracaoDoVideo } from '../animacao';
 import { formatoDeVideo } from '../video';
 import { caixaDaMidia, desenharTransicao, desenharVinheta, filtroDoClipe } from './efeitos';
 import { corDoDocumento } from '../corDaArte';
@@ -113,7 +115,10 @@ export class MotorDeVideo {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Este navegador não consegue desenhar o vídeo.');
     this.ctx = ctx;
+    // F-319: com a prévia parada, o efeito real que terminou de chegar ao ponto aparece no quadro certo
+    this.soltarEfeitos = aoEfeitoPronto(() => { if (this.p && !this.tocando && !this.exportando) this.desenhar(this.tempo); });
   }
+  private soltarEfeitos: () => void;
 
   get total() { return this.p ? duracaoTotal(this.p) : 0; }
 
@@ -476,6 +481,11 @@ export class MotorDeVideo {
   private async posicionarVideos(t: number) {
     const q = noTempo(this.p!.clipes, t);
     await Promise.all([q.atual, q.proximo].map((qa) => {
+      // F-319: os efeitos reais (filmagens) da arte vão ao quadro exato antes de desenhar
+      if (qa && qa.clipe.documento && qa.clipe.tipo !== 'video' && qa.clipe.tipo !== 'imagem') {
+        const a = this.artes.get(qa.clipe.id);
+        return a ? posicionarEfeitos(a.tela.getContext('2d'), a.doc, qa.local, duracaoDoVideo(a.doc)) : undefined;
+      }
       if (!qa || qa.clipe.tipo !== 'video') return undefined;
       const v = this.videos.get(qa.clipe.id);
       if (!v) return undefined;
@@ -595,6 +605,7 @@ export class MotorDeVideo {
     const n = Math.max(1, Math.ceil(total * fpsReal));
     const capas = new Set([Math.floor(n * 0.2), Math.floor(n * 0.55), n - 1]);
     this.exportando = true;
+    modoExatoDosEfeitos(true);
     this.escala = plano.escala; this.ajustarTela();
     try {
       for (let i = 0; i < n; i++) {
@@ -638,6 +649,7 @@ export class MotorDeVideo {
     } finally {
       if (enc.state !== 'closed') enc.close();
       this.exportando = false;
+      modoExatoDosEfeitos(false);
       this.escala = PREVIA; this.ajustarTela();
       this.tempo = 0; this.sincronizar(0); this.desenhar(0);
     }
@@ -665,6 +677,7 @@ export class MotorDeVideo {
   }
 
   destruir() {
+    this.soltarEfeitos?.();
     this.pausar();
     for (const v of this.videos.values()) { v.pause(); v.removeAttribute('src'); v.load(); }
     for (const a of this.audios.values()) { a.pause(); a.removeAttribute('src'); }

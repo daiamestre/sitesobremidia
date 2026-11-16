@@ -3560,3 +3560,34 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Fechamento: "Pode rodar a cidade inteira: preço baixo é aqui, no {LOJA}! Só essa semana!" (farmácia e adega mantêm o aviso).
   - O que a pessoa reescreve continua valendo. O servidor só fala o texto recebido e não muda nada.
 - **A voz:** identificar uma pessoa pela voz e copiar a voz de um locutor real sem autorização dele está fora do que fazemos (direito de personalidade e risco jurídico). A biblioteca da ElevenLabs foi consultada sem gastar crédito: das vozes brasileiras de propaganda, **Leonardo** (varejo) e **Diego** (comercial) já estão no sistema. Victor Pinho e Weverton (enérgicos) ficam para o dono ouvir e aprovar.
+
+### F-319 — Efeitos de impacto REAIS (filmagens), iguais aos do concorrente (16/11/2026)
+- **Pedido do dono:** os efeitos de impacto realistas, iguais aos vídeos do Instagram do concorrente, e o motor de criação igual ou melhor. Autorizou baixar e fazer tudo.
+- **Causa:** o fogo, as explosões e a fumaça do concorrente são filmagens de efeito sobre fundo preto. Os nossos eram desenhados por código e não chegavam nesse realismo.
+- **Filmagens:** 14 do Pixabay, pela API oficial (licença de uso comercial gratuito; ficha em `docs/licencas/EFEITOS_PIXABAY.md`).
+  - Cortadas no trecho do efeito, cor corrigida (fogo laranja vivo) e laço sem emenda no fogo, nas brasas e no raio.
+  - 1280 px, 30 qps, H.264 sem quadros B, quadro-chave a cada 5. São 13 MB no total, em `public/studio/efeitos/`, com pôster `.webp`.
+- **Motor:** camada nova `efeito` (`documento.ts`), com efeito, inicio, repetir, duracao, velocidade, mistura, ancora e espelhar. Código em `src/lib/studio/efeitosReais.ts`.
+  - **Recorte do preto pela placa de vídeo (WebGL):** a opacidade vem do brilho e a cor fica viva por cima da arte. O modo "tela" deixava uma névoa clara sobre o vermelho.
+  - **Bordas:** esfumadas em todo efeito; nas explosões o fogo some em elipse.
+  - **Âncora:** com `ancora: 'baixo'`, o fogo nasce no chão da caixa.
+  - **Prévia:** o vídeo do efeito acompanha o relógio. Parado, ele vai ao ponto e redesenha sozinho (`aoEfeitoPronto`). No máximo 12 tocadores, e os parados são devolvidos.
+  - **Exportação (MP4):** `modoExatoDosEfeitos` + `posicionarEfeitos`. Os quadros vêm do decodificador em sequência (`video/decodificarEfeito.ts`, leitor de MP4 + WebCodecs), sem "pular" o vídeo a cada quadro; sem WebCodecs, volta ao modo de pular.
+  - **Toque na arte:** `camadaNoPonto` escolhe primeiro os outros elementos.
+- **Palco (automático, `comEfeitosReais` / `vinhetaDoPalco`):**
+  - Brasas na frente do fundo (luz somada) e fogo no chão na beirada de baixo.
+  - Bola de fogo atrás do preço quando ele estoura.
+  - Na batida da logo de campanha: explosão de fogo e poeira atrás, labaredas por trás e chamas na frente da parte de baixo. Tudo segue o tamanho visível da logo, em pé e deitado.
+  - O sombreado da cratera e as rachaduras desenhadas também passaram a seguir esse tamanho.
+  - As chamas e a explosão desenhadas saem quando os efeitos reais estão ligados.
+  - Botão "Efeitos reais" no painel de impacto (`impacto.reais`, padrão ligado).
+- **Editor:** cartão "Efeito" (`PropsEfeito` em `Paineis.tsx`).
+  - Galeria com pôsteres, por grupo.
+  - Começo, laço e duração, velocidade, transparência, recorte, luz suave ou luz forte, e espelhar.
+  - Mover, aumentar e girar como qualquer elemento. O efeito acompanha os dois formatos (`sincronizar.ts`).
+- **Prova:**
+  - Quadros exatos em pé e deitado, no palco oficial e no desenhado, num Chrome automático.
+  - Prévia tocando com a conta de teste.
+  - MP4 exportado pelo motor real com os efeitos.
+  - Custo na exportação, num PC sem placa de vídeo (WebGL por software): de 52 s para 89 s em 12,7 s de vídeo. Com GPU o recorte é leve. No aparelho fraco, a prévia recorta em tamanho menor.
+- **Testes:** `efeitosReais319.test.ts`; `videoComImpacto34.test.ts` atualizado.

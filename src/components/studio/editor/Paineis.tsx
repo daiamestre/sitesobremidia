@@ -7,12 +7,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Circle, Copy, Crop, Eye, EyeOff, Image as ImageIcon, Layers,
-  Clapperboard, Film, ImagePlus, List, Lock, Share2, LockOpen, Minus, Move, Palette, PaintBucket, Plus, Shapes, Sparkles, Square, SunMedium, Ticket, Trash2, Type, Pilcrow,
+  Clapperboard, Film, ImagePlus, List, Lock, Share2, LockOpen, Minus, Move, Palette, PaintBucket, Plus, Shapes, Sparkles, Square, SunMedium, Ticket, Trash2, Type, Pilcrow, Flame,
 } from 'lucide-react';
 import { FONTES_STUDIO, fonteDoStudio } from '@/lib/studio/fontes';
 import { PALETA, corHex, coresDoDocumento, coresRecentes, lembrarCor } from '@/lib/studio/cores';
 import { ANIMACOES, CONTINUAS, SAIDAS, duracaoDoVideo, type Animacao, type TipoDeAnimacao } from '@/lib/studio/animacao';
-import { REDES_SOCIAIS, type Camada, type CamadaForma, type CamadaImagem, type CamadaItens, type CamadaRedes, type CamadaSelo, type CamadaTexto, type Degrade, type Documento, type Sombra } from '@/lib/studio/documento';
+import { EFEITOS_REAIS, NOMES_DOS_GRUPOS, efeitoPorId, posterDoEfeito, type GrupoDoEfeito } from '@/lib/studio/efeitosReais';
+import { REDES_SOCIAIS, type CamadaEfeito, type Camada, type CamadaForma, type CamadaImagem, type CamadaItens, type CamadaRedes, type CamadaSelo, type CamadaTexto, type Degrade, type Documento, type Sombra } from '@/lib/studio/documento';
 import { cn } from '@/lib/utils';
 
 export const campo = 'w-full rounded-lg border border-white/10 bg-[#0f0428] px-2.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-[#8A2EFF] focus:outline-none';
@@ -168,7 +169,7 @@ function EditorSombra({ s, onChange }: { s: Sombra | null | undefined; onChange:
 }
 
 // ───────────────────────────────────────────────────────────── botões de cada tipo de elemento
-export type Aba = 'logo' | 'redes' | 'texto' | 'cor' | 'formatar' | 'efeitos' | 'ajustes' | 'enquadrar' | 'forma' | 'posicao' | 'camadas' | 'fundo' | 'animar' | 'video';
+export type Aba = 'efeito' | 'logo' | 'redes' | 'texto' | 'cor' | 'formatar' | 'efeitos' | 'ajustes' | 'enquadrar' | 'forma' | 'posicao' | 'camadas' | 'fundo' | 'animar' | 'video';
 export interface DefAba { id: Aba; nome: string; I: typeof Type }
 const A = (id: Aba, nome: string, I: typeof Type): DefAba => ({ id, nome, I });
 
@@ -185,6 +186,8 @@ export function abasDe(c: Camada | null): DefAba[] {
     // F-278: a vaga da logo abre o cartão para pôr a logo; a linha das redes abre o cartão das redes e nomes
     case 'vaga': return [A('logo', 'Sua logo', ImagePlus), A('posicao', 'Posição', Move), A('camadas', 'Camadas', Layers)];
     case 'redes': return [A('redes', 'Redes sociais', Share2), A('cor', 'Cor', Palette), ...fim];
+    // F-319: o efeito real (fogo, explosão, fumaça…): trocar, quando aparece, repetir, velocidade e força
+    case 'efeito': return [A('efeitos', 'Efeito', Flame), A('animar', 'Animar', Clapperboard), A('posicao', 'Posição', Move), A('camadas', 'Camadas', Layers)];
   }
 }
 
@@ -220,6 +223,7 @@ export function CartaoDaAba({ aba, c, doc, mudar, mudarFundo, mover, camadas, vi
     </div>
   );
   if (c.tipo === 'redes' && aba === 'redes') return <PropsRedes c={c} m={m} />;
+  if (c.tipo === 'efeito') return <PropsEfeito c={c} m={m} doc={doc} />;
   if (c.tipo === 'redes') return (
     <div className="space-y-3">
       <Cor t="Cor dos ícones e dos nomes" valor={c.cor} onChange={(v) => m<CamadaRedes>({ cor: v })} doc={doc} />
@@ -254,6 +258,52 @@ export function CartaoDaAba({ aba, c, doc, mudar, mudarFundo, mover, camadas, vi
     case 'itens': return aba === 'cor' ? <CorItens c={c} m={m} doc={doc} /> : <PropsItens c={c} m={m} />;
     default: return null;
   }
+}
+
+/**
+ * F-319: o cartão do EFEITO REAL — a galeria com as filmagens (toque para trocar), o segundo em que começa, repetir em laço
+ * (e por quanto tempo), velocidade, força da luz e espelhar. Mover, aumentar e girar: arrastando na arte (cartão Posição).
+ */
+function PropsEfeito({ c, m, doc }: { c: CamadaEfeito; m: (p: Partial<CamadaEfeito>) => void; doc: Documento }) {
+  const total = Math.max(1, duracaoDoVideo(doc));
+  const atual = efeitoPorId(c.efeito);
+  const grupos = [...new Set(EFEITOS_REAIS.map((e) => e.grupo))] as GrupoDoEfeito[];
+  return (
+    <div className="space-y-3" data-testid="cartao-efeito-real">
+      <p className="text-[11px] text-slate-400">Filmagem real de efeito{atual ? `: ${atual.nome}` : ''}. Toque em outra para trocar; arraste na arte para mudar o lugar e o tamanho.</p>
+      {grupos.map((g) => (
+        <div key={g} className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{NOMES_DOS_GRUPOS[g]}</span>
+          <div className="grid grid-cols-3 gap-1.5">
+            {EFEITOS_REAIS.filter((e) => e.grupo === g).map((e) => (
+              <button key={e.id} type="button" onClick={() => m({ efeito: e.id, repetir: e.laco ? c.repetir : false, nome: c.nome })} data-testid={`efeito-${e.id}`}
+                className={cn('overflow-hidden rounded-lg border-2 bg-black text-left', e.id === c.efeito ? 'border-[#FFD400]' : 'border-white/10 hover:border-white/40')}>
+                <img src={posterDoEfeito(e.id)} alt="" className="aspect-video w-full object-cover" loading="lazy" />
+                <span className="block truncate px-1 py-0.5 text-[10px] font-semibold text-white">{e.nome}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <Faixa t="Começa no segundo" valor={c.inicio} min={0} max={Math.round(total * 10) / 10} passo={0.05} sufixo=" s" onChange={(v) => m({ inicio: v })} />
+      {atual?.laco && (
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+          <input type="checkbox" checked={c.repetir} onChange={(e) => m({ repetir: e.target.checked })} data-testid="efeito-repetir" />Repetir sem parar (laço)
+        </label>
+      )}
+      {c.repetir && <Faixa t="Por quanto tempo (0 = até o fim)" valor={c.duracao ?? 0} min={0} max={Math.round(total * 10) / 10} passo={0.1} sufixo=" s" onChange={(v) => m({ duracao: v || null })} />}
+      <Faixa t="Velocidade" valor={c.velocidade ?? 1} min={0.25} max={2.5} passo={0.05} sufixo="×" onChange={(v) => m({ velocidade: v })} />
+      <Faixa t="Transparência" valor={Math.round(c.opacidade * 100)} min={0} max={100} sufixo="%" onChange={(v) => m({ opacidade: v / 100 })} />
+      <div className="flex flex-wrap gap-1.5">
+        {([['chave', 'Recorte real (padrão)'], ['screen', 'Luz suave'], ['lighter', 'Luz mais forte']] as const).map(([k, nome]) => (
+          <button key={k} type="button" aria-pressed={(c.mistura ?? 'chave') === k} onClick={() => m({ mistura: k })} data-testid={`efeito-mistura-${k}`}
+            className={cn('min-h-8 rounded-lg border px-2.5 py-1 text-xs font-semibold', (c.mistura ?? 'chave') === k ? 'border-[#FFD400] bg-[#FFD400]/15 text-[#FFD400]' : 'border-white/10 text-slate-300')}>{nome}</button>
+        ))}
+        <button type="button" aria-pressed={!!c.espelhar} onClick={() => m({ espelhar: !c.espelhar })} data-testid="efeito-espelhar"
+          className={cn('min-h-8 rounded-lg border px-2.5 py-1 text-xs font-semibold', c.espelhar ? 'border-[#FFD400] bg-[#FFD400]/15 text-[#FFD400]' : 'border-white/10 text-slate-300')}>Espelhar</button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -570,7 +620,7 @@ function CorItens({ c, m, doc }: { c: CamadaItens; m: (p: Partial<CamadaItens>) 
   );
 }
 
-const ICONE: Record<Camada['tipo'], typeof Type> = { texto: Type, forma: Square, imagem: ImageIcon, selo: Ticket, itens: List, vaga: ImagePlus, redes: Share2 };
+const ICONE: Record<Camada['tipo'], typeof Type> = { texto: Type, forma: Square, imagem: ImageIcon, selo: Ticket, itens: List, vaga: ImagePlus, redes: Share2, efeito: Flame };
 
 interface CamadasProps {
   doc: Documento; sel: string | null; onSelecionar: (id: string) => void;

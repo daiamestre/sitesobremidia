@@ -8,6 +8,8 @@ const CHAVES = new Set([
   'src', 'espelhar', 'brilho', 'contraste', 'saturacao', 'desfoque', 'matiz',
   'topo', 'valor', 'sufixo', 'base', 'corTexto', 'borda', 'itens', 'destaque', 'forma', 'redes',
   'visivel', 'opacidade', 'animacao',
+  // F-319: o efeito real (qual filmagem, quando começa, laço, velocidade, força)
+  'efeito', 'inicio', 'repetir', 'duracao', 'velocidade', 'mistura', 'ancora',
 ]);
 
 function irmas(d: Documento, c: Pick<Camada, 'tipo' | 'nome'>) {

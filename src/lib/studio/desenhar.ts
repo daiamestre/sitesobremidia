@@ -8,6 +8,7 @@ import {
 } from './documento';
 import { duracaoDoVideo, estadoNoTempo } from './animacao';
 import { logoParaImagem } from './logo3d';
+import { desenharEfeito, prepararEfeitos } from './efeitosReais';
 import { aplicarCamera, desenharChamas, desenharEstrelas, desenharExplosaoAtras, desenharExplosaoFrente, desenharFogoNaLogo, desenharQuebraAtras, desenharQuebraFrente, indiceDoFundo, instanteDoImpacto, tremorDoImpacto } from './efeitosDeImpacto';
 
 export type Imagens = Map<string, HTMLImageElement>;
@@ -45,7 +46,7 @@ export function carregarImagem(src: string): Promise<HTMLImageElement | null> {
 export async function prepararDocumento(d: Documento): Promise<Imagens> {
   await Promise.all(fontesDo(d).map(carregarFonteStudio));
   const mapa: Imagens = new Map();
-  await Promise.all(imagensDo(d).map(async (s) => { const i = await carregarImagem(s); if (i) mapa.set(s, i); }));
+  await Promise.all([...imagensDo(d).map(async (s) => { const i = await carregarImagem(s); if (i) mapa.set(s, i); }), prepararEfeitos(d)]);
   return mapa;
 }
 
@@ -349,7 +350,9 @@ function desenharRedes(ctx: CanvasRenderingContext2D, c: CamadaRedes) {
 
 /** Pinta uma camada (com a animação no instante `tempo`, se houver). Usado pela arte e pelo editor de vídeo (F-227). */
 /** o desenho do elemento em si, já com a origem no centro dele (sem posição, giro nem animação de movimento) */
-function desenharConteudo(ctx: CanvasRenderingContext2D, c: Camada, imgs: Imagens, escala: number, a: ReturnType<typeof estadoNoTempo> | null, tempo?: number) {
+function desenharConteudo(ctx: CanvasRenderingContext2D, c: Camada, imgs: Imagens, escala: number, a: ReturnType<typeof estadoNoTempo> | null, tempo?: number, total = 8) {
+  // F-319: o efeito real (filmagem) — sem sombra, no modo de mistura dele
+  if (c.tipo === 'efeito') { desenharEfeito(ctx, c, tempo, total); return; }
   sombra(ctx, c, escala);
   if (c.tipo === 'forma') desenharForma(ctx, c);
   else if (c.tipo === 'imagem') desenharImagem(ctx, a && a.zoom !== 1 ? { ...c, zoom: Math.max(1, c.zoom) * a.zoom } : c, imgs.get(c.src), escala);
@@ -402,12 +405,12 @@ export function desenharCamada(ctx: CanvasRenderingContext2D, c: Camada, imgs: I
   const giro = c.rot + (a?.rot ?? 0);
   if (giro) ctx.rotate((giro * Math.PI) / 180);
   if (a && (a.escala !== 1 || a.ex !== 1)) ctx.scale(a.escala * a.ex, a.escala);
-  const vivo = (c.tipo === 'texto' && (c.letreiro || a?.letras != null)) || (a != null && a.zoom !== 1);
+  const vivo = c.tipo === 'efeito' || (c.tipo === 'texto' && (c.letreiro || a?.letras != null)) || (a != null && a.zoom !== 1);
   const sp = rapido && !vivo ? spriteDaCamada(c, imgs, escala) : null;
   if (sp) {
     ctx.shadowColor = 'transparent';
     ctx.drawImage(sp.tela, -c.w / 2 - sp.m, -c.h / 2 - sp.m, c.w + 2 * sp.m, c.h + 2 * sp.m);
-  } else desenharConteudo(ctx, c, imgs, escala, a, tempo);
+  } else desenharConteudo(ctx, c, imgs, escala, a, tempo, total);
   ctx.restore();
 }
 

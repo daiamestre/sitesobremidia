@@ -11,7 +11,7 @@ import { CAMPANHAS_DE_IMPACTO, mesAtual } from '@/lib/studio/logo3d';
 import type { SegmentoDoStudio } from '@/lib/studio/palco';
 
 const VISUAIS: Array<{ k: 'chamas' | 'estrelas' | 'camera' | 'explosao'; nome: string }> = [
-  { k: 'chamas', nome: 'Chamas' }, { k: 'estrelas', nome: 'Estrelas' }, { k: 'camera', nome: 'Câmera na mão' }, { k: 'explosao', nome: 'Explosão no preço' },
+  { k: 'chamas', nome: 'Chamas e brasas' }, { k: 'estrelas', nome: 'Estrelas' }, { k: 'camera', nome: 'Câmera na mão' }, { k: 'explosao', nome: 'Explosão no preço' },
 ];
 
 function Chave({ ligado, aoMudar, rotulo, testid }: { ligado: boolean; aoMudar: (v: boolean) => void; rotulo: string; testid: string }) {
@@ -115,6 +115,12 @@ export function PainelDeImpacto({ impacto, segmento, loja, aoMudar, compacto = f
                   className={cn('min-h-8 rounded-lg border px-2.5 py-1 text-xs font-semibold', i[v.k] ? 'border-[#FFD400] bg-[#FFD400]/15 text-[#FFD400]' : 'border-white/10 text-slate-300')}>{v.nome}</button>
               ))}
             </div>
+            {/* F-319: filmagens reais de fogo, explosão, fumaça e brasas (iguais às do concorrente) no lugar dos desenhados */}
+            <button type="button" aria-pressed={i.reais} onClick={() => mudar({ reais: !i.reais })} data-testid="impacto-reais"
+              className={cn('flex min-h-10 w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs font-semibold', i.reais ? 'border-[#FFD400] bg-[#FFD400]/10 text-[#FFD400]' : 'border-white/10 text-slate-300')}>
+              <span>Efeitos reais (fogo, explosão e fumaça filmados)<span className="block text-[10px] font-normal text-slate-400">Cada efeito vira um elemento: toque nele na arte para mover, trocar ou mudar a hora.</span></span>
+              <span>{i.reais ? 'Ligado' : 'Desligado'}</span>
+            </button>
           </section>
 
           {/* ABERTURA E FECHAMENTO */}

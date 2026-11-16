@@ -2,7 +2,7 @@
 // em cima do pedestal, com o nome e o preço. Cada produto é uma arte de camadas (o mesmo editor do Studio) já animada:
 // o pedestal sobe, o produto entra com zoom e fica flutuando, o nome sobe e o selo do preço entra com zoom e pulsa.
 // O CARROSSEL vira um projeto do editor de vídeo: um clipe por produto, com transição deslizando — exporta MP4.
-import { TAMANHO_DOC, forma, imagem, larguraDoTexto, selo, texto, type Camada, type Documento, type FormatoDoc } from './documento';
+import { TAMANHO_DOC, efeitoReal, forma, imagem, larguraDoTexto, selo, texto, type Camada, type Documento, type FormatoDoc } from './documento';
 import { idNovo, inicios, novoClipe, projetoVazio, type FaixaDeAudio, type ProjetoDeVideo, type TipoDeTransicao } from './video/linha';
 import type { TipoDeAnimacao } from './animacao';
 import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, logoOficialDoSegmento, type LogoDaPasta } from './logos';
@@ -340,7 +340,8 @@ function comImpacto(d: Documento, o: OpcoesDoPalco): Documento {
   const mov = o.movimento ?? {};
   const lado = (o.indice ?? 0) % 2 ? 'mola-direita' : 'mola-esquerda';
   return {
-    ...d, efeitos: { chamas: i.chamas, estrelas: i.estrelas, camera: i.camera, explosao: i.explosao },
+    // F-319: com os efeitos REAIS, as chamas e a explosão desenhadas saem e entram as filmagens (comEfeitosReais)
+    ...d, efeitos: { chamas: i.chamas && !i.reais, estrelas: i.estrelas, camera: i.camera, explosao: i.explosao && !i.reais },
     camadas: d.camadas.map((c) => {
       if (c.nome === 'Produto' && !mov.produto) return { ...c, animacao: ani(lado, 0.15, 0.7, 'flutuar') };
       if (c.nome === 'Preço' && !mov.preco) return { ...c, animacao: ani('estourar', 0.9, 0.5, 'pulsar') };
@@ -349,8 +350,42 @@ function comImpacto(d: Documento, o: OpcoesDoPalco): Documento {
   };
 }
 
+/** F-319: os nomes dos efeitos reais que o palco põe sozinho (o cliente move, troca, muda a hora ou apaga cada um) */
+export const EFEITOS_DO_PALCO = { brasas: 'Brasas (efeito)', parede: 'Fogo no chão (efeito)', preco: 'Explosão do preço (efeito)', logo: 'Explosão da logo (efeito)', fumaca: 'Fumaça da batida (efeito)', fogoLogo: 'Fogo na logo (efeito)', chamasLogo: 'Chamas na frente da logo (efeito)' } as const;
+const EF = EFEITOS_DO_PALCO;
+
+/**
+ * F-319 (pedido do dono: efeitos de impacto REALISTAS, iguais aos do concorrente e melhores) — as filmagens reais na arte do
+ * produto: brasas subindo na frente do fundo, fogo no chão e a explosão de verdade atrás do preço quando ele estoura.
+ * Entram depois dos ajustes do cliente (a explosão acompanha o preço onde ele estiver) e cada uma aceita os ajustes dela.
+ */
+function comEfeitosReais(d: Documento, formato: FormatoDoc, o: OpcoesDoPalco): Documento {
+  const i = impactoDoPalco(o);
+  if (!i.ligado || !i.reais) return d;
+  const { w: W, h: H } = TAMANHO_DOC[formato];
+  const em = formato === '9:16';
+  const a = o.ajustes?.[formato] ?? {};
+  const comAjuste = (c: Camada): Camada => ({ ...c, ...((a[c.nome] ?? {}) as Partial<Camada>), id: c.nome } as Camada);
+  const camadas = d.camadas.filter((c) => !Object.values(EF).includes(c.nome as never));
+  const iFundo = camadas.findIndex((c) => c.nome === 'Fundo oficial' || c.nome === 'Fundo');
+  // as brasas sobem NA FRENTE DO FUNDO; o fogo do chão fica na frente de tudo, só na beirada de baixo (as chamas lambem a faixa)
+  if (i.chamas) {
+    camadas.splice(iFundo + 1, 0, comAjuste(efeitoReal(EF.brasas, 'brasas', 0, 0, W, H, { repetir: true, opacidade: 1, mistura: 'lighter' })));
+    const hf = em ? H * 0.11 : H * 0.17;
+    camadas.push(comAjuste(efeitoReal(EF.parede, 'parede-de-fogo', 0, H - hf, W, hf * 1.15, { repetir: true, opacidade: 0.9, ancora: 'baixo' })));
+  }
+  const preco = camadas.find((c) => c.nome === 'Preço' && c.visivel);
+  if (i.explosao && preco) {
+    const lado = Math.max(preco.w, preco.h) * 3.4, alto = lado * 9 / 16;
+    const cx = preco.x + preco.w / 2, cy = preco.y + preco.h / 2;
+    const ex = comAjuste(efeitoReal(EF.preco, 'bola-de-fogo', cx - lado / 2, cy - alto * 0.5, lado, alto, { inicio: Math.max(0, (preco.animacao?.atraso ?? 0.9) - 0.1), velocidade: 1.5 }));
+    camadas.splice(camadas.indexOf(preco), 0, ex);
+  }
+  return { ...d, camadas };
+}
+
 export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, o: OpcoesDoPalco = {}): Documento {
-  if (o.fundo) return comAjustes(comImpacto(palcoOficial(p, formato, o.fundo, o), o), formato, o, p.nome);
+  if (o.fundo) return comEfeitosReais(comAjustes(comImpacto(palcoOficial(p, formato, o.fundo, o), o), formato, o, p.nome), formato, o);
   const { w: W, h: H } = TAMANHO_DOC[formato];
   const em = formato === '9:16';
   const titulo = (o.titulo ?? 'SUPER OFERTAS').toUpperCase();
@@ -417,7 +452,7 @@ export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'prec
   Object.assign(aviso, { x: (W - aviso.w) / 2, y: H - aviso.h - 26 });
   c.push({ ...aviso, animacao: ani('surgir', 1.3, 0.5) });
 
-  return comAjustes(comImpacto({ versao: 2, formato, fundo: '#3a0209', corTema: '#c40f24', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } }, o), formato, o);
+  return comEfeitosReais(comAjustes(comImpacto({ versao: 2, formato, fundo: '#3a0209', corTema: '#c40f24', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } }, o), formato, o), formato, o);
 }
 
 /** P-34: a chave do que o cliente editou num elemento DA ABERTURA ou DO FECHAMENTO (só naquela cena) */
@@ -453,7 +488,7 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
   const caixaLogo: Caixa = { x: area.x + (area.w - largo) / 2, y: area.y - area.h * 0.06, w: largo, h: area.h * 0.7 };
   const caixaFrase: Caixa = camp ? { x: area.x, y: area.y + area.h * 0.66, w: area.w, h: area.h * 0.34 } : area;
   const frase = fraseDeImpacto(tipo === 'abertura' ? 'Frase da abertura' : 'Frase do fechamento', tipo === 'abertura' ? i.textoAbertura : i.textoFechamento, caixaFrase, cor);
-  const fora = new Set(['Produto', 'Nome do produto', 'Preço']);
+  const fora = new Set<string>(['Produto', 'Nome do produto', 'Preço', EF.preco]);
   const camadas: Camada[] = d.camadas.filter((c) => !fora.has(c.nome)).map((c) => {
     // a logo gravada no fundo vira camada (para chegar gigante): o fundo passa a ser o sem logo
     if (f && c.nome === 'Fundo oficial' && c.tipo === 'imagem' && c.src === srcDoFundo(f, formato)) return { ...c, src: srcSemLogo(f, formato) };
@@ -462,13 +497,38 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
   });
   if (camp) {
     const logo = imagem('Logo da campanha', enderecoDoLogo3D(camp.logo(i.complemento)), caixaLogo.x, caixaLogo.y, caixaLogo.w, caixaLogo.h, { ajuste: 'conter' });
+    // F-319: EFEITOS REAIS na batida da logo — a explosão de fogo e a poeira atrás dela, o fogo de verdade subindo por trás e
+    // chamas na frente da parte de baixo (filmagens; o cliente move, troca, muda a hora ou apaga cada um nesta cena)
+    const bate = tipo === 'abertura' && i.queda;
+    const ti = tipo === 'abertura' ? 0.25 + 0.7 : 0.35;
+    // o tamanho que a logo APARECE (ela entra inteira na caixa, na proporção ~1,4 : 1): os efeitos seguem a logo, não a caixa
+    const vw = Math.min(caixaLogo.w, caixaLogo.h * 1.4), vh = vw / 1.4;
+    const L = { x: caixaLogo.x + (caixaLogo.w - vw) / 2, y: caixaLogo.y + (caixaLogo.h - vh) / 2, w: vw, h: vh }, cx = L.x + L.w / 2;
+    if (i.reais && bate) {
+      // a bola de fogo estoura em volta da logo NA HORA da batida e some rápido (vira fumaça)
+      // do tamanho da LOGO (em pé e deitado), não da tela
+      const lw = Math.max(L.w, L.h * 16 / 9) * 1.9, lh = lw * 9 / 16;
+      camadas.push({ ...efeitoReal(EF.logo, 'explosao-fogo', cx - lw / 2, L.y + L.h * 0.55 - lh * 0.5, lw, lh, { inicio: ti, velocidade: 1.5 }), id: EF.logo });
+      // a poeira da parede quebrada sobe POR TRÁS da logo (na frente ela desbotava as letras)
+      camadas.push({ ...efeitoReal(EF.fumaca, 'fumaca-subindo', cx - lw / 2, L.y + L.h * 1.05 - lh * 0.8, lw, lh, { inicio: ti, opacidade: 0.9, velocidade: 1.2 }), id: EF.fumaca });
+    }
+    if (i.reais && i.fogoNaLogo) {
+      // as labaredas sobem POR TRÁS e passam do topo da logo
+      const fw = L.w * 1.1, fh = L.h * 1.5;
+      camadas.push({ ...efeitoReal(EF.fogoLogo, 'fogo-subindo', cx - fw / 2, L.y + L.h * 0.92 - fh, fw, fh, { inicio: ti + 0.1, repetir: true, ancora: 'baixo' }), id: EF.fogoLogo });
+    }
     camadas.push({ ...logo, id: logo.nome, animacao: tipo === 'abertura' ? ani('cair-do-ceu', 0.25, 0.7, 'respirar') : ani('zoom', 0.1, 0.5, 'respirar') });
+    if (i.reais && i.fogoNaLogo) {
+      // e chamas NA FRENTE, na parte de baixo da logo (ela está pegando fogo)
+      const fw = L.w * 1.02, fh = L.h * 0.5;
+      camadas.push({ ...efeitoReal(EF.chamasLogo, 'parede-de-fogo', cx - fw / 2, L.y + L.h * 1.04 - fh, fw, fh, { inicio: ti + 0.2, repetir: true, opacidade: 0.85, ancora: 'baixo' }), id: EF.chamasLogo });
+    }
   }
   camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? (camp ? 1.35 : 0.55) : (camp ? 0.7 : 0.35), 0.5, 'pulsar') });
   // P-34 (pedido do dono): tudo da abertura/fechamento se edita — o que o cliente mudou NESTA cena vale só nela
   const a = o.ajustes?.[formato] ?? {};
   const editadas = camadas.map((c) => { const p = a[chaveDaCena(c.nome, tipo)]; return p ? ({ ...c, ...p, id: c.nome } as Camada) : c; });
-  return { ...d, camadas: editadas, efeitos: { ...(d.efeitos ?? {}), quebra: i.queda, fogo: i.fogoNaLogo }, video: { duracao: segundos } };
+  return { ...d, camadas: editadas, efeitos: { ...(d.efeitos ?? {}), quebra: i.queda, fogo: i.fogoNaLogo && !i.reais }, video: { duracao: segundos } };
 }
 
 /** O CARROSSEL: um clipe por produto (nome e preço de cada vez), deslizando de um para o outro. */

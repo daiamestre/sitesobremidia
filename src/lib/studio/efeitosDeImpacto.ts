@@ -256,10 +256,12 @@ export function desenharQuebraAtras(ctx: CanvasRenderingContext2D, c: Camada, t:
   if (ti == null || t < ti || !c.visivel) return;
   const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
   // as rachaduras ficam em volta da batida (não cruzam o topo nem o rodapé da arte)
-  const R = Math.max(c.w, c.h) * 0.62;
+  // F-319: pelo tamanho que a logo APARECE (inteira na caixa, ~1,4 : 1), não pela caixa (deitado, a caixa é bem maior)
+  const vw = Math.min(c.w, c.h * 1.4);
+  const R = Math.max(vw, vw / 1.4) * 0.62;
   const s = t - ti;
   ctx.save();
-  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(c.w, c.h) * 0.75);
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
   g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
   rachaduras(ctx, cx, cy, R, Math.min(1, s / 0.2));

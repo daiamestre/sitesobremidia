@@ -87,7 +87,23 @@ export const REDES_SOCIAIS: { rede: RedeSocial; nome: string }[] = [
   { rede: 'instagram', nome: 'Instagram' }, { rede: 'facebook', nome: 'Facebook' }, { rede: 'youtube', nome: 'YouTube' },
   { rede: 'loja', nome: 'Loja online' }, { rede: 'tiktok', nome: 'TikTok' }, { rede: 'whatsapp', nome: 'WhatsApp' },
 ];
-export type Camada = CamadaTexto | CamadaForma | CamadaImagem | CamadaSelo | CamadaItens | CamadaVaga | CamadaRedes;
+/**
+ * F-319: EFEITO REAL — uma filmagem de efeito (fogo, explosão, fumaça, brasas, raio, vidro, confete) em fundo preto, aplicada
+ * por cima da arte no modo 'tela' (o preto some). A caixa é onde ela aparece; inicio/duracao/velocidade dizem quando.
+ */
+export interface CamadaEfeito extends CamadaBase {
+  tipo: 'efeito'; efeito: string;
+  /** segundo da arte em que o efeito começa */
+  inicio: number;
+  /** repete (fogo, brasas) até o fim da arte ou por 'duracao' segundos */
+  repetir: boolean; duracao?: number | null;
+  velocidade?: number; espelhar?: boolean;
+  /** onde a filmagem se prende na caixa quando sobra: 'baixo' (fogo nasce no chão), 'cima' ou o meio (padrão) */
+  ancora?: 'centro' | 'baixo' | 'cima';
+  /** 'chave' (padrão: o preto vira transparência e a cor do fogo fica viva por cima), 'screen' (luz clara) ou 'lighter' (soma a luz: mais forte) */
+  mistura?: 'chave' | 'screen' | 'lighter';
+}
+export type Camada = CamadaTexto | CamadaForma | CamadaImagem | CamadaSelo | CamadaItens | CamadaVaga | CamadaRedes | CamadaEfeito;
 export type TipoDeCamada = Camada['tipo'];
 
 export interface Documento { versao: 2; formato: FormatoArte; fundo: string; /** F-296: a cor da arte (encarte/palco): flash, luz e brilho das trocas saem nela, girada pelo tom escolhido */ corTema?: string; camadas: Camada[]; /** F-225: duração do vídeo (s) quando há animação */ video?: { duracao: number } | null; /** P-34: efeitos de impacto do vídeo (chamas, estrelas, câmera na mão, explosão no preço) */ efeitos?: EfeitosDaArte | null }
@@ -172,6 +188,9 @@ export function itens(lista: string[], x: number, y: number, w: number, o: Parti
 }
 
 /** F-278: a vaga da logo do cliente ("SUA LOGO AQUI") */
+/** F-319: um efeito real (filmagem) na caixa (x, y, w, h), começando no segundo 'inicio' */
+export const efeitoReal = (nome: string, efeito: string, x: number, y: number, w: number, h: number, o: Partial<CamadaEfeito> = {}): CamadaEfeito =>
+  ({ ...base(nome, x, y, w, h), tipo: 'efeito', efeito, inicio: 0, repetir: false, mistura: 'chave', ...o });
 export const vagaDaLogo = (x: number, y: number, w: number, h: number): CamadaVaga => ({ ...base('Sua logo aqui', x, y, w, h), tipo: 'vaga', texto: 'SUA LOGO AQUI', cor: '#ffffff' });
 /** F-278: a linha das redes sociais; nasce com Instagram, Facebook, YouTube e loja, sem nomes */
 export const redesSociais = (x: number, y: number, w: number, h: number, destaque = '#1046c8'): CamadaRedes =>
@@ -345,9 +364,11 @@ export const clonar = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 /** F-249: o elemento que está no ponto (x, y) da arte, de cima para baixo; o fundo travado não conta. */
 export function camadaNoPonto(d: Documento, x: number, y: number): Camada | null {
-  for (let i = d.camadas.length - 1; i >= 0; i--) {
+  // F-319: os efeitos (fogo, explosão) cobrem áreas grandes: o toque escolhe primeiro os outros elementos; o efeito só
+  // quando não há outro elemento ali (ou pela lista de camadas)
+  for (const efeitos of [false, true]) for (let i = d.camadas.length - 1; i >= 0; i--) {
     const c = d.camadas[i];
-    if (!c.visivel || c.bloqueada) continue;
+    if (!c.visivel || c.bloqueada || (c.tipo === 'efeito') !== efeitos) continue;
     const a = (-c.rot * Math.PI) / 180, dx = x - (c.x + c.w / 2), dy = y - (c.y + c.h / 2);
     const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
     if (Math.abs(lx) <= c.w / 2 && Math.abs(ly) <= c.h / 2) return c;
