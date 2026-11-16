@@ -90,7 +90,9 @@ export const REDES_SOCIAIS: { rede: RedeSocial; nome: string }[] = [
 export type Camada = CamadaTexto | CamadaForma | CamadaImagem | CamadaSelo | CamadaItens | CamadaVaga | CamadaRedes;
 export type TipoDeCamada = Camada['tipo'];
 
-export interface Documento { versao: 2; formato: FormatoArte; fundo: string; /** F-296: a cor da arte (encarte/palco): flash, luz e brilho das trocas saem nela, girada pelo tom escolhido */ corTema?: string; camadas: Camada[]; /** F-225: duração do vídeo (s) quando há animação */ video?: { duracao: number } | null }
+export interface Documento { versao: 2; formato: FormatoArte; fundo: string; /** F-296: a cor da arte (encarte/palco): flash, luz e brilho das trocas saem nela, girada pelo tom escolhido */ corTema?: string; camadas: Camada[]; /** F-225: duração do vídeo (s) quando há animação */ video?: { duracao: number } | null; /** P-34: efeitos de impacto do vídeo (chamas, estrelas, câmera na mão, explosão no preço) */ efeitos?: EfeitosDaArte | null }
+/** P-34 (pedido do dono, no padrão do concorrente que gera vídeo com IA): efeitos desenhados por cima do fundo e em volta do preço. Só no vídeo/animação. */
+export interface EfeitosDaArte { chamas?: boolean; estrelas?: boolean; camera?: boolean; explosao?: boolean }
 
 // ───────────────────────────────────────────────────────────── medida de texto (canvas; reserva por estimativa)
 let ctxMedida: CanvasRenderingContext2D | null | undefined;

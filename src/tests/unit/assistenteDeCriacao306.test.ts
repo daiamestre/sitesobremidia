@@ -24,7 +24,8 @@ describe('F-306: assistente de criação', () => {
     expect(palco).toContain('<PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} automatica />');
     expect(fs.readFileSync('src/components/studio/PainelDeLocucao.tsx', 'utf8')).toContain('data-testid="locucao-criar-automatica"');
     // no fim, a prévia toca sozinha embaixo da linha do tempo
-    expect(palco).toContain('setPedidoDeTocar((n) => n + 1)');
+    // P-34: no fim, o vídeo é ENTREGUE pronto (o MP4 se monta sozinho, com Baixar/Salvar/Publicar)
+    expect(palco).toContain('setPedidoDeVideo((n) => n + 1)');
     expect(palco).toContain('data-testid="palco-previa-grande"');
     expect(fs.readFileSync('src/pages/studioai/VideoEditorPage.tsx', 'utf8')).toContain('data-testid="video-play-centro"');
   });

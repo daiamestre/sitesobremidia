@@ -41,7 +41,7 @@ describe('F-297: mesa de edição do palco', () => {
     expect(palco).toContain('ref={setSlotFerramentas}');
     expect(video).toContain('createPortal(<div className="space-y-2" data-testid="video-ferramentas-na-lateral">');
     expect(video).toContain('mesa.aoTocarNaTela(q.clipe.nome, ev, q.clipe.documento)');
-    expect(palco).toContain('clipeEmFoco: sel?.nome ?? null');
+    expect(palco).toContain('clipeEmFoco: sel?.nome ?? nomeDaCena') // P-34: a abertura/fechamento escolhida também leva o cursor;
   });
   it('o editor de vídeo sozinho (/studio/video) continua com a prévia e as ferramentas dele', () => {
     expect(video).toContain('{transporte(false)}');

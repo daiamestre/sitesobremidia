@@ -12,6 +12,7 @@ import { corDoDocumento, escurecer } from './corDaArte';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel, type SegmentoComLogo } from './logoEditavel';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
+import { SONS, impactoResolvido, type ImpactoDoPalco, type ImpactoResolvido, type SomNoVideo } from './impacto';
 
 export interface OpcoesDoPalco {
   titulo?: string; logoUrl?: string | null; segundos?: number;
@@ -28,6 +29,10 @@ export interface OpcoesDoPalco {
   movimento?: MovimentoDoPalco;
   /** F-300: a LOCUÇÃO (voz do locutor): abertura, uma fala por produto (pelo nome) e fechamento, já gravadas */
   locucao?: LocucaoDoVideo | null;
+  /** P-34: o nome da loja (frase da abertura e do fechamento) */
+  loja?: string;
+  /** P-34: a posição do produto no vídeo (o produto entra com mola, alternando os lados) */
+  indice?: number;
 }
 
 /** F-300: uma fala gravada (mp3 no R2) e quanto ela dura */
@@ -40,9 +45,13 @@ const faixaDaFala = (nome: string, f: FalaGravada, em: number): FaixaDeAudio => 
 });
 
 export type AjustesDoPalco = Partial<Record<FormatoDoc, Record<string, Partial<Camada>>>>;
-export interface MovimentoDoPalco { produto?: TipoDeAnimacao; nome?: TipoDeAnimacao; preco?: TipoDeAnimacao; transicao?: TipoDeTransicao; /** F-290: a troca de CADA produto para o próximo (pelo nome do produto); sem ela vale a padrão */ transicoes?: Record<string, TipoDeTransicao> }
-/** F-290: a transição de um produto para o próximo: a dele, ou a padrão do palco */
-export const transicaoDoProduto = (m: MovimentoDoPalco | undefined, nome: string): TipoDeTransicao => m?.transicoes?.[chaveCanonica(nome)] ?? m?.transicao ?? 'deslizar-esquerda';
+export interface MovimentoDoPalco { produto?: TipoDeAnimacao; nome?: TipoDeAnimacao; preco?: TipoDeAnimacao; transicao?: TipoDeTransicao; /** F-290: a troca de CADA produto para o próximo (pelo nome do produto); sem ela vale a padrão */ transicoes?: Record<string, TipoDeTransicao>;
+  /** P-34: o pacote de impacto (trilha, efeitos sonoros e visuais, abertura e fechamento) — guardado junto, por modelo */
+  impacto?: ImpactoDoPalco }
+/** F-290: a transição de um produto para o próximo: a dele, ou a padrão do palco (P-34: com impacto, a faixa diagonal) */
+export const transicaoDoProduto = (m: MovimentoDoPalco | undefined, nome: string): TipoDeTransicao => m?.transicoes?.[chaveCanonica(nome)] ?? m?.transicao ?? (m?.impacto?.desligado ? 'deslizar-esquerda' : 'faixa');
+/** P-34: o impacto do palco já com os padrões (tudo ligado, a trilha do segmento) */
+export const impactoDoPalco = (o: OpcoesDoPalco) => impactoResolvido(o.movimento?.impacto, o.fundo?.segmento ?? 'mercado', o.loja ?? '');
 /** F-290: chave do tamanho/posição próprio de um produto (o resto do palco vale para todos) */
 export const chaveDoProdutoNoPalco = (nome: string) => `Produto|${chaveCanonica(nome)}`;
 /** opções que o cliente escolhe na tela do palco */
@@ -53,6 +62,8 @@ export const TRANSICOES_DO_CARROSSEL: Array<{ id: TipoDeTransicao; nome: string 
   { id: 'deslizar-esquerda', nome: 'Sai pela esquerda' }, { id: 'deslizar-direita', nome: 'Sai pela direita' }, { id: 'deslizar-cima', nome: 'Sai por cima' }, { id: 'zoom', nome: 'Zoom' }, { id: 'dissolver', nome: 'Fade (dissolver)' },
   // F-290: efeitos de troca de cena (como no CapCut)
   { id: 'flash', nome: 'Flash' }, { id: 'luz', nome: 'Luz' }, { id: 'brilho', nome: 'Brilho' }, { id: 'girar-tudo', nome: 'Girar a cena' }, { id: 'desfocar', nome: 'Desfocar' }, { id: 'preto', nome: 'Escurecer' }, { id: 'circulo', nome: 'Círculo' }, { id: 'cortina', nome: 'Cortina' },
+  // P-34: a troca de impacto do concorrente de vídeo com IA
+  { id: 'faixa', nome: 'Faixa diagonal' },
 ];
 
 /**
@@ -318,8 +329,27 @@ function comAjustes(d: Documento, formato: FormatoDoc, o: OpcoesDoPalco, nomeDoP
 }
 
 /** A arte de UM produto no palco (16:9 ou 9:16), com as animações da coreografia do palco. */
+/**
+ * P-34: o IMPACTO na arte do produto — chamas, estrelas, câmera na mão e explosão no preço; o produto entra com MOLA
+ * (alternando os lados) e o preço ESTOURA. Só onde o cliente não escolheu outro movimento.
+ */
+function comImpacto(d: Documento, o: OpcoesDoPalco): Documento {
+  const i = impactoDoPalco(o);
+  if (!i.ligado) return d;
+  const mov = o.movimento ?? {};
+  const lado = (o.indice ?? 0) % 2 ? 'mola-direita' : 'mola-esquerda';
+  return {
+    ...d, efeitos: { chamas: i.chamas, estrelas: i.estrelas, camera: i.camera, explosao: i.explosao },
+    camadas: d.camadas.map((c) => {
+      if (c.nome === 'Produto' && !mov.produto) return { ...c, animacao: ani(lado, 0.15, 0.7, 'flutuar') };
+      if (c.nome === 'Preço' && !mov.preco) return { ...c, animacao: ani('estourar', 0.9, 0.5, 'pulsar') };
+      return c;
+    }),
+  };
+}
+
 export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, o: OpcoesDoPalco = {}): Documento {
-  if (o.fundo) return comAjustes(palcoOficial(p, formato, o.fundo, o), formato, o, p.nome);
+  if (o.fundo) return comAjustes(comImpacto(palcoOficial(p, formato, o.fundo, o), o), formato, o, p.nome);
   const { w: W, h: H } = TAMANHO_DOC[formato];
   const em = formato === '9:16';
   const titulo = (o.titulo ?? 'SUPER OFERTAS').toUpperCase();
@@ -386,18 +416,86 @@ export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'prec
   Object.assign(aviso, { x: (W - aviso.w) / 2, y: H - aviso.h - 26 });
   c.push({ ...aviso, animacao: ani('surgir', 1.3, 0.5) });
 
-  return comAjustes({ versao: 2, formato, fundo: '#3a0209', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } }, formato, o);
+  return comAjustes(comImpacto({ versao: 2, formato, fundo: '#3a0209', corTema: '#c40f24', camadas: c, video: { duracao: o.segundos ?? SEGUNDOS_POR_PRODUTO } }, o), formato, o);
+}
+
+/** P-34: a chave do que o cliente editou num elemento DA ABERTURA ou DO FECHAMENTO (só naquela cena) */
+export const chaveDaCena = (nome: string, cena: 'abertura' | 'fechamento') => `${nome}|${cena}`;
+
+/** P-34: a frase grande da abertura/fechamento (Anton branca com contorno na cor do palco), no maior tamanho que cabe */
+function fraseDeImpacto(nome: string, frase: string, b: Caixa, cor: string): Camada {
+  const linhas = frase.toUpperCase().split('\n').filter(Boolean);
+  let tam = Math.round(Math.min(b.h / (linhas.length * 1.05), b.w * 0.2));
+  while (tam > 30 && Math.max(...linhas.map((l) => larguraDoTexto(l, 'anton', tam, 400))) > b.w * 0.94) tam -= 4;
+  const t = texto(nome, linhas.join('\n'), b.x, b.y, b.w, { fonte: 'anton', tamanho: tam, maiusculas: true, alinhamento: 'center', cor: '#ffffff', entrelinha: 1.02, contorno: { cor: escurecer(cor, 0.1), largura: Math.max(6, Math.round(tam * 0.06)) }, sombra: { cor: 'rgba(0,0,0,.55)', desfoque: 24, dx: 0, dy: 10 } });
+  // encolhe sozinha para caber na largura quando o cliente escreve uma frase maior
+  return { ...t, y: b.y + (b.h - t.h) / 2, caber: true } as Camada;
+}
+
+/**
+ * P-34: ABERTURA e FECHAMENTO do vídeo (como no concorrente de vídeo com IA): o mesmo palco, sem produto, com a logo chegando
+ * gigante e a frase estourando no meio ("{LOJA} OFERTAS IMPERDÍVEIS" / "APROVEITE!"). Tudo editável no painel de impacto.
+ */
+export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, o: OpcoesDoPalco, segundos: number): Documento {
+  const i = impactoDoPalco(o);
+  const d = palcoDoProduto(base, formato, { ...o, segundos });
+  const { w: W, h: H } = TAMANHO_DOC[formato];
+  const cor = d.corTema ?? '#c40f24';
+  const f = o.fundo;
+  // a área do produto + nome (ou o meio da tela no palco desenhado)
+  const area: Caixa = f
+    ? (() => { const a = f.produto[formato], n = f.nome_[formato]; const x = Math.min(a.x, n.x), y = Math.min(a.y, n.y); return { x: x * W, y: y * H, w: (Math.max(a.x + a.w, n.x + n.w) - x) * W, h: (Math.max(a.y + a.h, n.y + n.h) - y) * H }; })()
+    : { x: W * 0.06, y: H * 0.3, w: W * 0.88, h: H * 0.42 };
+  const frase = fraseDeImpacto(tipo === 'abertura' ? 'Frase da abertura' : 'Frase do fechamento', tipo === 'abertura' ? i.textoAbertura : i.textoFechamento, area, cor);
+  const fora = new Set(['Produto', 'Nome do produto', 'Preço']);
+  const camadas: Camada[] = d.camadas.filter((c) => !fora.has(c.nome)).map((c) => {
+    // a logo gravada no fundo vira camada (para chegar gigante): o fundo passa a ser o sem logo
+    if (f && c.nome === 'Fundo oficial' && c.tipo === 'imagem' && c.src === srcDoFundo(f, formato)) return { ...c, src: srcSemLogo(f, formato) };
+    if (c.nome === 'Logo do palco') return { ...c, opacidade: 1, animacao: ani('chegar-gigante', 0.05, 0.8, 'respirar') };
+    return c;
+  });
+  camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? 0.55 : 0.35, 0.5, 'pulsar') });
+  // P-34 (pedido do dono): tudo da abertura/fechamento se edita — o que o cliente mudou NESTA cena vale só nela
+  const a = o.ajustes?.[formato] ?? {};
+  const editadas = camadas.map((c) => { const p = a[chaveDaCena(c.nome, tipo)]; return p ? ({ ...c, ...p, id: c.nome } as Camada) : c; });
+  return { ...d, camadas: editadas, video: { duracao: segundos } };
 }
 
 /** O CARROSSEL: um clipe por produto (nome e preço de cada vez), deslizando de um para o outro. */
 export function projetoDoCarrossel(produtos: Array<Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>>, formato: FormatoDoc, o: OpcoesDoPalco = {}): ProjetoDeVideo {
   const seg = o.segundos ?? SEGUNDOS_POR_PRODUTO;
-  return {
+  const montado = comLocucao(produtos, formato, o, seg);
+  const i = impactoDoPalco(o);
+  const projeto: ProjetoDeVideo = {
     ...projetoVazio(formato),
     // F-296: o fundo do vídeo (o que aparece por trás das trocas) é a cor DESTE palco, girada pelo tom escolhido — nunca o do mercado
     fundo: produtos[0] ? escurecer(corDoDocumento(palcoDoProduto(produtos[0], formato, o)), 0.45) : '#000000',
-    ...comLocucao(produtos, formato, o, seg),
+    ...montado,
   };
+  // P-34: a TRILHA (repete o vídeo inteiro, abaixa sozinha sob a voz) e os EFEITOS SONOROS marcados no tempo
+  if (i.trilha) projeto.audios = [...projeto.audios, { id: `trilha-${i.trilha.id}`, nome: `Trilha · ${i.trilha.nome}`, src: i.trilha.src, duracaoArquivo: i.trilha.dur, em: 0, inicio: 0, fim: i.trilha.ate, volume: i.volumeTrilha, somEntra: 0.2, somSai: 1.2, repetir: true, abaixarComVoz: true }];
+  if (i.sons) projeto.sons = sonsDoVideo(projeto, i);
+  return projeto;
+}
+
+/** P-34: sirene na abertura, whoosh em cada troca, impacto quando o preço/frase estoura, brilho no preço e caixa no fim */
+function sonsDoVideo(p: ProjetoDeVideo, i: ImpactoResolvido): SomNoVideo[] {
+  const ini = inicios(p.clipes);
+  const sons: SomNoVideo[] = [];
+  p.clipes.forEach((c, k) => {
+    const t0 = ini[k];
+    if (k === 0 && i.sirene) sons.push({ som: 'sirene', em: t0 + 0.05 });
+    if (k > 0 && c.transicao) sons.push({ som: 'whoosh', em: Math.max(0, t0 - 0.12) });
+    const camadas = c.documento?.camadas ?? [];
+    const estoura = camadas.find((x) => (x.nome === 'Preço' || x.nome.startsWith('Frase d')) && x.animacao?.tipo === 'estourar' && x.visivel);
+    if (estoura?.animacao) {
+      const pico = t0 + estoura.animacao.atraso + estoura.animacao.duracao * 0.55;
+      const fim = c.nome === 'Fechamento';
+      sons.push({ som: fim ? 'caixa' : 'impacto', em: Math.max(0, pico - 0.06) });
+      if (estoura.nome === 'Preço') sons.push({ som: 'brilho', em: t0 + estoura.animacao.atraso + estoura.animacao.duracao + 0.15, volume: SONS.brilho.volume * 0.8 });
+    }
+  });
+  return sons.sort((a, b) => a.em - b.em);
 }
 
 /**
@@ -407,25 +505,38 @@ export function projetoDoCarrossel(produtos: Array<Pick<ProdutoTabloide, 'nome' 
 function comLocucao(produtos: Array<Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>>, formato: FormatoDoc, o: OpcoesDoPalco, seg: number): Pick<ProjetoDeVideo, 'clipes' | 'audios'> {
   const l = o.locucao;
   const PAUSA = 0.35, FOLGA = 1.2;
+  // P-34: com as vinhetas, a fala de abertura vai na ABERTURA e a de fechamento no FECHAMENTO (como no concorrente)
+  const vinhetas = impactoDoPalco(o).vinhetas && produtos.length > 0;
   const falas = produtos.map((p) => l?.ofertas[chaveDaFala(p.nome)] ?? null);
   const duracoes = produtos.map((_, i) => {
     if (!l) return seg;
-    const antes = i === 0 && l.abertura ? l.abertura.dur + PAUSA : 0;
-    const depois = i === produtos.length - 1 && l.fechamento ? PAUSA + l.fechamento.dur : 0;
+    const antes = !vinhetas && i === 0 && l.abertura ? l.abertura.dur + PAUSA : 0;
+    const depois = !vinhetas && i === produtos.length - 1 && l.fechamento ? PAUSA + l.fechamento.dur : 0;
     return Math.max(seg, antes + (falas[i]?.dur ?? 0) + depois + FOLGA);
   });
   const clipes = produtos.map((p, i) => novoClipe('arte', '', p.nome, {
-    documento: palcoDoProduto(p, formato, { ...o, segundos: duracoes[i] }), duracao: duracoes[i], zoomDe: 1, zoomPara: 1,
+    documento: palcoDoProduto(p, formato, { ...o, segundos: duracoes[i], indice: i }), duracao: duracoes[i], zoomDe: 1, zoomPara: 1,
     transicao: { tipo: transicaoDoProduto(o.movimento, p.nome), duracao: 0.5 },
   }));
+  const VINHETA = 2.8;
+  const durAbertura = Math.max(VINHETA, l?.abertura ? 0.5 + l.abertura.dur + 0.5 : 0);
+  const durFechamento = Math.max(VINHETA + 0.6, l?.fechamento ? 0.4 + l.fechamento.dur + 0.9 : 0);
+  if (vinhetas) {
+    const troca = { tipo: transicaoDoProduto(o.movimento, ''), duracao: 0.5 };
+    clipes.unshift(novoClipe('arte', '', 'Abertura', { documento: vinhetaDoPalco('abertura', produtos[0], formato, o, durAbertura), duracao: durAbertura, zoomDe: 1, zoomPara: 1, transicao: troca }));
+    clipes.push(novoClipe('arte', '', 'Fechamento', { documento: vinhetaDoPalco('fechamento', produtos[0], formato, o, durFechamento), duracao: durFechamento, zoomDe: 1, zoomPara: 1, transicao: { tipo: 'dissolver', duracao: 0.5 } }));
+  }
   if (!l) return { clipes, audios: [] };
   const ini = inicios(clipes);
+  const desloca = vinhetas ? 1 : 0;
   const audios: FaixaDeAudio[] = [];
+  if (vinhetas && l.abertura) audios.push(faixaDaFala('Locução · abertura', l.abertura, ini[0] + 0.5));
   produtos.forEach((p, i) => {
-    let t = ini[i] + 0.3;
-    if (i === 0 && l.abertura) { audios.push(faixaDaFala('Locução · abertura', l.abertura, t)); t += l.abertura.dur + PAUSA; }
+    let t = ini[i + desloca] + 0.3;
+    if (!vinhetas && i === 0 && l.abertura) { audios.push(faixaDaFala('Locução · abertura', l.abertura, t)); t += l.abertura.dur + PAUSA; }
     if (falas[i]) { audios.push(faixaDaFala(`Locução · ${p.nome}`, falas[i]!, t)); t += falas[i]!.dur; }
-    if (i === produtos.length - 1 && l.fechamento) audios.push(faixaDaFala('Locução · fechamento', l.fechamento, t + PAUSA));
+    if (!vinhetas && i === produtos.length - 1 && l.fechamento) audios.push(faixaDaFala('Locução · fechamento', l.fechamento, t + PAUSA));
   });
+  if (vinhetas && l.fechamento) audios.push(faixaDaFala('Locução · fechamento', l.fechamento, ini[clipes.length - 1] + 0.4));
   return { clipes, audios };
 }

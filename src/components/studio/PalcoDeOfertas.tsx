@@ -13,7 +13,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Clapperboard, FolderOpen, ImagePlus, Loader2, Monitor, Move, MousePointerClick, Palette, Pause, PenLine, Play, Plus, RotateCcw, Smartphone } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Clapperboard, Zap, FolderOpen, ImagePlus, Loader2, Monitor, Move, MousePointerClick, Palette, Pause, PenLine, Play, Plus, RotateCcw, Smartphone } from 'lucide-react';
 import { GaleriaDeProdutos } from './GaleriaDeProdutos';
 import { EditorDeVideo } from '@/pages/studioai/VideoEditorPage';
 import { toast } from 'sonner';
@@ -30,10 +30,12 @@ import { guardarNoAcervo } from '@/lib/studio/acervo';
 import { TAMANHO_DOC, camadaNoPonto, imagem, type Camada, type CamadaTexto, type Documento, type FormatoDoc } from '@/lib/studio/documento';
 import { PainelDoFundo } from './editor/PainelDoFundo';
 import { movimentoDoFundo } from '@/lib/studio/animacao';
-import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, srcSemLogo, type AjustesDoPalco, type FundoDoPalco, type LocucaoDoVideo, type MovimentoDoPalco } from '@/lib/studio/palco';
+import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDaCena, impactoDoPalco, vinhetaDoPalco, chaveDoProdutoNoPalco, transicaoDoProduto, fundosDoSegmento, type SegmentoDoStudio, TRANSICOES_DO_CARROSSEL, palcoDoProduto, projetoDoCarrossel, srcDoFundo, srcSemLogo, type AjustesDoPalco, type FundoDoPalco, type LocucaoDoVideo, type MovimentoDoPalco } from '@/lib/studio/palco';
 import { comAlfa, corDoDocumento, coresDosEfeitos } from '@/lib/studio/corDaArte';
 import { EscolhaDeModelo } from './GaleriaDeModelos';
 import { PainelDeLocucao } from './PainelDeLocucao';
+import { PainelDeImpacto } from './PainelDeImpacto';
+import type { ImpactoDoPalco } from '@/lib/studio/impacto';
 import { AssistenteDeCriacao, type EtapaDoAssistente } from './AssistenteDeCriacao';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
 import { CHAVE_PROJETO_DO_CORE } from '@/lib/studio/video/doCore';
@@ -70,6 +72,8 @@ const TROCA: Record<string, { entra: [string, string]; sai: [string, string]; lu
   desfocar: { entra: ['opacity:0;filter:blur(18px)', 'opacity:1;filter:blur(0)'], sai: ['opacity:1;filter:blur(0)', 'opacity:0;filter:blur(18px)'] },
   circulo: { entra: ['clip-path:circle(0% at 50% 50%)', 'clip-path:circle(75% at 50% 50%)'], sai: ['opacity:1', 'opacity:1'] },
   cortina: { entra: ['clip-path:inset(0 100% 0 0)', 'clip-path:inset(0 0 0 0)'], sai: ['opacity:1', 'opacity:1'] },
+  // P-34: a FAIXA DIAGONAL de impacto passa por cima e a cena troca escondida atrás dela
+  faixa: { entra: ['opacity:0', 'opacity:1'], sai: ['opacity:1', 'opacity:0'], luz: 'diagonal' },
 };
 const nomeDaTroca = (t: string) => t.replace(/[^a-z]/g, '');
 /** F-296: a luz da troca na cor da arte (clarão tingido, faixa de luz e brilho colorido) */
@@ -78,6 +82,7 @@ function luzDaTroca(tipo: string, cor: string): string {
   if (tipo === 'cor') return fx.clarao;
   if (tipo === 'faixa') return `linear-gradient(115deg,${comAlfa(fx.luz, 0)} 20%,${comAlfa(fx.luz, 0.95)} 50%,${comAlfa(fx.luz, 0)} 80%)`;
   if (tipo === 'brilho') return comAlfa(fx.forte, 0.55);
+  if (tipo === 'diagonal') return `linear-gradient(104deg,transparent 31%,#ffd400 31%,#ffd400 33.5%,${cor} 33.5%,${cor} 66.5%,#ffd400 66.5%,#ffd400 69%,transparent 69%)`;
   return tipo;
 }
 function estiloDaTroca(t: TipoDeTransicao | undefined, lado: 'entra' | 'sai'): React.CSSProperties {
@@ -87,7 +92,7 @@ function estiloDaTroca(t: TipoDeTransicao | undefined, lado: 'entra' | 'sai'): R
 const ESTILO_DAS_TROCAS = Object.keys(TROCA).map((t) => {
   const n = nomeDaTroca(t);
   return `@keyframes palco-entra-${n}{from{${TROCA[t].entra[0]}}to{${TROCA[t].entra[1]}}}@keyframes palco-sai-${n}{from{${TROCA[t].sai[0]}}to{${TROCA[t].sai[1]}}}`;
-}).join('') + '@keyframes palco-luz{0%{opacity:0}45%{opacity:1}100%{opacity:0}}@keyframes palco-luz-passa{0%{opacity:0;transform:translateX(-60%)}50%{opacity:1}100%{opacity:0;transform:translateX(60%)}}';
+}).join('') + '@keyframes palco-faixa{0%{transform:translateX(-62%)}100%{transform:translateX(62%)}}@keyframes palco-luz{0%{opacity:0}45%{opacity:1}100%{opacity:0}}@keyframes palco-luz-passa{0%{opacity:0;transform:translateX(-60%)}50%{opacity:1}100%{opacity:0;transform:translateX(60%)}}';
 
 /** F-249: qual elemento está no ponto tocado da tela. */
 function elementoTocado(ev: MouseEvent<HTMLElement>, d: Documento): string | null {
@@ -118,7 +123,7 @@ export function CarrosselNoPalco({ produtos, formato, titulo, className, fundo =
       )}
       {docs[i] && <div key={`entra-${vez.n}`} className="absolute inset-0" style={vez.n ? estiloDaTroca(troca, 'entra') : undefined}><PreviaDocumento doc={docs[i]} animar sempre className="h-full w-full" /></div>}
       {/* F-290: flash, luz e escurecer passam por cima da troca */}
-      {vez.anterior != null && TROCA[troca]?.luz && <div key={`luz-${vez.n}`} className="pointer-events-none absolute inset-0" style={{ background: luzDaTroca(TROCA[troca].luz!, corDoDocumento(docs[vez.anterior] ?? docs[i])), mixBlendMode: troca === 'brilho' ? 'screen' : undefined, animation: `${troca === 'luz' ? 'palco-luz-passa' : 'palco-luz'} .6s ease-out both` }} />}
+      {vez.anterior != null && TROCA[troca]?.luz && <div key={`luz-${vez.n}`} className="pointer-events-none absolute inset-0" style={{ background: luzDaTroca(TROCA[troca].luz!, corDoDocumento(docs[vez.anterior] ?? docs[i])), mixBlendMode: troca === 'brilho' ? 'screen' : undefined, ...(troca === 'faixa' ? { left: '-100%', right: '-100%', animation: 'palco-faixa .6s cubic-bezier(.45,0,.55,1) both' } : { animation: `${troca === 'luz' ? 'palco-luz-passa' : 'palco-luz'} .6s ease-out both` }) }} />}
     </div>
   );
 }
@@ -275,6 +280,9 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const escolherLogo = (l: LogoDaPasta | null) => { gravarLogoDoEncarte(chaveLogo, l); setLogoDoPalco(l); setTrocandoLogo(false); };
   // produto escolhido para editar (null = a tela toca o carrossel)
   const [selId, setSelId] = useState<string | null>(null);
+  // P-34: a ABERTURA ou o FECHAMENTO escolhido para editar (cada elemento deles se edita só naquela cena)
+  const [cena, setCena] = useState<'abertura' | 'fechamento' | null>(null);
+  const nomeDaCena = cena === 'abertura' ? 'Abertura' : cena === 'fechamento' ? 'Fechamento' : null;
   const sel = comPreco.find((p) => p.id === selId) ?? null;
   const [trocando, setTrocando] = useState<ProdutoTabloide | null>(null);
   const [promo, setPromo] = useState(false);
@@ -291,8 +299,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   // F-288: fundo, logo e botão se editam mesmo com o carrossel tocando (vale para todos os produtos): usa o 1º produto como base
   const alvo = sel ?? comPreco[0] ?? null;
   const opcoesDoDoc = { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes };
-  const docEd = useMemo(() => (alvo ? palcoDoProduto(alvo, formato, opcoesDoDoc) : null), [alvo, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes]); // eslint-disable-line react-hooks/exhaustive-deps
-  const docSel = sel ? docEd : null;
+  const docEd = useMemo(() => (alvo ? (cena ? vinhetaDoPalco(cena, alvo, formato, { ...opcoesDoDoc, loja: nomeDaLoja }, cena === 'abertura' ? 2.8 : 3.4) : palcoDoProduto(alvo, formato, opcoesDoDoc)) : null), [alvo, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes, cena, nomeDaLoja]); // eslint-disable-line react-hooks/exhaustive-deps
+  const docSel = sel || cena ? docEd : null;
   const camadaSel = docEd?.camadas.find((c) => c.id === nomeSel) ?? null;
   const ehDaLogo = ehCamadaDaLogo(camadaSel?.nome);
   const ehDoProduto = !!camadaSel && ['Produto', 'Nome do produto', 'Preço'].includes(camadaSel.nome);
@@ -313,6 +321,15 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     const c = docEd.camadas.find((x) => x.id === nome);
     if (!c) return;
     const resto = { ...patch } as Partial<Camada> & Record<string, unknown>;
+    // P-34: na ABERTURA/FECHAMENTO, tudo o que mudou vale só naquela cena (tamanho da logo, frase, movimentos, entrada e saída)
+    if (cena) {
+      const k = chaveDaCena(nome, cena);
+      const outro: FormatoDoc = formato === '9:16' ? '16:9' : '9:16';
+      const estilo = Object.fromEntries(Object.entries(resto).filter(([x]) => !['x', 'y', 'w', 'h', 'rot', 'tamanho'].includes(x)));
+      setAjustes((a) => ({ ...a, [formato]: { ...a[formato], [k]: { ...a[formato]?.[k], ...resto } }, ...(Object.keys(estilo).length ? { [outro]: { ...a[outro], [k]: { ...a[outro]?.[k], ...estilo } } } : {}) }));
+      if (patch.animacao) { const ciclo = Math.max(1.4, 0.2 + patch.animacao.duracao + 0.5); setDemo({ nome, ciclo }); setTocando(false); clearTimeout(fimDoDemo.current); fimDoDemo.current = setTimeout(() => { setDemo(null); setTocando(true); }, 2 * (ciclo + 0.35) * 1000); }
+      return;
+    }
     if (nome === 'Nome do produto' && typeof resto.texto === 'string') { s.mudar(alvo.id, { nome: resto.texto }); delete resto.texto; }
     if (c.tipo === 'selo' && nome === 'Preço' && ('valor' in resto || 'sufixo' in resto)) {
       const inteiro = String(resto.valor ?? c.valor), cent = String(resto.sufixo ?? c.sufixo).replace(/\D/g, '');
@@ -395,7 +412,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     tipo: 'palco' as const, segmento, nome: `${info.tituloPalco} – ${fundo ? fundo.nome.replace(/^Ofertas – /, '') : 'Palco desenhado'}`,
     dados: { fundoId, formato, titulo, textoBotao, movimento, ajustes, logoDoPalco: logoDoPalco ? { nome: logoDoPalco.nome, url: logoDoPalco.url } : null },
   }), [segmento, info.tituloPalco, fundo, fundoId, formato, titulo, textoBotao, movimento, ajustes, logoDoPalco]);
-  const voltarAoPadrao = (nome: string) => setAjustes((a) => { const f = { ...a[formato] }; delete f[nome]; if (nome === 'Produto' && alvo) delete f[chaveDoProdutoNoPalco(alvo.nome)]; return { ...a, [formato]: f }; });
+  const voltarAoPadrao = (nome: string) => setAjustes((a) => { const f = { ...a[formato] }; if (cena) { delete f[chaveDaCena(nome, cena)]; return { ...a, [formato]: f }; } delete f[nome]; if (nome === 'Produto' && alvo) delete f[chaveDoProdutoNoPalco(alvo.nome)]; return { ...a, [formato]: f }; });
   /** F-290: "Movimento padrão": o elemento volta ao movimento com que a arte nasceu (nos dois formatos) */
   const movimentoPadrao = (nome: string | null) => {
     setAjustes((a) => {
@@ -441,13 +458,16 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     if (!comPreco.length) { toast.error('Coloque pelo menos um produto com preço.'); return; }
     const incompletos = comPreco.filter((p) => faltasDoProduto(p).length);
     if (incompletos.length) { toast.error(`Complete antes: falta ${faltasDoProduto(incompletos[0]).join(', ')} em “${incompletos[0].nome}”.`); setSelId(incompletos[0].id); return; }
-    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao });
+    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao, loja: nomeDaLoja });
     try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ projeto, nome: `${info.tituloPalco} – ${fundo ? textoBotao : titulo}` })); } catch { toast.error('Não foi possível abrir o editor de vídeo.'); return; }
     navegar('/studio/video');
   };
   const mover = (k: keyof MovimentoDoPalco, v: string) => setMovimento((m) => ({ ...m, [k]: v }));
+  // P-34: o pacote de impacto (trilha, sons, efeitos, abertura e fechamento) fica guardado junto do movimento, por modelo
+  const mudarImpacto = (mudou: Partial<ImpactoDoPalco>) => setMovimento((m) => ({ ...m, impacto: { ...(m.impacto ?? {}), ...mudou } }));
+  const painelDeImpacto = <PainelDeImpacto impacto={movimento.impacto} segmento={segmento} loja={nomeDaLoja} aoMudar={mudarImpacto} />;
   // F-292: o EDITOR DE VÍDEO fica embaixo da arte, já com um clipe por produto, acompanhando o palco (meio segundo depois de cada mudança)
-  const projetoDoPalco = useMemo(() => (comPreco.length ? projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao }) : null), [comPreco, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao]);
+  const projetoDoPalco = useMemo(() => (comPreco.length ? projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao, loja: nomeDaLoja }) : null), [comPreco, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao, nomeDaLoja]);
   const [projetoNoEditor, setProjetoNoEditor] = useState(projetoDoPalco);
   useEffect(() => { const t = setTimeout(() => setProjetoNoEditor(projetoDoPalco), 500); return () => clearTimeout(t); }, [projetoDoPalco]);
   const transicaoPeloEditor = (nome: string, tipo: TipoDeTransicao) => setMovimento((m) => ({ ...m, transicoes: { ...(m.transicoes ?? {}), [chaveCanonica(nome)]: tipo } }));
@@ -457,10 +477,16 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const [slotFerramentas, setSlotFerramentas] = useState<HTMLDivElement | null>(null);
   /** tocou no vídeo parado: abre a edição daquele produto e do elemento tocado, na arte */
   const tocouNoVideo = (nome: string, ev: MouseEvent<HTMLElement>, doc: Documento) => {
+    if (nome === 'Abertura' || nome === 'Fechamento') {
+      const n0 = elementoTocado(ev, doc);
+      setVista('palco'); setSelId(null); setCena(nome === 'Abertura' ? 'abertura' : 'fechamento'); setTocando(true);
+      if (n0) escolherElemento(n0);
+      return;
+    }
     const p = comPreco.find((x) => x.nome === nome);
     if (!p) return;
     const n = elementoTocado(ev, doc);
-    setVista('palco'); setSelId(p.id); setTocando(true);
+    setVista('palco'); setSelId(p.id); setCena(null); setTocando(true);
     if (n) escolherElemento(n);
   };
 
@@ -564,6 +590,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                   {painelDoFundo}
                 </div>
               )}
+              {/* P-34: trilha sonora, efeitos sonoros e visuais, abertura e fechamento — tudo já ligado */}
+              <div className="rounded-xl border border-white/10 bg-black/20 p-2.5" data-testid="assistente-impacto">{painelDeImpacto}</div>
               <p className="text-xs text-slate-400">Na tela de edição você ainda toca em qualquer elemento para mover, aumentar, girar, mudar cor, texto e movimento.</p>
             </div>
             {previaAoVivo}
@@ -600,7 +628,12 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
         <AssistenteDeCriacao titulo={`${info.tituloPalco}${fundo ? ` · ${fundo.nome.replace(/^Ofertas – /, '')}` : ''}`} etapas={etapas} passo={passoDoAssistente} irPara={irParaPasso}
           textoConcluir="Criar meu vídeo" aoSair={sairDoAssistente}
           // F-312: no fim, a tela de edição com a PRÉVIA do vídeo (com a locução) já tocando embaixo da linha do tempo
-          aoConcluir={() => { sairDoAssistente(); setVista('palco'); setPedidoDeTocar((n) => n + 1); toast.success('Seu vídeo está pronto! A prévia está tocando embaixo da linha do tempo. Para salvar, toque em "Visualizar vídeo e salvar".'); }} />
+          aoConcluir={() => {
+            sairDoAssistente(); setVista('video');
+            // P-34 (pedido do dono): o vídeo é ENTREGUE pronto — o MP4 é montado sozinho (depois que o editor recebe a última versão)
+            window.setTimeout(() => { setPedidoDeVideo((n) => n + 1); lateral.current?.scrollTo?.({ top: 0, behavior: 'smooth' }); }, 1200);
+            toast.success('Criando o seu vídeo com trilha e efeitos… Em instantes ele fica pronto para baixar, salvar e publicar.');
+          }} />
         <GaleriaDeProdutos aberto={galeriaAberta} aoFechar={() => setGaleriaAberta(false)} aoAdicionar={s.adicionarPronto} segmentoInicial={segmento === 'mercado' ? 'mercearia' : segmento} />
         {trocandoLogo && <EscolherLogo titulo="Logo do vídeo" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
       </>
@@ -649,7 +682,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
           </div>}
           {comPreco.length > 0 && (
             <div className={cn('flex shrink-0 gap-1.5 overflow-x-auto pb-1', formato === '9:16' && 'lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:pb-0 lg:pr-1')} role="listbox" aria-label="Produtos do palco" data-testid="palco-fila">
-              <button type="button" onClick={() => { setVista('palco'); setSelId(null); escolherElemento(null); setTocando(true); }} aria-selected={vista === 'palco' && !sel} role="option"
+              <button type="button" onClick={() => { setVista('palco'); setSelId(null); setCena(null); escolherElemento(null); setTocando(true); }} aria-selected={vista === 'palco' && !sel && !cena} role="option"
                 className={cn('flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border text-[10px] font-bold', vista === 'palco' && !sel ? 'border-[#FFD400] bg-[#FFD400]/10 text-[#FFD400]' : 'border-white/10 text-slate-300')}>
                 <Play className="h-5 w-5" />Tocar
               </button>
@@ -658,6 +691,13 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                 className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-[#25D366]/60 bg-[#25D366]/10 text-[10px] font-bold text-[#7dffb0] hover:bg-[#25D366]/20" data-testid="palco-abrir-galeria">
                 <Plus className="h-5 w-5" />Produtos
               </button>
+              {/* P-34: a ABERTURA e o FECHAMENTO do vídeo com impacto também se editam (logo, frase, textos, movimentos) */}
+              {impactoDoPalco({ movimento, fundo }).vinhetas && (['abertura', 'fechamento'] as const).map((k) => (
+                <button key={k} type="button" role="option" aria-selected={cena === k} onClick={() => { setVista('palco'); setSelId(null); setCena(k); escolherElemento(null); setTocando(true); }}
+                  className={cn('flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border text-[9px] font-bold leading-tight', cena === k ? 'border-[3px] border-[#FFD400] bg-[#FFD400]/10 text-[#FFD400]' : 'border-[#FFD400]/40 text-[#FFD400]/80')} data-testid={`palco-cena-${k}`}>
+                  <Zap className="h-4 w-4" />{k === 'abertura' ? 'Abertura' : 'Fecha-mento'}
+                </button>
+              ))}
               {sel && vista === 'palco' && (
                 <button type="button" onClick={() => { setDemo(null); clearTimeout(fimDoDemo.current); setTocando((t) => !t); }} title={tocando ? 'Parar para editar' : 'Ver todo o movimento'} aria-label={tocando ? 'Parar para editar' : 'Ver todo o movimento'}
                   className="flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/15 text-[10px] font-bold leading-tight text-white hover:bg-white/5" data-testid="palco-ver-movimento">
@@ -665,7 +705,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                 </button>
               )}
               {comPreco.map((p) => (
-                <button key={p.id} type="button" role="option" aria-selected={sel?.id === p.id} onClick={() => { setVista('palco'); setSelId(p.id); escolherElemento(null); setTocando(true); }} title={p.nome}
+                <button key={p.id} type="button" role="option" aria-selected={sel?.id === p.id} onClick={() => { setVista('palco'); setSelId(p.id); setCena(null); escolherElemento(null); setTocando(true); }} title={p.nome}
                   className={cn('relative flex h-14 w-14 shrink-0 flex-col items-center overflow-hidden rounded-xl border bg-white', sel?.id === p.id ? 'border-[3px] border-[#FFD400]' : 'border-white/10', faltasDoProduto(p).length && 'ring-2 ring-amber-400')} data-testid="palco-fila-produto">
                   {p.imagem ? <img src={p.imagem.url} alt="" className="h-9 w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="flex h-9 items-center px-1 text-center text-[8px] font-bold text-slate-500">sem foto</span>}
                   <span className="w-full truncate bg-[#c40f24] px-0.5 text-center text-[10px] font-black text-white">{precoParaTexto(p.preco)}</span>
@@ -754,6 +794,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
 
           {/* F-300: LOCUÇÃO — nome da loja, 5 vozes e o agente locutor (opcional) */}
           {comPreco.length > 0 && <PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} />}
+          {/* P-34: trilha, efeitos sonoros e visuais, abertura e fechamento */}
+          {comPreco.length > 0 && <Cartao titulo="Impacto: trilha e efeitos" icone={Zap}><div data-testid="palco-impacto">{painelDeImpacto}</div></Cartao>}
 
           <Cartao titulo={fundo ? 'Fundo, logo e botão' : 'Título do palco'} icone={Palette}>
             {/* F-308: trocar o FUNDO da arte (galeria, imagem própria, só cor) e o movimento dele */}
@@ -822,7 +864,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       {projetoNoEditor && (
         <section className="shrink-0 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-1.5" data-testid="palco-editor-video" aria-label={`Vídeo do palco (${comPreco.length} produtos · ${comPreco.length * SEGUNDOS_POR_PRODUTO} s)`}>
           <EditorDeVideo embutido projetoInicial={projetoNoEditor} nomeInicial={`${info.tituloPalco} – ${fundo ? textoBotao : titulo}`} aoTransicao={transicaoPeloEditor}
-            mesa={{ previa: slotPrevia, ferramentas: slotFerramentas, visivel: true, aoUsar: () => setVista('video'), aoTocarNaTela: tocouNoVideo, clipeEmFoco: sel?.nome ?? null, exportarAgora: pedidoDeVideo, tocarAgora: pedidoDeTocar, modeloDoVideo }} />
+            mesa={{ previa: slotPrevia, ferramentas: slotFerramentas, visivel: true, aoUsar: () => setVista('video'), aoTocarNaTela: tocouNoVideo, clipeEmFoco: sel?.nome ?? nomeDaCena, exportarAgora: pedidoDeVideo, tocarAgora: pedidoDeTocar, modeloDoVideo }} />
         </section>
       )}
       </div>

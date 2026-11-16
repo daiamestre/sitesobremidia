@@ -3498,3 +3498,39 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   Sem H.264 nenhum, a tela grava tocando em WebM (VP9/VP8 por software, `exportar(..., { preferirWebm: true })`), sem erro para a pessoa; só avisa que a tela precisa ficar aberta. Qualquer outra falha da exportação principal também cai nessa gravação.
 - **Baixar (`exportar.tsx`):** o link fica na página e o arquivo vive 60 s (antes eram 2 s; vídeo grande podia não sair no celular). No iPhone/iPad abre o "Compartilhar" → "Salvar vídeo". Em Meus Projetos, a extensão segue o arquivo (MP4 ou WebM), em qualquer aparelho logado.
 - **Conferido no navegador:** com um "tablet simulado" (só H.264 Baseline/Main até 1920×1088), o vídeo em pé saiu com `avc1.4D0034` girado. Ele abre como 1080×1920, com a imagem no lugar: verde no canto de cima, vermelho em cima, azul embaixo. Sem H.264, saiu `video/webm`. Teste: `exportarEmQualquerAparelho315.test.ts`. Também foi corrigido o teste do menu do F-304, que quebrou quando entrou o Acervo (F-310).
+
+### F-316 — Vídeo de ofertas COM IMPACTO, no padrão do concorrente que gera vídeos com IA (P-34, fase 1) (16/11/2026)
+- **Pedido do dono:** focar no concorrente que gera vídeos com IA e locução. O vídeo deve ter:
+  - trilha sonora;
+  - efeitos de impacto sonoros (sirene, impacto);
+  - efeitos visuais com chamas e estrelas passando na frente do fundo;
+  - fundo animado.
+  O cliente informa os dados e recebe o vídeo PRONTO, funcionando aqui como lá.
+- **Trilhas GRATUITAS (Pixabay, autorizadas pelo dono):** 10 faixas em `public/studio/trilhas/` (varejo, funk, forró com sanfona, sertanejo, festa, Black Friday, promoção, ukulele), recodificadas a 128 kbps, com o volume igualado (−14 LUFS) e até 2 min. O ponto de repetição `ate` foi medido no arquivo. Origem e licença em `docs/licencas/TRILHAS_PIXABAY.md`. Cada segmento tem a sua trilha padrão. As 6 trilhas compostas antes na ElevenLabs (~6,1 mil créditos, gastos sem autorização) NÃO entram: ficam guardadas fora do sistema. Regra nova: não gastar crédito da ElevenLabs sem ordem do dono. Os 5 efeitos sonoros já feitos (whoosh, impacto, sirene, brilho, caixa) ficam, sem gasto novo.
+- **Tudo editável depois de criado (pedido do dono):** a ABERTURA e o FECHAMENTO ganharam botões na fila e se abrem também tocando a cena no vídeo. Cada elemento (logo, frase, textos, botão, faixas) se edita só naquela cena (`chaveDaCena`: tamanho, posição, cor, fonte, texto, entrada, 2 movimentos e saída). A frase encolhe para caber. Os produtos continuam com a edição de sempre, e o painel de impacto troca trilha, volume, efeitos sonoros e visuais.
+- **Efeitos visuais (`efeitosDeImpacto.ts`, desenhados por `desenharDocumento`):** saem iguais na tela, na prévia, nas capas e no MP4.
+  - chamas: brasas subindo e o fogo pulsando embaixo;
+  - estrelas de 4 pontas passando na frente do fundo;
+  - câmera na mão: só o fundo balança;
+  - explosão no preço: estrela de 16 pontas girando atrás do balão, na cor do palco com borda amarela; 16 faíscas; brilho passando a cada 3,2 s.
+- **Animações novas (`animacao.ts`):**
+  - `estourar`: o preço passa do ponto, leva um soco de 18% e assenta;
+  - `mola-esquerda` e `mola-direita`: o produto entra com mola, alternando os lados;
+  - `chegar-gigante`: a logo da abertura chega em 220%.
+- **Troca de cena nova:** `faixa`, uma faixa diagonal na cor da arte com bordas amarelas. A cena troca escondida atrás dela, no vídeo e no carrossel da tela.
+- **O vídeo (`palco.ts`):** a ordem é ABERTURA, produtos, FECHAMENTO.
+  - Abertura: a logo chegando gigante e a frase "{LOJA} OFERTAS IMPERDÍVEIS" estourando.
+  - Fechamento: "APROVEITE! {LOJA}". As duas frases podem ser trocadas no painel.
+  - A fala de abertura e a de fechamento ficam nas cenas delas.
+  - Efeitos sonoros (`projeto.sons`, que não viram linhas na linha do tempo): sirene na abertura, whoosh em cada troca, impacto quando o preço e a frase estouram, brilho no preço e caixa registradora no fechamento.
+  - A trilha é uma linha de música (`trilha-…`) que repete e **abaixa para 30% sob a voz** (`fatorDaVoz`: desce em 0,2 s e volta em 0,35 s).
+- **Motor (`video/motor.ts`):** os efeitos tocam na prévia (marcados no relógio do som) e entram na mistura do MP4. Um limitador (compressor a −4 dB, razão 20) fica no fim: o som nunca estoura.
+- **Tela:**
+  - Painel "Impacto: trilha e efeitos" (`PainelDeImpacto.tsx`): ouvir e escolher a trilha, volume, efeitos sonoros, efeitos visuais e as frases da abertura e do fechamento.
+  - Tudo vem LIGADO e fica guardado por modelo (em `movimento.impacto`). O que o cliente escolheu à mão continua valendo.
+  - O painel aparece no passo 3 do passo a passo e na lateral da edição.
+  - No fim do passo a passo, o vídeo é **entregue pronto**: o MP4 se monta sozinho, com Baixar, Salvar e Publicar.
+- **Conferido no navegador:**
+  - quadros da abertura (frase e logo), do preço (estrela, faíscas e brilho), das chamas e estrelas, e da faixa diagonal no meio da troca;
+  - MP4 real de 12,7 s (abertura, 2 produtos e fechamento), com a trilha e 10 efeitos sonoros nos instantes certos, lidos de dentro do arquivo.
+  - Teste: `videoComImpacto34.test.ts`. Os testes antigos do palco passaram a conferir o palco com o impacto desligado, que continua existindo.

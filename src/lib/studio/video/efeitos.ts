@@ -22,6 +22,7 @@ export const TRANSICOES: { id: TipoDeTransicao; nome: string }[] = [
   { id: 'deslizar-esquerda', nome: 'Deslizar ←' }, { id: 'deslizar-direita', nome: 'Deslizar →' }, { id: 'deslizar-cima', nome: 'Subir' },
   { id: 'zoom', nome: 'Zoom' }, { id: 'cortina', nome: 'Cortina' }, { id: 'circulo', nome: 'Círculo' }, { id: 'girar', nome: 'Girar' },
   { id: 'flash', nome: 'Flash' }, { id: 'luz', nome: 'Luz' }, { id: 'brilho', nome: 'Brilho' }, { id: 'girar-tudo', nome: 'Girar a cena' }, { id: 'desfocar', nome: 'Desfocar' },
+  { id: 'faixa', nome: 'Faixa diagonal (impacto)' },
 ];
 
 /** Texto do `ctx.filter` para o clipe: filtro escolhido + ajustes finos. */
@@ -107,6 +108,22 @@ export function desenharTransicao(ctx: CanvasRenderingContext2D, tipo: TipoDeTra
       camada(a, () => { ctx.globalAlpha = 1 - e; ctx.filter = `blur(${(e * 18).toFixed(1)}px)`; });
       camada(b, () => { ctx.globalAlpha = e; ctx.filter = `blur(${((1 - e) * 18).toFixed(1)}px)`; });
       return;
+    // P-34: FAIXA DIAGONAL de impacto — uma faixa larga na cor da arte, com bordas amarelas, varre a tela inclinada; a cena
+    // troca escondida atrás dela (no meio, a faixa cobre a tela inteira)
+    case 'faixa': {
+      if (p < 0.5) a(); else b();
+      const giro = (14 * Math.PI) / 180;
+      const largura = w + h * Math.tan(giro) + w * 0.12;
+      const borda = Math.max(18, Math.min(w, h) * 0.04);
+      const x = -largura / 2 - borda + e * (w + largura + 2 * borda);
+      ctx.save();
+      ctx.translate(x, h / 2); ctx.rotate(giro);
+      const alto = Math.hypot(w, h) * 1.4;
+      ctx.fillStyle = '#ffd400'; ctx.fillRect(-largura / 2 - borda, -alto / 2, largura + 2 * borda, alto);
+      ctx.fillStyle = cor; ctx.fillRect(-largura / 2, -alto / 2, largura, alto);
+      ctx.restore();
+      return;
+    }
     case 'girar':
       a();
       camada(b, () => { ctx.globalAlpha = e; ctx.translate(w / 2, h / 2); ctx.rotate((1 - e) * -0.5); ctx.scale(0.6 + 0.4 * e, 0.6 + 0.4 * e); ctx.translate(-w / 2, -h / 2); });

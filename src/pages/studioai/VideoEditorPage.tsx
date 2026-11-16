@@ -75,6 +75,8 @@ export default function VideoEditorPage() {
 /** F-292: o projeto que vem do palco entra no editor sem perder o que a pessoa fez na linha do tempo (música, textos, filtros, tempos) */
 /** F-300: faixas de LOCUÇÃO vêm do palco (id "loc-…"); as outras faixas são da pessoa e ficam */
 const ehLocucao = (a: { id: string }) => a.id.startsWith('loc-');
+/** P-34: a TRILHA de impacto também vem do palco (id "trilha-…"): trocar a trilha no palco troca aqui */
+const ehDoPalco = (a: { id: string }) => ehLocucao(a) || a.id.startsWith('trilha-');
 function mesclarDoPalco(novo: ProjetoDeVideo, q: ProjetoDeVideo): ProjetoDeVideo {
   // com locução, o tempo de cada produto é o da fala (vem do palco); sem ela, fica o tempo que a pessoa ajustou
   const comLocucao = novo.audios.some(ehLocucao);
@@ -82,7 +84,7 @@ function mesclarDoPalco(novo: ProjetoDeVideo, q: ProjetoDeVideo): ProjetoDeVideo
     const o = q.clipes.find((k) => k.tipo === 'arte' && k.nome === c.nome);
     return o ? { ...c, id: o.id, duracao: comLocucao ? c.duracao : o.duracao, velocidade: o.velocidade, filtro: o.filtro, ajustes: o.ajustes, zoomDe: o.zoomDe, zoomPara: o.zoomPara, transicao: { ...c.transicao, duracao: o.transicao.duracao || c.transicao.duracao } } : c;
   });
-  return { ...novo, clipes: [...clipes, ...q.clipes.filter((k) => k.tipo !== 'arte')], sobreposicoes: q.sobreposicoes, audios: [...novo.audios.filter(ehLocucao), ...q.audios.filter((a) => !ehLocucao(a))] };
+  return { ...novo, clipes: [...clipes, ...q.clipes.filter((k) => k.tipo !== 'arte')], sobreposicoes: q.sobreposicoes, audios: [...novo.audios.filter(ehDoPalco), ...q.audios.filter((a) => !ehDoPalco(a))] };
 }
 
 /**

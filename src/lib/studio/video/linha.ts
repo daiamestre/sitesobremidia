@@ -3,9 +3,10 @@
 // volume, filtro, ajustes, zoom (Ken Burns) e transição para o próximo. Por cima: textos/formas/figurinhas (camadas do
 // Studio) com início e fim no tempo. Embaixo: músicas/áudios. Tudo em SEGUNDOS da linha do tempo.
 import type { Camada, Documento, FormatoDoc } from '../documento';
+import type { SomNoVideo } from '../impacto';
 
 export type TipoDeClipe = 'video' | 'imagem' | 'arte';
-export type TipoDeTransicao = 'corte' | 'dissolver' | 'preto' | 'branco' | 'deslizar-esquerda' | 'deslizar-direita' | 'deslizar-cima' | 'zoom' | 'cortina' | 'circulo' | 'girar' | 'flash' | 'luz' | 'brilho' | 'girar-tudo' | 'desfocar';
+export type TipoDeTransicao = 'corte' | 'dissolver' | 'preto' | 'branco' | 'deslizar-esquerda' | 'deslizar-direita' | 'deslizar-cima' | 'zoom' | 'cortina' | 'circulo' | 'girar' | 'flash' | 'luz' | 'brilho' | 'girar-tudo' | 'desfocar' | 'faixa';
 export type TipoDeFiltro = 'nenhum' | 'pb' | 'sepia' | 'vintage' | 'quente' | 'frio' | 'vivido' | 'drama' | 'desbotado' | 'noite' | 'neon' | 'pastel';
 
 export interface Ajustes { brilho: number; contraste: number; saturacao: number; matiz: number; desfoque: number; vinheta: number }
@@ -58,6 +59,8 @@ export interface FaixaDeAudio {
   /** corte do arquivo (s) */
   inicio: number; fim: number;
   volume: number; somEntra: number; somSai: number; repetir: boolean;
+  /** P-34: a trilha abaixa sozinha (para 30%) enquanto o locutor fala */
+  abaixarComVoz?: boolean;
 }
 
 export interface ProjetoDeVideo {
@@ -68,6 +71,8 @@ export interface ProjetoDeVideo {
   clipes: Clipe[];
   sobreposicoes: Sobreposicao[];
   audios: FaixaDeAudio[];
+  /** P-34: efeitos sonoros marcados no tempo (sirene, whoosh, impacto…): o motor toca e mistura, sem virar linha de áudio */
+  sons?: SomNoVideo[];
 }
 
 /** a arte do editor de imagens que vai para o editor de vídeo (guardada na aba do navegador) */
@@ -170,3 +175,25 @@ export const formatarTempo = (s: number) => {
   const r = Math.max(0, s) - m * 60;
   return `${String(m).padStart(2, '0')}:${r.toFixed(1).padStart(4, '0')}`;
 };
+
+/** P-34: faixa de LOCUÇÃO (vem do palco com id "loc-…") */
+export const ehVoz = (a: { id: string }) => a.id.startsWith('loc-');
+/** P-34: a música abaixa para este tanto enquanto o locutor fala */
+export const MUSICA_SOB_A_VOZ = 0.3;
+/**
+ * P-34: quanto a trilha toca no instante t (1 = cheia; 0,3 = sob a voz), com descida de 0,2 s antes da fala e volta de
+ * 0,35 s depois — sem degrau, como no concorrente de vídeo com IA.
+ */
+export function fatorDaVoz(audios: FaixaDeAudio[], t: number): number {
+  let f = 1;
+  for (const a of audios) {
+    if (!ehVoz(a)) continue;
+    const ini = a.em, fim = a.em + Math.max(0.05, a.fim - a.inicio);
+    let k = 1;
+    if (t >= ini && t <= fim) k = MUSICA_SOB_A_VOZ;
+    else if (t < ini && t > ini - 0.2) k = 1 - (1 - MUSICA_SOB_A_VOZ) * ((t - (ini - 0.2)) / 0.2);
+    else if (t > fim && t < fim + 0.35) k = MUSICA_SOB_A_VOZ + (1 - MUSICA_SOB_A_VOZ) * ((t - fim) / 0.35);
+    f = Math.min(f, k);
+  }
+  return f;
+}

@@ -23,8 +23,8 @@ describe('balão de preço do palco', () => {
 describe('movimento e tempo do palco', () => {
   it('cada produto fica 8 s, no documento e no vídeo', () => {
     expect(SEGUNDOS_POR_PRODUTO).toBe(8);
-    expect(palcoDoProduto(produto, '9:16', { fundo }).video?.duracao).toBe(8);
-    expect(projetoDoCarrossel([produto], '16:9', { fundo }).clipes[0].duracao).toBe(8);
+    expect(palcoDoProduto(produto, '9:16', { fundo, movimento: { impacto: { desligado: true } } }).video?.duracao).toBe(8);
+    expect(projetoDoCarrossel([produto], '16:9', { fundo, movimento: { impacto: { desligado: true } } }).clipes[0].duracao).toBe(8); // P-34: sem o impacto (com ele, a 1ª cena é a abertura)
   });
   it('o cliente escolhe de que lado entram o produto, o nome e o balão; sem escolha, fica o padrão', () => {
     const d = palcoDoProduto(produto, '16:9', { fundo, movimento: { produto: 'direita', nome: 'zoom', preco: 'descer' } });
@@ -32,11 +32,11 @@ describe('movimento e tempo do palco', () => {
     expect(c('Produto').animacao).toMatchObject({ tipo: 'direita', depois: 'flutuar' });
     expect(c('Nome do produto').animacao).toMatchObject({ tipo: 'zoom' });
     expect(c('Preço').animacao).toMatchObject({ tipo: 'descer', depois: 'pulsar' });
-    expect(palcoDoProduto(produto, '16:9', { fundo }).camadas.find((x) => x.nome === 'Produto')?.animacao).toMatchObject({ tipo: 'subir' });
+    expect(palcoDoProduto(produto, '16:9', { fundo, movimento: { impacto: { desligado: true } } }).camadas.find((x) => x.nome === 'Produto')?.animacao).toMatchObject({ tipo: 'subir' });
   });
   it('o lado da troca do carrossel chega ao vídeo; as opções existem', () => {
     expect(projetoDoCarrossel([produto, produto], '9:16', { fundo, movimento: { transicao: 'deslizar-direita' } }).clipes[0].transicao.tipo).toBe('deslizar-direita');
-    expect(projetoDoCarrossel([produto, produto], '9:16', { fundo }).clipes[0].transicao.tipo).toBe('deslizar-esquerda');
+    expect(projetoDoCarrossel([produto, produto], '9:16', { fundo, movimento: { impacto: { desligado: true } } }).clipes[0].transicao.tipo).toBe('deslizar-esquerda'); // P-34: com impacto, a faixa diagonal
     expect(ENTRADAS.map((e) => e.id)).toEqual(expect.arrayContaining(['subir', 'descer', 'esquerda', 'direita']));
     expect(TRANSICOES_DO_CARROSSEL.map((e) => e.id)).toEqual(expect.arrayContaining(['deslizar-esquerda', 'deslizar-direita', 'deslizar-cima']));
   });

@@ -65,18 +65,18 @@ describe('F-300: a locução entra no vídeo do palco', () => {
   it('cada produto fica no ar o tempo da fala; abertura antes da 1ª oferta e fechamento depois da última', () => {
     const produtos = [{ nome: 'Arroz 5kg', preco: 20, precoDe: null, unidade: null, imagem: null }, { nome: 'Feijão 1kg', preco: 6.99, precoDe: null, unidade: null, imagem: null }];
     const loc = { abertura: { url: 'https://x/a.mp3', dur: 3 }, fechamento: { url: 'https://x/f.mp3', dur: 2 }, ofertas: { 'oferta:arroz 5kg': { url: 'https://x/1.mp3', dur: 6 }, 'oferta:feijão 1kg': { url: 'https://x/2.mp3', dur: 4 } } };
-    const p = projetoDoCarrossel(produtos as never, '9:16', { locucao: loc });
+    const p = projetoDoCarrossel(produtos as never, '9:16', { locucao: loc, movimento: { impacto: { desligado: true } } }); // P-34: com impacto, abertura e fechamento ganham cena própria
     expect(p.audios.map((a) => a.nome)).toEqual(['Locução · abertura', 'Locução · Arroz 5kg', 'Locução · Feijão 1kg', 'Locução · fechamento']);
     expect(p.clipes[0].duracao).toBeGreaterThan(3 + 6);       // abertura + fala do arroz
     expect(p.audios[1].em).toBeGreaterThan(p.audios[0].em + 3); // a oferta começa depois da abertura
     expect(p.audios.every((a) => a.id.startsWith('loc-'))).toBe(true);
-    expect(projetoDoCarrossel(produtos as never, '9:16', {}).audios).toHaveLength(0);
+    expect(projetoDoCarrossel(produtos as never, '9:16', { movimento: { impacto: { desligado: true } } }).audios).toHaveLength(0);
   });
   it('o painel de locução está no palco e o editor aceita as falas do palco', () => {
     const palco = fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8');
     expect(palco).toContain('<PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} />');
     const editor = fs.readFileSync('src/pages/studioai/VideoEditorPage.tsx', 'utf8');
-    expect(editor).toContain('audios: [...novo.audios.filter(ehLocucao), ...q.audios.filter((a) => !ehLocucao(a))]');
+    expect(editor).toContain('audios: [...novo.audios.filter(ehDoPalco), ...q.audios.filter((a) => !ehDoPalco(a))]'); // P-34: locução e trilha vêm do palco
     const funcao = fs.readFileSync('supabase/functions/studio-locucao/index.ts', 'utf8');
     expect(funcao).toContain("Deno.env.get(k)");
     expect(funcao).toContain('TETO_DIA_LETRAS');

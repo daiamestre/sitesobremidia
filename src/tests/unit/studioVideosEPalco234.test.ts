@@ -38,7 +38,7 @@ describe('palco de ofertas (mercado)', () => {
   const produto = { nome: 'Coca-Cola 2L', preco: 9.99, precoDe: 12.99, unidade: null, imagem: { url: 'https://x/coca.png', fonte: 'OPENFOODFACTS' as const } };
   it('um produto no palco: título, logo, pedestal, produto inteiro flutuando, nome e preço pulsando', () => {
     for (const f of ['9:16', '16:9'] as const) {
-      const d = palcoDoProduto(produto, f);
+      const d = palcoDoProduto(produto, f, { movimento: { impacto: { desligado: true } } }); // P-34: o palco sem o pacote de impacto
       const nome = (n: string) => d.camadas.find((c) => c.nome === n)!;
       expect(nome('Título')).toMatchObject({ tipo: 'texto', texto: 'SUPER OFERTAS' });
       expect(nome('Produto')).toMatchObject({ tipo: 'imagem', src: 'https://x/coca.png', ajuste: 'conter' });
@@ -52,7 +52,7 @@ describe('palco de ofertas (mercado)', () => {
     expect(palcoDoProduto(produto, '9:16', { logoUrl: 'https://x/logo.png' }).camadas.find((c) => c.nome === 'Logo')).toMatchObject({ tipo: 'imagem', ajuste: 'conter' });
   });
   it('o carrossel vira um projeto do editor de vídeo: um clipe por produto, deslizando, com nome e preço de cada vez', () => {
-    const p = projetoDoCarrossel([produto, { ...produto, nome: 'Café Pilão 500g', preco: 18.9, precoDe: null }], '9:16');
+    const p = projetoDoCarrossel([produto, { ...produto, nome: 'Café Pilão 500g', preco: 18.9, precoDe: null }], '9:16', { movimento: { impacto: { desligado: true } } });
     expect(p.clipes).toHaveLength(2);
     expect(p.clipes.map((c) => c.tipo)).toEqual(['arte', 'arte']);
     expect(p.clipes[1].documento!.camadas.find((c) => c.nome === 'Nome do produto')).toMatchObject({ texto: 'Café Pilão 500g' });
@@ -79,7 +79,7 @@ describe('F-237 — fundo OFICIAL do Palco de Ofertas (arte do dono)', () => {
     expect(f.id).toBe('alerta-de-oferta');
     for (const formato of ['9:16', '16:9'] as const) {
       expect(fs.existsSync(`public${srcDoFundo(f, formato)}`), formato).toBe(true);
-      const d = palco({ nome: 'Arroz Camil 5kg', preco: 25.9, precoDe: null, unidade: null, imagem: { url: 'https://x/a.png', fonte: 'OPENFOODFACTS' } }, formato, { fundo: f, textoBotao: 'ALERTAS' });
+      const d = palco({ nome: 'Arroz Camil 5kg', preco: 25.9, precoDe: null, unidade: null, imagem: { url: 'https://x/a.png', fonte: 'OPENFOODFACTS' } }, formato, { fundo: f, textoBotao: 'ALERTAS', movimento: { impacto: { desligado: true } } });
       const nome = (n: string) => d.camadas.find((c) => c.nome === n)!;
       expect(nome('Fundo oficial')).toMatchObject({ tipo: 'imagem', src: srcDoFundo(f, formato), bloqueada: true });
       const pr = nome('Produto');

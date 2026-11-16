@@ -7,6 +7,7 @@ import {
   type Camada, type CamadaForma, type CamadaImagem, type CamadaItens, type CamadaRedes, type CamadaSelo, type CamadaTexto, type CamadaVaga, type Degrade, type Documento, type RedeSocial,
 } from './documento';
 import { duracaoDoVideo, estadoNoTempo } from './animacao';
+import { aplicarCamera, desenharChamas, desenharEstrelas, desenharExplosaoAtras, desenharExplosaoFrente, indiceDoFundo } from './efeitosDeImpacto';
 
 export type Imagens = Map<string, HTMLImageElement>;
 
@@ -409,7 +410,22 @@ export function desenharDocumento(ctx: CanvasRenderingContext2D, d: Documento, i
   ctx.setTransform(escala, 0, 0, escala, 0, 0);
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = d.fundo; ctx.fillRect(0, 0, w, h);
-  for (const c of d.camadas) if (c.id !== ocultar) desenharCamada(ctx, c, imgs, escala, tempo, total, rapido);
+  // P-34: efeitos de impacto (só com o tempo: animação e vídeo) — câmera no fundo, chamas e estrelas na frente do fundo,
+  // explosão em volta do preço
+  const fx = tempo !== undefined && d.efeitos ? d.efeitos : null;
+  const iFundo = fx ? indiceDoFundo(d) : -1;
+  const particulas = () => { if (fx?.chamas) desenharChamas(ctx, tempo!, w, h); if (fx?.estrelas) desenharEstrelas(ctx, tempo!, w, h); };
+  if (fx && iFundo < 0) particulas();
+  d.camadas.forEach((c, i) => {
+    if (c.id === ocultar) return;
+    if (fx?.camera && i === iFundo) { ctx.save(); aplicarCamera(ctx, tempo!, w, h); desenharCamada(ctx, c, imgs, escala, tempo, total, rapido); ctx.restore(); }
+    else if (fx?.explosao && c.nome === 'Preço') {
+      desenharExplosaoAtras(ctx, c, tempo!, total, d.corTema ?? '#d40c0c');
+      desenharCamada(ctx, c, imgs, escala, tempo, total, rapido);
+      desenharExplosaoFrente(ctx, c, tempo!, total);
+    } else desenharCamada(ctx, c, imgs, escala, tempo, total, rapido);
+    if (fx && i === iFundo) particulas();
+  });
   ctx.restore();
 }
 

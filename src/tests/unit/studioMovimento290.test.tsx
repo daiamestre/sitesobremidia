@@ -50,7 +50,7 @@ describe('F-290 palco', () => {
   it('cada produto tem a sua troca de cena (e os efeitos novos existem no palco e no vídeo)', () => {
     const movimento = { transicao: 'dissolver' as const, transicoes: { 'bolo de coco seven boys 250g': 'flash' as const } };
     expect(transicaoDoProduto(movimento, 'Pão de Forma Wickbold 500g')).toBe('dissolver');
-    const p = projetoDoCarrossel([prod('Pão de Forma Wickbold 500g'), prod('Bolo de Coco Seven Boys 250g')], '9:16', { fundo, movimento });
+    const p = projetoDoCarrossel([prod('Pão de Forma Wickbold 500g'), prod('Bolo de Coco Seven Boys 250g')], '9:16', { fundo, movimento: { ...movimento, impacto: { desligado: true } } });
     expect(p.clipes.map((c) => c.transicao.tipo)).toEqual(['dissolver', transicaoDoProduto(movimento, 'Bolo de Coco Seven Boys 250g')]);
     for (const id of ['flash', 'luz', 'brilho', 'girar-tudo', 'desfocar']) {
       expect(TRANSICOES_DO_CARROSSEL.map((t) => t.id)).toContain(id);

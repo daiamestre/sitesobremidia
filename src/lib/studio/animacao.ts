@@ -7,6 +7,7 @@ import type { Camada, Documento } from './documento';
 export type TipoDeAnimacao =
   | 'surgir' | 'subir' | 'descer' | 'esquerda' | 'direita' | 'zoom' | 'girar' | 'digitar'
   /* F-290: entradas novas */ | 'quicar' | 'zoom-de-longe' | 'virar' | 'surgir-lento'
+  /* P-34: entradas de impacto (padrão do concorrente de vídeo com IA) */ | 'estourar' | 'mola-esquerda' | 'mola-direita' | 'chegar-gigante'
   | 'pulsar' | 'balancar' | 'piscar' | 'panoramica' | 'flutuar'
   /* F-290: movimentos contínuos novos */ | 'oscilar' | 'tremer' | 'respirar' | 'girar-sempre' | 'quicar-sempre' | 'brilhar'
   /* F-308: movimentos do FUNDO da arte (sempre cobrindo a tela inteira, sem aparecer borda) */ | 'fundo-respirar' | 'fundo-deslizar' | 'fundo-subir' | 'fundo-luz';
@@ -34,6 +35,11 @@ export const ANIMACOES: { id: TipoDeAnimacao; nome: string; continua?: boolean; 
   { id: 'zoom-de-longe', nome: 'Zoom de longe' },
   { id: 'virar', nome: 'Virar' },
   { id: 'surgir-lento', nome: 'Aparecer devagar (fade)' },
+  // P-34: impacto
+  { id: 'estourar', nome: 'Estourar (impacto)' },
+  { id: 'mola-esquerda', nome: 'Mola da esquerda' },
+  { id: 'mola-direita', nome: 'Mola da direita' },
+  { id: 'chegar-gigante', nome: 'Chegar gigante' },
   { id: 'digitar', nome: 'Máquina de escrever', so: ['texto'] },
   { id: 'pulsar', nome: 'Pulsar', continua: true },
   { id: 'balancar', nome: 'Balançar', continua: true },
@@ -83,6 +89,14 @@ const PARADO: EstadoAnimado = { alfa: 1, dx: 0, dy: 0, escala: 1, rot: 0, letras
 /** soma dois estados (os movimentos se somam sem salto) */
 const somar = (a: EstadoAnimado, b: EstadoAnimado): EstadoAnimado => ({ alfa: a.alfa * b.alfa, dx: a.dx + b.dx, dy: a.dy + b.dy, escala: a.escala * b.escala, rot: a.rot + b.rot, letras: a.letras ?? b.letras, zoom: a.zoom * b.zoom, ex: a.ex * b.ex });
 const suave = (p: number) => 1 - Math.pow(1 - p, 3);
+/** P-34: passa do ponto e volta (curva back) */
+const passaEVolta = (p: number) => 1 + 2.70158 * Math.pow(p - 1, 3) + 1.70158 * Math.pow(p - 1, 2);
+/** P-34: mola amortecida (0 → 1, balança e assenta) */
+function mola(t: number, w = 12, z = 0.6) {
+  if (t <= 0) return 0;
+  const wd = w * Math.sqrt(1 - z * z);
+  return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + ((z * w) / wd) * Math.sin(wd * t));
+}
 
 /** Como a camada aparece no instante `t` (segundos). Sem animação: parada. */
 export function estadoNoTempo(c: Camada, t: number, total = DURACAO_PADRAO): EstadoAnimado {
@@ -138,6 +152,26 @@ function estadoDe(c: Camada, a: Animacao, t: number, total: number): EstadoAnima
     }
     case 'zoom-de-longe': return { ...PARADO, alfa: e, escala: 2.2 - 1.2 * e };
     case 'virar': return { ...PARADO, alfa: local < 0 ? 0 : 1, ex: Math.max(0.02, Math.abs(Math.cos((1 - e) * Math.PI / 2 * 1)) ) };
+    // P-34: o preço ESTOURA: cresce passando do ponto, leva um soco de 18% e assenta
+    case 'estourar': {
+      if (local < 0) return { ...PARADO, alfa: 0, escala: 0.001 };
+      let k = Math.max(0.001, passaEVolta(p));
+      k *= 1 + 0.18 * Math.exp(-Math.pow(p - 0.6, 2) / 0.012);
+      return { ...PARADO, escala: k };
+    }
+    // P-34: o produto entra de lado com MOLA (passa um pouco, volta e assenta) e cresce de 72% para 100%
+    case 'mola-esquerda': case 'mola-direita': {
+      if (local < 0) return { ...PARADO, alfa: 0 };
+      const m = mola(local * (0.7 / Math.max(0.1, a.duracao)));
+      const lado = a.tipo === 'mola-esquerda' ? -1 : 1;
+      return { ...PARADO, dx: lado * (1 - m) * Math.max(900, c.w * 2.2), escala: 0.72 + 0.28 * Math.min(1.05, m) };
+    }
+    // P-34: a logo/selo da abertura chega GIGANTE (220%) e assenta com mola
+    case 'chegar-gigante': {
+      if (local < 0) return { ...PARADO, alfa: 0 };
+      const m = mola(local * (0.8 / Math.max(0.1, a.duracao)), 11, 0.5);
+      return { ...PARADO, alfa: Math.min(1, local / 0.18), escala: 2.2 - 1.2 * m };
+    }
     case 'surgir-lento': { const q = Math.min(1, Math.max(0, local / Math.max(0.1, a.duracao * 2))); return { ...PARADO, alfa: q * q * (3 - 2 * q) }; }
     case 'digitar': {
       const n = c.tipo === 'texto' ? c.texto.length : 0;

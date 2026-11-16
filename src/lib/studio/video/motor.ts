@@ -8,7 +8,26 @@ import { desenharCamada, desenharDocumento, prepararDocumento, type Imagens } fr
 import { formatoDeVideo } from '../video';
 import { caixaDaMidia, desenharTransicao, desenharVinheta, filtroDoClipe } from './efeitos';
 import { corDoDocumento } from '../corDaArte';
-import { duracaoDoClipe, duracaoTotal, inicios, noTempo, tempoNoArquivo, volumeNoTempo, type Clipe, type ProjetoDeVideo, type Quadro } from './linha';
+import { duracaoDoClipe, duracaoTotal, fatorDaVoz, inicios, noTempo, tempoNoArquivo, volumeNoTempo, type Clipe, type ProjetoDeVideo, type Quadro } from './linha';
+import { SONS } from '../impacto';
+
+/** P-34: os efeitos sonoros (mesmo site: sem bloqueio) decodificados uma vez só, guardados para todos os vídeos */
+const SONS_PRONTOS = new Map<string, Promise<AudioBuffer | null>>();
+function somPronto(src: string): Promise<AudioBuffer | null> {
+  let p = SONS_PRONTOS.get(src);
+  if (!p) {
+    p = fetch(src).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+      .then((b) => new OfflineAudioContext(2, 44100, 44100).decodeAudioData(b)).catch(() => { SONS_PRONTOS.delete(src); return null; });
+    SONS_PRONTOS.set(src, p);
+  }
+  return p;
+}
+/** P-34: o limitador do fim da mistura (o som nunca estoura, como no concorrente) */
+function limitador(ctx: BaseAudioContext): DynamicsCompressorNode {
+  const c = ctx.createDynamicsCompressor();
+  c.threshold.value = -4; c.knee.value = 0; c.ratio.value = 20; c.attack.value = 0.002; c.release.value = 0.1;
+  return c;
+}
 import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
 import { aparelhoFraco } from '../regente';
 
@@ -72,6 +91,10 @@ export class MotorDeVideo {
   private som: AudioContext | null = null;
   private mistura: MediaStreamAudioDestinationNode | null = null;
   private ganhos = new Map<HTMLMediaElement, GainNode>();
+  /** P-34: limitador por onde passa todo o som (alto-falantes e gravação) */
+  private saida: DynamicsCompressorNode | null = null;
+  /** P-34: efeitos sonoros já marcados para tocar (a prévia toca; parou → cancela) */
+  private agendados: AudioBufferSourceNode[] = [];
   private raf = 0;
   private t0 = 0;
   private exportando = false;
@@ -126,6 +149,7 @@ export class MotorDeVideo {
     const aid = new Set(p.audios.map((a) => a.id));
     for (const [id, a] of this.audios) if (!aid.has(id)) { a.pause(); a.removeAttribute('src'); this.audios.delete(id); }
     for (const a of p.audios) this.audio(a.id, a.src);
+    for (const src of new Set((p.sons ?? []).map((x) => SONS[x.som]?.src).filter(Boolean))) void somPronto(src);
     const chave = JSON.stringify(p.sobreposicoes.map((s) => (s.tipo === 'imagem' ? s.src : 'fonte' in s ? s.fonte : '')));
     if (chave !== this.chaveSob) {
       this.chaveSob = chave;
@@ -140,7 +164,8 @@ export class MotorDeVideo {
     try {
       const fonte = this.som.createMediaElementSource(el);
       const g = this.som.createGain();
-      fonte.connect(g); g.connect(this.som.destination); if (this.mistura) g.connect(this.mistura);
+      fonte.connect(g);
+      if (this.saida) g.connect(this.saida); else { g.connect(this.som.destination); if (this.mistura) g.connect(this.mistura); }
       this.ganhos.set(el, g);
     } catch { /* já ligado ou sem permissão do outro site: toca pelo próprio elemento */ }
   }
@@ -152,6 +177,8 @@ export class MotorDeVideo {
       if (!Ctx) return;
       this.som = new Ctx();
       this.mistura = this.som.createMediaStreamDestination();
+      this.saida = limitador(this.som);
+      this.saida.connect(this.som.destination); this.saida.connect(this.mistura);
     }
     void this.som.resume();
     for (const v of this.videos.values()) this.conectar(v);
@@ -243,7 +270,7 @@ export class MotorDeVideo {
       const fimNaLinha = f.repetir ? total - f.em : trecho;
       if (local < 0 || local >= fimNaLinha) { if (!a.paused) a.pause(); continue; }
       const alvo = f.inicio + (f.repetir ? local % trecho : local);
-      this.volume(a, volumeNoTempo(f.volume, local, fimNaLinha, f.somEntra, f.somSai));
+      this.volume(a, volumeNoTempo(f.volume, local, fimNaLinha, f.somEntra, f.somSai) * (f.abaixarComVoz ? fatorDaVoz(p.audios, t) : 1));
       if (this.tocando) {
         if (Math.abs(a.currentTime - alvo) > 0.3) a.currentTime = alvo;
         if (a.paused) void a.play().catch(() => undefined);
@@ -324,6 +351,7 @@ export class MotorDeVideo {
     this.tocando = true;
     this.t0 = performance.now() - this.tempo * 1000;
     this.sincronizar(this.tempo);
+    this.agendarSons();
     const passo = () => {
       if (!this.tocando) return;
       const total = this.total;
@@ -339,7 +367,37 @@ export class MotorDeVideo {
     passo();
   }
 
+  /** P-34: marca no relógio do som os efeitos que ainda vão tocar a partir de agora */
+  private agendarSons() {
+    this.pararSons();
+    const p = this.p, ctx = this.som;
+    if (!p?.sons?.length || !ctx || !this.saida) return;
+    const agora = ctx.currentTime, desde = this.tempo;
+    for (const x of p.sons) {
+      if (x.em < desde - 0.02) continue;
+      const def = SONS[x.som];
+      if (!def) continue;
+      void somPronto(def.src).then((buf) => {
+        if (!buf || !this.tocando || !this.saida || this.som !== ctx) return;
+        const quando = agora + (x.em - desde);
+        if (quando < ctx.currentTime - 0.05) return;
+        const fonte = ctx.createBufferSource();
+        fonte.buffer = buf;
+        const g = ctx.createGain(); g.gain.value = x.volume ?? def.volume;
+        fonte.connect(g).connect(this.saida);
+        fonte.start(Math.max(ctx.currentTime, quando));
+        this.agendados.push(fonte);
+        fonte.onended = () => { this.agendados = this.agendados.filter((y) => y !== fonte); };
+      });
+    }
+  }
+  private pararSons() {
+    for (const f of this.agendados) { try { f.stop(); } catch { /* já parou */ } }
+    this.agendados = [];
+  }
+
   pausar() {
+    this.pararSons();
     this.tocando = false;
     cancelAnimationFrame(this.raf); clearTimeout(this.raf);
     this.sincronizar(this.tempo);
@@ -348,7 +406,7 @@ export class MotorDeVideo {
 
   ir(t: number) {
     this.tempo = Math.max(0, Math.min(this.total, t));
-    if (this.tocando) { this.t0 = performance.now() - this.tempo * 1000; this.sincronizar(this.tempo); }
+    if (this.tocando) { this.t0 = performance.now() - this.tempo * 1000; this.sincronizar(this.tempo); this.agendarSons(); }
     else { this.sincronizar(this.tempo); this.desenhar(this.tempo); }
     this.onTempo?.(this.tempo);
   }
@@ -367,7 +425,7 @@ export class MotorDeVideo {
     if (!this.p) throw new Error('Projeto vazio.');
     this.pausar();
     this.ligarSom();
-    const comSom = !!this.mistura && (this.p.audios.length > 0 || this.p.clipes.some((c) => c.tipo === 'video' && !c.mudo));
+    const comSom = !!this.mistura && (this.p.audios.length > 0 || !!this.p.sons?.length || this.p.clipes.some((c) => c.tipo === 'video' && !c.mudo));
     // F-315: aparelho sem H.264 no tamanho do vídeo grava em WebM (VP9/VP8 por software, funciona em qualquer aparelho)
     const fmt = formatoDeVideo(comSom, o.preferirWebm) ?? formatoDeVideo(false, o.preferirWebm);
     if (!fmt) throw new Error('Este navegador não grava vídeo. Use o Chrome atualizado (computador, tablet ou celular).');
@@ -438,16 +496,28 @@ export class MotorDeVideo {
     const p = this.p!;
     const sr = 48000;
     const ini = inicios(p.clipes);
-    const fontes: Array<{ src: string; em: number; inicio: number; fim: number; dur: number; volume: number; entra: number; sai: number; repetir: boolean; ritmo: number }> = [];
+    const fontes: Array<{ src: string; em: number; inicio: number; fim: number; dur: number; volume: number; entra: number; sai: number; repetir: boolean; ritmo: number; abaixar?: boolean }> = [];
     for (const a of p.audios) {
       const trecho = Math.max(0.05, a.fim - a.inicio);
-      fontes.push({ src: a.src, em: a.em, inicio: a.inicio, fim: a.fim, dur: a.repetir ? Math.max(0, total - a.em) : trecho, volume: a.volume, entra: a.somEntra, sai: a.somSai, repetir: a.repetir, ritmo: 1 });
+      fontes.push({ src: a.src, em: a.em, inicio: a.inicio, fim: a.fim, dur: a.repetir ? Math.max(0, total - a.em) : trecho, volume: a.volume, entra: a.somEntra, sai: a.somSai, repetir: a.repetir, ritmo: 1, abaixar: !!a.abaixarComVoz });
     }
     p.clipes.forEach((c, i) => {
       if (c.tipo === 'video' && !c.mudo && c.volume > 0) fontes.push({ src: c.src, em: ini[i], inicio: c.inicio, fim: c.fim, dur: duracaoDoClipe(c), volume: c.volume, entra: c.somEntra, sai: c.somSai, repetir: false, ritmo: c.velocidade });
     });
-    if (!fontes.length) return null;
+    const sons = (p.sons ?? []).filter((x) => SONS[x.som] && x.em < total);
+    if (!fontes.length && !sons.length) return null;
     const ctx = new OfflineAudioContext(2, Math.max(1, Math.ceil(total * sr)), sr);
+    const fim = limitador(ctx);
+    fim.connect(ctx.destination);
+    // P-34: os efeitos sonoros no instante marcado
+    for (const x of sons) {
+      const buf = await somPronto(SONS[x.som].src);
+      if (!buf) continue;
+      const fonte = ctx.createBufferSource(); fonte.buffer = buf;
+      const g = ctx.createGain(); g.gain.value = x.volume ?? SONS[x.som].volume;
+      fonte.connect(g).connect(fim);
+      fonte.start(Math.max(0, x.em));
+    }
     const cache = new Map<string, Promise<AudioBuffer | null>>();
     const decodificar = (src: string) => {
       const real = this.resolver(src);
@@ -461,14 +531,22 @@ export class MotorDeVideo {
       fonte.buffer = buf;
       fonte.playbackRate.value = Math.min(4, Math.max(0.25, f.ritmo));
       const g = ctx.createGain();
-      const fim = Math.min(total, f.em + f.dur);
-      g.gain.setValueAtTime(f.entra > 0 ? 0 : f.volume, f.em);
-      if (f.entra > 0) g.gain.linearRampToValueAtTime(f.volume, Math.min(fim, f.em + f.entra));
-      if (f.sai > 0 && fim - f.sai > f.em) { g.gain.setValueAtTime(f.volume, fim - f.sai); g.gain.linearRampToValueAtTime(0, fim); }
-      fonte.connect(g).connect(ctx.destination);
+      const acaba = Math.min(total, f.em + f.dur);
+      if (f.abaixar) {
+        // P-34: a trilha abaixa sozinha sob a voz — a curva do volume, 50 pontos por segundo
+        const n = Math.max(2, Math.ceil((acaba - f.em) * 50));
+        const curva = new Float32Array(n);
+        for (let k = 0; k < n; k++) { const t = f.em + ((acaba - f.em) * k) / (n - 1); curva[k] = volumeNoTempo(f.volume, t - f.em, acaba - f.em, f.entra, f.sai) * fatorDaVoz(p.audios, t); }
+        g.gain.setValueCurveAtTime(curva, f.em, Math.max(0.01, acaba - f.em));
+      } else {
+        g.gain.setValueAtTime(f.entra > 0 ? 0 : f.volume, f.em);
+        if (f.entra > 0) g.gain.linearRampToValueAtTime(f.volume, Math.min(acaba, f.em + f.entra));
+        if (f.sai > 0 && acaba - f.sai > f.em) { g.gain.setValueAtTime(f.volume, acaba - f.sai); g.gain.linearRampToValueAtTime(0, acaba); }
+      }
+      fonte.connect(g).connect(fim);
       if (f.repetir) {
         fonte.loop = true; fonte.loopStart = f.inicio; fonte.loopEnd = Math.min(buf.duration, f.fim || buf.duration);
-        fonte.start(f.em, f.inicio); fonte.stop(fim);
+        fonte.start(f.em, f.inicio); fonte.stop(acaba);
       } else fonte.start(f.em, f.inicio, Math.max(0.01, f.dur * fonte.playbackRate.value));
     }
     return ctx.startRendering();
