@@ -21,6 +21,12 @@ const VOZES: Record<string, { id: string; ajuste: Record<string, number> }> = {
   diego: { id: 'rpNe0HOx7heUulPiOEaG', ajuste: { stability: 0.45, similarity_boost: 0.85 } },
 };
 const MODELO = 'eleven_v4_turbo';
+/**
+ * F-320 (pedido do dono: o locutor dos vídeos de impacto igual ao do concorrente — varejo gritado, rápido, ênfase no fim):
+ * no estilo IMPACTO a voz fica mais solta e expressiva e um pouco mais rápida. O estilo entra no endereço do arquivo, então a
+ * mesma frase no jeito simples continua sendo a guardada de antes (nada é gerado de novo à toa).
+ */
+const AJUSTE_IMPACTO = { stability: 0.3, style: 0.6, use_speaker_boost: true, speed: 1.08 };
 /** pasta fixa das locuções no R2 (tenants/{empresa}/studio/{PASTA}/{hash}.mp3) */
 const PASTA = 'a0c0c000-0000-4000-8000-00000000f300';
 const TETO_DIA_LETRAS = 6000;     // por pessoa (≈ 6 vídeos de 16 produtos); owner/ADM sem teto
@@ -62,6 +68,7 @@ serve(async (req) => {
   if (body.acao !== 'falar') return json(400, { error: 'ação desconhecida' });
 
   const vozId = String(body.voz ?? '');
+  const impacto = body.estilo === 'impacto';
   const voz = VOZES[vozId];
   if (!voz) return json(400, { error: 'Voz desconhecida.' });
   const frases = (Array.isArray(body.frases) ? body.frases : []).slice(0, 40)
@@ -74,7 +81,7 @@ serve(async (req) => {
 
   // 1) o que já existe no R2 volta na hora (mesma voz + mesmo texto + mesmo modelo = mesmo arquivo)
   const itens = await Promise.all(frases.map(async (f) => {
-    const hash = await sha256(`${vozId}|${MODELO}|${f.texto}`);
+    const hash = await sha256(impacto ? `${vozId}|${MODELO}|impacto|${f.texto}` : `${vozId}|${MODELO}|${f.texto}`);
     const caminho = `tenants/${e.empresa}/studio/${PASTA}/${hash.slice(0, 40)}.mp3`;
     const url = `${r2.dominioPublico}/${caminho}`;
     const existe = (await fetch(url, { method: 'HEAD' }).catch(() => null))?.ok ?? false;
@@ -100,7 +107,7 @@ serve(async (req) => {
   for (const i of novas) {
     const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voz.id}?output_format=mp3_44100_128`, {
       method: 'POST', headers: { 'xi-api-key': env('ELEVENLABS_API_KEY'), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: i.texto, model_id: MODELO, language_code: 'pt', voice_settings: voz.ajuste }),
+      body: JSON.stringify({ text: i.texto, model_id: MODELO, language_code: 'pt', voice_settings: impacto ? { ...voz.ajuste, ...AJUSTE_IMPACTO } : voz.ajuste }),
     });
     if (!r.ok) return json(502, { error: `O serviço de voz recusou a frase “${i.texto.slice(0, 40)}…”. Tente de novo.`, detalhe: (await r.text()).slice(0, 200) });
     const mp3 = new Uint8Array(await r.arrayBuffer());

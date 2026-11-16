@@ -73,9 +73,11 @@ describe('P-34: vídeo com impacto', () => {
     expect(trilha).toMatchObject({ src: '/studio/trilhas/varejo-dinamico.mp3', repetir: true, abaixarComVoz: true, fim: 115 });
     const sons = p.sons ?? [];
     const ini = inicios(p.clipes);
-    expect(sons[0]).toMatchObject({ som: 'sirene' });
-    expect(sons.filter((s) => s.som === 'whoosh')).toHaveLength(p.clipes.length - 1 + 1); // + a logo da campanha caindo (F-317)
-    expect(sons.filter((s) => s.som === 'impacto').length).toBe(1 + produtos.length + 1); // a frase da abertura + cada preço + a batida da logo (F-317)
+    // F-320: a subida da logo começa junto com a sirene, no início da abertura
+    expect(sons.slice(0, 2).map((s) => s.som).sort()).toEqual(['sirene', 'subida']);
+    expect(sons.filter((s) => s.som === 'whoosh')).toHaveLength(p.clipes.length - 1);
+    expect(sons.filter((s) => s.som === 'impacto')).toHaveLength(1); // a LOGO batendo no centro
+    expect(sons.filter((s) => s.som === 'concreto').length).toBe(1 + produtos.length); // a frase da abertura + cada preço = parede de concreto
     expect(sons.some((s) => s.som === 'caixa' && s.em > ini[ini.length - 1])).toBe(true);
     // sem efeitos sonoros / sem trilha
     const quieto = projetoDoCarrossel(produtos, '9:16', { ...o, movimento: { impacto: { sons: false, trilha: null } } });
@@ -98,7 +100,7 @@ describe('P-34: vídeo com impacto', () => {
 
   it('a biblioteca está no site (trilhas e sons nossos) e o motor mistura tudo com limitador', () => {
     for (const t of TRILHAS) expect(fs.existsSync(`public${t.src}`)).toBe(true);
-    for (const s of Object.values(SONS)) expect(fs.existsSync(`public${s.src}`)).toBe(true);
+    for (const s of Object.values(SONS)) expect(fs.existsSync(`public${s.src.split("?")[0]}`)).toBe(true);
     const motor = fs.readFileSync('src/lib/studio/video/motor.ts', 'utf8');
     expect(motor).toContain('createDynamicsCompressor');
     expect(motor).toContain('fatorDaVoz(p.audios, t)');
@@ -138,7 +140,9 @@ describe('P-34: vídeo com impacto', () => {
     expect(decodeURIComponent(logo.src)).toContain('QUEIMA');
     expect(decodeURIComponent(logo.src)).toContain('SÓ SÁBADO');
     expect(logo.animacao.tipo).toBe('cair-do-ceu');
-    expect(ab.efeitos).toMatchObject({ quebra: true, fogo: false });
+    expect(ab.efeitos).toMatchObject({ quebra: true, quebraReal: true, fogo: false });
+    // F-320: cacos de verdade na frente (no lugar das listras desenhadas)
+    expect(ab.camadas.map((c) => c.nome).indexOf('Cacos da batida (efeito)')).toBeGreaterThan(ab.camadas.map((c) => c.nome).indexOf('Logo da campanha'));
     // F-319: explosão, fogo e fumaça REAIS na batida
     const nomes = ab.camadas.map((c) => c.nome);
     expect(nomes.indexOf('Explosão da logo (efeito)')).toBeLessThan(nomes.indexOf('Logo da campanha'));
@@ -152,8 +156,8 @@ describe('P-34: vídeo com impacto', () => {
     expect(decodeURIComponent((vinhetaDoPalco('abertura', produtos[0], '9:16', o, 2.8).camadas.find((c) => c.nome === 'Logo da campanha') as { src: string }).src)).toContain('FECHA');
     expect(vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { campanha: null } } }, 2.8).camadas.some((c) => c.nome === 'Logo da campanha')).toBe(false);
     const p = projetoDoCarrossel(produtos, '9:16', o);
-    const s0 = (p.sons ?? []).filter((x) => x.em < 1.2).map((x) => x.som);
-    expect(s0).toEqual(expect.arrayContaining(['sirene', 'whoosh', 'impacto']));
+    const s0 = (p.sons ?? []).filter((x) => x.em < 2).map((x) => x.som);
+    expect(s0).toEqual(expect.arrayContaining(['sirene', 'subida', 'impacto']));
   });
   it('pedido do dono: a faixa ALERTA DE OFERTA passa para a DIREITA e a placa do fundo não tem mais "YOUR LOGO"', () => {
     const d = palcoDoProduto(produtos[0], '9:16', o);

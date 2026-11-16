@@ -10,7 +10,7 @@ import { duracaoDoVideo } from '../animacao';
 import { formatoDeVideo } from '../video';
 import { caixaDaMidia, desenharTransicao, desenharVinheta, filtroDoClipe } from './efeitos';
 import { corDoDocumento } from '../corDaArte';
-import { duracaoDoClipe, duracaoTotal, fatorDaVoz, inicios, noTempo, tempoNoArquivo, volumeNoTempo, type Clipe, type ProjetoDeVideo, type Quadro } from './linha';
+import { duracaoDoClipe, duracaoTotal, ehVoz, fatorDaVoz, inicios, noTempo, tempoNoArquivo, volumeNoTempo, type Clipe, type ProjetoDeVideo, type Quadro } from './linha';
 import { SONS } from '../impacto';
 
 /** P-34: os efeitos sonoros (mesmo site: sem bloqueio) decodificados uma vez só, guardados para todos os vídeos */
@@ -23,6 +23,20 @@ function somPronto(src: string): Promise<AudioBuffer | null> {
     SONS_PRONTOS.set(src, p);
   }
   return p;
+}
+/**
+ * F-320 (pedido do dono: o locutor igual ao dos vídeos do concorrente): a VOZ DE RÁDIO — corta o grave embolado (90 Hz), dá
+ * presença (+3,5 dB em 3 kHz) e brilho (+2 dB acima de 8 kHz) e comprime (4:1), para a voz ficar na frente da música e dos
+ * efeitos, firme do começo ao fim da frase. Vale para a prévia e para o MP4.
+ */
+export function vozDeRadio(ctx: BaseAudioContext): { entrada: AudioNode; saida: AudioNode } {
+  const corte = ctx.createBiquadFilter(); corte.type = 'highpass'; corte.frequency.value = 90; corte.Q.value = 0.7;
+  const presenca = ctx.createBiquadFilter(); presenca.type = 'peaking'; presenca.frequency.value = 3000; presenca.Q.value = 0.9; presenca.gain.value = 3.5;
+  const brilho = ctx.createBiquadFilter(); brilho.type = 'highshelf'; brilho.frequency.value = 8000; brilho.gain.value = 2;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -24; comp.knee.value = 6; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.15;
+  const ganho = ctx.createGain(); ganho.gain.value = 1.6;
+  corte.connect(presenca).connect(brilho).connect(comp).connect(ganho);
+  return { entrada: corte, saida: ganho };
 }
 /** P-34: o limitador do fim da mistura (o som nunca estoura, como no concorrente) */
 function limitador(ctx: BaseAudioContext): DynamicsCompressorNode {
@@ -164,12 +178,12 @@ export class MotorDeVideo {
     if (!this.tocando) { this.sincronizar(this.tempo); this.desenhar(this.tempo); }
   }
 
-  private conectar(el: HTMLMediaElement) {
+  private conectar(el: HTMLMediaElement, voz = false) {
     if (!this.som || this.ganhos.has(el)) return;
     try {
       const fonte = this.som.createMediaElementSource(el);
       const g = this.som.createGain();
-      fonte.connect(g);
+      if (voz) { const r = vozDeRadio(this.som); fonte.connect(r.entrada); r.saida.connect(g); } else fonte.connect(g);
       if (this.saida) g.connect(this.saida); else { g.connect(this.som.destination); if (this.mistura) g.connect(this.mistura); }
       this.ganhos.set(el, g);
     } catch { /* já ligado ou sem permissão do outro site: toca pelo próprio elemento */ }
@@ -187,7 +201,7 @@ export class MotorDeVideo {
     }
     void this.som.resume();
     for (const v of this.videos.values()) this.conectar(v);
-    for (const a of this.audios.values()) this.conectar(a);
+    for (const [id, a] of this.audios) this.conectar(a, ehVoz({ id }));
   }
 
   private volume(el: HTMLMediaElement, v: number) {
@@ -236,8 +250,10 @@ export class MotorDeVideo {
     const n = new Audio();
     if (/^https?:/.test(real)) n.crossOrigin = 'anonymous';
     n.preload = 'auto'; n.dataset.src = real; n.src = real;
+    // F-320: a fala recém-gerada pode falhar no 1º acesso — tenta mais uma vez (a prévia ficava sem a voz)
+    n.addEventListener('error', () => { if (!n.dataset.tentou) { n.dataset.tentou = '1'; setTimeout(() => { n.src = `${real}${real.includes('?') ? '&' : '?'}r=1`; }, 1000); } });
     this.audios.set(id, n);
-    this.conectar(n);
+    this.conectar(n, ehVoz({ id }));
     return n;
   }
 
@@ -506,10 +522,10 @@ export class MotorDeVideo {
     const p = this.p!;
     const sr = 48000;
     const ini = inicios(p.clipes);
-    const fontes: Array<{ src: string; em: number; inicio: number; fim: number; dur: number; volume: number; entra: number; sai: number; repetir: boolean; ritmo: number; abaixar?: boolean }> = [];
+    const fontes: Array<{ src: string; em: number; inicio: number; fim: number; dur: number; volume: number; entra: number; sai: number; repetir: boolean; ritmo: number; abaixar?: boolean; voz?: boolean }> = [];
     for (const a of p.audios) {
       const trecho = Math.max(0.05, a.fim - a.inicio);
-      fontes.push({ src: a.src, em: a.em, inicio: a.inicio, fim: a.fim, dur: a.repetir ? Math.max(0, total - a.em) : trecho, volume: a.volume, entra: a.somEntra, sai: a.somSai, repetir: a.repetir, ritmo: 1, abaixar: !!a.abaixarComVoz });
+      fontes.push({ src: a.src, em: a.em, inicio: a.inicio, fim: a.fim, dur: a.repetir ? Math.max(0, total - a.em) : trecho, volume: a.volume, entra: a.somEntra, sai: a.somSai, repetir: a.repetir, ritmo: 1, abaixar: !!a.abaixarComVoz, voz: ehVoz(a) });
     }
     p.clipes.forEach((c, i) => {
       if (c.tipo === 'video' && !c.mudo && c.volume > 0) fontes.push({ src: c.src, em: ini[i], inicio: c.inicio, fim: c.fim, dur: duracaoDoClipe(c), volume: c.volume, entra: c.somEntra, sai: c.somSai, repetir: false, ritmo: c.velocidade });
@@ -531,7 +547,16 @@ export class MotorDeVideo {
     const cache = new Map<string, Promise<AudioBuffer | null>>();
     const decodificar = (src: string) => {
       const real = this.resolver(src);
-      if (!cache.has(real)) cache.set(real, fetch(real).then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)).catch(() => null));
+      // F-320: a locução recém-gerada às vezes responde erro no 1º acesso (o arquivo acabou de ser gravado): tenta 3 vezes
+      // antes de desistir — antes o MP4 saía SEM a fala, calado
+      const baixar = async (): Promise<AudioBuffer | null> => {
+        for (let k = 0; k < 3; k++) {
+          try { const r = await fetch(real); if (r.ok) return await ctx.decodeAudioData(await r.arrayBuffer()); } catch { /* tenta de novo */ }
+          await new Promise((ok) => setTimeout(ok, 800 * (k + 1)));
+        }
+        return null;
+      };
+      if (!cache.has(real)) cache.set(real, baixar());
       return cache.get(real)!;
     };
     for (const f of fontes) {
@@ -553,7 +578,8 @@ export class MotorDeVideo {
         if (f.entra > 0) g.gain.linearRampToValueAtTime(f.volume, Math.min(acaba, f.em + f.entra));
         if (f.sai > 0 && acaba - f.sai > f.em) { g.gain.setValueAtTime(f.volume, acaba - f.sai); g.gain.linearRampToValueAtTime(0, acaba); }
       }
-      fonte.connect(g).connect(fim);
+      if (f.voz) { const r = vozDeRadio(ctx); fonte.connect(r.entrada); r.saida.connect(g); } else fonte.connect(g);
+      g.connect(fim);
       if (f.repetir) {
         fonte.loop = true; fonte.loopStart = f.inicio; fonte.loopEnd = Math.min(buf.duration, f.fim || buf.duration);
         fonte.start(f.em, f.inicio); fonte.stop(acaba);

@@ -93,7 +93,7 @@ export function PainelDeImpacto({ impacto, segmento, loja, aoMudar, compacto = f
             </div>
             {i.sons && (
               <div className="flex flex-wrap gap-1.5">
-                {(['sirene', 'whoosh', 'impacto', 'brilho', 'caixa'] as SomDeImpacto[]).map((k) => (
+                {(['sirene', 'subida', 'impacto', 'concreto', 'whoosh', 'brilho', 'caixa'] as SomDeImpacto[]).map((k) => (
                   <button key={k} type="button" onClick={() => ouvir(k, SONS[k].src)} data-testid={`impacto-ouvir-som-${k}`}
                     className="flex h-8 items-center gap-1 rounded-lg border border-white/10 px-2 text-[11px] text-slate-200 hover:bg-white/5">
                     {ouvindo === k ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}{SONS[k].nome}

@@ -74,6 +74,13 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **Código de barras (12/11/2026, F-311):** câmera do aparelho, pistola USB/Bluetooth de qualquer ramo (mesmo sem o campo selecionado) e digitação à mão; cada leitura gravada faz o bipe de pistola, e repetido ou inválido faz o bipe de erro.
 - **Vídeo pelo passo a passo (15/11/2026, F-312):** 1) empresa · 2) produtos · 3) edição do vídeo (fundo, logo, elementos) · 4) locução criada pelo locutor com tudo o que foi informado, sincronizada com cada produto. Na edição, a PRÉVIA em tamanho real fica embaixo da linha do tempo, com tocar/pausar no meio, e mostra as edições na hora, antes de salvar.
 - **Vídeo com impacto (16/11/2026, F-316):** o vídeo de ofertas segue o concorrente que gera vídeos com IA (não o de modelos do Canva). Ele já sai com trilha, sirene, whoosh e impacto, chamas e estrelas na frente do fundo, fundo balançando, preço estourando, abertura e fechamento com a logo, e é entregue pronto. As trilhas e os sons são nossos, nunca os do concorrente.
+- **Vídeo de impacto igual ao do concorrente (16/11/2026, F-320):**
+  - Só UMA fita "Alerta de Oferta" em cada um dos 3 lugares, passando para a direita.
+  - Nunca botão em cima de botão, nem fita em cima de fita: o fundo não tem nada gravado que o nosso desenho repita.
+  - A logo batendo no centro tem um som; o texto importante e o preço têm o som de bater numa parede de concreto.
+  - A sirene é um único "uóóó-uuu" de 3,5 s.
+  - Nada de listra de rachadura desenhada.
+  - O padrão vale para TODO vídeo criado.
 - **Efeitos de impacto REAIS (16/11/2026, F-319):** o fogo, as explosões, a fumaça e as brasas dos vídeos são filmagens reais de efeitos (gratuitas, Pixabay, autorizadas pelo dono), como nas do concorrente; nunca só desenho. Cada efeito é um elemento que o usuário move, troca, muda a hora ou apaga. Trilhas e efeitos só gratuitos com licença; créditos da ElevenLabs só com ordem do dono.
 - **Cartaz Digital** (nome para o usuário; o código usa `tabloide`): funciona como a QR Ofertas, mas sem copiar arte, tema ou texto deles. Tudo o que o usuário envia é aceito na hora.
 

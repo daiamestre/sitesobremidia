@@ -13,7 +13,7 @@ import { chaveCanonica } from '@/lib/tabloide/chave';
 import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel, type SegmentoComLogo } from './logoEditavel';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
 import { enderecoDoLogo3D } from './logo3d';
-import { SONS, impactoResolvido, type ImpactoDoPalco, type ImpactoResolvido, type SomNoVideo } from './impacto';
+import { DURACAO_DA_SUBIDA, SONS, impactoResolvido, type ImpactoDoPalco, type ImpactoResolvido, type SomNoVideo } from './impacto';
 
 export interface OpcoesDoPalco {
   titulo?: string; logoUrl?: string | null; segundos?: number;
@@ -144,7 +144,8 @@ function palcoDaComposicao(seg: SegmentoComLogo, nome: string, logoPadrao: LogoD
 export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
   {
     id: 'alerta-de-oferta', nome: 'Alerta de Oferta (sirene)',
-    // as 3 faixas da arte (medidas na imagem): em cima, embaixo à esquerda e embaixo à direita, por cima do texto gravado
+    // as 3 faixas (em cima, embaixo à esquerda e embaixo à direita), UMA em cada lugar, passando para a direita. F-320: as fitas
+    // e o contorno do botão que vinham GRAVADOS na imagem saíram (com a câmera na mão eles apareciam dobrados).
     faixas: {
       texto: 'ALERTA DE OFERTA', cor: '#fde615', corTexto: '#111111',
       linhas: {
@@ -351,7 +352,14 @@ function comImpacto(d: Documento, o: OpcoesDoPalco): Documento {
 }
 
 /** F-319: os nomes dos efeitos reais que o palco põe sozinho (o cliente move, troca, muda a hora ou apaga cada um) */
-export const EFEITOS_DO_PALCO = { brasas: 'Brasas (efeito)', parede: 'Fogo no chão (efeito)', preco: 'Explosão do preço (efeito)', logo: 'Explosão da logo (efeito)', fumaca: 'Fumaça da batida (efeito)', fogoLogo: 'Fogo na logo (efeito)', chamasLogo: 'Chamas na frente da logo (efeito)' } as const;
+export const EFEITOS_DO_PALCO = { brasas: 'Brasas (efeito)', parede: 'Fogo no chão (efeito)', preco: 'Explosão do preço (efeito)', logo: 'Explosão da logo (efeito)', fumaca: 'Fumaça da batida (efeito)', fogoLogo: 'Fogo na logo (efeito)', chamasLogo: 'Chamas na frente da logo (efeito)', cacos: 'Cacos da batida (efeito)' } as const;
+/**
+ * F-320: o tempo da ABERTURA igual ao do concorrente (medido no áudio dele): a sirene toca de 0 a 3,5 s, a subida cresce e a
+ * logo despenca do céu e BATE em 1,6 s (estrondo + explosão + cacos), a frase estoura logo depois.
+ */
+export const QUEDA_DA_LOGO = { atraso: 0.9, duracao: 0.7 } as const;
+export const BATIDA_DA_LOGO = QUEDA_DA_LOGO.atraso + QUEDA_DA_LOGO.duracao;
+const VINHETA_DE_ABERTURA = 3.6;
 const EF = EFEITOS_DO_PALCO;
 
 /**
@@ -500,7 +508,7 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
     // F-319: EFEITOS REAIS na batida da logo — a explosão de fogo e a poeira atrás dela, o fogo de verdade subindo por trás e
     // chamas na frente da parte de baixo (filmagens; o cliente move, troca, muda a hora ou apaga cada um nesta cena)
     const bate = tipo === 'abertura' && i.queda;
-    const ti = tipo === 'abertura' ? 0.25 + 0.7 : 0.35;
+    const ti = tipo === 'abertura' ? BATIDA_DA_LOGO : 0.35;
     // o tamanho que a logo APARECE (ela entra inteira na caixa, na proporção ~1,4 : 1): os efeitos seguem a logo, não a caixa
     const vw = Math.min(caixaLogo.w, caixaLogo.h * 1.4), vh = vw / 1.4;
     const L = { x: caixaLogo.x + (caixaLogo.w - vw) / 2, y: caixaLogo.y + (caixaLogo.h - vh) / 2, w: vw, h: vh }, cx = L.x + L.w / 2;
@@ -517,18 +525,23 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
       const fw = L.w * 1.1, fh = L.h * 1.5;
       camadas.push({ ...efeitoReal(EF.fogoLogo, 'fogo-subindo', cx - fw / 2, L.y + L.h * 0.92 - fh, fw, fh, { inicio: ti + 0.1, repetir: true, ancora: 'baixo' }), id: EF.fogoLogo });
     }
-    camadas.push({ ...logo, id: logo.nome, animacao: tipo === 'abertura' ? ani('cair-do-ceu', 0.25, 0.7, 'respirar') : ani('zoom', 0.1, 0.5, 'respirar') });
+    camadas.push({ ...logo, id: logo.nome, animacao: tipo === 'abertura' ? ani('cair-do-ceu', QUEDA_DA_LOGO.atraso, QUEDA_DA_LOGO.duracao, 'respirar') : ani('zoom', 0.1, 0.5, 'respirar') });
+    if (i.reais && bate) {
+      // F-320: os CACOS de verdade voando da batida, na frente (no lugar das listras de rachadura desenhadas)
+      const cw = Math.max(L.w, L.h * 16 / 9) * 1.7, ch = cw * 9 / 16;
+      camadas.push({ ...efeitoReal(EF.cacos, 'estilhacos', cx - cw / 2, L.y + L.h * 0.5 - ch / 2, cw, ch, { inicio: ti - 0.03, opacidade: 0.95 }), id: EF.cacos });
+    }
     if (i.reais && i.fogoNaLogo) {
       // e chamas NA FRENTE, na parte de baixo da logo (ela está pegando fogo)
       const fw = L.w * 1.02, fh = L.h * 0.5;
       camadas.push({ ...efeitoReal(EF.chamasLogo, 'parede-de-fogo', cx - fw / 2, L.y + L.h * 1.04 - fh, fw, fh, { inicio: ti + 0.2, repetir: true, opacidade: 0.85, ancora: 'baixo' }), id: EF.chamasLogo });
     }
   }
-  camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? (camp ? 1.35 : 0.55) : (camp ? 0.7 : 0.35), 0.5, 'pulsar') });
+  camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? (camp ? BATIDA_DA_LOGO + 0.5 : 0.55) : (camp ? 0.7 : 0.35), 0.5, 'pulsar') });
   // P-34 (pedido do dono): tudo da abertura/fechamento se edita — o que o cliente mudou NESTA cena vale só nela
   const a = o.ajustes?.[formato] ?? {};
   const editadas = camadas.map((c) => { const p = a[chaveDaCena(c.nome, tipo)]; return p ? ({ ...c, ...p, id: c.nome } as Camada) : c; });
-  return { ...d, camadas: editadas, efeitos: { ...(d.efeitos ?? {}), quebra: i.queda, fogo: i.fogoNaLogo && !i.reais }, video: { duracao: segundos } };
+  return { ...d, camadas: editadas, efeitos: { ...(d.efeitos ?? {}), quebra: i.queda, quebraReal: i.queda && i.reais, fogo: i.fogoNaLogo && !i.reais }, video: { duracao: segundos } };
 }
 
 /** O CARROSSEL: um clipe por produto (nome e preço de cada vez), deslizando de um para o outro. */
@@ -557,17 +570,19 @@ function sonsDoVideo(p: ProjetoDeVideo, i: ImpactoResolvido): SomNoVideo[] {
     if (k === 0 && i.sirene) sons.push({ som: 'sirene', em: t0 + 0.05 });
     if (k > 0 && c.transicao) sons.push({ som: 'whoosh', em: Math.max(0, t0 - 0.12) });
     const camadas = c.documento?.camadas ?? [];
-    // F-317: a logo de campanha cai (whoosh) e bate (impacto)
+    // F-317/F-320: a logo de campanha cai com a SUBIDA crescendo (termina seca na batida) e bate com o ESTRONDO
     const cai = camadas.find((x) => x.animacao?.tipo === 'cair-do-ceu' && x.visivel);
     if (cai?.animacao) {
-      sons.push({ som: 'whoosh', em: t0 + cai.animacao.atraso });
-      sons.push({ som: 'impacto', em: Math.max(0, t0 + cai.animacao.atraso + cai.animacao.duracao - 0.05), volume: SONS.impacto.volume * 1.2 });
+      const bate = t0 + cai.animacao.atraso + cai.animacao.duracao;
+      sons.push({ som: 'subida', em: Math.max(t0, bate - DURACAO_DA_SUBIDA) });
+      sons.push({ som: 'impacto', em: Math.max(0, bate - 0.03), volume: SONS.impacto.volume * 1.15 });
     }
     const estoura = camadas.find((x) => (x.nome === 'Preço' || x.nome.startsWith('Frase d')) && x.animacao?.tipo === 'estourar' && x.visivel);
     if (estoura?.animacao) {
       const pico = t0 + estoura.animacao.atraso + estoura.animacao.duracao * 0.55;
       const fim = c.nome === 'Fechamento';
-      sons.push({ som: fim ? 'caixa' : 'impacto', em: Math.max(0, pico - 0.06) });
+      // F-320: texto importante e preço = a batida na PAREDE DE CONCRETO (como no concorrente); a logo tem o som dela
+      sons.push({ som: fim ? 'caixa' : 'concreto', em: Math.max(0, pico - 0.06) });
       if (estoura.nome === 'Preço') sons.push({ som: 'brilho', em: t0 + estoura.animacao.atraso + estoura.animacao.duracao + 0.15, volume: SONS.brilho.volume * 0.8 });
     }
   });
@@ -595,7 +610,7 @@ function comLocucao(produtos: Array<Pick<ProdutoTabloide, 'nome' | 'preco' | 'pr
     transicao: { tipo: transicaoDoProduto(o.movimento, p.nome), duracao: 0.5 },
   }));
   const VINHETA = 2.8;
-  const durAbertura = Math.max(VINHETA, l?.abertura ? 0.5 + l.abertura.dur + 0.5 : 0);
+  const durAbertura = Math.max(impactoDoPalco(o).campanha ? VINHETA_DE_ABERTURA : VINHETA, l?.abertura ? 0.5 + l.abertura.dur + 0.5 : 0);
   const durFechamento = Math.max(VINHETA + 0.6, l?.fechamento ? 0.4 + l.fechamento.dur + 0.9 : 0);
   if (vinhetas) {
     const troca = { tipo: transicaoDoProduto(o.movimento, ''), duracao: 0.5 };

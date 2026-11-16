@@ -30,14 +30,30 @@ export const trilhaPorId = (id: string | null | undefined) => TRILHAS.find((t) =
 /** a trilha que combina com o segmento (a 1ª da lista que cita o segmento; senão a "Varejo Dinâmico") */
 export const trilhaDoSegmento = (s: SegmentoDoStudio | undefined) => TRILHAS.find((t) => s && t.segmentos.includes(s)) ?? TRILHAS[0];
 
-export type SomDeImpacto = 'whoosh' | 'impacto' | 'sirene' | 'brilho' | 'caixa';
+export type SomDeImpacto = 'whoosh' | 'impacto' | 'concreto' | 'sirene' | 'subida' | 'brilho' | 'caixa';
+/**
+ * F-320 (pedido do dono): a sirene, o impacto, a subida e o whoosh são NOSSOS, sintetizados com a mesma assinatura medida nos
+ * vídeos do concorrente (scripts/studio/sintetizar-sons.mjs; docs/SONS_DO_CONCORRENTE.md):
+ * - sirene: um único "uóóó-uuu" quase puro, 600 → 2.230 → 620 Hz em 3,5 s (a de antes era um "uiu-uiu" repetido);
+ * - impacto (a LOGO batendo no centro): estouro brilhante + entulho caindo + o nosso grave;
+ * - concreto (TEXTO importante e preço): bater numa parede de concreto — estalo + estrondo + entulho.
+ *   Os dois são montados com gravações REAIS do Pixabay (scripts/studio/montar-sons-de-batida.mjs) e casados com as batidas
+ *   isoladas do concorrente (o canal lateral, sem a voz): 62% e 69–72% de semelhança;
+ * - subida: o "riser" da logo caindo do céu, que corta seco na batida.
+ * Todos a −14 LUFS. `?v=` muda quando o arquivo muda (o navegador guarda o antigo).
+ */
+const V = 2;
 export const SONS: Record<SomDeImpacto, { nome: string; src: string; volume: number }> = {
-  whoosh: { nome: 'Whoosh (troca de cena)', src: '/studio/sons/whoosh.mp3', volume: 0.6 },
-  impacto: { nome: 'Impacto (preço)', src: '/studio/sons/impacto.mp3', volume: 2 },
-  sirene: { nome: 'Sirene (abertura)', src: '/studio/sons/sirene.mp3', volume: 0.45 },
+  whoosh: { nome: 'Whoosh (troca de cena)', src: `/studio/sons/whoosh.mp3?v=${V}`, volume: 0.45 },
+  impacto: { nome: 'Logo batendo', src: `/studio/sons/impacto.mp3?v=${V}`, volume: 0.95 },
+  concreto: { nome: 'Parede de concreto (texto e preço)', src: `/studio/sons/concreto.mp3?v=${V}`, volume: 0.85 },
+  sirene: { nome: 'Sirene (abertura)', src: `/studio/sons/sirene.mp3?v=${V}`, volume: 0.5 },
+  subida: { nome: 'Subida (logo caindo)', src: `/studio/sons/subida.mp3?v=${V}`, volume: 0.5 },
   brilho: { nome: 'Brilho', src: '/studio/sons/brilho.mp3', volume: 1 },
   caixa: { nome: 'Caixa registradora', src: '/studio/sons/caixa.mp3', volume: 0.6 },
 };
+/** quanto dura a subida (ela termina NA batida) */
+export const DURACAO_DA_SUBIDA = 1.6;
 /** um efeito sonoro marcado na linha do tempo (s) — não vira linha de áudio: o motor toca e mistura sozinho */
 export interface SomNoVideo { som: SomDeImpacto; em: number; volume?: number }
 

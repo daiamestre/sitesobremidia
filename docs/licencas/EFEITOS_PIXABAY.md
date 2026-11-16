@@ -19,4 +19,5 @@ Os arquivos de `public/studio/efeitos/` foram cortados no trecho do efeito, redu
 | raio.mp4 | uxcsani | https://pixabay.com/videos/id-368086/ |
 | vidro-rachando.mp4 | iwsky | https://pixabay.com/videos/id-273108/ |
 | vidro-estilhacos.mp4 | MrWashingt0n | https://pixabay.com/videos/id-385648/ |
+| estilhacos.mp4 | MrWashingt0n (o mesmo vídeo, só o trecho dos cacos voando — F-320) | https://pixabay.com/videos/id-385648/ |
 | confete.mp4 | hirken8 | https://pixabay.com/videos/id-121983/ |

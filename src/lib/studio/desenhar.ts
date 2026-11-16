@@ -435,10 +435,10 @@ export function desenharDocumento(ctx: CanvasRenderingContext2D, d: Documento, i
     // F-317: a logo que cai do céu — atrás dela as rachaduras e o fogo; na frente os blocos, a poeira e o clarão
     if (fx && (fx.quebra || fx.fogo) && instanteDoImpacto(c) != null) {
       const ti = instanteDoImpacto(c)!;
-      if (fx.quebra) desenharQuebraAtras(ctx, c, tempo!, w, h, !!fx.fogo);
+      if (fx.quebra) desenharQuebraAtras(ctx, c, tempo!, w, h, !!fx.fogo, !!fx.quebraReal);
       else if (tempo! >= ti) desenharFogoNaLogo(ctx, c, tempo!, Math.min(1, (tempo! - ti) / 0.35));
       desenharCamada(ctx, c, imgs, escala, tempo, total, rapido);
-      if (fx.quebra) desenharQuebraFrente(ctx, c, tempo!, w, h);
+      if (fx.quebra) desenharQuebraFrente(ctx, c, tempo!, w, h, !!fx.quebraReal);
       if (i === iFundo) particulas();
       return;
     }

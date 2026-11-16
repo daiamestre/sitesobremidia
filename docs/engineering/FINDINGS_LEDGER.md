@@ -3591,3 +3591,38 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - MP4 exportado pelo motor real com os efeitos.
   - Custo na exportação, num PC sem placa de vídeo (WebGL por software): de 52 s para 89 s em 12,7 s de vídeo. Com GPU o recorte é leve. No aparelho fraco, a prévia recorta em tamanho menor.
 - **Testes:** `efeitosReais319.test.ts`; `videoComImpacto34.test.ts` atualizado.
+
+### F-320 — Vídeo de impacto igual ao do concorrente: sons medidos, fundo sem nada dobrado, quebra real e locutor de rádio (16/11/2026)
+- **Pedido do dono (sobre o MP4 do F-319):**
+  - o alarme e o som da batida da logo não eram iguais aos do concorrente;
+  - a "listra quebrando" estava horrível;
+  - uma linha branca aparecia embaixo do NOVEMBRO;
+  - as fitas apareciam em cima de outra fita e o botão OFERTAS em cima de outro botão;
+  - quer só UMA fita em cada lugar, os efeitos sonoros e visuais iguais aos do concorrente e o locutor junto, num teste curto. Tudo isso para todo vídeo.
+- **Causas:**
+  - **Fitas e botão dobrados:** os fundos `alerta-de-oferta-{v,h}(-st).webp` tinham as 3 fitas e o contorno do botão GRAVADOS. A câmera na mão balança o fundo, mas a nossa fita animada e o nosso botão ficam parados, por isso apareciam dobrados.
+  - **Linha embaixo da logo:** com `ancora: 'baixo'`, a base do efeito não esfumava.
+  - **Rachaduras:** eram linhas desenhadas.
+  - **Sirene:** era um "uiu-uiu" repetido, cheio de harmônicos. A do concorrente é um único tom 600→2.230→620 Hz em 3,5 s.
+  - **Impacto:** era só um grave fraco, sem estalo.
+- **Como os sons foram identificados** (`docs/SONS_DO_CONCORRENTE.md`):
+  - o canal lateral (L−R) apaga a voz e deixa os efeitos;
+  - as batidas foram agrupadas pela impressão digital de 8 faixas;
+  - o concorrente usa o MESMO som de concreto nos textos e na logo atravessando o concreto (72–78% iguais), e outro na logo explodindo em pedras;
+  - 68 efeitos gratuitos do Pixabay foram comparados (nenhum é o arquivo dele) e as nossas batidas foram montadas em camadas: concreto 69–72%, logo 62%, sendo que as do próprio grupo dele se parecem 53–55% entre si.
+- **Correções:**
+  - **Fundos limpos** por convolução normalizada só com o vermelho, e linha a linha no lugar do botão (script na pasta de trabalho, `limpar-fundo.cjs`).
+  - **Efeito:** a base sempre esfuma (o fogo do chão passa da tela).
+  - **`quebraReal`:** sem rachadura, bloco ou poeira desenhados, só o tremor e o clarão. Cacos reais (`estilhacos.mp4`, o trecho dos cacos voando) entram na frente da logo.
+  - **Abertura** (`QUEDA_DA_LOGO`, `BATIDA_DA_LOGO` = 1,6 s, abertura de 3,6 s): sirene de 0 a 3,5 s, subida terminando na batida, `impacto` na logo e `concreto` na frase e em cada preço.
+  - **Sons novos** em `public/studio/sons` (`?v=2`), feitos por `scripts/studio/sintetizar-sons.mjs` e `montar-sons-de-batida.mjs`; licenças em `docs/licencas/SONS_PIXABAY.md`.
+  - **Locutor:** `vozDeRadio` (passa-alta 90 Hz, +3,5 dB em 3 kHz, brilho e compressor 4:1) na prévia e no MP4. Na `studio-locucao`, `estilo: 'impacto'` usa `AJUSTE_IMPACTO` (stability 0,3, style 0,6, speed 1,08) e um endereço de arquivo próprio, sem regerar o que já existe.
+  - **Defeito achado no teste:** a fala recém-gerada respondia erro no 1º acesso e o MP4 saía SEM a voz da abertura. Agora há 3 tentativas no MP4 e mais uma na prévia.
+- **Prova:**
+  - vídeo de teste exportado pelo motor real: abertura + 2 produtos + fechamento, com locutor, 28,6 s;
+  - quadros e espectros conferidos;
+  - 341 letras da ElevenLabs gastas só nas 4 falas do teste, pedido pelo dono.
+- **Testes:** `impactoIgualConcorrente320.test.ts`; `videoComImpacto34.test.ts` atualizado.
+- **Falta:**
+  - som próprio para a bola de fogo (nenhum candidato passou de 44%);
+  - os 2 vídeos que o dono citou não chegaram à conversa.

@@ -95,7 +95,7 @@ export function PainelDeLocucao({ segmento, produtos, aoMudar, automatica = fals
     if (!faltam.length) { toast.success('A locução já está pronta.'); return; }
     setGerando(true);
     try {
-      const { data, error } = await supabase.functions.invoke('studio-locucao', { body: { acao: 'falar', voz: e.voz, frases: faltam.map((f) => ({ chave: f.chave, texto: f.texto })) } });
+      const { data, error } = await supabase.functions.invoke('studio-locucao', { body: { acao: 'falar', voz: e.voz, estilo: 'impacto', frases: faltam.map((f) => ({ chave: f.chave, texto: f.texto })) } });
       const resp = data as { frases?: Array<{ chave: string; url: string; nova: boolean }>; error?: string } | null;
       if (error || !resp?.frases) {
         let msg = resp?.error ?? 'Não foi possível gerar a locução.';

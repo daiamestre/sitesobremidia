@@ -39,6 +39,7 @@ export const EFEITOS_REAIS: EfeitoReal[] = [
   e('raio', 'Raio', 'raio', 4, true, 'uxcsani', 368086),
   e('vidro-rachando', 'Vidro rachando', 'vidro', 3, false, 'iwsky', 273108),
   e('vidro-estilhacos', 'Vidro estilhaçando', 'vidro', 2.2, false, 'MrWashingt0n', 385648),
+  e('estilhacos', 'Cacos voando (batida)', 'vidro', 1.8, false, 'MrWashingt0n', 385648),
   e('confete', 'Chuva de confete', 'festa', 3.5, false, 'hirken8', 121983),
 ];
 export const efeitoPorId = (id: string | null | undefined) => EFEITOS_REAIS.find((x) => x.id === id) ?? null;
@@ -250,7 +251,9 @@ export function desenharEfeito(ctx: CanvasRenderingContext2D, c: CamadaEfeito, t
   const u0 = (dw - c.w) / 2 / dw, v0 = (-c.h / 2 - y0) / dh;
   const janela: [number, number, number, number] = [u0, v0, 1 - u0, v0 + c.h / dh];
   const f = 0.14;
-  const bordas: [number, number, number, number] = [f, f, c.ancora === 'cima' ? 0 : f, c.ancora === 'baixo' ? 0 : f];
+  // F-320: a base também esfuma (com a base firme, o fogo atrás da logo terminava numa LINHA reta embaixo do nome). O fogo do
+  // chão passa da beirada da tela, então o esfumado dele fica fora da tela.
+  const bordas: [number, number, number, number] = [f, f, c.ancora === 'cima' ? f * 0.5 : f, f];
   const recortado = modo === 'chave' ? recortarPreto(q.fonte, q.w, q.h, janela, bordas, efeitoPorId(c.efeito)?.grupo === 'explosao', dw * Math.abs(ctx.getTransform().a) * (!EXATO && aparelhoFraco() ? 0.6 : 1)) : null;
   // (o recorte é feito no tamanho em que o efeito APARECE na tela — o efeito pequeno do preço custa pouco no tablet)
   ctx.save();

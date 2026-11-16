@@ -251,9 +251,11 @@ function rachaduras(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: nu
   ctx.restore();
 }
 /** ATRÁS da logo: a cratera e as rachaduras na parede e o fogo pegando nela */
-export function desenharQuebraAtras(ctx: CanvasRenderingContext2D, c: Camada, t: number, W: number, H: number, fogo: boolean) {
+export function desenharQuebraAtras(ctx: CanvasRenderingContext2D, c: Camada, t: number, W: number, H: number, fogo: boolean, real = false) {
   const ti = instanteDoImpacto(c);
   if (ti == null || t < ti || !c.visivel) return;
+  // F-320 (pedido do dono: "a listra quebrando está horrível"): com as filmagens, nada de rachadura nem bloco desenhado
+  if (real) { if (fogo) desenharFogoNaLogo(ctx, c, t, Math.min(1, (t - ti) / 0.35)); return; }
   const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
   // as rachaduras ficam em volta da batida (não cruzam o topo nem o rodapé da arte)
   // F-319: pelo tamanho que a logo APARECE (inteira na caixa, ~1,4 : 1), não pela caixa (deitado, a caixa é bem maior)
@@ -270,7 +272,7 @@ export function desenharQuebraAtras(ctx: CanvasRenderingContext2D, c: Camada, t:
   blocos(ctx, c, s, W, H);
 }
 /** NA FRENTE: blocos de concreto voando, a poeira e o clarão da batida */
-export function desenharQuebraFrente(ctx: CanvasRenderingContext2D, c: Camada, t: number, W: number, H: number) {
+export function desenharQuebraFrente(ctx: CanvasRenderingContext2D, c: Camada, t: number, W: number, H: number, real = false) {
   const ti = instanteDoImpacto(c);
   if (ti == null || !c.visivel) return;
   const s = t - ti;
@@ -279,6 +281,8 @@ export function desenharQuebraFrente(ctx: CanvasRenderingContext2D, c: Camada, t
   const cx = c.x + c.w / 2, cy = c.y + c.h * 0.6;
   ctx.save();
   if (s < 0.2) { ctx.fillStyle = `rgba(255,245,220,${(0.7 * (1 - s / 0.2)).toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+  // F-320: a poeira é a filmagem (fumaça de verdade); fica só o clarão
+  if (real) { ctx.restore(); return; }
   for (let i = 0; i < 7; i++) {
     const ang = (i / 7) * Math.PI * 2 + sorte(i, 41);
     const d = (120 + 260 * sorte(i, 42)) * k * saida(Math.min(1, s / 1.1));
