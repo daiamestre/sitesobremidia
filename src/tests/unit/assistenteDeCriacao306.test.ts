@@ -16,9 +16,17 @@ describe('F-306: assistente de criação', () => {
     expect(encartes).toContain("p.set('assistente', '1'); p.set('passo', '1');");
   });
   it('palco: 4 etapas, locução opcional, e no fim a edição de sempre', () => {
-    for (const id of ["id: 'produtos'", "id: 'loja'", "id: 'locucao'", "id: 'revisar'"]) expect(palco).toContain(id);
+    // F-312 (dono): 1) empresa · 2) produtos · 3) edição do vídeo (fundo, logo, elementos) · 4) locução automática + prévia
+    const ordem = ["id: 'loja'", "id: 'produtos'", "id: 'edicao'", "id: 'locucao'"].map((id) => palco.indexOf(id));
+    expect(ordem.every((i) => i > 0)).toBe(true);
+    expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
     expect(palco).toContain('textoConcluir="Criar meu vídeo"');
-    expect(palco).toContain('<PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} />');
+    expect(palco).toContain('<PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} automatica />');
+    expect(fs.readFileSync('src/components/studio/PainelDeLocucao.tsx', 'utf8')).toContain('data-testid="locucao-criar-automatica"');
+    // no fim, a prévia toca sozinha embaixo da linha do tempo
+    expect(palco).toContain('setPedidoDeTocar((n) => n + 1)');
+    expect(palco).toContain('data-testid="palco-previa-grande"');
+    expect(fs.readFileSync('src/pages/studioai/VideoEditorPage.tsx', 'utf8')).toContain('data-testid="video-play-centro"');
   });
   it('encarte: produtos → sua loja → criar (abre o editor de sempre)', () => {
     expect(encartes).toContain('textoConcluir="Criar meu encarte"');

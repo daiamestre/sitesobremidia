@@ -72,6 +72,7 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **Modelo é só o começo (12/11/2026, F-308):** em qualquer modelo (encarte, palco, arte), a pessoa troca TUDO: fundo (outro da galeria, imagem dela ou só cor), logo, produtos, textos, cores e o movimento de cada elemento, inclusive o MOVIMENTO DO FUNDO. Fundo novo nunca mostra borda ao se mexer.
 - **Acervo (12/11/2026, F-310):** fundos, logos e imagens enviados e os vídeos/artes salvos pelos usuários ficam no SOBRE MÍDIA, por segmento, sem interromper o usuário; só dono/ADM veem e transformam em modelo do sistema, SEM a marca, a logo, os contatos e os preços do cliente. Os Termos de Uso devem ter a cláusula (rascunho em docs/juridico/CLAUSULA_CRIACOES_E_ARQUIVOS.md).
 - **Código de barras (12/11/2026, F-311):** câmera do aparelho, pistola USB/Bluetooth de qualquer ramo (mesmo sem o campo selecionado) e digitação à mão; cada leitura gravada faz o bipe de pistola, e repetido ou inválido faz o bipe de erro.
+- **Vídeo pelo passo a passo (15/11/2026, F-312):** 1) empresa · 2) produtos · 3) edição do vídeo (fundo, logo, elementos) · 4) locução criada pelo locutor com tudo o que foi informado, sincronizada com cada produto. Na edição, a PRÉVIA em tamanho real fica embaixo da linha do tempo, com tocar/pausar no meio, e mostra as edições na hora, antes de salvar.
 - **Cartaz Digital** (nome para o usuário; o código usa `tabloide`): funciona como a QR Ofertas, mas sem copiar arte, tema ou texto deles. Tudo o que o usuário envia é aceito na hora.
 
 ## 6. Catálogo de produtos (fotos)

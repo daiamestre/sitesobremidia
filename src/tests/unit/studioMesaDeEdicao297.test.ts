@@ -13,10 +13,12 @@ const palco = fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8'
 const video = fs.readFileSync('src/pages/studioai/VideoEditorPage.tsx', 'utf8');
 
 describe('F-297: mesa de edição do palco', () => {
-  it('uma visualização só: a prévia do vídeo entra no lugar da arte', () => {
+  // F-312 (dono): a arte editável fica em cima e a PRÉVIA do vídeo, em tamanho real, embaixo da linha do tempo
+  it('a arte editável em cima e a prévia do vídeo embaixo da linha do tempo', () => {
     expect(palco).toContain('data-testid="palco-previa-video"');
     expect(palco).toContain("const [vista, setVista] = useState<'palco' | 'video'>('palco');");
-    expect(palco).toContain("{vista === 'palco' && (docNaTela && docSel ? (");
+    expect(palco).toContain('{(docNaTela && docSel ? (');
+    expect(palco.indexOf('data-testid="palco-previa-grande"')).toBeGreaterThan(palco.indexOf('data-testid="palco-editor-video"'));
     expect(palco).not.toContain('<h2 className="flex items-center gap-2 px-1 text-sm font-bold text-white"><Clapperboard');
     expect(video).toContain('{mesa.previa && createPortal(previa, mesa.previa)}');
   });

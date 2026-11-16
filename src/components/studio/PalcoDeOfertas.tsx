@@ -264,6 +264,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const mudarNomeDaLoja = (v: string) => { setNomeDaLoja(v); try { localStorage.setItem('studio-locucao-loja', v); } catch { /* sem armazenamento */ } };
   // F-306: "Visualizar vídeo e salvar" (pede ao editor de vídeo para montar o MP4 e mostrar com Salvar/Publicar/Baixar)
   const [pedidoDeVideo, setPedidoDeVideo] = useState(0);
+  // F-312: ao criar pelo passo a passo, a prévia grande começa a tocar sozinha
+  const [pedidoDeTocar, setPedidoDeTocar] = useState(0);
   const produtosDaLocucao = useMemo(() => comPreco.map((p) => ({ nome: p.nome, preco: p.preco, precoDe: p.precoDe, unidade: p.unidade })), [comPreco]);
   // F-248: a logo do palco vem da pasta Logos
   const chaveLogo = `palco-${fundoId}`;
@@ -498,21 +500,17 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   if (noAssistente) {
     const incompletos = comPreco.filter((p) => faltasDoProduto(p).length).length;
     const logoAtual = fundo ? (logoDoPalco ?? fundo.logoPadrao) : null;
+    // F-312 (pedido do dono): 1) a empresa · 2) os produtos · 3) a edição do vídeo (fundo, logo, elementos) · 4) a locução,
+    // que o locutor cria lendo tudo o que veio antes, sincronizada com cada produto — e no fim a prévia do vídeo
+    const previaAoVivo = comPreco.length > 0 && (
+      <div className="order-first mx-auto w-full max-w-[190px] sm:order-none sm:max-w-[240px]" data-testid="assistente-previa">
+        <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} ajustes={ajustes} />
+      </div>
+    );
     const etapas: EtapaDoAssistente[] = [
       {
-        id: 'produtos', titulo: 'Produtos', pronta: comPreco.length > 0, falta: 'Coloque pelo menos 1 produto com preço',
-        instrucao: 'Coloque os produtos e os preços que vão aparecer no vídeo. Pode colar a lista inteira (um produto por linha), digitar um por um ou pegar da galeria — a foto entra sozinha.',
-        aviso: incompletos ? `${incompletos} produto(s) sem foto ou com algum dado faltando. Dá para completar agora ou depois, na edição.` : null,
-        conteudo: (
-          <div className="space-y-2">
-            <PainelDeProdutos s={s} destaques={0} botao="Colocar no vídeo" emGrade={false} fixar={false} aberto />
-            <p className="text-xs text-slate-400">{comPreco.length} produto(s) com preço vão passar no vídeo, um de cada vez.</p>
-          </div>
-        ),
-      },
-      {
-        id: 'loja', titulo: 'Sua loja', pronta: true,
-        instrucao: 'Escreva o nome da sua loja e escolha a sua logo. Escolha também se a tela é em pé (TV vertical, celular) ou deitada (TV horizontal).',
+        id: 'loja', titulo: 'Sua empresa', pronta: true,
+        instrucao: 'Escreva o nome da sua empresa e escolha a sua logo. Escolha também se a tela é em pé (TV vertical, celular) ou deitada (TV horizontal). O locutor usa o nome da empresa na locução.',
         conteudo: (
           <div className="space-y-3">
             <label className="block text-sm text-slate-200">Nome da loja
@@ -527,26 +525,58 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
               </div>
             )}
             <div className="space-y-1"><p className="text-sm text-slate-200">Formato da tela</p>{seletorDeFormato}</div>
-            {painelDoFundo && (
-              <details className="rounded-xl border border-white/10 bg-black/20 p-2.5" data-testid="assistente-fundo">
-                <summary className="cursor-pointer text-sm font-semibold text-white">Trocar o fundo e o movimento dele (opcional)</summary>
-                <p className="pt-1 text-xs text-slate-400">O modelo é só o começo: troque o fundo por outro, por uma imagem sua ou só cor, e escolha como ele se mexe. Na edição você troca também qualquer outro elemento.</p>
-                <div className="pt-2">{painelDoFundo}</div>
-              </details>
-            )}
           </div>
         ),
       },
       {
-        id: 'locucao', titulo: 'Locução', pronta: true,
-        instrucao: 'Quer um locutor falando as ofertas? Ligue a locução, escolha a voz (toque no ▶ para ouvir) e toque em Gerar áudio. Se não quiser, é só avançar.',
-        conteudo: <PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} />,
+        id: 'produtos', titulo: 'Produtos', pronta: comPreco.length > 0, falta: 'Coloque pelo menos 1 produto com preço',
+        instrucao: 'Coloque os produtos e os preços que vão aparecer no vídeo. Pode colar a lista inteira (um produto por linha), digitar um por um, bipar o código de barras ou pegar da galeria — a foto entra sozinha.',
+        aviso: incompletos ? `${incompletos} produto(s) sem foto ou com algum dado faltando. Dá para completar agora ou depois, na edição.` : null,
+        conteudo: (
+          <div className="space-y-2">
+            <PainelDeProdutos s={s} destaques={0} botao="Colocar no vídeo" emGrade={false} fixar={false} aberto />
+            <p className="text-xs text-slate-400">{comPreco.length} produto(s) com preço vão passar no vídeo, um de cada vez.</p>
+          </div>
+        ),
       },
       {
-        id: 'revisar', titulo: 'Revisar', pronta: comPreco.length > 0, falta: 'Faltam produtos',
-        instrucao: 'Confira se está tudo certo. Ao criar, abre a tela de edição com tudo pronto: lá você ainda pode mexer em qualquer coisa ou só tocar em "Visualizar vídeo e salvar".',
+        id: 'edicao', titulo: 'Edição do vídeo', pronta: comPreco.length > 0, falta: 'Faltam produtos',
+        instrucao: 'Monte o visual do vídeo: troque o fundo (outro da galeria, uma imagem sua ou só cor) e o movimento dele, e coloque logos, selos ou qualquer imagem. A prévia mostra na hora como fica.',
+        conteudo: (
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_240px]" data-testid="assistente-edicao">
+            <div className="min-w-0 space-y-3">
+              {logoAtual && (
+                <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5">
+                  <img src={logoAtual.url} alt="" crossOrigin="anonymous" className="h-12 w-16 shrink-0 rounded-lg bg-black/30 object-contain" />
+                  <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{logoAtual.nome}</p>
+                  <button type="button" onClick={() => setTrocandoLogo(true)} className="h-10 shrink-0 rounded-xl bg-[#5D1BFF] px-3 text-xs font-semibold text-white">Trocar logo</button>
+                </div>
+              )}
+              {docEd && (
+                <button type="button" onClick={() => arquivoDeImagem.current?.click()} disabled={enviandoImagem} className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 text-sm font-semibold text-white hover:bg-white/5 disabled:opacity-60" data-testid="assistente-adicionar-imagem">
+                  {enviandoImagem ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}Adicionar imagem (logo, selo, foto…)
+                </button>
+              )}
+              <input ref={arquivoDeImagem} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void adicionarImagem(f); }} />
+              {painelDoFundo && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-2.5" data-testid="assistente-fundo">
+                  <p className="pb-2 text-sm font-semibold text-white">Fundo do vídeo</p>
+                  {painelDoFundo}
+                </div>
+              )}
+              <p className="text-xs text-slate-400">Na tela de edição você ainda toca em qualquer elemento para mover, aumentar, girar, mudar cor, texto e movimento.</p>
+            </div>
+            {previaAoVivo}
+          </div>
+        ),
+      },
+      {
+        id: 'locucao', titulo: 'Locução', pronta: comPreco.length > 0, falta: 'Faltam produtos',
+        instrucao: 'O locutor lê tudo o que você colocou (a empresa, os produtos e os preços) e cria a locução do vídeo, cada produto falado no tempo dele. Escolha a voz e toque em "Criar a locução do meu vídeo". Não quer locução? É só tocar em "Criar meu vídeo".',
         conteudo: (
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+            <div className="min-w-0 space-y-3">
+            <PainelDeLocucao segmento={segmento} produtos={produtosDaLocucao} aoMudar={setLocucao} automatica />
             <ul className="space-y-1.5 text-sm" data-testid="assistente-resumo">
               {[
                 ['Modelo', fundo ? fundo.nome.replace(/^Ofertas – /, '') : 'Palco desenhado'],
@@ -559,7 +589,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                 <li key={k} className="flex items-center justify-between gap-3 rounded-lg bg-black/20 px-3 py-2"><span className="text-slate-400">{k}</span><span className="min-w-0 truncate text-right font-semibold text-white">{v}</span></li>
               ))}
             </ul>
-            {comPreco.length > 0 && <div className="mx-auto w-full max-w-[200px]"><CarrosselNoPalco produtos={comPreco.slice(0, 4)} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} ajustes={ajustes} /></div>}
+            </div>
+            {previaAoVivo}
           </div>
         ),
       },
@@ -568,7 +599,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       <>
         <AssistenteDeCriacao titulo={`${info.tituloPalco}${fundo ? ` · ${fundo.nome.replace(/^Ofertas – /, '')}` : ''}`} etapas={etapas} passo={passoDoAssistente} irPara={irParaPasso}
           textoConcluir="Criar meu vídeo" aoSair={sairDoAssistente}
-          aoConcluir={() => { sairDoAssistente(); setVista('palco'); toast.success('Seu vídeo está pronto para editar. Quando quiser ver como ficou, toque em "Visualizar vídeo e salvar".'); }} />
+          // F-312: no fim, a tela de edição com a PRÉVIA do vídeo (com a locução) já tocando embaixo da linha do tempo
+          aoConcluir={() => { sairDoAssistente(); setVista('palco'); setPedidoDeTocar((n) => n + 1); toast.success('Seu vídeo está pronto! A prévia está tocando embaixo da linha do tempo. Para salvar, toque em "Visualizar vídeo e salvar".'); }} />
         <GaleriaDeProdutos aberto={galeriaAberta} aoFechar={() => setGaleriaAberta(false)} aoAdicionar={s.adicionarPronto} segmentoInicial={segmento === 'mercado' ? 'mercearia' : segmento} />
         {trocandoLogo && <EscolherLogo titulo="Logo do vídeo" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
       </>
@@ -607,16 +639,12 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
           {!comPreco.length && <p className="rounded-xl border border-dashed border-white/15 p-10 text-center text-sm text-slate-400">Coloque produtos com preço em “Seus produtos”.</p>}
           {comPreco.length > 0 && <div className={cn('relative min-h-0', formato === '9:16' ? 'flex-1' : 'h-[52vw] shrink-0 md:h-auto md:flex-1')} style={{ containerType: 'size' }}>
             <div className="relative mx-auto" style={{ width: formato === '9:16' ? 'min(100cqw, calc(100cqh * 0.5625))' : 'min(100cqw, calc(100cqh * 1.7778))' }} data-testid="palco-tela">
-              {vista === 'palco' && (docNaTela && docSel ? (
+              {(docNaTela && docSel ? (
                   <div className="relative" data-testid="palco-editavel">
                     <PalcoDoEditor doc={docNaTela} animar={tocando || !!demo} ciclo={demo?.ciclo} sel={tocando || demo ? null : nomeSel} onSelecionar={escolherElemento} onInicio={() => undefined} onMudar={mudarElemento} />
                     {tocando && <button type="button" aria-label="Tocar num elemento para editar" className="absolute inset-0 cursor-pointer" onClick={(ev) => { const n = elementoTocado(ev, docSel); if (n) escolherElemento(n); }} data-testid="palco-toque" />}
                   </div>
                 ) : <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} ajustes={ajustes} aoTocar={(i, nome) => { setSelId(comPreco[i]?.id ?? null); setTocando(true); if (nome) escolherElemento(nome); }} />)}
-              {/* a prévia do VÍDEO (linha do tempo) entra aqui, no mesmo lugar da arte */}
-              <div ref={setSlotPrevia} className={cn('relative', vista !== 'video' && 'hidden')} data-testid="palco-previa-video">
-                <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-[#7dffb0]"><Clapperboard className="h-3 w-3" />Vídeo</span>
-              </div>
             </div>
           </div>}
           {comPreco.length > 0 && (
@@ -794,10 +822,25 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       {projetoNoEditor && (
         <section className="shrink-0 rounded-2xl border border-[#25D366]/30 bg-[#0b1f14]/30 p-1.5" data-testid="palco-editor-video" aria-label={`Vídeo do palco (${comPreco.length} produtos · ${comPreco.length * SEGUNDOS_POR_PRODUTO} s)`}>
           <EditorDeVideo embutido projetoInicial={projetoNoEditor} nomeInicial={`${info.tituloPalco} – ${fundo ? textoBotao : titulo}`} aoTransicao={transicaoPeloEditor}
-            mesa={{ previa: slotPrevia, ferramentas: slotFerramentas, visivel: vista === 'video', aoUsar: () => setVista('video'), aoTocarNaTela: tocouNoVideo, clipeEmFoco: sel?.nome ?? null, exportarAgora: pedidoDeVideo, modeloDoVideo }} />
+            mesa={{ previa: slotPrevia, ferramentas: slotFerramentas, visivel: true, aoUsar: () => setVista('video'), aoTocarNaTela: tocouNoVideo, clipeEmFoco: sel?.nome ?? null, exportarAgora: pedidoDeVideo, tocarAgora: pedidoDeTocar, modeloDoVideo }} />
         </section>
       )}
       </div>
+      {/* F-312 (pedido do dono): a PRÉ-VISUALIZAÇÃO do vídeo em tamanho real, embaixo da linha do tempo, com o botão de
+          tocar/pausar no meio. Mostra na hora tudo o que foi editado em cima (arte, fundo, produtos, textos, música e
+          locução), mesmo antes de salvar — para decidir se salva assim. */}
+      {projetoNoEditor && (
+        <section className="space-y-2 rounded-2xl border border-white/10 bg-black/30 p-2 sm:p-3" data-testid="palco-previa-grande" aria-label="Pré-visualização do vídeo">
+          <div className="flex flex-wrap items-center gap-2">
+            <Clapperboard className="h-4 w-4 text-[#7dffb0]" />
+            <h2 className="text-sm font-bold text-white">Pré-visualização do vídeo</h2>
+            <p className="min-w-0 flex-1 text-[11px] text-slate-400">Mostra as edições na hora, mesmo antes de salvar.</p>
+          </div>
+          <div className="mx-auto" style={{ width: formato === '9:16' ? 'min(100%, calc(88dvh * 0.5625))' : 'min(100%, calc(88dvh * 1.7778))' }}>
+            <div ref={setSlotPrevia} className="relative" data-testid="palco-previa-video" />
+          </div>
+        </section>
+      )}
       <GaleriaDeProdutos aberto={galeriaAberta} aoFechar={() => setGaleriaAberta(false)} aoAdicionar={s.adicionarPronto} segmentoInicial={segmento === 'mercado' ? 'mercearia' : segmento} />
       {trocandoCirculo && <EscolherLogo titulo="Sua logo no círculo" aoEscolher={(l) => porLogoNoCirculo(l.url)} aoRestaurar={() => porLogoNoCirculo(null)} aoFechar={() => setTrocandoCirculo(false)} />}
       {trocandoLogo && <EscolherLogo titulo="Logo do palco" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}

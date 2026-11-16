@@ -32,7 +32,8 @@ function duracaoDo(url: string): Promise<number> {
   });
 }
 
-export function PainelDeLocucao({ segmento, produtos, aoMudar }: { segmento: SegmentoDoStudio; produtos: ProdutoDaLocucao[]; aoMudar: (l: LocucaoDoVideo | null) => void }) {
+export function PainelDeLocucao({ segmento, produtos, aoMudar, automatica = false }: { segmento: SegmentoDoStudio; produtos: ProdutoDaLocucao[]; aoMudar: (l: LocucaoDoVideo | null) => void;
+  /** F-312: passo a passo — o locutor cria a locução de uma vez, lendo a empresa, os produtos e os preços */ automatica?: boolean }) {
   const chave = `studio-locucao-${segmento}`;
   const [loja, setLoja] = useState(() => { try { return localStorage.getItem(CHAVE_LOJA) ?? ''; } catch { return ''; } });
   const [e, setE] = useState<Estado>(() => ler(chave, { ativa: false, voz: vozPadraoDo(segmento), textos: {}, falas: {} }));
@@ -121,7 +122,20 @@ export function PainelDeLocucao({ segmento, produtos, aoMudar }: { segmento: Seg
           <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all', e.ativa ? 'left-[22px]' : 'left-0.5')} />
         </button>
       </div>
-      {!e.ativa ? <p className="text-[11px] leading-snug text-slate-400">Ligue para um locutor falar a sua loja, os produtos e os preços no vídeo.</p> : (
+      {/* F-312: o locutor lê tudo o que a pessoa colocou e cria a locução de uma vez (cada produto no tempo dele no vídeo) */}
+      {automatica && (
+        <div className="space-y-2 rounded-lg border border-[#FFD400]/40 bg-[#FFD400]/5 p-2.5" data-testid="locucao-automatica">
+          <p className="text-xs leading-snug text-slate-200">
+            O locutor vai falar: <b className="text-white">{loja.trim() || 'a sua empresa'}</b>, {produtos.length} produto(s) com o preço de cada um{roteiro.some((x) => x.tipo === 'fechamento') ? ' e o fechamento' : ''}. Cada produto aparece no vídeo enquanto é falado.
+          </p>
+          <button type="button" disabled={gerando || !produtos.length}
+            onClick={() => { if (!faltam.length) { setE((x) => ({ ...x, ativa: true })); void ouvirTudo(); return; } setE((x) => ({ ...x, ativa: true })); void gerar(); }}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#FFD400] text-sm font-black text-[#22004A] disabled:opacity-50" data-testid="locucao-criar-automatica">
+            {gerando ? <><Loader2 className="h-4 w-4 animate-spin" />Criando a locução…</> : faltam.length ? <><Mic className="h-4 w-4" />Criar a locução do meu vídeo</> : <><Play className="h-4 w-4" />Locução pronta · ouvir</>}
+          </button>
+        </div>
+      )}
+      {!e.ativa && !automatica ? <p className="text-[11px] leading-snug text-slate-400">Ligue para um locutor falar a sua loja, os produtos e os preços no vídeo.</p> : (
         <>
           <label className="block text-xs text-slate-300">
             <span className="flex items-center gap-1"><Store className="h-3.5 w-3.5" />Nome da loja</span>

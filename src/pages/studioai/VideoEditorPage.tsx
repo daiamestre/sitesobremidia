@@ -109,6 +109,8 @@ export interface MesaDoVideo {
   clipeEmFoco?: string | null;
   /** F-306: "Visualizar vídeo e salvar" da tela de fora — cada aumento monta o MP4 (e mostra Salvar/Publicar/Baixar) */
   exportarAgora?: number;
+  /** F-312: cada aumento leva a prévia ao começo e toca (fim do passo a passo) */
+  tocarAgora?: number;
   /** F-310: o MODELO deste vídeo (composição do palco/encarte): ao salvar, vai para o acervo do SOBRE MÍDIA no segmento dele */
   modeloDoVideo?: { tipo: TipoNoAcervo; segmento?: string | null; nome: string; dados: Record<string, unknown> } | null;
 }
@@ -492,6 +494,15 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
     } else toast.success('Vídeo salvo em Meus Projetos.');
   });
   // F-306: o botão "Visualizar vídeo e salvar" da tela do palco pede o vídeo pronto
+  // F-312: a prévia começa a tocar sozinha ao chegar do passo a passo (o toque em "Criar meu vídeo" libera o som)
+  const ultimoTocar = useRef(0);
+  useEffect(() => {
+    const n = mesa?.tocarAgora ?? 0;
+    if (n <= ultimoTocar.current) return;
+    ultimoTocar.current = n;
+    const t = window.setTimeout(() => { const m = motor.current; if (!m) return; m.ir(0); setTempo(0); if (!m.tocando) { m.tocar(); setTocando(true); } mesa?.previa?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }); }, 900);
+    return () => clearTimeout(t);
+  }, [mesa?.tocarAgora]); // eslint-disable-line react-hooks/exhaustive-deps
   const ultimoPedido = useRef(mesa?.exportarAgora ?? 0);
   useEffect(() => {
     const n = mesa?.exportarAgora ?? 0;
@@ -533,6 +544,12 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
             onMudar={(id, x) => mudarSob(id, x as Partial<Sobreposicao>, false)} onApagar={() => excluir()} onDuplicar={() => duplicar()}
             onEditarTexto={() => { setAba('texto'); setTimeout(() => textoRef.current?.focus(), 30); }} />
         </div>
+      )}
+      {mesa && exportando === null && (
+        <button type="button" onClick={tocarPausar} aria-label={tocando ? 'Pausar a prévia' : 'Tocar a prévia'} data-testid="video-play-centro"
+          className={cn('absolute left-1/2 top-1/2 z-10 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-[0_0_24px_rgba(0,0,0,.5)] ring-2 ring-white/70 backdrop-blur-sm transition-opacity', tocando ? 'opacity-40 hover:opacity-100' : 'opacity-100')}>
+          {tocando ? <Pause className="h-8 w-8" /> : <Play className="ml-1 h-8 w-8" />}
+        </button>
       )}
       {exportando !== null && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-black/70 text-center">
