@@ -18,9 +18,11 @@ const OPCOES_COM_SOM: [string, 'mp4' | 'webm'][] = [
   ['video/webm;codecs="vp9,opus"', 'webm'], ['video/webm;codecs="vp8,opus"', 'webm'], ['video/webm', 'webm'],
 ];
 
-export function formatoDeVideo(comSom = false): { mime: string; ext: 'mp4' | 'webm' } | null {
+export function formatoDeVideo(comSom = false, preferirWebm = false): { mime: string; ext: 'mp4' | 'webm' } | null {
   if (typeof MediaRecorder === 'undefined' || typeof HTMLCanvasElement === 'undefined' || !('captureStream' in HTMLCanvasElement.prototype)) return null;
-  const achado = (comSom ? OPCOES_COM_SOM : OPCOES).find(([m]) => MediaRecorder.isTypeSupported(m));
+  // F-315: aparelho sem H.264 no tamanho do vídeo — WebM primeiro (VP9/VP8 por software)
+  const lista = comSom ? OPCOES_COM_SOM : OPCOES;
+  const achado = (preferirWebm ? [...lista.filter(([, e]) => e === 'webm'), ...lista.filter(([, e]) => e === 'mp4')] : lista).find(([m]) => MediaRecorder.isTypeSupported(m));
   return achado ? { mime: achado[0], ext: achado[1] } : null;
 }
 

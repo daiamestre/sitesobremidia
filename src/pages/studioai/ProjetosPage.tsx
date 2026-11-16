@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clapperboard, Download, FolderKanban, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMemo, useState } from 'react';
-import { baixar } from '@/lib/studioai/exportar';
+import { baixar, extensaoDoVideo } from '@/lib/studioai/exportar';
 import { PreviaDocumento } from '@/components/studio/PreviaDocumento';
 import { modeloParaDocumento, type Documento, type FormatoDoc } from '@/lib/studio/documento';
 import { modeloPorId, type ModeloDeArte } from '@/lib/studio/modelos';
@@ -21,7 +21,7 @@ function documentoDoProjeto(p: Projeto): Documento | null {
 // F-227: projeto do editor de vídeo abre no editor de vídeo
 const ehVideo = (p: Projeto) => (p.dados as { tipo?: string }).tipo === 'video';
 /** F-304: o vídeo PRONTO salvo junto do projeto (MP4 + capa, na nuvem) */
-interface VideoPronto { url: string; capa: string | null; largura: number; altura: number; duracaoMs: number }
+interface VideoPronto { url: string; capa: string | null; largura: number; altura: number; duracaoMs: number; mime?: string }
 const videoPronto = (p: Projeto) => ((p.dados as { videoPronto?: VideoPronto }).videoPronto ?? null);
 
 /** F-304: "Baixar no aparelho" o vídeo pronto (vai para a galeria do celular/tablet ou para os Downloads do computador) */
@@ -31,7 +31,13 @@ function BaixarVideo({ p }: { p: Projeto }) {
   if (!v) return null;
   const ir = async () => {
     setBaixando(true);
-    try { const b = await (await fetch(v.url)).blob(); baixar(b, `${(p.nome || 'meu-video').replace(/[^\w\-À-ú ]+/g, '').trim() || 'meu-video'}.mp4`); }
+    // F-315: de qualquer aparelho logado; a extensão segue o arquivo (MP4 ou WebM)
+    try {
+      const r = await fetch(v.url);
+      if (!r.ok) throw new Error(String(r.status));
+      const b = await r.blob();
+      baixar(b, `${(p.nome || 'meu-video').replace(/[^\w\-À-ú ]+/g, '').trim() || 'meu-video'}.${extensaoDoVideo(v.mime ?? b.type, v.url)}`);
+    }
     catch { window.open(v.url, '_blank', 'noopener'); }
     finally { setBaixando(false); }
   };

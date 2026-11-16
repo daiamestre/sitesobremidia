@@ -27,7 +27,7 @@ import { uploadToR2 } from '@/lib/r2Upload';
 import { guardarNoAcervo, type TipoNoAcervo } from '@/lib/studio/acervo';
 import { TAMANHO_DOC, alturaDoTexto, alturaDosItens, forma, imagem, itens, selo, texto, type Camada, type Documento, type FormatoDoc, telaDoFormato } from '@/lib/studio/documento';
 import { duracaoDoVideo } from '@/lib/studio/animacao';
-import { MotorDeVideo, podeExportarQuadroAQuadro, type OpcoesDeQualidade, type VideoExportado } from '@/lib/studio/video/motor';
+import { MotorDeVideo, podeExportarQuadroAQuadro, SemCodificadorH264, type OpcoesDeQualidade, type VideoExportado } from '@/lib/studio/video/motor';
 
 /**
  * F-301 (pedido do dono): QUALIDADE da exportação. "Máxima" monta o MP4 QUADRO A QUADRO (nenhum quadro perdido, H.264 de
@@ -459,9 +459,18 @@ export function EditorDeVideo({ embutido = false, projetoInicial = null, nomeIni
     setTocando(false); setSel(null); setExportando(0);
     try {
       const q = QUALIDADES.find((x) => x.id === qualidade);
-      const v = q?.o && podeExportarQuadroAQuadro()
-        ? await motor.current!.exportarQuadroAQuadro(q.o, (f) => setExportando(f))
-        : await motor.current!.exportar((f) => setExportando(f));
+      // F-315: o aparelho sem codificador H.264 que sirva não recebe erro — grava pela exportação rápida (WebM, toca no Player)
+      let v: VideoExportado;
+      try {
+        v = q?.o && podeExportarQuadroAQuadro()
+          ? await motor.current!.exportarQuadroAQuadro(q.o, (f) => setExportando(f))
+          : await motor.current!.exportar((f) => setExportando(f));
+      } catch (e) {
+        if (!(e instanceof SemCodificadorH264)) console.warn('[F-315] exportação principal falhou; gravando em WebM', e);
+        toast.info('Este aparelho grava o vídeo tocando: deixe a tela aberta até terminar.');
+        setExportando(0);
+        v = await motor.current!.exportar((f) => setExportando(f), { preferirWebm: true });
+      }
       setExportado({ v, url: URL.createObjectURL(v.video) });
       toast.success('Vídeo pronto! Salve na galeria, publique ou baixe.');
     } finally { setExportando(null); setTempo(motor.current?.tempo ?? 0); }

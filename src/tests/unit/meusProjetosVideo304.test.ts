@@ -10,7 +10,8 @@ import fs from 'node:fs';
 describe('F-304: Meus Projetos e Biblioteca de Loop', () => {
   it('Biblioteca de Loop só para owner/ADM (menu e página)', () => {
     const menu = fs.readFileSync('src/components/studioai/StudioAILayout.tsx', 'utf8');
-    expect(menu).toContain("...(interno ? [{ nome: 'Biblioteca de Loop', to: '/studio/biblioteca-de-loop', icone: Repeat }] : [])");
+    // F-310 juntou o Acervo na mesma lista (também só owner/ADM)
+    expect(menu).toContain("...(interno ? [{ nome: 'Biblioteca de Loop', to: '/studio/biblioteca-de-loop', icone: Repeat }, { nome: 'Acervo', to: '/studio/acervo', icone: Archive }] : [])");
     expect(menu).toContain('interno={saldo.data?.paga === false}');
     const pagina = fs.readFileSync('src/pages/studioai/BibliotecaDeLoopPage.tsx', 'utf8');
     expect(pagina).toContain('if (saldo.data?.paga !== false) return <Navigate to="/studio" replace />;');

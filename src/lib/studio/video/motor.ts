@@ -17,6 +17,39 @@ export interface OpcoesDeQualidade { fps?: 30 | 60; /** 1 = tamanho do projeto (
 /** o navegador monta MP4 quadro a quadro? (WebCodecs: Chrome/Edge no computador e no Android) */
 export const podeExportarQuadroAQuadro = () => typeof window !== 'undefined' && 'VideoEncoder' in window && 'VideoFrame' in window;
 
+/** F-315: o aparelho não tem codificador H.264 em nenhum tamanho que serve — a tela usa a gravação rápida (WebM) */
+export class SemCodificadorH264 extends Error {
+  constructor() { super('Este aparelho não monta MP4 quadro a quadro.'); this.name = 'SemCodificadorH264'; }
+}
+
+/** F-315: perfis H.264 do mais forte ao mais simples (tablet barato costuma ter só o Baseline/Main e nível 4.x) */
+const PERFIS_H264 = ['avc1.640034', 'avc1.640033', 'avc1.640032', 'avc1.64002A', 'avc1.640028', 'avc1.4D0034', 'avc1.4D002A', 'avc1.4D0028', 'avc1.42E034', 'avc1.42E02A', 'avc1.42E028', 'avc1.42E01F'];
+export interface PlanoDeCodificacao { codec: string; W: number; H: number; fps: 30 | 60; escala: number; bits: number; girar: boolean }
+
+/**
+ * F-315 (pedido do dono): no tablet aparecia "este aparelho não grava vídeo H.264 em 1080×1920" — muitos codificadores de
+ * Android só gravam deitado (até 1920×1088) ou não fazem 4K/60 quadros. Procura, nesta ordem, o melhor que o aparelho faz:
+ * o tamanho pedido → 30 quadros/s → o mesmo tamanho gravado deitado com a marca de giro → Full HD (no lugar do 4K) → 720p.
+ */
+export async function escolherCodificacao(w: number, h: number, fps: 30 | 60, k: 1 | 2, bitsPedidos?: number,
+  suporta: (c: VideoEncoderConfig) => Promise<boolean> = async (c) => !!(await VideoEncoder.isConfigSupported(c).catch(() => null))?.supported,
+): Promise<PlanoDeCodificacao | null> {
+  const par = (x: number) => Math.round(x / 2) * 2;
+  const escalas = [...new Set<number>([k, 1, 2 / 3])].filter((e) => e <= k);
+  const quadros = [...new Set<30 | 60>([fps, 30])];
+  const giros = h > w ? [false, true] : [false];
+  for (const escala of escalas) for (const girar of giros) for (const q of quadros) {
+    const W = par(w * escala), H = par(h * escala);
+    const encW = girar ? H : W, encH = girar ? W : H;
+    const pedido = escala === k && q === fps ? bitsPedidos : undefined;
+    const bits = pedido ?? (escala >= 2 ? 40_000_000 : escala >= 1 ? (q === 60 ? 24_000_000 : 16_000_000) : 8_000_000);
+    for (const codec of PERFIS_H264) {
+      if (await suporta({ codec, width: encW, height: encH, bitrate: bits, framerate: q })) return { codec, W, H, fps: q, escala, bits, girar };
+    }
+  }
+  return null;
+}
+
 export interface VideoExportado { video: Blob; mime: string; ext: 'mp4' | 'webm'; largura: number; altura: number; duracaoMs: number; capa: Blob | null; quadros: Blob[] }
 
 // F-302: em aparelho fraco a prévia do editor desenha em resolução menor (o MP4 final sai sempre no tamanho cheio)
@@ -330,12 +363,13 @@ export class MotorDeVideo {
   }
 
   /** Grava o vídeo final (leva o tempo do próprio vídeo). */
-  async exportar(aoProgredir?: (f: number) => void): Promise<VideoExportado> {
+  async exportar(aoProgredir?: (f: number) => void, o: { preferirWebm?: boolean } = {}): Promise<VideoExportado> {
     if (!this.p) throw new Error('Projeto vazio.');
     this.pausar();
     this.ligarSom();
     const comSom = !!this.mistura && (this.p.audios.length > 0 || this.p.clipes.some((c) => c.tipo === 'video' && !c.mudo));
-    const fmt = formatoDeVideo(comSom) ?? formatoDeVideo(false);
+    // F-315: aparelho sem H.264 no tamanho do vídeo grava em WebM (VP9/VP8 por software, funciona em qualquer aparelho)
+    const fmt = formatoDeVideo(comSom, o.preferirWebm) ?? formatoDeVideo(false, o.preferirWebm);
     if (!fmt) throw new Error('Este navegador não grava vídeo. Use o Chrome atualizado (computador, tablet ou celular).');
     const total = this.total;
     const { w, h } = TAMANHO_DOC[this.p.formato];
@@ -453,14 +487,16 @@ export class MotorDeVideo {
     const fps = o.fps ?? 30, k = o.escala ?? 1;
     const total = this.total;
     const { w, h } = TAMANHO_DOC[this.p.formato];
-    const W = Math.round((w * k) / 2) * 2, H = Math.round((h * k) / 2) * 2;
-    const bits = o.bitsPorSegundo ?? (k === 2 ? 40_000_000 : fps === 60 ? 24_000_000 : 16_000_000);
-    let codec = '';
-    for (const c of ['avc1.640034', 'avc1.640033', 'avc1.640032', 'avc1.640028', 'avc1.4d0028']) {
-      const sup = await VideoEncoder.isConfigSupported({ codec: c, width: W, height: H, bitrate: bits, framerate: fps }).catch(() => null);
-      if (sup?.supported) { codec = c; break; }
-    }
-    if (!codec) throw new Error(`Este aparelho não grava vídeo H.264 em ${W}×${H}. Tente o tamanho normal ou o Chrome no computador.`);
+    const plano = await escolherCodificacao(w, h, fps, k, o.bitsPorSegundo);
+    if (!plano) throw new SemCodificadorH264();
+    const { codec, W, H, girar, bits } = plano;
+    const fpsReal = plano.fps;
+    // F-315: tablet que só grava H.264 deitado (até 1920×1088): o quadro em pé é gravado deitado e o MP4 leva a marca de
+    // giro de 90° — o vídeo abre EM PÉ em qualquer player (navegador, celular, nosso Player, TV Box)
+    const encW = girar ? H : W, encH = girar ? W : H;
+    const tela = girar ? document.createElement('canvas') : null;
+    if (tela) { tela.width = encW; tela.height = encH; }
+    const ctxGiro = tela?.getContext('2d') ?? null;
 
     aoProgredir?.(0.01);
     const som = await this.mixarOffline(total);
@@ -470,27 +506,33 @@ export class MotorDeVideo {
     const alvo = new ArrayBufferTarget();
     const muxer = new Muxer({
       target: alvo, fastStart: 'in-memory', firstTimestampBehavior: 'offset',
-      video: { codec: 'avc', width: W, height: H, frameRate: fps },
+      video: { codec: 'avc', width: encW, height: encH, frameRate: fpsReal, rotation: girar ? 90 : 0 },
       ...(som ? { audio: { codec: 'aac' as const, numberOfChannels: 2, sampleRate: 48000 } } : {}),
     });
     let falha: Error | null = null;
     const enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: (e) => { falha = e as Error; } });
-    enc.configure({ codec, width: W, height: H, bitrate: bits, framerate: fps, bitrateMode: 'variable', latencyMode: 'quality' });
+    enc.configure({ codec, width: encW, height: encH, bitrate: bits, framerate: fpsReal, bitrateMode: 'variable', latencyMode: 'quality' });
 
     const quadros: Blob[] = [];
-    const n = Math.max(1, Math.ceil(total * fps));
+    const n = Math.max(1, Math.ceil(total * fpsReal));
     const capas = new Set([Math.floor(n * 0.2), Math.floor(n * 0.55), n - 1]);
     this.exportando = true;
-    this.escala = k; this.ajustarTela();
+    this.escala = plano.escala; this.ajustarTela();
     try {
       for (let i = 0; i < n; i++) {
         if (falha) throw falha;
-        const t = Math.min(total - 0.0005, i / fps);
+        const t = Math.min(total - 0.0005, i / fpsReal);
         this.tempo = t;
         await this.posicionarVideos(t);
         this.desenhar(t);
-        const quadro = new VideoFrame(this.canvas, { timestamp: Math.round((i * 1_000_000) / fps), duration: Math.round(1_000_000 / fps) });
-        enc.encode(quadro, { keyFrame: i % (fps * 2) === 0 });
+        let origem: HTMLCanvasElement = this.canvas;
+        if (tela && ctxGiro) { // gira 90° no sentido anti-horário; o player desfaz pela marca de giro do MP4
+          ctxGiro.setTransform(0, -1, 1, 0, 0, encH);
+          ctxGiro.drawImage(this.canvas, 0, 0, W, H);
+          origem = tela;
+        }
+        const quadro = new VideoFrame(origem, { timestamp: Math.round((i * 1_000_000) / fpsReal), duration: Math.round(1_000_000 / fpsReal) });
+        enc.encode(quadro, { keyFrame: i % (fpsReal * 2) === 0 });
         quadro.close();
         if (capas.has(i)) { const b = await new Promise<Blob | null>((ok) => this.canvas.toBlob(ok, 'image/jpeg', 0.85)); if (b) quadros.push(b); }
         while (enc.encodeQueueSize > 6) await new Promise((ok) => setTimeout(ok, 2));

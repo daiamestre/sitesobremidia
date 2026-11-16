@@ -3485,3 +3485,16 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Causa:** na arte em pé, a grade da edição é `[auto_minmax(0,1fr)]`. A linha do tempo do vídeo (F-293), embaixo da arte, tem largura natural grande e fazia a coluna "auto" da arte crescer até a lateral ficar com 0 px (no tablet de 800 px: `740px 0px`, com a lateral fora da tela). No computador largo não aparecia.
 - **Correção (`EditorPage.tsx`):** a barra de movimento e a linha do tempo embaixo da arte em pé seguem a largura da arte (`min-[540px]:w-0 min-[540px]:min-w-full`, `larguraDaArte`). O tablet ficou com `386px 354px` (lateral com Título, Texto, Botão, Retângulo… e Fundo/Vídeo/Camadas), o tablet deitado com `370px 620px` e o celular continua em uma coluna, sem rolagem para os lados. O Palco de Ofertas e o Editor de vídeo foram conferidos e estavam certos.
 - **Teste:** `lateralDoEditor314.test.ts`.
+
+### F-315 — Exportar vídeo em qualquer aparelho (o tablet dava "não grava H.264 em 1080×1920") e baixar em qualquer aparelho (16/11/2026)
+- **Relato do dono:** no tablet, "Exportar" mostrava que o aparelho não suporta a resolução, e o vídeo não saía. Pedido: corrigir e permitir baixar os vídeos em qualquer aparelho logado.
+- **Causa:** a exportação "Máxima" (quadro a quadro, F-301) só tentava H.264 High/Main no tamanho exato. O codificador de muitos tablets Android só grava **deitado** (até 1920×1088), só Baseline/Main e no máximo 30 quadros/s. O vídeo em pé (1080×1920) não tinha alternativa, e aparecia o erro.
+- **Correção (`motor.ts`, `escolherCodificacao`):** procura o melhor que o aparelho faz, nesta ordem:
+  1. o tamanho pedido, com 12 perfis H.264, do High ao Baseline;
+  2. 30 quadros/s no lugar de 60;
+  3. o mesmo Full HD **gravado deitado com a marca de giro de 90° no MP4** (`rotation: 90` do mp4-muxer; o quadro é girado no sentido anti-horário e todo player o mostra em pé);
+  4. Full HD no lugar do 4K;
+  5. 720p.
+  Sem H.264 nenhum, a tela grava tocando em WebM (VP9/VP8 por software, `exportar(..., { preferirWebm: true })`), sem erro para a pessoa; só avisa que a tela precisa ficar aberta. Qualquer outra falha da exportação principal também cai nessa gravação.
+- **Baixar (`exportar.tsx`):** o link fica na página e o arquivo vive 60 s (antes eram 2 s; vídeo grande podia não sair no celular). No iPhone/iPad abre o "Compartilhar" → "Salvar vídeo". Em Meus Projetos, a extensão segue o arquivo (MP4 ou WebM), em qualquer aparelho logado.
+- **Conferido no navegador:** com um "tablet simulado" (só H.264 Baseline/Main até 1920×1088), o vídeo em pé saiu com `avc1.4D0034` girado. Ele abre como 1080×1920, com a imagem no lugar: verde no canto de cima, vermelho em cima, azul embaixo. Sem H.264, saiu `video/webm`. Teste: `exportarEmQualquerAparelho315.test.ts`. Também foi corrigido o teste do menu do F-304, que quebrou quando entrou o Acervo (F-310).
