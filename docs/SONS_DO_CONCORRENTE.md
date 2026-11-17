@@ -52,3 +52,16 @@ Fonte: os arquivos JavaScript públicos do app "Vídeo de Ofertas IA" do concorr
   - encomendar a um produtor de áudio as vinhetas e batidas no mesmo estilo;
   - contratar um locutor de varejo, com autorização escrita para o clone;
   - imitar a cadência pelo roteiro (pausas, gritos, frases curtas).
+
+## Comparação por impressão digital de voz (16/11/2026, noite)
+
+- **Método:** a voz foi separada da música com o modelo MDX-Net (Kim_Vocal_2, em ONNX). Depois foi comparada pela impressão digital de voz WeSpeaker ResNet34 (VoxCeleb). Tudo roda no PC, sem custo.
+- **Calibração:** a mesma pessoa dá 0,67 a 0,84; pessoas diferentes, até cerca de 0,6.
+- **O concorrente:** os reels Fecha Mês de Outubro, de Julho e o DdjNSqvRZUB têm o **mesmo locutor** (0,67 a 0,83 entre si). O Esquenta Black Friday parece ser outro (0,44 a 0,62).
+- **Busca:** contra as **5.603 vozes masculinas em português** da biblioteca pública, a melhor deu **0,63**. A mediana foi 0,11.
+  - **Nenhuma voz pública é o locutor deles**, o que confirma que é uma voz privada da conta deles.
+  - As mais próximas são Fernando Will (3 versões, 0,53 a 0,60), Ozgur Ozturk (0,63) e Michael Bill (0,50). O Diego dá 0,38.
+- **Cadência medida:** o locutor fala de 23 a 30 s de um vídeo de 31 s, praticamente sem parar.
+  - Frases de 1,5 a 3,4 s, pausas de 0,25 a 0,5 s, cerca de 4,4 a 5 sílabas por segundo.
+  - Voz alta e gritada: mediana de 167 a 182 Hz. As nossas vozes ficam em cerca de 150 Hz.
+- **Efeitos:** comparados de novo no fundo sem a voz (música + efeitos), agora com 444 efeitos gratuitos da Mixkit e os 68 do Pixabay. A melhor nota foi 0,70: **nenhum é o arquivo deles.**
