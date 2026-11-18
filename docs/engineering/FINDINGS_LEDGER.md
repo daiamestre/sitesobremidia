@@ -3669,3 +3669,28 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - "Abrir e editar" trouxe as 2 partes de volta.
 - **Recusado (registro):** o dono pediu também um mecanismo para que áudios tirados do Instagram, Facebook, YouTube etc. não fossem reconhecidos por ninguém nem por nenhuma ferramenta, e passassem a constar como originais da SOBRE MÍDIA com direitos reservados. Não foi feito, porque serve para burlar a detecção de direitos autorais e reivindicar autoria de obra de terceiros.
 - **Testes:** `editorDeAudio.test.ts` (16).
+
+### F-323 — Editor de Áudio no celular + marca "Editado no SOBRE MÍDIA Studio" (18/11/2026)
+- **Pedido do dono:**
+  - editor responsivo no celular, "profissional, com os botões tudo visível, fluido como os grandes apps";
+  - os áudios "codificados e salvos como áudio da SOBRE MÍDIA, para marcar que foram editados no Studio e usar dentro do Studio".
+- **Celular** (`useCelular`, até 767 px, `data-modo="celular"`):
+  - **Topo:** nome, Salvar, Pasta e Baixar.
+  - **Linha:** posição, trecho marcado, medidor e zoom.
+  - **Linha do tempo:** com cabeçalho de faixa enxuto (cor, nome, M e S). Dois toques no nome abrem os ajustes.
+  - **Doca fixa embaixo:** Voltar, início, tocar (grande), parar e Avançar.
+  - **Abas:** Cortes (Tesoura, Marcar, Mover, Cortar trecho, Apagar, Dividir, Manter, Copiar, Colar, Duplicar, Silenciar, +silêncio, Marcar tudo, Repetir, Ímã, Todas), Adicionar (Enviar do aparelho, Gravar, Sons do Studio, Faixa nova, Bipe, Projeto novo), Efeitos (folha) e Faixa (folha com faixa, clipe, volume geral e silêncio).
+  - **Gestos:** dois dedos = zoom de pinça e rolagem (cancela o gesto de um dedo e desfaz o arrasto pela metade); régua com `pan-x`.
+- **Defeito achado no teste:** `setPointerCapture` lança erro com um toque já solto e derrubava a tela inteira. Agora passa por `capturar()`, com try/catch.
+- **Marca** (`arquivos.ts`):
+  - **MP3:** ID3v2.3 com TIT2, TSSE, TENC, COMM e TXXX `SOBREMIDIA_EDICAO` (JSON com nome, código, versão e data).
+  - **WAV:** LIST/INFO com INAM, ISFT, ICMT, ICRD e ISBJ.
+  - **Reconhecimento:** `lerMarcaDoStudio` reconhece a marca mesmo com o arquivo renomeado, e o editor avisa e usa o nome da marca.
+  - **Limites:** a marca é VERDADEIRA (registra a edição). Não há campo de copyright e nada que disfarce o conteúdo; o pedido anterior de esconder a origem segue recusado (F-322).
+- **Prova no navegador** (375×812, conta de teste owner):
+  - tela sem vazar para os lados;
+  - pinça: largura ×4;
+  - um dedo marca o trecho;
+  - folha de Efeitos abre;
+  - baixou o MP3 marcado (começa com ID3), que, renomeado e aberto de novo, foi reconhecido: "Minha edição foi editado no SOBRE MÍDIA Studio (versão 1)".
+- **Testes:** `editorDeAudio.test.ts` (18).

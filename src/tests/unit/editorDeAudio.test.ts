@@ -10,7 +10,7 @@ import {
   aparaSilencio, deTrasParaFrente, duracaoDoSom, esticarTempo, fade, gerarTom, juntar, mudarTom, normalizar, paraMono, pico,
   portaDeRuido, reamostrar, recortar, rms, volume, calcularPicos, type Som,
 } from '@/lib/studio/audio/som';
-import { codificarMp3, codificarWav, lerWav } from '@/lib/studio/audio/arquivos';
+import { codificar, codificarMp3, codificarWav, lerMarcaDoStudio, lerWav } from '@/lib/studio/audio/arquivos';
 import { EFEITOS, GRUPOS, valoresPadrao } from '@/lib/studio/audio/efeitos';
 
 const SR = 8000;
@@ -115,6 +115,26 @@ describe('editor de áudio: baixar', () => {
     expect(i).toBeGreaterThanOrEqual(0);
     const esperado = (192000 / 8) * 0.5;
     expect(m.length).toBeGreaterThan(esperado * 0.8); expect(m.length).toBeLessThan(esperado * 1.4);
+  });
+});
+
+describe('F-323: a marca "Editado no SOBRE MÍDIA Studio"', () => {
+  const tom = gerarTom(44100, 0.3, 440, 'seno', 0.5, 2);
+  const marca = { nome: 'Chamada {Fecha} Mês', codigo: 'audio-123', versao: 3, editadoEm: '2026-11-18T15:00:00.000Z' };
+  it('MP3 e WAV saem marcados e o editor reconhece a marca; o som continua igual', () => {
+    const mp3 = codificar(tom, 'mp3', 192, marca).bytes;
+    expect(String.fromCharCode(...mp3.subarray(0, 3))).toBe('ID3');
+    expect(lerMarcaDoStudio(mp3)).toEqual(marca);
+    const wav = codificar(tom, 'wav16', 0, marca).bytes;
+    expect(lerMarcaDoStudio(wav)).toEqual(marca);
+    const l = lerWav(wav); expect(l.canais[0].length).toBe(tom.canais[0].length);
+    expect(lerMarcaDoStudio(codificarWav(tom, 16))).toBeNull();
+    expect(lerMarcaDoStudio(codificarMp3(tom, 128))).toBeNull();
+  });
+  it('a marca diz só a verdade: editado no Studio, sem declarar direitos autorais nem disfarçar o conteúdo', () => {
+    const src = fs.readFileSync('src/lib/studio/audio/arquivos.ts', 'utf8');
+    expect(src).toContain('Editado no SOBRE MÍDIA Studio');
+    expect(src).not.toMatch(/'TCOP'|ICOP|direitos reservados/i);
   });
 });
 

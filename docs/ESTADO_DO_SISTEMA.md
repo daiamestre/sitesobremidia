@@ -77,6 +77,14 @@ O histórico completo de F-01 a F-259 está em `docs/engineering/FINDINGS_LEDGER
 
 > **P-34 fase 2 (16/11/2026):** ✅ NO AR — F-317 (logos 3D de campanha caindo do céu, quebrando a parede e pegando fogo; faixa Alerta de Oferta para a direita; sem "YOUR LOGO"), F-318 (locutor no estilo impacto: "Só essa semana, preço baixo é aqui!") e **F-319: EFEITOS REAIS** — 14 filmagens gratuitas do Pixabay (explosões, bola de fogo, fogo subindo, parede e linha de fogo, brasas, fumaça, raio, vidro rachando e estilhaçando, confete) em `public/studio/efeitos/`, aplicadas com recorte do preto pela placa de vídeo (WebGL), bordas esfumadas e explosão em elipse; cada efeito é um elemento editável (cartão "Efeito": trocar pela galeria, começo, laço, velocidade, recorte/luz/luz forte, espelhar); o MP4 lê os quadros dos efeitos em sequência pelo WebCodecs (`video/decodificarEfeito.ts`). Botão "Efeitos reais" no painel de impacto (padrão ligado). Ficha das licenças: `docs/licencas/EFEITOS_PIXABAY.md`.
 
+> **F-323 (18/11/2026): Editor de Áudio no celular e marca "Editado no SOBRE MÍDIA Studio".**
+> - **Celular (até 767 px):** tela de app, com topo enxuto (Salvar, Pasta e Baixar) e a linha do tempo no meio.
+>   - Controles fixos embaixo: Voltar, tocar e Avançar, e as abas Cortes, Adicionar, Efeitos e Faixa, com botões grandes e com nome.
+>   - Os efeitos e os ajustes da faixa e do clipe abrem em folhas que sobem de baixo.
+>   - Dois dedos: zoom de pinça e rolagem.
+> - **Marca:** todo MP3/WAV baixado leva nas informações do arquivo "Editado no SOBRE MÍDIA Studio" (nome, data, versão e código da edição), e o editor reconhece ao abrir.
+>   - Sem declarar direitos autorais e sem disfarçar o conteúdo.
+
 > **F-322 (18/11/2026): Pasta de Áudios no Editor de Áudio.**
 > - **Salvar:** com o nome do áudio e o nome das faixas; salvar por cima cria uma nova versão; também dá para salvar como novo.
 > - **Pasta:** abrir para reeditar, renomear, duplicar, baixar em MP3 e apagar.

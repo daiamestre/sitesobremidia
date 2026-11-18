@@ -65,9 +65,81 @@ export function codificarMp3(s: Som, kbps = 192): Uint8Array {
   return out;
 }
 
-export function codificar(s: Som, formato: FormatoDeAudio, kbps = 192): { bytes: Uint8Array; tipo: string; ext: string } {
-  if (formato === 'mp3') return { bytes: codificarMp3(s, kbps), tipo: 'audio/mpeg', ext: 'mp3' };
-  return { bytes: codificarWav(s, formato === 'wav24' ? 24 : formato === 'wav32' ? 32 : 16), tipo: 'audio/wav', ext: 'wav' };
+// ——— F-323 (pedido do dono, 18/11/2026): a MARCA "Editado no SOBRE MÍDIA Studio" ———
+// Todo áudio salvo/baixado pelo editor leva, nas informações do arquivo (ID3 no MP3, LIST/INFO no WAV), que foi editado no
+// SOBRE MÍDIA Studio: nome, data, versão e o código da edição. É uma marca VERDADEIRA de edição — não apaga nem disfarça o
+// conteúdo, e não declara autoria ou direitos autorais (quem tem os direitos continua sendo quem tem a licença do material).
+export const PROGRAMA = 'SOBRE MÍDIA Studio — Editor de Áudio';
+const CHAVE_DA_MARCA = 'SOBREMIDIA_EDICAO';
+export interface MarcaDoStudio { nome: string; codigo: string; versao: number; editadoEm: string }
+
+const utf16 = (s: string) => { const b = new Uint8Array(2 + s.length * 2); b[0] = 0xff; b[1] = 0xfe; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); b[2 + i * 2] = c & 255; b[3 + i * 2] = c >> 8; } return b; };
+const juntarBytes = (...ps: Uint8Array[]) => { const o = new Uint8Array(ps.reduce((t, p) => t + p.length, 0)); let k = 0; for (const p of ps) { o.set(p, k); k += p.length; } return o; };
+function quadroId3(id: string, corpo: Uint8Array): Uint8Array {
+  const h = new Uint8Array(10); for (let i = 0; i < 4; i++) h[i] = id.charCodeAt(i);
+  new DataView(h.buffer).setUint32(4, corpo.length); return juntarBytes(h, corpo);
+}
+const textoId3 = (id: string, s: string) => quadroId3(id, juntarBytes(new Uint8Array([1]), utf16(s)));
+const fim16 = new Uint8Array([0, 0]);
+const dataBr = (iso: string) => new Date(iso).toLocaleString('pt-BR');
+const textoDaMarca = (m: MarcaDoStudio) => `Editado no SOBRE MÍDIA Studio em ${dataBr(m.editadoEm)} (versão ${m.versao}, edição ${m.codigo})`;
+
+/** ID3v2.3 no começo do MP3 */
+export function marcarMp3(mp3: Uint8Array, m: MarcaDoStudio): Uint8Array {
+  const quadros = juntarBytes(
+    textoId3('TIT2', m.nome),
+    textoId3('TSSE', PROGRAMA),
+    textoId3('TENC', 'SOBRE MÍDIA Studio'),
+    quadroId3('COMM', juntarBytes(new Uint8Array([1]), new TextEncoder().encode('por'), utf16(''), fim16, utf16(textoDaMarca(m)))),
+    quadroId3('TXXX', juntarBytes(new Uint8Array([1]), utf16(CHAVE_DA_MARCA), fim16, utf16(JSON.stringify(m)))),
+  );
+  const n = quadros.length, cab = new Uint8Array([0x49, 0x44, 0x33, 3, 0, 0, (n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127]);
+  return juntarBytes(cab, quadros, mp3);
+}
+
+/** bloco LIST/INFO no fim do WAV */
+export function marcarWav(wav: Uint8Array, m: MarcaDoStudio): Uint8Array {
+  const sub = (id: string, s: string) => {
+    const t = new TextEncoder().encode(s), n = t.length + 1, b = new Uint8Array(8 + n + (n & 1));
+    for (let i = 0; i < 4; i++) b[i] = id.charCodeAt(i); new DataView(b.buffer).setUint32(4, n, true); b.set(t, 8); return b;
+  };
+  const info = juntarBytes(new TextEncoder().encode('INFO'), sub('INAM', m.nome), sub('ISFT', PROGRAMA), sub('ICMT', textoDaMarca(m)), sub('ICRD', m.editadoEm.slice(0, 10)), sub('ISBJ', `${CHAVE_DA_MARCA}=${JSON.stringify(m)}`));
+  const lista = juntarBytes(new TextEncoder().encode('LIST'), new Uint8Array(4), info);
+  new DataView(lista.buffer).setUint32(4, info.length, true);
+  const out = juntarBytes(wav, lista);
+  new DataView(out.buffer).setUint32(4, out.length - 8, true);
+  return out;
+}
+
+/** lê a marca do Studio de um MP3/WAV (null = não foi editado no Studio) */
+export function lerMarcaDoStudio(bytes: Uint8Array): MarcaDoStudio | null {
+  const procurar = (texto: string) => {
+    const i = texto.indexOf(CHAVE_DA_MARCA); if (i < 0) return null;
+    const j = texto.indexOf('{', i); if (j < 0) return null;
+    // o nome pode ter chaves: tenta cada '}' até o JSON fechar
+    for (let k = texto.indexOf('}', j); k > j && k - j < 2000; k = texto.indexOf('}', k + 1)) { try { return JSON.parse(texto.slice(j, k + 1)) as MarcaDoStudio; } catch { /* segue */ } }
+    return null;
+  };
+  const cabeca = bytes.subarray(0, 4);
+  if (String.fromCharCode(...cabeca.subarray(0, 3)) === 'ID3') {
+    const n = ((bytes[6] & 127) << 21) | ((bytes[7] & 127) << 14) | ((bytes[8] & 127) << 7) | (bytes[9] & 127);
+    const area = bytes.subarray(10, 10 + n);
+    // texto UTF-16LE: tira os zeros para achar a chave e o JSON
+    let s = ''; for (let i = 0; i + 1 < area.length; i += 2) s += String.fromCharCode(area[i] | (area[i + 1] << 8));
+    let s2 = ''; for (let i = 1; i + 1 < area.length; i += 2) s2 += String.fromCharCode(area[i] | (area[i + 1] << 8));
+    return procurar(s) ?? procurar(s2);
+  }
+  if (String.fromCharCode(...cabeca) === 'RIFF') {
+    const fim = bytes.subarray(Math.max(0, bytes.length - 4096));
+    return procurar(new TextDecoder().decode(fim));
+  }
+  return null;
+}
+
+export function codificar(s: Som, formato: FormatoDeAudio, kbps = 192, marca?: MarcaDoStudio): { bytes: Uint8Array; tipo: string; ext: string } {
+  if (formato === 'mp3') { const b = codificarMp3(s, kbps); return { bytes: marca ? marcarMp3(b, marca) : b, tipo: 'audio/mpeg', ext: 'mp3' }; }
+  const w = codificarWav(s, formato === 'wav24' ? 24 : formato === 'wav32' ? 32 : 16);
+  return { bytes: marca ? marcarWav(w, marca) : w, tipo: 'audio/wav', ext: 'wav' };
 }
 
 /** Web Audio → Som */

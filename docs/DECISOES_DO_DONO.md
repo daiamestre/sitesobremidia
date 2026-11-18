@@ -74,6 +74,10 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **Código de barras (12/11/2026, F-311):** câmera do aparelho, pistola USB/Bluetooth de qualquer ramo (mesmo sem o campo selecionado) e digitação à mão; cada leitura gravada faz o bipe de pistola, e repetido ou inválido faz o bipe de erro.
 - **Vídeo pelo passo a passo (15/11/2026, F-312):** 1) empresa · 2) produtos · 3) edição do vídeo (fundo, logo, elementos) · 4) locução criada pelo locutor com tudo o que foi informado, sincronizada com cada produto. Na edição, a PRÉVIA em tamanho real fica embaixo da linha do tempo, com tocar/pausar no meio, e mostra as edições na hora, antes de salvar.
 - **Vídeo com impacto (16/11/2026, F-316):** o vídeo de ofertas segue o concorrente que gera vídeos com IA (não o de modelos do Canva). Ele já sai com trilha, sirene, whoosh e impacto, chamas e estrelas na frente do fundo, fundo balançando, preço estourando, abertura e fechamento com a logo, e é entregue pronto. As trilhas e os sons são nossos, nunca os do concorrente.
+- **Marca de edição (18/11/2026, F-323):**
+  - Todo áudio salvo ou baixado pelo editor sai marcado como "Editado no SOBRE MÍDIA Studio", e o editor reconhece a marca.
+  - A marca registra a EDIÇÃO; não transforma material de terceiros em obra própria.
+- **Editor de Áudio no celular (18/11/2026, F-323):** tela de app profissional, com os botões grandes e com nome sempre visíveis embaixo.
 - **Pasta de Áudios (18/11/2026, F-322):**
   - Todo áudio salvo fica numa pasta, com nome e versão, para rever, reeditar e salvar por cima.
   - **Não se faz:** camuflar áudio de Instagram, YouTube ou outros para não ser reconhecido, nem marcá-lo como original da SOBRE MÍDIA. Isso infringe direitos autorais.
