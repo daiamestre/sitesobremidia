@@ -254,3 +254,10 @@ describe('F-328: Biblioteca de Áudios no sistema, rascunhos e nova edição', (
     expect(e).toContain("{a === 'salvo' ? 'Salvos' : 'Rascunhos'}");
   });
 });
+
+describe('F-329: no celular nenhum campo faz o iPhone dar zoom (tela grande e cortada depois de salvar)', () => {
+  it('todo campo do editor no celular usa 16 px', () => {
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain('[&_input]:!text-base [&_select]:!text-base [&_textarea]:!text-base');
+  });
+});

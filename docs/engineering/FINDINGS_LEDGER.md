@@ -3783,3 +3783,9 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - parado há 40 min, ao recarregar, a tela começou do zero com o aviso.
   - Os dados do teste foram apagados.
 - **Testes:** editorDeAudio.test.ts (29).
+
+### F-329 — Editor de Áudio: a tela ficava grande e cortada no iPhone depois de salvar (18/11/2026)
+- **Pedido do dono** (foto do iPhone): depois de salvar, a tela de edição perdia o tamanho de celular e ficava cortada dos lados.
+- **Causa:** o campo "Nome do áudio" da janela Salvar abre com foco e tem letra de 14 px. O Safari do iPhone dá zoom automático em campo com menos de 16 px e não volta.
+- **Correção:** no modo celular, todo input, select e textarea do editor (incluindo as janelas) usa 16 px (`[&_input]:!text-base`).
+- **Testes:** editorDeAudio.test.ts (30).

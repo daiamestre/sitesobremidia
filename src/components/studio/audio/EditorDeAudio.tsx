@@ -1233,7 +1233,7 @@ export function EditorDeAudio() {
   if (celular) {
     const abas: Array<{ id: AbaDoCelular; nome: string }> = [{ id: 'cortes', nome: 'Cortes' }, { id: 'adicionar', nome: 'Adicionar' }, { id: 'efeitos', nome: 'Efeitos' }, { id: 'faixa', nome: 'Faixa' }];
     return (
-      <div className="flex flex-col gap-2 pb-[188px] text-slate-100" data-testid="editor-de-audio" data-modo="celular" onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
+      <div className="flex flex-col gap-2 pb-[188px] text-slate-100 [&_input]:!text-base [&_select]:!text-base [&_textarea]:!text-base" data-testid="editor-de-audio" data-modo="celular" onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
         {entradaDeArquivo}
         {/* topo */}
         <div className="flex items-center gap-1.5">
