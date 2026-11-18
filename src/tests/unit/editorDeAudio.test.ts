@@ -145,4 +145,11 @@ describe('editor de áudio: efeitos e acesso', () => {
     expect(fs.readFileSync('src/App.tsx', 'utf8')).toContain('<Route path="editor-de-audio" element={<StudioEditorDeAudio />} />');
     expect(fs.readFileSync('vercel.json', 'utf8')).toContain('microphone=(self)');
   });
+  it('F-322: salvar com nome na Pasta de Áudios, salvar por cima (versão), abrir para reeditar, duplicar, baixar e apagar', () => {
+    const g = fs.readFileSync('src/lib/studio/audio/guardar.ts', 'utf8');
+    for (const f of ['listarPasta', 'salvarNaPasta', 'lerDaPasta', 'renomearNaPasta', 'apagarDaPasta']) expect(g).toContain(`export async function ${f}`);
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    for (const t of ['Salvar na Pasta de Áudios', 'Nome do áudio', 'Nome das faixas', 'Salvar por cima (versão', 'Salvar como novo', 'Abrir e editar', 'Duplicar', '> MP3', 'Pasta de Áudios'])
+      expect(e, t).toContain(t);
+  });
 });

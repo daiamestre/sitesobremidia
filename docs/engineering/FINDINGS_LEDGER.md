@@ -3651,3 +3651,21 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - ao recarregar, a edição voltou;
   - baixou MP3 (2,77 MB, 192 kbps) e WAV (20,3 MB).
 - **Testes:** `editorDeAudio.test.ts` (15).
+
+### F-322 — Pasta de Áudios e nome ao salvar no Editor de Áudio (18/11/2026)
+- **Pedido do dono:**
+  - trocar o nome ao salvar e ao baixar;
+  - uma pasta de áudios para rever, reeditar e salvar uma nova edição em cima.
+- **O que foi feito:**
+  - **Botão "Salvar":** abre uma janela com o nome do áudio e o nome de cada faixa. Para um áudio que já está na pasta, oferece "Salvar por cima (versão N+1)" e "Salvar como novo".
+  - **Selo:** "na pasta · vN" ao lado do nome.
+  - **Botão "Pasta de Áudios":** lista nome, duração, faixas, versão e data. Ações: Abrir e editar, renomear tocando no nome, Duplicar, baixar MP3 sem abrir e Apagar (com confirmação).
+  - **Onde fica:** no IndexedDB do aparelho (`guardar.ts`, banco versão 2: lojas `pasta` com a lista leve e `pasta-dados` com faixas + sons).
+- **Prova no navegador** (conta de teste owner):
+  - salvou "Chamada Fecha Mês" (v1), editou e salvou por cima (v2);
+  - "Novo" limpou a tela;
+  - duplicou;
+  - baixou o MP3 da cópia;
+  - "Abrir e editar" trouxe as 2 partes de volta.
+- **Recusado (registro):** o dono pediu também um mecanismo para que áudios tirados do Instagram, Facebook, YouTube etc. não fossem reconhecidos por ninguém nem por nenhuma ferramenta, e passassem a constar como originais da SOBRE MÍDIA com direitos reservados. Não foi feito, porque serve para burlar a detecção de direitos autorais e reivindicar autoria de obra de terceiros.
+- **Testes:** `editorDeAudio.test.ts` (16).
