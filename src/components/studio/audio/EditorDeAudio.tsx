@@ -39,7 +39,7 @@ type Gesto =
   | { tipo: 'espera'; x0: number; y0: number; scroll0: number; scrollY0: number; acao: () => void; toque: () => void; timer: number }
   | { tipo: 'rolar'; x0: number; y0: number; scroll0: number; scrollY0: number }
   /** arrastando o triângulo da linha amarela */
-  | { tipo: 'cursor'; tocava: boolean; x: number; raf: number };
+  | { tipo: 'cursor'; tocava: boolean; x: number; raf: number; ultimo: number };
 
 const cor = (hex: string, a: number) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
 const ehCampo = (el: EventTarget | null) => el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
@@ -292,7 +292,7 @@ export function EditorDeAudio() {
   const zoomRef = useRef(zoom); zoomRef.current = zoom;
   const posicionarLinha = useCallback((t: number) => {
     const el = area.current, w = el?.clientWidth ?? largura;
-    if (linha.current) { const x = t * zoomRef.current - (el?.scrollLeft ?? 0); linha.current.style.transform = `translateX(${x}px)`; linha.current.style.opacity = x < -1 || x > w + 1 ? '0' : '1'; }
+    if (linha.current) { const x = t * zoomRef.current - (el?.scrollLeft ?? 0); linha.current.style.transform = `translateX(${x}px)`; linha.current.style.visibility = x < -1 || x > w + 1 ? 'hidden' : 'visible'; /* escondida não pega toque fora da área */ }
     if (relogio.current) relogio.current.textContent = formatarTempo(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom, rolagem, largura]);
@@ -627,7 +627,7 @@ export function EditorDeAudio() {
       if (vert) vert.scrollTop = Math.max(0, gg.scrollY0 - (e.clientY - gg.y0));
       return;
     }
-    if (gg?.tipo === 'cursor') { gg.x = e.clientX; moverCursor(Math.max(0, tempoDoMouse(e))); return; }
+    if (gg?.tipo === 'cursor') { gg.x = e.clientX; moverCursor(Math.max(0, tempoDoMouse(e))); if (performance.now() - gg.ultimo > 60) passoDaBorda(gg); return; }
     if (!gg) return;
     const t = tempoDoMouse(e);
     if (g.tipo === 'selecao' || g.tipo === 'regua') {
@@ -913,19 +913,27 @@ export function EditorDeAudio() {
   const pegarCursor = (e: PE<HTMLDivElement>) => {
     e.stopPropagation(); capturar(e);
     const tocava = !!reproducao.current; if (tocava) pararSom(false);
-    const g: Extract<Gesto, { tipo: 'cursor' }> = { tipo: 'cursor', tocava, x: e.clientX, raf: 0 };
+    const g: Extract<Gesto, { tipo: 'cursor' }> = { tipo: 'cursor', tocava, x: e.clientX, raf: 0, ultimo: 0 };
     gesto.current = g;
     // segurando perto da borda: rola sozinho (mais rápido quanto mais perto) e o cursor vai junto
     const andar = () => {
       if (gesto.current !== g) return;
-      const el = area.current; if (el) {
-        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = 36;
-        let v = 0; if (x > el.clientWidth - zona) v = Math.min(1, (x - (el.clientWidth - zona)) / zona); else if (x < zona) v = -Math.min(1, (zona - x) / zona);
-        if (v) { el.scrollLeft = Math.max(0, el.scrollLeft + v * 16); setRolagem(el.scrollLeft); moverCursor(Math.max(0, (Math.min(Math.max(x, 0), el.clientWidth) + el.scrollLeft) / zoomRef.current)); }
-      }
+      passoDaBorda(g);
       g.raf = requestAnimationFrame(andar);
     };
     g.raf = requestAnimationFrame(andar);
+  };
+  /** um passo da rolagem na borda (pela animação e, se ela atrasar, a cada movimento do dedo) */
+  const passoDaBorda = (g: Extract<Gesto, { tipo: 'cursor' }>) => {
+    g.ultimo = performance.now();
+    {
+      const el = area.current; if (el) {
+        // faixa da borda maior (o dedo não chega no último pixel) e mais rápida: o áudio vem acompanhando a linha
+        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = Math.min(64, el.clientWidth * 0.18);
+        let v = 0; if (x > el.clientWidth - zona) v = Math.min(1, (x - (el.clientWidth - zona)) / zona); else if (x < zona) v = -Math.min(1, (zona - x) / zona);
+        if (v) { el.scrollLeft = Math.max(0, el.scrollLeft + v * 24); setRolagem(el.scrollLeft); moverCursor(Math.max(0, (Math.min(Math.max(x, 0), el.clientWidth) + el.scrollLeft) / zoomRef.current)); }
+      }
+    }
   };
   const novaFaixaVazia = () => { const f = novaFaixa(projetoRef.current); alterar((p) => ({ ...p, faixas: [...p.faixas, f] })); setFaixaSel(f.id); };
   const linhaDoTempo = (
@@ -988,12 +996,14 @@ export function EditorDeAudio() {
             </div>
           </div>
           <div ref={linha} className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-[#FFD400] shadow-[0_0_8px_#FFD400]" style={{ left: 0 }}>
-            {/* o triângulo: segure e arraste o cursor (perto da borda, o resto do áudio vai aparecendo) */}
+            {/* a linha amarela INTEIRA e o triângulo do topo pegam o cursor: arraste; na borda da tela o áudio vem acompanhando */}
             <div role="slider" aria-label="Cursor: arraste para mudar a posição" aria-valuenow={Math.round(cursor * 1000) / 1000} tabIndex={-1} data-testid="editor-audio-triangulo"
               onPointerDown={pegarCursor} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}
-              className="pointer-events-auto absolute -left-5 -top-1 flex h-9 w-10 cursor-grab items-start justify-center active:cursor-grabbing" style={{ touchAction: 'none' }}>
-              <span className="mt-0.5 h-0 w-0 border-x-[10px] border-t-[15px] border-x-transparent border-t-[#FFD400] drop-shadow-[0_0_4px_rgba(255,212,0,0.9)]" />
+              className="pointer-events-auto absolute -left-6 -top-1 flex h-11 w-12 cursor-grab items-start justify-center active:cursor-grabbing" style={{ touchAction: 'none' }}>
+              <span className="mt-0.5 h-0 w-0 border-x-[13px] border-t-[18px] border-x-transparent border-t-[#FFD400] drop-shadow-[0_0_5px_rgba(255,212,0,0.95)]" />
             </div>
+            <div aria-hidden data-testid="editor-audio-linha-pegar" onPointerDown={pegarCursor} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}
+              className="pointer-events-auto absolute bottom-0 top-10 -left-3 w-6 cursor-ew-resize" style={{ touchAction: 'none' }} />
           </div>
         </div>
       </div>

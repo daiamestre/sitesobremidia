@@ -3735,3 +3735,18 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - voltou para o meio da faixa 1, empurrando o resto, e a faixa "(parte)" sumiu;
   - arrastada até a borda, a tela rolou sozinha (1236 px) e a parte entrou em 17,7 s.
 - **Testes:** `editorDeAudio.test.ts` (24).
+
+### F-326 — A linha amarela inteira pega o cursor; o áudio acompanha na borda (18/11/2026)
+- **Pedido do dono:** ao pegar a linha amarela (ou o triângulo de cima, grudado nela) e chegar na borda da tela, o áudio tem que acompanhar.
+- **Causas:**
+  - só o triângulo pequeno pegava o cursor; encostar na linha caía no gesto de ROLAR a faixa, que anda no sentido contrário;
+  - a área da borda era estreita (36 px);
+  - a rolagem dependia só da animação do navegador.
+- **Correções:**
+  - uma faixa invisível de 24 px ao longo da linha inteira pega o cursor;
+  - o triângulo ficou maior (26×18) e continua no topo da linha;
+  - a borda passou a ter até 64 px (18% da largura) e a rolar até 24 px por quadro;
+  - `passoDaBorda` também roda a cada movimento do dedo se a animação atrasar mais de 60 ms;
+  - a linha escondida usa `visibility: hidden`, para não pegar toque fora da área.
+- **Prova** (375×812): a linha foi pega no meio da faixa e levada até a borda; o áudio rolou 1.529 px e o cursor foi a 22 s, com a linha visível.
+- **Testes:** `editorDeAudio.test.ts` (26).

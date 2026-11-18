@@ -188,8 +188,9 @@ describe('F-324: cursor e gestos do dedo', () => {
   });
   it('o triângulo da linha amarela arrasta o cursor e rola sozinho na borda da tela', () => {
     expect(e).toContain('data-testid="editor-audio-triangulo"');
+    expect(e).toContain('data-testid="editor-audio-linha-pegar"');
     expect(e).toContain('const pegarCursor');
-    expect(e).toContain('el.scrollLeft = Math.max(0, el.scrollLeft + v * 16)');
+    expect(e).toContain('el.scrollLeft = Math.max(0, el.scrollLeft + v * 24)');
   });
 });
 
@@ -211,5 +212,18 @@ describe('F-325: cortar na linha amarela e arrastar a parte para qualquer lugar'
     const f = faixaCom([0, 10]);
     const aberta = abrirEspaco(f, 4, 2);
     expect(aberta.clipes.map((c) => [c.inicio, c.duracao])).toEqual([[0, 4], [6, 6]]);
+  });
+});
+
+describe('F-326: a linha amarela inteira pega o cursor e o áudio acompanha na borda', () => {
+  const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+  it('a linha toda (não só o triângulo) é pegável, e escondida não pega toque', () => {
+    expect(e).toContain('data-testid="editor-audio-linha-pegar"');
+    expect(e).toContain("linha.current.style.visibility = x < -1 || x > w + 1 ? 'hidden' : 'visible'");
+  });
+  it('na borda o áudio rola pela animação e, se ela atrasar, a cada movimento do dedo', () => {
+    expect(e).toContain('const passoDaBorda');
+    expect(e).toContain('if (performance.now() - gg.ultimo > 60) passoDaBorda(gg)');
+    expect(e).toContain('zona = Math.min(64, el.clientWidth * 0.18)');
   });
 });
