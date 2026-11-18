@@ -22,7 +22,11 @@ import { calcularPicos, duracaoDoSom, gerarTom, juntar, recortar, silenciar, typ
 import { EFEITOS, GRUPOS, efeitoPorId, valoresPadrao, type Efeito, type Valores } from '@/lib/studio/audio/efeitos';
 import { agendarProjeto, renderizarProjeto } from '@/lib/studio/audio/mixagem';
 import { baixarArquivo, codificar, decodificarArquivo, lerMarcaDoStudio, paraAudioBuffer, type FormatoDeAudio, type MarcaDoStudio } from '@/lib/studio/audio/arquivos';
-import { apagarDaPasta, apagarDoAparelho, lerDaPasta, lerDoAparelho, listarPasta, renomearNaPasta, salvarNaPasta, salvarNoAparelho, type AudioNaPasta, type DadosNaPasta } from '@/lib/studio/audio/guardar';
+import { apagarDoAparelho, lerDaPasta, lerDoAparelho, listarPasta, salvarNoAparelho, type AudioNaPasta } from '@/lib/studio/audio/guardar';
+import { abrirEdicao, apagarEdicao, duplicarEdicao, guardarEdicao, listarEdicoes, renomearEdicao, type EdicaoNoSistema, type TipoDeEdicao } from '@/lib/studio/audio/sistema';
+
+/** F-328: depois de tanto tempo sem editar, a edição vira rascunho e a tela começa do zero */
+export const PARADO_MS = 30 * 60 * 1000;
 
 const CAB = 224, CAB_CELULAR = 76, ALTURA = 112, TITULO = 18, REGUA = 28, BORDA = 7;
 type AbaDoCelular = 'cortes' | 'adicionar' | 'efeitos' | 'faixa';
@@ -187,6 +191,14 @@ export function EditorDeAudio() {
   const [pastaAberta, setPastaAberta] = useState(false);
   const [itensDaPasta, setItensDaPasta] = useState<AudioNaPasta[]>([]);
   const salvoRef = useRef<Projeto | null>(null);
+  // F-328: a edição aberta está no sistema como salva ou rascunho; os sons que já estão lá não são enviados de novo
+  const [edicaoTipo, setEdicaoTipo] = useState<TipoDeEdicao | null>(null);
+  const urls = useRef(new Map<string, string>());
+  const [itens, setItens] = useState<EdicaoNoSistema[]>([]);
+  const [abaBiblioteca, setAbaBiblioteca] = useState<TipoDeEdicao>('salvo');
+  const [carregandoBiblioteca, setCarregandoBiblioteca] = useState(false);
+  const [anterior, setAnterior] = useState<null | { id: string; nome: string; motivo: 'tempo' | 'nova'; onde: TipoDeEdicao }>(null);
+  const ultimaEdicao = useRef(Date.now());
   const [faixaSel, setFaixaSel] = useState<string | null>(null);
   const [clipeSel, setClipeSel] = useState<string | null>(null);
   const [sel, setSel] = useState<{ a: number; b: number } | null>(null);
@@ -264,8 +276,12 @@ export function EditorDeAudio() {
       if (g && g.projeto.faixas.length) {
         for (const [id, s] of Object.entries(g.sons)) registrarSom(s.som, s.nome, id);
         projetoRef.current = g.projeto; setProjeto(g.projeto); setNome(g.nome || 'Minha edição'); setPastaId(g.pastaId ?? null);
+        setEdicaoTipo(g.tipo ?? null);
         setFaixaSel(g.projeto.faixas[0]?.id ?? null);
-        toast.success('A sua última edição foi aberta (ela fica salva neste aparelho).');
+        ultimaEdicao.current = g.salvoEm;
+        // espera a tela assumir o nome/versão da edição antes de guardar como rascunho
+        if (Date.now() - g.salvoEm > PARADO_MS) setTimeout(() => aoFicarParado.current?.(), 500);
+        else toast.success('A sua edição continua de onde você parou.');
       }
       carregado.current = true;
     });
@@ -276,10 +292,14 @@ export function EditorDeAudio() {
     const t = setTimeout(() => {
       const usados = sonsUsados(projeto), lista: Record<string, { nome: string; som: Som }> = {};
       for (const id of usados) { const s = sons.current.get(id); if (s) lista[id] = { nome: s.nome, som: s.som }; }
-      if (projeto.faixas.length) void salvarNoAparelho({ projeto, sons: lista, nome, salvoEm: Date.now(), pastaId }); else void apagarDoAparelho();
+      if (projeto.faixas.length) void salvarNoAparelho({ projeto, sons: lista, nome, salvoEm: ultimaEdicao.current, pastaId, tipo: edicaoTipo }); else void apagarDoAparelho();
     }, 2500);
     return () => clearTimeout(t);
-  }, [projeto, nome, pastaId]);
+  }, [projeto, nome, pastaId, edicaoTipo]);
+  // a última vez que mexeu na edição (para saber quando ficou parado)
+  const primeiraVez = useRef(true);
+  useEffect(() => { if (primeiraVez.current) { primeiraVez.current = false; return; } ultimaEdicao.current = Date.now(); }, [projeto]);
+  const aoFicarParado = useRef<(() => void) | null>(null);
 
   // ——— tamanho da área visível ———
   useEffect(() => {
@@ -770,62 +790,105 @@ export function EditorDeAudio() {
     setOcupado(null);
   }, [bufferDe, exp, nome, pastaId, sel, versao]);
 
-  // ——— Pasta de Áudios ———
-  const dadosDoProjeto = (): DadosNaPasta => {
-    const p = projetoRef.current, lista: DadosNaPasta['sons'] = {};
-    for (const id of sonsUsados(p)) { const s = sons.current.get(id); if (s) lista[id] = { nome: s.nome, som: s.som }; }
-    return { projeto: p, sons: lista };
+  // ——— Biblioteca de Áudios no sistema da SOBRE MÍDIA (F-328) ———
+  const temAudio = () => projetoRef.current.faixas.some((x) => x.clipes.length > 0);
+  const mudouDesdeQueGuardou = () => salvoRef.current !== projetoRef.current;
+  const limparTela = useCallback(() => {
+    pararSom(false); passado.current = []; futuro.current = []; sons.current.clear(); urls.current.clear();
+    const p = projetoVazio(); projetoRef.current = p; setProjeto(p); setSel(null); setClipeSel(null); setFaixaSel(null); moverCursor(0);
+    setNome('Minha edição'); setPastaId(null); setVersao(0); setEdicaoTipo(null); salvoRef.current = null; ultimaEdicao.current = Date.now(); void apagarDoAparelho();
+  }, [moverCursor, pararSom]);
+  /** guarda a edição da tela no sistema (envia só os sons que ainda não estão lá) */
+  const guardarNoSistema = async (tipo: TipoDeEdicao, comoNovo = false): Promise<string> => {
+    const mapa = new Map([...sons.current].map(([id, s]) => [id, { nome: s.nome, som: s.som }]));
+    const porCima = !comoNovo && !!pastaId;
+    const v = tipo === 'salvo' ? (porCima && edicaoTipo === 'salvo' ? (versao || 1) + 1 : 1) : (versao || 1);
+    const id = await guardarEdicao({ id: porCima ? pastaId : null, tipo, nome, versao: v, projeto: projetoRef.current, sons: mapa, urls: urls.current,
+      aoEnviar: (a, b) => setOcupado(`Enviando os sons para o sistema (${a} de ${b})…`) });
+    setPastaId(id); setVersao(v); setEdicaoTipo(tipo); salvoRef.current = projetoRef.current;
+    return id;
   };
-  const atualizarPasta = useCallback(async () => setItensDaPasta(await listarPasta()), []);
+  const atualizarPasta = useCallback(async () => {
+    setCarregandoBiblioteca(true);
+    try { setItens(await listarEdicoes()); } catch { toast.error('Não foi possível abrir a Biblioteca de Áudios.'); }
+    setItensDaPasta(await listarPasta()); setCarregandoBiblioteca(false);
+  }, []);
+  /** SALVAR: vai para a Biblioteca (salvos) e a tela volta do zero para uma nova edição */
   const salvarNaPastaAgora = async (comoNovo: boolean) => {
-    const p = projetoRef.current;
-    if (!p.faixas.some((x) => x.clipes.length)) { toast.message('Não há áudio para salvar.'); return; }
+    if (!temAudio()) { toast.message('Não há áudio para salvar.'); return; }
     const nomeLimpo = nome.trim() || 'Áudio sem nome';
-    setOcupado('Salvando na Pasta de Áudios…');
+    setOcupado('Salvando na Biblioteca de Áudios…');
     try {
-      const existentes = await listarPasta(), atual = !comoNovo && pastaId ? existentes.find((x) => x.id === pastaId) : undefined;
-      const id = atual ? atual.id : novoId('audio'), v = (atual?.versao ?? 0) + 1;
-      await salvarNaPasta({ id, nome: nomeLimpo, criadoEm: atual?.criadoEm ?? Date.now(), salvoEm: Date.now(), versao: v, duracao: fimDoProjeto(p), faixas: p.faixas.length }, dadosDoProjeto());
-      setPastaId(id); setVersao(v); setNome(nomeLimpo); salvoRef.current = p; setSalvarAberto(false);
-      toast.success(atual ? `"${nomeLimpo}" salvo por cima (versão ${v}).` : `"${nomeLimpo}" salvo na Pasta de Áudios.`);
-      void atualizarPasta();
-    } catch { toast.error('Não foi possível salvar: o aparelho pode estar sem espaço.'); }
+      await guardarNoSistema('salvo', comoNovo);
+      setSalvarAberto(false); limparTela(); setAnterior(null);
+      toast.success(`"${nomeLimpo}" salvo na Biblioteca de Áudios. A tela está pronta para uma nova edição.`);
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível salvar.'); }
     setOcupado(null);
   };
-  const abrirDaPasta = async (item: AudioNaPasta) => {
-    if (projetoRef.current.faixas.length && salvoRef.current !== projetoRef.current && !window.confirm('Abrir outro áudio? O que não foi salvo na pasta nesta edição sai da tela.')) return;
-    setOcupado(`Abrindo "${item.nome}"…`);
-    const d = await lerDaPasta(item.id);
-    if (!d) { toast.error('Esse áudio não está mais na pasta.'); setOcupado(null); return; }
-    pararSom(false); passado.current = []; futuro.current = []; sons.current.clear();
-    for (const [id, s] of Object.entries(d.sons)) registrarSom(s.som, s.nome, id);
-    projetoRef.current = d.projeto; setProjeto(d.projeto); salvoRef.current = d.projeto;
-    setNome(item.nome); setPastaId(item.id); setVersao(item.versao); setSel(null); setClipeSel(null); setFaixaSel(d.projeto.faixas[0]?.id ?? null); moverCursor(0);
-    setPastaAberta(false); setOcupado(null);
-    toast.success(`"${item.nome}" aberto para editar (versão ${item.versao}).`);
+  /** guarda o que está na tela como RASCUNHO (se tiver algo não guardado) e começa do zero */
+  const arquivarERecomecar = async (motivo: 'tempo' | 'nova') => {
+    if (!temAudio()) { limparTela(); return; }
+    const nomeAtual = nome.trim() || 'Áudio sem nome';
+    let id = pastaId; const onde: TipoDeEdicao = edicaoTipo === 'salvo' ? 'salvo' : 'rascunho';
+    if (mudouDesdeQueGuardou() || !id) {
+      setOcupado('Guardando a edição nos rascunhos…');
+      try { id = await guardarNoSistema(edicaoTipo === 'salvo' ? 'salvo' : 'rascunho'); }
+      catch (e) { setOcupado(null); toast.error(`A edição não foi guardada (${e instanceof Error ? e.message : 'erro'}). Ela continua na tela.`); return; }
+      setOcupado(null);
+    }
+    limparTela();
+    if (id) setAnterior({ id, nome: nomeAtual, motivo, onde });
   };
-  const baixarDaPasta = async (item: AudioNaPasta) => {
+  aoFicarParado.current = () => { void arquivarERecomecar('tempo'); };
+  // ficou parado muito tempo com a tela aberta: vira rascunho e começa do zero
+  useEffect(() => {
+    const ver = () => {
+      if (document.visibilityState !== 'visible' || reproducao.current || gravador.current || gesto.current) return;
+      if (temAudio() && Date.now() - ultimaEdicao.current > PARADO_MS) aoFicarParado.current?.();
+    };
+    const i = setInterval(ver, 60_000); document.addEventListener('visibilitychange', ver);
+    return () => { clearInterval(i); document.removeEventListener('visibilitychange', ver); };
+  }, []);
+  const abrirDaPasta = async (item: { id: string; nome: string }) => {
+    if (temAudio() && mudouDesdeQueGuardou() && item.id !== pastaId) {
+      setOcupado('Guardando a edição da tela nos rascunhos…');
+      try { await guardarNoSistema(edicaoTipo === 'salvo' ? 'salvo' : 'rascunho'); } catch { setOcupado(null); toast.error('A edição da tela não foi guardada; abra de novo depois.'); return; }
+    }
+    setOcupado(`Abrindo "${item.nome}"…`);
+    try {
+      const d = await abrirEdicao(item.id, (a, b) => setOcupado(`Baixando os sons (${a} de ${b})…`));
+      pararSom(false); passado.current = []; futuro.current = []; sons.current.clear(); urls.current.clear();
+      for (const [id, s] of d.sons) { registrarSom(s.som, s.nome, id); urls.current.set(id, s.url); }
+      projetoRef.current = d.projeto; setProjeto(d.projeto); salvoRef.current = d.projeto;
+      setNome(d.edicao.nome); setPastaId(d.edicao.id); setVersao(d.edicao.versao); setEdicaoTipo(d.edicao.tipo);
+      setSel(null); setClipeSel(null); setFaixaSel(d.projeto.faixas[0]?.id ?? null); moverCursor(0); setPastaAberta(false); setAnterior(null);
+      toast.success(d.edicao.tipo === 'rascunho' ? `Voltou para "${d.edicao.nome}" de onde parou.` : `"${d.edicao.nome}" aberto para editar (versão ${d.edicao.versao}).`);
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível abrir.'); }
+    setOcupado(null);
+  };
+  /** áudios antigos que ficaram só neste aparelho (antes do F-328): abre na tela; ao salvar, vão para o sistema */
+  const abrirDoAparelho = async (item: AudioNaPasta) => {
+    const d = await lerDaPasta(item.id); if (!d) return;
+    pararSom(false); passado.current = []; futuro.current = []; sons.current.clear(); urls.current.clear();
+    for (const [id, s] of Object.entries(d.sons)) registrarSom(s.som, s.nome, id);
+    projetoRef.current = d.projeto; setProjeto(d.projeto); salvoRef.current = null;
+    setNome(item.nome); setPastaId(null); setVersao(0); setEdicaoTipo(null); setFaixaSel(d.projeto.faixas[0]?.id ?? null); moverCursor(0); setPastaAberta(false);
+    toast.success(`"${item.nome}" aberto. Toque em Salvar para mandar para a Biblioteca do sistema.`);
+  };
+  const baixarDaPasta = async (item: EdicaoNoSistema) => {
     setOcupado(`Gerando "${item.nome}"…`);
     try {
-      const d = await lerDaPasta(item.id); if (!d) throw new Error('não encontrado');
+      const d = await abrirEdicao(item.id);
       const cache = new Map<string, AudioBuffer>();
-      const som = await renderizarProjeto(d.projeto, (ctx, id) => { const s = d.sons[id]; if (!s) return null; let b = cache.get(id); if (!b) { b = paraAudioBuffer(ctx, s.som); cache.set(id, b); } return b; }, { sr: 44100, canais: 2 });
-      const { bytes, tipo, ext } = codificar(som, 'mp3', 192, { nome: item.nome, codigo: item.id, versao: item.versao, editadoEm: new Date(item.salvoEm).toISOString() });
+      const som = await renderizarProjeto(d.projeto, (ctx, id) => { const s = d.sons.get(id); if (!s) return null; let b = cache.get(id); if (!b) { b = paraAudioBuffer(ctx, s.som); cache.set(id, b); } return b; }, { sr: 44100, canais: 2 });
+      const { bytes, tipo, ext } = codificar(som, 'mp3', 192, { nome: item.nome, codigo: item.id, versao: item.versao, editadoEm: item.atualizado_em });
       baixarArquivo(bytes, tipo, `${item.nome.replace(/[\\/:*?"<>|]+/g, '-')}.${ext}`);
     } catch { toast.error('Não foi possível baixar esse áudio.'); }
     setOcupado(null);
   };
-  const duplicarNaPasta = async (item: AudioNaPasta) => {
-    const d = await lerDaPasta(item.id); if (!d) return;
-    await salvarNaPasta({ ...item, id: novoId('audio'), nome: `${item.nome} (cópia)`, criadoEm: Date.now(), salvoEm: Date.now(), versao: 1 }, d);
-    void atualizarPasta(); toast.success('Cópia criada na pasta.');
-  };
-
-  const novoProjeto = () => {
-    if (projetoRef.current.faixas.length && salvoRef.current !== projetoRef.current && !window.confirm('Começar um projeto novo? O que não foi salvo na Pasta de Áudios sai da tela.')) return;
-    pararSom(false); passado.current = []; futuro.current = []; sons.current.clear();
-    const p = projetoVazio(); projetoRef.current = p; setProjeto(p); setSel(null); setClipeSel(null); setFaixaSel(null); moverCursor(0); setNome('Minha edição'); setPastaId(null); setVersao(0); salvoRef.current = null; void apagarDoAparelho();
-  };
+  const duplicarNaPasta = async (item: EdicaoNoSistema) => { await duplicarEdicao(item.id); void atualizarPasta(); toast.success('Cópia criada.'); };
+  /** NOVA EDIÇÃO: o que está na tela vai para os rascunhos e abre uma tela do zero */
+  const novoProjeto = () => { void arquivarERecomecar('nova'); };
 
   const entrada = useRef<HTMLInputElement>(null);
   const porGrupo = useMemo(() => GRUPOS.map((g) => ({ g, lista: EFEITOS.filter((e) => e.grupo === g) })), []);
@@ -1044,7 +1107,7 @@ export function EditorDeAudio() {
       {salvarAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Salvar o áudio">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a0b3d] p-5 shadow-2xl">
-            <h2 className="text-lg font-black">Salvar na Pasta de Áudios</h2>
+            <h2 className="text-lg font-black">Salvar na Biblioteca de Áudios</h2>
             <label className="mt-3 flex flex-col gap-1 text-sm">Nome do áudio
               <input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} data-testid="editor-audio-nome-salvar" className="rounded-lg border border-white/10 bg-[#0B0420] px-3 py-2" /></label>
             {projeto.faixas.length > 0 && (
@@ -1058,42 +1121,60 @@ export function EditorDeAudio() {
                 </div>
               </div>
             )}
-            <p className="mt-3 text-[11px] text-slate-400">Fica guardado neste aparelho, com as faixas separadas, para rever, reeditar e salvar uma nova versão depois.</p>
+            <p className="mt-3 text-[11px] text-slate-400">Fica guardado no sistema da SOBRE MÍDIA, na sua conta, com as faixas separadas, para rever, reeditar e salvar uma nova versão em qualquer aparelho. Depois de salvar, a tela volta do zero para uma nova edição.</p>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button type="button" onClick={() => setSalvarAberto(false)} className="rounded-lg px-4 py-2 text-sm text-slate-300 hover:bg-white/10">Cancelar</button>
-              {pastaId && <button type="button" disabled={!!ocupado} onClick={() => void salvarNaPastaAgora(true)} className="rounded-lg border border-[#B04DFF]/60 px-4 py-2 text-sm font-semibold hover:bg-[#8A2EFF]/20">Salvar como novo</button>}
+              {pastaId && edicaoTipo === 'salvo' && <button type="button" disabled={!!ocupado} onClick={() => void salvarNaPastaAgora(true)} className="rounded-lg border border-[#B04DFF]/60 px-4 py-2 text-sm font-semibold hover:bg-[#8A2EFF]/20">Salvar como novo</button>}
               <button type="button" disabled={!!ocupado} onClick={() => void salvarNaPastaAgora(false)} data-testid="editor-audio-confirmar-salvar" className="flex items-center gap-2 rounded-lg bg-[#8A2EFF] px-4 py-2 text-sm font-bold disabled:opacity-50">
-                <Save className="h-4 w-4" />{pastaId ? `Salvar por cima (versão ${(versao || 1) + 1})` : 'Salvar'}
+                <Save className="h-4 w-4" />{pastaId && edicaoTipo === 'salvo' ? `Salvar por cima (versão ${(versao || 1) + 1})` : 'Salvar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* —— pasta de áudios —— */}
+      {/* —— Biblioteca de Áudios (no sistema): salvos e rascunhos —— */}
       {pastaAberta && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Pasta de Áudios">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Biblioteca de Áudios">
           <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-white/10 bg-[#1a0b3d] p-5 shadow-2xl" data-testid="editor-audio-pasta">
-            <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-lg font-black"><FolderOpen className="h-5 w-5 text-[#FFD400]" />Pasta de Áudios</h2>
+            <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-lg font-black"><FolderOpen className="h-5 w-5 text-[#FFD400]" />Biblioteca de Áudios</h2>
               <button type="button" onClick={() => setPastaAberta(false)} className="rounded-lg px-3 py-1 text-sm text-slate-300 hover:bg-white/10">Fechar</button></div>
+            <div className="mt-3 flex gap-1" role="tablist">
+              {(['salvo', 'rascunho'] as const).map((a) => (
+                <button key={a} type="button" role="tab" aria-selected={abaBiblioteca === a} onClick={() => setAbaBiblioteca(a)}
+                  className={cn('h-9 flex-1 rounded-lg text-sm font-bold', abaBiblioteca === a ? 'bg-[#8A2EFF] text-white' : 'bg-white/5 text-slate-300')}>
+                  {a === 'salvo' ? 'Salvos' : 'Rascunhos'} ({itens.filter((x) => x.tipo === a).length})
+                </button>
+              ))}
+            </div>
             <div className="mt-3 flex flex-col gap-2 overflow-y-auto">
-              {!itensDaPasta.length && <p className="py-8 text-center text-sm text-slate-400">Nenhum áudio salvo ainda. Edite e toque em <b>Salvar</b>.</p>}
-              {itensDaPasta.map((it) => (
+              {carregandoBiblioteca && <p className="flex items-center justify-center gap-2 py-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Abrindo…</p>}
+              {!carregandoBiblioteca && !itens.some((x) => x.tipo === abaBiblioteca) && <p className="py-8 text-center text-sm text-slate-400">{abaBiblioteca === 'salvo' ? <>Nenhum áudio salvo ainda. Edite e toque em <b>Salvar</b>.</> : <>Nenhum rascunho. Ao tocar em <b>Nova edição</b>, o que estava na tela vem para cá.</>}</p>}
+              {itens.filter((x) => x.tipo === abaBiblioteca).map((it) => (
                 <div key={it.id} className={cn('flex flex-wrap items-center gap-2 rounded-xl border p-3', it.id === pastaId ? 'border-[#25D366]/60 bg-[#25D366]/10' : 'border-white/10 bg-[#140632]')} data-testid="editor-audio-item-pasta">
                   <AudioWaveform className="h-5 w-5 shrink-0 text-[#B04DFF]" />
                   <div className="min-w-0 flex-1">
-                    <input defaultValue={it.nome} aria-label="Nome do áudio na pasta" onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.nome) { void renomearNaPasta(it.id, v).then(atualizarPasta); if (it.id === pastaId) setNome(v); } }}
+                    <input defaultValue={it.nome} aria-label="Nome do áudio" onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.nome) { void renomearEdicao(it.id, v).then(atualizarPasta); if (it.id === pastaId) setNome(v); } }}
                       className="w-full bg-transparent text-sm font-bold focus:outline-none" />
-                    <p className="text-[11px] text-slate-400"><span className="font-bold text-[#B04DFF]">Editado no SOBRE MÍDIA Studio</span> · {formatarTempo(it.duracao, false)} · {it.faixas} faixa{it.faixas === 1 ? '' : 's'} · versão {it.versao} · {new Date(it.salvoEm).toLocaleString('pt-BR')}</p>
+                    <p className="text-[11px] text-slate-400"><span className="font-bold text-[#B04DFF]">{it.tipo === 'rascunho' ? 'Rascunho' : 'Editado no SOBRE MÍDIA Studio'}</span> · {formatarTempo(it.duracao, false)} · {it.faixas} faixa{it.faixas === 1 ? '' : 's'}{it.tipo === 'salvo' ? ` · versão ${it.versao}` : ''} · {new Date(it.atualizado_em).toLocaleString('pt-BR')}</p>
                   </div>
-                  <button type="button" onClick={() => void abrirDaPasta(it)} className="rounded-lg bg-[#8A2EFF] px-3 py-1.5 text-xs font-bold">Abrir e editar</button>
+                  <button type="button" onClick={() => void abrirDaPasta(it)} className="rounded-lg bg-[#8A2EFF] px-3 py-1.5 text-xs font-bold">{it.tipo === 'rascunho' ? 'Continuar editando' : 'Abrir e editar'}</button>
                   <button type="button" onClick={() => void baixarDaPasta(it)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/10"><Download className="inline h-3.5 w-3.5" /> MP3</button>
                   <button type="button" onClick={() => void duplicarNaPasta(it)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs hover:bg-white/10">Duplicar</button>
-                  <button type="button" onClick={() => { if (window.confirm(`Apagar "${it.nome}" da pasta? Isso não pode ser desfeito.`)) void apagarDaPasta(it.id).then(() => { if (it.id === pastaId) { setPastaId(null); setVersao(0); } void atualizarPasta(); }); }} className="rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs text-rose-200 hover:bg-rose-500/15">Apagar</button>
+                  <button type="button" onClick={() => { if (window.confirm(`Apagar "${it.nome}"? Isso não pode ser desfeito.`)) void apagarEdicao(it.id).then(() => { if (it.id === pastaId) { setPastaId(null); setVersao(0); setEdicaoTipo(null); } void atualizarPasta(); }); }} className="rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs text-rose-200 hover:bg-rose-500/15">Apagar</button>
                 </div>
               ))}
+              {itensDaPasta.length > 0 && (
+                <div className="mt-2 rounded-xl border border-dashed border-white/15 p-3">
+                  <p className="text-xs font-bold text-slate-300">Antigos, só neste aparelho</p>
+                  {itensDaPasta.map((it) => (
+                    <div key={it.id} className="mt-2 flex items-center gap-2 text-xs"><span className="min-w-0 flex-1 truncate">{it.nome}</span>
+                      <button type="button" onClick={() => void abrirDoAparelho(it)} className="rounded-lg border border-white/10 px-2 py-1 hover:bg-white/10">Abrir (e salvar no sistema)</button></div>
+                  ))}
+                </div>
+              )}
             </div>
-            <p className="mt-3 text-[11px] text-slate-400">A pasta fica neste aparelho. Para usar em outro aparelho, baixe o áudio.</p>
+            <p className="mt-3 text-[11px] text-slate-400">Fica no sistema da SOBRE MÍDIA, na sua conta: abre em qualquer aparelho em que você entrar.</p>
           </div>
         </div>
       )}
@@ -1140,6 +1221,14 @@ export function EditorDeAudio() {
     </>
   );
 
+  const avisoAnterior = anterior && (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#FFD400]/40 bg-[#FFD400]/10 px-3 py-2 text-xs text-[#FFD400]" data-testid="editor-audio-anterior">
+      <span className="min-w-0 flex-1">{anterior.motivo === 'tempo' ? 'Você ficou um tempo sem editar: ' : ''}a edição <b>"{anterior.nome}"</b> ficou guardada {anterior.onde === 'salvo' ? 'nos Salvos' : 'nos Rascunhos'} da Biblioteca.</span>
+      <button type="button" onClick={() => void abrirDaPasta({ id: anterior.id, nome: anterior.nome })} className="rounded-lg bg-[#FFD400] px-3 py-1.5 font-bold text-[#0B0420]">Voltar a editar de onde parei</button>
+      <button type="button" onClick={() => setAnterior(null)} aria-label="Fechar aviso" className="px-1 text-slate-300">✕</button>
+    </div>
+  );
+
   // ——— CELULAR: tela de app de edição (topo enxuto, linha do tempo no meio, controles grandes fixos embaixo) ———
   if (celular) {
     const abas: Array<{ id: AbaDoCelular; nome: string }> = [{ id: 'cortes', nome: 'Cortes' }, { id: 'adicionar', nome: 'Adicionar' }, { id: 'efeitos', nome: 'Efeitos' }, { id: 'faixa', nome: 'Faixa' }];
@@ -1153,8 +1242,8 @@ export function EditorDeAudio() {
             <input value={nome} onChange={(e) => setNome(e.target.value)} aria-label="Nome do áudio" className="w-full bg-transparent text-sm font-black focus:outline-none" />
             <p className="truncate text-[10px] text-slate-400">{pastaId ? `na pasta · versão ${versao || 1}` : 'Editor de Áudio'} · {formatarTempo(fim, false)}</p>
           </div>
-          <button type="button" title="Salvar na Pasta de Áudios" onClick={() => setSalvarAberto(true)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5"><Save className="h-5 w-5" /></button>
-          <button type="button" title="Pasta de Áudios" onClick={() => { void atualizarPasta(); setPastaAberta(true); }} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5"><FolderOpen className="h-5 w-5" /></button>
+          <button type="button" title="Salvar na Biblioteca de Áudios" onClick={() => setSalvarAberto(true)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5"><Save className="h-5 w-5" /></button>
+          <button type="button" title="Biblioteca de Áudios" onClick={() => { void atualizarPasta(); setPastaAberta(true); }} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5"><FolderOpen className="h-5 w-5" /></button>
           <button type="button" title="Baixar áudio editado" onClick={() => setExportar(true)} data-testid="editor-audio-baixar" className="flex h-10 items-center gap-1 rounded-xl bg-[#25D366] px-3 text-xs font-black text-[#0B0420]"><Download className="h-4 w-4" />Baixar</button>
         </div>
         {/* posição, seleção, zoom e medidor */}
@@ -1171,6 +1260,7 @@ export function EditorDeAudio() {
           </div>
         </div>
         {ocupado && <p className="flex items-center gap-1.5 text-xs text-[#FFD400]"><Loader2 className="h-4 w-4 animate-spin" />{ocupado}</p>}
+        {avisoAnterior}
         {linhaDoTempo}
 
         {/* controles fixos embaixo */}
@@ -1215,7 +1305,7 @@ export function EditorDeAudio() {
               <Grande titulo="Sons e trilhas do Studio" rotulo="Sons do Studio" onClick={() => setFolha('sons')}><Music className="h-5 w-5" /></Grande>
               <Grande titulo="Faixa nova" rotulo="Faixa nova" onClick={novaFaixaVazia}><Plus className="h-5 w-5" /></Grande>
               <Grande titulo="Bipe de 1 kHz no cursor" rotulo="Bipe" onClick={() => adicionarSom(gerarTom(44100, 1, 1000, 'seno', 0.3), 'Bipe 1 kHz', faixaSel ?? 'nova', cursorRef.current)}><AudioWaveform className="h-5 w-5" /></Grande>
-              <Grande titulo="Projeto novo" rotulo="Projeto novo" onClick={novoProjeto}><FilePlus2 className="h-5 w-5" /></Grande>
+              <Grande titulo="Nova edição: a de agora vai para os rascunhos" rotulo="Nova edição" onClick={novoProjeto}><FilePlus2 className="h-5 w-5" /></Grande>
             </>}
             {(aba === 'efeitos' || aba === 'faixa') && (
               <button type="button" onClick={() => setFolha(aba)} className="h-16 flex-1 rounded-xl border border-[#B04DFF]/50 bg-[#8A2EFF]/15 text-sm font-bold">{aba === 'efeitos' ? 'Abrir os efeitos' : 'Abrir os ajustes da faixa e do clipe'}</button>
@@ -1269,9 +1359,9 @@ export function EditorDeAudio() {
           <h1 className="text-lg font-black leading-tight">Editor de Áudio</h1>
           <span className="flex items-center gap-1"><input value={nome} onChange={(e) => setNome(e.target.value)} aria-label="Nome do áudio" className="w-48 bg-transparent text-xs text-slate-400 focus:text-white focus:outline-none" />{pastaId && <span className="rounded bg-[#25D366]/20 px-1.5 text-[10px] font-bold text-[#25D366]">na pasta · v{versao || 1}</span>}</span>
         </div>
-        <Botao titulo="Projeto novo" onClick={novoProjeto}><FilePlus2 className="h-4 w-4" />Novo</Botao>
-        <Botao titulo="Salvar na Pasta de Áudios (com o nome que quiser)" onClick={() => setSalvarAberto(true)}><Save className="h-4 w-4" />Salvar</Botao>
-        <Botao titulo="Pasta de Áudios: rever, reeditar e baixar o que já foi salvo" onClick={() => { void atualizarPasta(); setPastaAberta(true); }}><FolderOpen className="h-4 w-4" />Pasta de Áudios</Botao>
+        <Botao titulo="Nova edição: a de agora vai para os rascunhos e a tela começa do zero" onClick={novoProjeto}><FilePlus2 className="h-4 w-4" />Nova edição</Botao>
+        <Botao titulo="Salvar na Biblioteca de Áudios (com o nome que quiser)" onClick={() => setSalvarAberto(true)}><Save className="h-4 w-4" />Salvar</Botao>
+        <Botao titulo="Biblioteca de Áudios: salvos e rascunhos" onClick={() => { void atualizarPasta(); setPastaAberta(true); }}><FolderOpen className="h-4 w-4" />Biblioteca</Botao>
         <Botao titulo="Enviar áudio do aparelho (ou arraste arquivos para cá)" onClick={() => entrada.current?.click()}><Upload className="h-4 w-4" />Enviar áudio do aparelho</Botao>
         <Botao titulo={gravando ? 'Parar a gravação' : 'Gravar pelo microfone (no cursor, numa faixa nova)'} onClick={() => void gravar()} ativo={!!gravando}>
           <Mic className={cn('h-4 w-4', gravando && 'animate-pulse text-rose-400')} />{gravando ? `Parar (${segGravando.toFixed(1)} s)` : 'Gravar'}
@@ -1289,6 +1379,7 @@ export function EditorDeAudio() {
         </div>
       </div>
 
+      {avisoAnterior}
       {/* —— barra de ferramentas —— */}
       <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-white/10 bg-[#140632] p-2">
         <div className="flex items-center gap-1">

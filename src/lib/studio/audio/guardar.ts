@@ -6,7 +6,7 @@ import type { Projeto } from './projeto';
 import type { Som } from './som';
 
 const BANCO = 'sobremidia-editor-de-audio', ATUAL = 'projeto', CHAVE = 'atual', PASTA = 'pasta', DADOS = 'pasta-dados';
-export interface ProjetoGuardado { projeto: Projeto; sons: Record<string, { nome: string; som: Som }>; nome: string; salvoEm: number; pastaId?: string | null }
+export interface ProjetoGuardado { projeto: Projeto; sons: Record<string, { nome: string; som: Som }>; nome: string; salvoEm: number; pastaId?: string | null; tipo?: 'salvo' | 'rascunho' | null }
 export interface AudioNaPasta { id: string; nome: string; criadoEm: number; salvoEm: number; versao: number; duracao: number; faixas: number }
 export interface DadosNaPasta { projeto: Projeto; sons: Record<string, { nome: string; som: Som }> }
 

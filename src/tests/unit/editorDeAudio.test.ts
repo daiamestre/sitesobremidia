@@ -169,7 +169,7 @@ describe('editor de áudio: efeitos e acesso', () => {
     const g = fs.readFileSync('src/lib/studio/audio/guardar.ts', 'utf8');
     for (const f of ['listarPasta', 'salvarNaPasta', 'lerDaPasta', 'renomearNaPasta', 'apagarDaPasta']) expect(g).toContain(`export async function ${f}`);
     const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
-    for (const t of ['Salvar na Pasta de Áudios', 'Nome do áudio', 'Nome das faixas', 'Salvar por cima (versão', 'Salvar como novo', 'Abrir e editar', 'Duplicar', '> MP3', 'Pasta de Áudios'])
+    for (const t of ['Salvar na Biblioteca de Áudios', 'Nome do áudio', 'Nome das faixas', 'Salvar por cima (versão', 'Salvar como novo', 'Abrir e editar', 'Duplicar', '> MP3', 'Biblioteca de Áudios'])
       expect(e, t).toContain(t);
   });
 });
@@ -233,5 +233,24 @@ describe('F-327: rolagem na borda mais rápida, acelerando', () => {
     const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
     expect(e).toContain('function velocidadeNaBorda');
     expect(e).toContain('(24 + 56 * k)');
+  });
+});
+
+describe('F-328: Biblioteca de Áudios no sistema, rascunhos e nova edição', () => {
+  const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+  const s = fs.readFileSync('src/lib/studio/audio/sistema.ts', 'utf8');
+  const m = fs.readFileSync('supabase/migrations/20261366_studio_audio_edicoes.sql', 'utf8');
+  it('salvos e rascunhos ficam no sistema, cada conta só vê os seus; sons vão uma vez para a pasta da conta', () => {
+    expect(m).toContain("check (tipo in ('salvo', 'rascunho'))");
+    expect(m).toContain('using (usuario_id = auth.uid())');
+    expect(s).toContain('/studio-audio/${id}.wav');
+    expect(s).toContain('const faltam = usados.filter((id) => !o.urls.has(id))');
+  });
+  it('salvar limpa a tela; "Nova edição" guarda o da tela como rascunho; parado 30 min vira rascunho com o botão de voltar', () => {
+    expect(e).toContain('export const PARADO_MS = 30 * 60 * 1000');
+    expect(e).toContain("await guardarNoSistema('salvo', comoNovo);\n      setSalvarAberto(false); limparTela();");
+    expect(e).toContain("const novoProjeto = () => { void arquivarERecomecar('nova'); };");
+    expect(e).toContain('Voltar a editar de onde parei');
+    expect(e).toContain("{a === 'salvo' ? 'Salvos' : 'Rascunhos'}");
   });
 });

@@ -3758,3 +3758,28 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - a borda do arrasto de clipe passou a ter até 64 px;
   - a seleção na borda anda 40 px.
 - **Testes:** editorDeAudio.test.ts (27).
+
+### F-328 — Biblioteca de Áudios no sistema da SOBRE MÍDIA, rascunhos e Nova edição (18/11/2026)
+- **Pedido do dono:**
+  - os áudios salvos não apareciam na biblioteca;
+  - a edição tem que ficar na tela; muito tempo parado começa do zero, com a opção de voltar de onde parou;
+  - salvou → tela do zero;
+  - botão "Nova edição" que guarda a de agora como rascunho;
+  - guardar "on-line no sistema da SOBRE MÍDIA".
+- **Causa:** a Pasta (F-322) ficava no IndexedDB de cada aparelho, por isso não aparecia em outro aparelho.
+- **Feito:**
+  - **Banco:** tabela `studio_audio_edicoes` (migração 20261366, aplicada; RLS só do dono; tipo salvo/rascunho; faixas e clipes em jsonb).
+  - **Sons:** em WAV 16 bits no R2, em `{usuario}/studio-audio/{som}.wav`, pelo `get-upload-url`; cada som vai uma vez só. Arquivo `src/lib/studio/audio/sistema.ts`.
+  - **Salvar:** vai para Salvos (por cima = versão+1) e limpa a tela.
+  - **Nova edição:** guarda o da tela como rascunho, limpa a tela e mostra o aviso "Voltar a editar de onde parei".
+  - **Parado:** 30 min sem editar (com a tela aberta ou ao reabrir) dá o mesmo resultado.
+  - **Biblioteca:** abas Salvos/Rascunhos; abrir, continuar, MP3, duplicar, renomear e apagar. Os antigos que ficaram só no aparelho aparecem num bloco à parte.
+- **Prova no navegador** (conta de teste owner):
+  - salvar enviou para o sistema e limpou a tela;
+  - Nova edição gerou o rascunho e o aviso;
+  - "Voltar" reabriu o rascunho;
+  - a Biblioteca mostrou Salvos (1) e Rascunhos (1);
+  - o salvo abriu baixando os sons do R2;
+  - parado há 40 min, ao recarregar, a tela começou do zero com o aviso.
+  - Os dados do teste foram apagados.
+- **Testes:** editorDeAudio.test.ts (29).
