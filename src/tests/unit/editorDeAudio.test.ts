@@ -173,3 +173,22 @@ describe('editor de áudio: efeitos e acesso', () => {
       expect(e, t).toContain(t);
   });
 });
+
+describe('F-324: cursor e gestos do dedo', () => {
+  const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+  it('a linha amarela usa a rolagem e o zoom de AGORA (antes sumia quando a tela rolava no play)', () => {
+    expect(e).toContain('const x = t * zoomRef.current - (el?.scrollLeft ?? 0)');
+    expect(e).toContain('x = pos * zoomRef.current');
+  });
+  it('no dedo: deslizar rola, segurar ~0,4 s e arrastar marca, toque só põe o cursor', () => {
+    expect(e).toContain("tipo: 'espera'");
+    expect(e).toContain("gesto.current = { tipo: 'rolar'");
+    expect(e).toMatch(/acao\(\); try \{ navigator\.vibrate/);
+    expect(e).toContain('}, 380);');
+  });
+  it('o triângulo da linha amarela arrasta o cursor e rola sozinho na borda da tela', () => {
+    expect(e).toContain('data-testid="editor-audio-triangulo"');
+    expect(e).toContain('const pegarCursor');
+    expect(e).toContain('el.scrollLeft = Math.max(0, el.scrollLeft + v * 16)');
+  });
+});

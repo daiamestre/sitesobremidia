@@ -3694,3 +3694,25 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - folha de Efeitos abre;
   - baixou o MP3 marcado (começa com ID3), que, renomeado e aberto de novo, foi reconhecido: "Minha edição foi editado no SOBRE MÍDIA Studio (versão 1)".
 - **Testes:** `editorDeAudio.test.ts` (18).
+
+### F-324 — Linha amarela acompanha o som; dedo rola, segurar marca; triângulo do cursor (18/11/2026)
+- **Pedido do dono:**
+  - a linha amarela não acompanhava a reprodução;
+  - passar o dedo criava uma faixa branca (seleção) em vez de andar pelo áudio; marcar só ao segurar e arrastar;
+  - quer um triângulo ▼ na linha para arrastar o cursor, com o áudio aparecendo ao chegar na borda.
+- **Causa da linha:** `tocar` guardava o `posicionarLinha` do começo do play, com a rolagem do momento em que apertou tocar. Quando a tela rolava sozinha, a linha era calculada fora da tela e ficava invisível (opacidade 0). Agora usa `area.scrollLeft` e `zoomRef` de agora.
+- **Dedo** (`esperarDedo`):
+  - andou 9 px → `rolar` (horizontal e vertical, à mão, porque a pista usa `touch-action: none`);
+  - parado 380 ms → liga a ação (seleção, mover pela barra, aparar pela borda) e vibra;
+  - soltou antes → toque: cursor e clipe; com o som tocando, pula para lá;
+  - a borda para o dedo é o dobro da do mouse;
+  - a ferramenta Mover continua imediata;
+  - a Tesoura corta no toque.
+- **Triângulo:** filho da linha, `pointer-events: auto`. Arrastar move o cursor. Perto da borda (36 px) a tela rola sozinha, até 16 px por quadro e mais rápido quanto mais perto, e o cursor vai junto. Se o som tocava, volta a tocar de onde soltou.
+- **Prova no navegador** (375×812):
+  - tocando, a linha ficou visível e a tela rolou (0 → 186 → 372);
+  - deslizar rolou 600 → 720 sem marcar;
+  - segurar e arrastar marcou 9,75 → 11,25 s;
+  - toque só pôs o cursor;
+  - o triângulo na borda rolou 720 → 984, com o cursor em 15,36 s.
+- **Testes:** `editorDeAudio.test.ts` (21).

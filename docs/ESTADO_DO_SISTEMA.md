@@ -77,6 +77,11 @@ O histórico completo de F-01 a F-259 está em `docs/engineering/FINDINGS_LEDGER
 
 > **P-34 fase 2 (16/11/2026):** ✅ NO AR — F-317 (logos 3D de campanha caindo do céu, quebrando a parede e pegando fogo; faixa Alerta de Oferta para a direita; sem "YOUR LOGO"), F-318 (locutor no estilo impacto: "Só essa semana, preço baixo é aqui!") e **F-319: EFEITOS REAIS** — 14 filmagens gratuitas do Pixabay (explosões, bola de fogo, fogo subindo, parede e linha de fogo, brasas, fumaça, raio, vidro rachando e estilhaçando, confete) em `public/studio/efeitos/`, aplicadas com recorte do preto pela placa de vídeo (WebGL), bordas esfumadas e explosão em elipse; cada efeito é um elemento editável (cartão "Efeito": trocar pela galeria, começo, laço, velocidade, recorte/luz/luz forte, espelhar); o MP4 lê os quadros dos efeitos em sequência pelo WebCodecs (`video/decodificarEfeito.ts`). Botão "Efeitos reais" no painel de impacto (padrão ligado). Ficha das licenças: `docs/licencas/EFEITOS_PIXABAY.md`.
 
+> **F-324 (18/11/2026): cursor e dedo no Editor de Áudio.**
+> - **Linha amarela:** acompanha o som tocando, e a tela anda junto.
+> - **Dedo:** deslizar rola o áudio; segurar ~0,4 s e arrastar marca o trecho (ou move/apara pela barra/borda); toque rápido põe o cursor.
+> - **Triângulo ▼ na linha:** arrasta o cursor; segurando na borda, o resto do áudio vai aparecendo.
+
 > **F-323 (18/11/2026): Editor de Áudio no celular e marca "Editado no SOBRE MÍDIA Studio".**
 > - **Celular (até 767 px):** tela de app, com topo enxuto (Salvar, Pasta e Baixar) e a linha do tempo no meio.
 >   - Controles fixos embaixo: Voltar, tocar e Avançar, e as abas Cortes, Adicionar, Efeitos e Faixa, com botões grandes e com nome.

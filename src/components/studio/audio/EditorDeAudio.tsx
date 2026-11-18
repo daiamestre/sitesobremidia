@@ -34,7 +34,12 @@ type Gesto =
   | { tipo: 'mover'; clipeId: string; desvio: number; moveu: boolean }
   | { tipo: 'aparar'; clipeId: string; lado: 'inicio' | 'fim' }
   | { tipo: 'regua' }
-  | { tipo: 'pinca'; dist0: number; zoom0: number; tempo0: number; x0: number };
+  | { tipo: 'pinca'; dist0: number; zoom0: number; tempo0: number; x0: number }
+  /** dedo: espera para saber se é toque, rolagem ou (segurando) seleção/arrasto */
+  | { tipo: 'espera'; x0: number; y0: number; scroll0: number; scrollY0: number; acao: () => void; toque: () => void; timer: number }
+  | { tipo: 'rolar'; x0: number; y0: number; scroll0: number; scrollY0: number }
+  /** arrastando o triângulo da linha amarela */
+  | { tipo: 'cursor'; tocava: boolean; x: number; raf: number };
 
 const cor = (hex: string, a: number) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
 const ehCampo = (el: EventTarget | null) => el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
@@ -283,9 +288,12 @@ export function EditorDeAudio() {
       if (c) desenharPista(c, largura, f, zoom, rolagem, selDaFaixa, clipeSel, f.id === faixaSel, obterSom);
     }
   });
+  const zoomRef = useRef(zoom); zoomRef.current = zoom;
   const posicionarLinha = useCallback((t: number) => {
-    if (linha.current) { const x = t * zoom - rolagem; linha.current.style.transform = `translateX(${x}px)`; linha.current.style.opacity = x < -1 || x > largura + 1 ? '0' : '1'; }
+    const el = area.current, w = el?.clientWidth ?? largura;
+    if (linha.current) { const x = t * zoomRef.current - (el?.scrollLeft ?? 0); linha.current.style.transform = `translateX(${x}px)`; linha.current.style.opacity = x < -1 || x > w + 1 ? '0' : '1'; }
     if (relogio.current) relogio.current.textContent = formatarTempo(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom, rolagem, largura]);
   useEffect(() => { posicionarLinha(cursorRef.current); }, [posicionarLinha, cursor]);
 
@@ -331,13 +339,14 @@ export function EditorDeAudio() {
       if (reproducao.current !== r) return;
       const pos = r.pos0 + Math.max(0, a.ctx.currentTime - r.t0);
       cursorRef.current = pos; posicionarLinha(pos); medir();
-      const el = area.current, x = pos * zoom;
-      if (el && (x > el.scrollLeft + el.clientWidth - 30 || x < el.scrollLeft)) el.scrollLeft = Math.max(0, x - 60);
+      // a tela anda junto com o som (a linha fica sempre à vista)
+      const el = area.current, x = pos * zoomRef.current;
+      if (el && gesto.current?.tipo !== 'rolar' && (x > el.scrollLeft + el.clientWidth - 40 || x < el.scrollLeft)) { el.scrollLeft = Math.max(0, x - 40); setRolagem(el.scrollLeft); posicionarLinha(pos); }
       if (pos >= r.fim) { if (loop && sel) { tocar(sel.a); return; } pararSom(false); moverCursor(r.fim); return; }
       r.raf = requestAnimationFrame(passo);
     };
     r.raf = requestAnimationFrame(passo);
-  }, [bufferDe, contexto, loop, medir, moverCursor, pararSom, posicionarLinha, sel, zoom]);
+  }, [bufferDe, contexto, loop, medir, moverCursor, pararSom, posicionarLinha, sel]);
 
   const tocarSom = useCallback((s: Som) => {
     pararSom(false);
@@ -524,6 +533,8 @@ export function EditorDeAudio() {
   };
   const comecarPinca = () => {
     const g = gesto.current;
+    if (g?.tipo === 'espera') clearTimeout(g.timer);
+    if (g?.tipo === 'selecao') setSel(null);
     if (g && (g.tipo === 'mover' || g.tipo === 'aparar')) { const antes = passado.current.pop(); if (antes) { projetoRef.current = antes; setProjeto(antes); } }
     const [a, b] = [...dedos.current.values()], el = area.current!, r = el.getBoundingClientRect();
     const xm = (a.x + b.x) / 2 - r.left;
@@ -535,25 +546,42 @@ export function EditorDeAudio() {
     capturar(e);
     if (e.pointerType === 'touch') { dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (dedos.current.size === 2) { comecarPinca(); return; } if (dedos.current.size > 2) return; }
     const t = tempoDoMouse(e), y = e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top;
+    const dedo = e.pointerType === 'touch';
     setFaixaSel(f.id);
     if (ferramenta === 'tesoura') {
-      const tc = imantar(t), ids = new Set(emTodas ? projetoRef.current.faixas.map((x) => x.id) : [f.id]);
-      alterar((p) => ({ ...p, faixas: p.faixas.map((x) => (ids.has(x.id) ? dividirFaixa(x, tc) : x)) }));
-      moverCursor(tc); setSel(null); return;
+      const cortarAqui = () => { const tc = imantar(t), ids = new Set(emTodas ? projetoRef.current.faixas.map((x) => x.id) : [f.id]);
+        alterar((p) => ({ ...p, faixas: p.faixas.map((x) => (ids.has(x.id) ? dividirFaixa(x, tc) : x)) }));
+        moverCursor(tc); setSel(null); };
+      if (dedo) { esperarDedo(e, cortarAqui, cortarAqui); return; }
+      cortarAqui(); return;
     }
-    const sob = [...f.clipes].reverse().find((c) => t >= c.inicio - BORDA / zoom && t <= fimDoClipe(c) + BORDA / zoom);
-    if (sob) {
-      const xIni = sob.inicio * zoom, xFim = fimDoClipe(sob) * zoom, x = t * zoom;
-      if (Math.abs(x - xIni) <= BORDA && sob.duracao * zoom > BORDA * 3) { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'inicio' }; setClipeSel(sob.id); return; }
-      if (Math.abs(x - xFim) <= BORDA) { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'fim' }; setClipeSel(sob.id); return; }
-      if (t >= sob.inicio && t <= fimDoClipe(sob) && (y <= TITULO + 2 || ferramenta === 'mover' || e.altKey)) {
-        marcarHistorico(); gesto.current = { tipo: 'mover', clipeId: sob.id, desvio: t - sob.inicio, moveu: false }; setClipeSel(sob.id); setSel(null); return;
-      }
+    const borda = dedo ? BORDA * 2 : BORDA; // o dedo é mais grosso que o mouse
+    const sob = [...f.clipes].reverse().find((c) => t >= c.inicio - borda / zoom && t <= fimDoClipe(c) + borda / zoom);
+    const dentro = !!sob && t >= sob.inicio && t <= fimDoClipe(sob);
+    let acao: () => void;
+    const xIni = sob ? sob.inicio * zoom : 0, xFim = sob ? fimDoClipe(sob) * zoom : 0, x = t * zoom;
+    if (sob && Math.abs(x - xIni) <= borda && sob.duracao * zoom > borda * 3) acao = () => { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'inicio' }; setClipeSel(sob.id); };
+    else if (sob && Math.abs(x - xFim) <= borda) acao = () => { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'fim' }; setClipeSel(sob.id); };
+    else if (sob && dentro && (y <= TITULO + 2 || ferramenta === 'mover' || e.altKey)) acao = () => { marcarHistorico(); gesto.current = { tipo: 'mover', clipeId: sob.id, desvio: t - sob.inicio, moveu: false }; setClipeSel(sob.id); setSel(null); };
+    else acao = () => {
+      setClipeSel(dentro && sob ? sob.id : null);
+      if (reproducao.current) pararSom(false);
+      const ti = imantar(t); moverCursor(ti); setSel(null);
+      gesto.current = { tipo: 'selecao', faixaId: f.id, ancora: ti };
+    };
+    if (dedo && ferramenta !== 'mover') {
+      // um toque rápido só põe o cursor (e escolhe o clipe); com o som tocando, pula para lá
+      const toque = () => { setClipeSel(dentro && sob ? sob.id : null); setSel(null); const ti = imantar(t); if (reproducao.current) tocar(ti); else moverCursor(ti); };
+      esperarDedo(e, acao, toque); return;
     }
-    setClipeSel(sob && t >= sob.inicio && t <= fimDoClipe(sob) ? sob.id : null);
-    if (reproducao.current) pararSom(false);
-    const ti = imantar(t); moverCursor(ti); setSel(null);
-    gesto.current = { tipo: 'selecao', faixaId: f.id, ancora: ti };
+    acao();
+  };
+  /** o dedo encostou: se andar, ROLA; se segurar parado ~0,4 s, liga a seleção/arrasto (vibra); se soltar logo, é um toque */
+  const esperarDedo = (e: { clientX: number; clientY: number }, acao: () => void, toque: () => void) => {
+    const el = area.current!, vert = el.closest<HTMLElement>('.overflow-y-auto');
+    const g: Extract<Gesto, { tipo: 'espera' }> = { tipo: 'espera', x0: e.clientX, y0: e.clientY, scroll0: el.scrollLeft, scrollY0: vert?.scrollTop ?? 0, acao, toque, timer: 0 };
+    g.timer = window.setTimeout(() => { if (gesto.current !== g) return; gesto.current = null; acao(); try { navigator.vibrate?.(15); } catch { /* sem vibração */ } }, 380);
+    gesto.current = g;
   };
   const aoMover = (e: PE<HTMLElement>) => {
     if (e.pointerType === 'touch' && dedos.current.has(e.pointerId)) dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -567,6 +595,19 @@ export function EditorDeAudio() {
       requestAnimationFrame(() => { el.scrollLeft = Math.max(0, g.tempo0 * novo - xm); setRolagem(el.scrollLeft); });
       return;
     }
+    if (g.tipo === 'espera') {
+      if (Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 9) return;
+      clearTimeout(g.timer); gesto.current = { tipo: 'rolar', x0: g.x0, y0: g.y0, scroll0: g.scroll0, scrollY0: g.scrollY0 };
+    }
+    const gg = gesto.current;
+    if (gg?.tipo === 'rolar') {
+      const el = area.current!, vert = el.closest<HTMLElement>('.overflow-y-auto');
+      el.scrollLeft = Math.max(0, gg.scroll0 - (e.clientX - gg.x0));
+      if (vert) vert.scrollTop = Math.max(0, gg.scrollY0 - (e.clientY - gg.y0));
+      return;
+    }
+    if (gg?.tipo === 'cursor') { gg.x = e.clientX; moverCursor(Math.max(0, tempoDoMouse(e))); return; }
+    if (!gg) return;
     const t = tempoDoMouse(e);
     if (g.tipo === 'selecao' || g.tipo === 'regua') {
       if (g.tipo === 'regua') { moverCursor(imantar(t)); return; }
@@ -601,6 +642,8 @@ export function EditorDeAudio() {
     if (e && e.pointerType === 'touch') dedos.current.delete(e.pointerId);
     if (gesto.current?.tipo === 'pinca') { if (dedos.current.size === 0) gesto.current = null; return; }
     const g = gesto.current; gesto.current = null;
+    if (g?.tipo === 'espera') { clearTimeout(g.timer); g.toque(); return; }
+    if (g?.tipo === 'cursor') { cancelAnimationFrame(g.raf); if (g.tocava) tocar(cursorRef.current); return; }
     if (g?.tipo === 'mover' && !g.moveu) passado.current.pop(); // só um toque: não vira passo do desfazer
   };
 
@@ -805,6 +848,23 @@ export function EditorDeAudio() {
       <span className="text-[10px] text-slate-500">{f.clipes.length} clipe{f.clipes.length === 1 ? '' : 's'} · {formatarTempo(fimDaFaixa(f), false)}</span>
     </>
   );
+  const pegarCursor = (e: PE<HTMLDivElement>) => {
+    e.stopPropagation(); capturar(e);
+    const tocava = !!reproducao.current; if (tocava) pararSom(false);
+    const g: Extract<Gesto, { tipo: 'cursor' }> = { tipo: 'cursor', tocava, x: e.clientX, raf: 0 };
+    gesto.current = g;
+    // segurando perto da borda: rola sozinho (mais rápido quanto mais perto) e o cursor vai junto
+    const andar = () => {
+      if (gesto.current !== g) return;
+      const el = area.current; if (el) {
+        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = 36;
+        let v = 0; if (x > el.clientWidth - zona) v = Math.min(1, (x - (el.clientWidth - zona)) / zona); else if (x < zona) v = -Math.min(1, (zona - x) / zona);
+        if (v) { el.scrollLeft = Math.max(0, el.scrollLeft + v * 16); setRolagem(el.scrollLeft); moverCursor(Math.max(0, (Math.min(Math.max(x, 0), el.clientWidth) + el.scrollLeft) / zoomRef.current)); }
+      }
+      g.raf = requestAnimationFrame(andar);
+    };
+    g.raf = requestAnimationFrame(andar);
+  };
   const novaFaixaVazia = () => { const f = novaFaixa(projetoRef.current); alterar((p) => ({ ...p, faixas: [...p.faixas, f] })); setFaixaSel(f.id); };
   const linhaDoTempo = (
     <div className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0e0526]">
@@ -858,12 +918,19 @@ export function EditorDeAudio() {
               )}
             </div>
           </div>
-          <div ref={linha} className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-[#FFD400] shadow-[0_0_8px_#FFD400]" style={{ left: 0 }} />
+          <div ref={linha} className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-[#FFD400] shadow-[0_0_8px_#FFD400]" style={{ left: 0 }}>
+            {/* o triângulo: segure e arraste o cursor (perto da borda, o resto do áudio vai aparecendo) */}
+            <div role="slider" aria-label="Cursor: arraste para mudar a posição" aria-valuenow={Math.round(cursor * 1000) / 1000} tabIndex={-1} data-testid="editor-audio-triangulo"
+              onPointerDown={pegarCursor} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}
+              className="pointer-events-auto absolute -left-5 -top-1 flex h-9 w-10 cursor-grab items-start justify-center active:cursor-grabbing" style={{ touchAction: 'none' }}>
+              <span className="mt-0.5 h-0 w-0 border-x-[10px] border-t-[15px] border-x-transparent border-t-[#FFD400] drop-shadow-[0_0_4px_rgba(255,212,0,0.9)]" />
+            </div>
+          </div>
         </div>
       </div>
       <p className="border-t border-white/10 px-3 py-1.5 text-[11px] text-slate-400">
         {celular
-          ? <>Arraste na onda: marca um trecho · <b>barra colorida</b>: move · <b>borda</b>: apara · <b>dois dedos</b>: zoom e rolar · toque 2× no nome da faixa: ajustes</>
+          ? <>Deslize: anda pelo áudio · <b>segure e arraste</b>: marca um trecho · segure a <b>barra colorida</b>: move · <b>▼ amarelo</b>: arraste o cursor · <b>dois dedos</b>: zoom · toque 2× no nome da faixa: ajustes</>
           : <>Arraste na onda para marcar um trecho · com a <b>Tesoura</b>, clique para cortar · arraste a <b>barra colorida</b> do clipe para mover (ou outra faixa) · puxe a <b>borda</b> do clipe para aparar · Ctrl+roda = zoom ·
             Espaço tocar · S dividir · Delete apagar · Ctrl+Z/Y · Ctrl+X/C/V · Ctrl+D duplicar · Ctrl+A tudo · L repetir · arraste arquivos para uma faixa</>}
       </p>
