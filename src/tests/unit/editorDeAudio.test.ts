@@ -1,0 +1,148 @@
+// Pedido do dono (18/11/2026): EDITOR DE ÁUDIO completo no Studio, só owner/ADM — cortar, colar, apagar, dividir, aparar,
+// efeitos, tom/velocidade e baixar em MP3/WAV.
+import fs from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import {
+  apagarIntervalo, apararClipe, clipesNoIntervalo, colar, copiarIntervalo, dividirFaixa, fimDaFaixa, fimDoProjeto, ganhoDoClipeEm,
+  novaFaixa, novoClipe, projetoVazio, trocarSomDosClipes, faixasAudiveis, type Faixa,
+} from '@/lib/studio/audio/projeto';
+import {
+  aparaSilencio, deTrasParaFrente, duracaoDoSom, esticarTempo, fade, gerarTom, juntar, mudarTom, normalizar, paraMono, pico,
+  portaDeRuido, reamostrar, recortar, rms, volume, calcularPicos, type Som,
+} from '@/lib/studio/audio/som';
+import { codificarMp3, codificarWav, lerWav } from '@/lib/studio/audio/arquivos';
+import { EFEITOS, GRUPOS, valoresPadrao } from '@/lib/studio/audio/efeitos';
+
+const SR = 8000;
+const faixaCom = (...clipes: Array<[number, number]>): Faixa => {
+  const f = novaFaixa(projetoVazio());
+  return { ...f, clipes: clipes.map(([ini, dur], i) => novoClipe(`som${i}`, `c${i}`, dur, ini)) };
+};
+/** frequência dominante por cruzamentos de zero */
+const frequencia = (s: Som) => { const c = s.canais[0]; let z = 0; for (let i = 1; i < c.length; i++) if (c[i - 1] < 0 && c[i] >= 0) z++; return (z * s.sr) / c.length; };
+
+describe('editor de áudio: edição na linha do tempo', () => {
+  it('dividir parte o clipe em dois, com o 2º continuando do ponto certo do som', () => {
+    const f = dividirFaixa(faixaCom([1, 4]), 2.5);
+    expect(f.clipes).toHaveLength(2);
+    expect(f.clipes[0]).toMatchObject({ inicio: 1, duracao: 1.5, deslocamento: 0 });
+    expect(f.clipes[1]).toMatchObject({ inicio: 2.5, duracao: 2.5, deslocamento: 1.5 });
+  });
+  it('apagar um trecho puxa o resto para trás; copiar e colar devolve o trecho no lugar', () => {
+    const f = faixaCom([0, 10]);
+    const copia = copiarIntervalo(f, 2, 5);
+    expect(copia).toHaveLength(1); expect(copia[0]).toMatchObject({ inicio: 0, duracao: 3, deslocamento: 2 });
+    const sem = apagarIntervalo(f, 2, 5);
+    expect(fimDaFaixa(sem)).toBeCloseTo(7);
+    const volta = colar(sem, 2, copia, true);
+    expect(fimDaFaixa(volta)).toBeCloseTo(10);
+    expect(volta.clipes.map((c) => [c.inicio, c.deslocamento, c.duracao])).toEqual([[0, 0, 2], [2, 2, 3], [5, 5, 5]]);
+  });
+  it('aparar pela borda nunca passa do som guardado nem do zero', () => {
+    const c = { ...novoClipe('s', 'x', 4, 2), deslocamento: 1 };
+    expect(apararClipe(c, 'fim', 100, 6)).toMatchObject({ duracao: 5 });
+    expect(apararClipe(c, 'inicio', 0, 6)).toMatchObject({ inicio: 1, deslocamento: 0, duracao: 5 });
+    expect(apararClipe(c, 'inicio', 3, 6)).toMatchObject({ inicio: 3, deslocamento: 2, duracao: 3 });
+  });
+  it('efeito que muda a duração (velocidade) empurra os clipes de depois', () => {
+    const f = faixaCom([0, 4], [5, 2]);
+    const { faixa, dentro } = clipesNoIntervalo(f, 1, 3);
+    expect(dentro).toHaveLength(1);
+    const g = trocarSomDosClipes(faixa, [{ id: dentro[0].id, somId: 'novo', duracao: 1 }]);
+    expect(g.clipes.find((c) => c.somId === 'novo')).toMatchObject({ inicio: 1, duracao: 1, deslocamento: 0 });
+    expect(g.clipes.map((c) => c.inicio)).toEqual([0, 1, 2, 4]);
+  });
+  it('fades e volume do clipe; solo e mudo decidem quem toca', () => {
+    const c = { ...novoClipe('s', 'x', 4, 0), fadeEntrada: 1, fadeSaida: 2, ganhoDb: 0 };
+    expect(ganhoDoClipeEm(c, 0.5)).toBeCloseTo(0.5); expect(ganhoDoClipeEm(c, 2)).toBeCloseTo(1); expect(ganhoDoClipeEm(c, 3)).toBeCloseTo(0.5);
+    const p = { ...projetoVazio(), faixas: [{ ...faixaCom([0, 1]), solo: true }, faixaCom([0, 3]), { ...faixaCom([0, 2]), mudo: true }] };
+    expect(faixasAudiveis(p)).toHaveLength(1);
+    expect(fimDoProjeto(p)).toBe(3);
+  });
+});
+
+describe('editor de áudio: o som', () => {
+  const tom = gerarTom(SR, 1, 200, 'seno', 0.5, 2);
+  it('recortar, juntar, volume, normalizar, inverter e mono', () => {
+    expect(duracaoDoSom(recortar(tom, 0.25, 0.75))).toBeCloseTo(0.5);
+    expect(duracaoDoSom(juntar(tom, tom))).toBeCloseTo(2);
+    expect(pico(volume(tom, -6))).toBeCloseTo(0.25, 2);
+    expect(pico(normalizar(tom, -1))).toBeCloseTo(Math.pow(10, -1 / 20), 3);
+    expect(deTrasParaFrente(tom).canais[0][0]).toBe(tom.canais[0][SR - 1]);
+    expect(paraMono(tom).canais).toHaveLength(1);
+  });
+  it('fade de entrada começa no silêncio; porta de ruído abaixa o chiado nas pausas', () => {
+    const f = fade(tom, 'entrada', 'linear');
+    expect(Math.abs(f.canais[0][0])).toBe(0);
+    const chiado = { sr: SR, canais: [Float32Array.from({ length: SR }, () => (Math.random() * 2 - 1) * 0.001)] };
+    expect(rms(portaDeRuido(chiado, -40, -40))).toBeLessThan(rms(chiado) * 0.2);
+  });
+  it('aparar silêncio tira as pontas mudas', () => {
+    const s = juntar(juntar({ sr: SR, canais: [new Float32Array(SR), new Float32Array(SR)] }, tom), { sr: SR, canais: [new Float32Array(SR), new Float32Array(SR)] });
+    expect(duracaoDoSom(aparaSilencio(s, -50, 0))).toBeCloseTo(1, 1);
+  });
+  it('velocidade sem mudar o tom (WSOLA) muda a duração e mantém a frequência; mudar o tom mantém a duração', () => {
+    const lento = esticarTempo(tom, 1.5);
+    expect(duracaoDoSom(lento)).toBeCloseTo(1.5, 2);
+    expect(frequencia(lento)).toBeGreaterThan(180); expect(frequencia(lento)).toBeLessThan(220);
+    const agudo = mudarTom(tom, 12);
+    expect(duracaoDoSom(agudo)).toBeCloseTo(1, 3);
+    expect(frequencia(agudo)).toBeGreaterThan(360); expect(frequencia(agudo)).toBeLessThan(440);
+    const disco = reamostrar(tom, 2);
+    expect(duracaoDoSom(disco)).toBeCloseTo(0.5, 2); expect(frequencia(disco)).toBeGreaterThan(380);
+  });
+  it('picos para desenhar a onda em qualquer zoom', () => {
+    const p = calcularPicos(tom, 128);
+    expect(p.max.length).toBe(Math.ceil(SR / 128));
+    expect(Math.max(...p.max)).toBeCloseTo(0.5, 1);
+  });
+});
+
+describe('editor de áudio: baixar', () => {
+  const tom = gerarTom(44100, 0.5, 440, 'seno', 0.5, 2);
+  it('WAV 16/24/32 bits vai e volta igual', () => {
+    for (const bits of [16, 24, 32] as const) {
+      const w = codificarWav(tom, bits);
+      expect(String.fromCharCode(...w.subarray(0, 4))).toBe('RIFF');
+      const l = lerWav(w);
+      expect(l.sr).toBe(44100); expect(l.canais).toHaveLength(2); expect(l.canais[0].length).toBe(tom.canais[0].length);
+      expect(Math.abs(l.canais[0][1000] - tom.canais[0][1000])).toBeLessThan(bits === 16 ? 1e-4 : 1e-6);
+    }
+  });
+  it('MP3 de verdade (cabeçalho de quadro MPEG) e do tamanho esperado para a taxa', () => {
+    const m = codificarMp3(tom, 192);
+    const i = m.findIndex((b, k) => b === 0xff && (m[k + 1] & 0xe0) === 0xe0);
+    expect(i).toBeGreaterThanOrEqual(0);
+    const esperado = (192000 / 8) * 0.5;
+    expect(m.length).toBeGreaterThan(esperado * 0.8); expect(m.length).toBeLessThan(esperado * 1.4);
+  });
+});
+
+describe('editor de áudio: efeitos e acesso', () => {
+  it('a lista de efeitos é completa, com ajustes válidos e prévia', () => {
+    expect(EFEITOS.length).toBeGreaterThanOrEqual(25);
+    for (const g of GRUPOS) expect(EFEITOS.some((e) => e.grupo === g), g).toBe(true);
+    for (const e of EFEITOS) {
+      const v = valoresPadrao(e);
+      for (const a of e.ajustes) if (a.tipo === 'numero') { expect(v[a.id]).toBeGreaterThanOrEqual(a.min); expect(v[a.id]).toBeLessThanOrEqual(a.max); }
+    }
+    for (const id of ['volume', 'normalizar', 'compressor', 'limitador', 'porta', 'equalizador', 'parametrico', 'passa-alta', 'passa-baixa', 'voz-de-radio', 'eco', 'reverb', 'tom', 'tempo', 'velocidade', 'fade-entrada', 'fade-saida', 'inverter'])
+      expect(EFEITOS.some((e) => e.id === id), id).toBe(true);
+  });
+  it('os efeitos sem Web Audio rodam de verdade', async () => {
+    const tom = gerarTom(SR, 0.5, 300, 'seno', 0.4, 2);
+    for (const id of ['volume', 'normalizar', 'porta', 'fade-entrada', 'fade-saida', 'tom', 'tempo', 'velocidade', 'inverter', 'fase', 'mono', 'trocar-canais', 'dc', 'aparar-silencio']) {
+      const e = EFEITOS.find((x) => x.id === id)!;
+      const s = await e.aplicar(tom, valoresPadrao(e));
+      expect(s.canais[0].length, id).toBeGreaterThan(0);
+    }
+  });
+  it('só owner/ADM: item no menu e a página volta ao início para os outros; microfone liberado no site', () => {
+    const menu = fs.readFileSync('src/components/studioai/StudioAILayout.tsx', 'utf8');
+    expect(menu).toContain("...(interno ? [{ nome: 'Editor de áudio', to: '/studio/editor-de-audio'");
+    const pag = fs.readFileSync('src/pages/studioai/EditorDeAudioPage.tsx', 'utf8');
+    expect(pag).toContain("if (saldo.data?.paga !== false) return <Navigate to=\"/studio\" replace />");
+    expect(fs.readFileSync('src/App.tsx', 'utf8')).toContain('<Route path="editor-de-audio" element={<StudioEditorDeAudio />} />');
+    expect(fs.readFileSync('vercel.json', 'utf8')).toContain('microphone=(self)');
+  });
+});

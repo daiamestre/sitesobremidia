@@ -3626,3 +3626,28 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Falta:**
   - som próprio para a bola de fogo (nenhum candidato passou de 44%);
   - os 2 vídeos que o dono citou não chegaram à conversa.
+
+### F-321 — Editor de Áudio completo no Studio, só owner/ADM (18/11/2026)
+- **Pedido do dono:** editor de áudio profissional no menu do Studio, visível só para owner/ADM, para editar, cortar, adicionar e baixar. Durante o trabalho ele pediu também ferramentas de corte, setinhas de voltar/avançar, enviar áudio do aparelho e baixar o editado.
+- **O que foi feito** (`/studio/editor-de-audio`; a página volta ao início do Studio para quem não for owner/ADM, pela regra `paga === false` do Acervo):
+  - **Faixas:** várias faixas, cada uma com nome, volume, posição E/D, mudo e solo.
+  - **Clipes:** volume e fades próprios; mover arrastando a barra, inclusive para outra faixa; aparar pela borda; ímã nas pontas.
+  - **Cortes:** Tesoura (clica e corta), Cortar trecho, Dividir, Apagar (o resto anda para trás), Manter trecho, Silenciar e Inserir silêncio.
+  - **Copiar e colar:** copiar/colar com inserção e Duplicar; a opção "Todas as faixas" vale para editar tudo junto.
+  - **Histórico:** Voltar e Avançar (até 150 passos) e atalhos de teclado.
+  - **Adicionar som:** enviar arquivos do aparelho ou arrastar para a faixa (MP3/WAV/OGG/M4A/AAC/FLAC/WEBM/MP4); gravar pelo microfone, com a opção de ouvir o projeto enquanto grava; sons e trilhas do Studio; bipe.
+  - **27 efeitos com prévia:** volume, normalizar, compressor, limitador, porta de ruído, fades com 4 curvas, EQ de 5 faixas, paramétrico, passa-alta e passa-baixa, telefone, voz de rádio, eco, reverberação, coro, distorção, megafone, posição, mudar o tom sem mudar a duração, velocidade sem mudar o tom (WSOLA), velocidade e tom juntos, de trás para frente, fase, mono, trocar canais, DC e aparar silêncio.
+  - **Medidor:** pico E/D e volume geral.
+  - **Zoom:** até a amostra; Ctrl+roda dá zoom.
+  - **Baixar:** MP3 128/192/320 (lamejs) ou WAV 16/24/32 bits, 44,1 ou 48 kHz, mono ou estéreo, projeto ou seleção, com opção de normalizar. O que se ouve é o que se baixa: o mesmo grafo serve para tocar e para gerar o arquivo.
+  - **Salvamento:** a edição fica salva sozinha no IndexedDB do aparelho e volta ao recarregar.
+- **Site:** `Permissions-Policy` passou a `microphone=(self)`, porque estava bloqueado e a gravação não funcionaria.
+- **Defeito achado no teste:** a altura do toque era lida por `offsetY`, que falha com a tela em escala, e um arrasto na onda podia mover o clipe. Agora é medida por `clientY` menos o topo da pista.
+- **Prova no navegador** (conta de teste owner), com uma trilha do Studio de 1:57:
+  - marcar trecho e apagar: ficou 1:55;
+  - Voltar e Avançar funcionaram;
+  - aplicados tom, reverberação, compressor, EQ, eco, velocidade e voz de rádio;
+  - a Tesoura cortou;
+  - ao recarregar, a edição voltou;
+  - baixou MP3 (2,77 MB, 192 kbps) e WAV (20,3 MB).
+- **Testes:** `editorDeAudio.test.ts` (15).

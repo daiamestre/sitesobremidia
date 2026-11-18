@@ -1,0 +1,879 @@
+/**
+ * SOBRE MÍDIA STUDIO — EDITOR DE ÁUDIO COMPLETO (pedido do dono, 18/11/2026; só owner/ADM).
+ * Várias faixas, cortar/copiar/colar/apagar/dividir/aparar/mover, desfazer e refazer, gravação pelo microfone, sons e trilhas
+ * do Studio, 27 efeitos com prévia, volume/posição/mudo/solo por faixa, fades por clipe, medidor, zoom até a amostra e
+ * exportação em MP3/WAV do projeto inteiro ou da seleção. Tudo roda no navegador; a edição fica salva no aparelho.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as PE } from 'react';
+import {
+  AudioWaveform, BetweenHorizontalStart, ClipboardPaste, Copy, CopyPlus, Crop, Download, FilePlus2, Hand, Headphones, Loader2,
+  Magnet, Maximize2, Mic, MousePointer2, Music, Pause, Play, Plus, Redo2, Repeat, Rows3, Scissors, SkipBack, SkipForward, Split,
+  Square, Trash2, Undo2, Upload, Volume2, VolumeX, ZoomIn, ZoomOut,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { SONS, TRILHAS } from '@/lib/studio/impacto';
+import {
+  acharClipe, apagarIntervalo, apararClipe, abrirEspaco, clipesNoIntervalo, colar, copiarIntervalo, dividirFaixa, fimDaFaixa,
+  fimDoClipe, fimDoProjeto, formatarTempo, novaFaixa, novoClipe, novoId, projetoVazio, sonsUsados, trocarClipe, trocarFaixa,
+  trocarSomDosClipes, type Clipe, type Faixa, type Projeto,
+} from '@/lib/studio/audio/projeto';
+import { calcularPicos, duracaoDoSom, gerarTom, juntar, recortar, silenciar, type Picos, type Som } from '@/lib/studio/audio/som';
+import { EFEITOS, GRUPOS, efeitoPorId, valoresPadrao, type Efeito, type Valores } from '@/lib/studio/audio/efeitos';
+import { agendarProjeto, renderizarProjeto } from '@/lib/studio/audio/mixagem';
+import { baixarArquivo, codificar, decodificarArquivo, paraAudioBuffer, type FormatoDeAudio } from '@/lib/studio/audio/arquivos';
+import { apagarDoAparelho, lerDoAparelho, salvarNoAparelho } from '@/lib/studio/audio/guardar';
+
+const CAB = 224, ALTURA = 112, TITULO = 18, REGUA = 28, BORDA = 7;
+const ZOOM_MIN = 2, ZOOM_MAX = 40000;
+
+interface SomGuardado { nome: string; som: Som; picos: Picos; buffers: WeakMap<BaseAudioContext, AudioBuffer> }
+type Gesto =
+  | { tipo: 'selecao'; faixaId: string; ancora: number }
+  | { tipo: 'mover'; clipeId: string; desvio: number; moveu: boolean }
+  | { tipo: 'aparar'; clipeId: string; lado: 'inicio' | 'fim' }
+  | { tipo: 'regua' };
+
+const cor = (hex: string, a: number) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
+const ehCampo = (el: EventTarget | null) => el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+
+/** o passo da régua para caber ~80 px entre as marcas */
+function passoDaRegua(zoom: number) {
+  for (const p of [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600]) if (p * zoom >= 80) return p;
+  return 1200;
+}
+
+function desenharRegua(c: HTMLCanvasElement, w: number, zoom: number, rolagem: number, sel: { a: number; b: number } | null) {
+  const dpr = window.devicePixelRatio || 1; c.width = w * dpr; c.height = REGUA * dpr;
+  const g = c.getContext('2d')!; g.scale(dpr, dpr); g.fillStyle = '#12062e'; g.fillRect(0, 0, w, REGUA);
+  if (sel) { g.fillStyle = 'rgba(176,77,255,0.35)'; g.fillRect(sel.a * zoom - rolagem, 0, (sel.b - sel.a) * zoom, REGUA); }
+  const p = passoDaRegua(zoom), t0 = Math.floor(rolagem / zoom / p) * p;
+  g.font = '10px ui-monospace, monospace'; g.textBaseline = 'top';
+  for (let t = t0; t * zoom - rolagem < w; t += p) {
+    const x = Math.round(t * zoom - rolagem) + 0.5;
+    g.strokeStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.moveTo(x, REGUA - 10); g.lineTo(x, REGUA); g.stroke();
+    for (let k = 1; k < 5; k++) { const xs = Math.round((t + (p * k) / 5) * zoom - rolagem) + 0.5; g.strokeStyle = 'rgba(255,255,255,0.15)'; g.beginPath(); g.moveTo(xs, REGUA - 5); g.lineTo(xs, REGUA); g.stroke(); }
+    g.fillStyle = '#cbd5e1'; g.fillText(p < 1 ? formatarTempo(t) : formatarTempo(t, false), x + 3, 4);
+  }
+  g.strokeStyle = 'rgba(255,255,255,0.12)'; g.beginPath(); g.moveTo(0, REGUA - 0.5); g.lineTo(w, REGUA - 0.5); g.stroke();
+}
+
+function desenharPista(c: HTMLCanvasElement, w: number, f: Faixa, zoom: number, rolagem: number, sel: { a: number; b: number } | null, clipeSel: string | null, faixaAtiva: boolean, obter: (id: string) => SomGuardado | undefined) {
+  const dpr = window.devicePixelRatio || 1; c.width = w * dpr; c.height = ALTURA * dpr;
+  const g = c.getContext('2d')!; g.scale(dpr, dpr);
+  g.fillStyle = faixaAtiva ? '#1a0b3d' : '#140632'; g.fillRect(0, 0, w, ALTURA);
+  // linhas de tempo
+  const p = passoDaRegua(zoom); g.strokeStyle = 'rgba(255,255,255,0.04)';
+  for (let t = Math.floor(rolagem / zoom / p) * p; t * zoom - rolagem < w; t += p) { const x = Math.round(t * zoom - rolagem) + 0.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, ALTURA); g.stroke(); }
+  for (const cl of f.clipes) {
+    const x0 = cl.inicio * zoom - rolagem, x1 = x0 + cl.duracao * zoom;
+    if (x1 < 0 || x0 > w) continue;
+    const escolhido = cl.id === clipeSel;
+    g.fillStyle = cor(f.cor, escolhido ? 0.32 : 0.18); g.fillRect(x0, 1, x1 - x0, ALTURA - 2);
+    g.fillStyle = cor(f.cor, escolhido ? 0.95 : 0.6); g.fillRect(x0, 1, x1 - x0, TITULO);
+    g.strokeStyle = escolhido ? '#ffffff' : cor(f.cor, 0.8); g.lineWidth = escolhido ? 2 : 1; g.strokeRect(x0 + 0.5, 1.5, x1 - x0 - 1, ALTURA - 3); g.lineWidth = 1;
+    g.save(); g.beginPath(); g.rect(Math.max(0, x0), 0, Math.min(w, x1) - Math.max(0, x0), ALTURA); g.clip();
+    g.fillStyle = '#0B0420'; g.font = 'bold 10px system-ui, sans-serif'; g.textBaseline = 'middle';
+    g.fillText(`${cl.nome}${cl.ganhoDb ? `  ${cl.ganhoDb > 0 ? '+' : ''}${cl.ganhoDb.toFixed(1)} dB` : ''}`, Math.max(x0, 0) + 5, 1 + TITULO / 2);
+    const info = obter(cl.somId);
+    if (info) {
+      const { som, picos } = info, sr = som.sr, meio = TITULO + (ALTURA - TITULO) / 2, amp = (ALTURA - TITULO) / 2 - 4;
+      const base = Math.pow(10, cl.ganhoDb / 20);
+      g.strokeStyle = escolhido ? '#ffffff' : cor(f.cor, 1); g.beginPath();
+      let antes: number | null = null;
+      for (let px = Math.max(0, Math.floor(x0)); px < Math.min(w, Math.ceil(x1)); px++) {
+        const tl = (px + rolagem) / zoom, rel = tl - cl.inicio; if (rel < 0 || rel > cl.duracao) continue;
+        let k = base; if (cl.fadeEntrada > 0 && rel < cl.fadeEntrada) k *= rel / cl.fadeEntrada; if (cl.fadeSaida > 0 && rel > cl.duracao - cl.fadeSaida) k *= (cl.duracao - rel) / cl.fadeSaida;
+        const sA = Math.floor((cl.deslocamento + rel) * sr), sB = Math.floor((cl.deslocamento + rel + 1 / zoom) * sr);
+        let lo = 0, hi = 0;
+        if (sB - sA >= picos.bloco * 2) {
+          for (let b = Math.floor(sA / picos.bloco); b <= Math.min(picos.min.length - 1, Math.floor(sB / picos.bloco)); b++) { if (picos.min[b] < lo) lo = picos.min[b]; if (picos.max[b] > hi) hi = picos.max[b]; }
+        } else if (sB - sA >= 2) {
+          for (let i = sA; i < sB; i++) for (const ch of som.canais) { const v = ch[i] ?? 0; if (v < lo) lo = v; if (v > hi) hi = v; }
+        } else {
+          // zoom de amostra: liga os pontos
+          let v = 0; for (const ch of som.canais) v += (ch[sA] ?? 0) / som.canais.length;
+          const y = meio - Math.max(-1, Math.min(1, v * k)) * amp;
+          if (antes == null) g.moveTo(px, y); else g.lineTo(px, y); antes = y; continue;
+        }
+        g.moveTo(px + 0.5, meio - Math.min(1, hi * k) * amp); g.lineTo(px + 0.5, meio - Math.max(-1, lo * k) * amp + 1);
+      }
+      g.stroke();
+      // fades
+      g.strokeStyle = 'rgba(255,255,255,0.85)';
+      if (cl.fadeEntrada > 0) { g.beginPath(); g.moveTo(x0, ALTURA - 2); g.lineTo(x0 + cl.fadeEntrada * zoom, TITULO + 2); g.stroke(); }
+      if (cl.fadeSaida > 0) { g.beginPath(); g.moveTo(x1 - cl.fadeSaida * zoom, TITULO + 2); g.lineTo(x1, ALTURA - 2); g.stroke(); }
+    }
+    g.restore();
+  }
+  if (sel) { g.fillStyle = 'rgba(255,255,255,0.16)'; g.fillRect(sel.a * zoom - rolagem, 0, Math.max(1, (sel.b - sel.a) * zoom), ALTURA); }
+  g.strokeStyle = 'rgba(255,255,255,0.08)'; g.beginPath(); g.moveTo(0, ALTURA - 0.5); g.lineTo(w, ALTURA - 0.5); g.stroke();
+}
+
+function Botao({ titulo, onClick, children, ativo, desligado, perigo }: { titulo: string; onClick: () => void; children: React.ReactNode; ativo?: boolean; desligado?: boolean; perigo?: boolean }) {
+  return (
+    <button type="button" title={titulo} aria-label={titulo} onClick={onClick} disabled={desligado}
+      className={cn('flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-semibold transition disabled:opacity-35',
+        ativo ? 'border-[#B04DFF] bg-[#8A2EFF]/40 text-white' : perigo ? 'border-rose-500/30 text-rose-200 hover:bg-rose-500/15' : 'border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/10')}>
+      {children}
+    </button>
+  );
+}
+
+function CampoDeTempo({ rotulo, valor, onMudar }: { rotulo: string; valor: number | null; onMudar?: (v: number) => void }) {
+  const [txt, setTxt] = useState('');
+  useEffect(() => setTxt(valor == null ? '' : valor.toFixed(3)), [valor]);
+  return (
+    <label className="flex flex-col text-[10px] font-bold uppercase tracking-wider text-slate-400">
+      {rotulo}
+      <input value={txt} disabled={!onMudar || valor == null} onChange={(e) => setTxt(e.target.value)}
+        onBlur={() => { const v = Number(txt.replace(',', '.')); if (onMudar && Number.isFinite(v)) onMudar(Math.max(0, v)); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        className="mt-0.5 w-24 rounded-md border border-white/10 bg-[#0B0420] px-2 py-1 font-mono text-xs text-white disabled:opacity-40" />
+    </label>
+  );
+}
+
+export function EditorDeAudio() {
+  const sons = useRef(new Map<string, SomGuardado>());
+  const [, setVersaoDosSons] = useState(0);
+  const [projeto, setProjeto] = useState<Projeto>(projetoVazio);
+  const projetoRef = useRef(projeto);
+  const passado = useRef<Projeto[]>([]), futuro = useRef<Projeto[]>([]);
+  const ultimaMudanca = useRef<{ chave: string; t: number } | null>(null);
+  const [nome, setNome] = useState('Minha edição');
+  const [faixaSel, setFaixaSel] = useState<string | null>(null);
+  const [clipeSel, setClipeSel] = useState<string | null>(null);
+  const [sel, setSel] = useState<{ a: number; b: number } | null>(null);
+  const [cursor, setCursor] = useState(0);
+  const cursorRef = useRef(0);
+  const [zoom, setZoom] = useState(80);
+  const [rolagem, setRolagem] = useState(0);
+  const [largura, setLargura] = useState(800);
+  const [ferramenta, setFerramenta] = useState<'selecao' | 'mover' | 'tesoura'>('selecao');
+  const [ima, setIma] = useState(true);
+  const [emTodas, setEmTodas] = useState(false);
+  const [loop, setLoop] = useState(false);
+  const [tocando, setTocando] = useState(false);
+  const [gravando, setGravando] = useState<null | { inicio: number; desde: number }>(null);
+  const [tocarAoGravar, setTocarAoGravar] = useState(true);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [efeitoId, setEfeitoId] = useState('normalizar');
+  const [valores, setValores] = useState<Valores>(() => valoresPadrao(efeitoPorId('normalizar')!));
+  const [sonsAbertos, setSonsAbertos] = useState(false);
+  const [exportar, setExportar] = useState(false);
+  const [silencioSeg, setSilencioSeg] = useState(1);
+  const area = useRef<HTMLDivElement>(null), linha = useRef<HTMLDivElement>(null), relogio = useRef<HTMLSpanElement>(null);
+  const medidorE = useRef<HTMLDivElement>(null), medidorD = useRef<HTMLDivElement>(null);
+  const regua = useRef<HTMLCanvasElement>(null), pistas = useRef(new Map<string, HTMLCanvasElement>());
+  const gesto = useRef<Gesto | null>(null);
+  const area_transferencia = useRef<Clipe[]>([]);
+  const audio = useRef<{ ctx: AudioContext; geral: GainNode; e: AnalyserNode; d: AnalyserNode } | null>(null);
+  const reproducao = useRef<{ fontes: AudioScheduledSourceNode[]; t0: number; pos0: number; fim: number; origem: number; raf: number } | null>(null);
+  const gravador = useRef<{ rec: MediaRecorder; stream: MediaStream; partes: Blob[] } | null>(null);
+  const carregado = useRef(false);
+
+  projetoRef.current = projeto;
+  const fim = fimDoProjeto(projeto);
+  const larguraTotal = Math.max(largura, (fim + 10) * zoom);
+  const faixaAtual = projeto.faixas.find((f) => f.id === faixaSel) ?? null;
+  const clipeAtual = acharClipe(projeto, clipeSel);
+
+  // ——— projeto e histórico ———
+  const alterar = useCallback((f: (p: Projeto) => Projeto, chave?: string) => {
+    const atual = projetoRef.current, novo = f(atual);
+    if (novo === atual) return;
+    const agora = Date.now(), u = ultimaMudanca.current;
+    if (!(chave && u && u.chave === chave && agora - u.t < 900)) { passado.current.push(atual); if (passado.current.length > 150) passado.current.shift(); futuro.current = []; }
+    ultimaMudanca.current = chave ? { chave, t: agora } : null;
+    projetoRef.current = novo; setProjeto(novo);
+  }, []);
+  /** durante o arrasto: muda sem guardar (o estado anterior já foi guardado no começo do gesto) */
+  const alterarAoVivo = useCallback((f: (p: Projeto) => Projeto) => { const n = f(projetoRef.current); projetoRef.current = n; setProjeto(n); }, []);
+  const marcarHistorico = useCallback(() => { passado.current.push(projetoRef.current); futuro.current = []; ultimaMudanca.current = null; }, []);
+  const desfazer = useCallback(() => { const p = passado.current.pop(); if (!p) return; futuro.current.push(projetoRef.current); projetoRef.current = p; setProjeto(p); }, []);
+  const refazer = useCallback(() => { const p = futuro.current.pop(); if (!p) return; passado.current.push(projetoRef.current); projetoRef.current = p; setProjeto(p); }, []);
+
+  const registrarSom = useCallback((som: Som, nomeDoSom: string, id = novoId('som')) => {
+    sons.current.set(id, { nome: nomeDoSom, som, picos: calcularPicos(som), buffers: new WeakMap() });
+    setVersaoDosSons((v) => v + 1);
+    return id;
+  }, []);
+  const obterSom = useCallback((id: string) => sons.current.get(id), []);
+  const bufferDe = useCallback((ctx: BaseAudioContext, id: string) => {
+    const s = sons.current.get(id); if (!s) return null;
+    let b = s.buffers.get(ctx); if (!b) { b = paraAudioBuffer(ctx, s.som); s.buffers.set(ctx, b); }
+    return b;
+  }, []);
+
+  const moverCursor = useCallback((t: number) => { const v = Math.max(0, t); cursorRef.current = v; setCursor(v); }, []);
+
+  // ——— recuperar a edição salva no aparelho ———
+  useEffect(() => {
+    void lerDoAparelho().then((g) => {
+      if (g && g.projeto.faixas.length) {
+        for (const [id, s] of Object.entries(g.sons)) registrarSom(s.som, s.nome, id);
+        projetoRef.current = g.projeto; setProjeto(g.projeto); setNome(g.nome || 'Minha edição');
+        setFaixaSel(g.projeto.faixas[0]?.id ?? null);
+        toast.success('A sua última edição foi aberta (ela fica salva neste aparelho).');
+      }
+      carregado.current = true;
+    });
+  }, [registrarSom]);
+  // salva sozinho, 2,5 s depois da última mudança
+  useEffect(() => {
+    if (!carregado.current) return;
+    const t = setTimeout(() => {
+      const usados = sonsUsados(projeto), lista: Record<string, { nome: string; som: Som }> = {};
+      for (const id of usados) { const s = sons.current.get(id); if (s) lista[id] = { nome: s.nome, som: s.som }; }
+      if (projeto.faixas.length) void salvarNoAparelho({ projeto, sons: lista, nome, salvoEm: Date.now() }); else void apagarDoAparelho();
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [projeto, nome]);
+
+  // ——— tamanho da área visível ———
+  useEffect(() => {
+    const el = area.current; if (!el) return;
+    const ro = new ResizeObserver(() => setLargura(el.clientWidth));
+    ro.observe(el); setLargura(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  // ——— desenho ———
+  useEffect(() => {
+    if (regua.current) desenharRegua(regua.current, largura, zoom, rolagem, sel);
+    for (const f of projeto.faixas) {
+      const c = pistas.current.get(f.id);
+      const selDaFaixa = sel && (emTodas || f.id === faixaSel) ? sel : null;
+      if (c) desenharPista(c, largura, f, zoom, rolagem, selDaFaixa, clipeSel, f.id === faixaSel, obterSom);
+    }
+  });
+  const posicionarLinha = useCallback((t: number) => {
+    if (linha.current) { const x = t * zoom - rolagem; linha.current.style.transform = `translateX(${x}px)`; linha.current.style.opacity = x < -1 || x > largura + 1 ? '0' : '1'; }
+    if (relogio.current) relogio.current.textContent = formatarTempo(t);
+  }, [zoom, rolagem, largura]);
+  useEffect(() => { posicionarLinha(cursorRef.current); }, [posicionarLinha, cursor]);
+
+  // ——— tocar ———
+  const contexto = useCallback(() => {
+    if (!audio.current) {
+      const ctx = new AudioContext(), geral = ctx.createGain(), sp = ctx.createChannelSplitter(2), e = ctx.createAnalyser(), d = ctx.createAnalyser();
+      e.fftSize = 1024; d.fftSize = 1024; geral.connect(ctx.destination); geral.connect(sp); sp.connect(e, 0); sp.connect(d, 1);
+      audio.current = { ctx, geral, e, d };
+    }
+    void audio.current.ctx.resume();
+    return audio.current;
+  }, []);
+  const pararSom = useCallback((voltar: boolean) => {
+    const r = reproducao.current; if (!r) return;
+    cancelAnimationFrame(r.raf); for (const f of r.fontes) { try { f.stop(); } catch { /* já parou */ } }
+    reproducao.current = null; setTocando(false);
+    if (medidorE.current) medidorE.current.style.width = '0%'; if (medidorD.current) medidorD.current.style.width = '0%';
+    moverCursor(voltar ? r.origem : cursorRef.current);
+  }, [moverCursor]);
+
+  const medir = useCallback(() => {
+    const a = audio.current; if (!a) return;
+    const buf = new Float32Array(a.e.fftSize);
+    const pk = (an: AnalyserNode) => { an.getFloatTimeDomainData(buf); let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v)); return m; };
+    const largo = (m: number) => `${Math.max(0, Math.min(100, ((20 * Math.log10(m || 1e-6) + 60) / 60) * 100))}%`;
+    const pe = pk(a.e), pd = pk(a.d);
+    if (medidorE.current) { medidorE.current.style.width = largo(pe); medidorE.current.style.background = pe > 0.98 ? '#f43f5e' : ''; }
+    if (medidorD.current) { medidorD.current.style.width = largo(pd); medidorD.current.style.background = pd > 0.98 ? '#f43f5e' : ''; }
+  }, []);
+
+  const tocar = useCallback((de?: number) => {
+    pararSom(false);
+    const a = contexto(), p = projetoRef.current;
+    const ini = loop && sel ? sel.a : (de ?? cursorRef.current), ate = loop && sel ? sel.b : fimDoProjeto(p);
+    if (ate - ini < 0.01) { if (!loop) moverCursor(0); return; }
+    a.geral.gain.value = Math.pow(10, p.volumeGeralDb / 20);
+    const t0 = a.ctx.currentTime + 0.04;
+    const fontes = agendarProjeto(a.ctx, p, bufferDe, ini, ate, a.geral, t0);
+    const r = { fontes, t0, pos0: ini, fim: ate, origem: de ?? cursorRef.current, raf: 0 };
+    reproducao.current = r; setTocando(true);
+    const passo = () => {
+      if (reproducao.current !== r) return;
+      const pos = r.pos0 + Math.max(0, a.ctx.currentTime - r.t0);
+      cursorRef.current = pos; posicionarLinha(pos); medir();
+      const el = area.current, x = pos * zoom;
+      if (el && (x > el.scrollLeft + el.clientWidth - 30 || x < el.scrollLeft)) el.scrollLeft = Math.max(0, x - 60);
+      if (pos >= r.fim) { if (loop && sel) { tocar(sel.a); return; } pararSom(false); moverCursor(r.fim); return; }
+      r.raf = requestAnimationFrame(passo);
+    };
+    r.raf = requestAnimationFrame(passo);
+  }, [bufferDe, contexto, loop, medir, moverCursor, pararSom, posicionarLinha, sel, zoom]);
+
+  const tocarSom = useCallback((s: Som) => {
+    pararSom(false);
+    const a = contexto(), src = a.ctx.createBufferSource(); src.buffer = paraAudioBuffer(a.ctx, s); src.connect(a.geral);
+    const t0 = a.ctx.currentTime + 0.03; src.start(t0);
+    const r = { fontes: [src], t0, pos0: cursorRef.current, fim: cursorRef.current, origem: cursorRef.current, raf: 0 };
+    reproducao.current = r; setTocando(true);
+    const passo = () => { if (reproducao.current !== r) return; medir(); if (a.ctx.currentTime - t0 >= duracaoDoSom(s)) { pararSom(true); return; } r.raf = requestAnimationFrame(passo); };
+    r.raf = requestAnimationFrame(passo);
+  }, [contexto, medir, pararSom]);
+
+  const alternarPlay = useCallback(() => { if (reproducao.current) pararSom(false); else tocar(); }, [pararSom, tocar]);
+
+  // ——— adicionar sons ———
+  const adicionarSom = useCallback((som: Som, nomeDoSom: string, ondeFaixa: 'nova' | string = 'nova', em = 0) => {
+    const id = registrarSom(som, nomeDoSom);
+    const clipe = novoClipe(id, nomeDoSom, duracaoDoSom(som), em);
+    alterar((p) => {
+      if (ondeFaixa !== 'nova' && p.faixas.some((f) => f.id === ondeFaixa)) return trocarFaixa(p, ondeFaixa, (f) => ({ ...f, clipes: [...f.clipes, clipe] }));
+      const f = novaFaixa(p, nomeDoSom.replace(/\.[a-z0-9]+$/i, '').slice(0, 40));
+      setFaixaSel(f.id);
+      return { ...p, faixas: [...p.faixas, { ...f, clipes: [clipe] }] };
+    });
+    setClipeSel(clipe.id);
+    return clipe;
+  }, [alterar, registrarSom]);
+
+  const abrirArquivos = useCallback(async (arquivos: FileList | File[], faixaId: 'nova' | string = 'nova', em = 0) => {
+    const lista = Array.from(arquivos); if (!lista.length) return;
+    setOcupado(`Abrindo ${lista.length} arquivo${lista.length > 1 ? 's' : ''}…`);
+    for (const a of lista) {
+      try { adicionarSom(await decodificarArquivo(await a.arrayBuffer()), a.name, faixaId, em); }
+      catch { toast.error(`Não consegui abrir "${a.name}". Use MP3, WAV, OGG, M4A, AAC, FLAC, WEBM ou um vídeo MP4.`); }
+    }
+    setOcupado(null);
+  }, [adicionarSom]);
+
+  const adicionarDoStudio = useCallback(async (src: string, nomeDoSom: string) => {
+    setSonsAbertos(false); setOcupado(`Baixando "${nomeDoSom}"…`);
+    try {
+      const r = await fetch(src); if (!r.ok) throw new Error(String(r.status));
+      adicionarSom(await decodificarArquivo(await r.arrayBuffer()), nomeDoSom, faixaSel ?? 'nova', faixaSel ? cursorRef.current : 0);
+    } catch { toast.error('Não foi possível baixar esse som.'); }
+    setOcupado(null);
+  }, [adicionarSom, faixaSel]);
+
+  // ——— gravar ———
+  const gravar = useCallback(async () => {
+    if (gravador.current) { gravador.current.rec.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      const rec = new MediaRecorder(stream), partes: Blob[] = [], inicio = cursorRef.current;
+      rec.ondataavailable = (e) => { if (e.data.size) partes.push(e.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop()); gravador.current = null; setGravando(null); pararSom(false);
+        try {
+          const som = await decodificarArquivo(await new Blob(partes, { type: rec.mimeType }).arrayBuffer());
+          adicionarSom(som, `Gravação ${new Date().toLocaleTimeString('pt-BR')}`, 'nova', inicio);
+          toast.success('Gravação adicionada numa faixa nova.');
+        } catch { toast.error('Não foi possível ler a gravação.'); }
+      };
+      gravador.current = { rec, stream, partes };
+      rec.start(250); setGravando({ inicio, desde: Date.now() });
+      if (tocarAoGravar && projetoRef.current.faixas.length) tocar(inicio);
+    } catch { toast.error('O navegador não liberou o microfone. Permita o microfone para este site e tente de novo.'); }
+  }, [adicionarSom, pararSom, tocar, tocarAoGravar]);
+  const [, setTique] = useState(0);
+  useEffect(() => { if (!gravando) return; const i = setInterval(() => setTique((x) => x + 1), 250); return () => clearInterval(i); }, [gravando]);
+
+  // ——— edição ———
+  const alvos = useCallback((p: Projeto) => (emTodas ? p.faixas : p.faixas.filter((f) => f.id === faixaSel)), [emTodas, faixaSel]);
+
+  const copiar = useCallback(() => {
+    if (sel && faixaAtual) { area_transferencia.current = copiarIntervalo(faixaAtual, sel.a, sel.b); toast.success('Trecho copiado.'); return true; }
+    if (clipeAtual) { area_transferencia.current = [{ ...clipeAtual.clipe, inicio: 0 }]; toast.success('Clipe copiado.'); return true; }
+    toast.message('Marque um trecho ou escolha um clipe para copiar.'); return false;
+  }, [clipeAtual, faixaAtual, sel]);
+  const apagar = useCallback(() => {
+    if (sel && sel.b - sel.a > 0.0005) {
+      const ids = new Set(alvos(projetoRef.current).map((f) => f.id));
+      alterar((p) => ({ ...p, faixas: p.faixas.map((f) => (ids.has(f.id) ? apagarIntervalo(f, sel.a, sel.b, true) : f)) }));
+      moverCursor(sel.a); setSel(null); setClipeSel(null); return;
+    }
+    if (clipeSel) { alterar((p) => ({ ...p, faixas: p.faixas.map((f) => ({ ...f, clipes: f.clipes.filter((c) => c.id !== clipeSel) })) })); setClipeSel(null); }
+  }, [alterar, alvos, clipeSel, moverCursor, sel]);
+  const cortar = useCallback(() => { if (sel && faixaAtual) { copiar(); apagar(); } else if (clipeAtual) { copiar(); apagar(); } else toast.message('Marque um trecho ou escolha um clipe para cortar.'); }, [apagar, clipeAtual, copiar, faixaAtual, sel]);
+  const colarAqui = useCallback(() => {
+    const cs = area_transferencia.current; if (!cs.length) { toast.message('Nada copiado ainda.'); return; }
+    const t = sel ? sel.a : cursorRef.current;
+    alterar((p) => {
+      if (faixaSel && p.faixas.some((f) => f.id === faixaSel)) {
+        const base = sel ? trocarFaixa(p, faixaSel, (f) => apagarIntervalo(f, sel.a, sel.b, true)) : p;
+        return trocarFaixa(base, faixaSel, (f) => colar(f, t, cs, true));
+      }
+      const f = novaFaixa(p); setFaixaSel(f.id);
+      return { ...p, faixas: [...p.faixas, colar(f, t, cs, true)] };
+    });
+    const dur = cs.reduce((m, c) => Math.max(m, fimDoClipe(c)), 0); setSel(null); moverCursor(t + dur);
+  }, [alterar, faixaSel, moverCursor, sel]);
+  const dividir = useCallback(() => {
+    const pontos = sel ? [sel.a, sel.b] : [cursorRef.current];
+    const ids = new Set((faixaSel || emTodas ? alvos(projetoRef.current) : projetoRef.current.faixas).map((f) => f.id));
+    alterar((p) => ({ ...p, faixas: p.faixas.map((f) => (ids.has(f.id) ? pontos.reduce((g, t) => dividirFaixa(g, t), f) : f)) }));
+  }, [alterar, alvos, emTodas, faixaSel, sel]);
+  const manterSelecao = useCallback(() => {
+    if (!sel || sel.b - sel.a < 0.001) { toast.message('Arraste na faixa para marcar um trecho primeiro.'); return; }
+    const ids = new Set(alvos(projetoRef.current).map((f) => f.id));
+    alterar((p) => ({ ...p, faixas: p.faixas.map((f) => (ids.has(f.id) ? { ...f, clipes: copiarIntervalo(f, sel.a, sel.b).map((c) => ({ ...c, inicio: c.inicio + sel.a })) } : f)) }));
+  }, [alterar, alvos, sel]);
+  const duplicar = useCallback(() => {
+    if (!clipeAtual) { toast.message('Escolha um clipe para duplicar.'); return; }
+    const c = clipeAtual.clipe, novo = { ...c, id: novoId('clipe'), inicio: fimDoClipe(c) };
+    alterar((p) => trocarFaixa(p, clipeAtual.faixa.id, (f) => ({ ...f, clipes: [...f.clipes, novo] })));
+    setClipeSel(novo.id);
+  }, [alterar, clipeAtual]);
+  const inserirSilencio = useCallback(() => {
+    const t = cursorRef.current, d = Math.max(0.01, silencioSeg);
+    const ids = new Set(alvos(projetoRef.current).map((f) => f.id));
+    if (!ids.size) { toast.message('Escolha uma faixa (toque no nome dela) ou ligue "Todas as faixas".'); return; }
+    alterar((p) => ({ ...p, faixas: p.faixas.map((f) => (ids.has(f.id) ? abrirEspaco(f, t, d) : f)) }));
+  }, [alterar, alvos, silencioSeg]);
+  const selecionarTudo = useCallback(() => {
+    const f = faixaAtual ?? projetoRef.current.faixas[0]; if (!f) return;
+    setFaixaSel(f.id); setSel({ a: 0, b: emTodas ? fimDoProjeto(projetoRef.current) : fimDaFaixa(f) });
+  }, [emTodas, faixaAtual]);
+
+  /** aplica um processamento no trecho marcado (ou no clipe escolhido / faixa inteira) */
+  const processar = useCallback(async (nomeDoProcesso: string, fn: (s: Som) => Promise<Som> | Som, previa = false) => {
+    const p = projetoRef.current;
+    let faixas: Faixa[] = [], a = 0, b = 0;
+    if (sel && sel.b - sel.a > 0.0005) { faixas = alvos(p); a = sel.a; b = sel.b; }
+    else if (clipeAtual) { faixas = [clipeAtual.faixa]; a = clipeAtual.clipe.inicio; b = fimDoClipe(clipeAtual.clipe); }
+    else if (faixaAtual) { faixas = [faixaAtual]; a = 0; b = fimDaFaixa(faixaAtual); }
+    if (!faixas.length || b - a < 0.0005) { toast.message('Marque um trecho, escolha um clipe ou uma faixa.'); return; }
+    setOcupado(`${previa ? 'Preparando a prévia' : 'Aplicando'}: ${nomeDoProcesso}…`);
+    await new Promise((r) => setTimeout(r, 30));
+    try {
+      const trocas: Array<{ faixa: Faixa; novos: Array<{ id: string; somId: string; duracao: number }> }> = [];
+      const previas: Som[] = [];
+      for (const f of faixas) {
+        const { faixa, dentro } = clipesNoIntervalo(f, a, b);
+        const novos: Array<{ id: string; somId: string; duracao: number }> = [];
+        for (const c of dentro) {
+          const info = sons.current.get(c.somId); if (!info) continue;
+          const saida = await fn(recortar(info.som, c.deslocamento, c.deslocamento + c.duracao));
+          if (previa) { previas.push(saida); continue; }
+          novos.push({ id: c.id, somId: registrarSom(saida, `${info.nome}`), duracao: duracaoDoSom(saida) });
+        }
+        trocas.push({ faixa, novos });
+      }
+      if (previa) { if (previas.length) tocarSom(previas.reduce((x, y) => juntar(x, y))); else toast.message('Não há som nesse trecho.'); }
+      else {
+        const porId = new Map(trocas.map((t) => [t.faixa.id, t]));
+        alterar((q) => ({ ...q, faixas: q.faixas.map((f) => { const t = porId.get(f.id); return t ? trocarSomDosClipes(t.faixa, t.novos) : f; }) }));
+        toast.success(`${nomeDoProcesso} aplicado.`);
+      }
+    } catch (e) { toast.error(`Não foi possível aplicar (${e instanceof Error ? e.message : 'erro'}).`); }
+    setOcupado(null);
+  }, [alterar, alvos, clipeAtual, faixaAtual, registrarSom, sel, tocarSom]);
+
+  const efeito = efeitoPorId(efeitoId)!;
+  const escolherEfeito = (e: Efeito) => { setEfeitoId(e.id); setValores(valoresPadrao(e)); };
+
+  // ——— zoom ———
+  const zoomPara = useCallback((z: number, foco?: number) => {
+    const el = area.current, novo = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+    const t = foco ?? cursorRef.current, x = t * zoom - (el?.scrollLeft ?? 0);
+    setZoom(novo);
+    requestAnimationFrame(() => { if (el) { el.scrollLeft = Math.max(0, t * novo - x); setRolagem(el.scrollLeft); } });
+  }, [zoom]);
+  const ajustar = useCallback(() => { const f = fimDoProjeto(projetoRef.current); if (f > 0) { setZoom(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, (largura - 20) / f))); requestAnimationFrame(() => { if (area.current) { area.current.scrollLeft = 0; setRolagem(0); } }); } }, [largura]);
+
+  // ——— mouse nas faixas ———
+  const tempoDoMouse = (e: { clientX: number }) => { const r = area.current!.getBoundingClientRect(); return Math.max(0, (e.clientX - r.left + area.current!.scrollLeft) / zoom); };
+  const imantar = (t: number, ignorar?: string) => {
+    if (!ima) return t;
+    const tol = 8 / zoom, pontos = [0, cursorRef.current, ...projetoRef.current.faixas.flatMap((f) => f.clipes.filter((c) => c.id !== ignorar).flatMap((c) => [c.inicio, fimDoClipe(c)]))];
+    let melhor = t, d = tol; for (const p of pontos) if (Math.abs(p - t) < d) { d = Math.abs(p - t); melhor = p; }
+    return melhor;
+  };
+  const aoApertar = (f: Faixa) => (e: PE<HTMLCanvasElement>) => {
+    if (e.button !== 0) return;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    const t = tempoDoMouse(e), y = e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top;
+    setFaixaSel(f.id);
+    if (ferramenta === 'tesoura') {
+      const tc = imantar(t), ids = new Set(emTodas ? projetoRef.current.faixas.map((x) => x.id) : [f.id]);
+      alterar((p) => ({ ...p, faixas: p.faixas.map((x) => (ids.has(x.id) ? dividirFaixa(x, tc) : x)) }));
+      moverCursor(tc); setSel(null); return;
+    }
+    const sob = [...f.clipes].reverse().find((c) => t >= c.inicio - BORDA / zoom && t <= fimDoClipe(c) + BORDA / zoom);
+    if (sob) {
+      const xIni = sob.inicio * zoom, xFim = fimDoClipe(sob) * zoom, x = t * zoom;
+      if (Math.abs(x - xIni) <= BORDA && sob.duracao * zoom > BORDA * 3) { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'inicio' }; setClipeSel(sob.id); return; }
+      if (Math.abs(x - xFim) <= BORDA) { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'fim' }; setClipeSel(sob.id); return; }
+      if (t >= sob.inicio && t <= fimDoClipe(sob) && (y <= TITULO + 2 || ferramenta === 'mover' || e.altKey)) {
+        marcarHistorico(); gesto.current = { tipo: 'mover', clipeId: sob.id, desvio: t - sob.inicio, moveu: false }; setClipeSel(sob.id); setSel(null); return;
+      }
+    }
+    setClipeSel(sob && t >= sob.inicio && t <= fimDoClipe(sob) ? sob.id : null);
+    if (reproducao.current) pararSom(false);
+    const ti = imantar(t); moverCursor(ti); setSel(null);
+    gesto.current = { tipo: 'selecao', faixaId: f.id, ancora: ti };
+  };
+  const aoMover = (e: PE<HTMLElement>) => {
+    const g = gesto.current; if (!g) return;
+    const t = tempoDoMouse(e);
+    if (g.tipo === 'selecao' || g.tipo === 'regua') {
+      if (g.tipo === 'regua') { moverCursor(imantar(t)); return; }
+      const b = imantar(t); if (Math.abs(b - g.ancora) * zoom < 3) { setSel(null); return; }
+      setSel({ a: Math.min(g.ancora, b), b: Math.max(g.ancora, b) });
+      const el = area.current!; const x = e.clientX - el.getBoundingClientRect().left;
+      if (x > el.clientWidth - 20) el.scrollLeft += 20; else if (x < 20) el.scrollLeft = Math.max(0, el.scrollLeft - 20);
+      return;
+    }
+    if (g.tipo === 'mover') {
+      const achado = acharClipe(projetoRef.current, g.clipeId); if (!achado) return;
+      const novoInicio = Math.max(0, imantar(t - g.desvio, g.clipeId));
+      const alvo = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>('[data-faixa]')?.dataset.faixa;
+      g.moveu = true;
+      alterarAoVivo((p) => {
+        const c = { ...achado.clipe, inicio: novoInicio };
+        if (alvo && alvo !== achado.faixa.id && p.faixas.some((f) => f.id === alvo)) {
+          setFaixaSel(alvo);
+          return { ...p, faixas: p.faixas.map((f) => (f.id === achado.faixa.id ? { ...f, clipes: f.clipes.filter((x) => x.id !== c.id) } : f.id === alvo ? { ...f, clipes: [...f.clipes, c] } : f)) };
+        }
+        return trocarClipe(p, g.clipeId, () => c);
+      });
+      return;
+    }
+    if (g.tipo === 'aparar') {
+      const achado = acharClipe(projetoRef.current, g.clipeId); const info = achado && sons.current.get(achado.clipe.somId);
+      if (!achado || !info) return;
+      alterarAoVivo((p) => trocarClipe(p, g.clipeId, (c) => apararClipe(c, g.lado, imantar(t, g.clipeId), duracaoDoSom(info.som))));
+    }
+  };
+  const aoSoltar = () => {
+    const g = gesto.current; gesto.current = null;
+    if (g?.tipo === 'mover' && !g.moveu) passado.current.pop(); // só um toque: não vira passo do desfazer
+  };
+
+  // ——— teclado ———
+  const atalhos = useRef<Record<string, () => void>>({});
+  atalhos.current = { alternarPlay, desfazer, refazer, cortar, copiar: () => void copiar(), colar: colarAqui, apagar, dividir, duplicar, selecionarTudo, inicio: () => { pararSom(false); moverCursor(0); }, fim: () => { pararSom(false); moverCursor(fimDoProjeto(projetoRef.current)); }, mais: () => zoomPara(zoom * 1.6), menos: () => zoomPara(zoom / 1.6), loop: () => setLoop((v) => !v), escapar: () => { setSel(null); setClipeSel(null); } };
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (ehCampo(e.target)) return;
+      const ctrl = e.ctrlKey || e.metaKey, a = atalhos.current, t = e.key.toLowerCase();
+      const fazer = (f: () => void) => { e.preventDefault(); f(); };
+      if (t === ' ') return fazer(a.alternarPlay);
+      if (ctrl && t === 'z' && e.shiftKey) return fazer(a.refazer);
+      if (ctrl && t === 'z') return fazer(a.desfazer);
+      if (ctrl && t === 'y') return fazer(a.refazer);
+      if (ctrl && t === 'x') return fazer(a.cortar);
+      if (ctrl && t === 'c') return fazer(a.copiar);
+      if (ctrl && t === 'v') return fazer(a.colar);
+      if (ctrl && t === 'd') return fazer(a.duplicar);
+      if (ctrl && t === 'a') return fazer(a.selecionarTudo);
+      if (ctrl) return;
+      if (t === 'delete' || t === 'backspace') return fazer(a.apagar);
+      if (t === 's') return fazer(a.dividir);
+      if (t === 'home') return fazer(a.inicio);
+      if (t === 'end') return fazer(a.fim);
+      if (t === '+' || t === '=') return fazer(a.mais);
+      if (t === '-') return fazer(a.menos);
+      if (t === 'l') return fazer(a.loop);
+      if (t === 'escape') return fazer(a.escapar);
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+  // aviso antes de sair com edição sem baixar (ela fica salva no aparelho, mas o dono é avisado)
+  useEffect(() => () => { pararSom(false); gravador.current?.rec.stop(); void audio.current?.ctx.close(); }, [pararSom]);
+
+  // ——— exportar ———
+  const [exp, setExp] = useState<{ formato: FormatoDeAudio; kbps: number; sr: number; canais: 1 | 2; intervalo: 'tudo' | 'selecao'; normalizar: boolean }>({ formato: 'mp3', kbps: 192, sr: 44100, canais: 2, intervalo: 'tudo', normalizar: false });
+  const baixar = useCallback(async () => {
+    const p = projetoRef.current; if (!p.faixas.some((f) => f.clipes.length)) { toast.message('Não há áudio para baixar.'); return; }
+    const de = exp.intervalo === 'selecao' && sel ? sel.a : 0, ate = exp.intervalo === 'selecao' && sel ? sel.b : fimDoProjeto(p);
+    setOcupado('Gerando o arquivo…'); await new Promise((r) => setTimeout(r, 30));
+    try {
+      const som = await renderizarProjeto(p, bufferDe, { de, ate, sr: exp.sr, canais: exp.canais, normalizarDb: exp.normalizar ? -1 : null });
+      const { bytes, tipo, ext } = codificar(som, exp.formato, exp.kbps);
+      const arquivo = `${(nome.trim() || 'audio').replace(/[\\/:*?"<>|]+/g, '-')}.${ext}`;
+      baixarArquivo(bytes, tipo, arquivo);
+      toast.success(`Baixado: ${arquivo} (${(bytes.length / 1048576).toFixed(1)} MB, ${formatarTempo(ate - de)}).`);
+      setExportar(false);
+    } catch (e) { toast.error(`Não foi possível gerar o arquivo (${e instanceof Error ? e.message : 'erro'}).`); }
+    setOcupado(null);
+  }, [bufferDe, exp, nome, sel]);
+
+  const novoProjeto = () => {
+    if (projetoRef.current.faixas.length && !window.confirm('Começar um projeto novo? A edição atual sai deste aparelho (baixe antes se quiser guardar).')) return;
+    pararSom(false); passado.current = []; futuro.current = []; sons.current.clear();
+    const p = projetoVazio(); projetoRef.current = p; setProjeto(p); setSel(null); setClipeSel(null); setFaixaSel(null); moverCursor(0); setNome('Minha edição'); void apagarDoAparelho();
+  };
+
+  const entrada = useRef<HTMLInputElement>(null);
+  const porGrupo = useMemo(() => GRUPOS.map((g) => ({ g, lista: EFEITOS.filter((e) => e.grupo === g) })), []);
+  const alvoTexto = sel && sel.b - sel.a > 0.0005
+    ? `Trecho ${formatarTempo(sel.a)} → ${formatarTempo(sel.b)} ${emTodas ? '(todas as faixas)' : faixaAtual ? `em "${faixaAtual.nome}"` : ''}`
+    : clipeAtual ? `Clipe "${clipeAtual.clipe.nome}" inteiro` : faixaAtual ? `Faixa "${faixaAtual.nome}" inteira` : 'Nada escolhido: marque um trecho ou toque num clipe';
+  const segGravando = gravando ? (Date.now() - gravando.desde) / 1000 : 0;
+
+  return (
+    <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 text-slate-100" data-testid="editor-de-audio"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length) { const alvo = (e.target as HTMLElement).closest<HTMLElement>('[data-faixa]')?.dataset.faixa; void abrirArquivos(e.dataTransfer.files, alvo ?? 'nova', alvo && area.current ? tempoDoMouse(e) : 0); } }}>
+      {/* —— topo —— */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#B04DFF] to-[#5D1BFF]"><AudioWaveform className="h-5 w-5" /></span>
+        <div className="mr-2">
+          <h1 className="text-lg font-black leading-tight">Editor de Áudio</h1>
+          <input value={nome} onChange={(e) => setNome(e.target.value)} aria-label="Nome da edição" className="w-56 bg-transparent text-xs text-slate-400 focus:text-white focus:outline-none" />
+        </div>
+        <Botao titulo="Projeto novo" onClick={novoProjeto}><FilePlus2 className="h-4 w-4" />Novo</Botao>
+        <Botao titulo="Enviar áudio do aparelho (ou arraste arquivos para cá)" onClick={() => entrada.current?.click()}><Upload className="h-4 w-4" />Enviar áudio do aparelho</Botao>
+        <input ref={entrada} type="file" multiple accept="audio/*,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,.opus" className="hidden" data-testid="editor-audio-arquivo"
+          onChange={(e) => { if (e.target.files) void abrirArquivos(e.target.files); e.target.value = ''; }} />
+        <Botao titulo={gravando ? 'Parar a gravação' : 'Gravar pelo microfone (no cursor, numa faixa nova)'} onClick={() => void gravar()} ativo={!!gravando}>
+          <Mic className={cn('h-4 w-4', gravando && 'animate-pulse text-rose-400')} />{gravando ? `Parar (${segGravando.toFixed(1)} s)` : 'Gravar'}
+        </Botao>
+        <label className="flex items-center gap-1 text-[11px] text-slate-400"><input type="checkbox" checked={tocarAoGravar} onChange={(e) => setTocarAoGravar(e.target.checked)} />tocar o projeto enquanto grava</label>
+        <div className="relative">
+          <Botao titulo="Sons e trilhas do Studio" onClick={() => setSonsAbertos((v) => !v)} ativo={sonsAbertos}><Music className="h-4 w-4" />Sons do Studio</Botao>
+          {sonsAbertos && (
+            <div className="absolute left-0 z-30 mt-2 max-h-[60vh] w-72 overflow-y-auto rounded-xl border border-white/10 bg-[#1a0b3d] p-2 shadow-2xl">
+              <p className="px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-[#B04DFF]">Efeitos sonoros</p>
+              {Object.values(SONS).map((s) => <button key={s.src} type="button" onClick={() => void adicionarDoStudio(s.src, s.nome)} className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-white/10">{s.nome}</button>)}
+              <p className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-[#B04DFF]">Trilhas (livres para uso comercial)</p>
+              {TRILHAS.map((t) => <button key={t.id} type="button" onClick={() => void adicionarDoStudio(t.src, t.nome)} className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-white/10">{t.nome} <span className="text-xs text-slate-400">· {t.estilo}</span></button>)}
+              <p className="px-2 pt-2 text-[11px] text-slate-400">Entra na faixa escolhida, no cursor (ou numa faixa nova).</p>
+            </div>
+          )}
+        </div>
+        <Botao titulo="Gerar um bipe (1 kHz) no cursor" onClick={() => adicionarSom(gerarTom(44100, 1, 1000, 'seno', 0.3), 'Bipe 1 kHz', faixaSel ?? 'nova', cursorRef.current)}>Bipe</Botao>
+        <div className="ml-auto flex items-center gap-2">
+          {ocupado && <span className="flex items-center gap-1.5 text-xs text-[#FFD400]"><Loader2 className="h-4 w-4 animate-spin" />{ocupado}</span>}
+          <button type="button" onClick={() => setExportar(true)} data-testid="editor-audio-baixar"
+            className="flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-[#25D366] to-[#1fa855] px-4 text-sm font-bold text-[#0B0420] shadow-lg"><Download className="h-4 w-4" />Baixar áudio editado</button>
+        </div>
+      </div>
+
+      {/* —— barra de ferramentas —— */}
+      <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-white/10 bg-[#140632] p-2">
+        <div className="flex items-center gap-1">
+          <Botao titulo="Ir ao início (Home)" onClick={() => atalhos.current.inicio()}><SkipBack className="h-4 w-4" /></Botao>
+          <Botao titulo={tocando ? 'Pausar (espaço)' : 'Tocar (espaço)'} onClick={alternarPlay} ativo={tocando}>{tocando ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</Botao>
+          <Botao titulo="Parar e voltar" onClick={() => pararSom(true)}><Square className="h-4 w-4" /></Botao>
+          <Botao titulo="Ir ao fim (End)" onClick={() => atalhos.current.fim()}><SkipForward className="h-4 w-4" /></Botao>
+          <Botao titulo="Repetir o trecho marcado (L)" onClick={() => setLoop((v) => !v)} ativo={loop}><Repeat className="h-4 w-4" /></Botao>
+        </div>
+        <div className="flex flex-col rounded-lg bg-[#0B0420] px-3 py-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Posição</span>
+          <span ref={relogio} className="font-mono text-lg font-bold leading-tight text-[#FFD400]" data-testid="editor-audio-relogio">0:00.000</span>
+        </div>
+        <CampoDeTempo rotulo="Início" valor={sel ? sel.a : cursor} onMudar={(v) => (sel ? setSel({ a: Math.min(v, sel.b), b: sel.b }) : moverCursor(v))} />
+        <CampoDeTempo rotulo="Fim" valor={sel ? sel.b : null} onMudar={(v) => sel && setSel({ a: sel.a, b: Math.max(v, sel.a) })} />
+        <CampoDeTempo rotulo="Duração" valor={sel ? sel.b - sel.a : null} onMudar={(v) => sel && setSel({ a: sel.a, b: sel.a + v })} />
+        <span className="mx-1 h-9 w-px bg-white/10" />
+        <div className="flex items-center gap-1">
+        <Botao titulo="Voltar o que foi feito (Ctrl+Z)" onClick={desfazer} desligado={!passado.current.length}><Undo2 className="h-4 w-4" />Voltar</Botao>
+        <Botao titulo="Avançar de novo o que foi voltado (Ctrl+Y)" onClick={refazer} desligado={!futuro.current.length}>Avançar<Redo2 className="h-4 w-4" /></Botao>
+        </div>
+        <span className="mx-1 h-9 w-px bg-white/10" />
+        <span className="self-center text-[10px] font-bold uppercase tracking-wider text-[#B04DFF]">Cortes</span>
+        <Botao titulo="Tesoura: clique no áudio para cortar ali" onClick={() => setFerramenta((v) => (v === 'tesoura' ? 'selecao' : 'tesoura'))} ativo={ferramenta === 'tesoura'}><Scissors className="h-4 w-4" />Tesoura</Botao>
+        <Botao titulo="Cortar o trecho marcado (Ctrl+X): sai do áudio e vai para colar" onClick={cortar}><Scissors className="h-4 w-4" />Cortar trecho</Botao>
+        <Botao titulo="Copiar (Ctrl+C)" onClick={() => void copiar()}><Copy className="h-4 w-4" /></Botao>
+        <Botao titulo="Colar no cursor (Ctrl+V)" onClick={colarAqui}><ClipboardPaste className="h-4 w-4" /></Botao>
+        <Botao titulo="Apagar o trecho ou o clipe (Delete)" onClick={apagar} perigo><Trash2 className="h-4 w-4" />Apagar</Botao>
+        <Botao titulo="Manter só o trecho marcado (tira o resto)" onClick={manterSelecao}><Crop className="h-4 w-4" />Manter trecho</Botao>
+        <Botao titulo="Silenciar o trecho" onClick={() => void processar('Silêncio', silenciar)}><VolumeX className="h-4 w-4" /></Botao>
+        <Botao titulo="Dividir no cursor (S)" onClick={dividir}><Split className="h-4 w-4" />Dividir</Botao>
+        <Botao titulo="Duplicar o clipe (Ctrl+D)" onClick={duplicar}><CopyPlus className="h-4 w-4" /></Botao>
+        <div className="flex items-center gap-1">
+          <Botao titulo="Inserir silêncio no cursor" onClick={inserirSilencio}><BetweenHorizontalStart className="h-4 w-4" />Silêncio</Botao>
+          <input type="number" min={0.01} step={0.1} value={silencioSeg} onChange={(e) => setSilencioSeg(Number(e.target.value))} aria-label="Segundos de silêncio" className="w-14 rounded-md border border-white/10 bg-[#0B0420] px-1 py-1 text-xs" /><span className="text-[11px] text-slate-400">s</span>
+        </div>
+        <span className="mx-1 h-9 w-px bg-white/10" />
+        <Botao titulo="Ferramenta de seleção (arrastar marca um trecho; a barra do clipe move)" onClick={() => setFerramenta('selecao')} ativo={ferramenta === 'selecao'}><MousePointer2 className="h-4 w-4" /></Botao>
+        <Botao titulo="Ferramenta de mover clipes" onClick={() => setFerramenta('mover')} ativo={ferramenta === 'mover'}><Hand className="h-4 w-4" /></Botao>
+        <Botao titulo="Ímã: gruda nas pontas dos clipes e no cursor" onClick={() => setIma((v) => !v)} ativo={ima}><Magnet className="h-4 w-4" /></Botao>
+        <Botao titulo="Editar todas as faixas juntas" onClick={() => setEmTodas((v) => !v)} ativo={emTodas}><Rows3 className="h-4 w-4" />Todas</Botao>
+        <span className="mx-1 h-9 w-px bg-white/10" />
+        <Botao titulo="Afastar (−)" onClick={() => zoomPara(zoom / 1.6)}><ZoomOut className="h-4 w-4" /></Botao>
+        <Botao titulo="Aproximar (+)" onClick={() => zoomPara(zoom * 1.6)}><ZoomIn className="h-4 w-4" /></Botao>
+        <Botao titulo="Ver o projeto inteiro" onClick={ajustar}><Maximize2 className="h-4 w-4" /></Botao>
+        <div className="ml-auto flex items-center gap-2">
+          <Volume2 className="h-4 w-4 text-slate-400" />
+          <input type="range" min={-30} max={12} step={0.5} value={projeto.volumeGeralDb} aria-label="Volume geral"
+            onChange={(e) => { const v = Number(e.target.value); alterar((p) => ({ ...p, volumeGeralDb: v }), 'geral'); if (audio.current) audio.current.geral.gain.value = Math.pow(10, v / 20); }} className="w-24 accent-[#8A2EFF]" />
+          <span className="w-14 text-right font-mono text-[11px] text-slate-300">{projeto.volumeGeralDb.toFixed(1)} dB</span>
+          <div className="flex w-28 flex-col gap-1" title="Medidor (esquerdo/direito)">
+            <div className="h-2 overflow-hidden rounded bg-white/10"><div ref={medidorE} className="h-full w-0 bg-gradient-to-r from-[#25D366] via-[#FFD400] to-[#f97316]" /></div>
+            <div className="h-2 overflow-hidden rounded bg-white/10"><div ref={medidorD} className="h-full w-0 bg-gradient-to-r from-[#25D366] via-[#FFD400] to-[#f97316]" /></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3 xl:flex-row">
+        {/* —— linha do tempo —— */}
+        <div className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0e0526]">
+          <div className="flex max-h-[62vh] overflow-y-auto">
+            <div className="shrink-0 border-r border-white/10" style={{ width: CAB }}>
+              <div style={{ height: REGUA }} className="flex items-center gap-1 border-b border-white/10 px-2">
+                <button type="button" onClick={() => { const f = novaFaixa(projetoRef.current); alterar((p) => ({ ...p, faixas: [...p.faixas, f] })); setFaixaSel(f.id); }}
+                  className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold text-slate-300 hover:bg-white/10"><Plus className="h-3.5 w-3.5" />Faixa</button>
+              </div>
+              {projeto.faixas.map((f) => (
+                <div key={f.id} style={{ height: ALTURA }} onClick={() => setFaixaSel(f.id)}
+                  className={cn('flex flex-col gap-1 border-b border-white/10 p-2', f.id === faixaSel ? 'bg-[#22004A]' : 'bg-[#120530]')}>
+                  <div className="flex items-center gap-1">
+                    <span className="h-4 w-1.5 shrink-0 rounded" style={{ background: f.cor }} />
+                    <input value={f.nome} onChange={(e) => { const v = e.target.value; alterar((p) => trocarFaixa(p, f.id, (x) => ({ ...x, nome: v })), `nome-${f.id}`); }}
+                      aria-label="Nome da faixa" className="min-w-0 flex-1 bg-transparent text-xs font-bold focus:outline-none" />
+                    <button type="button" title="Mudo" onClick={() => alterar((p) => trocarFaixa(p, f.id, (x) => ({ ...x, mudo: !x.mudo })))}
+                      className={cn('rounded px-1.5 text-[10px] font-black', f.mudo ? 'bg-rose-500 text-white' : 'bg-white/10 text-slate-300')}>M</button>
+                    <button type="button" title="Solo (só esta faixa toca)" onClick={() => alterar((p) => trocarFaixa(p, f.id, (x) => ({ ...x, solo: !x.solo })))}
+                      className={cn('rounded px-1.5 text-[10px] font-black', f.solo ? 'bg-[#FFD400] text-[#0B0420]' : 'bg-white/10 text-slate-300')}><Headphones className="inline h-3 w-3" /></button>
+                    <button type="button" title="Apagar a faixa" onClick={(e) => { e.stopPropagation(); if (f.clipes.length && !window.confirm(`Apagar a faixa "${f.nome}"?`)) return; alterar((p) => ({ ...p, faixas: p.faixas.filter((x) => x.id !== f.id) })); if (faixaSel === f.id) setFaixaSel(null); }}
+                      className="rounded p-0.5 text-slate-400 hover:text-rose-300"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <label className="flex items-center gap-1 text-[10px] text-slate-400">Vol
+                    <input type="range" min={-60} max={12} step={0.5} value={f.volumeDb} onChange={(e) => { const v = Number(e.target.value); alterar((p) => trocarFaixa(p, f.id, (x) => ({ ...x, volumeDb: v })), `vol-${f.id}`); }} className="min-w-0 flex-1 accent-[#8A2EFF]" />
+                    <span className="w-11 text-right font-mono">{f.volumeDb <= -60 ? '-∞' : f.volumeDb.toFixed(1)}</span>
+                  </label>
+                  <label className="flex items-center gap-1 text-[10px] text-slate-400">E/D
+                    <input type="range" min={-1} max={1} step={0.05} value={f.pan} onDoubleClick={() => alterar((p) => trocarFaixa(p, f.id, (x) => ({ ...x, pan: 0 })))} onChange={(e) => { const v = Number(e.target.value); alterar((p) => trocarFaixa(p, f.id, (x) => ({ ...x, pan: v })), `pan-${f.id}`); }} className="min-w-0 flex-1 accent-[#25D366]" />
+                    <span className="w-11 text-right font-mono">{f.pan === 0 ? 'centro' : `${f.pan < 0 ? 'E' : 'D'}${Math.round(Math.abs(f.pan) * 100)}`}</span>
+                  </label>
+                  <span className="text-[10px] text-slate-500">{f.clipes.length} clipe{f.clipes.length === 1 ? '' : 's'} · {formatarTempo(fimDaFaixa(f), false)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="relative min-w-0 flex-1">
+              <div ref={area} className="overflow-x-auto overflow-y-hidden" onScroll={(e) => setRolagem((e.target as HTMLDivElement).scrollLeft)}
+                onWheel={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); zoomPara(zoom * (e.deltaY < 0 ? 1.25 : 0.8), tempoDoMouse(e)); } }}>
+                <div style={{ width: larguraTotal }}>
+                  <canvas ref={regua} style={{ width: largura, height: REGUA, position: 'sticky', left: 0, display: 'block', cursor: 'text' }}
+                    onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); if (reproducao.current) pararSom(false); moverCursor(imantar(tempoDoMouse(e))); setSel(null); gesto.current = { tipo: 'regua' }; }}
+                    onPointerMove={aoMover} onPointerUp={aoSoltar} />
+                  {projeto.faixas.map((f) => (
+                    <div key={f.id} data-faixa={f.id} style={{ height: ALTURA }}>
+                      <canvas ref={(c) => { if (c) pistas.current.set(f.id, c); else pistas.current.delete(f.id); }} data-testid="editor-audio-pista"
+                        style={{ width: largura, height: ALTURA, position: 'sticky', left: 0, display: 'block', cursor: ferramenta === 'mover' ? 'grab' : ferramenta === 'tesoura' ? 'crosshair' : 'text', touchAction: 'none' }}
+                        onPointerDown={aoApertar(f)} onPointerMove={aoMover} onPointerUp={aoSoltar} onDoubleClick={(e) => {
+                          const t = tempoDoMouse(e), c = f.clipes.find((x) => t >= x.inicio && t <= fimDoClipe(x));
+                          if (c) { setSel({ a: c.inicio, b: fimDoClipe(c) }); setClipeSel(c.id); }
+                        }} />
+                    </div>
+                  ))}
+                  {!projeto.faixas.length && (
+                    <div style={{ width: largura, position: 'sticky', left: 0 }} className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+                      <AudioWaveform className="h-10 w-10 text-[#B04DFF]" />
+                      <p className="text-sm font-semibold">Abra um áudio, arraste arquivos para cá, grave pelo microfone ou use um som do Studio.</p>
+                      <p className="text-xs text-slate-400">MP3, WAV, OGG, M4A, AAC, FLAC, WEBM ou o áudio de um vídeo MP4.</p>
+                      <button type="button" onClick={() => entrada.current?.click()} className="rounded-lg bg-[#8A2EFF] px-4 py-2 text-sm font-bold">Abrir áudio</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div ref={linha} className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-[#FFD400] shadow-[0_0_8px_#FFD400]" style={{ left: 0 }} />
+            </div>
+          </div>
+          <p className="border-t border-white/10 px-3 py-1.5 text-[11px] text-slate-400">
+            Arraste na onda para marcar um trecho · com a <b>Tesoura</b>, clique para cortar · arraste a <b>barra colorida</b> do clipe para mover (ou outra faixa) · puxe a <b>borda</b> do clipe para aparar · Ctrl+roda = zoom ·
+            Espaço tocar · S dividir · Delete apagar · Ctrl+Z/Y · Ctrl+X/C/V · Ctrl+D duplicar · Ctrl+A tudo · L repetir · arraste arquivos para uma faixa
+          </p>
+        </div>
+
+        {/* —— lateral direita: efeitos e clipe —— */}
+        <aside className="flex w-full shrink-0 flex-col gap-3 xl:w-[340px]">
+          <section className="rounded-2xl border border-white/10 bg-[#140632] p-3">
+            <h2 className="text-sm font-black">Efeitos</h2>
+            <p className="mt-0.5 text-[11px] text-[#FFD400]" data-testid="editor-audio-alvo">{alvoTexto}</p>
+            <select value={efeitoId} onChange={(e) => escolherEfeito(efeitoPorId(e.target.value)!)} aria-label="Escolher efeito" data-testid="editor-audio-efeito"
+              className="mt-2 w-full rounded-lg border border-white/10 bg-[#0B0420] px-2 py-2 text-sm">
+              {porGrupo.map(({ g, lista }) => <optgroup key={g} label={g}>{lista.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}</optgroup>)}
+            </select>
+            <p className="mt-1.5 text-xs text-slate-400">{efeito.descricao}</p>
+            <div className="mt-2 flex flex-col gap-2">
+              {efeito.ajustes.map((a) => (
+                <label key={a.id} className="flex flex-col gap-0.5 text-[11px] text-slate-300">
+                  <span className="flex justify-between"><span>{a.nome}</span>{a.tipo === 'numero' && <span className="font-mono text-white">{Number(valores[a.id]).toFixed(a.passo < 1 ? (a.passo < 0.1 ? 2 : 1) : 0)} {a.unidade}</span>}</span>
+                  {a.tipo === 'numero' && <input type="range" min={a.min} max={a.max} step={a.passo} value={Number(valores[a.id])} onChange={(e) => setValores((v) => ({ ...v, [a.id]: Number(e.target.value) }))} className="accent-[#8A2EFF]" />}
+                  {a.tipo === 'opcoes' && <select value={String(valores[a.id])} onChange={(e) => setValores((v) => ({ ...v, [a.id]: e.target.value }))} className="rounded-md border border-white/10 bg-[#0B0420] px-2 py-1 text-xs">{a.opcoes.map((o) => <option key={o.valor} value={o.valor}>{o.nome}</option>)}</select>}
+                  {a.tipo === 'sim' && <input type="checkbox" checked={!!valores[a.id]} onChange={(e) => setValores((v) => ({ ...v, [a.id]: e.target.checked }))} />}
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button type="button" disabled={!!ocupado} onClick={() => void processar(efeito.nome, (s) => efeito.aplicar(s, valores), true)} className="flex-1 rounded-lg border border-[#B04DFF]/60 px-3 py-2 text-sm font-semibold hover:bg-[#8A2EFF]/20 disabled:opacity-40">Ouvir prévia</button>
+              <button type="button" disabled={!!ocupado} onClick={() => void processar(efeito.nome, (s) => efeito.aplicar(s, valores))} data-testid="editor-audio-aplicar" className="flex-1 rounded-lg bg-[#8A2EFF] px-3 py-2 text-sm font-bold hover:bg-[#9b47ff] disabled:opacity-40">Aplicar</button>
+            </div>
+            <button type="button" onClick={() => setValores(valoresPadrao(efeito))} className="mt-2 text-[11px] text-slate-400 underline">voltar aos valores padrão</button>
+          </section>
+
+          {clipeAtual && (
+            <section className="rounded-2xl border border-white/10 bg-[#140632] p-3" data-testid="editor-audio-clipe">
+              <h2 className="text-sm font-black">Clipe</h2>
+              <input value={clipeAtual.clipe.nome} onChange={(e) => { const v = e.target.value; alterar((p) => trocarClipe(p, clipeAtual.clipe.id, (c) => ({ ...c, nome: v })), `cn-${clipeAtual.clipe.id}`); }}
+                aria-label="Nome do clipe" className="mt-1 w-full rounded-md border border-white/10 bg-[#0B0420] px-2 py-1 text-xs" />
+              <p className="mt-1 text-[11px] text-slate-400">Começa em {formatarTempo(clipeAtual.clipe.inicio)} · dura {formatarTempo(clipeAtual.clipe.duracao)}</p>
+              {([
+                ['ganhoDb', 'Volume do clipe', -40, 24, 0.5, 'dB'],
+                ['fadeEntrada', 'Fade de entrada', 0, Math.min(30, clipeAtual.clipe.duracao), 0.01, 's'],
+                ['fadeSaida', 'Fade de saída', 0, Math.min(30, clipeAtual.clipe.duracao), 0.01, 's'],
+              ] as const).map(([k, rotulo, min, max, passo, un]) => (
+                <label key={k} className="mt-2 flex flex-col gap-0.5 text-[11px] text-slate-300">
+                  <span className="flex justify-between"><span>{rotulo}</span><span className="font-mono text-white">{clipeAtual.clipe[k].toFixed(2)} {un}</span></span>
+                  <input type="range" min={min} max={max} step={passo} value={clipeAtual.clipe[k]} className="accent-[#8A2EFF]"
+                    onChange={(e) => { const v = Number(e.target.value); alterar((p) => trocarClipe(p, clipeAtual.clipe.id, (c) => ({ ...c, [k]: v })), `${k}-${clipeAtual.clipe.id}`); }} />
+                </label>
+              ))}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" onClick={duplicar} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs hover:bg-white/10">Duplicar</button>
+                <button type="button" onClick={() => { setSel({ a: clipeAtual.clipe.inicio, b: fimDoClipe(clipeAtual.clipe) }); }} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs hover:bg-white/10">Marcar o clipe</button>
+                <button type="button" onClick={() => { const info = sons.current.get(clipeAtual.clipe.somId); if (info) tocarSom(recortar(info.som, clipeAtual.clipe.deslocamento, clipeAtual.clipe.deslocamento + clipeAtual.clipe.duracao)); }} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs hover:bg-white/10">Ouvir só ele</button>
+                <button type="button" onClick={() => { alterar((p) => ({ ...p, faixas: p.faixas.map((f) => ({ ...f, clipes: f.clipes.filter((c) => c.id !== clipeAtual.clipe.id) })) })); setClipeSel(null); }} className="rounded-lg border border-rose-500/30 px-2 py-1.5 text-xs text-rose-200 hover:bg-rose-500/15">Apagar</button>
+              </div>
+            </section>
+          )}
+
+          <section className="rounded-2xl border border-white/10 bg-[#140632] p-3 text-[11px] text-slate-400">
+            <h2 className="mb-1 text-sm font-black text-white">Projeto</h2>
+            <p>{projeto.faixas.length} faixa{projeto.faixas.length === 1 ? '' : 's'} · duração {formatarTempo(fim)}</p>
+            <p className="mt-1">A edição fica salva sozinha neste aparelho. Para levar a outro lugar, use <b>Baixar áudio editado</b>.</p>
+          </section>
+        </aside>
+      </div>
+
+      {/* —— baixar —— */}
+      {exportar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Baixar a edição">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a0b3d] p-5 shadow-2xl">
+            <h2 className="text-lg font-black">Baixar a edição</h2>
+            <div className="mt-3 grid gap-3 text-sm">
+              <label className="flex flex-col gap-1">Nome do arquivo<input value={nome} onChange={(e) => setNome(e.target.value)} className="rounded-lg border border-white/10 bg-[#0B0420] px-3 py-2" /></label>
+              <label className="flex flex-col gap-1">Formato
+                <select value={`${exp.formato}:${exp.kbps}`} data-testid="editor-audio-formato" onChange={(e) => { const [f, k] = e.target.value.split(':'); setExp((x) => ({ ...x, formato: f as FormatoDeAudio, kbps: Number(k) })); }} className="rounded-lg border border-white/10 bg-[#0B0420] px-3 py-2">
+                  <option value="mp3:320">MP3 — 320 kbps (máxima)</option>
+                  <option value="mp3:192">MP3 — 192 kbps (recomendado)</option>
+                  <option value="mp3:128">MP3 — 128 kbps (menor)</option>
+                  <option value="wav16:0">WAV — 16 bits (CD, sem perda)</option>
+                  <option value="wav24:0">WAV — 24 bits (estúdio)</option>
+                  <option value="wav32:0">WAV — 32 bits real</option>
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1">Qualidade<select value={exp.sr} onChange={(e) => setExp((x) => ({ ...x, sr: Number(e.target.value) }))} className="rounded-lg border border-white/10 bg-[#0B0420] px-3 py-2"><option value={44100}>44,1 kHz</option><option value={48000}>48 kHz</option></select></label>
+                <label className="flex flex-col gap-1">Canais<select value={exp.canais} onChange={(e) => setExp((x) => ({ ...x, canais: Number(e.target.value) as 1 | 2 }))} className="rounded-lg border border-white/10 bg-[#0B0420] px-3 py-2"><option value={2}>Estéreo</option><option value={1}>Mono</option></select></label>
+              </div>
+              <label className="flex flex-col gap-1">O que baixar
+                <select value={exp.intervalo} onChange={(e) => setExp((x) => ({ ...x, intervalo: e.target.value as 'tudo' | 'selecao' }))} className="rounded-lg border border-white/10 bg-[#0B0420] px-3 py-2">
+                  <option value="tudo">O projeto inteiro ({formatarTempo(fim)})</option>
+                  <option value="selecao" disabled={!sel}>Só o trecho marcado{sel ? ` (${formatarTempo(sel.b - sel.a)})` : ''}</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={exp.normalizar} onChange={(e) => setExp((x) => ({ ...x, normalizar: e.target.checked }))} />Normalizar (pico em −1 dB)</label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setExportar(false)} className="rounded-lg px-4 py-2 text-sm text-slate-300 hover:bg-white/10">Cancelar</button>
+              <button type="button" disabled={!!ocupado} onClick={() => void baixar()} data-testid="editor-audio-confirmar-baixar" className="flex items-center gap-2 rounded-lg bg-[#25D366] px-4 py-2 text-sm font-bold text-[#0B0420] disabled:opacity-50">
+                {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Baixar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
