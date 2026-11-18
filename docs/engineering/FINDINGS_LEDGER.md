@@ -3750,3 +3750,11 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - a linha escondida usa `visibility: hidden`, para não pegar toque fora da área.
 - **Prova** (375×812): a linha foi pega no meio da faixa e levada até a borda; o áudio rolou 1.529 px e o cursor foi a 22 s, com a linha visível.
 - **Testes:** `editorDeAudio.test.ts` (26).
+
+### F-327 — Rolagem na borda mais rápida, acelerando (18/11/2026)
+- **Pedido do dono:** mais rápido.
+- **O que mudou** (`velocidadeNaBorda`):
+  - a rolagem na borda (cursor e arrasto de clipe) começa em ~24 px por quadro e acelera até ~80 px por quadro em 1,5 s segurando;
+  - a borda do arrasto de clipe passou a ter até 64 px;
+  - a seleção na borda anda 40 px.
+- **Testes:** editorDeAudio.test.ts (27).

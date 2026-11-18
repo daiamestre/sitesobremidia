@@ -128,6 +128,15 @@ function Botao({ titulo, onClick, children, ativo, desligado, perigo }: { titulo
 }
 
 /** segura o toque/clique no elemento (sem quebrar a tela se o navegador recusar) */
+/** velocidade da rolagem na borda: começa rápida e acelera enquanto o dedo fica lá (até ~80 px por quadro) */
+const bordaDesde = { t: 0 };
+function velocidadeNaBorda(v: number): number {
+  if (!v) { bordaDesde.t = 0; return 0; }
+  const agora = performance.now(); if (!bordaDesde.t) bordaDesde.t = agora;
+  const k = Math.min(1, (agora - bordaDesde.t) / 1500);
+  return Math.sign(v) * (0.35 + 0.65 * Math.abs(v)) * (24 + 56 * k);
+}
+
 function capturar(e: { target: EventTarget; pointerId: number }) { try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch { /* toque já solto */ } }
 
 /** botão grande com nome, para o dedo (celular) */
@@ -635,7 +644,7 @@ export function EditorDeAudio() {
       const b = imantar(t); if (Math.abs(b - g.ancora) * zoom < 3) { setSel(null); return; }
       setSel({ a: Math.min(g.ancora, b), b: Math.max(g.ancora, b) });
       const el = area.current!; const x = e.clientX - el.getBoundingClientRect().left;
-      if (x > el.clientWidth - 20) el.scrollLeft += 20; else if (x < 20) el.scrollLeft = Math.max(0, el.scrollLeft - 20);
+      if (x > el.clientWidth - 40) el.scrollLeft += 40; else if (x < 40) el.scrollLeft = Math.max(0, el.scrollLeft - 40);
       return;
     }
     if (g.tipo === 'mover') { g.x = e.clientX; g.y = e.clientY; aplicarMover(g); return; }
@@ -673,9 +682,10 @@ export function EditorDeAudio() {
       if (gesto.current !== g) return;
       const el = area.current;
       if (el) {
-        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = 36;
+        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = Math.min(64, el.clientWidth * 0.18);
         let v = 0; if (x > el.clientWidth - zona) v = Math.min(1, (x - (el.clientWidth - zona)) / zona); else if (x < zona) v = -Math.min(1, (zona - x) / zona);
-        if (v && g.moveu) { el.scrollLeft = Math.max(0, el.scrollLeft + v * 14); setRolagem(el.scrollLeft); aplicarMover(g); }
+        const dv = g.moveu ? velocidadeNaBorda(v) : 0;
+        if (dv) { el.scrollLeft = Math.max(0, el.scrollLeft + dv); setRolagem(el.scrollLeft); aplicarMover(g); }
         const vert = el.closest<HTMLElement>('.overflow-y-auto');
         if (vert) { const rv = vert.getBoundingClientRect(); if (g.y > rv.bottom - 30) vert.scrollTop += 8; else if (g.y < rv.top + 30) vert.scrollTop = Math.max(0, vert.scrollTop - 8); }
       }
@@ -931,7 +941,8 @@ export function EditorDeAudio() {
         // faixa da borda maior (o dedo não chega no último pixel) e mais rápida: o áudio vem acompanhando a linha
         const r = el.getBoundingClientRect(), x = g.x - r.left, zona = Math.min(64, el.clientWidth * 0.18);
         let v = 0; if (x > el.clientWidth - zona) v = Math.min(1, (x - (el.clientWidth - zona)) / zona); else if (x < zona) v = -Math.min(1, (zona - x) / zona);
-        if (v) { el.scrollLeft = Math.max(0, el.scrollLeft + v * 24); setRolagem(el.scrollLeft); moverCursor(Math.max(0, (Math.min(Math.max(x, 0), el.clientWidth) + el.scrollLeft) / zoomRef.current)); }
+        const dv = velocidadeNaBorda(v);
+        if (dv) { el.scrollLeft = Math.max(0, el.scrollLeft + dv); setRolagem(el.scrollLeft); moverCursor(Math.max(0, (Math.min(Math.max(x, 0), el.clientWidth) + el.scrollLeft) / zoomRef.current)); }
       }
     }
   };
