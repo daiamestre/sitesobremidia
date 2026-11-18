@@ -74,6 +74,10 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **Código de barras (12/11/2026, F-311):** câmera do aparelho, pistola USB/Bluetooth de qualquer ramo (mesmo sem o campo selecionado) e digitação à mão; cada leitura gravada faz o bipe de pistola, e repetido ou inválido faz o bipe de erro.
 - **Vídeo pelo passo a passo (15/11/2026, F-312):** 1) empresa · 2) produtos · 3) edição do vídeo (fundo, logo, elementos) · 4) locução criada pelo locutor com tudo o que foi informado, sincronizada com cada produto. Na edição, a PRÉVIA em tamanho real fica embaixo da linha do tempo, com tocar/pausar no meio, e mostra as edições na hora, antes de salvar.
 - **Vídeo com impacto (16/11/2026, F-316):** o vídeo de ofertas segue o concorrente que gera vídeos com IA (não o de modelos do Canva). Ele já sai com trilha, sirene, whoosh e impacto, chamas e estrelas na frente do fundo, fundo balançando, preço estourando, abertura e fechamento com a logo, e é entregue pronto. As trilhas e os sons são nossos, nunca os do concorrente.
+- **Cortar e arrastar (18/11/2026, F-325):**
+  - "Cortar" sem trecho marcado = cortar o clipe na linha amarela.
+  - A parte cortada pode ser apagada ou arrastada para o meio, para o fim, para a faixa de baixo ou para uma faixa nova.
+  - Soltar em cima de áudio INSERE: empurra o resto.
 - **Dedo no Editor de Áudio (18/11/2026, F-324):**
   - Deslizar na faixa NUNCA marca trecho: rola o áudio.
   - Marcar só segurando e arrastando.

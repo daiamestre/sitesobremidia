@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  apagarIntervalo, apararClipe, clipesNoIntervalo, colar, copiarIntervalo, dividirFaixa, fimDaFaixa, fimDoProjeto, ganhoDoClipeEm,
+  abrirEspaco, apagarIntervalo, apararClipe, clipesNoIntervalo, colar, copiarIntervalo, dividirFaixa, fimDaFaixa, fimDoProjeto, ganhoDoClipeEm,
   novaFaixa, novoClipe, projetoVazio, trocarSomDosClipes, faixasAudiveis, type Faixa,
 } from '@/lib/studio/audio/projeto';
 import {
@@ -190,5 +190,26 @@ describe('F-324: cursor e gestos do dedo', () => {
     expect(e).toContain('data-testid="editor-audio-triangulo"');
     expect(e).toContain('const pegarCursor');
     expect(e).toContain('el.scrollLeft = Math.max(0, el.scrollLeft + v * 16)');
+  });
+});
+
+describe('F-325: cortar na linha amarela e arrastar a parte para qualquer lugar', () => {
+  const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+  it('"Cortar" sem trecho marcado corta o clipe onde está a linha amarela', () => {
+    expect(e).toContain('const tc = cursorRef.current, p0 = projetoRef.current;');
+    expect(e).toContain('dividirFaixa(x, tc)');
+    expect(e).toContain('rotulo="Cortar"');
+  });
+  it('arrastar: para outra faixa, para a área de faixa nova e, solto em cima de áudio, entra no meio empurrando o resto', () => {
+    expect(e).toContain('data-nova-faixa="1"');
+    expect(e).toContain('Solte aqui para criar uma faixa nova');
+    expect(e).toContain('const aberta = abrirEspaco(sem, c.inicio, c.duracao)');
+    expect(e).toContain('const rolarArrastando');
+    expect(e).toContain("(dedo && clipeSel === sob.id)");
+  });
+  it('abrir espaço + pôr a parte = inserir no meio (o resto anda para frente)', () => {
+    const f = faixaCom([0, 10]);
+    const aberta = abrirEspaco(f, 4, 2);
+    expect(aberta.clipes.map((c) => [c.inicio, c.duracao])).toEqual([[0, 4], [6, 6]]);
   });
 });

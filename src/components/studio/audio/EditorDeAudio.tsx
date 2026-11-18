@@ -31,7 +31,7 @@ const ZOOM_MIN = 2, ZOOM_MAX = 40000;
 interface SomGuardado { nome: string; som: Som; picos: Picos; buffers: WeakMap<BaseAudioContext, AudioBuffer> }
 type Gesto =
   | { tipo: 'selecao'; faixaId: string; ancora: number }
-  | { tipo: 'mover'; clipeId: string; desvio: number; moveu: boolean }
+  | { tipo: 'mover'; clipeId: string; desvio: number; moveu: boolean; x: number; y: number; raf: number; novaFaixa?: string; origem?: string }
   | { tipo: 'aparar'; clipeId: string; lado: 'inicio' | 'fim' }
   | { tipo: 'regua' }
   | { tipo: 'pinca'; dist0: number; zoom0: number; tempo0: number; x0: number }
@@ -190,6 +190,7 @@ export function EditorDeAudio() {
   const [aba, setAba] = useState<AbaDoCelular>('cortes');
   const [folha, setFolha] = useState<null | 'efeitos' | 'faixa' | 'sons'>(null);
   const dedos = useRef(new Map<number, { x: number; y: number }>());
+  const [arrastando, setArrastando] = useState(false);
   const [ferramenta, setFerramenta] = useState<'selecao' | 'mover' | 'tesoura'>('selecao');
   const [ima, setIma] = useState(true);
   const [emTodas, setEmTodas] = useState(false);
@@ -436,7 +437,23 @@ export function EditorDeAudio() {
     }
     if (clipeSel) { alterar((p) => ({ ...p, faixas: p.faixas.map((f) => ({ ...f, clipes: f.clipes.filter((c) => c.id !== clipeSel) })) })); setClipeSel(null); }
   }, [alterar, alvos, clipeSel, moverCursor, sel]);
-  const cortar = useCallback(() => { if (sel && faixaAtual) { copiar(); apagar(); } else if (clipeAtual) { copiar(); apagar(); } else toast.message('Marque um trecho ou escolha um clipe para cortar.'); }, [apagar, clipeAtual, copiar, faixaAtual, sel]);
+  const cortar = useCallback(() => {
+    if (sel && faixaAtual) { copiar(); apagar(); return; }
+    // corta o clipe onde está a linha amarela (na faixa escolhida; senão, em toda faixa que tiver áudio ali)
+    const tc = cursorRef.current, p0 = projetoRef.current;
+    const temAli = (x: Faixa) => x.clipes.some((c) => tc > c.inicio + 0.001 && tc < fimDoClipe(c) - 0.001);
+    let ids = (emTodas ? p0.faixas : p0.faixas.filter((x) => x.id === faixaSel)).filter(temAli).map((x) => x.id);
+    if (!ids.length) ids = p0.faixas.filter(temAli).map((x) => x.id);
+    if (ids.length) {
+      const alvo = new Set(ids);
+      alterar((p) => ({ ...p, faixas: p.faixas.map((x) => (alvo.has(x.id) ? dividirFaixa(x, tc) : x)) }));
+      setClipeSel(null);
+      toast.success(`Cortado em ${formatarTempo(tc)}. Toque numa parte para escolher: arraste para mover ou toque em Apagar.`);
+      return;
+    }
+    if (clipeAtual) { copiar(); apagar(); return; }
+    toast.message('Ponha a linha amarela em cima do clipe e toque em Cortar.');
+  }, [alterar, apagar, clipeAtual, copiar, emTodas, faixaAtual, faixaSel, sel]);
   const colarAqui = useCallback(() => {
     const cs = area_transferencia.current; if (!cs.length) { toast.message('Nada copiado ainda.'); return; }
     const t = sel ? sel.a : cursorRef.current;
@@ -562,7 +579,11 @@ export function EditorDeAudio() {
     const xIni = sob ? sob.inicio * zoom : 0, xFim = sob ? fimDoClipe(sob) * zoom : 0, x = t * zoom;
     if (sob && Math.abs(x - xIni) <= borda && sob.duracao * zoom > borda * 3) acao = () => { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'inicio' }; setClipeSel(sob.id); };
     else if (sob && Math.abs(x - xFim) <= borda) acao = () => { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'fim' }; setClipeSel(sob.id); };
-    else if (sob && dentro && (y <= TITULO + 2 || ferramenta === 'mover' || e.altKey)) acao = () => { marcarHistorico(); gesto.current = { tipo: 'mover', clipeId: sob.id, desvio: t - sob.inicio, moveu: false }; setClipeSel(sob.id); setSel(null); };
+    else if (sob && dentro && (y <= TITULO + 2 || ferramenta === 'mover' || e.altKey || (dedo && clipeSel === sob.id))) acao = () => {
+      marcarHistorico();
+      const g: Extract<Gesto, { tipo: 'mover' }> = { tipo: 'mover', clipeId: sob.id, desvio: t - sob.inicio, moveu: false, x: e.clientX, y: e.clientY, raf: 0, origem: f.id };
+      gesto.current = g; setClipeSel(sob.id); setSel(null); setArrastando(true); rolarArrastando(g);
+    };
     else acao = () => {
       setClipeSel(dentro && sob ? sob.id : null);
       if (reproducao.current) pararSom(false);
@@ -617,26 +638,67 @@ export function EditorDeAudio() {
       if (x > el.clientWidth - 20) el.scrollLeft += 20; else if (x < 20) el.scrollLeft = Math.max(0, el.scrollLeft - 20);
       return;
     }
-    if (g.tipo === 'mover') {
-      const achado = acharClipe(projetoRef.current, g.clipeId); if (!achado) return;
-      const novoInicio = Math.max(0, imantar(t - g.desvio, g.clipeId));
-      const alvo = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>('[data-faixa]')?.dataset.faixa;
-      g.moveu = true;
-      alterarAoVivo((p) => {
-        const c = { ...achado.clipe, inicio: novoInicio };
-        if (alvo && alvo !== achado.faixa.id && p.faixas.some((f) => f.id === alvo)) {
-          setFaixaSel(alvo);
-          return { ...p, faixas: p.faixas.map((f) => (f.id === achado.faixa.id ? { ...f, clipes: f.clipes.filter((x) => x.id !== c.id) } : f.id === alvo ? { ...f, clipes: [...f.clipes, c] } : f)) };
-        }
-        return trocarClipe(p, g.clipeId, () => c);
-      });
-      return;
-    }
+    if (g.tipo === 'mover') { g.x = e.clientX; g.y = e.clientY; aplicarMover(g); return; }
     if (g.tipo === 'aparar') {
       const achado = acharClipe(projetoRef.current, g.clipeId); const info = achado && sons.current.get(achado.clipe.somId);
       if (!achado || !info) return;
       alterarAoVivo((p) => trocarClipe(p, g.clipeId, (c) => apararClipe(c, g.lado, imantar(t, g.clipeId), duracaoDoSom(info.som))));
     }
+  };
+  /** o clipe vai para onde o dedo/mouse está: outra faixa, ou a área de baixo cria uma faixa nova */
+  const aplicarMover = (g: Extract<Gesto, { tipo: 'mover' }>) => {
+    const achado = acharClipe(projetoRef.current, g.clipeId); if (!achado) return;
+    const novoInicio = Math.max(0, imantar(tempoDoMouse({ clientX: g.x }) - g.desvio, g.clipeId));
+    const embaixo = document.elementFromPoint(g.x, g.y) as HTMLElement | null;
+    const alvo = embaixo?.closest<HTMLElement>('[data-faixa]')?.dataset.faixa, criar = !!embaixo?.closest('[data-nova-faixa]');
+    g.moveu = true;
+    alterarAoVivo((p) => {
+      const c = { ...achado.clipe, inicio: novoInicio };
+      const tirar = (x: Faixa) => ({ ...x, clipes: x.clipes.filter((y) => y.id !== c.id) });
+      if (criar && !(g.novaFaixa && achado.faixa.id === g.novaFaixa)) { // cria UMA faixa nova por arrasto
+        const nova = { ...novaFaixa(p, `${achado.faixa.nome} (parte)`), clipes: [c] };
+        g.novaFaixa = nova.id; setFaixaSel(nova.id);
+        return { ...p, faixas: [...p.faixas.map((x) => (x.id === achado.faixa.id ? tirar(x) : x)), nova] };
+      }
+      if (alvo && alvo !== achado.faixa.id && p.faixas.some((x) => x.id === alvo)) {
+        setFaixaSel(alvo);
+        return { ...p, faixas: p.faixas.map((x) => (x.id === achado.faixa.id ? tirar(x) : x.id === alvo ? { ...x, clipes: [...x.clipes, c] } : x)) };
+      }
+      return trocarClipe(p, g.clipeId, () => c);
+    });
+  };
+  /** arrastando um clipe perto da borda: a tela rola sozinha (para levar até o fim do áudio) */
+  const rolarArrastando = (g: Extract<Gesto, { tipo: 'mover' }>) => {
+    const passo = () => {
+      if (gesto.current !== g) return;
+      const el = area.current;
+      if (el) {
+        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = 36;
+        let v = 0; if (x > el.clientWidth - zona) v = Math.min(1, (x - (el.clientWidth - zona)) / zona); else if (x < zona) v = -Math.min(1, (zona - x) / zona);
+        if (v && g.moveu) { el.scrollLeft = Math.max(0, el.scrollLeft + v * 14); setRolagem(el.scrollLeft); aplicarMover(g); }
+        const vert = el.closest<HTMLElement>('.overflow-y-auto');
+        if (vert) { const rv = vert.getBoundingClientRect(); if (g.y > rv.bottom - 30) vert.scrollTop += 8; else if (g.y < rv.top + 30) vert.scrollTop = Math.max(0, vert.scrollTop - 8); }
+      }
+      g.raf = requestAnimationFrame(passo);
+    };
+    g.raf = requestAnimationFrame(passo);
+  };
+  /** soltou o clipe: em cima de outro áudio, ENTRA NO MEIO e empurra o resto para frente */
+  const soltarClipe = (g: Extract<Gesto, { tipo: 'mover' }>) => {
+    cancelAnimationFrame(g.raf); setArrastando(false);
+    if (!g.moveu) { passado.current.pop(); return; } // só um toque: não vira passo do desfazer
+    const achado = acharClipe(projetoRef.current, g.clipeId); if (!achado) return;
+    const c = achado.clipe, fimC = fimDoClipe(c);
+    const outros = achado.faixa.clipes.filter((o) => o.id !== c.id);
+    const encosta = outros.some((o) => o.inicio < fimC - 0.005 && fimDoClipe(o) > c.inicio + 0.005);
+    if (encosta) {
+      alterarAoVivo((p) => trocarFaixa(p, achado.faixa.id, (x) => { const sem = { ...x, clipes: x.clipes.filter((o) => o.id !== c.id) }; const aberta = abrirEspaco(sem, c.inicio, c.duracao); return { ...aberta, clipes: [...aberta.clipes, c].sort((a, b) => a.inicio - b.inicio) }; }));
+      toast.success('A parte entrou no meio do áudio: o resto andou para frente.');
+    }
+    // tira faixas que ficaram vazias por causa deste arrasto (a faixa nova que o clipe deixou)
+    if (g.novaFaixa && g.novaFaixa !== achado.faixa.id) alterarAoVivo((p) => ({ ...p, faixas: p.faixas.filter((x) => x.id !== g.novaFaixa || x.clipes.length) }));
+    // a faixa "(parte)" de onde o clipe saiu e que ficou vazia também sai
+    if (g.origem && g.origem !== achado.faixa.id) alterarAoVivo((p) => ({ ...p, faixas: p.faixas.filter((x) => x.id !== g.origem || x.clipes.length || !x.nome.endsWith('(parte)')) }));
   };
   const aoSoltar = (e?: PE<HTMLElement>) => {
     if (e && e.pointerType === 'touch') dedos.current.delete(e.pointerId);
@@ -644,7 +706,7 @@ export function EditorDeAudio() {
     const g = gesto.current; gesto.current = null;
     if (g?.tipo === 'espera') { clearTimeout(g.timer); g.toque(); return; }
     if (g?.tipo === 'cursor') { cancelAnimationFrame(g.raf); if (g.tocava) tocar(cursorRef.current); return; }
-    if (g?.tipo === 'mover' && !g.moveu) passado.current.pop(); // só um toque: não vira passo do desfazer
+    if (g?.tipo === 'mover') soltarClipe(g);
   };
 
   // ——— teclado ———
@@ -890,6 +952,7 @@ export function EditorDeAudio() {
               ) : controlesDaFaixa(f, true)}
             </div>
           ))}
+          {arrastando && <div style={{ height: 64 }} className="border-b border-white/10 bg-[#25D366]/10" />}
         </div>
         <div className="relative min-w-0 flex-1">
           <div ref={area} className="overflow-x-auto overflow-y-hidden" onScroll={(e) => setRolagem((e.target as HTMLDivElement).scrollLeft)}
@@ -899,7 +962,7 @@ export function EditorDeAudio() {
                 onPointerDown={(e) => { capturar(e); if (reproducao.current) pararSom(false); moverCursor(imantar(tempoDoMouse(e))); setSel(null); gesto.current = { tipo: 'regua' }; }}
                 onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar} />
               {projeto.faixas.map((f) => (
-                <div key={f.id} data-faixa={f.id} style={{ height: ALTURA }}>
+                <div key={f.id} data-faixa={f.id} data-clipes={f.clipes.map((c) => `${c.inicio.toFixed(2)}+${c.duracao.toFixed(2)}`).join(" ")} style={{ height: ALTURA }}>
                   <canvas ref={(c) => { if (c) pistas.current.set(f.id, c); else pistas.current.delete(f.id); }} data-testid="editor-audio-pista"
                     style={{ width: largura, height: ALTURA, position: 'sticky', left: 0, display: 'block', cursor: ferramenta === 'mover' ? 'grab' : ferramenta === 'tesoura' ? 'crosshair' : 'text', touchAction: 'none' }}
                     onPointerDown={aoApertar(f)} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar} onDoubleClick={(e) => {
@@ -908,6 +971,12 @@ export function EditorDeAudio() {
                     }} />
                 </div>
               ))}
+              {arrastando && (
+                <div data-nova-faixa="1" data-testid="editor-audio-nova-faixa" style={{ width: largura, height: 64, position: 'sticky', left: 0 }}
+                  className="flex items-center justify-center border-2 border-dashed border-[#25D366]/70 bg-[#25D366]/10 text-xs font-bold text-[#25D366]">
+                  <Plus className="mr-1 h-4 w-4" />Solte aqui para criar uma faixa nova
+                </div>
+              )}
               {!projeto.faixas.length && (
                 <div style={{ width: largura, position: 'sticky', left: 0 }} className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
                   <AudioWaveform className="h-10 w-10 text-[#B04DFF]" />
@@ -930,7 +999,7 @@ export function EditorDeAudio() {
       </div>
       <p className="border-t border-white/10 px-3 py-1.5 text-[11px] text-slate-400">
         {celular
-          ? <>Deslize: anda pelo áudio · <b>segure e arraste</b>: marca um trecho · segure a <b>barra colorida</b>: move · <b>▼ amarelo</b>: arraste o cursor · <b>dois dedos</b>: zoom · toque 2× no nome da faixa: ajustes</>
+          ? <>Deslize: anda pelo áudio · <b>segure e arraste</b>: marca um trecho · toque num clipe e <b>segure</b>: arrasta (outra faixa, ou embaixo cria faixa nova) · <b>▼ amarelo</b>: arraste o cursor · <b>dois dedos</b>: zoom · toque 2× no nome da faixa: ajustes</>
           : <>Arraste na onda para marcar um trecho · com a <b>Tesoura</b>, clique para cortar · arraste a <b>barra colorida</b> do clipe para mover (ou outra faixa) · puxe a <b>borda</b> do clipe para aparar · Ctrl+roda = zoom ·
             Espaço tocar · S dividir · Delete apagar · Ctrl+Z/Y · Ctrl+X/C/V · Ctrl+D duplicar · Ctrl+A tudo · L repetir · arraste arquivos para uma faixa</>}
       </p>
@@ -1105,7 +1174,7 @@ export function EditorDeAudio() {
               <Grande titulo="Tesoura: toque no áudio para cortar ali" rotulo="Tesoura" onClick={() => setFerramenta((v) => (v === 'tesoura' ? 'selecao' : 'tesoura'))} ativo={ferramenta === 'tesoura'}><Scissors className="h-5 w-5" /></Grande>
               <Grande titulo="Marcar trechos (arrastar na onda)" rotulo="Marcar" onClick={() => setFerramenta('selecao')} ativo={ferramenta === 'selecao'}><MousePointer2 className="h-5 w-5" /></Grande>
               <Grande titulo="Mover clipes" rotulo="Mover" onClick={() => setFerramenta('mover')} ativo={ferramenta === 'mover'}><Hand className="h-5 w-5" /></Grande>
-              <Grande titulo="Cortar o trecho marcado" rotulo="Cortar trecho" onClick={cortar}><Scissors className="h-5 w-5" /></Grande>
+              <Grande titulo="Cortar: corta o clipe na linha amarela (ou tira o trecho marcado)" rotulo="Cortar" onClick={cortar}><Scissors className="h-5 w-5" /></Grande>
               <Grande titulo="Apagar o trecho ou o clipe" rotulo="Apagar" onClick={apagar} perigo><Trash2 className="h-5 w-5" /></Grande>
               <Grande titulo="Dividir no cursor" rotulo="Dividir" onClick={dividir}><Split className="h-5 w-5" /></Grande>
               <Grande titulo="Manter só o trecho marcado" rotulo="Manter trecho" onClick={manterSelecao}><Crop className="h-5 w-5" /></Grande>
@@ -1223,7 +1292,7 @@ export function EditorDeAudio() {
         <span className="mx-1 h-9 w-px bg-white/10" />
         <span className="self-center text-[10px] font-bold uppercase tracking-wider text-[#B04DFF]">Cortes</span>
         <Botao titulo="Tesoura: clique no áudio para cortar ali" onClick={() => setFerramenta((v) => (v === 'tesoura' ? 'selecao' : 'tesoura'))} ativo={ferramenta === 'tesoura'}><Scissors className="h-4 w-4" />Tesoura</Botao>
-        <Botao titulo="Cortar o trecho marcado (Ctrl+X): sai do áudio e vai para colar" onClick={cortar}><Scissors className="h-4 w-4" />Cortar trecho</Botao>
+        <Botao titulo="Cortar (Ctrl+X): corta o clipe na linha amarela; com um trecho marcado, tira o trecho e guarda para colar" onClick={cortar}><Scissors className="h-4 w-4" />Cortar</Botao>
         <Botao titulo="Copiar (Ctrl+C)" onClick={() => void copiar()}><Copy className="h-4 w-4" /></Botao>
         <Botao titulo="Colar no cursor (Ctrl+V)" onClick={colarAqui}><ClipboardPaste className="h-4 w-4" /></Botao>
         <Botao titulo="Apagar o trecho ou o clipe (Delete)" onClick={apagar} perigo><Trash2 className="h-4 w-4" />Apagar</Botao>

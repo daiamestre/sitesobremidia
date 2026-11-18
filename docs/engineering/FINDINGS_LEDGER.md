@@ -3716,3 +3716,22 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - toque só pôs o cursor;
   - o triângulo na borda rolou 720 → 984, com o cursor em 15,36 s.
 - **Testes:** `editorDeAudio.test.ts` (21).
+
+### F-325 — Cortar o clipe na linha amarela e arrastar a parte para qualquer lugar (18/11/2026)
+- **Pedido do dono:**
+  - com a linha amarela em qualquer ponto, "cortar" tem que cortar o clipe;
+  - poder escolher a parte e apagar, ou arrastar para o meio, para o fim, para a faixa de baixo, ou para baixo criando uma faixa nova.
+- **Antes:** "Cortar trecho" sem trecho marcado tirava o clipe INTEIRO, e no dedo o arrasto só funcionava pela barra fina do clipe.
+- **Agora:**
+  - **`cortar`:** sem trecho marcado, divide no cursor (na faixa escolhida; senão, em toda faixa com áudio ali). Com trecho marcado, continua tirando o trecho para colar. O botão passou a se chamar "Cortar".
+  - **Dedo:** num clipe JÁ escolhido (tocado), segurar em qualquer ponto arrasta.
+  - **`aplicarMover`:** leva para outra faixa ou, na área `data-nova-faixa` que aparece embaixo durante o arrasto, cria UMA faixa nova "(parte)".
+  - **`rolarArrastando`:** na borda, rola a tela na horizontal e na vertical.
+  - **`soltarClipe`:** se a parte cair em cima de outro áudio, `abrirEspaco` empurra o resto e a parte entra no meio. A faixa "(parte)" que ficou vazia sai.
+- **Prova no navegador** (375×812, trilha de 1:57):
+  - cortou em 2 s;
+  - apagou a parte e Voltar a trouxe de volta;
+  - um 2º corte em 4 s; a parte do meio desceu e virou faixa nova;
+  - voltou para o meio da faixa 1, empurrando o resto, e a faixa "(parte)" sumiu;
+  - arrastada até a borda, a tela rolou sozinha (1236 px) e a parte entrou em 17,7 s.
+- **Testes:** `editorDeAudio.test.ts` (24).
