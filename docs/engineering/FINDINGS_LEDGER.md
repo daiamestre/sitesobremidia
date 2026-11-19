@@ -3859,3 +3859,10 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - um toque em qualquer lugar fora do clipe (régua, vazio, resto da página) tira a escolha;
   - os botões de ação (doca do celular, barra do computador), a lateral e as janelas/folhas (`data-mantem-escolha`) mantêm a escolha, para Apagar/Cortar/efeitos agirem nela.
 - **Teste completo:** 20/20.
+
+### F-335 — O celular ficava na versão velha mesmo recarregando (19/11/2026)
+- **Pedido do dono:** "por que ainda não foi publicado?" A versão nova estava no ar (Vercel READY 01:04, teste completo 20/20 no ar), mas o celular continuava na velha.
+- **Causa:** o app (PWA, service worker) só procurava atualização a cada 1 h; recarregar a página usava a cópia guardada.
+- **Correção** (`usePWA.ts`):
+  - procura a cada 5 min, ao voltar para a tela (visibilitychange) e no foco;
+  - quando a versão nova assume (controllerchange), a página recarrega sozinha uma vez; na primeira instalação, não.

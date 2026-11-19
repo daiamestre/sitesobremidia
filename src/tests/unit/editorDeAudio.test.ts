@@ -312,3 +312,12 @@ describe('F-334: tocar fora do clipe desmarca', () => {
     expect(e).toContain('data-mantem-escolha className="fixed inset-x-0 bottom-0');
   });
 });
+
+describe('F-335: o app no celular pega a versão nova sozinho', () => {
+  it('procura atualização ao voltar para a tela e a cada 5 min, e recarrega quando a versão nova assume', () => {
+    const p = fs.readFileSync('src/hooks/usePWA.ts', 'utf8');
+    expect(p).toContain('setInterval(procurar, 5 * 60 * 1000)');
+    expect(p).toContain("document.addEventListener('visibilitychange'");
+    expect(p).toContain("navigator.serviceWorker.addEventListener('controllerchange'");
+  });
+});

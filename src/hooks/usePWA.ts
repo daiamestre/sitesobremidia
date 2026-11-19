@@ -43,11 +43,23 @@ export const usePWA = () => {
     onRegisteredSW(swUrl, registration) {
       console.log('[PWA] Service Worker registrado:', swUrl);
       
-      // Check for updates every 1 hour
+      // F-335: procura a versão nova a cada 5 min e TODA VEZ que o usuário volta para a tela (antes: 1 h — o celular
+      // ficava na versão velha mesmo recarregando). Quando a versão nova assume, a página recarrega sozinha uma vez.
       if (registration) {
-        setInterval(() => {
-          registration.update();
-        }, 60 * 60 * 1000);
+        const procurar = () => { void registration.update().catch(() => {}); };
+        setInterval(procurar, 5 * 60 * 1000);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') procurar(); });
+        window.addEventListener('focus', procurar);
+        const janela = window as unknown as { __recarregaPWA?: boolean };
+        if (navigator.serviceWorker && !janela.__recarregaPWA) {
+          janela.__recarregaPWA = true;
+          const tinhaControle = !!navigator.serviceWorker.controller;
+          let recarregou = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!tinhaControle || recarregou) return; // primeira instalação: não recarrega
+            recarregou = true; window.location.reload();
+          });
+        }
       }
     },
     onRegisterError(error) {
