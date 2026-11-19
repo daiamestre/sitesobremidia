@@ -330,3 +330,12 @@ describe('F-337: pinça não mexe na linha amarela', () => {
     expect(e).toContain('posicionarLinha(cursorRef.current); });');
   });
 });
+
+describe('F-338: puxadores nas pontas do clipe escolhido', () => {
+  it('duas alças com o tempo; arrastar apara na hora; contam como parte do clipe (não desmarcam)', () => {
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain('const pegarPuxador = ');
+    expect(e).toContain('<div key={lado} data-mantem-escolha role="slider"');
+    expect(e).toContain('if (!gesto.current) dedos.current.clear();');
+  });
+});

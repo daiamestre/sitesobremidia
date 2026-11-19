@@ -1061,6 +1061,28 @@ export function EditorDeAudio() {
       <span className="text-[10px] text-slate-500">{f.clipes.length} clipe{f.clipes.length === 1 ? '' : 's'} · {formatarTempo(fimDaFaixa(f), false)}</span>
     </>
   );
+  /** F-338: puxador do clipe escolhido — arrastar apara na hora (esquerda = começo, direita = fim) */
+  const pegarPuxador = (lado: 'inicio' | 'fim') => (e: PE<HTMLDivElement>) => {
+    e.stopPropagation(); capturar(e);
+    if (!clipeSel) return;
+    if (reproducao.current) pararSom(false);
+    marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: clipeSel, lado }; setSel(null);
+  };
+  const puxadores = (() => {
+    if (!clipeAtual) return null;
+    const idx = projeto.faixas.findIndex((x) => x.id === clipeAtual.faixa.id); if (idx < 0) return null;
+    const c = clipeAtual.clipe, top = REGUA + idx * ALTURA, xi = c.inicio * zoom - rolagem, xf = fimDoClipe(c) * zoom - rolagem, LARG = 22;
+    const alca = (lado: 'inicio' | 'fim', x: number, tempo: number) => (x < -LARG || x > largura + LARG) ? null : (
+      <div key={lado} data-mantem-escolha role="slider" aria-label={lado === 'inicio' ? 'Puxador do começo do clipe' : 'Puxador do fim do clipe'} aria-valuenow={Math.round(tempo * 1000) / 1000} tabIndex={-1}
+        data-testid={`editor-audio-puxador-${lado}`} onPointerDown={pegarPuxador(lado)} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}
+        className="absolute z-10 flex cursor-ew-resize items-center justify-center rounded-md border-2 border-[#0B0420] bg-[#FFD400] shadow-[0_0_10px_rgba(255,212,0,0.8)]"
+        style={{ top: top + TITULO + 4, height: ALTURA - TITULO - 10, width: LARG, left: lado === 'inicio' ? x : x - LARG, touchAction: 'none' }}>
+        <span className="flex gap-[3px]"><span className="h-6 w-[2px] rounded bg-[#0B0420]" /><span className="h-6 w-[2px] rounded bg-[#0B0420]" /></span>
+        <span className="pointer-events-none absolute -top-5 whitespace-nowrap rounded bg-[#0B0420]/90 px-1 font-mono text-[10px] font-bold text-[#FFD400]" style={{ [lado === 'inicio' ? 'left' : 'right']: 0 }}>{formatarTempo(tempo)}</span>
+      </div>
+    );
+    return <>{alca('inicio', xi, c.inicio)}{alca('fim', xf, fimDoClipe(c))}</>;
+  })();
   const pegarCursor = (e: PE<HTMLDivElement>) => {
     e.stopPropagation(); capturar(e);
     const tocava = !!reproducao.current; if (tocava) pararSom(false);
@@ -1117,6 +1139,8 @@ export function EditorDeAudio() {
         <div className="relative min-w-0 flex-1"
           onPointerDownCapture={(e) => {
             if (e.pointerType !== 'touch') return;
+            // proteção: sem gesto em andamento, nenhum dedo antigo "preso" pode contar (evita pinça e arrasto fantasmas)
+            if (!gesto.current) dedos.current.clear();
             dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (dedos.current.size >= 2) { e.stopPropagation(); if (gesto.current?.tipo !== 'pinca' && dedos.current.size === 2) comecarPinca(); }
           }}
@@ -1159,6 +1183,7 @@ export function EditorDeAudio() {
               )}
             </div>
           </div>
+          {puxadores}
           <div ref={linha} data-testid="editor-audio-linha" className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-[#FFD400] shadow-[0_0_8px_#FFD400]" style={{ left: 0 }}>
             {/* a linha amarela INTEIRA e o triângulo do topo pegam o cursor: arraste; na borda da tela o áudio vem acompanhando */}
             <div role="slider" aria-label="Cursor: arraste para mudar a posição" aria-valuenow={Math.round(cursor * 1000) / 1000} tabIndex={-1} data-testid="editor-audio-triangulo"

@@ -131,6 +131,17 @@ await passo('a rolagem da borda é controlada: tirou o dedo da borda ou soltou, 
   __e(lp, 'pointerup', 906, rp.left + (rp.width / 2), rp.top + 70); await __esp(300); const solto = el.scrollLeft; el.scrollLeft = 0;
   // em 1 s na borda anda no máximo ~800 px (antes passava de 3.000) e para quando o dedo sai
   return (andou1s > 50 && andou1s < 900 && depois === aoSair && solto === depois) || { andou1s, aoSair, depois, solto }; }));
+await passo('PUXADORES: o clipe escolhido tem uma alça em cada ponta; arrastar apara na hora, com precisão', () => pagina.evaluate(async () => {
+  const el = document.querySelector('.overflow-x-auto'); el.scrollLeft = 0; await __esp(150);
+  const antes = __faixas()[0];
+  await __toque(230); await __esp(150);
+  const pi = document.querySelector('[data-testid=editor-audio-puxador-inicio]'), pf = document.querySelector('[data-testid=editor-audio-puxador-fim]');
+  if (!pi) return 'sem puxador do começo';
+  const r = pi.getBoundingClientRect(), y = r.top + r.height / 2;
+  __e(pi, 'pointerdown', 921, r.left + 5, y); for (let k = 1; k <= 6; k++) { __e(pi, 'pointermove', 921, r.left + 5 + 4 * k, y); await __esp(25); } __e(pi, 'pointerup', 921, r.left + 29, y); await __esp(300);
+  const depois = __faixas()[0];
+  document.querySelector('button[title="Voltar o que foi feito"]').click(); await __esp(250);
+  return (depois !== antes && /2\.(8|7|9)\d\+/.test(depois) && __faixas()[0] === antes) || { antes, depois, voltou: __faixas()[0], pf: !!pf }; }));
 await passo('PINÇA: a linha amarela fica parada no mesmo ponto da onda (mesmo com um dedo em cima dela)', () => pagina.evaluate(async () => {
   const el = document.querySelector('.overflow-x-auto'); el.scrollLeft = 0; await __esp(200); await __toque(100);
   const t0 = __relogio(), linha = document.querySelector('[data-testid=editor-audio-linha]'), larg0 = el.firstElementChild.style.width;

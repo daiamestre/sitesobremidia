@@ -3888,3 +3888,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - o que o 1º dedo começou é desfeito (cursor volta, arrasto de clipe desfeito);
   - no zoom, o cursor não muda e a linha é redesenhada a cada quadro (`zoomRef` atualizado na hora).
 - **Teste completo:** 22/22, com o passo "PINÇA com um dedo em cima da linha": mesmo tempo, zoom >1,5x, linha alinhada com menos de 3 px.
+
+### F-338 — Puxadores nas duas pontas do clipe para aparar com precisão (19/11/2026)
+- **Pedido do dono** (foto): depois de cortar, não conseguia puxar as pontas do clipe para cortar com precisão.
+- **Feito:**
+  - o clipe escolhido ganha duas alças amarelas (22 px), uma em cada ponta, com o tempo exato acima;
+  - arrastar apara na hora, sem segurar antes; Voltar desfaz;
+  - para mais precisão, aproximar antes com a pinça.
+- **Defeito achado pelo teste completo:** a regra "tocar fora desmarca" (F-334) via a alça como fora do clipe. O clipe era desmarcado, a alça sumia no meio do arrasto e o gesto ficava preso, estragando a pinça e o Voltar seguintes.
+- **Correções:**
+  - alças com `data-mantem-escolha`;
+  - sem gesto em andamento, os dedos antigos são esquecidos.
+- **Teste completo:** 23/23.
