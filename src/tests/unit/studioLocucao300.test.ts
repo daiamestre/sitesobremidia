@@ -52,8 +52,8 @@ describe('F-300: roteiro com o nome da loja', () => {
     expect(r[1].texto).toBe('Arroz, cinco quilos, por apenas vinte reais!');
     expect(r[2].texto).toBe('Feijão fresquinho!');
   });
-  it('5 vozes, cada uma com a frase de exemplo gravada; farmácia é voz feminina', () => {
-    expect(VOZES_DO_LOCUTOR).toHaveLength(5);
+  it('6 vozes (F-344: + a voz do dono Eletro), cada uma com a frase de exemplo gravada; farmácia é voz feminina', () => {
+    expect(VOZES_DO_LOCUTOR).toHaveLength(6);
     for (const v of VOZES_DO_LOCUTOR) expect(fs.existsSync(`public${v.amostra}`), v.amostra).toBe(true);
     expect(VOZES_DO_LOCUTOR.find((v) => v.id === vozPadraoDo('farmacia'))?.genero).toBe('feminina');
   });

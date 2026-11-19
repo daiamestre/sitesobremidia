@@ -13,13 +13,38 @@ const json = (status: number, corpo: unknown) => new Response(JSON.stringify(cor
 const env = (k: string) => Deno.env.get(k) ?? '';
 
 /** As 5 vozes aprovadas pelo dono (11/11/2026). O id da ElevenLabs fica só no servidor. */
-const VOZES: Record<string, { id: string; ajuste: Record<string, number> }> = {
+const VOZES: Record<string, { id: string; ajuste: Record<string, number>; conversao?: { origem: string } }> = {
   dono: { id: '0gmYXJRkDXQDSMTk3TQo', ajuste: { stability: 0.45, similarity_boost: 0.9 } },
   aline: { id: '4RyYr3owp1gnOgHKTs6D', ajuste: { stability: 0.45, similarity_boost: 0.85 } },
   carlos: { id: 'xJ8U5HgW3Zps75qgYrFw', ajuste: { stability: 0.45, similarity_boost: 0.85 } },
   leonardo: { id: 'UaeEQHfiDI8l58WWXiwS', ajuste: { stability: 0.45, similarity_boost: 0.85 } },
   diego: { id: 'rpNe0HOx7heUulPiOEaG', ajuste: { stability: 0.45, similarity_boost: 0.85 } },
+  // F-344 (pedido do dono, 19/11/2026): a voz do dono (timbre modificado por IA, clone fiel) com a PEGADA do locutor de
+  // impacto. Por texto o clone sai "morto"; por CONVERSÃO sai com energia (aprovado pelo dono: "A3 NOVA"). Então cada
+  // frase é gerada GRITADA numa voz expressiva (origem) e convertida para o timbre do dono.
+  eletro: { id: '0H07ueWLEXSuNIPyW7Y0', ajuste: { stability: 0.4, similarity_boost: 1, style: 0, use_speaker_boost: true }, conversao: { origem: 'hstwZvlWjngNBRLZp8sT' } },
 };
+/** F-344: a frase com as marcações de expressão do locutor de impacto (grito no começo, empolgação no resto) */
+function comExpressao(texto: string): string {
+  const partes = texto.match(/[^.!?]+[.!?]*/g) ?? [texto];
+  return partes.map((p, i) => `${i === 0 || /!$/.test(p.trim()) && /[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{4,}/.test(p) ? '[shouting]' : '[excited]'} ${p.trim()}`).join(' ');
+}
+/** F-344: gera com energia na voz de origem e converte para o timbre da voz (fala → fala) */
+async function falarPorConversao(voz: { id: string; ajuste: Record<string, number>; conversao?: { origem: string } }, texto: string): Promise<Uint8Array | string> {
+  const k = env('ELEVENLABS_API_KEY');
+  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voz.conversao!.origem}?output_format=mp3_44100_128`, {
+    method: 'POST', headers: { 'xi-api-key': k, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: comExpressao(texto), model_id: 'eleven_v3', language_code: 'pt', voice_settings: { stability: 0, similarity_boost: 0.8, use_speaker_boost: true } }),
+  });
+  if (!r.ok) return (await r.text()).slice(0, 200);
+  const fd = new FormData();
+  fd.append('model_id', 'eleven_multilingual_sts_v2'); fd.append('remove_background_noise', 'false');
+  fd.append('voice_settings', JSON.stringify(voz.ajuste));
+  fd.append('audio', new Blob([await r.arrayBuffer()], { type: 'audio/mpeg' }), 'origem.mp3');
+  const c = await fetch(`https://api.elevenlabs.io/v1/speech-to-speech/${voz.id}?output_format=mp3_44100_128`, { method: 'POST', headers: { 'xi-api-key': k }, body: fd });
+  if (!c.ok) return (await c.text()).slice(0, 200);
+  return new Uint8Array(await c.arrayBuffer());
+}
 const MODELO = 'eleven_v4_turbo';
 /**
  * F-320 (pedido do dono: o locutor dos vídeos de impacto igual ao do concorrente — varejo gritado, rápido, ênfase no fim):
@@ -81,7 +106,7 @@ serve(async (req) => {
 
   // 1) o que já existe no R2 volta na hora (mesma voz + mesmo texto + mesmo modelo = mesmo arquivo)
   const itens = await Promise.all(frases.map(async (f) => {
-    const hash = await sha256(impacto ? `${vozId}|${MODELO}|impacto|${f.texto}` : `${vozId}|${MODELO}|${f.texto}`);
+    const hash = await sha256(voz.conversao ? `${vozId}|conversao-v1|${f.texto}` : impacto ? `${vozId}|${MODELO}|impacto|${f.texto}` : `${vozId}|${MODELO}|${f.texto}`);
     const caminho = `tenants/${e.empresa}/studio/${PASTA}/${hash.slice(0, 40)}.mp3`;
     const url = `${r2.dominioPublico}/${caminho}`;
     const existe = (await fetch(url, { method: 'HEAD' }).catch(() => null))?.ok ?? false;
@@ -89,6 +114,8 @@ serve(async (req) => {
   }));
   const novas = itens.filter((i) => !i.existe);
   const letras = novas.reduce((s, i) => s + i.texto.length, 0);
+  // F-344: a conversão gasta mais (gerar + converter fala em fala): conta 3× nas travas
+  const PESO = voz.conversao ? 3 : 1, custo = letras * PESO;
 
   // 2) travas antes de gastar
   if (novas.length) {
@@ -96,15 +123,22 @@ serve(async (req) => {
       const desde = new Date(Date.now() - 24 * 3600_000).toISOString();
       const { data: hoje } = await srv.from('studio_locucoes').select('caracteres').eq('usuario_id', u.user.id).gte('criado_em', desde);
       const usado = (hoje ?? []).reduce((s, x) => s + Number(x.caracteres), 0);
-      if (usado + letras > TETO_DIA_LETRAS) return json(429, { error: `Limite diário de locução atingido (${TETO_DIA_LETRAS} letras em 24 h). Tente amanhã ou fale com a SOBRE MÍDIA.` });
+      if (usado + custo > TETO_DIA_LETRAS) return json(429, { error: `Limite diário de locução atingido (${TETO_DIA_LETRAS} letras em 24 h). Tente amanhã ou fale com a SOBRE MÍDIA.` });
     }
     const resta = await creditosRestantes();
     if (resta == null) return json(502, { error: 'Não foi possível falar com o serviço de voz agora. Tente de novo.' });
-    if (resta - letras < RESERVA_CREDITOS) return json(429, { error: 'Os créditos de locução do mês acabaram. Fale com a SOBRE MÍDIA.' });
+    if (resta - custo < RESERVA_CREDITOS) return json(429, { error: 'Os créditos de locução do mês acabaram. Fale com a SOBRE MÍDIA.' });
   }
 
   // 3) gera só as novas (uma de cada vez, na ordem), grava no R2 e registra
   for (const i of novas) {
+    if (voz.conversao) {
+      const res = await falarPorConversao(voz, i.texto);
+      if (typeof res === 'string') return json(502, { error: `O serviço de voz recusou a frase “${i.texto.slice(0, 40)}…”. Tente de novo.`, detalhe: res });
+      await enviarAoR2(r2, i.caminho, res as Uint8Array<ArrayBuffer>, 'audio/mpeg');
+      await srv.from('studio_locucoes').insert({ empresa_operadora_id: e.empresa, usuario_id: u.user.id, voz: vozId, modelo: 'eleven_v3+sts', caracteres: i.texto.length * PESO, url: i.url });
+      continue;
+    }
     const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voz.id}?output_format=mp3_44100_128`, {
       method: 'POST', headers: { 'xi-api-key': env('ELEVENLABS_API_KEY'), 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: i.texto, model_id: MODELO, language_code: 'pt', voice_settings: impacto ? { ...voz.ajuste, ...AJUSTE_IMPACTO } : voz.ajuste }),

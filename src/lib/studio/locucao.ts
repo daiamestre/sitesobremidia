@@ -10,7 +10,7 @@
  */
 import type { SegmentoDoStudio } from './palco';
 
-export type IdDaVoz = 'dono' | 'leonardo' | 'carlos' | 'aline' | 'diego';
+export type IdDaVoz = 'dono' | 'leonardo' | 'carlos' | 'aline' | 'diego' | 'eletro';
 
 export interface VozDoLocutor {
   id: IdDaVoz; nome: string; descricao: string; genero: 'masculina' | 'feminina';
@@ -26,6 +26,8 @@ export const VOZES_DO_LOCUTOR: VozDoLocutor[] = [
   { id: 'carlos', nome: 'Carlos', descricao: 'Locutor de ofertas · forte', genero: 'masculina', amostra: '/studio/locucao/carlos-acougue.mp3', segmento: 'acougue' },
   { id: 'leonardo', nome: 'Leonardo', descricao: 'Locutor de varejo · voz quente', genero: 'masculina', amostra: '/studio/locucao/leonardo-hortifruti.mp3', segmento: 'hortifruti' },
   { id: 'diego', nome: 'Diego', descricao: 'Locutor confiante de comercial', genero: 'masculina', amostra: '/studio/locucao/diego-adega.mp3', segmento: 'adega' },
+  // F-344 (19/11/2026): a voz do dono (timbre modificado por IA) com a pegada do locutor de impacto, por conversão
+  { id: 'eletro', nome: 'Sérgio Vaz — Eletro', descricao: 'Sua voz · pegada de locutor de impacto', genero: 'masculina', amostra: '/studio/locucao/dono-eletro.mp3', segmento: 'eletronicos' },
 ];
 export const vozPadraoDo = (s: SegmentoDoStudio): IdDaVoz => VOZES_DO_LOCUTOR.find((v) => v.segmento === s)?.id ?? 'dono';
 

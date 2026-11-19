@@ -3960,3 +3960,16 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - 8 clipes em sequência colados;
   - juntar em 1 com duração igual à soma e PLAY tocando;
   - 3 áudios enviados em sequência, e o 2º toca quando o 1º acaba.
+
+### F-344 — Voz do dono com a pegada do locutor de impacto, por conversão (19/11/2026)
+- **Pedido do dono:** a voz editada dele (outro projeto, eletro) no Studio, falando com a mesma expressão dos vídeos.
+- **Achado:**
+  - pelo texto, o clone fiel sai "morto/cansado";
+  - o `eleven_v3` com marcações destrói o timbre (0,47–0,63);
+  - a conversão fala em fala mantém a energia e o timbre (0,76–0,79), e foi aprovada pelo dono (A3 NOVA).
+- **Feito (`studio-locucao`):**
+  - voz `eletro` com `conversao.origem`: gera com `[shouting]`/`[excited]` (`comExpressao`) e converte com `eleven_multilingual_sts_v2` para o clone `0H07ueWLEXSuNIPyW7Y0` (similarity 1, stability 0,4);
+  - cache no R2 por `eletro|conversao-v1|texto`;
+  - peso 3× nas travas de créditos/teto diário.
+- **Tela:** 6ª voz em `VOZES_DO_LOCUTOR` (segmento eletrônicos), com a amostra `dono-eletro.mp3`.
+- **Teste:** função no ar com a conta de teste: 200, mp3 de 8 s, timbre 0,73. Unitários da locução 17/17.
