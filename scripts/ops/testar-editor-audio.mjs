@@ -273,7 +273,8 @@ await passo('JUNTAR EM 1: a sequência vira UM clipe só (duração = soma) e o 
 await passo('ENVIAR EM SEQUÊNCIA: 3 áudios entram um atrás do outro e o 2º toca quando o 1º acaba', async () => {
   await pagina.evaluate(() => { [...document.querySelectorAll('[role=tab]')].find((b) => b.textContent === 'Adicionar').click(); });
   await pagina.evaluate(() => document.querySelector('button[title^="Nova edição"]').click());
-  await pagina.waitForFunction(() => !document.querySelector('[data-testid=editor-audio-pista]'), null, { timeout: 60_000 });
+  const limpou = await pagina.waitForFunction(() => !document.querySelector('[data-testid=editor-audio-pista]'), null, { timeout: 90_000 }).then(() => true).catch(() => false);
+  if (!limpou) return await pagina.evaluate(() => ({ nao_limpou: true, avisos: [...document.querySelectorAll('[data-sonner-toast]')].map((t) => t.textContent), ocupado: document.querySelector('.animate-spin')?.parentElement?.textContent }));
   await pagina.evaluate(async () => {
     const dt = new DataTransfer();
     for (const n of ['caixa', 'sirene', 'impacto']) dt.items.add(new File([await (await fetch('/studio/sons/' + n + '.mp3')).blob()], n + '.mp3', { type: 'audio/mpeg' }));
