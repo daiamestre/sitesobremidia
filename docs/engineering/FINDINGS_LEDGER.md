@@ -3827,3 +3827,20 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Marcar trecho marcou sem mover;
   - Desmarcar limpou.
 - **Testes:** editorDeAudio.test.ts (32).
+
+### F-332 — Por que os comandos do Editor de Áudio falhavam no celular + teste completo antes de publicar (19/11/2026)
+- **Pedido do dono:** "quero que não aconteça mais falhas"; os comandos paravam sem explicação.
+- **Por que falhava:**
+  - as regras de toque mudaram a cada pedido e os botões antigos (Tesoura, Marcar, Mover) brigavam com as novas;
+  - eu testava com toques simulados e com a animação da tela PARADA, então a rolagem automática da borda nunca rodava no meu teste.
+- **O teste novo achou 2 defeitos reais:**
+  1. **O clipe "fugia".** Ao arrastar um clipe, a borda que rola sozinha pegava 18% da faixa estreita do celular, e o clipe ia além de onde o dedo soltou. Agora: 28 px, e só rola com o dedo parado ali por 0,3 s. O mesmo vale para rolar para cima e para baixo, e nunca em cima da área "faixa nova".
+  2. **O clipe não ia para outra faixa nem criava faixa nova.** Depois do toque, a linha amarela fica embaixo do dedo, e a busca pelo que está embaixo do dedo achava a linha. Agora usa `elementsFromPoint`, que olha através dela.
+- **Teste completo:** `scripts/ops/testar-editor-audio.mjs`, Playwright 375×812 com toque, conta de teste. Faz 18 passos:
+  - abrir, tocar, Cortar, Voltar/Avançar;
+  - arrastar, toque, rolar, Marcar trecho e Desmarcar, Apagar;
+  - faixa nova, PLAY, linha amarela na borda;
+  - Salvar e Biblioteca, Nova edição e Voltar;
+  - nenhum erro de tela.
+  - Ele apaga o que criou. Agora: 18/18.
+- **Regra:** rodar antes de publicar qualquer mudança no editor.

@@ -35,7 +35,7 @@ const ZOOM_MIN = 2, ZOOM_MAX = 40000;
 interface SomGuardado { nome: string; som: Som; picos: Picos; buffers: WeakMap<BaseAudioContext, AudioBuffer> }
 type Gesto =
   | { tipo: 'selecao'; faixaId: string; ancora: number }
-  | { tipo: 'mover'; clipeId: string; desvio: number; moveu: boolean; x: number; y: number; raf: number; novaFaixa?: string; origem?: string; x0?: number; y0?: number }
+  | { tipo: 'mover'; clipeId: string; desvio: number; moveu: boolean; x: number; y: number; raf: number; novaFaixa?: string; origem?: string; x0?: number; y0?: number; bordaDesde?: number; vertDesde?: number }
   | { tipo: 'aparar'; clipeId: string; lado: 'inicio' | 'fim' }
   | { tipo: 'regua' }
   | { tipo: 'pinca'; dist0: number; zoom0: number; tempo0: number; x0: number }
@@ -720,8 +720,9 @@ export function EditorDeAudio() {
   const aplicarMover = (g: Extract<Gesto, { tipo: 'mover' }>) => {
     const achado = acharClipe(projetoRef.current, g.clipeId); if (!achado) return;
     const novoInicio = Math.max(0, imantar(tempoDoMouse({ clientX: g.x }) - g.desvio, g.clipeId));
-    const embaixo = document.elementFromPoint(g.x, g.y) as HTMLElement | null;
-    const alvo = embaixo?.closest<HTMLElement>('[data-faixa]')?.dataset.faixa, criar = !!embaixo?.closest('[data-nova-faixa]');
+    // F-332: olha ATRAVÉS da linha amarela (que fica embaixo do dedo depois do toque) para achar a faixa ou a área de faixa nova
+    const pilha = document.elementsFromPoint(g.x, g.y) as HTMLElement[];
+    const alvo = pilha.map((el) => el.closest<HTMLElement>('[data-faixa]')).find(Boolean)?.dataset.faixa, criar = pilha.some((el) => el.closest('[data-nova-faixa]'));
     g.moveu = true;
     alterarAoVivo((p) => {
       const c = { ...achado.clipe, inicio: novoInicio };
@@ -744,12 +745,22 @@ export function EditorDeAudio() {
       if (gesto.current !== g) return;
       const el = area.current;
       if (el) {
-        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = Math.min(64, el.clientWidth * 0.18);
-        let v = 0; if (x > el.clientWidth - zona) v = Math.min(1, (x - (el.clientWidth - zona)) / zona); else if (x < zona) v = -Math.min(1, (zona - x) / zona);
-        const dv = g.moveu ? velocidadeNaBorda(v) : 0;
+        // F-332: arrastando um CLIPE, só rola com o dedo colado na borda (28 px) e parado ali 0,3 s — antes a faixa larga
+        // (18%) pegava o dedo sem querer no celular e o clipe "fugia" para longe de onde o dono soltou
+        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = 28;
+        let v = 0; if (x > el.clientWidth - zona) v = Math.min(1, (x - (el.clientWidth - zona)) / zona); else if (x < zona && el.scrollLeft > 0) v = -Math.min(1, (zona - x) / zona);
+        if (!v) g.bordaDesde = undefined; else if (g.bordaDesde == null) g.bordaDesde = performance.now();
+        const parado = g.bordaDesde != null && performance.now() - g.bordaDesde > 300;
+        const dv = g.moveu && parado ? velocidadeNaBorda(v) : 0;
         if (dv) { el.scrollLeft = Math.max(0, el.scrollLeft + dv); setRolagem(el.scrollLeft); aplicarMover(g); }
         const vert = el.closest<HTMLElement>('.overflow-y-auto');
-        if (vert) { const rv = vert.getBoundingClientRect(); if (g.y > rv.bottom - 30) vert.scrollTop += 8; else if (g.y < rv.top + 30) vert.scrollTop = Math.max(0, vert.scrollTop - 8); }
+        // para cima/baixo: só com o dedo parado na beirada, e nunca em cima da área "faixa nova" (ela fugia do dedo)
+        if (vert && parado !== undefined) {
+          const rv = vert.getBoundingClientRect(), sobreNova = (document.elementsFromPoint(g.x, g.y) as HTMLElement[]).some((el) => el.closest('[data-nova-faixa]'));
+          const vy = sobreNova ? 0 : g.y > rv.bottom - 24 ? 1 : g.y < rv.top + 24 ? -1 : 0;
+          if (!vy) g.vertDesde = undefined; else if (g.vertDesde == null) g.vertDesde = performance.now();
+          if (vy && g.vertDesde != null && performance.now() - g.vertDesde > 300) vert.scrollTop = Math.max(0, vert.scrollTop + vy * 8);
+        }
       }
       g.raf = requestAnimationFrame(passo);
     };

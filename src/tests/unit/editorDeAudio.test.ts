@@ -285,3 +285,13 @@ describe('F-331: no celular, tocar escolhe o clipe e arrastar move na hora', () 
     expect(e).not.toContain('rotulo="Tesoura"');
   });
 });
+
+describe('F-332: o clipe obedece o dedo no celular', () => {
+  const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+  it('borda do arrasto de clipe estreita e com o dedo parado; olha através da linha amarela; teste completo existe', () => {
+    expect(e).toContain('zona = 28;');
+    expect(e).toContain('performance.now() - g.bordaDesde > 300');
+    expect(e).toContain('document.elementsFromPoint(g.x, g.y)');
+    expect(fs.existsSync('scripts/ops/testar-editor-audio.mjs')).toBe(true);
+  });
+});
