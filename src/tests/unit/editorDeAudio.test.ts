@@ -339,3 +339,11 @@ describe('F-338: puxadores nas pontas do clipe escolhido', () => {
     expect(e).toContain('if (!gesto.current) dedos.current.clear();');
   });
 });
+
+describe('F-339: alças pequenas e proporcionais', () => {
+  it('traço de 4 a 8 px conforme o clipe; toque invisível de 18 px; tempo só ao puxar', () => {
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain('Math.max(4, Math.min(8, Math.round((c.duracao * zoom) / 12)))');
+    expect(e).toContain('{puxando === lado &&');
+  });
+});

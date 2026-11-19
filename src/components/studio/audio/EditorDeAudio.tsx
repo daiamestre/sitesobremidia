@@ -1068,17 +1068,22 @@ export function EditorDeAudio() {
     if (reproducao.current) pararSom(false);
     marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: clipeSel, lado }; setSel(null);
   };
+  // F-339 (pedido do dono): alças PEQUENAS e proporcionais ao clipe — um traço fino (4 a 8 px, conforme a largura do clipe),
+  // mais baixo que a onda; a área de toque (18 px) é invisível; o tempo só aparece enquanto puxa.
   const puxadores = (() => {
     if (!clipeAtual) return null;
     const idx = projeto.faixas.findIndex((x) => x.id === clipeAtual.faixa.id); if (idx < 0) return null;
-    const c = clipeAtual.clipe, top = REGUA + idx * ALTURA, xi = c.inicio * zoom - rolagem, xf = fimDoClipe(c) * zoom - rolagem, LARG = 22;
-    const alca = (lado: 'inicio' | 'fim', x: number, tempo: number) => (x < -LARG || x > largura + LARG) ? null : (
+    const c = clipeAtual.clipe, top = REGUA + idx * ALTURA, xi = c.inicio * zoom - rolagem, xf = fimDoClipe(c) * zoom - rolagem, TOQUE = 18;
+    const vis = Math.max(4, Math.min(8, Math.round((c.duracao * zoom) / 12)));
+    const ondaAlt = ALTURA - TITULO - 8, barra = Math.round(ondaAlt * 0.45);
+    const g = gesto.current, puxando = g?.tipo === 'aparar' && g.clipeId === c.id ? g.lado : null;
+    const alca = (lado: 'inicio' | 'fim', x: number, tempo: number) => (x < -TOQUE || x > largura + TOQUE) ? null : (
       <div key={lado} data-mantem-escolha role="slider" aria-label={lado === 'inicio' ? 'Puxador do começo do clipe' : 'Puxador do fim do clipe'} aria-valuenow={Math.round(tempo * 1000) / 1000} tabIndex={-1}
         data-testid={`editor-audio-puxador-${lado}`} onPointerDown={pegarPuxador(lado)} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}
-        className="absolute z-10 flex cursor-ew-resize items-center justify-center rounded-md border-2 border-[#0B0420] bg-[#FFD400] shadow-[0_0_10px_rgba(255,212,0,0.8)]"
-        style={{ top: top + TITULO + 4, height: ALTURA - TITULO - 10, width: LARG, left: lado === 'inicio' ? x : x - LARG, touchAction: 'none' }}>
-        <span className="flex gap-[3px]"><span className="h-6 w-[2px] rounded bg-[#0B0420]" /><span className="h-6 w-[2px] rounded bg-[#0B0420]" /></span>
-        <span className="pointer-events-none absolute -top-5 whitespace-nowrap rounded bg-[#0B0420]/90 px-1 font-mono text-[10px] font-bold text-[#FFD400]" style={{ [lado === 'inicio' ? 'left' : 'right']: 0 }}>{formatarTempo(tempo)}</span>
+        className="absolute z-10 flex cursor-ew-resize items-center"
+        style={{ top: top + TITULO + 4, height: ondaAlt, width: TOQUE, left: x - TOQUE / 2, justifyContent: 'center', touchAction: 'none' }}>
+        <span className="rounded-full bg-[#FFD400] shadow-[0_0_6px_rgba(255,212,0,0.9)] ring-1 ring-[#0B0420]" style={{ width: vis, height: barra }} />
+        {puxando === lado && <span className="pointer-events-none absolute -top-4 whitespace-nowrap rounded bg-[#0B0420]/90 px-1 font-mono text-[9px] font-bold text-[#FFD400]" style={{ [lado === 'inicio' ? 'left' : 'right']: 0 }}>{formatarTempo(tempo)}</span>}
       </div>
     );
     return <>{alca('inicio', xi, c.inicio)}{alca('fim', xf, fimDoClipe(c))}</>;

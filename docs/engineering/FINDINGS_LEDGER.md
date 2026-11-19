@@ -3900,3 +3900,11 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - alças com `data-mantem-escolha`;
   - sem gesto em andamento, os dedos antigos são esquecidos.
 - **Teste completo:** 23/23.
+
+### F-339 — Alças do clipe pequenas e proporcionais (19/11/2026)
+- **Pedido do dono:** as alças estavam grandes demais.
+- **Agora:**
+  - traço amarelo fino de 4–8 px, proporcional à largura do clipe na tela, com 45% da altura da onda;
+  - área de toque invisível de 18 px;
+  - o tempo da ponta só aparece enquanto puxa.
+- **Teste completo:** 23/23. Conferido visualmente em 375×812.
