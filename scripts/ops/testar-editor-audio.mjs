@@ -311,6 +311,29 @@ await passo('TENTAR DE NOVO com o microfone liberado: grava 2 s e a gravação e
   const dur = Number(ult.split(' ')[0]?.split('+')[1]);
   return (f.length === antes + 1 && dur > 1.5 && !clipesAntes.includes(ult)) || { antes, f };
 });
+// F-347: CLONAR VOZ (o servidor é SIMULADO aqui: o teste nunca gasta créditos da ElevenLabs)
+const pedidosClonar = [];
+await pagina.route('**/functions/v1/studio-locucao', async (rota) => {
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+  if (rota.request().method() === 'OPTIONS') return rota.fulfill({ status: 200, headers: cors, body: 'ok' });
+  const corpo = JSON.parse(rota.request().postData() ?? '{}'); pedidosClonar.push({ acao: corpo.acao, voz: corpo.voz, segundos: corpo.segundos, bytes: (corpo.audio ?? '').length });
+  if (corpo.acao === 'palavras') return rota.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ texto: 'Atenção! Corre', palavras: [{ texto: 'Atenção!', ini: 0.1, fim: 0.6 }, { texto: 'Corre', ini: 1.2, fim: 1.6 }] }) });
+  const mp3 = fs.readFileSync('public/studio/locucao/dono-eletro.mp3').toString('base64');
+  return rota.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ audio: mp3, creditos: 20 }) });
+});
+await passo('CLONAR VOZ: escolhe a voz Sérgio Vaz, a voz vai TRATADA (sem os espaços) e volta numa faixa nova embaixo', async () => {
+  const antes = await pagina.evaluate(() => __faixas().length);
+  await pagina.evaluate(() => document.querySelector('button[title^="Clonar voz"]').click());
+  await pagina.waitForSelector('[data-testid=editor-audio-janela-clonar]', { timeout: 5000 });
+  const texto = await pagina.evaluate(() => document.querySelector('[data-testid=editor-audio-janela-clonar]').textContent);
+  if (!/Sérgio Vaz/.test(texto) || !/Vai clonar o clipe/.test(texto)) return { texto };
+  await pagina.evaluate(() => { document.querySelector('[data-testid=editor-audio-voz-sergio-vaz]').click(); document.querySelector('[data-testid=editor-audio-clonar-agora]').click(); });
+  await pagina.waitForFunction((n) => __faixas().length > n, antes, { timeout: 60_000 }).catch(() => {});
+  const f = await pagina.evaluate(() => ({ faixas: __faixas(), nomes: [...document.querySelectorAll('[data-faixa]')].map((d) => d.textContent?.slice(0, 40)) }));
+  const clonar = pedidosClonar.find((p) => p.acao === 'clonar');
+  return (f.faixas.length === antes + 1 && pedidosClonar.some((p) => p.acao === 'palavras') && clonar?.voz === 'sergio-vaz' && clonar.segundos < 1.2) || { antes, f, pedidosClonar };
+});
+await pagina.unroute('**/functions/v1/studio-locucao');
 await passo('nenhum erro de tela durante o teste', () => (erros.length === 0) || erros.slice(0, 3).join(' | '));
 
 // limpeza: apaga no banco o que o teste criou na conta de teste (funciona no local e no site no ar)

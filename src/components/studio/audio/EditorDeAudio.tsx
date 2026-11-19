@@ -8,8 +8,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import {
   AudioWaveform, BetweenHorizontalStart, FolderOpen, Save, ListOrdered, Combine, ListPlus, ClipboardPaste, Copy, CopyPlus, Crop, Download, FilePlus2, Hand, Headphones, Loader2,
   Magnet, Maximize2, Mic, MousePointer2, Music, Pause, Play, Plus, Redo2, Repeat, Rows3, Scissors, SkipBack, SkipForward, Split,
-  Square, Trash2, Undo2, Upload, Volume2, VolumeX, ZoomIn, ZoomOut, X, RotateCw,
+  Square, Trash2, Undo2, Upload, Volume2, VolumeX, ZoomIn, ZoomOut, X, RotateCw, Wand2,
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { VOZES_PARA_CLONAR, MAX_SEGUNDOS_PARA_CLONAR, acabamentoDeRadio, deBase64, limparVoz, paraBase64, tratarVoz, type IdDaVozParaClonar, type PalavraNoTempo } from '@/lib/studio/audio/clonarVoz';
 import { toast as toastBase, type ExternalToast } from 'sonner';
 
 /**
@@ -88,7 +90,7 @@ import {
 import { calcularPicos, duracaoDoSom, gerarTom, juntar, recortar, silenciar, type Picos, type Som } from '@/lib/studio/audio/som';
 import { EFEITOS, GRUPOS, efeitoPorId, valoresPadrao, type Efeito, type Valores } from '@/lib/studio/audio/efeitos';
 import { agendarProjeto, renderizarProjeto } from '@/lib/studio/audio/mixagem';
-import { baixarArquivo, codificar, decodificarArquivo, lerMarcaDoStudio, paraAudioBuffer, type FormatoDeAudio, type MarcaDoStudio } from '@/lib/studio/audio/arquivos';
+import { baixarArquivo, codificar, codificarMp3, decodificarArquivo, lerMarcaDoStudio, paraAudioBuffer, type FormatoDeAudio, type MarcaDoStudio } from '@/lib/studio/audio/arquivos';
 import { apagarDoAparelho, lerDaPasta, lerDoAparelho, listarPasta, salvarNoAparelho, type AudioNaPasta } from '@/lib/studio/audio/guardar';
 import { abrirEdicao, apagarEdicao, duplicarEdicao, guardarEdicao, listarEdicoes, renomearEdicao, type EdicaoNoSistema, type TipoDeEdicao } from '@/lib/studio/audio/sistema';
 
@@ -316,6 +318,8 @@ export function EditorDeAudio() {
   const reproducao = useRef<{ fontes: AudioScheduledSourceNode[]; t0: number; pos0: number; fim: number; origem: number; raf: number } | null>(null);
   const gravador = useRef<{ rec: MediaRecorder; stream: MediaStream; partes: Blob[] } | null>(null);
   const [avisoMic, setAvisoMic] = useState<MotivoDoMicrofone | null>(null);
+  const [janelaClonar, setJanelaClonar] = useState(false);
+  const [vozClonar, setVozClonar] = useState<IdDaVozParaClonar>(VOZES_PARA_CLONAR[0].id);
   const carregado = useRef(false);
 
   projetoRef.current = projeto;
@@ -534,6 +538,51 @@ export function EditorDeAudio() {
     setClipeSel(clipe.id);
     return clipe;
   }, [alterar, registrarSom]);
+
+  /**
+   * F-347: CLONAR VOZ. Pega o clipe escolhido (ou a faixa), TRATA a voz (regra absoluta F-346: limpa, sem respiro, sem
+   * espaço, no ritmo do locutor), manda para a ElevenLabs converter no timbre da voz escolhida e põe o resultado numa FAIXA
+   * NOVA logo embaixo, no mesmo ponto, para comparar com a gravação original (que fica intacta).
+   */
+  const origemDoClone = () => {
+    const p = projetoRef.current, c = acharClipe(p, clipeSel);
+    if (c) return { faixa: { ...c.faixa, clipes: [c.clipe] }, de: c.clipe.inicio, ate: fimDoClipe(c.clipe), nome: c.clipe.nome, oQue: `o clipe "${c.clipe.nome}"` };
+    const f = p.faixas.find((x) => x.id === faixaSel && x.clipes.length) ?? (p.faixas.filter((x) => x.clipes.length).length === 1 ? p.faixas.find((x) => x.clipes.length) : undefined);
+    if (!f) return null;
+    return { faixa: f, de: Math.min(...f.clipes.map((x) => x.inicio)), ate: Math.max(...f.clipes.map(fimDoClipe)), nome: f.nome, oQue: `a faixa "${f.nome}"` };
+  };
+  const erroDaFuncao = async (error: unknown, data: unknown, padrao: string) => {
+    let msg = (data as { error?: string } | null)?.error ?? padrao;
+    try { const ctx = (error as { context?: Response } | null)?.context; if (ctx) msg = (await ctx.json()).error ?? msg; } catch { /* sem detalhe */ }
+    return msg;
+  };
+  const clonarVoz = async () => {
+    const o = origemDoClone(); const voz = VOZES_PARA_CLONAR.find((v) => v.id === vozClonar) ?? VOZES_PARA_CLONAR[0];
+    if (!o) { toast.message('Toque no clipe (ou na faixa) com a sua voz gravada.'); return; }
+    if (o.ate - o.de > MAX_SEGUNDOS_PARA_CLONAR) { toast.error(`Até ${MAX_SEGUNDOS_PARA_CLONAR / 60} minutos por vez: corte o áudio em partes.`); return; }
+    setJanelaClonar(false);
+    try {
+      setOcupado('1/4 Limpando a voz (estalos e grave de vento)…');
+      const bruto = await renderizarProjeto({ volumeGeralDb: 0, faixas: [{ ...o.faixa, volumeDb: 0, pan: 0, mudo: false, solo: false }] }, bufferDe, { de: o.de, ate: o.ate, sr: 44100, canais: 2 });
+      const limpo = await limparVoz(bruto);
+      setOcupado('2/4 Achando cada palavra da sua fala…');
+      const r1 = await supabase.functions.invoke('studio-locucao', { body: { acao: 'palavras', audio: paraBase64(codificarMp3(limpo, 128)) } });
+      const pal = (r1.data as { palavras?: PalavraNoTempo[] } | null)?.palavras;
+      if (r1.error || !pal) throw new Error(await erroDaFuncao(r1.error, r1.data, 'Não consegui achar as palavras.'));
+      if (!pal.length) throw new Error('Não achei fala nesse áudio.');
+      setOcupado('3/4 Tirando respiros e espaços e acertando o ritmo do locutor…');
+      const tr = await tratarVoz(limpo, pal);
+      setOcupado(`4/4 Clonando na voz ${voz.nome} (ElevenLabs)…`);
+      const r2 = await supabase.functions.invoke('studio-locucao', { body: { acao: 'clonar', voz: voz.id, segundos: tr.depois, audio: paraBase64(codificarMp3(tr.som, 160)) } });
+      const resp = r2.data as { audio?: string; creditos?: number } | null;
+      if (r2.error || !resp?.audio) throw new Error(await erroDaFuncao(r2.error, r2.data, 'A conversão falhou.'));
+      const volta = deBase64(resp.audio);
+      const pronto = await acabamentoDeRadio(await decodificarArquivo(volta.buffer.slice(volta.byteOffset, volta.byteOffset + volta.byteLength) as ArrayBuffer));
+      adicionarSom(pronto, `${voz.nome} — ${o.nome}`.slice(0, 60), 'nova', o.de);
+      toast.success(`Clonada na voz ${voz.nome}: ${tr.antes.toFixed(1)} s → ${tr.depois.toFixed(1)} s, sem respiros, ritmo ×${tr.fator.toFixed(2)}. Faixa nova embaixo para comparar.`, { duration: 6000 });
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível clonar a voz.'); }
+    setOcupado(null);
+  };
 
   const abrirArquivos = useCallback(async (arquivos: FileList | File[], faixaId: 'nova' | string = 'nova', em = 0, sequencia = false) => {
     const lista = Array.from(arquivos); if (!lista.length) return;
@@ -1414,6 +1463,40 @@ export function EditorDeAudio() {
       </div>
     </div>
   );
+  const origemTexto = janelaClonar ? origemDoClone()?.oQue ?? null : null;
+  const janelaDeClonar = janelaClonar && (
+    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/70 p-3 sm:items-center" data-mantem-escolha data-testid="editor-audio-janela-clonar" role="dialog" aria-modal="true" aria-label="Clonar voz">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#140c24] p-4 text-slate-100 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#8A2EFF]/25 text-[#C9A2FF]"><Wand2 className="h-5 w-5" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-bold">Clonar voz</p>
+            <p className="mt-0.5 text-xs text-slate-400">{origemTexto ? <>Vai clonar {origemTexto}.</> : <>Toque antes no clipe com a sua voz gravada.</>}</p>
+          </div>
+          <button type="button" className="rounded-full p-1.5 text-slate-400 hover:bg-white/10" title="Fechar" onClick={() => setJanelaClonar(false)}><X className="h-5 w-5" /></button>
+        </div>
+        <p className="mt-3 text-xs font-bold uppercase tracking-wider text-[#B04DFF]">Escolha a voz</p>
+        <div className="mt-1.5 space-y-1.5">
+          {VOZES_PARA_CLONAR.map((v) => (
+            <button key={v.id} type="button" data-testid={`editor-audio-voz-${v.id}`} onClick={() => setVozClonar(v.id)}
+              className={cn('w-full rounded-xl border px-3 py-2.5 text-left', vozClonar === v.id ? 'border-[#FFD400] bg-[#FFD400]/10' : 'border-white/10 hover:bg-white/5')}>
+              <span className="block text-sm font-bold">{v.nome}</span><span className="block text-xs text-slate-400">{v.descricao}</span>
+            </button>
+          ))}
+        </div>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs text-slate-300">
+          <li>Limpa a voz (barulho, estalos, grave de vento).</li>
+          <li>Tira os respiros e os espaços entre as falas.</li>
+          <li>Acerta o ritmo do locutor (rápido, sem pausa).</li>
+          <li>Converte no timbre da voz escolhida e põe numa faixa nova embaixo, para comparar.</li>
+        </ol>
+        <div className="mt-4 flex gap-2">
+          <button type="button" data-testid="editor-audio-clonar-agora" disabled={!origemTexto} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FFD400] px-3 py-3 text-sm font-bold text-black disabled:opacity-40" onClick={() => void clonarVoz()}><Wand2 className="h-4 w-4" />Clonar com {VOZES_PARA_CLONAR.find((v) => v.id === vozClonar)?.nome}</button>
+          <button type="button" className="rounded-xl border border-white/15 px-3 py-3 text-sm font-semibold" onClick={() => setJanelaClonar(false)}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
   const entradaDeArquivo = (<>
     <input ref={entradaSeq} type="file" multiple accept="audio/*,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,.opus" className="hidden" data-testid="editor-audio-arquivo-sequencia"
       onChange={(e) => { if (e.target.files) void abrirArquivos(e.target.files, 'nova', 0, true); e.target.value = ''; }} />
@@ -1556,8 +1639,8 @@ export function EditorDeAudio() {
     return (
       <div className="flex flex-col gap-2 pb-[188px] text-slate-100 [&_input]:![font-size:16px] [&_select]:![font-size:16px] [&_textarea]:![font-size:16px]" data-testid="editor-de-audio" data-modo="celular" data-clipe-escolhido={clipeSel ?? ""} onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
         {entradaDeArquivo}
-      {avisoDoMicrofone}
         {avisoDoMicrofone}
+        {janelaDeClonar}
         {/* topo */}
         <div className="flex items-center gap-1.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#B04DFF] to-[#5D1BFF]"><AudioWaveform className="h-5 w-5" /></span>
@@ -1627,6 +1710,7 @@ export function EditorDeAudio() {
               <Grande titulo="Enviar áudio do aparelho" rotulo="Enviar do aparelho" onClick={() => entrada.current?.click()}><Upload className="h-5 w-5" /></Grande>
               <Grande titulo="Enviar em sequência: vários áudios um atrás do outro na mesma faixa" rotulo="Enviar em sequência" onClick={() => entradaSeq.current?.click()}><ListPlus className="h-5 w-5" /></Grande>
               <Grande titulo={gravando ? 'Parar a gravação' : 'Gravar pelo microfone'} rotulo={gravando ? `Parar ${segGravando.toFixed(0)}s` : 'Gravar'} onClick={() => void gravar()} ativo={!!gravando}><Mic className={cn('h-5 w-5', gravando && 'animate-pulse text-rose-400')} /></Grande>
+              <Grande titulo="Clonar voz: a sua gravação tratada e no timbre da voz escolhida" rotulo="Clonar voz" onClick={() => setJanelaClonar(true)}><Wand2 className="h-5 w-5" /></Grande>
               <Grande titulo="Sons e trilhas do Studio" rotulo="Sons do Studio" onClick={() => setFolha('sons')}><Music className="h-5 w-5" /></Grande>
               <Grande titulo="Faixa nova" rotulo="Faixa nova" onClick={novaFaixaVazia}><Plus className="h-5 w-5" /></Grande>
               <Grande titulo="Bipe de 1 kHz no cursor" rotulo="Bipe" onClick={() => adicionarSom(gerarTom(44100, 1, 1000, 'seno', 0.3), 'Bipe 1 kHz', faixaSel ?? 'nova', cursorRef.current)}><AudioWaveform className="h-5 w-5" /></Grande>
@@ -1677,6 +1761,8 @@ export function EditorDeAudio() {
   return (
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 text-slate-100" data-testid="editor-de-audio" data-clipe-escolhido={clipeSel ?? ""} onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
       {entradaDeArquivo}
+      {avisoDoMicrofone}
+      {janelaDeClonar}
       {/* —— topo —— */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#B04DFF] to-[#5D1BFF]"><AudioWaveform className="h-5 w-5" /></span>
@@ -1692,6 +1778,7 @@ export function EditorDeAudio() {
         <Botao titulo={gravando ? 'Parar a gravação' : 'Gravar pelo microfone (no cursor, numa faixa nova)'} onClick={() => void gravar()} ativo={!!gravando}>
           <Mic className={cn('h-4 w-4', gravando && 'animate-pulse text-rose-400')} />{gravando ? `Parar (${segGravando.toFixed(1)} s)` : 'Gravar'}
         </Botao>
+        <Botao titulo="Clonar voz: a sua gravação tratada e no timbre da voz escolhida" onClick={() => setJanelaClonar(true)}><Wand2 className="h-4 w-4" />Clonar voz</Botao>
         <label className="flex items-center gap-1 text-[11px] text-slate-400"><input type="checkbox" checked={tocarAoGravar} onChange={(e) => setTocarAoGravar(e.target.checked)} />tocar o projeto enquanto grava</label>
         <div className="relative">
           <Botao titulo="Sons e trilhas do Studio" onClick={() => setSonsAbertos((v) => !v)} ativo={sonsAbertos}><Music className="h-4 w-4" />Sons do Studio</Botao>

@@ -77,6 +77,17 @@ O histórico completo de F-01 a F-259 está em `docs/engineering/FINDINGS_LEDGER
 
 > **P-34 fase 2 (16/11/2026):** ✅ NO AR — F-317 (logos 3D de campanha caindo do céu, quebrando a parede e pegando fogo; faixa Alerta de Oferta para a direita; sem "YOUR LOGO"), F-318 (locutor no estilo impacto: "Só essa semana, preço baixo é aqui!") e **F-319: EFEITOS REAIS** — 14 filmagens gratuitas do Pixabay (explosões, bola de fogo, fogo subindo, parede e linha de fogo, brasas, fumaça, raio, vidro rachando e estilhaçando, confete) em `public/studio/efeitos/`, aplicadas com recorte do preto pela placa de vídeo (WebGL), bordas esfumadas e explosão em elipse; cada efeito é um elemento editável (cartão "Efeito": trocar pela galeria, começo, laço, velocidade, recorte/luz/luz forte, espelhar); o MP4 lê os quadros dos efeitos em sequência pelo WebCodecs (`video/decodificarEfeito.ts`). Botão "Efeitos reais" no painel de impacto (padrão ligado). Ficha das licenças: `docs/licencas/EFEITOS_PIXABAY.md`.
 
+> **F-347 (19/11/2026): "Clonar voz" no Editor de Áudio (owner/ADM).** O dono grava a voz no editor, toca no clipe, toca em "Clonar voz", escolhe a voz ("Sérgio Vaz", a A3 NOVA) e o sistema faz tudo:
+> 1. limpa (passa-alta e estalos) no aparelho;
+> 2. acha as palavras (`studio-locucao`, ação `palavras`);
+> 3. tira respiros e espaços e acelera até o ritmo do locutor;
+> 4. converte (ação `clonar`, ElevenLabs fala→fala com limpeza);
+> 5. dá o acabamento de rádio e põe numa FAIXA NOVA embaixo, no mesmo ponto, para comparar com a gravação original.
+> - Voz nova para clonar = uma linha em `VOZES_PARA_CLONAR` (`clonarVoz.ts`) e uma no servidor.
+> - Até 5 min por vez; respeita a reserva de créditos.
+> - Teste completo: 32/32 (servidor simulado, sem gastar). Teste real das 2 ações: 200/200.
+> - Corrigido junto: o aviso do microfone (F-345) aparecia 2× no celular e faltava no computador.
+
 > **F-346 (19/11/2026): tratamento obrigatório da voz antes de clonar/converter** (`node scripts/studio/tratar-voz.mjs <gravação> <saída.mp3> [--silabas=7.6]`): limpeza, corte de respiros e pausas pelas palavras transcritas, ritmo do locutor, conversão com limpeza e acabamento de rádio. Teste 1 do dono (34,5 s) → 17,2 s sem nenhum silêncio, timbre 0,83 (sem tratar: 0,74). Aguarda o dono escolher entre o ritmo 1,5 vez e o 1,3 vez.
 
 > **F-345 (19/11/2026): gravar pelo microfone no Editor de Áudio.** O pedido de permissão não aparecia: no iPhone a sessão de áudio ficava em "só tocar" (F-330). Agora ela passa a "tocar e gravar" antes de pedir o microfone. Se o microfone está bloqueado, sem aparelho, em uso, num navegador sem suporte ou dentro do Instagram/WhatsApp, abre um AVISO NA TELA com o passo a passo de cada aparelho e o botão "Tentar de novo". Teste completo: 31/31.

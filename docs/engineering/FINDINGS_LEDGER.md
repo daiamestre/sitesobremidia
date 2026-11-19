@@ -3998,3 +3998,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - conversão STS para o clone B com `remove_background_noise`;
   - compressão e -14 LUFS.
 - **Medido:** 34,5 s → 17,2 s; silêncios acima de 120 ms: 20 → 0; timbre 0,74 → 0,83. Com 1,5 vez, uma frase foi transcrita errada ("semana da economia"), então vai também a versão 2B, com 1,3 vez, para o dono escolher.
+
+### F-347 — "Clonar voz" dentro do Editor de Áudio (19/11/2026)
+- **Pedido do dono:** gravar a voz no editor, tocar em "Clonar voz", escolher a voz (Sérgio Vaz, e outras no futuro), e o áudio voltar timbrado para dentro do editor para comparar com o original. A regra de tratamento (F-346) vale para tudo o que ele enviar.
+- **Feito:**
+  - `src/lib/studio/audio/clonarVoz.ts` (puro): `limparVoz`, `tirarEstalos`, `blocosDeFala`, `montarSemRespiro`, `fatorDeRitmo` (alvo 7,6 sílabas/s, no máximo 1,5×), `tratarVoz` e `acabamentoDeRadio`;
+  - `studio-locucao`: ações `palavras` (Scribe com o tempo de cada palavra) e `clonar` (STS `0H07ueWLEXSuNIPyW7Y0` com `remove_background_noise`), só admin, até 8 MB, trava de reserva, registro em `studio_locucoes` como `clonar:<voz>`;
+  - editor: botão "Clonar voz" ao lado de "Gravar" e janela de escolha da voz; o resultado vai para uma faixa nova no mesmo ponto.
+- **Defeito achado e corrigido:** o aviso do microfone do F-345 tinha ido 2× para o celular e 0× para o computador (a troca de texto casou dentro da linha de 8 espaços).
+- **Teste:**
+  - unitário `clonarVoz347.test.ts` (6);
+  - e2e 32/32, com o servidor simulado: confere que a voz vai sem os espaços (6 s de entrada → menos de 1,2 s);
+  - real: `palavras` 200 (54 palavras) e `clonar` 200 (6 s, ≈ 102 créditos, timbre 0,78).

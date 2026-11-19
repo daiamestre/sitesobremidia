@@ -1,6 +1,8 @@
 // F-300 (P-33) — LOCUTOR do SOBRE MÍDIA: transforma as frases do roteiro em VOZ (ElevenLabs) e guarda cada uma no R2.
 //   POST { acao: 'falar', voz, frases: [{ chave, texto }] } → JWT obrigatório (acesso ao Studio pela regra studio_ai_escopo)
 //        devolve [{ chave, url, nova }] — frase que já foi gerada antes (mesma voz e mesmo texto) volta do R2 SEM gastar crédito.
+//   POST { acao: 'palavras', audio: base64 mp3 } → F-347: as palavras com o tempo de cada uma (owner/ADM, Editor de Áudio)
+//   POST { acao: 'clonar', voz: 'sergio-vaz', audio: base64 mp3 } → F-347: a fala convertida no timbre da voz (owner/ADM)
 //   POST { acao: 'saldo' } → créditos restantes da ElevenLabs (owner/ADM).
 // A chave ELEVENLABS_API_KEY só existe aqui (segredo da função). Travas: teto diário por pessoa (não vale para owner/ADM)
 // e reserva mínima de créditos na conta da ElevenLabs.
@@ -53,6 +55,12 @@ const MODELO = 'eleven_v4_turbo';
  */
 const AJUSTE_IMPACTO = { stability: 0.3, style: 0.6, use_speaker_boost: true, speed: 1.08 };
 /** pasta fixa das locuções no R2 (tenants/{empresa}/studio/{PASTA}/{hash}.mp3) */
+// F-347: vozes para CLONAR no Editor de Áudio (fala → fala). Voz nova = uma linha aqui e uma em VOZES_PARA_CLONAR (clonarVoz.ts)
+const VOZES_PARA_CLONAR: Record<string, string> = { 'sergio-vaz': '0H07ueWLEXSuNIPyW7Y0' };
+const MAX_BYTES_AUDIO = 8 * 1024 * 1024;
+const CREDITOS_POR_SEGUNDO = 17; // conversão fala→fala ≈ 1000 créditos por minuto (estimativa para as travas)
+function deBase64(t: string): Uint8Array { const s = atob(t); const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+function paraBase64(b: Uint8Array): string { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); }
 const PASTA = 'a0c0c000-0000-4000-8000-00000000f300';
 const TETO_DIA_LETRAS = 6000;     // por pessoa (≈ 6 vídeos de 16 produtos); owner/ADM sem teto
 const RESERVA_CREDITOS = 2000;    // nunca deixa a conta da ElevenLabs zerar
@@ -89,6 +97,39 @@ serve(async (req) => {
   if (body.acao === 'saldo') {
     if (!e.admin) return json(403, { error: 'Só a administração vê o saldo.' });
     return json(200, { creditos: await creditosRestantes() });
+  }
+  // F-347: CLONAR VOZ no Editor de Áudio (só owner/ADM, como o próprio editor)
+  if (body.acao === 'palavras' || body.acao === 'clonar') {
+    if (!e.admin) return json(403, { error: 'Clonar voz é só para a administração.' });
+    const bytes = typeof body.audio === 'string' ? deBase64(body.audio) : null;
+    if (!bytes || bytes.length < 1000) return json(400, { error: 'Mande o áudio.' });
+    if (bytes.length > MAX_BYTES_AUDIO) return json(413, { error: 'Áudio grande demais: até 5 minutos por vez.' });
+    const k = env('ELEVENLABS_API_KEY');
+    if (body.acao === 'palavras') {
+      const fd = new FormData();
+      fd.append('model_id', 'scribe_v1'); fd.append('language_code', 'por'); fd.append('tag_audio_events', 'false'); fd.append('timestamps_granularity', 'word');
+      fd.append('file', new Blob([bytes], { type: 'audio/mpeg' }), 'voz.mp3');
+      const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', { method: 'POST', headers: { 'xi-api-key': k }, body: fd });
+      if (!r.ok) return json(502, { error: 'Não consegui achar as palavras desse áudio. Tente de novo.', detalhe: (await r.text()).slice(0, 200) });
+      const j = await r.json() as { text?: string; words?: Array<{ type: string; text: string; start: number; end: number }> };
+      return json(200, { texto: j.text ?? '', palavras: (j.words ?? []).filter((w) => w.type === 'word').map((w) => ({ texto: w.text, ini: w.start, fim: w.end })) });
+    }
+    const alvo = VOZES_PARA_CLONAR[String(body.voz ?? '')];
+    if (!alvo) return json(400, { error: 'Voz desconhecida.' });
+    const segundos = Math.max(1, Number(body.segundos) || bytes.length / 16000);
+    const custo = Math.ceil(segundos * CREDITOS_POR_SEGUNDO);
+    const resta = await creditosRestantes();
+    if (resta == null) return json(502, { error: 'Não foi possível falar com o serviço de voz agora. Tente de novo.' });
+    if (resta - custo < RESERVA_CREDITOS) return json(429, { error: `Créditos insuficientes para clonar (${resta} restantes; este áudio usa ≈ ${custo}).` });
+    const fd = new FormData();
+    fd.append('model_id', 'eleven_multilingual_sts_v2'); fd.append('remove_background_noise', 'true');
+    fd.append('voice_settings', JSON.stringify({ stability: 0.4, similarity_boost: 1, style: 0, use_speaker_boost: true }));
+    fd.append('audio', new Blob([bytes], { type: 'audio/mpeg' }), 'voz.mp3');
+    const c = await fetch(`https://api.elevenlabs.io/v1/speech-to-speech/${alvo}?output_format=mp3_44100_128`, { method: 'POST', headers: { 'xi-api-key': k }, body: fd });
+    if (!c.ok) return json(502, { error: 'O serviço de voz recusou a conversão. Tente de novo.', detalhe: (await c.text()).slice(0, 200) });
+    const saida = new Uint8Array(await c.arrayBuffer());
+    await srv.from('studio_locucoes').insert({ empresa_operadora_id: e.empresa, usuario_id: u.user.id, voz: `clonar:${body.voz}`, modelo: 'eleven_multilingual_sts_v2', caracteres: custo, url: '' });
+    return json(200, { audio: paraBase64(saida), creditos: custo, restam: resta - custo });
   }
   if (body.acao !== 'falar') return json(400, { error: 'ação desconhecida' });
 
