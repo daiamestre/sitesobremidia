@@ -35,7 +35,7 @@ const ZOOM_MIN = 2, ZOOM_MAX = 40000;
 interface SomGuardado { nome: string; som: Som; picos: Picos; buffers: WeakMap<BaseAudioContext, AudioBuffer> }
 type Gesto =
   | { tipo: 'selecao'; faixaId: string; ancora: number }
-  | { tipo: 'mover'; clipeId: string; desvio: number; moveu: boolean; x: number; y: number; raf: number; novaFaixa?: string; origem?: string }
+  | { tipo: 'mover'; clipeId: string; desvio: number; moveu: boolean; x: number; y: number; raf: number; novaFaixa?: string; origem?: string; x0?: number; y0?: number }
   | { tipo: 'aparar'; clipeId: string; lado: 'inicio' | 'fim' }
   | { tipo: 'regua' }
   | { tipo: 'pinca'; dist0: number; zoom0: number; tempo0: number; x0: number }
@@ -212,6 +212,8 @@ export function EditorDeAudio() {
   const [folha, setFolha] = useState<null | 'efeitos' | 'faixa' | 'sons'>(null);
   const dedos = useRef(new Map<number, { x: number; y: number }>());
   const [arrastando, setArrastando] = useState(false);
+  /** F-331 (celular): só com este botão ligado, arrastar na onda MARCA um trecho; desligado, arrastar o clipe MOVE */
+  const [marcandoTrecho, setMarcandoTrecho] = useState(false);
   const [ferramenta, setFerramenta] = useState<'selecao' | 'mover' | 'tesoura'>('selecao');
   const [ima, setIma] = useState(true);
   const [emTodas, setEmTodas] = useState(false);
@@ -625,6 +627,21 @@ export function EditorDeAudio() {
     const dentro = !!sob && t >= sob.inicio && t <= fimDoClipe(sob);
     let acao: () => void;
     const xIni = sob ? sob.inicio * zoom : 0, xFim = sob ? fimDoClipe(sob) * zoom : 0, x = t * zoom;
+    if (dedo) {
+      const ti = imantar(t), cursorAqui = () => { if (reproducao.current) tocar(ti); else moverCursor(ti); };
+      if (marcandoTrecho) { setClipeSel(dentro && sob ? sob.id : null); setSel(null); if (reproducao.current) pararSom(false); moverCursor(ti); gesto.current = { tipo: 'selecao', faixaId: f.id, ancora: ti }; return; }
+      if (sob && Math.abs(x - xIni) <= borda && sob.duracao * zoom > borda * 3) { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'inicio' }; setClipeSel(sob.id); setSel(null); return; }
+      if (sob && Math.abs(x - xFim) <= borda) { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'fim' }; setClipeSel(sob.id); setSel(null); return; }
+      if (sob && dentro) {
+        // tocou no clipe: ele fica escolhido na hora e a linha amarela vai para o toque; se arrastar, ele vai junto
+        setClipeSel(sob.id); setSel(null); cursorAqui();
+        marcarHistorico();
+        const g: Extract<Gesto, { tipo: 'mover' }> = { tipo: 'mover', clipeId: sob.id, desvio: t - sob.inicio, moveu: false, x: e.clientX, y: e.clientY, raf: 0, origem: f.id, x0: e.clientX, y0: e.clientY };
+        gesto.current = g; rolarArrastando(g); return;
+      }
+      // espaço vazio: deslizar rola o áudio; tocar põe a linha amarela e tira a escolha
+      esperarDedo(e, () => {}, () => { setClipeSel(null); setSel(null); cursorAqui(); }); return;
+    }
     if (sob && Math.abs(x - xIni) <= borda && sob.duracao * zoom > borda * 3) acao = () => { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'inicio' }; setClipeSel(sob.id); };
     else if (sob && Math.abs(x - xFim) <= borda) acao = () => { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'fim' }; setClipeSel(sob.id); };
     else if (sob && dentro && (y <= TITULO + 2 || ferramenta === 'mover' || e.altKey || (dedo && clipeSel === sob.id))) acao = () => {
@@ -686,7 +703,13 @@ export function EditorDeAudio() {
       if (x > el.clientWidth - 40) el.scrollLeft += 40; else if (x < 40) el.scrollLeft = Math.max(0, el.scrollLeft - 40);
       return;
     }
-    if (g.tipo === 'mover') { g.x = e.clientX; g.y = e.clientY; aplicarMover(g); return; }
+    if (g.tipo === 'mover') {
+      g.x = e.clientX; g.y = e.clientY;
+      // no dedo, só começa a mover depois de andar um pouco (um toque não arrasta o clipe sem querer)
+      if (!g.moveu && g.x0 != null && g.y0 != null && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 8) return;
+      if (!g.moveu) setArrastando(true);
+      aplicarMover(g); return;
+    }
     if (g.tipo === 'aparar') {
       const achado = acharClipe(projetoRef.current, g.clipeId); const info = achado && sons.current.get(achado.clipe.somId);
       if (!achado || !info) return;
@@ -1102,7 +1125,7 @@ export function EditorDeAudio() {
       </div>
       <p className="border-t border-white/10 px-3 py-1.5 text-[11px] text-slate-400">
         {celular
-          ? <>Deslize: anda pelo áudio · <b>segure e arraste</b>: marca um trecho · toque num clipe e <b>segure</b>: arrasta (outra faixa, ou embaixo cria faixa nova) · <b>▼ amarelo</b>: arraste o cursor · <b>dois dedos</b>: zoom · toque 2× no nome da faixa: ajustes</>
+          ? <><b>Toque num clipe</b>: escolhe · <b>arraste o clipe</b>: move (outra faixa, ou embaixo cria faixa nova) · <b>borda do clipe</b>: apara · deslize na <b>régua</b> ou no vazio: anda pelo áudio · <b>Marcar trecho</b> ligado: arraste para marcar · <b>▼ amarelo</b>: cursor · <b>dois dedos</b>: zoom</>
           : <>Arraste na onda para marcar um trecho · com a <b>Tesoura</b>, clique para cortar · arraste a <b>barra colorida</b> do clipe para mover (ou outra faixa) · puxe a <b>borda</b> do clipe para aparar · Ctrl+roda = zoom ·
             Espaço tocar · S dividir · Delete apagar · Ctrl+Z/Y · Ctrl+X/C/V · Ctrl+D duplicar · Ctrl+A tudo · L repetir · arraste arquivos para uma faixa</>}
       </p>
@@ -1301,10 +1324,9 @@ export function EditorDeAudio() {
           </div>
           <div className="flex gap-1.5 overflow-x-auto px-2 py-2">
             {aba === 'cortes' && <>
-              <Grande titulo="Tesoura: toque no áudio para cortar ali" rotulo="Tesoura" onClick={() => setFerramenta((v) => (v === 'tesoura' ? 'selecao' : 'tesoura'))} ativo={ferramenta === 'tesoura'}><Scissors className="h-5 w-5" /></Grande>
-              <Grande titulo="Marcar trechos (arrastar na onda)" rotulo="Marcar" onClick={() => setFerramenta('selecao')} ativo={ferramenta === 'selecao'}><MousePointer2 className="h-5 w-5" /></Grande>
-              <Grande titulo="Mover clipes" rotulo="Mover" onClick={() => setFerramenta('mover')} ativo={ferramenta === 'mover'}><Hand className="h-5 w-5" /></Grande>
               <Grande titulo="Cortar: corta o clipe na linha amarela (ou tira o trecho marcado)" rotulo="Cortar" onClick={cortar}><Scissors className="h-5 w-5" /></Grande>
+              <Grande titulo="Marcar trecho: ligado, arrastar na onda marca um trecho" rotulo={marcandoTrecho ? 'Marcando…' : 'Marcar trecho'} onClick={() => { setMarcandoTrecho((v) => !v); setSel(null); }} ativo={marcandoTrecho}><MousePointer2 className="h-5 w-5" /></Grande>
+              <Grande titulo="Desmarcar: tira a escolha do clipe e o trecho marcado" rotulo="Desmarcar" onClick={() => { setSel(null); setClipeSel(null); setMarcandoTrecho(false); }}><Hand className="h-5 w-5" /></Grande>
               <Grande titulo="Apagar o trecho ou o clipe" rotulo="Apagar" onClick={apagar} perigo><Trash2 className="h-5 w-5" /></Grande>
               <Grande titulo="Dividir no cursor" rotulo="Dividir" onClick={dividir}><Split className="h-5 w-5" /></Grande>
               <Grande titulo="Manter só o trecho marcado" rotulo="Manter trecho" onClick={manterSelecao}><Crop className="h-5 w-5" /></Grande>

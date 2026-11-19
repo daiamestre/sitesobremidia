@@ -3805,3 +3805,25 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - no iPhone, o viewport ganha `maximum-scale=1` só enquanto o editor está aberto e volta ao sair.
 - **Prova:** 5 áudios abertos seguidos e o play tocando (o relógio foi a 1,41 s em 1,5 s).
 - **Testes:** editorDeAudio.test.ts (31).
+
+### F-331 — Editor de Áudio no celular: tocar escolhe o clipe, arrastar move na hora (19/11/2026)
+- **Pedido do dono:**
+  - mover o clipe não obedecia;
+  - Marcar não marcava o clipe certo;
+  - Tesoura sem função;
+  - quer: tocar em qualquer clipe = escolher; mais facilidade.
+- **Agora no dedo:**
+  - **toque num clipe:** escolhe na hora e põe a linha amarela ali;
+  - **arrastar o clipe:** move depois de 8 px, sem segurar antes; para outra faixa ou faixa nova;
+  - **borda do clipe:** apara;
+  - **espaço vazio:** deslizar rola e tocar põe o cursor;
+  - **régua:** rola.
+- **Botões:** saíram Tesoura, Marcar e Mover. Entraram "Marcar trecho" (liga/desliga: arrastar marca) e "Desmarcar". "Cortar" corta na linha amarela.
+- **Prova no navegador** (375×812):
+  - toque pôs o cursor em 2 s e Cortar dividiu;
+  - arrastar moveu a parte 1 s;
+  - toque não moveu;
+  - o vazio rolou 100 px;
+  - Marcar trecho marcou sem mover;
+  - Desmarcar limpou.
+- **Testes:** editorDeAudio.test.ts (32).
