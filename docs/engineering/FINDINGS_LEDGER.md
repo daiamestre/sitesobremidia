@@ -3935,3 +3935,16 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - rede de segurança no window: pointerup/cancel em qualquer lugar, blur e troca de aba encerram gestos presos;
   - diagnóstico (`window.__editorAudio`) só no site local.
 - **Teste completo:** 24/24, incluindo "ESTRESSE: 60 ações seguidas sem lasquinhas e sem travar".
+
+### F-342 — 8 áudios no editor: travava e não tocava (19/11/2026)
+- **Pedido do dono:** com 8 áudios o editor travou e não reproduziu.
+- **Reproduzido** pelo teste completo (8 trilhas de 2 min): o botão de TOCAR não recebia o toque.
+- **Causas:**
+  1. Avisos (toasts) acumulados no rodapé, em cima do botão de tocar, prendiam o toque.
+  2. O salvamento automático regravava TODOS os sons a cada mudança (centenas de MB).
+  3. Cada som existia em dobro na memória, e o play fazia uma 3ª cópia de todos ao começar.
+- **Correções:**
+  - avisos do editor no alto, por 2,5 s, e o mesmo aviso substitui o anterior (id);
+  - IndexedDB v3: loja `sons-atual`, cada som gravado UMA vez; o projeto leve vai a cada mudança; sons sem uso saem;
+  - `prepararSom`: o som vira um AudioBuffer uma vez e os canais apontam para ele; o play usa direto.
+- **Teste completo:** 26/26, com "8 ÁUDIOS LONGOS: o PLAY toca todos, relógio e medidor" e "recarregar com 8: a edição volta inteira".

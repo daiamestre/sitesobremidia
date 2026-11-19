@@ -371,3 +371,14 @@ describe('F-341: sem lasquinhas e sem travar', () => {
     expect(fs.readFileSync('scripts/ops/testar-editor-audio.mjs', 'utf8')).toContain('ESTRESSE: 60 ações seguidas');
   });
 });
+
+describe('F-342: 8 áudios longos tocam (sem travar)', () => {
+  it('som guardado uma vez no aparelho; uma cópia só na memória; avisos no alto sem empilhar', () => {
+    const g = fs.readFileSync('src/lib/studio/audio/guardar.ts', 'utf8');
+    expect(g).toContain('if (sonsGravados.has(id)) continue;');
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain('function prepararSom(som: Som)');
+    expect(e).toContain("const NO_TOPO: ExternalToast = { position: 'top-center', duration: 2500 }");
+    expect(fs.readFileSync('scripts/ops/testar-editor-audio.mjs', 'utf8')).toContain('8 ÁUDIOS LONGOS');
+  });
+});

@@ -10,7 +10,18 @@ import {
   Magnet, Maximize2, Mic, MousePointer2, Music, Pause, Play, Plus, Redo2, Repeat, Rows3, Scissors, SkipBack, SkipForward, Split,
   Square, Trash2, Undo2, Upload, Volume2, VolumeX, ZoomIn, ZoomOut,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast as toastBase, type ExternalToast } from 'sonner';
+
+/**
+ * F-342: os avisos do editor aparecem NO ALTO, por 2,5 s, e o mesmo aviso repetido SUBSTITUI o anterior (não empilha).
+ * Antes eles subiam do rodapé e se acumulavam em cima do botão de TOCAR: o toque não chegava e o editor parecia travado.
+ */
+const NO_TOPO: ExternalToast = { position: 'top-center', duration: 2500 };
+const toast = {
+  success: (m: string, o?: ExternalToast) => toastBase.success(m, { ...NO_TOPO, id: m, ...o }),
+  error: (m: string, o?: ExternalToast) => toastBase.error(m, { ...NO_TOPO, duration: 4000, id: m, ...o }),
+  message: (m: string, o?: ExternalToast) => toastBase.message(m, { ...NO_TOPO, id: m, ...o }),
+};
 import { cn } from '@/lib/utils';
 import { SONS, TRILHAS } from '@/lib/studio/impacto';
 import {
@@ -32,7 +43,16 @@ const CAB = 224, CAB_CELULAR = 76, ALTURA = 112, TITULO = 18, REGUA = 28, BORDA 
 type AbaDoCelular = 'cortes' | 'adicionar' | 'efeitos' | 'faixa';
 const ZOOM_MIN = 2, ZOOM_MAX = 40000;
 
-interface SomGuardado { nome: string; som: Som; picos: Picos; buffers: WeakMap<BaseAudioContext, AudioBuffer> }
+interface SomGuardado { nome: string; som: Som; picos: Picos; buffer: AudioBuffer | null }
+
+/** F-342: o som vira um AudioBuffer UMA vez e os canais do som passam a ser a memória dele (uma cópia só, pronta para tocar) */
+function prepararSom(som: Som): { som: Som; buffer: AudioBuffer | null } {
+  try {
+    const n = Math.max(1, som.canais[0]?.length ?? 0), b = new AudioBuffer({ numberOfChannels: Math.max(1, som.canais.length), length: n, sampleRate: som.sr });
+    som.canais.forEach((c, i) => { if (c.length) b.copyToChannel(c as Float32Array<ArrayBuffer>, i); });
+    return { som: { sr: som.sr, canais: Array.from({ length: b.numberOfChannels }, (_, i) => b.getChannelData(i)) }, buffer: b };
+  } catch { return { som, buffer: null }; }
+}
 type Gesto =
   | { tipo: 'selecao'; faixaId: string; ancora: number }
   | { tipo: 'mover'; clipeId: string; desvio: number; moveu: boolean; x: number; y: number; raf: number; novaFaixa?: string; origem?: string; x0?: number; y0?: number; bordaDesde?: number; vertDesde?: number }
@@ -263,15 +283,16 @@ export function EditorDeAudio() {
   const refazer = useCallback(() => { const p = futuro.current.pop(); if (!p) return; passado.current.push(projetoRef.current); projetoRef.current = p; setProjeto(p); }, []);
 
   const registrarSom = useCallback((som: Som, nomeDoSom: string, id = novoId('som')) => {
-    sons.current.set(id, { nome: nomeDoSom, som, picos: calcularPicos(som), buffers: new WeakMap() });
+    const pronto = prepararSom(som);
+    sons.current.set(id, { nome: nomeDoSom, som: pronto.som, picos: calcularPicos(pronto.som), buffer: pronto.buffer });
     setVersaoDosSons((v) => v + 1);
     return id;
   }, []);
   const obterSom = useCallback((id: string) => sons.current.get(id), []);
   const bufferDe = useCallback((ctx: BaseAudioContext, id: string) => {
     const s = sons.current.get(id); if (!s) return null;
-    let b = s.buffers.get(ctx); if (!b) { b = paraAudioBuffer(ctx, s.som); s.buffers.set(ctx, b); }
-    return b;
+    if (!s.buffer) s.buffer = paraAudioBuffer(ctx, s.som); // sem suporte ao AudioBuffer direto: cria uma vez
+    return s.buffer;
   }, []);
 
   const moverCursor = useCallback((t: number) => { const v = Math.max(0, t); cursorRef.current = v; setCursor(v); }, []);
@@ -382,7 +403,6 @@ export function EditorDeAudio() {
       const ctx = new Ctx(), geral = ctx.createGain(), sp = ctx.createChannelSplitter(2), e = ctx.createAnalyser(), d = ctx.createAnalyser();
       e.fftSize = 1024; d.fftSize = 1024; geral.connect(ctx.destination); geral.connect(sp); sp.connect(e, 0); sp.connect(d, 1);
       audio.current = { ctx, geral, e, d };
-      for (const s of sons.current.values()) s.buffers = new WeakMap(); // os buffers do tocador antigo não servem no novo
     }
     const ctx = audio.current.ctx;
     if (ctx.state !== 'running') {

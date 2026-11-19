@@ -219,6 +219,38 @@ await passo('ESTRESSE: 60 ações seguidas (tocar, cortar, segurar e arrastar, d
   const d = window.__editorAudio; const diag = d ? { gesto: d.gesto.current?.tipo ?? null, dedos: [...d.dedos.current.keys()] } : null;
   return (escolhido && mudou) || { escolhido, mudou, faixas: __faixas(), diag, diag0: window.__diag0, xMeio };
 }));
+await passo('8 ÁUDIOS LONGOS ao mesmo tempo: abrem, o PLAY toca todos (relógio anda e o medidor mexe) e começa rápido', async () => {
+  await pagina.evaluate(() => { [...document.querySelectorAll('[role=tab]')].find((b) => b.textContent === 'Adicionar').click(); });
+  await pagina.evaluate(() => document.querySelector('button[title^="Nova edição"]').click());
+  await pagina.waitForFunction(() => !document.querySelector('[data-testid=editor-audio-pista]'), null, { timeout: 60_000 }).catch(() => { throw new Error('Nova edição não limpou a tela'); });
+  await pagina.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'Fechar aviso')?.click());
+  const t0 = Date.now();
+  await pagina.evaluate(async () => {
+    const nomes = ['varejo-dinamico', 'ukulele-feliz', 'festa-boa', 'sertanejo-fenix', 'forro-alma-nordestina', 'funk-joga-bonito', 'black-friday', 'mega-promocao'];
+    const dt = new DataTransfer();
+    for (const n of nomes) dt.items.add(new File([await (await fetch('/studio/trilhas/' + n + '.mp3')).blob()], n + '.mp3', { type: 'audio/mpeg' }));
+    const i = document.querySelector('[data-testid=editor-audio-arquivo]'); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await pagina.waitForFunction(() => document.querySelectorAll('[data-testid=editor-audio-pista]').length === 8, null, { timeout: 120_000 }).catch(async () => { throw new Error('não abriram os 8: ' + await pagina.evaluate(() => document.querySelectorAll('[data-testid=editor-audio-pista]').length)); });
+  const abrir = Date.now() - t0;
+  await pagina.evaluate(async () => { document.querySelector('.overflow-x-auto').scrollLeft = 0; await __toque(5); });
+  const tp = Date.now(); await pagina.click('button[title="Tocar"]', { timeout: 8000 }).catch(async () => { throw new Error('não deu para tocar no PLAY: ' + JSON.stringify(await pagina.evaluate(async () => { const t0 = performance.now(); await new Promise((r) => setTimeout(r, 0)); const atraso = Math.round(performance.now() - t0); const b = document.querySelector('button[title="Tocar"]'); const r = b?.getBoundingClientRect(); const em = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null; const cam = []; for (let n = em; n && cam.length < 8; n = n.parentElement) cam.push(n.tagName + (n.dataset?.testid ? '#' + n.dataset.testid : '') + (n.dataset?.faixa ? '[faixa]' : '') + '.' + (n.className?.toString().slice(0, 40) ?? '')); const doca = document.querySelector('[data-testid=editor-audio-doca]')?.getBoundingClientRect(); return { avisos: [...document.querySelectorAll('[data-sonner-toast]')].map((t) => t.textContent.slice(0, 80)), atraso, ret: r && [Math.round(r.top), Math.round(r.bottom), innerHeight], doca: doca && [Math.round(doca.top), Math.round(doca.bottom)], scrollY, cam }; }))); });
+  await pagina.waitForFunction(() => Number(document.querySelector('[data-testid=editor-audio-relogio]').textContent.split(':')[1]) > 0.2, null, { timeout: 15_000 }).catch(() => {});
+  const comecou = Date.now() - tp; await espera(1200);
+  const r = await pagina.evaluate(() => ({ t: document.querySelector('[data-testid=editor-audio-relogio]').textContent, medidor: [...document.querySelectorAll('[data-testid=editor-audio-doca] ~ * , [data-testid=editor-de-audio] .h-2 > div')].map((d) => d.style.width).filter(Boolean) }));
+  await pagina.click('button[title="Pausar"]').catch(() => {});
+  const seg = Number(r.t.split(':')[1]), medidorMexeu = r.medidor.some((w) => parseFloat(w) > 5);
+  return (seg >= 1 && comecou < 2500 && medidorMexeu) || { ...r, abrir, comecou };
+});
+await passo('recarregar a página com os 8 áudios: a edição volta inteira (salva no aparelho, um som de cada vez)', async () => {
+  await espera(4000); // dá tempo do salvamento automático (2,5 s)
+  await pagina.reload();
+  await pagina.waitForSelector('[data-testid=editor-audio-pista]', { timeout: 90_000 }).catch(() => {});
+  await espera(1500);
+  const n = await pagina.evaluate(() => document.querySelectorAll('[data-testid=editor-audio-pista]').length);
+  await pagina.addScriptTag({ content: 'window.__faixas = () => [...document.querySelectorAll("[data-faixa]")].map((d) => d.dataset.clipes);' });
+  return n === 8 || 'voltaram ' + n + ' faixas';
+});
 await passo('nenhum erro de tela durante o teste', () => (erros.length === 0) || erros.slice(0, 3).join(' | '));
 
 // limpeza: apaga no banco o que o teste criou na conta de teste (funciona no local e no site no ar)
