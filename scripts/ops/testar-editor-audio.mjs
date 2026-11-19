@@ -6,7 +6,7 @@
  *   node scripts/ops/testar-editor-audio.mjs https://sitesobremidia.vercel.app   → no site no ar
  * Sai com código 1 se algum passo falhar. Os salvos/rascunhos criados no teste são apagados no fim.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
@@ -141,11 +141,8 @@ await passo('Nova edição guarda nos rascunhos e "Voltar a editar de onde parei
 });
 await passo('nenhum erro de tela durante o teste', () => (erros.length === 0) || erros.slice(0, 3).join(' | '));
 
-// limpeza: apaga o que o teste criou na conta de teste
-await pagina.evaluate(async () => {
-  const { supabase } = await import('/src/integrations/supabase/client.ts').catch(() => ({ supabase: null }));
-  if (supabase) await supabase.from('studio_audio_edicoes').delete().ilike('nome', '%TESTE AUTOMÁTICO F-332%');
-}).catch(() => {});
+// limpeza: apaga no banco o que o teste criou na conta de teste (funciona no local e no site no ar)
+spawnSync('node', ['scripts/ops/sql.mjs', "delete from public.studio_audio_edicoes where usuario_id = (select id from auth.users where email = 'e2e-owner@sobremidia.com.br') and nome ilike '%TESTE AUTOM%'"], { stdio: 'ignore' });
 await pagina.evaluate(() => { Object.keys(localStorage).filter((k) => k.startsWith('sb-')).forEach((k) => localStorage.removeItem(k)); indexedDB.deleteDatabase('sobremidia-editor-de-audio'); }).catch(() => {});
 await navegador.close();
 console.log(`\n${falhas ? '✗ FALHOU' : '✓ TUDO CERTO'}: ${ok} passos ok, ${falhas} com falha (${URL_BASE})`);
