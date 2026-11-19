@@ -131,6 +131,16 @@ await passo('a rolagem da borda é controlada: tirou o dedo da borda ou soltou, 
   __e(lp, 'pointerup', 906, rp.left + (rp.width / 2), rp.top + 70); await __esp(300); const solto = el.scrollLeft; el.scrollLeft = 0;
   // em 1 s na borda anda no máximo ~800 px (antes passava de 3.000) e para quando o dedo sai
   return (andou1s > 50 && andou1s < 900 && depois === aoSair && solto === depois) || { andou1s, aoSair, depois, solto }; }));
+await passo('PINÇA: a linha amarela fica parada no mesmo ponto da onda (mesmo com um dedo em cima dela)', () => pagina.evaluate(async () => {
+  const el = document.querySelector('.overflow-x-auto'); el.scrollLeft = 0; await __esp(200); await __toque(100);
+  const t0 = __relogio(), linha = document.querySelector('[data-testid=editor-audio-linha]'), larg0 = el.firstElementChild.style.width;
+  const lp = document.querySelector('[data-testid=editor-audio-linha-pegar]'), lr = lp.getBoundingClientRect(), rp = __pista().getBoundingClientRect(), y = rp.top + 60, xl = lr.left + lr.width / 2;
+  __e(lp, 'pointerdown', 911, xl, y); await __esp(40); __e(__pista(), 'pointerdown', 912, xl + 50, y + 10);
+  for (let k = 1; k <= 10; k++) { __e(lp, 'pointermove', 911, xl - 6 * k, y); __e(__pista(), 'pointermove', 912, xl + 50 + 6 * k, y + 10); await __esp(25); }
+  __e(lp, 'pointerup', 911, xl - 60, y); __e(__pista(), 'pointerup', 912, xl + 110, y + 10); await __esp(400);
+  const t1 = __relogio(), larg1 = el.firstElementChild.style.width;
+  const zoom = parseFloat(larg1) / parseFloat(larg0) * 80, xLinha = parseFloat(linha.style.transform.slice(11)), esperado = parseFloat(t1.split(':')[1]) * zoom - el.scrollLeft;
+  return (t1 === t0 && parseFloat(larg1) > parseFloat(larg0) * 1.5 && Math.abs(xLinha - esperado) < 3) || { t0, t1, larg0, larg1, xLinha, esperado }; }));
 await passo('Salvar vai para a Biblioteca (no sistema) e a tela volta do zero, sem zoom', async () => {
   await pagina.click('button[title="Salvar na Biblioteca de Áudios"]');
   const campo = pagina.locator('[data-testid=editor-audio-nome-salvar]'); await campo.fill('TESTE AUTOMÁTICO F-332');

@@ -3877,3 +3877,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - a borda do cursor tem 36 px;
   - para na hora ao sair da borda ou soltar.
 - **Teste completo:** 21/21, com o passo novo "tirou o dedo da borda ou soltou, PARA na hora".
+
+### F-337 — Pinça: a linha amarela fica parada no mesmo ponto da onda (19/11/2026)
+- **Pedido do dono:** na pinça, a linha amarela ficava descontrolada.
+- **Causas:**
+  - um dedo da pinça caía na linha amarela, que é pegável (F-326), e ela seguia o dedo;
+  - os dedos eram contados só nas pistas, não na régua nem na linha, então a pinça às vezes não era reconhecida.
+- **Correção:**
+  - os dedos são contados na linha do tempo inteira (captura no contêiner): 2 dedos = pinça, venha de onde vier;
+  - o que o 1º dedo começou é desfeito (cursor volta, arrasto de clipe desfeito);
+  - no zoom, o cursor não muda e a linha é redesenhada a cada quadro (`zoomRef` atualizado na hora).
+- **Teste completo:** 22/22, com o passo "PINÇA com um dedo em cima da linha": mesmo tempo, zoom >1,5x, linha alinhada com menos de 3 px.

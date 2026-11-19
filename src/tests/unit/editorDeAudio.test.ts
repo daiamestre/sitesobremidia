@@ -321,3 +321,12 @@ describe('F-335: o app no celular pega a versão nova sozinho', () => {
     expect(p).toContain("navigator.serviceWorker.addEventListener('controllerchange'");
   });
 });
+
+describe('F-337: pinça não mexe na linha amarela', () => {
+  it('os dedos são contados na linha do tempo inteira; 2 dedos = pinça; a linha volta e fica no mesmo ponto da onda', () => {
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain('onPointerDownCapture={(e) => {');
+    expect(e).toContain("if (g?.tipo === 'cursor') { cancelAnimationFrame(g.raf); moverCursor(g.cursor0); }");
+    expect(e).toContain('posicionarLinha(cursorRef.current); });');
+  });
+});

@@ -43,7 +43,7 @@ type Gesto =
   | { tipo: 'espera'; x0: number; y0: number; scroll0: number; scrollY0: number; acao: () => void; toque: () => void; timer: number }
   | { tipo: 'rolar'; x0: number; y0: number; scroll0: number; scrollY0: number }
   /** arrastando o triângulo da linha amarela */
-  | { tipo: 'cursor'; tocava: boolean; x: number; raf: number; ultimo: number };
+  | { tipo: 'cursor'; tocava: boolean; x: number; raf: number; ultimo: number; cursor0: number };
 
 const cor = (hex: string, a: number) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
 const ehCampo = (el: EventTarget | null) => el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
@@ -618,7 +618,9 @@ export function EditorDeAudio() {
     const g = gesto.current;
     if (g?.tipo === 'espera') clearTimeout(g.timer);
     if (g?.tipo === 'selecao') setSel(null);
-    if (g && (g.tipo === 'mover' || g.tipo === 'aparar')) { const antes = passado.current.pop(); if (antes) { projetoRef.current = antes; setProjeto(antes); } }
+    if (g && (g.tipo === 'mover' || g.tipo === 'aparar')) { cancelAnimationFrame((g as { raf?: number }).raf ?? 0); setArrastando(false); const antes = passado.current.pop(); if (antes) { projetoRef.current = antes; setProjeto(antes); } }
+    // F-337: o 1º dedo caiu na linha amarela: ela volta para onde estava e NÃO segue os dedos da pinça
+    if (g?.tipo === 'cursor') { cancelAnimationFrame(g.raf); moverCursor(g.cursor0); }
     const [a, b] = [...dedos.current.values()], el = area.current!, r = el.getBoundingClientRect();
     const xm = (a.x + b.x) / 2 - r.left;
     gesto.current = { tipo: 'pinca', dist0: Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), zoom0: zoom, tempo0: (xm + el.scrollLeft) / zoom, x0: xm };
@@ -627,7 +629,7 @@ export function EditorDeAudio() {
   const aoApertar = (f: Faixa) => (e: PE<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
     capturar(e);
-    if (e.pointerType === 'touch') { dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (dedos.current.size === 2) { comecarPinca(); return; } if (dedos.current.size > 2) return; }
+    if (e.pointerType === 'touch' && dedos.current.size > 1) return; // pinça em andamento
     const t = tempoDoMouse(e), y = e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top;
     const dedo = e.pointerType === 'touch';
     setFaixaSel(f.id);
@@ -697,8 +699,11 @@ export function EditorDeAudio() {
       const [a, b] = [...dedos.current.values()], el = area.current!, r = el.getBoundingClientRect();
       const novo = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, g.zoom0 * (Math.hypot(a.x - b.x, a.y - b.y) / g.dist0)));
       const xm = (a.x + b.x) / 2 - r.left;
-      setZoom(novo);
-      requestAnimationFrame(() => { el.scrollLeft = Math.max(0, g.tempo0 * novo - xm); setRolagem(el.scrollLeft); });
+      // F-337: a linha amarela fica PARADA no mesmo ponto da onda (o cursor não muda; só é redesenhada no zoom novo)
+      zoomRef.current = novo; setZoom(novo);
+      el.scrollLeft = Math.max(0, g.tempo0 * novo - xm);
+      requestAnimationFrame(() => { el.scrollLeft = Math.max(0, g.tempo0 * novo - xm); setRolagem(el.scrollLeft); posicionarLinha(cursorRef.current); });
+      posicionarLinha(cursorRef.current);
       return;
     }
     if (g.tipo === 'espera') {
@@ -1059,7 +1064,7 @@ export function EditorDeAudio() {
   const pegarCursor = (e: PE<HTMLDivElement>) => {
     e.stopPropagation(); capturar(e);
     const tocava = !!reproducao.current; if (tocava) pararSom(false);
-    const g: Extract<Gesto, { tipo: 'cursor' }> = { tipo: 'cursor', tocava, x: e.clientX, raf: 0, ultimo: 0 };
+    const g: Extract<Gesto, { tipo: 'cursor' }> = { tipo: 'cursor', tocava, x: e.clientX, raf: 0, ultimo: 0, cursor0: cursorRef.current };
     gesto.current = g;
     // segurando perto da borda: rola sozinho (mais rápido quanto mais perto) e o cursor vai junto
     const andar = () => {
@@ -1109,7 +1114,19 @@ export function EditorDeAudio() {
           ))}
           {arrastando && <div style={{ height: 64 }} className="border-b border-white/10 bg-[#25D366]/10" />}
         </div>
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1"
+          onPointerDownCapture={(e) => {
+            if (e.pointerType !== 'touch') return;
+            dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (dedos.current.size >= 2) { e.stopPropagation(); if (gesto.current?.tipo !== 'pinca' && dedos.current.size === 2) comecarPinca(); }
+          }}
+          onPointerMoveCapture={(e) => {
+            if (e.pointerType !== 'touch' || !dedos.current.has(e.pointerId)) return;
+            dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (gesto.current?.tipo === 'pinca') { e.stopPropagation(); aoMover(e); }
+          }}
+          onPointerUpCapture={(e) => { if (e.pointerType !== 'touch') return; dedos.current.delete(e.pointerId); if (gesto.current?.tipo === 'pinca') { e.stopPropagation(); if (dedos.current.size === 0) gesto.current = null; } }}
+          onPointerCancelCapture={(e) => { if (e.pointerType !== 'touch') return; dedos.current.delete(e.pointerId); if (gesto.current?.tipo === 'pinca') { e.stopPropagation(); if (dedos.current.size === 0) gesto.current = null; } }}>
           <div ref={area} className="overflow-x-auto overflow-y-hidden" onScroll={(e) => setRolagem((e.target as HTMLDivElement).scrollLeft)}
             onWheel={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); zoomPara(zoom * (e.deltaY < 0 ? 1.25 : 0.8), tempoDoMouse(e)); } }}>
             <div style={{ width: larguraTotal }}>
@@ -1142,7 +1159,7 @@ export function EditorDeAudio() {
               )}
             </div>
           </div>
-          <div ref={linha} className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-[#FFD400] shadow-[0_0_8px_#FFD400]" style={{ left: 0 }}>
+          <div ref={linha} data-testid="editor-audio-linha" className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-[#FFD400] shadow-[0_0_8px_#FFD400]" style={{ left: 0 }}>
             {/* a linha amarela INTEIRA e o triângulo do topo pegam o cursor: arraste; na borda da tela o áudio vem acompanhando */}
             <div role="slider" aria-label="Cursor: arraste para mudar a posição" aria-valuenow={Math.round(cursor * 1000) / 1000} tabIndex={-1} data-testid="editor-audio-triangulo"
               onPointerDown={pegarCursor} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}
