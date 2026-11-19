@@ -3908,3 +3908,13 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - área de toque invisível de 18 px;
   - o tempo da ponta só aparece enquanto puxa.
 - **Teste completo:** 23/23. Conferido visualmente em 375×812.
+
+### F-340 — Alças do lado de FORA do clipe (19/11/2026)
+- **Pedido do dono:** as alças ficavam em cima da borda e atrapalhavam ver o corte.
+- **Agora:**
+  - a do começo fica inteira à esquerda da borda, e a do fim inteira à direita;
+  - só no clipe encostado no início da tela/tempo zero ela encosta por dentro.
+- **Prova** (375×812):
+  - borda do começo em 173 px, alça em 155–173;
+  - borda do fim em 293 px, alça em 293–311.
+- **Teste completo:** 23/23.

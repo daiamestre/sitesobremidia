@@ -138,7 +138,10 @@ await passo('PUXADORES: o clipe escolhido tem uma alça em cada ponta; arrastar 
   const pi = document.querySelector('[data-testid=editor-audio-puxador-inicio]'), pf = document.querySelector('[data-testid=editor-audio-puxador-fim]');
   if (!pi) return 'sem puxador do começo';
   const r = pi.getBoundingClientRect(), y = r.top + r.height / 2;
-  __e(pi, 'pointerdown', 921, r.left + 5, y); for (let k = 1; k <= 6; k++) { __e(pi, 'pointermove', 921, r.left + 5 + 4 * k, y); await __esp(25); } __e(pi, 'pointerup', 921, r.left + 29, y); await __esp(300);
+  // a alça do começo fica do lado de FORA: a borda do clipe é a direita dela
+  const fora = r.right <= __pista().getBoundingClientRect().left + 2.5 * 80 - document.querySelector('.overflow-x-auto').scrollLeft + 1;
+  const x0 = r.right - 2; __e(pi, 'pointerdown', 921, x0, y); for (let k = 1; k <= 6; k++) { __e(pi, 'pointermove', 921, x0 + 4 * k, y); await __esp(25); } __e(pi, 'pointerup', 921, x0 + 24, y); await __esp(300);
+  if (!fora) return 'a alça do começo não está do lado de fora do clipe';
   const depois = __faixas()[0];
   document.querySelector('button[title="Voltar o que foi feito"]').click(); await __esp(250);
   return (depois !== antes && /2\.(8|7|9)\d\+/.test(depois) && __faixas()[0] === antes) || { antes, depois, voltou: __faixas()[0], pf: !!pf }; }));

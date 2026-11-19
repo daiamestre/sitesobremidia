@@ -347,3 +347,10 @@ describe('F-339: alças pequenas e proporcionais', () => {
     expect(e).toContain('{puxando === lado &&');
   });
 });
+
+describe('F-340: alças do lado de FORA do clipe', () => {
+  it('a do começo fica à esquerda da borda e a do fim à direita', () => {
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain("(lado === 'inicio' ? (fora(lado, x) ? x - TOQUE : x) : x)");
+  });
+});

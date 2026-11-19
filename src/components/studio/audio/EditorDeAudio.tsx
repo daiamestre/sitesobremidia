@@ -1077,11 +1077,15 @@ export function EditorDeAudio() {
     const vis = Math.max(4, Math.min(8, Math.round((c.duracao * zoom) / 12)));
     const ondaAlt = ALTURA - TITULO - 8, barra = Math.round(ondaAlt * 0.45);
     const g = gesto.current, puxando = g?.tipo === 'aparar' && g.clipeId === c.id ? g.lado : null;
+    // F-340 (pedido do dono): as alças ficam do LADO DE FORA do clipe (a borda do áudio fica livre para ver o corte);
+    // só se não houver espaço fora (clipe no tempo zero, encostado na tela) ela encosta por dentro
+    const fora = (lado: 'inicio' | 'fim', x: number) => (lado === 'inicio' ? x - TOQUE >= -2 : true);
+    const posicao = (lado: 'inicio' | 'fim', x: number) => (lado === 'inicio' ? (fora(lado, x) ? x - TOQUE : x) : x);
     const alca = (lado: 'inicio' | 'fim', x: number, tempo: number) => (x < -TOQUE || x > largura + TOQUE) ? null : (
       <div key={lado} data-mantem-escolha role="slider" aria-label={lado === 'inicio' ? 'Puxador do começo do clipe' : 'Puxador do fim do clipe'} aria-valuenow={Math.round(tempo * 1000) / 1000} tabIndex={-1}
         data-testid={`editor-audio-puxador-${lado}`} onPointerDown={pegarPuxador(lado)} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}
         className="absolute z-10 flex cursor-ew-resize items-center"
-        style={{ top: top + TITULO + 4, height: ondaAlt, width: TOQUE, left: x - TOQUE / 2, justifyContent: 'center', touchAction: 'none' }}>
+        style={{ top: top + TITULO + 4, height: ondaAlt, width: TOQUE, left: posicao(lado, x), justifyContent: fora(lado, x) ? (lado === 'inicio' ? 'flex-end' : 'flex-start') : (lado === 'inicio' ? 'flex-start' : 'flex-end'), touchAction: 'none' }}>
         <span className="rounded-full bg-[#FFD400] shadow-[0_0_6px_rgba(255,212,0,0.9)] ring-1 ring-[#0B0420]" style={{ width: vis, height: barra }} />
         {puxando === lado && <span className="pointer-events-none absolute -top-4 whitespace-nowrap rounded bg-[#0B0420]/90 px-1 font-mono text-[9px] font-bold text-[#FFD400]" style={{ [lado === 'inicio' ? 'left' : 'right']: 0 }}>{formatarTempo(tempo)}</span>}
       </div>
