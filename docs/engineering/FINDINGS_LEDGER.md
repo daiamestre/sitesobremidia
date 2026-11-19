@@ -3973,3 +3973,18 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - peso 3× nas travas de créditos/teto diário.
 - **Tela:** 6ª voz em `VOZES_DO_LOCUTOR` (segmento eletrônicos), com a amostra `dono-eletro.mp3`.
 - **Teste:** função no ar com a conta de teste: 200, mp3 de 8 s, timbre 0,73. Unitários da locução 17/17.
+
+### F-345 — Microfone do Editor de Áudio: permissão que não aparecia (19/11/2026)
+- **Pedido do dono:** ao tocar em "Gravar", a mensagem pedia permissão, mas a tela para liberar não aparecia.
+- **Causas:**
+  - o tocador punha `navigator.audioSession.type = 'playback'` (F-330), e no iPhone essa sessão não deixa gravar;
+  - quem nega uma vez não recebe o pedido de novo;
+  - qualquer erro virava o mesmo aviso rápido.
+- **Feito:**
+  - sessão em `play-and-record` antes do `getUserMedia`, que volta a `playback` ao parar; o tocador não troca a sessão durante a gravação;
+  - `motivoDoErroDoMicrofone` (negado, sem microfone, em uso, outro) e `aparelhoDoMicrofone` (iPhone, app no iPhone, Android, app no Android, navegador de dentro de app, computador);
+  - aviso fixo na tela (`editor-audio-aviso-microfone`) com `PASSOS_DO_MICROFONE` e "Tentar de novo".
+- **Teste:**
+  - unitário `microfoneEditorDeAudio345.test.ts`;
+  - e2e com 2 passos novos (negado → aviso visível; liberado → grava 2 s numa faixa nova), 31/31;
+  - o passo "Enviar em sequência" ganhou 90 s, porque guardar a edição na nuvem pode passar de 60 s.

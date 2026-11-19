@@ -35,8 +35,8 @@ let sessao = null;
 for (let k = 0; k < 40 && !sessao; k++) { await espera(500); try { sessao = await (await fetch('http://127.0.0.1:8767/')).json(); } catch { /* ainda não */ } }
 if (!sessao?.key) { console.error('✗ não consegui a sessão da conta de teste'); sair(1); }
 
-const navegador = await chromium.launch({ executablePath: chromeNoPc(), args: ['--autoplay-policy=no-user-gesture-required'] });
-const ctx = await navegador.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+const navegador = await chromium.launch({ executablePath: chromeNoPc(), args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
+const ctx = await navegador.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, permissions: ['microphone'] });
 const pagina = await ctx.newPage();
 const erros = [];
 pagina.on('pageerror', (e) => erros.push(String(e)));
@@ -162,7 +162,8 @@ await passo('Salvar vai para a Biblioteca (no sistema) e a tela volta do zero, s
   if (fonte !== '16px') return `letra do campo ${fonte} (o iPhone dá zoom abaixo de 16px)`;
   await pagina.evaluate(() => { window.__salvo = JSON.stringify(__faixas()); });
   await pagina.click('[data-testid=editor-audio-confirmar-salvar]');
-  await pagina.waitForFunction(() => !document.querySelector('[data-testid=editor-audio-pista]'), null, { timeout: 60_000 });
+  const limpou = await pagina.waitForFunction(() => !document.querySelector('[data-testid=editor-audio-pista]'), null, { timeout: 90_000 }).then(() => true).catch(() => false);
+  if (!limpou) return await pagina.evaluate(() => ({ nao_limpou: true, avisos: [...document.querySelectorAll('[data-sonner-toast]')].map((t) => t.textContent), ocupado: document.querySelector('.animate-spin')?.parentElement?.textContent }));
   return true;
 });
 await passo('a Biblioteca mostra o salvo e ele abre de novo', async () => {
@@ -288,6 +289,27 @@ await passo('ENVIAR EM SEQUÊNCIA: 3 áudios entram um atrás do outro e o 2º t
   const r = await pagina.evaluate(() => ({ t: Number(document.querySelector('[data-testid=editor-audio-relogio]').textContent.split(':')[1]), medidor: [...document.querySelectorAll('[data-testid=editor-de-audio] .h-2 > div')].map((d) => parseFloat(d.style.width) || 0) }));
   await pagina.click('button[title="Pausar"]').catch(() => {});
   return (r.t > fim1 + 0.3 && r.medidor.some((w) => w > 5)) || { f, fim1, r };
+});
+// F-345: microfone
+await passo('MICROFONE NEGADO: o aviso aparece NA TELA com o passo a passo para liberar', async () => {
+  await pagina.evaluate(() => { [...document.querySelectorAll('[role=tab]')].find((b) => b.textContent === 'Adicionar')?.click(); });
+  await pagina.evaluate(() => { window.__gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices); navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('negado', 'NotAllowedError')); });
+  await pagina.evaluate(() => document.querySelector('button[title="Gravar pelo microfone"]').click());
+  await pagina.waitForSelector('[data-testid=editor-audio-aviso-microfone]', { timeout: 5000 }).catch(() => {});
+  const r = await pagina.evaluate(() => { const d = document.querySelector('[data-testid=editor-audio-aviso-microfone]'); if (!d) return null; const b = d.getBoundingClientRect(); return { texto: d.textContent, visivel: b.width > 300 && b.height > 300 }; });
+  return (r && r.visivel && /Libere o microfone/.test(r.texto) && /Permitir/.test(r.texto)) || r;
+});
+await passo('TENTAR DE NOVO com o microfone liberado: grava 2 s e a gravação entra numa faixa nova', async () => {
+  const antes = await pagina.evaluate(() => __faixas().length), clipesAntes = await pagina.evaluate(() => __faixas().join(' '));
+  await pagina.evaluate(() => { navigator.mediaDevices.getUserMedia = window.__gum; document.querySelector('[data-testid=editor-audio-microfone-tentar]').click(); });
+  await espera(2200);
+  const gravando = await pagina.evaluate(() => ({ aviso: !!document.querySelector('[data-testid=editor-audio-aviso-microfone]'), parar: !!document.querySelector('button[title="Parar a gravação"]') }));
+  if (gravando.aviso || !gravando.parar) return gravando;
+  await pagina.evaluate(() => document.querySelector('button[title="Parar a gravação"]').click());
+  await pagina.waitForFunction((n) => __faixas().length > n, antes, { timeout: 15_000 }).catch(() => {});
+  const f = await pagina.evaluate(() => __faixas()); const ult = f[f.length - 1] ?? '';
+  const dur = Number(ult.split(' ')[0]?.split('+')[1]);
+  return (f.length === antes + 1 && dur > 1.5 && !clipesAntes.includes(ult)) || { antes, f };
 });
 await passo('nenhum erro de tela durante o teste', () => (erros.length === 0) || erros.slice(0, 3).join(' | '));
 

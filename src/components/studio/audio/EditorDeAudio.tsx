@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import {
   AudioWaveform, BetweenHorizontalStart, FolderOpen, Save, ListOrdered, Combine, ListPlus, ClipboardPaste, Copy, CopyPlus, Crop, Download, FilePlus2, Hand, Headphones, Loader2,
   Magnet, Maximize2, Mic, MousePointer2, Music, Pause, Play, Plus, Redo2, Repeat, Rows3, Scissors, SkipBack, SkipForward, Split,
-  Square, Trash2, Undo2, Upload, Volume2, VolumeX, ZoomIn, ZoomOut,
+  Square, Trash2, Undo2, Upload, Volume2, VolumeX, ZoomIn, ZoomOut, X, RotateCw,
 } from 'lucide-react';
 import { toast as toastBase, type ExternalToast } from 'sonner';
 
@@ -16,6 +16,62 @@ import { toast as toastBase, type ExternalToast } from 'sonner';
  * F-342: os avisos do editor aparecem NO ALTO, por 2,5 s, e o mesmo aviso repetido SUBSTITUI o anterior (não empilha).
  * Antes eles subiam do rodapé e se acumulavam em cima do botão de TOCAR: o toque não chegava e o editor parecia travado.
  */
+/**
+ * F-345: por que o microfone não abriu e COMO liberar, na tela (antes só um aviso rápido dizia "permita o microfone" e o
+ * pedido do navegador não aparecia: no iPhone a sessão de áudio estava em "só tocar", e quem já tinha negado uma vez
+ * não recebe o pedido de novo — precisa liberar nos ajustes).
+ */
+export type MotivoDoMicrofone = 'negado' | 'sem-microfone' | 'ocupado' | 'sem-suporte' | 'app-interno' | 'outro';
+export function motivoDoErroDoMicrofone(e: unknown): MotivoDoMicrofone {
+  const n = (e as { name?: string } | null)?.name ?? '';
+  if (n === 'NotAllowedError' || n === 'SecurityError' || n === 'PermissionDeniedError') return 'negado';
+  if (n === 'NotFoundError' || n === 'DevicesNotFoundError' || n === 'OverconstrainedError') return 'sem-microfone';
+  if (n === 'NotReadableError' || n === 'TrackStartError' || n === 'AbortError') return 'ocupado';
+  return 'outro';
+}
+export function aparelhoDoMicrofone(ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''): 'iphone' | 'iphone-app' | 'android' | 'android-app' | 'app-interno' | 'computador' {
+  const instalado = typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true);
+  if (/Instagram|FBAN|FBAV|FB_IAB|WhatsApp|Line\/|TikTok|musical_ly/i.test(ua)) return 'app-interno';
+  const ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1);
+  if (ios) return instalado ? 'iphone-app' : 'iphone';
+  if (/Android/i.test(ua)) return instalado ? 'android-app' : 'android';
+  return 'computador';
+}
+export const PASSOS_DO_MICROFONE: Record<ReturnType<typeof aparelhoDoMicrofone>, string[]> = {
+  iphone: [
+    'Toque em "aA" (ou no ícone à esquerda do endereço do site), no alto ou embaixo da tela.',
+    'Toque em "Ajustes do Site" → "Microfone" → "Permitir".',
+    'Se não aparecer: Ajustes do iPhone → Apps → Safari → Microfone → "Perguntar" ou "Permitir".',
+    'Volte aqui e toque em "Tentar de novo".',
+  ],
+  'iphone-app': [
+    'Abra os Ajustes do iPhone → Apps → Safari → Microfone → "Perguntar" ou "Permitir".',
+    'Feche o app SOBRE MÍDIA (deslize para cima) e abra de novo.',
+    'Toque em "Gravar" e depois em "Permitir" no aviso do iPhone.',
+  ],
+  android: [
+    'Toque no ícone à esquerda do endereço do site (cadeado ou controles).',
+    'Toque em "Permissões" → "Microfone" → "Permitir".',
+    'Se não aparecer: Configurações do celular → Apps → Chrome → Permissões → Microfone → "Permitir".',
+    'Volte aqui e toque em "Tentar de novo".',
+  ],
+  'android-app': [
+    'Segure o ícone do app SOBRE MÍDIA na tela inicial → "Informações do app" (ⓘ).',
+    'Toque em "Permissões" → "Microfone" → "Permitir".',
+    'Volte aqui e toque em "Tentar de novo".',
+  ],
+  'app-interno': [
+    'Você abriu o Studio por dentro de outro aplicativo (Instagram, WhatsApp…), que não deixa gravar.',
+    'Toque nos 3 pontinhos (⋯) e escolha "Abrir no navegador" (Safari ou Chrome).',
+    'Entre no Studio por lá e grave de novo.',
+  ],
+  computador: [
+    'Clique no ícone à esquerda do endereço do site (cadeado ou controles).',
+    'Em "Microfone", escolha "Permitir" e recarregue a página.',
+    'No Windows, confira também: Configurações → Privacidade → Microfone → ligado para o navegador.',
+  ],
+};
+
 const NO_TOPO: ExternalToast = { position: 'top-center', duration: 2500 };
 const toast = {
   success: (m: string, o?: ExternalToast) => toastBase.success(m, { ...NO_TOPO, id: m, ...o }),
@@ -259,6 +315,7 @@ export function EditorDeAudio() {
   const audio = useRef<{ ctx: AudioContext; geral: GainNode; e: AnalyserNode; d: AnalyserNode } | null>(null);
   const reproducao = useRef<{ fontes: AudioScheduledSourceNode[]; t0: number; pos0: number; fim: number; origem: number; raf: number } | null>(null);
   const gravador = useRef<{ rec: MediaRecorder; stream: MediaStream; partes: Blob[] } | null>(null);
+  const [avisoMic, setAvisoMic] = useState<MotivoDoMicrofone | null>(null);
   const carregado = useRef(false);
 
   projetoRef.current = projeto;
@@ -397,7 +454,7 @@ export function EditorDeAudio() {
   // dentro do toque do play, com um som mudo de 1 amostra (destrava o áudio no iOS) e a sessão em "playback"
   // (toca mesmo com o iPhone no silencioso).
   const contexto = useCallback(() => {
-    try { const sessao = (navigator as unknown as { audioSession?: { type: string } }).audioSession; if (sessao) sessao.type = 'playback'; } catch { /* sem suporte */ }
+    try { const sessao = (navigator as unknown as { audioSession?: { type: string } }).audioSession; if (sessao && !gravador.current) sessao.type = 'playback'; } catch { /* sem suporte */ }
     if (!audio.current || audio.current.ctx.state === 'closed') {
       const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ctx = new Ctx(), geral = ctx.createGain(), sp = ctx.createChannelSplitter(2), e = ctx.createAnalyser(), d = ctx.createAnalyser();
@@ -510,12 +567,25 @@ export function EditorDeAudio() {
   // ——— gravar ———
   const gravar = useCallback(async () => {
     if (gravador.current) { gravador.current.rec.stop(); return; }
+    if (aparelhoDoMicrofone() === 'app-interno') { setAvisoMic('app-interno'); return; }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { setAvisoMic('sem-suporte'); return; }
+    // F-345: no iPhone a sessão de áudio precisa estar em "tocar e gravar" ANTES de pedir o microfone
+    const sessao = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+    try { if (sessao) sessao.type = 'play-and-record'; } catch { /* sem suporte */ }
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    } catch (e) {
+      try { if (sessao) sessao.type = 'playback'; } catch { /* nada */ }
+      setAvisoMic(motivoDoErroDoMicrofone(e)); return;
+    }
+    setAvisoMic(null);
+    try {
       const rec = new MediaRecorder(stream), partes: Blob[] = [], inicio = cursorRef.current;
       rec.ondataavailable = (e) => { if (e.data.size) partes.push(e.data); };
       rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop()); gravador.current = null; setGravando(null); pararSom(false);
+        try { if (sessao) sessao.type = 'playback'; } catch { /* nada */ }
         try {
           const som = await decodificarArquivo(await new Blob(partes, { type: rec.mimeType }).arrayBuffer());
           adicionarSom(som, `Gravação ${new Date().toLocaleTimeString('pt-BR')}`, 'nova', inicio);
@@ -525,7 +595,7 @@ export function EditorDeAudio() {
       gravador.current = { rec, stream, partes };
       rec.start(250); setGravando({ inicio, desde: Date.now() });
       if (tocarAoGravar && projetoRef.current.faixas.length) tocar(inicio);
-    } catch { toast.error('O navegador não liberou o microfone. Permita o microfone para este site e tente de novo.'); }
+    } catch { stream.getTracks().forEach((t) => t.stop()); try { if (sessao) sessao.type = 'playback'; } catch { /* nada */ } setAvisoMic('sem-suporte'); }
   }, [adicionarSom, pararSom, tocar, tocarAoGravar]);
   const [, setTique] = useState(0);
   useEffect(() => { if (!gravando) return; const i = setInterval(() => setTique((x) => x + 1), 250); return () => clearInterval(i); }, [gravando]);
@@ -1313,6 +1383,37 @@ export function EditorDeAudio() {
       <div className="h-2 overflow-hidden rounded bg-white/10"><div ref={medidorD} className="h-full w-0 bg-gradient-to-r from-[#25D366] via-[#FFD400] to-[#f97316]" /></div>
     </div>
   );
+  const TITULO_MIC: Record<MotivoDoMicrofone, string> = {
+    negado: 'Libere o microfone para gravar', 'sem-microfone': 'Nenhum microfone encontrado', ocupado: 'O microfone está em uso',
+    'sem-suporte': 'Este navegador não grava áudio', 'app-interno': 'Abra no navegador para gravar', outro: 'Não foi possível abrir o microfone',
+  };
+  const aparelhoMic = aparelhoDoMicrofone();
+  const passosMic = avisoMic === 'sem-microfone' ? ['Ligue ou conecte um microfone (ou fone com microfone) e toque em "Tentar de novo".']
+    : avisoMic === 'ocupado' ? ['Outro app está usando o microfone (ligação, WhatsApp, gravador, outra aba).', 'Feche esse app ou encerre a ligação e toque em "Tentar de novo".']
+    : avisoMic === 'sem-suporte' ? ['Atualize o celular/navegador, ou abra o Studio no Safari (iPhone) ou no Chrome (Android/computador).']
+    : avisoMic === 'app-interno' ? PASSOS_DO_MICROFONE['app-interno']
+    : PASSOS_DO_MICROFONE[aparelhoMic];
+  const avisoDoMicrofone = avisoMic && (
+    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/70 p-3 sm:items-center" data-mantem-escolha data-testid="editor-audio-aviso-microfone" role="dialog" aria-modal="true" aria-label={TITULO_MIC[avisoMic]}>
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#140c24] p-4 text-slate-100 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-500/20 text-rose-300"><Mic className="h-5 w-5" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-bold">{TITULO_MIC[avisoMic]}</p>
+            {avisoMic === 'negado' && <p className="mt-0.5 text-xs text-slate-400">O acesso ao microfone está bloqueado para este site. Quando ele é negado uma vez, o aviso não aparece mais: libere assim:</p>}
+          </div>
+          <button type="button" className="rounded-full p-1.5 text-slate-400 hover:bg-white/10" title="Fechar" onClick={() => setAvisoMic(null)}><X className="h-5 w-5" /></button>
+        </div>
+        <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm">{passosMic.map((p) => <li key={p}>{p}</li>)}</ol>
+        <div className="mt-4 flex gap-2">
+          {avisoMic !== 'app-interno' && avisoMic !== 'sem-suporte' && (
+            <button type="button" data-testid="editor-audio-microfone-tentar" className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FFD400] px-3 py-3 text-sm font-bold text-black" onClick={() => void gravar()}><RotateCw className="h-4 w-4" />Tentar de novo</button>
+          )}
+          <button type="button" className="flex-1 rounded-xl border border-white/15 px-3 py-3 text-sm font-semibold" onClick={() => setAvisoMic(null)}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
   const entradaDeArquivo = (<>
     <input ref={entradaSeq} type="file" multiple accept="audio/*,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,.opus" className="hidden" data-testid="editor-audio-arquivo-sequencia"
       onChange={(e) => { if (e.target.files) void abrirArquivos(e.target.files, 'nova', 0, true); e.target.value = ''; }} />
@@ -1455,6 +1556,8 @@ export function EditorDeAudio() {
     return (
       <div className="flex flex-col gap-2 pb-[188px] text-slate-100 [&_input]:![font-size:16px] [&_select]:![font-size:16px] [&_textarea]:![font-size:16px]" data-testid="editor-de-audio" data-modo="celular" data-clipe-escolhido={clipeSel ?? ""} onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
         {entradaDeArquivo}
+      {avisoDoMicrofone}
+        {avisoDoMicrofone}
         {/* topo */}
         <div className="flex items-center gap-1.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#B04DFF] to-[#5D1BFF]"><AudioWaveform className="h-5 w-5" /></span>
