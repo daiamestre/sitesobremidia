@@ -304,3 +304,11 @@ describe('F-333: passar o dedo no clipe rola; só segurar e arrastar move', () =
     expect(e).toContain('}, escolher);');
   });
 });
+
+describe('F-334: tocar fora do clipe desmarca', () => {
+  it('toque fora (régua, vazio, resto da página) tira a escolha; botões de ação e painéis mantêm', () => {
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain("el.closest('[data-testid=editor-audio-pista], [data-mantem-escolha]')");
+    expect(e).toContain('data-mantem-escolha className="fixed inset-x-0 bottom-0');
+  });
+});

@@ -86,6 +86,13 @@ await passo('um toque rápido não move o clipe', () => pagina.evaluate(async ()
 await passo('deslizar no espaço vazio rola o áudio e não mexe nos clipes', () => pagina.evaluate(async () => {
   const el = document.querySelector('.overflow-x-auto'); const a = JSON.stringify(__faixas()); const s0 = el.scrollLeft; await __arrastar(180, -100);
   const r = el.scrollLeft > s0 + 50 && JSON.stringify(__faixas()) === a; el.scrollLeft = 0; await __esp(150); return r || [s0, el.scrollLeft, __faixas()]; }));
+await passo('tocar FORA do clipe (régua ou resto da tela) desmarca o clipe; botões de ação mantêm', () => pagina.evaluate(async () => {
+  const raiz = document.querySelector('[data-testid=editor-de-audio]');
+  await __toque(60); const escolhido = raiz.dataset.clipeEscolhido;
+  document.querySelector('[data-testid=editor-audio-doca]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })); await __esp(150); const aposBotao = raiz.dataset.clipeEscolhido;
+  const regua = document.querySelector('.overflow-x-auto canvas'), rr = regua.getBoundingClientRect(); __e(regua, 'pointerdown', 905, rr.left + 40, rr.top + 10); __e(regua, 'pointerup', 905, rr.left + 40, rr.top + 10); await __esp(150); const aposRegua = raiz.dataset.clipeEscolhido;
+  await __toque(60); document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })); await __esp(150); const aposFora = raiz.dataset.clipeEscolhido;
+  return (escolhido && aposBotao === escolhido && aposRegua === '' && aposFora === '') || { escolhido, aposBotao, aposRegua, aposFora }; }));
 await passo('Marcar trecho marca arrastando, sem mover clipe; Desmarcar limpa', () => pagina.evaluate(async () => {
   const a = JSON.stringify(__faixas());
   document.querySelector('button[title^="Marcar trecho"]').click(); await __esp(150); await __arrastar(20, 100); const marcado = __trecho();

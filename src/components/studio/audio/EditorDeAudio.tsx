@@ -312,6 +312,18 @@ export function EditorDeAudio() {
     return () => { meta.content = antes; };
   }, []);
 
+  // F-334 (pedido do dono): tocou FORA do clipe em qualquer lugar → o clipe é desmarcado na hora.
+  // As pistas cuidam do toque nelas; os botões de ação e os painéis/janelas mantêm a escolha (senão não teriam em que agir).
+  useEffect(() => {
+    const fora = (e: PointerEvent) => {
+      const el = e.target as Element | null; if (!el) return;
+      if (el.closest('[data-testid=editor-audio-pista], [data-mantem-escolha]')) return;
+      setClipeSel(null);
+    };
+    document.addEventListener('pointerdown', fora, true);
+    return () => document.removeEventListener('pointerdown', fora, true);
+  }, []);
+
   // ——— tamanho da área visível ———
   useEffect(() => {
     const el = area.current; if (!el) return;
@@ -1162,7 +1174,7 @@ export function EditorDeAudio() {
     <>
       {/* —— salvar na pasta —— */}
       {salvarAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Salvar o áudio">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-mantem-escolha role="dialog" aria-modal="true" aria-label="Salvar o áudio">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a0b3d] p-5 shadow-2xl">
             <h2 className="text-lg font-black">Salvar na Biblioteca de Áudios</h2>
             <label className="mt-3 flex flex-col gap-1 text-sm">Nome do áudio
@@ -1192,7 +1204,7 @@ export function EditorDeAudio() {
 
       {/* —— Biblioteca de Áudios (no sistema): salvos e rascunhos —— */}
       {pastaAberta && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Biblioteca de Áudios">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-mantem-escolha role="dialog" aria-modal="true" aria-label="Biblioteca de Áudios">
           <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-white/10 bg-[#1a0b3d] p-5 shadow-2xl" data-testid="editor-audio-pasta">
             <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-lg font-black"><FolderOpen className="h-5 w-5 text-[#FFD400]" />Biblioteca de Áudios</h2>
               <button type="button" onClick={() => setPastaAberta(false)} className="rounded-lg px-3 py-1 text-sm text-slate-300 hover:bg-white/10">Fechar</button></div>
@@ -1238,7 +1250,7 @@ export function EditorDeAudio() {
 
       {/* —— baixar —— */}
       {exportar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Baixar a edição">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-mantem-escolha role="dialog" aria-modal="true" aria-label="Baixar a edição">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a0b3d] p-5 shadow-2xl">
             <h2 className="text-lg font-black">Baixar a edição</h2>
             <div className="mt-3 grid gap-3 text-sm">
@@ -1290,7 +1302,7 @@ export function EditorDeAudio() {
   if (celular) {
     const abas: Array<{ id: AbaDoCelular; nome: string }> = [{ id: 'cortes', nome: 'Cortes' }, { id: 'adicionar', nome: 'Adicionar' }, { id: 'efeitos', nome: 'Efeitos' }, { id: 'faixa', nome: 'Faixa' }];
     return (
-      <div className="flex flex-col gap-2 pb-[188px] text-slate-100 [&_input]:![font-size:16px] [&_select]:![font-size:16px] [&_textarea]:![font-size:16px]" data-testid="editor-de-audio" data-modo="celular" onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
+      <div className="flex flex-col gap-2 pb-[188px] text-slate-100 [&_input]:![font-size:16px] [&_select]:![font-size:16px] [&_textarea]:![font-size:16px]" data-testid="editor-de-audio" data-modo="celular" data-clipe-escolhido={clipeSel ?? ""} onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
         {entradaDeArquivo}
         {/* topo */}
         <div className="flex items-center gap-1.5">
@@ -1321,7 +1333,7 @@ export function EditorDeAudio() {
         {linhaDoTempo}
 
         {/* controles fixos embaixo */}
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0e0526]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur" data-testid="editor-audio-doca">
+        <div data-mantem-escolha className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0e0526]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur" data-testid="editor-audio-doca">
           <div className="flex items-center justify-between gap-1 px-2 pt-2">
             <button type="button" title="Voltar o que foi feito" onClick={desfazer} disabled={!passado.current.length} className="flex h-11 items-center gap-1 rounded-xl border border-white/10 px-2.5 text-xs font-bold disabled:opacity-35"><Undo2 className="h-4 w-4" />Voltar</button>
             <div className="flex items-center gap-1">
@@ -1372,7 +1384,7 @@ export function EditorDeAudio() {
         {/* folhas que sobem de baixo (efeitos, faixa/clipe, sons) */}
         {folha && (
           <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50" onClick={() => setFolha(null)}>
-            <div className="max-h-[72dvh] overflow-y-auto rounded-t-2xl border-t border-white/10 bg-[#1a0b3d] p-3 pb-[calc(12px+env(safe-area-inset-bottom))]" onClick={(e) => e.stopPropagation()} data-testid="editor-audio-folha">
+            <div data-mantem-escolha className="max-h-[72dvh] overflow-y-auto rounded-t-2xl border-t border-white/10 bg-[#1a0b3d] p-3 pb-[calc(12px+env(safe-area-inset-bottom))]" onClick={(e) => e.stopPropagation()} data-testid="editor-audio-folha">
               <div className="mb-2 flex items-center justify-between">
                 <span className="mx-auto h-1.5 w-12 rounded-full bg-white/20" />
               </div>
@@ -1406,7 +1418,7 @@ export function EditorDeAudio() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 text-slate-100" data-testid="editor-de-audio" onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
+    <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 text-slate-100" data-testid="editor-de-audio" data-clipe-escolhido={clipeSel ?? ""} onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
       {entradaDeArquivo}
       {/* —— topo —— */}
       <div className="flex flex-wrap items-center gap-2">
@@ -1437,7 +1449,7 @@ export function EditorDeAudio() {
 
       {avisoAnterior}
       {/* —— barra de ferramentas —— */}
-      <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-white/10 bg-[#140632] p-2">
+      <div data-mantem-escolha className="flex flex-wrap items-end gap-2 rounded-2xl border border-white/10 bg-[#140632] p-2">
         <div className="flex items-center gap-1">
           <Botao titulo="Ir ao início (Home)" onClick={() => atalhos.current.inicio()}><SkipBack className="h-4 w-4" /></Botao>
           <Botao titulo={tocando ? 'Pausar (espaço)' : 'Tocar (espaço)'} onClick={alternarPlay} ativo={tocando}>{tocando ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</Botao>
@@ -1493,7 +1505,7 @@ export function EditorDeAudio() {
       <div className="flex min-h-0 flex-1 flex-col gap-3 xl:flex-row">
         {linhaDoTempo}
         {/* —— lateral direita: efeitos e clipe —— */}
-        <aside className="flex w-full shrink-0 flex-col gap-3 xl:w-[340px]">
+        <aside data-mantem-escolha className="flex w-full shrink-0 flex-col gap-3 xl:w-[340px]">
           {painelEfeitos}
           {painelClipe}
           <section className="rounded-2xl border border-white/10 bg-[#140632] p-3 text-[11px] text-slate-400">

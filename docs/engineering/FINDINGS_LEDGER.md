@@ -3852,3 +3852,10 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - parado 380 ms → move ou apara (vibra);
   - soltou antes → escolhe o clipe e põe a linha amarela.
 - **Teste completo** `testar-editor-audio.mjs`, com 19 passos, incluindo "passar o dedo no clipe rola e o clipe não vem junto" e "segurar e arrastar move": 19/19.
+
+### F-334 — Tocar fora do clipe desmarca na hora (19/11/2026)
+- **Pedido do dono:** o clipe escolhido (branco) continuava escolhido ao tocar em outras coisas.
+- **Feito:**
+  - um toque em qualquer lugar fora do clipe (régua, vazio, resto da página) tira a escolha;
+  - os botões de ação (doca do celular, barra do computador), a lateral e as janelas/folhas (`data-mantem-escolha`) mantêm a escolha, para Apagar/Cortar/efeitos agirem nela.
+- **Teste completo:** 20/20.
