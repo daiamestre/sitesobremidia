@@ -153,16 +153,21 @@ export function paraAudioBuffer(ctx: BaseAudioContext, s: Som): AudioBuffer {
   return b;
 }
 
-/** abre qualquer áudio (ou vídeo com áudio) que o navegador entende */
+/**
+ * abre qualquer áudio (ou vídeo com áudio) que o navegador entende.
+ * F-330: lê com um contexto OFFLINE (não ocupa o alto-falante). Antes, cada arquivo aberto criava um AudioContext de verdade;
+ * o iPhone aceita poucos ao mesmo tempo e, depois de alguns, o editor ficava SEM SOM.
+ */
 export async function decodificarArquivo(dados: ArrayBuffer): Promise<Som> {
-  const Ctx = (window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
-  const ctx = new Ctx();
-  try { return deAudioBuffer(await ctx.decodeAudioData(dados.slice(0))); }
-  catch (e) {
-    const b = new Uint8Array(dados);
+  const b = new Uint8Array(dados);
+  try {
+    const Off = (window.OfflineAudioContext ?? (window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext }).webkitOfflineAudioContext);
+    const ctx = new Off(2, 1, 44100);
+    return deAudioBuffer(await ctx.decodeAudioData(dados.slice(0)));
+  } catch (e) {
     if (String.fromCharCode(...b.subarray(0, 4)) === 'RIFF') return lerWav(b);
     throw e;
-  } finally { void ctx.close(); }
+  }
 }
 
 export function baixarArquivo(bytes: Uint8Array, tipo: string, nome: string) {

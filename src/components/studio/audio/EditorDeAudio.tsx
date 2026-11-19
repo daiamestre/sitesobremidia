@@ -301,6 +301,15 @@ export function EditorDeAudio() {
   useEffect(() => { if (primeiraVez.current) { primeiraVez.current = false; return; } ultimaEdicao.current = Date.now(); }, [projeto]);
   const aoFicarParado = useRef<(() => void) | null>(null);
 
+  // F-330: o iPhone dá zoom sozinho ao tocar num campo e não volta (tela grande e cortada depois de salvar).
+  // Enquanto o editor está aberto, a página não aumenta sozinha; ao sair, volta como era.
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name=viewport]'); if (!meta) return;
+    const antes = meta.content;
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) meta.content = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
+    return () => { meta.content = antes; };
+  }, []);
+
   // ——— tamanho da área visível ———
   useEffect(() => {
     const el = area.current; if (!el) return;
@@ -328,13 +337,23 @@ export function EditorDeAudio() {
   useEffect(() => { posicionarLinha(cursorRef.current); }, [posicionarLinha, cursor]);
 
   // ——— tocar ———
+  // F-330: o tocador de som. No iPhone ele pode ser fechado/"adormecido" (tela bloqueada, outra aba): é recriado e acordado
+  // dentro do toque do play, com um som mudo de 1 amostra (destrava o áudio no iOS) e a sessão em "playback"
+  // (toca mesmo com o iPhone no silencioso).
   const contexto = useCallback(() => {
-    if (!audio.current) {
-      const ctx = new AudioContext(), geral = ctx.createGain(), sp = ctx.createChannelSplitter(2), e = ctx.createAnalyser(), d = ctx.createAnalyser();
+    try { const sessao = (navigator as unknown as { audioSession?: { type: string } }).audioSession; if (sessao) sessao.type = 'playback'; } catch { /* sem suporte */ }
+    if (!audio.current || audio.current.ctx.state === 'closed') {
+      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx(), geral = ctx.createGain(), sp = ctx.createChannelSplitter(2), e = ctx.createAnalyser(), d = ctx.createAnalyser();
       e.fftSize = 1024; d.fftSize = 1024; geral.connect(ctx.destination); geral.connect(sp); sp.connect(e, 0); sp.connect(d, 1);
       audio.current = { ctx, geral, e, d };
+      for (const s of sons.current.values()) s.buffers = new WeakMap(); // os buffers do tocador antigo não servem no novo
     }
-    void audio.current.ctx.resume();
+    const ctx = audio.current.ctx;
+    if (ctx.state !== 'running') {
+      void ctx.resume();
+      try { const mudo = ctx.createBufferSource(); mudo.buffer = ctx.createBuffer(1, 1, ctx.sampleRate); mudo.connect(ctx.destination); mudo.start(0); } catch { /* nada */ }
+    }
     return audio.current;
   }, []);
   const pararSom = useCallback((voltar: boolean) => {
@@ -1233,7 +1252,7 @@ export function EditorDeAudio() {
   if (celular) {
     const abas: Array<{ id: AbaDoCelular; nome: string }> = [{ id: 'cortes', nome: 'Cortes' }, { id: 'adicionar', nome: 'Adicionar' }, { id: 'efeitos', nome: 'Efeitos' }, { id: 'faixa', nome: 'Faixa' }];
     return (
-      <div className="flex flex-col gap-2 pb-[188px] text-slate-100 [&_input]:!text-base [&_select]:!text-base [&_textarea]:!text-base" data-testid="editor-de-audio" data-modo="celular" onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
+      <div className="flex flex-col gap-2 pb-[188px] text-slate-100 [&_input]:![font-size:16px] [&_select]:![font-size:16px] [&_textarea]:![font-size:16px]" data-testid="editor-de-audio" data-modo="celular" onDragOver={(e) => e.preventDefault()} onDrop={aoSoltarArquivo}>
         {entradaDeArquivo}
         {/* topo */}
         <div className="flex items-center gap-1.5">

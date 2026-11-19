@@ -258,6 +258,19 @@ describe('F-328: Biblioteca de Áudios no sistema, rascunhos e nova edição', (
 describe('F-329: no celular nenhum campo faz o iPhone dar zoom (tela grande e cortada depois de salvar)', () => {
   it('todo campo do editor no celular usa 16 px', () => {
     const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
-    expect(e).toContain('[&_input]:!text-base [&_select]:!text-base [&_textarea]:!text-base');
+    expect(e).toContain('[&_input]:![font-size:16px]');
+    expect(e).toContain("meta.content = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover'");
+  });
+});
+
+describe('F-330: o som não some no iPhone', () => {
+  it('lê os arquivos sem abrir tocador; recria/acorda o tocador no play e toca no silencioso', () => {
+    const a = fs.readFileSync('src/lib/studio/audio/arquivos.ts', 'utf8');
+    expect(a).toContain('const ctx = new Off(2, 1, 44100);');
+    expect(a).not.toContain('const ctx = new Ctx();');
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain("audio.current.ctx.state === 'closed'");
+    expect(e).toContain("sessao.type = 'playback'");
+    expect(e).toContain('mudo.start(0)');
   });
 });

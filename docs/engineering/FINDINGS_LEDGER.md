@@ -3789,3 +3789,19 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Causa:** o campo "Nome do áudio" da janela Salvar abre com foco e tem letra de 14 px. O Safari do iPhone dá zoom automático em campo com menos de 16 px e não volta.
 - **Correção:** no modo celular, todo input, select e textarea do editor (incluindo as janelas) usa 16 px (`[&_input]:!text-base`).
 - **Testes:** editorDeAudio.test.ts (30).
+
+### F-330 — Editor de Áudio sem som no iPhone e zoom ao salvar (18/11/2026)
+- **Pedido do dono:** o editor parou de tocar; áudios novos sem som; o zoom ao salvar continuava.
+- **Causas do som:**
+  - cada arquivo aberto criava um AudioContext de verdade, só para ler. O iPhone aceita poucos ao mesmo tempo e, depois de alguns, o tocador do play não nascia;
+  - o tocador fechado ou adormecido pelo iOS não era recriado;
+  - no silencioso o iOS cala o Web Audio.
+- **Correções do som:**
+  - a leitura usa OfflineAudioContext;
+  - o `contexto()` recria o tocador se estiver fechado e acorda no toque com 1 amostra muda;
+  - `navigator.audioSession.type = 'playback'` faz tocar no silencioso.
+- **Correção do zoom:**
+  - os campos usam 16 px exatos;
+  - no iPhone, o viewport ganha `maximum-scale=1` só enquanto o editor está aberto e volta ao sair.
+- **Prova:** 5 áudios abertos seguidos e o play tocando (o relógio foi a 1,41 s em 1,5 s).
+- **Testes:** editorDeAudio.test.ts (31).
