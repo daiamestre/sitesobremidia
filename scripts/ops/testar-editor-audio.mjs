@@ -160,6 +160,7 @@ await passo('Salvar vai para a Biblioteca (no sistema) e a tela volta do zero, s
   const campo = pagina.locator('[data-testid=editor-audio-nome-salvar]'); await campo.fill('TESTE AUTOMÁTICO F-332');
   const fonte = await campo.evaluate((el) => getComputedStyle(el).fontSize);
   if (fonte !== '16px') return `letra do campo ${fonte} (o iPhone dá zoom abaixo de 16px)`;
+  await pagina.evaluate(() => { window.__salvo = JSON.stringify(__faixas()); });
   await pagina.click('[data-testid=editor-audio-confirmar-salvar]');
   await pagina.waitForFunction(() => !document.querySelector('[data-testid=editor-audio-pista]'), null, { timeout: 60_000 });
   return true;
@@ -171,7 +172,7 @@ await passo('a Biblioteca mostra o salvo e ele abre de novo', async () => {
   if (!tem) return 'o salvo não apareceu';
   await pagina.evaluate(() => [...document.querySelectorAll('[data-testid=editor-audio-item-pasta]')].find((d) => d.querySelector('input').value === 'TESTE AUTOMÁTICO F-332').querySelector('button').click());
   await pagina.waitForSelector('[data-testid=editor-audio-pista]', { timeout: 60_000 });
-  const f = await pagina.evaluate(() => __faixas()); return f[0] === '0.00+2.00 2.50+115.14' || f;
+  const f = await pagina.evaluate(() => [JSON.stringify(__faixas()), window.__salvo]); return f[0] === f[1] || f;
 });
 await passo('Nova edição guarda nos rascunhos e "Voltar a editar de onde parei" traz de volta', async () => {
   await pagina.evaluate(async () => { await __toque(40); document.querySelector('button[title="Cortar: corta o clipe na linha amarela (ou tira o trecho marcado)"]').click(); await __esp(200); });
@@ -182,6 +183,42 @@ await passo('Nova edição guarda nos rascunhos e "Voltar a editar de onde parei
   await pagina.waitForSelector('[data-testid=editor-audio-pista]', { timeout: 60_000 });
   const f = await pagina.evaluate(() => __faixas()); return f[0]?.split(' ').length === 3 || f;
 });
+await passo('ESTRESSE: 60 ações seguidas (tocar, cortar, segurar e arrastar, deslizar, alças, voltar) sem lasquinhas e sem travar', () => pagina.evaluate(async () => {
+  let semente = 7; const rnd = () => ((semente = (semente * 16807) % 2147483647) / 2147483647);
+  [...document.querySelectorAll('[role=tab]')].find((b) => b.textContent === 'Cortes')?.click(); await __esp(150);
+  const el = document.querySelector('.overflow-x-auto'); el.scrollLeft = 0; await __esp(150);
+  const raiz = document.querySelector('[data-testid=editor-de-audio]');
+  const pista = () => __pista(), larg = () => pista().getBoundingClientRect().width;
+  const segurarArrastar = async (x, dx, id) => { const c = pista(), r = c.getBoundingClientRect(); __e(c, 'pointerdown', id, r.left + x, r.top + 70); await __esp(480); for (let k = 1; k <= 6; k++) { __e(c, 'pointermove', id, r.left + x + dx * k / 6, r.top + 70); await __esp(20); } __e(c, 'pointerup', id, r.left + x + dx, r.top + 70); await __esp(120); };
+  for (let i = 0; i < 60; i++) {
+    const x = 20 + rnd() * (larg() - 40), acao = Math.floor(rnd() * 7), id = 1000 + i;
+    if (acao === 0) await __toque(x);
+    else if (acao === 1) { await __toque(x); document.querySelector('button[title^="Cortar:"]').click(); await __esp(80); }
+    else if (acao === 2) await segurarArrastar(x, (rnd() - 0.5) * 120, id);
+    else if (acao === 3) { await __arrastar(x, (rnd() - 0.5) * 160); }
+    else if (acao === 4) { await __toque(x); const pi = document.querySelector('[data-testid=editor-audio-puxador-fim]'); if (pi) { const r = pi.getBoundingClientRect(); __e(pi, 'pointerdown', id, r.left + 2, r.top + 10); for (let k = 1; k <= 4; k++) { __e(pi, 'pointermove', id, r.left + 2 - 5 * k, r.top + 10); await __esp(20); } __e(pi, 'pointerup', id, r.left - 18, r.top + 10); await __esp(100); } }
+    else if (acao === 5) { document.querySelector('button[title="Voltar o que foi feito"]').click(); await __esp(60); }
+    else { const c = pista(), r = c.getBoundingClientRect(); __e(c, 'pointerdown', id, r.left + x, r.top + 70); await __esp(30); /* dedo "perdido": o celular não manda o soltar */ }
+  }
+  el.scrollLeft = 0; await __esp(300);
+  // nenhuma lasquinha
+  const durs = __faixas().flatMap((f) => f ? f.split(' ').map((p) => Number(p.split('+')[1])) : []);
+  const lasca = durs.filter((d) => d < 0.02);
+  if (lasca.length) return 'lasquinhas: ' + lasca.join(', ');
+  // ainda responde: tocar escolhe e segurar+arrastar move
+  window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 })); await __esp(100);
+  // ver o projeto inteiro e pegar o MAIOR clipe pelo meio (sempre dentro da tela)
+  document.querySelector('button[title="Ver tudo"]').click(); await __esp(400);
+  const partes = __faixas()[0].split(' ').map((p) => p.split('+').map(Number));
+  const fimProj = Math.max(...partes.map(([a, b]) => a + b)), zoomReal = parseFloat(el.firstElementChild.style.width) / (fimProj + 10);
+  const [ini, dur] = partes.reduce((m, p) => (p[1] > m[1] ? p : m));
+  const xMeio = (ini + dur / 2) * zoomReal - el.scrollLeft;
+  await __toque(xMeio); const escolhido = raiz.dataset.clipeEscolhido;
+  const d0 = window.__editorAudio; window.__diag0 = d0 ? { gesto: d0.gesto.current?.tipo ?? null, dedos: [...d0.dedos.current.keys()] } : null;
+  const antes = JSON.stringify(__faixas()); await segurarArrastar(xMeio, 30, 1999); const mudou = JSON.stringify(__faixas()) !== antes;
+  const d = window.__editorAudio; const diag = d ? { gesto: d.gesto.current?.tipo ?? null, dedos: [...d.dedos.current.keys()] } : null;
+  return (escolhido && mudou) || { escolhido, mudou, faixas: __faixas(), diag, diag0: window.__diag0, xMeio };
+}));
 await passo('nenhum erro de tela durante o teste', () => (erros.length === 0) || erros.slice(0, 3).join(' | '));
 
 // limpeza: apaga no banco o que o teste criou na conta de teste (funciona no local e no site no ar)

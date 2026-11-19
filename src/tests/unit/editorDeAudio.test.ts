@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   abrirEspaco, apagarIntervalo, apararClipe, clipesNoIntervalo, colar, copiarIntervalo, dividirFaixa, fimDaFaixa, fimDoProjeto, ganhoDoClipeEm,
-  novaFaixa, novoClipe, projetoVazio, trocarSomDosClipes, faixasAudiveis, type Faixa,
+  novaFaixa, novoClipe, projetoVazio, trocarSomDosClipes, faixasAudiveis, semMigalhas, type Faixa,
 } from '@/lib/studio/audio/projeto';
 import {
   aparaSilencio, deTrasParaFrente, duracaoDoSom, esticarTempo, fade, gerarTom, juntar, mudarTom, normalizar, paraMono, pico,
@@ -204,7 +204,7 @@ describe('F-325: cortar na linha amarela e arrastar a parte para qualquer lugar'
   it('arrastar: para outra faixa, para a área de faixa nova e, solto em cima de áudio, entra no meio empurrando o resto', () => {
     expect(e).toContain('data-nova-faixa="1"');
     expect(e).toContain('Solte aqui para criar uma faixa nova');
-    expect(e).toContain('const aberta = abrirEspaco(sem, c.inicio, c.duracao)');
+    expect(e).toContain('const aberta = abrirEspaco({ ...x, clipes: sem }, c.inicio, c.duracao)');
     expect(e).toContain('const rolarArrastando');
     expect(e).toContain("(dedo && clipeSel === sob.id)");
   });
@@ -352,5 +352,22 @@ describe('F-340: alças do lado de FORA do clipe', () => {
   it('a do começo fica à esquerda da borda e a do fim à direita', () => {
     const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
     expect(e).toContain("(lado === 'inicio' ? (fora(lado, x) ? x - TOQUE : x) : x)");
+  });
+});
+
+describe('F-341: sem lasquinhas e sem travar', () => {
+  it('nunca guarda clipe menor que 20 ms', () => {
+    const p = { ...projetoVazio(), faixas: [{ ...faixaCom([0, 1], [1, 0.005], [1.005, 2]) }] };
+    expect(semMigalhas(p).faixas[0].clipes.map((c) => c.duracao)).toEqual([1, 2]);
+    const limpo = { ...projetoVazio(), faixas: [faixaCom([0, 1])] };
+    expect(semMigalhas(limpo)).toBe(limpo);
+  });
+  it('soltar em cima: no meio entra; na ponta empurra (nada volta, nada corta); dedo perdido não vira pinça; gesto preso é encerrado', () => {
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain('const meio = sobre.find((o) => c.inicio > o.inicio + pouco && c.inicio < fimDoClipe(o) - pouco)');
+    expect(e).toContain('performance.now() - d.t > 400');
+    expect(e).toContain("window.addEventListener('pointerup', solto)");
+    expect(e).toContain('novo = semMigalhas(f(atual))');
+    expect(fs.readFileSync('scripts/ops/testar-editor-audio.mjs', 'utf8')).toContain('ESTRESSE: 60 ações seguidas');
   });
 });

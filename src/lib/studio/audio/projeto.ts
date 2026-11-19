@@ -127,6 +127,12 @@ export function ganhoDoClipeEm(c: Clipe, t: number): number {
   return g;
 }
 
+/** F-341: tira as lasquinhas (clipes menores que `min` s) que sobram de cortes e encaixes; devolve o MESMO projeto se não houver */
+export function semMigalhas(p: Projeto, min = 0.02): Projeto {
+  if (!p.faixas.some((f) => f.clipes.some((c) => c.duracao < min))) return p;
+  return { ...p, faixas: p.faixas.map((f) => (f.clipes.some((c) => c.duracao < min) ? { ...f, clipes: f.clipes.filter((c) => c.duracao >= min) } : f)) };
+}
+
 /** as faixas que tocam (solo ganha de tudo; mudo não toca) */
 export function faixasAudiveis(p: Projeto): Faixa[] {
   const solo = p.faixas.some((f) => f.solo);

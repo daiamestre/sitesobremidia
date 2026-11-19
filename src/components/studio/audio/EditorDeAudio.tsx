@@ -16,7 +16,7 @@ import { SONS, TRILHAS } from '@/lib/studio/impacto';
 import {
   acharClipe, apagarIntervalo, apararClipe, abrirEspaco, clipesNoIntervalo, colar, copiarIntervalo, dividirFaixa, fimDaFaixa,
   fimDoClipe, fimDoProjeto, formatarTempo, novaFaixa, novoClipe, novoId, projetoVazio, sonsUsados, trocarClipe, trocarFaixa,
-  trocarSomDosClipes, type Clipe, type Faixa, type Projeto,
+  trocarSomDosClipes, semMigalhas, type Clipe, type Faixa, type Projeto,
 } from '@/lib/studio/audio/projeto';
 import { calcularPicos, duracaoDoSom, gerarTom, juntar, recortar, silenciar, type Picos, type Som } from '@/lib/studio/audio/som';
 import { EFEITOS, GRUPOS, efeitoPorId, valoresPadrao, type Efeito, type Valores } from '@/lib/studio/audio/efeitos';
@@ -214,7 +214,7 @@ export function EditorDeAudio() {
   const celular = useCelular();
   const [aba, setAba] = useState<AbaDoCelular>('cortes');
   const [folha, setFolha] = useState<null | 'efeitos' | 'faixa' | 'sons'>(null);
-  const dedos = useRef(new Map<number, { x: number; y: number }>());
+  const dedos = useRef(new Map<number, { x: number; y: number; t: number }>());
   const [arrastando, setArrastando] = useState(false);
   /** F-331 (celular): só com este botão ligado, arrastar na onda MARCA um trecho; desligado, arrastar o clipe MOVE */
   const [marcandoTrecho, setMarcandoTrecho] = useState(false);
@@ -249,7 +249,7 @@ export function EditorDeAudio() {
 
   // ——— projeto e histórico ———
   const alterar = useCallback((f: (p: Projeto) => Projeto, chave?: string) => {
-    const atual = projetoRef.current, novo = f(atual);
+    const atual = projetoRef.current, novo = semMigalhas(f(atual));
     if (novo === atual) return;
     const agora = Date.now(), u = ultimaMudanca.current;
     if (!(chave && u && u.chave === chave && agora - u.t < 900)) { passado.current.push(atual); if (passado.current.length > 150) passado.current.shift(); futuro.current = []; }
@@ -326,6 +326,23 @@ export function EditorDeAudio() {
     };
     document.addEventListener('pointerdown', fora, true);
     return () => document.removeEventListener('pointerdown', fora, true);
+  }, []);
+
+  // F-341: rede de segurança — todo dedo/mouse que solta em QUALQUER lugar sai da contagem; se nenhum dedo ficou e um gesto
+  // continuou "preso" (o elemento que cuidava dele sumiu ou perdeu o soltar), ele é encerrado. Antes, depois de muitas
+  // edições, os toques viravam pinça fantasma e o editor parava de escolher e de arrastar clipes.
+  const soltarRef = useRef<() => void>(() => {});
+  // diagnóstico só no site local de teste (o teste completo lê o gesto e os dedos quando algo falha)
+  if (import.meta.env.DEV) (window as unknown as { __editorAudio?: unknown }).__editorAudio = { gesto, dedos };
+  useEffect(() => {
+    const solto = (e: PointerEvent) => {
+      dedos.current.delete(e.pointerId);
+      setTimeout(() => { if (gesto.current && dedos.current.size === 0) soltarRef.current(); }, 0);
+    };
+    const zerar = () => { dedos.current.clear(); if (gesto.current) soltarRef.current(); };
+    window.addEventListener('pointerup', solto); window.addEventListener('pointercancel', solto);
+    window.addEventListener('blur', zerar); document.addEventListener('visibilitychange', zerar);
+    return () => { window.removeEventListener('pointerup', solto); window.removeEventListener('pointercancel', solto); window.removeEventListener('blur', zerar); document.removeEventListener('visibilitychange', zerar); };
   }, []);
 
   // ——— tamanho da área visível ———
@@ -507,7 +524,8 @@ export function EditorDeAudio() {
     if (sel && faixaAtual) { copiar(); apagar(); return; }
     // corta o clipe onde está a linha amarela (na faixa escolhida; senão, em toda faixa que tiver áudio ali)
     const tc = cursorRef.current, p0 = projetoRef.current;
-    const temAli = (x: Faixa) => x.clipes.some((c) => tc > c.inicio + 0.001 && tc < fimDoClipe(c) - 0.001);
+    const folga = Math.max(0.03, 6 / zoomRef.current); // colado na borda (menos de 6 px) não corta: sobraria uma lasquinha
+    const temAli = (x: Faixa) => x.clipes.some((c) => tc > c.inicio + folga && tc < fimDoClipe(c) - folga);
     let ids = (emTodas ? p0.faixas : p0.faixas.filter((x) => x.id === faixaSel)).filter(temAli).map((x) => x.id);
     if (!ids.length) ids = p0.faixas.filter(temAli).map((x) => x.id);
     if (ids.length) {
@@ -692,7 +710,7 @@ export function EditorDeAudio() {
     gesto.current = g;
   };
   const aoMover = (e: PE<HTMLElement>) => {
-    if (e.pointerType === 'touch' && dedos.current.has(e.pointerId)) dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (e.pointerType === 'touch' && dedos.current.has(e.pointerId)) dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() });
     const g = gesto.current; if (!g) return;
     if (g.tipo === 'pinca') {
       if (dedos.current.size < 2) return;
@@ -798,16 +816,39 @@ export function EditorDeAudio() {
     const achado = acharClipe(projetoRef.current, g.clipeId); if (!achado) return;
     const c = achado.clipe, fimC = fimDoClipe(c);
     const outros = achado.faixa.clipes.filter((o) => o.id !== c.id);
-    const encosta = outros.some((o) => o.inicio < fimC - 0.005 && fimDoClipe(o) > c.inicio + 0.005);
-    if (encosta) {
-      alterarAoVivo((p) => trocarFaixa(p, achado.faixa.id, (x) => { const sem = { ...x, clipes: x.clipes.filter((o) => o.id !== c.id) }; const aberta = abrirEspaco(sem, c.inicio, c.duracao); return { ...aberta, clipes: [...aberta.clipes, c].sort((a, b) => a.inicio - b.inicio) }; }));
-      toast.success('A parte entrou no meio do áudio: o resto andou para frente.');
+    const sobre = outros.filter((o) => o.inicio < fimC - 0.005 && fimDoClipe(o) > c.inicio + 0.005);
+    const pouco = Math.max(0.15, 14 / zoomRef.current);
+    if (sobre.length) {
+      // F-341: soltou em cima de outro áudio.
+      // 1) o começo caiu no MEIO de um vizinho (longe das duas pontas) → entra no meio, cortando o vizinho ali (as duas
+      //    partes ficam com pelo menos "pouco": nunca sobra lasquinha);
+      // 2) senão → o clipe FICA ONDE FOI SOLTO (só gruda na ponta do vizinho de trás se encostou nela) e os clipes da frente
+      //    são EMPURRADOS. Nada é cortado e nada volta para trás (antes: lasquinhas soltas ou o clipe "voltava" sozinho).
+      const meio = sobre.find((o) => c.inicio > o.inicio + pouco && c.inicio < fimDoClipe(o) - pouco);
+      alterarAoVivo((p) => semMigalhas(trocarFaixa(p, achado.faixa.id, (x) => {
+        const sem = x.clipes.filter((o) => o.id !== c.id);
+        if (meio) {
+          const aberta = abrirEspaco({ ...x, clipes: sem }, c.inicio, c.duracao);
+          return { ...aberta, clipes: [...aberta.clipes, c].sort((a, b) => a.inicio - b.inicio) };
+        }
+        let comeco = c.inicio;
+        const tras = sem.find((o) => o.inicio < comeco && fimDoClipe(o) > comeco);
+        if (tras) comeco = fimDoClipe(tras) - comeco < pouco ? fimDoClipe(tras) : tras.inicio; // encostou na ponta de trás: gruda nela
+        const fimNovo = comeco + c.duracao;
+        const frente = sem.filter((o) => o.inicio >= comeco - 0.005 && o.inicio < fimNovo - 0.005);
+        const desde = frente.length ? Math.min(...frente.map((o) => o.inicio)) : Infinity;
+        const empurrar = Number.isFinite(desde) ? fimNovo - desde : 0;
+        const movidos = sem.map((o) => (empurrar > 0 && o.inicio >= desde - 0.005 ? { ...o, inicio: o.inicio + empurrar } : o));
+        return { ...x, clipes: [...movidos, { ...c, inicio: comeco }].sort((a, b) => a.inicio - b.inicio) };
+      })));
+      if (meio) toast.success('A parte entrou no meio do áudio: o resto andou para frente.');
     }
     // tira faixas que ficaram vazias por causa deste arrasto (a faixa nova que o clipe deixou)
     if (g.novaFaixa && g.novaFaixa !== achado.faixa.id) alterarAoVivo((p) => ({ ...p, faixas: p.faixas.filter((x) => x.id !== g.novaFaixa || x.clipes.length) }));
     // a faixa "(parte)" de onde o clipe saiu e que ficou vazia também sai
     if (g.origem && g.origem !== achado.faixa.id) alterarAoVivo((p) => ({ ...p, faixas: p.faixas.filter((x) => x.id !== g.origem || x.clipes.length || !x.nome.endsWith('(parte)')) }));
   };
+  soltarRef.current = () => { const g = gesto.current; if (g?.tipo === 'pinca') { gesto.current = null; return; } aoSoltar(); void g; };
   const aoSoltar = (e?: PE<HTMLElement>) => {
     if (e && e.pointerType === 'touch') dedos.current.delete(e.pointerId);
     if (gesto.current?.tipo === 'pinca') { if (dedos.current.size === 0) gesto.current = null; return; }
@@ -1150,12 +1191,15 @@ export function EditorDeAudio() {
             if (e.pointerType !== 'touch') return;
             // proteção: sem gesto em andamento, nenhum dedo antigo "preso" pode contar (evita pinça e arrasto fantasmas)
             if (!gesto.current) dedos.current.clear();
-            dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            // F-341: pinça só se os dois dedos encostarem QUASE JUNTOS (0,4 s). Um dedo parado há mais tempo que isso, quando
+            // chega um dedo novo, foi "perdido" pelo celular (o soltar não veio): ele sai e o gesto preso é encerrado.
+            else if (dedos.current.size && [...dedos.current.values()].every((d) => performance.now() - d.t > 400)) { soltarRef.current(); dedos.current.clear(); }
+            dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() });
             if (dedos.current.size >= 2) { e.stopPropagation(); if (gesto.current?.tipo !== 'pinca' && dedos.current.size === 2) comecarPinca(); }
           }}
           onPointerMoveCapture={(e) => {
             if (e.pointerType !== 'touch' || !dedos.current.has(e.pointerId)) return;
-            dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            dedos.current.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() });
             if (gesto.current?.tipo === 'pinca') { e.stopPropagation(); aoMover(e); }
           }}
           onPointerUpCapture={(e) => { if (e.pointerType !== 'touch') return; dedos.current.delete(e.pointerId); if (gesto.current?.tipo === 'pinca') { e.stopPropagation(); if (dedos.current.size === 0) gesto.current = null; } }}

@@ -3918,3 +3918,20 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - borda do começo em 173 px, alça em 155–173;
   - borda do fim em 293 px, alça em 293–311.
 - **Teste completo:** 23/23.
+
+### F-341 — Lasquinhas soltas depois de cortar e editor travando depois de muitas edições (19/11/2026)
+- **Pedido do dono:**
+  - cada corte deixava resquícios de clipe soltos na linha do tempo;
+  - depois de várias edições, o editor parava de escolher clipes e não deixava arrastar.
+- **Causas** (achadas pelo teste de ESTRESSE novo: 60 ações aleatórias seguidas):
+  1. **Lasquinhas:** soltar um clipe encostando só um pouco num vizinho fazia "abrir espaço" cortando o vizinho na ponta. O Cortar com a linha amarela colada numa borda fazia o mesmo.
+  2. **Travamento:** um dedo que o celular "perdia" (o soltar não vinha) ficava contado; todo toque novo virava o 2º dedo de uma pinça fantasma e o gesto ficava preso.
+  3. **Clipe que voltava:** depois de um corte as partes ficam coladas; o 1º conserto (encaixe) devolvia o clipe ao lugar ao encostar no vizinho.
+- **Correções:**
+  - `semMigalhas`: nenhum clipe menor que 20 ms fica no projeto; toda alteração passa por ela;
+  - Cortar não corta a menos de 6 px de uma borda;
+  - soltar em cima de outro áudio: começo no MEIO do vizinho → entra no meio; senão o clipe fica onde foi solto e os da frente são empurrados. Nada é cortado na ponta, nada volta;
+  - pinça só se os dois dedos encostarem em até 0,4 s; um dedo parado há mais tempo é tratado como perdido e o gesto preso é encerrado;
+  - rede de segurança no window: pointerup/cancel em qualquer lugar, blur e troca de aba encerram gestos presos;
+  - diagnóstico (`window.__editorAudio`) só no site local.
+- **Teste completo:** 24/24, incluindo "ESTRESSE: 60 ações seguidas sem lasquinhas e sem travar".
