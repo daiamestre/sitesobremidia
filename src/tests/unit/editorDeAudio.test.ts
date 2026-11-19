@@ -224,7 +224,7 @@ describe('F-326: a linha amarela inteira pega o cursor e o áudio acompanha na b
   it('na borda o áudio rola pela animação e, se ela atrasar, a cada movimento do dedo', () => {
     expect(e).toContain('const passoDaBorda');
     expect(e).toContain('if (performance.now() - gg.ultimo > 60) passoDaBorda(gg)');
-    expect(e).toContain('zona = Math.min(64, el.clientWidth * 0.18)');
+    expect(e).toContain('zona = 36;');
   });
 });
 
@@ -232,7 +232,7 @@ describe('F-327: rolagem na borda mais rápida, acelerando', () => {
   it('começa rápida e acelera até ~80 px por quadro enquanto segura', () => {
     const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
     expect(e).toContain('function velocidadeNaBorda');
-    expect(e).toContain('(24 + 56 * k)');
+    expect(e).toContain('(3 + 9 * Math.abs(v)) * (1 + 0.5 * k)');
   });
 });
 

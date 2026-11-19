@@ -122,6 +122,15 @@ await passo('a linha amarela (pegando nela) leva o cursor e o áudio acompanha n
   __e(lp, 'pointerdown', 904, x0, rp.top + 70); for (let k = 1; k <= 8; k++) { __e(lp, 'pointermove', 904, x0 + (rp.right - 8 - x0) * k / 8, rp.top + 70); await __esp(30); }
   for (let k = 0; k < 20; k++) { __e(lp, 'pointermove', 904, rp.right - 8 + (k % 2), rp.top + 70); await __esp(80); }
   const s1 = el.scrollLeft; __e(lp, 'pointerup', 904, rp.right - 8, rp.top + 70); await __esp(200); el.scrollLeft = 0; return s1 > 200 || `rolou ${s1}`; }));
+await passo('a rolagem da borda é controlada: tirou o dedo da borda ou soltou, PARA na hora', () => pagina.evaluate(async () => {
+  const el = document.querySelector('.overflow-x-auto'); el.scrollLeft = 0; await __esp(200); await __toque(80);
+  const lp = document.querySelector('[data-testid=editor-audio-linha-pegar]'), lr = lp.getBoundingClientRect(), rp = __pista().getBoundingClientRect(), x0 = lr.left + lr.width / 2;
+  __e(lp, 'pointerdown', 906, x0, rp.top + 70); for (let k = 1; k <= 6; k++) { __e(lp, 'pointermove', 906, x0 + (rp.right - 8 - x0) * k / 6, rp.top + 70); await __esp(30); }
+  await __esp(1000); const andou1s = el.scrollLeft;
+  __e(lp, 'pointermove', 906, rp.left + (rp.width / 2), rp.top + 70); await __esp(100); const aoSair = el.scrollLeft; await __esp(400); const depois = el.scrollLeft;
+  __e(lp, 'pointerup', 906, rp.left + (rp.width / 2), rp.top + 70); await __esp(300); const solto = el.scrollLeft; el.scrollLeft = 0;
+  // em 1 s na borda anda no máximo ~800 px (antes passava de 3.000) e para quando o dedo sai
+  return (andou1s > 50 && andou1s < 900 && depois === aoSair && solto === depois) || { andou1s, aoSair, depois, solto }; }));
 await passo('Salvar vai para a Biblioteca (no sistema) e a tela volta do zero, sem zoom', async () => {
   await pagina.click('button[title="Salvar na Biblioteca de Áudios"]');
   const campo = pagina.locator('[data-testid=editor-audio-nome-salvar]'); await campo.fill('TESTE AUTOMÁTICO F-332');

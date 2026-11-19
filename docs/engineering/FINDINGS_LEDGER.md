@@ -3866,3 +3866,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Correção** (`usePWA.ts`):
   - procura a cada 5 min, ao voltar para a tela (visibilitychange) e no foco;
   - quando a versão nova assume (controllerchange), a página recarrega sozinha uma vez; na primeira instalação, não.
+
+### F-336 — Rolagem da borda controlada: a linha do tempo não dispara mais (19/11/2026)
+- **Pedido do dono:** ao segurar a linha amarela perto da borda, a linha do tempo corria descontrolada e não dava para parar onde queria.
+- **Causa:** F-327 acelerava até ~80 px por quadro em 1,5 s.
+- **Agora** (`velocidadeNaBorda`):
+  - só começa com o dedo parado 0,2 s na borda;
+  - anda 3–12 px por quadro conforme o quanto o dedo entra;
+  - acelera no máximo 1,5x, e só depois de 3 s;
+  - a borda do cursor tem 36 px;
+  - para na hora ao sair da borda ou soltar.
+- **Teste completo:** 21/21, com o passo novo "tirou o dedo da borda ou soltou, PARA na hora".

@@ -137,8 +137,12 @@ const bordaDesde = { t: 0 };
 function velocidadeNaBorda(v: number): number {
   if (!v) { bordaDesde.t = 0; return 0; }
   const agora = performance.now(); if (!bordaDesde.t) bordaDesde.t = agora;
-  const k = Math.min(1, (agora - bordaDesde.t) / 1500);
-  return Math.sign(v) * (0.35 + 0.65 * Math.abs(v)) * (24 + 56 * k);
+  // F-336 (pedido do dono): rápido demais ficava descontrolado. Agora: só começa com o dedo parado 0,2 s na borda, anda
+  // 3 a 12 px por quadro conforme o quanto o dedo entra na borda, e só acelera (até 1,5x) depois de 3 s segurando.
+  const passou = agora - bordaDesde.t;
+  if (passou < 200) return 0;
+  const k = Math.min(1, Math.max(0, (passou - 3000) / 2000));
+  return Math.sign(v) * (3 + 9 * Math.abs(v)) * (1 + 0.5 * k);
 }
 
 function capturar(e: { target: EventTarget; pointerId: number }) { try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch { /* toque já solto */ } }
@@ -1070,8 +1074,8 @@ export function EditorDeAudio() {
     g.ultimo = performance.now();
     {
       const el = area.current; if (el) {
-        // faixa da borda maior (o dedo não chega no último pixel) e mais rápida: o áudio vem acompanhando a linha
-        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = Math.min(64, el.clientWidth * 0.18);
+        // F-336: borda de 36 px (o dedo alcança sem pegar sem querer); a velocidade é controlada em velocidadeNaBorda
+        const r = el.getBoundingClientRect(), x = g.x - r.left, zona = 36;
         let v = 0; if (x > el.clientWidth - zona) v = Math.min(1, (x - (el.clientWidth - zona)) / zona); else if (x < zona) v = -Math.min(1, (zona - x) / zona);
         const dv = velocidadeNaBorda(v);
         if (dv) { el.scrollLeft = Math.max(0, el.scrollLeft + dv); setRolagem(el.scrollLeft); moverCursor(Math.max(0, (Math.min(Math.max(x, 0), el.clientWidth) + el.scrollLeft) / zoomRef.current)); }
