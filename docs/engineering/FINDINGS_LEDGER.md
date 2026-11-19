@@ -3988,3 +3988,13 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - unitário `microfoneEditorDeAudio345.test.ts`;
   - e2e com 2 passos novos (negado → aviso visível; liberado → grava 2 s numa faixa nova), 31/31;
   - o passo "Enviar em sequência" ganhou 90 s, porque guardar a edição na nuvem pode passar de 60 s.
+
+### F-346 — Voz do dono tratada antes de clonar: sem barulho, sem respiro, sem espaço, no ritmo do locutor (19/11/2026)
+- **Pedido do dono (regra absoluta):** o teste 1 tinha barulho externo, respiração forte e estalos, e a fala estava lenta e com espaços.
+- **Feito:** `scripts/studio/tratar-voz.mjs`:
+  - limpeza: passa-alta, `afftdn` e `adeclick`;
+  - transcrição com o tempo de cada palavra (Scribe), montando só as palavras com 30/60/110 ms entre blocos;
+  - `atempo` até o alvo de sílabas/s (no máximo 1,5 vez);
+  - conversão STS para o clone B com `remove_background_noise`;
+  - compressão e -14 LUFS.
+- **Medido:** 34,5 s → 17,2 s; silêncios acima de 120 ms: 20 → 0; timbre 0,74 → 0,83. Com 1,5 vez, uma frase foi transcrita errada ("semana da economia"), então vai também a versão 2B, com 1,3 vez, para o dono escolher.
