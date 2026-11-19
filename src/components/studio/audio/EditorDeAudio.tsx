@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as PE } from 'react';
 import {
-  AudioWaveform, BetweenHorizontalStart, FolderOpen, Save, ClipboardPaste, Copy, CopyPlus, Crop, Download, FilePlus2, Hand, Headphones, Loader2,
+  AudioWaveform, BetweenHorizontalStart, FolderOpen, Save, ListOrdered, Combine, ListPlus, ClipboardPaste, Copy, CopyPlus, Crop, Download, FilePlus2, Hand, Headphones, Loader2,
   Magnet, Maximize2, Mic, MousePointer2, Music, Pause, Play, Plus, Redo2, Repeat, Rows3, Scissors, SkipBack, SkipForward, Split,
   Square, Trash2, Undo2, Upload, Volume2, VolumeX, ZoomIn, ZoomOut,
 } from 'lucide-react';
@@ -27,7 +27,7 @@ import { SONS, TRILHAS } from '@/lib/studio/impacto';
 import {
   acharClipe, apagarIntervalo, apararClipe, abrirEspaco, clipesNoIntervalo, colar, copiarIntervalo, dividirFaixa, fimDaFaixa,
   fimDoClipe, fimDoProjeto, formatarTempo, novaFaixa, novoClipe, novoId, projetoVazio, sonsUsados, trocarClipe, trocarFaixa,
-  trocarSomDosClipes, semMigalhas, type Clipe, type Faixa, type Projeto,
+  trocarSomDosClipes, semMigalhas, emSequencia, type Clipe, type Faixa, type Projeto,
 } from '@/lib/studio/audio/projeto';
 import { calcularPicos, duracaoDoSom, gerarTom, juntar, recortar, silenciar, type Picos, type Som } from '@/lib/studio/audio/som';
 import { EFEITOS, GRUPOS, efeitoPorId, valoresPadrao, type Efeito, type Valores } from '@/lib/studio/audio/efeitos';
@@ -478,13 +478,19 @@ export function EditorDeAudio() {
     return clipe;
   }, [alterar, registrarSom]);
 
-  const abrirArquivos = useCallback(async (arquivos: FileList | File[], faixaId: 'nova' | string = 'nova', em = 0) => {
+  const abrirArquivos = useCallback(async (arquivos: FileList | File[], faixaId: 'nova' | string = 'nova', em = 0, sequencia = false) => {
     const lista = Array.from(arquivos); if (!lista.length) return;
     setOcupado(`Abrindo ${lista.length} arquivo${lista.length > 1 ? 's' : ''}…`);
+    let faixaDaSequencia: string | null = null;
     for (const a of lista) {
       try {
-        const dados = await a.arrayBuffer(), marca = lerMarcaDoStudio(new Uint8Array(dados));
-        adicionarSom(await decodificarArquivo(dados), marca ? marca.nome : a.name, faixaId, em);
+        const dados = await a.arrayBuffer(), marca = lerMarcaDoStudio(new Uint8Array(dados)), som = await decodificarArquivo(dados), nomeDoSom = marca ? marca.nome : a.name;
+        if (sequencia) {
+          // F-343: um atrás do outro na mesma faixa
+          const f0 = faixaDaSequencia ? projetoRef.current.faixas.find((x) => x.id === faixaDaSequencia) : null;
+          const clipe = adicionarSom(som, nomeDoSom, f0 ? f0.id : 'nova', f0 ? fimDaFaixa(f0) : 0);
+          faixaDaSequencia = acharClipe(projetoRef.current, clipe.id)?.faixa.id ?? faixaDaSequencia;
+        } else adicionarSom(som, nomeDoSom, faixaId, em);
         if (marca) toast.success(`"${marca.nome}" foi editado no SOBRE MÍDIA Studio (versão ${marca.versao}, ${new Date(marca.editadoEm).toLocaleDateString('pt-BR')}).`);
       }
       catch { toast.error(`Não consegui abrir "${a.name}". Use MP3, WAV, OGG, M4A, AAC, FLAC, WEBM ou um vídeo MP4.`); }
@@ -593,6 +599,30 @@ export function EditorDeAudio() {
     if (!ids.size) { toast.message('Escolha uma faixa (toque no nome dela) ou ligue "Todas as faixas".'); return; }
     alterar((p) => ({ ...p, faixas: p.faixas.map((f) => (ids.has(f.id) ? abrirEspaco(f, t, d) : f)) }));
   }, [alterar, alvos, silencioSeg]);
+  /** F-343: todos os clipes tocam UM ATRÁS DO OUTRO (numa faixa só, colados) */
+  const colocarEmSequencia = useCallback(() => {
+    const p = projetoRef.current, total = p.faixas.reduce((n, f) => n + f.clipes.length, 0);
+    if (total < 2) { toast.message('Precisa de pelo menos 2 clipes.'); return; }
+    alterar((q) => emSequencia(q));
+    const f = projetoRef.current.faixas.find((x) => x.clipes.length); if (f) setFaixaSel(f.id);
+    setSel(null); setClipeSel(null);
+    toast.success(`${total} clipes em sequência: um toca atrás do outro.`);
+  }, [alterar]);
+  /** F-343: a faixa escolhida (ou a 1ª) vira UM CLIPE SÓ, do começo do 1º clipe ao fim do último */
+  const juntarEmUmClipe = useCallback(async () => {
+    const p = projetoRef.current, f = p.faixas.find((x) => x.id === faixaSel && x.clipes.length) ?? p.faixas.find((x) => x.clipes.length);
+    if (!f || f.clipes.length < 2) { toast.message('Escolha uma faixa com 2 ou mais clipes (use "Em sequência" antes).'); return; }
+    const de = Math.min(...f.clipes.map((c) => c.inicio)), ate = Math.max(...f.clipes.map(fimDoClipe));
+    setOcupado('Juntando os clipes em um só…');
+    try {
+      const som = await renderizarProjeto({ volumeGeralDb: 0, faixas: [{ ...f, volumeDb: 0, pan: 0, mudo: false, solo: false }] }, bufferDe, { de, ate, sr: 44100, canais: 2 });
+      const nome = `${f.nome} (junto)`, id = registrarSom(som, nome), unico = novoClipe(id, nome, duracaoDoSom(som), de);
+      alterar((q) => trocarFaixa(q, f.id, (x) => ({ ...x, clipes: [unico] })));
+      setClipeSel(unico.id); setFaixaSel(f.id);
+      toast.success(`${f.clipes.length} clipes viraram 1 clipe de ${formatarTempo(duracaoDoSom(som), false)}.`);
+    } catch { toast.error('Não foi possível juntar os clipes.'); }
+    setOcupado(null);
+  }, [alterar, bufferDe, faixaSel, registrarSom]);
   const selecionarTudo = useCallback(() => {
     const f = faixaAtual ?? projetoRef.current.faixas[0]; if (!f) return;
     setFaixaSel(f.id); setSel({ a: 0, b: emTodas ? fimDoProjeto(projetoRef.current) : fimDaFaixa(f) });
@@ -1029,7 +1059,7 @@ export function EditorDeAudio() {
   /** NOVA EDIÇÃO: o que está na tela vai para os rascunhos e abre uma tela do zero */
   const novoProjeto = () => { void arquivarERecomecar('nova'); };
 
-  const entrada = useRef<HTMLInputElement>(null);
+  const entrada = useRef<HTMLInputElement>(null), entradaSeq = useRef<HTMLInputElement>(null);
   const porGrupo = useMemo(() => GRUPOS.map((g) => ({ g, lista: EFEITOS.filter((e) => e.grupo === g) })), []);
   const alvoTexto = sel && sel.b - sel.a > 0.0005
     ? `Trecho ${formatarTempo(sel.a)} → ${formatarTempo(sel.b)} ${emTodas ? '(todas as faixas)' : faixaAtual ? `em "${faixaAtual.nome}"` : ''}`
@@ -1283,10 +1313,12 @@ export function EditorDeAudio() {
       <div className="h-2 overflow-hidden rounded bg-white/10"><div ref={medidorD} className="h-full w-0 bg-gradient-to-r from-[#25D366] via-[#FFD400] to-[#f97316]" /></div>
     </div>
   );
-  const entradaDeArquivo = (
+  const entradaDeArquivo = (<>
+    <input ref={entradaSeq} type="file" multiple accept="audio/*,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,.opus" className="hidden" data-testid="editor-audio-arquivo-sequencia"
+      onChange={(e) => { if (e.target.files) void abrirArquivos(e.target.files, 'nova', 0, true); e.target.value = ''; }} />
     <input ref={entrada} type="file" multiple accept="audio/*,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,.opus" className="hidden" data-testid="editor-audio-arquivo"
       onChange={(e) => { if (e.target.files) void abrirArquivos(e.target.files); e.target.value = ''; }} />
-  );
+  </>);
   const aoSoltarArquivo = (e: React.DragEvent) => { e.preventDefault(); if (e.dataTransfer.files.length) { const alvo = (e.target as HTMLElement).closest<HTMLElement>('[data-faixa]')?.dataset.faixa; void abrirArquivos(e.dataTransfer.files, alvo ?? 'nova', alvo && area.current ? tempoDoMouse(e) : 0); } };
 
   const janelas = (
@@ -1475,6 +1507,8 @@ export function EditorDeAudio() {
               <Grande titulo="Desmarcar: tira a escolha do clipe e o trecho marcado" rotulo="Desmarcar" onClick={() => { setSel(null); setClipeSel(null); setMarcandoTrecho(false); }}><Hand className="h-5 w-5" /></Grande>
               <Grande titulo="Apagar o trecho ou o clipe" rotulo="Apagar" onClick={apagar} perigo><Trash2 className="h-5 w-5" /></Grande>
               <Grande titulo="Dividir no cursor" rotulo="Dividir" onClick={dividir}><Split className="h-5 w-5" /></Grande>
+              <Grande titulo="Em sequência: os clipes tocam um atrás do outro, numa faixa só" rotulo="Em sequência" onClick={colocarEmSequencia}><ListOrdered className="h-5 w-5" /></Grande>
+              <Grande titulo="Juntar em 1 clipe: a faixa vira um clipe só" rotulo="Juntar em 1" onClick={() => void juntarEmUmClipe()}><Combine className="h-5 w-5" /></Grande>
               <Grande titulo="Manter só o trecho marcado" rotulo="Manter trecho" onClick={manterSelecao}><Crop className="h-5 w-5" /></Grande>
               <Grande titulo="Copiar" rotulo="Copiar" onClick={() => void copiar()}><Copy className="h-5 w-5" /></Grande>
               <Grande titulo="Colar no cursor" rotulo="Colar" onClick={colarAqui}><ClipboardPaste className="h-5 w-5" /></Grande>
@@ -1488,6 +1522,7 @@ export function EditorDeAudio() {
             </>}
             {aba === 'adicionar' && <>
               <Grande titulo="Enviar áudio do aparelho" rotulo="Enviar do aparelho" onClick={() => entrada.current?.click()}><Upload className="h-5 w-5" /></Grande>
+              <Grande titulo="Enviar em sequência: vários áudios um atrás do outro na mesma faixa" rotulo="Enviar em sequência" onClick={() => entradaSeq.current?.click()}><ListPlus className="h-5 w-5" /></Grande>
               <Grande titulo={gravando ? 'Parar a gravação' : 'Gravar pelo microfone'} rotulo={gravando ? `Parar ${segGravando.toFixed(0)}s` : 'Gravar'} onClick={() => void gravar()} ativo={!!gravando}><Mic className={cn('h-5 w-5', gravando && 'animate-pulse text-rose-400')} /></Grande>
               <Grande titulo="Sons e trilhas do Studio" rotulo="Sons do Studio" onClick={() => setFolha('sons')}><Music className="h-5 w-5" /></Grande>
               <Grande titulo="Faixa nova" rotulo="Faixa nova" onClick={novaFaixaVazia}><Plus className="h-5 w-5" /></Grande>
@@ -1550,6 +1585,7 @@ export function EditorDeAudio() {
         <Botao titulo="Salvar na Biblioteca de Áudios (com o nome que quiser)" onClick={() => setSalvarAberto(true)}><Save className="h-4 w-4" />Salvar</Botao>
         <Botao titulo="Biblioteca de Áudios: salvos e rascunhos" onClick={() => { void atualizarPasta(); setPastaAberta(true); }}><FolderOpen className="h-4 w-4" />Biblioteca</Botao>
         <Botao titulo="Enviar áudio do aparelho (ou arraste arquivos para cá)" onClick={() => entrada.current?.click()}><Upload className="h-4 w-4" />Enviar áudio do aparelho</Botao>
+        <Botao titulo="Enviar em sequência: vários áudios um atrás do outro na mesma faixa" onClick={() => entradaSeq.current?.click()}><ListPlus className="h-4 w-4" />Enviar em sequência</Botao>
         <Botao titulo={gravando ? 'Parar a gravação' : 'Gravar pelo microfone (no cursor, numa faixa nova)'} onClick={() => void gravar()} ativo={!!gravando}>
           <Mic className={cn('h-4 w-4', gravando && 'animate-pulse text-rose-400')} />{gravando ? `Parar (${segGravando.toFixed(1)} s)` : 'Gravar'}
         </Botao>
@@ -1599,6 +1635,8 @@ export function EditorDeAudio() {
         <Botao titulo="Silenciar o trecho" onClick={() => void processar('Silêncio', silenciar)}><VolumeX className="h-4 w-4" /></Botao>
         <Botao titulo="Dividir no cursor (S)" onClick={dividir}><Split className="h-4 w-4" />Dividir</Botao>
         <Botao titulo="Duplicar o clipe (Ctrl+D)" onClick={duplicar}><CopyPlus className="h-4 w-4" /></Botao>
+        <Botao titulo="Em sequência: os clipes tocam um atrás do outro, numa faixa só" onClick={colocarEmSequencia}><ListOrdered className="h-4 w-4" />Em sequência</Botao>
+        <Botao titulo="Juntar em 1 clipe: a faixa vira um clipe só" onClick={() => void juntarEmUmClipe()}><Combine className="h-4 w-4" />Juntar em 1</Botao>
         <div className="flex items-center gap-1">
           <Botao titulo="Inserir silêncio no cursor" onClick={inserirSilencio}><BetweenHorizontalStart className="h-4 w-4" />Silêncio</Botao>
           <input type="number" min={0.01} step={0.1} value={silencioSeg} onChange={(e) => setSilencioSeg(Number(e.target.value))} aria-label="Segundos de silêncio" className="w-14 rounded-md border border-white/10 bg-[#0B0420] px-1 py-1 text-xs" /><span className="text-[11px] text-slate-400">s</span>

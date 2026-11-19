@@ -133,6 +133,21 @@ export function semMigalhas(p: Projeto, min = 0.02): Projeto {
   return { ...p, faixas: p.faixas.map((f) => (f.clipes.some((c) => c.duracao < min) ? { ...f, clipes: f.clipes.filter((c) => c.duracao >= min) } : f)) };
 }
 
+/**
+ * F-343: os clipes TOCAM UM ATRÁS DO OUTRO — vão para uma faixa só, colados (sem espaço), na ordem: faixa de cima primeiro,
+ * depois o tempo. Começa onde o primeiro clipe começava. As faixas que ficaram vazias saem.
+ */
+export function emSequencia(p: Projeto, ids?: string[]): Projeto {
+  const alvo = p.faixas.filter((f) => (!ids || ids.includes(f.id)) && f.clipes.length);
+  const clipes = alvo.flatMap((f) => [...f.clipes].sort((a, b) => a.inicio - b.inicio));
+  if (clipes.length < 2) return p;
+  const destino = alvo[0];
+  let t = Math.max(0, clipes[0].inicio);
+  const seq = clipes.map((c) => { const n = { ...c, inicio: t }; t += c.duracao; return n; });
+  const sair = new Set(alvo.filter((f) => f.id !== destino.id).map((f) => f.id));
+  return { ...p, faixas: p.faixas.filter((f) => !sair.has(f.id)).map((f) => (f.id === destino.id ? { ...f, clipes: seq } : f)) };
+}
+
 /** as faixas que tocam (solo ganha de tudo; mudo não toca) */
 export function faixasAudiveis(p: Projeto): Faixa[] {
   const solo = p.faixas.some((f) => f.solo);

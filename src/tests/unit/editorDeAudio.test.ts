@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   abrirEspaco, apagarIntervalo, apararClipe, clipesNoIntervalo, colar, copiarIntervalo, dividirFaixa, fimDaFaixa, fimDoProjeto, ganhoDoClipeEm,
-  novaFaixa, novoClipe, projetoVazio, trocarSomDosClipes, faixasAudiveis, semMigalhas, type Faixa,
+  novaFaixa, novoClipe, projetoVazio, trocarSomDosClipes, faixasAudiveis, semMigalhas, emSequencia, type Faixa,
 } from '@/lib/studio/audio/projeto';
 import {
   aparaSilencio, deTrasParaFrente, duracaoDoSom, esticarTempo, fade, gerarTom, juntar, mudarTom, normalizar, paraMono, pico,
@@ -380,5 +380,19 @@ describe('F-342: 8 áudios longos tocam (sem travar)', () => {
     expect(e).toContain('function prepararSom(som: Som)');
     expect(e).toContain("const NO_TOPO: ExternalToast = { position: 'top-center', duration: 2500 }");
     expect(fs.readFileSync('scripts/ops/testar-editor-audio.mjs', 'utf8')).toContain('8 ÁUDIOS LONGOS');
+  });
+});
+
+describe('F-343: clipes um atrás do outro', () => {
+  it('em sequência: todos numa faixa só, colados, na ordem (faixa de cima, depois o tempo)', () => {
+    const a = faixaCom([0, 2], [5, 1]), b = faixaCom([1, 3]);
+    const p = emSequencia({ ...projetoVazio(), faixas: [a, b] });
+    expect(p.faixas).toHaveLength(1);
+    expect(p.faixas[0].clipes.map((c) => [c.inicio, c.duracao])).toEqual([[0, 2], [2, 1], [3, 3]]);
+  });
+  it('juntar em 1 e enviar em sequência existem na tela (celular e computador)', () => {
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain('rotulo="Em sequência"'); expect(e).toContain('rotulo="Juntar em 1"'); expect(e).toContain('rotulo="Enviar em sequência"');
+    expect(e).toContain('data-testid="editor-audio-arquivo-sequencia"');
   });
 });

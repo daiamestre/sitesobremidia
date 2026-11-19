@@ -3948,3 +3948,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - IndexedDB v3: loja `sons-atual`, cada som gravado UMA vez; o projeto leve vai a cada mudança; sons sem uso saem;
   - `prepararSom`: o som vira um AudioBuffer uma vez e os canais apontam para ele; o play usa direto.
 - **Teste completo:** 26/26, com "8 ÁUDIOS LONGOS: o PLAY toca todos, relógio e medidor" e "recarregar com 8: a edição volta inteira".
+
+### F-343 — Clipes tocando um atrás do outro (em sequência) e virando um clipe só (19/11/2026)
+- **Pedido do dono:** além de tocar ao mesmo tempo, os clipes precisam poder tocar um atrás do outro e virar um clipe só.
+- **Feito:**
+  - **Em sequência** (`emSequencia`, puro): todos os clipes numa faixa só, colados, na ordem faixa de cima e depois o tempo; as faixas vazias saem.
+  - **Juntar em 1:** a faixa escolhida (ou a 1ª) é renderizada do começo do 1º clipe ao fim do último e vira um clipe só.
+  - **Enviar em sequência:** vários arquivos entram um atrás do outro na mesma faixa (2ª entrada de arquivo).
+  - Botões no celular (aba Cortes: Em sequência, Juntar em 1; aba Adicionar: Enviar em sequência) e no computador.
+- **Teste completo:** 29/29:
+  - 8 clipes em sequência colados;
+  - juntar em 1 com duração igual à soma e PLAY tocando;
+  - 3 áudios enviados em sequência, e o 2º toca quando o 1º acaba.

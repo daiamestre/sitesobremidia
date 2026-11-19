@@ -251,6 +251,44 @@ await passo('recarregar a página com os 8 áudios: a edição volta inteira (sa
   await pagina.addScriptTag({ content: 'window.__faixas = () => [...document.querySelectorAll("[data-faixa]")].map((d) => d.dataset.clipes);' });
   return n === 8 || 'voltaram ' + n + ' faixas';
 });
+const colados = (f) => { const p = f.split(' ').map((x) => x.split('+').map(Number)); return p.every((c, i) => i === 0 || Math.abs(c[0] - (p[i - 1][0] + p[i - 1][1])) < 0.02); };
+await passo('EM SEQUÊNCIA: os 8 clipes vão para uma faixa só, um atrás do outro, sem espaço', async () => {
+  await pagina.evaluate(() => { [...document.querySelectorAll('[role=tab]')].find((b) => b.textContent === 'Cortes')?.click(); });
+  await pagina.evaluate(() => document.querySelector('button[title^="Em sequência"]').click()); await espera(600);
+  const f = await pagina.evaluate(() => __faixas());
+  return (f.length === 1 && f[0].split(' ').length === 8 && colados(f[0])) || f;
+});
+await passo('JUNTAR EM 1: a sequência vira UM clipe só (duração = soma) e o PLAY toca', async () => {
+  const antes = await pagina.evaluate(() => __faixas()[0].split(' ').reduce((s, x) => s + Number(x.split('+')[1]), 0));
+  await pagina.evaluate(() => document.querySelector('button[title^="Juntar em 1"]').click());
+  await pagina.waitForFunction(() => __faixas()[0]?.split(' ').length === 1, null, { timeout: 120_000 }).catch(() => {});
+  const f = await pagina.evaluate(() => __faixas()); const dur = Number(f[0]?.split('+')[1]);
+  await pagina.evaluate(async () => { document.querySelector('.overflow-x-auto').scrollLeft = 0; });
+  await pagina.click('button[title="Tocar"]'); await espera(1500);
+  const t = await pagina.evaluate(() => Number(document.querySelector('[data-testid=editor-audio-relogio]').textContent.split(':')[1]));
+  await pagina.click('button[title="Pausar"]').catch(() => {});
+  return (f.length === 1 && f[0].split(' ').length === 1 && Math.abs(dur - antes) < 0.2 && t > 0.8) || { f, antes, dur, t };
+});
+await passo('ENVIAR EM SEQUÊNCIA: 3 áudios entram um atrás do outro e o 2º toca quando o 1º acaba', async () => {
+  await pagina.evaluate(() => { [...document.querySelectorAll('[role=tab]')].find((b) => b.textContent === 'Adicionar').click(); });
+  await pagina.evaluate(() => document.querySelector('button[title^="Nova edição"]').click());
+  await pagina.waitForFunction(() => !document.querySelector('[data-testid=editor-audio-pista]'), null, { timeout: 60_000 });
+  await pagina.evaluate(async () => {
+    const dt = new DataTransfer();
+    for (const n of ['caixa', 'sirene', 'impacto']) dt.items.add(new File([await (await fetch('/studio/sons/' + n + '.mp3')).blob()], n + '.mp3', { type: 'audio/mpeg' }));
+    const i = document.querySelector('[data-testid=editor-audio-arquivo-sequencia]'); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await pagina.waitForFunction(() => __faixas()[0]?.split(' ').length === 3, null, { timeout: 60_000 }).catch(() => {});
+  const f = await pagina.evaluate(() => __faixas());
+  if (!(f.length === 1 && f[0].split(' ').length === 3 && colados(f[0]))) return { f };
+  const fim1 = (() => { const [i, d] = f[0].split(' ')[0].split('+').map(Number); return i + d; })();
+  await pagina.evaluate(() => { const r = document.querySelector('[data-testid=editor-audio-relogio]'); window.__antes = r.textContent; });
+  await pagina.click('button[title="Ir ao início"]').catch(async () => { await pagina.click('button[title="Início"]'); });
+  await pagina.click('button[title="Tocar"]'); await espera(Math.ceil((fim1 + 0.8) * 1000));
+  const r = await pagina.evaluate(() => ({ t: Number(document.querySelector('[data-testid=editor-audio-relogio]').textContent.split(':')[1]), medidor: [...document.querySelectorAll('[data-testid=editor-de-audio] .h-2 > div')].map((d) => parseFloat(d.style.width) || 0) }));
+  await pagina.click('button[title="Pausar"]').catch(() => {});
+  return (r.t > fim1 + 0.3 && r.medidor.some((w) => w > 5)) || { f, fim1, r };
+});
 await passo('nenhum erro de tela durante o teste', () => (erros.length === 0) || erros.slice(0, 3).join(' | '));
 
 // limpeza: apaga no banco o que o teste criou na conta de teste (funciona no local e no site no ar)
