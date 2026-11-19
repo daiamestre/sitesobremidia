@@ -321,7 +321,7 @@ await pagina.route('**/functions/v1/studio-locucao', async (rota) => {
   const mp3 = fs.readFileSync('public/studio/locucao/dono-eletro.mp3').toString('base64');
   return rota.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ audio: mp3, creditos: 20 }) });
 });
-await passo('CLONAR VOZ: escolhe a voz Sérgio Vaz, a voz vai TRATADA (sem os espaços) e volta numa faixa nova embaixo', async () => {
+await passo('CLONAR VOZ: escolhe a voz Sérgio Vaz, a voz vai TRATADA (pausa encurtada, sem acelerar) e volta numa faixa nova embaixo', async () => {
   const antes = await pagina.evaluate(() => __faixas().length);
   await pagina.evaluate(() => document.querySelector('button[title^="Clonar voz"]').click());
   await pagina.waitForSelector('[data-testid=editor-audio-janela-clonar]', { timeout: 5000 });
@@ -331,7 +331,7 @@ await passo('CLONAR VOZ: escolhe a voz Sérgio Vaz, a voz vai TRATADA (sem os es
   await pagina.waitForFunction((n) => __faixas().length > n, antes, { timeout: 60_000 }).catch(() => {});
   const f = await pagina.evaluate(() => ({ faixas: __faixas(), nomes: [...document.querySelectorAll('[data-faixa]')].map((d) => d.textContent?.slice(0, 40)) }));
   const clonar = pedidosClonar.find((p) => p.acao === 'clonar');
-  return (f.faixas.length === antes + 1 && pedidosClonar.some((p) => p.acao === 'palavras') && clonar?.voz === 'sergio-vaz' && clonar.segundos < 1.2) || { antes, f, pedidosClonar };
+  return (f.faixas.length === antes + 1 && pedidosClonar.some((p) => p.acao === 'palavras') && clonar?.voz === 'sergio-vaz' && clonar.segundos > 1.0 && clonar.segundos < 1.95) || { antes, f, pedidosClonar };
 });
 await pagina.unroute('**/functions/v1/studio-locucao');
 await passo('nenhum erro de tela durante o teste', () => (erros.length === 0) || erros.slice(0, 3).join(' | '));

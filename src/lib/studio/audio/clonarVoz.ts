@@ -1,14 +1,14 @@
-// SOBRE MÍDIA STUDIO — EDITOR DE ÁUDIO: CLONAR VOZ (F-347).
-// O dono grava a voz dele do jeito dele (com respiro e pausas) e toca em "Clonar voz". REGRA ABSOLUTA do dono (F-346):
-// a voz é TRATADA antes de ir para a ElevenLabs:
-//   1) limpeza: só um canal, tira o grave de vento/batida (passa-alta) e os ESTALOS;
-//   2) sem respiro e sem espaço: as palavras (com o tempo de cada uma, vindo da transcrição) são coladas umas nas outras;
-//      o que fica entre elas (respiração, estalo de boca, silêncio, barulho) sai;
-//   3) ritmo do locutor do outro projeto: acelera sem mudar o tom até ~7,6 sílabas por segundo (máx. 1,5×);
-//   4) volume por igual (compressor) antes de mandar;
+// SOBRE MÍDIA STUDIO — EDITOR DE ÁUDIO: CLONAR VOZ (F-347, edição refeita no F-348).
+// O dono grava a voz dele do jeito dele (com respiro e pausas) e toca em "Clonar voz". REGRA ABSOLUTA do dono: a voz é
+// TRATADA antes de ir para a ElevenLabs, com EDIÇÃO PROFISSIONAL (F-348, depois de o dono reprovar a versão acelerada):
+//   1) limpeza suave: um canal, tira o grave de vento/batida (passa-alta) e os ESTALOS;
+//   2) NÃO acelera e NÃO corta palavra: cada palavra fica inteira, com folga antes e depois e acompanhando o fim real do som;
+//   3) só as PAUSAS são editadas: o respiro e o ruído dentro delas viram silêncio limpo e as pausas longas ficam num tamanho
+//      natural (fim de frase 0,30 s, vírgula 0,20 s, meio de frase 0,18 s). Pausa curta (< 0,22 s) fica como está;
+//   4) volume por igual (compressor suave) antes de mandar;
 // e depois que volta convertida no timbre da voz escolhida, ganha o acabamento de rádio. As funções aqui são puras
 // (o servidor só transcreve e converte).
-import { amostras, copiarSom, esticarTempo, normalizar, paraMono, type Som } from './som';
+import { amostras, copiarSom, normalizar, paraMono, type Som } from './som';
 import { efeitoPorId, valoresPadrao } from './efeitos';
 
 /** as vozes para clonar (o servidor sabe qual voz da ElevenLabs é cada uma). Voz nova = uma linha aqui e uma no servidor. */
@@ -18,11 +18,6 @@ export const VOZES_PARA_CLONAR = [
 export type IdDaVozParaClonar = (typeof VOZES_PARA_CLONAR)[number]['id'];
 
 export interface PalavraNoTempo { texto: string; ini: number; fim: number }
-export interface BlocoDeFala { ini: number; fim: number; texto: string }
-
-/** o ritmo do locutor do outro projeto (medido: 7,97 sílabas/s enquanto fala) e o máximo que se acelera sem robotizar */
-export const ALVO_SILABAS = 7.6;
-export const MAX_ACELERAR = 1.5;
 export const MAX_SEGUNDOS_PARA_CLONAR = 300;
 
 /** tira os estalos (cliques de boca, de microfone): picos curtíssimos muito acima da vizinhança viram a média dela */
@@ -30,14 +25,11 @@ export function tirarEstalos(s: Som, forca = 6): Som {
   const r = copiarSom(s), meia = Math.max(2, Math.round(s.sr * 0.0015)), viz = Math.round(s.sr * 0.004);
   for (const c of r.canais) {
     const n = c.length; if (n < viz * 4) continue;
-    // energia média da vizinhança (janela móvel de |x|)
     const abs = new Float32Array(n); for (let i = 0; i < n; i++) abs[i] = Math.abs(c[i]);
     const acum = new Float64Array(n + 1); for (let i = 0; i < n; i++) acum[i + 1] = acum[i] + abs[i];
     const media = (a: number, b: number) => (acum[Math.min(n, b)] - acum[Math.max(0, a)]) / Math.max(1, Math.min(n, b) - Math.max(0, a));
     for (let i = viz; i < n - viz; i++) {
-      const m = media(i - viz, i + viz);
-      if (abs[i] > forca * m && abs[i] > 0.02) {
-        // conserta o trecho curto em volta do estalo ligando as duas pontas
+      if (abs[i] > forca * media(i - viz, i + viz) && abs[i] > 0.02) {
         const a = Math.max(0, i - meia), b = Math.min(n - 1, i + meia), va = c[a], vb = c[b];
         for (let k = a; k <= b; k++) c[k] = va + ((vb - va) * (k - a)) / Math.max(1, b - a);
         i = b;
@@ -47,73 +39,74 @@ export function tirarEstalos(s: Som, forca = 6): Som {
   return r;
 }
 
-/** palavras quase coladas (menos de `juntar` s entre elas) viram um bloco de fala só */
-export function blocosDeFala(palavras: PalavraNoTempo[], juntar = 0.05): BlocoDeFala[] {
-  const bs: BlocoDeFala[] = [];
-  for (const w of [...palavras].filter((p) => p.fim > p.ini).sort((a, b) => a.ini - b.ini)) {
-    const b = bs[bs.length - 1];
-    if (b && w.ini - b.fim < juntar) { b.fim = Math.max(b.fim, w.fim); b.texto += ` ${w.texto}`; } else bs.push({ ini: w.ini, fim: w.fim, texto: w.texto });
-  }
-  return bs;
-}
-/** o espaço que fica depois de um bloco: mínimo (fim de frase um pouco mais, para não embolar) */
-export const pausaDepois = (texto: string) => (/[.!?]$/.test(texto.trim()) ? 0.11 : /[,;:]$/.test(texto.trim()) ? 0.06 : 0.03);
-export const contarSilabas = (textos: string[]) => textos.reduce((a, t) => a + (t.toLowerCase().match(/[aeiouáéíóúâêôãõàü]+/g) ?? []).length, 0);
-export const fatorDeRitmo = (silabas: number, segundos: number, alvo = ALVO_SILABAS, max = MAX_ACELERAR) =>
-  (segundos <= 0 || silabas <= 0 ? 1 : Math.min(max, Math.max(1, alvo / (silabas / segundos))));
+/** o tamanho natural da pausa depois de uma palavra (nunca aumenta uma pausa, só encurta as longas) */
+export const pausaNatural = (texto: string) => (/[.!?]$/.test(texto.trim()) ? 0.30 : /[,;:]$/.test(texto.trim()) ? 0.20 : 0.18);
+export const PAUSA_MINIMA_PARA_MEXER = 0.22;
 
-/** monta só os blocos de fala, colados, com micro-fades nas pontas (sem estalo no corte) */
-export function montarSemRespiro(s: Som, blocos: BlocoDeFala[], folga = 0.015): Som {
-  const sr = s.sr, n = amostras(s), pedacos: Array<{ a: number; b: number; pausa: number }> = [];
-  blocos.forEach((b, i) => {
-    const a = Math.max(0, Math.round((b.ini - folga) * sr)), z = Math.min(n, Math.round((b.fim + folga) * sr));
-    if (z > a) pedacos.push({ a, b: z, pausa: i < blocos.length - 1 ? Math.round(pausaDepois(b.texto) * sr) : 0 });
-  });
-  const total = pedacos.reduce((t, p) => t + (p.b - p.a) + p.pausa, 0);
-  const canais = s.canais.map(() => new Float32Array(total)), fi = Math.round(sr * 0.006), fo = Math.round(sr * 0.008);
+export interface ResultadoDasPausas { som: Som; pausas: number; antes: number; depois: number }
+
+/**
+ * F-348: edita SÓ as pausas. Cada palavra fica inteira (folga de 40 ms antes e 50 ms depois, e o fim real do som seguido
+ * pela energia, até 200 ms); o que sobra na pausa (respiro, ruído, estalo) vira silêncio, e a pausa longa fica natural.
+ */
+export function editarPausas(s: Som, palavras: PalavraNoTempo[]): ResultadoDasPausas {
+  const sr = s.sr, x = paraMono(s).canais[0], n = x.length;
+  const ws = [...palavras].filter((p) => p.fim > p.ini).sort((a, b) => a.ini - b.ini);
+  if (!ws.length || n < sr * 0.05) return { som: copiarSom(s), pausas: 0, antes: n / sr, depois: n / sr };
+  const Q = Math.max(1, Math.round(sr * 0.01)), nq = Math.max(1, Math.floor(n / Q)), e = new Float32Array(nq);
+  for (let q = 0; q < nq; q++) { let t = 0; for (let i = q * Q; i < Math.min(n, (q + 1) * Q); i++) t += x[i] * x[i]; e[q] = Math.sqrt(t / Q); }
+  const fala = [...e].sort((a, b) => a - b)[Math.floor(nq * 0.9)] || 1e-6;
+  const limiar = fala * Math.pow(10, -26 / 20);
+  const energia = (t: number) => e[Math.min(nq - 1, Math.max(0, Math.floor((t * sr) / Q)))];
+  const pedacos: Array<{ a: number; b: number; silencio: number }> = [];
+  let a = Math.max(0, ws[0].ini - 0.06);
+  for (let i = 0; i < ws.length - 1; i++) {
+    const w = ws[i], prox = ws[i + 1], gap = prox.ini - w.fim;
+    if (gap < PAUSA_MINIMA_PARA_MEXER) continue;
+    let fimFala = w.fim; while (fimFala - w.fim < 0.2 && fimFala < prox.ini && energia(fimFala) > limiar) fimFala += 0.01;
+    let iniFala = prox.ini; while (prox.ini - iniFala < 0.08 && iniFala > fimFala && energia(iniFala - 0.01) > limiar) iniFala -= 0.01;
+    const A = Math.min(fimFala + 0.05, prox.ini), B = Math.max(iniFala - 0.04, A);
+    if (B - A < 0.03) continue;
+    const mantido = (A - w.fim) + (prox.ini - B), novo = Math.max(Math.min(gap, pausaNatural(w.texto)), mantido);
+    pedacos.push({ a, b: A, silencio: novo - mantido });
+    a = B;
+  }
+  const ult = ws[ws.length - 1];
+  let fimUlt = ult.fim; while (fimUlt - ult.fim < 0.3 && fimUlt * sr < n && energia(fimUlt) > limiar) fimUlt += 0.01;
+  pedacos.push({ a, b: Math.min(n / sr, fimUlt + 0.1), silencio: 0 });
+  const fade = Math.round(sr * 0.02);
+  const total = pedacos.reduce((t, p) => t + Math.max(0, Math.round((p.b - p.a) * sr)) + Math.round(p.silencio * sr), 0);
+  const canais = s.canais.map(() => new Float32Array(total));
   let pos = 0;
   for (const p of pedacos) {
-    const len = p.b - p.a;
-    s.canais.forEach((c, k) => {
-      const d = canais[k];
-      for (let i = 0; i < len; i++) {
-        const g = Math.min(1, i / Math.max(1, fi), (len - 1 - i) / Math.max(1, fo));
-        d[pos + i] = c[p.a + i] * g;
-      }
-    });
-    pos += len + p.pausa;
+    const i0 = Math.round(p.a * sr), len = Math.max(0, Math.min(n - i0, Math.round((p.b - p.a) * sr)));
+    s.canais.forEach((c, k) => { const d = canais[k]; for (let i = 0; i < len; i++) d[pos + i] = c[i0 + i] * Math.min(1, i / fade, (len - 1 - i) / fade); });
+    pos += len + Math.round(p.silencio * sr);
   }
-  return { sr, canais };
+  return { som: { sr, canais }, pausas: pedacos.length - 1, antes: n / sr, depois: total / sr };
 }
 
-export interface ResultadoDoTratamento { som: Som; blocos: number; ritmoAntes: number; ritmoDepois: number; fator: number; antes: number; depois: number }
+export interface ResultadoDoTratamento { som: Som; pausas: number; antes: number; depois: number }
 
-/** 1+2+3+4: a voz tratada, pronta para ir para a conversão */
+/** 2+3+4: a voz tratada (no ritmo do próprio dono, sem acelerar), pronta para a conversão */
 export async function tratarVoz(s: Som, palavras: PalavraNoTempo[]): Promise<ResultadoDoTratamento> {
-  const blocos = blocosDeFala(palavras);
-  if (!blocos.length) throw new Error('Não achei fala nesse áudio.');
-  const colado = montarSemRespiro(s, blocos);
-  const silabas = contarSilabas(palavras.map((p) => p.texto)), dur = amostras(colado) / colado.sr;
-  const fator = fatorDeRitmo(silabas, dur);
-  let som = esticarTempo(colado, 1 / fator);
+  if (!palavras.length) throw new Error('Não achei fala nesse áudio.');
+  const r = editarPausas(s, palavras);
   const comp = efeitoPorId('compressor')!;
-  som = await comp.aplicar(som, { ...valoresPadrao(comp), limiar: -20, razao: 3, ataque: 4, liberar: 60 });
-  som = normalizar(som, -1.5);
-  return { som, blocos: blocos.length, ritmoAntes: silabas / dur, ritmoDepois: (silabas / dur) * fator, fator, antes: amostras(s) / s.sr, depois: amostras(som) / som.sr };
+  const som = normalizar(await comp.aplicar(r.som, { ...valoresPadrao(comp), limiar: -20, razao: 2.5, ataque: 8, liberar: 120 }), -1.5);
+  return { som, pausas: r.pausas, antes: r.antes, depois: amostras(som) / som.sr };
 }
 
-/** 1: limpeza (antes de transcrever: a transcrição acha melhor as palavras) */
+/** 1: limpeza suave (antes de transcrever: a transcrição acha melhor as palavras) */
 export async function limparVoz(s: Som): Promise<Som> {
   const pa = efeitoPorId('passa-alta')!;
-  const mono = paraMono(s);
-  return tirarEstalos(await pa.aplicar(mono, { ...valoresPadrao(pa), freq: 75 }));
+  return tirarEstalos(await pa.aplicar(paraMono(s), { ...valoresPadrao(pa), freq: 70 }));
 }
 
 /** acabamento de rádio depois da conversão (volume forte e por igual, sem estalo novo) */
 export async function acabamentoDeRadio(s: Som): Promise<Som> {
   const comp = efeitoPorId('compressor')!;
-  const c = await comp.aplicar(tirarEstalos(s), { ...valoresPadrao(comp), limiar: -18, razao: 3.5, ataque: 3, liberar: 50 });
-  return normalizar(c, -1);
+  return normalizar(await comp.aplicar(tirarEstalos(s), { ...valoresPadrao(comp), limiar: -18, razao: 3, ataque: 5, liberar: 80 }), -1);
 }
 
 /** bytes ↔ base64 (o áudio vai e volta do servidor dentro do JSON) */

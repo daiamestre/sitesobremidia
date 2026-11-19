@@ -68,6 +68,11 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **Locutor da casa = voz do próprio dono (11/11/2026, P-33):** o dono autorizou, por escrito nesta conversa, que a voz DELE seja copiada e usada como locutor do SOBRE MÍDIA (amostras tiradas das ofertas da loja dele). Não há termo a assinar para a voz do dono. Vozes de OUTRAS pessoas continuam exigindo o termo `docs/juridico/TERMO_DE_AUTORIZACAO_DE_VOZ.md` assinado. Vozes inventadas por IA (VoiceDesign) foram REPROVADAS pelo dono. Nenhuma voz entra no sistema sem o dono ouvir a prévia e aprovar.
 - **Locutor com ElevenLabs (11/11/2026, F-300):** 5 vozes no sistema — a voz do dono (clone, `eleven_v4_turbo`), Leonardo, Carlos, Aline (farmácia é sempre voz feminina) e Diego. Vozes de modelos abertos reprovadas. Economizar créditos: cada frase gerada uma vez e guardada; ouvir amostra não gasta. Locução é OPCIONAL (interruptor). Exportação padrão do vídeo: quadro a quadro em qualidade máxima (F-301).
 - **Vídeos criados (12/11/2026, F-304):** a Biblioteca de Loop (capas em vídeo do sistema) é só de owner/ADM. Os outros usuários criam os próprios vídeos; depois de criar, ELE decide: só salvar em Meus Projetos, salvar e publicar numa tela (escolhe a tela) ou baixar no aparelho.
+- **Edição profissional da voz (19/11/2026, F-348):** o dono REPROVOU a voz acelerada, com palavras cortadas e frases atropeladas.
+  - NUNCA acelerar a fala e NUNCA cortar palavra.
+  - Só as pausas longas são editadas: o respiro e o ruído viram silêncio, e a pausa fica natural (fim de frase 0,30 s, vírgula 0,20 s).
+  - Nunca colar uma frase na outra.
+  - A base aprovada é o "Teste 1" (conversão direta), limpo, sem os respiros (TESTE 3).
 - **REGRA ABSOLUTA — voz tratada antes de copiar (19/11/2026, F-346):** nenhuma gravação do dono é convertida ou usada para clonar sem antes passar por `scripts/studio/tratar-voz.mjs`:
   - limpar barulho de fundo, chiado e estalos;
   - tirar TODA respiração e espaço entre as falas;

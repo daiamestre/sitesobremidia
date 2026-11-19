@@ -570,7 +570,7 @@ export function EditorDeAudio() {
       const pal = (r1.data as { palavras?: PalavraNoTempo[] } | null)?.palavras;
       if (r1.error || !pal) throw new Error(await erroDaFuncao(r1.error, r1.data, 'Não consegui achar as palavras.'));
       if (!pal.length) throw new Error('Não achei fala nesse áudio.');
-      setOcupado('3/4 Tirando respiros e espaços e acertando o ritmo do locutor…');
+      setOcupado('3/4 Tirando os respiros das pausas (sem cortar palavra e sem acelerar)…');
       const tr = await tratarVoz(limpo, pal);
       setOcupado(`4/4 Clonando na voz ${voz.nome} (ElevenLabs)…`);
       const r2 = await supabase.functions.invoke('studio-locucao', { body: { acao: 'clonar', voz: voz.id, segundos: tr.depois, audio: paraBase64(codificarMp3(tr.som, 160)) } });
@@ -579,7 +579,7 @@ export function EditorDeAudio() {
       const volta = deBase64(resp.audio);
       const pronto = await acabamentoDeRadio(await decodificarArquivo(volta.buffer.slice(volta.byteOffset, volta.byteOffset + volta.byteLength) as ArrayBuffer));
       adicionarSom(pronto, `${voz.nome} — ${o.nome}`.slice(0, 60), 'nova', o.de);
-      toast.success(`Clonada na voz ${voz.nome}: ${tr.antes.toFixed(1)} s → ${tr.depois.toFixed(1)} s, sem respiros, ritmo ×${tr.fator.toFixed(2)}. Faixa nova embaixo para comparar.`, { duration: 6000 });
+      toast.success(`Clonada na voz ${voz.nome}: ${tr.antes.toFixed(1)} s → ${tr.depois.toFixed(1)} s, ${tr.pausas} pausas limpas, no seu ritmo. Faixa nova embaixo para comparar.`, { duration: 6000 });
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Não foi possível clonar a voz.'); }
     setOcupado(null);
   };
@@ -1485,9 +1485,9 @@ export function EditorDeAudio() {
           ))}
         </div>
         <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs text-slate-300">
-          <li>Limpa a voz (barulho, estalos, grave de vento).</li>
-          <li>Tira os respiros e os espaços entre as falas.</li>
-          <li>Acerta o ritmo do locutor (rápido, sem pausa).</li>
+          <li>Limpa a voz com cuidado (estalos, grave de vento; o ruído sai na conversão).</li>
+          <li>Tira os respiros e o ruído das pausas e encurta as pausas longas (palavras inteiras).</li>
+          <li>Mantém o seu ritmo: não acelera e uma frase não atropela a outra.</li>
           <li>Converte no timbre da voz escolhida e põe numa faixa nova embaixo, para comparar.</li>
         </ol>
         <div className="mt-4 flex gap-2">

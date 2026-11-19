@@ -4010,3 +4010,19 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - unitário `clonarVoz347.test.ts` (6);
   - e2e 32/32, com o servidor simulado: confere que a voz vai sem os espaços (6 s de entrada → menos de 1,2 s);
   - real: `palavras` 200 (54 palavras) e `clonar` 200 (6 s, ≈ 102 créditos, timbre 0,78).
+
+### F-348 — Edição de voz profissional: sem acelerar, sem cortar palavra, sem frase atropelando a outra (19/11/2026)
+- **Reprovado pelo dono:** os testes 2 e 2B do F-346 e o botão do F-347 tinham:
+  - fala acelerada 1,5×;
+  - fim de palavra cortado (o corte seguia colado no tempo da transcrição, que termina cedo);
+  - só 30 ms entre as frases, uma atropelando a outra.
+- **Correção (`editarPausas`):**
+  - não muda o tempo da fala;
+  - cada palavra fica com 40 ms de folga antes e 50 ms depois, e o fim real do som é seguido pela energia (até 200 ms; acima de -26 dB da fala);
+  - só as pausas de 0,22 s ou mais são editadas: o miolo vira silêncio, com fades de 20 ms, e a pausa total vira 0,30 s (.!?), 0,20 s (,;:) ou 0,18 s;
+  - pausa curta não é mexida.
+- **Teste:**
+  - TESTE 3 sobre o Teste 1 já convertido, sem gastar crédito: 34,4 s → 29,4 s, 11 pausas limpas, transcrição do resultado palavra por palavra correta;
+  - unitário `clonarVoz347.test.ts` (5): palavras inteiras, silêncio na pausa, pausa curta intacta;
+  - e2e 32/32.
+- **Erro meu, registrado:** na troca do script, um comando falhou e a versão antiga rodou uma conversão desnecessária (≈ 17 s de áudio).
