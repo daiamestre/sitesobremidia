@@ -278,7 +278,7 @@ describe('F-330: o som não some no iPhone', () => {
 describe('F-331: no celular, tocar escolhe o clipe e arrastar move na hora', () => {
   const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
   it('toque escolhe; arrastar move (sem segurar); vazio rola; marcar trecho só com o botão; Desmarcar limpa', () => {
-    expect(e).toContain("setClipeSel(sob.id); setSel(null); cursorAqui();");
+    expect(e).toContain('const escolher = () => { if (sob && dentro) setClipeSel(sob.id)');
     expect(e).toContain('Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 8');
     expect(e).toContain("const [marcandoTrecho, setMarcandoTrecho] = useState(false)");
     expect(e).toContain('rotulo="Desmarcar"');
@@ -293,5 +293,14 @@ describe('F-332: o clipe obedece o dedo no celular', () => {
     expect(e).toContain('performance.now() - g.bordaDesde > 300');
     expect(e).toContain('document.elementsFromPoint(g.x, g.y)');
     expect(fs.existsSync('scripts/ops/testar-editor-audio.mjs')).toBe(true);
+  });
+});
+
+describe('F-333: passar o dedo no clipe rola; só segurar e arrastar move', () => {
+  it('no clipe, o gesto espera: deslizar = rolar, segurar = mover/aparar, toque = escolher', () => {
+    const e = fs.readFileSync('src/components/studio/audio/EditorDeAudio.tsx', 'utf8');
+    expect(e).toContain('PASSAR O DEDO no clipe ROLA a linha do tempo');
+    expect(e).toContain('setClipeSel(sob.id); setSel(null); marcarHistorico();');
+    expect(e).toContain('}, escolher);');
   });
 });

@@ -630,14 +630,18 @@ export function EditorDeAudio() {
     if (dedo) {
       const ti = imantar(t), cursorAqui = () => { if (reproducao.current) tocar(ti); else moverCursor(ti); };
       if (marcandoTrecho) { setClipeSel(dentro && sob ? sob.id : null); setSel(null); if (reproducao.current) pararSom(false); moverCursor(ti); gesto.current = { tipo: 'selecao', faixaId: f.id, ancora: ti }; return; }
-      if (sob && Math.abs(x - xIni) <= borda && sob.duracao * zoom > borda * 3) { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'inicio' }; setClipeSel(sob.id); setSel(null); return; }
-      if (sob && Math.abs(x - xFim) <= borda) { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'fim' }; setClipeSel(sob.id); setSel(null); return; }
+      // F-333 (regra do dono): PASSAR O DEDO no clipe ROLA a linha do tempo (como a régua) — o clipe não vem junto.
+      // Só SEGURAR ~0,4 s e arrastar move o clipe (ou apara, na borda). Toque rápido: escolhe o clipe e põe a linha amarela ali.
+      const escolher = () => { if (sob && dentro) setClipeSel(sob.id); else setClipeSel(null); setSel(null); cursorAqui(); };
+      if (sob && Math.abs(x - xIni) <= borda && sob.duracao * zoom > borda * 3) { esperarDedo(e, () => { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'inicio' }; setClipeSel(sob.id); setSel(null); }, escolher); return; }
+      if (sob && Math.abs(x - xFim) <= borda) { esperarDedo(e, () => { marcarHistorico(); gesto.current = { tipo: 'aparar', clipeId: sob.id, lado: 'fim' }; setClipeSel(sob.id); setSel(null); }, escolher); return; }
       if (sob && dentro) {
-        // tocou no clipe: ele fica escolhido na hora e a linha amarela vai para o toque; se arrastar, ele vai junto
-        setClipeSel(sob.id); setSel(null); cursorAqui();
-        marcarHistorico();
-        const g: Extract<Gesto, { tipo: 'mover' }> = { tipo: 'mover', clipeId: sob.id, desvio: t - sob.inicio, moveu: false, x: e.clientX, y: e.clientY, raf: 0, origem: f.id, x0: e.clientX, y0: e.clientY };
-        gesto.current = g; rolarArrastando(g); return;
+        esperarDedo(e, () => {
+          setClipeSel(sob.id); setSel(null); marcarHistorico();
+          const g: Extract<Gesto, { tipo: 'mover' }> = { tipo: 'mover', clipeId: sob.id, desvio: t - sob.inicio, moveu: false, x: e.clientX, y: e.clientY, raf: 0, origem: f.id, x0: e.clientX, y0: e.clientY };
+          gesto.current = g; rolarArrastando(g);
+        }, escolher);
+        return;
       }
       // espaço vazio: deslizar rola o áudio; tocar põe a linha amarela e tira a escolha
       esperarDedo(e, () => {}, () => { setClipeSel(null); setSel(null); cursorAqui(); }); return;
@@ -1136,7 +1140,7 @@ export function EditorDeAudio() {
       </div>
       <p className="border-t border-white/10 px-3 py-1.5 text-[11px] text-slate-400">
         {celular
-          ? <><b>Toque num clipe</b>: escolhe · <b>arraste o clipe</b>: move (outra faixa, ou embaixo cria faixa nova) · <b>borda do clipe</b>: apara · deslize na <b>régua</b> ou no vazio: anda pelo áudio · <b>Marcar trecho</b> ligado: arraste para marcar · <b>▼ amarelo</b>: cursor · <b>dois dedos</b>: zoom</>
+          ? <><b>Passe o dedo</b> (no clipe, na régua ou no vazio): anda pelo áudio · <b>toque</b> num clipe: escolhe · <b>segure o clipe e arraste</b>: move (outra faixa, ou embaixo cria faixa nova) · segure a <b>borda</b>: apara · <b>Marcar trecho</b> ligado: arraste para marcar · <b>▼ amarelo</b>: cursor · <b>dois dedos</b>: zoom</>
           : <>Arraste na onda para marcar um trecho · com a <b>Tesoura</b>, clique para cortar · arraste a <b>barra colorida</b> do clipe para mover (ou outra faixa) · puxe a <b>borda</b> do clipe para aparar · Ctrl+roda = zoom ·
             Espaço tocar · S dividir · Delete apagar · Ctrl+Z/Y · Ctrl+X/C/V · Ctrl+D duplicar · Ctrl+A tudo · L repetir · arraste arquivos para uma faixa</>}
       </p>

@@ -58,7 +58,7 @@ await pagina.addScriptTag({ content: `
   window.__faixas = () => [...document.querySelectorAll('[data-faixa]')].map((d) => d.dataset.clipes);
   window.__esp = (ms) => new Promise((r) => setTimeout(r, ms));
   window.__toque = async (x, n = 0) => { const c = __pista(n), r = c.getBoundingClientRect(); if (r.left + x > innerWidth - 4) throw new Error('toque fora da tela'); __e(c, 'pointerdown', 901, r.left + x, r.top + 70); await __esp(40); __e(c, 'pointerup', 901, r.left + x, r.top + 70); await __esp(250); };
-  window.__arrastar = async (x, dx, n = 0, dy = 0) => { const c = __pista(n), r = c.getBoundingClientRect(); __e(c, 'pointerdown', 902, r.left + x, r.top + 70); await __esp(30);
+  window.__arrastar = async (x, dx, n = 0, dy = 0, segurar = 30) => { const c = __pista(n), r = c.getBoundingClientRect(); __e(c, 'pointerdown', 902, r.left + x, r.top + 70); await __esp(segurar);
     for (let k = 1; k <= 8; k++) { __e(c, 'pointermove', 902, r.left + x + dx * k / 8, r.top + 70 + dy * k / 8); await __esp(25); } __e(c, 'pointerup', 902, r.left + x + dx, r.top + 70 + dy); await __esp(300); };
   window.__relogio = () => document.querySelector('[data-testid=editor-audio-relogio]').textContent;
   window.__trecho = () => document.querySelector('.font-mono.text-\\\\[10px\\\\]')?.textContent;
@@ -78,7 +78,10 @@ await passo('Voltar e Avançar', () => pagina.evaluate(async () => {
   document.querySelector('button[title="Voltar o que foi feito"]').click(); await __esp(250); const a = __faixas()[0];
   document.querySelector('button[title="Avançar de novo"]').click(); await __esp(250); const b = __faixas()[0];
   return (a === '0.00+117.14' && b === '0.00+2.00 2.00+115.14') || [a, b]; }));
-await passo('arrastar o clipe move na hora (sem segurar)', () => pagina.evaluate(async () => { await __arrastar(200, 40); const f = __faixas(); return f[0] === '0.00+2.00 2.50+115.14' || f; }));
+await passo('PASSAR O DEDO no clipe rola a linha do tempo e o clipe NÃO vem junto', () => pagina.evaluate(async () => {
+  const el = document.querySelector('.overflow-x-auto'); el.scrollLeft = 300; await __esp(150); const a = JSON.stringify(__faixas()), s0 = el.scrollLeft;
+  await __arrastar(120, 60); const r = el.scrollLeft < s0 - 30 && JSON.stringify(__faixas()) === a; el.scrollLeft = 0; await __esp(150); return r || [s0, el.scrollLeft, __faixas()]; }));
+await passo('SEGURAR o clipe e arrastar move o clipe', () => pagina.evaluate(async () => { await __arrastar(200, 40, 0, 0, 550); const f = __faixas(); return f[0] === '0.00+2.00 2.50+115.14' || f; }));
 await passo('um toque rápido não move o clipe', () => pagina.evaluate(async () => { const a = JSON.stringify(__faixas()); await __toque(40); return JSON.stringify(__faixas()) === a || __faixas(); }));
 await passo('deslizar no espaço vazio rola o áudio e não mexe nos clipes', () => pagina.evaluate(async () => {
   const el = document.querySelector('.overflow-x-auto'); const a = JSON.stringify(__faixas()); const s0 = el.scrollLeft; await __arrastar(180, -100);
@@ -92,7 +95,7 @@ await passo('Apagar tira o clipe escolhido (e Voltar devolve)', () => pagina.eva
   await __toque(230); document.querySelector('button[title="Apagar o trecho ou o clipe"]').click(); await __esp(250); const a = __faixas()[0];
   document.querySelector('button[title="Voltar o que foi feito"]').click(); await __esp(250); return (a === '0.00+2.00' && __faixas()[0] === '0.00+2.00 2.50+115.14') || [a, __faixas()[0]]; }));
 await passo('arrastar a parte para baixo cria faixa nova', () => pagina.evaluate(async () => {
-  const c = __pista(0), r = c.getBoundingClientRect(); __e(c, 'pointerdown', 903, r.left + 230, r.top + 70); await __esp(30);
+  const c = __pista(0), r = c.getBoundingClientRect(); __e(c, 'pointerdown', 903, r.left + 230, r.top + 70); await __esp(550);
   for (let k = 1; k <= 4; k++) { __e(c, 'pointermove', 903, r.left + 230, r.top + 70 + 10 * k); await __esp(30); }
   await __esp(150); const z = document.querySelector('[data-testid=editor-audio-nova-faixa]')?.getBoundingClientRect(); if (!z) return 'a área de faixa nova não apareceu';
   for (let k = 1; k <= 6; k++) { __e(c, 'pointermove', 903, r.left + 230, z.top + 30); await __esp(40); }

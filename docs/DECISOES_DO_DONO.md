@@ -76,8 +76,9 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **Vídeo com impacto (16/11/2026, F-316):** o vídeo de ofertas segue o concorrente que gera vídeos com IA (não o de modelos do Canva). Ele já sai com trilha, sirene, whoosh e impacto, chamas e estrelas na frente do fundo, fundo balançando, preço estourando, abertura e fechamento com a logo, e é entregue pronto. As trilhas e os sons são nossos, nunca os do concorrente.
 - **Editor de Áudio no celular: regras de toque FIXAS (19/11/2026, F-331/F-332):**
   - Toque num clipe = escolhe e põe a linha amarela ali.
-  - Arrastar o clipe = move (outra faixa, ou a área de baixo cria faixa nova; em cima de áudio, entra no meio).
-  - Borda do clipe = apara.
+  - **PASSAR O DEDO no clipe = rola a linha do tempo**, como a régua; o clipe não vem junto (F-333).
+  - **SEGURAR o clipe ~0,4 s e arrastar = move** (outra faixa, ou a área de baixo cria faixa nova; em cima de áudio, entra no meio).
+  - Segurar a borda do clipe = apara.
   - Vazio ou régua = rola.
   - "Marcar trecho" ligado = arrastar marca.
   - "Desmarcar" limpa.

@@ -3844,3 +3844,11 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - nenhum erro de tela.
   - Ele apaga o que criou. Agora: 18/18.
 - **Regra:** rodar antes de publicar qualquer mudança no editor.
+
+### F-333 — Passar o dedo no clipe rola a linha do tempo; só segurar e arrastar move (19/11/2026)
+- **Pedido do dono:** passar o dedo no clipe não pode arrastar o clipe; deve rolar como a régua. Só clicar, segurar e arrastar move.
+- **Feito:** no dedo (fora do "Marcar trecho"), o toque no clipe e na borda passa por `esperarDedo`:
+  - andou 9 px → rola;
+  - parado 380 ms → move ou apara (vibra);
+  - soltou antes → escolhe o clipe e põe a linha amarela.
+- **Teste completo** `testar-editor-audio.mjs`, com 19 passos, incluindo "passar o dedo no clipe rola e o clipe não vem junto" e "segurar e arrastar move": 19/19.
