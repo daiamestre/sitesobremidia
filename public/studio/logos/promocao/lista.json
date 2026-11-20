@@ -1,5 +1,13 @@
 [
   {
+    "id": "semana-das-ofertas",
+    "nome": "Semana das Ofertas",
+    "arquivo": "semana-das-ofertas-fc0948f5.png",
+    "mini": "semana-das-ofertas-fc0948f5-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
     "id": "oferta-do-dia",
     "nome": "Oferta do Dia!",
     "arquivo": "oferta-do-dia-c4332d5c.png",
