@@ -32,6 +32,8 @@ export interface OpcoesDoPalco {
   locucao?: LocucaoDoVideo | null;
   /** P-34: o nome da loja (frase da abertura e do fechamento) */
   loja?: string;
+  /** F-349: a logo da EMPRESA do cliente (não a da promoção): fecha o vídeo, em cima da frase do fechamento */
+  logoDaLoja?: { url: string; nome?: string } | null;
   /** P-34: a posição do produto no vídeo (o produto entra com mola, alternando os lados) */
   indice?: number;
 }
@@ -491,10 +493,12 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
     ? (() => { const a = f.produto[formato], n = f.nome_[formato]; const x = Math.min(a.x, n.x), y = Math.min(a.y, n.y); return { x: x * W, y: y * H, w: (Math.max(a.x + a.w, n.x + n.w) - x) * W, h: (Math.max(a.y + a.h, n.y + n.h) - y) * H }; })()
     : { x: W * 0.06, y: H * 0.3, w: W * 0.88, h: H * 0.42 };
   // F-317: com a logo de CAMPANHA, ela fica com a parte de cima da área (cai do céu e bate ali) e a frase vai para baixo
-  const camp = i.campanha;
+  // F-349 (pedido do dono): no FECHAMENTO entra a logo da EMPRESA do cliente (como no concorrente: o vídeo termina na loja)
+  const logoDaLoja = tipo === 'fechamento' && o.logoDaLoja?.url ? o.logoDaLoja.url : null;
+  const camp = logoDaLoja ? null : i.campanha;
   const largo = Math.min(W * 0.98, area.w * 1.22);
   const caixaLogo: Caixa = { x: area.x + (area.w - largo) / 2, y: area.y - area.h * 0.06, w: largo, h: area.h * 0.7 };
-  const caixaFrase: Caixa = camp ? { x: area.x, y: area.y + area.h * 0.66, w: area.w, h: area.h * 0.34 } : area;
+  const caixaFrase: Caixa = camp || logoDaLoja ? { x: area.x, y: area.y + area.h * 0.66, w: area.w, h: area.h * 0.34 } : area;
   const frase = fraseDeImpacto(tipo === 'abertura' ? 'Frase da abertura' : 'Frase do fechamento', tipo === 'abertura' ? i.textoAbertura : i.textoFechamento, caixaFrase, cor);
   const fora = new Set<string>(['Produto', 'Nome do produto', 'Preço', EF.preco]);
   const camadas: Camada[] = d.camadas.filter((c) => !fora.has(c.nome)).map((c) => {
@@ -537,7 +541,11 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
       camadas.push({ ...efeitoReal(EF.chamasLogo, 'parede-de-fogo', cx - fw / 2, L.y + L.h * 1.04 - fh, fw, fh, { inicio: ti + 0.2, repetir: true, opacidade: 0.85, ancora: 'baixo' }), id: EF.chamasLogo });
     }
   }
-  camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? (camp ? BATIDA_DA_LOGO + 0.5 : 0.55) : (camp ? 0.7 : 0.35), 0.5, 'pulsar') });
+  if (logoDaLoja) {
+    const l = imagem('Logo da loja', logoDaLoja, caixaLogo.x + caixaLogo.w * 0.12, caixaLogo.y, caixaLogo.w * 0.76, caixaLogo.h * 0.92, { ajuste: 'conter' });
+    camadas.push({ ...l, id: l.nome, animacao: ani('zoom', 0.1, 0.55, 'respirar') });
+  }
+  camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? (camp ? BATIDA_DA_LOGO + 0.5 : 0.55) : (camp || logoDaLoja ? 0.7 : 0.35), 0.5, 'pulsar') });
   // P-34 (pedido do dono): tudo da abertura/fechamento se edita — o que o cliente mudou NESTA cena vale só nela
   const a = o.ajustes?.[formato] ?? {};
   const editadas = camadas.map((c) => { const p = a[chaveDaCena(c.nome, tipo)]; return p ? ({ ...c, ...p, id: c.nome } as Camada) : c; });

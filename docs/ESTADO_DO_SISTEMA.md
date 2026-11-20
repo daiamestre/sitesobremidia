@@ -77,6 +77,13 @@ O histórico completo de F-01 a F-259 está em `docs/engineering/FINDINGS_LEDGER
 
 > **P-34 fase 2 (16/11/2026):** ✅ NO AR — F-317 (logos 3D de campanha caindo do céu, quebrando a parede e pegando fogo; faixa Alerta de Oferta para a direita; sem "YOUR LOGO"), F-318 (locutor no estilo impacto: "Só essa semana, preço baixo é aqui!") e **F-319: EFEITOS REAIS** — 14 filmagens gratuitas do Pixabay (explosões, bola de fogo, fogo subindo, parede e linha de fogo, brasas, fumaça, raio, vidro rachando e estilhaçando, confete) em `public/studio/efeitos/`, aplicadas com recorte do preto pela placa de vídeo (WebGL), bordas esfumadas e explosão em elipse; cada efeito é um elemento editável (cartão "Efeito": trocar pela galeria, começo, laço, velocidade, recorte/luz/luz forte, espelhar); o MP4 lê os quadros dos efeitos em sequência pelo WebCodecs (`video/decodificarEfeito.ts`). Botão "Efeitos reais" no painel de impacto (padrão ligado). Ficha das licenças: `docs/licencas/EFEITOS_PIXABAY.md`.
 
+> **F-349 (19/11/2026): vídeo com locução pelo passo a passo corrigido e reordenado.** No celular a prévia ocupava a tela inteira (a regra geral `.grid > * { max-width: 100% }` anulava o tamanho dela) e o iPhone dava zoom ao tocar num campo. Agora:
+> - etapas: 1) Logo e fundo (logo da promoção, logo 3D que abre o vídeo, fundo, formato) · 2) Sua empresa (nome e a logo DA EMPRESA, que fecha o vídeo) · 3) Produtos · 4) Edição do vídeo (só música, frases da abertura e do fechamento e efeitos) · 5) Locução;
+> - no fim o vídeo é montado sozinho no padrão de impacto, e a tela de edição muda qualquer coisa (o cartão "Fundo, logo e botão" tem "Sua empresa: Trocar");
+> - prévia com 170 px no celular; `maximum-scale=1` só no iOS (sem zoom ao tocar em campo, a pinça continua);
+> - a prévia tenta de novo a imagem que falhou (fundo preto no iPhone com internet lenta).
+> Não consegui reproduzir no Chrome do PC o "vídeo sem o fundo escolhido": o fundo trocado chegou ao vídeo nos testes. Aguarda o dono conferir no iPhone.
+
 > **F-348 (19/11/2026): edição da voz refeita como profissional.** O dono reprovou a v1: acelerada 1,5×, palavras cortadas e frases atropeladas. Agora:
 > - não acelera e não corta palavra (folga e fim real do som seguido pela energia);
 > - só edita as pausas de 0,22 s ou mais: o respiro e o ruído viram silêncio e a pausa fica em 0,30/0,20/0,18 s.

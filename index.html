@@ -4,6 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- F-349: no iPhone, tocar num campo de texto com letra menor que 16 px dava ZOOM na tela inteira (e ela ficava assim).
+       maximum-scale=1 só no iOS: tira esse zoom automático e o Safari continua deixando ampliar com os dedos. -->
+  <script>if (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) document.querySelector('meta[name=viewport]').setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');</script>
 
   <title>SOBRE MÍDIA Designer</title>
   <meta name="description" content="Sistema de Digital Signage - Gerencie suas telas e conteúdos" />

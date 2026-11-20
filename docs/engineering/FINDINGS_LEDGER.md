@@ -4026,3 +4026,13 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - unitário `clonarVoz347.test.ts` (5): palavras inteiras, silêncio na pausa, pausa curta intacta;
   - e2e 32/32.
 - **Erro meu, registrado:** na troca do script, um comando falhou e a versão antiga rodou uma conversão desnecessária (≈ 17 s de áudio).
+
+### F-349 — Vídeo com locução: prévia gigante no celular, zoom do iPhone e etapas na ordem do dono (19/11/2026)
+- **Causa da prévia gigante:** em `src/index.css` a regra global `.grid > * { max-width: 100% }` (fora de camada) vence o `max-w-[190px]` do Tailwind. A prévia do passo a passo era filha direta da grade e ocupava 332 px de 390. Agora fica dentro de um invólucro (170 px no celular).
+- **Zoom no iPhone:** campos com letra menor que 16 px davam zoom automático. Correção: `maximum-scale=1` só no iOS (script no `index.html`).
+- **Etapas (pedido do dono):** Logo e fundo → Sua empresa (logo DA EMPRESA, `logoDaLoja`, guardada em `studio-logo-da-loja`) → Produtos → Edição do vídeo (`PainelDeImpacto semCampanha`) → Locução. A escolha da logo 3D da campanha virou `EscolhaDaCampanha`.
+- **Logo da empresa no vídeo:** `vinhetaDoPalco('fechamento')` põe a camada "Logo da loja" no lugar da logo da campanha, com a frase embaixo (editável na cena Fechamento).
+- **Fundo preto:** `PreviaDocumento` tenta de novo (até 4 vezes) a imagem que falhou; antes, uma falha deixava a arte sem fundo para sempre. No Chrome do PC o fundo trocado chegou ao vídeo; falta o dono conferir no iPhone.
+- **Teste:**
+  - `videoPassoAPasso349.test.ts` (7) mais os testes do palco: 117 no total;
+  - conferido no navegador com 390 px: 5 etapas, prévia de 170 px e fechamento com a logo da empresa.

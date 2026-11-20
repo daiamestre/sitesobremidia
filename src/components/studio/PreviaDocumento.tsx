@@ -38,8 +38,17 @@ export function PreviaDocumento({ doc, className, style, ocultar, sempre = false
   useEffect(() => {
     if (!visivel) return;
     let vivo = true;
-    void prepararDocumento(doc).then((m) => { if (vivo) setImgs(m); });
-    return () => { vivo = false; };
+    let espera: ReturnType<typeof setTimeout> | undefined;
+    // F-349: no iPhone (internet lenta) uma foto ou o FUNDO às vezes falha na 1ª vez e a arte ficava preta para sempre:
+    // a prévia mostra o que já carregou e tenta de novo o que faltou (até 4 vezes)
+    const carregar = (vez: number) => void prepararDocumento(doc).then((m) => {
+      if (!vivo) return;
+      setImgs(m);
+      const faltam = imagensDo(doc).some((s) => !m.has(s));
+      if (faltam && vez < 4) espera = setTimeout(() => carregar(vez + 1), 1200 * (vez + 1));
+    });
+    carregar(0);
+    return () => { vivo = false; clearTimeout(espera); };
     // recarrega só quando muda a lista de fotos/fontes (não a cada arraste)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visivel, chave]);

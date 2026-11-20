@@ -34,7 +34,7 @@ import { FUNDOS_DO_PALCO, SEGUNDOS_POR_PRODUTO, chaveDaCena, impactoDoPalco, vin
 import { comAlfa, corDoDocumento, coresDosEfeitos } from '@/lib/studio/corDaArte';
 import { EscolhaDeModelo } from './GaleriaDeModelos';
 import { PainelDeLocucao } from './PainelDeLocucao';
-import { PainelDeImpacto } from './PainelDeImpacto';
+import { EscolhaDaCampanha, PainelDeImpacto } from './PainelDeImpacto';
 import type { ImpactoDoPalco } from '@/lib/studio/impacto';
 import { AssistenteDeCriacao, type EtapaDoAssistente } from './AssistenteDeCriacao';
 import type { TipoDeTransicao } from '@/lib/studio/video/linha';
@@ -267,6 +267,10 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   const [locucao, setLocucao] = useState<LocucaoDoVideo | null>(null);
   const [nomeDaLoja, setNomeDaLoja] = useState(() => { try { return localStorage.getItem('studio-locucao-loja') ?? ''; } catch { return ''; } });
   const mudarNomeDaLoja = (v: string) => { setNomeDaLoja(v); try { localStorage.setItem('studio-locucao-loja', v); } catch { /* sem armazenamento */ } };
+  // F-349 (pedido do dono): a logo da EMPRESA do cliente (a dele, não a da promoção): fecha o vídeo
+  const [logoDaLoja, setLogoDaLoja] = useState<LogoDaPasta | null>(() => { try { const l = JSON.parse(localStorage.getItem('studio-logo-da-loja') ?? 'null'); return l?.url ? l : null; } catch { return null; } });
+  const [trocandoLogoDaLoja, setTrocandoLogoDaLoja] = useState(false);
+  const escolherLogoDaLoja = (l: LogoDaPasta | null) => { setLogoDaLoja(l); setTrocandoLogoDaLoja(false); try { localStorage.setItem('studio-logo-da-loja', JSON.stringify(l)); } catch { /* sem armazenamento */ } };
   // F-306: "Visualizar vídeo e salvar" (pede ao editor de vídeo para montar o MP4 e mostrar com Salvar/Publicar/Baixar)
   const [pedidoDeVideo, setPedidoDeVideo] = useState(0);
   // F-312: ao criar pelo passo a passo, a prévia grande começa a tocar sozinha
@@ -299,7 +303,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   // F-288: fundo, logo e botão se editam mesmo com o carrossel tocando (vale para todos os produtos): usa o 1º produto como base
   const alvo = sel ?? comPreco[0] ?? null;
   const opcoesDoDoc = { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes };
-  const docEd = useMemo(() => (alvo ? (cena ? vinhetaDoPalco(cena, alvo, formato, { ...opcoesDoDoc, loja: nomeDaLoja }, cena === 'abertura' ? 2.8 : 3.4) : palcoDoProduto(alvo, formato, opcoesDoDoc)) : null), [alvo, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes, cena, nomeDaLoja]); // eslint-disable-line react-hooks/exhaustive-deps
+  const docEd = useMemo(() => (alvo ? (cena ? vinhetaDoPalco(cena, alvo, formato, { ...opcoesDoDoc, loja: nomeDaLoja, logoDaLoja }, cena === 'abertura' ? 2.8 : 3.4) : palcoDoProduto(alvo, formato, opcoesDoDoc)) : null), [alvo, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes, cena, nomeDaLoja, logoDaLoja]); // eslint-disable-line react-hooks/exhaustive-deps
   const docSel = sel || cena ? docEd : null;
   const camadaSel = docEd?.camadas.find((c) => c.id === nomeSel) ?? null;
   const ehDaLogo = ehCamadaDaLogo(camadaSel?.nome);
@@ -410,8 +414,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   };
   const modeloDoVideo = useMemo(() => ({
     tipo: 'palco' as const, segmento, nome: `${info.tituloPalco} – ${fundo ? fundo.nome.replace(/^Ofertas – /, '') : 'Palco desenhado'}`,
-    dados: { fundoId, formato, titulo, textoBotao, movimento, ajustes, logoDoPalco: logoDoPalco ? { nome: logoDoPalco.nome, url: logoDoPalco.url } : null },
-  }), [segmento, info.tituloPalco, fundo, fundoId, formato, titulo, textoBotao, movimento, ajustes, logoDoPalco]);
+    dados: { fundoId, formato, titulo, textoBotao, movimento, ajustes, logoDoPalco: logoDoPalco ? { nome: logoDoPalco.nome, url: logoDoPalco.url } : null, logoDaLoja: logoDaLoja ? { nome: logoDaLoja.nome, url: logoDaLoja.url } : null },
+  }), [segmento, info.tituloPalco, fundo, fundoId, formato, titulo, textoBotao, movimento, ajustes, logoDoPalco, logoDaLoja]);
   const voltarAoPadrao = (nome: string) => setAjustes((a) => { const f = { ...a[formato] }; if (cena) { delete f[chaveDaCena(nome, cena)]; return { ...a, [formato]: f }; } delete f[nome]; if (nome === 'Produto' && alvo) delete f[chaveDoProdutoNoPalco(alvo.nome)]; return { ...a, [formato]: f }; });
   /** F-290: "Movimento padrão": o elemento volta ao movimento com que a arte nasceu (nos dois formatos) */
   const movimentoPadrao = (nome: string | null) => {
@@ -458,7 +462,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
     if (!comPreco.length) { toast.error('Coloque pelo menos um produto com preço.'); return; }
     const incompletos = comPreco.filter((p) => faltasDoProduto(p).length);
     if (incompletos.length) { toast.error(`Complete antes: falta ${faltasDoProduto(incompletos[0]).join(', ')} em “${incompletos[0].nome}”.`); setSelId(incompletos[0].id); return; }
-    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao, loja: nomeDaLoja });
+    const projeto = projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao, loja: nomeDaLoja, logoDaLoja });
     try { sessionStorage.setItem(CHAVE_PROJETO_DO_CORE, JSON.stringify({ projeto, nome: `${info.tituloPalco} – ${fundo ? textoBotao : titulo}` })); } catch { toast.error('Não foi possível abrir o editor de vídeo.'); return; }
     navegar('/studio/video');
   };
@@ -466,8 +470,9 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   // P-34: o pacote de impacto (trilha, sons, efeitos, abertura e fechamento) fica guardado junto do movimento, por modelo
   const mudarImpacto = (mudou: Partial<ImpactoDoPalco>) => setMovimento((m) => ({ ...m, impacto: { ...(m.impacto ?? {}), ...mudou } }));
   const painelDeImpacto = <PainelDeImpacto impacto={movimento.impacto} segmento={segmento} loja={nomeDaLoja} aoMudar={mudarImpacto} />;
+  const campanha = <EscolhaDaCampanha impacto={movimento.impacto} segmento={segmento} loja={nomeDaLoja} aoMudar={mudarImpacto} />;
   // F-292: o EDITOR DE VÍDEO fica embaixo da arte, já com um clipe por produto, acompanhando o palco (meio segundo depois de cada mudança)
-  const projetoDoPalco = useMemo(() => (comPreco.length ? projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao, loja: nomeDaLoja }) : null), [comPreco, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao, nomeDaLoja]);
+  const projetoDoPalco = useMemo(() => (comPreco.length ? projetoDoCarrossel(comPreco, formato, { titulo, logoTitulo: logoSalvaDoStudio(), fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao, loja: nomeDaLoja, logoDaLoja }) : null), [comPreco, formato, titulo, fundo, textoBotao, movimento, logoDoPalco, ajustes, locucao, nomeDaLoja, logoDaLoja]);
   const [projetoNoEditor, setProjetoNoEditor] = useState(projetoDoPalco);
   useEffect(() => { const t = setTimeout(() => setProjetoNoEditor(projetoDoPalco), 500); return () => clearTimeout(t); }, [projetoDoPalco]);
   const transicaoPeloEditor = (nome: string, tipo: TipoDeTransicao) => setMovimento((m) => ({ ...m, transicoes: { ...(m.transicoes ?? {}), [chaveCanonica(nome)]: tipo } }));
@@ -526,31 +531,59 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
   if (noAssistente) {
     const incompletos = comPreco.filter((p) => faltasDoProduto(p).length).length;
     const logoAtual = fundo ? (logoDoPalco ?? fundo.logoPadrao) : null;
-    // F-312 (pedido do dono): 1) a empresa · 2) os produtos · 3) a edição do vídeo (fundo, logo, elementos) · 4) a locução,
-    // que o locutor cria lendo tudo o que veio antes, sincronizada com cada produto — e no fim a prévia do vídeo
+    // F-349 (pedido do dono): 1) a LOGO DA PROMOÇÃO e o FUNDO · 2) a empresa (nome e a logo DELA) · 3) os produtos ·
+    // 4) a edição do vídeo (só música, frases da abertura e do fechamento e efeitos) · 5) a locução. No fim o vídeo sai
+    // pronto, no padrão de impacto do concorrente, e na tela de edição dá para mudar qualquer coisa.
+    // A prévia NÃO pode ser filha direta da grade: a regra geral do celular (.grid > * { max-width: 100% }) anulava o tamanho
+    // dela e a arte ocupava a tela inteira (F-349)
     const previaAoVivo = comPreco.length > 0 && (
-      <div className="order-first mx-auto w-full max-w-[190px] sm:order-none sm:max-w-[240px]" data-testid="assistente-previa">
-        <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} ajustes={ajustes} />
+      <div className="order-first sm:order-none">
+        <div className="mx-auto w-full max-w-[170px] sm:max-w-[240px]" data-testid="assistente-previa">
+          <CarrosselNoPalco produtos={comPreco} formato={formato} titulo={titulo} fundo={fundo} textoBotao={textoBotao} movimento={movimento} logoDoPalco={logoDoPalco} ajustes={ajustes} />
+        </div>
+      </div>
+    );
+    const cartaoDaLogo = (rotulo: string, l: { url: string; nome: string } | null, vazio: string, aoTrocar: () => void, testid: string, aoTirar?: () => void) => (
+      <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5">
+        {l ? <img src={l.url} alt="" crossOrigin="anonymous" className="h-14 w-20 shrink-0 rounded-lg bg-black/30 object-contain" /> : <span className="grid h-14 w-20 shrink-0 place-items-center rounded-lg border border-dashed border-white/20 text-[10px] text-slate-500">sem logo</span>}
+        <div className="min-w-0 flex-1"><p className="text-xs text-slate-400">{rotulo}</p><p className="truncate text-sm font-semibold text-white">{l?.nome ?? vazio}</p></div>
+        <div className="flex shrink-0 flex-col gap-1">
+          <button type="button" onClick={aoTrocar} className="h-10 rounded-xl bg-[#5D1BFF] px-3 text-sm font-semibold text-white" data-testid={testid}>{l ? 'Trocar' : 'Escolher'}</button>
+          {l && aoTirar && <button type="button" onClick={aoTirar} className="h-8 rounded-lg px-2 text-xs text-slate-400 underline-offset-2 hover:underline">Tirar</button>}
+        </div>
       </div>
     );
     const etapas: EtapaDoAssistente[] = [
       {
+        id: 'visual', titulo: 'Logo e fundo', pronta: true,
+        instrucao: 'Escolha a logo da promoção que fica em cima dos produtos (Mega Oferta, Ofertas de Farmácia…), a logo 3D que abre o vídeo e o fundo do vídeo. Escolha também se a tela é em pé (TV vertical, celular) ou deitada (TV horizontal).',
+        conteudo: (
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_240px]" data-testid="assistente-visual">
+            <div className="min-w-0 space-y-3">
+              <div className="space-y-1"><p className="text-sm text-slate-200">Formato da tela</p>{seletorDeFormato}</div>
+              {logoAtual && cartaoDaLogo('Logo da promoção (em cima dos produtos)', logoAtual, '', () => setTrocandoLogo(true), 'assistente-logo')}
+              <div data-testid="assistente-campanha"><p className="pb-1 text-sm text-slate-200">Logo que abre o vídeo</p>{campanha}</div>
+              {painelDoFundo && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-2.5" data-testid="assistente-fundo">
+                  <p className="pb-2 text-sm font-semibold text-white">Fundo do vídeo</p>
+                  {painelDoFundo}
+                </div>
+              )}
+            </div>
+            {previaAoVivo}
+          </div>
+        ),
+      },
+      {
         id: 'loja', titulo: 'Sua empresa', pronta: true,
-        instrucao: 'Escreva o nome da sua empresa e escolha a sua logo. Escolha também se a tela é em pé (TV vertical, celular) ou deitada (TV horizontal). O locutor usa o nome da empresa na locução.',
+        instrucao: 'Escreva o nome da sua empresa e escolha a logo DA SUA EMPRESA (a sua marca, não a da promoção). O vídeo termina com a sua logo e o locutor fala o nome da empresa.',
         conteudo: (
           <div className="space-y-3">
-            <label className="block text-sm text-slate-200">Nome da loja
+            <label className="block text-sm text-slate-200">Nome da empresa
               <input value={nomeDaLoja} onChange={(e) => mudarNomeDaLoja(e.target.value.slice(0, 60))} placeholder="Ex.: Mercadinho Economia" data-testid="assistente-loja"
                 className="mt-1 h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-base text-white focus:border-[#B04DFF] focus:outline-none" />
             </label>
-            {logoAtual && (
-              <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5">
-                <img src={logoAtual.url} alt="" crossOrigin="anonymous" className="h-14 w-20 shrink-0 rounded-lg bg-black/30 object-contain" />
-                <div className="min-w-0 flex-1"><p className="text-xs text-slate-400">Logo do vídeo</p><p className="truncate text-sm font-semibold text-white">{logoAtual.nome}</p></div>
-                <button type="button" onClick={() => setTrocandoLogo(true)} className="h-11 shrink-0 rounded-xl bg-[#5D1BFF] px-3 text-sm font-semibold text-white" data-testid="assistente-logo">Escolher ou enviar</button>
-              </div>
-            )}
-            <div className="space-y-1"><p className="text-sm text-slate-200">Formato da tela</p>{seletorDeFormato}</div>
+            {cartaoDaLogo('A logo da sua empresa (fecha o vídeo)', logoDaLoja, 'Toque em Escolher para pôr a sua', () => setTrocandoLogoDaLoja(true), 'assistente-logo-da-loja', () => escolherLogoDaLoja(null))}
           </div>
         ),
       },
@@ -567,33 +600,11 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       },
       {
         id: 'edicao', titulo: 'Edição do vídeo', pronta: comPreco.length > 0, falta: 'Faltam produtos',
-        instrucao: 'Monte o visual do vídeo: troque o fundo (outro da galeria, uma imagem sua ou só cor) e o movimento dele, e coloque logos, selos ou qualquer imagem. A prévia mostra na hora como fica.',
+        instrucao: 'Escolha a música de fundo, as frases da abertura e do fechamento e os efeitos. O vídeo é montado sozinho no padrão de impacto; depois de pronto, na tela de edição, você muda o que quiser.',
         conteudo: (
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_240px]" data-testid="assistente-edicao">
-            <div className="min-w-0 space-y-3">
-              {logoAtual && (
-                <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-2.5">
-                  <img src={logoAtual.url} alt="" crossOrigin="anonymous" className="h-12 w-16 shrink-0 rounded-lg bg-black/30 object-contain" />
-                  <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{logoAtual.nome}</p>
-                  <button type="button" onClick={() => setTrocandoLogo(true)} className="h-10 shrink-0 rounded-xl bg-[#5D1BFF] px-3 text-xs font-semibold text-white">Trocar logo</button>
-                </div>
-              )}
-              {docEd && (
-                <button type="button" onClick={() => arquivoDeImagem.current?.click()} disabled={enviandoImagem} className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 text-sm font-semibold text-white hover:bg-white/5 disabled:opacity-60" data-testid="assistente-adicionar-imagem">
-                  {enviandoImagem ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}Adicionar imagem (logo, selo, foto…)
-                </button>
-              )}
-              <input ref={arquivoDeImagem} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void adicionarImagem(f); }} />
-              {painelDoFundo && (
-                <div className="rounded-xl border border-white/10 bg-black/20 p-2.5" data-testid="assistente-fundo">
-                  <p className="pb-2 text-sm font-semibold text-white">Fundo do vídeo</p>
-                  {painelDoFundo}
-                </div>
-              )}
-              {/* P-34: trilha sonora, efeitos sonoros e visuais, abertura e fechamento — tudo já ligado */}
-              <div className="rounded-xl border border-white/10 bg-black/20 p-2.5" data-testid="assistente-impacto">{painelDeImpacto}</div>
-              <p className="text-xs text-slate-400">Na tela de edição você ainda toca em qualquer elemento para mover, aumentar, girar, mudar cor, texto e movimento.</p>
-            </div>
+            {/* P-34: trilha sonora, efeitos sonoros e visuais, frases da abertura e do fechamento — tudo já ligado */}
+            <div className="min-w-0 rounded-xl border border-white/10 bg-black/20 p-2.5" data-testid="assistente-impacto"><PainelDeImpacto impacto={movimento.impacto} segmento={segmento} loja={nomeDaLoja} aoMudar={mudarImpacto} semCampanha /></div>
             {previaAoVivo}
           </div>
         ),
@@ -611,7 +622,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                 ['Tela', formato === '9:16' ? 'Em pé (9:16)' : 'Deitada (16:9)'],
                 ['Produtos', `${comPreco.length} produto(s)`],
                 ['Loja', nomeDaLoja.trim() || '— (sem nome)'],
-                ['Logo', logoAtual?.nome ?? '—'],
+                ['Logo da promoção', logoAtual?.nome ?? '—'],
+                ['Logo da empresa', logoDaLoja?.nome ?? '— (sem logo)'],
                 ['Locução', locucao ? `Sim · ${Object.keys(locucao.ofertas).length + (locucao.abertura ? 1 : 0) + (locucao.fechamento ? 1 : 0)} fala(s) gravada(s)` : 'Sem locução'],
               ].map(([k, v]) => (
                 <li key={k} className="flex items-center justify-between gap-3 rounded-lg bg-black/20 px-3 py-2"><span className="text-slate-400">{k}</span><span className="min-w-0 truncate text-right font-semibold text-white">{v}</span></li>
@@ -635,7 +647,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
             toast.success('Criando o seu vídeo com trilha e efeitos… Em instantes ele fica pronto para baixar, salvar e publicar.');
           }} />
         <GaleriaDeProdutos aberto={galeriaAberta} aoFechar={() => setGaleriaAberta(false)} aoAdicionar={s.adicionarPronto} segmentoInicial={segmento === 'mercado' ? 'mercearia' : segmento} />
-        {trocandoLogo && <EscolherLogo titulo="Logo do vídeo" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
+        {trocandoLogo && <EscolherLogo titulo="Logo da promoção" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
+        {trocandoLogoDaLoja && <EscolherLogo titulo="A logo da sua empresa" aoEscolher={escolherLogoDaLoja} aoFechar={() => setTrocandoLogoDaLoja(false)} />}
       </>
     );
   }
@@ -816,6 +829,12 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                 <button type="button" onClick={() => setTrocandoLogo(true)} className="h-9 shrink-0 rounded-lg border border-white/15 px-3 text-xs font-semibold text-white hover:bg-white/5" data-testid="palco-trocar-logo">Trocar logo</button>
               </div>
             )}
+            {/* F-349: a logo da EMPRESA do cliente (fecha o vídeo) */}
+            <div className="flex items-center gap-2">
+              {logoDaLoja ? <img src={logoDaLoja.url} alt="" crossOrigin="anonymous" className="h-10 w-14 rounded-md bg-black/30 object-contain" /> : <span className="grid h-10 w-14 place-items-center rounded-md border border-dashed border-white/20 text-[9px] text-slate-500">sem logo</span>}
+              <span className="min-w-0 flex-1 truncate text-xs text-slate-300">Sua empresa: {logoDaLoja?.nome ?? 'sem logo'}</span>
+              <button type="button" onClick={() => setTrocandoLogoDaLoja(true)} className="h-9 shrink-0 rounded-lg border border-white/15 px-3 text-xs font-semibold text-white hover:bg-white/5" data-testid="palco-logo-da-loja">{logoDaLoja ? 'Trocar' : 'Escolher'}</button>
+            </div>
             {/* F-310: qualquer imagem do aparelho vira um elemento do palco */}
             {docEd && (
               <>
@@ -885,7 +904,8 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
       )}
       <GaleriaDeProdutos aberto={galeriaAberta} aoFechar={() => setGaleriaAberta(false)} aoAdicionar={s.adicionarPronto} segmentoInicial={segmento === 'mercado' ? 'mercearia' : segmento} />
       {trocandoCirculo && <EscolherLogo titulo="Sua logo no círculo" aoEscolher={(l) => porLogoNoCirculo(l.url)} aoRestaurar={() => porLogoNoCirculo(null)} aoFechar={() => setTrocandoCirculo(false)} />}
-      {trocandoLogo && <EscolherLogo titulo="Logo do palco" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
+      {trocandoLogo && <EscolherLogo titulo="Logo da promoção" aoEscolher={escolherLogo} aoRestaurar={() => escolherLogo(null)} aoFechar={() => setTrocandoLogo(false)} />}
+      {trocandoLogoDaLoja && <EscolherLogo titulo="A logo da sua empresa" aoEscolher={escolherLogoDaLoja} aoFechar={() => setTrocandoLogoDaLoja(false)} />}
       {trocando && <TrocarFoto produto={trocando} aoFechar={() => setTrocando(null)} aoEscolher={(img, termo) => { const nome = termo.trim() || trocando.nome; const p = { ...trocando, nome }; setTrocando(null); if (nome !== trocando.nome) s.mudar(p.id, { nome }); void s.trocarFoto(p, img); }} />}
     </div>
   );
