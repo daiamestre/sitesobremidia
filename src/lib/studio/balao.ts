@@ -3,7 +3,8 @@
 // existe texto de preço posicionado à mão. Ela não desenha nada: recebe como medir a letra e devolve onde cada texto fica,
 // com a origem no CENTRO do balão — por isso o teste regraBaloesCentralizados.test.ts confere a regra sem depender de tela.
 
-export type FormatoDoBalao = 'circulo' | 'oval' | 'placa';
+/** F-353: 'estrela' = a estrela OFERTA!!! com o preço num oval (vídeo de referência do dono) */
+export type FormatoDoBalao = 'circulo' | 'oval' | 'placa' | 'estrela';
 export interface TextosDoBalao { w: number; h: number; formato?: FormatoDoBalao; topo: string; moeda?: string | null; valor: string; sufixo: string; base: string; /** selo antigo, com o texto um pouco maior */ classico?: boolean }
 /** largura e altura da letra (acima e abaixo da linha de base) */
 export interface MedidaDeTexto { largura: number; sobe: number; desce: number }
@@ -15,14 +16,16 @@ export function arranjoDoBalao(c: TextosDoBalao, medir: Medir): ArranjoDoBalao {
   const formato = c.formato ?? 'circulo';
   const r = Math.min(c.w, c.h) / 2;
   // área útil de cada forma: o círculo e o oval têm menos espaço nas pontas
-  const larguraUtil = formato === 'circulo' ? 2 * r * 0.8 : c.w * (formato === 'oval' ? 0.74 : 0.86);
-  const alturaUtil = c.h * (formato === 'circulo' ? 0.8 : formato === 'oval' ? 0.72 : 0.84);
-  const tTopo = formato === 'circulo' ? r * (c.classico ? 0.2 : 0.17) : c.h * 0.16;
+  const estrela = formato === 'estrela';
+  // F-353: na estrela o valor fica no OVAL do meio (a ponta da estrela não serve) e o OFERTA!!! é maior, em cima do oval
+  const larguraUtil = formato === 'circulo' ? 2 * r * 0.8 : c.w * (estrela ? 0.58 : formato === 'oval' ? 0.74 : 0.86);
+  const alturaUtil = c.h * (formato === 'circulo' ? 0.8 : estrela ? 0.66 : formato === 'oval' ? 0.72 : 0.84);
+  const tTopo = formato === 'circulo' ? r * (c.classico ? 0.2 : 0.17) : c.h * (estrela ? 0.13 : 0.16);
   const tBase = formato === 'circulo' ? r * (c.classico ? 0.2 : 0.16) : c.h * 0.14;
   const folga = formato === 'circulo' ? r * 0.085 : c.h * 0.035;
   const extra = (c.topo ? tTopo + folga : 0) + (c.base ? tBase + folga : 0);
 
-  let tv = formato === 'circulo' ? r * 0.95 : c.h * (formato === 'oval' ? 0.66 : 0.78);
+  let tv = formato === 'circulo' ? r * 0.95 : c.h * (estrela ? 0.4 : formato === 'oval' ? 0.66 : 0.78);
   const medidas = () => {
     const tMoeda = tv * 0.32, tSufixo = tv * 0.44, vao = tv * 0.06, vaoSuf = tv * 0.02;
     const moeda = c.moeda ? medir(c.moeda, tMoeda, 'valor') : null;

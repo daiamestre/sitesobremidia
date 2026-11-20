@@ -11,7 +11,8 @@ import { CAMPANHAS_DE_IMPACTO, mesAtual } from '@/lib/studio/logo3d';
 import type { SegmentoDoStudio } from '@/lib/studio/palco';
 
 const VISUAIS: Array<{ k: 'chamas' | 'estrelas' | 'camera' | 'explosao'; nome: string }> = [
-  { k: 'chamas', nome: 'Chamas e brasas' }, { k: 'estrelas', nome: 'Estrelas' }, { k: 'camera', nome: 'Câmera na mão' }, { k: 'explosao', nome: 'Explosão no preço' },
+  // F-353: sem fogo no fundo e no preço (ordem do dono)
+  { k: 'estrelas', nome: 'Estrelas' }, { k: 'camera', nome: 'Câmera na mão' },
 ];
 
 function Chave({ ligado, aoMudar, rotulo, testid }: { ligado: boolean; aoMudar: (v: boolean) => void; rotulo: string; testid: string }) {
@@ -102,6 +103,10 @@ export function PainelDeImpacto({ impacto, segmento, loja, aoMudar, compacto = f
                 <label className="flex h-8 items-center gap-1.5 rounded-lg border border-white/10 px-2 text-[11px] text-slate-200">
                   <input type="checkbox" checked={i.sirene} onChange={(e) => mudar({ sirene: e.target.checked })} className="accent-[#25D366]" data-testid="impacto-sirene" />Sirene na abertura
                 </label>
+                {/* F-353: o som de dinheiro a cada produto (opcional) */}
+                <label className="flex h-8 items-center gap-1.5 rounded-lg border border-white/10 px-2 text-[11px] text-slate-200">
+                  <input type="checkbox" checked={i.dinheiro} onChange={(e) => mudar({ dinheiro: e.target.checked })} className="accent-[#25D366]" data-testid="impacto-dinheiro" />Dinheiro a cada produto
+                </label>
               </div>
             )}
           </section>
@@ -129,7 +134,8 @@ export function PainelDeImpacto({ impacto, segmento, loja, aoMudar, compacto = f
               <p className="flex flex-1 items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#B04DFF]"><Sparkles className="h-3.5 w-3.5" />Abertura e fechamento</p>
               <Chave ligado={i.vinhetas} aoMudar={(v) => mudar({ vinhetas: v })} rotulo="Abertura e fechamento" testid="impacto-vinhetas" />
             </div>
-            {i.vinhetas && !semCampanha && <EscolhaDaCampanha impacto={impacto} segmento={segmento} loja={loja} aoMudar={aoMudar} />}
+            {i.vinhetas && !semCampanha && <ComecoDoVideo impacto={impacto} segmento={segmento} loja={loja} aoMudar={aoMudar} />}
+            {i.vinhetas && !semCampanha && i.inicio === 'campanha' && <EscolhaDaCampanha impacto={impacto} segmento={segmento} loja={loja} aoMudar={aoMudar} />}
             {i.vinhetas && (
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="block text-[11px] text-slate-300">Frase da abertura
@@ -177,5 +183,85 @@ export function EscolhaDaCampanha({ impacto, segmento, loja, aoMudar }: { impact
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * F-353 (padrão do dono): COMO O VÍDEO COMEÇA — a logo da promoção (padrão), a logo da loja do cliente ou a logo 3D da
+ * campanha. Qualquer uma cai e bate no fundo com a mesma batida e o mesmo som de impacto.
+ */
+export function ComecoDoVideo({ impacto, segmento, loja, aoMudar }: { impacto: ImpactoDoPalco | undefined; segmento: SegmentoDoStudio; loja: string; aoMudar: (mudou: Partial<ImpactoDoPalco>) => void }) {
+  const i = impactoResolvido(impacto, segmento, loja);
+  const opcoes = [['promocao', 'Logo da promoção'], ['loja', 'Minha logo'], ['campanha', 'Logo 3D da campanha']] as const;
+  return (
+    <div className="space-y-1.5" data-testid="impacto-comeco">
+      <p className="text-[11px] text-slate-300">O vídeo começa com</p>
+      <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="O vídeo começa com">
+        {opcoes.map(([k, nome]) => (
+          <button key={k} type="button" role="radio" aria-checked={i.inicio === k} onClick={() => aoMudar({ inicio: k })} data-testid={`impacto-comeco-${k}`}
+            className={cn('min-h-10 rounded-lg border px-1.5 py-1 text-[11px] font-semibold leading-tight', i.inicio === k ? 'border-[#FFD400] bg-[#FFD400]/15 text-[#FFD400]' : 'border-white/10 text-slate-300')}>{nome}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** F-353: as FRASES do início e do fim (letra 3D profissional por padrão) — no 1º passo do passo a passo */
+export function FrasesDoVideo({ impacto, segmento, loja, aoMudar }: { impacto: ImpactoDoPalco | undefined; segmento: SegmentoDoStudio; loja: string; aoMudar: (mudou: Partial<ImpactoDoPalco>) => void }) {
+  const i = impactoResolvido(impacto, segmento, loja);
+  const campo = 'mt-1 w-full resize-none rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-base font-bold uppercase text-white placeholder:text-slate-500 focus:border-[#B04DFF] focus:outline-none';
+  return (
+    <div className="space-y-2" data-testid="impacto-frases">
+      <label className="block text-sm text-slate-200">Frase do início (opcional)
+        <textarea rows={2} maxLength={60} value={impacto?.textoAbertura ?? ''} placeholder={i.textoAbertura} onChange={(e) => aoMudar({ textoAbertura: e.target.value })} data-testid="assistente-frase-inicio" className={campo} />
+      </label>
+      <label className="block text-sm text-slate-200">Frase do fim (opcional)
+        <textarea rows={2} maxLength={60} value={impacto?.textoFechamento ?? ''} placeholder={i.textoFechamento} onChange={(e) => aoMudar({ textoFechamento: e.target.value })} data-testid="assistente-frase-fim" className={campo} />
+      </label>
+      <label className="flex items-center gap-2 text-xs text-slate-300">
+        <input type="checkbox" checked={impacto?.frases3d !== false} onChange={(e) => aoMudar({ frases3d: e.target.checked })} className="h-4 w-4 accent-[#FFD400]" data-testid="assistente-frases-3d" />Letras 3D profissionais nas frases
+      </label>
+    </div>
+  );
+}
+
+/** F-353 (padrão do dono): a MÚSICA de fundo e o som de dinheiro — na mesma etapa do locutor */
+export function MusicaDoVideo({ impacto, segmento, loja, aoMudar }: { impacto: ImpactoDoPalco | undefined; segmento: SegmentoDoStudio; loja: string; aoMudar: (mudou: Partial<ImpactoDoPalco>) => void }) {
+  const i = impactoResolvido(impacto, segmento, loja);
+  const tocador = useRef<HTMLAudioElement | null>(null);
+  const [ouvindo, setOuvindo] = useState<string | null>(null);
+  useEffect(() => () => { tocador.current?.pause(); }, []);
+  const ouvir = (id: string, src: string) => {
+    tocador.current?.pause();
+    if (ouvindo === id) { setOuvindo(null); return; }
+    const a = new Audio(src); a.volume = 0.8; a.onended = () => setOuvindo(null); tocador.current = a;
+    void a.play().then(() => setOuvindo(id)).catch(() => setOuvindo(null));
+  };
+  return (
+    <section className="space-y-2" aria-label="Música de fundo" data-testid="assistente-musica">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-white"><Music2 className="h-4 w-4 text-[#B04DFF]" />Música de fundo</p>
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2" role="radiogroup" aria-label="Escolha a música">
+        {TRILHAS.map((t) => {
+          const sel = i.trilha?.id === t.id;
+          return (
+            <div key={t.id} className={cn('flex items-center gap-2 rounded-lg border p-1.5', sel ? 'border-[#25D366] bg-[#25D366]/10' : 'border-white/10')}>
+              <button type="button" onClick={() => ouvir(t.id, t.src)} aria-label={ouvindo === t.id ? `Parar ${t.nome}` : `Ouvir ${t.nome}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20">
+                {ouvindo === t.id ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
+              </button>
+              <button type="button" role="radio" aria-checked={sel} onClick={() => aoMudar({ trilha: t.id })} className="min-w-0 flex-1 text-left" data-testid={`assistente-musica-${t.id}`}>
+                <span className="block truncate text-xs font-bold text-white">{t.nome}</span>
+                <span className="block truncate text-[10px] text-slate-400">{t.estilo}</span>
+              </button>
+            </div>
+          );
+        })}
+        <button type="button" role="radio" aria-checked={!i.trilha} onClick={() => aoMudar({ trilha: null })} className={cn('h-11 rounded-lg border px-2 text-xs font-semibold', !i.trilha ? 'border-[#25D366] bg-[#25D366]/10 text-[#7dffb0]' : 'border-white/10 text-slate-300')}>Sem música</button>
+      </div>
+      <label className="flex min-h-11 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200">
+        <input type="checkbox" checked={i.dinheiro} onChange={(e) => aoMudar({ dinheiro: e.target.checked })} className="h-4 w-4 accent-[#25D366]" data-testid="assistente-dinheiro" />
+        Som de dinheiro a cada produto
+        <button type="button" onClick={(ev) => { ev.preventDefault(); ouvir('caixa', SONS.caixa.src); }} className="ml-auto flex h-8 items-center gap-1 rounded-md bg-white/10 px-2 text-[11px]">{ouvindo === 'caixa' ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}Ouvir</button>
+      </label>
+    </section>
   );
 }

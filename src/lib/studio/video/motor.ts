@@ -3,7 +3,7 @@
 // - Som: cada vídeo/música passa por um ganho do Web Audio (volume, entrada/saída suaves) e vai para os alto-falantes
 //   E para a mistura que entra na gravação. Exportar = tocar do zero com o gravador ligado (MP4 com áudio quando o
 //   navegador sabe; senão WebM), em tamanho real (1920×1080 ou 1080×1920), 30 quadros por segundo.
-import { TAMANHO_DOC, type Documento } from '../documento';
+import { TAMANHO_DOC, imagensDo, type Documento } from '../documento';
 import { desenharCamada, desenharDocumento, prepararDocumento, type Imagens } from '../desenhar';
 import { aoEfeitoPronto, modoExatoDosEfeitos, posicionarEfeitos } from '../efeitosReais';
 import { duracaoDoVideo } from '../animacao';
@@ -174,8 +174,31 @@ export class MotorDeVideo {
       this.chaveSob = chave;
       pend.push(prepararDocumento({ versao: 2, formato: p.formato, fundo: 'transparent', camadas: p.sobreposicoes }).then((m) => { this.imgsSob = m; }));
     }
-    await Promise.all(pend);
+    this.preparando = Promise.all(pend);
+    await this.preparando;
     if (!this.tocando) { this.sincronizar(this.tempo); this.desenhar(this.tempo); }
+  }
+
+  private preparando: Promise<unknown> = Promise.resolve();
+  /**
+   * F-352 (pedido do dono: "os vídeos criados não mostram os produtos"): o "Criar meu vídeo" começa a gravar logo depois de
+   * montar o projeto. Uma cena cujas fotos ainda não tinham chegado saía VAZIA (só a cor do fundo) ou sem o produto. Antes de
+   * gravar: espera todas as fotos de todas as cenas e tenta de novo as que falharam. Nenhuma cena é gravada pela metade.
+   */
+  async aguardarMidias(limiteMs = 90000): Promise<void> {
+    const ate = Date.now() + limiteMs;
+    await Promise.race([this.preparando.catch(() => undefined), new Promise((ok) => setTimeout(ok, limiteMs))]);
+    for (let vez = 0; vez < 4 && Date.now() < ate; vez++) {
+      const faltando = [...this.artes.values()].filter((a) => !a.imgs || imagensDo(a.doc).some((s) => !a.imgs!.has(s)));
+      if (!faltando.length) return;
+      await Promise.all(faltando.map(async (a) => { const m = await prepararDocumento(a.doc).catch(() => null); if (m && (!a.imgs || m.size >= a.imgs.size)) a.imgs = m; }));
+      if (faltando.every((a) => a.imgs && imagensDo(a.doc).every((s) => a.imgs!.has(s)))) return;
+      await new Promise((ok) => setTimeout(ok, 1000 * (vez + 1)));
+    }
+  }
+  /** F-352: quantas cenas ainda estão sem alguma foto (para o teste e o aviso) */
+  cenasSemFoto(): number {
+    return [...this.artes.values()].filter((a) => !a.imgs || imagensDo(a.doc).some((s) => !a.imgs!.has(s))).length;
   }
 
   private conectar(el: HTMLMediaElement, voz = false) {
@@ -445,6 +468,7 @@ export class MotorDeVideo {
   async exportar(aoProgredir?: (f: number) => void, o: { preferirWebm?: boolean } = {}): Promise<VideoExportado> {
     if (!this.p) throw new Error('Projeto vazio.');
     this.pausar();
+    await this.aguardarMidias(); // F-352: nenhuma cena gravada sem o produto
     this.ligarSom();
     const comSom = !!this.mistura && (this.p.audios.length > 0 || !!this.p.sons?.length || this.p.clipes.some((c) => c.tipo === 'video' && !c.mudo));
     // F-315: aparelho sem H.264 no tamanho do vídeo grava em WebM (VP9/VP8 por software, funciona em qualquer aparelho)
@@ -598,6 +622,7 @@ export class MotorDeVideo {
     if (!this.p) throw new Error('Projeto vazio.');
     if (!podeExportarQuadroAQuadro()) throw new Error('Este navegador não monta vídeo quadro a quadro. Use o Chrome ou o Edge atualizado.');
     this.pausar();
+    await this.aguardarMidias(); // F-352: nenhuma cena gravada sem o produto
     const fps = o.fps ?? 30, k = o.escala ?? 1;
     const total = this.total;
     const { w, h } = TAMANHO_DOC[this.p.formato];

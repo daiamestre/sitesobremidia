@@ -31,7 +31,7 @@ function conferir(c: Parameters<typeof arranjoDoBalao>[0], rotulo: string) {
 }
 
 describe('REGRA: texto e valor centralizados em todo balão', () => {
-  it.each(['circulo', 'oval', 'placa'] as FormatoDoBalao[])('balão %s, em qualquer tamanho, preço e texto', (formato) => {
+  it.each(['circulo', 'oval', 'placa', 'estrela'] as FormatoDoBalao[])('balão %s, em qualquer tamanho, preço e texto', (formato) => {
     for (const [w, h] of formato === 'circulo' ? [[300, 300], [120, 120], [216, 216]] : [[300, 130], [190, 80], [120, 70], [460, 200]]) {
       for (const [valor, sufixo] of [['4', ',99'], ['129', ',90'], ['1299', ',00']]) {
         for (const topo of ['', 'POR APENAS', 'DE 15,99']) for (const base of ['', 'KG']) {
@@ -70,7 +70,7 @@ describe('REGRA: texto e valor centralizados em todo balão', () => {
   it('todo balão de todo modelo é desenhado por essa conta, sem texto posicionado à mão', () => {
     const d = fs.readFileSync('src/lib/studio/desenhar.ts', 'utf8');
     expect(d).toMatch(/const arr = arranjoDoBalao\(/);
-    expect(d.match(/textosDoSelo\(ctx, c, /g)).toHaveLength(3); // realista, clássico e oval/placa
+    expect(d.match(/textosDoSelo\(ctx, c, /g)).toHaveLength(4); // realista, clássico, oval/placa e estrela (F-353)
   });
 
   it('nos encartes A4 e no Cartaz Digital, a placa fica no centro do espaço dela', () => {

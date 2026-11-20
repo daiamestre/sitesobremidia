@@ -77,6 +77,24 @@ O histórico completo de F-01 a F-259 está em `docs/engineering/FINDINGS_LEDGER
 
 > **P-34 fase 2 (16/11/2026):** ✅ NO AR — F-317 (logos 3D de campanha caindo do céu, quebrando a parede e pegando fogo; faixa Alerta de Oferta para a direita; sem "YOUR LOGO"), F-318 (locutor no estilo impacto: "Só essa semana, preço baixo é aqui!") e **F-319: EFEITOS REAIS** — 14 filmagens gratuitas do Pixabay (explosões, bola de fogo, fogo subindo, parede e linha de fogo, brasas, fumaça, raio, vidro rachando e estilhaçando, confete) em `public/studio/efeitos/`, aplicadas com recorte do preto pela placa de vídeo (WebGL), bordas esfumadas e explosão em elipse; cada efeito é um elemento editável (cartão "Efeito": trocar pela galeria, começo, laço, velocidade, recorte/luz/luz forte, espelhar); o MP4 lê os quadros dos efeitos em sequência pelo WebCodecs (`video/decodificarEfeito.ts`). Botão "Efeitos reais" no painel de impacto (padrão ligado). Ficha das licenças: `docs/licencas/EFEITOS_PIXABAY.md`.
 
+> **F-353 (20/11/2026): PADRÃO de criação de vídeo igual ao concorrente (pedido do dono, com 2 vídeos de referência).**
+> - **Passo a passo em 4 etapas**, sem a etapa "Edição do vídeo":
+>   1. Logo e fundo: logo da promoção, fundo, balão de preço, como o vídeo começa e frases do início e do fim;
+>   2. Sua empresa: nome e logo;
+>   3. Produtos;
+>   4. Locutor e música: locução, música de fundo e som de dinheiro. Depois, "Criar meu vídeo".
+> - **Fogo:** saiu do fundo (chamas, brasas, parede de fogo) e do preço (explosão), inclusive nos vídeos salvos antes. O fogo na logo fica desligado por padrão.
+> - **Abertura:** começa com a logo da PROMOÇÃO (ou a do cliente, ou a logo 3D da campanha) caindo e batendo no fundo, com a mesma batida e o mesmo som de impacto para toda logo.
+> - **Som de dinheiro** (caixa registradora) a cada produto, opcional.
+> - **Frases do início e do fim** em letra 3D (`fraseEm3D`, Archivo Black com volume).
+> - **Balões novos:** estrela OFERTA!!! com o preço num oval (referência) e 5 variações no ESTILOS_DE_BALAO. São escolhidos no passo 1 e trocados na edição ("Trocar o balão de preço").
+> - **Logos dos vídeos de referência:** 52 logos separadas, sem fundo, em `Downloads/SITECODIGOSOBREMIDIA/logos-do-video-de-referencia`, para o dono analisar.
+> - **F-352 (junto):**
+>   - o motor só grava o MP4 depois de TODAS as fotos das cenas carregarem (cena vazia = produto sumido);
+>   - o Palco desenhado mostra fundos e título no passo 1;
+>   - a logo da empresa entra no "SUA LOGO AQUI".
+> - **Falta (próximo):** o fundo animado da referência (amarelo, faixas zebradas e partículas) como modelo novo, e o cabeçalho com a logo da promoção e a da loja nos produtos.
+
 > **F-351 (20/11/2026): produtos SEM FUNDO em toda arte (ordem do dono).**
 > - **Causa:** 61.761 fotos do catálogo vêm pelo passa-foto com `s=1` (a Cloudflare tira o fundo). A cota grátis do mês das transformações acabou, e o passa-foto devolvia a foto ORIGINAL (`X-Passa-Foto: original`), com fundo branco, guardada 30 dias. O site só tirava o fundo ao adicionar o produto no editor; capas, palcos, prévias e vídeos desenhavam a original.
 > - **Correção:**

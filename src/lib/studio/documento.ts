@@ -70,7 +70,7 @@ export interface CamadaSelo extends CamadaBase {
   /** F-242: cores próprias — "DE x POR"/"POR APENAS" (corTopo), R$ + valor + centavos (corValor, com contorno para ler no amarelo) */
   corTopo?: string | null; corValor?: string | null; contornoValor?: { cor: string; largura: number } | null;
   /** F-249: balão de um objeto só: redondo, oval ou placa, com a cor final do degradê, cor do R$ e aro externo */
-  formato?: 'circulo' | 'oval' | 'placa'; corFim?: string | null; corMoeda?: string | null; aroFora?: string | null;
+  formato?: 'circulo' | 'oval' | 'placa' | 'estrela'; corFim?: string | null; corMoeda?: string | null; aroFora?: string | null;
 }
 export interface CamadaItens extends CamadaBase {
   tipo: 'itens'; itens: string[]; fonte: string; cor: string; destaque: string; tamanho: number; vertical: boolean;

@@ -16,8 +16,8 @@ describe('F-306: assistente de criação', () => {
     expect(encartes).toContain("p.set('assistente', '1'); p.set('passo', '1');");
   });
   it('palco: 4 etapas, locução opcional, e no fim a edição de sempre', () => {
-    // F-312 (dono): 1) empresa · 2) produtos · 3) edição do vídeo (fundo, logo, elementos) · 4) locução automática + prévia
-    const ordem = ["id: 'loja'", "id: 'produtos'", "id: 'edicao'", "id: 'locucao'"].map((id) => palco.indexOf(id));
+    // F-353 (dono): 1) logo e fundo · 2) empresa · 3) produtos · 4) locutor e música (sem etapa de edição do vídeo)
+    const ordem = ["id: 'visual'", "id: 'loja'", "id: 'produtos'", "id: 'locucao'"].map((id) => palco.indexOf(id));
     expect(ordem.every((i) => i > 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
     expect(palco).toContain('textoConcluir="Criar meu vídeo"');

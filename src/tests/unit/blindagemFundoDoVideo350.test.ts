@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FUNDOS_DO_PALCO, palcoDoProduto, projetoDoCarrossel, srcSemLogo, vinhetaDoPalco, type OpcoesDoPalco } from '@/lib/studio/palco';
 import { precisaDePonte } from '@/lib/studio/efeitosReais';
+import { FOGO_PROIBIDO } from '@/lib/studio/desenhar';
 import type { Camada, Documento } from '@/lib/studio/documento';
 import type { FormatoDoc } from '@/lib/studio/documento';
 
@@ -51,7 +52,8 @@ describe('F-350: blindagem — o fundo do vídeo nunca sai preto', () => {
       const o: OpcoesDoPalco = { fundo, textoBotao: fundo.botoes[0], loja: 'Mercado Teste', movimento: {} };
       const d = palcoDoProduto(produtos[0], formato, o);
       conferirFundo(d, `${fundo.id} ${formato} produto`);
-      expect(d.camadas.some((c) => c.tipo === 'efeito'), `${fundo.id}: os efeitos reais deveriam estar ligados`).toBe(true);
+      // F-353: o fogo do fundo e do preço não existe mais (a ponte da F-350 continua valendo para os outros efeitos)
+      expect(d.camadas.some((c) => c.tipo === 'efeito' && FOGO_PROIBIDO.has(c.nome)), `${fundo.id}: fogo no fundo/preço`).toBe(false);
       conferirFundo(vinhetaDoPalco('abertura', produtos[0], formato, o, 3.6), `${fundo.id} ${formato} abertura`);
       conferirFundo(vinhetaDoPalco('fechamento', produtos[0], formato, { ...o, logoDaLoja: { url: '/x.png' } }, 3.4), `${fundo.id} ${formato} fechamento`);
     }
@@ -64,7 +66,7 @@ describe('F-350: blindagem — o fundo do vídeo nunca sai preto', () => {
       conferirFundo(d, `desenhado ${formato} produto`);
       const f = d.camadas.find((c) => c.nome === 'Fundo');
       expect(f?.tipo).toBe('forma');
-      expect(d.camadas.some((c) => c.tipo === 'efeito')).toBe(true); // as brasas estão lá — por isso a ponte é obrigatória
+      expect(d.camadas.some((c) => c.tipo === 'efeito' && FOGO_PROIBIDO.has(c.nome))).toBe(false); // F-353: sem brasas
       const p = projetoDoCarrossel(produtos, formato, o);
       for (const doc of p.clipes.map((c) => c.documento).filter(Boolean) as Documento[]) conferirFundo(doc, `desenhado ${formato} cena do vídeo`);
     }

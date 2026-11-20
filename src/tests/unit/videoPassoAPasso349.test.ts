@@ -18,30 +18,32 @@ const produto = { nome: 'Naldecon Multi 16 comprimidos', preco: 19.9, precoDe: 2
 describe('F-349 — passo a passo do vídeo', () => {
   it('as etapas na ordem pedida pelo dono', () => {
     const ids = [...palco.matchAll(/^ {8}id: '([a-z]+)', titulo: '([^']+)'/gm)].map((m) => m[1]);
-    expect(ids).toEqual(['visual', 'loja', 'produtos', 'edicao', 'locucao']);
+    // F-353 (dono): não existe mais a etapa de edição do vídeo; música junto do locutor
+    expect(ids).toEqual(['visual', 'loja', 'produtos', 'locucao']);
   });
 
   it('1ª etapa: logo da promoção, logo que abre o vídeo e fundo; 2ª: a logo da EMPRESA', () => {
     const visual = palco.slice(palco.indexOf("id: 'visual'"), palco.indexOf("id: 'loja'"));
     expect(visual).toContain("'assistente-logo'");
-    expect(visual).toContain('{campanha}');
+    expect(visual).toContain('<ComecoDoVideo');
+    expect(visual).toContain('<FrasesDoVideo');
+    expect(visual).toContain('<EscolhaDoBalao');
     expect(visual).toContain('data-testid="assistente-fundo"');
     const loja = palco.slice(palco.indexOf("id: 'loja'"), palco.indexOf("id: 'produtos'"));
     expect(loja).toContain("'assistente-logo-da-loja'");
     expect(loja).not.toContain('setTrocandoLogo(true)');
   });
 
-  it('a edição do vídeo só tem música, frases e efeitos (sem fundo, logo ou imagem)', () => {
-    const ed = palco.slice(palco.indexOf("id: 'edicao'"), palco.indexOf("id: 'locucao'"));
-    expect(ed).toContain('semCampanha');
-    expect(ed).not.toContain('painelDoFundo');
-    expect(ed).not.toContain('setTrocandoLogo');
-    expect(ed).not.toContain('arquivoDeImagem');
-    expect(impacto).toContain('{i.vinhetas && !semCampanha && <EscolhaDaCampanha');
+  it('F-353: a 4ª etapa é locutor e música (com o som de dinheiro), e a etapa de edição do vídeo não existe mais', () => {
+    const loc = palco.slice(palco.indexOf("id: 'locucao'"), palco.indexOf('const etapas') > 0 ? palco.indexOf('return (', palco.indexOf("id: 'locucao'")) : undefined);
+    expect(loc).toContain('<PainelDeLocucao');
+    expect(loc).toContain('<MusicaDoVideo');
+    expect(palco).not.toContain("id: 'edicao'");
+    expect(impacto).toContain('data-testid="assistente-dinheiro"');
   });
 
   it('a prévia não é filha direta da grade (a regra do celular anulava o tamanho dela)', () => {
-    expect(palco).toMatch(/<div className="order-first sm:order-none">\s*<div className="mx-auto w-full max-w-\[170px\]/);
+    expect(palco).toMatch(/<div className=\{primeiro \? 'order-first sm:order-none' : undefined\}>\s*<div className="mx-auto w-full max-w-\[170px\]/);
   });
 
   it('o iPhone não dá zoom ao tocar num campo de texto', () => {

@@ -12,7 +12,7 @@ import { corDoDocumento, escurecer } from './corDaArte';
 import { chaveCanonica } from '@/lib/tabloide/chave';
 import { camadasDaLogoDoSegmento, ehSegmentoComLogoEditavel, type SegmentoComLogo } from './logoEditavel';
 import { formatarPreco, type ProdutoTabloide } from '@/lib/tabloide/parseProdutos';
-import { enderecoDoLogo3D } from './logo3d';
+import { enderecoDoLogo3D, fraseEm3D } from './logo3d';
 import { DURACAO_DA_SUBIDA, SONS, impactoResolvido, type ImpactoDoPalco, type ImpactoResolvido, type SomNoVideo } from './impacto';
 
 export interface OpcoesDoPalco {
@@ -50,7 +50,17 @@ const faixaDaFala = (nome: string, f: FalaGravada, em: number): FaixaDeAudio => 
 export type AjustesDoPalco = Partial<Record<FormatoDoc, Record<string, Partial<Camada>>>>;
 export interface MovimentoDoPalco { produto?: TipoDeAnimacao; nome?: TipoDeAnimacao; preco?: TipoDeAnimacao; transicao?: TipoDeTransicao; /** F-290: a troca de CADA produto para o próximo (pelo nome do produto); sem ela vale a padrão */ transicoes?: Record<string, TipoDeTransicao>;
   /** P-34: o pacote de impacto (trilha, efeitos sonoros e visuais, abertura e fechamento) — guardado junto, por modelo */
-  impacto?: ImpactoDoPalco }
+  impacto?: ImpactoDoPalco;
+  /** F-353: o estilo do balão de preço (catálogo ESTILOS_DE_BALAO; sem ele, o balão redondo do palco) */
+  balao?: EstiloDeBalao }
+export type EstiloDeBalao = keyof typeof ESTILOS_DE_BALAO;
+/** F-353: o balão escolhido no lugar do redondo: um objeto só, centralizado (regra do dono), no centro do balão redondo */
+export function balaoEscolhido(p: Pick<ProdutoTabloide, 'preco' | 'precoDe' | 'unidade'>, cx: number, cy: number, d: number, estilo: EstiloDeBalao): Camada | null {
+  const cores: CoresDaEtiqueta = ESTILOS_DE_BALAO[estilo];
+  const estrela = cores.formato === 'estrela';
+  const w = d * (estrela ? 1.22 : 1.3), h = d * (estrela ? 1.0 : 0.62);
+  return etiquetaDePreco({ x: cx - w / 2, y: cy - h / 2, w, h }, p, cores)[0] ?? null;
+}
 /** F-290: a transição de um produto para o próximo: a dele, ou a padrão do palco (P-34: com impacto, a faixa diagonal) */
 export const transicaoDoProduto = (m: MovimentoDoPalco | undefined, nome: string): TipoDeTransicao => m?.transicoes?.[chaveCanonica(nome)] ?? m?.transicao ?? (m?.impacto?.desligado ? 'deslizar-esquerda' : 'faixa');
 /** P-34: o impacto do palco já com os padrões (tudo ligado, a trilha do segmento) */
@@ -218,7 +228,7 @@ export function nomeDoProduto(nome: string, b: Caixa & { alinhamento: 'left' | '
 }
 
 /** F-245: estilo de um balão de preço: forma, cores e aro externo. */
-export interface CoresDaEtiqueta { de: string; para: string; borda: string; valor: string; moeda: string; detalhe: string; formato?: 'placa' | 'oval'; aroFora?: string }
+export interface CoresDaEtiqueta { de: string; para: string; borda: string; valor: string; moeda: string; detalhe: string; formato?: 'placa' | 'oval' | 'estrela'; aroFora?: string; /** F-353: texto de cima quando não é promoção (estrela: OFERTA!!!) */ chamada?: string }
 export const ETIQUETA_VERMELHA: CoresDaEtiqueta = { de: '#ff2d40', para: '#a3001a', borda: '#ffd21f', valor: '#ffffff', moeda: '#ffd21f', detalhe: '#ffe9a8' };
 export const ETIQUETA_AMARELA: CoresDaEtiqueta = { de: '#ffe45c', para: '#f2a900', borda: '#ffffff', valor: '#c40f24', moeda: '#c40f24', detalhe: '#7a0010' };
 export const BALAO_OVAL_VERMELHO: CoresDaEtiqueta = { formato: 'oval', de: '#ff3a2e', para: '#c40015', borda: '#ffd21f', aroFora: '#ffffff', valor: '#ffffff', moeda: '#ffd21f', detalhe: '#ffe9a8' };
@@ -240,6 +250,14 @@ export const ESTILOS_DE_BALAO = {
   'placa-rosa': { de: '#ff63a6', para: '#c0155f', borda: '#e8c068', valor: '#ffffff', moeda: '#ffe1ef', detalhe: '#fff0f6' }, // beleza
   'placa-neon': { de: '#36c8ff', para: '#1450d4', borda: '#9ae6ff', valor: '#ffffff', moeda: '#e6fbff', detalhe: '#cdf3ff' }, // eletrônicos
   'oval-preto': { formato: 'oval', de: '#2a2a2a', para: '#000000', borda: '#e3245a', aroFora: '#ffffff', valor: '#ffffff', moeda: '#ff5a82', detalhe: '#ffd1de' }, // moda
+  // F-353: a estrela OFERTA!!! do vídeo de referência do dono (estrela amarela de borda vermelha, preço vermelho num oval amarelo)
+  'estrela-oferta': { formato: 'estrela', de: '#fff35a', para: '#ffc800', borda: '#d3101d', aroFora: '#ffe600', valor: '#d3101d', moeda: '#d3101d', detalhe: '#d3101d', chamada: 'OFERTA!!!' },
+  // F-353: variações da estrela da referência (o dono escolhe no passo a passo e troca na edição)
+  'estrela-vermelha': { formato: 'estrela', de: '#fff35a', para: '#ffc800', borda: '#a8000f', aroFora: '#e3141f', valor: '#c8000f', moeda: '#c8000f', detalhe: '#ffe600', chamada: 'OFERTA!!!' },
+  'estrela-black': { formato: 'estrela', de: '#ffe14d', para: '#f5b400', borda: '#111111', aroFora: '#161616', valor: '#111111', moeda: '#111111', detalhe: '#ffd400', chamada: 'SÓ HOJE!' },
+  'estrela-azul': { formato: 'estrela', de: '#fff35a', para: '#ffc800', borda: '#0b3aa8', aroFora: '#1d5be0', valor: '#0b3aa8', moeda: '#0b3aa8', detalhe: '#ffffff', chamada: 'SUPER OFERTA' },
+  'estrela-verde': { formato: 'estrela', de: '#fff35a', para: '#ffc800', borda: '#0b6b2b', aroFora: '#19a64a', valor: '#0b6b2b', moeda: '#0b6b2b', detalhe: '#ffffff', chamada: 'FRESQUINHO!' },
+  'estrela-laranja': { formato: 'estrela', de: '#ffffff', para: '#ffe9c2', borda: '#c2410c', aroFora: '#ff7a00', valor: '#c2410c', moeda: '#c2410c', detalhe: '#ffffff', chamada: 'PROMOÇÃO' },
 } as const satisfies Record<string, CoresDaEtiqueta>;
 
 /**
@@ -254,7 +272,7 @@ export function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'pr
   // F-249: o balão é UM objeto (dá para mover, girar, mudar cor e texto), e o texto sai centralizado do desenho dele
   return [{
     ...selo(b.x, b.y, b.h, {
-      formato: cores.formato === 'oval' ? 'oval' : 'placa', topo: de ? `DE ${de.inteiro},${de.centavos}` : '', moeda: 'R$', valor: v.inteiro, sufixo: `,${v.centavos}`, base: un,
+      formato: cores.formato ?? 'placa', topo: de ? `DE ${de.inteiro},${de.centavos}` : (cores.chamada ?? ''), moeda: 'R$', valor: v.inteiro, sufixo: `,${v.centavos}`, base: un,
       cor: cores.de, corFim: cores.para, borda: cores.borda, aroFora: cores.aroFora ?? null, corTexto: cores.detalhe, corTopo: cores.detalhe, corValor: cores.valor, corMoeda: cores.moeda,
       sombra: { cor: 'rgba(0,0,0,.35)', desfoque: 20, dx: 0, dy: 8 },
     }),
@@ -293,7 +311,7 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   // F-239: balão AMARELO realista na lateral, pulsando — "POR"/"DE" em cima, R$ + valor + centavos no centro, unidade embaixo
   const s = f.preco[formato];
   const d = s.d * Math.min(W, H);
-  const balao = seloDoPreco(p, s.cx * W - d / 2, s.cy * H - d / 2, d, f.selo);
+  const balao = o.movimento?.balao && ESTILOS_DE_BALAO[o.movimento.balao] ? balaoEscolhido(p, s.cx * W, s.cy * H, d, o.movimento.balao) : seloDoPreco(p, s.cx * W - d / 2, s.cy * H - d / 2, d, f.selo);
   if (balao) c.push({ ...balao, animacao: ani(mov.preco ?? 'zoom', 0.9, 0.55, 'pulsar') });
   // F-249: botão de um objeto só no lugar do "YOUR LOGO": cobre desde o 1º quadro (sem entrada), pulsa e o texto é centralizado
   const bb = px(f.botao[formato]);
@@ -455,7 +473,7 @@ export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'prec
   if (preco) {
     const d = em ? 330 : 300;
     const sx = em ? W - d - 40 : W * 0.56 + (W * 0.4 - d) / 2, sy = em ? py - d * 0.9 : nome.y + nome.h + 40;
-    const balao = seloDoPreco(p, sx, sy, d);
+    const balao = o.movimento?.balao && ESTILOS_DE_BALAO[o.movimento.balao] ? balaoEscolhido(p, sx + d / 2, sy + d / 2, d, o.movimento.balao) : seloDoPreco(p, sx, sy, d);
     if (balao) c.push({ ...balao, animacao: ani(o.movimento?.preco ?? 'zoom', 1.15, 0.55, 'pulsar') });
   }
   const aviso = texto('Aviso', 'Ofertas válidas enquanto durarem os estoques · Imagens ilustrativas', 0, 0, W * 0.9, { tamanho: em ? 26 : 22, alinhamento: 'center', cor: 'rgba(255,255,255,.75)' });
@@ -495,20 +513,31 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
   // F-317: com a logo de CAMPANHA, ela fica com a parte de cima da área (cai do céu e bate ali) e a frase vai para baixo
   // F-349 (pedido do dono): no FECHAMENTO entra a logo da EMPRESA do cliente (como no concorrente: o vídeo termina na loja)
   const logoDaLoja = tipo === 'fechamento' && o.logoDaLoja?.url ? o.logoDaLoja.url : null;
-  const camp = logoDaLoja ? null : i.campanha;
+  // F-353 (padrão do dono): o vídeo COMEÇA com a logo da PROMOÇÃO (ou a da loja, se o cliente quiser) caindo e batendo no fundo —
+  // a mesma batida e o mesmo som para toda logo; a logo 3D da campanha só quando o cliente escolhe começar com ela
+  const imagemDaLogo = i.inicio === 'campanha' ? null : (tipo === 'abertura' && i.inicio === 'loja' && o.logoDaLoja?.url ? o.logoDaLoja.url : (o.logoDoPalco ?? f?.logoPadrao)?.url ?? null);
+  const logoDoInicio = logoDaLoja ? null : imagemDaLogo;
+  const camp = logoDaLoja || i.inicio !== 'campanha' ? null : i.campanha;
+  const srcDaLogo = camp ? enderecoDoLogo3D(camp.logo(i.complemento)) : logoDoInicio;
   const largo = Math.min(W * 0.98, area.w * 1.22);
   const caixaLogo: Caixa = { x: area.x + (area.w - largo) / 2, y: area.y - area.h * 0.06, w: largo, h: area.h * 0.7 };
-  const caixaFrase: Caixa = camp || logoDaLoja ? { x: area.x, y: area.y + area.h * 0.66, w: area.w, h: area.h * 0.34 } : area;
-  const frase = fraseDeImpacto(tipo === 'abertura' ? 'Frase da abertura' : 'Frase do fechamento', tipo === 'abertura' ? i.textoAbertura : i.textoFechamento, caixaFrase, cor);
-  const fora = new Set<string>(['Produto', 'Nome do produto', 'Preço', EF.preco]);
+  const caixaFrase: Caixa = srcDaLogo || logoDaLoja ? { x: area.x, y: area.y + area.h * 0.66, w: area.w, h: area.h * 0.34 } : area;
+  // F-353 (pedido do dono): as frases do início e do fim em LETRA 3D profissional (mesmo motor das logos); a frase escrita à mão
+  // (texto simples) continua valendo quando o cliente desliga o 3D (frases3d: false)
+  const nomeDaFrase = tipo === 'abertura' ? 'Frase da abertura' : 'Frase do fechamento';
+  const textoDaFrase = tipo === 'abertura' ? i.textoAbertura : i.textoFechamento;
+  const frase: Camada = o.movimento?.impacto?.frases3d === false
+    ? fraseDeImpacto(nomeDaFrase, textoDaFrase, caixaFrase, cor)
+    : imagem(nomeDaFrase, enderecoDoLogo3D(fraseEm3D(textoDaFrase)), caixaFrase.x, caixaFrase.y, caixaFrase.w, caixaFrase.h, { ajuste: 'conter' });
+  const fora = new Set<string>(['Produto', 'Nome do produto', 'Preço', EF.preco, ...(logoDoInicio ? ['Logo do palco'] : [])]);
   const camadas: Camada[] = d.camadas.filter((c) => !fora.has(c.nome)).map((c) => {
     // a logo gravada no fundo vira camada (para chegar gigante): o fundo passa a ser o sem logo
     if (f && c.nome === 'Fundo oficial' && c.tipo === 'imagem' && c.src === srcDoFundo(f, formato)) return { ...c, src: srcSemLogo(f, formato) };
     if (c.nome === 'Logo do palco') return { ...c, opacidade: 1, animacao: ani('chegar-gigante', 0.05, 0.8, 'respirar') };
     return c;
   });
-  if (camp) {
-    const logo = imagem('Logo da campanha', enderecoDoLogo3D(camp.logo(i.complemento)), caixaLogo.x, caixaLogo.y, caixaLogo.w, caixaLogo.h, { ajuste: 'conter' });
+  if (srcDaLogo) {
+    const logo = imagem(camp ? 'Logo da campanha' : 'Logo do início', srcDaLogo, caixaLogo.x, caixaLogo.y, caixaLogo.w, caixaLogo.h, { ajuste: 'conter' });
     // F-319: EFEITOS REAIS na batida da logo — a explosão de fogo e a poeira atrás dela, o fogo de verdade subindo por trás e
     // chamas na frente da parte de baixo (filmagens; o cliente move, troca, muda a hora ou apaga cada um nesta cena)
     const bate = tipo === 'abertura' && i.queda;
@@ -545,7 +574,7 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
     const l = imagem('Logo da loja', logoDaLoja, caixaLogo.x + caixaLogo.w * 0.12, caixaLogo.y, caixaLogo.w * 0.76, caixaLogo.h * 0.92, { ajuste: 'conter' });
     camadas.push({ ...l, id: l.nome, animacao: ani('zoom', 0.1, 0.55, 'respirar') });
   }
-  camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? (camp ? BATIDA_DA_LOGO + 0.5 : 0.55) : (camp || logoDaLoja ? 0.7 : 0.35), 0.5, 'pulsar') });
+  camadas.push({ ...frase, id: frase.nome, animacao: ani('estourar', tipo === 'abertura' ? (srcDaLogo ? BATIDA_DA_LOGO + 0.5 : 0.55) : (srcDaLogo || logoDaLoja ? 0.7 : 0.35), 0.5, 'pulsar') });
   // P-34 (pedido do dono): tudo da abertura/fechamento se edita — o que o cliente mudou NESTA cena vale só nela
   const a = o.ajustes?.[formato] ?? {};
   const editadas = camadas.map((c) => { const p = a[chaveDaCena(c.nome, tipo)]; return p ? ({ ...c, ...p, id: c.nome } as Camada) : c; });
@@ -577,6 +606,8 @@ function sonsDoVideo(p: ProjetoDeVideo, i: ImpactoResolvido): SomNoVideo[] {
     const t0 = ini[k];
     if (k === 0 && i.sirene) sons.push({ som: 'sirene', em: t0 + 0.05 });
     if (k > 0 && c.transicao) sons.push({ som: 'whoosh', em: Math.max(0, t0 - 0.12) });
+    // F-353 (padrão do dono): o som de DINHEIRO a cada produto que entra (opcional: impacto.dinheiro)
+    if (i.dinheiro && c.nome !== 'Abertura' && c.nome !== 'Fechamento') sons.push({ som: 'caixa', em: t0 + 0.25, volume: SONS.caixa.volume * 0.85 });
     const camadas = c.documento?.camadas ?? [];
     // F-317/F-320: a logo de campanha cai com a SUBIDA crescendo (termina seca na batida) e bate com o ESTRONDO
     const cai = camadas.find((x) => x.animacao?.tipo === 'cair-do-ceu' && x.visivel);

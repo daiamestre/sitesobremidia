@@ -18,7 +18,8 @@ const o = { fundo: FUNDOS_DO_PALCO[0], textoBotao: 'OFERTAS', loja: 'Mercado Bom
 describe('P-34: vídeo com impacto', () => {
   it('tudo já vem LIGADO, com a trilha do segmento; o cliente desliga ou troca', () => {
     const i = impactoResolvido(undefined, 'mercado', 'Mercado Bom Preço');
-    expect(i).toMatchObject({ ligado: true, chamas: true, estrelas: true, camera: true, explosao: true, sons: true, sirene: true, vinhetas: true });
+    // F-353 (ordem do dono): sem fogo no fundo e no preço
+    expect(i).toMatchObject({ ligado: true, chamas: false, estrelas: true, camera: true, explosao: false, sons: true, sirene: true, vinhetas: true });
     expect(i.trilha?.id).toBe('varejo-dinamico');
     expect(i.textoAbertura).toBe('MERCADO BOM PREÇO\nOFERTAS IMPERDÍVEIS');
     expect(trilhaDoSegmento('farmacia').id).toBe('ukulele-feliz');
@@ -34,8 +35,10 @@ describe('P-34: vídeo com impacto', () => {
     const d1 = palcoDoProduto(produtos[1], '9:16', { ...o, indice: 1 });
     // F-319: com os efeitos REAIS (padrão), as chamas e a explosão desenhadas dão lugar às filmagens
     expect(d0.efeitos).toEqual({ chamas: false, estrelas: true, camera: true, explosao: false });
-    expect(d0.camadas.filter((c) => c.tipo === 'efeito').map((c) => c.nome)).toEqual(expect.arrayContaining(['Brasas (efeito)', 'Fogo no chão (efeito)', 'Explosão do preço (efeito)']));
-    expect(palcoDoProduto(produtos[0], '9:16', { ...o, movimento: { impacto: { reais: false } } }).efeitos).toEqual({ chamas: true, estrelas: true, camera: true, explosao: true });
+    // F-353: brasas, fogo no chão e explosão do preço não existem mais
+    expect(d0.camadas.filter((c) => c.tipo === 'efeito').map((c) => c.nome)).not.toEqual(expect.arrayContaining(['Brasas (efeito)']));
+    expect(d0.camadas.some((c) => ['Brasas (efeito)', 'Fogo no chão (efeito)', 'Explosão do preço (efeito)'].includes(c.nome))).toBe(false);
+    expect(palcoDoProduto(produtos[0], '9:16', { ...o, movimento: { impacto: { reais: false } } }).efeitos).toEqual({ chamas: false, estrelas: true, camera: true, explosao: false });
     expect(d0.camadas.find((c) => c.nome === 'Produto')?.animacao?.tipo).toBe('mola-esquerda');
     expect(d1.camadas.find((c) => c.nome === 'Produto')?.animacao?.tipo).toBe('mola-direita');
     expect(d0.camadas.find((c) => c.nome === 'Preço')?.animacao?.tipo).toBe('estourar');
@@ -58,10 +61,17 @@ describe('P-34: vídeo com impacto', () => {
     expect(nomes).toContain('Frase da abertura');
     expect(nomes).not.toContain('Produto');
     expect(nomes).not.toContain('Preço');
-    expect(ab.camadas.find((c) => c.nome === 'Logo do palco')).toMatchObject({ opacidade: 1, animacao: { tipo: 'chegar-gigante' } });
+    // F-353 (padrão do dono): o vídeo COMEÇA com a logo da PROMOÇÃO caindo e batendo no fundo (a mesma batida para toda logo)
+    expect(ab.camadas.find((c) => c.nome === 'Logo do início')).toMatchObject({ src: o.fundo.logoPadrao.url, animacao: { tipo: 'cair-do-ceu' } });
+    expect(nomes).not.toContain('Logo do palco');
+    // as frases em LETRA 3D (o mesmo motor das logos)
+    expect((ab.camadas.find((c) => c.nome === 'Frase da abertura') as { src: string }).src.startsWith('logo3d:')).toBe(true);
     expect((ab.camadas.find((c) => c.nome === 'Fundo oficial') as { src: string }).src).toContain('-st.webp');
     const fe = vinhetaDoPalco('fechamento', produtos[0], '9:16', o, 3.4);
-    expect((fe.camadas.find((c) => c.nome === 'Frase do fechamento') as { texto: string }).texto).toBe('APROVEITE!\nMERCADO BOM PREÇO');
+    expect(decodeURIComponent((fe.camadas.find((c) => c.nome === 'Frase do fechamento') as { src: string }).src)).toContain('MERCADO BOM PREÇO');
+    // com o 3D desligado, a frase volta a ser texto
+    const fe2 = vinhetaDoPalco('fechamento', produtos[0], '9:16', { ...o, movimento: { impacto: { frases3d: false } } }, 3.4);
+    expect((fe2.camadas.find((c) => c.nome === 'Frase do fechamento') as { texto: string }).texto).toBe('APROVEITE!\nMERCADO BOM PREÇO');
   });
 
   it('o vídeo: abertura → produtos → fechamento, faixa diagonal, a trilha e os efeitos sonoros no tempo certo', () => {
@@ -112,29 +122,30 @@ describe('P-34: vídeo com impacto', () => {
 
   it('o passo a passo tem a trilha e os efeitos e ENTREGA o vídeo pronto no fim', () => {
     const palco = fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8');
-    expect(palco).toContain('data-testid="assistente-impacto"');
+    // F-353: a música e o som de dinheiro ficam na etapa do locutor
+    expect(palco).toContain('<MusicaDoVideo impacto={movimento.impacto}');
     expect(palco).toContain('data-testid="palco-impacto"');
     expect(palco).toMatch(/setPedidoDeVideo\(\(n\) => n \+ 1\); lateral\.current/);
     expect(fs.readFileSync('src/pages/studioai/VideoEditorPage.tsx', 'utf8')).toContain("a.id.startsWith('trilha-')");
   });
   it('depois de criado, TUDO da abertura e do fechamento se edita, só naquela cena (logo, frase, entrada, saída, movimento)', () => {
     const ajustes = { '9:16': {
-      [chaveDaCena('Logo do palco', 'abertura')]: { w: 999, animacao: { tipo: 'zoom' as const, atraso: 0, duracao: 0.5, saida: { tipo: 'sumir' as const, duracao: 0.4 } } },
-      [chaveDaCena('Frase da abertura', 'abertura')]: { texto: 'SÓ ESSA SEMANA!', cor: '#ffd400' },
+      [chaveDaCena('Logo do início', 'abertura')]: { w: 999, animacao: { tipo: 'zoom' as const, atraso: 0, duracao: 0.5, saida: { tipo: 'sumir' as const, duracao: 0.4 } } },
+      [chaveDaCena('Frase da abertura', 'abertura')]: { y: 123, opacidade: 0.9 },
     } };
     const ab = vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, ajustes }, 2.8);
-    expect(ab.camadas.find((c) => c.nome === 'Logo do palco')).toMatchObject({ w: 999, animacao: { tipo: 'zoom', saida: { tipo: 'sumir' } } });
-    expect(ab.camadas.find((c) => c.nome === 'Frase da abertura')).toMatchObject({ texto: 'SÓ ESSA SEMANA!', cor: '#ffd400' });
+    expect(ab.camadas.find((c) => c.nome === 'Logo do início')).toMatchObject({ w: 999, animacao: { tipo: 'zoom', saida: { tipo: 'sumir' } } });
+    expect(ab.camadas.find((c) => c.nome === 'Frase da abertura')).toMatchObject({ y: 123, opacidade: 0.9 });
     // o fechamento e os produtos não mudam
     const fe = vinhetaDoPalco('fechamento', produtos[0], '9:16', { ...o, ajustes }, 3.4);
-    expect(fe.camadas.find((c) => c.nome === 'Logo do palco')?.w).not.toBe(999);
+    expect(fe.camadas.find((c) => c.nome === 'Logo do início')?.w).not.toBe(999);
     expect(palcoDoProduto(produtos[0], '9:16', { ...o, ajustes }).camadas.find((c) => c.nome === 'Logo do palco')?.w).not.toBe(999);
     const palco = fs.readFileSync('src/components/studio/PalcoDeOfertas.tsx', 'utf8');
     expect(palco).toContain('palco-cena-');
     expect(palco).toContain("if (nome === 'Abertura' || nome === 'Fechamento')");
   });
   it('F-317: a logo 3D da CAMPANHA cai do céu na abertura, quebra a parede e pega fogo (whoosh + impacto)', () => {
-    const ab = vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { campanha: 'queima-de-estoque', complemento: 'só sábado' } } }, 2.8);
+    const ab = vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { inicio: 'campanha', campanha: 'queima-de-estoque', complemento: 'só sábado', fogoNaLogo: true } } }, 2.8);
     const logo = ab.camadas.find((c) => c.nome === 'Logo da campanha') as { src: string; animacao: { tipo: string } };
     expect(logo.src.startsWith('logo3d:')).toBe(true);
     expect(decodeURIComponent(logo.src)).toContain('QUEIMA');
@@ -151,10 +162,16 @@ describe('P-34: vídeo com impacto', () => {
     expect(nomes.indexOf('Fumaça da batida (efeito)')).toBeLessThan(nomes.indexOf('Logo da campanha'));
     expect(nomes.indexOf('Chamas na frente da logo (efeito)')).toBeGreaterThan(nomes.indexOf('Logo da campanha'));
     expect(nomes).not.toContain('Explosão do preço (efeito)');
-    expect(vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { reais: false } } }, 2.8).efeitos).toMatchObject({ quebra: true, fogo: true });
-    // o padrão é o FECHA MÊS; sem campanha, não tem logo
-    expect(decodeURIComponent((vinhetaDoPalco('abertura', produtos[0], '9:16', o, 2.8).camadas.find((c) => c.nome === 'Logo da campanha') as { src: string }).src)).toContain('FECHA');
-    expect(vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { campanha: null } } }, 2.8).camadas.some((c) => c.nome === 'Logo da campanha')).toBe(false);
+    expect(vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, movimento: { impacto: { reais: false, fogoNaLogo: true } } }, 2.8).efeitos).toMatchObject({ quebra: true, fogo: true });
+    // F-353: o padrão começa com a logo da PROMOÇÃO caindo (mesma batida); a logo 3D da campanha só quando o cliente escolhe
+    const padrao = vinhetaDoPalco('abertura', produtos[0], '9:16', o, 2.8);
+    expect(padrao.camadas.some((c) => c.nome === 'Logo da campanha')).toBe(false);
+    expect(padrao.camadas.find((c) => c.nome === 'Logo do início')?.animacao?.tipo).toBe('cair-do-ceu');
+    // começar com a logo da LOJA do cliente
+    const daLoja = vinhetaDoPalco('abertura', produtos[0], '9:16', { ...o, logoDaLoja: { url: '/minha.png' }, movimento: { impacto: { inicio: 'loja' } } }, 2.8);
+    expect((daLoja.camadas.find((c) => c.nome === 'Logo do início') as { src: string }).src).toBe('/minha.png');
+    // sem fogo na logo por padrão (vídeo de referência)
+    expect(padrao.camadas.some((c) => c.nome === 'Fogo na logo (efeito)')).toBe(false);
     const p = projetoDoCarrossel(produtos, '9:16', o);
     const s0 = (p.sons ?? []).filter((x) => x.em < 2).map((x) => x.som);
     expect(s0).toEqual(expect.arrayContaining(['sirene', 'subida', 'impacto']));

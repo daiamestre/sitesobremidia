@@ -43,6 +43,9 @@ export function avaliarTeto({ ultimas24h, novas, limite = LIMITE_POR_DIA, aviso 
 export const TESTES_DO_VIDEO = [
   'src/tests/unit/blindagemFundoDoVideo350.test.ts',
   'src/tests/unit/produtoSemFundo351.test.ts',
+  'src/tests/unit/videoSemCenaVazia352.test.ts',
+  'src/tests/unit/padraoDeVideo353.test.ts',
+  'src/tests/unit/assistenteDeCriacao306.test.ts',
   'src/tests/unit/videoPassoAPasso349.test.ts',
   'src/tests/unit/videoComImpacto34.test.ts',
   'src/tests/unit/efeitosReais319.test.ts',

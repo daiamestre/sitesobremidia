@@ -15,6 +15,9 @@ import { aplicarCamera, desenharChamas, desenharEstrelas, desenharExplosaoAtras,
 
 export type Imagens = Map<string, HTMLImageElement>;
 
+/** F-353: os efeitos de fogo do FUNDO e do PREÇO (nomes das camadas em EFEITOS_DO_PALCO) — o dono proibiu */
+export const FOGO_PROIBIDO = new Set(['Brasas (efeito)', 'Fogo no chão (efeito)', 'Explosão do preço (efeito)']);
+
 /**
  * F-351 (ordem do dono: "não quero fundo nos produtos"): a foto do produto que pede SEM FUNDO (link do passa-foto com s=1) e
  * chegou COM fundo — a cota grátis do mês da Cloudflare acabou e ela devolve a original — tem o fundo tirado AQUI, no aparelho,
@@ -285,7 +288,10 @@ function textosDoSelo(ctx: CanvasRenderingContext2D, c: CamadaSelo, relevo: bool
   valor(arr.moeda, c.corMoeda || corValor); valor(arr.valor, corValor); valor(arr.sufixo, corValor);
   const detalhe = (p: { texto: string; tamanho: number; x: number; y: number } | null, cor: string) => {
     if (!p) return;
-    ctx.font = fonteCanvas('poppins', p.tamanho, 800); ctx.fillStyle = cor; ctx.fillText(p.texto, p.x, p.y);
+    ctx.font = fonteCanvas('poppins', p.tamanho, 800);
+    // F-353: na estrela o OFERTA!!! tem contorno branco (lê bem em cima das pontas)
+    if (c.formato === 'estrela') { ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(3, p.tamanho * 0.22); ctx.strokeStyle = '#ffffff'; ctx.strokeText(p.texto, p.x, p.y); }
+    ctx.fillStyle = cor; ctx.fillText(p.texto, p.x, p.y);
   };
   detalhe(arr.topo, c.corTopo || c.corTexto); detalhe(arr.base, c.corTexto);
 }
@@ -304,7 +310,38 @@ function desenharBalaoReto(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
   textosDoSelo(ctx, c, false);
 }
 
+/**
+ * F-353 (vídeo de referência do dono): a ESTRELA "OFERTA!!!" — estrela de pontas com borda, e o preço num OVAL no meio dela.
+ * Os textos saem de arranjoDoBalao (formato 'estrela'), centralizados como em todo balão; o oval acompanha a linha do valor.
+ */
+function desenharBalaoEstrela(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
+  const rx = c.w / 2, ry = c.h / 2, pontas = 18;
+  ctx.beginPath();
+  for (let k = 0; k < pontas * 2; k++) {
+    const a = (k / (pontas * 2)) * Math.PI * 2 - Math.PI / 2;
+    const f = k % 2 ? 0.8 : 1;
+    const x = Math.cos(a) * rx * f, y = Math.sin(a) * ry * f;
+    if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = c.aroFora || c.cor; ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(3, Math.min(c.w, c.h) * 0.03); ctx.strokeStyle = c.borda; ctx.stroke();
+  // o oval do preço, na altura do valor (a mesma conta dos textos)
+  const medir: Medir = (txt, tam, f) => { ctx.font = f === 'valor' ? fonteCanvas(c.fonte, tam) : fonteCanvas('poppins', tam, 800); const m = ctx.measureText(txt); return { largura: m.width, sobe: m.actualBoundingBoxAscent || tam * 0.75, desce: m.actualBoundingBoxDescent || 0 }; };
+  const arr = arranjoDoBalao(c, medir);
+  const cy = arr.valor.y - arr.valor.tamanho * 0.36;
+  const ow = c.w * 0.74, oh = Math.min(c.h * 0.5, arr.valor.tamanho * 1.3);
+  ctx.beginPath(); ctx.ellipse(0, cy, ow / 2 + Math.max(3, c.h * 0.02), oh / 2 + Math.max(3, c.h * 0.02), 0, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill();
+  const g = ctx.createLinearGradient(0, cy - oh / 2, 0, cy + oh / 2);
+  g.addColorStop(0, c.cor); g.addColorStop(1, c.corFim || c.cor);
+  ctx.beginPath(); ctx.ellipse(0, cy, ow / 2, oh / 2, 0, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+  ctx.lineWidth = Math.max(4, c.h * 0.035); ctx.strokeStyle = c.borda; ctx.stroke();
+  textosDoSelo(ctx, c, false);
+}
+
 function desenharSelo(ctx: CanvasRenderingContext2D, c: CamadaSelo) {
+  if (c.formato === 'estrela') { desenharBalaoEstrela(ctx, c); return; }
   if (c.formato === 'oval' || c.formato === 'placa') { desenharBalaoReto(ctx, c); return; }
   if (c.realista) { desenharSeloRealista(ctx, c); return; }
   const r = Math.min(c.w, c.h) / 2;
@@ -491,7 +528,9 @@ export function desenharDocumento(ctx: CanvasRenderingContext2D, d: Documento, i
   ctx.fillStyle = d.fundo; ctx.fillRect(0, 0, w, h);
   // P-34: efeitos de impacto (só com o tempo: animação e vídeo) — câmera no fundo, chamas e estrelas na frente do fundo,
   // explosão em volta do preço
-  const fx = tempo !== undefined && d.efeitos ? d.efeitos : null;
+  // F-353 (ordem do dono): fogo no fundo (chamas, brasas, parede de fogo) e no preço (explosão) não existem mais — nem nos
+  // vídeos e projetos salvos antes
+  const fx = tempo !== undefined && d.efeitos ? { ...d.efeitos, chamas: false, explosao: false } : null;
   const iFundo = fx ? indiceDoFundo(d) : -1;
   const particulas = () => { if (fx?.chamas) desenharChamas(ctx, tempo!, w, h); if (fx?.estrelas) desenharEstrelas(ctx, tempo!, w, h); };
   if (fx && iFundo < 0) particulas();
@@ -499,6 +538,7 @@ export function desenharDocumento(ctx: CanvasRenderingContext2D, d: Documento, i
   if (fx?.quebra) for (const c of d.camadas) { const ti = instanteDoImpacto(c); const tr = ti != null ? tremorDoImpacto(tempo!, ti, w, h) : null; if (tr) { ctx.translate(tr.dx, tr.dy); break; } }
   d.camadas.forEach((c, i) => {
     if (c.id === ocultar) return;
+    if (c.tipo === 'efeito' && FOGO_PROIBIDO.has(c.nome)) return; // F-353: brasas, fogo no chão e explosão do preço
     // F-317: a logo que cai do céu — atrás dela as rachaduras e o fogo; na frente os blocos, a poeira e o clarão
     if (fx && (fx.quebra || fx.fogo) && instanteDoImpacto(c) != null) {
       const ti = instanteDoImpacto(c)!;

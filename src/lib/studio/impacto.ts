@@ -79,19 +79,27 @@ export interface ImpactoDoPalco {
   queda?: boolean; fogoNaLogo?: boolean;
   /** F-319: efeitos REAIS (filmagens de fogo, explosão, fumaça e brasas) no lugar dos desenhados — padrão ligado */
   reais?: boolean;
+  /** F-353 (padrão do dono): o vídeo começa com a logo da PROMOÇÃO (padrão), com a logo da LOJA do cliente ou com a logo 3D da campanha */
+  inicio?: 'promocao' | 'loja' | 'campanha';
+  /** F-353: som de DINHEIRO (caixa registradora) a cada troca de produto — opcional, padrão ligado */
+  dinheiro?: boolean;
+  /** F-353: frases do início e do fim em letra 3D (padrão ligado) */
+  frases3d?: boolean;
 }
 export interface ImpactoResolvido {
   ligado: boolean; chamas: boolean; estrelas: boolean; camera: boolean; explosao: boolean;
   sons: boolean; sirene: boolean; trilha: Trilha | null; volumeTrilha: number; vinhetas: boolean;
   textoAbertura: string; textoFechamento: string;
   campanha: CampanhaDeImpacto | null; complemento: string; queda: boolean; fogoNaLogo: boolean; reais: boolean;
+  inicio: 'promocao' | 'loja' | 'campanha'; dinheiro: boolean;
 }
 export function impactoResolvido(i: ImpactoDoPalco | undefined, segmento: SegmentoDoStudio | undefined, loja = ''): ImpactoResolvido {
   const ligado = !i?.desligado;
   const l = loja.trim().toUpperCase();
   return {
     ligado,
-    chamas: ligado && i?.chamas !== false, estrelas: ligado && i?.estrelas !== false, camera: ligado && i?.camera !== false, explosao: ligado && i?.explosao !== false,
+    // F-353 (ordem do dono, 20/11/2026): fogo no FUNDO (chamas, brasas, parede de fogo) e no PREÇO (explosão, bola de fogo) NÃO existem mais
+    chamas: false, estrelas: ligado && i?.estrelas !== false, camera: ligado && i?.camera !== false, explosao: false,
     sons: ligado && i?.sons !== false, sirene: ligado && i?.sons !== false && i?.sirene !== false,
     trilha: !ligado || i?.trilha === null ? null : (trilhaPorId(i?.trilha) ?? trilhaDoSegmento(segmento)),
     volumeTrilha: Math.max(0, Math.min(1, i?.volumeTrilha ?? 0.7)),
@@ -100,7 +108,10 @@ export function impactoResolvido(i: ImpactoDoPalco | undefined, segmento: Segmen
     textoFechamento: (i?.textoFechamento ?? '').trim() || (l ? `APROVEITE!\n${l}` : 'APROVEITE!\nVENHA CONFERIR'),
     campanha: ligado && i?.vinhetas !== false && i?.campanha !== null ? campanhaPorId(i?.campanha ?? 'fecha-mes') : null,
     complemento: (i?.complemento ?? '').trim().toUpperCase(),
-    queda: ligado && i?.queda !== false, fogoNaLogo: ligado && i?.fogoNaLogo !== false,
+    // F-353: TODA logo do início cai e bate no fundo (mesma batida e mesmo som); o fogo na logo fica desligado por padrão
+    queda: ligado && i?.queda !== false, fogoNaLogo: ligado && i?.fogoNaLogo === true,
+    inicio: i?.inicio ?? (i?.campanha ? 'campanha' : 'promocao'),
+    dinheiro: ligado && i?.sons !== false && i?.dinheiro !== false,
     reais: ligado && i?.reais !== false,
   };
 }

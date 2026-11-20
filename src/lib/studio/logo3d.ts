@@ -218,7 +218,8 @@ function linha3D(ctx: CanvasRenderingContext2D, cfg: ConfigLogo3D, m: Medida, cx
   ctx.lineWidth = Math.max(2, px * 0.025);
   letras(ctx, t, cx, y, px, arco, (s, x, yy) => ctx.strokeText(s, x, yy));
   // 5) brilho na metade de cima — só na FACE (desenhado à parte, para não clarear o volume nem o contorno)
-  if (typeof document === 'undefined') return;
+  // F-352: tela ainda sem tamanho (0×0) derrubava o desenho inteiro ("canvas com largura ou altura 0")
+  if (typeof document === 'undefined' || !ctx.canvas.width || !ctx.canvas.height) return;
   const off = document.createElement('canvas');
   off.width = ctx.canvas.width; off.height = ctx.canvas.height;
   const o = off.getContext('2d');
@@ -453,4 +454,16 @@ export async function logoParaImagem(cfg: ConfigLogo3D, largura = 1600, altura =
     const url = URL.createObjectURL(png);
     return await new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = url; });
   } catch { return null; }
+}
+
+/**
+ * F-353 (pedido do dono): as FRASES do início e do fim do vídeo em LETRA 3D profissional — a mesma técnica das logos (face com
+ * degradê, chanfro, volume e contorno), fonte larga e conhecida (Archivo Black), uma linha por quebra; a 1ª linha em ouro e as
+ * outras em branco com volume vermelho (lê em qualquer fundo). Sem enfeites: é texto, não logo.
+ */
+export const PINTURAS_DA_FRASE = { ouro: OURO_FORTE, branco: BRANCO_VERMELHO, vermelho: VERMELHO_FORTE, fogo: FOGO } as const;
+export function fraseEm3D(frase: string, fonte: 'archivo' | 'anton' | 'bebas' | 'baloo' = 'archivo'): ConfigLogo3D {
+  const linhas = frase.toUpperCase().split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 4);
+  const maior = Math.max(1, ...linhas.map((l) => l.length));
+  return C('frase-3d', linhas.map((l, i) => L(l, Math.max(0.55, Math.min(1, (l.length / maior) * 1.05)), i === 0 ? OURO_FORTE : BRANCO_VERMELHO)), { fonte, profundidade: 16, direcao: 92, inclinacao: -3, arco: 0, enfeites: [] });
 }

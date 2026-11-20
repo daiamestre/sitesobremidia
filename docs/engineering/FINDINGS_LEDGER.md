@@ -4061,3 +4061,25 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - worker: a original sai com `max-age=3600`.
 - **Prova:** 14/16 fotos aleatórias recortadas no navegador, inclusive embalagens brancas, sem morder a embalagem; a segunda vez sai do cache em ms.
 - **Teste:** `produtoSemFundo351.test.ts`, que entra na blindagem do `publicar-main`.
+
+### F-352 — Vídeo criado sem produtos; passo 1 do Palco desenhado vazio (20/11/2026)
+- **Motor:** o "Criar meu vídeo" exportava 1,2 s depois de montar o projeto, sem esperar as fotos. `MotorDeVideo.aguardarMidias()` espera `this.preparando` e tenta de novo, até 4 vezes, cada cena com foto faltando. Vale nas duas exportações (quadro a quadro e tempo real).
+- **Proteção:** `logo3d` não desenha numa tela 0×0 (antes dava erro "canvas com largura ou altura 0").
+- **Palco desenhado:**
+  - passo 1 com os fundos (`trocarFundo`) e o título;
+  - escolhas antes da prévia no celular;
+  - `logoUrl = logoDaLoja` no lugar do SUA LOGO AQUI.
+- **Teste:** `videoSemCenaVazia352.test.ts`.
+
+### F-353 — Padrão de criação de vídeo igual ao concorrente (20/11/2026)
+- **Referências do dono:** analisadas quadro a quadro.
+  - Vídeo 1 (Semana Black Friday): fundo amarelo com faixas zebradas e partículas; logo grande no início; faixa vermelha na troca; cabeçalho com a logo da campanha e a da loja; estrela OFERTA!!!; produto que sai para a direita; frase final.
+  - Vídeo 2: galeria de 51 selos 3D, extraídos um a um (sharp + ffmpeg) para o dono.
+- **Código:**
+  - `impactoResolvido`: `chamas`/`explosao` sempre false, `fogoNaLogo` padrão false, e os novos `inicio` ('promocao' | 'loja' | 'campanha'), `dinheiro` e `frases3d`;
+  - `desenharDocumento` ignora as camadas `FOGO_PROIBIDO`;
+  - `vinhetaDoPalco`: a "Logo do início" (promoção ou loja) com `cair-do-ceu`, e as frases como imagem `logo3d:` de `fraseEm3D`;
+  - `sonsDoVideo`: 'caixa' em t0 + 0,25 de cada produto;
+  - balão 'estrela' em `balao.ts` (arranjo centralizado) e `desenharBalaoEstrela`; 6 estilos `estrela-*`; `MovimentoDoPalco.balao` e `balaoEscolhido`;
+  - telas: `EscolhaDoBalao`, `ComecoDoVideo`, `FrasesDoVideo`, `MusicaDoVideo`; passo a passo com 4 etapas.
+- **Testes:** `padraoDeVideo353.test.ts`, mais os ajustes em 34, 306, 349, 350 e na regra dos balões (agora inclui a estrela).
