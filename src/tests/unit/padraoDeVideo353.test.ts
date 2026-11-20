@@ -77,3 +77,33 @@ describe('F-353: padrão de vídeo do dono', () => {
     expect(ids).toEqual([['visual', 'Logo e fundo'], ['loja', 'Sua empresa'], ['produtos', 'Produtos'], ['locucao', 'Locutor e música']]);
   });
 });
+
+describe('F-354: produto com verso ou variações (2 ou 3 fotos lado a lado)', () => {
+  const img = (u: string) => ({ url: u, fonte: 'MARCA' as const });
+  it('uma foto: o produto sozinho, como sempre', () => {
+    const d = palcoDoProduto(produtos[1], '9:16', o);
+    expect(d.camadas.filter((c) => /^Produto( [23])?$/.test(c.nome))).toHaveLength(1);
+  });
+  it('três fotos: lado a lado, levemente sobrepostas, dentro do espaço do produto, cada uma editável', () => {
+    const p = { ...produtos[1], imagem: img('/semi.png'), imagensExtras: [img('/integral.png'), img('/desnatado.png')] };
+    for (const fundo of [FUNDOS_DO_PALCO[0], null]) {
+      const d = palcoDoProduto(p, '9:16', { ...o, fundo });
+      const fotos = d.camadas.filter((c) => /^Produto( [23])?$/.test(c.nome)) as Array<{ nome: string; src: string; x: number; w: number }>;
+      expect(fotos.map((f) => f.nome)).toEqual(['Produto', 'Produto 2', 'Produto 3']);
+      expect(fotos.map((f) => f.src)).toEqual(['/semi.png', '/integral.png', '/desnatado.png']);
+      // em ordem, da esquerda para a direita, encostando (sobreposição leve)
+      expect(fotos[1].x).toBeGreaterThan(fotos[0].x);
+      expect(fotos[1].x).toBeLessThan(fotos[0].x + fotos[0].w);
+      expect(fotos[2].x + fotos[2].w - fotos[0].x).toBeLessThanOrEqual(1080);
+    }
+    // e entra no vídeo
+    const v = projetoDoCarrossel([p], '9:16', o);
+    expect(v.clipes.some((c) => c.documento?.camadas.some((x) => x.nome === 'Produto 3'))).toBe(true);
+  });
+  it('a lista de produtos tem o "+foto" (verso ou variação) e tira a foto a mais com um toque', () => {
+    const lista = fs.readFileSync('src/components/studio/ProdutosComFotos.tsx', 'utf8');
+    expect(lista).toContain('data-testid="produto-mais-foto"');
+    expect(lista).toContain('data-testid="produto-foto-extra"');
+    expect(lista).toMatch(/prepararFotoDoProduto\(imagem, produto\.nome\)/);
+  });
+});

@@ -31,6 +31,9 @@ export interface ProdutoTabloide {
   imagem: ImagemProduto | null;
   /** F-231: código de barras (EAN/GTIN) lido pela pistola, pela câmera ou digitado — traz o produto exato */
   codigo?: string | null;
+  /** F-354 (pedido do dono): até 2 fotos a mais do MESMO produto (o verso, ou as variações: semi, integral, desnatado) — no vídeo
+   * aparecem lado a lado com a principal; sem elas, o produto aparece sozinho */
+  imagensExtras?: ImagemProduto[] | null;
 }
 
 /** Nome provisório de um produto que só tem o código de barras (o nome certo chega da base de produtos). */

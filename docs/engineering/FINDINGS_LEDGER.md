@@ -4083,3 +4083,9 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - balão 'estrela' em `balao.ts` (arranjo centralizado) e `desenharBalaoEstrela`; 6 estilos `estrela-*`; `MovimentoDoPalco.balao` e `balaoEscolhido`;
   - telas: `EscolhaDoBalao`, `ComecoDoVideo`, `FrasesDoVideo`, `MusicaDoVideo`; passo a passo com 4 etapas.
 - **Testes:** `padraoDeVideo353.test.ts`, mais os ajustes em 34, 306, 349, 350 e na regra dos balões (agora inclui a estrela).
+
+### F-354 — Produto com verso ou variações, lado a lado no vídeo (20/11/2026)
+- **Dados:** `ProdutoTabloide.imagensExtras`, até 2 fotos.
+- **Lista de produtos:** `porFotoExtra` (`prepararFotoDoProduto`: sem fundo) e `tirarFotoExtra`; botão "+foto" e miniaturas na linha do produto.
+- **Palco:** `camadasDoProduto` monta 1 a 3 fotos na caixa do produto, com 10 a 14% de sobreposição e entrada em sequência (0,08 s). Vale no palco oficial e no desenhado; o impacto anima as três.
+- **Teste:** `padraoDeVideo353.test.ts` (bloco F-354).

@@ -42,6 +42,9 @@ export interface ProdutosComFotos {
   gravar: (lista: ProdutoTabloide[]) => void;
   /** F-242: troca a foto e grava no catálogo (volta sozinha da próxima vez) */
   trocarFoto: (p: ProdutoTabloide, imagem: ImagemProduto) => Promise<void>;
+  /** F-354: mais uma foto do produto (verso ou variação), sem fundo; e tirar uma delas */
+  porFotoExtra: (p: ProdutoTabloide, imagem: ImagemProduto) => Promise<void>;
+  tirarFotoExtra: (p: ProdutoTabloide, i: number) => void;
   /** F-244: quantos produtos mostrar nos encartes e no palco */
   quantos: number; escolherQuantos: (n: number) => void;
   /** F-292: produto escolhido na galeria por segmento: entra na hora, com a foto certa (e quantos aumenta para ele aparecer) */
@@ -124,6 +127,14 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
       else toast.error(`Foto não aprovada${pronta.recusa ? `: ${pronta.recusa}` : ''}. Ela ficou só nesta arte; envie uma foto do produto inteiro.`);
     } catch { toast.error('A foto entrou, mas não foi possível guardá-la para a próxima vez.'); }
   };
+  // F-354: as fotos a mais do produto (verso/variações), também sem fundo; no máximo 2 (o vídeo mostra até 3 lado a lado)
+  const porFotoExtra = async (produto: ProdutoTabloide, imagem: ImagemProduto) => {
+    const aviso = toast.loading('Tirando o fundo da foto…');
+    let pronta = imagem;
+    try { pronta = await prepararFotoDoProduto(imagem, produto.nome); } catch { /* entra como veio */ } finally { toast.dismiss(aviso); }
+    setProdutos((a) => { const n = a.map((p) => (p.id === produto.id ? { ...p, imagensExtras: [...(p.imagensExtras ?? []), pronta].slice(-2) } : p)); gravar(n); return n; });
+  };
+  const tirarFotoExtra = (produto: ProdutoTabloide, i: number) => setProdutos((a) => { const n = a.map((p) => (p.id === produto.id ? { ...p, imagensExtras: (p.imagensExtras ?? []).filter((_, k) => k !== i) } : p)); gravar(n); return n; });
   const adicionarPronto: ProdutosComFotos['adicionarPronto'] = (x) => {
     const linha = `${x.nome} ${x.precoDe != null ? `de ${precoParaTexto(x.precoDe)} por ` : ''}${precoParaTexto(x.preco)}`;
     const lido = lerLinha(linha);
@@ -138,13 +149,13 @@ export function useProdutosComFotos(inicial = CESTA_PADRAO, chave = CHAVE_PRODUT
     // foto que pede "sem fundo" e chegou com fundo: o navegador recorta (F-289)
     void prepararFotoDoProduto(x.imagem, x.nome).then((pr) => { if (pr.url !== x.imagem.url) setProdutos((a) => a.map((q) => (q.id === novo.id ? { ...q, imagem: pr } : q))); }).catch(() => undefined);
   };
-  return { texto, setTexto, produtos, buscando, erros, duvidas, aplicar, mudar, remover, porCodigo, gravar, trocarFoto, quantos, escolherQuantos, adicionarPronto };
+  return { texto, setTexto, produtos, buscando, erros, duvidas, aplicar, mudar, remover, porCodigo, gravar, trocarFoto, porFotoExtra, tirarFotoExtra, quantos, escolherQuantos, adicionarPronto };
 }
 
 const EXEMPLOS = ['Arroz Camil Tipo 1 5kg 24,90', 'Feijão Carioca Kicaldo 1kg de 8,99 por 6,49', 'Coca-Cola Original 2L 9,99', 'Picanha kg de 89,90 por 69,90'];
 
 /** Um produto da lista: foto (toque para trocar), nome, "é promoção?" (abre o "de") e o preço. */
-function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, atencao, aoTocar }: { p: ProdutoTabloide; s: ProdutosComFotos; destaque: boolean; aoTrocarFoto: () => void; /** F-280: precisa de atenção (falta informação ou não achamos a foto) */ atencao?: string | null; /** F-285: o cliente tocou no produto para corrigir */ aoTocar?: () => void }) {
+function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, aoMaisFoto, atencao, aoTocar }: { p: ProdutoTabloide; s: ProdutosComFotos; destaque: boolean; aoTrocarFoto: () => void; /** F-354: pôr mais uma foto (verso ou variação) */ aoMaisFoto?: () => void; /** F-280: precisa de atenção (falta informação ou não achamos a foto) */ atencao?: string | null; /** F-285: o cliente tocou no produto para corrigir */ aoTocar?: () => void }) {
   const [promo, setPromo] = useState(p.precoDe != null);
   const faltas = faltasDoProduto(p);
   return (
@@ -154,6 +165,18 @@ function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, atencao, aoTocar }: { p:
           : <span className="px-0.5 text-center text-[8px] font-bold leading-tight text-slate-500">{s.buscando.includes(p.nome) ? 'buscando…' : 'pôr foto'}</span>}
         <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><ImagePlus className="h-4 w-4 text-white" /></span>
       </button>
+      {/* F-354: as fotos a mais (verso/variações): aparecem juntas no vídeo; tocar tira */}
+      {(p.imagensExtras ?? []).map((im, i) => (
+        <button key={i} type="button" onClick={() => s.tirarFotoExtra(p, i)} title="Tirar esta foto" aria-label={`Tirar a foto ${i + 2} de ${p.nome}`} className="relative h-12 w-9 shrink-0 overflow-hidden rounded-md bg-white" data-testid="produto-foto-extra">
+          <img src={im.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+          <span className="absolute right-0 top-0 rounded-bl bg-black/70 px-0.5 text-[9px] font-bold leading-none text-white">×</span>
+        </button>
+      ))}
+      {aoMaisFoto && p.imagem && (p.imagensExtras?.length ?? 0) < 2 && (
+        <button type="button" onClick={aoMaisFoto} title="Mais uma foto do produto (verso ou variação)" aria-label={`Pôr mais uma foto de ${p.nome} (verso ou variação)`} className="flex h-12 w-9 shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-white/25 text-[8px] font-bold leading-tight text-slate-300 hover:bg-white/5" data-testid="produto-mais-foto">
+          <ImagePlus className="h-3.5 w-3.5" />+foto
+        </button>
+      )}
       <div className="min-w-0 flex-1 space-y-1">
         <input aria-label="Nome do produto" value={p.nome} onChange={(e) => s.mudar(p.id, { nome: e.target.value })}
           className="h-8 w-full rounded border border-white/10 bg-black/30 px-1.5 text-xs text-white focus:border-[#B04DFF] focus:outline-none" />
@@ -178,6 +201,8 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
   const [aberto, setAberto] = useState(abertoInicial);
   const [galeria, setGaleria] = useState(false);
   const [trocando, setTrocando] = useState<ProdutoTabloide | null>(null);
+  // F-354: o produto que vai ganhar mais uma foto (verso ou variação)
+  const [maisFotoDe, setMaisFotoDe] = useState<ProdutoTabloide | null>(null);
   const lista = useRef<HTMLUListElement>(null);
   // F-285: produtos que o cliente já tocou para corrigir: param de piscar e saem do aviso
   const [vistos, setVistos] = useState<Set<string>>(() => new Set());
@@ -241,11 +266,12 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
           <div className="rounded-lg bg-white text-slate-900"><LeitorDeCodigo aoLer={s.porCodigo} /></div>
           {s.buscando.length > 0 && <p className="flex items-center gap-2 text-xs text-[#FFD400]"><Loader2 className="h-3.5 w-3.5 animate-spin" />Buscando a foto real de {s.buscando.length === 1 ? s.buscando[0] : `${s.buscando.length} produtos`}…</p>}
           <ul ref={lista} className="space-y-1.5" data-testid="encartes-lista">
-            {s.produtos.map((p, i) => <LinhaDoProduto key={p.id} p={p} s={s} destaque={i < destaques} aoTrocarFoto={() => { marcarVisto(p); setTrocando(p); }} atencao={motivoDe(p)} aoTocar={() => marcarVisto(p)} />)}
+            {s.produtos.map((p, i) => <LinhaDoProduto key={p.id} p={p} s={s} destaque={i < destaques} aoTrocarFoto={() => { marcarVisto(p); setTrocando(p); }} aoMaisFoto={() => setMaisFotoDe(p)} atencao={motivoDe(p)} aoTocar={() => marcarVisto(p)} />)}
           </ul>
         </>
       )}
       {trocando && <TrocarFoto produto={trocando} aoFechar={() => setTrocando(null)} aoEscolher={(img) => { const p = trocando; setTrocando(null); void s.trocarFoto(p, img); }} />}
+      {maisFotoDe && <TrocarFoto produto={maisFotoDe} aoFechar={() => setMaisFotoDe(null)} aoEscolher={(img) => { const p = maisFotoDe; setMaisFotoDe(null); void s.porFotoExtra(p, img); }} />}
       <GaleriaDeProdutos aberto={galeria} aoFechar={() => setGaleria(false)} aoAdicionar={s.adicionarPronto} />
     </section>
   );

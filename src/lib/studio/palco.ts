@@ -98,6 +98,22 @@ export function seloDoPreco(p: Pick<ProdutoTabloide, 'preco' | 'precoDe' | 'unid
   };
 }
 
+/** o produto como o palco usa (F-354: com as fotos a mais — verso ou variações) */
+export type ProdutoNoPalco = Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem' | 'imagensExtras'>;
+
+/**
+ * F-354 (pedido do dono, como no vídeo de referência): o produto com 2 ou 3 fotos (o verso, ou as variações — Semi, Integral,
+ * Desnatado) aparece com elas LADO A LADO, levemente sobrepostas, cada uma um elemento editável ('Produto', 'Produto 2',
+ * 'Produto 3'); com uma foto só, o produto aparece sozinho como sempre.
+ */
+export function camadasDoProduto(p: ProdutoNoPalco, b: Caixa, opcoes: Parameters<typeof imagem>[6], animacao: NonNullable<Camada['animacao']>): Camada[] {
+  const fotos = [p.imagem?.url ?? '', ...(p.imagensExtras ?? []).map((i) => i?.url).filter((u): u is string => !!u)].slice(0, 3);
+  if (fotos.length < 2) return [{ ...imagem('Produto', fotos[0] ?? '', b.x, b.y, b.w, b.h, opcoes), animacao }];
+  const n = fotos.length, sobrepoe = n === 2 ? 0.1 : 0.14;
+  const w = b.w / (n - (n - 1) * sobrepoe);
+  return fotos.map((src, k) => ({ ...imagem(k ? `Produto ${k + 1}` : 'Produto', src, b.x + k * w * (1 - sobrepoe), b.y, w, b.h, opcoes), animacao: { ...animacao, atraso: animacao.atraso + k * 0.08 } }));
+}
+
 /** Caixa em frações da largura/altura da tela (0 a 1). */
 export interface Caixa { x: number; y: number; w: number; h: number }
 /**
@@ -281,7 +297,7 @@ export function etiquetaDePreco(b: Caixa, p: Pick<ProdutoTabloide, 'preco' | 'pr
 }
 
 /** O produto em cima do palco do fundo oficial: nome em branco por cima, produto inteiro com o pé no tampo, etiqueta de preço. */
-function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, f: FundoDoPalco, o: OpcoesDoPalco): Documento {
+function palcoOficial(p: ProdutoNoPalco, formato: FormatoDoc, f: FundoDoPalco, o: OpcoesDoPalco): Documento {
   const { w: W, h: H } = TAMANHO_DOC[formato];
   const px = <T extends Caixa>(b: T): T => ({ ...b, x: b.x * W, y: b.y * H, w: b.w * W, h: b.h * H });
   const c: Camada[] = [];
@@ -306,7 +322,7 @@ function palcoOficial(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'u
   // produto: 'conter' (inteiro, sem cortar) e focoY 100 = o pé encosta no tampo do palco
   const pr = px(f.produto[formato]);
   const mov = o.movimento ?? {};
-  c.push({ ...imagem('Produto', p.imagem?.url ?? '', pr.x, pr.y, pr.w, pr.h, { ajuste: 'conter', focoX: 50, focoY: 100, sombra: null }), animacao: ani(mov.produto ?? 'subir', 0.25, 0.7, 'flutuar') });
+  c.push(...camadasDoProduto(p, pr, { ajuste: 'conter', focoX: 50, focoY: 100, sombra: null }, ani(mov.produto ?? 'subir', 0.25, 0.7, 'flutuar')));
   c.push({ ...nomeDoProduto(p.nome, px(f.nome_[formato])), animacao: ani(mov.nome ?? (formato === '9:16' ? 'descer' : 'esquerda'), 0.55, 0.55) });
   // F-239: balão AMARELO realista na lateral, pulsando — "POR"/"DE" em cima, R$ + valor + centavos no centro, unidade embaixo
   const s = f.preco[formato];
@@ -364,7 +380,7 @@ function comImpacto(d: Documento, o: OpcoesDoPalco): Documento {
     // F-319: com os efeitos REAIS, as chamas e a explosão desenhadas saem e entram as filmagens (comEfeitosReais)
     ...d, efeitos: { chamas: i.chamas && !i.reais, estrelas: i.estrelas, camera: i.camera, explosao: i.explosao && !i.reais },
     camadas: d.camadas.map((c) => {
-      if (c.nome === 'Produto' && !mov.produto) return { ...c, animacao: ani(lado, 0.15, 0.7, 'flutuar') };
+      if (/^Produto( [23])?$/.test(c.nome) && !mov.produto) return { ...c, animacao: ani(lado, 0.15 + (c.nome === 'Produto' ? 0 : Number(c.nome.slice(-1)) * 0.08), 0.7, 'flutuar') };
       if (c.nome === 'Preço' && !mov.preco) return { ...c, animacao: ani('estourar', 0.9, 0.5, 'pulsar') };
       return c;
     }),
@@ -412,7 +428,7 @@ function comEfeitosReais(d: Documento, formato: FormatoDoc, o: OpcoesDoPalco): D
   return { ...d, camadas };
 }
 
-export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, o: OpcoesDoPalco = {}): Documento {
+export function palcoDoProduto(p: ProdutoNoPalco, formato: FormatoDoc, o: OpcoesDoPalco = {}): Documento {
   if (o.fundo) return comEfeitosReais(comAjustes(comImpacto(palcoOficial(p, formato, o.fundo, o), o), formato, o, p.nome), formato, o);
   const { w: W, h: H } = TAMANHO_DOC[formato];
   const em = formato === '9:16';
@@ -460,8 +476,9 @@ export function palcoDoProduto(p: Pick<ProdutoTabloide, 'nome' | 'preco' | 'prec
 
   // o produto (foto inteira, recortada) em cima do pedestal: entra com zoom e fica flutuando
   const prodW = em ? W * 0.62 : W * 0.32, prodH = em ? H * 0.34 : H * 0.5;
-  const fotoProduto = p.imagem?.url ?? '';
-  c.push({ ...imagem('Produto', fotoProduto, px - prodW / 2, py - prodH + tampo * 0.35, prodW, prodH, { ajuste: 'conter', sombra: null }), animacao: ani('zoom', 0.45, 0.7, 'flutuar') });
+  // F-354: com verso/variações, as fotos lado a lado (a caixa alarga um pouco para caberem)
+  const largo = (p.imagensExtras?.length ?? 0) > 0 ? Math.min(W * 0.92, prodW * 1.45) : prodW;
+  c.push(...camadasDoProduto(p, { x: px - largo / 2, y: py - prodH + tampo * 0.35, w: largo, h: prodH }, { ajuste: 'conter', sombra: null }, ani('zoom', 0.45, 0.7, 'flutuar')));
 
   // nome do produto e preço
   const nome = texto('Nome do produto', p.nome, 0, 0, em ? W * 0.86 : W * 0.4, {
@@ -500,7 +517,7 @@ function fraseDeImpacto(nome: string, frase: string, b: Caixa, cor: string): Cam
  * P-34: ABERTURA e FECHAMENTO do vídeo (como no concorrente de vídeo com IA): o mesmo palco, sem produto, com a logo chegando
  * gigante e a frase estourando no meio ("{LOJA} OFERTAS IMPERDÍVEIS" / "APROVEITE!"). Tudo editável no painel de impacto.
  */
-export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>, formato: FormatoDoc, o: OpcoesDoPalco, segundos: number): Documento {
+export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: ProdutoNoPalco, formato: FormatoDoc, o: OpcoesDoPalco, segundos: number): Documento {
   const i = impactoDoPalco(o);
   const d = palcoDoProduto(base, formato, { ...o, segundos });
   const { w: W, h: H } = TAMANHO_DOC[formato];
@@ -582,7 +599,7 @@ export function vinhetaDoPalco(tipo: 'abertura' | 'fechamento', base: Pick<Produ
 }
 
 /** O CARROSSEL: um clipe por produto (nome e preço de cada vez), deslizando de um para o outro. */
-export function projetoDoCarrossel(produtos: Array<Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>>, formato: FormatoDoc, o: OpcoesDoPalco = {}): ProjetoDeVideo {
+export function projetoDoCarrossel(produtos: Array<ProdutoNoPalco>, formato: FormatoDoc, o: OpcoesDoPalco = {}): ProjetoDeVideo {
   const seg = o.segundos ?? SEGUNDOS_POR_PRODUTO;
   const montado = comLocucao(produtos, formato, o, seg);
   const i = impactoDoPalco(o);
@@ -632,7 +649,7 @@ function sonsDoVideo(p: ProjetoDeVideo, i: ImpactoResolvido): SomNoVideo[] {
  * F-300: os clipes do carrossel e, com LOCUÇÃO, as falas na linha do tempo: o 1º produto começa com a abertura, cada
  * produto fica no ar o tempo da fala dele (nunca menos que `seg`) e o último termina com o fechamento.
  */
-function comLocucao(produtos: Array<Pick<ProdutoTabloide, 'nome' | 'preco' | 'precoDe' | 'unidade' | 'imagem'>>, formato: FormatoDoc, o: OpcoesDoPalco, seg: number): Pick<ProjetoDeVideo, 'clipes' | 'audios'> {
+function comLocucao(produtos: Array<ProdutoNoPalco>, formato: FormatoDoc, o: OpcoesDoPalco, seg: number): Pick<ProjetoDeVideo, 'clipes' | 'audios'> {
   const l = o.locucao;
   const PAUSA = 0.35, FOLGA = 1.2;
   // P-34: com as vinhetas, a fala de abertura vai na ABERTURA e a de fechamento no FECHAMENTO (como no concorrente)
