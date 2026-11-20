@@ -109,7 +109,9 @@ async function passaFoto(req, env) {
       // cota ou falha da transformação: entrega a original (o corpo já foi lido, então busca de novo)
       const de = await buscar();
       if (!de?.ok) return new Response('a foto não carregou', { status: 502, headers: CORS });
-      return new Response(de.body, { status: 200, headers: { ...cabecalhos, 'Content-Type': tipo, 'X-Passa-Foto': 'original' } });
+      // F-351: a original (COM fundo) nunca fica guardada 30 dias: assim que a cota voltar, a foto sem fundo chega (o site tira o
+      // fundo no aparelho enquanto isso — src/lib/studio/desenhar.ts, produtoSemFundo)
+      return new Response(de.body, { status: 200, headers: { ...cabecalhos, 'Cache-Control': 'public, max-age=3600', 'Content-Type': tipo, 'X-Passa-Foto': 'original' } });
     }
   }
   return new Response(origem.body, { status: 200, headers: { ...cabecalhos, 'Content-Type': tipo } });

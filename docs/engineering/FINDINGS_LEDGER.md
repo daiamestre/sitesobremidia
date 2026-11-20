@@ -4049,3 +4049,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Blindagem:**
   - `blindagemFundoDoVideo350.test.ts` (6 testes): todos os modelos, formatos e cenas; fundo trocado; misturas seguras; ponte; prova do WebGL; retry da imagem;
   - `publicar-main.mjs` roda `TESTES_DO_VIDEO` quando o envio mexe no Studio e bloqueia se falhar.
+
+### F-351 — Produtos com fundo branco nas artes (cota da Cloudflare esgotada) (20/11/2026)
+- **Sintoma:** fotos de produto com fundo branco nas capas, palcos e vídeos.
+- **Causa:**
+  - `passaFoto` (`cloudflare/tabloide-ia/worker.js`): sem cota de transformações, cai no `catch` e devolve a original (`X-Passa-Foto: original`) com `max-age=2592000, immutable`;
+  - o recorte no navegador (F-275, `prepararImagem`) só rodava ao adicionar o produto no editor, não no desenho das artes.
+- **Correção:**
+  - `carregarImagem` → `produtoSemFundo`: se `pedeSemFundo(src)` e a borda da foto é opaca (`temFundo`), roda `semFundoNoNavegador(linkSemTransformacao(src), 1400, caixaDoLink(src))` e depois `finalizarRecorte`. Guarda o PNG no Cache Storage, com fila de um recorte por vez;
+  - um defeito no cache foi pego no teste: na segunda chamada devolvia a original. Corrigido com `if (p) return p`;
+  - worker: a original sai com `max-age=3600`.
+- **Prova:** 14/16 fotos aleatórias recortadas no navegador, inclusive embalagens brancas, sem morder a embalagem; a segunda vez sai do cache em ms.
+- **Teste:** `produtoSemFundo351.test.ts`, que entra na blindagem do `publicar-main`.

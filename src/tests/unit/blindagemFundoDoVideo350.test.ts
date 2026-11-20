@@ -57,6 +57,19 @@ describe('F-350: blindagem — o fundo do vídeo nunca sai preto', () => {
     }
   });
 
+  it('o "Palco desenhado" (sem imagem de fundo): o degradê vermelho fica por baixo e nada opaco o cobre', () => {
+    for (const formato of FORMATOS) {
+      const o: OpcoesDoPalco = { fundo: null, titulo: 'SUPER OFERTAS', loja: 'Mercado Teste', movimento: {} };
+      const d = palcoDoProduto(produtos[0], formato, o);
+      conferirFundo(d, `desenhado ${formato} produto`);
+      const f = d.camadas.find((c) => c.nome === 'Fundo');
+      expect(f?.tipo).toBe('forma');
+      expect(d.camadas.some((c) => c.tipo === 'efeito')).toBe(true); // as brasas estão lá — por isso a ponte é obrigatória
+      const p = projetoDoCarrossel(produtos, formato, o);
+      for (const doc of p.clipes.map((c) => c.documento).filter(Boolean) as Documento[]) conferirFundo(doc, `desenhado ${formato} cena do vídeo`);
+    }
+  });
+
   it('o vídeo montado (todas as cenas da linha do tempo) leva o fundo, e o fundo TROCADO pelo cliente chega a todas', () => {
     for (const fundo of FUNDOS_DO_PALCO.slice(0, 6)) for (const formato of FORMATOS) {
       const outro = FUNDOS_DO_PALCO.find((f) => f.id !== fundo.id)!;

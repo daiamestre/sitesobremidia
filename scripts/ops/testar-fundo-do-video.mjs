@@ -15,6 +15,8 @@ const LIMITE_DE_PRETO = { previa: 0.2, video: 0.3 };
 const CASOS = [
   { pasta: 'palco-de-ofertas', modelo: 'alerta-de-oferta', trocarPara: 3 },
   { pasta: 'palco-de-ofertas-farmacia', modelo: 'saude-em-oferta', trocarPara: 1 },
+  // o Palco desenhado: o fundo é um degradê vermelho (sem imagem) — no iPhone ele ficava preto (F-350)
+  { pasta: 'palco-de-ofertas', modelo: '', trocarPara: null },
 ];
 
 const sessao = spawn('node', ['scripts/ops/sessao-teste.mjs', 'e2e-owner@sobremidia.com.br', URL], { stdio: 'ignore' });
@@ -68,18 +70,28 @@ for (const [nome, motor, aparelho] of [['Chrome', chromium, { viewport: { width:
       await el.scrollIntoViewIfNeeded(); await p.waitForTimeout(1500);
       const f = await fracaoDePreto(p, await el.screenshot());
       const ok = f <= (rotulo.startsWith('vídeo') ? LIMITE_DE_PRETO.video : LIMITE_DE_PRETO.previa);
-      console.log(`${ok ? 'OK ' : 'ERRO'} ${nome.padEnd(14)} ${caso.modelo.padEnd(18)} ${rotulo.padEnd(22)} preto ${(f * 100).toFixed(1)}%`);
+      console.log(`${ok ? 'OK ' : 'ERRO'} ${nome.padEnd(14)} ${(caso.modelo || 'palco-desenhado').padEnd(18)} ${rotulo.padEnd(22)} preto ${(f * 100).toFixed(1)}%`);
       if (!ok) falhas.push(`${nome} ${caso.modelo} ${rotulo}: ${(f * 100).toFixed(1)}% preto`);
     };
     try {
       await p.goto(URL + '/'); await p.waitForTimeout(1500);
       await p.evaluate(([k, v]) => localStorage.setItem(k, v), [ses.key, JSON.stringify(ses.session)]);
+      // a tela de ESCOLHA dos modelos: toda capa com o seu fundo
+      if (caso === CASOS[0]) {
+        await p.goto(`${URL}/studio/pasta/${caso.pasta}`, { waitUntil: 'domcontentloaded' });
+        await p.waitForSelector('[data-testid=palco-carrossel]', { timeout: 90000 }); await p.waitForTimeout(5000);
+        const capas = await p.$$('[data-testid=palco-carrossel]');
+        for (let k = 0; k < capas.length; k++) await medir(`escolha · capa ${k + 1}`, `:nth-match([data-testid=palco-carrossel], ${k + 1})`);
+      }
       await p.goto(`${URL}/studio/pasta/${caso.pasta}?modelo=${caso.modelo}&assistente=1&passo=1`, { waitUntil: 'domcontentloaded' });
-      await p.waitForSelector('[data-testid=fundo-opcao]', { timeout: 90000 }); await p.waitForTimeout(2500);
+      await p.waitForSelector(caso.trocarPara == null ? '[data-testid=assistente-previa]' : '[data-testid=fundo-opcao]', { timeout: 90000 }); await p.waitForTimeout(2500);
       await medir('1 · fundo do modelo', '[data-testid=assistente-previa]');
-      const ops = await p.$$('[data-testid=fundo-opcao]');
-      await ops[caso.trocarPara].scrollIntoViewIfNeeded(); await ops[caso.trocarPara].click(); await p.waitForTimeout(3000);
-      await medir('1 · fundo trocado', '[data-testid=assistente-previa]');
+      if (caso.trocarPara != null) {
+        await p.waitForFunction((n) => document.querySelectorAll('[data-testid=fundo-opcao]').length > n, caso.trocarPara, { timeout: 30000 });
+        const ops = await p.$$('[data-testid=fundo-opcao]');
+        await ops[caso.trocarPara].scrollIntoViewIfNeeded(); await ops[caso.trocarPara].click(); await p.waitForTimeout(3000);
+        await medir('1 · fundo trocado', '[data-testid=assistente-previa]');
+      }
       for (let n = 0; n < 3; n++) { await p.click('[data-testid=assistente-avancar]'); await p.waitForTimeout(2500); }
       await p.waitForTimeout(4000); // efeitos (brasas, fogo) já tocando
       await medir('4 · edição do vídeo', '[data-testid=assistente-previa]');

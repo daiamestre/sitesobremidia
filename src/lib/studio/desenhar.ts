@@ -9,12 +9,79 @@ import {
 import { duracaoDoVideo, estadoNoTempo } from './animacao';
 import { logoParaImagem } from './logo3d';
 import { desenharEfeito, prepararEfeitos } from './efeitosReais';
+import { finalizarRecorte, semFundoNoNavegador } from '../tabloide/recorte';
+import { caixaDoLink, linkSemTransformacao, pedeSemFundo } from '../tabloide/fotoPorLink';
 import { aplicarCamera, desenharChamas, desenharEstrelas, desenharExplosaoAtras, desenharExplosaoFrente, desenharFogoNaLogo, desenharQuebraAtras, desenharQuebraFrente, indiceDoFundo, instanteDoImpacto, tremorDoImpacto } from './efeitosDeImpacto';
 
 export type Imagens = Map<string, HTMLImageElement>;
 
+/**
+ * F-351 (ordem do dono: "não quero fundo nos produtos"): a foto do produto que pede SEM FUNDO (link do passa-foto com s=1) e
+ * chegou COM fundo — a cota grátis do mês da Cloudflare acabou e ela devolve a original — tem o fundo tirado AQUI, no aparelho,
+ * antes de ir para qualquer arte (prévia, capa, palco, encarte, vídeo). Fundo liso na hora, com a MESMA inspeção do recorte da
+ * nuvem (finalizarRecorte): recorte reprovado não é usado. O resultado fica guardado no aparelho (Cache Storage).
+ */
+const GUARDA_SEM_FUNDO = 'sm-produto-sem-fundo-v1';
+async function recorteGuardado(src: string): Promise<Blob | null> {
+  try { const c = await caches.open(GUARDA_SEM_FUNDO); const r = await c.match(src); return r ? await r.blob() : null; } catch { return null; }
+}
+async function guardarRecorte(src: string, png: Blob) {
+  try { const c = await caches.open(GUARDA_SEM_FUNDO); await c.put(src, new Response(png, { headers: { 'Content-Type': 'image/png' } })); } catch { /* sem guarda: refaz na próxima */ }
+}
+const imagemDoBlob = (png: Blob) => new Promise<HTMLImageElement | null>((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = URL.createObjectURL(png); });
+/** a foto tem fundo de verdade? (borda opaca — a recortada tem a borda transparente) */
+function temFundo(img: HTMLImageElement): boolean {
+  try {
+    const lado = 64, k = lado / Math.max(img.naturalWidth, img.naturalHeight);
+    const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true }); if (!x) return false;
+    x.drawImage(img, 0, 0, w, h);
+    const d = x.getImageData(0, 0, w, h).data;
+    let opacos = 0, total = 0;
+    const ver = (px: number, py: number) => { total++; if (d[(py * w + px) * 4 + 3] > 240) opacos++; };
+    for (let px = 0; px < w; px++) { ver(px, 0); ver(px, h - 1); }
+    for (let py = 0; py < h; py++) { ver(0, py); ver(w - 1, py); }
+    return opacos / total > 0.6;
+  } catch { return false; }
+}
+// um recorte por vez: o tablet/celular não trava com vários produtos chegando juntos
+let filaDeRecortes: Promise<unknown> = Promise.resolve();
+export async function produtoSemFundo(src: string, img: HTMLImageElement): Promise<HTMLImageElement> {
+  if (!pedeSemFundo(src) || !temFundo(img)) return img;
+  const guardado = await recorteGuardado(src);
+  if (guardado) return (await imagemDoBlob(guardado)) ?? img;
+  const vez = filaDeRecortes.then(async () => {
+    const original = linkSemTransformacao(src);
+    const bruto = await semFundoNoNavegador(original, 1400, caixaDoLink(src));
+    if (!bruto) return null;
+    const { png } = await finalizarRecorte(original, bruto);
+    return png;
+  }).catch(() => null);
+  filaDeRecortes = vez;
+  const png = await vez;
+  if (!png) return img;
+  void guardarRecorte(src, png);
+  return (await imagemDoBlob(png)) ?? img;
+}
+
 const cache = new Map<string, Promise<HTMLImageElement | null>>();
 export function carregarImagem(src: string): Promise<HTMLImageElement | null> {
+  let p = cache.get(src);
+  if (p) return p;
+  // F-351: produto que pediu "sem fundo" e chegou com fundo: o fundo sai aqui, antes de qualquer arte
+  if (pedeSemFundo(src)) {
+    p = carregarImagemSimples(src).then((i) => (i ? produtoSemFundo(src, i) : null));
+    cache.set(src, p);
+    void p.then((i) => { if (!i) cache.delete(src); });
+    return p;
+  }
+  return carregarImagemSimples(src);
+}
+
+const cacheSimples = new Map<string, Promise<HTMLImageElement | null>>();
+function carregarImagemSimples(src: string): Promise<HTMLImageElement | null> {
+  const cache = cacheSimples;
   let p = cache.get(src);
   // F-317: logo 3D de campanha desenhado na hora (o documento guarda a receita, não um arquivo)
   if (!p && src.startsWith('logo3d:')) {

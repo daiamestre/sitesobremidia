@@ -77,6 +77,14 @@ O histórico completo de F-01 a F-259 está em `docs/engineering/FINDINGS_LEDGER
 
 > **P-34 fase 2 (16/11/2026):** ✅ NO AR — F-317 (logos 3D de campanha caindo do céu, quebrando a parede e pegando fogo; faixa Alerta de Oferta para a direita; sem "YOUR LOGO"), F-318 (locutor no estilo impacto: "Só essa semana, preço baixo é aqui!") e **F-319: EFEITOS REAIS** — 14 filmagens gratuitas do Pixabay (explosões, bola de fogo, fogo subindo, parede e linha de fogo, brasas, fumaça, raio, vidro rachando e estilhaçando, confete) em `public/studio/efeitos/`, aplicadas com recorte do preto pela placa de vídeo (WebGL), bordas esfumadas e explosão em elipse; cada efeito é um elemento editável (cartão "Efeito": trocar pela galeria, começo, laço, velocidade, recorte/luz/luz forte, espelhar); o MP4 lê os quadros dos efeitos em sequência pelo WebCodecs (`video/decodificarEfeito.ts`). Botão "Efeitos reais" no painel de impacto (padrão ligado). Ficha das licenças: `docs/licencas/EFEITOS_PIXABAY.md`.
 
+> **F-351 (20/11/2026): produtos SEM FUNDO em toda arte (ordem do dono).**
+> - **Causa:** 61.761 fotos do catálogo vêm pelo passa-foto com `s=1` (a Cloudflare tira o fundo). A cota grátis do mês das transformações acabou, e o passa-foto devolvia a foto ORIGINAL (`X-Passa-Foto: original`), com fundo branco, guardada 30 dias. O site só tirava o fundo ao adicionar o produto no editor; capas, palcos, prévias e vídeos desenhavam a original.
+> - **Correção:**
+>   - `carregarImagem` (`src/lib/studio/desenhar.ts`, por onde passa toda arte): foto que pede sem fundo e chegou com fundo tem o fundo liso tirado no aparelho, com a mesma inspeção da nuvem (`finalizarRecorte`). O resultado fica guardado no aparelho (Cache Storage `sm-produto-sem-fundo-v1`), um recorte por vez;
+>   - o passa-foto guarda a original só 1 h.
+> - **Amostra real:** 14 de 16 fotos aleatórias do catálogo recortadas (uma já vinha sem fundo, uma não carregou na origem), inclusive embalagens brancas.
+> - **Pendente:** fotos com fundo NÃO liso (cenário) continuam com fundo até a cota voltar. Gravar recortes definitivos no R2 para todo o catálogo ocupa cerca de 9 GB dos 10 GB grátis: decisão do dono.
+
 > **F-350 (20/11/2026): fundo PRETO no vídeo feito no iPhone, corrigido e BLINDADO.**
 > - **Causa:** as brasas (filmagem de fundo preto na tela inteira, logo acima do fundo) são misturadas no modo "clarear"; o Safari do iPhone ignora a mistura ao desenhar um vídeo no canvas e a filmagem cobria o fundo de preto. Os produtos continuavam aparecendo.
 > - **Correção:** em todo navegador o quadro do vídeo passa por uma tela comum (a "ponte") antes da mistura; o recorte do preto pela placa de vídeo (WebGL) só é usado se provar que o preto fica transparente.
