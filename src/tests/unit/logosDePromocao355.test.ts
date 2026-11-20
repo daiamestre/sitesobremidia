@@ -1,7 +1,7 @@
 /**
  * F-355 (pedido do dono, 20/11/2026) — as logos de promoção que o dono manda entram na galeria de logos do Studio
  * (o "Trocar logo" da criação de vídeo, dos palcos e dos encartes) para TODOS os usuários, com miniatura.
- * REGRA DO DONO: a logo entra EXATAMENTE como ele mandou (o fundo dela fica); só sai o fundo quando ele pede (--sem-fundo).
+ * REGRA DO DONO: a logo entra EXATAMENTE como ele mandou, o mesmo arquivo, sem recorte nem mudança, em NENHUMA logo.
  */
 import fs from 'node:fs';
 import sharp from 'sharp';
@@ -14,7 +14,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: vi.fn(), rp
 
 describe('F-355: logos de promoção do dono na galeria', () => {
   it('a lista bate com o manifesto e cada logo existe, com miniatura, como o dono mandou', async () => {
-    const manifesto = JSON.parse(fs.readFileSync('public/studio/logos/promocao/lista.json', 'utf8')) as Array<{ id: string; semFundo?: boolean; largura: number; altura: number }>;
+    const manifesto = JSON.parse(fs.readFileSync('public/studio/logos/promocao/lista.json', 'utf8')) as Array<{ id: string; largura: number; altura: number }>;
     expect(LOGOS_DE_PROMOCAO.map((l) => l.id)).toEqual(manifesto.map((m) => `promocao-${m.id}`));
     expect(LOGOS_DE_PROMOCAO.length).toBeGreaterThan(0);
     for (const l of LOGOS_DE_PROMOCAO) {
@@ -22,18 +22,20 @@ describe('F-355: logos de promoção do dono na galeria', () => {
       const m = await sharp(`public${l.url}`).metadata();
       expect({ w: m.width, h: m.height }, l.id).toEqual({ w: l.largura, h: l.altura });
       expect(fs.existsSync(`public${l.miniatura}`), l.id).toBe(true);
-      if (!item.semFundo) {
-        // como o dono mandou: o MESMO arquivo, byte por byte
-        const orig = `../logos-de-promocao-originais/${item.id}${l.url.slice(l.url.lastIndexOf('.'))}`;
-        if (fs.existsSync(orig)) expect(fs.readFileSync(`public${l.url}`).equals(fs.readFileSync(orig)), l.id).toBe(true);
-        expect(l.url, l.id).toMatch(/-[0-9a-f]{8}\.[a-z]+$/); // nome novo a cada troca: o aparelho nunca mostra a versão antiga
-        continue;
-      }
-      // pedido sem fundo: os cantos são transparentes
-      const { data, info } = await sharp(`public${l.url}`).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      const alfa = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
-      expect([alfa(0, 0), alfa(info.width - 1, 0), alfa(0, info.height - 1), alfa(info.width - 1, info.height - 1)], l.id).toEqual([0, 0, 0, 0]);
+      // REGRA DO DONO: o MESMO arquivo que ele mandou, byte por byte (nada recortado, nada mudado, por fora ou por dentro)
+      const orig = `../logos-de-promocao-originais/${item.id}${l.url.slice(l.url.lastIndexOf('.'))}`;
+      if (fs.existsSync(orig)) expect(fs.readFileSync(`public${l.url}`).equals(fs.readFileSync(orig)), l.id).toBe(true);
+      expect(l.url, l.id).toMatch(/-[0-9a-f]{8}\.[a-z]+$/); // nome novo a cada troca: o aparelho nunca mostra a versão antiga
+      // o nome traz a marca do próprio conteúdo: se alguém mexer no arquivo, a marca não bate
+      const { createHash } = await import('node:crypto');
+      expect(l.url, l.id).toContain(createHash('sha256').update(fs.readFileSync(`public${l.url}`)).digest('hex').slice(0, 8));
     }
+  });
+  it('a receita não recorta nem muda a logo (nenhuma IA de recorte, nenhum ajuste de cor)', () => {
+    const r = fs.readFileSync('scripts/studio/logos-de-promocao.mjs', 'utf8');
+    expect(r).not.toMatch(/BiRefNet|mascara|sem-fundo|trim\(|removeAlpha/);
+    expect(r).toContain('fs.writeFileSync(`${PASTA}/${nomeArq}`, original)');
+    expect(fs.existsSync('scripts/studio/tirar-preto-da-logo.mjs')).toBe(false);
   });
   it('a escolha guardada antes (endereço antigo) volta na versão atual', () => {
     const l = LOGOS_DE_PROMOCAO[0];

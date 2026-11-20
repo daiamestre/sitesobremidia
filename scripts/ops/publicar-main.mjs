@@ -45,6 +45,7 @@ export const TESTES_DO_VIDEO = [
   'src/tests/unit/produtoSemFundo351.test.ts',
   'src/tests/unit/videoSemCenaVazia352.test.ts',
   'src/tests/unit/padraoDeVideo353.test.ts',
+  'src/tests/unit/logosDePromocao355.test.ts', // F-355: logo do dono publicada idêntica ao arquivo dele
   'src/tests/unit/assistenteDeCriacao306.test.ts',
   'src/tests/unit/videoPassoAPasso349.test.ts',
   'src/tests/unit/videoComImpacto34.test.ts',

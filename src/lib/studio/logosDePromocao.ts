@@ -3,5 +3,5 @@
 import type { LogoDaPasta } from './logos';
 
 export const LOGOS_DE_PROMOCAO: LogoDaPasta[] = [
-  { id: 'promocao-oferta-do-dia', nome: "Oferta do Dia!", url: '/studio/logos/promocao/oferta-do-dia-27e39f10.png', miniatura: '/studio/logos/promocao/oferta-do-dia-27e39f10-mini.webp', largura: 1536, altura: 1024, oficial: true },
+  { id: 'promocao-oferta-do-dia', nome: "Oferta do Dia!", url: '/studio/logos/promocao/oferta-do-dia-c4332d5c.png', miniatura: '/studio/logos/promocao/oferta-do-dia-c4332d5c-mini.webp', largura: 1536, altura: 1024, oficial: true },
 ];
