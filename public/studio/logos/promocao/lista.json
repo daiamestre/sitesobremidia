@@ -1,5 +1,13 @@
 [
   {
+    "id": "ofertas-do-dia-verde",
+    "nome": "Ofertas do Dia (verde)",
+    "arquivo": "ofertas-do-dia-verde-3feb6aae.png",
+    "mini": "ofertas-do-dia-verde-3feb6aae-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
     "id": "semana-das-ofertas",
     "nome": "Semana das Ofertas",
     "arquivo": "semana-das-ofertas-fc0948f5.png",
