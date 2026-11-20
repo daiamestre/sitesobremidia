@@ -28,7 +28,12 @@ function lerTudo(): Record<string, LogoDaPasta> {
   try { return JSON.parse(localStorage.getItem(CHAVE) ?? '{}') as Record<string, LogoDaPasta>; } catch { return {}; }
 }
 /** A logo escolhida para um encarte (null = a logo padrão dele). */
-export const lerLogoDoEncarte = (encarteId: string): LogoDaPasta | null => lerTudo()[encarteId] ?? null;
+/** F-355: uma logo oficial guardada antes volta sempre na versão ATUAL (o endereço muda quando o dono troca o arquivo) */
+export function logoAtualizada(l: LogoDaPasta): LogoDaPasta {
+  const promo = /\/studio\/logos\/promocao\/([a-z0-9-]+?)(?:-[0-9a-f]{8})?(?:-mini)?\.[a-z]+$/.exec(l.url)?.[1];
+  return LOGOS_OFICIAIS.find((o) => o.id === l.id || (promo && o.id === `promocao-${promo}`)) ?? l;
+}
+export const lerLogoDoEncarte = (encarteId: string): LogoDaPasta | null => { const l = lerTudo()[encarteId]; return l ? logoAtualizada(l) : null; };
 export function gravarLogoDoEncarte(encarteId: string, logo: LogoDaPasta | null) {
   const t = lerTudo();
   if (logo) t[encarteId] = logo; else delete t[encarteId];

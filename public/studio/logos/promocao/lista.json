@@ -2,6 +2,8 @@
   {
     "id": "oferta-do-dia",
     "nome": "Oferta do Dia!",
+    "arquivo": "oferta-do-dia-c4332d5c.png",
+    "mini": "oferta-do-dia-c4332d5c-mini.webp",
     "largura": 1536,
     "altura": 1024,
     "semFundo": false

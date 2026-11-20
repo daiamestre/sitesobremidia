@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import sharp from 'sharp';
 import { describe, expect, it, vi } from 'vitest';
 import { LOGOS_DE_PROMOCAO } from '@/lib/studio/logosDePromocao';
-import { LOGOS_OFICIAIS, logosDaPasta } from '@/lib/studio/logos';
+import { LOGOS_OFICIAIS, gravarLogoDoEncarte, lerLogoDoEncarte, logosDaPasta } from '@/lib/studio/logos';
 import { FUNDOS_DO_PALCO, projetoDoCarrossel } from '@/lib/studio/palco';
 
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: vi.fn(), rpc: vi.fn(), functions: { invoke: vi.fn() } } }));
@@ -23,9 +23,10 @@ describe('F-355: logos de promoção do dono na galeria', () => {
       expect({ w: m.width, h: m.height }, l.id).toEqual({ w: l.largura, h: l.altura });
       expect(fs.existsSync(`public${l.miniatura}`), l.id).toBe(true);
       if (!item.semFundo) {
-        // como o dono mandou: do tamanho do original, com o fundo dele (sem transparência nos cantos)
-        const o = await sharp(`../logos-de-promocao-originais/${item.id}.png`).metadata().catch(() => null);
-        if (o) expect({ w: o.width, h: o.height }, l.id).toEqual({ w: l.largura, h: l.altura });
+        // como o dono mandou: o MESMO arquivo, byte por byte
+        const orig = `../logos-de-promocao-originais/${item.id}${l.url.slice(l.url.lastIndexOf('.'))}`;
+        if (fs.existsSync(orig)) expect(fs.readFileSync(`public${l.url}`).equals(fs.readFileSync(orig)), l.id).toBe(true);
+        expect(l.url, l.id).toMatch(/-[0-9a-f]{8}\.[a-z]+$/); // nome novo a cada troca: o aparelho nunca mostra a versão antiga
         continue;
       }
       // pedido sem fundo: os cantos são transparentes
@@ -33,6 +34,13 @@ describe('F-355: logos de promoção do dono na galeria', () => {
       const alfa = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
       expect([alfa(0, 0), alfa(info.width - 1, 0), alfa(0, info.height - 1), alfa(info.width - 1, info.height - 1)], l.id).toEqual([0, 0, 0, 0]);
     }
+  });
+  it('a escolha guardada antes (endereço antigo) volta na versão atual', () => {
+    const l = LOGOS_DE_PROMOCAO[0];
+    const antigo = l.url.replace(/-[0-9a-f]{8}(\.[a-z]+)$/, '.webp');
+    gravarLogoDoEncarte('palco-x', { ...l, id: 'velho', url: antigo });
+    expect(lerLogoDoEncarte('palco-x')?.url).toBe(l.url);
+    gravarLogoDoEncarte('palco-x', null);
   });
   it('aparecem para todos, primeiro na galeria (oficiais), e servem de logo do início do vídeo', () => {
     expect(LOGOS_OFICIAIS.slice(0, LOGOS_DE_PROMOCAO.length)).toEqual(LOGOS_DE_PROMOCAO);
