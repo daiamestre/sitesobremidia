@@ -19,7 +19,7 @@ describe('logos oficiais', () => {
     for (const l of LOGOS_OFICIAIS) {
       const m = await sharp(`public${l.url}`).metadata();
       expect({ w: m.width, h: m.height, alfa: m.hasAlpha }, l.id).toEqual({ w: l.largura, h: l.altura, alfa: true });
-      expect(m.width, l.id).toBeGreaterThanOrEqual(1400);
+      expect(m.width, l.id).toBeGreaterThanOrEqual(l.id.startsWith('promocao-') ? 1000 : 1400); // F-355: as de promoção vêm no tamanho que o dono mandou
     }
   });
   it('a pasta junta as oficiais com as da biblioteca', () => {

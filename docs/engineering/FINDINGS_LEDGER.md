@@ -4089,3 +4089,8 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Lista de produtos:** `porFotoExtra` (`prepararFotoDoProduto`: sem fundo) e `tirarFotoExtra`; botão "+foto" e miniaturas na linha do produto.
 - **Palco:** `camadasDoProduto` monta 1 a 3 fotos na caixa do produto, com 10 a 14% de sobreposição e entrada em sequência (0,08 s). Vale no palco oficial e no desenhado; o impacto anima as três.
 - **Teste:** `padraoDeVideo353.test.ts` (bloco F-354).
+
+### F-355 — Logos de promoção do dono na galeria do Studio (20/11/2026)
+- **Receita:** `scripts/studio/logos-de-promocao.mjs`. Recorta com BiRefNet_lite-ONNX 1024, só com o modelo já guardado (`../modelos-ia`, sem baixar nada), com máscara de borda suave e corte das sobras. Grava `public/studio/logos/promocao/<id>.webp`, `<id>-mini.webp` e `lista.json`, e gera `src/lib/studio/logosDePromocao.ts`.
+- **Galeria:** `LOGOS_OFICIAIS = [...LOGOS_DE_PROMOCAO, ...]`, que aparece no EscolherLogo de todos os usuários.
+- **Testes:** `logosDePromocao355.test.ts` (manifesto = lista, alfa nos cantos, miniatura, logo do início do vídeo); `studioLogos248` aceita largura ≥ 1000 nas de promoção.

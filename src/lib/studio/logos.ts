@@ -3,6 +3,7 @@
 // padrão e o cliente pode trocar por qualquer logo da pasta: a escolha fica guardada por encarte, neste navegador.
 import { logosDoCabecalho, type Selo } from '@/lib/tabloide/selos';
 import { SEGMENTOS_DE_OFERTA, logoDoSegmento, type SegmentoNovo } from './segmentosDeOferta';
+import { LOGOS_DE_PROMOCAO } from './logosDePromocao';
 
 export interface LogoDaPasta { id: string; nome: string; url: string; largura: number; altura: number; oficial?: boolean; /** dono na biblioteca (a própria pessoa pode tirar) */ dono?: string | null; miniatura?: string | null }
 
@@ -14,7 +15,8 @@ export const LOGO_OFERTAS_DE_FARMACIA: LogoDaPasta = { id: 'oficial-ofertas-de-f
 /** Logo oficial nova do dono = o arquivo em scripts/studio/preparar-logos.mjs e uma entrada aqui. */
 /** F-277: a logo de cada segmento (padaria, adega, açougue...), gerada em scripts/studio/gerar-segmentos.mjs */
 export const logoOficialDoSegmento = (s: SegmentoNovo): LogoDaPasta => ({ id: `oficial-ofertas-${s}`, nome: `Ofertas – ${SEGMENTOS_DE_OFERTA.find((x) => x.id === s)?.nome ?? s}`, url: logoDoSegmento(s), largura: 1500, altura: 1050, oficial: true });
-export const LOGOS_OFICIAIS: LogoDaPasta[] = [LOGO_MEGA_OFERTA, LOGO_SEMANA_DO_FRANGO, LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, ...SEGMENTOS_DE_OFERTA.map((x) => logoOficialDoSegmento(x.id))];
+/** F-355: as logos de promoção enviadas pelo dono vêm primeiro (scripts/studio/logos-de-promocao.mjs) e aparecem para todos */
+export const LOGOS_OFICIAIS: LogoDaPasta[] = [...LOGOS_DE_PROMOCAO, LOGO_MEGA_OFERTA, LOGO_SEMANA_DO_FRANGO, LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, ...SEGMENTOS_DE_OFERTA.map((x) => logoOficialDoSegmento(x.id))];
 
 export const logosDaPasta = (selos: Selo[] | null): LogoDaPasta[] => [
   ...LOGOS_OFICIAIS,
